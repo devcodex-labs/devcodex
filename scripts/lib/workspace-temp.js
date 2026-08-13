@@ -172,7 +172,7 @@ function findWorkspaceTempRootForPath(targetPath) {
     ) {
       const relative = path.relative(current, target)
       const partition = relative.split(path.sep).filter(Boolean)[0]
-      return ARTIFACT_PARTITIONS.includes(partition) ? current : null
+      if (ARTIFACT_PARTITIONS.includes(partition)) return current
     }
     const parent = path.dirname(current)
     if (parent === current) return null

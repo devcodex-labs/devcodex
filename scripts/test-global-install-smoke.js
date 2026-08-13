@@ -37,6 +37,19 @@ fs.mkdirSync(workspaceHome, { recursive: true })
 fs.mkdirSync(globalPrefix, { recursive: true })
 fs.mkdirSync(workspace, { recursive: true })
 
+fs.mkdirSync(path.join(globalHome, '.codex'), { recursive: true })
+fs.writeFileSync(path.join(globalHome, '.codex', 'AGENTS.md'), '# User Codex instruction\n')
+fs.writeFileSync(path.join(globalHome, '.codex', 'config.toml'), 'model = "user-model"\n')
+fs.mkdirSync(path.join(globalHome, '.claude'), { recursive: true })
+fs.writeFileSync(path.join(globalHome, '.claude', 'settings.json'), `${JSON.stringify({
+  theme: 'dark',
+  hooks: {
+    PreToolUse: [{ hooks: [{ type: 'command', command: 'node user-hook.cjs' }] }]
+  }
+}, null, 2)}\n`)
+fs.mkdirSync(path.join(globalHome, '.grok'), { recursive: true })
+fs.writeFileSync(path.join(globalHome, '.grok', 'config.toml'), 'model = "user-model"\n')
+
 function runNpm(args, options = {}) {
   const env = {
     ...process.env,
@@ -106,6 +119,21 @@ function isolatedHostEnv(home) {
 
 function receiptPath(home, hostRoot) {
   return path.join(home, hostRoot, 'devcodex', 'global-host-receipt.json')
+}
+
+function listFiles(root) {
+  if (!fs.existsSync(root)) return []
+  const files = []
+  const stack = [root]
+  while (stack.length) {
+    const current = stack.pop()
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const full = path.join(current, entry.name)
+      if (entry.isDirectory()) stack.push(full)
+      else files.push(path.relative(root, full).replace(/\\/g, '/'))
+    }
+  }
+  return files.sort()
 }
 
 const pack = runNpm(['pack', '--json', '--pack-destination', packDir], { timeout: 180000 })
@@ -407,6 +435,72 @@ if (grokAvailable) {
   assert.strictEqual(grokDoctor.probes.grokDeep.inspectSummary.mcpServers.length, 2)
 }
 
+const installedReceipts = ['.copilot', '.claude', '.codex', path.join('gemini-cli-home', '.gemini'), '.grok', '.cursor']
+  .map(hostRoot => JSON.parse(fs.readFileSync(receiptPath(globalHome, hostRoot), 'utf8')))
+const removalPreview = JSON.parse(runCommand(binPath, ['uninstall', '--json'], {
+  cwd: workspace,
+  env: installedEnv
+}).stdout)
+assert.strictEqual(removalPreview.ok, true)
+assert.strictEqual(removalPreview.payload.operation, 'remove')
+assert.strictEqual(removalPreview.payload.dryRun, true)
+assert.strictEqual(removalPreview.payload.status, 'planned')
+for (const hostRoot of ['.copilot', '.claude', '.codex', path.join('gemini-cli-home', '.gemini'), '.grok', '.cursor']) {
+  assert.strictEqual(fs.existsSync(receiptPath(globalHome, hostRoot)), true, `${hostRoot} preview mutated receipt`)
+}
+
+const removalApplied = JSON.parse(runCommand(binPath, ['uninstall', '--apply', '--json'], {
+  cwd: workspace,
+  env: installedEnv,
+  timeout: 240000
+}).stdout)
+assert.strictEqual(removalApplied.ok, true)
+assert.strictEqual(removalApplied.payload.status, 'committed')
+assert.strictEqual(removalApplied.payload.dryRun, false)
+assert.ok(['committed', 'not-applicable'].includes(
+  removalApplied.payload.integrations.grokRecoveryCleanup.status
+))
+assert.deepStrictEqual(removalApplied.payload.recoveryCleanupFailures, [])
+for (const hostRoot of ['.copilot', '.claude', '.codex', path.join('gemini-cli-home', '.gemini'), '.grok', '.cursor']) {
+  assert.strictEqual(fs.existsSync(receiptPath(globalHome, hostRoot)), false, `${hostRoot} receipt remained after managed removal`)
+}
+for (const receipt of installedReceipts) {
+  for (const artifact of receipt.managedArtifacts || []) {
+    if (artifact.ownershipKind === 'whole-file') {
+      assert.strictEqual(fs.existsSync(path.resolve(artifact.path)), false, `whole-file residue: ${artifact.path}`)
+    }
+  }
+  for (const artifact of receipt.retainedManagedArtifacts || []) {
+    assert.strictEqual(fs.existsSync(path.resolve(artifact.path)), false, `retained runtime residue: ${artifact.path}`)
+  }
+}
+assert.strictEqual(fs.readFileSync(path.join(globalHome, '.codex', 'AGENTS.md'), 'utf8'), '# User Codex instruction\n')
+assert.match(fs.readFileSync(path.join(globalHome, '.codex', 'config.toml'), 'utf8'), /model = "user-model"/)
+const preservedClaude = JSON.parse(fs.readFileSync(path.join(globalHome, '.claude', 'settings.json'), 'utf8'))
+assert.strictEqual(preservedClaude.theme, 'dark')
+assert.match(JSON.stringify(preservedClaude.hooks), /user-hook\.cjs/)
+assert.doesNotMatch(JSON.stringify(preservedClaude), /devcodex/i)
+assert.match(fs.readFileSync(path.join(globalHome, '.grok', 'config.toml'), 'utf8'), /model = "user-model"/)
+assert.deepStrictEqual(
+  listFiles(path.join(globalHome, '.grok', 'devcodex')),
+  [],
+  'managed Grok source/runtime residue remained after cleanup'
+)
+
+const removalAgain = JSON.parse(runCommand(binPath, ['uninstall', '--apply', '--json'], {
+  cwd: workspace,
+  env: installedEnv
+}).stdout)
+assert.strictEqual(removalAgain.ok, true)
+assert.strictEqual(removalAgain.payload.status, 'already-absent')
+
+runNpm(['uninstall', '-g', packageJson.name, '--prefix', globalPrefix], {
+  env: installedEnv,
+  timeout: 180000
+})
+assert.strictEqual(fs.existsSync(binPath), false, 'global devcodex bin remained after npm uninstall')
+assert.strictEqual(fs.existsSync(path.join(globalPrefix, 'node_modules', packageJson.name)), false, 'global package remained after npm uninstall')
+
 fs.writeFileSync(path.join(workspace, 'package.json'), `${JSON.stringify({
   name: 'consumer',
   private: true,
@@ -438,4 +532,4 @@ for (const host of ['.copilot', '.claude', '.codex', path.join('gemini-cli-home'
 
 cleanupTempFixture()
 assert.strictEqual(fs.existsSync(tmp), false, 'global install smoke temporary fixture must be removed before success')
-console.log(`global install smoke passed pack=1 realGlobalInstall=1 layeredStatus=1 grokNative=${grokAvailable ? 1 : 0} workspaceNoHostDirs=1 tempCleanup=1 version=${packageJson.version}`)
+console.log(`global install smoke passed pack=1 realGlobalInstall=1 managedRemove=1 npmUninstall=1 idempotent=1 userContent=1 layeredStatus=1 grokNative=${grokAvailable ? 1 : 0} workspaceNoHostDirs=1 tempCleanup=1 version=${packageJson.version}`)

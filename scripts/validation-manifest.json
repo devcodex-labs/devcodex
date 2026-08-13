@@ -15,6 +15,7 @@
     "scripts/lib/global-host-*.js",
     "scripts/lib/runtime-dependency-closure.js",
     "scripts/test-global-host-config.js",
+    "scripts/test-global-host-removal.js",
     "scripts/test-global-host-runtime-verifier.js",
     "scripts/test-mcp-runtime-closure.js",
     "scripts/test-global-install-smoke.js",
@@ -287,6 +288,7 @@
         "mcp-runtime-closure",
         "npm-lifecycle-adapter",
         "global-host-config",
+        "global-host-removal",
         "global-install-smoke",
         "host-installation",
         "syntax",
@@ -331,6 +333,7 @@
         "mcp-runtime-closure",
         "npm-lifecycle-adapter",
         "global-host-config",
+        "global-host-removal",
         "global-install-smoke",
         "host-installation",
         "syntax",
@@ -388,6 +391,7 @@
         "mcp-runtime-closure",
         "npm-lifecycle-adapter",
         "global-host-config",
+        "global-host-removal",
         "global-install-smoke",
         "host-installation",
         "syntax",
@@ -4388,6 +4392,7 @@
         "scripts/test-global-host-runtime-verifier.js"
       ],
       "consumers": [
+        "global-host-removal",
         "global-install-smoke"
       ],
       "invariants": [
@@ -4426,6 +4431,63 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "global-host-removal",
+      "owner": "host-contract-verification",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:global-host-removal"
+      ],
+      "dependencies": [
+        "global-host-config"
+      ],
+      "inputs": [
+        "package.json",
+        "scripts/lib/global-host-*.js",
+        "scripts/lib/host-adapter-scope.js",
+        "scripts/lib/global-adapters-cli.js",
+        "scripts/lib/cli-command-registry.js",
+        "scripts/test-global-host-removal.js",
+        "scripts/test-global-adapters-cli.js",
+        "scripts/test-cli-command-registry.js"
+      ],
+      "consumers": [
+        "global-install-smoke"
+      ],
+      "invariants": [
+        "preview-before-explicit-apply",
+        "six-host-atomic-managed-removal",
+        "receipt-and-content-ownership-proof",
+        "modified-or-unknown-content-fail-closed",
+        "user-content-preserved",
+        "transaction-rollback",
+        "grok-registry-compensation",
+        "successful-grok-recovery-backup-cleanup",
+        "idempotent-second-removal",
+        "receipt-removed-last"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 240000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "GlobalHostRemovalPlanV1",
+        "GlobalHostRemovalReceiptV1",
+        "GlobalHostConfigTransactionV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "global-install-smoke",
       "owner": "package-lifecycle",
       "command": "npm",
@@ -4435,7 +4497,8 @@
       ],
       "dependencies": [
         "npm-lifecycle-adapter",
-        "global-host-config"
+        "global-host-config",
+        "global-host-removal"
       ],
       "inputs": [
         "package.json",
@@ -4454,6 +4517,12 @@
       "invariants": [
         "isolated-global-home",
         "six-global-receipts",
+        "preview-managed-removal",
+        "explicit-managed-removal",
+        "npm-uninstall-after-managed-removal",
+        "zero-active-managed-host-residue",
+        "user-content-preserved",
+        "idempotent-managed-removal",
         "workspace-install-no-host-write",
         "global-only-guidance"
       ],

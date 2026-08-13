@@ -71,7 +71,7 @@ function buildCliInstallCommands(ctx) {
     const nextStep = operation === 'update'
       ? `Use \`${guidance.primary}\` to refresh user-level host adapters${guidance.secondary ? ` (or ${guidance.secondary})` : ''}.`
       : (operation === 'uninstall'
-          ? 'Automatic global host-config removal is not supported in the first batch; do not delete user config automatically.'
+          ? 'Use `devcodex uninstall --dry-run`, then `devcodex uninstall --apply`; managed removal is atomic across all hosts.'
           : `Use \`${guidance.installCommand}\` to install user-level host adapters${guidance.secondary ? ` (or ${guidance.secondary})` : ''}.`)
     const envelope = createCliFailure(
       operation,

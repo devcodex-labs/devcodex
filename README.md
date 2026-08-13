@@ -477,9 +477,22 @@ devcodex --version
 
 ## 卸载
 
+先预览 DevCodex 在六个宿主和共享运行时中的受管内容：
+
 ```bash
+devcodex uninstall --dry-run
+```
+
+确认预览中没有所有权冲突后，显式清理受管 Hook、MCP、指令块、Plugin 和运行时，再卸载 npm 包：
+
+```bash
+devcodex uninstall --apply
 npm uninstall -g devcodex
 ```
+
+`devcodex uninstall` 是 `devcodex global-adapters remove` 的简写；不带 `--apply` 时也只预览。清理命令会跨 Copilot、Claude、Codex、Gemini、Grok、Cursor 做一次完整预检，只有收据与当前内容共同证明属于 DevCodex 的对象才进入同一原子事务。用户自己的配置、指令和 Hook 会保留；受管文件被修改、出现未知文件、路径越界、符号链接或收据损坏时，所有宿主均保持不变并返回阻断原因。Grok 官方卸载为回滚生成的短期工作区备份只在六宿主事务成功后按 manifest 与摘要精确清除，失败时保留并报告；命令只逐级回收已经为空的受管子目录，绝不会递归删除 `.copilot`、`.claude`、`.codex`、`.gemini`、`.grok`、`.cursor` 或 `.agents` 宿主根目录。
+
+如果当前安装版本还没有 `devcodex uninstall --dry-run`，先执行 `npm update -g devcodex` 安装带清理能力的版本，再按上述顺序卸载。不要先执行 npm 卸载：npm 只移除包和命令 shim，无法在包已消失后安全识别宿主内哪些内容由 DevCodex 管理。清理成功后重复执行会返回 `already-absent`。
 
 ## 运行态与临时产物检查
 

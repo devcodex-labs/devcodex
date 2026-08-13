@@ -16,7 +16,8 @@ const {
   inspectWorkspaceTemp,
   prepareWorkspaceTempBackupRoot,
   pruneWorkspaceTemp,
-  registerWorkspaceTempArtifactAtRoot
+  registerWorkspaceTempArtifactAtRoot,
+  registerWorkspaceTempBackup
 } = require('./lib/workspace-temp.js')
 const { findWorkspaceNamespaceTempLeaks } = require('./lib/validate-governance-support.js')
 
@@ -71,6 +72,23 @@ try {
   )
   assert.strictEqual(prepareWorkspaceTempBackupRoot(project), path.join(centralRoot, 'backups', 'apps', 'api'))
   assert.strictEqual(findWorkspaceTempRootForPath(path.join(centralRoot, 'backups', 'apps', 'api', 'snapshot')), centralRoot)
+  const nestedCanonicalBackup = path.join(
+    centralRoot,
+    'backups',
+    '.tmp',
+    'devcodex',
+    'release-candidate',
+    'workspace',
+    'grok-user-config.toml.bak'
+  )
+  write(nestedCanonicalBackup, '[plugins]\n')
+  assert.strictEqual(findWorkspaceTempRootForPath(nestedCanonicalBackup), centralRoot)
+  const nestedBackupRegistration = registerWorkspaceTempBackup(nestedCanonicalBackup, {
+    owner: 'devcodex-grok-adapter',
+    producer: 'grok-plugin-uninstall'
+  })
+  assert.ok(nestedBackupRegistration)
+  assert.strictEqual(path.dirname(nestedBackupRegistration.manifestPath), path.join(centralRoot, 'manifests'))
   assert.strictEqual(findWorkspaceTempRootForPath(path.join(workspace, '.devcodex', 'workspace', '.tmp', 'backups', 'snapshot')), null)
   assert.throws(
     () => registerWorkspaceTempArtifactAtRoot(centralRoot, {

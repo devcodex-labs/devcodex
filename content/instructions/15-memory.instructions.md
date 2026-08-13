@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 记忆规则，覆盖 tasks、SUMMARY、需求记忆的读取顺序、写入时机与格式约束
 priority: P5
-version: 1.17.3
+version: 1.17.4
 ---
 # 记忆写入规则（15-memory）
 

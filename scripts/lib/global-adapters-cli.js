@@ -11,6 +11,9 @@ const {
   applyGlobalHostConfig
 } = require('./global-host-config.js')
 const {
+  applyGlobalHostRemoval
+} = require('./global-host-removal.js')
+const {
   describeGlobalAdapterRefresh,
   isDevCodexPackageRoot,
   isDevCodexSourceCheckout,
@@ -58,6 +61,7 @@ function parseGlobalAdaptersArgv(argv = []) {
   const options = {
     subcommand,
     dryRun: false,
+    apply: false,
     json: false,
     home: null,
     skillsDeployMode: null,
@@ -66,6 +70,7 @@ function parseGlobalAdaptersArgv(argv = []) {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
     if (arg === '--dry-run') options.dryRun = true
+    else if (arg === '--apply') options.apply = true
     else if (arg === '--json') options.json = true
     else if (arg === '--home') {
       const value = args[i + 1]
@@ -115,6 +120,7 @@ function buildHandler(deps = {}) {
     packageVersion: packageJson.version
   }
   const apply = deps.applyGlobalHostConfig || applyGlobalHostConfig
+  const remove = deps.applyGlobalHostRemoval || applyGlobalHostRemoval
   const syncGrok = deps.syncGrokWorkspacePluginInstallation || syncGrokWorkspacePluginInstallation
   const pkgRoot = resolvePackageRoot({ packageRoot: deps.packageRoot, pkgRoot: deps.pkgRoot, path: pathImpl })
 
@@ -139,6 +145,25 @@ function buildHandler(deps = {}) {
     consoleImpl.log()
   }
 
+  function printRemovalHuman(payload) {
+    consoleImpl.log()
+    consoleImpl.log(c.bold('  DevCodex') + c.dim(' — global adapters remove'))
+    consoleImpl.log(c.dim('  ──────────────────────────────────────'))
+    consoleImpl.log(`  ${c.cyan('Home:')} ${c.dim(payload.home)}`)
+    consoleImpl.log(`  ${c.cyan('Hosts:')} ${c.dim((payload.hosts || []).join(', ') || '(none)')}`)
+    consoleImpl.log(`  ${c.cyan('Plan digest:')} ${c.dim(String(payload.planDigest || '').slice(0, 16))}…`)
+    consoleImpl.log(`  ${c.cyan('Status:')} ${c.dim(payload.status)}`)
+    if (payload.dryRun) {
+      consoleImpl.log(c.yellow('  [DRY RUN] No files were removed. Re-run with --apply to confirm managed cleanup.'))
+    } else if (payload.status === 'committed') {
+      consoleImpl.log(c.green('  ✓ DevCodex-managed host artifacts were removed; user-owned content was preserved.'))
+      consoleImpl.log(c.dim('  Next: npm uninstall -g devcodex'))
+    } else if (payload.status === 'already-absent') {
+      consoleImpl.log(c.green('  ✓ Managed host artifacts are already absent.'))
+    }
+    consoleImpl.log()
+  }
+
   function cmdGlobalAdapters(argv = []) {
     const parsed = parseGlobalAdaptersArgv(argv)
     if (parsed.errors.length) {
@@ -146,7 +171,7 @@ function buildHandler(deps = {}) {
         COMMAND,
         'CLI_GLOBAL_ADAPTERS_BAD_ARGS',
         parsed.errors.join('; '),
-        'Use: devcodex global-adapters apply [--mode=hidden|legacy] [--dry-run] [--json] [--home <dir>]',
+        'Use: devcodex global-adapters apply [--mode=hidden|legacy] [--dry-run] [--json] [--home <dir>] or devcodex global-adapters remove [--dry-run|--apply] [--json] [--home <dir>]',
         cliMetadata
       )
       if (parsed.json) printCliJson(consoleImpl, envelope)
@@ -158,12 +183,37 @@ function buildHandler(deps = {}) {
       return envelope
     }
 
-    if (parsed.subcommand !== 'apply') {
+    if (!['apply', 'remove'].includes(parsed.subcommand)) {
       const envelope = createCliFailure(
         COMMAND,
         'CLI_GLOBAL_ADAPTERS_UNKNOWN_SUBCOMMAND',
         `Unknown global-adapters subcommand: ${parsed.subcommand || '(none)'}`,
-        'Use: devcodex global-adapters apply [--mode=hidden|legacy] [--dry-run] [--json]',
+        'Use: devcodex global-adapters apply [--mode=hidden|legacy] [--dry-run] [--json] or devcodex global-adapters remove [--dry-run|--apply] [--json]',
+        cliMetadata
+      )
+      if (parsed.json) printCliJson(consoleImpl, envelope)
+      else {
+        consoleImpl.log(c.red(`  ${envelope.errorCode}: ${envelope.message}`))
+        consoleImpl.log(c.dim(`  ${envelope.nextStep}`))
+      }
+      processImpl.exitCode = 2
+      return envelope
+    }
+
+    const removalArgErrors = parsed.subcommand === 'remove'
+      ? [
+          ...(parsed.apply && parsed.dryRun ? ['--apply and --dry-run are mutually exclusive'] : []),
+          ...(parsed.skillsDeployMode ? ['--mode is only supported by global-adapters apply'] : [])
+        ]
+      : (parsed.apply ? ['--apply is only supported by global-adapters remove'] : [])
+    if (removalArgErrors.length) {
+      const envelope = createCliFailure(
+        COMMAND,
+        'CLI_GLOBAL_ADAPTERS_BAD_ARGS',
+        removalArgErrors.join('; '),
+        parsed.subcommand === 'remove'
+          ? 'Use: devcodex global-adapters remove [--dry-run|--apply] [--json] [--home <dir>]'
+          : 'Use: devcodex global-adapters apply [--mode=hidden|legacy] [--dry-run] [--json] [--home <dir>]',
         cliMetadata
       )
       if (parsed.json) printCliJson(consoleImpl, envelope)
@@ -199,6 +249,102 @@ function buildHandler(deps = {}) {
       sourceCheckout,
       packageVersion: packageJson.version
     })
+
+    if (parsed.subcommand === 'remove') {
+      const removalEnv = scopeEnvToExplicitHome(processImpl.env, parsed.home)
+      const dryRun = parsed.apply !== true
+      let result
+      try {
+        result = remove({
+          packageRoot: pkgRoot,
+          dryRun,
+          home: parsed.home || undefined,
+          fs: fsImpl,
+          env: removalEnv
+        })
+      } catch (error) {
+        const details = {
+          operation: 'remove',
+          packageRoot: pkgRoot,
+          sourceKind,
+          dryRun,
+          status: error.plan?.status || 'blocked',
+          planDigest: error.plan?.planDigest || null,
+          conflicts: error.plan?.conflicts || [],
+          transaction: error.receipt || null,
+          compensation: error.removalCompensation || null
+        }
+        const envelope = createCliFailure(
+          COMMAND,
+          error.code || 'GLOBAL_ADAPTERS_REMOVE_FAILED',
+          error.message,
+          'Resolve the reported ownership conflict and rerun the preview. Do not recursively delete host directories.',
+          cliMetadata,
+          details
+        )
+        if (parsed.json) printCliJson(consoleImpl, envelope)
+        else {
+          consoleImpl.log(c.red(`  ${envelope.errorCode}: ${envelope.message}`))
+          consoleImpl.log(c.dim(`  ${envelope.nextStep}`))
+        }
+        processImpl.exitCode = 1
+        return envelope
+      }
+
+      const payload = {
+        schemaVersion: 'GlobalAdaptersRemoveV1',
+        operation: 'remove',
+        packageRoot: pkgRoot,
+        packageName: readPackageName(pkgRoot, fsImpl, pathImpl),
+        packageVersion: packageJson.version,
+        sourceKind,
+        sourceCheckout,
+        dryRun,
+        home: result.home,
+        planDigest: result.planDigest,
+        status: result.status,
+        transactionStatus: result.transaction?.status || null,
+        changed: result.transaction?.changed || 0,
+        backupCleanupFailures: result.transaction?.backupCleanupFailures || [],
+        hosts: (result.targets || []).map(target => target.host),
+        hostResults: result.hostPlans || [],
+        conflicts: result.conflicts || [],
+        prunedDirectories: result.prunedDirectories || [],
+        pruneFailures: result.pruneFailures || [],
+        recoveryCleanupFailures: result.recoveryCleanupFailures || [],
+        integrations: {
+          grok: result.grokIntegration || null,
+          grokRecoveryCleanup: result.grokRecoveryCleanup || null
+        },
+        nextStep: result.status === 'already-absent'
+          ? 'Run `npm uninstall -g devcodex` to remove the package and command shim.'
+          : (dryRun
+              ? 'Review the plan, then run `devcodex global-adapters remove --apply`; after success run `npm uninstall -g devcodex`.'
+              : 'Run `npm uninstall -g devcodex` to remove the package and command shim.')
+      }
+      if (!['planned', 'committed', 'already-absent'].includes(result.status)) {
+        const envelope = createCliFailure(
+          COMMAND,
+          'GLOBAL_ADAPTERS_REMOVE_CLEANUP_INCOMPLETE',
+          'Managed host content was removed, but transaction backup or empty-directory cleanup is incomplete.',
+          'Review pruneFailures, recoveryCleanupFailures and transaction backupCleanupFailures; do not assume a residue-free uninstall.',
+          cliMetadata,
+          payload
+        )
+        if (parsed.json) printCliJson(consoleImpl, envelope)
+        else {
+          printRemovalHuman(payload)
+          consoleImpl.log(c.red(`  ${envelope.errorCode}: ${envelope.message}`))
+        }
+        processImpl.exitCode = 1
+        return envelope
+      }
+      const envelope = createCliSuccess(COMMAND, payload, cliMetadata)
+      if (parsed.json) printCliJson(consoleImpl, envelope)
+      else printRemovalHuman(payload)
+      processImpl.exitCode = 0
+      return envelope
+    }
 
     let result
     try {

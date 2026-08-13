@@ -5,23 +5,23 @@
   "hostVariant": "grok-cli-single/global-launcher-local-stdio",
   "testedVersion": "grok 1.0.0 (3cd0d0cbce)",
   "protocol": "MCP 2024-11-05",
-  "runtimeContractDigest": "278f411d8216f96898bad3ce60f077bd6f6a1ed49880eb9fbeb191cfed89ae53",
-  "hostAdapterDigest": "a57d3ece859db2e8ad9c89967c8acf1b721e98f64a67a7325d24e6c85a45d918",
-  "sourceEvidenceDigest": "38d717ad2124bb96411c6ec62da9b7a251d1a5d57e6da02889bd23848759b171",
+  "runtimeContractDigest": "1e41f26575059ed949a33eefec9d111acc4f401d1694564c61022d225544eacc",
+  "hostAdapterDigest": "1c52e4167b04740d7ac54e04776989b57ce3cbe7928c6529b6ab8b36cdddf5c5",
+  "sourceEvidenceDigest": "9b0c62d9a0f31cd34348a876ae3d05367880c3b3d26153f6b6d1fd2be1a7034c",
   "sourceProbe": {
     "schemaVersion": "SkillRouteS15EvidenceV1",
-    "probeRunId": "s15-grok-probe-351209e8-fe49-471a-8917-58c2d3539e86",
-    "authorizationSource": "installed-source-probe-authority",
+    "probeRunId": "s15-grok-probe-e3baa5ee-0031-4b65-bf4e-a1248d2a0319",
+    "authorizationSource": "isolated-probe-authority",
     "contextSource": "host-hooks",
     "receiptStatus": "relevant-complete",
-    "completedAt": "2026-08-12T12:20:26.330Z"
+    "completedAt": "2026-08-13T14:19:40.068Z"
   },
   "runtimeBinding": {
-    "source": "installed-source-candidate",
-    "expectedDigest": "278f411d8216f96898bad3ce60f077bd6f6a1ed49880eb9fbeb191cfed89ae53",
-    "generationDigest": "278f411d8216f96898bad3ce60f077bd6f6a1ed49880eb9fbeb191cfed89ae53",
-    "modeReceiptDigest": "278f411d8216f96898bad3ce60f077bd6f6a1ed49880eb9fbeb191cfed89ae53",
-    "routeEnvelopeDigest": "278f411d8216f96898bad3ce60f077bd6f6a1ed49880eb9fbeb191cfed89ae53"
+    "source": "persistent-isolated-source-candidate",
+    "expectedDigest": "1e41f26575059ed949a33eefec9d111acc4f401d1694564c61022d225544eacc",
+    "generationDigest": "1e41f26575059ed949a33eefec9d111acc4f401d1694564c61022d225544eacc",
+    "modeReceiptDigest": "1e41f26575059ed949a33eefec9d111acc4f401d1694564c61022d225544eacc",
+    "routeEnvelopeDigest": "1e41f26575059ed949a33eefec9d111acc4f401d1694564c61022d225544eacc"
   },
   "crossHostIsolation": {
     "cursorHooksCompatibility": {

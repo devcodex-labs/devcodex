@@ -10,6 +10,7 @@ const {
   resolveGlobalHostTargets,
   samePath,
   targetAcceptsPath,
+  targetSafetyRoots,
   isUnderPhysical
 } = require('./global-host-target.js')
 const {
@@ -529,13 +530,16 @@ function addCopilotPlan(operations, target, packageRoot, fsImpl) {
     seenVscode.add(key)
     const existing = readText(vscodeMcpPath, fsImpl)
     const merged = mergeVscodeUserMcpContent(existing, target.runtimeRoot, { host: 'copilot' })
+    const managedVscode = {
+      servers: buildVscodeMcpServers(target.runtimeRoot, { host: 'copilot' })
+    }
     addFileOperation(
       operations,
       target.host,
       vscodeMcpPath,
       merged,
       'json',
-      merged
+      `${JSON.stringify(managedVscode, null, 2)}\n`
     )
   }
 }
@@ -862,6 +866,12 @@ function reusableUpdatedAt(previousReceipt, nextReceipt) {
     previousReceipt.managedFileDigests || {},
     nextReceipt.managedFileDigests || {}
   )) return null
+  if (!isDeepStrictEqual(previousReceipt.managedArtifacts || [], nextReceipt.managedArtifacts || [])) return null
+  if (!isDeepStrictEqual(
+    previousReceipt.retainedManagedArtifacts || [],
+    nextReceipt.retainedManagedArtifacts || []
+  )) return null
+  if (!sameStringArray(previousReceipt.retainedRuntimeRoots || [], nextReceipt.retainedRuntimeRoots || [])) return null
   if (!sameStringArray(
     previousReceipt.pendingStaleManagedPaths || [],
     nextReceipt.pendingStaleManagedPaths || []
@@ -952,6 +962,72 @@ function receiptManagedDigest (receipt, file) {
     if (samePath(candidate, file)) return String(digest)
   }
   return null
+}
+
+function operationOwnershipKind (operation, target) {
+  const destination = path.resolve(operation.path)
+  if (target.files?.instructions && samePath(destination, target.files.instructions)) {
+    return { ownershipKind: 'markdown-block', blockId: `global-${target.host}` }
+  }
+  if (target.host === 'codex' && target.files?.config && samePath(destination, target.files.config)) {
+    return { ownershipKind: 'codex-toml-block', blockId: operation.managedBlockId || 'global-codex-mcp' }
+  }
+  if (target.host === 'grok' && target.files?.config && samePath(destination, target.files.config)) {
+    return { ownershipKind: 'grok-plugin-registration', pluginName: 'devcodex-workspace' }
+  }
+  const structuredJsonFiles = [
+    target.files?.hooks,
+    target.files?.settings,
+    target.files?.mcp,
+    target.files?.vscodeMcp,
+    ...(target.additionalFiles || [])
+  ].filter(Boolean)
+  if (operation.kind === 'json' && structuredJsonFiles.some(file => samePath(destination, file))) {
+    return { ownershipKind: 'json-managed' }
+  }
+  return { ownershipKind: 'whole-file' }
+}
+
+function buildManagedArtifact (operation, target) {
+  const managed = Object.prototype.hasOwnProperty.call(operation, 'managedContent')
+    ? operation.managedContent
+    : operation.content
+  const ownership = operationOwnershipKind(operation, target)
+  return {
+    path: portable(operation.path),
+    ...ownership,
+    managedDigest: digestText(managed),
+    ...(ownership.ownershipKind === 'whole-file'
+      ? { contentDigest: digestText(operation.content) }
+      : {})
+  }
+}
+
+function retainedManagedArtifacts (previousReceipt, retainedRoots) {
+  const roots = (retainedRoots || []).map(root => path.resolve(root))
+  if (!previousReceipt || !roots.length) return []
+  const priorArtifacts = Array.isArray(previousReceipt.retainedManagedArtifacts)
+    ? previousReceipt.retainedManagedArtifacts
+    : []
+  const byPath = new Map()
+  for (const artifact of priorArtifacts) {
+    if (!artifact?.path) continue
+    byPath.set(portable(artifact.path), { ...artifact, path: portable(artifact.path) })
+  }
+  for (const candidate of previousReceipt.managedPaths || []) {
+    const file = path.resolve(candidate)
+    if (!roots.some(root => pathIsInside(root, file))) continue
+    const digest = receiptManagedDigest(previousReceipt, file)
+    byPath.set(portable(file), {
+      path: portable(file),
+      ownershipKind: 'whole-file',
+      managedDigest: digest,
+      contentDigest: digest
+    })
+  }
+  return [...byPath.values()]
+    .filter(artifact => roots.some(root => pathIsInside(root, artifact.path)))
+    .sort((left, right) => left.path.localeCompare(right.path))
 }
 
 function addNativeSkillOwnershipMarkers (operations, roots, skillIds) {
@@ -1207,6 +1283,7 @@ function buildGlobalHostConfigPlan(options = {}) {
     const previousReceiptText = hostPlan.previousReceiptText || ''
     const previousReceipt = hostPlan.previousReceipt || null
     const managedPaths = hostFiles.map(portable)
+    const managedArtifacts = hostPlan.operations.map(operation => buildManagedArtifact(operation, target))
     const managedFileDigests = Object.fromEntries(
       hostPlan.operations.map(operation => [
         portable(operation.path),
@@ -1233,9 +1310,19 @@ function buildGlobalHostConfigPlan(options = {}) {
     const generationSafeStaleManagedPaths = retainPreviousRuntime
       ? allStaleManagedPaths.filter(file => !pathIsInside(previousRuntimeRoot, file))
       : allStaleManagedPaths
-    hostPlan.retainedRuntimeRoots = retainPreviousRuntime
-      ? [portable(previousRuntimeRoot)]
-      : []
+    hostPlan.retainedRuntimeRoots = Array.from(new Set([
+      ...(Array.isArray(previousReceipt?.retainedRuntimeRoots)
+        ? previousReceipt.retainedRuntimeRoots
+        : []),
+      ...(retainPreviousRuntime ? [portable(previousRuntimeRoot)] : [])
+    ].map(portable)))
+      .filter(root => !samePath(root, target.runtimeRoot))
+      .filter(root => pathIsInside(target.runtimeBaseRoot, root))
+      .sort()
+    hostPlan.retainedManagedArtifacts = retainedManagedArtifacts(
+      previousReceipt,
+      hostPlan.retainedRuntimeRoots
+    )
     const nativeStaleByRoot = new Map()
     hostPlan.nativeStaleFileDigests = {}
     hostPlan.staleManagedPaths = generationSafeStaleManagedPaths.filter(file => {
@@ -1290,6 +1377,12 @@ function buildGlobalHostConfigPlan(options = {}) {
       previousReceipt.planDigest === preReceiptDigest &&
       sameStringArray(previousReceipt.managedPaths, managedPaths) &&
       isDeepStrictEqual(previousReceipt.managedFileDigests || {}, managedFileDigests) &&
+      isDeepStrictEqual(previousReceipt.managedArtifacts || [], managedArtifacts) &&
+      isDeepStrictEqual(
+        previousReceipt.retainedManagedArtifacts || [],
+        hostPlan.retainedManagedArtifacts || []
+      ) &&
+      sameStringArray(previousReceipt.retainedRuntimeRoots || [], hostPlan.retainedRuntimeRoots || []) &&
       sameStringArray(previousReceipt.pendingStaleManagedPaths || [], pendingStaleManagedPaths) &&
       isDeepStrictEqual(
         previousReceipt.preservedNativeSkillCollisions || [],
@@ -1319,6 +1412,8 @@ function buildGlobalHostConfigPlan(options = {}) {
       runtimeRoot: portable(target.runtimeRoot),
       managedPaths,
       managedFileDigests,
+      managedArtifacts,
+      retainedManagedArtifacts: hostPlan.retainedManagedArtifacts || [],
       configFiles: managedPaths,
       pendingStaleManagedPaths,
       preservedNativeSkillCollisions: hostPlan.preservedNativeSkillCollisions || [],
@@ -1386,14 +1481,17 @@ function applyGlobalHostConfig(options = {}) {
     try {
       const fsImpl = options.fs || fs
       const transactionOperations = preserveSemanticallyEquivalentContent(hostPlan.operations, fsImpl)
+      const safetyRoots = targetSafetyRoots(target)
       const hostTransaction = executeGlobalHostTransaction(transactionOperations, {
         fs: fsImpl,
         allowedRoots: [target.root, ...(target.additionalRoots || [])],
         allowedFiles: target.additionalFiles || [],
+        safetyRoots,
         allowedByHost: {
           [target.host]: {
             allowedRoots: [target.root, ...(target.additionalRoots || [])],
-            allowedFiles: target.additionalFiles || []
+            allowedFiles: target.additionalFiles || [],
+            safetyRoots
           }
         },
         dryRun: options.dryRun === true,
@@ -1490,10 +1588,12 @@ function applyGlobalHostConfig(options = {}) {
               fs: fsImpl,
               allowedRoots: [target.root, ...(target.additionalRoots || [])],
               allowedFiles: target.additionalFiles || [],
+              safetyRoots,
               allowedByHost: {
                 [target.host]: {
                   allowedRoots: [target.root, ...(target.additionalRoots || [])],
-                  allowedFiles: target.additionalFiles || []
+                  allowedFiles: target.additionalFiles || [],
+                  safetyRoots
                 }
               }
             })
@@ -1682,6 +1782,9 @@ function inspectGlobalHostConfiguration(options = {}) {
       typeof receipt.sourceDigest === 'string' &&
       typeof receipt.planDigest === 'string' &&
       Array.isArray(receipt.managedPaths) &&
+      Array.isArray(receipt.managedArtifacts) &&
+      Array.isArray(receipt.retainedManagedArtifacts) &&
+      Array.isArray(receipt.retainedRuntimeRoots) &&
       receipt.managedFileDigests &&
       typeof receipt.managedFileDigests === 'object' &&
       !Array.isArray(receipt.managedFileDigests) &&
@@ -1701,6 +1804,15 @@ function inspectGlobalHostConfiguration(options = {}) {
         receipt?.managedFileDigests || {},
         expectedReceipt.managedFileDigests || {}
       ) &&
+      isDeepStrictEqual(
+        receipt?.managedArtifacts || [],
+        expectedReceipt.managedArtifacts || []
+      ) &&
+      isDeepStrictEqual(
+        receipt?.retainedManagedArtifacts || [],
+        expectedReceipt.retainedManagedArtifacts || []
+      ) &&
+      sameStringArray(receipt?.retainedRuntimeRoots || [], expectedReceipt.retainedRuntimeRoots || []) &&
       sameStringArray(receipt?.pendingStaleManagedPaths, expectedReceipt.pendingStaleManagedPaths)
     const stale = Boolean(receipt) && (!receiptFieldsComplete || !receiptMatchesCurrent)
     const configured = Boolean(receipt) &&

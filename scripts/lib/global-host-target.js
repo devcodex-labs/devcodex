@@ -113,6 +113,29 @@ function isUnderPhysical(root, target, fsImpl = fs) {
   return isUnder(realpathExistingPrefix(root, fsImpl), realpathExistingPrefix(target, fsImpl))
 }
 
+function unsafePathComponent(root, target, fsImpl = fs) {
+  const resolvedRoot = path.resolve(root)
+  const resolvedTarget = path.resolve(target)
+  if (!isUnder(resolvedRoot, resolvedTarget)) return null
+  const relative = path.relative(resolvedRoot, resolvedTarget)
+  const segments = relative ? relative.split(path.sep).filter(Boolean) : []
+  let cursor = resolvedRoot
+  const candidates = [cursor, ...segments.map(segment => {
+    cursor = path.join(cursor, segment)
+    return cursor
+  })]
+  for (let index = 0; index < candidates.length; index++) {
+    const candidate = candidates[index]
+    if (!fsImpl.existsSync(candidate)) break
+    const stat = fsImpl.lstatSync(candidate)
+    if (stat.isSymbolicLink()) return { path: candidate, reason: 'symbolic-link' }
+    if ((index === 0 || index < candidates.length - 1) && !stat.isDirectory()) {
+      return { path: candidate, reason: 'non-directory' }
+    }
+  }
+  return null
+}
+
 function samePath(left, right) {
   const first = path.resolve(left)
   const second = path.resolve(right)
@@ -121,22 +144,83 @@ function samePath(left, right) {
     : first === second
 }
 
-function targetAcceptsPath(target, file, fsImpl = fs) {
+function targetSafetyRoots(target) {
+  const home = path.resolve(target.home)
+  const anchors = []
+  const addBoundaryAnchor = boundary => {
+    const resolved = path.resolve(boundary)
+    anchors.push(isUnder(home, resolved) ? home : resolved)
+  }
+  for (const root of [target.root, ...(target.additionalRoots || [])]) addBoundaryAnchor(root)
+  for (const file of target.additionalFiles || []) addBoundaryAnchor(path.dirname(file))
+  const seen = new Set()
+  return anchors.filter(anchor => {
+    const key = process.platform === 'win32' ? anchor.toLowerCase() : anchor
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function targetLogicallyAcceptsPath(target, file) {
   const acceptedRoots = [target.root, ...(target.additionalRoots || [])]
   const acceptedFiles = target.additionalFiles || []
-  return acceptedRoots.some(root => isUnderPhysical(root, file, fsImpl)) ||
+  return acceptedRoots.some(root => isUnder(root, file)) ||
     acceptedFiles.some(accepted => samePath(accepted, file))
 }
 
+function targetAcceptsPath(target, file, fsImpl = fs) {
+  if (!targetLogicallyAcceptsPath(target, file)) return false
+  const safetyRoots = targetSafetyRoots(target).filter(root => isUnder(root, file))
+  return safetyRoots.length > 0 && safetyRoots.every(root => !unsafePathComponent(root, file, fsImpl))
+}
+
 function assertTargetBoundary(target, fsImpl = fs) {
+  const safetyRoots = targetSafetyRoots(target)
+  for (const root of [target.root, ...(target.additionalRoots || [])]) {
+    const anchors = safetyRoots.filter(anchor => isUnder(anchor, root))
+    if (!anchors.length) {
+      const error = new Error(`GLOBAL_HOST_TARGET_SAFETY_ROOT_REQUIRED: ${target.host} -> ${root}`)
+      error.code = 'GLOBAL_HOST_TARGET_SAFETY_ROOT_REQUIRED'
+      throw error
+    }
+    for (const anchor of anchors) {
+      const unsafe = unsafePathComponent(anchor, root, fsImpl)
+      if (unsafe) {
+        const error = new Error(`GLOBAL_HOST_TARGET_ROOT_UNSAFE: ${target.host} -> ${unsafe.path}`)
+        error.code = 'GLOBAL_HOST_TARGET_ROOT_UNSAFE'
+        throw error
+      }
+      if (!isUnderPhysical(anchor, root, fsImpl)) {
+        const error = new Error(`GLOBAL_HOST_TARGET_ROOT_UNSAFE: ${target.host} -> ${root}`)
+        error.code = 'GLOBAL_HOST_TARGET_ROOT_UNSAFE'
+        throw error
+      }
+    }
+  }
   const owned = [
     target.runtimeRoot,
     target.receiptFile,
     ...Object.values(target.files || {}).filter(Boolean),
-    ...Object.values(target.shared || {}).filter(Boolean)
+    ...Object.values(target.shared || {}).filter(Boolean),
+    ...(target.additionalFiles || [])
   ]
   for (const file of owned) {
-    if (!targetAcceptsPath(target, file, fsImpl)) {
+    const anchors = safetyRoots.filter(anchor => isUnder(anchor, file))
+    if (!anchors.length) {
+      const error = new Error(`GLOBAL_HOST_TARGET_SAFETY_ROOT_REQUIRED: ${target.host} -> ${file}`)
+      error.code = 'GLOBAL_HOST_TARGET_SAFETY_ROOT_REQUIRED'
+      throw error
+    }
+    for (const anchor of anchors) {
+      const unsafe = unsafePathComponent(anchor, file, fsImpl)
+      if (unsafe) {
+        const error = new Error(`GLOBAL_HOST_TARGET_REPARSE: ${target.host} -> ${unsafe.path}`)
+        error.code = 'GLOBAL_HOST_TARGET_REPARSE'
+        throw error
+      }
+    }
+    if (!targetLogicallyAcceptsPath(target, file)) {
       const error = new Error(`GLOBAL_HOST_TARGET_ESCAPE: ${target.host} -> ${file}`)
       error.code = 'GLOBAL_HOST_TARGET_ESCAPE'
       throw error
@@ -281,5 +365,8 @@ module.exports = {
   resolveVscodeAppDataRoot,
   resolveVscodeUserMcpPaths,
   samePath,
-  targetAcceptsPath
+  targetAcceptsPath,
+  targetLogicallyAcceptsPath,
+  targetSafetyRoots,
+  unsafePathComponent
 }

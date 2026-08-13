@@ -34,7 +34,8 @@ function buildModularityControlChecks(ctx) {
       'scripts/test-consumer-evolution-controls.js',
       'scripts/lib/cli-install-commands.js',
       'scripts/lib/cli-maintenance-commands.js',
-      'scripts/lib/cli-command-registry.js'
+      'scripts/lib/cli-command-registry.js',
+      'scripts/lib/global-host-removal.js'
     ]
     for (const file of ownerModules) {
       if (!fs.existsSync(path.join(ROOT, file))) err(`[V93] owner module missing: ${file}`)

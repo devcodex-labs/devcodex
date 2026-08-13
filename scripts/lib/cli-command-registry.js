@@ -111,8 +111,12 @@ function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, cons
     return 'update'
   }
   if (cmd === 'uninstall') {
-    registry.cmdUninstallHost(selection.host || 'all', selection.cleanedArgv)
-    return 'CLI_HOST_CONFIG_GLOBAL_ONLY'
+    if (selection.host && selection.host !== 'all') {
+      registry.cmdUninstallHost(selection.host, selection.cleanedArgv)
+      return 'CLI_HOST_CONFIG_GLOBAL_ONLY'
+    }
+    registry.cmdGlobalAdapters(['remove', ...selection.cleanedArgv])
+    return 'global-adapters-remove'
   }
   if (cmd === 'profile') {
     if (argv[0] === 'init') {

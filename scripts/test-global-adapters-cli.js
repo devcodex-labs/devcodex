@@ -58,6 +58,62 @@ try {
   assert.strictEqual(bad.errorCode, 'CLI_GLOBAL_ADAPTERS_UNKNOWN_SUBCOMMAND')
   assert.strictEqual(fakeProcess.exitCode, 2)
 
+  let removalOptions = null
+  let removalResultStatus = null
+  const { cmdGlobalAdapters: removeCmd } = buildHandler({
+    packageRoot: ROOT,
+    process: fakeProcess,
+    console: logger,
+    packageJson: require('../package.json'),
+    applyGlobalHostRemoval: options => {
+      removalOptions = options
+      return {
+        home: path.resolve(options.home || home),
+        planDigest: 'remove-plan',
+        status: removalResultStatus || (options.dryRun ? 'planned' : 'committed'),
+        targets: resolveGlobalHostTargets({
+          env: options.env,
+          home: options.home,
+          packageRoot: ROOT,
+          runtimeGeneration: false
+        }),
+        hostPlans: [],
+        conflicts: [],
+        transaction: { status: options.dryRun ? 'planned' : 'committed', changed: options.dryRun ? 0 : 6 },
+        prunedDirectories: [],
+        pruneFailures: [],
+        grokIntegration: null
+      }
+    }
+  })
+  fakeProcess.exitCode = 0
+  const removePreview = removeCmd(['remove', '--json', '--home', home])
+  assert.strictEqual(removePreview.ok, true, JSON.stringify(removePreview))
+  assert.strictEqual(removePreview.payload.dryRun, true)
+  assert.strictEqual(removalOptions.dryRun, true)
+  const removeApply = removeCmd(['remove', '--apply', '--json', '--home', home])
+  assert.strictEqual(removeApply.ok, true, JSON.stringify(removeApply))
+  assert.strictEqual(removeApply.payload.dryRun, false)
+  assert.strictEqual(removalOptions.dryRun, false)
+  removalResultStatus = 'cleanup-incomplete'
+  fakeProcess.exitCode = 0
+  const incomplete = removeCmd(['remove', '--apply', '--json', '--home', home])
+  assert.strictEqual(incomplete.ok, false)
+  assert.strictEqual(incomplete.errorCode, 'GLOBAL_ADAPTERS_REMOVE_CLEANUP_INCOMPLETE')
+  assert.strictEqual(fakeProcess.exitCode, 1)
+  removalResultStatus = null
+  for (const invalidArgs of [
+    ['remove', '--apply', '--dry-run', '--json'],
+    ['remove', '--mode=hidden', '--json'],
+    ['apply', '--apply', '--json']
+  ]) {
+    fakeProcess.exitCode = 0
+    const invalidRemoval = removeCmd(invalidArgs)
+    assert.strictEqual(invalidRemoval.ok, false)
+    assert.strictEqual(invalidRemoval.errorCode, 'CLI_GLOBAL_ADAPTERS_BAD_ARGS')
+    assert.strictEqual(fakeProcess.exitCode, 2)
+  }
+
   const otherRoot = path.join(home, 'non-source-package')
   fs.mkdirSync(otherRoot, { recursive: true })
   fs.writeFileSync(path.join(otherRoot, 'package.json'), JSON.stringify({ name: 'other' }, null, 2))

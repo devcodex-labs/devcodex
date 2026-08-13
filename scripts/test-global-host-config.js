@@ -1107,6 +1107,47 @@ assert.throws(() => executeGlobalHostTransaction([
 assert.strictEqual(fs.readFileSync(first, 'utf8'), 'before\n')
 assert.strictEqual(fs.existsSync(secondFile), false)
 
+const rollbackDriftRoot = path.join(tmp, 'rollback-drift')
+fs.mkdirSync(rollbackDriftRoot, { recursive: true })
+const rollbackDriftFirst = path.join(rollbackDriftRoot, 'first.txt')
+const rollbackDriftSecond = path.join(rollbackDriftRoot, 'second.txt')
+fs.writeFileSync(rollbackDriftFirst, 'first-before\n')
+fs.writeFileSync(rollbackDriftSecond, 'second-before\n')
+let rollbackDriftInjected = false
+const rollbackDriftFs = Object.create(fs)
+rollbackDriftFs.renameSync = (source, destination) => {
+  const result = fs.renameSync(source, destination)
+  if (!rollbackDriftInjected && path.resolve(source) === path.resolve(rollbackDriftSecond) &&
+      String(destination).startsWith(`${rollbackDriftSecond}.devcodex-backup.`)) {
+    rollbackDriftInjected = true
+    fs.writeFileSync(rollbackDriftFirst, 'concurrent-user-content\n')
+  }
+  return result
+}
+let rollbackDriftError = null
+try {
+  executeGlobalHostTransaction([
+    { path: rollbackDriftFirst, content: 'first-after\n' },
+    { path: rollbackDriftSecond, content: 'second-after\n' }
+  ], {
+    fs: rollbackDriftFs,
+    allowedRoots: [rollbackDriftRoot],
+    failAfter: 1
+  })
+} catch (error) {
+  rollbackDriftError = error
+}
+assert(rollbackDriftError)
+assert.strictEqual(rollbackDriftError.receipt.rollbackIncomplete, true)
+assert.strictEqual(rollbackDriftError.receipt.rollbackFailures.length, 1)
+assert.strictEqual(
+  path.resolve(rollbackDriftError.receipt.rollbackFailures[0].destination),
+  path.resolve(rollbackDriftFirst)
+)
+assert.ok(rollbackDriftError.receipt.rollbackFailures[0].backup)
+assert.strictEqual(fs.readFileSync(rollbackDriftFirst, 'utf8'), 'concurrent-user-content\n')
+assert.strictEqual(fs.readFileSync(rollbackDriftSecond, 'utf8'), 'second-before\n')
+
 const renameFailureRoot = path.join(tmp, 'rename-failure')
 fs.mkdirSync(renameFailureRoot, { recursive: true })
 const renameFailureFile = path.join(renameFailureRoot, 'existing.txt')
@@ -1155,6 +1196,12 @@ assert.throws(() => executeGlobalHostTransaction([
   allowedFiles: claudeTarget.additionalFiles,
   dryRun: true
 }), /GLOBAL_HOST_OPERATION_OUTSIDE_ROOT/)
+assert.throws(() => executeGlobalHostTransaction([
+  null
+], {
+  allowedRoots: [claudeTarget.root],
+  dryRun: true
+}), error => error.code === 'GLOBAL_HOST_OPERATION_INVALID')
 
 const defaultClaudeTarget = resolveGlobalHostTarget('claude', {
   env: { ...env, CLAUDE_CONFIG_DIR: '' },
@@ -1197,7 +1244,51 @@ if (physicalEscapeProbeCreated) {
   ], {
     allowedRoots: [physicalBoundaryRoot],
     dryRun: true
-  }), /GLOBAL_HOST_OPERATION_OUTSIDE_ROOT/)
+  }), error => error.code === 'GLOBAL_HOST_OPERATION_REPARSE')
+
+  const physicalRootLink = path.join(tmp, 'physical-root-link')
+  fs.symlinkSync(physicalOutsideRoot, physicalRootLink, process.platform === 'win32' ? 'junction' : 'dir')
+  assert.throws(() => executeGlobalHostTransaction([
+    { path: path.join(physicalRootLink, 'escaped-via-root.txt'), content: 'forbidden\n' }
+  ], {
+    allowedRoots: [physicalRootLink],
+    dryRun: true
+  }), error => error.code === 'GLOBAL_HOST_OPERATION_ROOT_UNSAFE')
+
+  assert.throws(() => resolveGlobalHostTargets({
+    packageRoot,
+    home,
+    env: { ...env, CURSOR_HOME: physicalRootLink },
+    hosts: ['cursor']
+  }), error => error.code === 'GLOBAL_HOST_TARGET_ROOT_UNSAFE')
+
+  const physicalInsideTarget = path.join(physicalBoundaryRoot, 'inside-target')
+  const physicalInsideLink = path.join(physicalBoundaryRoot, 'linked-inside')
+  fs.mkdirSync(physicalInsideTarget, { recursive: true })
+  fs.symlinkSync(physicalInsideTarget, physicalInsideLink, process.platform === 'win32' ? 'junction' : 'dir')
+  assert.throws(() => executeGlobalHostTransaction([
+    { path: path.join(physicalInsideLink, 'inside-via-link.txt'), content: 'forbidden\n' }
+  ], {
+    allowedRoots: [physicalBoundaryRoot],
+    dryRun: true
+  }), error => error.code === 'GLOBAL_HOST_OPERATION_REPARSE')
+
+  const exactAllowedFile = path.join(physicalEscapeLink, 'exact-allowed.json')
+  fs.writeFileSync(path.join(physicalOutsideRoot, 'exact-allowed.json'), '{}\n')
+  assert.throws(() => executeGlobalHostTransaction([
+    { path: exactAllowedFile, content: '{"managed":true}\n', kind: 'json' }
+  ], {
+    allowedRoots: [rollbackRoot],
+    allowedFiles: [exactAllowedFile],
+    safetyRoots: [physicalBoundaryRoot],
+    dryRun: true
+  }), error => error.code === 'GLOBAL_HOST_OPERATION_REPARSE')
+
+  assert.throws(() => resolveGlobalHostTarget('claude', {
+    packageRoot,
+    home: physicalRootLink,
+    env: {}
+  }), error => error.code === 'GLOBAL_HOST_TARGET_ROOT_UNSAFE')
 }
 
 const deniedCodexRoot = path.resolve(env.CODEX_HOME)

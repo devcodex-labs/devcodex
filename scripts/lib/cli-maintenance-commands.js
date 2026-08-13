@@ -1049,8 +1049,8 @@ function buildCliMaintenanceCommands(ctx) {
       profile: ['devcodex profile plan|init [--tier <tier>] [--dry-run] [--force] [--prod]', 'Preview or create an advanced project Profile. Ordinary workspaces only need `devcodex init`.'],
       runtime: ['devcodex runtime status|prune [--dry-run|--apply] [--json]', 'Inspect runtime-state usage or preview safe stale-temp cleanup.'],
       tmp: ['devcodex tmp status|prune [--dry-run|--apply] [--json]', 'Inspect the canonical workspace temp root or conservatively prune manifest-owned expired artifacts.'],
-      uninstall: ['npm uninstall -g devcodex', 'Remove the published global package.'],
-      'global-adapters': ['devcodex global-adapters apply [--dry-run] [--json]', 'Advanced: refresh user-global host adapters from the current package root.'],
+      uninstall: ['devcodex uninstall [--dry-run|--apply] [--json] [--home <dir>]', 'Preview or explicitly remove receipt-owned user-global host artifacts. After --apply succeeds, run `npm uninstall -g devcodex`.'],
+      'global-adapters': ['devcodex global-adapters apply [--dry-run] [--json] | devcodex global-adapters remove [--dry-run|--apply] [--json]', 'Advanced: refresh or safely remove user-global host adapters from the current package root.'],
       grok: ['devcodex grok [Grok CLI options]', 'Launch Grok with the user-global DevCodex kernel.'],
       'migrate-layout': ['devcodex migrate-layout plan|apply|rollback', 'Advanced: manage centralized workspace layout migration.'],
       probe: ['devcodex probe <id> [--json]', 'Advanced: run bounded local-only diagnostics.'],
@@ -1088,12 +1088,12 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('runtime prune')}     Preview safe stale-temp cleanup; add --apply to remove
       ${c.cyan('tmp status')}        Inspect canonical workspace temporary artifacts and blocked legacy entries
       ${c.cyan('tmp prune')}         Preview manifest-owned TTL cleanup; add --apply to remove
-      ${c.cyan('profile init')}      Auto-generate tiered .devcodex/profile/ drafts
-      ${c.cyan('profile plan')}      Preview Profile root/tier/file actions without writing
+      ${c.cyan('uninstall')}         Preview managed six-host cleanup; add --apply before npm uninstall
+      ${c.cyan('profile init|plan')} Generate tiered Profile drafts or preview actions without writing
       ${c.cyan('help <command>')}    Show read-only help for one command
 
     ${c.bold('Advanced commands:')}
-      ${c.cyan('global-adapters')}   Apply user-level host adapters from package root
+      ${c.cyan('global-adapters')}   Apply or safely remove user-level host adapters
       ${c.cyan('grok')}              Launch Grok with the user-global DevCodex kernel
       ${c.cyan('migrate-layout')}    Plan/apply/rollback centralized .devcodex workspace layout
       ${c.cyan('probe')}             Run bounded local-only diagnostics; accepts IDs and --json
@@ -1120,7 +1120,7 @@ function buildCliMaintenanceCommands(ctx) {
 
     ${c.bold('Update / uninstall:')}
       npm update -g devcodex
-      npm uninstall -g devcodex
+      devcodex uninstall --dry-run  →  --apply  →  npm uninstall -g devcodex
 
     Every command supports ${c.cyan('<command> --help')} and ${c.cyan('help <command>')} without writing files.
     User guide: https://github.com/devcodex-labs/devcodex#readme

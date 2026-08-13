@@ -7,6 +7,10 @@ const ROOT = path.resolve(__dirname, '..')
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'))
 const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugin.json'), 'utf8'))
+const cursorPlugin = JSON.parse(fs.readFileSync(
+  path.join(ROOT, 'cursor', 'plugins', 'devcodex-workspace', '.cursor-plugin', 'plugin.json'),
+  'utf8'
+))
 
 function walk(dir) {
   if (!fs.existsSync(dir)) return []
@@ -21,6 +25,11 @@ function walk(dir) {
 
 if (pkg.version !== plugin.version) {
   console.error(`✗ Version mismatch: package.json (${pkg.version}) ≠ plugin.json (${plugin.version})`)
+  process.exit(1)
+}
+
+if (pkg.version !== cursorPlugin.version) {
+  console.error(`✗ Version mismatch: package.json (${pkg.version}) ≠ Cursor plugin (${cursorPlugin.version})`)
   process.exit(1)
 }
 

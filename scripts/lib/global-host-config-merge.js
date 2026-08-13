@@ -156,6 +156,147 @@ function mergeManagedBlock(content, body, options = {}) {
   return `${text.slice(0, begin)}${block}${text.slice(end)}`.replace(/\s*$/, '\n')
 }
 
+function removeManagedBlock(content, options = {}) {
+  const kind = options.kind || 'toml'
+  const id = options.id || MANAGED_ID
+  const text = String(content || '')
+  const markers = markerTokens(kind, id)
+  const beginCount = markerCount(text, markers.begin)
+  const endCount = markerCount(text, markers.end)
+  if (beginCount !== endCount || beginCount > 1) {
+    const error = new Error(`GLOBAL_HOST_MARKER_CONFLICT: ${id} begin=${beginCount} end=${endCount}`)
+    error.code = 'GLOBAL_HOST_MARKER_CONFLICT'
+    throw error
+  }
+  if (beginCount === 0) return text
+  const begin = text.indexOf(markers.begin)
+  const end = text.indexOf(markers.end, begin) + markers.end.length
+  const before = text.slice(0, begin)
+  const afterBlock = text.slice(end)
+  const after = afterBlock.startsWith('\r\n')
+    ? afterBlock.slice(2)
+    : (afterBlock.startsWith('\n') ? afterBlock.slice(1) : afterBlock)
+  if (!before.trim() && !after.trim()) return ''
+  if (after.trim()) return `${before}${after}`
+
+  // A newly appended managed block owns its two-line separator. Collapse only
+  // that known separator; preserve all other user-owned bytes verbatim.
+  const restoredBefore = before.replace(/(\r?\n)\r?\n$/, '$1')
+  return `${restoredBefore}${after}`
+}
+
+function containsDevCodexReference(value) {
+  if (typeof value === 'string') return /(?:^|[^a-z0-9])devcodex(?:[^a-z0-9]|$)/i.test(value)
+  if (Array.isArray(value)) return value.some(containsDevCodexReference)
+  if (isPlainObject(value)) return Object.values(value).some(containsDevCodexReference)
+  return false
+}
+
+function removeManagedServerMap(result, managed, key, label) {
+  if (!Object.prototype.hasOwnProperty.call(result, key)) return
+  if (!isPlainObject(result[key])) {
+    if (containsDevCodexReference(result[key])) {
+      const error = new Error(`GLOBAL_HOST_JSON_MANAGED_CONFLICT: ${label}.${key}`)
+      error.code = 'GLOBAL_HOST_JSON_MANAGED_CONFLICT'
+      throw error
+    }
+    return
+  }
+  const servers = { ...result[key] }
+  for (const [name, expected] of Object.entries(isPlainObject(managed?.[key]) ? managed[key] : {})) {
+    if (!Object.prototype.hasOwnProperty.call(servers, name)) continue
+    const current = servers[name]
+    if (stableKey(current) !== stableKey(expected)) {
+      const error = new Error(`GLOBAL_HOST_JSON_MANAGED_CONFLICT: ${label}.${key}.${name}`)
+      error.code = 'GLOBAL_HOST_JSON_MANAGED_CONFLICT'
+      throw error
+    }
+    delete servers[name]
+  }
+  for (const [name, value] of Object.entries(servers)) {
+    if (containsDevCodexReference(value)) {
+      const error = new Error(`GLOBAL_HOST_JSON_MANAGED_CONFLICT: ${label}.${key}.${name}`)
+      error.code = 'GLOBAL_HOST_JSON_MANAGED_CONFLICT'
+      throw error
+    }
+  }
+  if (Object.keys(servers).length) result[key] = servers
+  else delete result[key]
+}
+
+function removeHostJsonContent(content, managed, label = 'JSON config') {
+  const existing = parseJsonObject(content, label)
+  const result = { ...existing }
+  if (Object.prototype.hasOwnProperty.call(result, 'hooks') && !isPlainObject(result.hooks)) {
+    if (containsDevCodexReference(result.hooks)) {
+      const error = new Error(`GLOBAL_HOST_JSON_MANAGED_CONFLICT: ${label}.hooks`)
+      error.code = 'GLOBAL_HOST_JSON_MANAGED_CONFLICT'
+      throw error
+    }
+  }
+  if (isPlainObject(result.hooks)) {
+    const hooks = {}
+    for (const [event, entries] of Object.entries(result.hooks)) {
+      if (!Array.isArray(entries)) {
+        if (containsDevCodexReference(entries)) {
+          const error = new Error(`GLOBAL_HOST_JSON_MANAGED_CONFLICT: ${label}.hooks.${event}`)
+          error.code = 'GLOBAL_HOST_JSON_MANAGED_CONFLICT'
+          throw error
+        }
+        hooks[event] = entries
+        continue
+      }
+      const expectedEntries = Array.isArray(managed?.hooks?.[event])
+        ? managed.hooks[event]
+        : []
+      const expectedKeys = new Set(expectedEntries.map(stableKey))
+      const preserved = entries.filter(entry => {
+        if (expectedKeys.has(stableKey(entry))) return false
+        if (isDevCodexManagedHookEntry(entry) || containsDevCodexReference(entry)) {
+          const error = new Error(`GLOBAL_HOST_JSON_MANAGED_CONFLICT: ${label}.hooks.${event}`)
+          error.code = 'GLOBAL_HOST_JSON_MANAGED_CONFLICT'
+          throw error
+        }
+        return true
+      })
+      if (preserved.length) hooks[event] = preserved
+    }
+    if (Object.keys(hooks).length) result.hooks = hooks
+    else delete result.hooks
+  }
+  removeManagedServerMap(result, managed, 'mcpServers', label)
+  removeManagedServerMap(result, managed, 'servers', label)
+
+  const structuralKeys = new Set(['hooks', 'mcpServers', 'servers'])
+  const ordinaryManaged = Object.entries(managed || {}).filter(([key]) => !structuralKeys.has(key))
+  for (const [key, expected] of ordinaryManaged) {
+    if (!Object.prototype.hasOwnProperty.call(result, key)) continue
+    if (stableKey(result[key]) === stableKey(expected)) {
+      delete result[key]
+      continue
+    }
+    if (containsDevCodexReference(result[key])) {
+      const error = new Error(`GLOBAL_HOST_JSON_MANAGED_CONFLICT: ${label}.${key}`)
+      error.code = 'GLOBAL_HOST_JSON_MANAGED_CONFLICT'
+      throw error
+    }
+  }
+  for (const [key, value] of Object.entries(result)) {
+    if (containsDevCodexReference(value)) {
+      const error = new Error(`GLOBAL_HOST_JSON_MANAGED_CONFLICT: ${label}.${key}`)
+      error.code = 'GLOBAL_HOST_JSON_MANAGED_CONFLICT'
+      throw error
+    }
+  }
+  const desired = Object.keys(result).length ? `${JSON.stringify(result, null, 2)}\n` : ''
+  return {
+    schemaVersion: 'GlobalHostJsonRemovalV1',
+    desired,
+    empty: desired === '',
+    changed: desired !== String(content || '')
+  }
+}
+
 function assertManagedTomlTableIdentity(content, tableNames) {
   const text = String(content || '')
   const expected = new Set(tableNames || [])
@@ -403,6 +544,8 @@ module.exports = {
   mergeManagedHookMap,
   mergeManagedBlock,
   mergeManagedTomlTables,
+  removeHostJsonContent,
+  removeManagedBlock,
   removeLegacyManagedBlock,
   parseJsonObject,
   parseTomlSections,

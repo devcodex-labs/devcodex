@@ -35,6 +35,8 @@ const PUBLIC_README_REQUIRED_MARKERS = Object.freeze([
   'npm install -g devcodex',
   'npm update -g devcodex',
   'npm uninstall -g devcodex',
+  'devcodex uninstall --dry-run',
+  'devcodex uninstall --apply',
   'devcodex --version',
   '重新打开宿主的新会话',
   '安装生命周期中刷新用户级宿主适配',

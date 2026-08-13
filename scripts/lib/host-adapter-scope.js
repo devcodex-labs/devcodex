@@ -6,6 +6,10 @@ const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const { buildGrokCliEnv } = require('./grok-cli-env.js')
+const {
+  executeGlobalHostTransaction,
+  operationDigest
+} = require('./global-host-config-transaction.js')
 const { prepareWorkspaceTempBackupRoot, registerWorkspaceTempBackup } = require('./workspace-temp.js')
 const {
   findLayoutInfo,
@@ -782,7 +786,7 @@ function syncGrokWorkspacePluginInstallation({
       ? path.join(prepareWorkspaceTempBackupRoot(activeRoot), `grok-plugin-convergence.${timestampSuffix()}`)
       : path.join(grokHomePath(env), 'devcodex', 'backups', 'plugin-convergence', timestampSuffix())
   ))
-  const snapshots = planned
+  const snapshots = planned && classified.length
     ? snapshotManagedGrokIdentities(classified, configSnapshot, before.registryFile, backupRoot)
     : []
   let mutationStarted = false
@@ -953,12 +957,17 @@ function uninstallGrokPluginInstallation({ pluginPath, activeRoot, dryRun = fals
   }
 
   let backupPath = null
+  let backupManifestPath = null
   if (changed && configExisted) {
     const suffix = `${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 17)}-${process.pid}`
     backupPath = path.join(prepareWorkspaceTempBackupRoot(activeRoot || resolveActiveRuntimeRoot(process.cwd())), `grok-user-config.toml.bak.${suffix}`)
     fs.mkdirSync(path.dirname(backupPath), { recursive: true })
     fs.copyFileSync(configPath, backupPath)
-    registerWorkspaceTempBackup(backupPath, { owner: 'devcodex-grok-adapter', producer: 'grok-plugin-uninstall' })
+    const registration = registerWorkspaceTempBackup(backupPath, {
+      owner: 'devcodex-grok-adapter',
+      producer: 'grok-plugin-uninstall'
+    })
+    backupManifestPath = registration?.manifestPath || null
   }
 
   if (installedBefore.repoId) {
@@ -978,15 +987,35 @@ function uninstallGrokPluginInstallation({ pluginPath, activeRoot, dryRun = fals
     }
   }
 
-  if (removal.changed || installedBefore.repoId) {
-    if (!configExisted && removal.desired === '') {
-      if (fs.existsSync(configPath)) fs.rmSync(configPath)
-    } else {
-      fs.mkdirSync(path.dirname(configPath), { recursive: true })
-      const temp = `${configPath}.tmp-${process.pid}`
-      fs.writeFileSync(temp, removal.desired, 'utf8')
-      fs.renameSync(temp, configPath)
-    }
+  const configAfterCommandExists = fs.existsSync(configPath)
+  const configAfterCommandBytes = configAfterCommandExists ? fs.readFileSync(configPath) : null
+  const configAfterCommand = configAfterCommandBytes == null ? '' : configAfterCommandBytes.toString('utf8')
+  const freshRemoval = removeGrokPluginRegistration(configAfterCommand, source)
+  if (freshRemoval.changed) {
+    const operation = freshRemoval.desired === ''
+      ? {
+          host: 'grok',
+          action: 'remove',
+          path: configPath,
+          kind: 'toml',
+          expectedDigest: operationDigest(configAfterCommandBytes)
+        }
+      : {
+          host: 'grok',
+          action: 'write',
+          path: configPath,
+          kind: 'toml',
+          content: freshRemoval.desired,
+          expectedDigest: operationDigest(configAfterCommandBytes)
+        }
+    const configRoot = path.dirname(configPath)
+    executeGlobalHostTransaction([operation], {
+      allowedRoots: [configRoot],
+      safetyRoots: [configRoot],
+      allowedByHost: {
+        grok: { allowedRoots: [configRoot], allowedFiles: [], safetyRoots: [configRoot] }
+      }
+    })
   }
 
   const installedAfter = findInstalledLocalPlugin(source, env)
@@ -1009,6 +1038,7 @@ function uninstallGrokPluginInstallation({ pluginPath, activeRoot, dryRun = fals
     configChanged: removal.changed,
     installedRepoId: installedBefore.repoId,
     backupPath,
+    backupManifestPath,
     beforeDigest: contentDigest(configBefore),
     afterDigest: contentDigest(configAfter),
     workspaceSourceRetained: fs.existsSync(source),

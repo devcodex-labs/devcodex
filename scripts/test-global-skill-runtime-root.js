@@ -24,7 +24,7 @@ const packageRoot = path.resolve(__dirname, '..')
 }
 
 {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'global-skill-root-'))
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-global-skill-root-'))
   const hostRoot = path.join(home, '.claude')
   const runtimeRoot = path.join(hostRoot, 'devcodex', 'runtime')
   const skillsRoot = path.join(home, '.agents', 'devcodex', 'skills')

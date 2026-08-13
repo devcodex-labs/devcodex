@@ -3646,7 +3646,9 @@
       "inputs": [
         "index.js",
         "scripts/lib/cli-*.js",
+        "scripts/lib/workspace-temp*.js",
         "scripts/test-cli-behavior.js",
+        "scripts/test-workspace-temp.js",
         "mcp/**"
       ],
       "consumers": [],

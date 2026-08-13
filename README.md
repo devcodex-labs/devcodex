@@ -449,6 +449,23 @@ devcodex doctor
 
 然后完全关闭旧任务并新建任务。完全访问可以作为短时诊断对照，但不是默认修复方案。
 
+### 为什么 `.devcodex` 或工作区里会出现很多 `tmp` / `.tmp-*` 目录？
+
+这通常来自旧版安装备份、测试/审计脚本自行拼接路径，或任务把一次性脚本放进了需求目录。集中工作区的新写入只允许进入：
+
+```text
+<workspace>/.tmp/devcodex/
+```
+
+这里的 `<workspace>` 是当前打开工作区的物理根；无集中布局的单项目把项目根视为 workspace。从工作区根、项目子目录或 `.devcodex` active-root 调用时必须得到同一个根。旧 `.devcodex/workspace/.tmp/` 与 `<project>/.devcodex/.tmp/` 只作为遗留只读输入报告，不能继续写入。先执行：
+
+```bash
+devcodex tmp status
+devcodex tmp prune --dry-run
+```
+
+只有带 `WorkspaceTempManifestV1`、owner/type 可识别、TTL 已到期、没有活动 lease，且备份事务已完成的对象才会成为候选。确认后再执行 `devcodex tmp prune --apply`。一次状态检查的 canonical 文件/目录与 legacy 目录观察共用 10,000 项相关对象上限；四个 artifact 分区根不能被 manifest 整体认领，unknown owner、共享/损坏 lease、未知分区、lock、reparse point、路径逃逸、不完整备份和扫描截断都会保持 blocked。DevCodex 只拥有 `.tmp/devcodex/`：`.tmp/` 容器、`.tmp/<other-producer>/`、工作区根的 `tmp/.tmp-*` 以及 `.tmp.drive*` 外部传输 spool 都不进入 DevCodex ownership、blocked 列表或 `--apply` 删除集合；它们必须由各自生产者盘点并取得独立删除授权。
+
 ## 更新
 
 ```bash
@@ -464,7 +481,7 @@ devcodex --version
 npm uninstall -g devcodex
 ```
 
-## 运行态检查
+## 运行态与临时产物检查
 
 需要排查空间占用或旧电脑遗留的运行态时，可以查看各类状态的负责人、文件数、体积和最后使用时间：
 
@@ -474,6 +491,16 @@ devcodex runtime prune --dry-run
 ```
 
 清理命令默认只预览。确认列表后使用 `devcodex runtime prune --apply`；它只清理达到保留期限的原子写入临时文件，不会自动删除锁文件、当前任务状态或无法识别的文件。
+
+工作区临时产物使用独立命令，不与 `.runtime-state` 混删：
+
+```bash
+devcodex tmp status --json
+devcodex tmp prune --dry-run
+devcodex tmp prune --apply
+```
+
+`tmp prune` 无参数时等价于 `--dry-run`。所有布局的 canonical root 都是 `<workspace>/.tmp/devcodex/`，按 `runs/cache/backups/leases/quarantine/manifests` 分区；安装器和宿主配置备份会先验证 canonical/partition 非 reparse，再写入 `backups/<project>/` 并登记保留期限。对象删除时会同步回收其唯一且已过期的 lease；共享 lease 保持 blocked。旧 `.devcodex/**/.tmp` 和没有 manifest 的历史内容只报告，不会被自动迁移或删除。
 
 ## 生效方式
 

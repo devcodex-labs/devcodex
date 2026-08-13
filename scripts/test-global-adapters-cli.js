@@ -58,7 +58,8 @@ try {
   assert.strictEqual(bad.errorCode, 'CLI_GLOBAL_ADAPTERS_UNKNOWN_SUBCOMMAND')
   assert.strictEqual(fakeProcess.exitCode, 2)
 
-  const otherRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'not-devcodex-'))
+  const otherRoot = path.join(home, 'non-source-package')
+  fs.mkdirSync(otherRoot, { recursive: true })
   fs.writeFileSync(path.join(otherRoot, 'package.json'), JSON.stringify({ name: 'other' }, null, 2))
   const { cmdGlobalAdapters: badRootCmd } = buildHandler({
     packageRoot: otherRoot,

@@ -1,3 +1,5 @@
+const { registerWorkspaceTempBackup } = require('./workspace-temp.js')
+
 function buildCliRuntimeUtils({
   fs,
   path,
@@ -9,6 +11,7 @@ function buildCliRuntimeUtils({
   legacyTargets,
   devcodexGitignoreEntries
 }) {
+  let backupSequence = 0
   function resolveGitignoreRoot(cwd) {
     const layout = findLayoutInfo(cwd)
     return layout.enabled ? layout.workspaceRoot : cwd
@@ -153,7 +156,9 @@ function buildCliRuntimeUtils({
   }
 
   function backupSuffix() {
-    return new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)
+    backupSequence++
+    const timestamp = new Date().toISOString().replace(/\D/g, '').slice(0, 17)
+    return `${timestamp}-${process.pid}-${backupSequence}`
   }
 
   function copyManagedTextFile(src, dest, {
@@ -177,6 +182,7 @@ function buildCliRuntimeUtils({
       if (!dryRun) {
         fs.mkdirSync(path.dirname(backupPath), { recursive: true })
         fs.copyFileSync(dest, backupPath)
+        registerWorkspaceTempBackup(backupPath, { owner: 'devcodex-cli', producer: 'copy-managed-text-file' })
       }
     }
 
@@ -216,6 +222,7 @@ function buildCliRuntimeUtils({
       if (!dryRun) {
         fs.mkdirSync(path.dirname(backupPath), { recursive: true })
         fs.copyFileSync(dest, backupPath)
+        registerWorkspaceTempBackup(backupPath, { owner: 'devcodex-cli', producer: 'write-managed-json-file' })
       }
     }
 

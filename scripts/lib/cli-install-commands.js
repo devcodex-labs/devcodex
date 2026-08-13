@@ -19,6 +19,7 @@ function buildCliInstallCommands(ctx) {
     CODEX_SOURCES, CLAUDE_SETTINGS_HOOKS, CLAUDE_SETTINGS_PERMISSIONS,
     CLAUDE_MCP_JSON, CODEX_HOOK_COMMAND, isSourceRepo, beginManagedDeployment,
     finishManagedDeployment, walkDir, resolveActiveRuntimeRoot, resolveGitignoreRoot,
+    prepareWorkspaceTempBackupRoot, registerWorkspaceTempBackup, resolveWorkspaceTempBackupRoot,
     copyManagedTextFile, readJsonFileWithStatus,
     writeManagedJsonFile, normalizeStringArray, mergeUniqueStringArrays,
     mergeClaudeHooks, mergeClaudeMcpConfig, mergeCodexConfigToml,
@@ -444,7 +445,7 @@ function buildCliInstallCommands(ctx) {
       }
     }
 
-    const backupDir = path.join(resolveActiveRuntimeRoot(cwd), '.tmp', 'backups')
+    const backupDir = dryRun ? resolveWorkspaceTempBackupRoot(cwd) : prepareWorkspaceTempBackupRoot(cwd)
     const fallbackCounts = copySharedProjectionAssets({
       cwd,
       force,
@@ -545,7 +546,7 @@ function buildCliInstallCommands(ctx) {
     let added = 0, updated = 0, skipped = 0
     const log = internal ? () => { } : (...args) => console.log(...args)
     const inlineLog = (...args) => console.log(...args)
-    const backupDir = path.join(resolveActiveRuntimeRoot(cwd), '.tmp', 'backups')
+    const backupDir = dryRun ? resolveWorkspaceTempBackupRoot(cwd) : prepareWorkspaceTempBackupRoot(cwd)
 
     // 1. Install a thin Claude wrapper plus the shared kernel/full fallback.
     const claudeMdSrc = path.join(PKG_ROOT, 'host-projections', 'CLAUDE.md')
@@ -757,7 +758,7 @@ function buildCliInstallCommands(ctx) {
     let added = 0, updated = 0, skipped = 0
     const log = internal ? () => { } : (...args) => console.log(...args)
     const inlineLog = (...args) => console.log(...args)
-    const backupDir = path.join(resolveActiveRuntimeRoot(cwd), '.tmp', 'backups')
+    const backupDir = dryRun ? resolveWorkspaceTempBackupRoot(cwd) : prepareWorkspaceTempBackupRoot(cwd)
 
     const sharedCounts = copySharedProjectionAssets({
       cwd,
@@ -867,6 +868,7 @@ function buildCliInstallCommands(ctx) {
             const backupPath = path.join(backupDir, `config.toml.bak.${Date.now()}`)
             try {
               fs.copyFileSync(codexConfigPath, backupPath)
+              registerWorkspaceTempBackup(backupPath, { owner: 'devcodex-cli', producer: 'codex-config-toml' })
               inlineLog(c.yellow(`  ⚠ backed up existing .codex/config.toml to ${path.relative(cwd, backupPath)}`))
             } catch (backupErr) {
               const msg = `CODEX_CONFIG_BACKUP_FAILED: cannot backup ${codexConfigPath}: ${backupErr && backupErr.message ? backupErr.message : backupErr}`
@@ -962,7 +964,7 @@ function buildCliInstallCommands(ctx) {
     const counts = { added: 0, updated: 0, skipped: 0 }
     const log = internal ? () => {} : (...args) => console.log(...args)
     const inlineLog = (...args) => console.log(...args)
-    const backupDir = path.join(resolveActiveRuntimeRoot(cwd), '.tmp', 'backups')
+    const backupDir = dryRun ? resolveWorkspaceTempBackupRoot(cwd) : prepareWorkspaceTempBackupRoot(cwd)
 
     if (!internal) {
       console.log()
@@ -1029,7 +1031,7 @@ function buildCliInstallCommands(ctx) {
     const log = internal ? () => {} : (...args) => console.log(...args)
     const inlineLog = (...args) => console.log(...args)
     const activeRoot = resolveActiveRuntimeRoot(targetRoot)
-    const backupDir = path.join(activeRoot, '.tmp', 'backups')
+    const backupDir = dryRun ? resolveWorkspaceTempBackupRoot(activeRoot) : prepareWorkspaceTempBackupRoot(activeRoot)
 
     if (grokWorkspaceScope) {
       writeGrokPluginRegistration({

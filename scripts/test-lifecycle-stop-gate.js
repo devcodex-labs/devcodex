@@ -257,7 +257,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
 
 // T10 pr1-skipped
 {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'stop-gate-pr1-'))
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-stop-gate-pr1-'))
   try {
     const taskRoot = path.join(tmp, 'requirements', 'sample')
     fs.mkdirSync(taskRoot, { recursive: true })
@@ -279,7 +279,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
 
 // T10b strong PR-1 ok (substantive 03 body — not thin open-blocker-only)
 {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'stop-gate-pr1-ok-'))
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-stop-gate-pr1-ok-'))
   try {
     const taskRoot = path.join(tmp, 'requirements', 'ok')
     fs.mkdirSync(taskRoot, { recursive: true })
@@ -299,7 +299,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
 
 // F-04: weak "通过" must NOT pass pr1EvidenceOk
 {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'stop-gate-pr1-weak-'))
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-stop-gate-pr1-weak-'))
   try {
     const taskRoot = path.join(tmp, 't')
     fs.mkdirSync(taskRoot, { recursive: true })
@@ -316,7 +316,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
 
 // D-PR1-1: open blocker = 0 alone is thin-green → false
 {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'stop-gate-pr1-thin-ob-'))
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-stop-gate-pr1-thin-ob-'))
   try {
     const taskRoot = path.join(tmp, 't')
     fs.mkdirSync(taskRoot, { recursive: true })
@@ -330,7 +330,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
 
 // D-PR1-2: bare PR-1 | ✅ table is not a pass signal → false
 {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'stop-gate-pr1-table-'))
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-stop-gate-pr1-table-'))
   try {
     const taskRoot = path.join(tmp, 't')
     fs.mkdirSync(taskRoot, { recursive: true })
@@ -350,7 +350,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
 
 // D-PR1-4: with 02 present, sessions-only PR-1 ✅ is not enough
 {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'stop-gate-pr1-sess-'))
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-stop-gate-pr1-sess-'))
   try {
     const taskRoot = path.join(tmp, 't')
     fs.mkdirSync(path.join(taskRoot, '.memory'), { recursive: true })

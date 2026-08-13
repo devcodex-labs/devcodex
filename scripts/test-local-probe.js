@@ -50,6 +50,13 @@ assert.throws(() => createLocalProbeRegistry([
 const ROOT = path.resolve(__dirname, '..')
 const CLI = path.join(ROOT, 'index.js')
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-local-probe-'))
+let tempCleaned = false
+function cleanupTempFixture() {
+  if (tempCleaned) return
+  fs.rmSync(tempRoot, { recursive: true, force: true })
+  tempCleaned = true
+}
+process.once('exit', cleanupTempFixture)
 fs.writeFileSync(path.join(tempRoot, 'marker.txt'), 'zero-write\n')
 
 function treeDigest(root) {
@@ -99,4 +106,6 @@ assert.match(human.stdout, /DevCodex local probes/)
 assert.doesNotMatch(human.stdout, /DevCodexCliEnvelopeV1/)
 assert.strictEqual(treeDigest(tempRoot), before, 'human probe mode must also remain zero-write')
 
-console.log('✓ local probe descriptor, dependency, error, CLI and zero-write fixtures passed')
+cleanupTempFixture()
+assert.strictEqual(fs.existsSync(tempRoot), false, 'local probe temporary fixture must be removed before success')
+console.log('✓ local probe descriptor, dependency, error, CLI, zero-write and temp-cleanup fixtures passed')

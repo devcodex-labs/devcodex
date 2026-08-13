@@ -13,6 +13,20 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 
+const tempRoots = []
+
+function makeTempRoot (prefix) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+  tempRoots.push(root)
+  return root
+}
+
+function cleanupTempRoots () {
+  for (const root of tempRoots) fs.rmSync(root, { recursive: true, force: true })
+}
+
+process.once('exit', cleanupTempRoots)
+
 const packageRoot = path.resolve(__dirname, '..')
 const packageLifecycle = path.join(packageRoot, 'hooks', '_runtime', 'lifecycle.cjs')
 const deployedLifecycle = path.join(
@@ -143,7 +157,7 @@ function classifyStop (json) {
 }
 
 function scenarioRt5 () {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-rt5-'))
+  const cwd = makeTempRoot('devcodex-rt5-')
   fs.writeFileSync(path.join(cwd, 'README.md'), 'rt5-chat\n', 'utf8')
   const env = makeEnv('rt5-' + Date.now())
   runLifecycle(cwd, env, {
@@ -175,7 +189,7 @@ function scenarioRt5 () {
 }
 
 function scenarioRt3 () {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-rt3-'))
+  const cwd = makeTempRoot('devcodex-rt3-')
   fs.writeFileSync(path.join(cwd, 'README.md'), 'rt3\n', 'utf8')
   const env = makeEnv('rt3-' + Date.now())
   runLifecycle(cwd, env, {
@@ -215,7 +229,7 @@ function scenarioRt3 () {
 }
 
 function scenarioRt6 () {
-  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-rt6-'))
+  const cwd = makeTempRoot('devcodex-rt6-')
   fs.writeFileSync(path.join(cwd, 'README.md'), 'rt6\n', 'utf8')
   // Minimal product artifact paths so report/memory touches can fire if tool paths hit them
   const reportDir = path.join(cwd, '.devcodex', 'reports', 'analysis', 'grok', '20260726')
@@ -288,6 +302,14 @@ function main () {
   console.log(
     results.map(r => `${r.id}:${r.pass ? 'PASS' : 'FAIL'}`).join(' ')
   )
+  cleanupTempRoots()
+  const leakedRoots = tempRoots.filter(root => fs.existsSync(root))
+  if (leakedRoots.length > 0) {
+    failed += 1
+    console.error('temp cleanup failed:', leakedRoots.join(', '))
+  } else {
+    console.log('tempCleanup=1')
+  }
   process.exitCode = failed ? 1 : 0
 }
 

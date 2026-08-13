@@ -17,6 +17,13 @@ const { buildCliMaintenanceCommands } = require('./scripts/lib/cli-maintenance-c
 const { buildCliObservabilityCommands } = require('./scripts/lib/cli-observability-commands.js')
 const { buildCliExecutionCommands } = require('./scripts/lib/cli-execution-commands.js')
 const { buildCliRuntimeCommands } = require('./scripts/lib/cli-runtime-commands.js')
+const { buildCliTempCommands } = require('./scripts/lib/cli-temp-commands.js')
+const { prepareWorkspaceTempBackupRoot, registerWorkspaceTempBackup } = require('./scripts/lib/workspace-temp.js')
+const {
+  resolveWorkspaceTempBackupRoot: sharedResolveWorkspaceTempBackupRoot,
+  resolveWorkspaceTempProject: sharedResolveWorkspaceTempProject,
+  resolveWorkspaceTempRoot: sharedResolveWorkspaceTempRoot
+} = require('./scripts/lib/workspace-temp-layout.js')
 const { createCliCommandRegistry, runCliCommand } = require('./scripts/lib/cli-command-registry.js')
 const { launchGrok } = require('./scripts/lib/grok-workspace-launcher.js')
 const { resolveTenantSelection, shouldIncludeInstructionFile } = require('./scripts/lib/tenant-selection.js')
@@ -163,10 +170,24 @@ function resolveActiveRuntimeRoot(cwd) {
   return sharedResolveActiveRuntimeRoot(cwd)
 }
 
+function resolveWorkspaceTempRoot(cwd) {
+  return sharedResolveWorkspaceTempRoot(cwd)
+}
+
+function resolveWorkspaceTempProject(cwd, explicitProject = '') {
+  return sharedResolveWorkspaceTempProject(cwd, explicitProject)
+}
+
+function resolveWorkspaceTempBackupRoot(cwd, explicitProject = '') {
+  return sharedResolveWorkspaceTempBackupRoot(cwd, explicitProject)
+}
+
 const DEVCODEX_GITIGNORE_ENTRIES = [
+  '.tmp/devcodex/',
   '.devcodex/.memory/',
   '.devcodex/.audit-state/',
   '.devcodex/.tmp/',
+  '.devcodex/workspace/.tmp/',
   '.devcodex/profile/config.local.json',
   '.devcodex/workspace/profile/config.local.json',
   '.devcodex/*/.memory/',
@@ -346,6 +367,7 @@ const { cmdInitWorkspaceRuntime, cmdInitHost, cmdUninstallHost } = buildCliInsta
   mergeClaudeHooks, mergeClaudeMcpConfig, mergeCodexConfigToml, CODEX_MCP_MANAGED_BEGIN,
   ensureWorkspaceNamespaceLayout, ensureRuntimeDirs, ensureDevCodexGitignore, walkDir,
   resolveActiveRuntimeRoot, resolveGitignoreRoot, getLegacyCounts, isPlainObject,
+  prepareWorkspaceTempBackupRoot, registerWorkspaceTempBackup, resolveWorkspaceTempBackupRoot,
   resolveHostAdapterScope, writeGrokPluginRegistration,
   syncGrokPluginInstallation, syncGrokWorkspacePluginInstallation,
   uninstallGrokPluginInstallation,
@@ -392,6 +414,7 @@ const { cmdProbe, cmdTrace } = buildCliObservabilityCommands({
 })
 const { cmdSkill, cmdTask } = buildCliExecutionCommands({ process, console, c })
 const { cmdRuntime } = buildCliRuntimeCommands({ process, console, c, cliMetadata: { packageVersion: require('./package.json').version } })
+const { cmdTemp } = buildCliTempCommands({ process, console, c, cliMetadata: { packageVersion: require('./package.json').version } })
 const { cmdGlobalAdapters } = require('./scripts/lib/global-adapters-cli.js').buildHandler({
   fs, path, process, console, c, packageRoot: PKG_ROOT, packageJson: require('./package.json')
 })
@@ -409,7 +432,7 @@ function cmdGrok(argv) {
 
 const cliCommandRegistry = createCliCommandRegistry({
   cmdInitWorkspaceRuntime, cmdInitHost, cmdUninstallHost, cmdGrok, cmdStatus, cmdProfileInit, cmdDoctor,
-  cmdProbe, cmdTrace, cmdSkill, cmdTask, cmdGlobalAdapters, cmdRuntime, cmdHelp
+  cmdProbe, cmdTrace, cmdSkill, cmdTask, cmdGlobalAdapters, cmdRuntime, cmdTemp, cmdHelp
 })
 
 if (require.main === module) {
@@ -420,7 +443,9 @@ if (require.main === module) {
 module.exports = {
   walkDir, cmdInitWorkspaceRuntime, cmdInitHost,
   cmdUninstallHost, cmdGrok, cmdStatus, cmdHelp, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace,
-  cmdSkill, cmdTask, cmdGlobalAdapters, cmdRuntime, isSourceRepo, findLayoutInfo, inferProjectFromCwd, resolveActiveRuntimeRoot,
+  cmdSkill, cmdTask, cmdGlobalAdapters, cmdRuntime, cmdTemp, isSourceRepo, findLayoutInfo, inferProjectFromCwd, resolveActiveRuntimeRoot,
+  resolveWorkspaceTempBackupRoot, resolveWorkspaceTempProject, resolveWorkspaceTempRoot,
+  prepareWorkspaceTempBackupRoot,
   resolveHostAdapterScope, resolveGitignoreRoot, ensureWorkspaceNamespaceLayout, ensureRuntimeDirs, SOURCES, CLAUDE_SOURCES,
   PROJECT_RUNTIME_SCRIPT_DEPS, CLAUDE_MCP_RUNTIME_SCRIPT_DEPS, CODEX_SOURCES, CLAUDE_HOOK_COMMAND, CLAUDE_MCP_JSON,
   CODEX_HOOK_COMMAND, buildDeploymentDescriptors, beginManagedDeployment, finishManagedDeployment,

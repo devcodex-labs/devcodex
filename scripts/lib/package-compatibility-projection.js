@@ -3,14 +3,15 @@
 const crypto = require('crypto')
 const { execFileSync } = require('child_process')
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const { buildBundle } = require('./control-content-source')
 
 const SCHEMA_VERSION = 'PackageCompatibilityProjectionV1'
 const RECEIPT_SCHEMA = 'PackageCompatibilityProjectionReceiptV1'
 const LOCK_SCHEMA = 'PackageCompatibilityProjectionLockV1'
-const DEFAULT_LOCK = '.tmp/package-compatibility-projection.lock.json'
-const DEFAULT_RECEIPT = '.tmp/package-compatibility-projection.receipt.json'
+const DEFAULT_LOCK = 'package-compatibility-projection.lock.json'
+const DEFAULT_RECEIPT = 'package-compatibility-projection.receipt.json'
 const DEFAULT_MALFORMED_LOCK_STALE_MS = 60 * 1000
 
 function portable (value) {
@@ -19,6 +20,32 @@ function portable (value) {
 
 function sha256 (value) {
   return crypto.createHash('sha256').update(value).digest('hex')
+}
+
+function packageProjectionStateRoot (root) {
+  const resolved = path.resolve(root)
+  let physicalRoot = resolved
+  try { physicalRoot = fs.realpathSync.native(resolved) } catch {}
+  const identitySource = process.platform === 'win32'
+    ? physicalRoot.toLocaleLowerCase('en-US')
+    : physicalRoot
+  const identity = sha256(portable(identitySource)).slice(0, 24)
+  return path.join(os.tmpdir(), 'devcodex-package-compatibility-projection', identity)
+}
+
+function resolvePackageProjectionStatePaths (root, options = {}) {
+  const resolvedRoot = path.resolve(root)
+  const stateRoot = packageProjectionStateRoot(resolvedRoot)
+  const resolveConfigured = (value, fallback) => value
+    ? (path.isAbsolute(value) ? path.resolve(value) : path.join(resolvedRoot, value))
+    : path.join(stateRoot, fallback)
+  return {
+    stateRoot,
+    lockPath: resolveConfigured(options.lockFile, DEFAULT_LOCK),
+    receiptPath: resolveConfigured(options.receiptFile, DEFAULT_RECEIPT),
+    usesDefaultLock: !options.lockFile,
+    usesDefaultReceipt: !options.receiptFile
+  }
 }
 
 function stableStringify (value) {
@@ -165,8 +192,8 @@ function publishLockFile (lockPath, content) {
 }
 
 function acquireLock (root, options = {}) {
-  const relative = options.lockFile || DEFAULT_LOCK
-  const lockPath = path.join(root, relative)
+  const statePaths = resolvePackageProjectionStatePaths(root, options)
+  const lockPath = statePaths.lockPath
   fs.mkdirSync(path.dirname(lockPath), { recursive: true })
   const lock = {
     schemaVersion: LOCK_SCHEMA,
@@ -178,7 +205,7 @@ function acquireLock (root, options = {}) {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       publishLockFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`)
-      return { lockPath, lock }
+      return { lockPath, lock, stateRoot: statePaths.usesDefaultLock ? statePaths.stateRoot : null }
     } catch (error) {
       if (error.code !== 'EEXIST') throw error
       let existing = null
@@ -218,10 +245,19 @@ function releaseLock (lock) {
   if (current?.pid === lock.lock.pid && current?.startedAt === lock.lock.startedAt) {
     fs.unlinkSync(lock.lockPath)
   }
+  if (lock.stateRoot && fs.existsSync(lock.stateRoot)) {
+    try {
+      fs.rmdirSync(lock.stateRoot)
+      const parent = path.dirname(lock.stateRoot)
+      if (path.basename(parent) === 'devcodex-package-compatibility-projection') fs.rmdirSync(parent)
+    } catch (error) {
+      if (!['ENOENT', 'ENOTEMPTY'].includes(error.code)) throw error
+    }
+  }
 }
 
 function readReceipt (root, options = {}) {
-  const receiptPath = path.join(root, options.receiptFile || DEFAULT_RECEIPT)
+  const receiptPath = resolvePackageProjectionStatePaths(root, options).receiptPath
   if (!fs.existsSync(receiptPath)) return { receiptPath, receipt: null }
   const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'))
   if (receipt.schemaVersion !== RECEIPT_SCHEMA || !Array.isArray(receipt.files)) {
@@ -342,7 +378,7 @@ function preparePackageProjection (root, options = {}) {
     }
 
     for (const file of missing) writeAtomic(path.join(root, file.target), file.content)
-    const receiptPath = path.join(root, options.receiptFile || DEFAULT_RECEIPT)
+    const receiptPath = resolvePackageProjectionStatePaths(root, options).receiptPath
     const receiptFiles = [...missing, ...reusableForeignExisting]
     const receipt = {
       schemaVersion: RECEIPT_SCHEMA,
@@ -385,6 +421,7 @@ module.exports = {
   buildPackageProjectionPlan,
   cleanupPackageProjection,
   preparePackageProjection,
+  resolvePackageProjectionStatePaths,
   releaseLock,
   validatePluginProjection
 }

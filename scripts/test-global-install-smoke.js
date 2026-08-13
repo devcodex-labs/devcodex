@@ -21,6 +21,15 @@ const globalHome = path.join(tmp, 'global-home')
 const workspaceHome = path.join(tmp, 'workspace-home')
 const globalPrefix = path.join(tmp, 'global-prefix')
 const workspace = path.join(tmp, 'workspace')
+let tempCleaned = false
+
+function cleanupTempFixture() {
+  if (tempCleaned) return
+  fs.rmSync(tmp, { recursive: true, force: true })
+  tempCleaned = true
+}
+
+process.once('exit', cleanupTempFixture)
 fs.mkdirSync(packDir, { recursive: true })
 fs.mkdirSync(cacheDir, { recursive: true })
 fs.mkdirSync(globalHome, { recursive: true })
@@ -427,4 +436,6 @@ for (const host of ['.copilot', '.claude', '.codex', path.join('gemini-cli-home'
   )
 }
 
-console.log(`global install smoke passed pack=1 realGlobalInstall=1 layeredStatus=1 grokNative=${grokAvailable ? 1 : 0} workspaceNoHostDirs=1 version=${packageJson.version}`)
+cleanupTempFixture()
+assert.strictEqual(fs.existsSync(tmp), false, 'global install smoke temporary fixture must be removed before success')
+console.log(`global install smoke passed pack=1 realGlobalInstall=1 layeredStatus=1 grokNative=${grokAvailable ? 1 : 0} workspaceNoHostDirs=1 tempCleanup=1 version=${packageJson.version}`)

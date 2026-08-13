@@ -1,5 +1,22 @@
 'use strict'
 
+const {
+  MAX_ENTRIES,
+  PARTITIONS,
+  inspectLegacyWorkspaceTempRoots
+} = require('./workspace-temp.js')
+
+function findWorkspaceNamespaceTempLeaks(workspaceRoot, { maxEntries = MAX_ENTRIES } = {}) {
+  const inspection = inspectLegacyWorkspaceTempRoots(workspaceRoot, maxEntries)
+  return {
+    leaks: inspection.roots.map(item => item.root),
+    externalRoots: inspection.externalRoots.map(item => item.root),
+    errors: inspection.errors,
+    observedEntries: inspection.visited,
+    truncated: inspection.truncated
+  }
+}
+
 function buildGovernanceSupportChecks(ctx) {
   const {
     ROOT,
@@ -211,9 +228,8 @@ function buildGovernanceSupportChecks(ctx) {
       .filter(entry => entry.isFile() && rootArtifactPatterns.some(re => re.test(entry.name)))
       .map(entry => entry.name)
     if (misplacedRootArtifacts.length) {
-      err(`[V27] workspace root contains transient artifacts that must live under .devcodex/workspace/.tmp: ${misplacedRootArtifacts.join(', ')}`)
+      err(`[V27] workspace root contains transient artifacts that must live under .tmp/devcodex: ${misplacedRootArtifacts.join(', ')}`)
     }
-
     let layout = null
     try {
       layout = JSON.parse(fs.readFileSync(path.join(workspaceRoot, '.devcodex', 'layout.json'), 'utf8'))
@@ -221,29 +237,53 @@ function buildGovernanceSupportChecks(ctx) {
       layout = null
     }
     if (layout && String(layout.mode || '').trim() === 'workspace-namespace') {
-      const projectTmpLeaks = fs.readdirSync(workspaceRoot, { withFileTypes: true })
-        .filter(entry => entry.isDirectory() && entry.name !== '.devcodex')
-        .flatMap(entry => {
-          const tmpDir = path.join(workspaceRoot, entry.name, '.devcodex', '.tmp')
-          if (!fs.existsSync(tmpDir)) return []
-          const files = fs.readdirSync(tmpDir, { recursive: true })
-            .map(name => path.join(tmpDir, name))
-            .filter(file => fs.existsSync(file) && fs.statSync(file).isFile())
-          return files.map(file => path.relative(workspaceRoot, file).replace(/\\/g, '/'))
-        })
+      const canonicalTempRoot = path.join(workspaceRoot, '.tmp', 'devcodex')
+      for (const candidate of [canonicalTempRoot, ...PARTITIONS.map(name => path.join(canonicalTempRoot, name))]) {
+        if (fs.existsSync(candidate) && fs.lstatSync(candidate).isSymbolicLink()) {
+          err(`[V27] canonical workspace temp root/partition must not be a reparse point: ${path.relative(workspaceRoot, candidate).replace(/\\/g, '/')}`)
+        }
+      }
+      const tempLeakInspection = findWorkspaceNamespaceTempLeaks(workspaceRoot, { fs, path })
+      for (const base of tempLeakInspection.errors) {
+        err(`[V27] cannot inspect workspace namespace for transient roots: ${path.relative(workspaceRoot, base).replace(/\\/g, '/')}`)
+      }
+      const projectTmpLeaks = tempLeakInspection.leaks
+        .map(tmpDir => path.relative(workspaceRoot, tmpDir).replace(/\\/g, '/'))
       if (projectTmpLeaks.length) {
-        err(`[V27] project-local .devcodex/.tmp leaks found under workspace-namespace: ${projectTmpLeaks.slice(0, 8).join(', ')}`)
+        console.log(`[V27] legacy read-only temp roots observed; inspect with devcodex tmp status: ${projectTmpLeaks.slice(0, 8).join(', ')}`)
+      }
+      if (tempLeakInspection.truncated) {
+        err(`[V27] workspace temp leak inspection exceeded ${MAX_ENTRIES} observations; validation cannot claim complete coverage`)
       }
     }
 
     const indexSrc = [
       read(path.join(ROOT, 'index.js')),
-      read(path.join(ROOT, 'scripts/lib/cli-install-commands.js'))
+      read(path.join(ROOT, 'scripts/lib/cli-install-commands.js')),
+      read(path.join(ROOT, 'scripts/lib/host-adapter-scope.js')),
+      read(path.join(ROOT, 'scripts/lib/cli-command-registry.js')),
+      read(path.join(ROOT, 'scripts/lib/workspace-temp.js'))
     ].join('\n')
-    for (const needle of ['resolveActiveRuntimeRoot', 'ensureRuntimeDirs', 'resolveGitignoreRoot', 'backupDir', '.devcodex/*/.tmp/']) {
+    for (const needle of [
+      'resolveActiveRuntimeRoot',
+      'ensureRuntimeDirs',
+      'resolveGitignoreRoot',
+      'resolveWorkspaceTempRoot',
+      'resolveWorkspaceTempBackupRoot',
+      'prepareWorkspaceTempBackupRoot',
+      'registerWorkspaceTempBackup',
+      'cmdTemp',
+      '.tmp/devcodex/'
+    ]) {
       if (!indexSrc.includes(needle)) {
-        err(`[V27] CLI composition active-root resolver missing "${needle}"`)
+        err(`[V27] CLI composition workspace-temp contract missing "${needle}"`)
       }
+    }
+    for (const legacyProducer of [
+      "path.join(resolveActiveRuntimeRoot(cwd), '.tmp', 'backups')",
+      "path.join(activeRoot, '.tmp', 'backups')"
+    ]) {
+      if (indexSrc.includes(legacyProducer)) err(`[V27] legacy project-local temp producer remains: ${legacyProducer}`)
     }
 
     const lifecycleSrc = read(path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs'))
@@ -466,4 +506,4 @@ function buildGovernanceSupportChecks(ctx) {
   }
 }
 
-module.exports = { buildGovernanceSupportChecks }
+module.exports = { buildGovernanceSupportChecks, findWorkspaceNamespaceTempLeaks }

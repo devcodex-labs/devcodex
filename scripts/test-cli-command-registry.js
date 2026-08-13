@@ -8,7 +8,7 @@ const calls = []
 const handlers = Object.fromEntries([
   'cmdGrok', 'cmdStatus',
   'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdSkill', 'cmdTask',
-  'cmdGlobalAdapters', 'cmdRuntime', 'cmdHelp'
+  'cmdGlobalAdapters', 'cmdRuntime', 'cmdTemp', 'cmdHelp'
 ].map(name => [name, argv => calls.push([name, argv])]))
 handlers.cmdInitWorkspaceRuntime = (argv, opts) => calls.push(['cmdInitWorkspaceRuntime', argv, opts])
 handlers.cmdInitHost = (host, argv) => calls.push(['cmdInitHost', host, argv])
@@ -60,6 +60,8 @@ assert.strictEqual(runCliCommand({ cmd: 'global-adapters', argv: ['apply', '--dr
 assert.deepStrictEqual(calls.pop(), ['cmdGlobalAdapters', ['apply', '--dry-run']])
 assert.strictEqual(runCliCommand({ cmd: 'runtime', argv: ['status', '--json'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'runtime')
 assert.deepStrictEqual(calls.pop(), ['cmdRuntime', ['status', '--json']])
+assert.strictEqual(runCliCommand({ cmd: 'tmp', argv: ['status', '--json'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'tmp')
+assert.deepStrictEqual(calls.pop(), ['cmdTemp', ['status', '--json']])
 fakeProcess.exitCode = 0
 assert.strictEqual(runCliCommand({ cmd: undefined, argv: [], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'help')
 assert.strictEqual(fakeProcess.exitCode, 0)
@@ -68,6 +70,8 @@ assert.strictEqual(runCliCommand({ cmd: 'help', argv: [], registry, runMigrateLa
 assert.deepStrictEqual(calls.pop(), ['cmdHelp', undefined])
 assert.strictEqual(runCliCommand({ cmd: 'help', argv: ['runtime'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'help')
 assert.deepStrictEqual(calls.pop(), ['cmdHelp', ['runtime']])
+assert.strictEqual(runCliCommand({ cmd: 'help', argv: ['tmp'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'help')
+assert.deepStrictEqual(calls.pop(), ['cmdHelp', ['tmp']])
 assert.strictEqual(runCliCommand({ cmd: 'init', argv: ['--help'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'help')
 assert.deepStrictEqual(calls.pop(), ['cmdHelp', ['init']])
 assert.ok(!calls.some(call => call[0] === 'cmdInitWorkspaceRuntime'))

@@ -13,7 +13,8 @@ version: 1.17.3
 > - 集中布局全工作区：`<工作区根>/.devcodex/workspace/`
 > 🔴 当 `<工作区根>/.devcodex/layout.json` 启用 `workspace-namespace` 时，进入集中布局；不存在时保持旧布局兼容。
 > 🔴 禁止在当前 active namespace 根下创建规范路径之外的一级目录。
-> ⚠️ `init` 命令自动将 `.devcodex/.memory/` 加入 `.gitignore`；`requirements/`、`bugs/`、`reports/` 等产物目录按需提交。
+> 🔴 临时产物不属于任务正式产物树：所有布局的唯一写根为 `<工作区根>/.tmp/devcodex/`；无集中布局时项目根即工作区根。旧 `.devcodex/workspace/.tmp/` 与 `<项目根>/.devcodex/.tmp/` 仅作只读迁移输入。
+> ⚠️ `init` 命令自动将运行记忆与 canonical `.tmp/` 加入 `.gitignore`；`requirements/`、`bugs/`、`reports/` 等正式产物目录按需提交。
 
 ## 语言规则
 
@@ -56,7 +57,6 @@ version: 1.17.3
 │   ├── *-接口验证.http              # 🔴 强制（有接口变更时）
 │   ├── *-接口验证.cjs               # 🔴 强制（有接口变更时）
 │   ├── .memory/sessions.md       # 🔴 强制（需求级记忆）
-│   ├── .tmp/                        # 临时文件（.gitignore 排除，可放仅本地执行的一次性脚本/配置）
 │   └── reports/<agent>/YYYYMMDD/    # 🔴 强制（需求级报告）
 ├── bugs/<中文描述>/                  # Bug 修复产物（fix）
 │   ├── 00-问题概况.md               # 🔴 条件强制（Bug 报告方原始输入；SimpleTaskFastPath 可 N/A）
@@ -85,7 +85,7 @@ version: 1.17.3
 | **任务隔离** | 每个 `<中文描述>/` 目录只服务一个明确任务 |
 | **禁止非规范路径** | 当前 active namespace 根下只允许上述目录树中的一级目录 |
 | **scripts/ 触发条件** | 任务目录（requirements/<任务>/ 或 bugs/<任务>/）下有共享辅助脚本（数据迁移/数据填充/自动化验证等）时创建对应 `scripts/` 子目录；默认禁止放入业务逻辑或网络请求。`*-接口验证.cjs` 属规范强制产物，存放任务根目录（非 scripts/）。除用户明确要求写入业务仓库/规范仓库外，需求辅助脚本默认归档到对应任务目录 `scripts/`，并在报告说明用途与执行边界；新增脚本前执行 `OneOffRequirementScriptPlacementGate`，一次性需求脚本、入库脚本、迁移辅助或验证脚本优先放入对应任务目录，只有长期复用、发布、维护或运维入口才进入项目通用 `scripts/` |
-| **本地临时脚本豁免** | 仅本地执行、不会提交发布链路的临时脚本/配置可放入任务目录 `.tmp/local-scripts/` 或保持未提交；允许直接使用局部常量、敏感信息和网络请求，但不得伪装成共享正式产物 |
+| **本地临时脚本豁免** | 仅本地执行、不会提交发布链路的临时脚本/配置必须进入 canonical temp 的 `runs/<project>/<producer>/<run-id>/local-scripts/` 并登记 `WorkspaceTempManifestV1`；禁止在 requirements、bugs、源码或 active-root 下另建 `.tmp/tmp/temp`。允许直接使用局部常量、敏感信息和网络请求，但不得伪装成共享正式产物 |
 | **入口类型分类** | CP1 / 问题确认前必须先区分纯新需求、需求变更和 Bug 问题：纯新需求落 `requirements/<需求>/00-需求概况.md`；需求变更落 `requirements/<需求>/00-需求变更概况.md` 并回写目标需求真相源；Bug 落 `bugs/<问题>/00-问题概况.md`。不得把 Bug 或需求变更塞入纯新需求概况 |
 | **00-需求概况 触发条件** | 仅当纯新需求来自用户、运营、老板、客户、内部使用方、PRD/Word、原型、截图、会议纪要、聊天记录或后续补充消息时创建/更新；它是需求方原始输入模板，只记录新增能力、背景、痛点、期望结果、样例、附件和不确定点，不写验收、测试、数据库字段或接口 Schema |
 | **00-需求变更概况 触发条件** | 当用户调整/修改/补充已确认需求、规则、流程、页面、字段口径、优先级或范围时创建/更新；必须锚定原需求基线、变更前后差异、影响范围、明确不变内容、兼容/迁移/回滚/告知和目标真相源 |
@@ -104,6 +104,25 @@ version: 1.17.3
 | **ArtifactPathGate（槽位语义）** | `requirements/<任务>/02-*` **仅**技术方案语义（如 `02-技术方案.md`）；`04-*` **仅**实施计划语义。功能清单/盘点/遗漏扫/inventory 等分析报告**禁止**占用 02/04 槽位，须写入 `reports/analysis|audit|…/<agent>/YYYYMMDD/`。Hook 对非法槽位 hard deny（错误码 `ARTIFACT_PATH_INVALID`）；见 `scripts/lib/process-enforcement.js` |
 | **强制产物首轮完成** | 默认 00/01/04 在首轮会话结束前按 ArtifactDecisionMatrix 处理：需要则创建/更新，命中 SimpleTaskFastPath 或子类型豁免则记录 `N/A + skipReason`；PC0~PC7、Profile、报告、记忆、安全底线和必要验证不可省略；02-技术方案.md、实施方案/ 与 `06-关键决策.md` 按条件触发；services/ 在 CP2 后按需创建；强触发条件命中时 `05-实施进度.md` 必须在执行前初始化 |
 | **需求归档（v1.9.3+）** | 已完成且不再活跃的需求目录下创建空文件 `.archived`；CP gate 扫描跳过含此标记的需求，避免历史需求全局阻断 dev 工作流 |
+
+## 临时产物生命周期
+
+```text
+<workspace-temp-root>/                 # <workspace>/.tmp/devcodex/
+├── runs/<project>/<producer>/<run-id>/
+├── cache/<producer>/<cache-key>/
+├── backups/<project>/<transaction-id>/
+├── leases/<run-id>.json
+├── quarantine/<timestamp>/
+└── manifests/<artifact-id>.json
+```
+
+- 新写入必须由 `scripts/lib/workspace-temp-layout.js` 的 workspace-temp resolver 定位，并在写入前由 lifecycle owner 验证 canonical root/partition 非 reparse；禁止自行拼接 project-local `.tmp`，也不得让该 CLI 路径能力污染 SkillRoute 宿主运行时契约。
+- DevCodex 只拥有 `<workspace>/.tmp/devcodex/`；`.tmp` 容器、其他 producer 子目录、工作区根 `tmp/.tmp-*` 与外部传输 spool 不得被本 lifecycle 枚举为 owner、阻断、迁移或删除。
+- 可清理对象必须具有 `WorkspaceTempManifestV1`、可识别 owner/type、已到期 TTL、无活动 lease，且 backup 事务为 `completed`。
+- `devcodex tmp status --json` 只读盘点；`devcodex tmp prune` 默认 dry-run，只有显式 `--apply` 才删除本次检查得到的安全候选。
+- canonical 文件/目录与 `.devcodex/**/.tmp` legacy 目录观察共用 10,000 项相关对象上限；`runs/cache/backups/quarantine` 分区根不可被 manifest 整体认领。unknown owner、共享或损坏 lease、未知分区、lock、reparse point、路径逃逸、不完整 backup 和检查截断一律 fail closed，不自动迁移或删除。对象成功删除时同步回收其唯一且明确过期的 lease。
+- OS temp 仅限尚无 workspace、全局安装事务或测试隔离；目录必须使用 `devcodex-*` 前缀，并由创建者在 `finally`/收尾阶段清理。
 
 ## 报告路径
 

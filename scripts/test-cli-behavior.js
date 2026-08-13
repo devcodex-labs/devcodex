@@ -13,6 +13,7 @@ const {
   isSourceCandidateMismatch
 } = require('./lib/cli-maintenance-commands.js')
 const { readControlInstructionRoot, resolveControlAsset } = require('./lib/control-content-delivery')
+const { inspectWorkspaceTemp } = require('./lib/workspace-temp.js')
 
 const ROOT = path.resolve(__dirname, '..')
 const CLI = path.join(ROOT, 'index.js')
@@ -339,7 +340,7 @@ function testClaudeInitPreservesCustomConfig() {
   assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
   assertDeploymentManifest(path.join(root, '.devcodex'), 'claude')
 
-  const backupRoot = path.join(root, '.devcodex', '.tmp', 'backups')
+  const backupRoot = indexApi.resolveWorkspaceTempBackupRoot(root)
   assert.strictEqual(findBackups(backupRoot, 'CLAUDE.md').length, 0)
   assert.ok(findBackups(backupRoot, 'settings.json').length >= 1)
   assert.ok(findBackups(backupRoot, '.mcp.json').length >= 1)
@@ -356,7 +357,7 @@ function testClaudeUpdateBacksUpAndPreservesCustomConfig() {
   assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
   assertDeploymentManifest(path.join(root, '.devcodex'), 'claude')
 
-  const backupRoot = path.join(root, '.devcodex', '.tmp', 'backups')
+  const backupRoot = indexApi.resolveWorkspaceTempBackupRoot(root)
   assert.ok(findBackups(backupRoot, 'CLAUDE.md').length >= 1)
   assert.ok(findBackups(backupRoot, 'settings.json').length >= 1)
   assert.ok(findBackups(backupRoot, '.mcp.json').length >= 1)
@@ -726,6 +727,42 @@ function testRuntimeStatusAndPruneAreBounded() {
   fs.rmSync(root, { recursive: true, force: true })
 }
 
+function testWorkspaceTempStatusAndPruneAreManifestBounded() {
+  const { registerWorkspaceTempArtifactAtRoot } = require('./lib/workspace-temp.js')
+  const root = createTempRoot('devcodex-cli-workspace-temp-')
+  writeFile(root, 'package.json', '{ "name": "workspace-temp" }\n')
+  runCli(['init'], root)
+  const tempRoot = indexApi.resolveWorkspaceTempRoot(root)
+  const target = path.join(tempRoot, 'runs', 'workspace', 'cli-test', 'expired')
+  writeFile(target, 'result.txt', 'expired\n')
+  registerWorkspaceTempArtifactAtRoot(tempRoot, {
+    artifactId: 'cli-expired-run',
+    type: 'run',
+    owner: 'cli-behavior-test',
+    project: 'workspace',
+    producer: 'cli-test',
+    targetPath: target,
+    createdAt: '2026-07-01T00:00:00.000Z',
+    expiresAt: '2026-07-02T00:00:00.000Z'
+  })
+
+  const status = JSON.parse(runCli(['tmp', 'status', '--json'], root))
+  assert.strictEqual(status.payload.schemaVersion, 'WorkspaceTempStatusV1')
+  assert.strictEqual(status.payload.canonicalRoot, tempRoot)
+  assert.strictEqual(status.payload.totals.candidates, 1)
+  const preview = JSON.parse(runCli(['tmp', 'prune', '--json'], root))
+  assert.strictEqual(preview.payload.mode, 'dry-run')
+  assert.ok(fs.existsSync(target), 'tmp prune defaults to a zero-write preview')
+  const conflict = JSON.parse(runCliFailure(['tmp', 'prune', '--dry-run', '--apply', '--json'], root))
+  assert.strictEqual(conflict.errorCode, 'CLI_INVALID_OPTION')
+  const applied = JSON.parse(runCli(['tmp', 'prune', '--apply', '--json'], root))
+  assert.strictEqual(applied.payload.removed.length, 1)
+  assert.ok(!fs.existsSync(target), 'tmp prune --apply removes only the inspected eligible target')
+  assert.match(runCli(['help', 'tmp'], root), /canonical workspace temp root/i)
+
+  fs.rmSync(root, { recursive: true, force: true })
+}
+
 function testTenantSelectionIsExplicit() {
   const root = createTempRoot('devcodex-cli-tenant-')
   writeFile(root, 'package.json', '{ "name": "tmp-tenant-project" }\n')
@@ -826,13 +863,16 @@ function testCodexInitBacksUpManagedFiles() {
   const managedCount = (again.match(/BEGIN DEVCODEX-MCP-MANAGED/g) || []).length
   assert.strictEqual(managedCount, 1, 'managed MCP block must remain single after re-init')
 
-  const backupRoot = path.join(root, '.devcodex', '.tmp', 'backups')
+  const backupRoot = indexApi.resolveWorkspaceTempBackupRoot(root)
   assert.ok(findBackups(backupRoot, 'AGENTS.md').length >= 1)
   assert.ok(findBackups(backupRoot, 'hooks.json').length >= 1)
   assert.ok(
     findBackups(backupRoot, 'config.toml').length >= 1,
     'changing existing .codex/config.toml must create a backup'
   )
+  const tempStatus = inspectWorkspaceTemp(root)
+  assert.strictEqual(tempStatus.blocked.some(item => item.reasons.includes('unknown-owner')), false)
+  assert.ok(tempStatus.manifests.some(item => item.producer === 'codex-config-toml'))
 
   const doctor = JSON.parse(runCli(['doctor', '--json'], root))
   assert.strictEqual(doctor.ok, true)
@@ -1190,6 +1230,7 @@ function testInitHelpMatchesZeroWriteTargetContract() {
 }
 
 function main() {
+  require('./test-workspace-temp.js')
   testDoctorAvoidsCodexBiasInMixedHostRepo()
   testDoctorHonorsExplicitAgentBeforeAmbientHints()
   testMachineReadableDiagnosticsAndStableErrors()
@@ -1199,6 +1240,7 @@ function main() {
   testDefaultInitLayoutOwnershipGuards()
   testUpdateNeverCreatesOrUpgradesProfiles()
   testRuntimeStatusAndPruneAreBounded()
+  testWorkspaceTempStatusAndPruneAreManifestBounded()
   testTenantSelectionIsExplicit()
   testGlobalOnlyHostSelectorsFailClosed()
   testCodexMcpPreventionNegatives()

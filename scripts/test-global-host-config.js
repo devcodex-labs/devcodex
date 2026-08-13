@@ -38,6 +38,13 @@ const {
 const packageRoot = path.resolve(__dirname, '..')
 const cliEntry = path.join(packageRoot, 'index.js')
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-global-host config with spaces-'))
+let tempCleaned = false
+function cleanupTempFixture() {
+  if (tempCleaned) return
+  fs.rmSync(tmp, { recursive: true, force: true })
+  tempCleaned = true
+}
+process.once('exit', cleanupTempFixture)
 const home = path.join(tmp, 'user home')
 const workspace = path.join(tmp, 'workspace')
 fs.mkdirSync(home, { recursive: true })
@@ -1317,4 +1324,6 @@ for (const forbidden of fixture.workspaceForbidden) {
   assert.strictEqual(fs.existsSync(path.join(workspace, forbidden)), false, `${forbidden} must remain absent`)
 }
 
-console.log(`global host config tests passed hosts=${GLOBAL_HOST_IDS.length} operations=${plan.operations.length} idempotent=1 rollback=1 workspaceHostDirs=0`)
+cleanupTempFixture()
+assert.strictEqual(fs.existsSync(tmp), false, 'global host config temporary fixture must be removed before success')
+console.log(`global host config tests passed hosts=${GLOBAL_HOST_IDS.length} operations=${plan.operations.length} idempotent=1 rollback=1 workspaceHostDirs=0 tempCleanup=1`)

@@ -38,6 +38,13 @@ assert.match(entryCheckAssistSuffix({ project: 'x' }), /S07 assist/)
 
 // Isolated user-global layout for hardReady
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-host-parity-'))
+let tempCleaned = false
+function cleanupTempFixture() {
+  if (tempCleaned) return
+  fs.rmSync(root, { recursive: true, force: true })
+  tempCleaned = true
+}
+process.once('exit', cleanupTempFixture)
 const isolatedEnv = {
   ...process.env,
   DEVCODEX_TEST_HOME: root,
@@ -279,4 +286,6 @@ const stampRun = spawnSync(process.execPath, [sessionStart], {
 assert.strictEqual(stampRun.status, 0)
 assert.ok(fs.existsSync(path.join(root, 'plugin-data', 'session-stamps', 'test-session.json')))
 
-console.log('host parity scorecard + smoke tests passed')
+cleanupTempFixture()
+assert.strictEqual(fs.existsSync(root), false, 'host parity temporary fixture must be removed before success')
+console.log('host parity scorecard + smoke tests + temp cleanup passed')

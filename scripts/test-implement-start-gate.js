@@ -30,7 +30,7 @@ const {
 
 // triad only, no 00/01/02 → design fail
 {
-  const t = fs.mkdtempSync(path.join(os.tmpdir(), 'imp-triad-'))
+  const t = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-implement-triad-'))
   fs.writeFileSync(path.join(t, '04-实施计划.md'), '#')
   fs.writeFileSync(path.join(t, '05-实施进度.md'), '#')
   fs.writeFileSync(path.join(t, '03-复审清单.md'), '#')
@@ -42,7 +42,7 @@ const {
 
 // full package → ok
 {
-  const t = fs.mkdtempSync(path.join(os.tmpdir(), 'imp-full-'))
+  const t = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-implement-full-'))
   for (const name of [
     '00-需求概况.md',
     '01-需求确认.md',

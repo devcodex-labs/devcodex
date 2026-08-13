@@ -29,7 +29,7 @@ assert.strictEqual(resolveSkillsDeployMode({ DEVCODEX_SKILLS_DEPLOY_MODE: 'legac
 assert.strictEqual(resolveSkillsDeployMode({}, { skillsDeployMode: 'legacy' }), 'legacy')
 
 {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'sdm-resolve-'))
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-sdm-resolve-'))
   const env = { USERPROFILE: home, HOME: home }
   assert.ok(
     resolveGlobalSkillsRoot({ env, home }).replace(/\\/g, '/').endsWith('/.agents/devcodex/skills')
@@ -48,7 +48,7 @@ assert.strictEqual(resolveSkillsDeployMode({}, { skillsDeployMode: 'legacy' }), 
 }
 
 {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'sdm-apply-'))
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-sdm-apply-'))
   const env = { USERPROFILE: home, HOME: home }
   // Same-id host-native user skills are not DevCodex-owned.
   const managed = listManagedSkillIds(packageRoot)

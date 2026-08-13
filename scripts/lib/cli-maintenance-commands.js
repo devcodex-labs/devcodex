@@ -1,5 +1,4 @@
 'use strict'
-
 const PACKAGE_JSON = require('../../package.json')
 const { createCliFailure, createCliSuccess, parseJsonArgs, printCliJson } = require('./cli-json-contract.js')
 const { inspectExecutionOptimization } = require('./execution-optimization.js')
@@ -1037,7 +1036,6 @@ function buildCliMaintenanceCommands(ctx) {
       console.log()
     }
   }
-
   function cmdHelp(topicInput) {
     const topicParts = Array.isArray(topicInput)
       ? topicInput.map(item => String(item || '').trim()).filter(Boolean)
@@ -1050,6 +1048,7 @@ function buildCliMaintenanceCommands(ctx) {
       doctor: ['devcodex doctor [--completion] [--json]', 'Diagnose adapter, native host and workflow readiness.'],
       profile: ['devcodex profile plan|init [--tier <tier>] [--dry-run] [--force] [--prod]', 'Preview or create an advanced project Profile. Ordinary workspaces only need `devcodex init`.'],
       runtime: ['devcodex runtime status|prune [--dry-run|--apply] [--json]', 'Inspect runtime-state usage or preview safe stale-temp cleanup.'],
+      tmp: ['devcodex tmp status|prune [--dry-run|--apply] [--json]', 'Inspect the canonical workspace temp root or conservatively prune manifest-owned expired artifacts.'],
       uninstall: ['npm uninstall -g devcodex', 'Remove the published global package.'],
       'global-adapters': ['devcodex global-adapters apply [--dry-run] [--json]', 'Advanced: refresh user-global host adapters from the current package root.'],
       grok: ['devcodex grok [Grok CLI options]', 'Launch Grok with the user-global DevCodex kernel.'],
@@ -1059,7 +1058,6 @@ function buildCliMaintenanceCommands(ctx) {
       skill: ['devcodex skill plan|resolve [options]', 'Advanced: inspect Skill resolution; ordinary users do not configure built-in Skills.'],
       task: ['devcodex task resolve|verify|risk [options]', 'Advanced: inspect task identity, reconciliation or explicit risk decisions.']
     }[topic]
-
     if (topic && detail) {
       console.log(`
     ${c.bold(`DevCodex ${topic} help`)}
@@ -1088,6 +1086,8 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('doctor')}            Diagnose installation or workflow problems
       ${c.cyan('runtime status')}    Inspect runtime-state owners, size and last-use timestamps
       ${c.cyan('runtime prune')}     Preview safe stale-temp cleanup; add --apply to remove
+      ${c.cyan('tmp status')}        Inspect canonical workspace temporary artifacts and blocked legacy entries
+      ${c.cyan('tmp prune')}         Preview manifest-owned TTL cleanup; add --apply to remove
       ${c.cyan('profile init')}      Auto-generate tiered .devcodex/profile/ drafts
       ${c.cyan('profile plan')}      Preview Profile root/tier/file actions without writing
       ${c.cyan('help <command>')}    Show read-only help for one command

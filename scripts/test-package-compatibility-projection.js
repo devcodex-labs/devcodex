@@ -15,6 +15,7 @@ const {
   buildPackageProjectionPlan,
   cleanupPackageProjection,
   preparePackageProjection,
+  resolvePackageProjectionStatePaths,
   releaseLock
 } = require('./lib/package-compatibility-projection')
 
@@ -41,6 +42,10 @@ function fixture () {
 }
 
 const currentPlan = buildPackageProjectionPlan(ROOT)
+const currentStatePaths = resolvePackageProjectionStatePaths(ROOT)
+assert.ok(currentStatePaths.stateRoot.startsWith(path.join(os.tmpdir(), 'devcodex-package-compatibility-projection')))
+assert.strictEqual(currentStatePaths.lockPath, path.join(currentStatePaths.stateRoot, DEFAULT_LOCK))
+assert.strictEqual(currentStatePaths.receiptPath, path.join(currentStatePaths.stateRoot, DEFAULT_RECEIPT))
 assert.strictEqual(currentPlan.entryCount, EXPECTED_ENTRY_COUNT)
 assert.strictEqual(new Set(currentPlan.files.map(file => file.target)).size, EXPECTED_ENTRY_COUNT)
 const currentTracked = new Set(git(ROOT, ['ls-files', '-z', '--'])
@@ -58,7 +63,7 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
   assert.strictEqual(current.mode, 'verify-existing')
   assert.strictEqual(current.trackedTargetCount, EXPECTED_ENTRY_COUNT)
   assert.strictEqual(current.receiptWritten, false)
-  assert.strictEqual(fs.existsSync(path.join(ROOT, DEFAULT_RECEIPT)), false)
+  assert.strictEqual(fs.existsSync(currentStatePaths.receiptPath), false)
 } else {
   assert.strictEqual(current.mode, 'materialize')
   assert.strictEqual(current.materializedCount, currentMissingCount)
@@ -79,8 +84,9 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
     )
     releaseLock(lock)
 
-    fs.mkdirSync(path.dirname(path.join(root, DEFAULT_LOCK)), { recursive: true })
-    fs.writeFileSync(path.join(root, DEFAULT_LOCK), `${JSON.stringify({
+    const statePaths = resolvePackageProjectionStatePaths(root)
+    fs.mkdirSync(path.dirname(statePaths.lockPath), { recursive: true })
+    fs.writeFileSync(statePaths.lockPath, `${JSON.stringify({
       schemaVersion: LOCK_SCHEMA,
       pid: 999999,
       startedAt: '2000-01-01T00:00:00.000Z',
@@ -95,7 +101,7 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
     assert.strictEqual(fs.existsSync(path.join(root, 'instructions.md')), true)
     assert.strictEqual(fs.existsSync(path.join(root, 'skills', 'portfolio.json')), true)
     assert.strictEqual(fs.existsSync(path.join(root, 'skills', 'routing', 'intent.json')), true)
-    assert.strictEqual(fs.existsSync(path.join(root, DEFAULT_RECEIPT)), true)
+    assert.strictEqual(fs.existsSync(statePaths.receiptPath), true)
 
     const repeated = preparePackageProjection(root)
     assert.strictEqual(repeated.mode, 'materialize')
@@ -117,7 +123,7 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
   const root = fixture()
   try {
     const first = preparePackageProjection(root)
-    const firstReceiptPath = path.join(root, DEFAULT_RECEIPT)
+    const firstReceiptPath = resolvePackageProjectionStatePaths(root).receiptPath
     const firstReceipt = JSON.parse(fs.readFileSync(firstReceiptPath, 'utf8'))
     git(root, ['add', ...firstReceipt.files.map(file => file.target)])
     fs.unlinkSync(firstReceiptPath)
@@ -139,7 +145,7 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
 {
   const root = fixture()
   try {
-    const lockPath = path.join(root, DEFAULT_LOCK)
+    const lockPath = resolvePackageProjectionStatePaths(root).lockPath
     fs.mkdirSync(path.dirname(lockPath), { recursive: true })
     const fd = fs.openSync(lockPath, 'wx')
     try {
@@ -157,10 +163,7 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
     const recovered = acquireLock(root, { operation: 'malformed-stale-recovery' })
     assert.strictEqual(recovered.lock.operation, 'malformed-stale-recovery')
     releaseLock(recovered)
-    assert.strictEqual(
-      fs.readdirSync(path.dirname(lockPath)).some(name => name.endsWith('.candidate')),
-      false
-    )
+    assert.strictEqual(fs.existsSync(path.dirname(lockPath)), false)
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }
@@ -177,7 +180,7 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
       error => error && error.code === 'PACKAGE_PROJECTION_CLEANUP_BLOCKED'
     )
     assert.strictEqual(fs.existsSync(modified), true)
-    assert.strictEqual(fs.existsSync(path.join(root, DEFAULT_RECEIPT)), true)
+    assert.strictEqual(fs.existsSync(resolvePackageProjectionStatePaths(root).receiptPath), true)
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }
@@ -188,7 +191,7 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
   try {
     const first = preparePackageProjection(root)
     assert.strictEqual(first.materializedCount, EXPECTED_ENTRY_COUNT)
-    fs.unlinkSync(path.join(root, DEFAULT_RECEIPT))
+    fs.unlinkSync(resolvePackageProjectionStatePaths(root).receiptPath)
 
     const adopted = preparePackageProjection(root)
     assert.strictEqual(adopted.mode, 'materialize')

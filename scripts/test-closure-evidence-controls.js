@@ -37,6 +37,13 @@ for (const id of gray) assert.strictEqual(filter(`${id}/SKILL.md`), false)
 
 // digest parse + verify
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-cp-digest-'))
+let tempCleaned = false
+function cleanupTempFixture() {
+  if (tempCleaned) return
+  fs.rmSync(tmp, { recursive: true, force: true })
+  tempCleaned = true
+}
+process.once('exit', cleanupTempFixture)
 const artifact = path.join(tmp, '01-需求确认.md')
 fs.writeFileSync(artifact, '# hello\n', 'utf8')
 const hash = sha256File(artifact)
@@ -77,4 +84,6 @@ const checks = buildClosureEvidenceControlChecks({
 checks.checkV100()
 assert.strictEqual(errors.length, 0, errors.join('\n'))
 
-console.log('✓ closure evidence controls (filter + digest + V100 anchors) passed')
+cleanupTempFixture()
+assert.strictEqual(fs.existsSync(tmp), false, 'closure evidence temporary fixture must be removed before success')
+console.log('✓ closure evidence controls (filter + digest + V100 anchors + temp cleanup) passed')

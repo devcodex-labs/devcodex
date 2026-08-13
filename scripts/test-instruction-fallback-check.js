@@ -9,6 +9,19 @@ const { execFileSync, execSync } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
 const SCRIPT = path.join(ROOT, 'scripts', 'instruction-fallback-check.js')
+const tempRoots = []
+
+function makeTempRoot(prefix) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+  tempRoots.push(root)
+  return root
+}
+
+function cleanupTempFixtures() {
+  for (const root of tempRoots) fs.rmSync(root, { recursive: true, force: true })
+}
+
+process.once('exit', cleanupTempFixtures)
 
 function runCheck(cwd) {
   try {
@@ -32,7 +45,7 @@ function stageFiles(cwd, files = ['src/app.js']) {
 }
 
 function setupRepo() {
-  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-fallback-'))
+  const tempRoot = makeTempRoot('devcodex-fallback-')
   execSync('git init', { cwd: tempRoot, stdio: 'pipe' })
   write(path.join(tempRoot, 'src', 'app.js'), 'console.log("hello")\n')
   stageFiles(tempRoot)
@@ -100,7 +113,7 @@ function main() {
   }
 
   {
-    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-fallback-ws-'))
+    const workspace = makeTempRoot('devcodex-fallback-ws-')
     const cwd = path.join(workspace, 'demo')
     fs.mkdirSync(cwd, { recursive: true })
     write(path.join(workspace, '.devcodex', 'layout.json'), '{"mode":"workspace-namespace"}\n')
@@ -115,7 +128,7 @@ function main() {
   }
 
   {
-    const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-fallback-nested-'))
+    const workspace = makeTempRoot('devcodex-fallback-nested-')
     const cwd = path.join(workspace, 'packages', 'app-a')
     fs.mkdirSync(cwd, { recursive: true })
     write(path.join(workspace, '.devcodex', 'layout.json'), '{"mode":"workspace-namespace"}\n')
@@ -130,7 +143,9 @@ function main() {
     assert.strictEqual(result.ok, false, 'nested workspace-namespace active task should block fallback gate')
   }
 
-  process.stdout.write('instruction fallback smoke test passed\n')
+  cleanupTempFixtures()
+  assert.ok(tempRoots.every(root => !fs.existsSync(root)), 'instruction fallback temporary fixtures must be removed before success')
+  process.stdout.write('instruction fallback smoke test + temp cleanup passed\n')
 }
 
 main()

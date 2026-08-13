@@ -6,15 +6,15 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "25c1b1e2e93682a396436569af30c97307c8c5fb9ef093faa937f80e62a36ec1",
+    "sourceDigest": "a3bfba4f26766b3e4adc4d6f7ac218d11578280c4780f6e023c7529eb6155165",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "8b64dc8fa056ca0364fb8805e3862219a559ffd8208a0030d3d887a2a6a61310",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 507,
-    "consumerInventoryDigest": "04d881f11b7d5d3ee7646f8bf6665b716ad836f3ade1602464b21b4c96ebdef5",
-    "consumerProjectionDigest": "bbffad2c0e1f7501f69036bae79c45a6bddc24080fa245108d146d72f85001e1",
-    "portfolioInputDigest": "9965fc3432e1f0a0e23db6ff7aa4d219930ac4ab3859d878b127db680219f383"
+    "consumerInventoryFileCount": 511,
+    "consumerInventoryDigest": "11967fe73a5cfa9e26da9447820be6717b9a023f5b8c74d8ead12d14947d242e",
+    "consumerProjectionDigest": "e84f88ee55a730a9ea02a996222f2e052165e47109cc3cb7726b1aa12608f583",
+    "portfolioInputDigest": "baf60f59402b1c0d651b7a51a7988ab5023c4ddc428059259739caea797b986a"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -5565,8 +5565,8 @@
         "content/skills/dev-database/SKILL.md"
       ],
       "source": "content/skills/dev-database/SKILL.md",
-      "hash": "4584707c2617b81e919673bfc8a118546e75bb36286d65c9ee5ddee4386dc958",
-      "sourceBytes": 3240,
+      "hash": "31dc57848abee8008f175aef7c2f802cd2bcf52883cf88fea37d1e9157de9566",
+      "sourceBytes": 3423,
       "version": "1.17.3",
       "lifecycleState": "active",
       "dependencies": [],
@@ -11421,6 +11421,14 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/workspace-temp-layout.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/workspace-temp.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/migrate-layout.js",
           "role": "current"
         },
@@ -14845,6 +14853,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/cli-temp-commands.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/completion-report-ecr-check.js",
           "role": "current"
         },
@@ -14990,6 +15002,14 @@
         },
         {
           "path": "scripts/lib/validation-orchestration.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/workspace-temp-layout.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/workspace-temp.js",
           "role": "current"
         },
         {
@@ -15153,6 +15173,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-workspace-temp.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validate-profile.js",
           "role": "current"
         },
@@ -15201,6 +15225,7 @@
         "scripts/test-validation-dag.js",
         "scripts/test-visible-output-contract.js",
         "scripts/test-workflow-completion-contract.js",
+        "scripts/test-workspace-temp.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
@@ -15289,6 +15314,7 @@
           "scripts/test-validation-dag.js",
           "scripts/test-visible-output-contract.js",
           "scripts/test-workflow-completion-contract.js",
+          "scripts/test-workspace-temp.js",
           "scripts/validate-profile.js",
           "scripts/validate.js"
         ],

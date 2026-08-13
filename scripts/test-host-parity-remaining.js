@@ -23,6 +23,17 @@ const {
   formatGrokTurnChecklistMarkdown
 } = require('./lib/host-parity-scorecard.js')
 
+const tempRoots = []
+function makeTempRoot(prefix) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
+  tempRoots.push(root)
+  return root
+}
+function cleanupTempFixtures() {
+  for (const root of tempRoots) fs.rmSync(root, { recursive: true, force: true })
+}
+process.once('exit', cleanupTempFixtures)
+
 const hookOut = buildLifecycleHookOutput({ env: {}, enforcementMode: 'safety-only' })
 
 // Cross-host: Codex/Claude not weakened
@@ -109,7 +120,7 @@ assert.ok(fs.existsSync(platformReq), 'source-contained platform capability requ
 assert.match(fs.readFileSync(platformReq, 'utf8'), /P-GROK-1/)
 
 // SessionStart stamp
-const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-parity-remain-'))
+const root = makeTempRoot('devcodex-parity-remain-')
 const sessionStart = path.join(__dirname, '../grok/plugins/devcodex-workspace/hooks/session-start.cjs')
 const stamp = spawnSync(process.execPath, [sessionStart], {
   env: { ...process.env, GROK_PLUGIN_DATA: path.join(root, 'pdata'), GROK_SESSION_ID: 'smoke-1' },
@@ -121,7 +132,7 @@ assert.ok(fs.existsSync(path.join(root, 'pdata', 'session-stamps', 'smoke-1.json
 // Portable Grok hook SessionStart must treat session id as an untrusted filename
 const portableHook = JSON.parse(fs.readFileSync(path.join(__dirname, '../grok/hooks/devcodex.json'), 'utf8'))
 const portableSessionStart = portableHook.hooks.SessionStart[0].hooks[0].command
-const portableRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-portable-grok-'))
+const portableRoot = makeTempRoot('devcodex-portable-grok-')
 const hostileStamp = spawnSync(portableSessionStart, {
   shell: true,
   env: { ...process.env, GROK_PLUGIN_DATA: portableRoot, GROK_SESSION_ID: '../escape' },
@@ -162,4 +173,6 @@ if (rspress) {
   assert.match(rspress, /host-parity-grok/)
 }
 
-console.log('host parity remaining deliverables smoke passed')
+cleanupTempFixtures()
+assert.ok(tempRoots.every(root => !fs.existsSync(root)), 'host parity temporary fixtures must be removed before success')
+console.log('host parity remaining deliverables smoke + temp cleanup passed')

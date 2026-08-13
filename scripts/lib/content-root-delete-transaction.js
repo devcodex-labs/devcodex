@@ -5,11 +5,20 @@ const { execFileSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 const { buildBundle } = require('./control-content-source')
+const {
+  ensureWorkspaceTempPartitions,
+  inspectPathBoundary,
+  registerWorkspaceTempArtifactAtRoot
+} = require('./workspace-temp.js')
+const {
+  resolveWorkspaceTempProject,
+  resolveWorkspaceTempRoot
+} = require('./workspace-temp-layout.js')
 
 const PREVIEW_SCHEMA = 'ContentRootDeletePreviewV1'
 const TRANSACTION_SCHEMA = 'ContentRootDeleteTransactionV1'
 const FINALIZE_CONFIRMATION = 'DELETE-STAGED-CONTENT'
-const DEFAULT_QUARANTINE = '.tmp/content-root-delete'
+const DEFAULT_QUARANTINE = 'content-root-delete'
 
 function portable (value) {
   return String(value || '').replace(/\\/g, '/')
@@ -215,9 +224,58 @@ function assertInsideRoot (root, target, label) {
   return resolvedTarget
 }
 
+function resolveQuarantineBase (root, options = {}, { prepare = false } = {}) {
+  if (options.quarantineRoot) {
+    const relative = portable(options.quarantineRoot)
+    if (path.isAbsolute(options.quarantineRoot) || relative.includes('..')) {
+      throw new Error('CONTENT_ROOT_DELETE_QUARANTINE_PATH_UNSAFE')
+    }
+    return path.join(path.resolve(root), options.quarantineRoot)
+  }
+  const tempRoot = resolveWorkspaceTempRoot(root)
+  if (prepare) ensureWorkspaceTempPartitions(tempRoot)
+  const quarantineBase = path.join(tempRoot, 'quarantine', DEFAULT_QUARANTINE)
+  const boundary = inspectPathBoundary(tempRoot, quarantineBase)
+  if (!boundary.safe) throw new Error(`CONTENT_ROOT_DELETE_QUARANTINE_PATH_UNSAFE: ${boundary.reason}`)
+  if (prepare) {
+    fs.mkdirSync(quarantineBase, { recursive: true })
+    const preparedBoundary = inspectPathBoundary(tempRoot, quarantineBase)
+    if (!preparedBoundary.safe) throw new Error(`CONTENT_ROOT_DELETE_QUARANTINE_PATH_UNSAFE: ${preparedBoundary.reason}`)
+  }
+  return quarantineBase
+}
+
+function quarantineTransactionRoot (root, previewDigestValue, options = {}) {
+  return path.join(resolveQuarantineBase(root, options), previewDigestValue)
+}
+
 function quarantinePath (root, previewDigestValue, relative, options = {}) {
-  const quarantineRoot = path.join(root, options.quarantineRoot || DEFAULT_QUARANTINE, previewDigestValue)
-  return path.join(quarantineRoot, 'files', relative)
+  return path.join(quarantineTransactionRoot(root, previewDigestValue, options), 'files', relative)
+}
+
+function removeTransactionManifest (root, receipt, options = {}) {
+  if (options.quarantineRoot) return false
+  const artifactId = `content-root-delete-${String(receipt.previewDigest || '').slice(0, 24)}`
+  const tempRoot = resolveWorkspaceTempRoot(root)
+  const manifestPath = path.join(tempRoot, 'manifests', `${artifactId}.json`)
+  if (!fs.existsSync(manifestPath)) return false
+  const stats = fs.lstatSync(manifestPath)
+  if (stats.isSymbolicLink() || !stats.isFile()) return false
+  const raw = fs.readFileSync(manifestPath)
+  if (receipt.tempArtifact?.manifestDigest && sha256(raw) !== receipt.tempArtifact.manifestDigest) return false
+  let manifest
+  try { manifest = JSON.parse(raw.toString('utf8')) } catch { return false }
+  const expectedTarget = quarantineTransactionRoot(root, receipt.previewDigest, options)
+  if (
+    manifest?.schemaVersion !== 'WorkspaceTempManifestV1' ||
+    manifest?.artifactId !== artifactId ||
+    manifest?.owner !== 'devcodex-content-root-delete' ||
+    manifest?.producer !== 'content-root-delete-transaction' ||
+    manifest?.cleanupPolicy !== 'retain' ||
+    path.resolve(String(manifest?.targetPath || '')) !== path.resolve(expectedTarget)
+  ) return false
+  fs.unlinkSync(manifestPath)
+  return true
 }
 
 function stageDeleteTransaction (root, previewPath, receiptPath, expectedDigest, options = {}) {
@@ -246,6 +304,7 @@ function stageDeleteTransaction (root, previewPath, receiptPath, expectedDigest,
       replacementDigest: record.replacementDigest
     }))
   }
+  resolveQuarantineBase(resolvedRoot, options, { prepare: true })
   writeJsonAtomic(resolvedReceipt, receipt)
   try {
     for (const record of receipt.records) {
@@ -255,6 +314,25 @@ function stageDeleteTransaction (root, previewPath, receiptPath, expectedDigest,
       fs.renameSync(sourcePath, stagedPath)
       receipt.moved.push(record.path)
       writeJsonAtomic(resolvedReceipt, receipt)
+    }
+    if (!options.quarantineRoot) {
+      const tempRoot = resolveWorkspaceTempRoot(resolvedRoot)
+      const transactionRoot = quarantineTransactionRoot(resolvedRoot, receipt.previewDigest, options)
+      const registration = registerWorkspaceTempArtifactAtRoot(tempRoot, {
+        artifactId: `content-root-delete-${receipt.previewDigest.slice(0, 24)}`,
+        type: 'quarantine',
+        owner: 'devcodex-content-root-delete',
+        project: resolveWorkspaceTempProject(resolvedRoot),
+        producer: 'content-root-delete-transaction',
+        targetPath: transactionRoot,
+        cleanupPolicy: 'retain',
+        transactionStatus: 'staged'
+      })
+      receipt.tempArtifact = {
+        manifestPath: registration.manifestPath,
+        manifestDigest: sha256(fs.readFileSync(registration.manifestPath)),
+        targetPath: transactionRoot
+      }
     }
     receipt.state = 'staged'
     receipt.stagedAt = new Date().toISOString()
@@ -266,6 +344,9 @@ function stageDeleteTransaction (root, previewPath, receiptPath, expectedDigest,
       fs.mkdirSync(path.dirname(sourcePath), { recursive: true })
       if (fs.existsSync(stagedPath) && !fs.existsSync(sourcePath)) fs.renameSync(stagedPath, sourcePath)
     }
+    const transactionRoot = quarantineTransactionRoot(resolvedRoot, receipt.previewDigest, options)
+    removeEmptyParents(path.join(transactionRoot, 'files'), path.dirname(transactionRoot))
+    removeTransactionManifest(resolvedRoot, receipt, options)
     receipt.state = 'stage-failed-rolled-back'
     receipt.error = error.message
     writeJsonAtomic(resolvedReceipt, receipt)
@@ -307,6 +388,9 @@ function rollbackDeleteTransaction (root, receiptPath, options = {}) {
     fs.mkdirSync(path.dirname(sourcePath), { recursive: true })
     fs.renameSync(stagedPath, sourcePath)
   }
+  const transactionRoot = quarantineTransactionRoot(resolvedRoot, receipt.previewDigest, options)
+  removeEmptyParents(path.join(transactionRoot, 'files'), path.dirname(transactionRoot))
+  receipt.tempManifestRemoved = removeTransactionManifest(resolvedRoot, receipt, options)
   receipt.state = 'rolled-back'
   receipt.rolledBackAt = new Date().toISOString()
   writeJsonAtomic(resolvedReceipt, receipt)
@@ -364,12 +448,9 @@ function finalizeDeleteTransaction (root, receiptPath, expectedDigest, confirmat
     receipt.removed.push(record.path)
     writeJsonAtomic(resolvedReceipt, receipt)
   }
-  const quarantineRoot = path.join(
-    resolvedRoot,
-    options.quarantineRoot || DEFAULT_QUARANTINE,
-    receipt.previewDigest
-  )
+  const quarantineRoot = quarantineTransactionRoot(resolvedRoot, receipt.previewDigest, options)
   removeEmptyParents(path.join(quarantineRoot, 'files'), path.dirname(quarantineRoot))
+  receipt.tempManifestRemoved = removeTransactionManifest(resolvedRoot, receipt, options)
   receipt.state = 'finalized'
   receipt.finalizedAt = new Date().toISOString()
   writeJsonAtomic(resolvedReceipt, receipt)
@@ -384,6 +465,7 @@ module.exports = {
   buildDeletePreview,
   finalizeDeleteTransaction,
   previewDigest,
+  resolveQuarantineBase,
   rollbackDeleteTransaction,
   stageDeleteTransaction,
   verifyDeletePreview,

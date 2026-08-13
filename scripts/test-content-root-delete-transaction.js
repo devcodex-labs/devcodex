@@ -15,6 +15,7 @@ const {
   verifyDeletePreview,
   writeJsonAtomic
 } = require('./lib/content-root-delete-transaction')
+const { resolveWorkspaceTempRoot } = require('./lib/workspace-temp-layout.js')
 
 function write (root, relative, content) {
   const target = path.join(root, relative)
@@ -88,8 +89,8 @@ function expectFailure (fn, pattern) {
 
 function run () {
   const root = fixture()
-  const previewPath = path.join(root, '.tmp', 'preview.json')
-  const receiptPath = path.join(root, '.tmp', 'receipt.json')
+  const previewPath = path.join(root, '.devcodex', 'transactions', 'preview.json')
+  const receiptPath = path.join(root, '.devcodex', 'transactions', 'receipt.json')
   const preview = buildDeletePreview(root, {
     project: 'fixture',
     generatedAt: '2026-07-30T00:00:00.000Z'
@@ -130,21 +131,33 @@ function run () {
   assert.strictEqual(staged.state, 'staged')
   assert.strictEqual(fs.existsSync(path.join(root, 'instructions.md')), false)
   assert.strictEqual(fs.existsSync(path.join(root, 'content/instructions.md')), true)
+  const stagedReceipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'))
+  assert.ok(stagedReceipt.tempArtifact.targetPath.startsWith(path.join(resolveWorkspaceTempRoot(root), 'quarantine')))
+  assert.strictEqual(fs.existsSync(stagedReceipt.tempArtifact.manifestPath), true)
+  const outsideManifestSentinel = path.join(path.dirname(root), `${path.basename(root)}-outside-manifest.json`)
+  fs.copyFileSync(stagedReceipt.tempArtifact.manifestPath, outsideManifestSentinel)
+  const tamperedReceipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'))
+  tamperedReceipt.tempArtifact.manifestPath = outsideManifestSentinel
+  writeJsonAtomic(receiptPath, tamperedReceipt)
   expectFailure(
     () => finalizeDeleteTransaction(root, receiptPath, preview.previewDigest, 'wrong'),
     /CONFIRMATION_REQUIRED/
   )
   assert.strictEqual(rollbackDeleteTransaction(root, receiptPath).state, 'rolled-back')
   assert.strictEqual(fs.readFileSync(path.join(root, 'instructions.md'), 'utf8'), '# canonical\n')
+  assert.strictEqual(fs.existsSync(stagedReceipt.tempArtifact.manifestPath), false)
+  assert.strictEqual(fs.existsSync(outsideManifestSentinel), true)
+  fs.rmSync(outsideManifestSentinel, { force: true })
 
   const preview2 = buildDeletePreview(root, {
     project: 'fixture',
     generatedAt: '2026-07-30T00:00:01.000Z'
   })
-  const previewPath2 = path.join(root, '.tmp', 'preview-2.json')
-  const receiptPath2 = path.join(root, '.tmp', 'receipt-2.json')
+  const previewPath2 = path.join(root, '.devcodex', 'transactions', 'preview-2.json')
+  const receiptPath2 = path.join(root, '.devcodex', 'transactions', 'receipt-2.json')
   writeJsonAtomic(previewPath2, preview2)
   stageDeleteTransaction(root, previewPath2, receiptPath2, preview2.previewDigest)
+  const stagedReceipt2 = JSON.parse(fs.readFileSync(receiptPath2, 'utf8'))
   assert.strictEqual(
     finalizeDeleteTransaction(
       root,
@@ -156,6 +169,7 @@ function run () {
   )
   assert.strictEqual(fs.existsSync(path.join(root, 'instructions.md')), false)
   assert.strictEqual(fs.existsSync(path.join(root, 'content/instructions.md')), true)
+  assert.strictEqual(fs.existsSync(stagedReceipt2.tempArtifact.manifestPath), false)
 
   fs.rmSync(root, { recursive: true, force: true })
   process.stdout.write('content root delete transaction tests: PASS\n')

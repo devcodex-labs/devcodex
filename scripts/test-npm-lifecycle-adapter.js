@@ -11,9 +11,17 @@ const {
   runPostinstall
 } = require('./lib/npm-lifecycle-adapter')
 const { syncGrokWorkspacePluginInstallation } = require('./lib/host-adapter-scope')
+const { resolveWorkspaceTempBackupRoot } = require('./lib/workspace-temp-layout.js')
 
 const root = path.resolve(__dirname, '..')
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-npm-lifecycle-'))
+let tempCleaned = false
+function cleanupTempFixture() {
+  if (tempCleaned) return
+  fs.rmSync(tmp, { recursive: true, force: true })
+  tempCleaned = true
+}
+process.once('exit', cleanupTempFixture)
 
 function mkdirp(dir) {
   fs.mkdirSync(dir, { recursive: true })
@@ -478,7 +486,7 @@ assert(
 )
 
 const recoveryFixture = createDuplicateGrokFixture('rollback-recovery-source')
-const recoveryBackupRoot = path.join(recoveryFixture.fixtureRoot, '.tmp', 'backups')
+const recoveryBackupRoot = resolveWorkspaceTempBackupRoot(recoveryFixture.fixtureRoot)
 const recoveryBackup = path.join(recoveryBackupRoot, 'first')
 const recoverySecondBackup = path.join(recoveryBackupRoot, 'second')
 const recoveryFailureDriver = createGrokDriver(recoveryFixture.grokHome, {
@@ -500,6 +508,10 @@ try {
   recoveryFailure = error
 }
 assert(recoveryFailure, 'fixture canonical install failure must surface after recovery-source rollback')
+assert(
+  recoveryFailure.migrationRollback,
+  `fixture failure must expose migrationRollback: code=${recoveryFailure.code || 'none'} message=${recoveryFailure.message}`
+)
 assert.strictEqual(recoveryFailure.migrationRollback.registrationRestored, true)
 assert.strictEqual(recoveryFailure.migrationRollback.sourceIdentityChanged, true)
 const restoredFromBackup = pluginListFromRegistry(recoveryFixture.grokHome)
@@ -569,4 +581,6 @@ for (const forbidden of ['global init', 'init --global', 'sync --global', 'runti
   assert(!JSON.stringify(pkg.scripts).includes(forbidden), `forbidden first-batch command leaked: ${forbidden}`)
 }
 
-console.log('npm lifecycle adapter tests passed global=internal workspace=noop noops=source/ci/skip/transitive dryRun=planned strict=verified')
+cleanupTempFixture()
+assert.strictEqual(fs.existsSync(tmp), false, 'npm lifecycle temporary fixture must be removed before success')
+console.log('npm lifecycle adapter tests passed global=internal workspace=noop noops=source/ci/skip/transitive dryRun=planned strict=verified tempCleanup=1')

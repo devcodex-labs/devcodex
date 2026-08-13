@@ -99,6 +99,13 @@ assert.strictEqual(nextTurn.taskTrace.sequence, 1)
 const ROOT = path.resolve(__dirname, '..')
 const CLI = path.join(ROOT, 'index.js')
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-trace-cli-'))
+let tempCleaned = false
+function cleanupTempFixture() {
+  if (tempCleaned) return
+  fs.rmSync(tempRoot, { recursive: true, force: true })
+  tempCleaned = true
+}
+process.once('exit', cleanupTempFixture)
 const stateFile = path.join(tempRoot, 'lifecycle-state.json')
 const payloadMarker = path.join(tempRoot, 'payload-must-not-run.txt')
 const cliState = JSON.parse(JSON.stringify(state))
@@ -137,4 +144,6 @@ assert.strictEqual(human.status, 0)
 assert.match(human.stdout, /DevCodex trace show/)
 assert.doesNotMatch(human.stdout, /DevCodexCliEnvelopeV1/)
 
-console.log('✓ LocalTaskTrace sequence, duplicate, terminal, restart, CLI replay and zero-write fixtures passed')
+cleanupTempFixture()
+assert.strictEqual(fs.existsSync(tempRoot), false, 'local task trace temporary fixture must be removed before success')
+console.log('✓ LocalTaskTrace sequence, duplicate, terminal, restart, CLI replay, zero-write and temp-cleanup fixtures passed')

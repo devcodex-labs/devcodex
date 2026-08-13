@@ -10,6 +10,13 @@ const path = require('path')
 const { spawnSync } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
+const TEMP_FIXTURES = []
+
+function tempFixture(prefix) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), `devcodex-${prefix}`))
+  TEMP_FIXTURES.push(root)
+  return root
+}
 const {
   PROJECT_RUNTIME_SCRIPT_DEPS,
   CLAUDE_MCP_RUNTIME_SCRIPT_DEPS
@@ -84,7 +91,7 @@ function replayHostAdapter(adapter, host, workspace) {
 }
 
 function layoutReplaySmoke() {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-closure-layout-'))
+  const tmp = tempFixture('runtime-closure-layout-')
   const workspace = makeWorkspace(tmp)
 
   copyDir(path.join(ROOT, 'hooks', '_runtime'), path.join(workspace, '.claude', 'hooks', '_runtime'))
@@ -121,7 +128,7 @@ function closureCoverage() {
 }
 
 function fakeRuntimeSeed() {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-closure-fake-'))
+  const tmp = tempFixture('runtime-closure-fake-')
   fs.mkdirSync(path.join(tmp, 'hooks', '_runtime'), { recursive: true })
   fs.mkdirSync(path.join(tmp, 'scripts', 'lib'), { recursive: true })
   fs.writeFileSync(
@@ -136,7 +143,7 @@ function fakeRuntimeSeed() {
   )
 
   // Dynamic path.join(__dirname, '..', '..', 'scripts', 'lib', ...) must also enter closure.
-  const tmpJoin = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-closure-join-'))
+  const tmpJoin = tempFixture('runtime-closure-join-')
   fs.mkdirSync(path.join(tmpJoin, 'hooks', '_runtime'), { recursive: true })
   fs.mkdirSync(path.join(tmpJoin, 'scripts', 'lib'), { recursive: true })
   fs.writeFileSync(
@@ -152,7 +159,7 @@ function fakeRuntimeSeed() {
 }
 
 function allowlistOnlyMcpSmoke() {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'runtime-closure-mcp-'))
+  const tmp = tempFixture('runtime-closure-mcp-')
   // MCP servers resolve ../hooks/_runtime and ../scripts/lib from package-shaped layout.
   copyDir(path.join(ROOT, 'mcp'), path.join(tmp, 'mcp'))
   copyDir(path.join(ROOT, 'hooks', '_runtime'), path.join(tmp, 'hooks', '_runtime'))
@@ -190,9 +197,13 @@ function packlistContainsRuntimeClosure() {
   assert.ok(files.has('scripts/lib/runtime-dependency-closure.js'), 'npm package must include runtime closure owner')
 }
 
-closureCoverage()
-fakeRuntimeSeed()
-layoutReplaySmoke()
-allowlistOnlyMcpSmoke()
-packlistContainsRuntimeClosure()
-console.log('test-mcp-runtime-closure: PASS')
+try {
+  closureCoverage()
+  fakeRuntimeSeed()
+  layoutReplaySmoke()
+  allowlistOnlyMcpSmoke()
+  packlistContainsRuntimeClosure()
+  console.log('test-mcp-runtime-closure: PASS')
+} finally {
+  for (const root of TEMP_FIXTURES.reverse()) fs.rmSync(root, { recursive: true, force: true })
+}

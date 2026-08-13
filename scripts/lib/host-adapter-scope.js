@@ -6,11 +6,13 @@ const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const { buildGrokCliEnv } = require('./grok-cli-env.js')
+const { prepareWorkspaceTempBackupRoot, registerWorkspaceTempBackup } = require('./workspace-temp.js')
 const {
   findLayoutInfo,
   inferProjectFromCwd,
   resolveActiveRuntimeRoot
 } = require('../../hooks/_runtime/workspace-layout.cjs')
+const { resolveWorkspaceTempBackupRoot } = require('./workspace-temp-layout.js')
 
 const HOST_SCOPE = Object.freeze({
   WORKSPACE_NATIVE: 'workspace-native',
@@ -678,7 +680,9 @@ function syncGrokWorkspacePluginInstallation({
   const pluginName = 'devcodex-workspace'
   const recoveryRoots = [
     backupDir ? path.resolve(backupDir) : null,
-    activeRoot ? path.join(path.resolve(activeRoot), '.tmp', 'backups') : null,
+    activeRoot
+      ? (dryRun ? resolveWorkspaceTempBackupRoot(activeRoot) : prepareWorkspaceTempBackupRoot(activeRoot))
+      : null,
     path.join(grokHomePath(env), 'devcodex', 'backups', 'plugin-convergence')
   ].filter(Boolean)
   if (!hasManagedGrokPluginSignature(canonical)) {
@@ -775,7 +779,7 @@ function syncGrokWorkspacePluginInstallation({
   }
   const backupRoot = path.resolve(backupDir || (
     activeRoot
-      ? path.join(activeRoot, '.tmp', 'backups', `grok-plugin-convergence.${timestampSuffix()}`)
+      ? path.join(prepareWorkspaceTempBackupRoot(activeRoot), `grok-plugin-convergence.${timestampSuffix()}`)
       : path.join(grokHomePath(env), 'devcodex', 'backups', 'plugin-convergence', timestampSuffix())
   ))
   const snapshots = planned
@@ -849,6 +853,13 @@ function syncGrokWorkspacePluginInstallation({
       writeTextAtomic(receiptFile, JSON.stringify({ ...receipt, recordedAt: new Date().toISOString() }, null, 2) + '\n')
       receipt.receiptFile = receiptFile
     }
+    if (snapshots.length) {
+      registerWorkspaceTempBackup(backupRoot, {
+        owner: 'devcodex-grok-adapter',
+        producer: 'grok-plugin-convergence',
+        transactionStatus: 'completed'
+      })
+    }
     return receipt
   } catch (error) {
     const rollback = {
@@ -894,6 +905,17 @@ function syncGrokWorkspacePluginInstallation({
     } catch (rollbackError) {
       rollback.errors.push(rollbackError.message)
     }
+    if (snapshots.length) {
+      try {
+        registerWorkspaceTempBackup(backupRoot, {
+          owner: 'devcodex-grok-adapter',
+          producer: 'grok-plugin-convergence',
+          transactionStatus: rollback.registrationRestored && rollback.configRestored ? 'completed' : 'rollback-incomplete'
+        })
+      } catch (registrationError) {
+        rollback.errors.push(`backup manifest: ${registrationError.message}`)
+      }
+    }
     error.migrationRollback = rollback
     if (!rollback.registrationRestored || !rollback.configRestored) {
       const rollbackError = new Error(`GROK_PLUGIN_ROLLBACK_FAILED: ${error.message}`)
@@ -933,9 +955,10 @@ function uninstallGrokPluginInstallation({ pluginPath, activeRoot, dryRun = fals
   let backupPath = null
   if (changed && configExisted) {
     const suffix = `${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 17)}-${process.pid}`
-    backupPath = path.join(activeRoot || resolveActiveRuntimeRoot(process.cwd()), '.tmp', 'backups', `grok-user-config.toml.bak.${suffix}`)
+    backupPath = path.join(prepareWorkspaceTempBackupRoot(activeRoot || resolveActiveRuntimeRoot(process.cwd())), `grok-user-config.toml.bak.${suffix}`)
     fs.mkdirSync(path.dirname(backupPath), { recursive: true })
     fs.copyFileSync(configPath, backupPath)
+    registerWorkspaceTempBackup(backupPath, { owner: 'devcodex-grok-adapter', producer: 'grok-plugin-uninstall' })
   }
 
   if (installedBefore.repoId) {
@@ -1001,9 +1024,10 @@ function writeGrokPluginRegistration({ pluginPath, legacyPluginPaths = [], activ
   if (merge.changed && !dryRun) {
     if (current) {
       const suffix = `${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 17)}-${process.pid}`
-      backupPath = path.join(activeRoot || resolveActiveRuntimeRoot(process.cwd()), '.tmp', 'backups', `grok-user-config.toml.bak.${suffix}`)
+      backupPath = path.join(prepareWorkspaceTempBackupRoot(activeRoot || resolveActiveRuntimeRoot(process.cwd())), `grok-user-config.toml.bak.${suffix}`)
       fs.mkdirSync(path.dirname(backupPath), { recursive: true })
       fs.copyFileSync(configPath, backupPath)
+      registerWorkspaceTempBackup(backupPath, { owner: 'devcodex-grok-adapter', producer: 'grok-plugin-registration' })
     }
     fs.mkdirSync(path.dirname(configPath), { recursive: true })
     const temp = `${configPath}.tmp-${process.pid}`

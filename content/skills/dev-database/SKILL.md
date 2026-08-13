@@ -37,7 +37,7 @@ description: 数据库开发子类型规范 — Migration 安全策略 + Schema 
 - 🔴 数据库、MongoDB 或数据操作连接信息默认可按用户提供内容直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json`、env、`secretRef` 或 secret manager 时，才从对应入口读取，缺失文件或字段时提醒用户补齐
 - 🔴 数据补齐、迁移或跨环境写入必须执行 `DataMutationPlan`：范围来自显式清单、需求目录数据源或稳定业务键；跨环境写入不得直接用 source `_id` 匹配目标库，必须在目标环境重新唯一匹配并 dry-run 输出 `source_id`、`target_id`、缺失/重复清单；不能唯一匹配时阻断写库
 - 🔴 数据库配置、邮件模板、模块注册、推送配置、权限配置、字典配置等记录跨环境手动迁移必须执行 `DatabaseRecordMigrationExportGate`：只读源环境，导出主记录和引用记录的全字段 JSON/Extended JSON 备份，生成可执行 insert/upsert 脚本、执行顺序、引用完整性校验和目标 dry-run 说明；不得只给单条记录或截图说明
-- 🔴 一次性数据脚本默认执行 `OneOffRequirementScriptPlacementGate`，放入对应 requirement/bug/任务目录 `scripts/` 或 `.tmp/local-scripts/`；只有长期复用、发布、维护或运维入口才进入项目通用 `scripts/`
+- 🔴 一次性数据脚本默认执行 `OneOffRequirementScriptPlacementGate`：需要留档/复核时放入对应 requirement/bug/任务目录 `scripts/`；纯本地临时执行时放入 canonical workspace temp 的 `runs/<project>/<producer>/<run-id>/local-scripts/` 并登记 `WorkspaceTempManifestV1`。禁止在任务目录另建 `.tmp`；只有长期复用、发布、维护或运维入口才进入项目通用 `scripts/`
 
 ## Migration 执行后验证（F-13）
 

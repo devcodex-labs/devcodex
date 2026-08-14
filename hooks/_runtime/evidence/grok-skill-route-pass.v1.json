@@ -5,23 +5,23 @@
   "hostVariant": "grok-cli-single/global-launcher-local-stdio",
   "testedVersion": "grok 1.0.0 (3cd0d0cbce)",
   "protocol": "MCP 2024-11-05",
-  "runtimeContractDigest": "1e41f26575059ed949a33eefec9d111acc4f401d1694564c61022d225544eacc",
+  "runtimeContractDigest": "357bc3bd2c4350ee466df89aea18238f8d4683d64576cb03f46bfe03c4f483e9",
   "hostAdapterDigest": "1c52e4167b04740d7ac54e04776989b57ce3cbe7928c6529b6ab8b36cdddf5c5",
-  "sourceEvidenceDigest": "9b0c62d9a0f31cd34348a876ae3d05367880c3b3d26153f6b6d1fd2be1a7034c",
+  "sourceEvidenceDigest": "ecfea771b85a46088b284e937d20c42fc280fa7c647888ec3c2c1e1d3273d71a",
   "sourceProbe": {
     "schemaVersion": "SkillRouteS15EvidenceV1",
-    "probeRunId": "s15-grok-probe-e3baa5ee-0031-4b65-bf4e-a1248d2a0319",
+    "probeRunId": "s15-grok-probe-23e60dc4-0020-4119-91d1-0887ba88de35",
     "authorizationSource": "isolated-probe-authority",
     "contextSource": "host-hooks",
     "receiptStatus": "relevant-complete",
-    "completedAt": "2026-08-13T14:19:40.068Z"
+    "completedAt": "2026-08-14T00:47:25.832Z"
   },
   "runtimeBinding": {
     "source": "persistent-isolated-source-candidate",
-    "expectedDigest": "1e41f26575059ed949a33eefec9d111acc4f401d1694564c61022d225544eacc",
-    "generationDigest": "1e41f26575059ed949a33eefec9d111acc4f401d1694564c61022d225544eacc",
-    "modeReceiptDigest": "1e41f26575059ed949a33eefec9d111acc4f401d1694564c61022d225544eacc",
-    "routeEnvelopeDigest": "1e41f26575059ed949a33eefec9d111acc4f401d1694564c61022d225544eacc"
+    "expectedDigest": "357bc3bd2c4350ee466df89aea18238f8d4683d64576cb03f46bfe03c4f483e9",
+    "generationDigest": "357bc3bd2c4350ee466df89aea18238f8d4683d64576cb03f46bfe03c4f483e9",
+    "modeReceiptDigest": "357bc3bd2c4350ee466df89aea18238f8d4683d64576cb03f46bfe03c4f483e9",
+    "routeEnvelopeDigest": "357bc3bd2c4350ee466df89aea18238f8d4683d64576cb03f46bfe03c4f483e9"
   },
   "crossHostIsolation": {
     "cursorHooksCompatibility": {

@@ -50,6 +50,12 @@
     "content/**",
     "scripts/generate-control-content.js",
     "scripts/prepack-control-content.js",
+    "scripts/postpack-control-content.js",
+    "scripts/validate-installed-package.js",
+    "scripts/lib/package-compatibility-projection.js",
+    "scripts/lib/published-package-manifest-projection.js",
+    "scripts/lib/published-package-scripts-contract.js",
+    "scripts/test-published-package-scripts-contract.js",
     "scripts/extract-control-content-fragments.js",
     "scripts/analyze-control-content-duplication.js",
     "scripts/lib/control-content-source.js",
@@ -110,6 +116,7 @@
     "validate-core",
     "validation-dag",
     "control-content-source",
+    "published-package-scripts-contract",
     "pack-clean",
     "syntax"
   ],
@@ -188,6 +195,7 @@
         "migrate-layout",
         "cli-behavior",
         "release-metadata",
+        "published-package-scripts-contract",
         "pack-clean",
         "public-text-integrity",
         "review-execution-contract",
@@ -276,6 +284,7 @@
         "migrate-layout",
         "cli-behavior",
         "release-metadata",
+        "published-package-scripts-contract",
         "pack-clean",
         "public-text-integrity",
         "review-execution-contract",
@@ -321,6 +330,7 @@
         "client-contracts",
         "migrate-layout",
         "control-content-source",
+        "published-package-scripts-contract",
         "pack-clean",
         "public-text-integrity",
         "review-execution-contract",
@@ -379,6 +389,7 @@
         "cli-behavior",
         "client-contracts",
         "release-metadata",
+        "published-package-scripts-contract",
         "pack-clean",
         "public-text-integrity",
         "review-execution-contract",
@@ -3664,7 +3675,7 @@
       "writeScopes": [
         "isolated-temp"
       ],
-      "timeoutMs": 120000,
+      "timeoutMs": 180000,
       "exitMap": {
         "success": [
           0
@@ -3720,6 +3731,54 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "published-package-scripts-contract",
+      "owner": "package-boundary",
+      "command": "node",
+      "args": [
+        "scripts/test-published-package-scripts-contract.js"
+      ],
+      "dependencies": [
+        "validate-versions"
+      ],
+      "inputs": [
+        "package.json",
+        "scripts/prepack-control-content.js",
+        "scripts/postpack-control-content.js",
+        "scripts/validate-installed-package.js",
+        "scripts/lib/package-compatibility-projection.js",
+        "scripts/lib/published-package-manifest-projection.js",
+        "scripts/lib/published-package-scripts-contract.js",
+        "scripts/test-published-package-scripts-contract.js"
+      ],
+      "consumers": [
+        "pack-clean"
+      ],
+      "invariants": [
+        "published-manifest-exact-scripts",
+        "published-script-runtime-closure",
+        "prepack-postpack-paired",
+        "source-manifest-byte-restoration"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "PublishedPackageScriptsValidationReceiptV1",
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "pack-clean",
       "owner": "package-boundary",
       "command": "node",
@@ -3728,19 +3787,29 @@
       ],
       "dependencies": [
         "validate-versions",
-        "control-content-source"
+        "control-content-source",
+        "published-package-scripts-contract"
       ],
       "inputs": [
         "package.json",
         ".npmignore",
         "scripts/test-pack-clean.js",
+        "scripts/prepack-control-content.js",
+        "scripts/postpack-control-content.js",
+        "scripts/validate-installed-package.js",
+        "scripts/lib/package-compatibility-projection.js",
+        "scripts/lib/published-package-manifest-projection.js",
+        "scripts/lib/published-package-scripts-contract.js",
         "scripts/validation-manifest.json",
         "scripts/run-validation.js",
         "scripts/lib/validation-dag.js"
       ],
       "consumers": [],
       "invariants": [
-        "package"
+        "package",
+        "actual-pack-install-validate-self-pack",
+        "published-script-runtime-closure",
+        "source-manifest-byte-restoration"
       ],
       "riskClass": "release",
       "cachePolicy": "never",

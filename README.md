@@ -466,6 +466,12 @@ devcodex tmp prune --dry-run
 
 只有带 `WorkspaceTempManifestV1`、owner/type 可识别、TTL 已到期、没有活动 lease，且备份事务已完成的对象才会成为候选。确认后再执行 `devcodex tmp prune --apply`。一次状态检查的 canonical 文件/目录与 legacy 目录观察共用 10,000 项相关对象上限；四个 artifact 分区根不能被 manifest 整体认领，unknown owner、共享/损坏 lease、未知分区、lock、reparse point、路径逃逸、不完整备份和扫描截断都会保持 blocked。DevCodex 只拥有 `.tmp/devcodex/`：`.tmp/` 容器、`.tmp/<other-producer>/`、工作区根的 `tmp/.tmp-*` 以及 `.tmp.drive*` 外部传输 spool 都不进入 DevCodex ownership、blocked 列表或 `--apply` 删除集合；它们必须由各自生产者盘点并取得独立删除授权。
 
+### 为什么全局安装包里没有源码仓的全部 `test:*` / 发布脚本？
+
+npm 安装包是面向使用者的运行时，不是维护者源码仓镜像。源码中的测试、benchmark、生成器和发布编排脚本只在仓库中使用；最终安装包只公开安装生命周期、`npm run validate` 与 `global-adapters` apply/remove 脚本。保留下来的每个入口都会从最终 tarball 的 `package.json` 重新建立运行依赖闭包，并通过真实 `pack → 隔离安装 → validate → self-pack` 门禁。
+
+如果你要开发或发布 DevCodex，请克隆源码仓并在源码根运行维护脚本；不要把全局安装目录当成开发 checkout。若安装包中的 `npm run validate` 或 `npm pack` 报 `MODULE_NOT_FOUND`，这是发布包完整性故障，应升级到修复版本并提交完整输出，不需要通过开启完全访问权限来绕过。
+
 ## 更新
 
 ```bash

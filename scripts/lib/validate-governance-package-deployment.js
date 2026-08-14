@@ -3,6 +3,10 @@
 const { readManifest, verifyManifest } = require('./deployment-manifest-utils')
 const { createSkillDeployFileFilter } = require('./skill-deploy-filter')
 const { listControlDeliveryEntries } = require('./control-content-delivery')
+const {
+  buildPublishedPackageManifest,
+  validatePublishedPackageManifest
+} = require('./published-package-scripts-contract')
 
 function shouldCheckBaseDeploymentSource(relativePath) {
   return !/^(?:content\/)?instructions\/tenants\//.test(
@@ -72,6 +76,13 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       const packFilename = arr[0]?.filename || ''
       const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
       const plugin = JSON.parse(read(path.join(ROOT, 'plugin.json')))
+      let publishedPackageClosure = []
+      try {
+        const publishedManifest = buildPublishedPackageManifest(pkg)
+        publishedPackageClosure = validatePublishedPackageManifest(ROOT, publishedManifest).closureFiles
+      } catch (error) {
+        err(`[V6] Published package scripts contract failed: ${error.code || error.message}`)
+      }
       // package.json "files" globs (e.g. skills/*/**) expand at pack time; do not require them as literal paths
       const packageFiles = new Set((pkg.files || []).filter(item => !item.endsWith('/') && !String(item).includes('*')))
       const pluginFiles = new Set((plugin.skills || []).map(item => item.file).filter(Boolean))
@@ -131,7 +142,15 @@ function buildGovernancePackageDeploymentChecks(ctx) {
         'scripts/migrate-layout.js',
         'assets/icon-512.png'
       ]
-        .concat([...packageFiles], [...pluginFiles], promptFiles, dataTemplateFiles, collectRuntimeDependencies('index.js'), packagedScriptDeps)
+        .concat(
+          [...packageFiles],
+          [...pluginFiles],
+          promptFiles,
+          dataTemplateFiles,
+          collectRuntimeDependencies('index.js'),
+          packagedScriptDeps,
+          publishedPackageClosure
+        )
         .filter(file => file && !file.endsWith('/'))
       const forbidden = files.filter(file =>
         ((/^assets\/hooks\//i.test(file) && file !== 'assets/hooks/README.md') ||

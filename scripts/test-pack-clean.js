@@ -1,13 +1,73 @@
 #!/usr/bin/env node
 'use strict'
-const { execSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
+const { runChecked } = require('./lib/checked-command')
 const { listControlDeliveryEntries } = require('./lib/control-content-delivery')
+const {
+  buildPublishedPackageManifest,
+  validatePublishedPackageManifest
+} = require('./lib/published-package-scripts-contract')
+const {
+  resolvePublishedManifestProjectionPaths
+} = require('./lib/published-package-manifest-projection')
+const { resolveWorkspaceTempRoot } = require('./lib/workspace-temp-layout')
 
 const ROOT = path.resolve(__dirname, '..')
-const out = execSync('npm pack --dry-run --json', { cwd: ROOT, encoding: 'utf8' })
-const pack = JSON.parse(out)[0] || {}
+const sourceManifestPath = path.join(ROOT, 'package.json')
+const sourceManifestBytes = fs.readFileSync(sourceManifestPath)
+const runRoot = path.join(
+  resolveWorkspaceTempRoot(ROOT),
+  'runs',
+  'devcodex',
+  `pack-clean-${process.pid}-${Date.now()}`
+)
+const packRoot = path.join(runRoot, 'pack')
+const installRoot = path.join(runRoot, 'install')
+const selfPackRoot = path.join(runRoot, 'self-pack')
+const isolatedHome = path.join(runRoot, 'home')
+const isolatedAppData = path.join(isolatedHome, 'AppData', 'Roaming')
+const isolatedLocalAppData = path.join(isolatedHome, 'AppData', 'Local')
+const npmCache = path.join(runRoot, 'npm-cache')
+const npmUserConfig = path.join(runRoot, 'npmrc')
+
+for (const directory of [packRoot, installRoot, selfPackRoot, isolatedAppData, isolatedLocalAppData, npmCache]) {
+  fs.mkdirSync(directory, { recursive: true })
+}
+fs.writeFileSync(npmUserConfig, '')
+process.on('exit', () => fs.rmSync(runRoot, { recursive: true, force: true }))
+
+const npmEnv = {
+  HOME: isolatedHome,
+  USERPROFILE: isolatedHome,
+  APPDATA: isolatedAppData,
+  LOCALAPPDATA: isolatedLocalAppData,
+  npm_config_cache: npmCache,
+  npm_config_userconfig: npmUserConfig,
+  npm_config_audit: 'false',
+  npm_config_fund: 'false',
+  npm_config_update_notifier: 'false'
+}
+
+function runNpm (args, cwd = ROOT) {
+  return runChecked('npm', args, {
+    cwd,
+    env: npmEnv,
+    timeoutMs: 180000,
+    maxBuffer: 16 * 1024 * 1024,
+    summaryLimit: 16 * 1024 * 1024
+  })
+}
+
+const packEvidence = runNpm(['pack', '--json', '--pack-destination', packRoot])
+if (!fs.readFileSync(sourceManifestPath).equals(sourceManifestBytes)) {
+  throw new Error('SOURCE_PACKAGE_MANIFEST_NOT_RESTORED_AFTER_PACK')
+}
+const projectionPaths = resolvePublishedManifestProjectionPaths(ROOT)
+if (fs.existsSync(projectionPaths.receiptPath) || fs.existsSync(projectionPaths.backupPath)) {
+  throw new Error('PUBLISHED_PACKAGE_MANIFEST_PROJECTION_STATE_LEAK')
+}
+const pack = JSON.parse(packEvidence.stdout)[0] || {}
 const files = (pack.files || []).map(file => file.path)
 
 function resolveLocalDependency(fromFile, request) {
@@ -190,4 +250,54 @@ if (npmignore.includes('tests/')) {
   console.error('\x1b[31m✗ .npmignore contains stale "tests/" exclusion; tests live under scripts/test-*.js\x1b[0m')
   process.exit(1)
 }
-console.log('\x1b[32m✓ Pack clean\x1b[0m')
+
+const projectedSourceManifest = buildPublishedPackageManifest(
+  JSON.parse(sourceManifestBytes.toString('utf8'))
+)
+validatePublishedPackageManifest(ROOT, projectedSourceManifest)
+
+const tarballPath = path.join(packRoot, pack.filename || '')
+if (!pack.filename || !fs.existsSync(tarballPath)) {
+  throw new Error(`PACK_TARBALL_MISSING: ${tarballPath}`)
+}
+runNpm([
+  'install',
+  '--no-audit',
+  '--no-fund',
+  '--prefix',
+  installRoot,
+  tarballPath
+], runRoot)
+
+const installedRoot = path.join(installRoot, 'node_modules', pack.name || 'devcodex')
+const installedManifestPath = path.join(installedRoot, 'package.json')
+if (!fs.existsSync(installedManifestPath)) {
+  throw new Error(`INSTALLED_PACKAGE_MANIFEST_MISSING: ${installedManifestPath}`)
+}
+const installedManifest = JSON.parse(fs.readFileSync(installedManifestPath, 'utf8'))
+const installedValidation = validatePublishedPackageManifest(installedRoot, installedManifest)
+runChecked(process.execPath, [path.join(installedRoot, 'scripts', 'validate-installed-package.js')], {
+  cwd: installedRoot,
+  env: npmEnv,
+  timeoutMs: 30000,
+  summaryLimit: 1024 * 1024
+})
+runNpm(['run', 'validate', '--ignore-scripts'], installedRoot)
+
+const selfPackEvidence = runNpm([
+  'pack',
+  '--json',
+  '--pack-destination',
+  selfPackRoot
+], installedRoot)
+const selfPack = JSON.parse(selfPackEvidence.stdout)[0] || {}
+if (!selfPack.filename || !fs.existsSync(path.join(selfPackRoot, selfPack.filename))) {
+  throw new Error('INSTALLED_PACKAGE_SELF_PACK_MISSING')
+}
+if (!fs.readFileSync(sourceManifestPath).equals(sourceManifestBytes)) {
+  throw new Error('SOURCE_PACKAGE_MANIFEST_CHANGED_DURING_INSTALLED_PACKAGE_VALIDATION')
+}
+
+console.log(
+  `\x1b[32m✓ Pack clean scripts=${installedValidation.scriptCount} closure=${installedValidation.closureFileCount} selfPack=${selfPack.filename}\x1b[0m`
+)

@@ -2421,10 +2421,10 @@ function shouldEnforceProgressiveSkillRouteStop (routeStop, explicitRoutePending
   }
   if (routeStop.errorCode === 'PLAN_NOT_COMMITTED') {
     // Explicit Skill requests remain fail-closed for every lifecycle phase.
-    // Non-explicit turns only become enforceable once the model attempts a
-    // tool call. This prevents real work from bypassing route selection while
-    // leaving tool-free chat free of a Stop/reconciliation loop.
-    return explicitRoutePending === true || trigger === 'PreToolUse'
+    // Non-explicit turns must decide 0/1 Skill before unrelated tool work or
+    // a final reply. Stop reuses the exact catalog recovery action; semantic
+    // selection remains owned by the unified route rather than this Hook.
+    return explicitRoutePending === true || trigger === 'PreToolUse' || trigger === 'Stop'
   }
   if (ROUTE_RETIREMENT_IDENTITY_ERRORS.has(routeStop.errorCode)) {
     // Legacy projections without an explicit retirement disposition remain

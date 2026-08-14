@@ -5,23 +5,23 @@
   "hostVariant": "grok-cli-single/global-launcher-local-stdio",
   "testedVersion": "grok 1.0.0 (3cd0d0cbce)",
   "protocol": "MCP 2024-11-05",
-  "runtimeContractDigest": "357bc3bd2c4350ee466df89aea18238f8d4683d64576cb03f46bfe03c4f483e9",
+  "runtimeContractDigest": "087c2e8b55c53a56d42bcae19379c914b0bf50c7a46226ca82e1ff7939dee5f5",
   "hostAdapterDigest": "1c52e4167b04740d7ac54e04776989b57ce3cbe7928c6529b6ab8b36cdddf5c5",
-  "sourceEvidenceDigest": "ecfea771b85a46088b284e937d20c42fc280fa7c647888ec3c2c1e1d3273d71a",
+  "sourceEvidenceDigest": "da99cf595f87f72ea992bcb2e06ab38563125a8c95e3dcdbb0aa20bc07bc4013",
   "sourceProbe": {
     "schemaVersion": "SkillRouteS15EvidenceV1",
-    "probeRunId": "s15-grok-probe-23e60dc4-0020-4119-91d1-0887ba88de35",
-    "authorizationSource": "isolated-probe-authority",
+    "probeRunId": "s15-grok-probe-833fb1c1-f6c3-4dc5-a770-8d2abac66a55",
+    "authorizationSource": "installed-source-probe-authority",
     "contextSource": "host-hooks",
     "receiptStatus": "relevant-complete",
-    "completedAt": "2026-08-14T00:47:25.832Z"
+    "completedAt": "2026-08-14T10:36:08.703Z"
   },
   "runtimeBinding": {
-    "source": "persistent-isolated-source-candidate",
-    "expectedDigest": "357bc3bd2c4350ee466df89aea18238f8d4683d64576cb03f46bfe03c4f483e9",
-    "generationDigest": "357bc3bd2c4350ee466df89aea18238f8d4683d64576cb03f46bfe03c4f483e9",
-    "modeReceiptDigest": "357bc3bd2c4350ee466df89aea18238f8d4683d64576cb03f46bfe03c4f483e9",
-    "routeEnvelopeDigest": "357bc3bd2c4350ee466df89aea18238f8d4683d64576cb03f46bfe03c4f483e9"
+    "source": "installed-source-candidate",
+    "expectedDigest": "087c2e8b55c53a56d42bcae19379c914b0bf50c7a46226ca82e1ff7939dee5f5",
+    "generationDigest": "087c2e8b55c53a56d42bcae19379c914b0bf50c7a46226ca82e1ff7939dee5f5",
+    "modeReceiptDigest": "087c2e8b55c53a56d42bcae19379c914b0bf50c7a46226ca82e1ff7939dee5f5",
+    "routeEnvelopeDigest": "087c2e8b55c53a56d42bcae19379c914b0bf50c7a46226ca82e1ff7939dee5f5"
   },
   "crossHostIsolation": {
     "cursorHooksCompatibility": {

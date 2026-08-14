@@ -168,12 +168,21 @@ function runGovernanceIntakeBehaviorReplay() {
     failures.push('20 new sessions should not inherit or compact candidates from prior sessions')
   }
 
+  const unresolvedReminder = utils.buildGovernanceIntakeReminderItem(
+    readRuntimeState(crossTurnRoot)
+  )
+  if (!/治理 intake 候选尚未完成语义评估/.test(unresolvedReminder || '')) {
+    failures.push('governance reminder builder should retain unresolved neutral candidates')
+  }
+
   const unresolvedStop = runRuntime({
     hookEventName: 'Stop',
     assistantMessage: 'PC0 PC1 PC2 PC3 PC4 PC5 PC6 PC7\n仅回答问题，没有治理决策。'
   }, crossTurnRoot)
-  if (!/治理 intake 候选尚未完成语义评估/.test(unresolvedStop.systemMessage || '')) {
-    failures.push('Stop should remind for unresolved neutral candidates')
+  if (unresolvedStop.devcodexCode !== 'progressive-skill-route' ||
+      unresolvedStop.devcodexNextAction?.errorCode !== 'PLAN_NOT_COMMITTED' ||
+      unresolvedStop.devcodexNextAction?.nextCall?.op !== 'catalog') {
+    failures.push('Stop should resolve the earlier SkillRoute gate before the governance reminder')
   }
 
   const multiPendingDecision = [

@@ -49,7 +49,7 @@ const {
   getLayoutCaptureLog,
   getWorkspaceLayoutStateFile,
   callProfileTool,
-  runBootstrapReads,
+  runBootstrapReads: runBootstrapReadsRaw,
   runLayoutBootstrapReads,
   cleanState,
   cleanLayoutState,
@@ -57,7 +57,7 @@ const {
   cleanLayoutMultiProjectState,
   cleanNestedLayoutMultiProjectState,
   cleanToolingSiblingState,
-  run,
+  run: runRaw,
   readInterceptionEntries,
   writeTranscript,
   writeTranscriptEntries
@@ -72,6 +72,38 @@ const {
   STATE_FILE,
   TEST_AGENT
 })
+
+const completedLegacySkillRoutes = new Set()
+
+function currentLegacySkillRouteKey() {
+  try {
+    if (!fs.existsSync(STATE_FILE)) return null
+    const state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+    const bootstrap = state.progressiveSkillRoute?.bootstrap
+    if (!bootstrap?.contextEpoch || !bootstrap?.turnBinding) return null
+    return `${bootstrap.contextEpoch}:${bootstrap.turnBinding}`
+  } catch {
+    return null
+  }
+}
+
+function runBootstrapReads(...args) {
+  const result = runBootstrapReadsRaw(...args)
+  const key = currentLegacySkillRouteKey()
+  if (key) completedLegacySkillRoutes.add(key)
+  return result
+}
+
+function run(payload, cwd = TEMP_ROOT, env = {}) {
+  const eventName = String(payload?.hookEventName || payload?.hook_event_name || '').toLowerCase()
+  if (eventName === 'stop' && path.resolve(cwd) === path.resolve(TEMP_ROOT)) {
+    const key = currentLegacySkillRouteKey()
+    if (key && !completedLegacySkillRoutes.has(key)) {
+      runBootstrapReads(TEST_AGENT)
+    }
+  }
+  return runRaw(payload, cwd, env)
+}
 
 const runtimeScenarioContext = {
   assert,

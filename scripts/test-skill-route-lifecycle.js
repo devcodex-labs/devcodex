@@ -641,17 +641,22 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
     assert.strictEqual(
       shouldEnforceProgressiveSkillRouteStop(nonExplicitPreCommitStop, false),
       false,
-      'legacy callers and Stop remain non-enforcing for non-explicit precommit turns'
+      'legacy callers without a lifecycle trigger remain non-enforcing'
     )
     assert.strictEqual(
       shouldEnforceProgressiveSkillRouteStop(nonExplicitPreCommitStop, false, 'Stop'),
-      false,
-      'tool-free chat must not enter a precommit Stop loop'
+      true,
+      'a final reply must not bypass the non-explicit 0/1 route decision'
     )
     assert.strictEqual(
       shouldEnforceProgressiveSkillRouteStop(nonExplicitPreCommitStop, false, 'PreToolUse'),
       true,
       'unrelated tool work must not bypass a non-explicit route decision'
+    )
+    assert.strictEqual(
+      shouldEnforceProgressiveSkillRouteStop(nonExplicitPreCommitStop, false, 'PreCompact'),
+      false,
+      'PreCompact remains owned by the existing stale/rebootstrap contract'
     )
     assert.strictEqual(
       shouldEnforceProgressiveSkillRouteStop(nonExplicitPreCommitStop, true, 'Stop'),
@@ -696,7 +701,19 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
     }, {
       DEVCODEX_HOST_PLATFORM: 'grok'
     })
-    assert.notStrictEqual(preCommitStop.output.devcodexCode, 'progressive-skill-route')
+    assert.strictEqual(preCommitStop.output.devcodexCode, 'progressive-skill-route')
+    assert.strictEqual(preCommitStop.output.devcodexNextAction.schemaVersion, 'NextActionEnvelopeV1')
+    assert.strictEqual(preCommitStop.output.devcodexNextAction.errorCode, 'PLAN_NOT_COMMITTED')
+    assert.strictEqual(preCommitStop.output.devcodexNextAction.trigger, 'Stop')
+    assert.strictEqual(preCommitStop.output.devcodexNextAction.nextCall.op, 'catalog')
+    assert.strictEqual(
+      Object.prototype.hasOwnProperty.call(
+        preCommitStop.output.devcodexNextAction.nextCall,
+        'cursor'
+      ),
+      false,
+      'the Stop recovery must preserve the first catalog call without cursor:null'
+    )
 
     const staleSession = 'non-explicit-runtime-refresh'
     runLifecycle(fixture, {

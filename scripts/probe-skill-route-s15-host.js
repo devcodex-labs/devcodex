@@ -32,9 +32,17 @@ const {
   resolveGlobalHostTarget
 } = require('./lib/global-host-target')
 const {
+  decodeHostHookCommand,
+  rewriteHostHookCommandArgv
+} = require('./lib/host-command')
+const {
   bindInstalledProductionRuntime,
   prepareCandidateHostRuntime
 } = require('./lib/s15-candidate-host')
+const {
+  contextAcquisitionObservationMode,
+  contextAcquisitionObservedTools
+} = require('./lib/s15-context-evidence')
 const {
   parseModelResult,
   writeProbeSkill
@@ -302,7 +310,7 @@ function buildPrompt ({ contextEpoch, hostId, project, skillId, exerciseContextR
     'Call profile_load once with files equal to plan.profile.selectedFiles verbatim; do not pass paths, README.md, config.json, or any baseline source.',
     `Call memory_status with agent=${hostId}, scope=project, project=${project}, limit=5.`,
     'Do not start Skill routing until the lifecycle receipt is relevant-complete.',
-    'The UserPromptSubmit hook injects a SkillRouteBootstrapV1 block containing the exact turnBinding.',
+    'The UserPromptSubmit hook or the profile_context_plan fallback injects a SkillRouteBootstrapV1 block containing the exact turnBinding.',
     'Copy that exact turnBinding from the injected block; never invent, derive, or guess one.',
     'Call skill_route catalog with only op, project, turnBinding, contextEpoch, and cursor when present.',
     'Read every catalog page by following nextCursor until null.',
@@ -543,8 +551,26 @@ const PROBE_HOOK_FLAGS = Object.freeze([
   '--context-epoch'
 ])
 
+function isLifecycleHookCommand (command) {
+  const value = String(command || '')
+  const decoded = decodeHostHookCommand(value)
+  const runtimeFile = decoded?.argv?.[0] || value
+  return /(?:^|[\\/])(?:host-hook-launcher|lifecycle-(?:host-adapters|cursor-compatible))\.cjs(?:$|[\s"'])/i.test(runtimeFile)
+}
+
 function stripProbeHookArgs (command) {
   const value = String(command || '')
+  const decoded = decodeHostHookCommand(value)
+  if (decoded) {
+    const offsets = PROBE_HOOK_FLAGS
+      .map(flag => decoded.argv.indexOf(flag))
+      .filter(offset => offset >= 0)
+    if (!offsets.length) return value
+    return rewriteHostHookCommandArgv(
+      value,
+      decoded.argv.slice(0, Math.min(...offsets))
+    )
+  }
   const offsets = PROBE_HOOK_FLAGS
     .map(flag => value.indexOf(` ${flag} `))
     .filter(offset => offset >= 0)
@@ -572,23 +598,28 @@ function patchProbeHookCommand (
   assert(configPath && fs.existsSync(configPath), `${hostId} global hook config missing`)
   const original = fs.readFileSync(configPath, 'utf8')
   const config = JSON.parse(original)
-  const suffixParts = [
-    '--skill-route-trace', `"${routeTracePath}"`,
-    '--lifecycle-trace', `"${lifecycleTracePath}"`,
-    '--workspace-root', `"${workspaceRoot}"`,
-    '--context-epoch', `"${contextEpoch}"`
+  const suffixArgv = [
+    '--skill-route-trace', routeTracePath,
+    '--lifecycle-trace', lifecycleTracePath,
+    '--workspace-root', workspaceRoot,
+    '--context-epoch', contextEpoch
   ]
   if (!productionEligible) {
-    suffixParts.unshift('--skill-route-probe-authority', `"${authorityPath}"`)
+    suffixArgv.unshift('--skill-route-probe-authority', authorityPath)
   }
-  const suffix = suffixParts.join(' ')
+  const plainSuffix = suffixArgv
+    .map((item, index) => index % 2 === 0 ? item : `"${item}"`)
+    .join(' ')
   let patchedCommands = 0
   function visit (value) {
     if (!value || typeof value !== 'object') return
     for (const [key, child] of Object.entries(value)) {
-      if (key === 'command' && typeof child === 'string' &&
-          child.includes('lifecycle-host-adapters.cjs')) {
-        value[key] = `${stripProbeHookArgs(child)} ${suffix}`
+      if (key === 'command' && typeof child === 'string' && isLifecycleHookCommand(child)) {
+        const clean = stripProbeHookArgs(child)
+        const decoded = decodeHostHookCommand(clean)
+        value[key] = decoded
+          ? rewriteHostHookCommandArgv(clean, [...decoded.argv, ...suffixArgv])
+          : `${clean} ${plainSuffix}`
         patchedCommands += 1
       } else {
         visit(child)
@@ -606,8 +637,7 @@ function patchProbeHookCommand (
     function restore (value) {
       if (!value || typeof value !== 'object') return
       for (const [key, child] of Object.entries(value)) {
-        if (key === 'command' && typeof child === 'string' &&
-            child.includes('lifecycle-host-adapters.cjs')) {
+        if (key === 'command' && typeof child === 'string' && isLifecycleHookCommand(child)) {
           const clean = stripProbeHookArgs(child)
           if (clean !== child) {
             value[key] = clean
@@ -800,7 +830,10 @@ function main () {
     assert(fs.existsSync(lifecycleFile), 'S15 lifecycle state missing')
     const lifecycleState = JSON.parse(fs.readFileSync(lifecycleFile, 'utf8'))
     const contextAcquisition = lifecycleState.contextAcquisition
-    const modeReceipt = lifecycleState.progressiveSkillRoute?.modeReceipt
+    const modeReceipt = lifecycleState.progressiveSkillRoute?.modeReceipt || state.modeReceipt
+    const routeBootstrapSource = lifecycleState.progressiveSkillRoute?.bootstrap
+      ? 'host-hooks'
+      : 'profile-context-plan-fallback'
     const selectedChunk = state.plan?.baseResolution?.selected.find(item =>
       item.skillId === skillId
     )
@@ -913,10 +946,11 @@ function main () {
       marker,
       markerDigest: sha256(marker),
       contextAcquisition: {
-        source: 'host-hooks',
+        source: routeBootstrapSource,
         prewritten: false,
         receiptStatus: contextAcquisition.receipt.status,
-        observedTools: contextAcquisition.postHistory.map(item => item.canonical)
+        observationMode: contextAcquisitionObservationMode(contextAcquisition),
+        observedTools: contextAcquisitionObservedTools(contextAcquisition)
       },
       observedOps: [
         'profile_context_plan',

@@ -200,7 +200,7 @@ for (const name of ['memory-server.js', 'profile-server.js']) {
   fs.mkdirSync(path.dirname(serverPath), { recursive: true })
   fs.writeFileSync(serverPath, 'process.stdin.resume()\n', 'utf8')
 }
-const cursorRuntimeEntry = path.join(cursorTarget.runtimeRoot, 'hooks', '_runtime', 'lifecycle-cursor-compatible.cjs')
+const cursorRuntimeEntry = path.join(cursorTarget.runtimeBaseRoot, 'host-hook-launcher.cjs')
 const cursorCommand = buildHostHookCommand(cursorRuntimeEntry, [
   'cursor',
   '--cursor-plugin-path',

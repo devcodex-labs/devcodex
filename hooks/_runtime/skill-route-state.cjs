@@ -1164,12 +1164,22 @@ function transactCatalogProgress(activeRoot, turnBinding, request, mutation, opt
   }
 }
 
+function resolveProbeObservationHostVariant (evidence, options = {}) {
+  const {
+    normalizeHostVariant
+  } = require('./skill-route-mode.cjs')
+  const explicit = String(evidence?.hostVariant || '').trim()
+  return normalizeHostVariant(explicit || evidence?.host, {
+    env: options.env || process.env,
+    entrySurface: options.entrySurface
+  })
+}
+
 function recordSkillRouteProbeObservation (activeRoot, turnBinding, evidence, options = {}) {
   const {
-    normalizeHostVariant,
     validateProbeAuthority
   } = require('./skill-route-mode.cjs')
-  const hostVariant = normalizeHostVariant(evidence.host)
+  const hostVariant = resolveProbeObservationHostVariant(evidence, options)
   const authority = validateProbeAuthority(
     options.authorityPath,
     {
@@ -1268,6 +1278,7 @@ module.exports = {
   loadEnvelope,
   transactEnvelope,
   transactCatalogProgress,
+  resolveProbeObservationHostVariant,
   recordSkillRouteProbeObservation,
   parseExplicitSkillId,
   directoryBytesBounded,

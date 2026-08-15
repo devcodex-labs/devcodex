@@ -50,8 +50,19 @@ const {
 } = require('../hooks/_runtime/context-source-observation.cjs')
 const { resolveExecutionFeatureDecisionForCwd } = require('../hooks/_runtime/execution-optimization-routing.cjs')
 const { resolveGlobalSkillRuntimeRoot } = require('../hooks/_runtime/global-skill-runtime-root.cjs')
-const { handleSkillRoute } = require('../hooks/_runtime/skill-route-tool.cjs')
+const {
+  bootstrapSkillRouteForTurn,
+  formatSkillRouteBootstrapInjection,
+  handleSkillRoute
+} = require('../hooks/_runtime/skill-route-tool.cjs')
+const {
+  deriveTurnBinding,
+  loadEnvelope
+} = require('../hooks/_runtime/skill-route-state.cjs')
 const { getBootRuntimeContractDigest } = require('../hooks/_runtime/skill-route-mode.cjs')
+const {
+  getLifecycleHostAdapterDigest
+} = require('../hooks/_runtime/host-adapter-identity.cjs')
 const { captureRuntimeProcessIdentity } = require('../hooks/_runtime/runtime-generation-identity.cjs')
 const {
   findLayoutInfo,
@@ -217,6 +228,10 @@ const TOOLS = [
         project: { type: 'string' },
         scope: { type: 'string', enum: ['project', 'workspace'] },
         host: { type: 'string' },
+        explicitSkillId: {
+          type: 'string',
+          minLength: 1
+        },
         risk: { type: 'string', enum: CONTEXT_READ_CONTRACT.risks },
         confidence: { type: 'number', minimum: 0, maximum: 1 },
         profileSelectors: {
@@ -678,7 +693,7 @@ function resolveConfigFile(projectName, options = {}) {
 }
 
 const CONTEXT_PLAN_ARG_FIELDS = new Set([
-  'intent', 'changeTypes', 'contextEpoch', 'project', 'scope', 'host', 'risk', 'confidence',
+  'intent', 'changeTypes', 'contextEpoch', 'project', 'scope', 'host', 'explicitSkillId', 'risk', 'confidence',
   'profileSelectors', 'baselineDigest', 'explicitFull', 'fullReadReason',
   'configLocalRequested', 'crossService'
 ])
@@ -1237,14 +1252,106 @@ function resolveContextReadBinding(binding, target) {
 
 // ─── Tool handlers ────────────────────────────────────────────────────────────
 
-function contextPlanResult(value) {
+function contextPlanResult(value, skillRoute = null) {
   const isError = value?.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error
   return {
-    content: [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+    content: [
+      { type: 'text', text: JSON.stringify(value, null, 2) },
+      ...(skillRoute?.injectionText
+        ? [{ type: 'text', text: skillRoute.injectionText }]
+        : [])
+    ],
     _meta: {
-      devcodexRuntimeProcessIdentity: PROFILE_PROCESS_IDENTITY
+      devcodexRuntimeProcessIdentity: PROFILE_PROCESS_IDENTITY,
+      ...(skillRoute
+        ? {
+            devcodexSkillRouteBootstrap: {
+              schemaVersion: 'ContextPlanSkillRouteBootstrapV1',
+              status: skillRoute.status,
+              source: skillRoute.source,
+              turnBinding: skillRoute.bootstrap?.turnBinding || null,
+              bootstrapDigest: skillRoute.bootstrap?.bootstrapDigest || null,
+              errorCode: skillRoute.errorCode || null
+            }
+          }
+        : {})
     },
     ...(isError ? { isError: true } : {})
+  }
+}
+
+function contextPlanSkillRouteBootstrap(plan, target, args = {}) {
+  if (!plan || plan.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.plan ||
+      !target?.project || target.project === WORKSPACE_CONTEXT_PROJECT) {
+    return null
+  }
+  const contextEpoch = String(plan.contextBinding?.contextEpoch || '').trim()
+  const host = String(args.host || process.env.DEVCODEX_HOST_PLATFORM || DEFAULT_AGENT).trim().toLowerCase()
+  const hasExplicitSkillId = Object.prototype.hasOwnProperty.call(args, 'explicitSkillId')
+  const explicitSkillId = hasExplicitSkillId ? String(args.explicitSkillId || '').trim() : null
+  if (!contextEpoch || !host || host === 'unknown-agent') return null
+  try {
+    const turnBinding = deriveTurnBinding(target.project, target.activeRoot, contextEpoch)
+    try {
+      const existing = loadEnvelope(target.activeRoot, turnBinding)
+      const existingExplicitSkillId = existing.envelope.state?.explicit?.requestedSkillId || null
+      if (hasExplicitSkillId && existingExplicitSkillId !== explicitSkillId) {
+        const mismatch = new Error('BOOTSTRAP_IDENTITY_COLLISION')
+        mismatch.code = 'BOOTSTRAP_IDENTITY_COLLISION'
+        throw mismatch
+      }
+      if (existing.envelope.state?.decision) {
+        return {
+          status: 'reused-active-route',
+          source: 'existing-route-envelope',
+          bootstrap: existing.envelope.state.bootstrap,
+          injectionText: ''
+        }
+      }
+      const bootstrap = existing.envelope.state?.bootstrap
+      return {
+        status: 'ready',
+        source: 'existing-route-envelope',
+        bootstrap,
+        injectionText: formatSkillRouteBootstrapInjection(bootstrap, { host })
+      }
+    } catch (error) {
+      if (error.code !== 'TURN_NOT_FOUND') throw error
+    }
+    const hostVariant = String(process.env.DEVCODEX_HOST_VARIANT || host).trim()
+    const route = bootstrapSkillRouteForTurn({
+      project: target.project,
+      contextEpoch,
+      host,
+      cwd: INPUT_ROOT,
+      ...(hasExplicitSkillId ? { explicitSkillId } : {})
+    }, {
+      inputRoot: INPUT_ROOT,
+      env: process.env,
+      hostVariant,
+      hostAdapterDigest: getLifecycleHostAdapterDigest(hostVariant, {
+        env: process.env
+      }),
+      runtimeRole: 'profile-mcp'
+    })
+    return {
+      status: route.active === true ? 'ready' : 'inactive',
+      source: 'profile-context-plan-fallback',
+      bootstrap: route.bootstrap,
+      injectionText: route.injectionText || ''
+    }
+  } catch (error) {
+    return {
+      status: 'error',
+      source: 'profile-context-plan-fallback',
+      bootstrap: null,
+      injectionText: [
+        '### DevCodex · SkillRouteBootstrapErrorV1',
+        `errorCode: ${String(error.code || error.message || 'SKILL_ROUTE_BOOTSTRAP_FAILED')}`,
+        'Do not invent a turnBinding or claim that Skill routing completed.'
+      ].join('\n'),
+      errorCode: String(error.code || error.message || 'SKILL_ROUTE_BOOTSTRAP_FAILED')
+    }
   }
 }
 
@@ -1270,6 +1377,13 @@ function handleProfileContextPlan(args = {}) {
   }
   if (args.contextEpoch !== undefined && !String(args.contextEpoch || '').trim()) {
     return contextPlanResult(buildContextReadError('CONTEXT_PLAN_INVALID', 'contextEpoch must be non-empty when supplied.'))
+  }
+  if (args.explicitSkillId !== undefined &&
+      !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(String(args.explicitSkillId || '').trim())) {
+    return contextPlanResult(buildContextReadError(
+      'CONTEXT_PLAN_INVALID',
+      'explicitSkillId must be a non-empty canonical Skill id when supplied.'
+    ))
   }
   if (args.scope !== undefined && !['project', 'workspace'].includes(args.scope)) {
     return contextPlanResult(buildContextReadError('CONTEXT_PLAN_INVALID', 'scope must be project or workspace.'))
@@ -1401,7 +1515,10 @@ function handleProfileContextPlan(args = {}) {
         'Repair the workspace runtime-state path or reduce the bounded Profile catalog, then retry once.'
       ))
     }
-    return contextPlanResult(plan)
+    return contextPlanResult(
+      plan,
+      contextPlanSkillRouteBootstrap(plan, target, args)
+    )
   } catch (error) {
     const message = String(error?.message || '')
     const profileMissing = /Profile README\.md is missing/i.test(message)

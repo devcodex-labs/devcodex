@@ -89,11 +89,26 @@ function decodeHostHookCommand(command) {
   }
 }
 
+function rewriteHostHookCommandArgv(command, argv) {
+  const value = String(command || '').trim()
+  const decoded = decodeHostHookCommand(value)
+  if (!decoded) {
+    throw commandError('GLOBAL_HOST_COMMAND_NOT_CANONICAL', 'expected CanonicalHostHookCommandV1')
+  }
+  if (!Array.isArray(argv) || !argv.length || argv.some(item => typeof item !== 'string')) {
+    throw commandError('GLOBAL_HOST_COMMAND_ARGV_INVALID', 'argv must be a non-empty string array')
+  }
+  const match = value.match(/\s([A-Za-z0-9_-]+)(\s+devcodex-host-hook-v1)$/)
+  const payload = Buffer.from(JSON.stringify(argv), 'utf8').toString('base64url')
+  return `${value.slice(0, match.index)} ${payload}${match[2]}`
+}
+
 module.exports = {
   HOST_HOOK_COMMAND_MARKER,
   HOST_HOOK_RUNNER_SOURCE,
   buildHostHookCommand,
   canonicalNodeExecutable,
   decodeHostHookCommand,
-  quoteShellArgument
+  quoteShellArgument,
+  rewriteHostHookCommandArgv
 }

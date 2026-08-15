@@ -5,8 +5,15 @@ const fs = require('fs')
 const path = require('path')
 
 const {
+  getRuntimeContractDigest,
   validateCapabilityDocument
 } = require('../hooks/_runtime/skill-route-mode.cjs')
+const {
+  getLifecycleHostAdapterDigest
+} = require('../hooks/_runtime/host-adapter-identity.cjs')
+const {
+  getGrokLauncherAdapterDigest
+} = require('./lib/grok-workspace-launcher')
 
 const ROOT = path.resolve(__dirname, '..')
 const REQUIREMENTS_ROOT = process.env.DEVCODEX_SKILL_ROUTE_REQUIREMENTS_ROOT
@@ -159,18 +166,45 @@ const capabilities = JSON.parse(read(path.join(
 const pass = capabilities.capabilities.filter(item => item.status === 'PASS')
 const capabilityValidation = validateCapabilityDocument(capabilities, { packageRoot: ROOT })
 assert.strictEqual(capabilityValidation.valid, true, capabilityValidation.errors.join(', '))
-assert.strictEqual(pass.length, 0, 'runtime or host changes must not retain stale PASS evidence')
-for (const hostVariant of [
-  'codex-cli/exec-user-global-local-stdio',
-  'codex-desktop/app-user-global-local-stdio',
-  'grok-cli-single/global-launcher-local-stdio'
-]) {
-  const capability = capabilities.capabilities.find(item => item.hostVariant === hostVariant)
-  assert(capability, `missing capability declaration for ${hostVariant}`)
-  assert.strictEqual(capability.status, 'UNVERIFIED')
-  assert.strictEqual(capability.evidenceRef, null)
-  assert.strictEqual(capability.defaultEligible, false)
+const codexVariant = 'codex-cli/exec-user-global-local-stdio'
+const grokVariant = 'grok-cli-single/global-launcher-local-stdio'
+assert.deepStrictEqual(
+  pass.map(item => item.hostVariant).sort(),
+  [codexVariant, grokVariant].sort(),
+  'only source-replayed host variants may retain PASS evidence'
+)
+const currentRuntimeDigest = getRuntimeContractDigest()
+const currentAdapterDigests = {
+  [codexVariant]: getLifecycleHostAdapterDigest('codex', {
+    entrySurface: 'codex-cli-exec',
+    env: {}
+  }),
+  [grokVariant]: getGrokLauncherAdapterDigest()
 }
+for (const capability of pass) {
+  assert.strictEqual(
+    capability.runtimeContractDigest,
+    currentRuntimeDigest,
+    `stale runtime PASS evidence retained for ${capability.hostVariant}`
+  )
+  assert.strictEqual(
+    capability.hostAdapterDigest,
+    currentAdapterDigests[capability.hostVariant],
+    `stale host adapter PASS evidence retained for ${capability.hostVariant}`
+  )
+  assert.strictEqual(
+    capabilityValidation.evidenceByVariant[capability.hostVariant]?.valid,
+    true,
+    `portable PASS evidence is invalid for ${capability.hostVariant}`
+  )
+}
+
+const desktopVariant = 'codex-desktop/app-user-global-local-stdio'
+const desktopCapability = capabilities.capabilities.find(item => item.hostVariant === desktopVariant)
+assert(desktopCapability, `missing capability declaration for ${desktopVariant}`)
+assert.strictEqual(desktopCapability.status, 'UNVERIFIED')
+assert.strictEqual(desktopCapability.evidenceRef, null)
+assert.strictEqual(desktopCapability.defaultEligible, false)
 
 console.log(
   `test-skill-route-closure: ok requirements=${expectedRequirements.length} ` +

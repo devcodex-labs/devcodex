@@ -1,9 +1,9 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要；历史版本见对应详细变更文件。
-> **最新版本详细变更文档**: [`changelogs/releases/v1.17.7.md`](./changelogs/releases/v1.17.7.md)
-> **最后更新**: 2026-08-15
-> **当前版本**: v1.17.7 收敛 ContextRead/SkillRoute 首轮绑定、首次分页、Memory/CP、全局配置事务、Readiness、真实宿主证据与 Windows Node 18 测试资源边界；版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
+> **最新版本详细变更文档**: [`changelogs/releases/v1.17.8.md`](./changelogs/releases/v1.17.8.md)
+> **最后更新**: 2026-08-16
+> **当前版本**: v1.17.8 以稳定 Hook launcher 消除升级信任漂移，为未分发宿主事件的 SkillRoute 增加结构化 `profile_context_plan` 自举回退，保持多项目 pending/复合 content 权威一致，并以当前身份不变量验证动态 capability；版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
 
 ---
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.17.8](./changelogs/releases/v1.17.8.md) | 2026-08-16 | 🔧 **宿主稳定入口与 SkillRoute 自举修复**：Hook 信任身份与不可变 runtime generation 解耦；Codex 未分发 UserPromptSubmit 时由结构化 MCP 回退建立同一 SkillRoute envelope；多项目 pending 保留 exact host/显式 Skill，ContextRead 拒绝用 sidecar 覆盖复合返回体失配；S15 兼容 Hook/MCP 两种证据形态并绑定真实入口，closure 复算当前 runtime/adapter/evidence | [查看](./changelogs/releases/v1.17.8.md) |
 | [v1.17.7](./changelogs/releases/v1.17.7.md) | 2026-08-15 | 🔧 **全局运行态一致性与首载闭环修复**：正文读取绑定持久计划并在源层有界；未解析目标、catalog sidecar、Memory 状态、配置 CAS/Readiness、命令/对象身份与 CLI/Desktop 证据分层完成跨消费者收敛；Windows Node 18 插桩递归与验证预算假失败已关闭 | [查看](./changelogs/releases/v1.17.7.md) |
 | [v1.17.6](./changelogs/releases/v1.17.6.md) | 2026-08-14 | 🔧 **SkillRoute 最终 Stop 完备性修复**：非显式未提交路由在最终回复前返回 exact catalog action，阻止自然语言 workspace Skill 被无工具回复静默跳过；统一路由与宿主能力边界保持不变 | [查看](./changelogs/releases/v1.17.6.md) |
 | [v1.17.5](./changelogs/releases/v1.17.5.md) | 2026-08-14 | 🔧 **发布包 npm scripts 闭包修复**：最终 tarball 仅公开 8 个安装态入口，从最终 manifest 验证脚本与运行依赖闭包，并以事务保证源码 manifest 原字节恢复 | [查看](./changelogs/releases/v1.17.5.md) |

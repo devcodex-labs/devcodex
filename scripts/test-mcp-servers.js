@@ -21,6 +21,10 @@ const {
   validateContentIdentity
 } = require('../hooks/_runtime/content-identity.cjs')
 const { authorizeContextRead } = require('../hooks/_runtime/context-source-observation.cjs')
+const {
+  deriveTurnBinding,
+  loadEnvelope
+} = require('../hooks/_runtime/skill-route-state.cjs')
 const { readBoundedTextFileSync } = require('../mcp/bounded-text-reader.cjs')
 const {
   createOptimizationState,
@@ -2447,6 +2451,16 @@ function testProfileContextPlanContract() {
     rpcRequest(5, 'tools/call', {
       name: 'profile_context_plan',
       arguments: { intent: 'dev', changeTypes: ['source-code'], project: 'chat', contextEpoch: 'epoch-dev-plan' }
+    }),
+    rpcRequest(6, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: {
+        intent: 'audit',
+        changeTypes: ['testing'],
+        project: 'chat',
+        contextEpoch: 'epoch-explicit-plan',
+        explicitSkillId: 'audit-project'
+      }
     })
   ], projectRoot)
 
@@ -2455,6 +2469,7 @@ function testProfileContextPlanContract() {
   assert(planTool)
   assert.deepStrictEqual(planTool.inputSchema.required, ['intent'])
   assert.deepStrictEqual(planTool.inputSchema.properties.intent.enum, CONTEXT_READ_CONTRACT.intents)
+  assert.deepStrictEqual(planTool.inputSchema.properties.explicitSkillId, { type: 'string', minLength: 1 })
   assert(tools.some(tool => tool.name === 'profile_load'))
   assert(tools.some(tool => tool.name === 'profile_skill_plan'))
   assert(tools.some(tool => tool.name === 'profile_get_mode'))
@@ -2506,6 +2521,38 @@ function testProfileContextPlanContract() {
 
   const devPlan = toolJson(resultById(responses, 4))
   const repeatedDevPlan = toolJson(resultById(responses, 5))
+  const devBootstrapResult = resultById(responses, 4)
+  const repeatedBootstrapResult = resultById(responses, 5)
+  const devBootstrapText = devBootstrapResult.content?.[1]?.text || ''
+  assert.match(devBootstrapText, /^### DevCodex · SkillRouteBootstrapV1/m)
+  const devBootstrap = JSON.parse(devBootstrapText.split(/\r?\n/)[1])
+  const expectedTurnBinding = deriveTurnBinding(
+    'chat',
+    path.join(TEMP_ROOT, '.devcodex', 'chat'),
+    'epoch-dev-plan'
+  )
+  assert.strictEqual(devBootstrap.turnBinding, expectedTurnBinding)
+  assert.strictEqual(
+    devBootstrapResult._meta?.devcodexSkillRouteBootstrap?.source,
+    'profile-context-plan-fallback'
+  )
+  assert.strictEqual(devBootstrapResult._meta.devcodexSkillRouteBootstrap.status, 'ready')
+  assert.strictEqual(
+    repeatedBootstrapResult._meta?.devcodexSkillRouteBootstrap?.source,
+    'existing-route-envelope'
+  )
+  assert.strictEqual(
+    repeatedBootstrapResult._meta.devcodexSkillRouteBootstrap.turnBinding,
+    expectedTurnBinding
+  )
+  assert.strictEqual(
+    repeatedBootstrapResult._meta.devcodexSkillRouteBootstrap.bootstrapDigest,
+    devBootstrap.bootstrapDigest
+  )
+  assert.strictEqual(
+    loadEnvelope(path.join(TEMP_ROOT, '.devcodex', 'chat'), expectedTurnBinding).envelope.state.bootstrap.turnBinding,
+    expectedTurnBinding
+  )
   assert.strictEqual(validateContextReadPlan(devPlan).valid, true)
   assert.deepStrictEqual(devPlan.profile.selectedFiles, ['01-项目信息.md', '02-架构约束.md', '03-代码风格.md'])
   assert.strictEqual(devPlan.planContentId, repeatedDevPlan.planContentId,
@@ -2515,13 +2562,23 @@ function testProfileContextPlanContract() {
   assert.strictEqual(devPlan.cacheDecision.status, 'miss')
   assert.strictEqual(repeatedDevPlan.cacheDecision.status, 'hit')
   assert.strictEqual(repeatedDevPlan.cacheDecision.bodyDeliverySkipped, false)
+  const explicitBootstrapResult = resultById(responses, 6)
+  const explicitBootstrapText = explicitBootstrapResult.content?.[1]?.text || ''
+  assert.match(explicitBootstrapText, /^### DevCodex · SkillRouteBootstrapV1/m)
+  const explicitBootstrap = JSON.parse(explicitBootstrapText.split(/\r?\n/)[1])
+  assert.strictEqual(explicitBootstrap.explicitStatus, 'ready')
+  assert.strictEqual(explicitBootstrap.explicitSkillId, 'audit-project')
+  assert.strictEqual(
+    explicitBootstrapResult._meta?.devcodexSkillRouteBootstrap?.turnBinding,
+    explicitBootstrap.turnBinding
+  )
   const crossProcessResponse = runServer('mcp/profile-server.js', [
-    rpcRequest(6, 'tools/call', {
+    rpcRequest(7, 'tools/call', {
       name: 'profile_context_plan',
       arguments: { intent: 'dev', changeTypes: ['source-code'], project: 'chat', contextEpoch: 'epoch-dev-plan' }
     })
   ], projectRoot)
-  const crossProcessPlan = toolJson(resultById(crossProcessResponse, 6))
+  const crossProcessPlan = toolJson(resultById(crossProcessResponse, 7))
   assert.strictEqual(crossProcessPlan.planContentId, devPlan.planContentId)
   assert.notStrictEqual(crossProcessPlan.planId, devPlan.planId)
   assert.strictEqual(crossProcessPlan.cacheDecision.status, 'hit',

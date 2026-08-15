@@ -115,6 +115,10 @@ function shellCommand(filePath, host, args = []) {
   return buildHostHookCommand(filePath, [host, ...args])
 }
 
+function stableHostHookLauncher(target) {
+  return path.join(target.runtimeBaseRoot, 'host-hook-launcher.cjs')
+}
+
 function readText(file, fsImpl = fs) {
   return fsImpl.existsSync(file) ? fsImpl.readFileSync(file, 'utf8') : ''
 }
@@ -228,6 +232,13 @@ function addSharedRuntime(operations, target, packageRoot, fsImpl = fs) {
 function addCommonRuntime(operations, target, packageRoot, fsImpl = fs) {
   const runtime = target.runtimeRoot
   addSharedRuntime(operations, target, packageRoot, fsImpl)
+  addSourceFile(
+    operations,
+    target.host,
+    path.join(packageRoot, 'hooks', '_runtime', 'host-hook-launcher.cjs'),
+    stableHostHookLauncher(target),
+    fsImpl
+  )
   addInstructionRoot(operations, target.host, packageRoot, path.join(runtime, 'instructions.full.md'), fsImpl)
   addSourceFile(operations, target.host, path.join(packageRoot, 'host-projections', 'AGENTS.md'), path.join(runtime, 'AGENTS.md'), fsImpl)
   addSourceTree(operations, target.host, path.join(packageRoot, 'hooks', '_runtime'), path.join(runtime, 'hooks', '_runtime'), fsImpl)
@@ -471,7 +482,7 @@ function codexTomlBlock(target) {
 function transformedHookTemplate(packageRoot, target, sourceRelative, host, fsImpl = fs) {
   const value = parseJsonObject(readText(path.join(packageRoot, sourceRelative), fsImpl), sourceRelative)
   value.hooks = hookMap(
-    path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'),
+    stableHostHookLauncher(target),
     host,
     Object.keys(value.hooks || {})
   )
@@ -494,7 +505,7 @@ function addCopilotPlan(operations, target, packageRoot, fsImpl) {
     managedInstruction('', source, 'copilot')
   )
   const hooks = copilotHookDocument(
-    path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
+    stableHostHookLauncher(target)
   )
   addFileOperation(
     operations,
@@ -559,7 +570,7 @@ function addClaudePlan(operations, target, packageRoot, fsImpl) {
   const managedSettings = {
     $schema: 'https://json.schemastore.org/claude-code-settings.json',
     hooks: hookMap(
-      path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-cursor-compatible.cjs'),
+      stableHostHookLauncher(target),
       'claude',
       ['PreToolUse', 'UserPromptSubmit', 'PostToolUse', 'Stop']
     )
@@ -720,8 +731,7 @@ function addGrokPlan(operations, target, packageRoot, fsImpl) {
 
 function addCursorPlan(operations, target, packageRoot, fsImpl) {
   addCommonRuntime(operations, target, packageRoot, fsImpl)
-  const runtimeEntry = path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-cursor-compatible.cjs')
-  const hooks = cursorHookDocument(runtimeEntry, target.files.plugin)
+  const hooks = cursorHookDocument(stableHostHookLauncher(target), target.files.plugin)
   addFileOperation(
     operations,
     target.host,

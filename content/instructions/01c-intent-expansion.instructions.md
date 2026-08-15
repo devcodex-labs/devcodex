@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 意图识别、Intent Expansion Card、上下文重建与可见回复证据的通用规范
 priority: P5
-version: 1.17.7
+version: 1.17.8
 ---
 # 意图扩展与上下文重建
 

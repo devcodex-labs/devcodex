@@ -1430,6 +1430,23 @@ function outcomePayload(raw, path = 'root', depth = 0) {
   if (typeof raw === 'string') return { payload: raw, variant: path, observable: true }
   if (Array.isArray(raw)) {
     const texts = raw.filter(item => item && typeof item.text === 'string').map(item => item.text)
+    const contextBodies = texts
+      .map((text, index) => ({ text, index, parsed: parseExactJson(text) }))
+      .filter(item => item.parsed && (
+        [
+          CONTEXT_READ_CONTRACT.schemas.plan,
+          CONTEXT_READ_CONTRACT.schemas.planV1,
+          CONTEXT_READ_CONTRACT.schemas.error
+        ].includes(item.parsed.schemaVersion) ||
+        /^Memory.+V1$/.test(String(item.parsed.schemaVersion || ''))
+      ))
+    if (contextBodies.length === 1) {
+      return {
+        payload: contextBodies[0].text,
+        variant: `${path}.content[${contextBodies[0].index}].text`,
+        observable: true
+      }
+    }
     return texts.length
       ? { payload: texts.join('\n'), variant: `${path}.content`, observable: true }
       : { payload: raw, variant: path, observable: raw.length > 0 }

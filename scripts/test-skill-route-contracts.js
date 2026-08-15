@@ -55,7 +55,8 @@ const {
   preserveCompatibleStageProgress
 } = require('../hooks/_runtime/skill-route-tool.cjs')
 const {
-  parseExplicitSkillId
+  parseExplicitSkillId,
+  resolveProbeObservationHostVariant
 } = require('../hooks/_runtime/skill-route-state.cjs')
 const {
   collectWorkspaceProjectNamespaces
@@ -594,7 +595,7 @@ try {
     hostAdapterDigest: getLifecycleHostAdapterDigest('codex', { env: {} })
   })
   assert.strictEqual(cliMode.hostVariant, HOST_VARIANTS.codex)
-  assert.strictEqual(cliMode.hostEligibility, 'UNVERIFIED')
+  assert.strictEqual(cliMode.hostEligibility, 'PASS')
   assert.match(
     formatSkillRouteBootstrapInjection({ project: fixture.project }, { host: 'codex' }),
     /profile\.routeLoadRecipe/
@@ -626,7 +627,7 @@ try {
     item.hostVariant === 'codex-cli/exec-user-global-local-stdio'
   )
   assert(productionCapability)
-  assert.strictEqual(productionCapability.status, 'UNVERIFIED')
+  assert.strictEqual(productionCapability.status, 'PASS')
   const desktopCapability = capabilities.capabilities.find(item =>
     item.hostVariant === 'codex-desktop/app-user-global-local-stdio'
   )
@@ -808,7 +809,7 @@ try {
   )
   assert.strictEqual(
     grokAlias.hostEligibility,
-    'UNVERIFIED',
+    'PASS',
     JSON.stringify(grokAlias, null, 2)
   )
   const grokPortableEvidence = JSON.parse(fs.readFileSync(
@@ -849,6 +850,21 @@ try {
     now: '2026-07-29T00:01:00.000Z'
   })
   assert.strictEqual(validAuthority.valid, true)
+  assert.strictEqual(resolveProbeObservationHostVariant({
+    host: 'codex',
+    hostVariant: HOST_VARIANTS.codex
+  }, {
+    env: {
+      CODEX_INTERNAL_ORIGINATOR_OVERRIDE: 'Codex Desktop',
+      CODEX_THREAD_ID: 'desktop-thread'
+    }
+  }), HOST_VARIANTS.codex)
+  assert.strictEqual(resolveProbeObservationHostVariant({ host: 'codex' }, {
+    env: {
+      CODEX_INTERNAL_ORIGINATOR_OVERRIDE: 'Codex Desktop',
+      CODEX_THREAD_ID: 'desktop-thread'
+    }
+  }), HOST_VARIANTS.codexdesktop)
   const wrongProjectAuthority = validateProbeAuthority(authorityPath, {
     project: 'other-project',
     hostVariant: productionCapability.hostVariant

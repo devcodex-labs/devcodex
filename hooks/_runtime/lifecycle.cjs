@@ -150,6 +150,28 @@ function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
+function hasMatchingSkillRouteBootstrapDelivery(payload, bootstrap) {
+  if (!bootstrap?.turnBinding || !bootstrap?.bootstrapDigest) return false
+  const seen = new WeakSet()
+  function visit(value, depth = 0) {
+    if (!value || typeof value !== 'object' || depth > 8 || seen.has(value)) return false
+    seen.add(value)
+    const delivery = value._meta?.devcodexSkillRouteBootstrap ||
+      value.meta?.devcodexSkillRouteBootstrap ||
+      value.devcodexSkillRouteBootstrap
+    if (delivery && delivery.status !== 'error' &&
+        delivery.turnBinding === bootstrap.turnBinding &&
+        delivery.bootstrapDigest === bootstrap.bootstrapDigest) {
+      return true
+    }
+    for (const key of ['tool_response', 'toolResponse', 'tool_result', 'toolResult', 'result', 'output', 'structuredContent']) {
+      if (visit(value[key], depth + 1)) return true
+    }
+    return false
+  }
+  return visit(payload)
+}
+
 function mergeConfig(baseConfig, overlayConfig) {
   const merged = {}
   for (const source of [baseConfig, overlayConfig]) {
@@ -1531,11 +1553,16 @@ async function main() {
     try {
       const { bootstrapSkillRouteForTurn } = require('./skill-route-tool.cjs')
       const {
-        getLifecycleHostAdapterDigest
+        getLifecycleHostAdapterDigest,
+        normalizeHostVariant
       } = require('./host-adapter-identity.cjs')
       if (!state.contextAcquisition?.targetResolved) {
         const { parseExplicitSkillId } = require('./skill-route-state.cjs')
         const requestedSkillId = parseExplicitSkillId(prompt)
+        const pendingHostVariant = normalizeHostVariant(platform, {
+          env: process.env,
+          sessionId: payload.session_id || payload.sessionId
+        })
         const pending = {
           schemaVersion: 'SkillRoutePendingEnvelopeV1',
           contextEpoch: state.contextAcquisition?.contextEpoch,
@@ -1549,14 +1576,16 @@ async function main() {
           nextCall: {
             op: 'profile_context_plan',
             contextEpoch: state.contextAcquisition?.contextEpoch,
-            project: '<one-real-project>'
+            project: '<one-real-project>',
+            host: pendingHostVariant,
+            ...(requestedSkillId ? { explicitSkillId: requestedSkillId } : {})
           }
         }
         progressiveSkillRouteMsg = [
           '### DevCodex · SkillRouteBootstrapPendingV1',
           JSON.stringify(pending),
           '',
-          'Resolve one real project with `profile_context_plan` using this contextEpoch. After the observed plan binds the active-root, the lifecycle will inject the project-bound SkillRouteBootstrapV1.',
+          'Resolve one real project with `profile_context_plan` using this contextEpoch and the exact nextCall host; when `explicitSkillId` is present in nextCall, pass it unchanged. After the observed plan binds the active-root, the lifecycle will inject the project-bound SkillRouteBootstrapV1.',
           'Do not call `skill_route` with the workspace directory name and do not create a synthetic project namespace.'
         ].join('\n')
         state.progressiveSkillRoute = {
@@ -1910,6 +1939,7 @@ async function main() {
 
   // ── PostToolUse ────────────────────────────────────────────────────────────
   if (eventName === 'PostToolUse') {
+    const pendingSkillRoute = state.progressiveSkillRoute?.pending || null
     const contextPost = recordContextPostToolUse(state, payload)
     markContextPostMutationStale(state, payload, platform)
     observeGovernanceLedgerWrite(state, payload, {
@@ -1923,24 +1953,38 @@ async function main() {
     state.turnLiveness = completeToolLease(state.turnLiveness, payload)
     if (contextPost?.targetRebound) {
       try {
-        const { bootstrapSkillRouteForTurn } = require('./skill-route-tool.cjs')
+        const contextPlanInput = payload.tool_input || payload.toolInput || {}
+        const contextPlanHost = String(contextPlanInput.host || '').trim().toLowerCase()
+        const hostIdentityOptions = {
+          env: process.env,
+          sessionId: payload.session_id || payload.sessionId
+        }
         const {
-          getLifecycleHostAdapterDigest
+          getLifecycleHostAdapterDigest,
+          normalizeHostVariant
         } = require('./host-adapter-identity.cjs')
+        const expectedHostVariant = normalizeHostVariant(platform, hostIdentityOptions)
+        if (contextPlanHost && normalizeHostVariant(contextPlanHost, hostIdentityOptions) !== expectedHostVariant) {
+          const mismatch = new Error('CONTEXT_PLAN_HOST_MISMATCH')
+          mismatch.code = 'CONTEXT_PLAN_HOST_MISMATCH'
+          throw mismatch
+        }
+        const { bootstrapSkillRouteForTurn } = require('./skill-route-tool.cjs')
         const route = bootstrapSkillRouteForTurn({
           project: state.contextAcquisition.project,
           contextEpoch: state.contextAcquisition.contextEpoch,
-          explicitSkillId: state.progressiveSkillRoute?.pending?.explicitSkillId || null,
-          host: platform,
+          explicitSkillId: pendingSkillRoute?.explicitSkillId ||
+            String(contextPlanInput.explicitSkillId || '').trim() || null,
+          host: contextPlanHost || expectedHostVariant,
           cwd: CONTEXT_ROOT
         }, {
           inputRoot: CONTEXT_ROOT,
           env: process.env,
           sessionId: payload.session_id || payload.sessionId,
-          hostAdapterDigest: getLifecycleHostAdapterDigest(platform, {
-            env: process.env,
-            sessionId: payload.session_id || payload.sessionId
-          })
+          hostAdapterDigest: getLifecycleHostAdapterDigest(
+            contextPlanHost || expectedHostVariant,
+            hostIdentityOptions
+          )
         })
         state.progressiveSkillRoute = {
           schemaVersion: 'LifecycleSkillRouteStateV1',
@@ -1950,9 +1994,10 @@ async function main() {
           errorCode: null
         }
         saveState(state)
+        const bootstrapAlreadyDelivered = hasMatchingSkillRouteBootstrapDelivery(payload, route.bootstrap)
         writeStdout(contextMessageOutput(
           'PostToolUse',
-          route.injectionText || ''
+          bootstrapAlreadyDelivered ? '' : (route.injectionText || '')
         ))
         return
       } catch (error) {

@@ -1,6 +1,6 @@
 {
   "name": "devcodex-workspace",
-  "version": "1.17.7",
+  "version": "1.17.8",
   "description": "User-global DevCodex bridge for Cursor local IDE and CLI workflows.",
   "author": {
     "name": "DevCodex"

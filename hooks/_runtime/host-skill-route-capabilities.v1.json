@@ -10,13 +10,16 @@
     },
     {
       "hostVariant": "codex-cli/exec-user-global-local-stdio",
-      "status": "UNVERIFIED",
-      "testedVersion": "codex-cli 0.145.0",
+      "status": "PASS",
+      "testedVersion": "codex-cli 0.147.0",
       "protocol": "MCP 2024-11-05",
-      "evidenceRef": null,
+      "runtimeContractDigest": "c04dcee2910b32d688c430afecd66dfefb00c2af9c9c86c0857ec3e7366708e1",
+      "hostAdapterDigest": "43c38d3f86f1c03a2ee3880aa6901e21ac3e45d260eb320055d805318d49e68b",
+      "evidenceRef": "hooks/_runtime/evidence/codex-skill-route-pass.v1.json",
+      "evidenceDigest": "cf2413935d2d488f66efaa8f119545c05231dfc1afb40a555d38811c628e91a3",
       "entrySurface": "codex exec --ephemeral",
-      "bootstrapDelivery": "user-global hooks.json UserPromptSubmit",
-      "defaultEligible": false
+      "bootstrapDelivery": "stable user-global Hook launcher UserPromptSubmit or profile_context_plan fallback",
+      "defaultEligible": true
     },
     {
       "hostVariant": "codex-desktop/app-user-global-local-stdio",
@@ -25,7 +28,7 @@
       "protocol": "MCP 2024-11-05",
       "evidenceRef": null,
       "entrySurface": "Codex Desktop app",
-      "bootstrapDelivery": "user-global hooks.json UserPromptSubmit",
+      "bootstrapDelivery": "stable user-global Hook launcher UserPromptSubmit or profile_context_plan fallback after startup generation refresh",
       "defaultEligible": false
     },
     {
@@ -44,13 +47,16 @@
     },
     {
       "hostVariant": "grok-cli-single/global-launcher-local-stdio",
-      "status": "UNVERIFIED",
+      "status": "PASS",
       "testedVersion": "grok 1.0.0 (3cd0d0cbce)",
       "protocol": "MCP 2024-11-05",
-      "evidenceRef": null,
+      "runtimeContractDigest": "c04dcee2910b32d688c430afecd66dfefb00c2af9c9c86c0857ec3e7366708e1",
+      "hostAdapterDigest": "65cc18f62bdfa64ba4d33ae32087522be74c47f03e098ca92bb5918cced2a7b5",
+      "evidenceRef": "hooks/_runtime/evidence/grok-skill-route-pass.v1.json",
+      "evidenceDigest": "df1faa27fa02ab10c684f5cd42239d2ddd1dc68027cadc27e65ed86674700f34",
       "entrySurface": "devcodex grok -p/--single",
-      "bootstrapDelivery": "global launcher --rules",
-      "defaultEligible": false
+      "bootstrapDelivery": "global launcher --rules with stable Hook and profile_context_plan fallback",
+      "defaultEligible": true
     },
     {
       "hostVariant": "cursor/local-ide-cli-headless-user-global-stdio-beta",

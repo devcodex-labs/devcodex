@@ -30,6 +30,9 @@ const {
   resolveGlobalHostTarget
 } = require('./lib/global-host-target')
 const {
+  decodeHostHookCommand
+} = require('./lib/host-command')
+const {
   createSkillRouteFixture,
   writeJson
 } = require('./lib/skill-route-test-fixture')
@@ -39,6 +42,10 @@ const {
   prepareCandidateHostRuntime
 } = require('./lib/s15-candidate-host')
 const { buildGrokCliEnv } = require('./lib/grok-cli-env')
+const {
+  contextAcquisitionObservationMode,
+  contextAcquisitionObservedTools
+} = require('./lib/s15-context-evidence')
 
 function optionValue (name) {
   const index = process.argv.indexOf(name)
@@ -47,6 +54,21 @@ function optionValue (name) {
 
 function hasOption (name) {
   return process.argv.includes(name)
+}
+
+function isManagedGrokHookCommand (command, target) {
+  const decoded = decodeHostHookCommand(command)
+  const expectedEntries = [
+    path.join(target.runtimeBaseRoot, 'host-hook-launcher.cjs'),
+    path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
+  ].map(value => path.resolve(value).toLowerCase())
+  if (decoded) {
+    return expectedEntries.includes(path.resolve(decoded.argv?.[0] || '').toLowerCase()) &&
+      decoded.argv?.[1] === 'grok'
+  }
+  const value = String(command || '')
+  return expectedEntries.some(entry => value.toLowerCase().includes(entry)) &&
+    /\bgrok\s*$/.test(value)
 }
 
 function run (command, args, options = {}) {
@@ -426,13 +448,7 @@ function main () {
     const globalHook = inspection.hooks.find(hook =>
       hook.source?.type === 'user' &&
       hook.hookType === 'command' &&
-      String(hook.target || '').includes(path.join(
-        globalTarget.runtimeRoot,
-        'hooks',
-        '_runtime',
-        'lifecycle-host-adapters.cjs'
-      )) &&
-      /\bgrok\s*$/.test(String(hook.target || ''))
+      isManagedGrokHookCommand(hook.target, globalTarget)
     )
     assert(globalHook, 'Grok did not discover the always-trusted DevCodex user Hook')
     const pluginHookConfig = JSON.parse(fs.readFileSync(pluginHook.target, 'utf8'))
@@ -441,13 +457,7 @@ function main () {
       .flatMap(group => group.hooks || [])
       .map(hook => String(hook.command || ''))
     assert(pluginHookCommands.some(command =>
-      command.includes(path.join(
-        globalTarget.runtimeRoot,
-        'hooks',
-        '_runtime',
-        'lifecycle-host-adapters.cjs'
-      )) &&
-      /\bgrok\s*$/.test(command)
+      isManagedGrokHookCommand(command, globalTarget)
     ), 'Grok plugin Hook is not bound to the installed DevCodex grok adapter')
 
     const grokVersion = run('grok', ['--version'], {
@@ -702,18 +712,20 @@ function main () {
     assert.strictEqual(contextAcquisition.contextEpoch, contextEpoch)
     assert.strictEqual(contextAcquisition.project, fixture.project)
     assert.strictEqual(contextAcquisition.receipt.status, 'relevant-complete')
-    assert(contextAcquisition.postHistory.some(item =>
-      item.canonical === 'devcodex-profile/profile_context_plan' && item.outcome === 'observed'
-    ))
-    assert(contextAcquisition.postHistory.some(item =>
-      item.canonical === 'devcodex-profile/profile_load' && item.outcome === 'observed'
-    ))
-    assert(contextAcquisition.postHistory.some(item =>
-      item.canonical === 'devcodex-memory/memory_status' && item.outcome === 'observed'
-    ))
-    assert(contextAcquisition.postHistory.some(item =>
-      item.canonical === 'devcodex-profile/skill_route' && item.outcome === 'observed'
-    ))
+    const observedContextTools = contextAcquisitionObservedTools(contextAcquisition)
+    for (const canonical of [
+      'devcodex-profile/profile_context_plan',
+      'devcodex-profile/profile_load',
+      'devcodex-memory/memory_status'
+    ]) {
+      assert(observedContextTools.includes(canonical), `${canonical} was not observed`)
+    }
+    if (contextAcquisitionObservationMode(contextAcquisition) === 'hook-post-history') {
+      assert(
+        observedContextTools.includes('devcodex-profile/skill_route'),
+        'devcodex-profile/skill_route was not observed by the hook path'
+      )
+    }
 
     const evidence = {
       schemaVersion: 'SkillRouteS15EvidenceV1',
@@ -777,7 +789,8 @@ function main () {
         planContentId: contextAcquisition.plan.planContentId,
         receiptId: contextAcquisition.receipt.receiptId,
         receiptStatus: contextAcquisition.receipt.status,
-        observedTools: contextAcquisition.postHistory.map(item => item.canonical)
+        observationMode: contextAcquisitionObservationMode(contextAcquisition),
+        observedTools: observedContextTools
       },
       crossHostIsolation: {
         cursorHooksCompatibility: {
@@ -881,6 +894,7 @@ function main () {
 if (require.main === module) main()
 
 module.exports = {
+  isManagedGrokHookCommand,
   parseModelResult,
   writeProbeSkill
 }

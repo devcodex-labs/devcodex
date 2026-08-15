@@ -294,10 +294,8 @@ assert.strictEqual(importedClaudeHook.continue, true)
 assert.strictEqual(importedClaudeHook.devcodexCompatibilityBypass, 'grok-imported-claude-hook')
 
 const installedCodexAdapter = path.join(
-  installedRuntimeRoot('codex'),
-  'hooks',
-  '_runtime',
-  'lifecycle-host-adapters.cjs'
+  path.dirname(installedRuntimeRoot('codex')),
+  'host-hook-launcher.cjs'
 )
 const installedCodexHook = JSON.parse(runCommand(process.execPath, [installedCodexAdapter, 'codex'], {
   cwd: workspace,
@@ -319,10 +317,8 @@ assert.match(
 
 for (const host of ['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor']) {
   const installedAdapter = path.join(
-    installedRuntimeRoot(host),
-    'hooks',
-    '_runtime',
-    'lifecycle-host-adapters.cjs'
+    path.dirname(installedRuntimeRoot(host)),
+    'host-hook-launcher.cjs'
   )
   const probe = JSON.parse(runCommand(process.execPath, [installedAdapter, host, '--contract-probe'], {
     cwd: workspace,

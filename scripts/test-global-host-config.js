@@ -29,6 +29,16 @@ const {
   decodeHostHookCommand
 } = require('./lib/host-command.js')
 const {
+  patchProbeHookCommand
+} = require('./probe-skill-route-s15-host.js')
+const {
+  contextAcquisitionObservationMode,
+  contextAcquisitionObservedTools
+} = require('./lib/s15-context-evidence.js')
+const {
+  resolveCurrentAdapter
+} = require('../hooks/_runtime/host-hook-launcher.cjs')
+const {
   executeGlobalHostTransaction
 } = require('./lib/global-host-config-transaction.js')
 const {
@@ -376,6 +386,116 @@ assert.strictEqual(fs.existsSync(path.join(home, '.cursor', 'devcodex', 'global-
 const applied = applyGlobalHostConfig({ packageRoot, env, home })
 assert.strictEqual(applied.transaction.status, 'committed')
 assert.strictEqual(applied.workspaceHostDirectoriesWritten, false)
+for (const [host, configPath] of [
+  ['codex', path.join(home, '.codex', 'hooks.json')],
+  ['claude', path.join(home, '.claude', 'settings.json')]
+]) {
+  const originalConfig = fs.readFileSync(configPath, 'utf8')
+  const restoreProbeHook = patchProbeHookCommand(
+    host,
+    path.join(tmp, `${host}-authority.json`),
+    path.join(tmp, `${host}-route.jsonl`),
+    path.join(tmp, `${host}-lifecycle.jsonl`),
+    workspace,
+    `ctx-${host}`,
+    false,
+    { env, home }
+  )
+  const patchedConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+  const patchedArgv = []
+  function collectPatchedArgv(value) {
+    if (!value || typeof value !== 'object') return
+    for (const [key, child] of Object.entries(value)) {
+      if (key === 'command' && typeof child === 'string') {
+        const decoded = decodeHostHookCommand(child)
+        if (decoded?.argv?.[0]?.endsWith('host-hook-launcher.cjs')) patchedArgv.push(decoded.argv)
+      } else {
+        collectPatchedArgv(child)
+      }
+    }
+  }
+  collectPatchedArgv(patchedConfig)
+  assert.ok(patchedArgv.length > 0, `${host} S15 must locate canonical managed hook commands`)
+  for (const argv of patchedArgv) {
+    assert.deepStrictEqual(argv.slice(-10), [
+      '--skill-route-probe-authority', path.join(tmp, `${host}-authority.json`),
+      '--skill-route-trace', path.join(tmp, `${host}-route.jsonl`),
+      '--lifecycle-trace', path.join(tmp, `${host}-lifecycle.jsonl`),
+      '--workspace-root', workspace,
+      '--context-epoch', `ctx-${host}`
+    ])
+  }
+  restoreProbeHook()
+  assert.strictEqual(
+    fs.readFileSync(configPath, 'utf8'),
+    originalConfig,
+    `${host} S15 hook patch must restore canonical host config exactly`
+  )
+}
+for (const target of targets) {
+  const launcher = path.join(target.runtimeBaseRoot, 'host-hook-launcher.cjs')
+  assert.strictEqual(fs.existsSync(launcher), true, `${target.host} stable Hook launcher missing`)
+  const resolution = resolveCurrentAdapter(target.host, { baseRoot: target.runtimeBaseRoot })
+  assert.strictEqual(path.resolve(resolution.runtimeRoot), path.resolve(target.runtimeRoot))
+  assert.strictEqual(
+    path.basename(resolution.adapter),
+    ['claude', 'cursor'].includes(target.host)
+      ? 'lifecycle-cursor-compatible.cjs'
+      : 'lifecycle-host-adapters.cjs'
+  )
+  const probe = spawnSync(process.execPath, [launcher, target.host, '--contract-probe'], {
+    cwd: workspace,
+    env,
+    encoding: 'utf8',
+    windowsHide: true
+  })
+  assert.strictEqual(probe.status, 0, `${target.host} stable Hook launcher probe failed: ${probe.stderr}`)
+  const probePayload = JSON.parse(probe.stdout)
+  assert.strictEqual(probePayload.schemaVersion, 'HostLifecycleAdapterContractProbeV1')
+  assert.strictEqual(probePayload.host, target.host)
+  assert.strictEqual(probePayload.status, 'passed')
+}
+const launcherEscapeRoot = path.join(tmp, 'launcher-runtime-escape')
+fs.mkdirSync(launcherEscapeRoot, { recursive: true })
+fs.writeFileSync(path.join(launcherEscapeRoot, 'global-host-receipt.json'), JSON.stringify({
+  schemaVersion: 'GlobalHostConfigReceiptV1',
+  result: 'committed',
+  host: 'codex',
+  runtimeRoot: path.dirname(launcherEscapeRoot)
+}))
+assert.throws(
+  () => resolveCurrentAdapter('codex', { baseRoot: launcherEscapeRoot }),
+  error => error?.code === 'GLOBAL_HOST_LAUNCHER_RUNTIME_ESCAPE'
+)
+assert.deepStrictEqual(contextAcquisitionObservedTools({
+  postHistory: [
+    { canonical: 'devcodex-profile/profile_context_plan' },
+    { canonical: 'devcodex-profile/profile_context_plan' },
+    { canonical: 'devcodex-profile/skill_route' }
+  ]
+}), [
+  'devcodex-profile/profile_context_plan',
+  'devcodex-profile/skill_route'
+])
+assert.deepStrictEqual(contextAcquisitionObservedTools({
+  receipt: {
+    observations: [
+      { successful: true, outcome: 'baseline-ready', sourceKind: 'profile-baseline' },
+      { successful: true, outcome: 'observed-success', sourceKind: 'profile' },
+      { successful: true, outcome: 'observed-success', sourceKind: 'memory' }
+    ]
+  }
+}), [
+  'devcodex-profile/profile_context_plan',
+  'devcodex-profile/profile_load',
+  'devcodex-memory/memory_status'
+])
+assert.strictEqual(contextAcquisitionObservationMode({
+  postHistory: [{ canonical: 'devcodex-profile/profile_context_plan' }]
+}), 'hook-post-history')
+assert.strictEqual(contextAcquisitionObservationMode({
+  receipt: { observations: [] }
+}), 'structured-context-receipt')
 const casPlan = buildGlobalHostConfigPlan({ packageRoot, env, home, hosts: ['codex'] })
 const casTarget = casPlan.targets.find(target => target.host === 'codex')
 const casOperation = casPlan.hostPlans.find(item => item.host === 'codex').operations.find(operation =>
@@ -416,12 +536,7 @@ const grokGlobalHooks = JSON.parse(fs.readFileSync(
   'utf8'
 ))
 const grokGlobalTarget = targets.find(target => target.host === 'grok')
-const grokGlobalRuntimeEntry = path.join(
-  grokGlobalTarget.runtimeRoot,
-  'hooks',
-  '_runtime',
-  'lifecycle-host-adapters.cjs'
-)
+const grokGlobalRuntimeEntry = path.join(grokGlobalTarget.runtimeBaseRoot, 'host-hook-launcher.cjs')
 for (const event of ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop']) {
   assert.deepStrictEqual(
     hookCommandArgv(grokGlobalHooks.hooks[event][0].hooks[0].command),
@@ -441,7 +556,7 @@ for (const event of cursorManagedEvents) {
   const managed = cursorHooks.hooks[event].filter(isDevCodexManagedHookEntry)
   assert.strictEqual(managed.length, 1, `Cursor ${event} must retain exactly one managed generation`)
   assert.deepStrictEqual(hookCommandArgv(managed[0].command), [
-    path.join(cursorTarget.runtimeRoot, 'hooks', '_runtime', 'lifecycle-cursor-compatible.cjs'),
+    path.join(cursorTarget.runtimeBaseRoot, 'host-hook-launcher.cjs'),
     'cursor',
     '--cursor-plugin-path',
     cursorTarget.files.plugin
@@ -549,7 +664,7 @@ assert.ok(copilotHooks.hooks.notification)
 for (const event of ['userPromptSubmitted', 'userPromptTransformed', 'preToolUse', 'postToolUse', 'agentStop', 'preCompact']) {
   assert.ok(Array.isArray(copilotHooks.hooks[event]), `Copilot hook event missing: ${event}`)
   assert.deepStrictEqual(hookCommandArgv(copilotHooks.hooks[event][0].command), [
-    path.join(targets.find(target => target.host === 'copilot').runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'),
+    path.join(targets.find(target => target.host === 'copilot').runtimeBaseRoot, 'host-hook-launcher.cjs'),
     'copilot',
     '--event',
     event
@@ -623,7 +738,7 @@ for (const event of ['PreToolUse', 'UserPromptSubmit', 'PostToolUse', 'Stop']) {
   const managed = claudeSettings.hooks[event].filter(isDevCodexManagedHookEntry)
   assert.strictEqual(managed.length, 1, `Claude ${event} must retain exactly one managed generation`)
   assert.deepStrictEqual(hookCommandArgv(managed[0].hooks[0].command), [
-    path.join(targets.find(target => target.host === 'claude').runtimeRoot, 'hooks', '_runtime', 'lifecycle-cursor-compatible.cjs'),
+    path.join(targets.find(target => target.host === 'claude').runtimeBaseRoot, 'host-hook-launcher.cjs'),
     'claude'
   ])
 }
@@ -859,9 +974,47 @@ const installedCodexCapability = installedSkillRouteCapabilities.capabilities.fi
   item.hostVariant === 'codex-cli/exec-user-global-local-stdio'
 )
 assert.ok(installedCodexCapability)
-assert.strictEqual(installedCodexCapability.status, 'UNVERIFIED')
-assert.strictEqual(installedCodexCapability.evidenceRef, null)
-assert.strictEqual(installedCodexCapability.defaultEligible, false)
+const installedCapabilityValidation = installedSkillRouteMode.validateCapabilityDocument(
+  installedSkillRouteCapabilities,
+  { packageRoot: codexRuntime }
+)
+assert.strictEqual(
+  installedCapabilityValidation.valid,
+  true,
+  installedCapabilityValidation.errors.join(', ')
+)
+assert.strictEqual(installedCodexCapability.status, 'PASS')
+assert.strictEqual(installedCodexCapability.runtimeContractDigest, installedRuntimeContractDigest)
+const installedHostAdapterIdentity = require(path.join(
+  codexRuntime,
+  'hooks',
+  '_runtime',
+  'host-adapter-identity.cjs'
+))
+assert.strictEqual(
+  installedCodexCapability.hostAdapterDigest,
+  installedHostAdapterIdentity.getLifecycleHostAdapterDigest('codex', {
+    entrySurface: 'codex-cli-exec',
+    env: {},
+    runtimeRoot: path.join(codexRuntime, 'hooks', '_runtime')
+  })
+)
+assert.strictEqual(
+  installedCapabilityValidation.evidenceByVariant[installedCodexCapability.hostVariant]?.valid,
+  true
+)
+assert.strictEqual(
+  installedCodexCapability.evidenceRef,
+  'hooks/_runtime/evidence/codex-skill-route-pass.v1.json'
+)
+assert.strictEqual(installedCodexCapability.defaultEligible, true)
+const installedDesktopCapability = installedSkillRouteCapabilities.capabilities.find(item =>
+  item.hostVariant === 'codex-desktop/app-user-global-local-stdio'
+)
+assert.ok(installedDesktopCapability)
+assert.strictEqual(installedDesktopCapability.status, 'UNVERIFIED')
+assert.strictEqual(installedDesktopCapability.evidenceRef, null)
+assert.strictEqual(installedDesktopCapability.defaultEligible, false)
 
 const retainedReceiptFile = path.join(codexTarget.root, 'devcodex', 'global-host-receipt.json')
 const retainedReceiptOriginal = fs.readFileSync(retainedReceiptFile, 'utf8')

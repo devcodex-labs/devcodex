@@ -5,23 +5,24 @@
   "hostVariant": "grok-cli-single/global-launcher-local-stdio",
   "testedVersion": "grok 1.0.0 (3cd0d0cbce)",
   "protocol": "MCP 2024-11-05",
-  "runtimeContractDigest": "087c2e8b55c53a56d42bcae19379c914b0bf50c7a46226ca82e1ff7939dee5f5",
-  "hostAdapterDigest": "1c52e4167b04740d7ac54e04776989b57ce3cbe7928c6529b6ab8b36cdddf5c5",
-  "sourceEvidenceDigest": "da99cf595f87f72ea992bcb2e06ab38563125a8c95e3dcdbb0aa20bc07bc4013",
+  "runtimeContractDigest": "c04dcee2910b32d688c430afecd66dfefb00c2af9c9c86c0857ec3e7366708e1",
+  "hostAdapterDigest": "65cc18f62bdfa64ba4d33ae32087522be74c47f03e098ca92bb5918cced2a7b5",
+  "sourceEvidenceDigest": "ae11cb6f5cbca6f7d41e30e13b110f21a2a83ca233a1c947141e6c53790b82b9",
   "sourceProbe": {
     "schemaVersion": "SkillRouteS15EvidenceV1",
-    "probeRunId": "s15-grok-probe-833fb1c1-f6c3-4dc5-a770-8d2abac66a55",
+    "probeRunId": "s15-grok-probe-9d1e0f5f-0486-4211-8570-36336393a39f",
     "authorizationSource": "installed-source-probe-authority",
     "contextSource": "host-hooks",
+    "observationMode": "structured-context-receipt",
     "receiptStatus": "relevant-complete",
-    "completedAt": "2026-08-14T10:36:08.703Z"
+    "completedAt": "2026-08-15T19:41:34.376Z"
   },
   "runtimeBinding": {
     "source": "installed-source-candidate",
-    "expectedDigest": "087c2e8b55c53a56d42bcae19379c914b0bf50c7a46226ca82e1ff7939dee5f5",
-    "generationDigest": "087c2e8b55c53a56d42bcae19379c914b0bf50c7a46226ca82e1ff7939dee5f5",
-    "modeReceiptDigest": "087c2e8b55c53a56d42bcae19379c914b0bf50c7a46226ca82e1ff7939dee5f5",
-    "routeEnvelopeDigest": "087c2e8b55c53a56d42bcae19379c914b0bf50c7a46226ca82e1ff7939dee5f5"
+    "expectedDigest": "c04dcee2910b32d688c430afecd66dfefb00c2af9c9c86c0857ec3e7366708e1",
+    "generationDigest": "c04dcee2910b32d688c430afecd66dfefb00c2af9c9c86c0857ec3e7366708e1",
+    "modeReceiptDigest": "c04dcee2910b32d688c430afecd66dfefb00c2af9c9c86c0857ec3e7366708e1",
+    "routeEnvelopeDigest": "c04dcee2910b32d688c430afecd66dfefb00c2af9c9c86c0857ec3e7366708e1"
   },
   "crossHostIsolation": {
     "cursorHooksCompatibility": {

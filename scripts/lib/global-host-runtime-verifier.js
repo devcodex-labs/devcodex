@@ -283,7 +283,7 @@ function cursorStaticContract(target, options = {}) {
   const fsImpl = options.fs || fs
   const issues = []
   const hooks = readJson(target.files.hooks, fsImpl)
-  const runtimeEntry = path.join(target.runtimeRoot, 'hooks', '_runtime', 'lifecycle-cursor-compatible.cjs')
+  const runtimeEntry = path.join(target.runtimeBaseRoot, 'host-hook-launcher.cjs')
   const requiredEvents = [
     'workspaceOpen',
     'sessionStart',

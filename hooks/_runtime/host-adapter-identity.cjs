@@ -83,6 +83,7 @@ function getLifecycleHostAdapterDigest (host, options = {}) {
   const runtimeRoot = path.resolve(options.runtimeRoot || __dirname)
   const files = [
     'host-adapter-identity.cjs',
+    'host-hook-launcher.cjs',
     'lifecycle-host-adapters.cjs',
     'lifecycle.cjs'
   ].map(name => ({

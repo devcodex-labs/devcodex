@@ -65,7 +65,7 @@ function mergeJsonContent(content, managed, label) {
 function isDevCodexManagedHookEntry(value) {
   if (typeof value === 'string') {
     return /(?:^|\s)devcodex-host-hook-v1(?:$|\s)/.test(value) ||
-      /(?:^|[\s"'\\/])(?:devcodex[\\/]+(?:runtime-[^\\/\s"']+[\\/]+)?(?:hooks[\\/]_runtime[\\/]+)?(?:lifecycle|lifecycle-host-adapters|lifecycle-cursor-compatible)\.cjs|\.(?:claude|codex|github)[\\/]+hooks[\\/]_runtime[\\/]lifecycle\.cjs|\.(?:gemini|grok)[\\/]+hooks[\\/]_runtime[\\/]lifecycle-host-adapters\.cjs)(?=$|[\s"'])/i.test(value)
+      /(?:^|[\s"'\\/])(?:devcodex[\\/]+(?:host-hook-launcher|(?:runtime-[^\\/\s"']+[\\/]+)?(?:hooks[\\/]_runtime[\\/]+)?(?:lifecycle|lifecycle-host-adapters|lifecycle-cursor-compatible))\.cjs|\.(?:claude|codex|github)[\\/]+hooks[\\/]_runtime[\\/]lifecycle\.cjs|\.(?:gemini|grok)[\\/]+hooks[\\/]_runtime[\\/]lifecycle-host-adapters\.cjs)(?=$|[\s"'])/i.test(value)
   }
   if (Array.isArray(value)) return value.some(isDevCodexManagedHookEntry)
   if (isPlainObject(value)) {

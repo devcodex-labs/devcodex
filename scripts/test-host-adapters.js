@@ -59,6 +59,7 @@ const {
 function hostAdapterDigestFixture (wrapperContent) {
   const files = new Map([
     ['host-adapter-identity.cjs', 'identity-v1'],
+    ['host-hook-launcher.cjs', 'stable-launcher-v1'],
     ['lifecycle-host-adapters.cjs', 'shared-adapter-v1'],
     ['compatible-host-adapter-identity.cjs', 'compatible-identity-v1'],
     ['lifecycle-cursor-compatible-preload.cjs', 'compatible-preload-v1'],

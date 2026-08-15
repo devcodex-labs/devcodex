@@ -40,6 +40,7 @@ const RUNTIME_CONTRACT_FILES = Object.freeze([
   'skill-route-state.cjs',
   'skill-route-tool.cjs',
   'host-adapter-identity.cjs',
+  'host-hook-launcher.cjs',
   'global-skill-runtime-root.cjs',
   'context-read-contract.cjs',
   'context-plan-observation.cjs',

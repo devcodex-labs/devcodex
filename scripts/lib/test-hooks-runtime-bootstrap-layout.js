@@ -273,11 +273,18 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.strictEqual(pendingStop.devcodexCode, 'progressive-skill-route')
   assert.strictEqual(pendingStop.devcodexNextAction?.nextOp, 'resolve_context_target')
   assert.strictEqual(pendingStop.devcodexNextAction?.nextCall?.op, 'profile_context_plan')
+  assert.strictEqual(
+    pendingStop.devcodexNextAction?.nextCall?.host,
+    'codex-cli/exec-user-global-local-stdio'
+  )
+  assert.strictEqual(pendingStop.devcodexNextAction?.nextCall?.explicitSkillId, 'audit-project')
   const pendingArgs = {
     intent: 'audit',
     changeTypes: ['testing'],
     contextEpoch: pendingState.contextAcquisition.contextEpoch,
-    project: 'devcodex'
+    project: 'devcodex',
+    host: pendingStop.devcodexNextAction.nextCall.host,
+    explicitSkillId: pendingStop.devcodexNextAction.nextCall.explicitSkillId
   }
   const pendingCallId = 'pending-project-plan'
   run({
@@ -290,6 +297,16 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     DEVCODEX_HOST_PLATFORM: 'codex'
   })
   const pendingPlanResult = callProfileTool(TEMP_ROOT, 'profile_context_plan', pendingArgs)
+  const pendingBootstrapText = pendingPlanResult.content?.[1]?.text || ''
+  assert.match(pendingBootstrapText, /^### DevCodex · SkillRouteBootstrapV1/m)
+  const pendingBootstrap = JSON.parse(pendingBootstrapText.split(/\r?\n/)[1])
+  assert.strictEqual(
+    pendingPlanResult._meta?.devcodexSkillRouteBootstrap?.source,
+    'profile-context-plan-fallback'
+  )
+  assert.strictEqual(pendingPlanResult._meta.devcodexSkillRouteBootstrap.status, 'ready')
+  assert.strictEqual(pendingBootstrap.explicitStatus, 'ready')
+  assert.strictEqual(pendingBootstrap.explicitSkillId, 'audit-project')
   const reboundPost = run({
     hookEventName: 'PostToolUse',
     session_id: pendingSession,
@@ -300,14 +317,17 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   }, TEMP_ROOT, {
     DEVCODEX_HOST_PLATFORM: 'codex'
   })
-  assert.match(reboundPost.systemMessage || '', /SkillRouteBootstrapV1/)
+  assert.doesNotMatch(reboundPost.systemMessage || '', /SkillRouteBootstrapV1/)
   const reboundState = JSON.parse(fs.readFileSync(getLayoutStateFile('devcodex'), 'utf8'))
   assert.strictEqual(reboundState.activeProject, 'devcodex')
   assert.strictEqual(reboundState.activeProjectSource, 'context-plan')
   assert.strictEqual(reboundState.contextAcquisition.targetResolved, true)
   assert.strictEqual(reboundState.contextAcquisition.project, 'devcodex')
   assert.strictEqual(reboundState.progressiveSkillRoute.bootstrap.project, 'devcodex')
+  assert.strictEqual(reboundState.progressiveSkillRoute.bootstrap.turnBinding, pendingBootstrap.turnBinding)
+  assert.strictEqual(reboundState.progressiveSkillRoute.bootstrap.bootstrapDigest, pendingBootstrap.bootstrapDigest)
   assert.strictEqual(reboundState.progressiveSkillRoute.bootstrap.explicitStatus, 'ready')
+  assert.strictEqual(reboundState.progressiveSkillRoute.bootstrap.explicitSkillId, 'audit-project')
   assert(fs.existsSync(path.join(
     TEMP_ROOT,
     '.devcodex',

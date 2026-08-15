@@ -1,6 +1,6 @@
 {
   "name": "devcodex",
-  "version": "1.17.7",
+  "version": "1.17.8",
   "description": "DevCodex — AI-powered development workflow rules for Copilot, Claude Code, Codex, Gemini CLI, Grok and Cursor",
   "main": "index.js",
   "bin": {
@@ -245,6 +245,7 @@
     "scripts/probe-skill-route-s15-grok.js",
     "scripts/probe-skill-route-s15-host.js",
     "scripts/lib/s15-candidate-host.js",
+    "scripts/lib/s15-context-evidence.js",
     "scripts/lib/skill-route-test-fixture.js",
     "scripts/test-implement-start-gate.js",
     "scripts/lib/skills-deploy-mode.js",

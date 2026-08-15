@@ -30,6 +30,8 @@ const { CLAUDE_MCP_JSON } = require('../index.js')
 
 const ROOT = path.resolve(__dirname, '..')
 const TEMP_ROOT = path.join(os.tmpdir(), `devcodex-mcp-test-${process.pid}`)
+const PROFILE_TRACE_TIMEOUT_MS = 30_000
+const PROFILE_TRACE_MAX_BYTES = 1024 * 1024
 
 function rpcRequest(id, method, params = {}) {
   return JSON.stringify({ jsonrpc: '2.0', id, method, params })
@@ -187,7 +189,12 @@ function runProfileServerWithReadTrace(requests, cwd) {
     "const originalReadFileSync = fs.readFileSync.bind(fs)",
     "const originalOpenSync = fs.openSync.bind(fs)",
     "const originalAppendFileSync = fs.appendFileSync.bind(fs)",
-    "function trace(file) { try { originalAppendFileSync(process.env.DEVCODEX_READ_TRACE, JSON.stringify(String(file)) + '\\n') } catch {} }",
+    "let tracing = false",
+    "function trace(file) {",
+    "  if (tracing || String(file) === process.env.DEVCODEX_READ_TRACE) return",
+    "  tracing = true",
+    "  try { originalAppendFileSync(process.env.DEVCODEX_READ_TRACE, JSON.stringify(String(file)) + '\\n') } catch {} finally { tracing = false }",
+    "}",
     "fs.readFileSync = function tracedReadFileSync(file, ...args) {",
     "  trace(file)",
     "  return originalReadFileSync(file, ...args)",
@@ -202,9 +209,18 @@ function runProfileServerWithReadTrace(requests, cwd) {
     cwd: ROOT,
     input,
     encoding: 'utf8',
-    env: { ...process.env, DEVCODEX_READ_TRACE: tracePath }
+    env: { ...process.env, DEVCODEX_READ_TRACE: tracePath },
+    timeout: PROFILE_TRACE_TIMEOUT_MS
   })
-  if (result.status !== 0) throw new Error((result.stderr || result.stdout || 'profile trace server failed').trim())
+  if (result.error?.code === 'ETIMEDOUT') {
+    throw new Error(`profile trace server exceeded ${PROFILE_TRACE_TIMEOUT_MS}ms`)
+  }
+  if (result.status !== 0) throw new Error((result.stderr || result.stdout || result.error?.message || 'profile trace server failed').trim())
+  const traceBytes = fs.existsSync(tracePath) ? fs.statSync(tracePath).size : 0
+  assert.ok(
+    traceBytes <= PROFILE_TRACE_MAX_BYTES,
+    `profile read trace exceeded ${PROFILE_TRACE_MAX_BYTES} bytes: ${traceBytes}`
+  )
   const responses = result.stdout.trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line))
   const reads = fs.existsSync(tracePath)
     ? fs.readFileSync(tracePath, 'utf8').split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line))

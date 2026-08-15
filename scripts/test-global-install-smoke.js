@@ -11,6 +11,7 @@ const {
   resolveWindowsBatchInvocation
 } = require('./lib/checked-command')
 const { resolveControlAsset } = require('./lib/control-content-delivery')
+const { decodeHostHookCommand } = require('./lib/host-command')
 
 const packageRoot = path.resolve(__dirname, '..')
 const packageJson = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'))
@@ -221,9 +222,11 @@ for (const event of [
 ]) {
   assert.ok(Array.isArray(installedCopilotHooks.hooks[event]), `packed Copilot hook missing ${event}`)
   assert.ok(
-    installedCopilotHooks.hooks[event].some(hook =>
-      String(hook.command || '').includes(`--event ${event}`)
-    ),
+    installedCopilotHooks.hooks[event].some(hook => {
+      const decoded = decodeHostHookCommand(hook.command)
+      return decoded && JSON.stringify(decoded.argv.slice(-3)) ===
+        JSON.stringify(['copilot', '--event', event])
+    }),
     `packed Copilot hook event binding missing ${event}`
   )
 }

@@ -11,7 +11,9 @@ const {
   buildGlobalHostConfigPlan,
   MCP_RUNTIME_DEPS,
   inspectGlobalHostConfig,
-  inspectGlobalHostConfiguration
+  inspectGlobalHostConfiguration,
+  mergeVscodeUserMcpContent,
+  shellCommand
 } = require('./lib/global-host-config.js')
 const {
   isDevCodexManagedHookEntry,
@@ -19,8 +21,13 @@ const {
   mergeJsonContent,
   mergeManagedBlock,
   mergeManagedTomlTables,
+  quoteToml,
   tomlManagedFileMatches
 } = require('./lib/global-host-config-merge.js')
+const {
+  canonicalNodeExecutable,
+  decodeHostHookCommand
+} = require('./lib/host-command.js')
 const {
   executeGlobalHostTransaction
 } = require('./lib/global-host-config-transaction.js')
@@ -95,6 +102,13 @@ const doctorEnv = {
   GEMINI_AGENT: '',
   GROK_AGENT: '',
   CURSOR_VERSION: ''
+}
+const trustedNodeExecutable = canonicalNodeExecutable()
+
+function hookCommandArgv(command) {
+  const decoded = decodeHostHookCommand(command)
+  assert.ok(decoded, `expected CanonicalHostHookCommandV1: ${command}`)
+  return decoded.argv
 }
 
 function runDoctorHuman() {
@@ -269,11 +283,38 @@ fs.writeFileSync(path.join(home, '.codex', 'config.toml'), [
   ''
 ].join('\n'))
 
+assert.throws(
+  () => mergeVscodeUserMcpContent('{ invalid user JSON', path.join(home, 'runtime'), { host: 'copilot' }),
+  error => error?.code === 'GLOBAL_HOST_JSON_INVALID',
+  'invalid VS Code user mcp.json must fail closed instead of being replaced with a managed-only document'
+)
+
+const hostileHookRoot = path.join(tmp, 'hook %PATH% !DEVCODEX_EXPAND! & shell')
+const hostileHookScript = path.join(hostileHookRoot, 'hook probe.cjs')
+fs.mkdirSync(hostileHookRoot, { recursive: true })
+fs.writeFileSync(hostileHookScript, 'process.stdout.write(JSON.stringify(process.argv.slice(2)))\n', 'utf8')
+const hostileHookCommand = shellCommand(hostileHookScript, 'grok')
+assert.ok(hostileHookCommand.includes(path.resolve(process.execPath)), 'Hook command must bind the current Node executable')
+assert.ok(!hostileHookCommand.includes(hostileHookScript), 'Hook script path must not remain shell-interpretable')
+assert.doesNotMatch(hostileHookCommand, /%PATH%|!DEVCODEX_EXPAND!|& shell/)
+const hostileHookProbe = spawnSync(hostileHookCommand, {
+  cwd: workspace,
+  shell: true,
+  encoding: 'utf8',
+  env: { ...env, DEVCODEX_EXPAND: 'MUST_NOT_EXPAND' }
+})
+assert.strictEqual(hostileHookProbe.status, 0, hostileHookProbe.stderr || hostileHookProbe.stdout)
+assert.deepStrictEqual(JSON.parse(hostileHookProbe.stdout), ['grok'])
+
 const plan = buildGlobalHostConfigPlan({ packageRoot, env, home })
 assert.strictEqual(plan.workspaceHostDirectoriesWritten, false)
 assert.strictEqual(plan.sharedRuntimeOwnerHost, 'codex')
 assert.ok(plan.operations.length > 50)
 assert.ok(plan.operations.every(operation => !operation.path.startsWith(workspace)))
+assert.ok(plan.operations.every(operation =>
+  (/^[a-f0-9]{64}$/.test(operation.expectedDigest || '') && operation.expectAbsent !== true) ||
+  (operation.expectAbsent === true && operation.expectedDigest == null)
+), 'every global config plan operation must carry exactly one plan-time CAS precondition')
 const operationOwners = new Map()
 for (const operation of plan.operations) {
   const destination = path.resolve(operation.path).toLowerCase()
@@ -335,14 +376,56 @@ assert.strictEqual(fs.existsSync(path.join(home, '.cursor', 'devcodex', 'global-
 const applied = applyGlobalHostConfig({ packageRoot, env, home })
 assert.strictEqual(applied.transaction.status, 'committed')
 assert.strictEqual(applied.workspaceHostDirectoriesWritten, false)
+const casPlan = buildGlobalHostConfigPlan({ packageRoot, env, home, hosts: ['codex'] })
+const casTarget = casPlan.targets.find(target => target.host === 'codex')
+const casOperation = casPlan.hostPlans.find(item => item.host === 'codex').operations.find(operation =>
+  path.resolve(operation.path) === path.resolve(casTarget.files.config)
+)
+assert.ok(casOperation?.expectedDigest)
+const casOriginal = fs.readFileSync(casOperation.path, 'utf8')
+fs.writeFileSync(casOperation.path, `${casOriginal}\n# concurrent user edit\n`, 'utf8')
+assert.throws(() => executeGlobalHostTransaction([casOperation], {
+  allowedRoots: [casTarget.root, ...(casTarget.additionalRoots || [])],
+  allowedFiles: casTarget.additionalFiles || []
+}), error => error?.code === 'GLOBAL_HOST_OPERATION_PRECONDITION_FAILED')
+assert.match(fs.readFileSync(casOperation.path, 'utf8'), /concurrent user edit/)
+fs.writeFileSync(casOperation.path, casOriginal, 'utf8')
+const casRaceOperation = {
+  ...casOperation,
+  content: `${casOriginal}\n# devcodex planned update\n`
+}
+let casRenameRaceInjected = false
+const casRenameRaceFs = Object.create(fs)
+casRenameRaceFs.renameSync = (source, destination) => {
+  if (!casRenameRaceInjected && path.resolve(source) === path.resolve(casRaceOperation.path) &&
+      String(destination).startsWith(`${casRaceOperation.path}.devcodex-backup.`)) {
+    casRenameRaceInjected = true
+    fs.writeFileSync(source, `${casOriginal}\n# rename-window concurrent edit\n`, 'utf8')
+  }
+  return fs.renameSync(source, destination)
+}
+assert.throws(() => executeGlobalHostTransaction([casRaceOperation], {
+  fs: casRenameRaceFs,
+  allowedRoots: [casTarget.root, ...(casTarget.additionalRoots || [])],
+  allowedFiles: casTarget.additionalFiles || []
+}), error => error?.code === 'GLOBAL_HOST_OPERATION_PRECONDITION_FAILED')
+assert.match(fs.readFileSync(casOperation.path, 'utf8'), /rename-window concurrent edit/)
+fs.writeFileSync(casOperation.path, casOriginal, 'utf8')
 const grokGlobalHooks = JSON.parse(fs.readFileSync(
   path.join(home, '.grok', 'hooks', 'devcodex.json'),
   'utf8'
 ))
+const grokGlobalTarget = targets.find(target => target.host === 'grok')
+const grokGlobalRuntimeEntry = path.join(
+  grokGlobalTarget.runtimeRoot,
+  'hooks',
+  '_runtime',
+  'lifecycle-host-adapters.cjs'
+)
 for (const event of ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop']) {
-  assert.match(
-    grokGlobalHooks.hooks[event][0].hooks[0].command,
-    /lifecycle-host-adapters\.cjs" grok$/
+  assert.deepStrictEqual(
+    hookCommandArgv(grokGlobalHooks.hooks[event][0].hooks[0].command),
+    [grokGlobalRuntimeEntry, 'grok']
   )
 }
 const cursorTarget = targets.find(target => target.host === 'cursor')
@@ -355,12 +438,14 @@ const cursorHooks = JSON.parse(fs.readFileSync(cursorTarget.files.hooks, 'utf8')
 assert.strictEqual(cursorHooks.userOwned.keep, true)
 for (const event of cursorManagedEvents) {
   assert.ok(Array.isArray(cursorHooks.hooks[event]), `Cursor hook event missing: ${event}`)
-  assert.ok(JSON.stringify(cursorHooks.hooks[event]).includes('lifecycle-cursor-compatible.cjs'))
-  assert.ok(JSON.stringify(cursorHooks.hooks[event]).includes('--cursor-plugin-path'))
   const managed = cursorHooks.hooks[event].filter(isDevCodexManagedHookEntry)
   assert.strictEqual(managed.length, 1, `Cursor ${event} must retain exactly one managed generation`)
-  assert.ok(managed[0].command.includes(cursorTarget.runtimeRoot))
-  assert.ok(!managed[0].command.includes('runtime-1.17.2-legacy-generation'))
+  assert.deepStrictEqual(hookCommandArgv(managed[0].command), [
+    path.join(cursorTarget.runtimeRoot, 'hooks', '_runtime', 'lifecycle-cursor-compatible.cjs'),
+    'cursor',
+    '--cursor-plugin-path',
+    cursorTarget.files.plugin
+  ])
 }
 assert.ok(cursorHooks.hooks.preToolUse.some(entry => entry.command === 'echo cursor-user'))
 assert.ok(cursorHooks.hooks.preToolUse.some(entry => entry.command === userCursorCompatibleCommand))
@@ -379,7 +464,7 @@ assert.strictEqual(fs.existsSync(path.join(cursorTarget.files.plugin, 'skills', 
 const cursorMcp = JSON.parse(fs.readFileSync(path.join(cursorTarget.files.plugin, 'mcp.json'), 'utf8'))
 for (const name of ['devcodex-memory', 'devcodex-profile']) {
   assert.strictEqual(cursorMcp.mcpServers[name].type, 'stdio')
-  assert.strictEqual(cursorMcp.mcpServers[name].command, 'node')
+  assert.strictEqual(path.resolve(cursorMcp.mcpServers[name].command), trustedNodeExecutable)
   assert.strictEqual(cursorMcp.mcpServers[name].env.DEVCODEX_AGENT, 'cursor')
   assert.ok(cursorMcp.mcpServers[name].args.some(value => /mcp[\\/](?:memory|profile)-server\.js$/i.test(value)))
   assert.strictEqual(cursorMcp.mcpServers[name].args[1], '${workspaceFolder}')
@@ -463,8 +548,12 @@ assert.strictEqual(copilotHooks.version, 1)
 assert.ok(copilotHooks.hooks.notification)
 for (const event of ['userPromptSubmitted', 'userPromptTransformed', 'preToolUse', 'postToolUse', 'agentStop', 'preCompact']) {
   assert.ok(Array.isArray(copilotHooks.hooks[event]), `Copilot hook event missing: ${event}`)
-  assert.ok(JSON.stringify(copilotHooks.hooks[event]).includes('lifecycle-host-adapters.cjs'))
-  assert.ok(JSON.stringify(copilotHooks.hooks[event]).includes(`--event ${event}`))
+  assert.deepStrictEqual(hookCommandArgv(copilotHooks.hooks[event][0].command), [
+    path.join(targets.find(target => target.host === 'copilot').runtimeRoot, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs'),
+    'copilot',
+    '--event',
+    event
+  ])
 }
 assert.strictEqual(copilotHooks.hooks.preToolUse[0].matcher, '.*')
 assert.strictEqual(copilotHooks.hooks.postToolUse[0].matcher, '.*')
@@ -479,7 +568,7 @@ const vscodeMcp = JSON.parse(fs.readFileSync(vscodeMcpPath, 'utf8'))
 assert.ok(vscodeMcp.servers, 'VS Code mcp.json must have servers')
 for (const name of ['devcodex-memory', 'devcodex-profile']) {
   assert.ok(vscodeMcp.servers[name], `VS Code servers missing ${name}`)
-  assert.strictEqual(vscodeMcp.servers[name].command, 'node')
+  assert.strictEqual(path.resolve(vscodeMcp.servers[name].command), trustedNodeExecutable)
   assert.ok(
     String(vscodeMcp.servers[name].args[0]).includes('memory-server.js') ||
     String(vscodeMcp.servers[name].args[0]).includes('profile-server.js') ||
@@ -511,7 +600,7 @@ for (const name of ['devcodex-memory', 'devcodex-profile']) {
 const geminiTarget = targets.find(target => target.host === 'gemini')
 const geminiSettings = JSON.parse(fs.readFileSync(geminiTarget.files.settings, 'utf8'))
 for (const name of ['devcodex-memory', 'devcodex-profile']) {
-  assert.strictEqual(geminiSettings.mcpServers[name].command, 'node')
+  assert.strictEqual(path.resolve(geminiSettings.mcpServers[name].command), trustedNodeExecutable)
   // gemini has no VALID_AGENTS mapping; do not inject DEVCODEX_AGENT
   assert.deepStrictEqual(
     Object.keys(geminiSettings.mcpServers[name]).sort(),
@@ -527,13 +616,16 @@ assert.strictEqual(claudeSettings.theme, 'user-owned')
 assert.strictEqual(claudeSettings.nested.keep, true)
 assert.ok(claudeSettings.hooks.CustomEvent)
 assert.ok(claudeSettings.hooks.PreToolUse)
-assert.ok(JSON.stringify(claudeSettings.hooks).includes('lifecycle-cursor-compatible.cjs'))
 assert.ok(JSON.stringify(claudeSettings.hooks.PreToolUse).includes('custom-pre'))
 assert.ok(!JSON.stringify(claudeSettings.hooks).includes('.claude/hooks/_runtime/lifecycle.cjs'))
 assert.ok(!JSON.stringify(claudeSettings.hooks).includes('runtime-1.17.2-legacy-generation'))
 for (const event of ['PreToolUse', 'UserPromptSubmit', 'PostToolUse', 'Stop']) {
   const managed = claudeSettings.hooks[event].filter(isDevCodexManagedHookEntry)
   assert.strictEqual(managed.length, 1, `Claude ${event} must retain exactly one managed generation`)
+  assert.deepStrictEqual(hookCommandArgv(managed[0].hooks[0].command), [
+    path.join(targets.find(target => target.host === 'claude').runtimeRoot, 'hooks', '_runtime', 'lifecycle-cursor-compatible.cjs'),
+    'claude'
+  ])
 }
 
 const codexConfig = fs.readFileSync(path.join(home, '.codex', 'config.toml'), 'utf8')
@@ -584,7 +676,7 @@ assert.strictEqual(afterAuthorityToolTamper.ready, false)
 assert.ok(codexAuthorityToolTamper.driftedConfigFiles.some(file => /config\.toml$/.test(file)))
 fs.writeFileSync(path.join(home, '.codex', 'config.toml'), codexAfterReapply)
 const authorityTamper = codexAfterReapply.replace(
-  /\[mcp_servers\.devcodex-memory\]\ncommand = "node"/,
+  `[mcp_servers.devcodex-memory]\ncommand = ${quoteToml(trustedNodeExecutable)}`,
   '[mcp_servers.devcodex-memory]\ncommand = "node-tampered"'
 )
 fs.writeFileSync(path.join(home, '.codex', 'config.toml'), authorityTamper)
@@ -767,13 +859,38 @@ const installedCodexCapability = installedSkillRouteCapabilities.capabilities.fi
   item.hostVariant === 'codex-cli/exec-user-global-local-stdio'
 )
 assert.ok(installedCodexCapability)
-assert.strictEqual(installedCodexCapability.status, 'PASS')
+assert.strictEqual(installedCodexCapability.status, 'UNVERIFIED')
+assert.strictEqual(installedCodexCapability.evidenceRef, null)
+assert.strictEqual(installedCodexCapability.defaultEligible, false)
+
+const retainedReceiptFile = path.join(codexTarget.root, 'devcodex', 'global-host-receipt.json')
+const retainedReceiptOriginal = fs.readFileSync(retainedReceiptFile, 'utf8')
+const retainedReceipt = JSON.parse(retainedReceiptOriginal)
+const retainedRuntimeRoot = path.join(codexTarget.runtimeBaseRoot, 'runtime-retained-doctor-fixture')
+const retainedArtifactPath = path.join(retainedRuntimeRoot, 'retained.txt')
+fs.mkdirSync(retainedRuntimeRoot, { recursive: true })
+fs.writeFileSync(retainedArtifactPath, 'retained generation fixture\n', 'utf8')
+const retainedDigest = require('crypto').createHash('sha256')
+  .update(fs.readFileSync(retainedArtifactPath))
+  .digest('hex')
+retainedReceipt.retainedRuntimeRoots = [retainedRuntimeRoot.replace(/\\/g, '/')]
+retainedReceipt.retainedManagedArtifacts = [{
+  path: retainedArtifactPath.replace(/\\/g, '/'),
+  ownershipKind: 'whole-file',
+  managedDigest: retainedDigest,
+  contentDigest: retainedDigest
+}]
+fs.writeFileSync(retainedReceiptFile, `${JSON.stringify(retainedReceipt, null, 2)}\n`, 'utf8')
+const retainedInspection = inspectGlobalHostConfiguration({ packageRoot, env, home })
+const retainedCodexInspection = retainedInspection.hosts.find(item => item.host === 'codex')
 assert.strictEqual(
-  installedCodexCapability.runtimeContractDigest,
-  installedRuntimeContractDigest
+  retainedInspection.ready,
+  true,
+  `Doctor must use retained-generation facts from the current receipt: ${JSON.stringify(retainedCodexInspection)}`
 )
-assert.match(installedCodexCapability.hostAdapterDigest, /^[a-f0-9]{64}$/)
-assert.match(installedCodexCapability.evidenceDigest, /^[a-f0-9]{64}$/)
+assert.strictEqual(retainedCodexInspection.receiptMatchesCurrent, true)
+fs.writeFileSync(retainedReceiptFile, retainedReceiptOriginal, 'utf8')
+fs.rmSync(retainedRuntimeRoot, { recursive: true, force: true })
 
 const forgedReceiptFile = path.join(codexTarget.root, 'devcodex', 'global-host-receipt.json')
 const forgedReceipt = JSON.parse(fs.readFileSync(forgedReceiptFile, 'utf8'))
@@ -1106,6 +1223,19 @@ assert.throws(() => executeGlobalHostTransaction([
 }), /GLOBAL_HOST_TEST_INJECTED_FAILURE/)
 assert.strictEqual(fs.readFileSync(first, 'utf8'), 'before\n')
 assert.strictEqual(fs.existsSync(secondFile), false)
+
+const metadataRoot = path.join(tmp, 'replacement-metadata')
+fs.mkdirSync(metadataRoot, { recursive: true })
+const metadataFile = path.join(metadataRoot, 'restricted.txt')
+fs.writeFileSync(metadataFile, 'before metadata-preserving replacement\n', 'utf8')
+fs.chmodSync(metadataFile, 0o444)
+const metadataModeBefore = fs.statSync(metadataFile).mode & 0o777
+executeGlobalHostTransaction([{ path: metadataFile, content: 'after metadata-preserving replacement\n' }], {
+  allowedRoots: [metadataRoot]
+})
+assert.strictEqual(fs.statSync(metadataFile).mode & 0o777, metadataModeBefore)
+assert.strictEqual(fs.readFileSync(metadataFile, 'utf8'), 'after metadata-preserving replacement\n')
+fs.chmodSync(metadataFile, 0o666)
 
 const rollbackDriftRoot = path.join(tmp, 'rollback-drift')
 fs.mkdirSync(rollbackDriftRoot, { recursive: true })

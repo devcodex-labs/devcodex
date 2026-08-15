@@ -300,6 +300,34 @@ function staleS02ProfileText() {
     ].join('\n')
 }
 
+function currentAssetInventoryDocument(overrides = {}) {
+    function recursiveJsCount(root) {
+        return fs.readdirSync(root, { withFileTypes: true }).reduce((count, entry) => {
+            if (entry.isDirectory()) return count + recursiveJsCount(path.join(root, entry.name))
+            return count + (entry.isFile() && entry.name.endsWith('.js') ? 1 : 0)
+        }, 0)
+    }
+    const counts = {
+        Agent: fs.readdirSync(path.join(ROOT, 'agents')).filter(name => name.endsWith('.agent.md')).length,
+        Skill: fs.readdirSync(path.join(ROOT, 'content', 'skills'), { withFileTypes: true })
+            .filter(entry => entry.isDirectory() && !entry.name.startsWith('_')).length,
+        Instruction: fs.readdirSync(path.join(ROOT, 'content', 'instructions')).filter(name => name.endsWith('.instructions.md')).length,
+        Prompt: fs.readdirSync(path.join(ROOT, 'content', 'prompts')).filter(name => name.endsWith('.prompt.md')).length,
+        'Hooks runtime': fs.readdirSync(path.join(ROOT, 'hooks', '_runtime')).filter(name => name.endsWith('.cjs')).length,
+        'data 模板': fs.readdirSync(path.join(ROOT, 'data', 'templates')).filter(name => name.endsWith('.md')).length,
+        'CLI 工程脚本': recursiveJsCount(path.join(ROOT, 'scripts')),
+        ...overrides
+    }
+    return [
+        '## 当前规范资产清单',
+        '',
+        '| 类型 | 数量 | 文件列表 |',
+        '|---|---:|---|',
+        ...Object.entries(counts).map(([label, count]) => `| **${label}** | ${count} | machine truth |`),
+        ''
+    ].join('\n')
+}
+
 function main() {
     try {
         const legacyRoot = createWorkspace(legacyProjectInfo())
@@ -316,6 +344,18 @@ function main() {
         const currentOutput = `${currentResult.stdout}\n${currentResult.stderr}`
 
         assert.strictEqual(currentResult.status, 0, currentOutput)
+
+        const alignedAssetRoot = createWorkspace(`${currentProjectInfo()}\n${currentAssetInventoryDocument()}`)
+        const alignedAssetResult = runValidateWithArgs(alignedAssetRoot, ['--source-repo-profile'])
+        assert.strictEqual(alignedAssetResult.status, 0, `${alignedAssetResult.stdout}\n${alignedAssetResult.stderr}`)
+
+        const staleAssetRoot = createWorkspace(`${currentProjectInfo()}\n${currentAssetInventoryDocument({
+            'Hooks runtime': fs.readdirSync(path.join(ROOT, 'hooks', '_runtime')).filter(name => name.endsWith('.cjs')).length - 1
+        })}`)
+        const staleAssetResult = runValidateWithArgs(staleAssetRoot, ['--source-repo-profile'])
+        const staleAssetOutput = `${staleAssetResult.stdout}\n${staleAssetResult.stderr}`
+        assert.strictEqual(staleAssetResult.status, 1, staleAssetOutput)
+        assert.match(staleAssetOutput, /CurrentAssetInventoryTruthGate Hooks runtime drift/)
 
         const nonSourceRoot = createWorkspace(currentProjectInfo().replaceAll(VERSION, '3.0.0'))
         writeFile(nonSourceRoot, 'package.json', JSON.stringify({

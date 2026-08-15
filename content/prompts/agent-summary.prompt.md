@@ -33,7 +33,7 @@ applyTo: .devcodex/**/.memory/**
 - **摘要**：一行 50~100 字，包含做了什么 + 关键数字/结果
 - **多任务会话**：一行覆盖全部任务，不拆多行
 - **排序**：按时间正序追加（最新在最后）
-- **状态字段（v1.9.4+ 延迟写入）**：会话进行中先写 `🔄`；任务完整结束、合规检查全通过、V8 部署同步通过后才改 `✅`。防止 session limit 截断时 SUMMARY 已 ✅ 但 tasks 段落不完整造成数据不一致（参见 [`15-memory §新会话首步强制`](../instructions/15-memory.instructions.md)）。
+- **状态事件（append-only）**：会话进行中先追加 `🔄`；任务完整结束、合规检查全通过、V8 部署同步通过后，再为同一“日期 + 会话”追加 `✅` 事件。读取端以最后事件作为当前状态，旧行只作审计历史；禁止依赖原地改写。这样既避免 session limit 截断时提前完成，也让 index 与 fallback 使用同一折叠语义（参见 [`15-memory §新会话首步强制`](../instructions/15-memory.instructions.md)）。
 
 ## SUMMARY 纯索引约束
 

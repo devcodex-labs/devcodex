@@ -12,7 +12,9 @@ const {
   normalizeHostVariant
 } = require('../hooks/_runtime/skill-route-mode.cjs')
 const {
-  getLifecycleHostAdapterDigest
+  HOST_ENTRY_SURFACES,
+  getLifecycleHostAdapterDigest,
+  isCodexDesktopEnvironment
 } = require('../hooks/_runtime/host-adapter-identity.cjs')
 const {
   loadEnvelope,
@@ -72,6 +74,57 @@ function optionValue (name) {
 
 function hasOption (name) {
   return process.argv.includes(name)
+}
+
+function resolveHostEntrySurface (hostId) {
+  const host = String(hostId || '').trim().toLowerCase()
+  const entrySurface = HOST_ENTRY_SURFACES[host]
+  assert(entrySurface, `S15 host entry surface is not defined: ${host || 'unknown'}`)
+  return entrySurface
+}
+
+function buildHostInvocationEvidence (options = {}) {
+  const host = String(options.host || '').trim().toLowerCase()
+  const entrySurface = String(options.entrySurface || '').trim().toLowerCase()
+  const env = options.env || process.env
+  const executable = options.executable || {}
+  const argv = Array.isArray(options.argv) ? options.argv.map(value => String(value)) : []
+  const boundedArguments = argv.slice(0, 64).map((value, index) => {
+    const bytes = Buffer.byteLength(value, 'utf8')
+    return bytes <= 256
+      ? { index, bytes, value }
+      : { index, bytes, valueDigest: sha256(value) }
+  })
+  const descriptor = {
+    schemaVersion: 'HostInvocationEvidenceV1',
+    host,
+    hostVariant: normalizeHostVariant(host, { entrySurface, env }),
+    entrySurface,
+    executable: {
+      command: String(executable.command || ''),
+      prefix: Array.isArray(executable.prefix)
+        ? executable.prefix.map(value => String(value))
+        : []
+    },
+    argvCount: argv.length,
+    argvDigest: sha256(argv),
+    boundedArguments,
+    argumentsTruncated: argv.length > boundedArguments.length,
+    ambientDesktopMarkersPresent: isCodexDesktopEnvironment(env),
+    hostAdapterDigest: String(options.hostAdapterDigest || '')
+  }
+  return {
+    ...descriptor,
+    descriptorDigest: sha256(descriptor)
+  }
+}
+
+function scrubCodexDesktopAmbientMarkers (env = {}, hostId = '') {
+  const next = { ...env }
+  if (String(hostId || '').trim().toLowerCase() !== 'codex') return next
+  delete next.CODEX_INTERNAL_ORIGINATOR_OVERRIDE
+  delete next.CODEX_THREAD_ID
+  return next
 }
 
 function modelTimeoutMs () {
@@ -591,9 +644,16 @@ function main () {
   const contextEpoch = `ctx-${crypto.randomUUID()}`
   const marker = `S15_BODY_${crypto.randomUUID().toUpperCase()}`
   const skillId = 'workspace-s15-probe'
-  const hostVariant = normalizeHostVariant(descriptor.lifecycleHost)
+  const entrySurface = resolveHostEntrySurface(descriptor.lifecycleHost)
+  const hostVariant = normalizeHostVariant(descriptor.lifecycleHost, {
+    entrySurface,
+    env: process.env
+  })
   const runtimeDigest = getRuntimeContractDigest()
-  const hostAdapterDigest = getLifecycleHostAdapterDigest(descriptor.lifecycleHost)
+  const hostAdapterDigest = getLifecycleHostAdapterDigest(descriptor.lifecycleHost, {
+    entrySurface,
+    env: process.env
+  })
   const authorityPath = path.join(fixture.root, 'probe-authority.json')
   const schemaPath = path.join(fixture.root, 's15-result.schema.json')
   const outputPath = path.join(fixture.root, 's15-result.json')
@@ -609,6 +669,7 @@ function main () {
   )
   const executable = resolveExecutable(hostId)
   let modelRun = null
+  let hostInvocation = null
   let restoreHookCommand = null
   let runtimeContext = {
     schemaVersion: 'SkillRouteS15CandidateHostRuntimeV1',
@@ -626,6 +687,7 @@ function main () {
         home: runtimeContext.home,
         packageRoot: path.resolve(__dirname, '..'),
         baseEnv: process.env,
+        entrySurface,
         expectedRuntimeDigest: runtimeDigest,
         expectedHostAdapterDigest: hostAdapterDigest
       })
@@ -644,6 +706,25 @@ function main () {
     }
     writeProbeSkill(fixture, skillId, marker)
     writeJson(schemaPath, resultSchema(exerciseContextRebind))
+    const prompt = buildPrompt({
+      contextEpoch,
+      hostId: descriptor.lifecycleHost,
+      project: fixture.project,
+      skillId,
+      exerciseContextRebind
+    })
+    const modelArgs = [
+      ...executable.prefix,
+      ...hostArgs(hostId, prompt, schemaPath, outputPath)
+    ]
+    hostInvocation = buildHostInvocationEvidence({
+      host: descriptor.lifecycleHost,
+      entrySurface,
+      executable,
+      argv: modelArgs,
+      env: process.env,
+      hostAdapterDigest
+    })
     if (!productionEligible) {
       const now = Date.now()
       writeJson(authorityPath, {
@@ -672,7 +753,7 @@ function main () {
         home: runtimeContext.home
       }
     )
-    const childEnv = {
+    const childEnv = scrubCodexDesktopAmbientMarkers({
       ...runtimeContext.env,
       DEVCODEX_HOST_PLATFORM: descriptor.lifecycleHost,
       DEVCODEX_HOST_VARIANT: hostVariant,
@@ -683,7 +764,7 @@ function main () {
       ...(!productionEligible
         ? { DEVCODEX_SKILL_ROUTE_PROBE_AUTHORITY: authorityPath }
         : {})
-    }
+    }, hostId)
     const versionRun = run(
       executable.command,
       [...executable.prefix, ...descriptor.versionArgs],
@@ -691,19 +772,9 @@ function main () {
     )
     assert.strictEqual(versionRun.status, 0, versionRun.stderr || versionRun.stdout)
     const testedVersion = String(versionRun.stdout || versionRun.stderr).trim()
-    const prompt = buildPrompt({
-      contextEpoch,
-      hostId: descriptor.lifecycleHost,
-      project: fixture.project,
-      skillId,
-      exerciseContextRebind
-    })
     modelRun = run(
       executable.command,
-      [
-        ...executable.prefix,
-        ...hostArgs(hostId, prompt, schemaPath, outputPath)
-      ],
+      modelArgs,
       { cwd: fixture.projectRoot, env: childEnv, timeout: modelTimeoutMs() }
     )
     if (modelRun.status !== 0) {
@@ -801,6 +872,7 @@ function main () {
       protocolVersion: '2024-11-05',
       runtimeDigest,
       hostAdapterDigest,
+      hostInvocation,
       authorizationSource: productionEligible
         ? 'capability-pass'
         : 'isolated-probe-authority',
@@ -921,6 +993,7 @@ function main () {
       probeRunId,
       runtimeDigest,
       hostAdapterDigest,
+      hostInvocation,
       startedAt,
       failedAt: new Date().toISOString(),
       exitCode: failedRun?.status ?? null,
@@ -945,10 +1018,13 @@ if (require.main === module) main()
 module.exports = {
   HOSTS,
   buildPrompt,
+  buildHostInvocationEvidence,
   classifyFailure,
   hostArgs,
   patchProbeHookCommand,
   resolveExecutable,
+  resolveHostEntrySurface,
   resultSchema,
+  scrubCodexDesktopAmbientMarkers,
   stripProbeHookArgs
 }

@@ -12,6 +12,7 @@ const {
   refreshDailyIndex,
   refreshSummaryIndex
 } = require('./lib/memory-index.js')
+const { summaryStateConflicts } = require('./lib/memory-summary-state.js')
 
 function document(filePath) {
   const stat = fs.statSync(filePath)
@@ -80,6 +81,7 @@ const summaryContent = [
   '| 2026-06-30 10:00 | 01 | dev | old | r | m | ✅ |',
   '| 2026-07-22 10:00 | 02 | dev | active | r | m | 🔄 |',
   '| 2026-07-23 10:00 | 02 | dev | blocked | r | m | ⛔ |',
+  '| 2026-07-23 10:30 | 03 | dev | active-before-done | r | m | 🔄 |',
   '| 2026-07-23 11:00 | 03 | dev | done | r | m | ✅ |',
   ''
 ].join('\n')
@@ -88,7 +90,8 @@ const summaryRows = [
   row('2026-06-30', '01', 'completed', 4),
   row('2026-07-22', '02', 'active', 5),
   row('2026-07-23', '02', 'blocked', 6),
-  row('2026-07-23', '03', 'completed', 7)
+  row('2026-07-23', '03', 'active', 7),
+  row('2026-07-23', '03', 'completed', 8)
 ]
 const summaryRefresh = refreshSummaryIndex({
   target,
@@ -102,7 +105,16 @@ const status = queryStatusIndex({ target, sourcePath: summaryPath, limit: 2 })
 assert.equal(status.status, 'fresh')
 assert.equal(status.latestRows.length, 2)
 assert.equal(status.activeSessionIds[0], '2026-07-22#02')
+assert.ok(!status.activeSessionIds.includes('2026-07-23#03'))
+assert.deepEqual(status.conflicts, [])
 assert.equal(status.warnings[0], 'fixture-warning')
+assert.deepEqual(
+  summaryStateConflicts([
+    row('2026-07-24', '05', 'completed', 1),
+    row('2026-07-24', '05', 'active', 2)
+  ]),
+  [{ sessionKey: '2026-07-24#05', states: ['active', 'completed'] }]
+)
 
 const completed = querySummaryIndex({
   target,
@@ -113,6 +125,14 @@ const completed = querySummaryIndex({
 assert.equal(completed.status, 'fresh')
 assert.deepEqual(completed.rows.map(item => item.sessionId), ['03', '01'])
 assert.equal(completed.totalMatched, 2)
+
+const currentActive = querySummaryIndex({
+  target,
+  sourcePath: summaryPath,
+  status: 'active',
+  limit: 10
+})
+assert.deepEqual(currentActive.rows.map(item => `${item.day}#${item.sessionId}`), ['2026-07-22#02'])
 
 const since = querySummaryIndex({
   target,
@@ -135,7 +155,7 @@ assert.equal(stale.status, 'fallback')
 assert.equal(stale.reason, 'source-metadata-drift')
 assert(!JSON.stringify(stale.envelope.receipt).includes('summary-03'), 'fallback receipt must not embed partition payload')
 
-const refreshedRows = [...summaryRows, row('2026-07-23', '04', 'active', 8)]
+const refreshedRows = [...summaryRows, row('2026-07-23', '04', 'active', 9)]
 const summaryRefresh2 = refreshSummaryIndex({
   target,
   document: document(summaryPath),

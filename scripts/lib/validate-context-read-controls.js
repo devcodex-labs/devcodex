@@ -277,13 +277,20 @@ function buildContextReadControlChecks(ctx) {
       'CONTEXT_BINDING_MISMATCH'
     ])
     checkFile('mcp/profile-section-selector.cjs', [
-      'ProfileSectionSelectorV1', 'ProfileSectionLoadReceiptV1', 'fallback-full', 'required-query-missing-or-ambiguous'
+      'ProfileSectionSelectorV1', 'ProfileSectionLoadReceiptV1', 'fallback-full',
+      'required-query-missing-or-ambiguous', 'selectProfileSectionsFromFileSync',
+      'sourceScanComplete', 'continuation'
+    ])
+    checkFile('mcp/bounded-text-reader.cjs', [
+      'readBoundedTextFileSync', 'readBoundedTextRangeSync', 'scanBoundedTextLinesSync',
+      'SOURCE_CHANGED_DURING_READ', 'sourcePrefixDigest'
     ])
     const memorySource = checkFile('mcp/memory-server.js', [
       "name: 'memory_status'", "name: 'memory_session_query'", "name: 'memory_summary_query'",
       "case 'memory_status'", "case 'memory_session_query'", "case 'memory_summary_query'",
       'MemoryStatusV1', 'MemorySessionQueryV1', 'MemorySummaryQueryV1', 'CONTEXT_READ_CONTRACT',
-      'ContextReadBindingV1', 'legacy-unbound', 'request-bound'
+      'ContextReadBindingV1', 'CONTEXT_BINDING_REQUIRED', "bindingStatus: 'verified'",
+      'scanSummaryDocument', 'scanDailyQueryDocument', 'sourceScanComplete'
     ])
     const bootstrapSource = checkFile('hooks/_runtime/lifecycle-bootstrap-state.cjs', [
       'classifyContextAcquisitionTool', 'recordContextPreToolUse', 'recordContextPostToolUse',
@@ -301,9 +308,10 @@ function buildContextReadControlChecks(ctx) {
       'source-identity-mismatch'
     ])
     checkFile('scripts/test-mcp-servers.js', [
-      'testProfileContextPlanReadTrace', 'plan hidden-read detected', 'legacy full-read compatibility trace lost',
-      'all new memory projection tools must be zero-write', 'profile_skill_plan', 'ProfileSectionLoadReceiptV1',
-      'BundleDecisionV2'
+      'testProfileContextPlanReadTrace', 'plan hidden-read detected', 'testContextReadBindingContract',
+      'CONTEXT_BINDING_REQUIRED', 'index-backed MCP query must be zero-write',
+      'canonical fallback and repair diagnostics must remain zero-write', 'profile_skill_plan',
+      'ProfileSectionLoadReceiptV1', 'sourceScanComplete', 'BundleDecisionV2'
     ])
     checkFile('scripts/test-profile-section-selector.js', ['fallback-full', 'partial', 'mandatoryMiss=0'])
     checkFile('scripts/test-hooks-runtime.js', ['buildTestHooksRuntimeFixtures', 'runBootstrapReads'])

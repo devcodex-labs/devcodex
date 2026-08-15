@@ -65,6 +65,21 @@ function buildCheckRepairCatalog(guidance) {
       command,
       detail: 'Install/refresh the Codex user-global lifecycle runtime; workspace host directories are not used.'
     },
+    codexAdapterContractReady: {
+      check: 'codexAdapterContractReady',
+      command,
+      detail: 'Refresh the Codex lifecycle adapter contract independently of managed configuration state.'
+    },
+    grokAdapterContractReady: {
+      check: 'grokAdapterContractReady',
+      command,
+      detail: 'Refresh the Grok lifecycle adapter contract independently of managed configuration state.'
+    },
+    managedConfigCurrent: {
+      check: 'managedConfigCurrent',
+      command,
+      detail: 'Reconcile stale receipts or managed configuration drift without reporting present runtime files as missing.'
+    },
     denyAdapterContract: {
       check: 'denyAdapterContract',
       command,
@@ -163,18 +178,26 @@ function buildGrokRepairSteps(checks = {}, options = {}) {
   const catalog = buildCheckRepairCatalog(guidance)
   const fallbackCommand = guidance.primary || 'devcodex global-adapters apply'
   const steps = []
+  const failedByCommand = new Map()
   for (const [key, ok] of Object.entries(checks || {})) {
     if (ok) continue
     const entry = catalog[key]
-    if (entry) {
-      steps.push({ ...entry, status: 'failed' })
-    } else {
-      steps.push({
+    const step = entry
+      ? { ...entry, status: 'failed' }
+      : {
         check: key,
         command: fallbackCommand,
         detail: `Missing HostParity check: ${key}`,
         status: 'failed'
-      })
+      }
+    const existing = failedByCommand.get(step.command)
+    if (existing) {
+      existing.checks.push(step.check)
+      existing.details.push(step.detail)
+    } else {
+      const grouped = { ...step, checks: [step.check], details: [step.detail] }
+      failedByCommand.set(step.command, grouped)
+      steps.push(grouped)
     }
   }
   if (steps.length) {
@@ -377,6 +400,10 @@ function evaluateGrokHostParity(input = {}) {
   const grokState = hostState('grok')
   const adapterReady = state => state.adapterReady === true ||
     (state.adapterReady === undefined && state.ready === true)
+  const adapterContractReady = state => state.adapterContractStatus === 'passed' ||
+    (state.adapterContractStatus === undefined && adapterReady(state))
+  const configurationCurrent = state => state.inspectionStatus !== 'UNVERIFIED' &&
+    (!Array.isArray(state.configurationIssues) || state.configurationIssues.length === 0)
   const codexRuntime = codexTarget.runtimeRoot
   const pluginRoot = grokTarget.files.plugin
   const codexAdapter = path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
@@ -386,21 +413,33 @@ function evaluateGrokHostParity(input = {}) {
 
   const hasGlobalKernel = input.hasGlobalKernel !== undefined
     ? input.hasGlobalKernel
-    : Boolean(adapterReady(codexState) && fileExists(codexTarget.files.instructions) &&
+    : Boolean(fileExists(codexTarget.files.instructions) &&
       fileExists(path.join(codexRuntime, 'AGENTS.md')))
   const hasGlobalCodexLifecycle = input.hasGlobalCodexLifecycle !== undefined
     ? input.hasGlobalCodexLifecycle
-    : Boolean(adapterReady(codexState) && fileExists(path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle.cjs')))
+    : Boolean(fileExists(path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle.cjs')))
   const hasGlobalGrokPlugin = input.hasGlobalGrokPlugin !== undefined
     ? input.hasGlobalGrokPlugin
-    : Boolean(adapterReady(grokState) && fileExists(path.join(pluginRoot, 'hooks', 'hooks.json')))
+    : Boolean(fileExists(path.join(pluginRoot, 'hooks', 'hooks.json')))
   const hasGlobalGrokConfig = input.hasGlobalGrokConfig !== undefined
     ? input.hasGlobalGrokConfig
-    : Boolean(adapterReady(grokState) && fileExists(grokTarget.files.config))
+    : Boolean(fileExists(grokTarget.files.config))
+  const codexAdapterContractReady = input.codexAdapterContractReady !== undefined
+    ? input.codexAdapterContractReady
+    : adapterContractReady(codexState)
+  const grokAdapterContractReady = input.grokAdapterContractReady !== undefined
+    ? input.grokAdapterContractReady
+    : adapterContractReady(grokState)
+  const managedConfigCurrent = input.managedConfigCurrent !== undefined
+    ? input.managedConfigCurrent
+    : configurationCurrent(codexState) && configurationCurrent(grokState)
 
   const checks = {
     globalKernelAgentsMd: hasGlobalKernel,
     globalCodexLifecycleReachable: hasGlobalCodexLifecycle,
+    codexAdapterContractReady,
+    grokAdapterContractReady,
+    managedConfigCurrent,
     denyAdapterContract: Boolean(deny.present && deny.hasAdaptGrok && deny.hasDenyDecision),
     pathObservableCapability: Boolean(bootstrap.present && bootstrap.grokPathObservable),
     globalGrokPluginInstalled: hasGlobalGrokPlugin,
@@ -409,6 +448,9 @@ function evaluateGrokHostParity(input = {}) {
 
   const hardReady = checks.globalKernelAgentsMd
     && checks.globalCodexLifecycleReachable
+    && checks.codexAdapterContractReady
+    && checks.grokAdapterContractReady
+    && checks.managedConfigCurrent
     && checks.denyAdapterContract
     && checks.pathObservableCapability
     && checks.globalGrokPluginInstalled
@@ -460,6 +502,17 @@ function evaluateGrokHostParity(input = {}) {
       scope: 'user-global',
       deny,
       bootstrap,
+      physicalPresence: {
+        globalKernelFilesPresent: hasGlobalKernel,
+        globalLifecycleFilesPresent: hasGlobalCodexLifecycle,
+        globalGrokPluginFilesPresent: hasGlobalGrokPlugin,
+        globalGrokConfigFilePresent: hasGlobalGrokConfig
+      },
+      adapterContracts: {
+        codex: codexState.adapterContractStatus || (codexAdapterContractReady ? 'passed' : 'unverified'),
+        grok: grokState.adapterContractStatus || (grokAdapterContractReady ? 'passed' : 'unverified')
+      },
+      managedConfigCurrent,
       adapterRefreshPrimary: refreshGuidance.primary || null,
       adapterRefreshSourceCheckout: refreshGuidance.sourceCheckout === true
     },

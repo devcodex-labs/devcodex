@@ -1,10 +1,11 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.17.5 发布包 npm scripts 闭包修复已迁入 `changelogs/releases/v1.17.5.md`；v1.17.4 工作区临时产物与六宿主安全卸载见 `v1.17.4.md`，正式已发布事实以 Git tag、npm registry 与 GitHub Release 为准。
+> **当前**: v1.17.7 全局运行态一致性与首次加载闭环修复已冻结为发布候选；正式发布事实仍以 Git tag、npm registry 与 GitHub Release 为准。
 
 ## 当前未发布实现候选
 
+- **v1.17.7 全局运行态一致性与首次加载闭环修复候选**：22 项确认问题按 12 个根因域在原 owner 内收敛。Profile/Memory 正文读取必须绑定持久 ContextRead plan，section/fallback 在源层有界；未解析目标由 pending envelope 的 PreToolUse/Stop owner 强制；catalog recipe/ledger/sidecar 可恢复且 fail closed；Memory 使用 append-only last-event-wins；CP artifact、临时对象、Copilot 调用、nested project/prompt、Node 命令与宿主 entrySurface 均增加规范身份。全局配置增加解析失败关闭、全量 CAS、rename-window 复核、activation/readiness 同源；CI 覆盖最低兼容、Windows 控制面、Node 24 LTS full/package/publish 与 Node 26 current。三轮逃逸扫描和本地 full 95/95 已通过，正式 R4～R7 仍待发布链完成。完整说明见 `changelogs/releases/v1.17.7.md`。
 - **v1.17.6 工作区 Skill 非显式 Stop 完备性修复已归档（VL-098 / PF-296 / GR-088）**：非显式 `PLAN_NOT_COMMITTED` 除既有 PreToolUse 外，在最终 Stop 也 fail closed，并复用 `NextActionEnvelopeV1` 返回精确首个 catalog 调用；普通聊天通过统一 catalog 后 `commit(null)` 完成 0/1 决策，Hook 不恢复关键词 auto-match 或新增 final-text classifier。重复 Stop 继续使用现有 3 次饱和与 notice fingerprint，PreCompact、ContextRead allowlist、retirement 与 must-reply 合同不变。完整说明见 `changelogs/releases/v1.17.6.md`；正式发布事实仍以 Git tag、npm registry 与 GitHub Release 为准。
 - **v1.17.5 发布包 npm scripts 闭包修复已归档（PF-294 / GR-086）**：`PublishedPackageScriptsContractV1` 让源码保留完整维护脚本，同时把最终 tarball manifest 投影为 8 个 lifecycle / validate / global-adapters 入口；prepack/postpack 通过摘要收据事务原字节恢复源码 manifest。发布门禁从最终 manifest 建立 direct/nested/require/path.join/spawn 闭包，并执行真实 `pack → 隔离 HOME 安装 → installed validate → installed self-pack`；缺入口、缺依赖、source-only 泄漏、lifecycle 单边、恢复冲突或状态残留均失败关闭。完整说明见 `changelogs/releases/v1.17.5.md`，正式发布事实仍以 Git tag、npm registry 与 GitHub Release 为准。
 - **v1.17.4 工作区临时产物与六宿主安全卸载已归档（PI-241 / PF-290 / PI-242 / PF-291）**：统一 `<workspace>/.tmp/devcodex/`、受管 manifest/TTL/lease/backup 与 `tmp status/prune`；新增默认预览的 `devcodex uninstall` / `global-adapters remove`，以跨宿主单事务、路径与所有权 fail-closed、并发安全回滚和用户内容保留完成清理。完整候选见 `changelogs/releases/v1.17.4.md`；正式发布事实仍以 Git tag、npm registry 与 GitHub Release 为准。

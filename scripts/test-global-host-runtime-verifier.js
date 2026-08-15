@@ -17,6 +17,10 @@ const {
 const {
   inspectNodeRuntimeReadiness
 } = require('./lib/node-runtime-readiness.js')
+const {
+  buildHostHookCommand,
+  canonicalNodeExecutable
+} = require('./lib/host-command.js')
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-global-runtime-verifier-'))
 const home = path.join(root, 'home')
@@ -32,6 +36,7 @@ const env = {
   GEMINI_CLI_HOME: home,
   COPILOT_HOME: path.join(home, '.copilot')
 }
+const trustedNodeExecutable = canonicalNodeExecutable()
 
 const nodeSystemBin = path.join(root, 'Program Files', 'nodejs')
 fs.mkdirSync(nodeSystemBin, { recursive: true })
@@ -163,11 +168,11 @@ for (const name of ['memory-server.js', 'profile-server.js']) {
 fs.writeFileSync(path.join(canonicalPlugin, '.mcp.json'), JSON.stringify({
   mcpServers: {
     'devcodex-memory': {
-      command: 'node',
+      command: trustedNodeExecutable,
       args: [path.join(grokRuntime, 'mcp', 'memory-server.js'), '.']
     },
     'devcodex-profile': {
-      command: 'node',
+      command: trustedNodeExecutable,
       args: [path.join(grokRuntime, 'mcp', 'profile-server.js'), '.']
     }
   }
@@ -196,7 +201,11 @@ for (const name of ['memory-server.js', 'profile-server.js']) {
   fs.writeFileSync(serverPath, 'process.stdin.resume()\n', 'utf8')
 }
 const cursorRuntimeEntry = path.join(cursorTarget.runtimeRoot, 'hooks', '_runtime', 'lifecycle-cursor-compatible.cjs')
-const cursorCommand = `node "${cursorRuntimeEntry}" cursor --cursor-plugin-path "${cursorTarget.files.plugin}"`
+const cursorCommand = buildHostHookCommand(cursorRuntimeEntry, [
+  'cursor',
+  '--cursor-plugin-path',
+  cursorTarget.files.plugin
+])
 const cursorEvents = ['workspaceOpen', 'sessionStart', 'sessionEnd', 'beforeSubmitPrompt', 'preToolUse', 'postToolUse', 'postToolUseFailure', 'afterAgentResponse', 'preCompact', 'stop']
 fs.mkdirSync(path.dirname(cursorTarget.files.hooks), { recursive: true })
 fs.writeFileSync(cursorTarget.files.hooks, JSON.stringify({
@@ -208,7 +217,7 @@ fs.writeFileSync(path.join(cursorTarget.files.plugin, 'mcp.json'), JSON.stringif
     `devcodex-${name}`,
     {
       type: 'stdio',
-      command: 'node',
+      command: trustedNodeExecutable,
       args: [path.join(cursorTarget.runtimeRoot, 'mcp', `${name}-server.js`), '${workspaceFolder}'],
       env: { DEVCODEX_AGENT: 'cursor' }
     }
@@ -287,10 +296,14 @@ assert.strictEqual(healthyCursor.variants.find(variant => variant.id === 'cursor
 const healthyCursorHooks = fs.readFileSync(cursorTarget.files.hooks, 'utf8')
 const duplicateCursorHooks = JSON.parse(healthyCursorHooks)
 duplicateCursorHooks.hooks.preToolUse.push({
-  command: cursorCommand.replace(
-    cursorTarget.runtimeRoot,
-    path.join(cursorTarget.root, 'devcodex', 'runtime-test-previous-generation')
-  )
+  command: buildHostHookCommand(path.join(
+    cursorTarget.root,
+    'devcodex',
+    'runtime-test-previous-generation',
+    'hooks',
+    '_runtime',
+    'lifecycle-cursor-compatible.cjs'
+  ), ['cursor', '--cursor-plugin-path', cursorTarget.files.plugin])
 })
 fs.writeFileSync(cursorTarget.files.hooks, JSON.stringify(duplicateCursorHooks, null, 2), 'utf8')
 const duplicateCursorGeneration = verifyGlobalHostRuntime({
@@ -316,10 +329,11 @@ assert(duplicateCursorHost.issues.some(issue => issue.code === 'CURSOR_HOOK_CONT
 fs.writeFileSync(cursorTarget.files.hooks, healthyCursorHooks, 'utf8')
 
 const stalePluginCursorHooks = JSON.parse(healthyCursorHooks)
-stalePluginCursorHooks.hooks.preToolUse[0].command = cursorCommand.replace(
-  cursorTarget.files.plugin,
+stalePluginCursorHooks.hooks.preToolUse[0].command = buildHostHookCommand(cursorRuntimeEntry, [
+  'cursor',
+  '--cursor-plugin-path',
   path.join(cursorTarget.root, 'devcodex', 'plugins', 'stale-workspace-plugin')
-)
+])
 fs.writeFileSync(cursorTarget.files.hooks, JSON.stringify(stalePluginCursorHooks, null, 2), 'utf8')
 const stalePluginCursorGeneration = verifyGlobalHostRuntime({
   configuration: {

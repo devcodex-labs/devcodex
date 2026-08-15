@@ -16,6 +16,9 @@ try {
     if (receipt.globalHostConfig?.receiptFinalizationIncomplete) {
       console.warn(`[devcodex] adapter refresh committed, but ${receipt.globalHostConfig.receiptFinalizationFailureCount} receipt finalization step(s) remain pending; the next global install or update will reconcile them`)
     }
+    if (receipt.persistence?.status !== 'PASS') {
+      console.warn(`[devcodex] adapter refresh completed, but activation readiness receipt persistence is unverified (${receipt.persistence?.error || 'unknown'})`)
+    }
   } else if (receipt.status === 'planned') {
     console.log('[devcodex] global postinstall dry-run planned user-level host adapter refresh')
   } else if (receipt.reason === 'workspace-install-global-required') {

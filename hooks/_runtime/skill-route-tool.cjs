@@ -49,7 +49,8 @@ const {
   deriveTurnBinding,
   loadEnvelope,
   TURN_BINDING_RE,
-  transactEnvelope
+  transactEnvelope,
+  transactCatalogProgress
 } = require('./skill-route-state.cjs')
 const {
   DIGEST_RE,
@@ -751,11 +752,11 @@ function appendLedger (state, item) {
 }
 
 function handleCatalog (input, target, options) {
-  return transactEnvelope(
+  return transactCatalogProgress(
     target.activeRoot,
     input.turnBinding,
     input,
-    (envelope, tx) => {
+    (envelope, progress, tx) => {
       assertEnvelopeBinding(envelope.state, input, target, options)
       const pageIndex = resolveCatalogPageIndex(
         envelope.state.catalog,
@@ -771,41 +772,48 @@ function handleCatalog (input, target, options) {
         error.code = 'CATALOG_CURSOR_INVALID'
         throw error
       }
-      const expectedPageIndex = envelope.state.servedCatalogPages.length
-      const expectedCursor = expectedPageIndex === 0
+      const pageCursor = pageIndex === 0
         ? null
-        : envelope.state.catalog.pages[expectedPageIndex - 1]?.nextCursor
-      if (pageIndex !== expectedPageIndex ||
-          (input.cursor || null) !== (expectedCursor || null)) {
+        : envelope.state.catalog.pages[pageIndex - 1]?.nextCursor
+      if ((input.cursor || null) !== (pageCursor || null)) {
+        const error = new Error('CATALOG_CURSOR_OUT_OF_SEQUENCE')
+        error.code = 'CATALOG_CURSOR_OUT_OF_SEQUENCE'
+        throw error
+      }
+      const expectedPageIndex = progress.servedCatalogPages.length
+      if (pageIndex > expectedPageIndex) {
         const error = new Error('CATALOG_CURSOR_OUT_OF_SEQUENCE')
         error.code = 'CATALOG_CURSOR_OUT_OF_SEQUENCE'
         throw error
       }
       const receipt = envelope.state.catalog.pages[pageIndex]
-      if (!envelope.state.servedCatalogPages.includes(pageIndex)) {
-        envelope.state.servedCatalogPages.push(pageIndex)
-        envelope.state.servedCatalogPages.sort((left, right) => left - right)
-      }
       const response = bindResponseToTransaction(
         successResponse('catalog', receipt, [], 8 * 1024),
         tx,
         8 * 1024
       )
-      appendLedger(envelope.state, {
-        op: 'catalog',
+      if (pageIndex < expectedPageIndex) {
+        return { progress, response, replayed: true, write: false }
+      }
+      progress.servedCatalogPages.push(pageIndex)
+      progress.catalogLedger = Array.isArray(progress.catalogLedger)
+        ? [...progress.catalogLedger]
+        : []
+      progress.catalogLedger.push({
+        pageIndex,
         stageId: null,
         sourceBytes: 0,
         serializedBytes: response.delivery.serializedBytes,
         bodyBytes: 0,
-        runtimeServedPages: envelope.state.servedCatalogPages.length,
+        runtimeServedPages: progress.servedCatalogPages.length,
         expectedPages: envelope.state.catalog.pages.length,
         contextEpoch: input.contextEpoch,
         generation: 0,
         responseDigest: sha256(response),
-        replayed: false,
-        idempotencyKey: tx.idempotencyKey
+        idempotencyKey: tx.idempotencyKey,
+        deliveredAt: new Date().toISOString()
       })
-      return { envelope, response }
+      return { progress, response, replayed: false, write: true }
     },
     options
   ).response
@@ -2489,6 +2497,7 @@ function formatSkillRouteBootstrapInjection (bootstrap, options = {}) {
     JSON.stringify(bootstrap),
     '',
     ...hostToolContract,
+    'When the observed ContextRead plan includes `profile.routeLoadRecipe`, call `profile_load` with that exact `contextBinding` and executionOptimization but omit `files` and `sectionSelectors`; the server applies the plan-owned bounded recipe.',
     `Use the local \`${routeTool}\` Tool. For a non-explicit task, read every catalog page before one \`commit\` choice (\`skillId\` is one id or null).`,
     'For the first `catalog` call, omit `cursor` entirely; never send `cursor:null`. Add `cursor` only when the preceding catalog page returns a non-empty `nextCursor`.',
     'There is no `replan` operation. Activate a ready late condition with another `op:"commit"` call using the current `previousPlanDigest`, `lateConditionId`, and fresh `ContextReadBindingV1` before loading that conditional stage.',

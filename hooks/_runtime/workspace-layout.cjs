@@ -3,6 +3,10 @@
 const fs = require('fs')
 const path = require('path')
 
+// Transport-level shape only; normalizeProjectNamespace remains the authority for
+// traversal, reserved-root and workspace-containment checks.
+const PROJECT_NAMESPACE_SCHEMA_PATTERN = '^[\\w.-]+(?:/[\\w.-]+)*$'
+
 const RESERVED_NAMESPACE_ROOTS = new Set([
   'workspace',
   'profile',
@@ -510,6 +514,7 @@ function resolveProfileDir(cwd) {
 }
 
 module.exports = {
+  PROJECT_NAMESPACE_SCHEMA_PATTERN,
   PROJECT_ROOT_MARKERS,
   RESERVED_NAMESPACE_ROOTS,
   CONTAINER_DIR_NAMES,

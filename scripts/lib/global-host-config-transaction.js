@@ -191,6 +191,8 @@ function executeGlobalHostTransaction(operations, options = {}) {
       action: operation.action,
       kind: operation.kind || 'text',
       path: operation.path,
+      expectedDigest: operation.expectedDigest || null,
+      expectAbsent: operation.expectAbsent === true,
       changed: true
     }))
   }
@@ -255,9 +257,22 @@ function executeGlobalHostTransaction(operations, options = {}) {
         assertSidecarAbsent(staged, fsImpl)
         assertSidecarAbsent(backup, fsImpl)
         if (operation.action === 'write') {
-          fsImpl.writeFileSync(staged, operation.content, binary
-            ? { flag: 'wx' }
-            : { encoding: 'utf8', flag: 'wx' })
+          if (existing) {
+            const sourceStat = fsImpl.statSync(destination)
+            fsImpl.copyFileSync(destination, staged, fs.constants.COPYFILE_EXCL)
+            fsImpl.chmodSync(staged, sourceStat.mode | 0o200)
+            fsImpl.writeFileSync(staged, operation.content, binary
+              ? { flag: 'w' }
+              : { encoding: 'utf8', flag: 'w' })
+            fsImpl.chmodSync(staged, sourceStat.mode)
+            if (process.platform !== 'win32' && typeof fsImpl.chownSync === 'function') {
+              fsImpl.chownSync(staged, sourceStat.uid, sourceStat.gid)
+            }
+          } else {
+            fsImpl.writeFileSync(staged, operation.content, binary
+              ? { flag: 'wx' }
+              : { encoding: 'utf8', flag: 'wx' })
+          }
           if (operation.kind === 'json') JSON.parse(fsImpl.readFileSync(staged, 'utf8'))
         }
         if (existing) {
@@ -265,6 +280,12 @@ function executeGlobalHostTransaction(operations, options = {}) {
           assertExpectedCurrent(operation, fsImpl)
           fsImpl.renameSync(destination, backup)
           backupCreated = true
+          if (operation.expectedDigest != null &&
+              operationDigest(fsImpl.readFileSync(backup)) !== operation.expectedDigest) {
+            const error = new Error(`GLOBAL_HOST_OPERATION_PRECONDITION_FAILED: ${destination}`)
+            error.code = 'GLOBAL_HOST_OPERATION_PRECONDITION_FAILED'
+            throw error
+          }
         }
         if (options.failAfter === changedIndex) throw new Error('GLOBAL_HOST_TEST_INJECTED_FAILURE')
         if (operation.action === 'write') {

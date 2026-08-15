@@ -7,6 +7,10 @@ const { resolveGlobalHostTarget, samePath } = require('./global-host-target.js')
 const { isDevCodexManagedHookEntry } = require('./global-host-config-merge.js')
 const { buildGrokCliEnv } = require('./grok-cli-env.js')
 const { inspectNodeRuntimeReadiness } = require('./node-runtime-readiness.js')
+const {
+  buildHostHookCommand,
+  canonicalNodeExecutable
+} = require('./host-command.js')
 
 const EXECUTABLE_ADAPTER_HOSTS = Object.freeze(['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor'])
 const NATIVE_COMMANDS = Object.freeze({
@@ -294,7 +298,11 @@ function cursorStaticContract(target, options = {}) {
   ]
   const eventStatus = {}
   const eventManagedCounts = {}
-  const expectedCommand = `node "${runtimeEntry}" cursor --cursor-plugin-path "${target.files.plugin}"`
+  const expectedCommand = buildHostHookCommand(runtimeEntry, [
+    'cursor',
+    '--cursor-plugin-path',
+    target.files.plugin
+  ], { fs: fsImpl })
   const normalizeCommand = value => String(value || '')
     .trim()
     .replace(/\\/g, '/')
@@ -366,7 +374,7 @@ function cursorStaticContract(target, options = {}) {
     const args = Array.isArray(server?.args) ? server.args : []
     if (
       server?.type !== 'stdio' ||
-      server?.command !== 'node' ||
+      !samePath(server?.command || '', canonicalNodeExecutable({ fs: fsImpl })) ||
       server?.env?.DEVCODEX_AGENT !== 'cursor' ||
       !fsImpl.existsSync(serverPath) ||
       !args.some(value => samePath(String(value), serverPath)) ||
@@ -892,6 +900,7 @@ function verifyGlobalHostRuntime(options = {}) {
         ...configurationHost,
         configured: false,
         adapterReady: false,
+        adapterContractStatus: 'unverified',
         contractStatus: 'unverified',
         nativeStatus: 'unverified',
         operationalState: 'unverified',
@@ -958,6 +967,7 @@ function verifyGlobalHostRuntime(options = {}) {
       ...configurationHost,
       configured,
       adapterReady,
+      adapterContractStatus: adapter.status,
       contractStatus,
       nativeStatus,
       operationalState: state,

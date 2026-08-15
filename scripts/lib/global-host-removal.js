@@ -34,6 +34,10 @@ const {
   uninstallGrokPluginInstallation
 } = require('./host-adapter-scope.js')
 const { buildGrokCliEnv } = require('./grok-cli-env.js')
+const {
+  ACTIVATION_RECEIPT_SCHEMA,
+  resolveActivationReceiptFile
+} = require('./devcodex-readiness.js')
 
 const GLOBAL_HOST_REMOVAL_PLAN_SCHEMA = 'GlobalHostRemovalPlanV1'
 const GLOBAL_HOST_REMOVAL_RECEIPT_SCHEMA = 'GlobalHostRemovalReceiptV1'
@@ -41,6 +45,7 @@ const MANAGED_SIGNATURE = /BEGIN DEVCODEX MANAGED|# DevCodex global host adapter
 const MAX_REMOVAL_RECEIPT_BYTES = 16 * 1024 * 1024
 const MAX_REMOVAL_RECEIPT_PATHS = 20000
 const MAX_MANAGED_ROOT_SCAN_ENTRIES = 50000
+const MAX_ACTIVATION_RECEIPT_BYTES = 4 * 1024 * 1024
 
 function digestText(value) {
   return crypto.createHash('sha256').update(String(value)).digest('hex')
@@ -169,8 +174,8 @@ function exclusiveManagedRoots(receipt, target, fsImpl = fs) {
   return Array.from(new Map(roots.map(root => [pathKey(root), path.resolve(root)])).values())
 }
 
-function unknownFilesInManagedRoots(receipt, target, fsImpl = fs) {
-  const paths = receiptPaths(receipt).map(file => path.resolve(file))
+function unknownFilesInManagedRoots(receipt, target, fsImpl = fs, additionalOwnedPaths = []) {
+  const paths = [...receiptPaths(receipt), ...additionalOwnedPaths].map(file => path.resolve(file))
   const owned = new Set(paths.map(pathKey))
   return exclusiveManagedRoots(receipt, target, fsImpl)
     .flatMap(root => {
@@ -194,6 +199,26 @@ function unknownFilesInManagedRoots(receipt, target, fsImpl = fs) {
     .map(portable)
     .filter((file, index, all) => all.indexOf(file) === index)
     .sort()
+}
+
+function validActivationReceiptPath(file, fsImpl = fs) {
+  if (!file || !fsImpl.existsSync(file)) return null
+  try {
+    const stat = fsImpl.lstatSync(file)
+    if (stat.isSymbolicLink() || !stat.isFile() || stat.size <= 0 || stat.size > MAX_ACTIVATION_RECEIPT_BYTES) {
+      return null
+    }
+    const receipt = parseJsonObject(readText(file, fsImpl), 'DevCodex activation readiness receipt')
+    if (receipt.schemaVersion !== ACTIVATION_RECEIPT_SCHEMA || receipt.packageName !== 'devcodex' ||
+        receipt.lifecycle?.schemaVersion !== 'DevCodexNpmLifecycleAdapterReceiptV1' ||
+        !['PASS', 'BLOCK'].includes(receipt.status) ||
+        typeof receipt.completedAt !== 'string' || !Number.isFinite(Date.parse(receipt.completedAt))) {
+      return null
+    }
+    return path.resolve(file)
+  } catch {
+    return null
+  }
 }
 
 function extractManagedBlockText(content, kind, id) {
@@ -549,18 +574,32 @@ function buildGlobalHostRemovalPlan(options = {}) {
       }
       receipt = parseJsonObject(readText(target.receiptFile, fsImpl), `${target.host} removal receipt`)
       validateReceipt(receipt, target, fsImpl)
-      const unknownFiles = unknownFilesInManagedRoots(receipt, target, fsImpl)
+      const activationReceiptPath = target.host === 'codex'
+        ? validActivationReceiptPath(resolveActivationReceiptFile({
+            env,
+            home: options.home,
+            fs: fsImpl
+          }), fsImpl)
+        : null
+      const auxiliaryManagedPaths = activationReceiptPath ? [activationReceiptPath] : []
+      const unknownFiles = unknownFilesInManagedRoots(receipt, target, fsImpl, auxiliaryManagedPaths)
       if (unknownFiles.length) {
         const error = new Error(`GLOBAL_HOST_REMOVAL_UNKNOWN_MANAGED_ROOT_CONTENT: ${unknownFiles.join(', ')}`)
         error.code = 'GLOBAL_HOST_REMOVAL_UNKNOWN_MANAGED_ROOT_CONTENT'
         throw error
       }
       const expected = expectedOperationMap(expectedPlan, target.host)
-      const paths = receiptPaths(receipt)
+      const paths = Array.from(new Set([...receiptPaths(receipt), ...auxiliaryManagedPaths].map(portable)))
       let changed = 0
       for (const file of paths) {
         validateReceiptManagedPath(receipt, target, file, expected, fsImpl)
-        const artifact = receiptArtifact(receipt, target, file)
+        const artifact = auxiliaryManagedPaths.some(candidate => samePath(candidate, file))
+          ? {
+              path: portable(file),
+              ownershipKind: 'whole-file',
+              managedDigest: digestText(fsImpl.readFileSync(file))
+            }
+          : receiptArtifact(receipt, target, file)
         const operation = planArtifactOperation({
           artifact,
           receipt,

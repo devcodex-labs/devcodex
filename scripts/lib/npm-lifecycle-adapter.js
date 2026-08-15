@@ -4,6 +4,7 @@ const fs = require('fs')
 const path = require('path')
 const { applyGlobalHostConfig } = require('./global-host-config.js')
 const { syncGrokWorkspacePluginInstallation } = require('./host-adapter-scope.js')
+const { persistActivationReceipt } = require('./devcodex-readiness.js')
 
 const RECEIPT_SCHEMA = 'DevCodexNpmLifecycleAdapterReceiptV1'
 const PACKAGE_NAMES = Object.freeze(['devcodex', 'devcodex'])
@@ -95,6 +96,7 @@ function classifyNpmLifecycleInstall(options = {}) {
     schemaVersion: RECEIPT_SCHEMA,
     packageNames: PACKAGE_NAMES,
     packageRoot,
+    packageVersion: readJson(pathImpl.join(packageRoot, 'package.json'), fsImpl)?.version || null,
     cwd,
     initCwd,
     lifecycleEvent: env.npm_lifecycle_event || null,
@@ -245,14 +247,13 @@ function runPostinstall(options = {}) {
     receipt.exitCode = 1
     receipt.errorCode = error.code || 'GLOBAL_HOST_CONFIG_FAILED'
     receipt.error = error.message
-    if (truthy(env.DEVCODEX_POSTINSTALL_STRICT)) {
-      const strictError = new Error(`DEVCODEX_POSTINSTALL_FAILED: ${receipt.errorCode}`)
-      receipt.completedAt = new Date().toISOString()
-      strictError.receipt = receipt
-      throw strictError
-    }
   }
   receipt.completedAt = new Date().toISOString()
+  receipt.persistence = (options.persistActivationReceipt || persistActivationReceipt)(receipt, {
+    env,
+    home: options.home,
+    fs: options.fs
+  })
 
   if (receipt.status !== 'executed' && truthy(env.DEVCODEX_POSTINSTALL_STRICT)) {
     const error = new Error(`DEVCODEX_POSTINSTALL_FAILED: ${receipt.errorCode || receipt.exitCode || 'unknown'}`)

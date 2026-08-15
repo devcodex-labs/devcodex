@@ -38,7 +38,9 @@ const TASK_CONTENT_ROOTS = new Set([
 const OWNERSHIP_DISQUALIFIERS = new Set([
   'path-escape', 'physical-path-escape', 'reparse-ancestor', 'path-unreadable',
   'unknown-manifest-schema', 'invalid-artifact-id', 'unknown-artifact-type',
-  'unknown-owner', 'incomplete-owner-scope', 'partition-mismatch', 'partition-root-reserved'
+  'unknown-owner', 'incomplete-owner-scope', 'partition-mismatch', 'partition-root-reserved',
+  'target-identity-missing', 'target-identity-invalid', 'target-instance-changed',
+  'target-identity-unreadable'
 ])
 
 function isExternalDriveSpoolDirectoryName(value) {
@@ -61,6 +63,39 @@ function isContained(root, candidate) {
 function safeIdentifier(value) {
   const text = String(value || '').trim()
   return /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(text)
+}
+
+function captureTargetIdentity(targetPath) {
+  const stats = fs.lstatSync(targetPath, { bigint: true })
+  if (stats.isSymbolicLink()) throw new Error(`WORKSPACE_TEMP_TARGET_REPARSE: ${targetPath}`)
+  const kind = stats.isDirectory() ? 'directory' : (stats.isFile() ? 'file' : 'other')
+  return {
+    schemaVersion: 'WorkspaceTempTargetIdentityV1',
+    kind,
+    device: String(stats.dev),
+    inode: String(stats.ino),
+    birthtimeNs: stats.birthtimeNs != null
+      ? String(stats.birthtimeNs)
+      : String(BigInt(Math.trunc(Number(stats.birthtimeMs || 0) * 1e6)))
+  }
+}
+
+function validTargetIdentity(value) {
+  return Boolean(
+    value?.schemaVersion === 'WorkspaceTempTargetIdentityV1' &&
+    ['directory', 'file', 'other'].includes(value.kind) &&
+    /^-?\d+$/.test(String(value.device || '')) &&
+    /^-?\d+$/.test(String(value.inode || '')) &&
+    /^-?\d+$/.test(String(value.birthtimeNs || ''))
+  )
+}
+
+function targetIdentityMatches(expected, observed) {
+  return validTargetIdentity(expected) && validTargetIdentity(observed) &&
+    expected.kind === observed.kind &&
+    String(expected.device) === String(observed.device) &&
+    String(expected.inode) === String(observed.inode) &&
+    String(expected.birthtimeNs) === String(observed.birthtimeNs)
 }
 
 function inspectPathBoundary(root, candidate) {
@@ -226,6 +261,7 @@ function registerWorkspaceTempArtifactAtRoot(tempRoot, input = {}) {
     project,
     producer,
     targetPath,
+    targetIdentity: captureTargetIdentity(targetPath),
     createdAt: new Date(createdAtMs).toISOString(),
     expiresAt: new Date(expiresAtMs).toISOString(),
     cleanupPolicy: input.cleanupPolicy || 'delete',
@@ -362,6 +398,8 @@ function inspectManifest(root, manifestPath, nowMs, maxTargetEntries = MAX_ENTRI
   if (!String(manifest?.owner || '').trim()) reasons.push('unknown-owner')
   if (!String(manifest?.project || '').trim() || !String(manifest?.producer || '').trim()) reasons.push('incomplete-owner-scope')
   if (manifest?.cleanupPolicy !== 'delete') reasons.push('cleanup-policy-not-delete')
+  if (manifest?.targetIdentity == null) reasons.push('target-identity-missing')
+  else if (!validTargetIdentity(manifest.targetIdentity)) reasons.push('target-identity-invalid')
 
   const targetPath = path.resolve(String(manifest?.targetPath || root))
   const targetContained = Boolean(manifest?.targetPath) && path.isAbsolute(String(manifest.targetPath)) && isContained(root, targetPath)
@@ -392,6 +430,17 @@ function inspectManifest(root, manifestPath, nowMs, maxTargetEntries = MAX_ENTRI
   if (target.lock) reasons.push('lock-present')
   if (target.unreadable) reasons.push('target-unreadable')
   if (target.truncated) reasons.push('inspection-truncated')
+  let observedTargetIdentity = null
+  if (target.exists && validTargetIdentity(manifest?.targetIdentity)) {
+    try {
+      observedTargetIdentity = captureTargetIdentity(targetPath)
+      if (!targetIdentityMatches(manifest.targetIdentity, observedTargetIdentity)) {
+        reasons.push('target-instance-changed')
+      }
+    } catch {
+      reasons.push('target-identity-unreadable')
+    }
+  }
   if (Number.isFinite(expiresAtMs) && expiresAtMs > nowMs) reasons.push('ttl-not-expired')
   return {
     manifestPath,
@@ -403,11 +452,55 @@ function inspectManifest(root, manifestPath, nowMs, maxTargetEntries = MAX_ENTRI
     producer: manifest?.producer || null,
     leaseId: safeIdentifier(manifest?.leaseId) ? manifest.leaseId : null,
     targetPath,
+    targetIdentity: validTargetIdentity(manifest?.targetIdentity) ? manifest.targetIdentity : null,
+    observedTargetIdentity,
     expiresAt: Number.isFinite(expiresAtMs) ? new Date(expiresAtMs).toISOString() : null,
     target,
     lease,
     eligible: reasons.length === 0,
     reasons
+  }
+}
+
+function removeIdentityBoundTarget(root, targetPath, expectedIdentity, artifactId) {
+  if (!fs.existsSync(targetPath)) return { removed: false, stagedPath: null }
+  const observed = captureTargetIdentity(targetPath)
+  if (!targetIdentityMatches(expectedIdentity, observed)) {
+    throw Object.assign(new Error('registered target instance was replaced before deletion'), {
+      code: 'WORKSPACE_TEMP_TARGET_INSTANCE_CHANGED'
+    })
+  }
+  const stagedPath = `${targetPath}.devcodex-prune-${artifactId}-${crypto.randomBytes(6).toString('hex')}`
+  const stagedBoundary = inspectPathBoundary(root, stagedPath)
+  if (!stagedBoundary.safe || fs.existsSync(stagedPath)) {
+    throw Object.assign(new Error('identity-bound prune staging path is unavailable'), {
+      code: 'WORKSPACE_TEMP_PRUNE_STAGE_UNSAFE'
+    })
+  }
+  fs.renameSync(targetPath, stagedPath)
+  try {
+    const movedIdentity = captureTargetIdentity(stagedPath)
+    if (!targetIdentityMatches(expectedIdentity, movedIdentity)) {
+      throw Object.assign(new Error('target instance changed during identity-bound rename'), {
+        code: 'WORKSPACE_TEMP_TARGET_INSTANCE_CHANGED'
+      })
+    }
+    fs.rmSync(stagedPath, { recursive: true, force: true })
+    return { removed: true, stagedPath }
+  } catch (error) {
+    if (fs.existsSync(stagedPath) && !fs.existsSync(targetPath)) {
+      try {
+        fs.renameSync(stagedPath, targetPath)
+      } catch (restoreError) {
+        error.restoreFailure = {
+          stagedPath,
+          targetPath,
+          errorCode: restoreError.code || 'WORKSPACE_TEMP_TARGET_RESTORE_FAILED',
+          message: restoreError.message
+        }
+      }
+    }
+    throw error
   }
 }
 
@@ -896,10 +989,13 @@ function pruneWorkspaceTemp(cwd, { apply = false, nowMs = Date.now(), maxEntries
         if (manifestDigest(candidate.manifestPath) !== candidate.manifestDigest) {
           throw Object.assign(new Error('manifest changed before deletion'), { code: 'WORKSPACE_TEMP_MANIFEST_CHANGED' })
         }
-        if (fs.existsSync(refreshed.targetPath)) {
-          fs.rmSync(refreshed.targetPath, { recursive: true, force: true })
-          targetRemoved = true
-        }
+        const targetRemoval = removeIdentityBoundTarget(
+          status.canonicalRoot,
+          refreshed.targetPath,
+          refreshed.targetIdentity,
+          refreshed.artifactId
+        )
+        targetRemoved = targetRemoval.removed
         if (expiredLease && fs.existsSync(expiredLease.path)) {
           const finalLease = readLease(status.canonicalRoot, candidate.leaseId, nowMs)
           if (finalLease.status !== 'expired' || finalLease.digest !== expiredLease.digest) {
@@ -981,5 +1077,8 @@ module.exports = {
   pruneWorkspaceTemp,
   registerWorkspaceTempArtifactAtRoot,
   registerWorkspaceTempBackup,
-  inspectPathBoundary
+  inspectPathBoundary,
+  captureTargetIdentity,
+  targetIdentityMatches,
+  validTargetIdentity
 }

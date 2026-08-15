@@ -5,21 +5,10 @@ const fs = require('fs')
 const path = require('path')
 
 const {
-  getRuntimeContractDigest,
   validateCapabilityDocument
 } = require('../hooks/_runtime/skill-route-mode.cjs')
-const {
-  getLifecycleHostAdapterDigest
-} = require('../hooks/_runtime/host-adapter-identity.cjs')
-const {
-  getGrokLauncherAdapterDigest
-} = require('./lib/grok-workspace-launcher')
-const {
-  resolveFixtureGlobalRuntime
-} = require('./lib/skill-route-test-fixture')
 
 const ROOT = path.resolve(__dirname, '..')
-const GLOBAL_RUNTIME = resolveFixtureGlobalRuntime(ROOT)
 const REQUIREMENTS_ROOT = process.env.DEVCODEX_SKILL_ROUTE_REQUIREMENTS_ROOT
   ? path.resolve(process.env.DEVCODEX_SKILL_ROUTE_REQUIREMENTS_ROOT)
   : path.resolve(
@@ -170,36 +159,17 @@ const capabilities = JSON.parse(read(path.join(
 const pass = capabilities.capabilities.filter(item => item.status === 'PASS')
 const capabilityValidation = validateCapabilityDocument(capabilities, { packageRoot: ROOT })
 assert.strictEqual(capabilityValidation.valid, true, capabilityValidation.errors.join(', '))
-assert.strictEqual(pass.length, 2)
-const passByVariant = new Map(pass.map(item => [item.hostVariant, item]))
-const expectedPassAdapters = new Map([
-  [
-    'codex-cli/exec-user-global-local-stdio',
-    getLifecycleHostAdapterDigest('codex')
-  ],
-  [
-    'grok-cli-single/global-launcher-local-stdio',
-    getGrokLauncherAdapterDigest()
-  ]
-])
-assert.deepStrictEqual(
-  [...passByVariant.keys()].sort(),
-  [...expectedPassAdapters.keys()].sort()
-)
-for (const [hostVariant, adapterDigest] of expectedPassAdapters) {
-  const capability = passByVariant.get(hostVariant)
-  assert.strictEqual(
-    capability.runtimeContractDigest,
-    getRuntimeContractDigest({
-      globalRuntime: GLOBAL_RUNTIME
-    })
-  )
-  assert.strictEqual(capability.hostAdapterDigest, adapterDigest)
-  assert.match(capability.evidenceDigest, /^[a-f0-9]{64}$/)
-  assert.strictEqual(path.isAbsolute(capability.evidenceRef), false)
-  assert.strictEqual(path.win32.isAbsolute(capability.evidenceRef), false)
-  assert(fs.existsSync(path.join(ROOT, capability.evidenceRef)))
-  assert.strictEqual(capability.defaultEligible, true)
+assert.strictEqual(pass.length, 0, 'runtime or host changes must not retain stale PASS evidence')
+for (const hostVariant of [
+  'codex-cli/exec-user-global-local-stdio',
+  'codex-desktop/app-user-global-local-stdio',
+  'grok-cli-single/global-launcher-local-stdio'
+]) {
+  const capability = capabilities.capabilities.find(item => item.hostVariant === hostVariant)
+  assert(capability, `missing capability declaration for ${hostVariant}`)
+  assert.strictEqual(capability.status, 'UNVERIFIED')
+  assert.strictEqual(capability.evidenceRef, null)
+  assert.strictEqual(capability.defaultEligible, false)
 }
 
 console.log(

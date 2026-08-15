@@ -376,7 +376,8 @@ function resolveSkillRouteMode (options = {}) {
     env.DEVCODEX_HOST_VARIANT ||
     options.host ||
     env.DEVCODEX_AGENT ||
-    (env.CLAUDE_PROJECT_DIR ? 'claude-code' : '')
+    (env.CLAUDE_PROJECT_DIR ? 'claude-code' : ''),
+    { env, sessionId: options.sessionId }
   )
   const project = String(options.project || '').trim()
   const capabilityDoc = readJson(options.capabilityPath || CAPABILITY_PATH, options.fs || fs)

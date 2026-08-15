@@ -15,6 +15,7 @@ const {
   parseExplicitSkillId,
   loadEnvelope,
   routeRootForActiveRoot,
+  turnPaths,
   transactEnvelope
 } = require('../hooks/_runtime/skill-route-state.cjs')
 const {
@@ -302,7 +303,17 @@ try {
     'CATALOG_CURSOR_OUT_OF_SEQUENCE'
   )
 
+  const catalogPaths = turnPaths(fixture.activeRoot, boot.bootstrap.turnBinding)
+  const envelopeBeforeCatalog = fs.readFileSync(catalogPaths.envelope, 'utf8')
   const pages = requestCatalogAll(fixture, boot.bootstrap)
+  assert(pages.length <= 5, `expected first catalog to fit in <=5 pages, got ${pages.length}`)
+  assert.strictEqual(fs.readFileSync(catalogPaths.envelope, 'utf8'), envelopeBeforeCatalog)
+  const catalogProgress = JSON.parse(fs.readFileSync(catalogPaths.catalogProgress, 'utf8'))
+  assert.deepStrictEqual(
+    catalogProgress.servedCatalogPages,
+    pages.map((_, index) => index)
+  )
+  assert.strictEqual(catalogProgress.catalogLedger.length, pages.length)
   const firstReplay = handleSkillRoute({
     op: 'catalog',
     project: fixture.project,
@@ -310,6 +321,7 @@ try {
     contextEpoch
   }, fixture.runtimeOptions)
   assert.deepStrictEqual(firstReplay, pages[0])
+  assert.strictEqual(fs.readFileSync(catalogPaths.envelope, 'utf8'), envelopeBeforeCatalog)
 
   const forgedCursor = handleSkillRoute({
     op: 'catalog',
@@ -761,6 +773,15 @@ try {
   assert.strictEqual(
     commit.receipt.obligations.selectedBusinessSkillId,
     'workspace-probe'
+  )
+  const committedEnvelope = JSON.parse(fs.readFileSync(catalogPaths.envelope, 'utf8'))
+  assert.deepStrictEqual(
+    committedEnvelope.state.servedCatalogPages,
+    pages.map((_, index) => index)
+  )
+  assert.strictEqual(
+    committedEnvelope.state.contributionLedger.items.filter(item => item.op === 'catalog').length,
+    pages.length
   )
   const pendingStatus = handleSkillRoute({
     op: 'status',
@@ -2398,6 +2419,145 @@ try {
     )
   } finally {
     nonExplicitFixture.cleanup()
+  }
+
+  const legacyProgressFixture = createSkillRouteFixture({ project: 'catalog-progress-legacy-migration' })
+  try {
+    const legacyProgressBoot = bootstrapSkillRoute({
+      project: legacyProgressFixture.project,
+      activeRoot: legacyProgressFixture.activeRoot,
+      contextEpoch: 'ctx-catalog-progress-legacy-migration',
+      prompt: 'Exercise legacy catalog progress migration',
+      mode: 'unified',
+      cwd: legacyProgressFixture.projectRoot
+    }, legacyProgressFixture.runtimeOptions)
+    const legacyPages = requestCatalogAll(legacyProgressFixture, legacyProgressBoot.bootstrap)
+    const hydrated = loadEnvelope(
+      legacyProgressFixture.activeRoot,
+      legacyProgressBoot.bootstrap.turnBinding,
+      legacyProgressFixture.runtimeOptions
+    ).envelope
+    fs.writeFileSync(
+      legacyProgressBoot.paths.envelope,
+      `${JSON.stringify(hydrated, null, 2)}\n`,
+      'utf8'
+    )
+    fs.rmSync(legacyProgressBoot.paths.catalogProgress, { force: true })
+    const migrated = loadEnvelope(
+      legacyProgressFixture.activeRoot,
+      legacyProgressBoot.bootstrap.turnBinding,
+      legacyProgressFixture.runtimeOptions
+    ).envelope
+    assert.strictEqual(
+      migrated.state.contributionLedger.items.filter(item => item.op === 'catalog').length,
+      legacyPages.length,
+      'rolling-upgrade hydration must not duplicate legacy catalog contributions'
+    )
+  } finally {
+    legacyProgressFixture.cleanup()
+  }
+
+  const invalidProgressFixture = createSkillRouteFixture({ project: 'catalog-progress-invalid' })
+  try {
+    const invalidProgressBoot = bootstrapSkillRoute({
+      project: invalidProgressFixture.project,
+      activeRoot: invalidProgressFixture.activeRoot,
+      contextEpoch: 'ctx-catalog-progress-invalid',
+      prompt: 'Exercise catalog progress validation',
+      mode: 'unified',
+      cwd: invalidProgressFixture.projectRoot
+    }, invalidProgressFixture.runtimeOptions)
+    requestCatalogAll(invalidProgressFixture, invalidProgressBoot.bootstrap)
+    const invalidProgress = JSON.parse(
+      fs.readFileSync(invalidProgressBoot.paths.catalogProgress, 'utf8')
+    )
+    invalidProgress.catalogDigest = '0'.repeat(64)
+    fs.writeFileSync(
+      invalidProgressBoot.paths.catalogProgress,
+      `${JSON.stringify(invalidProgress, null, 2)}\n`,
+      'utf8'
+    )
+    assert.throws(
+      () => loadEnvelope(
+        invalidProgressFixture.activeRoot,
+        invalidProgressBoot.bootstrap.turnBinding,
+        invalidProgressFixture.runtimeOptions
+      ),
+      error => error && error.code === 'CATALOG_PROGRESS_INVALID'
+    )
+    fs.writeFileSync(invalidProgressBoot.paths.catalogProgress, '{malformed-json', 'utf8')
+    assert.throws(
+      () => loadEnvelope(
+        invalidProgressFixture.activeRoot,
+        invalidProgressBoot.bootstrap.turnBinding,
+        invalidProgressFixture.runtimeOptions
+      ),
+      error => error && error.code === 'CATALOG_PROGRESS_INVALID',
+      'an existing malformed catalog sidecar must fail closed instead of replaying legacy envelope state'
+    )
+  } finally {
+    invalidProgressFixture.cleanup()
+  }
+
+  const incompleteLedgerFixture = createSkillRouteFixture({ project: 'catalog-progress-ledger-incomplete' })
+  try {
+    const incompleteLedgerBoot = bootstrapSkillRoute({
+      project: incompleteLedgerFixture.project,
+      activeRoot: incompleteLedgerFixture.activeRoot,
+      contextEpoch: 'ctx-catalog-progress-ledger-incomplete',
+      prompt: 'Exercise catalog ledger completeness validation',
+      mode: 'unified',
+      cwd: incompleteLedgerFixture.projectRoot
+    }, incompleteLedgerFixture.runtimeOptions)
+    requestCatalogAll(incompleteLedgerFixture, incompleteLedgerBoot.bootstrap)
+    const incompleteProgress = JSON.parse(
+      fs.readFileSync(incompleteLedgerBoot.paths.catalogProgress, 'utf8')
+    )
+    assert(incompleteProgress.servedCatalogPages.length > 0)
+    incompleteProgress.catalogLedger = []
+    fs.writeFileSync(
+      incompleteLedgerBoot.paths.catalogProgress,
+      `${JSON.stringify(incompleteProgress, null, 2)}\n`,
+      'utf8'
+    )
+    assert.throws(
+      () => loadEnvelope(
+        incompleteLedgerFixture.activeRoot,
+        incompleteLedgerBoot.bootstrap.turnBinding,
+        incompleteLedgerFixture.runtimeOptions
+      ),
+      error => error && error.code === 'CATALOG_PROGRESS_INVALID'
+    )
+  } finally {
+    incompleteLedgerFixture.cleanup()
+  }
+
+  const progressRecoveryFixture = createSkillRouteFixture({ project: 'catalog-progress-backup-recovery' })
+  try {
+    const progressRecoveryBoot = bootstrapSkillRoute({
+      project: progressRecoveryFixture.project,
+      activeRoot: progressRecoveryFixture.activeRoot,
+      contextEpoch: 'ctx-catalog-progress-backup-recovery',
+      prompt: 'Exercise catalog progress crash recovery',
+      mode: 'unified',
+      cwd: progressRecoveryFixture.projectRoot
+    }, progressRecoveryFixture.runtimeOptions)
+    const recoveryPages = requestCatalogAll(progressRecoveryFixture, progressRecoveryBoot.bootstrap)
+    const replacementBackup = `${progressRecoveryBoot.paths.catalogProgress}.replace.fixture`
+    fs.renameSync(progressRecoveryBoot.paths.catalogProgress, replacementBackup)
+    const { envelope: recoveredEnvelope } = loadEnvelope(
+      progressRecoveryFixture.activeRoot,
+      progressRecoveryBoot.bootstrap.turnBinding,
+      progressRecoveryFixture.runtimeOptions
+    )
+    assert.deepStrictEqual(
+      recoveredEnvelope.state.servedCatalogPages,
+      recoveryPages.map((_, index) => index)
+    )
+    assert.strictEqual(fs.existsSync(progressRecoveryBoot.paths.catalogProgress), true)
+    assert.strictEqual(fs.existsSync(replacementBackup), false)
+  } finally {
+    progressRecoveryFixture.cleanup()
   }
 
   const gcFixture = createSkillRouteFixture({ project: 'gc' })

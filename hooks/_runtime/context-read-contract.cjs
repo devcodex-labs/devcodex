@@ -33,8 +33,18 @@ const CONTEXT_READ_CONTRACT = Object.freeze({
     'CONTEXT_PLAN_INVALID',
     'CONTEXT_FULL_REASON_REQUIRED',
     'CONTEXT_ACTIVE_TARGET_MISMATCH',
+    'CONTEXT_BINDING_REQUIRED',
     'CONTEXT_BINDING_INVALID',
     'CONTEXT_BINDING_MISMATCH',
+    'CONTEXT_BINDING_PLAN_NOT_FOUND',
+    'CONTEXT_BINDING_PLAN_EXPIRED',
+    'CONTEXT_BINDING_PLAN_MISMATCH',
+    'CONTEXT_ACTION_NOT_AUTHORIZED',
+    'CONTEXT_SOURCE_NOT_AUTHORIZED',
+    'CONTEXT_SECTION_NOT_AUTHORIZED',
+    'SOURCE_TOO_LARGE',
+    'SOURCE_NOT_REGULAR_FILE',
+    'SOURCE_INVALID_UTF8',
     'MEMORY_QUERY_INVALID',
     'MEMORY_SCOPE_AMBIGUOUS'
   ]),
@@ -106,6 +116,26 @@ const CONTEXT_IDENTITY_VERSIONS = Object.freeze({
   consumers: 'profile-memory-hook@2'
 })
 const CONTEXT_RUNTIME_CONTRACT_VERSION = 2
+const PROFILE_ROUTE_LOAD_RECIPE_SCHEMA = 'ProfileRouteLoadRecipeV2'
+const PROFILE_ROUTE_LOAD_RECIPE_STRATEGY = 'bounded-section-selectors'
+const PROFILE_ROUTE_LOAD_RECIPE_MAX_BYTES = 32 * 1024
+const PROFILE_ROUTE_LOAD_RECIPE_FIELDS = new Set([
+  'schemaVersion',
+  'strategy',
+  'maxFiles',
+  'maxBytes',
+  'minimumHeadroomBytes',
+  'entries',
+  'recipeDigest'
+])
+const PROFILE_ROUTE_LOAD_RECIPE_ENTRY_FIELDS = new Set([
+  'file',
+  'headingQueries',
+  'requiredQueries',
+  'includePreamble',
+  'includeDescendants',
+  'maxBytes'
+])
 
 function canonicalize(value, seen = new WeakSet()) {
   if (value === null || value === undefined) return value === undefined ? null : value
@@ -155,6 +185,65 @@ function uniqueSorted(value, allowed = null) {
 function safeProfileFile(value) {
   const file = String(value || '').trim()
   return !!file && file !== '.' && file !== '..' && !/[\\/]/.test(file) && !file.includes('\0')
+}
+
+function normalizeProfileRouteLoadRecipe(raw, selectedFiles) {
+  if (raw === undefined || raw === null) return { valid: true, value: null, errors: [] }
+  const errors = []
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { valid: false, value: null, errors: ['profile route recipe must be an object or null'] }
+  }
+  const unknown = Object.keys(raw).filter(field => !PROFILE_ROUTE_LOAD_RECIPE_FIELDS.has(field))
+  if (unknown.length) errors.push(`unsupported profile route recipe fields: ${unknown.join(', ')}`)
+  if (raw.schemaVersion !== PROFILE_ROUTE_LOAD_RECIPE_SCHEMA) errors.push('invalid profile route recipe schema')
+  if (raw.strategy !== PROFILE_ROUTE_LOAD_RECIPE_STRATEGY) errors.push('invalid profile route recipe strategy')
+  if (!Number.isInteger(raw.maxFiles) || raw.maxFiles < 1 || raw.maxFiles > 32) errors.push('invalid profile route recipe maxFiles')
+  if (!Number.isInteger(raw.maxBytes) || raw.maxBytes < 1024 || raw.maxBytes > PROFILE_ROUTE_LOAD_RECIPE_MAX_BYTES) {
+    errors.push('invalid profile route recipe maxBytes')
+  }
+  if (!Number.isInteger(raw.minimumHeadroomBytes) || raw.minimumHeadroomBytes < 1024 ||
+      raw.minimumHeadroomBytes >= raw.maxBytes) {
+    errors.push('invalid profile route recipe minimumHeadroomBytes')
+  }
+  const entries = Array.isArray(raw.entries) ? raw.entries : []
+  const expectedFiles = Array.isArray(selectedFiles) ? [...selectedFiles].sort() : []
+  if (!entries.length || entries.length > raw.maxFiles) errors.push('invalid profile route recipe entries')
+  const entryFiles = []
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      errors.push('profile route recipe entry must be an object')
+      continue
+    }
+    const entryUnknown = Object.keys(entry).filter(field => !PROFILE_ROUTE_LOAD_RECIPE_ENTRY_FIELDS.has(field))
+    if (entryUnknown.length) errors.push(`unsupported profile route recipe entry fields: ${entryUnknown.join(', ')}`)
+    const file = String(entry.file || '').trim()
+    entryFiles.push(file)
+    if (!safeProfileFile(file)) errors.push(`unsafe profile route recipe file: ${file || '<empty>'}`)
+    const headingQueries = uniqueSorted(entry.headingQueries)
+    const requiredQueries = uniqueSorted(entry.requiredQueries)
+    if (!headingQueries.length || stableDigest(headingQueries) !== stableDigest(entry.headingQueries)) {
+      errors.push(`invalid profile route recipe headingQueries: ${file || '<empty>'}`)
+    }
+    if (!requiredQueries.length || stableDigest(requiredQueries) !== stableDigest(entry.requiredQueries) ||
+        requiredQueries.some(query => !headingQueries.includes(query))) {
+      errors.push(`invalid profile route recipe requiredQueries: ${file || '<empty>'}`)
+    }
+    if (entry.includePreamble !== false || entry.includeDescendants !== true) {
+      errors.push(`invalid profile route recipe section flags: ${file || '<empty>'}`)
+    }
+    if (!Number.isInteger(entry.maxBytes) || entry.maxBytes < 1024 || entry.maxBytes > raw.maxBytes) {
+      errors.push(`invalid profile route recipe entry maxBytes: ${file || '<empty>'}`)
+    }
+  }
+  if (new Set(entryFiles).size !== entryFiles.length) errors.push('duplicate profile route recipe file')
+  if (stableDigest(entryFiles.sort()) !== stableDigest(expectedFiles)) errors.push('profile route recipe files mismatch selected profile files')
+  const { recipeDigest, ...material } = raw
+  if (!/^[a-f0-9]{64}$/i.test(String(recipeDigest || '')) || recipeDigest !== stableDigest(material)) {
+    errors.push('profile route recipe digest mismatch')
+  }
+  return errors.length
+    ? { valid: false, value: null, errors }
+    : { valid: true, value: deepClone(raw), errors: [] }
 }
 
 function normalizePath(value) {
@@ -418,7 +507,8 @@ function buildPlanIdentityInputs(plan) {
       triggeredEscalations: [...plan.triggeredEscalations],
       exitCondition: plan.exitCondition,
       fullRead: plan.fullRead,
-      configLocalRequested: plan.profile.configLocalRequested
+      configLocalRequested: plan.profile.configLocalRequested,
+      profileRouteLoadRecipe: deepClone(plan.profile.routeLoadRecipe || null)
     },
     versions: normalizeIdentityVersions()
   }
@@ -654,7 +744,7 @@ function baselineSources(baseline) {
   ]
 }
 
-function memorySource(toolName, project) {
+function memorySource(toolName, project, options = {}) {
   const ref = normalizeSourceRef({
     path: `memory://${project}/${toolName}`,
     layer: 'memory-query',
@@ -666,7 +756,7 @@ function memorySource(toolName, project) {
     sourceId: `memory:${toolName}`,
     kind: 'memory',
     selector: toolName,
-    mandatory: true,
+    mandatory: options.mandatory !== false,
     authority: 'bounded-memory-query',
     reason: toolName === 'memory_status'
       ? 'Compact task continuity metadata is required for every planned acquisition.'
@@ -832,7 +922,10 @@ function buildContextReadPlan(input = {}, options = {}) {
     }))
   }
   selectedSources.push(memorySource('memory_status', project))
-  if (finalIntent === 'resume') selectedSources.push(memorySource('memory_session_query', project))
+  if (finalIntent === 'resume') {
+    selectedSources.push(memorySource('memory_session_query', project))
+    selectedSources.push(memorySource('memory_summary_query', project, { mandatory: false }))
+  }
   selectedSources.sort((left, right) => compareText(left.sourceId, right.sourceId))
 
   const selectedIds = new Set(selectedSources.map(source => source.sourceId))
@@ -885,6 +978,17 @@ function buildContextReadPlan(input = {}, options = {}) {
   if (!invocationNonce) {
     return buildContextReadError('CONTEXT_PLAN_INVALID', 'ContextReadPlanV2 requires an invocation nonce.', 'Create a fresh invocation identity and retry.')
   }
+  const normalizedRouteRecipe = normalizeProfileRouteLoadRecipe(
+    input.profileRouteLoadRecipe,
+    [...selectedFiles].sort()
+  )
+  if (!normalizedRouteRecipe.valid) {
+    return buildContextReadError(
+      'CONTEXT_PLAN_INVALID',
+      `profileRouteLoadRecipe is invalid: ${normalizedRouteRecipe.errors.join(', ')}.`,
+      'Regenerate the bounded route recipe from the resolved Profile target.'
+    )
+  }
   const plan = {
     schemaVersion: CONTEXT_READ_CONTRACT.schemas.plan,
     planId: '',
@@ -902,10 +1006,14 @@ function buildContextReadPlan(input = {}, options = {}) {
     exitCondition: blocked ? 'blocked' : (fullRead ? 'escalated-full' : 'relevant-complete'),
     profile: {
       selectedFiles: [...selectedFiles].sort(),
-      configLocalRequested: input.configLocalRequested === true
+      configLocalRequested: input.configLocalRequested === true,
+      routeLoadRecipe: normalizedRouteRecipe.value
     },
     memory: {
-      requiredQueries: selectedSources.filter(source => source.kind === 'memory').map(source => source.selector).sort()
+      requiredQueries: selectedSources
+        .filter(source => source.kind === 'memory' && source.mandatory)
+        .map(source => source.selector)
+        .sort()
     },
     fullRead,
     fullReadReason: fullRead ? automaticFullReason : null,
@@ -1082,10 +1190,19 @@ function validateContextReadPlan(raw) {
     .filter(source => ['profile', 'profile-local'].includes(source.kind))
     .map(source => source.selector)
     .sort()
+  const routeRecipe = normalizeProfileRouteLoadRecipe(raw.profile?.routeLoadRecipe, selectedProfileFiles)
+  if (!routeRecipe.valid) errors.push(`profile routeLoadRecipe is invalid: ${routeRecipe.errors.join(', ')}`)
+  if (raw.profile?.routeLoadRecipe !== undefined &&
+      stableDigest(routeRecipe.value) !== stableDigest(raw.profile.routeLoadRecipe)) {
+    errors.push('profile routeLoadRecipe is non-canonical')
+  }
   if (stableDigest(selectedProfileFiles) !== stableDigest(raw.profile?.selectedFiles)) errors.push('profile.selectedFiles mismatch')
   if (typeof raw.profile?.configLocalRequested !== 'boolean') errors.push('profile configLocalRequested is required')
   if (selectedProfileFiles.includes('config.local.json') && raw.profile?.configLocalRequested !== true) errors.push('config.local.json selected without policy')
-  const memoryQueries = selected.filter(source => source.kind === 'memory').map(source => source.selector).sort()
+  const memoryQueries = selected
+    .filter(source => source.kind === 'memory' && source.mandatory)
+    .map(source => source.selector)
+    .sort()
   if (stableDigest(memoryQueries) !== stableDigest(raw.memory?.requiredQueries)) errors.push('memory.requiredQueries mismatch')
   if (isV1) {
     if (raw.freshness?.strategy !== 'size+mtimeMs+metadataDigest' || raw.freshness?.reuse !== false) errors.push('invalid V1 freshness contract')

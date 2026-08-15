@@ -23,6 +23,7 @@ const MAX_RESPONSE_CACHE_BYTES = 512 * 1024
 const TURN_BODY_LIMIT_BYTES = 256 * 1024
 const LOCK_STALE_MS = 30 * 1000
 const TURN_BINDING_RE = /^turn-[a-f0-9]{40}$/
+const CATALOG_PROGRESS_SCHEMA = 'SkillRouteCatalogProgressV1'
 
 function ensureProject (project) {
   const value = String(project || '').trim()
@@ -66,6 +67,7 @@ function turnPaths (activeRoot, turnBinding) {
     turnsRoot: path.join(routeRoot, 'turns'),
     turnRoot,
     envelope: path.join(turnRoot, 'route-envelope.json'),
+    catalogProgress: path.join(turnRoot, 'catalog-progress.json'),
     lock: path.join(turnRoot, 'route-envelope.lock')
   }
 }
@@ -76,9 +78,11 @@ function isInside (root, target) {
 }
 
 function recoverEnvelopeBackup (file, fsImpl = fs) {
-  if (path.basename(file) !== 'route-envelope.json' || fsImpl.existsSync(file)) {
-    return false
-  }
+  const expectedSchema = {
+    'route-envelope.json': 'TurnRouteEnvelopeV1',
+    'catalog-progress.json': CATALOG_PROGRESS_SCHEMA
+  }[path.basename(file)]
+  if (!expectedSchema || fsImpl.existsSync(file)) return false
   const dir = path.dirname(file)
   if (!fsImpl.existsSync(dir)) return false
   const prefix = `${path.basename(file)}.replace.`
@@ -99,7 +103,7 @@ function recoverEnvelopeBackup (file, fsImpl = fs) {
     } catch {
       continue
     }
-    if (value?.schemaVersion !== 'TurnRouteEnvelopeV1') continue
+    if (value?.schemaVersion !== expectedSchema) continue
     try {
       fsImpl.renameSync(candidate.backup, file)
       return true
@@ -155,6 +159,207 @@ function atomicWriteJson (file, value, fsImpl = fs) {
     }
   }
   return { bytes: byteLength(content), digest: sha256(content) }
+}
+
+function normalizeCatalogProgressPages(pages, pageCount) {
+  if (!Array.isArray(pages)) return null
+  const normalized = [...new Set(pages)]
+  if (normalized.length !== pages.length || normalized.some(page => !Number.isInteger(page) || page < 0 || page >= pageCount)) {
+    return null
+  }
+  normalized.sort((left, right) => left - right)
+  if (normalized.some((page, index) => page !== index)) return null
+  return normalized
+}
+
+function normalizeCatalogProgressLedger(items, servedCatalogPages, pageCount, contextEpoch) {
+  if (!Array.isArray(items)) return null
+  if (items.length !== servedCatalogPages.length) return null
+  const allowedPages = new Set(servedCatalogPages)
+  const seenPages = new Set()
+  const normalized = []
+  for (const item of items) {
+    const pageIndex = item?.pageIndex
+    if (!Number.isInteger(pageIndex) || !allowedPages.has(pageIndex) || seenPages.has(pageIndex) ||
+        item.stageId !== null || item.sourceBytes !== 0 || item.bodyBytes !== 0 || item.generation !== 0 ||
+        !Number.isInteger(item.serializedBytes) || item.serializedBytes < 0 ||
+        item.runtimeServedPages !== pageIndex + 1 ||
+        item.expectedPages !== pageCount ||
+        item.contextEpoch !== contextEpoch ||
+        !/^[a-f0-9]{64}$/.test(String(item.responseDigest || '')) ||
+        !/^[a-f0-9]{64}$/.test(String(item.idempotencyKey || '')) ||
+        typeof item.deliveredAt !== 'string' || !Number.isFinite(Date.parse(item.deliveredAt))) {
+      return null
+    }
+    seenPages.add(pageIndex)
+    normalized.push({
+      pageIndex,
+      stageId: null,
+      sourceBytes: 0,
+      serializedBytes: item.serializedBytes,
+      bodyBytes: 0,
+      runtimeServedPages: item.runtimeServedPages,
+      expectedPages: item.expectedPages,
+      contextEpoch: item.contextEpoch,
+      generation: 0,
+      responseDigest: item.responseDigest,
+      idempotencyKey: item.idempotencyKey,
+      deliveredAt: item.deliveredAt
+    })
+  }
+  return normalized.sort((left, right) => left.pageIndex - right.pageIndex)
+}
+
+function legacyCatalogProgressLedger(state, servedCatalogPages) {
+  const candidates = (Array.isArray(state?.contributionLedger?.items)
+    ? state.contributionLedger.items
+    : [])
+    .filter(item => item?.op === 'catalog' && Number(item.generation || 0) === 0)
+  if (candidates.length !== servedCatalogPages.length) return null
+  return candidates.map((item, index) => ({
+    pageIndex: servedCatalogPages[index],
+    stageId: null,
+    sourceBytes: 0,
+    serializedBytes: item.serializedBytes,
+    bodyBytes: 0,
+    runtimeServedPages: item.runtimeServedPages,
+    expectedPages: item.expectedPages,
+    contextEpoch: item.contextEpoch,
+    generation: 0,
+    responseDigest: item.responseDigest,
+    idempotencyKey: item.idempotencyKey,
+    deliveredAt: item.observedAt
+  }))
+}
+
+function buildCatalogProgress(
+  state,
+  servedCatalogPages,
+  now = new Date().toISOString(),
+  catalogLedger = []
+) {
+  const pageCount = Array.isArray(state?.catalog?.pages) ? state.catalog.pages.length : 0
+  const pages = normalizeCatalogProgressPages(servedCatalogPages, pageCount)
+  const ledger = normalizeCatalogProgressLedger(
+    catalogLedger,
+    pages || [],
+    pageCount,
+    state.contextEpoch
+  )
+  if (!pages || !ledger) {
+    const error = new Error('CATALOG_PROGRESS_INVALID')
+    error.code = 'CATALOG_PROGRESS_INVALID'
+    throw error
+  }
+  return {
+    schemaVersion: CATALOG_PROGRESS_SCHEMA,
+    project: state.project,
+    turnBinding: state.turnBinding,
+    contextEpoch: state.contextEpoch,
+    catalogDigest: state.catalog?.catalogDigest || '',
+    pageCount,
+    servedCatalogPages: pages,
+    catalogLedger: ledger,
+    updatedAt: now
+  }
+}
+
+function readCatalogProgress(paths, envelope, fsImpl = fs) {
+  const state = envelope?.state || {}
+  const pageCount = Array.isArray(state.catalog?.pages) ? state.catalog.pages.length : 0
+  const raw = readJson(paths.catalogProgress, fsImpl)
+  if (!raw) {
+    if (fsImpl.existsSync(paths.catalogProgress)) {
+      return { status: 'invalid', errorCode: 'CATALOG_PROGRESS_INVALID' }
+    }
+    const legacyPages = normalizeCatalogProgressPages(state.servedCatalogPages || [], pageCount)
+    if (!legacyPages) return { status: 'invalid', errorCode: 'CATALOG_PROGRESS_INVALID' }
+    const legacyLedger = legacyPages.length
+      ? legacyCatalogProgressLedger(state, legacyPages)
+      : []
+    if (!legacyLedger) return { status: 'invalid', errorCode: 'CATALOG_PROGRESS_INVALID' }
+    return {
+      status: 'legacy',
+      progress: buildCatalogProgress(state, legacyPages, new Date().toISOString(), legacyLedger)
+    }
+  }
+  const expected = {
+    schemaVersion: CATALOG_PROGRESS_SCHEMA,
+    project: state.project,
+    turnBinding: state.turnBinding,
+    contextEpoch: state.contextEpoch,
+    catalogDigest: state.catalog?.catalogDigest || '',
+    pageCount
+  }
+  const matches = Object.entries(expected).every(([field, value]) => raw[field] === value)
+  const pages = normalizeCatalogProgressPages(raw.servedCatalogPages, pageCount)
+  const ledger = normalizeCatalogProgressLedger(
+    raw.catalogLedger || [],
+    pages || [],
+    pageCount,
+    state.contextEpoch
+  )
+  if (!matches || !pages || !ledger || typeof raw.updatedAt !== 'string' || !Number.isFinite(Date.parse(raw.updatedAt))) {
+    return { status: 'invalid', errorCode: 'CATALOG_PROGRESS_INVALID' }
+  }
+  return {
+    status: 'fresh',
+    progress: { ...raw, servedCatalogPages: pages, catalogLedger: ledger }
+  }
+}
+
+function hydrateCatalogProgress(envelope, paths, options = {}) {
+  const result = readCatalogProgress(paths, envelope, options.fs || fs)
+  if (result.status === 'invalid') {
+    const error = new Error(result.errorCode || 'CATALOG_PROGRESS_INVALID')
+    error.code = result.errorCode || 'CATALOG_PROGRESS_INVALID'
+    throw error
+  }
+  envelope.state.servedCatalogPages = [...result.progress.servedCatalogPages]
+  const contributionItems = Array.isArray(envelope.state.contributionLedger?.items)
+    ? envelope.state.contributionLedger.items
+    : []
+  const priorCatalogItems = new Map()
+  let legacyCatalogIndex = 0
+  for (const item of contributionItems) {
+    if (item?.op !== 'catalog') continue
+    const pageIndex = Number.isInteger(item.catalogProgressPageIndex)
+      ? item.catalogProgressPageIndex
+      : legacyCatalogIndex
+    legacyCatalogIndex += 1
+    if (!priorCatalogItems.has(pageIndex)) priorCatalogItems.set(pageIndex, item)
+  }
+  // The sidecar is the single catalog-delivery truth. Retaining legacy catalog
+  // rows as well would double-count calls after an in-place rolling upgrade.
+  const retainedItems = contributionItems.filter(item => item?.op !== 'catalog')
+  const hydratedCatalogItems = result.progress.catalogLedger.map(item => {
+    const prior = priorCatalogItems.get(item.pageIndex)
+    const hydrated = {
+      channel: 'mcp-tool-result',
+      modelObserved: prior?.modelObserved === 'direct-pass' ? 'direct-pass' : 'unverified',
+      observedAt: prior?.observedAt || item.deliveredAt,
+      op: 'catalog',
+      catalogProgressPageIndex: item.pageIndex,
+      stageId: item.stageId,
+      sourceBytes: item.sourceBytes,
+      serializedBytes: item.serializedBytes,
+      bodyBytes: item.bodyBytes,
+      runtimeServedPages: item.runtimeServedPages,
+      expectedPages: item.expectedPages,
+      contextEpoch: item.contextEpoch,
+      generation: item.generation,
+      responseDigest: item.responseDigest,
+      replayed: false,
+      idempotencyKey: item.idempotencyKey
+    }
+    if (prior?.observationDigest) hydrated.observationDigest = prior.observationDigest
+    return hydrated
+  })
+  if (!envelope.state.contributionLedger) {
+    envelope.state.contributionLedger = { schemaVersion: 'ContributionLedgerV1', items: [] }
+  }
+  envelope.state.contributionLedger.items = [...retainedItems, ...hydratedCatalogItems]
+  return result
 }
 
 function lockOwnerAlive (lockRecord) {
@@ -349,6 +554,32 @@ function assertProjectedCapacity (paths, nextEnvelope, fsImpl = fs) {
       bytes,
       previousEnvelopeBytes,
       nextEnvelopeBytes,
+      projectedBytes,
+      atomicPeakBytes,
+      maxBytes: MAX_ROUTE_ROOT_BYTES
+    }
+    throw error
+  }
+}
+
+function assertProjectedCatalogProgressCapacity (paths, nextProgress, fsImpl = fs) {
+  const bytes = directoryBytesBounded(paths.routeRoot, fsImpl)
+  let previousProgressBytes = 0
+  try {
+    previousProgressBytes = fsImpl.statSync(paths.catalogProgress).size
+  } catch {}
+  const nextProgressBytes = byteLength(`${JSON.stringify(nextProgress, null, 2)}\n`)
+  const projectedBytes = Math.max(0, bytes - previousProgressBytes) + nextProgressBytes
+  const atomicPeakBytes = bytes + nextProgressBytes
+  if (bytes >= MAX_ROUTE_ROOT_BYTES ||
+      projectedBytes >= MAX_ROUTE_ROOT_BYTES ||
+      atomicPeakBytes >= MAX_ROUTE_ROOT_BYTES) {
+    const error = new Error('RUNTIME_STATE_CAPACITY_BLOCKED')
+    error.code = 'RUNTIME_STATE_CAPACITY_BLOCKED'
+    error.capacity = {
+      bytes,
+      previousProgressBytes,
+      nextProgressBytes,
       projectedBytes,
       atomicPeakBytes,
       maxBytes: MAX_ROUTE_ROOT_BYTES
@@ -712,6 +943,7 @@ function loadEnvelope (activeRoot, turnBinding, options = {}) {
     error.routeEnvelope = envelope
     throw error
   }
+  hydrateCatalogProgress(envelope, paths, options)
   return { envelope, paths }
 }
 
@@ -762,6 +994,7 @@ function transactEnvelope (activeRoot, turnBinding, request, mutation, options =
       error.code = 'TURN_EXPIRED'
       throw error
     }
+    hydrateCatalogProgress(envelope, paths, options)
     const cached = envelope.responseCache?.[idempotencyKey]
     if (cached) {
       if (cached.requestDigest !== requestDigest) {
@@ -816,6 +1049,114 @@ function transactEnvelope (activeRoot, turnBinding, request, mutation, options =
       replayed: false,
       idempotencyKey,
       envelope: readBack
+    }
+  } finally {
+    if (release) release()
+    releaseRoot()
+  }
+}
+
+function transactCatalogProgress(activeRoot, turnBinding, request, mutation, options = {}) {
+  const fsImpl = options.fs || fs
+  const paths = turnPaths(activeRoot, turnBinding)
+  const {
+    triggerRef: _nonSemanticTriggerRef,
+    ...semanticRequest
+  } = request
+  const requestDigest = sha256(semanticRequest)
+  const idempotencyKey = options.idempotencyKey || sha256({
+    project: request.project,
+    turnBinding,
+    contextEpoch: request.contextEpoch || null,
+    generation: request.generation || 0,
+    op: request.op,
+    catalogDigest: request.catalogDigest || null,
+    planDigest: request.planDigest || null,
+    previousPlanDigest: request.previousPlanDigest || null,
+    lateConditionId: request.lateConditionId || null,
+    evidenceDigest: request.evidenceDigest || null,
+    contextBindingDigest: request.contextBinding
+      ? sha256(request.contextBinding)
+      : null,
+    skillId: request.skillId === undefined ? null : request.skillId,
+    stageId: request.stageId || null,
+    cursor: request.cursor || null
+  })
+  const releaseRoot = acquireRootMutationLock(
+    paths.routeRoot,
+    request.op,
+    idempotencyKey,
+    options
+  )
+  let release
+  try {
+    release = acquireLock(paths, request.op, idempotencyKey, options)
+    const envelope = readJson(paths.envelope, fsImpl)
+    if (!envelope) {
+      const error = new Error('TURN_NOT_FOUND')
+      error.code = 'TURN_NOT_FOUND'
+      throw error
+    }
+    const now = options.now == null ? Date.now() : new Date(options.now).getTime()
+    if (Date.parse(envelope.expiresAt) <= now) {
+      const error = new Error('TURN_EXPIRED')
+      error.code = 'TURN_EXPIRED'
+      throw error
+    }
+    const hydrated = hydrateCatalogProgress(envelope, paths, options)
+    const cached = envelope.responseCache?.[idempotencyKey]
+    if (cached) {
+      if (cached.requestDigest !== requestDigest) {
+        const error = new Error('IDEMPOTENCY_COLLISION')
+        error.code = 'IDEMPOTENCY_COLLISION'
+        throw error
+      }
+      return {
+        response: cached.response,
+        replayed: true,
+        idempotencyKey,
+        envelope
+      }
+    }
+    const workingEnvelope = JSON.parse(JSON.stringify(envelope))
+    const progress = JSON.parse(JSON.stringify(hydrated.progress))
+    const outcome = mutation(workingEnvelope, progress, {
+      idempotencyKey,
+      requestDigest
+    })
+    const response = outcome.response
+    response.idempotencyKey = idempotencyKey
+    if (outcome.write === true) {
+      const nextProgress = buildCatalogProgress(
+        workingEnvelope.state,
+        outcome.progress?.servedCatalogPages,
+        new Date().toISOString(),
+        outcome.progress?.catalogLedger
+      )
+      assertProjectedCatalogProgressCapacity(paths, nextProgress, fsImpl)
+      atomicWriteJson(paths.catalogProgress, nextProgress, fsImpl)
+      const readBack = readCatalogProgress(paths, envelope, fsImpl)
+      if (readBack.status !== 'fresh' ||
+          sha256(readBack.progress.servedCatalogPages) !== sha256(nextProgress.servedCatalogPages)) {
+        const error = new Error('CATALOG_PROGRESS_READBACK_FAILED')
+        error.code = 'CATALOG_PROGRESS_READBACK_FAILED'
+        throw error
+      }
+      envelope.state.servedCatalogPages = [...nextProgress.servedCatalogPages]
+      if (typeof options.afterCommit === 'function') {
+        options.afterCommit({
+          idempotencyKey,
+          responseDigest: sha256(response),
+          envelope,
+          catalogProgress: readBack.progress
+        })
+      }
+    }
+    return {
+      response,
+      replayed: outcome.replayed === true,
+      idempotencyKey,
+      envelope
     }
   } finally {
     if (release) release()
@@ -926,6 +1267,7 @@ module.exports = {
   bootstrapSkillRoute,
   loadEnvelope,
   transactEnvelope,
+  transactCatalogProgress,
   recordSkillRouteProbeObservation,
   parseExplicitSkillId,
   directoryBytesBounded,

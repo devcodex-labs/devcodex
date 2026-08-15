@@ -153,7 +153,7 @@ try {
 
   const expiredTarget = path.join(centralRoot, 'runs', 'apps', 'api', 'test-runner', 'expired-run')
   write(path.join(expiredTarget, 'result.txt'))
-  registerWorkspaceTempArtifactAtRoot(centralRoot, {
+  const expiredRegistration = registerWorkspaceTempArtifactAtRoot(centralRoot, {
     artifactId: 'expired-run',
     type: 'run',
     owner: 'workspace-temp-test',
@@ -163,6 +163,25 @@ try {
     createdAt: '2026-08-01T00:00:00.000Z',
     expiresAt: '2026-08-02T00:00:00.000Z'
   })
+  const expiredManifest = JSON.parse(fs.readFileSync(expiredRegistration.manifestPath, 'utf8'))
+  assert.strictEqual(expiredManifest.targetIdentity?.schemaVersion, 'WorkspaceTempTargetIdentityV1')
+  assert.ok(expiredManifest.targetIdentity?.device)
+  assert.ok(expiredManifest.targetIdentity?.inode)
+
+  const replacedTarget = path.join(centralRoot, 'runs', 'apps', 'api', 'test-runner', 'replaced-run')
+  write(path.join(replacedTarget, 'registered.txt'), 'registered object\n')
+  const replacedRegistration = registerWorkspaceTempArtifactAtRoot(centralRoot, {
+    artifactId: 'replaced-run',
+    type: 'run',
+    owner: 'workspace-temp-test',
+    project: 'apps/api',
+    producer: 'test-runner',
+    targetPath: replacedTarget,
+    createdAt: '2026-08-01T00:00:00.000Z',
+    expiresAt: '2026-08-02T00:00:00.000Z'
+  })
+  fs.rmSync(replacedTarget, { recursive: true, force: true })
+  write(path.join(replacedTarget, 'replacement.txt'), 'replacement object must survive\n')
   assert.throws(
     () => registerWorkspaceTempArtifactAtRoot(centralRoot, {
       artifactId: 'expired-run',
@@ -399,6 +418,7 @@ try {
   assert.ok(status.blocked.some(item => item.artifactId === 'shared-lease-a' && item.reasons.includes('lease-overlap')))
   assert.ok(status.blocked.some(item => item.artifactId === 'shared-lease-b' && item.reasons.includes('lease-overlap')))
   assert.ok(status.blocked.some(item => item.artifactId === 'invalid-lease' && item.reasons.includes('invalid-lease')))
+  assert.ok(status.blocked.some(item => item.artifactId === 'replaced-run' && item.reasons.includes('target-instance-changed')))
   assert.ok(status.blocked.some(item => item.artifactId === 'incomplete-backup' && item.reasons.includes('backup-transaction-incomplete')))
   assert.ok(status.blocked.some(item => item.artifactId === 'locked-artifact' && item.reasons.includes('lock-present')))
   assert.ok(status.blocked.some(item => item.targetPath === orphan && item.reasons.includes('unknown-owner')))
@@ -431,6 +451,8 @@ try {
   assert.ok(fs.existsSync(sharedLeasePath), 'shared leases must remain blocked')
   assert.ok(fs.existsSync(leasedTarget), 'active lease must block deletion')
   assert.ok(fs.existsSync(incompleteBackup), 'incomplete backup must block deletion')
+  assert.ok(fs.existsSync(replacedTarget), 'a replacement object at a registered path must never be deleted')
+  assert.ok(fs.existsSync(replacedRegistration.manifestPath), 'replacement-object ownership manifest must remain blocked')
   assert.ok(fs.existsSync(lockedTarget), 'lock marker must block deletion')
   assert.ok(fs.existsSync(orphan), 'unknown owner must block deletion')
   assert.ok(fs.existsSync(reportedLegacyRoot), 'legacy project temp roots are report-only and must never be auto-deleted')

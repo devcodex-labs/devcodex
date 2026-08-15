@@ -450,6 +450,41 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
       `${crypto.createHash('sha256').update(sessionId).digest('hex')}.json`
     )
 
+    // Screenshot regression: Codex must route an ordinary chat prompt too.
+    // `chat` is an intent classification, not permission to skip SkillRoute.
+    const ordinaryCodexSession = 'ordinary-codex-chat-skill-route'
+    const ordinaryCodexPrompt = runLifecycle(fixture, {
+      session_id: ordinaryCodexSession,
+      prompt: '测试'
+    }, {
+      DEVCODEX_HOST_PLATFORM: 'codex',
+      CODEX_THREAD_ID: ordinaryCodexSession,
+      CODEX_INTERNAL_ORIGINATOR_OVERRIDE: ''
+    })
+    assert.match(ordinaryCodexPrompt.text, /SkillRouteBootstrapV1/)
+    const ordinaryCodexState = JSON.parse(fs.readFileSync(sessionFile(ordinaryCodexSession), 'utf8'))
+    assert.strictEqual(ordinaryCodexState.contextAcquisition.targetResolved, true)
+    assert.strictEqual(
+      ordinaryCodexState.progressiveSkillRoute.modeReceipt.hostVariant,
+      'codex-desktop/app-user-global-local-stdio'
+    )
+    assert.strictEqual(ordinaryCodexState.progressiveSkillRoute.bootstrap.explicitStatus, 'none')
+    assert.strictEqual(ordinaryCodexState.progressiveSkillRoute.bootstrap.nextOp, 'catalog')
+    const ordinaryCodexStop = runLifecycle(fixture, {
+      hookEventName: 'Stop',
+      hook_run_id: 'ordinary-codex-chat-stop',
+      session_id: ordinaryCodexSession,
+      last_assistant_message: 'Direct chat reply without completing SkillRoute.'
+    }, {
+      DEVCODEX_HOST_PLATFORM: 'codex',
+      CODEX_THREAD_ID: ordinaryCodexSession,
+      CODEX_INTERNAL_ORIGINATOR_OVERRIDE: ''
+    })
+    assert.strictEqual(ordinaryCodexStop.output.devcodexCode, 'progressive-skill-route')
+    assert.strictEqual(ordinaryCodexStop.output.devcodexNextAction.errorCode, 'PLAN_NOT_COMMITTED')
+    assert.strictEqual(ordinaryCodexStop.output.devcodexNextAction.trigger, 'Stop')
+    assert.strictEqual(ordinaryCodexStop.output.devcodexNextAction.nextCall.op, 'catalog')
+
     const recoverySession = 'structured-recovery-card-session'
     runLifecycle(fixture, {
       session_id: recoverySession,

@@ -1,9 +1,9 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要；历史版本见对应详细变更文件。
-> **最新版本详细变更文档**: [`changelogs/releases/v1.17.6.md`](./changelogs/releases/v1.17.6.md)
-> **最后更新**: 2026-08-14
-> **当前版本**: v1.17.6 修复非显式 SkillRoute 在无工具最终 Stop 可绕过 0/1 决策的问题；统一路由、CLI/MCP schema 与六宿主能力边界保持不变，版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
+> **最新版本详细变更文档**: [`changelogs/releases/v1.17.7.md`](./changelogs/releases/v1.17.7.md)
+> **最后更新**: 2026-08-15
+> **当前版本**: v1.17.7 收敛 ContextRead/SkillRoute 首轮绑定、首次分页、Memory/CP、全局配置事务、Readiness 与真实宿主证据边界；版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
 
 ---
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.17.7](./changelogs/releases/v1.17.7.md) | 2026-08-15 | 🔧 **全局运行态一致性与首载闭环修复**：正文读取绑定持久计划并在源层有界；未解析目标、catalog sidecar、Memory 状态、配置 CAS/Readiness、命令/对象身份与 CLI/Desktop 证据分层完成跨消费者收敛 | [查看](./changelogs/releases/v1.17.7.md) |
 | [v1.17.6](./changelogs/releases/v1.17.6.md) | 2026-08-14 | 🔧 **SkillRoute 最终 Stop 完备性修复**：非显式未提交路由在最终回复前返回 exact catalog action，阻止自然语言 workspace Skill 被无工具回复静默跳过；统一路由与宿主能力边界保持不变 | [查看](./changelogs/releases/v1.17.6.md) |
 | [v1.17.5](./changelogs/releases/v1.17.5.md) | 2026-08-14 | 🔧 **发布包 npm scripts 闭包修复**：最终 tarball 仅公开 8 个安装态入口，从最终 manifest 验证脚本与运行依赖闭包，并以事务保证源码 manifest 原字节恢复 | [查看](./changelogs/releases/v1.17.5.md) |
 | [v1.17.4](./changelogs/releases/v1.17.4.md) | 2026-08-14 | 🧹 **工作区临时产物与六宿主卸载治理**：统一 `<workspace>/.tmp/devcodex/`、manifest/TTL/lease/backup 边界与 `tmp status/prune`；新增默认预览的跨六宿主安全卸载，强化所有权、reparse/TOCTOU、并发回滚与用户内容保留 | [查看](./changelogs/releases/v1.17.4.md) |

@@ -15,6 +15,7 @@ const CONTEXT_SOURCE_LEDGER_SCHEMA = 'ContextSourceObservationLedgerV1'
 const CONTEXT_SOURCE_LEDGER_SLOT_COUNT = 128
 const CONTEXT_SOURCE_LEDGER_MAX_BYTES = 512 * 1024
 const CONTEXT_SOURCE_LEDGER_MAX_OBSERVATIONS = 128
+const CONTEXT_PLAN_AUTHORIZATION_MAX_AGE_MS = 24 * 60 * 60 * 1000
 
 const CONTEXT_BINDING_FIELDS = new Set([
   'schemaVersion',
@@ -188,6 +189,157 @@ function normalizeVerifiedBinding(binding, target) {
     planContentId: binding.planContentId.trim(),
     activeRoot: binding.activeRoot.trim(),
     project: binding.project.trim()
+  }
+}
+
+function contextAuthorizationFailure(errorCode, reasonCode, message, details = {}) {
+  return {
+    status: 'blocked',
+    errorCode,
+    reasonCode,
+    message,
+    ...details
+  }
+}
+
+function authorizeContextRead(input = {}, options = {}) {
+  const activeRoot = portableRoot(input.activeRoot || input.target?.activeRoot)
+  const project = String(input.project || input.target?.project || '').trim()
+  const target = { activeRoot, project }
+  if (!activeRoot || !project) {
+    return contextAuthorizationFailure(
+      'CONTEXT_ACTIVE_TARGET_MISMATCH',
+      'target-incomplete',
+      'Context read target must include one resolved activeRoot and project.'
+    )
+  }
+  const binding = normalizeVerifiedBinding(input.contextBinding, target)
+  if (!binding) {
+    return contextAuthorizationFailure(
+      input.contextBinding == null ? 'CONTEXT_BINDING_REQUIRED' : 'CONTEXT_BINDING_INVALID',
+      input.contextBinding == null ? 'binding-required' : 'binding-invalid',
+      input.contextBinding == null
+        ? 'A current ContextReadBindingV1 is required before reading governed content.'
+        : 'contextBinding is malformed or does not match the resolved target.'
+    )
+  }
+
+  const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
+  const observed = readContextPlanObservation({
+    activeRoot,
+    project,
+    contextEpoch: binding.contextEpoch,
+    nowMs
+  })
+  if (observed.status !== 'fresh' || !observed.plan) {
+    return contextAuthorizationFailure(
+      'CONTEXT_BINDING_PLAN_NOT_FOUND',
+      'plan-observation-unavailable',
+      'No current durable ContextReadPlan observation matches this binding.',
+      { observationStatus: observed.status, observationErrorCode: observed.errorCode || null }
+    )
+  }
+
+  const observedAtMs = Date.parse(observed.observation?.observedAt)
+  const maxAgeMs = Number.isFinite(options.maxAgeMs)
+    ? Math.max(0, options.maxAgeMs)
+    : CONTEXT_PLAN_AUTHORIZATION_MAX_AGE_MS
+  if (!Number.isFinite(observedAtMs) || nowMs - observedAtMs > maxAgeMs) {
+    return contextAuthorizationFailure(
+      'CONTEXT_BINDING_PLAN_EXPIRED',
+      'plan-observation-expired',
+      'The durable ContextReadPlan observation is no longer current.',
+      { observedAt: observed.observation?.observedAt || null, maxAgeMs }
+    )
+  }
+
+  const expectedBinding = normalizeVerifiedBinding(
+    observed.originalContextBinding || observed.plan.contextBinding,
+    target
+  )
+  if (!expectedBinding || stableDigest(expectedBinding) !== stableDigest(binding)) {
+    return contextAuthorizationFailure(
+      'CONTEXT_BINDING_PLAN_MISMATCH',
+      'plan-binding-mismatch',
+      'contextBinding does not match the current durable ContextReadPlan identity.'
+    )
+  }
+  if (!observed.plan.actionEnvelope?.allowedActionClasses?.includes('context-read')) {
+    return contextAuthorizationFailure(
+      'CONTEXT_ACTION_NOT_AUTHORIZED',
+      'action-envelope-mismatch',
+      'The durable ContextReadPlan does not authorize governed context reads.'
+    )
+  }
+
+  const allowedSources = new Map(observed.plan.selectedSources.map(source => [source.sourceId, source]))
+  const requestedSources = [...new Set((Array.isArray(input.requestedSources) ? input.requestedSources : [])
+    .map(value => String(value || '').trim())
+    .filter(Boolean))]
+  const unauthorized = requestedSources.filter(sourceId => !allowedSources.has(sourceId))
+  if (unauthorized.length) {
+    return contextAuthorizationFailure(
+      'CONTEXT_SOURCE_NOT_AUTHORIZED',
+      'source-not-selected',
+      `The current ContextReadPlan does not authorize: ${unauthorized.join(', ')}.`,
+      { unauthorizedSourceIds: unauthorized }
+    )
+  }
+
+  const requestedSections = Array.isArray(input.requestedSections) ? input.requestedSections : []
+  for (const request of requestedSections) {
+    const sourceId = String(request?.sourceId || '').trim()
+    const headings = [...new Set((Array.isArray(request?.headingQueries) ? request.headingQueries : [])
+      .map(value => String(value || '').trim())
+      .filter(Boolean))]
+    if (!sourceId || !allowedSources.has(sourceId)) {
+      return contextAuthorizationFailure(
+        'CONTEXT_SECTION_NOT_AUTHORIZED',
+        'section-source-not-selected',
+        `The current ContextReadPlan does not authorize section reads for ${sourceId || 'an unknown source'}.`
+      )
+    }
+    if (request?.requireRouteRecipe === true) {
+      const file = sourceId.startsWith('profile:') ? sourceId.slice('profile:'.length) : ''
+      const recipeEntry = observed.plan.profile?.routeLoadRecipe?.entries?.find(entry => entry.file === file)
+      const allowedHeadings = new Set((recipeEntry?.headingQueries || []).map(value => String(value).trim()))
+      const unauthorizedHeadings = headings.filter(heading => !allowedHeadings.has(heading))
+      if (!recipeEntry || unauthorizedHeadings.length) {
+        return contextAuthorizationFailure(
+          'CONTEXT_SECTION_NOT_AUTHORIZED',
+          'section-outside-route-recipe',
+          `The current ContextReadPlan route recipe does not authorize the requested sections for ${file || sourceId}.`,
+          { unauthorizedHeadingQueries: unauthorizedHeadings }
+        )
+      }
+    }
+  }
+
+  const authorization = {
+    schemaVersion: 'AuthorizedContextReadV1',
+    binding: {
+      ...binding,
+      bindingStatus: 'verified',
+      verificationMode: 'request-bound'
+    },
+    plan: observed.plan,
+    target,
+    requestedSourceIds: requestedSources.sort(),
+    observationPath: observed.filePath,
+    observedAt: observed.observation.observedAt,
+    producerIdentity: observed.producerIdentity || null
+  }
+  return {
+    status: 'authorized',
+    ...authorization,
+    authorizationDigest: stableDigest({
+      schemaVersion: authorization.schemaVersion,
+      binding: authorization.binding,
+      target,
+      requestedSourceIds: authorization.requestedSourceIds,
+      observationPath: authorization.observationPath,
+      observedAt: authorization.observedAt
+    })
   }
 }
 
@@ -491,6 +643,8 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
 
 module.exports = {
   CONTEXT_SOURCE_LEDGER_SCHEMA,
+  CONTEXT_PLAN_AUTHORIZATION_MAX_AGE_MS,
+  authorizeContextRead,
   contextSourceLedgerRelativePath,
   lifecycleStatePath,
   readMcpContextSourceObservations,

@@ -2,6 +2,8 @@
 'use strict'
 
 const assert = require('assert')
+const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const {
   DEFAULT_SHADOW_SAMPLES,
@@ -49,6 +51,29 @@ const sharedKernel = surfaceMatrix.surfaces.find(surface => surface.id === 'shar
 assert(sharedKernel)
 assert.strictEqual(sharedKernel.exists, true)
 assert.ok(sharedKernel.bytes > 0)
+assert.strictEqual(surfaceMatrix.controlContentLayout, 'source')
+
+// Installed packages deliver control content at the package root and omit content/.
+const installedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-always-on-installed-'))
+try {
+  fs.mkdirSync(path.join(installedRoot, 'instructions'), { recursive: true })
+  fs.mkdirSync(path.join(installedRoot, 'host-projections'), { recursive: true })
+  fs.writeFileSync(path.join(installedRoot, 'instructions', 'base.instructions.md'), '---\napplyTo: "**"\n---\n# installed\n')
+  fs.writeFileSync(path.join(installedRoot, 'instructions.md'), '# installed full fallback\n')
+  fs.writeFileSync(path.join(installedRoot, 'host-projections', 'AGENTS.md'), '# installed kernel\n')
+  fs.writeFileSync(path.join(installedRoot, 'host-projections', 'copilot-instructions.md'), '# installed copilot kernel\n')
+  const installedMatrix = buildAlwaysOnSurfaceMatrix({
+    packageRoot: installedRoot,
+    workspaceRoot: path.dirname(installedRoot)
+  })
+  assert.strictEqual(installedMatrix.controlContentLayout, 'delivery')
+  assert.strictEqual(installedMatrix.validation.valid, true, installedMatrix.validation.errors.join(' | '))
+  assert.ok(!installedMatrix.validation.errors.includes('surface-missing:source-instructions'))
+  assert.ok(!installedMatrix.validation.errors.includes('surface-missing:full-fallback-source'))
+  assert.ok(!installedMatrix.validation.errors.includes('source-instructions-empty'))
+} finally {
+  fs.rmSync(installedRoot, { recursive: true, force: true })
+}
 
 const layerMatrix = buildAlwaysOnLayerMatrix({ packageRoot: ROOT })
 assert.strictEqual(layerMatrix.schemaVersion, 'AlwaysOnLayerMatrixV1')

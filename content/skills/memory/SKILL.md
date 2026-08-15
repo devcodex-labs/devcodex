@@ -183,7 +183,7 @@ mismatch 错误含 nextStep：改完 rehash 再 confirm。Grok 状态条因此�
 ```
 - 每次会话结束前（[SC6](../compliance/SKILL.md) 检查）追加一行索引
 - 模板：`prompts/agent-summary.prompt.md`
-- 🔴 **状态字段延迟写入（v1.9.4+）**：会话进行中先写 `🔄`；任务完整结束、合规检查全通过、V8 部署同步通过后才改 `✅`。防止 session limit 截断时 SUMMARY 已 ✅ 但 tasks 段落不完整造成数据不一致（参见 [`15-memory §新会话首步强制`](../../instructions/15-memory.instructions.md)）。
+- 🔴 **状态事件延迟写入（append-only）**：会话进行中先追加 `🔄`；任务完整结束、合规检查全通过、V8 部署同步通过后，再为同一“日期 + 会话”追加 `✅`。读取端由 `scripts/lib/memory-summary-state.js` 以最后事件投影当前状态；正常的 `🔄→✅` 是历史而非冲突，只有完成后又回退到 active/blocked 才进入冲突诊断。禁止要求 append-only writer 原地改写旧行。
 
 **文件格式**（首次创建时用此表头，之后只追加行）：
 
@@ -202,6 +202,7 @@ mismatch 错误含 nextStep：改完 rehash 再 confirm。Grok 状态条因此�
 - 摘要：一行 50~100 字，包含做了什么 + 关键数字/结果
 - 多任务会话：一行覆盖全部任务，不拆多行
 - 排序：按时间正序追加（最新在最后）
+- 状态折叠：同一“日期 + 会话”允许有多个 append-only 状态事件；最后一行是当前状态，早期行是历史，不得让 stale-index fallback 重新暴露已完成的旧 `🔄`；合法的前向转移不报冲突，completed 后的状态回退必须报冲突
 - 关联报告与关联记忆按 `ArtifactLinkSetDedupeGate` 只写当前主报告 / 主记忆索引；同一物理文件用 canonical path 归并。内部索引不因用户面默认隐藏而停止写入或从 ECR 排除。
 
 > 🔴 **SUMMARY 纯索引约束**：SUMMARY 仅包含表头 + 会话索引行，**禁止添加任何自由文本段落**（如"当前状态""关键决策""待处理事项"等非索引内容）。🔄 状态标记仅出现在索引表的「状态」列，不得出现在表外文本中。已有旧格式 SUMMARY 应在下次写入时迁移（移除非索引段落，内容转入 daily file 或 profile）。

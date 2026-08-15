@@ -27,7 +27,10 @@ const {
   filesForProfileTier,
   parseMarkdownTables
 } = require('./profile-contract')
-const { selectProfileSections } = require('./profile-section-selector.cjs')
+const {
+  selectProfileSectionsFromFileSync
+} = require('./profile-section-selector.cjs')
+const { readBoundedTextFileSync } = require('./bounded-text-reader.cjs')
 const {
   CONTEXT_READ_CONTRACT,
   buildContextReadError,
@@ -38,8 +41,13 @@ const {
 } = require('../hooks/_runtime/context-read-contract.cjs')
 const { buildContentIdentity, buildJsonContentIdentity, validateContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
 const { createRuntimeStateStore } = require('../hooks/_runtime/runtime-state-store.cjs')
-const { persistContextPlanObservation } = require('../hooks/_runtime/context-plan-observation.cjs')
-const { recordMcpContextSourceObservations } = require('../hooks/_runtime/context-source-observation.cjs')
+const {
+  persistContextPlanObservation
+} = require('../hooks/_runtime/context-plan-observation.cjs')
+const {
+  authorizeContextRead,
+  recordMcpContextSourceObservations
+} = require('../hooks/_runtime/context-source-observation.cjs')
 const { resolveExecutionFeatureDecisionForCwd } = require('../hooks/_runtime/execution-optimization-routing.cjs')
 const { resolveGlobalSkillRuntimeRoot } = require('../hooks/_runtime/global-skill-runtime-root.cjs')
 const { handleSkillRoute } = require('../hooks/_runtime/skill-route-tool.cjs')
@@ -50,6 +58,7 @@ const {
   inferProjectFromCwd,
   namespaceRootPath,
   normalizeExecutionOptimizationMode,
+  PROJECT_NAMESPACE_SCHEMA_PATTERN,
   normalizeProjectNamespace,
   resolveLegacyProjectRoot,
   resolveRuntimeStateRoot
@@ -64,6 +73,8 @@ const PROFILE_PROCESS_IDENTITY = captureRuntimeProcessIdentity({
   runtimeRoot: path.resolve(__dirname, '..'),
   bootRuntimeContractDigest: getBootRuntimeContractDigest()
 })
+const PROFILE_INIT_BOOTSTRAP_AUTHORITY = Symbol('devcodex-init-profile-bootstrap')
+const WORKSPACE_CONTEXT_PROJECT = '__workspace__'
 
 function traceSkillRouteCall(args, result) {
   const configured = String(process.env.DEVCODEX_SKILL_ROUTE_TRACE || '').trim()
@@ -126,7 +137,7 @@ const CONTEXT_READ_BINDING_SCHEMA = {
       type: 'string',
       minLength: 1,
       maxLength: 255,
-      pattern: '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+      pattern: PROJECT_NAMESPACE_SCHEMA_PATTERN
     }
   },
   additionalProperties: false
@@ -186,7 +197,7 @@ const TOOLS = [
   },
   {
     name: 'profile_context_plan',
-    description: '按 canonical intent 与 changeTypes 生成 ContextReadPlanV2。稳定 planContentId 与单次 planId 分离；计划无损返回 README/index 与 effective non-local config，其余 Profile 文件仅收集顶层 metadata，不预读正文。',
+    description: '生成持久 ContextReadPlanV2。',
     inputSchema: {
       type: 'object',
       required: ['intent'],
@@ -204,6 +215,7 @@ const TOOLS = [
         },
         contextEpoch: { type: 'string', minLength: 1 },
         project: { type: 'string' },
+        scope: { type: 'string', enum: ['project', 'workspace'] },
         host: { type: 'string' },
         risk: { type: 'string', enum: CONTEXT_READ_CONTRACT.risks },
         confidence: { type: 'number', minimum: 0, maximum: 1 },
@@ -231,11 +243,13 @@ const TOOLS = [
   },
   {
     name: 'profile_load',
-    description: '按计划、文件或 Markdown section 有界加载 Profile 正文。',
+    description: '有界加载计划内 Profile 正文。',
     inputSchema: {
       type: 'object',
+      required: ['contextBinding'],
       properties: {
         project: { type: 'string' },
+        scope: { type: 'string', enum: ['project', 'workspace'] },
         files: {
           type: 'array',
           items: { type: 'string' }
@@ -279,12 +293,13 @@ const TOOLS = [
   },
   {
     name: 'profile_skill_plan',
-    description: '按 Skill portfolio、依赖和预算生成只读 BundleDecisionV2。',
+    description: '生成计划绑定的 BundleDecisionV2。',
     inputSchema: {
       type: 'object',
-      required: ['candidateIds'],
+      required: ['candidateIds', 'contextBinding'],
       properties: {
         project: { type: 'string' },
+        scope: { type: 'string', enum: ['project', 'workspace'] },
         candidateIds: { type: 'array', minItems: 1, uniqueItems: true, items: { type: 'string', minLength: 1 } },
         mandatoryIds: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1 } },
         includeGray: { type: 'boolean' },
@@ -347,11 +362,18 @@ const PROMPTS = [
 // ─── Standard profile files ───────────────────────────────────────────────────
 
 const REQUIRED_FILES = new Set(PROFILE_BASE_FILES)
+const PROFILE_SOURCE_MAX_BYTES = 2 * 1024 * 1024
+const PROFILE_AGGREGATE_SOURCE_MAX_BYTES = 8 * 1024 * 1024
+const PROFILE_CONFIG_SOURCE_MAX_BYTES = 256 * 1024
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function readFileText(filePath) {
-  try { return fs.readFileSync(filePath, 'utf8') } catch { return null }
+function readFileText(filePath, options = {}) {
+  const document = readBoundedTextFileSync(filePath, {
+    maxBytes: options.maxBytes || PROFILE_SOURCE_MAX_BYTES,
+    allowMissing: true
+  })
+  return document.exists ? document.content : null
 }
 
 function readRuntimeKernelText() {
@@ -381,15 +403,18 @@ function profileConfigError(filePath, reason) {
   return error
 }
 
-function readProfileConfigFile(filePath) {
-  if (!fs.existsSync(filePath)) return null
-  let content
-  try {
-    content = fs.readFileSync(filePath, 'utf8')
-  } catch (error) {
-    if (error?.code === 'ENOENT') return null
-    throw error
-  }
+function readProfileConfigFile(filePath, options = {}) {
+  const document = readBoundedTextFileSync(filePath, {
+    maxBytes: Math.min(
+      PROFILE_CONFIG_SOURCE_MAX_BYTES,
+      Number.isInteger(options.maxBytes) && options.maxBytes > 0
+        ? options.maxBytes
+        : PROFILE_CONFIG_SOURCE_MAX_BYTES
+    ),
+    allowMissing: true
+  })
+  if (!document.exists) return null
+  const content = document.content
   let config
   try {
     config = JSON.parse(content)
@@ -399,7 +424,12 @@ function readProfileConfigFile(filePath) {
   if (!isPlainObject(config)) {
     throw profileConfigError(filePath, 'root value must be a JSON object')
   }
-  return { content, config }
+  return {
+    content,
+    config,
+    logicalBytes: document.logicalBytes,
+    sourceBytesRead: document.sourceBytesRead
+  }
 }
 
 function mergeConfig(workspaceConfig, projectConfig) {
@@ -455,6 +485,7 @@ function getWorkspaceProfileDir() {
 }
 
 function getProjectNamespaceProfileDir(projectName) {
+  if (projectName === WORKSPACE_CONTEXT_PROJECT) return null
   const name = resolveProjectName(projectName)
   if (!LAYOUT.enabled || !name) return null
   return path.join(namespaceRootPath(LAYOUT.workspaceRoot, name), 'profile')
@@ -474,24 +505,25 @@ function getLegacySourceLabel(dir, projectName) {
   return dir === projectDir ? `项目根（${path.basename(projectRoot)}）` : '工作区根'
 }
 
-function resolveProfileFile(name, projectName) {
+function resolveProfileFile(name, projectName, options = {}) {
   const safeName = assertSingleSegment(name, 'profile file')
   if (!/\.md$/i.test(safeName) && safeName !== 'config.json' && safeName !== 'config.local.json') {
     throw new Error('invalid profile file')
   }
-  if (safeName === 'config.json') return resolveConfigFile(projectName)
+  if (safeName === 'config.json') return resolveConfigFile(projectName, options)
 
   if (!LAYOUT.enabled) {
     for (const dir of getLegacyProfileDirs(projectName)) {
       const fullPath = resolveInside(dir, safeName)
-      const content = readFileText(fullPath)
+      const content = readFileText(fullPath, options)
       if (content !== null) {
         return {
           exists: true,
           content,
           fullPath,
           sourceLabel: getLegacySourceLabel(dir, projectName),
-          sourcePaths: [fullPath]
+          sourcePaths: [fullPath],
+          sourceBytesRead: Buffer.byteLength(content, 'utf8')
         }
       }
     }
@@ -504,37 +536,106 @@ function resolveProfileFile(name, projectName) {
   const workspacePath = resolveInside(workspaceDir, safeName)
 
   if (projectPath) {
-    const projectContent = readFileText(projectPath)
+    const projectContent = readFileText(projectPath, options)
     if (projectContent !== null) {
       return {
         exists: true,
         content: projectContent,
         fullPath: projectPath,
         sourceLabel: `项目命名空间（${resolveProjectName(projectName)}）`,
-        sourcePaths: [projectPath]
+        sourcePaths: [projectPath],
+        sourceBytesRead: Buffer.byteLength(projectContent, 'utf8')
       }
     }
   }
 
-  const workspaceContent = readFileText(workspacePath)
+  const workspaceContent = readFileText(workspacePath, options)
   if (workspaceContent !== null) {
     return {
       exists: true,
       content: workspaceContent,
       fullPath: workspacePath,
       sourceLabel: '工作区基座（workspace）',
-      sourcePaths: [workspacePath]
+      sourcePaths: [workspacePath],
+      sourceBytesRead: Buffer.byteLength(workspaceContent, 'utf8')
     }
   }
 
   return null
 }
 
-function resolveConfigFile(projectName) {
+function resolveProfileSectionFile(name, projectName, options = {}) {
+  const safeName = assertSingleSegment(name, 'profile file')
+  if (!/\.md$/i.test(safeName)) {
+    const error = new Error(`Profile section selectors only support Markdown files: ${safeName}`)
+    error.code = 'PROFILE_SECTION_SELECTOR_INVALID'
+    throw error
+  }
+  const selectAt = (fullPath, sourceLabel) => {
+    const selected = selectProfileSectionsFromFileSync({
+      file: safeName,
+      filePath: fullPath,
+      selector: options.selector,
+      maxScanBytes: options.maxScanBytes,
+      maxTotalSourceBytes: options.maxTotalSourceBytes
+    })
+    if (!selected.exists) return null
+    return {
+      exists: true,
+      content: selected.body,
+      fullPath,
+      sourceLabel,
+      sourcePaths: [fullPath],
+      sourceBytesRead: selected.sourceBytesRead,
+      selection: selected
+    }
+  }
+
+  if (!LAYOUT.enabled) {
+    for (const dir of getLegacyProfileDirs(projectName)) {
+      const fullPath = resolveInside(dir, safeName)
+      const selected = selectAt(fullPath, getLegacySourceLabel(dir, projectName))
+      if (selected) return selected
+    }
+    return null
+  }
+
+  const projectDir = getProjectNamespaceProfileDir(projectName)
+  if (projectDir) {
+    const projectPath = resolveInside(projectDir, safeName)
+    const selected = selectAt(projectPath, `项目命名空间（${resolveProjectName(projectName)}）`)
+    if (selected) return selected
+  }
+  const workspacePath = resolveInside(getWorkspaceProfileDir(), safeName)
+  return selectAt(workspacePath, '工作区基座（workspace）')
+}
+
+function resolveConfigFile(projectName, options = {}) {
+  let remainingSourceBytes = Number.isInteger(options.maxBytes) && options.maxBytes > 0
+    ? options.maxBytes
+    : Number.POSITIVE_INFINITY
+  const loadConfig = filePath => {
+    if (remainingSourceBytes < 1 && fs.existsSync(filePath)) {
+      const error = new Error(`Context source exceeds the aggregate Profile read budget: ${filePath}`)
+      error.code = 'SOURCE_TOO_LARGE'
+      error.filePath = filePath
+      error.logicalBytes = fs.statSync(filePath).size
+      error.maxBytes = 0
+      error.sourceBytesRead = 0
+      throw error
+    }
+    const loaded = readProfileConfigFile(filePath, {
+      maxBytes: Number.isFinite(remainingSourceBytes)
+        ? Math.max(1, remainingSourceBytes)
+        : PROFILE_CONFIG_SOURCE_MAX_BYTES
+    })
+    remainingSourceBytes -= Number(loaded?.sourceBytesRead || 0)
+    return loaded
+  }
   if (!LAYOUT.enabled) {
     for (const dir of getLegacyProfileDirs(projectName)) {
       const fullPath = path.join(dir, 'config.json')
-      const loaded = readProfileConfigFile(fullPath)
+      const loaded = loadConfig(fullPath)
       if (loaded !== null) {
         return {
           exists: true,
@@ -542,7 +643,8 @@ function resolveConfigFile(projectName) {
           fullPath,
           sourceLabel: getLegacySourceLabel(dir, projectName),
           sourcePaths: [fullPath],
-          config: loaded.config
+          config: loaded.config,
+          sourceBytesRead: loaded.sourceBytesRead
         }
       }
     }
@@ -553,8 +655,8 @@ function resolveConfigFile(projectName) {
   const projectDir = getProjectNamespaceProfileDir(projectName)
   const workspacePath = path.join(workspaceDir, 'config.json')
   const projectPath = projectDir ? path.join(projectDir, 'config.json') : null
-  const workspaceLoaded = readProfileConfigFile(workspacePath)
-  const projectLoaded = projectPath ? readProfileConfigFile(projectPath) : null
+  const workspaceLoaded = loadConfig(workspacePath)
+  const projectLoaded = projectPath ? loadConfig(projectPath) : null
   const workspaceConfig = workspaceLoaded?.config || null
   const projectConfig = projectLoaded?.config || null
   const exists = workspaceConfig !== null || projectConfig !== null
@@ -570,12 +672,13 @@ function resolveConfigFile(projectName) {
       ? `工作区基座（workspace） + 项目命名空间（${resolveProjectName(projectName)}）`
       : (workspaceConfig !== null ? '工作区基座（workspace）' : '未命中'),
     sourcePaths,
-    config: exists ? merged : null
+    config: exists ? merged : null,
+    sourceBytesRead: Number(workspaceLoaded?.sourceBytesRead || 0) + Number(projectLoaded?.sourceBytesRead || 0)
   }
 }
 
 const CONTEXT_PLAN_ARG_FIELDS = new Set([
-  'intent', 'changeTypes', 'contextEpoch', 'project', 'host', 'risk', 'confidence',
+  'intent', 'changeTypes', 'contextEpoch', 'project', 'scope', 'host', 'risk', 'confidence',
   'profileSelectors', 'baselineDigest', 'explicitFull', 'fullReadReason',
   'configLocalRequested', 'crossService'
 ])
@@ -583,14 +686,29 @@ const CONTEXT_PLAN_EPOCHS = new Map()
 const CONTEXT_CACHE_MAX_BYTES = 32 * 1024 * 1024
 const CONTEXT_CACHE_MAX_ENTRIES = 4096
 
-function resolveProfilePlanTarget(projectName) {
+function resolveProfilePlanTarget(projectName, scope) {
+  if (scope !== undefined && !['project', 'workspace'].includes(scope)) {
+    throw new Error('scope must be project or workspace')
+  }
+  if (scope === 'workspace' && projectName !== undefined) {
+    throw new Error('project must be omitted when scope is workspace')
+  }
   if (LAYOUT.enabled) {
+    if (scope === 'workspace') {
+      return {
+        project: WORKSPACE_CONTEXT_PROJECT,
+        activeRoot: path.join(LAYOUT.workspaceRoot, '.devcodex', 'workspace')
+      }
+    }
     const project = resolveProjectName(projectName)
     if (!project) throw new Error('project is required for profile_context_plan when MCP runs from workspace root')
     return {
       project,
       activeRoot: namespaceRootPath(LAYOUT.workspaceRoot, project)
     }
+  }
+  if (scope === 'workspace') {
+    throw new Error('scope workspace requires workspace-namespace layout')
   }
   const projectRoot = resolveProjectRoot(projectName)
   return {
@@ -782,6 +900,61 @@ function getContextPlanEpoch(requestedEpoch) {
     if (CONTEXT_PLAN_EPOCHS.size > 100) CONTEXT_PLAN_EPOCHS.delete(CONTEXT_PLAN_EPOCHS.keys().next().value)
   }
   return { contextEpoch, createdAt: CONTEXT_PLAN_EPOCHS.get(contextEpoch) }
+}
+
+const DEV_CODEX_ROUTE_LOAD_MAX_BYTES = 24 * 1024
+const DEV_CODEX_ROUTE_LOAD_MINIMUM_HEADROOM_BYTES = 1024
+const DEV_CODEX_ROUTE_LOAD_ENTRIES = Object.freeze({
+  '01-项目信息.md': Object.freeze({
+    headingQueries: ['完整开发需求验证链速查', '当前开发重点'],
+    maxBytes: 4096
+  }),
+  '02-架构约束.md': Object.freeze({
+    headingQueries: ['执行链派生状态与回滚边界', '控制面内容物化边界'],
+    maxBytes: 4096
+  }),
+  '03-代码风格.md': Object.freeze({
+    headingQueries: ['JavaScript', 'Markdown规范文件', '禁止事项'],
+    maxBytes: 8192
+  }),
+  '04-测试规范.md': Object.freeze({
+    headingQueries: ['Profile专项', '基本原则', '控制面内容验证'],
+    maxBytes: 4096
+  }),
+  '06-功能清单.md': Object.freeze({
+    headingQueries: ['全项目Profile校验', '公开面维护规则', '近期已发布增量'],
+    maxBytes: 8192
+  }),
+  '07-用户文档与契约规范.md': Object.freeze({
+    headingQueries: ['写作与审查原则', '控制面内容契约', '用户文档主面'],
+    maxBytes: 4096
+  })
+})
+
+function buildDevCodexRouteLoadRecipe(project, selectedFiles, fullRead) {
+  if (String(project || '').trim() !== 'devcodex' || fullRead === true) return null
+  const files = Array.isArray(selectedFiles) ? [...selectedFiles].sort() : []
+  if (!files.length || files.some(file => !DEV_CODEX_ROUTE_LOAD_ENTRIES[file])) return null
+  const entries = files.map(file => {
+    const template = DEV_CODEX_ROUTE_LOAD_ENTRIES[file]
+    return {
+      file,
+      headingQueries: [...template.headingQueries],
+      requiredQueries: [...template.headingQueries],
+      includePreamble: false,
+      includeDescendants: true,
+      maxBytes: template.maxBytes
+    }
+  })
+  const material = {
+    schemaVersion: 'ProfileRouteLoadRecipeV2',
+    strategy: 'bounded-section-selectors',
+    maxFiles: entries.length,
+    maxBytes: DEV_CODEX_ROUTE_LOAD_MAX_BYTES,
+    minimumHeadroomBytes: DEV_CODEX_ROUTE_LOAD_MINIMUM_HEADROOM_BYTES,
+    entries
+  }
+  return { ...material, recipeDigest: stableDigest(material) }
 }
 
 function contextPlanStableProjection(plan) {
@@ -980,9 +1153,9 @@ function resolveExecutionOptimizationBinding(binding) {
   }
 }
 
-function resolveProfileOptimizationFeature(project, optimizationMode, featureId) {
+function resolveProfileOptimizationFeature(project, optimizationMode, featureId, scope) {
   try {
-    const target = resolveProfilePlanTarget(project)
+    const target = resolveProfilePlanTarget(project, scope)
     return resolveExecutionFeatureDecisionForCwd({
       cwd: INPUT_ROOT,
       activeRoot: target.activeRoot,
@@ -1020,18 +1193,12 @@ function comparableActiveRoot(value) {
   return process.platform === 'win32' ? resolved.toLowerCase() : resolved
 }
 
-function resolveContextReadBinding(binding, target) {
+function resolveContextReadAuthorization(binding, target, requested = {}) {
   if (binding === undefined || binding === null) {
-    return {
-      schemaVersion: 'ContextReadBindingV1',
-      contextEpoch: null,
-      planId: null,
-      planContentId: null,
-      activeRoot: target.activeRoot,
-      project: target.project,
-      bindingStatus: 'legacy-unbound',
-      verificationMode: 'legacy-unbound'
-    }
+    throw contextBindingError(
+      'CONTEXT_BINDING_REQUIRED',
+      'A current ContextReadBindingV1 is required before reading governed Profile content.'
+    )
   }
   if (typeof binding !== 'object' || Array.isArray(binding)) {
     throw contextBindingError('CONTEXT_BINDING_INVALID', 'contextBinding must be an object.')
@@ -1048,16 +1215,24 @@ function resolveContextReadBinding(binding, target) {
       binding.project.trim() !== String(target.project || '').trim()) {
     throw contextBindingError('CONTEXT_BINDING_MISMATCH', 'contextBinding target does not match the resolved active root and project.')
   }
-  return {
-    schemaVersion: 'ContextReadBindingV1',
-    contextEpoch: binding.contextEpoch.trim(),
-    planId: binding.planId.trim(),
-    planContentId: binding.planContentId.trim(),
-    activeRoot: binding.activeRoot.trim(),
-    project: binding.project.trim(),
-    bindingStatus: 'verified',
-    verificationMode: 'request-bound'
+  const authorization = authorizeContextRead({
+    activeRoot: target.activeRoot,
+    project: target.project,
+    contextBinding: binding,
+    requestedSources: requested.sourceIds,
+    requestedSections: requested.sections
+  })
+  if (authorization.status !== 'authorized') {
+    throw contextBindingError(
+      authorization.errorCode || 'CONTEXT_BINDING_INVALID',
+      authorization.message || 'Context read authorization failed.'
+    )
   }
+  return authorization
+}
+
+function resolveContextReadBinding(binding, target) {
+  return resolveContextReadAuthorization(binding, target).binding
 }
 
 // ─── Tool handlers ────────────────────────────────────────────────────────────
@@ -1095,6 +1270,16 @@ function handleProfileContextPlan(args = {}) {
   }
   if (args.contextEpoch !== undefined && !String(args.contextEpoch || '').trim()) {
     return contextPlanResult(buildContextReadError('CONTEXT_PLAN_INVALID', 'contextEpoch must be non-empty when supplied.'))
+  }
+  if (args.scope !== undefined && !['project', 'workspace'].includes(args.scope)) {
+    return contextPlanResult(buildContextReadError('CONTEXT_PLAN_INVALID', 'scope must be project or workspace.'))
+  }
+  if (args.scope === 'workspace' && args.project !== undefined) {
+    return contextPlanResult(buildContextReadError(
+      'CONTEXT_PLAN_INVALID',
+      'project must be omitted when scope is workspace.',
+      'Use scope:"workspace" by itself, or use scope:"project" with one project.'
+    ))
   }
 
   const epoch = getContextPlanEpoch(args.contextEpoch)
@@ -1153,7 +1338,7 @@ function handleProfileContextPlan(args = {}) {
 
   let target
   try {
-    target = resolveProfilePlanTarget(args.project)
+    target = resolveProfilePlanTarget(args.project, args.scope)
   } catch (error) {
     return contextPlanResult(buildContextReadError(
       'CONTEXT_ACTIVE_TARGET_MISMATCH',
@@ -1166,7 +1351,7 @@ function handleProfileContextPlan(args = {}) {
   try {
     const inputs = collectProfilePlanInputs(target)
     const latencyMs = Number(process.hrtime.bigint() - startedAt) / 1e6
-    const candidate = buildContextReadPlan({
+    const planInput = {
       intentSeed: { ...seed, targetHint: target.project },
       identity: {
         activeRoot: target.activeRoot,
@@ -1184,8 +1369,18 @@ function handleProfileContextPlan(args = {}) {
       crossService: args.crossService === true,
       planningTelemetry: { latencyMs },
       stageTiming: { latencyMs, sourceReadMs: latencyMs }
-    })
+    }
+    let candidate = buildContextReadPlan(planInput)
     if (candidate.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error) return contextPlanResult(candidate)
+    const routeLoadRecipe = buildDevCodexRouteLoadRecipe(
+      target.project,
+      candidate.profile?.selectedFiles,
+      candidate.fullRead
+    )
+    if (routeLoadRecipe) {
+      candidate = buildContextReadPlan({ ...planInput, profileRouteLoadRecipe: routeLoadRecipe })
+      if (candidate.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error) return contextPlanResult(candidate)
+    }
     const optimizationMode = resolveExecutionOptimizationBinding(candidate.executionOptimization)
     const plan = applyContextPlanComputationCache(
       candidate,
@@ -1233,18 +1428,23 @@ function profileLoadError(errorCode, message, nextStep, details = {}) {
   }
 }
 
-function handleProfileLoad(args = {}) {
+function handleProfileLoad(args = {}, internal = {}) {
+  if (args.files !== undefined && !Array.isArray(args.files)) {
+    return profileLoadError('PROFILE_FILES_INVALID', 'files must be an array.', 'Pass a bounded array of top-level Profile filenames.')
+  }
+  for (const file of args.files || []) {
+    try {
+      const safeFile = assertSingleSegment(file, 'profile file')
+      if (!/\.md$/i.test(safeFile) && !['config.json', 'config.local.json'].includes(safeFile)) {
+        throw new Error('invalid profile file')
+      }
+    } catch (error) {
+      return profileLoadError('PROFILE_FILE_INVALID', error.message, 'Use one top-level Profile Markdown or config filename.')
+    }
+  }
   const hasFiles = Array.isArray(args.files) && args.files.length > 0
   const explicitFull = args.explicitFull === true
-  if (!hasFiles && !explicitFull) {
-    const inventory = resolveDefaultProfileFiles(args.project)
-    return profileLoadError(
-      'PROFILE_LOAD_BUDGET',
-      'profile_load without files requires explicitFull=true and fullReadReason (hard budget; no silent full-tier load).',
-      'Pass files: [...] for targeted load (default maxFiles=2, maxBytes=32768), or explicitFull+fullReadReason for tier full read.',
-      { inventoryFiles: inventory, defaults: { maxFiles: DEFAULT_PROFILE_LOAD_MAX_FILES, maxBytes: DEFAULT_PROFILE_LOAD_MAX_BYTES } }
-    )
-  }
+  const bootstrapAuthorized = internal.bootstrapAuthority === PROFILE_INIT_BOOTSTRAP_AUTHORITY
   if (explicitFull && !hasFiles && !String(args.fullReadReason || '').trim()) {
     return profileLoadError(
       'PROFILE_FULL_REASON_REQUIRED',
@@ -1252,10 +1452,30 @@ function handleProfileLoad(args = {}) {
       'Provide fullReadReason describing why tier full read is necessary.'
     )
   }
-
+  let target
   let contextBinding
+  let contextAuthorization = null
   try {
-    contextBinding = resolveContextReadBinding(args.contextBinding, resolveProfilePlanTarget(args.project))
+    target = resolveProfilePlanTarget(args.project, args.scope)
+    if (bootstrapAuthorized) {
+      if (!explicitFull || hasFiles) {
+        throw contextBindingError(
+          'PROFILE_BOOTSTRAP_AUTHORITY_INVALID',
+          'The internal devcodex-init bootstrap authority is restricted to one explicit full Profile load.'
+        )
+      }
+      contextBinding = {
+        schemaVersion: 'ProfileBootstrapAuthorityV1',
+        authority: 'devcodex-init',
+        activeRoot: target.activeRoot,
+        project: target.project,
+        bindingStatus: 'bootstrap-authorized',
+        verificationMode: 'internal-bootstrap'
+      }
+    } else {
+      contextAuthorization = resolveContextReadAuthorization(args.contextBinding, target)
+      contextBinding = contextAuthorization.binding
+    }
   } catch (error) {
     return profileLoadError(
       error.contextReadCode || 'CONTEXT_BINDING_INVALID',
@@ -1264,20 +1484,76 @@ function handleProfileLoad(args = {}) {
     )
   }
 
-  const requested = hasFiles ? args.files : resolveDefaultProfileFiles(args.project)
   const suppliedSelectors = args.sectionSelectors === undefined ? [] : args.sectionSelectors
   if (!Array.isArray(suppliedSelectors)) {
     return profileLoadError('PROFILE_SECTION_SELECTORS_INVALID', 'sectionSelectors must be an array.', 'Pass one selector object per requested Profile file.')
   }
   const optimizationMode = resolveExecutionOptimizationBinding(args.executionOptimization)
-  const featureDecision = resolveProfileOptimizationFeature(args.project, optimizationMode, 'profile-section-load')
-  const rawSelectors = featureDecision.optimizationAllowed ? suppliedSelectors : []
-  if (rawSelectors.length && !hasFiles) {
+  const featureDecision = resolveProfileOptimizationFeature(args.project, optimizationMode, 'profile-section-load', args.scope)
+  let routeLoadRecipe = null
+  if (!bootstrapAuthorized && !hasFiles && !explicitFull &&
+      !suppliedSelectors.length && featureDecision.optimizationAllowed) {
+    routeLoadRecipe = contextAuthorization.plan.profile?.routeLoadRecipe || null
+  }
+  if (!hasFiles && !explicitFull && !routeLoadRecipe) {
     return profileLoadError(
-      'PROFILE_SECTION_FILES_REQUIRED',
-      'sectionSelectors require an explicit files list selected by the ContextReadPlan.',
-      'Pass files: [...] and keep every selector.file inside that list.'
+      'PROFILE_ROUTE_RECIPE_UNAVAILABLE',
+      'profile_load without files has no verified bounded route recipe for this ContextReadBindingV1.',
+      'Pass files: [...] for a targeted load, or regenerate the context plan that owns this binding.',
+      {
+        inventoryFiles: contextAuthorization?.plan?.profile?.selectedFiles || [],
+        defaults: { maxFiles: DEFAULT_PROFILE_LOAD_MAX_FILES, maxBytes: DEFAULT_PROFILE_LOAD_MAX_BYTES }
+      }
     )
+  }
+  const requested = hasFiles
+    ? args.files
+    : (routeLoadRecipe
+        ? routeLoadRecipe.entries.map(entry => entry.file)
+        : (bootstrapAuthorized
+            ? resolveDefaultProfileFiles(target.project)
+            : contextAuthorization.plan.selectedSources
+              .filter(source => source.kind.startsWith('profile'))
+              .map(source => source.selector)))
+  const rawSelectors = featureDecision.optimizationAllowed
+    ? (routeLoadRecipe
+        ? routeLoadRecipe.entries.map(entry => ({
+            file: entry.file,
+            headingQueries: [...entry.headingQueries],
+            requiredQueries: [...entry.requiredQueries],
+            includePreamble: entry.includePreamble,
+            includeDescendants: entry.includeDescendants,
+            maxBytes: entry.maxBytes
+          }))
+        : suppliedSelectors)
+    : []
+  if (rawSelectors.length && !hasFiles) {
+    if (!routeLoadRecipe) {
+      return profileLoadError(
+        'PROFILE_SECTION_FILES_REQUIRED',
+        'sectionSelectors require an explicit files list selected by the ContextReadPlan.',
+        'Pass files: [...] and keep every selector.file inside that list.'
+      )
+    }
+  }
+  if (!bootstrapAuthorized) {
+    try {
+      contextAuthorization = resolveContextReadAuthorization(args.contextBinding, target, {
+        sourceIds: requested.map(file => `profile:${file}`),
+        sections: rawSelectors.map(selector => ({
+          sourceId: `profile:${selector.file}`,
+          headingQueries: selector.headingQueries,
+          requireRouteRecipe: !!routeLoadRecipe
+        }))
+      })
+      contextBinding = contextAuthorization.binding
+    } catch (error) {
+      return profileLoadError(
+        error.contextReadCode || 'CONTEXT_BINDING_INVALID',
+        error.message,
+        'Regenerate a ContextReadPlanV2 that selects the requested Profile sources and retry once.'
+      )
+    }
   }
   const selectorByFile = new Map()
   for (const selector of rawSelectors) {
@@ -1294,13 +1570,13 @@ function handleProfileLoad(args = {}) {
     selectorByFile.set(file, selector)
   }
   // Explicit files list: load all named files (still hard-capped by maxBytes).
-  // No-files + explicitFull: tier full set. Otherwise default maxFiles=2.
+  // A verified plan-owned route recipe is the only no-files targeted path.
   const maxFiles = Number.isInteger(args.maxFiles) && args.maxFiles > 0
     ? args.maxFiles
-    : (hasFiles || explicitFull ? requested.length : DEFAULT_PROFILE_LOAD_MAX_FILES)
+    : (routeLoadRecipe ? routeLoadRecipe.maxFiles : (hasFiles || explicitFull ? requested.length : DEFAULT_PROFILE_LOAD_MAX_FILES))
   const maxBytes = Number.isInteger(args.maxBytes) && args.maxBytes >= 1024
     ? args.maxBytes
-    : (explicitFull ? 512 * 1024 : DEFAULT_PROFILE_LOAD_MAX_BYTES)
+    : (routeLoadRecipe ? routeLoadRecipe.maxBytes : (explicitFull ? 512 * 1024 : DEFAULT_PROFILE_LOAD_MAX_BYTES))
 
   const selected = requested.slice(0, maxFiles)
   const deferred = requested.slice(maxFiles)
@@ -1312,11 +1588,76 @@ function handleProfileLoad(args = {}) {
   const loaded = []
   const sectionReceipts = []
   const deliveredProfiles = []
+  let sourceBytesRead = 0
 
   for (let selectedIndex = 0; selectedIndex < selected.length; selectedIndex += 1) {
     const name = selected[selectedIndex]
-    const resolved = resolveProfileFile(name, args.project)
-    if (resolved) {
+    const selector = selectorByFile.get(name)
+    if (sourceBytesRead >= PROFILE_AGGREGATE_SOURCE_MAX_BYTES) {
+      return profileLoadError(
+        'SOURCE_TOO_LARGE',
+        `The aggregate Profile source read budget is exhausted before ${name}.`,
+        'Reduce the selected source set or use narrower section selectors, then retry.',
+        {
+          file: name,
+          maxAggregateSourceBytes: PROFILE_AGGREGATE_SOURCE_MAX_BYTES,
+          sourceBytesRead
+        }
+      )
+    }
+    let resolved
+    try {
+      const remainingAggregateSourceBytes = Math.max(
+        1,
+        PROFILE_AGGREGATE_SOURCE_MAX_BYTES - sourceBytesRead
+      )
+      resolved = selector
+        ? resolveProfileSectionFile(name, target.project, {
+            selector: {
+              ...selector,
+              maxBytes: Math.min(
+                Number.isInteger(selector.maxBytes) ? selector.maxBytes : maxBytes,
+                Math.max(1, maxBytes - usedBytes)
+              )
+            },
+            maxScanBytes: Math.min(PROFILE_SOURCE_MAX_BYTES, remainingAggregateSourceBytes),
+            maxTotalSourceBytes: remainingAggregateSourceBytes
+          })
+        : resolveProfileFile(name, target.project, {
+            maxBytes: Math.min(PROFILE_SOURCE_MAX_BYTES, remainingAggregateSourceBytes)
+          })
+    } catch (error) {
+      if (['SOURCE_TOO_LARGE', 'SOURCE_NOT_REGULAR_FILE', 'SOURCE_INVALID_UTF8', 'SOURCE_CHANGED_DURING_READ'].includes(error.code)) {
+        return profileLoadError(
+          error.code,
+          error.message,
+          'Reduce or split the Profile source, then regenerate the ContextReadPlanV2 and retry.',
+          {
+            file: name,
+            logicalBytes: error.logicalBytes ?? null,
+            maxSourceBytes: error.maxBytes || PROFILE_SOURCE_MAX_BYTES,
+            maxAggregateSourceBytes: PROFILE_AGGREGATE_SOURCE_MAX_BYTES,
+            sourceBytesRead: error.sourceBytesRead || 0
+          }
+        )
+      }
+      throw error
+    }
+    if (resolved?.exists === true) {
+      const resolvedSourceBytes = Number(resolved.sourceBytesRead || Buffer.byteLength(resolved.content || '', 'utf8'))
+      if (sourceBytesRead + resolvedSourceBytes > PROFILE_AGGREGATE_SOURCE_MAX_BYTES) {
+        return profileLoadError(
+          'SOURCE_TOO_LARGE',
+          `Profile sources exceed the ${PROFILE_AGGREGATE_SOURCE_MAX_BYTES}-byte aggregate read budget.`,
+          'Reduce the selected source set or use narrower section selectors, then retry.',
+          {
+            file: name,
+            maxAggregateSourceBytes: PROFILE_AGGREGATE_SOURCE_MAX_BYTES,
+            sourceBytesRead: sourceBytesRead + resolvedSourceBytes
+          }
+        )
+      }
+      sourceBytesRead += resolvedSourceBytes
       const sourceLines = [`> 来源：${resolved.sourceLabel}`]
       for (const sourcePath of resolved.sourcePaths || []) {
         sourceLines.push(`> 路径：${sourcePath}`)
@@ -1329,24 +1670,43 @@ function handleProfileLoad(args = {}) {
         deferred.unshift(name, ...selected.slice(selectedIndex + 1))
         break
       }
-      const selector = selectorByFile.get(name)
-      const selection = selector
-        ? selectProfileSections({
-          file: name,
-          content: resolved.content,
-          selector: {
-            ...selector,
-            maxBytes: Math.min(
-              Number.isInteger(selector.maxBytes) ? selector.maxBytes : pieceBudget,
-              pieceBudget
-            )
-          }
-        })
-        : null
+      const selection = resolved.selection || null
+      if (routeLoadRecipe && selection) {
+        const recipeEntry = routeLoadRecipe.entries.find(entry => entry.file === name)
+        if (!recipeEntry || selection.receipt.completion !== 'complete' ||
+            selection.receipt.selectedBytes > recipeEntry.maxBytes) {
+          return profileLoadError(
+            'PROFILE_ROUTE_RECIPE_BUDGET_EXCEEDED',
+            `The bounded route recipe budget is exhausted for ${name}; it will not fall back to a full Profile body.`,
+            'Use an explicit files+sectionSelectors follow-up with a justified bounded maxBytes, or narrow the requested headings.',
+            {
+              file: name,
+              recipeDigest: routeLoadRecipe.recipeDigest,
+              entryMaxBytes: recipeEntry?.maxBytes || null,
+              sectionReceipt: selection.receipt
+            }
+          )
+        }
+      }
       const body = selection ? selection.body : resolved.content
       const block = `${header}${body}`
       const blockBytes = Buffer.byteLength(separator + block, 'utf8')
       if (blockBytes > maxBytes - usedBytes) {
+        if (routeLoadRecipe) {
+          return profileLoadError(
+            'PROFILE_ROUTE_RECIPE_BUDGET_EXCEEDED',
+            `The bounded route recipe global budget is exhausted before ${name}; it will not fall back to a full Profile body.`,
+            'Use an explicit files+sectionSelectors follow-up with a justified bounded maxBytes, or narrow the requested headings.',
+            {
+              file: name,
+              recipeDigest: routeLoadRecipe.recipeDigest,
+              usedBytes,
+              blockBytes,
+              maxBytes,
+              minimumHeadroomBytes: routeLoadRecipe.minimumHeadroomBytes
+            }
+          )
+        }
         truncatedByBytes = true
         deferred.unshift(name, ...selected.slice(selectedIndex + 1))
         if (selection) sectionReceipts.push({ ...selection.receipt, bodyDelivered: false, deliveryCompletion: 'deferred-full-file' })
@@ -1392,6 +1752,21 @@ function handleProfileLoad(args = {}) {
     }
   }
 
+  if (routeLoadRecipe && usedBytes > maxBytes - routeLoadRecipe.minimumHeadroomBytes) {
+    return profileLoadError(
+      'PROFILE_ROUTE_RECIPE_BUDGET_EXCEEDED',
+      'The bounded route recipe consumed its reserved recovery headroom; no full Profile fallback was attempted.',
+      'Use an explicit files+sectionSelectors follow-up with a justified bounded maxBytes, or narrow the requested headings.',
+      {
+        recipeDigest: routeLoadRecipe.recipeDigest,
+        usedBytes,
+        maxBytes,
+        minimumHeadroomBytes: routeLoadRecipe.minimumHeadroomBytes,
+        remainingBytes: maxBytes - usedBytes
+      }
+    )
+  }
+
   let text = parts.join('\n\n---\n\n')
   const meta = {
     schemaVersion: 'ProfileLoadReceiptV2',
@@ -1400,9 +1775,22 @@ function handleProfileLoad(args = {}) {
     loadedFiles: loaded,
     deferredFiles: [...new Set(deferred)],
     usedBytes,
+    sourceBytesRead,
+    maxSourceBytesPerFile: PROFILE_SOURCE_MAX_BYTES,
+    maxAggregateSourceBytes: PROFILE_AGGREGATE_SOURCE_MAX_BYTES,
     maxFiles,
     maxBytes,
     explicitFull,
+    routeLoadRecipe: routeLoadRecipe
+      ? {
+          schemaVersion: routeLoadRecipe.schemaVersion,
+          recipeDigest: routeLoadRecipe.recipeDigest,
+          planContentId: contextBinding.planContentId,
+          minimumHeadroomBytes: routeLoadRecipe.minimumHeadroomBytes,
+          remainingBytes: maxBytes - usedBytes,
+          applied: true
+        }
+      : null,
     executionOptimizationMode: optimizationMode.effective,
     executionOptimizationBinding: optimizationMode.bindingValid ? 'verified' : 'missing-or-invalid-fail-closed',
     executionOptimizationFeature: {
@@ -1423,44 +1811,55 @@ function handleProfileLoad(args = {}) {
     text = `⚠️ 必需 Profile 文件缺失，AI 将以保守降级模式运行：${missing.join('、')}\n\n---\n\n` + text
   }
   let contextObservation
-  try {
-    contextObservation = recordMcpContextSourceObservations({
-      activeRoot: contextBinding.activeRoot,
-      project: contextBinding.project,
-      workspaceNamespace: LAYOUT.enabled,
-      contextBinding,
-      hostSessionId: String(process.env.DEVCODEX_HOST_SESSION_ID || ''),
-      sourceResults: deliveredProfiles.map(item => {
-        const contentIdentity = item.missing
-          ? null
-          : buildContentIdentity({
-              sourceKey: `profile://${contextBinding.project}/${item.file}#delivered`,
-              content: item.body,
-              contractVersion: 'ProfileBodyV1'
-            })
-        return {
-          sourceId: `profile:${item.file}`,
-          sourceLayer: combineProfileLayers(contextBinding.project, item.sourcePaths),
-          outcome: item.missing ? 'missing' : 'observed-success',
-          successful: !item.missing,
-          observable: true,
-          transportSuccess: true,
-          sourceRefsMatch: !item.missing && item.sourcePaths.length > 0,
-          schemaMatch: contextBinding.bindingStatus === 'verified',
-          targetMatch: contextBinding.bindingStatus === 'verified',
-          contentIdentity,
-          bodyObserved: !item.missing,
-          bytes: Buffer.byteLength(item.body, 'utf8'),
-          chars: item.body.length,
-          hostDeliveredBytes: Buffer.byteLength(item.body, 'utf8')
-        }
-      })
-    })
-  } catch (error) {
+  if (bootstrapAuthorized) {
     contextObservation = {
-      status: 'degraded',
-      errorCode: error.code || 'CONTEXT_SOURCE_OBSERVATION_FAILED',
-      message: error.message
+      status: 'bootstrap-authorized',
+      ledgerStatus: 'N/A',
+      lifecycleStatus: 'N/A',
+      receiptStatus: 'bootstrap-authorized',
+      satisfiedSourceIds: [],
+      missingSourceIds: []
+    }
+  } else {
+    try {
+      contextObservation = recordMcpContextSourceObservations({
+        activeRoot: contextBinding.activeRoot,
+        project: contextBinding.project,
+        workspaceNamespace: LAYOUT.enabled,
+        contextBinding,
+        hostSessionId: String(process.env.DEVCODEX_HOST_SESSION_ID || ''),
+        sourceResults: deliveredProfiles.map(item => {
+          const contentIdentity = item.missing
+            ? null
+            : buildContentIdentity({
+                sourceKey: `profile://${contextBinding.project}/${item.file}#delivered`,
+                content: item.body,
+                contractVersion: 'ProfileBodyV1'
+              })
+          return {
+            sourceId: `profile:${item.file}`,
+            sourceLayer: combineProfileLayers(contextBinding.project, item.sourcePaths),
+            outcome: item.missing ? 'missing' : 'observed-success',
+            successful: !item.missing,
+            observable: true,
+            transportSuccess: true,
+            sourceRefsMatch: !item.missing && item.sourcePaths.length > 0,
+            schemaMatch: contextBinding.bindingStatus === 'verified',
+            targetMatch: contextBinding.bindingStatus === 'verified',
+            contentIdentity,
+            bodyObserved: !item.missing,
+            bytes: Buffer.byteLength(item.body, 'utf8'),
+            chars: item.body.length,
+            hostDeliveredBytes: Buffer.byteLength(item.body, 'utf8')
+          }
+        })
+      })
+    } catch (error) {
+      contextObservation = {
+        status: 'degraded',
+        errorCode: error.code || 'CONTEXT_SOURCE_OBSERVATION_FAILED',
+        message: error.message
+      }
     }
   }
   meta.contextObservation = {
@@ -1486,7 +1885,10 @@ function handleProfileLoad(args = {}) {
 function handleProfileSkillPlan(args = {}) {
   let contextBinding
   try {
-    contextBinding = resolveContextReadBinding(args.contextBinding, resolveProfilePlanTarget(args.project))
+    contextBinding = resolveContextReadBinding(
+      args.contextBinding,
+      resolveProfilePlanTarget(args.project, args.scope)
+    )
   } catch (error) {
     return {
       content: [{
@@ -1531,9 +1933,15 @@ function handleProfileSkillPlan(args = {}) {
       isError: true
     }
   }
-  const { executionOptimization, contextBinding: _contextBinding, project: _project, ...bundleArgs } = args
+  const {
+    executionOptimization,
+    contextBinding: _contextBinding,
+    project: _project,
+    scope: _scope,
+    ...bundleArgs
+  } = args
   const optimizationMode = resolveExecutionOptimizationBinding(executionOptimization)
-  const featureDecision = resolveProfileOptimizationFeature(args.project, optimizationMode, 'skill-bundle')
+  const featureDecision = resolveProfileOptimizationFeature(args.project, optimizationMode, 'skill-bundle', args.scope)
   const decision = buildBundleDecisionV2(portfolio, {
     ...bundleArgs,
     ...(!featureDecision.optimizationAllowed ? { hostCapability: 'unsupported' } : {})
@@ -1612,6 +2020,8 @@ function handlePromptsGet(args) {
     explicitFull: true,
     fullReadReason: 'devcodex-init prompt embeds tier Profile for onboarding',
     maxBytes: 512 * 1024
+  }, {
+    bootstrapAuthority: PROFILE_INIT_BOOTSTRAP_AUTHORITY
   })
   if (profileResponse.isError) {
     throw new Error(profileResponse.content?.[0]?.text || 'profile_load failed for devcodex-init')

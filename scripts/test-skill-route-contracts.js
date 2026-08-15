@@ -11,7 +11,8 @@ const {
   validateSkillIntent
 } = require('../hooks/_runtime/progressive-skill-route-contract.cjs')
 const {
-  HOST_VARIANTS
+  HOST_VARIANTS,
+  getLifecycleHostAdapterDigest
 } = require('../hooks/_runtime/host-adapter-identity.cjs')
 const {
   buildRuntimeSkillIdentityIndex
@@ -50,6 +51,7 @@ const {
 } = require('./lib/grok-workspace-launcher')
 const {
   assertReplanProgressCompatible,
+  formatSkillRouteBootstrapInjection,
   preserveCompatibleStageProgress
 } = require('../hooks/_runtime/skill-route-tool.cjs')
 const {
@@ -226,6 +228,7 @@ try {
   }
   const catalog = buildUnifiedSkillCatalog(index, turnIdentity)
   assert(catalog.pages.length > 1)
+  assert(catalog.pages.length <= 5, `expected catalog to fit in <=5 pages, got ${catalog.pages.length}`)
   assert.strictEqual(
     catalog.pages.reduce((sum, page) => sum + measureWrappedPage(page), 0),
     catalog.totalSerializedBytes
@@ -572,6 +575,30 @@ try {
     assert.strictEqual(mode.sourceDefault, 'unified')
     assert.strictEqual(mode.hostVariant, hostVariant)
   }
+  const desktopEnvironment = {
+    CODEX_INTERNAL_ORIGINATOR_OVERRIDE: 'Codex Desktop',
+    CODEX_THREAD_ID: 'thread-contract-desktop'
+  }
+  const desktopMode = resolveSkillRouteMode({
+    project: fixture.project,
+    host: 'codex',
+    env: desktopEnvironment,
+    hostAdapterDigest: getLifecycleHostAdapterDigest('codex', { env: desktopEnvironment })
+  })
+  assert.strictEqual(desktopMode.hostVariant, HOST_VARIANTS.codexdesktop)
+  assert.strictEqual(desktopMode.hostEligibility, 'UNVERIFIED')
+  const cliMode = resolveSkillRouteMode({
+    project: fixture.project,
+    host: 'codex',
+    env: {},
+    hostAdapterDigest: getLifecycleHostAdapterDigest('codex', { env: {} })
+  })
+  assert.strictEqual(cliMode.hostVariant, HOST_VARIANTS.codex)
+  assert.strictEqual(cliMode.hostEligibility, 'UNVERIFIED')
+  assert.match(
+    formatSkillRouteBootstrapInjection({ project: fixture.project }, { host: 'codex' }),
+    /profile\.routeLoadRecipe/
+  )
 
   assert.strictEqual(parseExplicitSkillId('请使用 test skill'), 'test')
   assert.strictEqual(parseExplicitSkillId('用 skill: test'), 'test')
@@ -599,22 +626,41 @@ try {
     item.hostVariant === 'codex-cli/exec-user-global-local-stdio'
   )
   assert(productionCapability)
+  assert.strictEqual(productionCapability.status, 'UNVERIFIED')
+  const desktopCapability = capabilities.capabilities.find(item =>
+    item.hostVariant === 'codex-desktop/app-user-global-local-stdio'
+  )
+  assert(desktopCapability)
+  assert.strictEqual(desktopCapability.status, 'UNVERIFIED')
   const currentCapabilityPath = path.join(fixture.root, 'current-capabilities.json')
   const currentCapabilities = JSON.parse(JSON.stringify(capabilities))
   const currentProductionCapability = currentCapabilities.capabilities.find(item =>
     item.hostVariant === 'codex-cli/exec-user-global-local-stdio'
   )
+  const currentEvidencePath = path.join(fixture.root, 'current-codex-evidence.json')
+  currentProductionCapability.status = 'PASS'
+  currentProductionCapability.testedVersion = 'fixture-codex-cli'
   currentProductionCapability.runtimeContractDigest = getRuntimeContractDigest()
+  currentProductionCapability.hostAdapterDigest = getLifecycleHostAdapterDigest('codex', { env: {} })
+  currentProductionCapability.evidenceRef = path.basename(currentEvidencePath)
+  currentProductionCapability.defaultEligible = true
   const currentEvidenceSource = path.join(
     fixture.packageRoot,
-    currentProductionCapability.evidenceRef
+    'hooks',
+    '_runtime',
+    'evidence',
+    'codex-skill-route-pass.v1.json'
   )
   const currentEvidence = JSON.parse(fs.readFileSync(currentEvidenceSource, 'utf8'))
+  currentEvidence.status = 'PASS'
+  currentEvidence.portable = true
+  currentEvidence.hostVariant = currentProductionCapability.hostVariant
+  currentEvidence.testedVersion = currentProductionCapability.testedVersion
+  currentEvidence.protocol = currentProductionCapability.protocol
   currentEvidence.runtimeContractDigest = currentProductionCapability.runtimeContractDigest
-  const currentEvidencePath = path.join(fixture.root, 'current-codex-evidence.json')
+  currentEvidence.hostAdapterDigest = currentProductionCapability.hostAdapterDigest
   const currentEvidenceRaw = `${JSON.stringify(currentEvidence, null, 2)}\n`
   fs.writeFileSync(currentEvidencePath, currentEvidenceRaw, 'utf8')
-  currentProductionCapability.evidenceRef = path.basename(currentEvidencePath)
   currentProductionCapability.evidenceDigest = crypto.createHash('sha256')
     .update(currentEvidenceRaw, 'utf8')
     .digest('hex')
@@ -629,7 +675,8 @@ try {
     capabilityPath: currentCapabilityPath,
     evidenceRoot: fixture.root,
     hostAdapterDigest: currentProductionCapability.hostAdapterDigest,
-    packageRoot: fixture.packageRoot
+    packageRoot: fixture.packageRoot,
+    env: {}
   })
   assert.strictEqual(productionMode.effective, 'unified')
   assert.strictEqual(productionMode.hostEligibility, 'PASS', JSON.stringify(productionMode, null, 2))
@@ -649,12 +696,12 @@ try {
   assert.strictEqual(productionMode.probeAuthorityReason, 'probe-authority-missing')
 
   const staleCapabilityPath = path.join(fixture.root, 'stale-capabilities.json')
-  const staleCapabilities = JSON.parse(JSON.stringify(capabilities))
+  const staleCapabilities = JSON.parse(JSON.stringify(currentCapabilities))
   const staleCapability = staleCapabilities.capabilities.find(item =>
     item.hostVariant === 'codex-cli/exec-user-global-local-stdio'
   )
   staleCapability.runtimeContractDigest = 'f'.repeat(64)
-  const sourceEvidencePath = path.join(fixture.packageRoot, staleCapability.evidenceRef)
+  const sourceEvidencePath = currentEvidencePath
   const staleEvidence = JSON.parse(fs.readFileSync(sourceEvidencePath, 'utf8'))
   staleEvidence.runtimeContractDigest = staleCapability.runtimeContractDigest
   const staleEvidenceRef = 'evidence/stale-codex.json'
@@ -675,8 +722,9 @@ try {
     project: fixture.project,
     host: 'codex',
     capabilityPath: staleCapabilityPath,
-    hostAdapterDigest: productionCapability.hostAdapterDigest,
-    packageRoot: fixture.root
+    hostAdapterDigest: currentProductionCapability.hostAdapterDigest,
+    packageRoot: fixture.root,
+    env: {}
   })
   assert.strictEqual(staleProductionMode.effective, 'unified')
   assert.strictEqual(staleProductionMode.hostEligibility, 'STALE')
@@ -689,7 +737,7 @@ try {
   assert.strictEqual(tamperedValidation.valid, false)
   assert(tamperedValidation.errors.some(error => error.includes('evidence-raw-digest-mismatch')))
 
-  const absoluteEvidenceCapabilities = JSON.parse(JSON.stringify(capabilities))
+  const absoluteEvidenceCapabilities = JSON.parse(JSON.stringify(currentCapabilities))
   absoluteEvidenceCapabilities.capabilities.find(item =>
     item.hostVariant === 'codex-cli/exec-user-global-local-stdio'
   ).evidenceRef = sourceEvidencePath
@@ -700,7 +748,7 @@ try {
   assert(absoluteEvidenceValidation.errors.some(error => error.includes('evidence-ref-not-package-relative')))
 
   const malformedCapabilityPath = path.join(fixture.root, 'malformed-capabilities.json')
-  const malformedCapabilities = JSON.parse(JSON.stringify(capabilities))
+  const malformedCapabilities = JSON.parse(JSON.stringify(currentCapabilities))
   delete malformedCapabilities.capabilities.find(item =>
     item.hostVariant === 'codex-cli/exec-user-global-local-stdio'
   ).hostAdapterDigest
@@ -716,13 +764,14 @@ try {
     project: fixture.project,
     host: 'codex',
     capabilityPath: malformedCapabilityPath,
-    hostAdapterDigest: productionCapability.hostAdapterDigest
+    hostAdapterDigest: currentProductionCapability.hostAdapterDigest,
+    env: {}
   })
   assert.strictEqual(malformedProductionMode.effective, 'unified')
   assert.strictEqual(malformedProductionMode.capabilityDocumentValid, false)
 
   const duplicateCapabilityPath = path.join(fixture.root, 'duplicate-capabilities.json')
-  const duplicateCapabilities = JSON.parse(JSON.stringify(capabilities))
+  const duplicateCapabilities = JSON.parse(JSON.stringify(currentCapabilities))
   duplicateCapabilities.capabilities.push(
     JSON.parse(JSON.stringify(duplicateCapabilities.capabilities[0]))
   )
@@ -738,7 +787,8 @@ try {
     project: fixture.project,
     host: 'codex',
     capabilityPath: duplicateCapabilityPath,
-    hostAdapterDigest: productionCapability.hostAdapterDigest
+    hostAdapterDigest: currentProductionCapability.hostAdapterDigest,
+    env: {}
   })
   assert.strictEqual(duplicateCapabilityMode.effective, 'unified')
   assert.strictEqual(duplicateCapabilityMode.capabilityDocumentValid, false)
@@ -748,7 +798,8 @@ try {
     host: 'grok',
     capabilityPath: currentCapabilityPath,
     evidenceRoot: fixture.root,
-    hostAdapterDigest: getGrokLauncherAdapterDigest()
+    hostAdapterDigest: getGrokLauncherAdapterDigest(),
+    env: {}
   })
   assert.strictEqual(grokAlias.effective, 'unified')
   assert.strictEqual(
@@ -757,7 +808,7 @@ try {
   )
   assert.strictEqual(
     grokAlias.hostEligibility,
-    'PASS',
+    'UNVERIFIED',
     JSON.stringify(grokAlias, null, 2)
   )
   const grokPortableEvidence = JSON.parse(fs.readFileSync(

@@ -22,7 +22,7 @@ function sha256 (value) {
 }
 
 function getCompatibleLifecycleHostAdapterDigest (host, options = {}) {
-  const hostVariant = identity.normalizeHostVariant(host)
+  const hostVariant = identity.normalizeHostVariant(host, options)
   const baseDigest = baseHostAdapterDigest(host, options)
   if (!COMPATIBLE_VARIANTS.has(hostVariant)) return baseDigest
 

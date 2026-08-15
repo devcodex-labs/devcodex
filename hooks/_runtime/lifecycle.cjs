@@ -1208,7 +1208,38 @@ const {
 })
 
 function evaluateCurrentProgressiveSkillRoute (state, payload, platform, trigger, contextPost = null) {
-  if (!state.contextAcquisition?.contextEpoch || !state.contextAcquisition?.project) return null
+  if (!state.contextAcquisition?.contextEpoch) return null
+  if (!state.contextAcquisition?.targetResolved || !state.contextAcquisition?.project) {
+    const pending = state.progressiveSkillRoute?.pending
+    if (!pending || pending.schemaVersion !== 'SkillRoutePendingEnvelopeV1') return null
+    const routeStop = {
+      schemaVersion: 'ProgressiveSkillRouteStopV1',
+      present: true,
+      complete: false,
+      processComplete: false,
+      businessSatisfied: true,
+      contextEpoch: pending.contextEpoch,
+      turnBinding: null,
+      planDigest: null,
+      pendingStageIds: ['target-resolution'],
+      errorCode: 'CONTEXT_TARGET_UNRESOLVED',
+      nextOp: 'resolve_context_target',
+      nextCall: pending.nextCall,
+      recovery: {
+        schemaVersion: 'SkillRouteTargetResolutionRecoveryV1',
+        automatic: false,
+        action: 'call-profile-context-plan-for-one-real-project'
+      }
+    }
+    state.progressiveSkillRouteStop = routeStop
+    return reconcileProgressiveSkillRoute(state, routeStop, {
+      trigger,
+      payload,
+      contextPost,
+      sessionKey: pending.hostSessionId || getPayloadSessionKey(payload),
+      requireBusiness: trigger === 'Stop'
+    })
+  }
   const {
     evaluateProgressiveSkillRouteStop,
     shouldEnforceProgressiveSkillRouteStop
@@ -1506,11 +1537,20 @@ async function main() {
         const { parseExplicitSkillId } = require('./skill-route-state.cjs')
         const requestedSkillId = parseExplicitSkillId(prompt)
         const pending = {
-          schemaVersion: 'SkillRouteBootstrapPendingV1',
+          schemaVersion: 'SkillRoutePendingEnvelopeV1',
           contextEpoch: state.contextAcquisition?.contextEpoch,
+          hostSessionId: state.contextAcquisition?.hostSessionId || getPayloadSessionKey(payload),
+          promptDigest: crypto.createHash('sha256').update(prompt).digest('hex'),
+          createdAt: new Date().toISOString(),
           targetResolved: false,
           explicitStatus: requestedSkillId ? 'pending-target' : 'none',
-          explicitSkillId: requestedSkillId
+          explicitSkillId: requestedSkillId,
+          nextOp: 'resolve_context_target',
+          nextCall: {
+            op: 'profile_context_plan',
+            contextEpoch: state.contextAcquisition?.contextEpoch,
+            project: '<one-real-project>'
+          }
         }
         progressiveSkillRouteMsg = [
           '### DevCodex · SkillRouteBootstrapPendingV1',
@@ -1537,7 +1577,11 @@ async function main() {
         }, {
           inputRoot: CONTEXT_ROOT,
           env: process.env,
-          hostAdapterDigest: getLifecycleHostAdapterDigest(platform)
+          sessionId: payload.session_id || payload.sessionId,
+          hostAdapterDigest: getLifecycleHostAdapterDigest(platform, {
+            env: process.env,
+            sessionId: payload.session_id || payload.sessionId
+          })
         })
         progressiveSkillRouteMode = route.modeReceipt?.effective || 'unified'
         progressiveSkillRouteMsg = route.injectionText || ''
@@ -1892,7 +1936,11 @@ async function main() {
         }, {
           inputRoot: CONTEXT_ROOT,
           env: process.env,
-          hostAdapterDigest: getLifecycleHostAdapterDigest(platform)
+          sessionId: payload.session_id || payload.sessionId,
+          hostAdapterDigest: getLifecycleHostAdapterDigest(platform, {
+            env: process.env,
+            sessionId: payload.session_id || payload.sessionId
+          })
         })
         state.progressiveSkillRoute = {
           schemaVersion: 'LifecycleSkillRouteStateV1',

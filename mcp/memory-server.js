@@ -23,8 +23,12 @@ const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { assertSingleSegment, resolveInside } = require('./path-guard')
+const { assertSingleSegment, resolveInside, resolveExistingRegularFileInside } = require('./path-guard')
 const { createJsonLineServer } = require('./stdio-jsonrpc.cjs')
+const {
+  readBoundedTextFileSync,
+  scanBoundedTextLinesSync
+} = require('./bounded-text-reader.cjs')
 const {
   findLayoutInfo,
   inferProjectFromCwd,
@@ -38,7 +42,15 @@ const {
   buildContextReadError
 } = require('../hooks/_runtime/context-read-contract.cjs')
 const { buildJsonContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
-const { recordMcpContextSourceObservations } = require('../hooks/_runtime/context-source-observation.cjs')
+const {
+  authorizeContextRead,
+  recordMcpContextSourceObservations
+} = require('../hooks/_runtime/context-source-observation.cjs')
+const {
+  currentActiveSessionIds,
+  rowsByCurrentState,
+  summaryStateConflicts
+} = require('../scripts/lib/memory-summary-state.js')
 const {
   TaskContinuationError,
   resolveTaskContinuation
@@ -96,6 +108,8 @@ const EXPLICIT_RUNTIME_AGENT = normalizeAgent(process.env.DEVCODEX_AGENT)
 const DEFAULT_AGENT = detectRuntimeAgent()
 const TASK_KINDS = new Set(['requirements', 'bugs', 'optimizations', 'scenario-tests'])
 const MAX_MEMORY_SESSION_WRITE_CHARS = 262144
+const MEMORY_SOURCE_MAX_BYTES = 8 * 1024 * 1024
+const WORKSPACE_CONTEXT_PROJECT = '__workspace__'
 
 const CONTEXT_READ_BINDING_SCHEMA = {
   type: 'object',
@@ -132,6 +146,7 @@ const TOOLS = [
     description: '返回当前目标的紧凑记忆状态：今日/昨日元数据、有限 SUMMARY 行、活动会话与状态冲突。不返回整文件正文。',
     inputSchema: {
       type: 'object',
+      required: ['contextBinding'],
       additionalProperties: false,
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
@@ -147,6 +162,7 @@ const TOOLS = [
     description: '按日期、会话、状态或 ContextHandoffCard 精确读取 daily memory 的有限片段。',
     inputSchema: {
       type: 'object',
+      required: ['contextBinding'],
       additionalProperties: false,
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
@@ -167,6 +183,7 @@ const TOOLS = [
     description: '返回有限的 SUMMARY 行；默认仅返回 active，支持 unresolved、since 与 last-N。',
     inputSchema: {
       type: 'object',
+      required: ['contextBinding'],
       additionalProperties: false,
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
@@ -198,14 +215,16 @@ const TOOLS = [
   },
   {
     name: 'memory_session_read',
-    description: '读取今日或昨日的会话记忆文件。返回文件内容字符串，不存在时返回空字符串。',
+    description: '兼容读取今日或昨日的会话记忆文件；仍要求当前计划授权。',
     inputSchema: {
       type: 'object',
+      required: ['contextBinding'],
       properties: {
         agent: { type: 'string', description: 'Agent 标识（如 claude-code / codex / copilot / grok），默认当前实际宿主' },
         date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定读取域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误读项目记忆。' }
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误读项目记忆。' },
+        contextBinding: CONTEXT_READ_BINDING_SCHEMA
       }
     }
   },
@@ -238,7 +257,7 @@ const TOOLS = [
         kind: { type: 'string', enum: ['requirements', 'bugs', 'optimizations', 'scenario-tests'], description: '任务根类型，默认 requirements' },
         phase: { type: 'string', enum: ['CP1', 'CP2', 'CP3'], description: 'CP 阶段' },
         time: { type: 'string', description: '确认时间（如 10:30），默认当前时间' },
-        artifactPath: { type: 'string', description: 'ConfirmBindingGate：被确认产物相对任务目录或 active-root 的路径（如 01-需求确认.md）' },
+        artifactPath: { type: 'string', description: 'ConfirmBindingGate：被确认产物相对当前任务目录的规范路径（如 01-需求确认.md）' },
         artifactVersion: { type: 'string', description: 'ConfirmBindingGate：产物版本号（如 v0.4.0）' },
         artifactSha256: { type: 'string', description: 'ConfirmBindingGate：确认前对产物全文计算的 SHA-256（hex，大小写不敏感）' },
         sourceMessage: { type: 'string', description: '用户确认原话摘要' },
@@ -249,19 +268,21 @@ const TOOLS = [
   },
   {
     name: 'memory_summary_read',
-    description: '读取 Agent SUMMARY.md 文件内容。',
+    description: '兼容读取 Agent SUMMARY.md 文件内容；仍要求当前计划授权。',
     inputSchema: {
       type: 'object',
+      required: ['contextBinding'],
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定读取域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误读 SUMMARY。' }
+        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误读 SUMMARY。' },
+        contextBinding: CONTEXT_READ_BINDING_SCHEMA
       }
     }
   },
   {
     name: 'memory_summary_append',
-    description: '向 Agent SUMMARY.md 追加一行会话索引。',
+    description: '向 Agent SUMMARY.md 追加一条状态事件；同一日期/会话的最后事件形成当前状态，历史行保留用于审计。',
     inputSchema: {
       type: 'object',
       required: ['row'],
@@ -1113,18 +1134,13 @@ function comparableActiveRoot(value) {
   return process.platform === 'win32' ? resolved.toLowerCase() : resolved
 }
 
-function resolveContextReadBinding(binding, target) {
+function resolveContextReadBinding(binding, target, sourceId) {
   if (binding === undefined || binding === null) {
-    return {
-      schemaVersion: 'ContextReadBindingV1',
-      contextEpoch: null,
-      planId: null,
-      planContentId: null,
-      activeRoot: target.activeRoot,
-      project: target.project,
-      bindingStatus: 'legacy-unbound',
-      verificationMode: 'legacy-unbound'
-    }
+    throw memoryQueryError(
+      'A current ContextReadBindingV1 is required before reading governed Memory content.',
+      'Generate a ContextReadPlanV2 for the resolved target and pass its exact contextBinding.',
+      'CONTEXT_BINDING_REQUIRED'
+    )
   }
   if (typeof binding !== 'object' || Array.isArray(binding)) {
     throw memoryQueryError(
@@ -1153,16 +1169,20 @@ function resolveContextReadBinding(binding, target) {
       'CONTEXT_BINDING_MISMATCH'
     )
   }
-  return {
-    schemaVersion: 'ContextReadBindingV1',
-    contextEpoch: binding.contextEpoch.trim(),
-    planId: binding.planId.trim(),
-    planContentId: binding.planContentId.trim(),
-    activeRoot: binding.activeRoot.trim(),
-    project: binding.project.trim(),
-    bindingStatus: 'verified',
-    verificationMode: 'request-bound'
+  const authorization = authorizeContextRead({
+    activeRoot: target.activeRoot,
+    project: target.project,
+    contextBinding: binding,
+    requestedSources: sourceId ? [sourceId] : []
+  })
+  if (authorization.status !== 'authorized') {
+    throw memoryQueryError(
+      authorization.message || 'Context read authorization failed.',
+      'Generate a current ContextReadPlanV2 that selects this Memory source and retry once.',
+      authorization.errorCode || 'CONTEXT_BINDING_INVALID'
+    )
   }
+  return authorization.binding
 }
 
 function normalizeBoundedInteger(value, fallback, max, field) {
@@ -1269,7 +1289,7 @@ function resolveMemoryTarget(args) {
     const scope = explicitScope ? resolveScope(args.scope) : (projectName ? 'project' : DEFAULT_SCOPE)
     return {
       activeRoot,
-      project: scope === 'workspace' ? '' : (projectName || CONTEXT_PROJECT || ''),
+      project: scope === 'workspace' ? WORKSPACE_CONTEXT_PROJECT : (projectName || CONTEXT_PROJECT || ''),
       agent,
       scope
     }
@@ -1312,15 +1332,235 @@ function memoryFileMetadata(filePath) {
 }
 
 function readMemoryDocument(filePath) {
-  const metadata = memoryFileMetadata(filePath)
-  if (!metadata.exists) return { ...metadata, content: '' }
-  const content = fs.readFileSync(filePath, 'utf8')
-  return {
-    ...metadata,
-    bytes: Buffer.byteLength(content, 'utf8'),
-    chars: content.length,
-    content
+  const document = readBoundedTextFileSync(filePath, {
+    maxBytes: MEMORY_SOURCE_MAX_BYTES,
+    allowMissing: true
+  })
+  if (!document.exists) {
+    return {
+      path: document.path,
+      exists: false,
+      bytes: 0,
+      chars: 0,
+      modifiedAt: null,
+      sourceBytesRead: 0,
+      maxSourceBytes: MEMORY_SOURCE_MAX_BYTES,
+      content: ''
+    }
   }
+  return {
+    path: document.path,
+    exists: true,
+    bytes: document.logicalBytes,
+    chars: document.chars,
+    modifiedAt: document.modifiedAt,
+    sourceBytesRead: document.sourceBytesRead,
+    maxSourceBytes: MEMORY_SOURCE_MAX_BYTES,
+    content: document.content
+  }
+}
+
+function memoryScanDocument(filePath, onLine) {
+  let scannedChars = 0
+  const scan = scanBoundedTextLinesSync(filePath, {
+    maxBytes: MEMORY_SOURCE_MAX_BYTES,
+    allowMissing: true,
+    onLine(line) {
+      if (line.text !== null) scannedChars += line.text.length + 1
+      onLine(line)
+    }
+  })
+  return {
+    path: scan.path,
+    exists: scan.exists,
+    bytes: scan.logicalBytes,
+    chars: scannedChars,
+    modifiedAt: scan.modifiedAt || null,
+    sourceBytesRead: scan.sourceBytesRead,
+    maxSourceBytes: MEMORY_SOURCE_MAX_BYTES,
+    sourceScanComplete: scan.scanComplete,
+    sourceDigest: scan.sourceDigest,
+    sourcePrefixDigest: scan.sourcePrefixDigest,
+    continuation: scan.continuation
+  }
+}
+
+function scanSummaryDocument(filePath) {
+  const rows = []
+  const warnings = []
+  let headerFound = false
+  let stopped = false
+  let sawContent = false
+  const document = memoryScanDocument(filePath, line => {
+    if (stopped) return
+    if (line.oversized) {
+      warnings.push(`Skipped oversized SUMMARY line ${line.line}.`)
+      return
+    }
+    const text = String(line.text || '')
+    if (text.trim()) sawContent = true
+    const cells = splitMarkdownRow(text)
+    if (!headerFound) {
+      if (cells.length >= 7 && cells[0] === '日期' && cells[1] === '会话' && cells[6] === '状态') {
+        headerFound = true
+      }
+      return
+    }
+    if (!text.trim()) return
+    if (!cells.length) {
+      if (/^#/.test(text.trim())) stopped = true
+      else warnings.push(`Skipped non-table SUMMARY line ${line.line}.`)
+      return
+    }
+    if (cells.every(cell => /^:?-{3,}:?$/.test(cell))) return
+    if (cells.length < 7) {
+      warnings.push(`Skipped malformed SUMMARY row ${line.line}.`)
+      return
+    }
+    try {
+      const normalizedCells = cells.length === 7
+        ? cells
+        : [...cells.slice(0, 3), cells.slice(3, -3).join('|'), ...cells.slice(-3)]
+      if (cells.length > 7) warnings.push(`Normalized unescaped SUMMARY separator at row ${line.line}.`)
+      const row = projectSummaryRow(normalizedCells, line.line)
+      if (!row.day || !row.sessionId) {
+        warnings.push(`Skipped SUMMARY row ${line.line} without a canonical date/session.`)
+        return
+      }
+      if (row.truncated) warnings.push(`SUMMARY row ${line.line} was field-bounded.`)
+      rows.push(row)
+    } catch (error) {
+      warnings.push(`Skipped SUMMARY row ${line.line}: ${error.message}`)
+    }
+  })
+  if (!headerFound && sawContent && document.sourceScanComplete) {
+    warnings.push('SUMMARY table header was not found.')
+  }
+  if (!document.sourceScanComplete) {
+    warnings.push('SUMMARY source scan reached its byte budget; continue from source.continuation before claiming complete coverage.')
+  }
+  return { document, rows, warnings: warnings.slice(0, 20) }
+}
+
+function appendSessionLine(session, line, maxChars) {
+  const separator = session.contentParts.length ? '\n' : ''
+  const fragment = `${separator}${line}`
+  const remaining = Math.max(0, maxChars - session.contentChars)
+  if (remaining > 0) {
+    const selected = fragment.slice(0, remaining)
+    session.contentParts.push(selected)
+    session.contentChars += selected.length
+  }
+  if (fragment.length > remaining) session.contentTruncated = true
+}
+
+function appendHandoffLine(session, line, maxChars) {
+  const separator = session.handoffParts.length ? '\n' : ''
+  const fragment = `${separator}${line}`
+  const remaining = Math.max(0, maxChars - session.handoffChars)
+  if (remaining > 0) {
+    const selected = fragment.slice(0, remaining)
+    session.handoffParts.push(selected)
+    session.handoffChars += selected.length
+  }
+  if (fragment.length > remaining) session.handoffTruncated = true
+}
+
+function scanDailyQueryDocument(filePath, date, query) {
+  const sessions = []
+  const warnings = []
+  let matchedCount = 0
+  let current = null
+  let headingCount = 0
+  let sawContent = false
+  const maxSessionChars = query.maxChars
+
+  const finalize = () => {
+    if (!current || !current.sessionId) return
+    const status = current.statuses[current.statuses.length - 1] || ''
+    const state = normalizedMemoryState(status)
+    const content = current.contentParts.join('').trim()
+    const handoff = current.handoffParts.join('').trim()
+    if (query.normalizedSession && current.sessionId !== query.normalizedSession) return
+    if (!memoryStateMatches(state, query.status)) return
+    if (query.handoffOnly && !handoff) return
+    matchedCount += 1
+    sessions.push({
+      date,
+      sessionId: current.sessionId,
+      title: current.title,
+      status,
+      state,
+      content,
+      handoff,
+      contentTruncated: current.contentTruncated,
+      handoffTruncated: current.handoffTruncated
+    })
+    while (sessions.length > query.limit) sessions.shift()
+  }
+
+  const document = memoryScanDocument(filePath, line => {
+    if (line.oversized) {
+      if (current) current.contentTruncated = true
+      warnings.push(`Skipped oversized daily-memory line ${line.line}.`)
+      return
+    }
+    const text = String(line.text || '')
+    if (text.trim()) sawContent = true
+    const sessionHeading = /^##\s+会话\s+([^\s—-]+)(?:\s*[-—]\s*(.*))?$/.exec(text.trim())
+    if (sessionHeading) {
+      finalize()
+      headingCount += 1
+      let sessionId = ''
+      try { sessionId = normalizeSessionId(sessionHeading[1]) } catch {}
+      current = {
+        sessionId,
+        title: clipText(sessionHeading[2] || '', 300).text,
+        statuses: [],
+        contentParts: [],
+        contentChars: 0,
+        contentTruncated: false,
+        handoffParts: [],
+        handoffChars: 0,
+        handoffTruncated: false,
+        handoffActive: false,
+        handoffLevel: 0
+      }
+      appendSessionLine(current, text, maxSessionChars)
+      return
+    }
+    if (!current) return
+    appendSessionLine(current, text, maxSessionChars)
+    const statusMatch = /^\s*(?:-\s*)?(?:\*\*)?状态(?:\*\*)?\s*[：:]\s*(.*)$/.exec(text)
+    if (statusMatch && normalizedMemoryState(statusMatch[1]) !== 'unknown') {
+      current.statuses.push(statusMatch[1].trim())
+    }
+    const heading = /^(#{1,6})\s+/.exec(text.trim())
+    const handoffHeading = /^(#{2,6})\s+.*ContextHandoffCard\b/i.exec(text.trim())
+    if (handoffHeading) {
+      current.handoffParts = []
+      current.handoffChars = 0
+      current.handoffTruncated = false
+      current.handoffActive = true
+      current.handoffLevel = handoffHeading[1].length
+      appendHandoffLine(current, text, maxSessionChars)
+    } else if (current.handoffActive) {
+      if (heading && heading[1].length <= current.handoffLevel) {
+        current.handoffActive = false
+      } else {
+        appendHandoffLine(current, text, maxSessionChars)
+      }
+    }
+  })
+  if (document.sourceScanComplete) finalize()
+  else if (current) warnings.push('The final daily-memory session was deferred because the source scan ended mid-session.')
+  if (!headingCount && sawContent && document.sourceScanComplete) {
+    warnings.push('No canonical session headings were found.')
+  }
+  if (!document.sourceScanComplete) {
+    warnings.push('Daily-memory source scan reached its byte budget; continue from source.continuation before claiming complete coverage.')
+  }
+  return { document, sessions, matchedCount, warnings: warnings.slice(0, 20) }
 }
 
 function publicSourceMetadata(document) {
@@ -1442,15 +1682,7 @@ function parseSummaryRows(content) {
 }
 
 function findSummaryConflicts(rows) {
-  const bySession = new Map()
-  for (const row of rows) {
-    const key = `${row.day}#${row.sessionId}`
-    if (!bySession.has(key)) bySession.set(key, new Set())
-    if (row.state !== 'unknown') bySession.get(key).add(row.state)
-  }
-  return [...bySession.entries()]
-    .filter(([, states]) => states.size > 1)
-    .map(([sessionKey, states]) => ({ sessionKey, states: [...states].sort() }))
+  return summaryStateConflicts(rows)
 }
 
 function extractHandoffCard(content) {
@@ -1546,6 +1778,8 @@ function memoryIndexProjectionState(kind, result, canonicalDocument = null) {
   const missingIndexAndSource = reason === 'index-missing' && canonicalDocument?.exists === false
   const runtimeUnavailable = reason === 'index-module-unavailable'
   const repairNeeded = !fresh && !missingIndexAndSource && !runtimeUnavailable
+  const canonicalComplete = !canonicalDocument || canonicalDocument.exists === false ||
+    canonicalDocument.sourceScanComplete !== false
   const repairFingerprint = repairNeeded
     ? fileDigest(JSON.stringify({
         schemaVersion: 'MemoryIndexRepairDiagnosticV1',
@@ -1553,7 +1787,8 @@ function memoryIndexProjectionState(kind, result, canonicalDocument = null) {
         reason,
         canonicalSource: canonicalMetadata,
         canonicalContentDigest: canonicalDocument
-          ? fileDigest(canonicalDocument.content)
+          ? (canonicalDocument.sourceDigest || canonicalDocument.sourcePrefixDigest ||
+              (canonicalDocument.content !== undefined ? fileDigest(canonicalDocument.content) : null))
           : null,
         observedIndexSource: result?.envelope?.receipt?.observedSource || null
       }))
@@ -1568,17 +1803,20 @@ function memoryIndexProjectionState(kind, result, canonicalDocument = null) {
       reason
     },
     canonicalSourceTrust: {
-      status: 'trusted',
+      status: canonicalComplete ? 'trusted' : 'partial',
       authority: 'canonical-markdown',
       basis: canonicalDocument
-        ? (canonicalDocument.exists ? 'complete-content-read' : 'source-absence-observed')
+        ? (canonicalDocument.exists
+            ? (canonicalComplete ? 'bounded-source-scan-complete' : 'bounded-source-scan-partial')
+            : 'source-absence-observed')
         : 'writer-attested-metadata-reconciled',
       source: canonicalMetadata
     },
     fallbackCoverage: {
-      status: fresh ? 'not-used' : 'complete',
+      status: fresh ? 'not-used' : (canonicalComplete ? 'complete' : 'partial'),
       source: fresh ? null : 'canonical-markdown',
-      reason
+      reason,
+      continuation: canonicalComplete ? null : canonicalDocument?.continuation || null
     },
     repairState: {
       status: runtimeUnavailable
@@ -1678,12 +1916,19 @@ function refreshDailyMemoryIndex(target, filePath, date) {
 
 function projectionTelemetry(value, sourceDocuments, startedAt) {
   const serialized = JSON.stringify(value)
+  const sourceBytesRead = sourceDocuments.reduce(
+    (sum, item) => sum + Number(item.sourceBytesRead ?? item.bytes ?? 0),
+    0
+  )
   return {
     bytes: Buffer.byteLength(serialized, 'utf8'),
     chars: serialized.length,
-    sourceBytes: sourceDocuments.reduce((sum, item) => sum + Number(item.bytes || 0), 0),
+    sourceBytes: sourceBytesRead,
+    sourceBytesRead,
     sourceChars: sourceDocuments.reduce((sum, item) => sum + Number(item.chars || 0), 0),
-    filesRead: sourceDocuments.filter(item => item.exists && item.content !== undefined).length,
+    filesRead: sourceDocuments.filter(item =>
+      item.exists && (item.content !== undefined || Number(item.sourceBytesRead || 0) > 0)
+    ).length,
     latencyMs: elapsedMs(startedAt),
     tokens: null
   }
@@ -1745,6 +1990,7 @@ function withProjectionIdentity(projection, toolName, target, sourceDocuments, s
       ? {
           ...telemetry,
           sourceBytes: telemetryOverride.sourceBytes,
+          sourceBytesRead: telemetryOverride.sourceBytesRead ?? telemetryOverride.sourceBytes,
           filesRead: telemetryOverride.filesRead,
           tokens: telemetryOverride.tokens ?? null,
           indexLatencyMs: telemetryOverride.latencyMs ?? null,
@@ -1786,7 +2032,11 @@ function handleMemoryStatus(args) {
   return runMemoryProjection(args, MEMORY_STATUS_FIELDS, input => {
     const startedAt = process.hrtime.bigint()
     const target = resolveMemoryTarget(input)
-    const contextBinding = resolveContextReadBinding(input.contextBinding, target)
+    const contextBinding = resolveContextReadBinding(
+      input.contextBinding,
+      target,
+      'memory:memory_status'
+    )
     const limit = normalizeBoundedInteger(input.limit, 5, 20, 'limit')
     const todayDate = today()
     const yesterdayDate = yesterday()
@@ -1833,13 +2083,13 @@ function handleMemoryStatus(args) {
         indexed.envelope.telemetry
       )
     }
-    const summaryDocument = readMemoryDocument(summaryPath)
-    const parsed = parseSummaryRows(summaryDocument.content)
+    const scannedSummary = scanSummaryDocument(summaryPath)
+    const summaryDocument = scannedSummary.document
+    const parsed = { rows: scannedSummary.rows, warnings: scannedSummary.warnings }
     const latestRows = parsed.rows.slice().reverse().slice(0, limit)
-    const nonCanonicalActiveRows = parsed.rows.filter(row => row.state === 'active' && !row.sessionIdCanonical)
-    const allActiveSessionIds = [...new Set(parsed.rows.slice().reverse()
-      .filter(row => row.state === 'active' && row.sessionIdCanonical)
-      .map(row => `${row.day}#${row.sessionId}`))]
+    const currentRows = rowsByCurrentState(parsed.rows, 'unresolved')
+    const nonCanonicalActiveRows = currentRows.filter(row => row.state === 'active' && !row.sessionIdCanonical)
+    const allActiveSessionIds = currentActiveSessionIds(parsed.rows)
     const allConflicts = findSummaryConflicts(parsed.rows)
     const activeSessionIds = allActiveSessionIds.slice(0, MAX_SUMMARY_ROWS_FOR_STATUS)
     const conflicts = allConflicts.slice(0, MAX_SUMMARY_ROWS_FOR_STATUS)
@@ -1867,7 +2117,11 @@ function handleMemoryStatus(args) {
       conflicts,
       warnings: [...boundWarnings, ...parsed.warnings].slice(0, 20),
       indexReceipt: memoryIndexFallbackReceipt('summary', indexed),
-      coverage: { status: 'legacy-complete', reason: indexed.reason || 'index-fallback' },
+      coverage: {
+        status: summaryDocument.sourceScanComplete ? 'legacy-complete' : 'partial',
+        reason: indexed.reason || 'index-fallback',
+        continuation: summaryDocument.continuation
+      },
       ...memoryIndexProjectionState('summary', indexed, summaryDocument),
       contextBinding
     }
@@ -1879,7 +2133,11 @@ function handleMemorySessionQuery(args) {
   return runMemoryProjection(args, MEMORY_SESSION_QUERY_FIELDS, input => {
     const startedAt = process.hrtime.bigint()
     const target = resolveMemoryTarget(input)
-    const contextBinding = resolveContextReadBinding(input.contextBinding, target)
+    const contextBinding = resolveContextReadBinding(
+      input.contextBinding,
+      target,
+      'memory:memory_session_query'
+    )
     if (input.date !== undefined && (typeof input.date !== 'string' || !input.date)) {
       throw memoryQueryError('date must be a non-empty YYYYMMDD string when supplied.')
     }
@@ -1945,14 +2203,15 @@ function handleMemorySessionQuery(args) {
         indexed.envelope.telemetry
       )
     }
-    const document = readMemoryDocument(dailyPath)
-    const parsed = parseDailySessions(document.content, date)
-    const candidates = parsed.sessions.slice().reverse().filter(session => {
-      if (normalizedSession && session.sessionId !== normalizedSession) return false
-      if (!memoryStateMatches(session.state, status)) return false
-      if (handoffOnly && !session.handoff) return false
-      return true
+    const scannedDaily = scanDailyQueryDocument(dailyPath, date, {
+      normalizedSession,
+      status,
+      limit,
+      handoffOnly,
+      maxChars
     })
+    const document = scannedDaily.document
+    const candidates = scannedDaily.sessions.slice().reverse()
     const matches = []
     let remainingChars = maxChars
     let contentTruncated = false
@@ -1963,7 +2222,8 @@ function handleMemorySessionQuery(args) {
       }
       const sourceContent = handoffOnly ? session.handoff : session.content
       const boundedContent = sourceContent.slice(0, remainingChars)
-      const truncated = boundedContent.length < sourceContent.length
+      const truncated = boundedContent.length < sourceContent.length ||
+        (handoffOnly ? session.handoffTruncated : session.contentTruncated)
       matches.push({
         date: session.date,
         sessionId: session.sessionId,
@@ -1991,11 +2251,15 @@ function handleMemorySessionQuery(args) {
       schemaVersion: 'MemorySessionQueryV1',
       query,
       matches,
-      truncated: candidates.length > matches.length || contentTruncated,
+      truncated: !document.sourceScanComplete || scannedDaily.matchedCount > matches.length || contentTruncated,
       source,
-      warnings: parsed.warnings,
+      warnings: scannedDaily.warnings,
       indexReceipt: memoryIndexFallbackReceipt('daily', indexed),
-      coverage: { status: 'legacy-complete', reason: indexed.reason || 'index-fallback' },
+      coverage: {
+        status: document.sourceScanComplete ? 'legacy-complete' : 'partial',
+        reason: indexed.reason || 'index-fallback',
+        continuation: document.continuation
+      },
       ...memoryIndexProjectionState('daily', indexed, document),
       contextBinding
     }
@@ -2007,7 +2271,11 @@ function handleMemorySummaryQuery(args) {
   return runMemoryProjection(args, MEMORY_SUMMARY_QUERY_FIELDS, input => {
     const startedAt = process.hrtime.bigint()
     const target = resolveMemoryTarget(input)
-    const contextBinding = resolveContextReadBinding(input.contextBinding, target)
+    const contextBinding = resolveContextReadBinding(
+      input.contextBinding,
+      target,
+      'memory:memory_summary_query'
+    )
     const status = normalizeQueryStatus(input.status, 'active')
     const limit = normalizeBoundedInteger(input.limit, 5, 50, 'limit')
     if (input.since !== undefined && (
@@ -2049,12 +2317,9 @@ function handleMemorySummaryQuery(args) {
         indexed.envelope.telemetry
       )
     }
-    const document = readMemoryDocument(summaryPath)
-    const parsed = parseSummaryRows(document.content)
-    const filtered = parsed.rows.filter(row => {
-      if (since && row.day < since) return false
-      return memoryStateMatches(row.state, status)
-    })
+    const scannedSummary = scanSummaryDocument(summaryPath)
+    const document = scannedSummary.document
+    const filtered = rowsByCurrentState(scannedSummary.rows, status).filter(row => !since || row.day >= since)
     const rows = filtered.slice().reverse().slice(0, limit)
     const source = {
       activeRoot: target.activeRoot,
@@ -2067,11 +2332,15 @@ function handleMemorySummaryQuery(args) {
       query,
       rows,
       totalMatched: filtered.length,
-      truncated: filtered.length > rows.length,
+      truncated: !document.sourceScanComplete || filtered.length > rows.length,
       source,
-      warnings: parsed.warnings,
+      warnings: scannedSummary.warnings,
       indexReceipt: memoryIndexFallbackReceipt('summary', indexed),
-      coverage: { status: 'legacy-complete', reason: indexed.reason || 'index-fallback' },
+      coverage: {
+        status: document.sourceScanComplete ? 'legacy-complete' : 'partial',
+        reason: indexed.reason || 'index-fallback',
+        continuation: document.continuation
+      },
       ...memoryIndexProjectionState('summary', indexed, document),
       contextBinding
     }
@@ -2081,9 +2350,15 @@ function handleMemorySummaryQuery(args) {
 
 function handleMemorySessionRead(args) {
   validateDate(args.date)
-  const p = sessionFilePath(args.agent, args.date, args)
-  const content = readFile(p)
-  return { content: [{ type: 'text', text: content || '（文件不存在或为空）' }] }
+  const target = resolveMemoryTarget(args)
+  resolveContextReadBinding(
+    args.contextBinding,
+    target,
+    'memory:memory_session_query'
+  )
+  const p = memoryClientPath(target, 'tasks', `${args.date || today()}.md`)
+  const document = readMemoryDocument(p)
+  return { content: [{ type: 'text', text: document.content || '（文件不存在或为空）' }] }
 }
 
 function handleMemorySessionWrite(args) {
@@ -2193,32 +2468,70 @@ function handleMemoryCpConfirm(args) {
     throw new Error('ConfirmBindingGate: artifactPath and artifactSha256 are required together')
   }
   const sha = args.artifactSha256 ? String(args.artifactSha256).replace(/`/g, '').toUpperCase() : null
-  const artifactPath = args.artifactPath ? String(args.artifactPath).replace(/\\/g, '/') : null
+  let artifactPath = args.artifactPath ? String(args.artifactPath).replace(/\\/g, '/') : null
   const artifactVersion = args.artifactVersion || '—'
   const sourceMessage = args.sourceMessage || '—'
+  let artifactAuthority = null
 
   if (hasDigest && artifactPath) {
     const taskDir = path.dirname(path.dirname(p)) // .../<task>/.memory/sessions.md
-    const candidates = [
-      path.join(taskDir, artifactPath),
-      path.join(taskDir, path.basename(artifactPath))
-    ]
-    let matched = false
-    for (const candidate of candidates) {
-      if (!fs.existsSync(candidate) || !fs.statSync(candidate).isFile()) continue
-      const actual = crypto.createHash('sha256').update(fs.readFileSync(candidate)).digest('hex').toUpperCase()
-      if (actual !== sha) {
-        throw new Error(
-          `ConfirmBindingGate: artifactSha256 mismatch for ${artifactPath} (disk=${actual}). ` +
-          'Re-hash the file on disk AFTER the last edit (sha256 of current bytes), then call memory_cp_confirm again. ' +
-          'Do not reuse a hash computed before subsequent writes.'
-        )
-      }
-      matched = true
-      break
+    let candidate
+    try {
+      candidate = resolveExistingRegularFileInside(taskDir, artifactPath, { label: 'artifactPath' })
+    } catch (error) {
+      throw new Error(`ConfirmBindingGate: invalid artifactPath ${artifactPath}: ${error.message}`)
     }
-    if (!matched) {
-      throw new Error(`ConfirmBindingGate: artifact not found for digest verify: ${artifactPath}`)
+    const descriptor = fs.openSync(candidate, 'r')
+    let actual
+    try {
+      const descriptorStat = fs.fstatSync(descriptor)
+      if (!descriptorStat.isFile()) {
+        throw new Error(`ConfirmBindingGate: artifactPath is not a regular file: ${artifactPath}`)
+      }
+      const canonicalRoot = fs.realpathSync.native
+        ? fs.realpathSync.native(taskDir)
+        : fs.realpathSync(taskDir)
+      const verifyCurrentPathIdentity = () => {
+        const currentPath = fs.realpathSync.native
+          ? fs.realpathSync.native(candidate)
+          : fs.realpathSync(candidate)
+        const relative = path.relative(canonicalRoot, currentPath)
+        if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+          throw new Error(`ConfirmBindingGate: artifactPath escaped its task root during verification: ${artifactPath}`)
+        }
+        const currentStat = fs.statSync(currentPath)
+        if (!currentStat.isFile() || String(currentStat.dev) !== String(descriptorStat.dev) ||
+            String(currentStat.ino) !== String(descriptorStat.ino)) {
+          throw new Error(`ConfirmBindingGate: artifactPath identity changed during verification: ${artifactPath}`)
+        }
+        return { currentPath, relative: relative.replace(/\\/g, '/') }
+      }
+      const beforeRead = verifyCurrentPathIdentity()
+      actual = crypto.createHash('sha256').update(fs.readFileSync(descriptor)).digest('hex').toUpperCase()
+      const afterRead = verifyCurrentPathIdentity()
+      if (beforeRead.currentPath !== afterRead.currentPath || beforeRead.relative !== afterRead.relative) {
+        throw new Error(`ConfirmBindingGate: artifactPath changed during verification: ${artifactPath}`)
+      }
+      artifactPath = afterRead.relative
+      const rootStat = fs.statSync(canonicalRoot)
+      artifactAuthority = {
+        schemaVersion: 'MemoryCpArtifactAuthorityV1',
+        rootKind: 'task',
+        canonicalRoot,
+        canonicalRelativePath: artifactPath,
+        rootIdentity: crypto.createHash('sha256')
+          .update(`${canonicalRoot.replace(/\\/g, '/')}\0${rootStat.dev}\0${rootStat.ino}`)
+          .digest('hex')
+      }
+    } finally {
+      fs.closeSync(descriptor)
+    }
+    if (actual !== sha) {
+      throw new Error(
+        `ConfirmBindingGate: artifactSha256 mismatch for ${artifactPath} (disk=${actual}). ` +
+        'Re-hash the file on disk AFTER the last edit (sha256 of current bytes), then call memory_cp_confirm again. ' +
+        'Do not reuse a hash computed before subsequent writes.'
+      )
     }
   }
 
@@ -2256,6 +2569,7 @@ function handleMemoryCpConfirm(args) {
     digestBound: hasDigest,
     artifactPath,
     artifactSha256: sha,
+    artifactAuthority,
     confirmedAt: time,
     cpRowCount,
     readbackVerified: true,
@@ -2268,9 +2582,15 @@ function handleMemoryCpConfirm(args) {
 }
 
 function handleMemorySummaryRead(args) {
-  const p = summaryFilePath(args.agent, args)
-  const content = readFile(p)
-  return { content: [{ type: 'text', text: content || '（SUMMARY.md 不存在或为空）' }] }
+  const target = resolveMemoryTarget(args)
+  resolveContextReadBinding(
+    args.contextBinding,
+    target,
+    'memory:memory_summary_query'
+  )
+  const p = memoryClientPath(target, 'SUMMARY.md')
+  const document = readMemoryDocument(p)
+  return { content: [{ type: 'text', text: document.content || '（SUMMARY.md 不存在或为空）' }] }
 }
 
 function handleMemorySummaryAppend(args) {
@@ -2329,7 +2649,17 @@ function handleMemorySummaryAppend(args) {
       'MEMORY_SUMMARY_READBACK_FAILED'
     )
   }
-  return { content: [{ type: 'text', text: `已追加到 SUMMARY.md\n${JSON.stringify(receipt)}` }] }
+  receipt.summaryEvent = {
+    schemaVersion: 'MemorySummaryEventReceiptV1',
+    semantics: 'append-only-last-event-wins',
+    sessionKey: `${appended.day}#${appended.sessionId}`,
+    currentState: appended.state,
+    rowNumber: appended.rowNumber
+  }
+  return {
+    content: [{ type: 'text', text: `已追加到 SUMMARY.md\n${JSON.stringify(receipt)}` }],
+    structuredContent: receipt
+  }
 }
 
 function handleMemoryTaskResolve(args) {

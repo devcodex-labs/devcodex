@@ -2,6 +2,7 @@
 
 const crypto = require('crypto')
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const { resolveGlobalHostTarget } = require('./global-host-target.js')
@@ -164,31 +165,99 @@ function collectExtraRules(argv) {
   return { forwarded, extraRules, requestedCwd }
 }
 
-function extractSinglePrompt(argv = [], cwd = process.cwd()) {
-  const readPromptFile = file => {
-    try {
-      const target = path.resolve(cwd, file)
-      const stat = fs.statSync(target)
-      if (!stat.isFile() || stat.size > GROK_ROUTE_PROMPT_MAX_BYTES) return ''
-      return fs.readFileSync(target, 'utf8')
-    } catch {
-      return ''
-    }
-  }
+function promptCarrierError(code, message) {
+  const error = new Error(`${code}: ${message}`)
+  error.code = code
+  return error
+}
+
+function inspectSinglePromptCarrier(argv = [], cwd = process.cwd()) {
+  const carriers = []
   for (let index = 0; index < argv.length; index += 1) {
     const arg = String(argv[index])
-    if (arg === '-p' || arg === '--single') return String(argv[index + 1] || '')
-    if (arg.startsWith('--single=')) return arg.slice('--single='.length)
+    if (arg === '-p' || arg === '--single') {
+      if (argv[index + 1] === undefined) {
+        throw promptCarrierError('GROK_PROMPT_CARRIER_VALUE_MISSING', `${arg} requires a prompt value`)
+      }
+      carriers.push({ kind: 'inline', index, valueIndex: index + 1, prompt: String(argv[index + 1]) })
+      index++
+      continue
+    }
+    if (arg.startsWith('--single=')) {
+      carriers.push({ kind: 'inline-equals', index, valueIndex: null, prompt: arg.slice('--single='.length) })
+      continue
+    }
     if (arg === '--prompt-file') {
       const file = argv[index + 1]
-      if (!file) return ''
-      return readPromptFile(file)
+      if (!file) throw promptCarrierError('GROK_PROMPT_CARRIER_VALUE_MISSING', '--prompt-file requires a file path')
+      carriers.push({ kind: 'prompt-file', index, valueIndex: index + 1, file: String(file) })
+      index++
+      continue
     }
     if (arg.startsWith('--prompt-file=')) {
-      return readPromptFile(arg.slice('--prompt-file='.length))
+      const file = arg.slice('--prompt-file='.length)
+      if (!file) throw promptCarrierError('GROK_PROMPT_CARRIER_VALUE_MISSING', '--prompt-file requires a file path')
+      carriers.push({ kind: 'prompt-file-equals', index, valueIndex: null, file })
     }
   }
-  return ''
+  if (carriers.length > 1) {
+    throw promptCarrierError(
+      'GROK_PROMPT_CARRIER_AMBIGUOUS',
+      `exactly one single-turn prompt carrier is allowed, received ${carriers.length}`
+    )
+  }
+  if (!carriers.length) return null
+  const carrier = carriers[0]
+  let buffer
+  let sourcePath = null
+  if (carrier.kind.startsWith('prompt-file')) {
+    sourcePath = path.resolve(cwd, carrier.file)
+    let stat
+    try {
+      stat = fs.statSync(sourcePath)
+    } catch (error) {
+      throw promptCarrierError('GROK_PROMPT_FILE_UNREADABLE', `${sourcePath}: ${error.code || error.message}`)
+    }
+    if (!stat.isFile()) throw promptCarrierError('GROK_PROMPT_FILE_NOT_REGULAR', sourcePath)
+    if (stat.size > GROK_ROUTE_PROMPT_MAX_BYTES) {
+      throw promptCarrierError('GROK_PROMPT_FILE_TOO_LARGE', `${sourcePath}: ${stat.size} bytes`)
+    }
+    try {
+      buffer = fs.readFileSync(sourcePath)
+    } catch (error) {
+      throw promptCarrierError('GROK_PROMPT_FILE_UNREADABLE', `${sourcePath}: ${error.code || error.message}`)
+    }
+    if (buffer.length > GROK_ROUTE_PROMPT_MAX_BYTES) {
+      throw promptCarrierError('GROK_PROMPT_FILE_TOO_LARGE', `${sourcePath}: ${buffer.length} bytes after read`)
+    }
+  } else {
+    buffer = Buffer.from(carrier.prompt, 'utf8')
+    if (buffer.length > GROK_ROUTE_PROMPT_MAX_BYTES) {
+      throw promptCarrierError('GROK_PROMPT_TOO_LARGE', `${buffer.length} bytes`)
+    }
+  }
+  const prompt = buffer.toString('utf8')
+  if (!Buffer.from(prompt, 'utf8').equals(buffer)) {
+    throw promptCarrierError('GROK_PROMPT_ENCODING_INVALID', 'prompt must be valid UTF-8')
+  }
+  if (buffer.length === 0) {
+    throw promptCarrierError('GROK_PROMPT_EMPTY', 'single-turn prompt carrier must not be empty')
+  }
+  return {
+    schemaVersion: 'GrokPromptCarrierV1',
+    kind: carrier.kind,
+    index: carrier.index,
+    valueIndex: carrier.valueIndex,
+    sourcePath,
+    prompt,
+    buffer,
+    bytes: buffer.length,
+    digest: crypto.createHash('sha256').update(buffer).digest('hex')
+  }
+}
+
+function extractSinglePrompt(argv = [], cwd = process.cwd()) {
+  return inspectSinglePromptCarrier(argv, cwd)?.prompt || ''
 }
 
 function buildGrokLaunchPlan(argv = [], options = {}) {
@@ -199,6 +268,9 @@ function buildGrokLaunchPlan(argv = [], options = {}) {
   const globalTarget = resolveGrokLaunchTarget(options, env)
   const workspaceRoot = findWorkspaceRoot(cwd)
   const nestedGitRoot = workspaceRoot ? findNestedGitRoot(cwd, workspaceRoot) : null
+  const layout = findLayoutInfo(cwd)
+  const canonicalProject = inferProjectFromCwd(cwd, layout) ||
+    (workspaceRoot && nestedGitRoot ? path.basename(nestedGitRoot) : null)
   const kernelPath = path.join(globalTarget.runtimeRoot, 'AGENTS.md')
   if (!fs.existsSync(kernelPath)) {
     const error = new Error(`GROK_GLOBAL_ADAPTER_MISSING: ${kernelPath}; run npm install -g devcodex`)
@@ -217,7 +289,7 @@ function buildGrokLaunchPlan(argv = [], options = {}) {
     scope: 'user-global',
     ownerRoot: globalTarget.root,
     workspaceRoot,
-    project: workspaceRoot && nestedGitRoot ? path.basename(nestedGitRoot) : null,
+    project: canonicalProject,
     pluginRoot: globalTarget.files.plugin
   }
   return {
@@ -236,20 +308,32 @@ function buildGrokLaunchPlan(argv = [], options = {}) {
 }
 
 function prepareGrokSingleTurnSkillRoute(plan, argv = [], options = {}) {
-  const prompt = extractSinglePrompt(argv, plan.cwd)
-  if (!prompt) {
+  const promptCarrier = inspectSinglePromptCarrier(plan.args.slice(2), plan.cwd)
+  const prompt = promptCarrier?.prompt || ''
+  plan.promptCarrier = promptCarrier
+    ? {
+        schemaVersion: promptCarrier.schemaVersion,
+        kind: promptCarrier.kind,
+        sourcePath: promptCarrier.sourcePath,
+        bytes: promptCarrier.bytes,
+        digest: promptCarrier.digest,
+        status: 'inspected',
+        forwarding: promptCarrier.kind.startsWith('prompt-file') ? 'pending-snapshot' : 'inline'
+      }
+    : null
+  if (!promptCarrier) {
     return {
       plan,
       env: { ...(options.env || {}) },
-      outcome: null
+      outcome: null,
+      promptCarrier: null
     }
   }
   const env = {
     ...process.env,
     ...(options.env || {})
   }
-  const layout = findLayoutInfo(plan.cwd)
-  const project = inferProjectFromCwd(plan.cwd, layout)
+  const project = plan.hostScope.project || null
   const requestedContextEpoch = String(env.DEVCODEX_CONTEXT_EPOCH || '').trim()
   const contextEpoch = GROK_ROUTE_CONTEXT_EPOCH_RE.test(requestedContextEpoch)
     ? requestedContextEpoch
@@ -305,9 +389,31 @@ function prepareGrokSingleTurnSkillRoute(plan, argv = [], options = {}) {
     bootstrap: outcome?.bootstrap || null,
     injectionBytes: Buffer.byteLength(outcome?.injectionText || '', 'utf8'),
     hostAdapterDigest,
+    promptDigest: promptCarrier.digest,
+    promptCarrierKind: promptCarrier.kind,
     errorCode: outcome?.errorCode || null
   }
-  return { plan, env: routeEnv, outcome }
+  return { plan, env: routeEnv, outcome, promptCarrier }
+}
+
+function materializePromptCarrier(plan, carrier) {
+  if (!carrier || !carrier.kind.startsWith('prompt-file')) return null
+  const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-grok-prompt-'))
+  const snapshot = path.join(temporaryRoot, 'prompt.txt')
+  fs.writeFileSync(snapshot, carrier.buffer, { flag: 'wx', mode: 0o600 })
+  const planIndex = 2 + carrier.index
+  if (carrier.kind === 'prompt-file') {
+    plan.args[planIndex + 1] = snapshot
+  } else {
+    plan.args[planIndex] = `--prompt-file=${snapshot}`
+  }
+  plan.promptCarrier = {
+    ...plan.promptCarrier,
+    status: 'verified',
+    forwarding: 'snapshot-file',
+    forwardedDigest: carrier.digest
+  }
+  return { temporaryRoot, snapshot }
 }
 
 function launchGrok(argv = [], options = {}) {
@@ -315,22 +421,35 @@ function launchGrok(argv = [], options = {}) {
   const prepared = prepareGrokSingleTurnSkillRoute(basePlan, argv, options)
   const plan = prepared.plan
   const runner = options.spawnSync || spawnSync
-  const result = runner(plan.executable, plan.args, {
-    cwd: plan.cwd,
-    stdio: options.stdio || 'inherit',
-    windowsHide: false,
-    env: {
-      ...buildGrokCliEnv({
-        ...process.env,
-        ...(options.env || {}),
-        ...prepared.env
-      }),
-      GROK_HOME: plan.hostScope.ownerRoot,
-      DEVCODEX_GROK_EVIDENCE_MODE: plan.evidenceMode,
-      ...(plan.hostScope.workspaceRoot ? { DEVCODEX_WORKSPACE_ROOT: plan.hostScope.workspaceRoot } : {}),
-      ...(plan.hostScope.project ? { DEVCODEX_PROJECT: plan.hostScope.project } : {})
+  const materialized = materializePromptCarrier(plan, prepared.promptCarrier)
+  if (plan.promptCarrier && !materialized) {
+    plan.promptCarrier.status = 'verified'
+    plan.promptCarrier.forwardedDigest = prepared.promptCarrier.digest
+  }
+  let result
+  try {
+    result = runner(plan.executable, plan.args, {
+      cwd: plan.cwd,
+      stdio: options.stdio || 'inherit',
+      windowsHide: false,
+      env: {
+        ...buildGrokCliEnv({
+          ...process.env,
+          ...(options.env || {}),
+          ...prepared.env
+        }),
+        GROK_HOME: plan.hostScope.ownerRoot,
+        DEVCODEX_GROK_EVIDENCE_MODE: plan.evidenceMode,
+        ...(plan.hostScope.workspaceRoot ? { DEVCODEX_WORKSPACE_ROOT: plan.hostScope.workspaceRoot } : {}),
+        ...(plan.hostScope.project ? { DEVCODEX_PROJECT: plan.hostScope.project } : {})
+      }
+    })
+  } finally {
+    if (materialized) {
+      fs.rmSync(materialized.temporaryRoot, { recursive: true, force: true })
+      plan.promptCarrier.snapshotRemoved = !fs.existsSync(materialized.temporaryRoot)
     }
-  })
+  }
   if (result.error) throw result.error
   return { plan, status: Number.isInteger(result.status) ? result.status : 1, signal: result.signal || null }
 }
@@ -343,6 +462,7 @@ module.exports = {
   getGrokLauncherAdapterDigest,
   buildGrokLaunchPlan,
   extractSinglePrompt,
+  inspectSinglePromptCarrier,
   prepareGrokSingleTurnSkillRoute,
   collectExtraRules,
   findNestedGitRoot,

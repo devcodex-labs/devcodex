@@ -20,6 +20,8 @@ const {
   buildJsonContentIdentity,
   validateContentIdentity
 } = require('../hooks/_runtime/content-identity.cjs')
+const { authorizeContextRead } = require('../hooks/_runtime/context-source-observation.cjs')
+const { readBoundedTextFileSync } = require('../mcp/bounded-text-reader.cjs')
 const {
   createOptimizationState,
   persistOptimizationState
@@ -80,6 +82,61 @@ function runServer(script, requests, cwd = ROOT, env = {}) {
   return result.stdout.trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line))
 }
 
+const GOVERNED_CONTEXT_READ_TOOLS = new Set([
+  'profile_load',
+  'profile_skill_plan',
+  'memory_status',
+  'memory_session_query',
+  'memory_summary_query',
+  'memory_session_read',
+  'memory_summary_read'
+])
+
+function createTestContextBinding(cwd = ROOT, options = {}) {
+  const contextEpoch = options.contextEpoch || `test-context-${crypto.randomUUID()}`
+  const intent = options.intent || 'resume'
+  const planArgs = {
+    intent,
+    contextEpoch,
+    ...(options.project ? { project: options.project } : {}),
+    ...(options.scope ? { scope: options.scope } : {}),
+    ...(options.explicitFull
+      ? {
+          explicitFull: true,
+          fullReadReason: options.fullReadReason || 'MCP test requires an explicitly authorized Profile corpus.',
+          configLocalRequested: true
+        }
+      : {}),
+    ...(Array.isArray(options.profileSelectors) ? { profileSelectors: options.profileSelectors } : {})
+  }
+  const responses = runServer('mcp/profile-server.js', [
+    rpcRequest(991, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: planArgs
+    })
+  ], cwd, options.env || {})
+  const result = resultById(responses, 991)
+  if (result.isError) {
+    throw new Error(`test ContextReadPlan creation failed: ${result.content?.[0]?.text || 'unknown error'}`)
+  }
+  return toolJson(result).contextBinding
+}
+
+function bindGovernedContextReads(requests, contextBinding) {
+  return requests.map(line => {
+    const request = JSON.parse(line)
+    const toolName = request.params?.name
+    if (request.method !== 'tools/call' || !GOVERNED_CONTEXT_READ_TOOLS.has(toolName)) return line
+    if (!request.params.arguments || typeof request.params.arguments !== 'object' ||
+        Array.isArray(request.params.arguments)) return line
+    const args = request.params.arguments
+    if (!Object.prototype.hasOwnProperty.call(args, 'contextBinding')) {
+      request.params.arguments = { ...args, contextBinding }
+    }
+    return JSON.stringify(request)
+  })
+}
+
 function findToolSchema(listed, name) {
   const tool = listed.find(item => item.name === name)
   assert.ok(tool, `${name} tool must be listed`)
@@ -128,9 +185,16 @@ function runProfileServerWithReadTrace(requests, cwd) {
     "'use strict'",
     "const fs = require('fs')",
     "const originalReadFileSync = fs.readFileSync.bind(fs)",
+    "const originalOpenSync = fs.openSync.bind(fs)",
+    "const originalAppendFileSync = fs.appendFileSync.bind(fs)",
+    "function trace(file) { try { originalAppendFileSync(process.env.DEVCODEX_READ_TRACE, JSON.stringify(String(file)) + '\\n') } catch {} }",
     "fs.readFileSync = function tracedReadFileSync(file, ...args) {",
-    "  try { fs.appendFileSync(process.env.DEVCODEX_READ_TRACE, JSON.stringify(String(file)) + '\\n') } catch {}",
+    "  trace(file)",
     "  return originalReadFileSync(file, ...args)",
+    "}",
+    "fs.openSync = function tracedOpenSync(file, ...args) {",
+    "  trace(file)",
+    "  return originalOpenSync(file, ...args)",
     "}"
   ].join('\n'))
   const input = requests.concat('').join('\n')
@@ -183,6 +247,7 @@ function setupConfiguredMcpTarget() {
   fs.copyFileSync(path.join(ROOT, 'mcp', 'path-guard.js'), path.join(targetRoot, '.claude', 'mcp', 'path-guard.js'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-contract.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-contract.js'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-section-selector.cjs'), path.join(targetRoot, '.claude', 'mcp', 'profile-section-selector.cjs'))
+  fs.copyFileSync(path.join(ROOT, 'mcp', 'bounded-text-reader.cjs'), path.join(targetRoot, '.claude', 'mcp', 'bounded-text-reader.cjs'))
   fs.copyFileSync(path.join(ROOT, 'mcp', 'agent-identity.cjs'), path.join(targetRoot, '.claude', 'mcp', 'agent-identity.cjs'))
   fs.cpSync(
     path.join(ROOT, 'hooks', '_runtime'),
@@ -197,6 +262,7 @@ function setupConfiguredMcpTarget() {
     'scripts/lib/global-host-target.js',
     'scripts/lib/derived-index-contract.js',
     'scripts/lib/memory-index.js',
+    'scripts/lib/memory-summary-state.js',
     'scripts/lib/summary-type-canon.js'
   ]) {
     const dest = path.join(targetRoot, '.claude', ...rel.split('/'))
@@ -294,6 +360,17 @@ function setupLegacyWorkspace() {
   )
 }
 
+function writeSparseFile(filePath, size, prefix = '') {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true })
+  const descriptor = fs.openSync(filePath, 'w')
+  try {
+    if (prefix) fs.writeSync(descriptor, Buffer.from(prefix, 'utf8'))
+    fs.ftruncateSync(descriptor, size)
+  } finally {
+    fs.closeSync(descriptor)
+  }
+}
+
 function snapshotFiles(paths) {
   return paths.map(filePath => {
     const stat = fs.statSync(filePath)
@@ -384,7 +461,7 @@ function setupMemoryProjectionFixture() {
     '| 2026-07-14 09:00 | 01 | dev | completed fixture | — | — | ✅ |',
     '| 2026-07-16 10:00 | 04 | resume | blocked fixture | — | — | ⛔ |',
     '| 2026-07-17 10:00 | 03 | dev | active fixture with `manual|auto` mode | report-a | memory-a | 🔄 |',
-    '| 2026-07-17 10:05 | 03 | dev | conflicting completed fixture | report-b | memory-b | ✅ |',
+    '| 2026-07-17 10:05 | 03 | dev | completion event fixture | report-b | memory-b | ✅ |',
     '| 2026-07-17 10:06 | legacy descriptive session | analyze | historical label fixture | report-c | memory-c | ✅ |',
     ''
   ].join('\n')
@@ -413,15 +490,18 @@ function fullDailyActiveSessionOracle(content) {
 }
 
 function fullSummaryUnresolvedOracle(content, since) {
-  return String(content).split(/\r?\n/)
+  const current = new Map()
+  String(content).split(/\r?\n/)
     .filter(line => /^\|\s*\d{4}-\d{2}-\d{2}/.test(line))
-    .filter(line => !since || line.slice(1).trim().slice(0, 10) >= since)
-    .filter(line => /(?:🔄|⛔)\s*\|\s*$/.test(line))
-    .map(line => {
+    .forEach((line, index) => {
       const cells = line.split('|').slice(1, -1).map(cell => cell.trim())
-      return `${cells[0].slice(0, 10)}#${cells[1].padStart(2, '0')}`
+      const key = `${cells[0].slice(0, 10)}#${cells[1].padStart(2, '0')}`
+      current.set(key, { key, day: cells[0].slice(0, 10), unresolved: /(?:🔄|⛔)\s*\|\s*$/.test(line), index })
     })
-    .reverse()
+  return [...current.values()]
+    .filter(item => item.unresolved && (!since || item.day >= since))
+    .sort((left, right) => right.index - left.index)
+    .map(item => item.key)
 }
 
 function setupLayoutWorkspace() {
@@ -531,6 +611,57 @@ function setupContextPlanWorkspace({ uncatalogued = false } = {}) {
   if (uncatalogued) fs.writeFileSync(path.join(projectProfile, '10-custom.md'), '# custom\n\nUNCATALOGUED-BODY-SENTINEL\n')
 }
 
+function setupDevCodexRouteRecipeWorkspace() {
+  fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
+  const workspaceProfile = path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile')
+  const projectProfile = path.join(TEMP_ROOT, '.devcodex', 'devcodex', 'profile')
+  const projectRoot = path.join(TEMP_ROOT, 'devcodex')
+  fs.mkdirSync(workspaceProfile, { recursive: true })
+  fs.mkdirSync(projectProfile, { recursive: true })
+  fs.mkdirSync(projectRoot, { recursive: true })
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'layout.json'),
+    JSON.stringify({ version: 1, mode: 'workspace-namespace' }, null, 2)
+  )
+  fs.writeFileSync(path.join(workspaceProfile, 'README.md'), '# workspace Profile\n')
+  fs.writeFileSync(
+    path.join(workspaceProfile, 'config.json'),
+    JSON.stringify({ mode: 'dev', agent: 'codex' }, null, 2)
+  )
+  const routeSections = {
+    '01-项目信息.md': ['完整开发需求验证链速查', '当前开发重点'],
+    '02-架构约束.md': ['执行链派生状态与回滚边界', '控制面内容物化边界'],
+    '03-代码风格.md': ['JavaScript', 'Markdown规范文件', '禁止事项'],
+    '04-测试规范.md': ['基本原则', '控制面内容验证', 'Profile专项'],
+    '05-发布规范.md': ['发布流程'],
+    '06-功能清单.md': ['近期已发布增量', '公开面维护规则', '全项目Profile校验'],
+    '07-用户文档与契约规范.md': ['用户文档主面', '写作与审查原则', '控制面内容契约']
+  }
+  const catalogRows = Object.keys(routeSections).map(file => `| [\`${file}\`](${file}) | fixture | ✅ |`)
+  fs.writeFileSync(path.join(projectProfile, 'README.md'), [
+    '# devcodex Profile',
+    '',
+    '> Profile 档位：`profile-closed-loop`。',
+    '',
+    '## 文件索引',
+    '',
+    '| 文件 | 说明 | 必须 |',
+    '|------|------|:----:|',
+    ...catalogRows
+  ].join('\n'))
+  fs.writeFileSync(
+    path.join(projectProfile, 'config.json'),
+    JSON.stringify({ mode: 'dev', agent: 'codex' }, null, 2)
+  )
+  for (const [file, sections] of Object.entries(routeSections)) {
+    fs.writeFileSync(
+      path.join(projectProfile, file),
+      sections.map(section => `## ${section}\n\nROUTE-RECIPE-${file}-${section}\n`).join('\n')
+    )
+  }
+  return { projectRoot, projectProfile }
+}
+
 function testProfilePrompts() {
   setupLegacyWorkspace()
   const responses = runServer('mcp/profile-server.js', [
@@ -607,7 +738,10 @@ function testProfileTierConflictRejected() {
   setupLegacyWorkspace()
   fs.appendFileSync(path.join(TEMP_ROOT, '.devcodex', 'profile', 'README.md'), '\nProfile 档位：profile-lite。\n', 'utf8')
   const responses = runServer('mcp/profile-server.js', [
-    rpcRequest(1, 'tools/call', { name: 'profile_load', arguments: {} })
+    rpcRequest(1, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: { intent: 'chat', contextEpoch: 'profile-tier-conflict' }
+    })
   ], TEMP_ROOT)
   const conflict = resultById(responses, 1)
   assert.strictEqual(conflict.isError, true)
@@ -787,6 +921,70 @@ function testMemoryCpConfirmForExtendedTaskKinds() {
   assert.ok(fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'scenario-tests', '场景测试任务', '.memory', 'sessions.md')))
 }
 
+function testMemoryCpConfirmRejectsArtifactPathEscape() {
+  setupLegacyWorkspace()
+  const taskRoot = path.join(TEMP_ROOT, '.devcodex', 'requirements', '路径边界任务')
+  const outsideRoot = path.join(TEMP_ROOT, 'outside-cp-artifacts')
+  const outsideArtifact = path.join(outsideRoot, 'outside.md')
+  fs.mkdirSync(taskRoot, { recursive: true })
+  fs.mkdirSync(outsideRoot, { recursive: true })
+  fs.writeFileSync(outsideArtifact, '# must not be digest-bound from outside the task\n', 'utf8')
+  const digest = crypto.createHash('sha256').update(fs.readFileSync(outsideArtifact)).digest('hex')
+
+  const relativeEscape = path.relative(taskRoot, outsideArtifact).replace(/\\/g, '/')
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: {
+        requirement: '路径边界任务',
+        phase: 'CP1',
+        artifactPath: relativeEscape,
+        artifactSha256: digest
+      }
+    }),
+    rpcRequest(2, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: {
+        requirement: '路径边界任务',
+        phase: 'CP1',
+        artifactPath: outsideArtifact,
+        artifactSha256: digest
+      }
+    })
+  ], TEMP_ROOT)
+
+  assert.strictEqual(resultById(responses, 1).isError, true)
+  assert.match(resultById(responses, 1).content?.[0]?.text || '', /ConfirmBindingGate.*artifactPath/i)
+  assert.strictEqual(resultById(responses, 2).isError, true)
+  assert.match(resultById(responses, 2).content?.[0]?.text || '', /ConfirmBindingGate.*artifactPath/i)
+  assert.ok(!fs.existsSync(path.join(taskRoot, '.memory', 'sessions.md')))
+
+  const linkPath = path.join(taskRoot, 'linked-outside')
+  let linkCreated = false
+  try {
+    fs.symlinkSync(outsideRoot, linkPath, process.platform === 'win32' ? 'junction' : 'dir')
+    linkCreated = true
+  } catch (error) {
+    if (!['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) throw error
+  }
+  if (linkCreated) {
+    const linked = runServer('mcp/memory-server.js', [
+      rpcRequest(3, 'tools/call', {
+        name: 'memory_cp_confirm',
+        arguments: {
+          requirement: '路径边界任务',
+          phase: 'CP1',
+          artifactPath: 'linked-outside/outside.md',
+          artifactSha256: digest
+        }
+      })
+    ], TEMP_ROOT)
+    assert.strictEqual(resultById(linked, 3).isError, true)
+    assert.match(resultById(linked, 3).content?.[0]?.text || '', /ConfirmBindingGate.*artifactPath/i)
+    assert.ok(!fs.existsSync(path.join(taskRoot, '.memory', 'sessions.md')))
+  }
+}
+
 function testMemoryCpConfirmPreservesOrdinaryTables() {
   setupLegacyWorkspace()
   const taskRoot = path.join(TEMP_ROOT, '.devcodex', 'requirements', '表格任务')
@@ -823,6 +1021,10 @@ function testMemoryCpConfirmPreservesOrdinaryTables() {
   assert.strictEqual(confirmation.isError, undefined)
   assert.strictEqual(confirmation.structuredContent.readbackVerified, true)
   assert.strictEqual(confirmation.structuredContent.cpRowCount, 3)
+  assert.strictEqual(confirmation.structuredContent.artifactAuthority.schemaVersion, 'MemoryCpArtifactAuthorityV1')
+  assert.strictEqual(confirmation.structuredContent.artifactAuthority.rootKind, 'task')
+  assert.strictEqual(confirmation.structuredContent.artifactAuthority.canonicalRelativePath, '02-技术方案.md')
+  assert.match(confirmation.structuredContent.artifactAuthority.rootIdentity, /^[a-f0-9]{64}$/)
   let sessions = fs.readFileSync(sessionsPath, 'utf8')
   assert.ok(sessions.startsWith(ordinaryTable.trimEnd()), 'ordinary session table must remain unchanged')
   assert.strictEqual((sessions.match(/^### CP 确认记录$/gm) || []).length, 1)
@@ -973,9 +1175,10 @@ function testMemoryCpConfirmGenericSessionIndexWithoutCpSection() {
 
 function testMemoryProjectionQueriesAndZeroWrite() {
   const fixture = setupMemoryProjectionFixture()
-  const memoryRoot = path.join(TEMP_ROOT, '.devcodex', '.memory')
+  const contextBinding = createTestContextBinding(TEMP_ROOT, { intent: 'resume' })
+  const memoryRoot = path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients')
   const before = snapshotTree(memoryRoot)
-  const responses = runServer('mcp/memory-server.js', [
+  const responses = runServer('mcp/memory-server.js', bindGovernedContextReads([
     rpcRequest(1, 'tools/list'),
     rpcRequest(2, 'tools/call', { name: 'memory_status', arguments: { limit: 2 } }),
     rpcRequest(3, 'tools/call', {
@@ -1012,7 +1215,7 @@ function testMemoryProjectionQueriesAndZeroWrite() {
       arguments: { date: '20260717' }
     }),
     rpcRequest(12, 'tools/call', { name: 'memory_summary_read', arguments: {} })
-  ], TEMP_ROOT)
+  ], contextBinding), TEMP_ROOT)
 
   const tools = resultById(responses, 1).tools
   const toolNames = tools.map(tool => tool.name)
@@ -1043,13 +1246,13 @@ function testMemoryProjectionQueriesAndZeroWrite() {
   assert.strictEqual(status.summary.exists, true)
   assert.strictEqual(status.latestRows.length, 2)
   assert.strictEqual(status.latestRows[0].summary, 'historical label fixture')
-  assert(status.activeSessionIds.includes('2026-07-17#03'))
-  assert.deepStrictEqual(status.conflicts, [{ sessionKey: '2026-07-17#03', states: ['active', 'completed'] }])
+  assert(!status.activeSessionIds.includes('2026-07-17#03'))
+  assert.deepStrictEqual(status.conflicts, [])
   assert.strictEqual(status.telemetry.filesRead, 1)
   assert.strictEqual(status.telemetry.tokens, null)
   assert.strictEqual(status.derivedIndexFreshness.status, 'stale')
   assert.strictEqual(status.canonicalSourceTrust.status, 'trusted')
-  assert.strictEqual(status.canonicalSourceTrust.basis, 'complete-content-read')
+  assert.strictEqual(status.canonicalSourceTrust.basis, 'bounded-source-scan-complete')
   assert.strictEqual(status.fallbackCoverage.status, 'complete')
   assert.strictEqual(status.repairState.status, 'repair-needed')
   assert.match(status.repairState.dedupeKey, /^memory-index-repair:[a-f0-9]{64}$/)
@@ -1094,9 +1297,8 @@ function testMemoryProjectionQueriesAndZeroWrite() {
   const defaultSummary = toolJson(resultById(responses, 8))
   assert.strictEqual(defaultSummary.schemaVersion, 'MemorySummaryQueryV1')
   assert.strictEqual(defaultSummary.query.status, 'active')
-  assert.strictEqual(defaultSummary.totalMatched, 1)
-  assert.strictEqual(defaultSummary.rows[0].state, 'active')
-  assert.strictEqual(defaultSummary.rows[0].summary, 'active fixture with `manual|auto` mode')
+  assert.strictEqual(defaultSummary.totalMatched, 0)
+  assert.deepStrictEqual(defaultSummary.rows, [])
   assert.strictEqual(
     defaultSummary.repairState.diagnosticFingerprint,
     status.repairState.diagnosticFingerprint,
@@ -1114,21 +1316,22 @@ function testMemoryProjectionQueriesAndZeroWrite() {
   assert.strictEqual(lastTwo.rows.length, 2)
   assert.deepStrictEqual(lastTwo.rows.map(row => row.summary), [
     'historical label fixture',
-    'conflicting completed fixture',
+    'completion event fixture',
   ])
   assert.strictEqual(lastTwo.truncated, true)
 
   assert.strictEqual(resultById(responses, 11).content[0].text, fixture.todayContent)
   assert.strictEqual(resultById(responses, 12).content[0].text, fixture.summaryContent)
-  assert.deepStrictEqual(snapshotTree(memoryRoot), before, 'all new memory projection tools must be zero-write')
+  assert.deepStrictEqual(snapshotTree(memoryRoot), before, 'memory projections must not mutate canonical client memory sources')
 }
 
 function testMemoryProjectionErrorsAndMalformedSources() {
   const fixture = setupMemoryProjectionFixture()
+  const contextBinding = createTestContextBinding(TEMP_ROOT, { intent: 'resume' })
   fs.appendFileSync(fixture.summaryPath, '| malformed |\n')
   const malformedDaily = path.join(path.dirname(fixture.todayPath), '20260718.md')
   fs.writeFileSync(malformedDaily, '# malformed daily\n\n状态：🔄 进行中\n')
-  const responses = runServer('mcp/memory-server.js', [
+  const responses = runServer('mcp/memory-server.js', bindGovernedContextReads([
     rpcRequest(1, 'tools/call', { name: 'memory_status', arguments: { limit: 21 } }),
     rpcRequest(2, 'tools/call', {
       name: 'memory_session_query',
@@ -1160,7 +1363,7 @@ function testMemoryProjectionErrorsAndMalformedSources() {
       name: 'memory_session_query',
       arguments: { date: '20260718', status: 'active' }
     })
-  ], TEMP_ROOT)
+  ], contextBinding), TEMP_ROOT)
 
   for (let id = 1; id <= 8; id += 1) {
     const result = resultById(responses, id)
@@ -1212,10 +1415,12 @@ function testMemoryProjectionErrorsAndMalformedSources() {
 
 function testMemoryProjectionLayoutTargets() {
   setupLayoutWorkspace()
+  const projectBinding = createTestContextBinding(TEMP_ROOT, { intent: 'resume', project: 'chat' })
+  const workspaceBinding = createTestContextBinding(TEMP_ROOT, { intent: 'resume', scope: 'workspace' })
   const responses = runServer('mcp/memory-server.js', [
     rpcRequest(1, 'tools/call', { name: 'memory_status', arguments: {} }),
-    rpcRequest(2, 'tools/call', { name: 'memory_status', arguments: { project: 'chat' } }),
-    rpcRequest(3, 'tools/call', { name: 'memory_summary_query', arguments: { scope: 'workspace' } }),
+    rpcRequest(2, 'tools/call', { name: 'memory_status', arguments: { project: 'chat', contextBinding: projectBinding } }),
+    rpcRequest(3, 'tools/call', { name: 'memory_summary_query', arguments: { scope: 'workspace', contextBinding: workspaceBinding } }),
     rpcRequest(4, 'tools/call', { name: 'memory_status', arguments: { project: '..\\escape' } })
   ], TEMP_ROOT)
 
@@ -1230,12 +1435,70 @@ function testMemoryProjectionLayoutTargets() {
 
   const workspace = toolJson(resultById(responses, 3))
   assert.strictEqual(workspace.source.activeRoot, path.join(TEMP_ROOT, '.devcodex', 'workspace'))
-  assert.strictEqual(workspace.source.project, '')
+  assert.strictEqual(workspace.source.project, '__workspace__')
 
   const traversal = resultById(responses, 4)
   assert.strictEqual(traversal.isError, true)
   assert.strictEqual(toolJson(traversal).errorCode, 'MEMORY_QUERY_INVALID')
   assert.ok(!fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'escape')))
+}
+
+function testWorkspaceProfileContextReads() {
+  setupContextPlanWorkspace()
+  const planned = runServer('mcp/profile-server.js', [
+    rpcRequest(1, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: {
+        intent: 'resume',
+        scope: 'workspace',
+        contextEpoch: 'workspace-profile-context-epoch',
+        explicitFull: true,
+        fullReadReason: 'workspace Profile authorization fixture'
+      }
+    })
+  ], TEMP_ROOT)
+  const plan = toolJson(resultById(planned, 1))
+  assert.strictEqual(plan.identity.project, '__workspace__')
+  assert.strictEqual(
+    path.resolve(plan.identity.activeRoot),
+    path.resolve(TEMP_ROOT, '.devcodex', 'workspace')
+  )
+  const responses = runServer('mcp/profile-server.js', [
+    rpcRequest(2, 'tools/call', {
+      name: 'profile_load',
+      arguments: {
+        scope: 'workspace',
+        files: ['01-项目信息.md'],
+        contextBinding: plan.contextBinding
+      }
+    }),
+    rpcRequest(3, 'tools/call', {
+      name: 'profile_skill_plan',
+      arguments: {
+        scope: 'workspace',
+        candidateIds: ['intent'],
+        executionOptimization: plan.executionOptimization,
+        contextBinding: plan.contextBinding
+      }
+    }),
+    rpcRequest(4, 'tools/call', {
+      name: 'profile_load',
+      arguments: {
+        scope: 'workspace',
+        project: 'chat',
+        files: ['01-项目信息.md'],
+        contextBinding: plan.contextBinding
+      }
+    })
+  ], TEMP_ROOT)
+  const loadText = resultById(responses, 2).content?.[0]?.text || ''
+  assert.match(loadText, /HIDDEN-BODY-01-项目信息\.md/)
+  const loadMeta = JSON.parse(/<!-- profile_load_budget (\{[^\n]+\}) -->/.exec(loadText)[1])
+  assert.strictEqual(loadMeta.contextBinding.project, '__workspace__')
+  const skillPlan = toolJson(resultById(responses, 3))
+  assert.strictEqual(skillPlan.contextBinding.project, '__workspace__')
+  assert.strictEqual(resultById(responses, 4).isError, true)
+  assert.strictEqual(toolJson(resultById(responses, 4)).errorCode, 'CONTEXT_BINDING_INVALID')
 }
 
 function testAgentIdentitySharedModule() {
@@ -1262,11 +1525,15 @@ function testMemoryProjectionAgentAmbiguity() {
   setupMemoryProjectionFixture()
   fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients', 'codex'), { recursive: true })
   fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients', 'copilot'), { recursive: true })
-  const responses = runServer('mcp/memory-server.js', [
+  const contextBinding = createTestContextBinding(TEMP_ROOT, {
+    intent: 'resume',
+    env: { DEVCODEX_AGENT: 'codex' }
+  })
+  const responses = runServer('mcp/memory-server.js', bindGovernedContextReads([
     rpcRequest(1, 'tools/call', { name: 'memory_status', arguments: {} }),
     rpcRequest(2, 'tools/call', { name: 'memory_status', arguments: { agent: 'codex' } }),
     rpcRequest(3, 'tools/call', { name: 'memory_status', arguments: {} })
-  ], TEMP_ROOT, { DEVCODEX_AGENT: 'codex' })
+  ], contextBinding), TEMP_ROOT, { DEVCODEX_AGENT: 'codex' })
 
   const explicitMissing = toolJson(resultById(responses, 2))
   assert.strictEqual(explicitMissing.agent, 'codex')
@@ -1289,10 +1556,11 @@ function testGrokAgentMemoryWrite() {
   setupMemoryProjectionFixture()
   const day = compactDateInTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone)
   const env = { DEVCODEX_AGENT: 'grok' }
+  const contextBinding = createTestContextBinding(TEMP_ROOT, { intent: 'resume', env })
   const allocation = allocateMemorySession(TEMP_ROOT, {
     date: day, title: 'grok-agent', intent: 'analyze', agent: 'grok'
   }, env)
-  const responses = runServer('mcp/memory-server.js', [
+  const responses = runServer('mcp/memory-server.js', bindGovernedContextReads([
     rpcRequest(1, 'tools/call', {
       name: 'memory_session_write',
       arguments: {
@@ -1307,7 +1575,7 @@ function testGrokAgentMemoryWrite() {
       name: 'memory_status',
       arguments: { agent: 'grok' }
     })
-  ], TEMP_ROOT, env)
+  ], contextBinding), TEMP_ROOT, env)
 
   const writeResult = resultById(responses, 1)
   assert.notStrictEqual(writeResult.isError, true, writeResult.content?.[0]?.text || 'write failed')
@@ -1322,12 +1590,20 @@ function testGrokAgentMemoryWrite() {
 function testWorkspaceNamespaceProfileMerge() {
   setupLayoutWorkspace()
   const projectRoot = path.join(TEMP_ROOT, 'chat')
+  const contextBinding = createTestContextBinding(projectRoot, {
+    intent: 'resume',
+    explicitFull: true,
+    env: { DEVCODEX_AGENT: 'claude-code' }
+  })
   const responses = runServer('mcp/profile-server.js', [
     rpcRequest(1, 'initialize'),
     rpcRequest(2, 'tools/call', { name: 'profile_get_mode', arguments: {} }),
     rpcRequest(3, 'tools/call', {
       name: 'profile_load',
-      arguments: { files: ['01-项目信息.md', '03-代码风格.md', 'config.json', 'config.local.json'] }
+      arguments: {
+        files: ['01-项目信息.md', '03-代码风格.md', 'config.json', 'config.local.json'],
+        contextBinding
+      }
     })
   ], projectRoot, { DEVCODEX_AGENT: 'claude-code' })
 
@@ -1362,7 +1638,7 @@ function testWorkspaceNamespaceInvalidProfileFailsClosed() {
 
 function testProfileLoadWithoutArguments() {
   setupLegacyWorkspace()
-  // Hard budget: no-args full load is rejected unless explicitFull+fullReadReason
+  // Governed reads reject missing authorization before any Profile body access.
   const blocked = runServer('mcp/profile-server.js', [
     rpcRequest(1, 'initialize'),
     rpcRequest(2, 'tools/call', { name: 'profile_load' }),
@@ -1373,13 +1649,18 @@ function testProfileLoadWithoutArguments() {
     const result = resultById(blocked, id)
     assert.strictEqual(result.isError, true)
     const text = result.content?.[0]?.text || ''
-    assert.match(text, /PROFILE_LOAD_BUDGET|explicitFull/)
+    assert.match(text, /CONTEXT_BINDING_REQUIRED/)
   }
 
+  const contextBinding = createTestContextBinding(TEMP_ROOT, {
+    intent: 'resume',
+    explicitFull: true
+  })
   const fullArgs = {
     explicitFull: true,
     fullReadReason: 'legacy compatibility fixture requires tier full read',
-    maxBytes: 500000
+    maxBytes: 500000,
+    contextBinding
   }
   const responses = runServer('mcp/profile-server.js', [
     rpcRequest(5, 'tools/call', { name: 'profile_load', arguments: fullArgs }),
@@ -1405,13 +1686,25 @@ function testProfileLoadWithoutArguments() {
   const targeted = runServer('mcp/profile-server.js', [
     rpcRequest(7, 'tools/call', {
       name: 'profile_load',
-      arguments: { files: ['01-项目信息.md', '03-代码风格.md'] }
+      arguments: { files: ['01-项目信息.md', '03-代码风格.md'], contextBinding }
     })
   ], TEMP_ROOT)
   const targetedText = resultById(targeted, 7).content?.[0]?.text || ''
   assert.notStrictEqual(resultById(targeted, 7).isError, true)
   assert.match(targetedText, /01-项目信息/)
   assert.match(targetedText, /03-代码风格/)
+
+  fs.rmSync(path.join(TEMP_ROOT, '.devcodex', 'profile', 'config.json'), { force: true })
+  const missingConfig = runServer('mcp/profile-server.js', [
+    rpcRequest(8, 'tools/call', {
+      name: 'profile_load',
+      arguments: { files: ['config.json'], contextBinding }
+    })
+  ], TEMP_ROOT)
+  const missingConfigText = resultById(missingConfig, 8).content?.[0]?.text || ''
+  assert.notStrictEqual(resultById(missingConfig, 8).isError, true)
+  assert.match(missingConfigText, /（文件不存在，跳过）/)
+  assert.doesNotMatch(missingConfigText, /### config\.json[\s\S]*?\nnull(?:\n|$)/)
 }
 
 function testContextReadBindingContract() {
@@ -1419,7 +1712,13 @@ function testContextReadBindingContract() {
   const planResponses = runServer('mcp/profile-server.js', [
     rpcRequest(1, 'tools/call', {
       name: 'profile_context_plan',
-      arguments: { intent: 'chat', contextEpoch: 'binding-contract-epoch' }
+      arguments: {
+        intent: 'resume',
+        contextEpoch: 'binding-contract-epoch',
+        explicitFull: true,
+        fullReadReason: 'authorization contract fixture requires the full governed source set.',
+        configLocalRequested: true
+      }
     })
   ], TEMP_ROOT)
   const plan = toolJson(resultById(planResponses, 1))
@@ -1497,6 +1796,8 @@ function testContextReadBindingContract() {
   )
   assert.ok(listed.find(tool => tool.name === 'profile_load').inputSchema.properties.contextBinding)
   assert.ok(listed.find(tool => tool.name === 'profile_skill_plan').inputSchema.properties.contextBinding)
+  assert(listed.find(tool => tool.name === 'profile_load').inputSchema.required.includes('contextBinding'))
+  assert(listed.find(tool => tool.name === 'profile_skill_plan').inputSchema.required.includes('contextBinding'))
   const profileText = resultById(profileResponses, 3).content[0].text
   const profileMeta = JSON.parse(/<!-- profile_load_budget (\{[^\n]+\}) -->/.exec(profileText)[1])
   assert.deepStrictEqual(profileMeta.contextBinding, {
@@ -1510,10 +1811,9 @@ function testContextReadBindingContract() {
   assert.strictEqual(mismatch.errorCode, 'CONTEXT_BINDING_MISMATCH')
   const skillPlan = toolJson(resultById(profileResponses, 5))
   assert.strictEqual(skillPlan.contextBinding.bindingStatus, 'verified')
-  const legacyProfileMeta = JSON.parse(/<!-- profile_load_budget (\{[^\n]+\}) -->/.exec(
-    resultById(profileResponses, 6).content[0].text
-  )[1])
-  assert.strictEqual(legacyProfileMeta.contextBinding.bindingStatus, 'legacy-unbound')
+  const unboundProfile = toolJson(resultById(profileResponses, 6))
+  assert.strictEqual(resultById(profileResponses, 6).isError, true)
+  assert.strictEqual(unboundProfile.errorCode, 'CONTEXT_BINDING_REQUIRED')
 
   const memoryResponses = runServer('mcp/memory-server.js', [
     rpcRequest(7, 'tools/list'),
@@ -1530,6 +1830,8 @@ function testContextReadBindingContract() {
   ], TEMP_ROOT)
   assert.ok(resultById(memoryResponses, 7).tools
     .find(tool => tool.name === 'memory_status').inputSchema.properties.contextBinding)
+  assert(resultById(memoryResponses, 7).tools
+    .find(tool => tool.name === 'memory_status').inputSchema.required.includes('contextBinding'))
   const boundMemory = toolJson(resultById(memoryResponses, 8))
   assert.strictEqual(boundMemory.contextBinding.bindingStatus, 'verified')
   assert.strictEqual(boundMemory.contextBinding.verificationMode, 'request-bound')
@@ -1537,11 +1839,331 @@ function testContextReadBindingContract() {
   const memoryMismatch = toolJson(resultById(memoryResponses, 9))
   assert.strictEqual(resultById(memoryResponses, 9).isError, true)
   assert.strictEqual(memoryMismatch.errorCode, 'CONTEXT_BINDING_MISMATCH')
-  const legacyMemory = toolJson(resultById(memoryResponses, 10))
-  assert.strictEqual(legacyMemory.contextBinding.bindingStatus, 'legacy-unbound')
+  const unboundMemory = toolJson(resultById(memoryResponses, 10))
+  assert.strictEqual(resultById(memoryResponses, 10).isError, true)
+  assert.strictEqual(unboundMemory.errorCode, 'CONTEXT_BINDING_REQUIRED')
   const invalidMemory = toolJson(resultById(memoryResponses, 11))
   assert.strictEqual(resultById(memoryResponses, 11).isError, true)
   assert.strictEqual(invalidMemory.errorCode, 'CONTEXT_BINDING_INVALID')
+}
+
+function testContextReadAuthorizationNegativePaths() {
+  setupLegacyWorkspace()
+  const planResponses = runServer('mcp/profile-server.js', [
+    rpcRequest(1, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: { intent: 'chat', contextEpoch: 'authorization-negative-epoch' }
+    })
+  ], TEMP_ROOT)
+  const plan = toolJson(resultById(planResponses, 1))
+  const binding = plan.contextBinding
+  const unselectedSourceId = plan.catalogCoverage.excludedIds.find(sourceId =>
+    sourceId.startsWith('profile:') && sourceId.endsWith('.md')
+  )
+  assert(unselectedSourceId, 'chat plan must leave at least one Profile body unselected')
+  const unselectedFile = unselectedSourceId.slice('profile:'.length)
+  const forgedBinding = {
+    ...binding,
+    contextEpoch: 'forged-authorization-epoch',
+    planId: `plan-${'1'.repeat(64)}`,
+    planContentId: `plan-content-${'2'.repeat(64)}`
+  }
+  const mismatchedBinding = {
+    ...binding,
+    planContentId: `plan-content-${'3'.repeat(64)}`
+  }
+  const traced = runProfileServerWithReadTrace([
+    rpcRequest(2, 'tools/call', {
+      name: 'profile_load',
+      arguments: { files: [unselectedFile] }
+    }),
+    rpcRequest(3, 'tools/call', {
+      name: 'profile_load',
+      arguments: { files: [unselectedFile], contextBinding: forgedBinding }
+    }),
+    rpcRequest(4, 'tools/call', {
+      name: 'profile_load',
+      arguments: { files: [unselectedFile], contextBinding: mismatchedBinding }
+    }),
+    rpcRequest(5, 'tools/call', {
+      name: 'profile_load',
+      arguments: { files: [unselectedFile], contextBinding: binding }
+    })
+  ], TEMP_ROOT)
+  assert.strictEqual(toolJson(resultById(traced.responses, 2)).errorCode, 'CONTEXT_BINDING_REQUIRED')
+  assert.strictEqual(toolJson(resultById(traced.responses, 3)).errorCode, 'CONTEXT_BINDING_PLAN_NOT_FOUND')
+  assert.strictEqual(toolJson(resultById(traced.responses, 4)).errorCode, 'CONTEXT_BINDING_PLAN_MISMATCH')
+  assert.strictEqual(toolJson(resultById(traced.responses, 5)).errorCode, 'CONTEXT_SOURCE_NOT_AUTHORIZED')
+  assert.deepStrictEqual(
+    profileReadBasenames(traced.reads),
+    [],
+    'authorization failures must happen before any Profile body is opened'
+  )
+
+  const validAuthorization = authorizeContextRead({
+    activeRoot: plan.identity.activeRoot,
+    project: plan.identity.project,
+    contextBinding: binding,
+    requestedSources: ['memory:memory_status']
+  })
+  assert.strictEqual(validAuthorization.status, 'authorized')
+  assert.strictEqual(validAuthorization.binding.bindingStatus, 'verified')
+  assert.strictEqual(validAuthorization.binding.verificationMode, 'request-bound')
+  const expiredAuthorization = authorizeContextRead({
+    activeRoot: plan.identity.activeRoot,
+    project: plan.identity.project,
+    contextBinding: binding,
+    requestedSources: ['memory:memory_status']
+  }, { nowMs: Date.now() + (25 * 60 * 60 * 1000) })
+  assert.strictEqual(expiredAuthorization.status, 'blocked')
+  assert.strictEqual(expiredAuthorization.errorCode, 'CONTEXT_BINDING_PLAN_EXPIRED')
+
+  const blockedDailyPath = path.join(
+    TEMP_ROOT,
+    '.devcodex',
+    '.memory',
+    'clients',
+    'claude-code',
+    'tasks',
+    '20990101.md'
+  )
+  writeSparseFile(blockedDailyPath, 9 * 1024 * 1024, 'PLAN-UNSELECTED-MEMORY-BODY-MUST-NOT-BE-READ')
+  const memoryResponses = runServer('mcp/memory-server.js', [
+    rpcRequest(6, 'tools/call', {
+      name: 'memory_session_query',
+      arguments: { date: '20990101', contextBinding: binding }
+    })
+  ], TEMP_ROOT)
+  const blockedMemory = toolJson(resultById(memoryResponses, 6))
+  assert.strictEqual(resultById(memoryResponses, 6).isError, true)
+  assert.strictEqual(blockedMemory.errorCode, 'CONTEXT_SOURCE_NOT_AUTHORIZED')
+  assert.doesNotMatch(JSON.stringify(blockedMemory), /PLAN-UNSELECTED-MEMORY-BODY-MUST-NOT-BE-READ/)
+}
+
+function testBoundedGovernedSourceReads() {
+  setupLegacyWorkspace()
+  const directSparse = path.join(TEMP_ROOT, 'direct-sparse-profile.md')
+  writeSparseFile(directSparse, 3 * 1024 * 1024, 'DIRECT-SPARSE-SENTINEL')
+  let readCalls = 0
+  let sourceBytesRead = 0
+  const countingFs = Object.create(fs)
+  countingFs.readSync = (...args) => {
+    readCalls += 1
+    const bytesRead = fs.readSync(...args)
+    sourceBytesRead += bytesRead
+    return bytesRead
+  }
+  assert.throws(
+    () => readBoundedTextFileSync(directSparse, { maxBytes: 2 * 1024 * 1024, fs: countingFs }),
+    error => error.code === 'SOURCE_TOO_LARGE' && error.sourceBytesRead === 0
+  )
+  assert.strictEqual(readCalls, 0, 'oversized sparse source must be rejected from metadata before readSync')
+  assert.strictEqual(sourceBytesRead, 0)
+
+  const profilePath = path.join(TEMP_ROOT, '.devcodex', 'profile', '01-项目信息.md')
+  writeSparseFile(profilePath, 3 * 1024 * 1024, 'PROFILE-LIMIT-SENTINEL-MUST-NOT-LEAK')
+  const profilePlan = toolJson(resultById(runServer('mcp/profile-server.js', [
+    rpcRequest(10, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: {
+        intent: 'resume',
+        contextEpoch: 'profile-source-limit-epoch',
+        explicitFull: true,
+        fullReadReason: 'bounded Profile source fixture'
+      }
+    })
+  ], TEMP_ROOT), 10))
+  const profileLoad = resultById(runServer('mcp/profile-server.js', [
+    rpcRequest(11, 'tools/call', {
+      name: 'profile_load',
+      arguments: {
+        files: ['01-项目信息.md'],
+        maxBytes: 4 * 1024 * 1024,
+        contextBinding: profilePlan.contextBinding
+      }
+    })
+  ], TEMP_ROOT), 11)
+  const profileError = toolJson(profileLoad)
+  assert.strictEqual(profileLoad.isError, true)
+  assert.strictEqual(profileError.errorCode, 'SOURCE_TOO_LARGE')
+  assert.strictEqual(profileError.sourceBytesRead, 0)
+  assert.doesNotMatch(JSON.stringify(profileError), /PROFILE-LIMIT-SENTINEL-MUST-NOT-LEAK/)
+
+  writeSparseFile(
+    profilePath,
+    3 * 1024 * 1024,
+    '# Project\n\n## Runtime\n\nSTREAMED-RUNTIME-SECTION\n\n## Security\n\n'
+  )
+  const sectionLoad = resultById(runServer('mcp/profile-server.js', [
+    rpcRequest(111, 'tools/call', {
+      name: 'profile_load',
+      arguments: {
+        files: ['01-项目信息.md'],
+        maxBytes: 64 * 1024,
+        executionOptimization: profilePlan.executionOptimization,
+        sectionSelectors: [{
+          file: '01-项目信息.md',
+          headingQueries: ['Runtime'],
+          requiredQueries: ['Runtime'],
+          maxBytes: 16 * 1024
+        }],
+        contextBinding: profilePlan.contextBinding
+      }
+    })
+  ], TEMP_ROOT), 111)
+  assert.notStrictEqual(sectionLoad.isError, true, sectionLoad.content?.[0]?.text || '')
+  const sectionText = sectionLoad.content?.[0]?.text || ''
+  assert.match(sectionText, /STREAMED-RUNTIME-SECTION/)
+  const sectionBudgetMatch = sectionText.match(/<!-- profile_load_budget (\{[^\n]+\}) -->/)
+  assert(sectionBudgetMatch, 'streamed section load must emit a Profile load receipt')
+  const sectionBudget = JSON.parse(sectionBudgetMatch[1])
+  assert.strictEqual(sectionBudget.completion, 'partial')
+  assert(sectionBudget.sourceBytesRead <= (2 * 1024 * 1024) + (16 * 1024))
+  assert.strictEqual(sectionBudget.sectionReceipts[0].sourceScanComplete, false)
+  assert(sectionBudget.sectionReceipts[0].continuation.byteOffset > 0)
+  assert.strictEqual(sectionBudget.sectionReceipts[0].requiredSatisfied, false)
+
+  setupLegacyWorkspace()
+  const summaryPath = path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients', 'claude-code', 'SUMMARY.md')
+  writeSparseFile(summaryPath, 9 * 1024 * 1024, 'MEMORY-LIMIT-SENTINEL-MUST-NOT-LEAK')
+  const memoryPlan = toolJson(resultById(runServer('mcp/profile-server.js', [
+    rpcRequest(12, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: { intent: 'chat', contextEpoch: 'memory-source-limit-epoch' }
+    })
+  ], TEMP_ROOT), 12))
+  const memoryStatus = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(13, 'tools/call', {
+      name: 'memory_status',
+      arguments: { contextBinding: memoryPlan.contextBinding }
+    })
+  ], TEMP_ROOT), 13)
+  const boundedMemory = toolJson(memoryStatus)
+  assert.notStrictEqual(memoryStatus.isError, true, memoryStatus.content?.[0]?.text || '')
+  assert.strictEqual(boundedMemory.fallbackCoverage.status, 'partial')
+  assert.strictEqual(boundedMemory.summary.sourceScanComplete, false)
+  assert(boundedMemory.summary.continuation.byteOffset >= 0)
+  assert(boundedMemory.telemetry.sourceBytesRead <= 8 * 1024 * 1024)
+  assert.doesNotMatch(JSON.stringify(boundedMemory), /MEMORY-LIMIT-SENTINEL-MUST-NOT-LEAK/)
+}
+
+function testDevCodexBoundedRouteRecipe() {
+  const { projectRoot, projectProfile } = setupDevCodexRouteRecipeWorkspace()
+  const planned = runProfileServerWithReadTrace([
+    rpcRequest(80, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: {
+        intent: 'dev',
+        changeTypes: ['source-code', 'testing', 'docs'],
+        project: 'devcodex',
+        contextEpoch: 'devcodex-bounded-route-recipe'
+      }
+    })
+  ], projectRoot)
+  const plan = toolJson(resultById(planned.responses, 80))
+  const recipe = plan.profile.routeLoadRecipe
+  assert(recipe, 'devcodex source-code plan must provide a bounded route recipe')
+  assert.strictEqual(recipe.schemaVersion, 'ProfileRouteLoadRecipeV2')
+  assert.strictEqual(recipe.strategy, 'bounded-section-selectors')
+  assert(recipe.minimumHeadroomBytes >= 1024)
+  assert(recipe.minimumHeadroomBytes < recipe.maxBytes)
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(recipe, 'totalSelectedBytes'), false)
+  assert(recipe.entries.every(entry =>
+    Object.prototype.hasOwnProperty.call(entry, 'selectedBytes') === false
+  ))
+  assert.deepStrictEqual(
+    recipe.entries.map(entry => entry.file).sort(),
+    plan.profile.selectedFiles.slice().sort()
+  )
+  assert.deepStrictEqual(
+    [...new Set(profileReadBasenames(planned.reads))].sort(),
+    ['README.md', 'config.json'],
+    'the plan-owned recipe must be derived without reading Profile bodies'
+  )
+  const binding = {
+    schemaVersion: 'ContextReadBindingV1',
+    contextEpoch: plan.identity.contextEpoch,
+    planId: plan.planId,
+    planContentId: plan.planContentId,
+    activeRoot: plan.identity.activeRoot,
+    project: plan.identity.project
+  }
+  const routeEntry = recipe.entries[0]
+  const unauthorizedSection = authorizeContextRead({
+    activeRoot: plan.identity.activeRoot,
+    project: plan.identity.project,
+    contextBinding: binding,
+    requestedSources: [`profile:${routeEntry.file}`],
+    requestedSections: [{
+      sourceId: `profile:${routeEntry.file}`,
+      headingQueries: ['__SECTION_OUTSIDE_PLAN_RECIPE__'],
+      requireRouteRecipe: true
+    }]
+  })
+  assert.strictEqual(unauthorizedSection.status, 'blocked')
+  assert.strictEqual(unauthorizedSection.errorCode, 'CONTEXT_SECTION_NOT_AUTHORIZED')
+  const loaded = runServer('mcp/profile-server.js', [
+    rpcRequest(81, 'tools/call', {
+      name: 'profile_load',
+      arguments: {
+        project: 'devcodex',
+        contextBinding: binding,
+        executionOptimization: plan.executionOptimization
+      }
+    })
+  ], projectRoot, { DEVCODEX_AGENT: 'codex' })
+  const loadedResult = resultById(loaded, 81)
+  assert.notStrictEqual(loadedResult.isError, true, loadedResult.content?.[0]?.text || '')
+  const loadedText = loadedResult.content?.[0]?.text || ''
+  assert.match(loadedText, /完整开发需求验证链速查/)
+  assert.match(loadedText, /控制面内容契约/)
+  const receipt = JSON.parse(/<!-- profile_load_budget (\{[^\n]+\}) -->/.exec(loadedText)[1])
+  assert.strictEqual(receipt.completion, 'complete')
+  assert.strictEqual(receipt.routeLoadRecipe.applied, true)
+  assert.strictEqual(receipt.routeLoadRecipe.recipeDigest, recipe.recipeDigest)
+  assert.deepStrictEqual(receipt.loadedFiles.slice().sort(), plan.profile.selectedFiles.slice().sort())
+
+  const oversizedFile = recipe.entries[0]
+  fs.appendFileSync(
+    path.join(projectProfile, oversizedFile.file),
+    `\n${'x'.repeat(256)}\n`,
+    'utf8'
+  )
+  const grown = runServer('mcp/profile-server.js', [
+    rpcRequest(82, 'tools/call', {
+      name: 'profile_load',
+      arguments: {
+        project: 'devcodex',
+        contextBinding: binding,
+        executionOptimization: plan.executionOptimization
+      }
+    })
+  ], projectRoot, { DEVCODEX_AGENT: 'codex' })
+  assert.notStrictEqual(
+    resultById(grown, 82).isError,
+    true,
+    'small Profile growth must consume recipe headroom without requiring an identical replan'
+  )
+
+  fs.appendFileSync(
+    path.join(projectProfile, oversizedFile.file),
+    `\n${'x'.repeat(oversizedFile.maxBytes + 1024)}\n`,
+    'utf8'
+  )
+  const exceeded = runServer('mcp/profile-server.js', [
+    rpcRequest(83, 'tools/call', {
+      name: 'profile_load',
+      arguments: {
+        project: 'devcodex',
+        contextBinding: binding,
+        executionOptimization: plan.executionOptimization
+      }
+    })
+  ], projectRoot, { DEVCODEX_AGENT: 'codex' })
+  assert.strictEqual(resultById(exceeded, 83).isError, true)
+  const exceededError = toolJson(resultById(exceeded, 83))
+  assert.strictEqual(exceededError.errorCode, 'PROFILE_ROUTE_RECIPE_BUDGET_EXCEEDED')
+  assert.doesNotMatch(exceededError.nextStep, /Regenerate profile_context_plan/i)
 }
 
 function testProfileSectionSelectorsAndSkillPlan() {
@@ -1549,10 +2171,18 @@ function testProfileSectionSelectorsAndSkillPlan() {
   const safePlanResponses = runServer('mcp/profile-server.js', [
     rpcRequest(70, 'tools/call', {
       name: 'profile_context_plan',
-      arguments: { intent: 'chat', contextEpoch: 'safe-optimization-binding' }
+      arguments: {
+        intent: 'resume',
+        contextEpoch: 'safe-optimization-binding',
+        explicitFull: true,
+        fullReadReason: 'section selector authorization fixture',
+        configLocalRequested: true
+      }
     })
   ], TEMP_ROOT)
-  const safeOptimization = toolJson(resultById(safePlanResponses, 70)).executionOptimization
+  const safePlan = toolJson(resultById(safePlanResponses, 70))
+  const safeOptimization = safePlan.executionOptimization
+  const contextBinding = safePlan.contextBinding
   assert.strictEqual(safeOptimization.mode, 'safe-auto')
   fs.writeFileSync(path.join(TEMP_ROOT, '.devcodex', 'profile', '01-项目信息.md'), [
     'Profile preamble.',
@@ -1638,7 +2268,11 @@ function testProfileSectionSelectorsAndSkillPlan() {
       arguments: { candidateIds: ['intent'], hostCapability: 'unsupported', executionOptimization: safeOptimization }
     })
   ]
-  const responses = runServer('mcp/profile-server.js', requests, TEMP_ROOT)
+  const responses = runServer(
+    'mcp/profile-server.js',
+    bindGovernedContextReads(requests, contextBinding),
+    TEMP_ROOT
+  )
   const loadMeta = result => {
     const text = result.content?.[0]?.text || ''
     const match = text.match(/<!-- profile_load_budget (\{[^\n]+\}) -->/)
@@ -1677,12 +2311,19 @@ function testProfileSectionSelectorsAndSkillPlan() {
   const fullOnlyPlanResponses = runServer('mcp/profile-server.js', [
     rpcRequest(80, 'tools/call', {
       name: 'profile_context_plan',
-      arguments: { intent: 'chat', contextEpoch: 'full-only-binding' }
+      arguments: {
+        intent: 'resume',
+        contextEpoch: 'full-only-binding',
+        explicitFull: true,
+        fullReadReason: 'full-only optimization authorization fixture',
+        configLocalRequested: true
+      }
     })
   ], TEMP_ROOT)
-  const fullOnlyOptimization = toolJson(resultById(fullOnlyPlanResponses, 80)).executionOptimization
+  const fullOnlyPlan = toolJson(resultById(fullOnlyPlanResponses, 80))
+  const fullOnlyOptimization = fullOnlyPlan.executionOptimization
   assert.strictEqual(fullOnlyOptimization.mode, 'full-only')
-  const fullOnlyResponses = runServer('mcp/profile-server.js', [
+  const fullOnlyResponses = runServer('mcp/profile-server.js', bindGovernedContextReads([
     rpcRequest(8, 'tools/call', {
       name: 'profile_load',
       arguments: {
@@ -1696,7 +2337,7 @@ function testProfileSectionSelectorsAndSkillPlan() {
       name: 'profile_skill_plan',
       arguments: { candidateIds: ['intent'], executionOptimization: fullOnlyOptimization }
     })
-  ], TEMP_ROOT)
+  ], fullOnlyPlan.contextBinding), TEMP_ROOT)
   const fullOnlyLoad = loadMeta(resultById(fullOnlyResponses, 8))
   assert.strictEqual(fullOnlyLoad.meta.executionOptimizationMode, 'full-only')
   assert.strictEqual(fullOnlyLoad.meta.optimizationFallback, 'full-profile-file')
@@ -1748,12 +2389,13 @@ function testProfileSectionSelectorsAndSkillPlan() {
         files: ['01-项目信息.md'],
         maxBytes: 20000,
         executionOptimization: safeOptimization,
+        contextBinding,
         sectionSelectors: [{ file: '01-项目信息.md', headingQueries: ['Runtime'], requiredQueries: ['Runtime'] }]
       }
     }),
     rpcRequest(92, 'tools/call', {
       name: 'profile_skill_plan',
-      arguments: { candidateIds: ['intent'], executionOptimization: safeOptimization }
+      arguments: { candidateIds: ['intent'], executionOptimization: safeOptimization, contextBinding }
     })
   ], TEMP_ROOT)
   const lifecyclePlan = toolJson(resultById(lifecycleResponses, 90))
@@ -1993,7 +2635,8 @@ function testProfileContextPlanLocalPolicyAndFullEscalation() {
       arguments: {
         project: 'chat',
         files: localPlan.profile.selectedFiles,
-        executionOptimization: localPlan.executionOptimization
+        executionOptimization: localPlan.executionOptimization,
+        contextBinding: localPlan.contextBinding
       }
     })
   ], projectRoot)
@@ -2052,7 +2695,8 @@ function testProfileContextPlanReadTrace() {
       arguments: {
         project: 'chat',
         files: plan.profile.selectedFiles,
-        executionOptimization: plan.executionOptimization
+        executionOptimization: plan.executionOptimization,
+        contextBinding: plan.contextBinding
       }
     })
   ], projectRoot)
@@ -2069,20 +2713,25 @@ function testProfileContextPlanReadTrace() {
   ], projectRoot)
   assert(!profileReadBasenames(localPlanTrace.reads).includes('config.local.json'), 'plan may select local metadata but must not read local content')
 
-  const legacy = runProfileServerWithReadTrace([
+  const fullContextBinding = createTestContextBinding(projectRoot, {
+    intent: 'resume',
+    explicitFull: true
+  })
+  const authorizedFull = runProfileServerWithReadTrace([
     rpcRequest(5, 'tools/call', {
       name: 'profile_load',
       arguments: {
         project: 'chat',
         explicitFull: true,
         fullReadReason: 'context-read trace fixture full tier',
-        maxBytes: 500000
+        maxBytes: 500000,
+        contextBinding: fullContextBinding
       }
     })
   ], projectRoot)
-  const legacyNames = new Set(profileReadBasenames(legacy.reads))
+  const legacyNames = new Set(profileReadBasenames(authorizedFull.reads))
   for (const file of ['README.md', '01-项目信息.md', '06-功能清单.md', '07-用户文档与契约规范.md', 'config.local.json']) {
-    assert(legacyNames.has(file), `legacy full-read compatibility trace lost ${file}`)
+    assert(legacyNames.has(file), `authorized full-read trace lost ${file}`)
   }
 }
 
@@ -2179,11 +2828,15 @@ function testWorkspaceNamespaceNestedProjectInference() {
   const projectRoot = path.join(TEMP_ROOT, 'packages', 'app-a')
   const profileResponses = runServer('mcp/profile-server.js', [
     rpcRequest(1, 'initialize'),
-    rpcRequest(2, 'tools/call', { name: 'profile_get_mode', arguments: {} })
+    rpcRequest(2, 'tools/call', { name: 'profile_get_mode', arguments: {} }),
+    rpcRequest(3, 'tools/list')
   ], projectRoot)
   const profilePayload = JSON.parse(resultById(profileResponses, 2).content?.[0]?.text || '{}')
   assert.strictEqual(profilePayload.project, 'packages/app-a')
   assert.strictEqual(profilePayload.mode, 'dev')
+  const profileLoadTool = resultById(profileResponses, 3).tools.find(tool => tool.name === 'profile_load')
+  const bindingPattern = profileLoadTool.inputSchema.properties.contextBinding.properties.project.pattern
+  assert.strictEqual(new RegExp(bindingPattern).test('packages/app-a'), true)
 
   const allocation = allocateMemorySession(projectRoot, {
     date: '20260524', title: 'nested-project', intent: 'analyze'
@@ -2281,6 +2934,7 @@ function testAdjacentMcpPathArgumentsRejected() {
 function testMemorySessionAllocationAndTransactions() {
   setupLayoutWorkspace()
   const projectRoot = path.join(TEMP_ROOT, 'chat')
+  const contextBinding = createTestContextBinding(projectRoot, { intent: 'resume' })
   const allocations = runServer('mcp/memory-server.js', [
     rpcRequest(1, 'initialize'),
     rpcRequest(2, 'tools/list'),
@@ -2449,7 +3103,7 @@ function testMemorySessionAllocationAndTransactions() {
   }
   assert.strictEqual(fs.existsSync(invalidAllocationPath), false, 'invalid allocations must be zero-mutation')
 
-  const responses = runServer('mcp/memory-server.js', [
+  const responses = runServer('mcp/memory-server.js', bindGovernedContextReads([
     rpcRequest(9, 'tools/call', {
       name: 'memory_session_write',
       arguments: {
@@ -2480,7 +3134,7 @@ function testMemorySessionAllocationAndTransactions() {
       name: 'memory_summary_query',
       arguments: { status: 'completed', limit: 10 }
     })
-  ], projectRoot)
+  ], contextBinding), projectRoot)
 
   for (const id of [9, 10, 11]) {
     assert.match(resultById(responses, id).content[0].text, /MemoryTransactionReceiptV1/)
@@ -2618,7 +3272,7 @@ function testMemorySessionAllocationAndTransactions() {
 
   const derivedRoot = path.join(TEMP_ROOT, '.devcodex', 'chat', '.runtime-state', 'derived-indexes')
   const beforeQueryOnly = snapshotTree(derivedRoot)
-  const queryOnly = runServer('mcp/memory-server.js', [
+  const queryOnly = runServer('mcp/memory-server.js', bindGovernedContextReads([
     rpcRequest(20, 'tools/call', {
       name: 'memory_session_query',
       arguments: { date: '20260524', status: 'all', limit: 10 }
@@ -2627,14 +3281,14 @@ function testMemorySessionAllocationAndTransactions() {
       name: 'memory_summary_query',
       arguments: { status: 'completed', limit: 10 }
     })
-  ], projectRoot)
+  ], contextBinding), projectRoot)
   assert.strictEqual(toolJson(resultById(queryOnly, 20)).indexReceipt.status, 'fresh')
   assert.strictEqual(toolJson(resultById(queryOnly, 21)).indexReceipt.status, 'fresh')
   assert.deepStrictEqual(snapshotTree(derivedRoot), beforeQueryOnly, 'index-backed MCP query must be zero-write')
 
   fs.appendFileSync(dailyPath, '\nnon-special writer edit\n', 'utf8')
   const beforeFallback = snapshotTree(derivedRoot)
-  const fallbackQueries = runServer('mcp/memory-server.js', [
+  const fallbackQueries = runServer('mcp/memory-server.js', bindGovernedContextReads([
     rpcRequest(30, 'tools/call', {
       name: 'memory_session_query',
       arguments: { date: '20260524', status: 'all', limit: 10 }
@@ -2643,14 +3297,14 @@ function testMemorySessionAllocationAndTransactions() {
       name: 'memory_session_query',
       arguments: { date: '20260524', status: 'all', limit: 10 }
     })
-  ], projectRoot)
+  ], contextBinding), projectRoot)
   const firstFallback = toolJson(resultById(fallbackQueries, 30))
   const repeatedFallback = toolJson(resultById(fallbackQueries, 31))
   assert.strictEqual(firstFallback.indexReceipt.status, 'fallback')
   assert.strictEqual(firstFallback.indexReceipt.reason, 'source-metadata-drift')
   assert.strictEqual(firstFallback.derivedIndexFreshness.status, 'stale')
   assert.strictEqual(firstFallback.canonicalSourceTrust.status, 'trusted')
-  assert.strictEqual(firstFallback.canonicalSourceTrust.basis, 'complete-content-read')
+  assert.strictEqual(firstFallback.canonicalSourceTrust.basis, 'bounded-source-scan-complete')
   assert.strictEqual(firstFallback.fallbackCoverage.status, 'complete')
   assert.strictEqual(firstFallback.repairState.status, 'repair-needed')
   assert.strictEqual(
@@ -2726,8 +3380,12 @@ function testMemoryLocalCalendarAndWriterReaderContract() {
     ], TEMP_ROOT, { TZ: timeZone })
     const allocation = toolJson(resultById(allocationResponses, 1))
     assert.strictEqual(allocation.sessionId, '01')
+    const contextBinding = createTestContextBinding(TEMP_ROOT, {
+      intent: 'resume',
+      env: { TZ: timeZone }
+    })
 
-    const responses = runServer('mcp/memory-server.js', [
+    const responses = runServer('mcp/memory-server.js', bindGovernedContextReads([
       rpcRequest(2, 'tools/call', {
         name: 'memory_session_query',
         arguments: { date: day, status: 'all' }
@@ -2745,7 +3403,7 @@ function testMemoryLocalCalendarAndWriterReaderContract() {
         name: 'memory_session_query',
         arguments: { date: day, status: 'completed' }
       })
-    ], TEMP_ROOT, { TZ: timeZone })
+    ], contextBinding), TEMP_ROOT, { TZ: timeZone })
 
     const active = toolJson(resultById(responses, 2))
     assert.strictEqual(active.matches.length, 1)
@@ -2760,7 +3418,8 @@ function testMemoryLocalCalendarAndWriterReaderContract() {
   setupLegacyWorkspace()
   const summaryPath = path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients', 'claude-code', 'SUMMARY.md')
   const validRow = '| 2026-07-22 16:30 | 01 | analyze | valid roundtrip | report.md | memory.md | ✅ |'
-  const responses = runServer('mcp/memory-server.js', [
+  const contextBinding = createTestContextBinding(TEMP_ROOT, { intent: 'resume' })
+  const responses = runServer('mcp/memory-server.js', bindGovernedContextReads([
     rpcRequest(10, 'tools/call', { name: 'memory_summary_append', arguments: { row: validRow } }),
     rpcRequest(11, 'tools/call', { name: 'memory_summary_query', arguments: { status: 'completed', since: '2026-07-22' } }),
     rpcRequest(12, 'tools/call', { name: 'memory_summary_append', arguments: { row: '| 2026-07-22 | 02 | malformed |' } }),
@@ -2770,7 +3429,7 @@ function testMemoryLocalCalendarAndWriterReaderContract() {
     rpcRequest(15, 'tools/call', { name: 'memory_summary_append', arguments: { row: '| 2026-07-22 | 04 | audit/ECR | should reject | r.md | m.md | ✅ |' } }),
     rpcRequest(16, 'tools/call', { name: 'memory_summary_append', arguments: { row: '| 2026-07-22 | 05 | fix/ledger | should reject | r.md | m.md | ✅ |' } }),
     rpcRequest(17, 'tools/call', { name: 'memory_summary_append', arguments: { row: '| 2026-07-22 | 06 | analyze+fix | compound ok | r.md | m.md | ✅ |' } })
-  ], TEMP_ROOT)
+  ], contextBinding), TEMP_ROOT)
 
   assert.notStrictEqual(resultById(responses, 10).isError, true)
   const summary = toolJson(resultById(responses, 11))
@@ -2813,7 +3472,9 @@ function testMcpJsonLaunchContract() {
       arguments: { intent: 'chat', contextEpoch: 'configured-optimization-binding' }
     })
   ], targetRoot)
-  const configuredOptimization = toolJson(resultById(configuredPlanResponses, 89)).executionOptimization
+  const configuredAuthorizationPlan = toolJson(resultById(configuredPlanResponses, 89))
+  const configuredOptimization = configuredAuthorizationPlan.executionOptimization
+  const configuredBinding = configuredAuthorizationPlan.contextBinding
   const expected = {
     'devcodex-memory': '.claude/mcp/memory-server.js',
     'devcodex-profile': '.claude/mcp/profile-server.js'
@@ -2839,14 +3500,18 @@ function testMcpJsonLaunchContract() {
           arguments: {
             candidateIds: ['intent'],
             maxBytes: 100000,
-            executionOptimization: configuredOptimization
+            executionOptimization: configuredOptimization,
+            contextBinding: configuredBinding
           }
         })
       )
     } else {
       requests.push(
         rpcRequest(91, 'tools/list'),
-        rpcRequest(92, 'tools/call', { name: 'memory_status', arguments: {} })
+        rpcRequest(92, 'tools/call', {
+          name: 'memory_status',
+          arguments: { contextBinding: configuredBinding }
+        })
       )
     }
     const responses = runConfiguredServer(server, requests, targetRoot)
@@ -2882,6 +3547,7 @@ testMemoryTaskResolveContract()
 testMemoryActualHostEnvAgent()
 testMemoryCpConfirmForBugs()
 testMemoryCpConfirmForExtendedTaskKinds()
+testMemoryCpConfirmRejectsArtifactPathEscape()
 testMemoryCpConfirmPreservesOrdinaryTables()
 testMemoryCpConfirmGenericSessionIndexWithoutCpSection()
 testMemoryProjectionQueriesAndZeroWrite()
@@ -2894,12 +3560,16 @@ testWorkspaceNamespaceProfileMerge()
 testWorkspaceNamespaceInvalidProfileFailsClosed()
 testProfileLoadWithoutArguments()
 testContextReadBindingContract()
+testContextReadAuthorizationNegativePaths()
+testBoundedGovernedSourceReads()
+testDevCodexBoundedRouteRecipe()
 testProfileSectionSelectorsAndSkillPlan()
 testProfileContextPlanContract()
 testProfileContextPlanConditionalSelectors()
 testProfileContextPlanLocalPolicyAndFullEscalation()
 testProfileContextPlanReadTrace()
 testWorkspaceNamespaceMemoryScope()
+testWorkspaceProfileContextReads()
 testWorkspaceRootMemoryScopeRequiresExplicitTarget()
 testWorkspaceNamespaceNestedProjectInference()
 testWorkspaceNamespaceTraversalRejected()

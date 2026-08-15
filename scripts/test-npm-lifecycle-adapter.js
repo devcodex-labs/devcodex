@@ -12,9 +12,11 @@ const {
 } = require('./lib/npm-lifecycle-adapter')
 const { syncGrokWorkspacePluginInstallation } = require('./lib/host-adapter-scope')
 const { resolveWorkspaceTempBackupRoot } = require('./lib/workspace-temp-layout.js')
+const { readActivationReceipt } = require('./lib/devcodex-readiness.js')
 
 const root = path.resolve(__dirname, '..')
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-npm-lifecycle-'))
+const lifecycleHome = path.join(tmp, 'lifecycle-home')
 let tempCleaned = false
 function cleanupTempFixture() {
   if (tempCleaned) return
@@ -258,7 +260,7 @@ assert.strictEqual(globalDecision.command.internal, GLOBAL_INTERNAL_ACTION)
 let calls = []
 let grokSyncCalls = []
 const planned = runPostinstall({
-  env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', DEVCODEX_POSTINSTALL_DRY_RUN: '1', INIT_CWD: workspace },
+  env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', DEVCODEX_POSTINSTALL_DRY_RUN: '1', DEVCODEX_TEST_HOME: lifecycleHome, INIT_CWD: workspace },
   cwd: workspace,
   packageRoot: packagedRoot,
   applyGlobalHostConfig: call => calls.push(call)
@@ -267,7 +269,7 @@ assert.strictEqual(planned.status, 'planned')
 assert.strictEqual(calls.length, 0, 'dry-run must not apply global config')
 
 const executed = runPostinstall({
-  env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', INIT_CWD: workspace },
+  env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', DEVCODEX_TEST_HOME: lifecycleHome, INIT_CWD: workspace },
   cwd: workspace,
   packageRoot: packagedRoot,
   applyGlobalHostConfig: call => {
@@ -305,9 +307,14 @@ assert.deepStrictEqual(executed.globalHostConfig.hostResults, [
 ])
 assert.strictEqual(grokSyncCalls.length, 1)
 assert.strictEqual(executed.globalHostConfig.integrations.grok.status, 'verified')
+assert.strictEqual(executed.persistence.status, 'PASS')
+const executedActivation = readActivationReceipt({ home: lifecycleHome, env: { DEVCODEX_TEST_HOME: lifecycleHome } })
+assert.strictEqual(executedActivation.status, 'PASS')
+assert.strictEqual(executedActivation.value.schemaVersion, 'DevCodexActivationReceiptV1')
+assert.strictEqual(executedActivation.value.lifecycle.status, 'executed')
 
 const maintenanceWarning = runPostinstall({
-  env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', INIT_CWD: workspace },
+  env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', DEVCODEX_TEST_HOME: lifecycleHome, INIT_CWD: workspace },
   cwd: workspace,
   packageRoot: packagedRoot,
   applyGlobalHostConfig: () => ({
@@ -337,7 +344,7 @@ assert.strictEqual(maintenanceWarning.globalHostConfig.staleCleanupFailureCount,
 assert.strictEqual(maintenanceWarning.globalHostConfig.receiptFinalizationFailureCount, 1)
 
 const partial = runPostinstall({
-  env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', INIT_CWD: workspace },
+  env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', DEVCODEX_TEST_HOME: lifecycleHome, INIT_CWD: workspace },
   cwd: workspace,
   packageRoot: packagedRoot,
   applyGlobalHostConfig: () => ({
@@ -361,7 +368,7 @@ assert.strictEqual(partial.globalHostConfig.transactionStatus, 'partial')
 assert.strictEqual(partial.globalHostConfig.hostResults[1].errorCode, 'FIXTURE_FAILURE')
 
 const grokFailed = runPostinstall({
-  env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', INIT_CWD: workspace },
+  env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', DEVCODEX_TEST_HOME: lifecycleHome, INIT_CWD: workspace },
   cwd: workspace,
   packageRoot: packagedRoot,
   applyGlobalHostConfig: () => ({
@@ -533,17 +540,21 @@ assert(
 assert.strictEqual(pluginListFromRegistry(recoveryFixture.grokHome).length, 1)
 
 const failedSoft = runPostinstall({
-  env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', INIT_CWD: workspace },
+  env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', DEVCODEX_TEST_HOME: lifecycleHome, INIT_CWD: workspace },
   cwd: workspace,
   packageRoot: packagedRoot,
   applyGlobalHostConfig: () => { throw new Error('fixture failure') }
 })
 assert.strictEqual(failedSoft.status, 'failed-soft')
 assert.strictEqual(failedSoft.exitCode, 1)
+assert.strictEqual(failedSoft.persistence.status, 'PASS')
+const failedActivation = readActivationReceipt({ home: lifecycleHome, env: { DEVCODEX_TEST_HOME: lifecycleHome } })
+assert.strictEqual(failedActivation.value.lifecycle.status, 'failed-soft')
+assert.strictEqual(failedActivation.value.status, 'BLOCK')
 
 assert.throws(
   () => runPostinstall({
-    env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', DEVCODEX_POSTINSTALL_STRICT: '1', INIT_CWD: workspace },
+    env: { npm_lifecycle_event: 'postinstall', npm_config_global: 'true', DEVCODEX_POSTINSTALL_STRICT: '1', DEVCODEX_TEST_HOME: lifecycleHome, INIT_CWD: workspace },
     cwd: workspace,
     packageRoot: packagedRoot,
     applyGlobalHostConfig: () => { throw new Error('fixture failure') }

@@ -9,7 +9,10 @@ const { spawnSync } = require('child_process')
 const grokHooks = require('../grok/hooks/devcodex.json')
 const {
   buildPrompt: buildS15HostPrompt,
-  resultSchema: buildS15HostResultSchema
+  buildHostInvocationEvidence,
+  resolveHostEntrySurface,
+  resultSchema: buildS15HostResultSchema,
+  scrubCodexDesktopAmbientMarkers
 } = require('./probe-skill-route-s15-host')
 const {
   parseContextToolIdentity
@@ -18,7 +21,10 @@ const {
   getCompatibleLifecycleHostAdapterDigest
 } = require('../hooks/_runtime/compatible-host-adapter-identity.cjs')
 const {
-  getLifecycleHostAdapterDigest
+  HOST_VARIANTS,
+  getLifecycleHostAdapterDigest,
+  isCodexDesktopEnvironment,
+  normalizeHostVariant
 } = require('../hooks/_runtime/host-adapter-identity.cjs')
 const {
   EVENT_MAP,
@@ -123,6 +129,89 @@ for (const host of ['claude', 'cursor']) {
   assert.notStrictEqual(compatibleIdentityObserved[host], getLifecycleHostAdapterDigest(host))
 }
 assert.strictEqual(compatibleIdentityObserved.codex, getLifecycleHostAdapterDigest('codex'))
+const codexCliEnvironment = {}
+const codexDesktopEnvironment = {
+  CODEX_INTERNAL_ORIGINATOR_OVERRIDE: 'Codex Desktop',
+  CODEX_THREAD_ID: 'thread-host-adapter-fixture'
+}
+const codexDesktopCurrentEnvironment = {
+  CODEX_THREAD_ID: 'thread-host-adapter-current'
+}
+assert.strictEqual(
+  normalizeHostVariant('codex', { env: codexCliEnvironment }),
+  HOST_VARIANTS.codex
+)
+assert.strictEqual(
+  normalizeHostVariant('codex', { env: codexDesktopEnvironment }),
+  HOST_VARIANTS.codexdesktop
+)
+assert.strictEqual(
+  isCodexDesktopEnvironment(codexDesktopCurrentEnvironment, {
+    sessionId: 'thread-host-adapter-current'
+  }),
+  true,
+  'the real Desktop task must be recognized when hook session_id matches CODEX_THREAD_ID'
+)
+assert.strictEqual(
+  normalizeHostVariant('codex', {
+    env: codexDesktopCurrentEnvironment,
+    sessionId: 'thread-host-adapter-current'
+  }),
+  HOST_VARIANTS.codexdesktop
+)
+assert.strictEqual(
+  normalizeHostVariant('codex', {
+    env: codexDesktopCurrentEnvironment,
+    sessionId: 'nested-codex-cli-session'
+  }),
+  HOST_VARIANTS.codex,
+  'a nested Codex CLI session must not inherit the parent Desktop entry surface'
+)
+assert.notStrictEqual(
+  getLifecycleHostAdapterDigest('codex', { env: codexCliEnvironment }),
+  getLifecycleHostAdapterDigest('codex', { env: codexDesktopEnvironment })
+)
+assert.strictEqual(resolveHostEntrySurface('codex'), 'codex-cli-exec')
+assert.strictEqual(
+  normalizeHostVariant('codex', {
+    entrySurface: 'codex-cli-exec',
+    env: codexDesktopEnvironment
+  }),
+  HOST_VARIANTS.codex,
+  'explicit Codex CLI entry surface must override inherited Desktop markers'
+)
+const desktopParentCliInvocation = buildHostInvocationEvidence({
+  host: 'codex',
+  entrySurface: 'codex-cli-exec',
+  executable: { command: 'C:\\fixture\\codex.exe', prefix: [] },
+  argv: ['exec', '--ephemeral', 'x'.repeat(512)],
+  env: codexDesktopEnvironment,
+  hostAdapterDigest: 'a'.repeat(64)
+})
+assert.strictEqual(desktopParentCliInvocation.hostVariant, HOST_VARIANTS.codex)
+assert.strictEqual(desktopParentCliInvocation.entrySurface, 'codex-cli-exec')
+assert.strictEqual(desktopParentCliInvocation.ambientDesktopMarkersPresent, true)
+const scrubbedCodexCliEnvironment = scrubCodexDesktopAmbientMarkers(codexDesktopEnvironment, 'codex')
+assert.strictEqual(Object.prototype.hasOwnProperty.call(scrubbedCodexCliEnvironment, 'CODEX_THREAD_ID'), false)
+assert.strictEqual(Object.prototype.hasOwnProperty.call(scrubbedCodexCliEnvironment, 'CODEX_INTERNAL_ORIGINATOR_OVERRIDE'), false)
+assert.deepStrictEqual(
+  scrubCodexDesktopAmbientMarkers(codexDesktopEnvironment, 'grok'),
+  codexDesktopEnvironment,
+  'non-Codex probes must retain unrelated environment values'
+)
+assert.strictEqual(desktopParentCliInvocation.boundedArguments[2].value, undefined)
+assert.match(desktopParentCliInvocation.boundedArguments[2].valueDigest, /^[a-f0-9]{64}$/)
+assert.notStrictEqual(
+  desktopParentCliInvocation.descriptorDigest,
+  buildHostInvocationEvidence({
+    host: 'codex',
+    entrySurface: 'codex-cli-exec',
+    executable: { command: 'C:\\fixture\\codex-v2.exe', prefix: [] },
+    argv: ['exec', '--ephemeral', 'x'.repeat(512)],
+    env: codexDesktopEnvironment,
+    hostAdapterDigest: 'a'.repeat(64)
+  }).descriptorDigest
+)
 
 const candidateFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-s15-candidate-'))
 try {
@@ -740,9 +829,18 @@ const copilotMcpPost = normalizeHostPayload('copilot', {
   }
 })
 assert.match(copilotMcpPre.payload.tool_call_id, /^copilot-[a-f0-9]{32}$/)
-assert.strictEqual(
-  copilotMcpPost.payload.tool_call_id,
-  copilotMcpPre.payload.tool_call_id
+assert.strictEqual(copilotMcpPost.payload.tool_call_id, undefined)
+const concurrentCopilotMcpPre = normalizeHostPayload('copilot', {
+  hookEventName: 'preToolUse',
+  sessionId: 'copilot-mcp-session',
+  toolName: 'devcodex-profile-profile_load',
+  toolArgs: '{"project":"sample","files":["README.md"]}'
+})
+assert.match(concurrentCopilotMcpPre.payload.tool_call_id, /^copilot-[a-f0-9]{32}$/)
+assert.notStrictEqual(
+  concurrentCopilotMcpPre.payload.tool_call_id,
+  copilotMcpPre.payload.tool_call_id,
+  'synthetic Copilot ids must identify call instances, not only equal call material'
 )
 const copilotContinuation = normalizeHostPayload('copilot', {
   hookEventName: 'userPromptTransformed',

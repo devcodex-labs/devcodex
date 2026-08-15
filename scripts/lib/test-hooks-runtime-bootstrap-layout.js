@@ -259,6 +259,20 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   const pendingState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
   assert.strictEqual(pendingState.contextAcquisition.targetResolved, false)
   assert.strictEqual(pendingState.progressiveSkillRoute.pending.explicitSkillId, 'audit-project')
+  assert.strictEqual(
+    pendingState.progressiveSkillRoute.pending.schemaVersion,
+    'SkillRoutePendingEnvelopeV1'
+  )
+  const pendingStop = run({
+    hookEventName: 'Stop',
+    session_id: pendingSession,
+    last_assistant_message: 'Direct answer without resolving the project or loading the route.'
+  }, TEMP_ROOT, {
+    DEVCODEX_HOST_PLATFORM: 'codex'
+  })
+  assert.strictEqual(pendingStop.devcodexCode, 'progressive-skill-route')
+  assert.strictEqual(pendingStop.devcodexNextAction?.nextOp, 'resolve_context_target')
+  assert.strictEqual(pendingStop.devcodexNextAction?.nextCall?.op, 'profile_context_plan')
   const pendingArgs = {
     intent: 'audit',
     changeTypes: ['testing'],
@@ -362,6 +376,26 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   }, TEMP_ROOT, { DEVCODEX_HOST_PLATFORM: 'codex' })
   const isolatedAfterForeignState = JSON.parse(fs.readFileSync(pendingSessionFile, 'utf8'))
   assert.strictEqual(isolatedAfterForeignState.contextAcquisition.plan, null)
+
+  cleanState()
+
+  // Screenshot regression: an ordinary chat turn still enters the unified
+  // SkillRoute. `chat` describes the intent only; it is not a terminal path
+  // that may bypass catalog/commit (including the valid null-skill choice).
+  const ordinaryChatSession = 'ordinary-chat-skill-route'
+  const ordinaryChatPrompt = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: ordinaryChatSession,
+    prompt: '测试'
+  }, TEMP_ROOT, {
+    DEVCODEX_HOST_PLATFORM: 'codex'
+  })
+  assert.match(ordinaryChatPrompt.systemMessage || '', /SkillRouteBootstrapV1/)
+  const ordinaryChatState = readLegacyState()
+  assert.strictEqual(ordinaryChatState.contextAcquisition.targetResolved, true)
+  assert.strictEqual(ordinaryChatState.progressiveSkillRoute.bootstrap.schemaVersion, 'SkillRouteBootstrapV1')
+  assert.strictEqual(ordinaryChatState.progressiveSkillRoute.bootstrap.explicitStatus, 'none')
+  assert.strictEqual(ordinaryChatState.progressiveSkillRoute.bootstrap.nextOp, 'catalog')
 
   cleanState()
 

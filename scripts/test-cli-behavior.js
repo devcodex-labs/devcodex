@@ -14,6 +14,10 @@ const {
 } = require('./lib/cli-maintenance-commands.js')
 const { readControlInstructionRoot, resolveControlAsset } = require('./lib/control-content-delivery')
 const { inspectWorkspaceTemp } = require('./lib/workspace-temp.js')
+const {
+  buildDevCodexReadiness,
+  readCurrentSessionEvidence
+} = require('./lib/devcodex-readiness.js')
 
 const ROOT = path.resolve(__dirname, '..')
 const CLI = path.join(ROOT, 'index.js')
@@ -449,6 +453,11 @@ function testMachineReadableDiagnosticsAndStableErrors() {
   assert.strictEqual(status.payload.governanceSummary.skills.schemaVersion, 'SkillSelectionTraceV1')
   assert.strictEqual(status.payload.governanceSummary.executionOptimization.schemaVersion, 'ExecutionOptimizationEvidenceV1')
   assert.strictEqual(status.payload.governanceSummary.fastPathPolicy.visibleMode, 'full')
+  assert.strictEqual(status.payload.readiness.schemaVersion, 'DevCodexReadinessV1')
+  assert.match(status.payload.readiness.status, /^(?:PASS|WARN|BLOCK|UNVERIFIED|N\/A)$/)
+  assert.ok(Object.prototype.hasOwnProperty.call(status.payload.readiness, 'globalKernelFilesPresent'))
+  assert.ok(Object.prototype.hasOwnProperty.call(status.payload.readiness, 'managedConfigDrift'))
+  assert.ok(Object.prototype.hasOwnProperty.call(status.payload.readiness, 'nextAction'))
 
   const doctor = JSON.parse(runCli(['doctor', '--json'], root))
   assert.strictEqual(doctor.ok, true)
@@ -465,6 +474,8 @@ function testMachineReadableDiagnosticsAndStableErrors() {
   assert.strictEqual(doctor.payload.governanceSummary.schemaVersion, 'GovernanceStatusSummaryV1')
   assert.strictEqual(doctor.payload.governanceSummary.gateLifecycle.readOnly, true)
   assert.strictEqual(doctor.payload.governanceSummary.ledgers.mutationAllowed, false)
+  assert.strictEqual(doctor.payload.readiness.schemaVersion, 'DevCodexReadinessV1')
+  assert.deepStrictEqual(doctor.payload.readiness, status.payload.readiness)
   assert.deepStrictEqual(doctor.payload.capabilityBoundary, {
     localOnly: true,
     hookEvidence: 'event-dependent',
@@ -1233,6 +1244,171 @@ function testInitHelpMatchesZeroWriteTargetContract() {
   fs.rmSync(root, { recursive: true, force: true })
 }
 
+function testSharedReadinessReducerMatrix() {
+  const base = {
+    packageVersion: '1.17.6-test',
+    sourceRepository: false,
+    activeRoot: 'E:/fixture/.devcodex/project',
+    workspaceLayoutReady: true,
+    workspaceRuntimeReady: true,
+    profile: { complete: true, directory: 'E:/fixture/profile', tier: 'project' },
+    governanceSummary: {
+      alwaysOn: {
+        surfaceMatrix: {
+          controlContentLayout: 'delivery',
+          requiredMissingCount: 0,
+          sourceApplyToFiles: 2
+        }
+      }
+    },
+    hostParity: {
+      evidence: {
+        physicalPresence: {
+          globalKernelFilesPresent: true,
+          globalLifecycleFilesPresent: true
+        }
+      },
+      repairSteps: []
+    },
+    globalHostConfig: {
+      hosts: [
+        {
+          host: 'codex',
+          inspectionStatus: 'PASS',
+          adapterContractStatus: 'passed',
+          configurationIssues: []
+        },
+        { host: 'grok', inspectionStatus: 'PASS', configurationIssues: [] }
+      ]
+    },
+    currentSessionEvidence: {
+      status: 'PASS',
+      fresh: true,
+      hostStatus: 'PASS',
+      hostObserved: true,
+      currentTask: true,
+      host: 'codex',
+      evidenceId: 'fixture-current-task'
+    },
+    activationReceipt: { status: 'N/A', file: null, value: null }
+  }
+  const ready = buildDevCodexReadiness(base)
+  assert.strictEqual(ready.status, 'PASS')
+  assert.strictEqual(ready.ready, true)
+  assert.strictEqual(ready.package.deliveryLayout, 'delivery')
+  assert.strictEqual(ready.nextAction, null)
+
+  const drifted = buildDevCodexReadiness({
+    ...base,
+    globalHostConfig: {
+      hosts: [
+        {
+          host: 'codex',
+          inspectionStatus: 'PASS',
+          adapterContractStatus: 'passed',
+          configurationIssues: [{ code: 'GLOBAL_HOST_MANAGED_CONFIG_DRIFT' }]
+        },
+        { host: 'grok', inspectionStatus: 'PASS', configurationIssues: [] }
+      ]
+    }
+  })
+  assert.strictEqual(drifted.globalKernelFilesPresent.status, 'PASS')
+  assert.strictEqual(drifted.globalLifecycleFilesPresent.status, 'PASS')
+  assert.strictEqual(drifted.codexAdapterContractReady.status, 'PASS')
+  assert.strictEqual(drifted.managedConfigDrift.status, 'BLOCK')
+  assert.strictEqual(drifted.managedConfigDrift.value, true)
+  assert.strictEqual(drifted.nextAction.id, 'refresh-global-adapters')
+
+  const noWorkspace = buildDevCodexReadiness({ ...base, workspaceRuntimeReady: false })
+  assert.strictEqual(noWorkspace.workspace.status, 'BLOCK')
+  assert.strictEqual(noWorkspace.nextAction.id, 'initialize-workspace')
+  const noProfile = buildDevCodexReadiness({ ...base, profile: { complete: false } })
+  assert.strictEqual(noProfile.profile.status, 'BLOCK')
+  assert.strictEqual(noProfile.nextAction.id, 'plan-profile')
+  const noSession = buildDevCodexReadiness({ ...base, currentSessionEvidence: null })
+  assert.strictEqual(noSession.sessionFreshness.status, 'UNVERIFIED')
+  assert.strictEqual(noSession.hostEvidence.status, 'UNVERIFIED')
+  assert.strictEqual(noSession.nextAction.id, 'start-fresh-host-task')
+  const failedActivation = buildDevCodexReadiness({
+    ...base,
+    activationReceipt: {
+      status: 'PASS',
+      file: 'E:/fixture/activation-readiness.json',
+      value: {
+        schemaVersion: 'DevCodexActivationReceiptV1',
+        packageVersion: '1.17.6-test',
+        lifecycle: { status: 'failed-soft' }
+      }
+    }
+  })
+  assert.strictEqual(failedActivation.activation.status, 'BLOCK')
+  assert.strictEqual(failedActivation.status, 'BLOCK')
+  assert.strictEqual(failedActivation.ready, false)
+  assert.strictEqual(failedActivation.nextAction.id, 'refresh-global-adapters')
+
+  const lifecycleRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-readiness-session-'))
+  try {
+    const stateDir = path.join(lifecycleRoot, '.memory', 'hooks', 'project')
+    fs.mkdirSync(stateDir, { recursive: true })
+    fs.writeFileSync(path.join(stateDir, 'lifecycle-state.json'), JSON.stringify({
+      updatedAt: '2026-08-15T09:30:00.000Z',
+      turnLiveness: {
+        turnKey: 'desktop-current-task',
+        lastEventAt: '2026-08-15T09:30:00.000Z',
+        eventSequence: 7,
+        taskTrace: {
+          events: [
+            { type: 'UserPromptSubmit', result: 'observed' },
+            {
+              type: 'ToolLeaseStarted',
+              result: 'allowed',
+              payload: { toolName: 'mcp__devcodex_profile__skill_route' }
+            }
+          ]
+        }
+      },
+      progressiveSkillRoute: {
+        modeReceipt: {
+          hostVariant: 'codex-desktop/app-user-global-local-stdio',
+          runtimeContractDigest: 'a'.repeat(64)
+        },
+        bootstrap: { schemaVersion: 'SkillRouteBootstrapV1' }
+      }
+    }))
+    const currentEvidence = readCurrentSessionEvidence({
+      activeRoot: lifecycleRoot,
+      env: { CODEX_THREAD_ID: 'desktop-current-task' },
+      expectedRuntimeContractDigest: 'a'.repeat(64),
+      now: '2026-08-15T09:31:00.000Z'
+    })
+    assert.strictEqual(currentEvidence.fresh, true)
+    assert.strictEqual(currentEvidence.hostObserved, true)
+    assert.strictEqual(currentEvidence.currentTask, true)
+    assert.strictEqual(currentEvidence.hostStatus, 'PASS')
+    assert.strictEqual(currentEvidence.host, 'codex-desktop')
+    assert.strictEqual(currentEvidence.runtimeContractMatch, true)
+    assert.match(currentEvidence.evidenceId, /^[a-f0-9]{64}$/)
+
+    const staleRuntimeEvidence = readCurrentSessionEvidence({
+      activeRoot: lifecycleRoot,
+      env: { CODEX_THREAD_ID: 'desktop-current-task' },
+      expectedRuntimeContractDigest: 'b'.repeat(64),
+      now: '2026-08-15T09:31:00.000Z'
+    })
+    assert.strictEqual(staleRuntimeEvidence.hostStatus, 'UNVERIFIED')
+    assert.strictEqual(staleRuntimeEvidence.runtimeContractMatch, false)
+
+    const inheritedCli = readCurrentSessionEvidence({
+      activeRoot: lifecycleRoot,
+      env: { CODEX_THREAD_ID: 'different-desktop-parent' },
+      now: '2026-08-15T09:31:00.000Z'
+    })
+    assert.strictEqual(inheritedCli, null)
+  } finally {
+    fs.rmSync(lifecycleRoot, { recursive: true, force: true })
+  }
+}
+
 function main() {
   require('./test-workspace-temp.js')
   testDoctorAvoidsCodexBiasInMixedHostRepo()
@@ -1249,6 +1425,7 @@ function main() {
   testGlobalOnlyHostSelectorsFailClosed()
   testCodexMcpPreventionNegatives()
   testInitHelpMatchesZeroWriteTargetContract()
+  testSharedReadinessReducerMatrix()
   testProfileInitUsesNestedNamespaceRoot()
   testProfileInitAndStatusShareTierContract()
   testProfilePlanAndTierTransitionsAreSafe()

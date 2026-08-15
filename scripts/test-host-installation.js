@@ -975,6 +975,15 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
   }
   assert.match(GROK_MCP_TOOL_CONTRACT, /omit cursor entirely/)
   assert.match(GROK_MCP_TOOL_CONTRACT, /no replan operation/)
+  const nestedProjectRoot = path.join(workspace, 'apps', 'api')
+  fs.mkdirSync(nestedProjectRoot, { recursive: true })
+  fs.writeFileSync(path.join(nestedProjectRoot, 'package.json'), '{"name":"nested-api"}\n')
+  const nestedLaunchPlan = buildGrokLaunchPlan(['-p', 'nested check'], {
+    cwd: nestedProjectRoot,
+    env,
+    home
+  })
+  assert.strictEqual(nestedLaunchPlan.hostScope.project, 'apps/api')
   const grokInstallTarget = install.targets.find(target => target.host === 'grok')
   assert(grokInstallTarget)
   const publishedRuntimeRoot = path.join(
@@ -1043,6 +1052,46 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
     '../../invalid-epoch'
   )
   assert.match(getGrokLauncherAdapterDigest(), /^[a-f0-9]{64}$/)
+  assert.strictEqual(launched.plan.promptCarrier.status, 'verified')
+  assert.strictEqual(launched.plan.promptCarrier.digest, launched.plan.skillRoute.promptDigest)
+  assert.strictEqual(launched.plan.promptCarrier.forwardedDigest, launched.plan.promptCarrier.digest)
+
+  const promptFile = path.join(workspace, 'route-prompt.txt')
+  fs.writeFileSync(promptFile, 'prompt from immutable snapshot\n', 'utf8')
+  let forwardedPromptSnapshot = null
+  const filePromptLaunch = launchGrok(['--prompt-file', promptFile], {
+    cwd: workspace,
+    env,
+    home,
+    spawnSync: (_command, args) => {
+      const promptIndex = args.indexOf('--prompt-file')
+      forwardedPromptSnapshot = args[promptIndex + 1]
+      assert.notStrictEqual(path.resolve(forwardedPromptSnapshot), path.resolve(promptFile))
+      assert.strictEqual(fs.readFileSync(forwardedPromptSnapshot, 'utf8'), 'prompt from immutable snapshot\n')
+      return { status: 0, signal: null }
+    }
+  })
+  assert.strictEqual(filePromptLaunch.plan.promptCarrier.forwarding, 'snapshot-file')
+  assert.strictEqual(filePromptLaunch.plan.promptCarrier.snapshotRemoved, true)
+  assert.strictEqual(fs.existsSync(forwardedPromptSnapshot), false)
+  assert.throws(
+    () => extractSinglePrompt(['-p', 'first', '--single', 'second'], workspace),
+    /GROK_PROMPT_CARRIER_AMBIGUOUS/
+  )
+  assert.throws(
+    () => extractSinglePrompt(['-p', ''], workspace),
+    /GROK_PROMPT_EMPTY/
+  )
+  assert.throws(
+    () => extractSinglePrompt(['--single='], workspace),
+    /GROK_PROMPT_EMPTY/
+  )
+  const emptyPromptFile = path.join(workspace, 'empty-route-prompt.txt')
+  fs.writeFileSync(emptyPromptFile, '', 'utf8')
+  assert.throws(
+    () => extractSinglePrompt(['--prompt-file', emptyPromptFile], workspace),
+    /GROK_PROMPT_EMPTY/
+  )
   const digestFixtureRoot = path.join(workspace, 'launcher-digest-fixture')
   fs.mkdirSync(digestFixtureRoot, { recursive: true })
   const digestLauncher = path.join(digestFixtureRoot, 'grok-workspace-launcher.js')
@@ -1093,10 +1142,24 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
     oversizedPrompt,
     Buffer.alloc(GROK_ROUTE_PROMPT_MAX_BYTES + 1, 0x61)
   )
-  assert.strictEqual(
-    extractSinglePrompt(['--prompt-file', oversizedPrompt], workspace),
-    ''
+  assert.throws(
+    () => extractSinglePrompt(['--prompt-file', oversizedPrompt], workspace),
+    /GROK_PROMPT_FILE_TOO_LARGE/
   )
+  const originalStatSync = fs.statSync
+  try {
+    fs.statSync = (filePath, ...statArgs) => {
+      const stat = originalStatSync(filePath, ...statArgs)
+      if (path.resolve(filePath) !== path.resolve(oversizedPrompt)) return stat
+      return { ...stat, size: 1, isFile: () => true }
+    }
+    assert.throws(
+      () => extractSinglePrompt(['--prompt-file', oversizedPrompt], workspace),
+      /GROK_PROMPT_FILE_TOO_LARGE.*after read/
+    )
+  } finally {
+    fs.statSync = originalStatSync
+  }
   fs.unlinkSync(oversizedPrompt)
 
   fs.rmSync(currentRoot, { recursive: true, force: true })

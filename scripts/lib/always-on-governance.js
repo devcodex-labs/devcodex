@@ -3,6 +3,10 @@
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
+const {
+  hasControlContentSource,
+  resolveControlAsset
+} = require('./control-content-delivery.js')
 
 const SCHEMA = Object.freeze({
   surfaceMatrix: 'AlwaysOnSurfaceMatrixV1',
@@ -151,6 +155,7 @@ function singleFileSurface({ id, host, file, owner, loadMode, required = false, 
 function buildAlwaysOnSurfaceMatrix(options = {}) {
   const packageRoot = path.resolve(options.packageRoot || path.resolve(__dirname, '../..'))
   const workspaceRoot = path.resolve(options.workspaceRoot || path.dirname(packageRoot))
+  const controlContentLayout = hasControlContentSource(packageRoot) ? 'source' : 'delivery'
   const configPath = path.join(packageRoot, 'scripts', 'host-instruction-projection.json')
   const receiptPath = path.join(packageRoot, 'host-projections', 'coverage.json')
   const config = readJsonSafe(configPath)
@@ -165,7 +170,7 @@ function buildAlwaysOnSurfaceMatrix(options = {}) {
   const sourceInstructions = instructionSurface({
     id: 'source-instructions',
     host: 'shared-source',
-    root: path.join(packageRoot, 'content', 'instructions'),
+    root: resolveControlAsset(packageRoot, 'instructions'),
     owner: 'instructions',
     loadMode: 'source-applyTo',
     required: true
@@ -217,7 +222,7 @@ function buildAlwaysOnSurfaceMatrix(options = {}) {
     singleFileSurface({
       id: 'full-fallback-source',
       host: 'shared',
-      file: path.join(packageRoot, 'content', 'instructions.md'),
+      file: resolveControlAsset(packageRoot, 'instructions.md'),
       owner: 'instructions',
       loadMode: 'full-fallback-source',
       required: true,
@@ -236,6 +241,7 @@ function buildAlwaysOnSurfaceMatrix(options = {}) {
     readOnly: true,
     packageRoot,
     workspaceRoot,
+    controlContentLayout,
     generatedAt: new Date().toISOString(),
     surfaces,
     totals: {
@@ -711,6 +717,7 @@ function buildAlwaysOnGovernanceSummary(options = {}) {
     ao3Status: 'not-enabled-shadow-first',
     surfaceMatrix: {
       matrixId: surfaceMatrix.matrixId,
+      controlContentLayout: surfaceMatrix.controlContentLayout,
       surfaceCount: surfaceMatrix.totals.surfaceCount,
       presentCount: surfaceMatrix.totals.presentCount,
       requiredMissingCount: surfaceMatrix.totals.requiredMissingCount,

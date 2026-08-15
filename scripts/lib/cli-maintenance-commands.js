@@ -6,70 +6,12 @@ const { buildGovernanceStatusSummary } = require('./governance-status-summary.js
 const { evaluateGrokHostParity } = require('./host-parity-scorecard.js')
 const { readCompletionForCli } = require('./cli-execution-commands.js')
 const { inspectGlobalHostConfig } = require('./global-host-config.js')
+const { createReadinessCollector } = require('./devcodex-readiness.js')
+const { buildGlobalHostComparison, buildScopedHostParity, isSourceCandidateMismatch } = require('./cli-host-diagnostic-scope.js')
 const {
   formatGlobalHostRuntimeState,
   formatNodeRuntimeReadiness
 } = require('./cli-runtime-diagnostics.js')
-
-const SOURCE_CANDIDATE_COMPARISON_ISSUES = new Set([
-  'GLOBAL_HOST_RECEIPT_STALE',
-  'GLOBAL_HOST_MANAGED_CONFIG_DRIFT'
-])
-
-function isSourceCandidateMismatch(host, sourceRepository) {
-  const issues = Array.isArray(host?.configurationIssues) ? host.configurationIssues : []
-  return sourceRepository === true &&
-    host?.configured === true &&
-    issues.length > 0 &&
-    issues.every(issue => SOURCE_CANDIDATE_COMPARISON_ISSUES.has(issue.code))
-}
-
-function buildGlobalHostComparison(sourceRepository, globalHostConfig) {
-  const hosts = Array.isArray(globalHostConfig?.hosts) ? globalHostConfig.hosts : []
-  const candidateMismatchHosts = hosts
-    .filter(host => isSourceCandidateMismatch(host, sourceRepository))
-    .map(host => host.host)
-  const mismatchSet = new Set(candidateMismatchHosts)
-  return {
-    schemaVersion: 'GlobalHostDiagnosticScopeV1',
-    scope: sourceRepository
-      ? 'source-candidate-vs-installed-receipts'
-      : 'installed-package-vs-user-global-receipts',
-    installedHealthClaim: sourceRepository !== true,
-    candidateMismatchHosts,
-    adapterIssueHosts: hosts
-      .filter(host => host.adapterReady !== true && !mismatchSet.has(host.host))
-      .map(host => host.host)
-  }
-}
-
-function buildScopedHostParity(hostParity, globalHostComparison) {
-  const scoped = {
-    ...hostParity,
-    diagnosticScope: globalHostComparison.scope,
-    installedHealthClaim: globalHostComparison.installedHealthClaim
-  }
-  if (globalHostComparison.installedHealthClaim !== false) return scoped
-
-  return {
-    ...scoped,
-    sourceCandidateOnly: true,
-    hardReady: false,
-    tier: 'source-candidate-comparison',
-    checks: {},
-    failedChecks: [],
-    repairSteps: [],
-    withheldChecks: hostParity?.checks || {},
-    withheldFailedChecks: Array.isArray(hostParity?.failedChecks) ? hostParity.failedChecks : [],
-    withheldRepairSteps: Array.isArray(hostParity?.repairSteps) ? hostParity.repairSteps : [],
-    userVisibleSummary: 'Source candidate comparison only; installed Grok HostParity health is unverified.',
-    recommendedEntry: 'devcodex global-adapters apply --dry-run && devcodex global-adapters apply',
-    cannotClaim: [
-      'Installed Grok HostParity health is unverified in source-candidate scope.',
-      ...(Array.isArray(hostParity?.cannotClaim) ? hostParity.cannotClaim : [])
-    ]
-  }
-}
 
 function buildCliMaintenanceCommands(ctx) {
   const {
@@ -114,6 +56,12 @@ function buildCliMaintenanceCommands(ctx) {
     workspaceManagedArtifactsAllowed: ['.devcodex/**'],
     installCommand: defaultGuidance.installCommand,
     updateCommand: defaultGuidance.updateCommand
+  })
+  const collectSharedReadiness = createReadinessCollector({
+    packageVersion: PACKAGE_JSON.version,
+    env: process.env,
+    fs,
+    adapterRefreshCommandForCwd: cwd => refreshGuidanceForCwd(cwd).primary
   })
   const globalOnlyLegacyProjectionIssues = new Set([
     'HOST_WRAPPER_POINTER_MISSING',
@@ -231,6 +179,7 @@ function buildCliMaintenanceCommands(ctx) {
     const hostRoot = path.resolve(instructionProjection.inspectionRoot || cwd)
     const ghDir = path.join(hostRoot, '.github')
     const sourceRepository = isSourceRepo(cwd)
+    const platformEvidence = detectHostPlatform(process.env, cwd)
     const installSurfaces = SOURCES.map(({ to }) => {
       const fileCount = walkDir(path.join(ghDir, to)).length
       return { id: to, fileCount, installed: fileCount > 0 }
@@ -301,6 +250,18 @@ function buildCliMaintenanceCommands(ctx) {
       executionOptimization,
       hostParity
     })
+    const readiness = collectSharedReadiness({
+      cwd,
+      sourceRepository,
+      activeRoot,
+      workspaceLayoutReady,
+      workspaceRuntimeReady,
+      profile: { directory: profileDir, ...profileState },
+      globalHostConfig,
+      hostParity,
+      governanceSummary,
+      platform: platformEvidence.platform
+    })
     return {
       schemaVersion: 'StatusDiagnosticV1',
       cwd,
@@ -309,6 +270,7 @@ function buildCliMaintenanceCommands(ctx) {
       workspaceLayoutReady,
       workspaceRuntimeReady,
       sourceRepository,
+      platformEvidence,
       trackedEntryFiles,
       installSurfaces,
       hostParity,
@@ -347,6 +309,7 @@ function buildCliMaintenanceCommands(ctx) {
       },
       executionOptimization,
       governanceSummary,
+      readiness,
       hostConfigPolicy,
       globalHostConfig,
       globalHostRuntime: globalHostConfig,
@@ -368,7 +331,7 @@ function buildCliMaintenanceCommands(ctx) {
     const {
       cwd, hostRoot, sourceRepository: isSrc, trackedEntryFiles: total, installSurfaces,
       entryFiles, profile, executionOptimization, governanceSummary, globalHostConfig,
-      globalHostComparison, legacy, hostParity
+      globalHostComparison, legacy, hostParity, readiness
     } = facts
     console.log()
     console.log(c.bold('  DevCodex status') + c.dim(` in ${cwd}`))
@@ -377,6 +340,11 @@ function buildCliMaintenanceCommands(ctx) {
       console.log(c.yellow('  ⚠️  Source repository detected — comparing this candidate checkout with installed receipts; this is not an installed-package health claim'))
     }
     console.log(c.dim('  ──────────────────────────────────────'))
+    console.log()
+    console.log(`  readiness         ${readiness.status}${readiness.ready ? ' (ready)' : ' (not ready)'}`)
+    if (readiness.nextAction) {
+      console.log(`  next action       ${readiness.nextAction.command || readiness.nextAction.instruction}`)
+    }
     console.log()
 
     console.log(c.bold(`  User-global host adapters${isSrc ? ' (source candidate comparison)' : ''}:`))
@@ -659,6 +627,16 @@ function buildCliMaintenanceCommands(ctx) {
     const profileState = inspectProfileState(profileDir)
     const hasProfile = profileState.complete
     const activeRoot = resolveActiveRuntimeRoot(cwd)
+    const layoutInfo = typeof findLayoutInfo === 'function'
+      ? findLayoutInfo(cwd)
+      : { enabled: false, workspaceRoot: cwd }
+    const workspaceLayoutReady = Boolean(
+      layoutInfo?.enabled &&
+      layoutInfo.workspaceRoot &&
+      fs.existsSync(path.join(layoutInfo.workspaceRoot, '.devcodex', 'layout.json')) &&
+      fs.existsSync(path.join(layoutInfo.workspaceRoot, '.devcodex', 'workspace'))
+    )
+    const workspaceRuntimeReady = fs.existsSync(activeRoot) || workspaceLayoutReady
     const executionOptimization = inspectExecutionOptimization(cwd)
     const sourceRepository = isSourceRepo(cwd)
     const globalHostConfig = inspectGlobalHostConfig({ env, cwd, depth: 'deep' })
@@ -701,6 +679,18 @@ function buildCliMaintenanceCommands(ctx) {
       executionOptimization,
       hostParity
     })
+    const readiness = collectSharedReadiness({
+      cwd,
+      sourceRepository,
+      activeRoot,
+      workspaceLayoutReady,
+      workspaceRuntimeReady,
+      profile: { directory: profileDir, ...profileState },
+      globalHostConfig,
+      hostParity,
+      governanceSummary,
+      platform
+    })
     // Workspace skill inventory (W layer) from the unified runtime identity index.
     let workspaceSkills = {
       enabled: true,
@@ -728,6 +718,9 @@ function buildCliMaintenanceCommands(ctx) {
       schemaVersion: 'DoctorDiagnosticV1',
       cwd,
       hostRoot,
+      activeRoot,
+      workspaceLayoutReady,
+      workspaceRuntimeReady,
       sourceRepository,
       globalHostComparison,
       platform,
@@ -774,6 +767,7 @@ function buildCliMaintenanceCommands(ctx) {
       },
       executionOptimization,
       governanceSummary,
+      readiness,
       capabilityBoundary: {
         localOnly: true,
         hookEvidence: 'event-dependent',
@@ -803,7 +797,8 @@ function buildCliMaintenanceCommands(ctx) {
       profile: profileState,
       executionOptimization,
       governanceSummary,
-      hostParity, globalHostConfig, globalHostComparison, sourceRepository, completion, workspaceSkills
+      hostParity, globalHostConfig, globalHostComparison, sourceRepository, completion, workspaceSkills,
+      readiness
     } = facts
     const {
       hasGithubHooks, hasClaudeHooks, hasCodexHooksJson, hasCodexHooks,
@@ -818,6 +813,11 @@ function buildCliMaintenanceCommands(ctx) {
     const globalAdapterReady = host => globalHostConfig.hosts.some(item => item.host === host && item.adapterReady)
     const adapterReadyHosts = globalHostConfig.hosts.filter(host => host.adapterReady)
     const sourceCandidateMismatchSet = new Set(globalHostComparison.candidateMismatchHosts)
+    console.log()
+    console.log(`  readiness:       ${readiness.status}${readiness.ready ? ' (ready)' : ' (not ready)'}`)
+    if (readiness.nextAction) {
+      console.log(`  next action:     ${readiness.nextAction.command || readiness.nextAction.instruction}`)
+    }
     const unverifiedAdapters = globalHostConfig.hosts
       .filter(host => host.inspectionStatus === 'UNVERIFIED')
     const missingAdapters = globalHostConfig.hosts

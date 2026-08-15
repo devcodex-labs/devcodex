@@ -6,10 +6,10 @@ const {
   stableStringify
 } = require('./progressive-skill-route-contract.cjs')
 
-const CATALOG_POLICY_VERSION = 'UnifiedSkillCatalogV1.1'
+const CATALOG_POLICY_VERSION = 'UnifiedSkillCatalogV1.2'
 const PAGE_LIMIT_BYTES = 8 * 1024
 const CATALOG_LIMIT_BYTES = 64 * 1024
-const PAGE_PAYLOAD_TARGET = 6 * 1024
+const PAGE_PAYLOAD_TARGET = 7424
 
 function encodeCursor (payload) {
   const body = Buffer.from(stableStringify(payload), 'utf8').toString('base64url')

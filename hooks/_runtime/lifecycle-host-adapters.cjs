@@ -287,12 +287,7 @@ function stableJsonValue(value) {
 }
 
 function copilotToolCallId(payload) {
-  const material = JSON.stringify(stableJsonValue({
-    sessionId: payload.session_id || payload.sessionId || '',
-    toolName: payload.tool_name || payload.toolName || '',
-    toolInput: payload.tool_input || payload.toolInput || {}
-  }))
-  return `copilot-${crypto.createHash('sha256').update(material).digest('hex').slice(0, 32)}`
+  return `copilot-${crypto.randomBytes(16).toString('hex')}`
 }
 
 function normalizeGrokToolResult(value) {
@@ -440,7 +435,15 @@ function normalizeHostPayload(host, payload) {
     if (typeof normalized.tool_input === 'string') {
       normalized.tool_input = parseToolInputEnvelope(normalized.tool_input) || normalized.tool_input
     }
-    if (!normalized.tool_call_id && !normalized.toolCallId) {
+    // Copilot currently omits a call-instance id. Generate one only for PreToolUse.
+    // A PostToolUse without a host-provided id deliberately stays unbound so lifecycle
+    // can correlate a single in-flight canonical call or fail closed when concurrent
+    // identical calls are ambiguous. A deterministic material hash would merge them.
+    if (
+      normalized.hookEventName === 'PreToolUse' &&
+      !normalized.tool_call_id &&
+      !normalized.toolCallId
+    ) {
       normalized.tool_call_id = copilotToolCallId(normalized)
       normalized.toolCallId = normalized.tool_call_id
     }

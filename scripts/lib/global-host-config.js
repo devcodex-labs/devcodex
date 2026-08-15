@@ -22,7 +22,8 @@ const {
   tomlManagedFileMatches
 } = require('./global-host-config-merge.js')
 const {
-  executeGlobalHostTransaction
+  executeGlobalHostTransaction,
+  operationDigest
 } = require('./global-host-config-transaction.js')
 const {
   createSkillDeployFileFilter,
@@ -47,6 +48,10 @@ const {
   listControlDeliveryEntries,
   readControlInstructionRoot
 } = require('./control-content-delivery.js')
+const {
+  buildHostHookCommand,
+  canonicalNodeExecutable
+} = require('./host-command.js')
 
 const GLOBAL_HOST_CONFIG_SCHEMA = 'GlobalOnlyHostConfigModeV1'
 const GLOBAL_HOST_RECEIPT_SCHEMA = 'GlobalHostConfigReceiptV1'
@@ -106,9 +111,8 @@ function portable(filePath) {
   return path.resolve(filePath).replace(/\\/g, '/')
 }
 
-function shellCommand(filePath, host) {
-  const escaped = String(filePath).replace(/"/g, '\\"')
-  return `node "${escaped}" ${host}`
+function shellCommand(filePath, host, args = []) {
+  return buildHostHookCommand(filePath, [host, ...args])
 }
 
 function readText(file, fsImpl = fs) {
@@ -283,7 +287,7 @@ function hookMap(runtimeFile, host, events) {
 function copilotHookDocument(runtimeFile) {
   const entry = (event, matcher) => ({
     type: 'command',
-    command: `${shellCommand(runtimeFile, 'copilot')} --event ${event}`,
+    command: shellCommand(runtimeFile, 'copilot', ['--event', event]),
     ...(matcher ? { matcher } : {}),
     timeoutSec: 30
   })
@@ -301,8 +305,7 @@ function copilotHookDocument(runtimeFile) {
 }
 
 function cursorShellCommand(runtimeFile, pluginPath) {
-  const escapedPlugin = String(pluginPath).replace(/"/g, '\\"')
-  return shellCommand(runtimeFile, 'cursor') + ' --cursor-plugin-path "' + escapedPlugin + '"'
+  return shellCommand(runtimeFile, 'cursor', ['--cursor-plugin-path', pluginPath])
 }
 
 function cursorHookDocument(runtimeFile, pluginPath) {
@@ -347,7 +350,7 @@ function buildMcpServers(runtimeRoot, options = {}) {
   const inputRoot = String(options.inputRoot || '.').trim() || '.'
   const base = {
     type: 'stdio',
-    command: 'node'
+    command: canonicalNodeExecutable()
   }
   return {
     'devcodex-memory': {
@@ -397,12 +400,7 @@ function buildVscodeMcpServers (runtimeRoot, options = {}) {
  * Merge DevCodex servers into VS Code User mcp.json without wiping inputs / other servers.
  */
 function mergeVscodeUserMcpContent (existingText, runtimeRoot, options = {}) {
-  let doc = {}
-  try {
-    doc = parseJsonObject(existingText, 'VS Code user mcp.json')
-  } catch {
-    doc = {}
-  }
+  const doc = parseJsonObject(existingText, 'VS Code user mcp.json')
   if (!doc.servers || typeof doc.servers !== 'object' || Array.isArray(doc.servers)) {
     doc.servers = {}
   }
@@ -447,13 +445,13 @@ function codexTomlBlock(target) {
   const lines = [
     '# Managed by npm install/update -g devcodex.',
     '[mcp_servers.devcodex-memory]',
-    'command = "node"',
+    `command = ${quoteToml(servers['devcodex-memory'].command)}`,
     `args = [${servers['devcodex-memory'].args.map(quoteToml).join(', ')}]`,
     ...(envLine ? [envLine] : []),
     'startup_timeout_sec = 30',
     '',
     '[mcp_servers.devcodex-profile]',
-    'command = "node"',
+    `command = ${quoteToml(servers['devcodex-profile'].command)}`,
     `args = [${servers['devcodex-profile'].args.map(quoteToml).join(', ')}]`,
     ...(envLine ? [envLine] : []),
     'startup_timeout_sec = 30'
@@ -826,6 +824,19 @@ function preserveSemanticallyEquivalentContent(operations, fsImpl = fs) {
       content: fsImpl.readFileSync(operation.path, operation.kind === 'binary' ? null : 'utf8')
     }
   })
+}
+
+function bindPlanTimePrecondition(operation, fsImpl = fs) {
+  if (fsImpl.existsSync(operation.path)) {
+    return {
+      ...operation,
+      expectedDigest: operationDigest(fsImpl.readFileSync(operation.path))
+    }
+  }
+  return {
+    ...operation,
+    expectAbsent: true
+  }
 }
 
 function digestText(value) {
@@ -1434,6 +1445,7 @@ function buildGlobalHostConfigPlan(options = {}) {
       `${JSON.stringify(receipt, null, 2)}\n`,
       'json'
     )
+    hostPlan.operations = hostPlan.operations.map(operation => bindPlanTimePrecondition(operation, fsImpl))
   }
 
   const finalOperations = hostPlans.flatMap(hostPlan => hostPlan.operations)
@@ -1580,11 +1592,12 @@ function applyGlobalHostConfig(options = {}) {
                 : new Date().toISOString()
             }
             const finalizedContent = `${JSON.stringify(finalizedReceipt, null, 2)}\n`
-            const receiptFinalization = executeGlobalHostTransaction([{
+            const finalizedOperation = bindPlanTimePrecondition({
               ...receiptOperation,
               content: finalizedContent,
               managedContent: finalizedContent
-            }], {
+            }, fsImpl)
+            const receiptFinalization = executeGlobalHostTransaction([finalizedOperation], {
               fs: fsImpl,
               allowedRoots: [target.root, ...(target.additionalRoots || [])],
               allowedFiles: target.additionalFiles || [],
@@ -1685,7 +1698,6 @@ function inspectGlobalHostConfiguration(options = {}) {
     ...options,
     fs: fsImpl,
     packageRoot,
-    ignoreExistingReceipts: true,
     [INSPECTION_RESOLVED_TARGETS]: targets,
     [INSPECTION_SHARED_RUNTIME_OWNER]: sharedRuntimeOwnerHost
   })

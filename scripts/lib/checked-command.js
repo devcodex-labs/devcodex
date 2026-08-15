@@ -88,10 +88,28 @@ function quoteWindowsBatchArgument (value) {
   const text = String(value)
   if (!text) return '""'
   if (!/[\s"&|<>^()%!]/.test(text)) return text
-  return `"${text.replace(/(["^&|<>])/g, '^$1')}"`
+  const escaped = text
+    .replace(/\^/g, '^^')
+    .replace(/%/g, '^%')
+    .replace(/(["&|<>])/g, '^$1')
+  return `"${escaped}"`
 }
 
 function resolveWindowsBatchInvocation (command, args, env) {
+  const unsafe = [command, ...args].find(value => /[\0\r\n"&|<>^()%!]/.test(String(value)))
+  if (unsafe != null) {
+    throw new CheckedCommandError('Windows batch fallback rejected shell-interpretable argv', {
+      code: 'EWINDOWSBATCHARGV',
+      command,
+      args: args.map(String),
+      cwd: null,
+      exitCode: null,
+      signal: null,
+      durationMs: 0,
+      stdout: '',
+      stderr: `Unsafe batch argv token: ${String(unsafe)}`
+    })
+  }
   const comSpec = env.ComSpec || env.COMSPEC || path.join(
     env.SystemRoot || env.SYSTEMROOT || 'C:\\Windows',
     'System32',
@@ -102,7 +120,7 @@ function resolveWindowsBatchInvocation (command, args, env) {
     .join(' ')
   return {
     command: comSpec,
-    args: ['/d', '/s', '/c', commandLine],
+    args: ['/d', '/v:off', '/s', '/c', commandLine],
     batchCommand: command
   }
 }

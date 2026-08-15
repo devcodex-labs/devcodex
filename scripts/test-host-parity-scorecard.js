@@ -96,6 +96,35 @@ assert.strictEqual(MIN_CANNOT_CLAIM.length, 4)
 assertCannotClaimFloor(ready.cannotClaim)
 assert.ok(ready.recommendedEntry.includes('devcodex grok'))
 
+// Managed config drift must not be projected as missing physical kernel/lifecycle files.
+const drifted = evaluateGrokHostParity({
+  cwd: root,
+  hostRoot: root,
+  env: isolatedEnv,
+  globalHostConfig: {
+    hosts: [
+      {
+        host: 'codex',
+        adapterReady: false,
+        adapterContractStatus: 'passed',
+        configurationIssues: [{ code: 'GLOBAL_HOST_MANAGED_CONFIG_DRIFT' }]
+      },
+      { host: 'grok', adapterReady: true, adapterContractStatus: 'passed', configurationIssues: [] }
+    ]
+  }
+})
+assert.strictEqual(drifted.checks.globalKernelAgentsMd, true)
+assert.strictEqual(drifted.checks.globalCodexLifecycleReachable, true)
+assert.strictEqual(drifted.checks.codexAdapterContractReady, true)
+assert.strictEqual(drifted.checks.managedConfigCurrent, false)
+assert.strictEqual(drifted.hardReady, false)
+assert.ok(!drifted.failedChecks.includes('globalKernelAgentsMd'))
+assert.ok(!drifted.failedChecks.includes('globalCodexLifecycleReachable'))
+assert.deepStrictEqual(
+  drifted.repairSteps.filter(step => step.status === 'failed').map(step => step.command),
+  ['devcodex global-adapters apply']
+)
+
 const partial = evaluateGrokHostParity({
   cwd: root,
   hostRoot: root,

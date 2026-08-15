@@ -162,6 +162,54 @@ function validationRouteCountSummary(counts) {
   return `validation-manifest ${counts.manifest} nodes / fast ${counts.fast} / full ${counts.full} / profile-deploy ${counts['profile-deploy']} / package-release ${counts['package-release']}`
 }
 
+function countFiles(root, predicate, options = {}) {
+  if (!fs.existsSync(root)) return 0
+  let count = 0
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (options.recursive) count += countFiles(path.join(root, entry.name), predicate, options)
+      continue
+    }
+    if (entry.isFile() && predicate(entry.name)) count += 1
+  }
+  return count
+}
+
+function countDirectories(root, predicate) {
+  if (!fs.existsSync(root)) return 0
+  return fs.readdirSync(root, { withFileTypes: true })
+    .filter(entry => entry.isDirectory() && predicate(entry.name))
+    .length
+}
+
+function extractCurrentAssetCount(label, text) {
+  const pattern = new RegExp(`\\|\\s*\\*\\*${escapeRegExp(label)}\\*\\*\\s*\\|\\s*(\\d+)\\s*\\|`)
+  const match = String(text || '').match(pattern)
+  return match ? Number(match[1]) : null
+}
+
+/** CurrentAssetInventoryTruthGate binds manually readable Profile counts to source inventory. */
+function checkCurrentAssetInventoryTruth(projectInfoText) {
+  if (!isSourceRepoProfileTarget() || !/当前规范资产清单/.test(projectInfoText)) return
+  const expected = new Map([
+    ['Agent', countFiles(path.join(PLUGIN_ROOT, 'agents'), name => name.endsWith('.agent.md'))],
+    ['Skill', countDirectories(path.join(PLUGIN_ROOT, 'content', 'skills'), name => !name.startsWith('_'))],
+    ['Instruction', countFiles(path.join(PLUGIN_ROOT, 'content', 'instructions'), name => name.endsWith('.instructions.md'))],
+    ['Prompt', countFiles(path.join(PLUGIN_ROOT, 'content', 'prompts'), name => name.endsWith('.prompt.md'))],
+    ['Hooks runtime', countFiles(path.join(PLUGIN_ROOT, 'hooks', '_runtime'), name => name.endsWith('.cjs'))],
+    ['data 模板', countFiles(path.join(PLUGIN_ROOT, 'data', 'templates'), name => name.endsWith('.md'))],
+    ['CLI 工程脚本', countFiles(path.join(PLUGIN_ROOT, 'scripts'), name => name.endsWith('.js'), { recursive: true })]
+  ])
+  for (const [label, actual] of expected) {
+    const claimed = extractCurrentAssetCount(label, projectInfoText)
+    if (claimed === null) {
+      err(`[profile] CurrentAssetInventoryTruthGate missing current asset row: ${label}`)
+    } else if (claimed !== actual) {
+      err(`[profile] CurrentAssetInventoryTruthGate ${label} drift: ${claimed} → ${actual}`)
+    }
+  }
+}
+
 /** ValidationRouteTruthGate binds the Profile claim to the executable DAG instead of historical receipts. */
 function checkValidationRouteTruth(inventoryResult) {
   if (!isSourceRepoProfileTarget() || !inventoryResult || !inventoryResult.valid) return
@@ -757,6 +805,7 @@ if (pluginVersion && projectInfoText && isSourceRepoProfileTarget()) {
 }
 
 checkProfileReleaseTruthAuthorityMatrix(projectInfoText)
+checkCurrentAssetInventoryTruth(projectInfoText)
 
 checkS02ProfileFreshness({
   'README.md': readmeText,

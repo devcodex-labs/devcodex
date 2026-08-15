@@ -9,6 +9,12 @@ const {
   buildQueryEnvelope,
   createDerivedIndexStore
 } = require('./derived-index-contract.js')
+const {
+  currentActiveSessionIds,
+  foldSummaryRows,
+  rowsByCurrentState,
+  summaryStateConflicts
+} = require('./memory-summary-state.js')
 
 const SUMMARY_CURRENT_SCHEMA = 'MemorySummaryCurrentPartitionV2'
 const SUMMARY_STATUS_SCHEMA = 'MemorySummaryStatusPartitionV1'
@@ -127,38 +133,6 @@ function dailyStore(target, date) {
   })
 }
 
-function rowsByState(rows, state) {
-  if (state === 'all') return rows
-  if (state === 'unresolved') return rows.filter(row => row.state === 'active' || row.state === 'blocked')
-  return rows.filter(row => row.state === state)
-}
-
-function summaryConflicts(rows) {
-  const bySession = new Map()
-  for (const row of rows) {
-    const key = `${row.day}#${row.sessionId}`
-    if (!bySession.has(key)) bySession.set(key, new Set())
-    if (row.state !== 'unknown') bySession.get(key).add(row.state)
-  }
-  return [...bySession.entries()]
-    .filter(([, states]) => states.size > 1)
-    .map(([sessionKey, states]) => ({ sessionKey, states: [...states].sort() }))
-}
-
-function latestUniqueActiveSessionIds(rows) {
-  // Prefer completed truth for the same day#sessionId so a later ✅ row
-  // does not leave a stale 🔄 row forever in activeSessionIds.
-  const completedKeys = new Set(
-    rows
-      .filter(row => row.state === 'completed' && row.sessionIdCanonical)
-      .map(row => `${row.day}#${row.sessionId}`)
-  )
-  return [...new Set(rows.slice().reverse()
-    .filter(row => row.state === 'active' && row.sessionIdCanonical)
-    .map(row => `${row.day}#${row.sessionId}`)
-    .filter(key => !completedKeys.has(key)))]
-}
-
 function buildSummaryPartitions(document, parsed) {
   const rows = Array.isArray(parsed?.rows) ? parsed.rows : []
   const warnings = Array.isArray(parsed?.warnings) ? parsed.warnings : []
@@ -166,9 +140,9 @@ function buildSummaryPartitions(document, parsed) {
   const states = ['all', 'active', 'completed', 'blocked', 'unresolved']
   const byState = Object.fromEntries(states.map(state => [
     state,
-    rowsByState(rows, state).slice(-SUMMARY_WINDOW)
+    rowsByCurrentState(rows, state).slice(-SUMMARY_WINDOW)
   ]))
-  const counts = Object.fromEntries(states.map(state => [state, rowsByState(rows, state).length]))
+  const counts = Object.fromEntries(states.map(state => [state, rowsByCurrentState(rows, state).length]))
   const windowRows = [...new Map(Object.values(byState)
     .flat()
     .map(row => [row.rowNumber, row])).values()]
@@ -188,9 +162,9 @@ function buildSummaryPartitions(document, parsed) {
     schemaVersion: SUMMARY_STATUS_SCHEMA,
     source,
     latestRows: rows.slice(-STATUS_WINDOW),
-    activeSessionIds: latestUniqueActiveSessionIds(rows).slice(0, STATUS_LIST_SENTINEL),
-    conflicts: summaryConflicts(rows).slice(0, STATUS_LIST_SENTINEL),
-    nonCanonicalActiveCount: rows.filter(row => row.state === 'active' && !row.sessionIdCanonical).length,
+    activeSessionIds: currentActiveSessionIds(rows).slice(0, STATUS_LIST_SENTINEL),
+    conflicts: summaryStateConflicts(rows).slice(0, STATUS_LIST_SENTINEL),
+    nonCanonicalActiveCount: foldSummaryRows(rows).filter(row => row.state === 'active' && !row.sessionIdCanonical).length,
     warnings
   }
   const months = new Map()
@@ -439,7 +413,7 @@ function querySummaryIndex(input = {}) {
         evidencePointers.push(month.objectIdentity)
         rows.push(...month.payload.rows)
       }
-      candidates = rows.filter(row => row.day >= since && rowsByState([row], status).length)
+      candidates = rowsByCurrentState(rows, status).filter(row => row.day >= since)
       totalMatched = candidates.length
     }
     const items = candidates.slice().reverse().slice(0, limit)

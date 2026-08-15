@@ -84,7 +84,13 @@ try {
     fs.mkdirSync(fakeBin, { recursive: true })
     const fakeNpmCmd = path.join(fakeBin, 'npm.cmd')
     const fakeNpmExe = path.join(fakeBin, 'npm.exe')
-    fs.writeFileSync(fakeNpmCmd, '@echo off\r\n')
+    fs.writeFileSync(fakeNpmCmd, [
+      '@echo off',
+      'setlocal DisableDelayedExpansion',
+      '<nul set /p "=%~1|%~2|%~3"',
+      'exit /b 0',
+      ''
+    ].join('\r\n'))
     fs.writeFileSync(fakeNpmExe, '')
     assert.strictEqual(
       resolveExecutableOnPath('npm.exe', { PATH: fakeBin }),
@@ -101,12 +107,30 @@ try {
     )
 
     fs.rmSync(fakeNpmExe, { force: true })
+    assert.throws(() => resolveWindowsBatchInvocation(fakeNpmCmd, [
+      '%DEVCODEX_CMD_EXPAND%',
+      '!DEVCODEX_CMD_EXPAND!',
+      '& whoami'
+    ], {
+      ComSpec: process.env.ComSpec || process.env.COMSPEC || 'C:\\Windows\\System32\\cmd.exe'
+    }), error => error instanceof CheckedCommandError && error.code === 'EWINDOWSBATCHARGV')
     const batchInvocation = resolveWindowsBatchInvocation(fakeNpmCmd, ['run', 'test:full'], {
-      ComSpec: 'C:\\Windows\\System32\\cmd.exe'
+      ComSpec: process.env.ComSpec || process.env.COMSPEC || 'C:\\Windows\\System32\\cmd.exe'
     })
-    assert.strictEqual(batchInvocation.command, 'C:\\Windows\\System32\\cmd.exe')
-    assert.deepStrictEqual(batchInvocation.args.slice(0, 3), ['/d', '/s', '/c'])
-    assert.match(batchInvocation.args[3], /npm\.cmd run test:full$/i)
+    assert.strictEqual(path.resolve(batchInvocation.command), path.resolve(process.env.ComSpec || process.env.COMSPEC || 'C:\\Windows\\System32\\cmd.exe'))
+    assert.deepStrictEqual(batchInvocation.args.slice(0, 4), ['/d', '/v:off', '/s', '/c'])
+    const batchProbe = require('child_process').spawnSync(batchInvocation.command, batchInvocation.args, {
+      cwd: root,
+      env: { ...process.env, DEVCODEX_CMD_EXPAND: 'EXPANDED' },
+      encoding: 'utf8',
+      windowsHide: true
+    })
+    assert.strictEqual(
+      batchProbe.status,
+      0,
+      `${batchProbe.stderr || batchProbe.stdout}\n${JSON.stringify(batchInvocation)}`
+    )
+    assert.strictEqual(batchProbe.stdout, 'run|test:full|')
   }
 
   // package is unscoped `devcodex` (org owns GitHub repo; npm module is not scoped)

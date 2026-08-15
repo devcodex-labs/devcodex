@@ -200,6 +200,8 @@ function bindInstalledProductionRuntime (options = {}) {
     `S15 installed ${hostId} production runtime does not match current source`
   )
   const installedHostAdapterDigest = readAdapterDigest(hostId, {
+    entrySurface: options.entrySurface,
+    env: baseEnv,
     runtimeRoot: path.join(runtimeRoot, 'hooks', '_runtime'),
     fs: fsImpl
   })

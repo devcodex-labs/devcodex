@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  core:
-    name: Core (${{ matrix.os }}, Node ${{ matrix.node }})
+  supported-control-plane:
+    name: Control plane (${{ matrix.os }}, Node ${{ matrix.node }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -19,12 +19,19 @@ jobs:
         include:
           - os: ubuntu-latest
             node: 18.17.0
-          - os: ubuntu-latest
-            node: 20.x
+            route: test:supported-runtime-control-plane
           - os: ubuntu-latest
             node: 22.x
+            route: test:supported-runtime-control-plane
+          - os: ubuntu-latest
+            node: 26.x
+            route: test:supported-runtime-control-plane
           - os: windows-latest
-            node: 22.x
+            node: 18.17.0
+            route: test:windows-control-plane
+          - os: windows-latest
+            node: 24.17.0
+            route: test:windows-control-plane
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -32,17 +39,16 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - run: npm run test:core
-      - run: npm run test:checked-command
+      - run: npm run ${{ matrix.route }}
 
   full-quality:
-    name: Full quality (Node 20.19)
+    name: Full quality (Node 24.17)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 20.19.0
+          node-version: 24.17.0
           cache: npm
       - run: npm ci
       - if: ${{ hashFiles('website/package-lock.json') != '' }}
@@ -52,13 +58,13 @@ jobs:
       - run: npm run test:audit
 
   website-package:
-    name: Package boundary (Node 22.14)
+    name: Package boundary (Node 24.17)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: 22.14.0
+          node-version: 24.17.0
           cache: npm
       - run: npm ci
       - run: npm run release:dry-run:all

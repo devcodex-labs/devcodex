@@ -261,14 +261,11 @@ function setupConfiguredMcpTarget() {
     path.join(targetRoot, '.mcp.json'),
     `${JSON.stringify(configuredMcp, null, 2)}\n`
   )
-  fs.copyFileSync(path.join(ROOT, 'mcp', 'memory-server.js'), path.join(targetRoot, '.claude', 'mcp', 'memory-server.js'))
-  fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-server.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-server.js'))
-  fs.copyFileSync(path.join(ROOT, 'mcp', 'stdio-jsonrpc.cjs'), path.join(targetRoot, '.claude', 'mcp', 'stdio-jsonrpc.cjs'))
-  fs.copyFileSync(path.join(ROOT, 'mcp', 'path-guard.js'), path.join(targetRoot, '.claude', 'mcp', 'path-guard.js'))
-  fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-contract.js'), path.join(targetRoot, '.claude', 'mcp', 'profile-contract.js'))
-  fs.copyFileSync(path.join(ROOT, 'mcp', 'profile-section-selector.cjs'), path.join(targetRoot, '.claude', 'mcp', 'profile-section-selector.cjs'))
-  fs.copyFileSync(path.join(ROOT, 'mcp', 'bounded-text-reader.cjs'), path.join(targetRoot, '.claude', 'mcp', 'bounded-text-reader.cjs'))
-  fs.copyFileSync(path.join(ROOT, 'mcp', 'agent-identity.cjs'), path.join(targetRoot, '.claude', 'mcp', 'agent-identity.cjs'))
+  fs.cpSync(
+    path.join(ROOT, 'mcp'),
+    path.join(targetRoot, '.claude', 'mcp'),
+    { recursive: true }
+  )
   fs.cpSync(
     path.join(ROOT, 'hooks', '_runtime'),
     path.join(targetRoot, '.claude', 'hooks', '_runtime'),
@@ -1253,8 +1250,16 @@ function testMemoryProjectionQueriesAndZeroWrite() {
     50000
   )
   assert.strictEqual(
+    tools.find(tool => tool.name === 'memory_session_query').inputSchema.properties.cursor.maxLength,
+    8192
+  )
+  assert.strictEqual(
     tools.find(tool => tool.name === 'memory_summary_query').inputSchema.properties.limit.maximum,
     50
+  )
+  assert.strictEqual(
+    tools.find(tool => tool.name === 'memory_summary_query').inputSchema.properties.cursor.maxLength,
+    8192
   )
 
   const status = toolJson(resultById(responses, 2))
@@ -1418,7 +1423,12 @@ function testMemoryProjectionErrorsAndMalformedSources() {
     }),
     rpcRequest(21, 'tools/call', {
       name: 'memory_session_write',
-      arguments: { date: invalidLegacyDate, content: '# must not be written\n' }
+      arguments: {
+        date: invalidLegacyDate,
+        content: '# must not be written\n',
+        sessionId: '001',
+        sessionBinding: 'a'.repeat(64)
+      }
     }),
     rpcRequest(22, 'tools/call', {
       name: 'memory_session_allocate',
@@ -2303,7 +2313,7 @@ function testProfileSectionSelectorsAndSkillPlan() {
   const exact = loadMeta(resultById(responses, 1))
   assert.match(exact.text, /Runtime facts/)
   assert.doesNotMatch(exact.text, /Security facts/)
-  assert.strictEqual(exact.meta.schemaVersion, 'ProfileLoadReceiptV2')
+  assert.strictEqual(exact.meta.schemaVersion, 'ProfileLoadReceiptV3')
   assert.strictEqual(exact.meta.sectionReceipts[0].schemaVersion, 'ProfileSectionLoadReceiptV1')
   assert.strictEqual(exact.meta.sectionReceipts[0].completion, 'complete')
   assert.strictEqual(exact.meta.sectionReceipts[0].requiredSatisfied, true)
@@ -2853,7 +2863,12 @@ function testWorkspaceRootMemoryScopeRequiresExplicitTarget() {
     rpcRequest(1, 'initialize'),
     rpcRequest(2, 'tools/call', {
       name: 'memory_session_write',
-      arguments: { date: '20260524', content: '# ambiguous\n' }
+      arguments: {
+        date: '20260524',
+        content: '# ambiguous\n',
+        sessionId: '01',
+        sessionBinding: 'a'.repeat(64)
+      }
     })
   ], TEMP_ROOT)
 
@@ -2949,7 +2964,13 @@ function testWorkspaceNamespaceTraversalRejected() {
   const memoryResponses = runServer('mcp/memory-server.js', [
     rpcRequest(3, 'tools/call', {
       name: 'memory_session_write',
-      arguments: { project: '..\\..\\escape-probe', date: '20260524', content: '# blocked\n' }
+      arguments: {
+        project: '..\\..\\escape-probe',
+        date: '20260524',
+        content: '# blocked\n',
+        sessionId: '01',
+        sessionBinding: 'a'.repeat(64)
+      }
     })
   ], TEMP_ROOT)
   assert.strictEqual(resultById(memoryResponses, 3).isError, true)
@@ -2959,12 +2980,12 @@ function testWorkspaceNamespaceTraversalRejected() {
 function testAdjacentMcpPathArgumentsRejected() {
   setupLegacyWorkspace()
   const memoryCases = [
-    { name: 'memory_session_write', arguments: { agent: '../escape', date: '20260524', content: '# blocked\n' } },
-    { name: 'memory_session_write', arguments: { agent: '..\\escape', date: '20260524', content: '# blocked\n' } },
-    { name: 'memory_session_write', arguments: { agent: 'C:\\escape', date: '20260524', content: '# blocked\n' } },
-    { name: 'memory_session_write', arguments: { agent: 'codex ', date: '20260524', content: '# blocked\n' } },
-    { name: 'memory_session_write', arguments: { agent: 'codex\nother', date: '20260524', content: '# blocked\n' } },
-    { name: 'memory_session_write', arguments: { agent: 'codex', date: '../escape', content: '# blocked\n' } },
+    { name: 'memory_session_write', arguments: { agent: '../escape', date: '20260524', content: '# blocked\n', sessionId: '01', sessionBinding: 'a'.repeat(64) } },
+    { name: 'memory_session_write', arguments: { agent: '..\\escape', date: '20260524', content: '# blocked\n', sessionId: '01', sessionBinding: 'a'.repeat(64) } },
+    { name: 'memory_session_write', arguments: { agent: 'C:\\escape', date: '20260524', content: '# blocked\n', sessionId: '01', sessionBinding: 'a'.repeat(64) } },
+    { name: 'memory_session_write', arguments: { agent: 'codex ', date: '20260524', content: '# blocked\n', sessionId: '01', sessionBinding: 'a'.repeat(64) } },
+    { name: 'memory_session_write', arguments: { agent: 'codex\nother', date: '20260524', content: '# blocked\n', sessionId: '01', sessionBinding: 'a'.repeat(64) } },
+    { name: 'memory_session_write', arguments: { agent: 'codex', date: '../escape', content: '# blocked\n', sessionId: '01', sessionBinding: 'a'.repeat(64) } },
     { name: 'memory_cp_confirm', arguments: { requirement: '../escape', kind: 'bugs', phase: 'CP1' } },
     { name: 'memory_cp_confirm', arguments: { requirement: '..\\escape', kind: 'bugs', phase: 'CP1' } },
     { name: 'memory_cp_confirm', arguments: { requirement: 'C:\\escape', kind: 'bugs', phase: 'CP1' } },
@@ -3028,6 +3049,7 @@ function testMemorySessionAllocationAndTransactions() {
   assert.strictEqual(writeSchema.properties.content.maxLength, 262144)
   assert.strictEqual(writeSchema.properties.sessionId.maxLength, 64)
   assert.strictEqual(writeSchema.properties.sessionBinding.pattern, '^[a-f0-9]{64}$')
+  assert.deepStrictEqual(writeSchema.required, ['content', 'sessionId', 'sessionBinding'])
   const first = JSON.parse(resultById(allocations, 3).content[0].text)
   const second = JSON.parse(resultById(allocations, 4).content[0].text)
   assert.deepStrictEqual(resultById(allocations, 3).structuredContent, first)
@@ -3039,7 +3061,7 @@ function testMemorySessionAllocationAndTransactions() {
   assert.match(first.sessionBinding, /^[a-f0-9]{64}$/)
   assert.match(second.sessionBinding, /^[a-f0-9]{64}$/)
   assert.notStrictEqual(first.sessionBinding, second.sessionBinding)
-  assert.strictEqual(first.transaction.schemaVersion, 'MemoryTransactionReceiptV1')
+  assert.strictEqual(first.transaction.schemaVersion, 'MemoryFileTransactionReceiptV1')
   assert.strictEqual(first.transaction.indexReceipt.status, 'persisted')
   assert.strictEqual(second.transaction.indexReceipt.status, 'persisted')
   assert.strictEqual(second.transaction.indexReceipt.generation, 2)
@@ -3124,17 +3146,17 @@ function testMemorySessionAllocationAndTransactions() {
       }
     })
   ], projectRoot)
-  assert.match(resultById(rejected, 5).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_REQUIRED/)
-  assert.match(resultById(rejected, 6).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_REQUIRED/)
+  assert.match(resultById(rejected, 5).content?.[0]?.text || '', /MEMORY_WRITER_ARGUMENT_REQUIRED/)
+  assert.match(resultById(rejected, 6).content?.[0]?.text || '', /MEMORY_WRITER_ARGUMENT_REQUIRED/)
   assert.match(resultById(rejected, 7).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_MISMATCH/)
-  assert.match(resultById(rejected, 8).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_INVALID/)
+  assert.match(resultById(rejected, 8).content?.[0]?.text || '', /MEMORY_WRITER_ARGUMENT_REQUIRED/)
   assert.match(resultById(rejected, 18).content?.[0]?.text || '', /MEMORY_SESSION_NOT_FOUND/)
   assert.match(resultById(rejected, 19).content?.[0]?.text || '', /MEMORY_SESSION_WRITE_VERIFICATION_FAILED/)
   assert.match(resultById(rejected, 20).content?.[0]?.text || '', /MEMORY_SESSION_LAYOUT_INVALID/)
   for (const id of [21, 22, 23]) {
     assert.match(resultById(rejected, id).content?.[0]?.text || '', /MEMORY_WRITER_ARGUMENT_INVALID/)
   }
-  assert.strictEqual(resultById(rejected, 5).structuredContent.errorCode, 'MEMORY_SESSION_BINDING_REQUIRED')
+  assert.strictEqual(resultById(rejected, 5).structuredContent.errorCode, 'MEMORY_WRITER_ARGUMENT_REQUIRED')
   assert.strictEqual(resultById(rejected, 7).structuredContent.errorCode, 'MEMORY_SESSION_BINDING_MISMATCH')
   for (const id of [5, 6, 7, 8, 18, 19, 20, 21, 22, 23]) {
     assert.strictEqual(resultById(rejected, id).isError, true)
@@ -3210,7 +3232,7 @@ function testMemorySessionAllocationAndTransactions() {
   ], contextBinding), projectRoot)
 
   for (const id of [9, 10, 11]) {
-    assert.match(resultById(responses, id).content[0].text, /MemoryTransactionReceiptV1/)
+    assert.match(resultById(responses, id).content[0].text, /MemoryFileTransactionReceiptV1/)
     assert.match(resultById(responses, id).content[0].text, /MemoryIndexReceiptV1/)
   }
   for (const id of [9, 10]) {
@@ -3283,8 +3305,8 @@ function testMemorySessionAllocationAndTransactions() {
   assert.strictEqual(resultById(rejectedLegacyWrite, 14).isError, true)
   assert.strictEqual(resultById(rejectedLegacyWrite, 15).isError, true)
   assert.strictEqual(resultById(rejectedLegacyWrite, 16).isError, true)
-  assert.match(resultById(rejectedLegacyWrite, 14).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_REQUIRED/)
-  assert.match(resultById(rejectedLegacyWrite, 15).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_REQUIRED/)
+  assert.match(resultById(rejectedLegacyWrite, 14).content?.[0]?.text || '', /MEMORY_WRITER_ARGUMENT_REQUIRED/)
+  assert.match(resultById(rejectedLegacyWrite, 15).content?.[0]?.text || '', /MEMORY_WRITER_ARGUMENT_REQUIRED/)
   assert.match(resultById(rejectedLegacyWrite, 16).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_UNAVAILABLE/)
   assert.strictEqual(fs.readFileSync(legacyPath, 'utf8'), legacyBefore, 'legacy write rejection must be zero-mutation')
   const legacyContinuation = allocateMemorySession(projectRoot, {
@@ -3321,7 +3343,7 @@ function testMemorySessionAllocationAndTransactions() {
     })
   ], projectRoot)
   assert.strictEqual(resultById(rejectedRawLegacy, 18).isError, true)
-  assert.match(resultById(rejectedRawLegacy, 18).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_REQUIRED/)
+  assert.match(resultById(rejectedRawLegacy, 18).content?.[0]?.text || '', /MEMORY_WRITER_ARGUMENT_REQUIRED/)
   assert.strictEqual(fs.readFileSync(rawLegacyPath, 'utf8'), rawLegacyBefore)
   const rawContinuation = allocateMemorySession(projectRoot, {
     date: rawLegacyDate, title: 'raw legacy continuation', intent: 'resume'
@@ -3650,5 +3672,6 @@ testMemorySessionAllocationAndTransactions()
 testMemoryLocalCalendarAndWriterReaderContract()
 testAdjacentMcpPathArgumentsRejected()
 testMcpJsonLaunchContract()
+require('./test-v1178-batch-d.js')
 fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
 process.stdout.write('mcp servers smoke test passed\n')

@@ -2,6 +2,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const crypto = require('crypto')
 const {
   createContextReadReceipt,
   recordContextReadOutcome,
@@ -10,8 +11,13 @@ const {
 } = require('./context-read-contract.cjs')
 const { readContextPlanObservation } = require('./context-plan-observation.cjs')
 const { createRuntimeStateStore } = require('./runtime-state-store.cjs')
+const {
+  atomicWriteJson,
+  updateLifecycleStateCommit
+} = require('./lifecycle-state-commit.cjs')
 
-const CONTEXT_SOURCE_LEDGER_SCHEMA = 'ContextSourceObservationLedgerV1'
+const CONTEXT_SOURCE_LEDGER_SCHEMA = 'ContextSourceObservationLedgerV3'
+const LEGACY_CONTEXT_SOURCE_LEDGER_SCHEMA = 'ContextSourceObservationLedgerV1'
 const CONTEXT_SOURCE_LEDGER_SLOT_COUNT = 128
 const CONTEXT_SOURCE_LEDGER_MAX_BYTES = 512 * 1024
 const CONTEXT_SOURCE_LEDGER_MAX_OBSERVATIONS = 128
@@ -50,6 +56,16 @@ function lifecycleStatePath({ activeRoot, project, workspaceNamespace }) {
 
 function contextSourceLedgerRelativePath(contextEpoch) {
   const digest = stableDigest(String(contextEpoch || '').trim())
+  return path.join(
+    'context-source-observations',
+    'v3',
+    digest.slice(0, 2),
+    `${digest}.json`
+  )
+}
+
+function legacyContextSourceLedgerRelativePath(contextEpoch) {
+  const digest = stableDigest(String(contextEpoch || '').trim())
   const slot = Number.parseInt(digest.slice(0, 8), 16) % CONTEXT_SOURCE_LEDGER_SLOT_COUNT
   return path.join(
     'context-source-observations',
@@ -58,14 +74,41 @@ function contextSourceLedgerRelativePath(contextEpoch) {
   )
 }
 
-function contextSourceLedgerStore(target, contextEpoch) {
-  return createRuntimeStateStore({
+function contextSourceLedgerStore(target, contextEpoch, options = {}) {
+  const lockWaitMs = Number.isFinite(options.lockWaitMs)
+    ? Math.max(0, Number(options.lockWaitMs))
+    : 2000
+  const primary = createRuntimeStateStore({
     activeRoot: target.activeRoot,
     project: target.project,
     relativePath: contextSourceLedgerRelativePath(contextEpoch),
     maxBytes: CONTEXT_SOURCE_LEDGER_MAX_BYTES,
-    lockWaitMs: 2000,
-    maxWrites: 0
+    lockWaitMs,
+    maxWrites: 1,
+    fs: options.fs || fs
+  })
+  const legacy = createRuntimeStateStore({
+    activeRoot: target.activeRoot,
+    project: target.project,
+    relativePath: legacyContextSourceLedgerRelativePath(contextEpoch),
+    maxBytes: CONTEXT_SOURCE_LEDGER_MAX_BYTES,
+    lockWaitMs,
+    maxWrites: 0,
+    fs: options.fs || fs
+  })
+  function read(readOptions = {}) {
+    const current = primary.read(readOptions)
+    if (current.status !== 'missing') return current
+    const old = legacy.read(readOptions)
+    return old.status === 'missing'
+      ? current
+      : { ...old, stateSource: 'legacy-v1-read-only', canonicalFilePath: primary.filePath }
+  }
+  return Object.freeze({
+    filePath: primary.filePath,
+    legacyFilePath: legacy.filePath,
+    read,
+    update: primary.update
   })
 }
 
@@ -101,73 +144,12 @@ function looksLikeWorkspaceNamespaceActiveRoot(activeRoot, project) {
   )
 }
 
-function waitSync(milliseconds) {
-  if (milliseconds <= 0) return
-  const signal = new Int32Array(new SharedArrayBuffer(4))
-  Atomics.wait(signal, 0, 0, milliseconds)
-}
-
-function acquireLock(lockPath, { fsImpl = fs, waitMs = 2000, now = () => Date.now() } = {}) {
-  const startedAt = now()
-  while (true) {
-    try {
-      fsImpl.mkdirSync(path.dirname(lockPath), { recursive: true })
-      const descriptor = fsImpl.openSync(lockPath, 'wx')
-      fsImpl.writeFileSync(descriptor, `${JSON.stringify({ pid: process.pid, acquiredAt: new Date(now()).toISOString() })}\n`, 'utf8')
-      return { descriptor, waitedMs: Math.max(0, now() - startedAt) }
-    } catch (error) {
-      if (error?.code !== 'EEXIST') throw error
-      const elapsed = now() - startedAt
-      if (elapsed >= waitMs) return null
-      waitSync(Math.min(25, waitMs - elapsed))
-    }
-  }
-}
-
 function readJson(file, fsImpl = fs) {
   try {
     const parsed = JSON.parse(fsImpl.readFileSync(file, 'utf8'))
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
   } catch {
     return {}
-  }
-}
-
-function updateJsonLocked(file, updater, options = {}) {
-  const fsImpl = options.fs || fs
-  const lockPath = `${file}.lock`
-  let lock
-  try {
-    lock = acquireLock(lockPath, {
-      fsImpl,
-      waitMs: Number.isInteger(options.lockWaitMs) ? options.lockWaitMs : 2000,
-      now: options.now || (() => Date.now())
-    })
-  } catch (error) {
-    return { status: 'error', errorCode: 'CONTEXT_SOURCE_OBSERVATION_LOCK_FAILED', message: error.message }
-  }
-  if (!lock) {
-    return { status: 'bypassed', errorCode: 'CONTEXT_SOURCE_OBSERVATION_LOCK_TIMEOUT' }
-  }
-
-  const tempPath = `${file}.tmp.${process.pid}.${Math.random().toString(16).slice(2)}`
-  try {
-    const current = readJson(file, fsImpl)
-    const next = updater(current)
-    if (!next || typeof next !== 'object' || Array.isArray(next)) {
-      return { status: 'invalid', errorCode: 'CONTEXT_SOURCE_OBSERVATION_INVALID_STATE' }
-    }
-    fsImpl.mkdirSync(path.dirname(file), { recursive: true })
-    const serialized = `${JSON.stringify(next, null, 2)}\n`
-    fsImpl.writeFileSync(tempPath, serialized, { encoding: 'utf8', flag: 'wx' })
-    fsImpl.renameSync(tempPath, file)
-    return { status: 'persisted', bytes: Buffer.byteLength(serialized), waitedMs: lock.waitedMs }
-  } catch (error) {
-    try { fsImpl.unlinkSync(tempPath) } catch { }
-    return { status: 'error', errorCode: 'CONTEXT_SOURCE_OBSERVATION_WRITE_FAILED', message: error.message }
-  } finally {
-    try { fsImpl.closeSync(lock.descriptor) } catch { }
-    try { fsImpl.unlinkSync(lockPath) } catch { }
   }
 }
 
@@ -471,8 +453,8 @@ function normalizeSourceResult(raw, plan, binding, target, hostSessionId, fsImpl
 }
 
 function persistContextSourceLedger(target, binding, sourceResults, options = {}) {
-  const store = contextSourceLedgerStore(target, binding.contextEpoch)
-  const write = updateJsonLocked(store.filePath, current => {
+  const store = contextSourceLedgerStore(target, binding.contextEpoch, options)
+  const write = store.update(current => {
     const reusable = current?.schemaVersion === CONTEXT_SOURCE_LEDGER_SCHEMA &&
       ledgerIdentityMatches(current, binding, target)
     const observations = reusable && Array.isArray(current.observations)
@@ -495,6 +477,13 @@ function persistContextSourceLedger(target, binding, sourceResults, options = {}
   return { ...write, filePath: store.filePath }
 }
 
+function contextSourceLedgerErrorCode(write) {
+  const code = String(write?.errorCode || '').trim()
+  return code.startsWith('DERIVED_STATE_')
+    ? code.replace(/^DERIVED_STATE_/, 'CONTEXT_SOURCE_OBSERVATION_')
+    : (code || 'CONTEXT_SOURCE_LEDGER_NOT_PERSISTED')
+}
+
 function readMcpContextSourceObservations(input = {}, options = {}) {
   const activeRoot = portableRoot(input.activeRoot)
   const project = String(input.project || '').trim()
@@ -507,13 +496,16 @@ function readMcpContextSourceObservations(input = {}, options = {}) {
   if (!validation.valid || plan.planId !== binding.planId || plan.planContentId !== binding.planContentId) {
     return { status: 'skipped', reasonCode: 'plan-binding-mismatch', sourceResults: [] }
   }
-  const store = contextSourceLedgerStore(target, binding.contextEpoch)
+  const store = contextSourceLedgerStore(target, binding.contextEpoch, options)
   const read = store.read()
   if (read.status !== 'fresh') {
     return { status: read.status, reasonCode: read.errorCode || 'ledger-unavailable', sourceResults: [], filePath: store.filePath }
   }
   const ledger = read.value
-  if (ledger?.schemaVersion !== CONTEXT_SOURCE_LEDGER_SCHEMA || !ledgerIdentityMatches(ledger, binding, target)) {
+  const acceptedSchema = read.stateSource === 'legacy-v1-read-only'
+    ? LEGACY_CONTEXT_SOURCE_LEDGER_SCHEMA
+    : CONTEXT_SOURCE_LEDGER_SCHEMA
+  if (ledger?.schemaVersion !== acceptedSchema || !ledgerIdentityMatches(ledger, binding, target)) {
     return { status: 'stale', reasonCode: 'ledger-identity-mismatch', sourceResults: [], filePath: store.filePath }
   }
   const sourceResults = (Array.isArray(ledger.observations) ? ledger.observations : [])
@@ -522,7 +514,7 @@ function readMcpContextSourceObservations(input = {}, options = {}) {
   return {
     status: 'fresh',
     sourceResults,
-    filePath: store.filePath,
+    filePath: read.filePath || store.filePath,
     observationCount: sourceResults.length
   }
 }
@@ -611,7 +603,27 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
   const ledgerWrite = persistContextSourceLedger(target, binding, sourceResults, options)
 
   const statePath = lifecycleStatePath(target)
-  const write = updateJsonLocked(statePath, lifecycle => {
+  const workspaceNamespace = target.workspaceNamespace || looksLikeWorkspaceNamespaceActiveRoot(target.activeRoot, target.project)
+  const metaDir = workspaceNamespace
+    ? path.join(path.dirname(target.activeRoot), 'workspace', '.memory', 'hooks', '__workspace__')
+    : path.dirname(statePath)
+  const sessionKey = String(input.hostSessionId || '')
+  const sessionFile = sessionKey
+    ? path.join(metaDir, 'sessions', `${crypto.createHash('sha256').update(sessionKey).digest('hex')}.json`)
+    : ''
+  const targets = [{ role: 'active', dir: path.dirname(statePath) }]
+  if (path.resolve(metaDir) !== path.resolve(path.dirname(statePath))) targets.push({ role: 'meta', dir: metaDir })
+  if (sessionFile) targets.push({ role: 'session', dir: path.dirname(sessionFile) })
+  const write = updateLifecycleStateCommit({
+    metaDir,
+    identity: {
+      project: target.project,
+      scope: workspaceNamespace ? 'project' : 'workspace',
+      sessionKey
+    },
+    targets,
+    readFallback: () => readJson(statePath, options.fs || fs)
+  }, lifecycle => {
     const acquisition = installObservedPlan(lifecycle, observed.plan, binding, target, input.hostSessionId)
     for (const result of sourceResults) {
       acquisition.receipt = recordContextReadOutcome(acquisition.receipt, observed.plan, result, {
@@ -623,18 +635,32 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
     lifecycle.updatedAt = new Date(options.nowMs || Date.now()).toISOString()
     return lifecycle
   }, options)
-  if (write.status !== 'persisted') return write
+  if (write.status !== 'committed') return write
 
-  const refreshed = readJson(statePath, options.fs || fs)
+  const projectionWarnings = []
+  for (const projection of [
+    { role: 'active', file: statePath },
+    ...(path.resolve(metaDir) === path.resolve(path.dirname(statePath))
+      ? []
+      : [{ role: 'meta', file: path.join(metaDir, 'lifecycle-state.json') }]),
+    ...(sessionFile ? [{ role: 'session', file: sessionFile }] : [])
+  ]) {
+    try { atomicWriteJson(projection.file, write.state, { fs: options.fs || fs }) } catch (error) {
+      projectionWarnings.push({ ...projection, message: error.message })
+    }
+  }
+
+  const refreshed = write.state
   const receipt = refreshed.contextAcquisition?.receipt || null
   const durable = ledgerWrite.status === 'persisted'
   return {
     status: durable ? 'persisted' : 'degraded',
-    ...(durable ? {} : { errorCode: ledgerWrite.errorCode || 'CONTEXT_SOURCE_LEDGER_NOT_PERSISTED' }),
+    ...(durable ? {} : { errorCode: contextSourceLedgerErrorCode(ledgerWrite) }),
     statePath,
     ledgerPath: ledgerWrite.filePath,
     ledgerStatus: ledgerWrite.status,
-    lifecycleStatus: 'persisted',
+    lifecycleStatus: projectionWarnings.length ? 'committed-with-projection-warnings' : 'committed',
+    projectionWarnings,
     satisfiedSourceIds: Array.isArray(receipt?.satisfiedSourceIds) ? receipt.satisfiedSourceIds : [],
     missingSourceIds: Array.isArray(receipt?.missingSourceIds) ? receipt.missingSourceIds : [],
     receiptStatus: receipt?.status || 'unknown'

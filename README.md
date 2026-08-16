@@ -159,6 +159,8 @@ devcodex grok
 
 `devcodex grok` 是 Grok Full 入口：它会加载用户级控制内核、项目绑定、MCP 与渐进式 SkillRoute。直接运行普通 `grok` 是 Partial 兼容入口；它仍可使用用户级规则、MCP 和可用 Hook，但 UserPromptSubmit 属于被动提示面，不能据此宣称与 Full 启动注入完全等价。
 
+Full 入口只有在 SkillRoute bootstrap 明确 active 后才会物化提示并启动 Grok；bootstrap error/inactive 分别以 `GROK_FULL_BOOTSTRAP_ERROR` / `GROK_FULL_BOOTSTRAP_INACTIVE` 失败关闭，不会遗留 child 或 prompt snapshot。Grok SessionStart 的诊断临时目录使用 `GrokSessionPrivateOwnerV1`：每次启动都有 nonce owner，即使宿主未给 sessionId 也不会共享固定目录；只有 owner 已证死亡且 TTL 到期的目录才可进入恢复，诊断记录不保存 prompt 正文。
+
 Cursor 当前是第六宿主 Beta。全局安装会写入用户级 `~/.cursor/hooks.json` 和 DevCodex Cursor Plugin；本地 IDE、交互 CLI 与 Headless CLI 共享 Hook、Plugin、MCP 和渐进式 SkillRoute。Cursor Cloud Agent 不加载用户级 Hook，因此只标记为 Partial / `UNVERIFIED`，不会继承本地 readiness 结论。能力依据见 [Cursor Hooks](https://cursor.com/docs/hooks)、[Cursor Plugins](https://cursor.com/docs/plugins) 与 [Cursor Headless CLI](https://cursor.com/docs/cli/headless)。
 
 Cursor 与 Grok 同机安装时，`devcodex grok` 只在它启动的 Grok 子进程中关闭 Grok 对 Cursor Hooks 的兼容导入，避免 Grok 二次解析 `~/.cursor/hooks.json`；Cursor 官方 Hook 配置不会被改写，用户直接运行普通 `grok` 时的兼容偏好也不会被永久修改。
@@ -419,6 +421,12 @@ devcodex grok
 
 在目标项目目录中新建 Grok 会话后再验证。若 `status` 显示 `Grok parity full-capable — use: devcodex grok`，这正是在提示应走 Full 入口；它不是权限不足，也不要求永久开启完全访问。
 
+### Grok Hook 出现 PowerShell `ParserError`，或同一 DevCodex Hook 显示两份来源怎么办？
+
+升级到 `devcodex >= 1.17.9`，再执行 `devcodex global-adapters apply` 并新建 Grok 会话。Windows 上的受管 Hook 命令会通过同一个跨 `cmd.exe` / PowerShell 的稳定启动格式进入 Node；Grok 用户级全局 Hook 文件只保留委派说明和用户自有 Hook，六个 DevCodex lifecycle 事件由 `devcodex-workspace` plugin 单独声明。Grok 默认导入 Claude Hook 时，DevCodex Claude launcher 会根据 Grok 保留的事件、Hook、session 与 workspace 四项环境指纹在读取回执前静默退出。
+
+Grok 会对来自不同来源但命令完全相同的 handler 做精确去重，因此“全局文件与 plugin 都能看到同一条命令”不等于已经发生两次状态写入；但这仍是脆弱的双声明拓扑，命令一旦漂移就可能成为两个有效 handler。`doctor` 从 v1.17.9 起分别核对物理声明数、精确去重后的有效 handler 数和 lifecycle owner 数，目标均为 plugin 单声明、单 handler、单 owner。无需在 `~/.grok/config.toml` 中关闭整个 Claude 兼容层；用户自有 Claude/Grok Hook 继续保留。
+
 ### “帮我审批”时反复重新连接，是否必须开启完全访问？
 
 不需要永久开启 Full access。“帮我审批”仍受 workspace 沙箱约束；它只决定符合条件的越界动作如何审批，不会自动扩大文件系统或可执行文件范围。先运行：
@@ -461,10 +469,13 @@ devcodex doctor
 
 ```bash
 devcodex tmp status
-devcodex tmp prune --dry-run
+devcodex tmp status --project=<project> --partition=runs
+devcodex tmp maintain --project=<project> --partition=runs
 ```
 
-只有带 `WorkspaceTempManifestV1`、owner/type 可识别、TTL 已到期、没有活动 lease，且备份事务已完成的对象才会成为候选。确认后再执行 `devcodex tmp prune --apply`。一次状态检查的 canonical 文件/目录与 legacy 目录观察共用 10,000 项相关对象上限；四个 artifact 分区根不能被 manifest 整体认领，unknown owner、共享/损坏 lease、未知分区、lock、reparse point、路径逃逸、不完整备份和扫描截断都会保持 blocked。DevCodex 只拥有 `.tmp/devcodex/`：`.tmp/` 容器、`.tmp/<other-producer>/`、工作区根的 `tmp/.tmp-*` 以及 `.tmp.drive*` 外部传输 spool 都不进入 DevCodex ownership、blocked 列表或 `--apply` 删除集合；它们必须由各自生产者盘点并取得独立删除授权。
+新 writer 只创建 `WorkspaceTempManifestV2`：先分配 manifest/owner token，再写目标，路径按 canonical root 保存为可重定位相对身份，生命周期为 allocated → active → finalized/abandoned。`WorkspaceTempManifestV1` 只读兼容，不能登记新对象或自动获得 V2 清理权限。状态读取按 project/partition 分页；返回 `WorkspaceTempCursorV1` 时必须原样用于同一 scope，单个 scope 不完整不会阻断其他完整 scope。
+
+`tmp maintain` 默认只生成带 quota/watermark 的 plan/receipt，自动或 opportunistic 调度也固定为 plan-only，不删除文件。只有 owner/type/target identity 可验证、TTL 已到期、token-bound lease 不活动且备份事务完成的 V2 对象才会成为候选；确认精确清单后，实际清理仍必须显式给出一个完整 scope，例如 `devcodex tmp maintain --apply --project=<project> --partition=runs`。`tmp prune` 保留为兼容别名并服从相同约束。unknown owner、共享/损坏 lease、普通伪造 lock、reparse point、路径逃逸、不完整备份或 scope 截断都会保持 blocked。DevCodex 只拥有 `.tmp/devcodex/`；兄弟 producer、外部传输 spool 与 legacy 内容仅报告。
 
 ### 为什么全局安装包里没有源码仓的全部 `test:*` / 发布脚本？
 
@@ -515,11 +526,18 @@ devcodex runtime prune --dry-run
 
 ```bash
 devcodex tmp status --json
-devcodex tmp prune --dry-run
-devcodex tmp prune --apply
+devcodex tmp status --project=<project> --partition=runs --json
+devcodex tmp maintain --project=<project> --partition=runs
+devcodex tmp maintain --apply --project=<project> --partition=runs
 ```
 
-`tmp prune` 无参数时等价于 `--dry-run`。所有布局的 canonical root 都是 `<workspace>/.tmp/devcodex/`，按 `runs/cache/backups/leases/quarantine/manifests` 分区；安装器和宿主配置备份会先验证 canonical/partition 非 reparse，再写入 `backups/<project>/` 并登记保留期限。对象删除时会同步回收其唯一且已过期的 lease；共享 lease 保持 blocked。旧 `.devcodex/**/.tmp` 和没有 manifest 的历史内容只报告，不会被自动迁移或删除。
+`tmp maintain` 与兼容的 `tmp prune` 无 `--apply` 时都是 plan-only。apply 必须指定一个 inventory 与 orphan scan 均完整的 project/partition scope；跨 scope、带分页 cursor 或不完整范围不能删除。所有布局的 canonical root 都是 `<workspace>/.tmp/devcodex/`，按 `runs/cache/backups/leases/quarantine/manifests` 分区；安装器和宿主配置备份会先验证 canonical/partition 非 reparse，再写入 `backups/<project>/` 并登记保留期限。对象删除时只回收其唯一且已过期的 token-bound lease；共享 lease保持 blocked。旧 `.devcodex/**/.tmp`、V1 manifest 和没有 manifest 的历史内容只读报告，不会被自动迁移或删除。
+
+### Memory MCP 的分页和写入回执
+
+`memory_session_query` 与 `memory_summary_query` 首次调用可省略 cursor；结果仍有下一页时会返回 `MemoryPaginationV1.nextCursor`。这个 opaque `MemoryCursorV1` 同时绑定工具、项目/active-root、ContextRead binding、查询条件、来源身份与 offset，下一页必须原样回传；来源或绑定变化会稳定拒绝，不能静默退回第一页，partial source 也不会签发不安全的下一页 cursor。
+
+`memory_session_allocate`、`memory_session_write` 与 `memory_summary_append` 的文件提交由同一个 CAS owner 完成。成功写入返回 `MemoryFileTransactionReceiptV1`，记录提交前后摘要、final CAS、flush/readback、字节读写与 metadata 结果；已有文件的纯 EOF 增长使用 append fast path，中段更新才走原子 rewrite。POSIX mode/owner 必须保留，新文件为 0600；Windows DACL 未直接取证时明确保持 `WARN/UNVERIFIED`。
 
 ## 生效方式
 

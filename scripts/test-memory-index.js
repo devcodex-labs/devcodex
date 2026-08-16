@@ -125,6 +125,15 @@ const completed = querySummaryIndex({
 assert.equal(completed.status, 'fresh')
 assert.deepEqual(completed.rows.map(item => item.sessionId), ['03', '01'])
 assert.equal(completed.totalMatched, 2)
+const completedSecondPage = querySummaryIndex({
+  target,
+  sourcePath: summaryPath,
+  status: 'completed',
+  limit: 1,
+  offset: 1
+})
+assert.deepEqual(completedSecondPage.rows.map(item => item.sessionId), ['01'])
+assert.equal(completedSecondPage.envelope.nextPointer, null)
 
 const currentActive = querySummaryIndex({
   target,
@@ -233,6 +242,17 @@ assert.equal(daily.matches.length, 1)
 assert(daily.matches[0].content.includes('中文正文 beta 😀'))
 assert(!daily.matches[0].content.includes('\ufffd'), 'UTF-8 byte-range hydration must not corrupt content')
 assert(daily.envelope.telemetry.indexBytesRead > 0, 'daily query must report index read bytes')
+const dailySecondPage = queryDailyIndex({
+  target,
+  date,
+  sourcePath: dailyPath,
+  status: 'all',
+  limit: 1,
+  offset: 1,
+  maxChars: 2000
+})
+assert.deepEqual(dailySecondPage.matches.map(item => item.sessionId), ['01'])
+assert.equal(dailySecondPage.totalMatched, 2)
 
 const handoff = queryDailyIndex({
   target,

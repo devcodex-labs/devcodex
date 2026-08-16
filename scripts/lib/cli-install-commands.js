@@ -19,7 +19,7 @@ function buildCliInstallCommands(ctx) {
     CODEX_SOURCES, CLAUDE_SETTINGS_HOOKS, CLAUDE_SETTINGS_PERMISSIONS,
     CLAUDE_MCP_JSON, CODEX_HOOK_COMMAND, isSourceRepo, beginManagedDeployment,
     finishManagedDeployment, walkDir, resolveActiveRuntimeRoot, resolveGitignoreRoot,
-    prepareWorkspaceTempBackupRoot, registerWorkspaceTempBackup, resolveWorkspaceTempBackupRoot,
+    prepareWorkspaceTempBackupRoot, withWorkspaceTempBackup, resolveWorkspaceTempBackupRoot,
     copyManagedTextFile, readJsonFileWithStatus,
     writeManagedJsonFile, normalizeStringArray, mergeUniqueStringArrays,
     mergeClaudeHooks, mergeClaudeMcpConfig, mergeCodexConfigToml,
@@ -865,10 +865,12 @@ function buildCliInstallCommands(ctx) {
         if (!dryRun) {
           if (existed) {
             fs.mkdirSync(backupDir, { recursive: true })
-            const backupPath = path.join(backupDir, `config.toml.bak.${Date.now()}`)
+            let backupPath = path.join(backupDir, `config.toml.bak.${Date.now()}`)
             try {
-              fs.copyFileSync(codexConfigPath, backupPath)
-              registerWorkspaceTempBackup(backupPath, { owner: 'devcodex-cli', producer: 'codex-config-toml' })
+              const artifact = withWorkspaceTempBackup(backupDir, {
+                owner: 'devcodex-cli', producer: 'codex-config-toml', targetName: path.basename(backupPath)
+              }, ({ targetPath }) => fs.copyFileSync(codexConfigPath, targetPath))
+              backupPath = artifact.targetPath
               inlineLog(c.yellow(`  ⚠ backed up existing .codex/config.toml to ${path.relative(cwd, backupPath)}`))
             } catch (backupErr) {
               const msg = `CODEX_CONFIG_BACKUP_FAILED: cannot backup ${codexConfigPath}: ${backupErr && backupErr.message ? backupErr.message : backupErr}`

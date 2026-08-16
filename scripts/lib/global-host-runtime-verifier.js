@@ -30,6 +30,14 @@ const NATIVE_COMMANDS = Object.freeze({
     ])
   }
 })
+const GROK_LIFECYCLE_EVENTS = Object.freeze([
+  'SessionStart',
+  'UserPromptSubmit',
+  'PreToolUse',
+  'PostToolUse',
+  'Stop',
+  'PreCompact'
+])
 
 function readJson(file, fsImpl = fs) {
   try {
@@ -37,6 +45,17 @@ function readJson(file, fsImpl = fs) {
   } catch {
     return null
   }
+}
+
+function hookCommands(document, event) {
+  const groups = Array.isArray(document?.hooks?.[event]) ? document.hooks[event] : []
+  return groups.flatMap(group => {
+    if (typeof group?.command === 'string') return [group.command]
+    const handlers = Array.isArray(group?.hooks) ? group.hooks : []
+    return handlers
+      .map(handler => handler?.command)
+      .filter(command => typeof command === 'string')
+  })
 }
 
 function probeIssue(code, phase, evidence, nextStep) {
@@ -273,10 +292,66 @@ function grokStaticContract(target, options = {}) {
       ))
     }
   }
-  const status = registryStatus === 'failed' || mcpStatus === 'failed'
+  const globalHooksFile = target.files.hooks
+  const pluginHooksFile = path.join(target.files.plugin, 'hooks', 'hooks.json')
+  const globalHooks = readJson(globalHooksFile, options.fs)
+  const pluginHooks = readJson(pluginHooksFile, options.fs)
+  const lifecycleOwnerEvents = {}
+  let lifecycleOwnerStatus = 'passed'
+  for (const event of GROK_LIFECYCLE_EVENTS) {
+    const globalManagedCommands = hookCommands(globalHooks, event).filter(isDevCodexManagedHookEntry)
+    const pluginManagedCommands = hookCommands(pluginHooks, event).filter(isDevCodexManagedHookEntry)
+    const physicalDeclarations = globalManagedCommands.length + pluginManagedCommands.length
+    const effectiveHandlersAfterExactDedup = new Set([
+      ...globalManagedCommands,
+      ...pluginManagedCommands
+    ]).size
+    const mutationOwners = Number(globalManagedCommands.length > 0) + Number(pluginManagedCommands.length > 0)
+    lifecycleOwnerEvents[event] = {
+      globalManagedDeclarations: globalManagedCommands.length,
+      pluginManagedDeclarations: pluginManagedCommands.length,
+      physicalDeclarations,
+      effectiveHandlersAfterExactDedup,
+      mutationOwners
+    }
+    if (
+      globalManagedCommands.length !== 0 ||
+      pluginManagedCommands.length !== 1 ||
+      physicalDeclarations !== 1 ||
+      effectiveHandlersAfterExactDedup !== 1 ||
+      mutationOwners !== 1
+    ) {
+      lifecycleOwnerStatus = 'failed'
+    }
+  }
+  if (!globalHooks || !pluginHooks || lifecycleOwnerStatus === 'failed') {
+    lifecycleOwnerStatus = 'failed'
+    issues.push(probeIssue(
+      'GROK_LIFECYCLE_OWNER_TOPOLOGY_FAILED',
+      'contract',
+      JSON.stringify({ globalHooksFile, pluginHooksFile, events: lifecycleOwnerEvents }),
+      'Refresh the Grok global adapter so the plugin is the only managed lifecycle declaration.'
+    ))
+  }
+  const status = registryStatus === 'failed' || mcpStatus === 'failed' || lifecycleOwnerStatus === 'failed'
     ? 'failed'
     : (registryStatus === 'unverified' ? 'unverified' : 'passed')
-  return { status, registryStatus, mcpStatus, registry, mcpFile, expectedServers, issues }
+  return {
+    status,
+    registryStatus,
+    mcpStatus,
+    lifecycleOwnerStatus,
+    lifecycleOwnerTopology: {
+      schemaVersion: 'GrokLifecycleOwnerTopologyV1',
+      globalHooksFile,
+      pluginHooksFile,
+      events: lifecycleOwnerEvents
+    },
+    registry,
+    mcpFile,
+    expectedServers,
+    issues
+  }
 }
 
 function cursorStaticContract(target, options = {}) {
@@ -997,6 +1072,7 @@ function verifyGlobalHostRuntime(options = {}) {
 
 module.exports = {
   EXECUTABLE_ADAPTER_HOSTS,
+  GROK_LIFECYCLE_EVENTS,
   adapterContractProbe,
   cursorStaticContract,
   cursorVariantMatrix,

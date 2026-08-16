@@ -1,11 +1,12 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.17.8 宿主稳定入口与 SkillRoute 自举修复已通过源码 R4 并冻结为发布候选；正式发布事实仍以 Git tag、npm registry 与 GitHub Release 为准。
+> **当前**: v1.17.8 已发布；v1.17.9 已获 `@rocky` 发布授权并处于本地资格验证阶段。远端 tag、npm 与 GitHub Release 完成前仍只属于候选，当前发行事实由 Profile 05 的 `ProfileCurrentTruthV1` 对照 package、workflow、npm 与 GitHub。
 
 ## 当前未发布实现候选
 
-- **v1.17.8 宿主稳定入口与 SkillRoute 自举修复候选（PI-251～255 / PF-303～307）**：六宿主 Hook 改为稳定 launcher，由 committed receipt 安全转发到当前不可变 runtime，避免每次升级改变 Codex Hook 信任身份；`profile_context_plan` 在宿主没有分发 UserPromptSubmit 时返回并复用精确 SkillRoute bootstrap，并把多项目 pending 的 canonical hostVariant/显式 Skill 保真带入 MCP；ContextRead 对复合 content 选择唯一主 schema，拒绝用 sidecar 覆盖可观察的身份失配；S15 归一化 Hook history 与结构化 receipt，并以 evidence-bound hostVariant 阻止 Desktop ambient 污染 CLI；closure 与安装态全局配置回归以当前 runtime、入口专属 adapter 与 portable evidence 不变量替代阶段性零 PASS/UNVERIFIED 快照。Codex/Grok 源码 S15 已按 R-19 后 runtime 重新通过，Desktop 当前任务仍保持 UNVERIFIED。完整说明见 `changelogs/releases/v1.17.8.md`。
+- **v1.17.9 聚合发布候选**：纳入 v1.17.8 发布后已核实的 35 项失败关闭、事务/CAS、workspace temp V2、Memory 与 Profile current-truth 修复；同时修复 Windows Grok 通过 PowerShell 执行受管 Hook 时首个引号可执行文件被解析为字符串而触发 `ParserError`，统一使用可被 `cmd.exe` 与 PowerShell 接受的稳定 Node 启动命令。Grok 用户级全局文件退出 DevCodex lifecycle 声明，六事件由用户级 `devcodex-workspace` plugin 单独拥有；runtime verifier 分别核对物理声明、Grok 精确去重后的有效 handler 与 mutation owner。Grok 默认导入 DevCodex Claude Hook 时，稳定 launcher 依据四项 Grok 保留环境指纹在回执读取前静默退出；用户自有 Hook、Grok Claude 兼容偏好、portable 模式与其他五宿主语义不变。完整说明见 `changelogs/releases/v1.17.9.md`。
+- **v1.17.8 宿主稳定入口与 SkillRoute 自举修复已归档（PI-251～255 / PF-303～307）**：六宿主 Hook 改为稳定 launcher，由 committed receipt 安全转发到当前不可变 runtime，避免每次升级改变 Codex Hook 信任身份；`profile_context_plan` 在宿主没有分发 UserPromptSubmit 时返回并复用精确 SkillRoute bootstrap，并把多项目 pending 的 canonical hostVariant/显式 Skill 保真带入 MCP；ContextRead 对复合 content 选择唯一主 schema，拒绝用 sidecar 覆盖可观察的身份失配；S15 归一化 Hook history 与结构化 receipt，并以 evidence-bound hostVariant 阻止 Desktop ambient 污染 CLI。完整说明见 `changelogs/releases/v1.17.8.md`；正式发布事实以 Git tag、npm registry、GitHub Release 与 `ProfileCurrentTruthV1` 为准。
 - **v1.17.7 全局运行态一致性与首次加载闭环修复已归档**：22 项确认问题及 Windows Node 18 插桩递归、验证预算假失败均已关闭；GitHub CI、Publish、npm/GitHub tarball parity 与六宿主本机更新已经完成。完整说明见 `changelogs/releases/v1.17.7.md`。
 - **v1.17.6 工作区 Skill 非显式 Stop 完备性修复已归档（VL-098 / PF-296 / GR-088）**：非显式 `PLAN_NOT_COMMITTED` 除既有 PreToolUse 外，在最终 Stop 也 fail closed，并复用 `NextActionEnvelopeV1` 返回精确首个 catalog 调用；普通聊天通过统一 catalog 后 `commit(null)` 完成 0/1 决策，Hook 不恢复关键词 auto-match 或新增 final-text classifier。重复 Stop 继续使用现有 3 次饱和与 notice fingerprint，PreCompact、ContextRead allowlist、retirement 与 must-reply 合同不变。完整说明见 `changelogs/releases/v1.17.6.md`；正式发布事实仍以 Git tag、npm registry 与 GitHub Release 为准。
 - **v1.17.5 发布包 npm scripts 闭包修复已归档（PF-294 / GR-086）**：`PublishedPackageScriptsContractV1` 让源码保留完整维护脚本，同时把最终 tarball manifest 投影为 8 个 lifecycle / validate / global-adapters 入口；prepack/postpack 通过摘要收据事务原字节恢复源码 manifest。发布门禁从最终 manifest 建立 direct/nested/require/path.join/spawn 闭包，并执行真实 `pack → 隔离 HOME 安装 → installed validate → installed self-pack`；缺入口、缺依赖、source-only 泄漏、lifecycle 单边、恢复冲突或状态残留均失败关闭。完整说明见 `changelogs/releases/v1.17.5.md`，正式发布事实仍以 Git tag、npm registry 与 GitHub Release 为准。
@@ -118,7 +119,7 @@ WorkspaceDataAbsorptionScopeGate · DocsSiteVisualAcceptanceGate · OmissionOnly
 ### DevCodex V1 全量审计 residual F 项闭环（ISSUE-045 / ISSUE-047 / ISSUE-051 / ISSUE-052 / ISSUE-053 / ISSUE-054 / ISSUE-057，2026-07-20）
 
 - Profile 06 `validation-execution` 证据数字同步当前 validation manifest：64 nodes、fast 59、full 62，避免旧 `54/full 53` 继续误导审计结论。
-- memory MCP 增加 `memory_session_allocate`、active-root/agent/date scoped lock、原子文件替换与 `MemoryTransactionReceiptV1`；memory Skill 增加 `MemoryTransactionWriterGate`，测试覆盖唯一会话分配、事务 receipt、锁冲突 fail-closed 与无半提交。
+- memory MCP 增加 `memory_session_allocate`、active-root/agent/date scoped lock 与 `MemoryFileTransactionReceiptV1`；当前统一文件事务补齐 final CAS、flush/readback、metadata 与 append fast path。memory Skill 的 `MemoryTransactionWriterGate` 覆盖唯一会话分配、事务 receipt、锁冲突 fail-closed 与无半提交。
 - HostParity 发布关键测试不再依赖仓库外 `.devcodex` 运行态文档，改用 tracked fixture；portable Grok SessionStart 对 `GROK_SESSION_ID` 做清洗和 base-boundary check，并增加 hostile replay 防路径越界。
 - workspace deployment manifest 通过 `devcodex update` 重新同步，status/doctor 与 `test:profile-deploy` 的 managed manifest 权威重新一致；Agent SUMMARY 历史违规投影补齐至 runtime alerts=0。
 

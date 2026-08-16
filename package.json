@@ -1,6 +1,6 @@
 {
   "name": "devcodex",
-  "version": "1.17.8",
+  "version": "1.17.9",
   "description": "DevCodex — AI-powered development workflow rules for Copilot, Claude Code, Codex, Gemini CLI, Grok and Cursor",
   "main": "index.js",
   "bin": {
@@ -209,6 +209,7 @@
     "scripts/instruction-fallback-check.js",
     "scripts/validate-all-profiles.js",
     "scripts/validate-profile.js",
+    "scripts/lib/profile-current-truth.js",
     "scripts/publish-dry-run.js",
     "scripts/generate-skill-portfolio.js",
     "scripts/generate-skill-intents.js",
@@ -380,6 +381,7 @@
     "scripts/lib/cli-runtime-commands.js",
     "scripts/lib/cli-temp-commands.js",
     "scripts/lib/workspace-temp-layout.js",
+    "scripts/lib/workspace-temp-governance.js",
     "scripts/lib/workspace-temp.js",
     "scripts/lib/validate-governance-support.js",
     "scripts/lib/intent-consistency.js",

@@ -353,7 +353,11 @@ function main() {
   assert.strictEqual(naturalAutoState.executionMode, 'auto')
 
   cleanState({ mode: 'dev', agent: TEST_AGENT })
-  run({ hookEventName: 'UserPromptSubmit', prompt: '@rocky should enter auto by global default alias' })
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'default-alias-session',
+    prompt: '@rocky should enter auto by global default alias'
+  })
   runBootstrapReads()
   const defaultAliasState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(defaultAliasState.executionMode, 'auto')
@@ -408,7 +412,7 @@ function main() {
   assert.strictEqual(exitAutoState.executionMode, 'confirm')
   assert.strictEqual(exitAutoState.stickyAuto?.active, false)
 
-  // Sticky survives host payloads that omit session_id after first auto turn
+  // Missing session identity cannot reuse sticky authority from an earlier turn.
   cleanState({ mode: 'dev', agent: TEST_AGENT })
   run({
     hookEventName: 'UserPromptSubmit',
@@ -420,7 +424,17 @@ function main() {
     prompt: '继续推进'
   })
   const omitSessionSticky = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
-  assert.strictEqual(omitSessionSticky.executionMode, 'auto', 'sticky auto must tolerate missing session_id on follow-up')
+  assert.strictEqual(omitSessionSticky.executionMode, 'confirm', 'missing session_id must not inherit sticky auto')
+
+  // Negated aliases and natural-language tokens cannot authorize Auto.
+  cleanState({ mode: 'dev', agent: TEST_AGENT })
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'negated-auto-session',
+    prompt: '请不要 @rocky 执行，也不要进入 auto 模式'
+  })
+  const negatedAutoState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(negatedAutoState.executionMode, 'confirm')
 
   // Explicit different session_id drops sticky
   cleanState({ mode: 'dev', agent: TEST_AGENT })

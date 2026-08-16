@@ -35,6 +35,10 @@ const {
 const ROOT = path.resolve(__dirname, '..')
 const INDEX = path.join(ROOT, 'index.js')
 const FIXTURE_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-host-installation-contract-v1-'))
+function cleanupOwnedFixtureRoot(root) {
+  try { fs.rmSync(root, { recursive: true, force: true }) } catch { /* best-effort exit cleanup */ }
+}
+process.once('exit', () => cleanupOwnedFixtureRoot(FIXTURE_ROOT))
 process.env.GROK_HOME = path.join(FIXTURE_ROOT, 'grok-home')
 
 function run(args, cwd) {
@@ -731,6 +735,7 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
   }
 
   const currentRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-global-only-host-installation-'))
+  process.once('exit', () => cleanupOwnedFixtureRoot(currentRoot))
   const home = path.join(currentRoot, 'home')
   const workspace = path.join(currentRoot, 'workspace')
   fs.mkdirSync(home, { recursive: true })
@@ -1024,6 +1029,25 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
   )
   let launchedOptions = null
   let launchedArgs = null
+  const bootstrapRequests = []
+  const bootstrapSkillRouteForTurnFixture = request => {
+    bootstrapRequests.push(request)
+    return {
+      schemaVersion: 'SkillRouteBootstrapOutcomeV1',
+      active: true,
+      injectionText: `fixture-project-bound-route:${request.project}`,
+      modeReceipt: {
+        schemaVersion: 'HostModeReceiptV1',
+        host: 'grok-cli-single'
+      },
+      bootstrap: {
+        schemaVersion: 'SkillRouteBootstrapV1',
+        project: request.project,
+        contextEpoch: request.contextEpoch,
+        turnBinding: `fixture-turn-${request.contextEpoch}`
+      }
+    }
+  }
   const launchEnv = {
     ...env,
     GROK_HOME: '',
@@ -1031,9 +1055,10 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
     DEVCODEX_CONTEXT_EPOCH: '../../invalid-epoch'
   }
   const launched = launchGrok(['-p', 'check'], {
-    cwd: workspace,
+    cwd: nestedProjectRoot,
     env: launchEnv,
     home,
+    bootstrapSkillRouteForTurn: bootstrapSkillRouteForTurnFixture,
     spawnSync: (_command, args, options) => {
       launchedArgs = args
       launchedOptions = options
@@ -1041,6 +1066,10 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
     }
   })
   assert.strictEqual(launched.status, 0)
+  assert.strictEqual(bootstrapRequests.length, 1)
+  assert.strictEqual(bootstrapRequests[0].project, 'apps/api')
+  assert.strictEqual(path.resolve(bootstrapRequests[0].cwd), path.resolve(nestedProjectRoot))
+  assert.match(launchedArgs[1], /fixture-project-bound-route:apps\/api/)
   assert.match(launchedArgs[1], /devcodex-profile__skill_route/)
   assert.match(launchedArgs[1], /Never send cursor:null/)
   assert.strictEqual(launchedOptions.env.GROK_HOME, path.join(home, '.grok'))
@@ -1060,9 +1089,10 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
   fs.writeFileSync(promptFile, 'prompt from immutable snapshot\n', 'utf8')
   let forwardedPromptSnapshot = null
   const filePromptLaunch = launchGrok(['--prompt-file', promptFile], {
-    cwd: workspace,
+    cwd: nestedProjectRoot,
     env,
     home,
+    bootstrapSkillRouteForTurn: bootstrapSkillRouteForTurnFixture,
     spawnSync: (_command, args) => {
       const promptIndex = args.indexOf('--prompt-file')
       forwardedPromptSnapshot = args[promptIndex + 1]
@@ -1074,6 +1104,8 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
   assert.strictEqual(filePromptLaunch.plan.promptCarrier.forwarding, 'snapshot-file')
   assert.strictEqual(filePromptLaunch.plan.promptCarrier.snapshotRemoved, true)
   assert.strictEqual(fs.existsSync(forwardedPromptSnapshot), false)
+  assert.strictEqual(bootstrapRequests.length, 2)
+  assert.strictEqual(bootstrapRequests[1].prompt, 'prompt from immutable snapshot\n')
   assert.throws(
     () => extractSinglePrompt(['-p', 'first', '--single', 'second'], workspace),
     /GROK_PROMPT_CARRIER_AMBIGUOUS/
@@ -1163,5 +1195,8 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
   fs.unlinkSync(oversizedPrompt)
 
   fs.rmSync(currentRoot, { recursive: true, force: true })
+  assert.strictEqual(fs.existsSync(currentRoot), false, 'global-only fixture root must be removed')
+  fs.rmSync(FIXTURE_ROOT, { recursive: true, force: true })
+  assert.strictEqual(fs.existsSync(FIXTURE_ROOT), false, 'host-installation fixture root must be removed')
   console.log('host installation tests passed mode=global-only hosts=6 workspaceHostDirs=0 selectors=blocked grokLauncher=global cursorBeta=ready')
 }

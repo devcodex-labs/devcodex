@@ -13,6 +13,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { execFileSync } = require('child_process')
 const {
   PROFILE_DEFAULT_FILES,
   PROFILE_TIERS,
@@ -25,6 +26,10 @@ const {
   FEATURE_INVENTORY_V1_COLUMNS
 } = require('../mcp/profile-contract')
 const { resolveProfileDir } = require('../hooks/_runtime/workspace-layout.cjs')
+const {
+  parseProfileCurrentTruth,
+  validateDevCodexCurrentTruth
+} = require('./lib/profile-current-truth')
 
 // ProfileGenerationContractGate / FeatureInventorySchemaGate / ProfileTierMigrationSafetyGate
 // share the tier vocabulary: profile-lite | profile-standard | profile-closed-loop.
@@ -303,6 +308,24 @@ function hasLegacyStageDraft(text) {
 function isSourceRepoProfileTarget() {
   if (sourceRepoProfileFlag) return true
   return path.resolve(cwd) === PLUGIN_ROOT
+}
+
+function isActiveDevCodexProfileTarget() {
+  return path.resolve(cwd) === PLUGIN_ROOT
+}
+
+function currentSourceGitHead() {
+  if (!isActiveDevCodexProfileTarget()) return ''
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: PLUGIN_ROOT,
+      encoding: 'utf8',
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'ignore']
+    }).trim()
+  } catch {
+    return ''
+  }
 }
 
 function profileFileInfo(fileName) {
@@ -785,6 +808,33 @@ const readmeText = readProfileFile('README.md')
 const architectureText = readProfileFile('02-架构约束.md')
 const styleText = readProfileFile('03-代码风格.md')
 const projectInfoText = readProfileFile('01-项目信息.md')
+const releaseProfileText = readProfileFile('05-发布规范.md')
+const alternativeReleaseProfileText = readProfileFile('05-交付发布规范.md')
+let profileCurrentTruthHeadingCount = 0
+for (const [fileName, text] of [
+  ['05-发布规范.md', releaseProfileText],
+  ['05-交付发布规范.md', alternativeReleaseProfileText]
+]) {
+  if (!text) continue
+  const result = parseProfileCurrentTruth(text)
+  profileCurrentTruthHeadingCount += result.headingCount
+  for (const message of result.errors) err(`[profile] ${fileName} ${message}`)
+}
+if (profileCurrentTruthHeadingCount > 1) {
+  err(`[profile] ProfileCurrentTruthV1 must appear exactly once across release Profile documents, got ${profileCurrentTruthHeadingCount}`)
+}
+if (isActiveDevCodexProfileTarget()) {
+  const truth = validateDevCodexCurrentTruth({
+    releaseProfileText,
+    overviewProfileText: projectInfoText,
+    testProfileText: readProfileFile('04-测试规范.md'),
+    docsProfileText: readProfileFile('07-用户文档与契约规范.md'),
+    packageVersion: pluginVersion,
+    gitHead: currentSourceGitHead(),
+    workflowText: readFileIfExists(path.join(PLUGIN_ROOT, '.github', 'workflows', 'ci.yml'))
+  })
+  for (const message of truth.errors) err(`[profile] ProfileCurrentTruthGate ${message}`)
+}
 // DevCodex package version is authoritative only for explicit DevCodex current-release consumers.
 if (pluginVersion && projectInfoText && isSourceRepoProfileTarget()) {
   const projectInfo = projectInfoText

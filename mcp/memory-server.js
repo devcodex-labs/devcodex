@@ -25,6 +25,7 @@ const os = require('os')
 const path = require('path')
 const { assertSingleSegment, resolveInside, resolveExistingRegularFileInside } = require('./path-guard')
 const { createJsonLineServer } = require('./stdio-jsonrpc.cjs')
+const { createMemoryFileTransaction } = require('./memory-file-transaction.cjs')
 const {
   readBoundedTextFileSync,
   scanBoundedTextLinesSync
@@ -33,6 +34,7 @@ const {
   findLayoutInfo,
   inferProjectFromCwd,
   namespaceRootPath,
+  PROJECT_NAMESPACE_SCHEMA_PATTERN,
   normalizeProjectNamespace,
   resolveLegacyProjectRoot,
   resolveRuntimeStateRoot
@@ -75,6 +77,7 @@ function loadMemoryIndexContract() {
 }
 
 const MEMORY_INDEX_CONTRACT = loadMemoryIndexContract()
+const MEMORY_FILE_TRANSACTION = createMemoryFileTransaction()
 
 function loadSummaryTypeCanon() {
   try {
@@ -108,8 +111,13 @@ const EXPLICIT_RUNTIME_AGENT = normalizeAgent(process.env.DEVCODEX_AGENT)
 const DEFAULT_AGENT = detectRuntimeAgent()
 const TASK_KINDS = new Set(['requirements', 'bugs', 'optimizations', 'scenario-tests'])
 const MAX_MEMORY_SESSION_WRITE_CHARS = 262144
+const MEMORY_SESSION_WRITE_REQUIRED_FIELDS = Object.freeze(['content', 'sessionId', 'sessionBinding'])
 const MEMORY_SOURCE_MAX_BYTES = 8 * 1024 * 1024
 const WORKSPACE_CONTEXT_PROJECT = '__workspace__'
+const PROJECT_NAMESPACE_INPUT_SCHEMA = Object.freeze({
+  type: 'string',
+  pattern: PROJECT_NAMESPACE_SCHEMA_PATTERN
+})
 
 const CONTEXT_READ_BINDING_SCHEMA = {
   type: 'object',
@@ -135,7 +143,7 @@ const TOOLS = [
       required: ['name'],
       properties: {
         name: { type: 'string', minLength: 1, maxLength: 300, description: '精确任务名、alias 或稳定 taskId' },
-        project: { type: 'string', description: '可选项目命名空间；提供后限制为 project scope' },
+        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '可选项目命名空间；提供后限制为 project scope' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选；默认按 cwd/project 推断' },
         persistIndex: { type: 'boolean', description: '是否持久化可重建索引；默认 true' }
       }
@@ -151,7 +159,7 @@ const TOOLS = [
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '集中布局下的读取域' },
-        project: { type: 'string', description: '集中布局下的项目命名空间' },
+        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '集中布局下的项目命名空间' },
         limit: { type: 'integer', minimum: 1, maximum: 20, description: 'latestRows 数量，默认 5，最大 20' },
         contextBinding: CONTEXT_READ_BINDING_SCHEMA
       }
@@ -167,13 +175,14 @@ const TOOLS = [
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '集中布局下的读取域' },
-        project: { type: 'string', description: '集中布局下的项目命名空间' },
+        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '集中布局下的项目命名空间' },
         date: { type: 'string', pattern: '^\\d{8}$', description: 'YYYYMMDD，默认今日' },
         sessionId: { type: 'string', minLength: 1, maxLength: 64, description: '精确会话编号，如 01 或 02a' },
         status: { type: 'string', enum: ['active', 'completed', 'blocked', 'unresolved', 'all'], description: '会话状态，默认 all' },
         limit: { type: 'integer', minimum: 1, maximum: 20, description: '最多返回会话数，默认 1' },
         handoffOnly: { type: 'boolean', description: '仅返回 ContextHandoffCard' },
         maxChars: { type: 'integer', minimum: 1, maximum: 50000, description: '正文总字符预算，默认 12000' },
+        cursor: { type: 'string', minLength: 1, maxLength: 8192, description: '上一页返回的 opaque MemoryCursorV1；必须与同一 tool/target/context/query/source 完全匹配' },
         contextBinding: CONTEXT_READ_BINDING_SCHEMA
       }
     }
@@ -188,10 +197,11 @@ const TOOLS = [
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '集中布局下的读取域' },
-        project: { type: 'string', description: '集中布局下的项目命名空间' },
+        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '集中布局下的项目命名空间' },
         status: { type: 'string', enum: ['active', 'completed', 'blocked', 'unresolved', 'all'], description: '默认 active' },
         limit: { type: 'integer', minimum: 1, maximum: 50, description: '最多返回行数，默认 5，最大 50' },
         since: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: '只返回该日期及之后的行' },
+        cursor: { type: 'string', minLength: 1, maxLength: 8192, description: '上一页返回的 opaque MemoryCursorV1；必须与同一 tool/target/context/query/source 完全匹配' },
         contextBinding: CONTEXT_READ_BINDING_SCHEMA
       }
     }
@@ -205,7 +215,7 @@ const TOOLS = [
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '集中布局下的写入域' },
-        project: { type: 'string', description: '集中布局下的项目命名空间' },
+        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '集中布局下的项目命名空间' },
         date: { type: 'string', pattern: '^\\d{8}$', description: 'YYYYMMDD，默认今日' },
         title: { type: 'string', minLength: 1, maxLength: 160, description: '会话标题，默认 未命名任务' },
         intent: { type: 'string', maxLength: 120, description: '意图标签，默认 unspecified' },
@@ -223,7 +233,7 @@ const TOOLS = [
         agent: { type: 'string', description: 'Agent 标识（如 claude-code / codex / copilot / grok），默认当前实际宿主' },
         date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定读取域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误读项目记忆。' },
+        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误读项目记忆。' },
         contextBinding: CONTEXT_READ_BINDING_SCHEMA
       }
     }
@@ -234,7 +244,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       additionalProperties: false,
-      required: ['content'],
+      required: [...MEMORY_SESSION_WRITE_REQUIRED_FIELDS],
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
@@ -242,7 +252,7 @@ const TOOLS = [
         sessionId: { type: 'string', minLength: 1, maxLength: 64, description: 'memory_session_allocate 返回的精确会话编号。每次写入必填。' },
         sessionBinding: { type: 'string', pattern: '^[a-f0-9]{64}$', description: 'memory_session_allocate 返回的不透明绑定值。每次写入必填且必须原样回传。' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误写项目记忆。' }
+        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误写项目记忆。' }
       }
     }
   },
@@ -262,7 +272,7 @@ const TOOLS = [
         artifactSha256: { type: 'string', description: 'ConfirmBindingGate：确认前对产物全文计算的 SHA-256（hex，大小写不敏感）' },
         sourceMessage: { type: 'string', description: '用户确认原话摘要' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误写任务确认。' }
+        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误写任务确认。' }
       }
     }
   },
@@ -275,7 +285,7 @@ const TOOLS = [
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定读取域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误读 SUMMARY。' },
+        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误读 SUMMARY。' },
         contextBinding: CONTEXT_READ_BINDING_SCHEMA
       }
     }
@@ -290,7 +300,7 @@ const TOOLS = [
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         row: { type: 'string', description: 'Markdown 表格行（含首尾 |）' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { type: 'string', description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误写 SUMMARY。' }
+        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误写 SUMMARY。' }
       }
     }
   }
@@ -360,16 +370,13 @@ const CONTEXT_PROJECT = inferContextProject()
 const DEFAULT_SCOPE = LAYOUT.enabled ? (CONTEXT_PROJECT ? 'project' : 'workspace') : 'project'
 
 function resolveProjectName(projectName) {
-  if (LAYOUT.enabled) {
-    return normalizeProjectNamespace(projectName, {
-      layout: LAYOUT,
-      contextProject: CONTEXT_PROJECT,
-      allowEmpty: true
-    })
-  }
-  const raw = String(projectName || '').trim()
-  if (!raw) return ''
-  return path.basename(resolveLegacyProjectRoot(INPUT_ROOT, raw))
+  const normalized = normalizeProjectNamespace(projectName, {
+    layout: LAYOUT,
+    contextProject: LAYOUT.enabled ? CONTEXT_PROJECT : '',
+    allowEmpty: true
+  })
+  if (LAYOUT.enabled || !normalized) return normalized
+  return path.basename(resolveLegacyProjectRoot(INPUT_ROOT, normalized))
 }
 
 function resolveProjectRoot(projectName) {
@@ -636,11 +643,6 @@ function renderCpConfirmation(existing, args, binding) {
   return output.replace(/\n/g, newline).replace(new RegExp(`${newline}*$`), newline)
 }
 
-function appendFile(filePath, content) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true })
-  fs.appendFileSync(filePath, content, 'utf8')
-}
-
 function fileDigest(content) {
   return crypto.createHash('sha256').update(String(content || ''), 'utf8').digest('hex')
 }
@@ -784,47 +786,33 @@ function releaseMemoryLock(lock) {
   }
 }
 
-function atomicReplaceFile(filePath, content) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true })
-  const temp = path.join(
-    path.dirname(filePath),
-    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.${crypto.randomBytes(4).toString('hex')}.tmp`
-  )
-  try {
-    fs.writeFileSync(temp, content, { encoding: 'utf8', flag: 'wx' })
-    fs.renameSync(temp, filePath)
-  } catch (error) {
-    try { fs.unlinkSync(temp) } catch { /* ignore temp cleanup failures */ }
-    throw error
-  }
-}
-
 function withMemoryTransaction(target, filePath, operation) {
   const lock = acquireMemoryLock(target, filePath)
   const startedAt = new Date().toISOString()
   try {
-    const before = readFile(filePath)
-    const beforeDigest = fileDigest(before)
-    const next = operation(before)
-    atomicReplaceFile(filePath, next)
-    const after = readFile(filePath)
-    if (after !== next) {
-      throw new Error(`MEMORY_TRANSACTION_READBACK_MISMATCH: ${relativeToActiveRoot(target, filePath)} did not persist the exact transaction payload`)
+    const expectedSnapshot = MEMORY_FILE_TRANSACTION.readSnapshot(filePath)
+    const planned = operation(expectedSnapshot.content)
+    const content = typeof planned === 'string' ? planned : planned?.content
+    const appendText = typeof planned === 'object' && typeof planned?.appendText === 'string'
+      ? planned.appendText
+      : null
+    if (typeof content !== 'string') {
+      throw new Error('MEMORY_TRANSACTION_PLAN_INVALID: writer must return a string or { content, appendText }.')
     }
-    const receipt = {
-      schemaVersion: 'MemoryTransactionReceiptV1',
-      transactionId: crypto.randomBytes(8).toString('hex'),
-      activeRoot: target.activeRoot,
-      project: target.project,
-      scope: target.scope,
-      agent: target.agent,
-      file: relativeToActiveRoot(target, filePath),
-      beforeDigest,
-      afterDigest: fileDigest(after),
+    return MEMORY_FILE_TRANSACTION.commit({
+      filePath,
+      relativeFile: relativeToActiveRoot(target, filePath),
+      expectedSnapshot,
+      content,
+      appendText,
       startedAt,
-      completedAt: new Date().toISOString()
-    }
-    return receipt
+      receiptContext: {
+        activeRoot: target.activeRoot,
+        project: target.project,
+        scope: target.scope,
+        agent: target.agent
+      }
+    })
   } finally {
     releaseMemoryLock(lock)
   }
@@ -957,7 +945,7 @@ function normalizeMemorySessionWriteBinding(args) {
   }
 }
 
-function validateMemoryWriterArgs(args, allowedFields, toolName) {
+function validateMemoryWriterArgs(args, allowedFields, toolName, requiredFields = []) {
   if (!args || typeof args !== 'object' || Array.isArray(args)) {
     throw memoryQueryError(
       `${toolName} arguments must be an object.`,
@@ -971,6 +959,14 @@ function validateMemoryWriterArgs(args, allowedFields, toolName) {
       `${toolName} received unsupported fields: ${unknown.join(', ')}.`,
       `Remove unsupported fields and pass only the published ${toolName} schema.`,
       'MEMORY_WRITER_ARGUMENT_INVALID'
+    )
+  }
+  const missing = requiredFields.filter(field => !Object.prototype.hasOwnProperty.call(args, field))
+  if (missing.length) {
+    throw memoryQueryError(
+      `${toolName} is missing required fields: ${missing.join(', ')}.`,
+      `Pass every field published in the ${toolName} required list.`,
+      'MEMORY_WRITER_ARGUMENT_REQUIRED'
     )
   }
 }
@@ -1088,9 +1084,9 @@ function insertMemorySessionContent(existing, content, binding) {
 const MEMORY_QUERY_STATUSES = new Set(['active', 'completed', 'blocked', 'unresolved', 'all'])
 const MEMORY_STATUS_FIELDS = new Set(['agent', 'scope', 'project', 'limit', 'contextBinding'])
 const MEMORY_SESSION_QUERY_FIELDS = new Set([
-  'agent', 'scope', 'project', 'date', 'sessionId', 'status', 'limit', 'handoffOnly', 'maxChars', 'contextBinding'
+  'agent', 'scope', 'project', 'date', 'sessionId', 'status', 'limit', 'handoffOnly', 'maxChars', 'cursor', 'contextBinding'
 ])
-const MEMORY_SUMMARY_QUERY_FIELDS = new Set(['agent', 'scope', 'project', 'status', 'limit', 'since', 'contextBinding'])
+const MEMORY_SUMMARY_QUERY_FIELDS = new Set(['agent', 'scope', 'project', 'status', 'limit', 'since', 'cursor', 'contextBinding'])
 const MAX_SUMMARY_ROWS_FOR_STATUS = 20
 
 function elapsedMs(startedAt) {
@@ -1127,6 +1123,152 @@ function memoryQueryError(message, nextStep, code = 'MEMORY_QUERY_INVALID') {
   error.contextReadCode = code
   error.nextStep = nextStep || 'Correct the bounded memory query and retry once.'
   return error
+}
+
+const MEMORY_CURSOR_SCHEMA = 'MemoryCursorV1'
+const MEMORY_CURSOR_PREFIX = 'mcv1'
+const MEMORY_CURSOR_MAX_OFFSET = 1000000
+
+function stableCursorValue(value) {
+  if (Array.isArray(value)) return value.map(stableCursorValue)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(Object.keys(value).sort().flatMap(key => (
+    value[key] === undefined ? [] : [[key, stableCursorValue(value[key])]]
+  )))
+}
+
+function memoryCursorDigest(value) {
+  return fileDigest(JSON.stringify(stableCursorValue(value)))
+}
+
+function memoryCursorBinding(tool, target, contextBinding, query) {
+  return {
+    tool,
+    targetDigest: memoryCursorDigest({
+      activeRoot: comparableActiveRoot(target.activeRoot),
+      project: target.project,
+      scope: target.scope,
+      agent: target.agent
+    }),
+    contextBindingDigest: memoryCursorDigest(contextBinding),
+    queryDigest: memoryCursorDigest(query)
+  }
+}
+
+function encodeMemoryCursor(input) {
+  const payload = {
+    schemaVersion: MEMORY_CURSOR_SCHEMA,
+    tool: input.tool,
+    targetDigest: input.targetDigest,
+    contextBindingDigest: input.contextBindingDigest,
+    queryDigest: input.queryDigest,
+    sourceIdentity: input.sourceIdentity,
+    offset: input.offset
+  }
+  const body = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url')
+  const integrity = fileDigest(`${MEMORY_CURSOR_SCHEMA}\0${body}`)
+  return `${MEMORY_CURSOR_PREFIX}.${body}.${integrity}`
+}
+
+function decodeMemoryCursor(token, expected) {
+  if (typeof token !== 'string' || !token || token.length > 8192 || token !== token.trim()) {
+    throw memoryQueryError(
+      'cursor must be one exact opaque MemoryCursorV1 token.',
+      'Pass nextCursor unchanged with the same query.',
+      'MEMORY_CURSOR_INVALID'
+    )
+  }
+  const parts = token.split('.')
+  if (parts.length !== 3 || parts[0] !== MEMORY_CURSOR_PREFIX || !/^[A-Za-z0-9_-]+$/.test(parts[1]) || !/^[a-f0-9]{64}$/.test(parts[2])) {
+    throw memoryQueryError('cursor encoding is invalid.', 'Pass nextCursor unchanged with the same query.', 'MEMORY_CURSOR_INVALID')
+  }
+  const integrity = fileDigest(`${MEMORY_CURSOR_SCHEMA}\0${parts[1]}`)
+  const supplied = Buffer.from(parts[2], 'hex')
+  const computed = Buffer.from(integrity, 'hex')
+  if (supplied.length !== computed.length || !crypto.timingSafeEqual(supplied, computed)) {
+    throw memoryQueryError('cursor integrity check failed.', 'Pass nextCursor unchanged with the same query.', 'MEMORY_CURSOR_INVALID')
+  }
+  let payload
+  try {
+    const decoded = Buffer.from(parts[1], 'base64url')
+    if (decoded.toString('base64url') !== parts[1]) throw new Error('non-canonical base64url')
+    payload = JSON.parse(decoded.toString('utf8'))
+  } catch {
+    throw memoryQueryError('cursor payload is invalid.', 'Pass nextCursor unchanged with the same query.', 'MEMORY_CURSOR_INVALID')
+  }
+  const validShape = payload && !Array.isArray(payload) && payload.schemaVersion === MEMORY_CURSOR_SCHEMA &&
+    typeof payload.tool === 'string' && /^[a-f0-9]{64}$/.test(payload.targetDigest || '') &&
+    /^[a-f0-9]{64}$/.test(payload.contextBindingDigest || '') && /^[a-f0-9]{64}$/.test(payload.queryDigest || '') &&
+    /^[a-f0-9]{64}$/.test(payload.sourceIdentity || '') && Number.isInteger(payload.offset) &&
+    payload.offset >= 0 && payload.offset <= MEMORY_CURSOR_MAX_OFFSET
+  if (!validShape) {
+    throw memoryQueryError('cursor payload does not satisfy MemoryCursorV1.', 'Use a current nextCursor from this tool.', 'MEMORY_CURSOR_INVALID')
+  }
+  for (const field of ['tool', 'targetDigest', 'contextBindingDigest', 'queryDigest']) {
+    if (payload[field] !== expected[field]) {
+      throw memoryQueryError(
+        `cursor ${field} does not match this request.`,
+        'Restart from the first page after changing tool, target, context binding, or query fields.',
+        'MEMORY_CURSOR_BINDING_MISMATCH'
+      )
+    }
+  }
+  return payload
+}
+
+function memoryCursorSourceIdentity(projection) {
+  const source = projection.source || {}
+  return memoryCursorDigest({
+    path: source.path || null,
+    exists: source.exists === true,
+    bytes: Number(source.bytes || 0),
+    modifiedAt: source.modifiedAt || null,
+    sourceDigest: source.sourceDigest || null,
+    sourcePrefixDigest: source.sourcePrefixDigest || null,
+    indexSourceIdentity: projection.coverage?.sourceIdentity || null
+  })
+}
+
+function resolveMemoryCursor(inputCursor, binding) {
+  if (inputCursor === undefined) return { offset: 0, payload: null }
+  const payload = decodeMemoryCursor(inputCursor, binding)
+  return { offset: payload.offset, payload }
+}
+
+function applyMemoryCursor(projection, options) {
+  const sourceIdentity = memoryCursorSourceIdentity(projection)
+  if (options.cursorState.payload && options.cursorState.payload.sourceIdentity !== sourceIdentity) {
+    throw memoryQueryError(
+      'Memory source changed after this cursor was issued.',
+      'Restart from the first page so the result set is based on one source identity.',
+      'MEMORY_CURSOR_SOURCE_CHANGED'
+    )
+  }
+  const returned = Number(options.returned || 0)
+  const hasMore = options.hasMore === true
+  const nextOffset = options.cursorState.offset + returned
+  const sourceComplete = projection.canonicalSourceTrust?.status !== 'partial' &&
+    projection.fallbackCoverage?.status !== 'partial'
+  const nextCursor = hasMore && sourceComplete && returned > 0
+    ? encodeMemoryCursor({
+        ...options.binding,
+        sourceIdentity,
+        offset: nextOffset
+      })
+    : null
+  projection.pagination = {
+    schemaVersion: 'MemoryPaginationV1',
+    cursorAccepted: Boolean(options.cursorState.payload),
+    returned,
+    hasMore,
+    sourceComplete,
+    nextCursor,
+    blockedReason: hasMore && !nextCursor
+      ? (returned === 0 ? 'page-made-no-progress' : 'canonical-source-partial')
+      : null
+  }
+  projection.nextCursor = nextCursor
+  return projection
 }
 
 function comparableActiveRoot(value) {
@@ -1835,9 +1977,9 @@ function queryStatusIndex(target, sourcePath, limit) {
   return MEMORY_INDEX_CONTRACT.queryStatusIndex({ target, sourcePath, limit })
 }
 
-function querySummaryIndex(target, sourcePath, status, limit, since) {
+function querySummaryIndex(target, sourcePath, status, limit, since, offset = 0) {
   if (!MEMORY_INDEX_CONTRACT) return { status: 'fallback', reason: 'index-module-unavailable' }
-  return MEMORY_INDEX_CONTRACT.querySummaryIndex({ target, sourcePath, status, limit, since })
+  return MEMORY_INDEX_CONTRACT.querySummaryIndex({ target, sourcePath, status, limit, since, offset })
 }
 
 function queryDailyIndex(target, sourcePath, input) {
@@ -1851,6 +1993,7 @@ function queryDailyIndex(target, sourcePath, input) {
     limit: input.limit,
     handoffOnly: input.handoffOnly,
     maxChars: input.maxChars,
+    offset: input.offset,
     extractHandoffCard
   })
 }
@@ -2157,15 +2300,6 @@ function handleMemorySessionQuery(args) {
       throw memoryQueryError('handoffOnly must be boolean.')
     }
     const handoffOnly = input.handoffOnly === true
-    const dailyPath = memoryClientPath(target, 'tasks', `${date}.md`)
-    const indexed = queryDailyIndex(target, dailyPath, {
-      date,
-      sessionId: normalizedSession,
-      status,
-      limit,
-      handoffOnly,
-      maxChars
-    })
     const query = {
       date,
       sessionId: requestedSessionId || null,
@@ -2174,6 +2308,18 @@ function handleMemorySessionQuery(args) {
       handoffOnly,
       maxChars
     }
+    const cursorBinding = memoryCursorBinding('memory_session_query', target, contextBinding, query)
+    const cursorState = resolveMemoryCursor(input.cursor, cursorBinding)
+    const dailyPath = memoryClientPath(target, 'tasks', `${date}.md`)
+    const indexed = queryDailyIndex(target, dailyPath, {
+      date,
+      sessionId: normalizedSession,
+      status,
+      limit,
+      handoffOnly,
+      maxChars,
+      offset: cursorState.offset
+    })
     if (indexed.status === 'fresh') {
       const source = {
         activeRoot: target.activeRoot,
@@ -2186,6 +2332,7 @@ function handleMemorySessionQuery(args) {
         schemaVersion: 'MemorySessionQueryV1',
         query,
         matches: indexed.matches,
+        totalMatched: indexed.totalMatched,
         truncated: indexed.envelope.truncated,
         source,
         warnings: indexed.warnings,
@@ -2194,6 +2341,12 @@ function handleMemorySessionQuery(args) {
         ...memoryIndexProjectionState('daily', indexed),
         contextBinding
       }
+      applyMemoryCursor(projection, {
+        binding: cursorBinding,
+        cursorState,
+        returned: indexed.matches.length,
+        hasMore: Boolean(indexed.envelope.nextPointer)
+      })
       return withProjectionIdentity(
         projection,
         'memory_session_query',
@@ -2206,16 +2359,16 @@ function handleMemorySessionQuery(args) {
     const scannedDaily = scanDailyQueryDocument(dailyPath, date, {
       normalizedSession,
       status,
-      limit,
+      limit: Math.min(MEMORY_CURSOR_MAX_OFFSET, cursorState.offset + limit),
       handoffOnly,
       maxChars
     })
     const document = scannedDaily.document
-    const candidates = scannedDaily.sessions.slice().reverse()
+    const candidates = scannedDaily.sessions.slice().reverse().slice(cursorState.offset, cursorState.offset + limit)
     const matches = []
     let remainingChars = maxChars
     let contentTruncated = false
-    for (const session of candidates.slice(0, limit)) {
+    for (const session of candidates) {
       if (remainingChars <= 0) {
         contentTruncated = true
         break
@@ -2251,7 +2404,8 @@ function handleMemorySessionQuery(args) {
       schemaVersion: 'MemorySessionQueryV1',
       query,
       matches,
-      truncated: !document.sourceScanComplete || scannedDaily.matchedCount > matches.length || contentTruncated,
+      totalMatched: scannedDaily.matchedCount,
+      truncated: !document.sourceScanComplete || scannedDaily.matchedCount > cursorState.offset + matches.length || contentTruncated,
       source,
       warnings: scannedDaily.warnings,
       indexReceipt: memoryIndexFallbackReceipt('daily', indexed),
@@ -2263,6 +2417,12 @@ function handleMemorySessionQuery(args) {
       ...memoryIndexProjectionState('daily', indexed, document),
       contextBinding
     }
+    applyMemoryCursor(projection, {
+      binding: cursorBinding,
+      cursorState,
+      returned: matches.length,
+      hasMore: scannedDaily.matchedCount > cursorState.offset + matches.length
+    })
     return withProjectionIdentity(projection, 'memory_session_query', target, [document], startedAt)
   })
 }
@@ -2285,9 +2445,11 @@ function handleMemorySummaryQuery(args) {
     }
     const since = input.since === undefined ? null : input.since
     if (since !== null) validateSince(since)
-    const summaryPath = memoryClientPath(target, 'SUMMARY.md')
-    const indexed = querySummaryIndex(target, summaryPath, status, limit, since)
     const query = { status, limit, since }
+    const cursorBinding = memoryCursorBinding('memory_summary_query', target, contextBinding, query)
+    const cursorState = resolveMemoryCursor(input.cursor, cursorBinding)
+    const summaryPath = memoryClientPath(target, 'SUMMARY.md')
+    const indexed = querySummaryIndex(target, summaryPath, status, limit, since, cursorState.offset)
     if (indexed.status === 'fresh') {
       const source = {
         activeRoot: target.activeRoot,
@@ -2308,6 +2470,12 @@ function handleMemorySummaryQuery(args) {
         ...memoryIndexProjectionState('summary', indexed),
         contextBinding
       }
+      applyMemoryCursor(projection, {
+        binding: cursorBinding,
+        cursorState,
+        returned: indexed.rows.length,
+        hasMore: Boolean(indexed.envelope.nextPointer)
+      })
       return withProjectionIdentity(
         projection,
         'memory_summary_query',
@@ -2320,7 +2488,7 @@ function handleMemorySummaryQuery(args) {
     const scannedSummary = scanSummaryDocument(summaryPath)
     const document = scannedSummary.document
     const filtered = rowsByCurrentState(scannedSummary.rows, status).filter(row => !since || row.day >= since)
-    const rows = filtered.slice().reverse().slice(0, limit)
+    const rows = filtered.slice().reverse().slice(cursorState.offset, cursorState.offset + limit)
     const source = {
       activeRoot: target.activeRoot,
       project: target.project,
@@ -2332,7 +2500,7 @@ function handleMemorySummaryQuery(args) {
       query,
       rows,
       totalMatched: filtered.length,
-      truncated: !document.sourceScanComplete || filtered.length > rows.length,
+      truncated: !document.sourceScanComplete || filtered.length > cursorState.offset + rows.length,
       source,
       warnings: scannedSummary.warnings,
       indexReceipt: memoryIndexFallbackReceipt('summary', indexed),
@@ -2344,6 +2512,12 @@ function handleMemorySummaryQuery(args) {
       ...memoryIndexProjectionState('summary', indexed, document),
       contextBinding
     }
+    applyMemoryCursor(projection, {
+      binding: cursorBinding,
+      cursorState,
+      returned: rows.length,
+      hasMore: filtered.length > cursorState.offset + rows.length
+    })
     return withProjectionIdentity(projection, 'memory_summary_query', target, [document], startedAt)
   })
 }
@@ -2362,7 +2536,12 @@ function handleMemorySessionRead(args) {
 }
 
 function handleMemorySessionWrite(args) {
-  validateMemoryWriterArgs(args, MEMORY_SESSION_WRITE_FIELDS, 'memory_session_write')
+  validateMemoryWriterArgs(
+    args,
+    MEMORY_SESSION_WRITE_FIELDS,
+    'memory_session_write',
+    MEMORY_SESSION_WRITE_REQUIRED_FIELDS
+  )
   if (typeof args.content !== 'string' || !args.content.length) {
     throw memoryQueryError(
       'content must be a non-empty string.',
@@ -2385,7 +2564,12 @@ function handleMemorySessionWrite(args) {
   const receipt = withMemoryTransaction(target, p, existing => {
     const rendered = insertMemorySessionContent(existing, args.content, binding)
     sessionWriteReceipt = rendered.receipt
-    return rendered.content
+    return {
+      content: rendered.content,
+      appendText: rendered.content.startsWith(existing)
+        ? rendered.content.slice(existing.length)
+        : null
+    }
   })
   receipt.sessionWrite = sessionWriteReceipt
   receipt.indexReceipt = refreshDailyMemoryIndex(target, p, args.date || today())
@@ -2439,7 +2623,8 @@ function handleMemorySessionAllocate(args) {
       ''
     ].join('\n')
     const separator = existing ? '\n\n' : ''
-    return existing + separator + block
+    const appendText = separator + block
+    return { content: existing + appendText, appendText }
   })
   receipt.indexReceipt = refreshDailyMemoryIndex(target, p, input.date)
   const allocation = {
@@ -2636,8 +2821,10 @@ function handleMemorySummaryAppend(args) {
   const target = resolveMemoryTarget(args)
   const p = memoryClientPath(target, 'SUMMARY.md')
   const receipt = withMemoryTransaction(target, p, existing => {
-    if (!existing) return summaryHeader(args.agent || target.agent, args) + finalRow + '\n'
-    return existing + finalRow + '\n'
+    const appendText = existing
+      ? finalRow + '\n'
+      : summaryHeader(args.agent || target.agent, args) + finalRow + '\n'
+    return { content: existing + appendText, appendText }
   })
   receipt.indexReceipt = refreshSummaryMemoryIndex(target, p)
   const parsed = parseSummaryRows(readFile(p))
@@ -2739,7 +2926,12 @@ if (require.main === module) {
 }
 
 module.exports = {
+  applyMemoryCursor,
+  decodeMemoryCursor,
   dispatch,
+  encodeMemoryCursor,
+  memoryCursorBinding,
+  memoryCursorSourceIdentity,
   parseDailySessions,
   parseSummaryRows,
   readMemoryDocument

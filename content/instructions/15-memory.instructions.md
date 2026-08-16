@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 记忆规则，覆盖 tasks、SUMMARY、需求记忆的读取顺序、写入时机与格式约束
 priority: P5
-version: 1.17.8
+version: 1.17.9
 ---
 # 记忆写入规则（15-memory）
 
@@ -53,6 +53,12 @@ daily/SUMMARY 仍是唯一真相源：受管 writer 在文件提交后刷新索�
 `indexReceipt/coverage`，不得改变旧字段、排序和错误语义；byte-range 或截断结果
 不得升级为完整正文已验证。
 
+### MemoryCursorGate
+
+- `memory_session_query` / `memory_summary_query` 首次可省略 cursor；有安全下一页时返回 `MemoryPaginationV1.nextCursor`，调用方必须把 opaque `MemoryCursorV1` 原样传回同一个 tool。
+- cursor 绑定 target/activeRoot、`ContextReadBindingV1`、query digest、canonical source identity 与 offset。任一字段或 source identity 漂移必须稳定返回 cursor mismatch，禁止静默退回第一页；source coverage 为 partial 时不得签发无法安全续读的 next cursor。
+- 分页成功只能证明已返回页和明确 coverage；只有完整消费同一绑定下的全部页，才可把对应范围标为 complete。
+
 | 场景 | 读取范围 | 执行顺序 |
 |------|---------|---------|
 | **命名续接 · 首步** | 完整消息为 `继续<任务名>任务` / `继续 <任务名>` 时调用 `memory_task_resolve(name, project?)`；只返回有界 identity/session/CP metadata | 先于通用 resume 查询 |
@@ -74,6 +80,12 @@ daily/SUMMARY 仍是唯一真相源：受管 writer 在文件提交后刷新索�
 
 新任务在授权创建任务目录时同步创建 `<task-root>/.memory/task.json`（`TaskIdentityV1`：稳定 UUID `taskId`、`displayName`、去重 `aliases`、`createdAt`、递增 `identityRevision`）。`project/kind/path` 从安全目录派生，status/CP 继续只由 sessions 与绑定 artifact digest 决定。legacy 任务可只读唯一解析，但查询不得主动物化 identity；派生 index 损坏、锁竞争或写预算达限时走 bounded rebuild/bypass，不得覆盖 canonical task/session。
 结构化记忆投影必须携带可验证的 `ContentIdentityV1`；telemetry、wall clock 和调用身份不进入内容 digest。旧 `memory_session_read` / `memory_summary_read` 保持兼容，但 no-args 全文结果不是生产默认路径，也不能单独把 `ContextReadReceiptV2`（或兼容的 `ContextReadReceiptV1`）推进到 `relevant-complete/completed`。
+
+### MemoryFileTransactionGate
+
+- `memory_session_allocate`、`memory_session_write`、`memory_summary_append` 与 CP 状态写入共用 `MemoryFileTransactionV1` owner；成功提交必须返回 `MemoryFileTransactionReceiptV1`，包含 before/after digest、final CAS、flush/directory durability、readback、bytesRead/bytesWritten/writeAmplificationRatio 与 metadata receipt。
+- 已存在 canonical 文件的纯 EOF 增长走 append fast path；创建走 atomic temp+rename，中段更新保留 rewrite。append/rewrite 都必须在最终写入窗口重新比较 source identity，外部编辑时 fail closed 且不得覆盖。
+- POSIX rewrite 保留 mode/uid/gid，新文件 mode=0600；Windows DACL 未执行真实 before/after probe 时必须明确 `WARN/UNVERIFIED`，不得用 POSIX mode 模拟 PASS。事务只清理由自己创建的临时文件。
 
 ## Context Rehydration Contract（记忆侧）
 

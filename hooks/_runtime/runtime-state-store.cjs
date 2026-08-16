@@ -38,7 +38,8 @@ function createRuntimeStateStore({ activeRoot, project = '', relativePath, ...op
     lockPath: primary.lockPath,
     roots,
     read,
-    write: primary.write
+    write: primary.write,
+    update: primary.update
   })
 }
 

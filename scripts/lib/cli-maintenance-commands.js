@@ -1048,7 +1048,7 @@ function buildCliMaintenanceCommands(ctx) {
       doctor: ['devcodex doctor [--completion] [--json]', 'Diagnose adapter, native host and workflow readiness.'],
       profile: ['devcodex profile plan|init [--tier <tier>] [--dry-run] [--force] [--prod]', 'Preview or create an advanced project Profile. Ordinary workspaces only need `devcodex init`.'],
       runtime: ['devcodex runtime status|prune [--dry-run|--apply] [--json]', 'Inspect runtime-state usage or preview safe stale-temp cleanup.'],
-      tmp: ['devcodex tmp status|prune [--dry-run|--apply] [--json]', 'Inspect the canonical workspace temp root or conservatively prune manifest-owned expired artifacts.'],
+      tmp: ['devcodex tmp status|maintain [--apply --project=<id> --partition=<name>] [--json]', 'Inspect scoped workspace temp inventory or build a bounded maintenance plan; prune remains a compatibility alias.'],
       uninstall: ['devcodex uninstall [--dry-run|--apply] [--json] [--home <dir>]', 'Preview or explicitly remove receipt-owned user-global host artifacts. After --apply succeeds, run `npm uninstall -g devcodex`.'],
       'global-adapters': ['devcodex global-adapters apply [--dry-run] [--json] | devcodex global-adapters remove [--dry-run|--apply] [--json]', 'Advanced: refresh or safely remove user-global host adapters from the current package root.'],
       grok: ['devcodex grok [Grok CLI options]', 'Launch Grok with the user-global DevCodex kernel.'],
@@ -1086,8 +1086,8 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('doctor')}            Diagnose installation or workflow problems
       ${c.cyan('runtime status')}    Inspect runtime-state owners, size and last-use timestamps
       ${c.cyan('runtime prune')}     Preview safe stale-temp cleanup; add --apply to remove
-      ${c.cyan('tmp status')}        Inspect canonical workspace temporary artifacts and blocked legacy entries
-      ${c.cyan('tmp prune')}         Preview manifest-owned TTL cleanup; add --apply to remove
+      ${c.cyan('tmp status')}        Inspect project/partition temp inventory, completeness and pagination
+      ${c.cyan('tmp maintain')}      Build a quota-bound plan; apply requires one explicit complete scope
       ${c.cyan('uninstall')}         Preview managed six-host cleanup; add --apply before npm uninstall
       ${c.cyan('profile init|plan')} Generate tiered Profile drafts or preview actions without writing
       ${c.cyan('help <command>')}    Show read-only help for one command

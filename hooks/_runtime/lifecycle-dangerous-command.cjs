@@ -277,7 +277,7 @@ function buildLifecycleDangerousCommandUtils({
     }
     const danger = DANGEROUS_PATTERNS.find(p => p.re.test(stripped))
     if (!danger) return null
-    return { ...danger, command: cmd }
+    return { ...danger, command: cmd, cwd }
   }
 
   function extractApprovalId(command) {
@@ -303,15 +303,16 @@ function buildLifecycleDangerousCommandUtils({
 
   function createDangerousApproval(state, danger) {
     pruneDangerousApprovals(state)
-    const commandHash = hashDangerousCommand(danger.command, CONTEXT_ROOT)
+    const resolvedCwd = path.resolve(String(danger.cwd || CONTEXT_ROOT))
+    const commandHash = hashDangerousCommand(danger.command, resolvedCwd)
     const approvalId = commandHash.slice(0, 12)
     const existing = state.dangerousApprovals?.[approvalId]
-    if (existing && !existing.used && existing.commandHash === commandHash && existing.cwd === path.resolve(CONTEXT_ROOT)) {
+    if (existing && !existing.used && existing.commandHash === commandHash && existing.cwd === resolvedCwd) {
       return approvalId
     }
     state.dangerousApprovals[approvalId] = {
       commandHash,
-      cwd: path.resolve(CONTEXT_ROOT),
+      cwd: resolvedCwd,
       reason: danger.reason,
       status: 'pending',
       createdAt: new Date().toISOString(),
@@ -357,8 +358,9 @@ function buildLifecycleDangerousCommandUtils({
     const approvalId = extractApprovalId(danger.command)
     if (!approvalId) return { approved: false }
     const approval = state.dangerousApprovals?.[approvalId]
-    const commandHash = hashDangerousCommand(danger.command, CONTEXT_ROOT)
-    if (!approval || approval.used || approval.status !== 'confirmed' || approval.commandHash !== commandHash || approval.cwd !== path.resolve(CONTEXT_ROOT)) {
+    const resolvedCwd = path.resolve(String(danger.cwd || CONTEXT_ROOT))
+    const commandHash = hashDangerousCommand(danger.command, resolvedCwd)
+    if (!approval || approval.used || approval.status !== 'confirmed' || approval.commandHash !== commandHash || approval.cwd !== resolvedCwd) {
       return { approved: false, approvalId }
     }
     approval.used = true

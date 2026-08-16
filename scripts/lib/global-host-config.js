@@ -412,7 +412,14 @@ function buildVscodeMcpServers (runtimeRoot, options = {}) {
  */
 function mergeVscodeUserMcpContent (existingText, runtimeRoot, options = {}) {
   const doc = parseJsonObject(existingText, 'VS Code user mcp.json')
-  if (!doc.servers || typeof doc.servers !== 'object' || Array.isArray(doc.servers)) {
+  const hasServers = Object.prototype.hasOwnProperty.call(doc, 'servers')
+  if (hasServers && (!doc.servers || typeof doc.servers !== 'object' || Array.isArray(doc.servers))) {
+    const error = new Error('VS Code user mcp.json field "servers" must be an object when present')
+    error.name = 'GlobalHostConfigContractError'
+    error.code = 'VSCODE_MCP_SERVERS_INVALID_TYPE'
+    throw error
+  }
+  if (!hasServers) {
     doc.servers = {}
   }
   const managed = buildVscodeMcpServers(runtimeRoot, options)
@@ -487,6 +494,13 @@ function transformedHookTemplate(packageRoot, target, sourceRelative, host, fsIm
     Object.keys(value.hooks || {})
   )
   return value
+}
+
+function grokGlobalHookDelegationDocument() {
+  return {
+    description: 'DevCodex global lifecycle is owned by the enabled devcodex-workspace plugin; duplicate managed global handlers are intentionally retired.',
+    hooks: {}
+  }
 }
 
 function addCopilotPlan(operations, target, packageRoot, fsImpl) {
@@ -669,13 +683,7 @@ function addGeminiPlan(operations, target, packageRoot, fsImpl) {
 
 function addGrokPlan(operations, target, packageRoot, fsImpl) {
   addCommonRuntime(operations, target, packageRoot, fsImpl)
-  const globalHooks = transformedHookTemplate(
-    packageRoot,
-    target,
-    path.join('grok', 'hooks', 'devcodex.json'),
-    'grok',
-    fsImpl
-  )
+  const globalHooks = grokGlobalHookDelegationDocument()
   addFileOperation(
     operations,
     target.host,
@@ -1517,6 +1525,7 @@ function applyGlobalHostConfig(options = {}) {
           }
         },
         dryRun: options.dryRun === true,
+        transactionRoot: path.join(target.runtimeBaseRoot || path.join(target.root, 'devcodex'), 'transactions'),
         failAfter
       })
       hostTransaction.preservedNativeSkillCollisions = [
@@ -1618,7 +1627,8 @@ function applyGlobalHostConfig(options = {}) {
                   allowedFiles: target.additionalFiles || [],
                   safetyRoots
                 }
-              }
+              },
+              transactionRoot: path.join(target.runtimeBaseRoot || path.join(target.root, 'devcodex'), 'transactions')
             })
             hostTransaction.changed += receiptFinalization.changed || 0
             hostTransaction.receiptFinalization = receiptFinalization.status
@@ -1995,6 +2005,7 @@ module.exports = {
   cursorHookDocument,
   buildMcpServers,
   buildVscodeMcpServers,
+  grokGlobalHookDelegationDocument,
   hostToRuntimeAgent,
   mergeVscodeUserMcpContent,
   copilotHookDocument,

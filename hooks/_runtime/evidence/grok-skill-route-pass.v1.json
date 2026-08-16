@@ -3,26 +3,26 @@
   "status": "PASS",
   "portable": true,
   "hostVariant": "grok-cli-single/global-launcher-local-stdio",
-  "testedVersion": "grok 1.0.0 (3cd0d0cbce)",
+  "testedVersion": "grok 1.0.4 (d846eb93d9)",
   "protocol": "MCP 2024-11-05",
-  "runtimeContractDigest": "c04dcee2910b32d688c430afecd66dfefb00c2af9c9c86c0857ec3e7366708e1",
-  "hostAdapterDigest": "65cc18f62bdfa64ba4d33ae32087522be74c47f03e098ca92bb5918cced2a7b5",
-  "sourceEvidenceDigest": "ae11cb6f5cbca6f7d41e30e13b110f21a2a83ca233a1c947141e6c53790b82b9",
+  "runtimeContractDigest": "eee026a79787348c9ee5fc17872974224184b31c29e8613e6a97ec7609737b9e",
+  "hostAdapterDigest": "4ff2b358a3014b0e18914e7986b9eeedbea73936e23ab838da6c495889b513df",
+  "sourceEvidenceDigest": "a465ee456a27735b1b3e07df0e42d64b847de8dfb719aab4fa3694241ed10d5c",
   "sourceProbe": {
     "schemaVersion": "SkillRouteS15EvidenceV1",
-    "probeRunId": "s15-grok-probe-9d1e0f5f-0486-4211-8570-36336393a39f",
+    "probeRunId": "s15-grok-probe-79460820-201c-456b-b738-cdffe153711c",
     "authorizationSource": "installed-source-probe-authority",
     "contextSource": "host-hooks",
     "observationMode": "structured-context-receipt",
     "receiptStatus": "relevant-complete",
-    "completedAt": "2026-08-15T19:41:34.376Z"
+    "completedAt": "2026-08-16T17:41:52.559Z"
   },
   "runtimeBinding": {
     "source": "installed-source-candidate",
-    "expectedDigest": "c04dcee2910b32d688c430afecd66dfefb00c2af9c9c86c0857ec3e7366708e1",
-    "generationDigest": "c04dcee2910b32d688c430afecd66dfefb00c2af9c9c86c0857ec3e7366708e1",
-    "modeReceiptDigest": "c04dcee2910b32d688c430afecd66dfefb00c2af9c9c86c0857ec3e7366708e1",
-    "routeEnvelopeDigest": "c04dcee2910b32d688c430afecd66dfefb00c2af9c9c86c0857ec3e7366708e1"
+    "expectedDigest": "eee026a79787348c9ee5fc17872974224184b31c29e8613e6a97ec7609737b9e",
+    "generationDigest": "eee026a79787348c9ee5fc17872974224184b31c29e8613e6a97ec7609737b9e",
+    "modeReceiptDigest": "eee026a79787348c9ee5fc17872974224184b31c29e8613e6a97ec7609737b9e",
+    "routeEnvelopeDigest": "eee026a79787348c9ee5fc17872974224184b31c29e8613e6a97ec7609737b9e"
   },
   "crossHostIsolation": {
     "cursorHooksCompatibility": {
@@ -31,8 +31,10 @@
     },
     "cursorHookSourceCount": 0,
     "devcodexGrokHooks": {
-      "userGlobal": true,
-      "plugin": true
+      "userGlobal": false,
+      "plugin": true,
+      "mutationOwner": "plugin",
+      "managedPhysicalDeclarations": 6
     }
   },
   "probe": {

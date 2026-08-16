@@ -224,6 +224,7 @@ function buildTestHooksRuntimeFixtures({
         latestRows: [],
         activeSessionIds: [],
         conflicts: [],
+        coverage: { status: 'complete' },
         telemetry: { bytes: 0, chars: 0, latencyMs: 0, tokens: null }
       }
     }, cwd)

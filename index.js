@@ -18,7 +18,10 @@ const { buildCliObservabilityCommands } = require('./scripts/lib/cli-observabili
 const { buildCliExecutionCommands } = require('./scripts/lib/cli-execution-commands.js')
 const { buildCliRuntimeCommands } = require('./scripts/lib/cli-runtime-commands.js')
 const { buildCliTempCommands } = require('./scripts/lib/cli-temp-commands.js')
-const { prepareWorkspaceTempBackupRoot, registerWorkspaceTempBackup } = require('./scripts/lib/workspace-temp.js')
+const {
+  prepareWorkspaceTempBackupRoot,
+  withWorkspaceTempBackup
+} = require('./scripts/lib/workspace-temp.js')
 const {
   resolveWorkspaceTempBackupRoot: sharedResolveWorkspaceTempBackupRoot,
   resolveWorkspaceTempProject: sharedResolveWorkspaceTempProject,
@@ -190,10 +193,11 @@ const DEVCODEX_GITIGNORE_ENTRIES = [
   '.devcodex/workspace/.tmp/',
   '.devcodex/profile/config.local.json',
   '.devcodex/workspace/profile/config.local.json',
-  '.devcodex/*/.memory/',
-  '.devcodex/*/.audit-state/',
-  '.devcodex/*/.tmp/',
-  '.devcodex/*/profile/config.local.json'
+  '.devcodex/*/profile/config.local.json',
+  '.devcodex/**/.memory/',
+  '.devcodex/**/.audit-state/',
+  '.devcodex/**/.tmp/',
+  '.devcodex/**/profile/config.local.json'
 ]
 
 /**
@@ -367,7 +371,7 @@ const { cmdInitWorkspaceRuntime, cmdInitHost, cmdUninstallHost } = buildCliInsta
   mergeClaudeHooks, mergeClaudeMcpConfig, mergeCodexConfigToml, CODEX_MCP_MANAGED_BEGIN,
   ensureWorkspaceNamespaceLayout, ensureRuntimeDirs, ensureDevCodexGitignore, walkDir,
   resolveActiveRuntimeRoot, resolveGitignoreRoot, getLegacyCounts, isPlainObject,
-  prepareWorkspaceTempBackupRoot, registerWorkspaceTempBackup, resolveWorkspaceTempBackupRoot,
+  prepareWorkspaceTempBackupRoot, withWorkspaceTempBackup, resolveWorkspaceTempBackupRoot,
   resolveHostAdapterScope, writeGrokPluginRegistration,
   syncGrokPluginInstallation, syncGrokWorkspacePluginInstallation,
   uninstallGrokPluginInstallation,

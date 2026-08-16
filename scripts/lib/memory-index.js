@@ -381,6 +381,7 @@ function querySummaryIndex(input = {}) {
     }
     const status = input.status || 'active'
     const limit = input.limit || 5
+    const offset = Number.isInteger(input.offset) && input.offset >= 0 ? input.offset : 0
     const since = input.since || null
     let candidates
     let totalMatched
@@ -398,6 +399,23 @@ function querySummaryIndex(input = {}) {
         .map(rowNumber => rowsByNumber.get(rowNumber))
         .filter(Boolean)
       totalMatched = currentPayload.counts[status] || 0
+      if (totalMatched > candidates.length && offset + limit > candidates.length) {
+        const descriptors = fresh.current.manifest.partitions
+          .filter(item => item.metadata?.kind === 'summary-month')
+        const rows = []
+        for (const descriptor of descriptors) {
+          const month = store.readPartition(descriptor.key, { current: fresh.current })
+          if (month.status !== 'fresh' || month.payload.schemaVersion !== SUMMARY_MONTH_SCHEMA) {
+            return fallback(`summary-month-${month.status}`, month)
+          }
+          filesRead += 1
+          bytesRead += Math.max(0, month.bytesRead - fresh.current.bytesRead)
+          evidencePointers.push(month.objectIdentity)
+          rows.push(...month.payload.rows)
+        }
+        candidates = rowsByCurrentState(rows, status)
+        totalMatched = candidates.length
+      }
     } else {
       const startMonth = since.slice(0, 7)
       const descriptors = fresh.current.manifest.partitions
@@ -416,7 +434,8 @@ function querySummaryIndex(input = {}) {
       candidates = rowsByCurrentState(rows, status).filter(row => row.day >= since)
       totalMatched = candidates.length
     }
-    const items = candidates.slice().reverse().slice(0, limit)
+    const items = paginateMemoryItems(candidates.slice().reverse(), offset, limit)
+    const nextOffset = offset + items.length
     return {
       status: 'fresh',
       source: currentPayload.source,
@@ -428,8 +447,8 @@ function querySummaryIndex(input = {}) {
         freshnessTier: fresh.current.freshnessTier,
         coverage: { status: 'complete', sourceIdentity: fresh.current.pointer.sourceIdentity },
         items,
-        truncated: totalMatched > items.length,
-        nextPointer: totalMatched > items.length ? { offset: items.length } : null,
+        truncated: totalMatched > nextOffset,
+        nextPointer: totalMatched > nextOffset ? { offset: nextOffset } : null,
         evidencePointers,
         telemetry: {
           sourceBytes: bytesRead,
@@ -537,6 +556,14 @@ function stateMatches(actual, expected) {
   return actual === expected
 }
 
+function paginateMemoryItems(items, offset, limit) {
+  if (!Array.isArray(items)) throw new Error('memory pagination items must be an array')
+  if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1) {
+    throw new Error('memory pagination requires a non-negative offset and positive limit')
+  }
+  return items.slice(offset, offset + limit)
+}
+
 function queryDailyIndex(input = {}) {
   try {
     const target = normalizeTarget(input.target)
@@ -553,10 +580,12 @@ function queryDailyIndex(input = {}) {
       if (input.handoffOnly && !session.hasHandoff) return false
       return true
     })
+    const offset = Number.isInteger(input.offset) && input.offset >= 0 ? input.offset : 0
+    const selectedCandidates = paginateMemoryItems(candidates, offset, input.limit || 1)
     const matches = []
     let remainingChars = input.maxChars || 12000
     let sourceBytes = 0
-    for (const session of candidates.slice(0, input.limit || 1)) {
+    for (const session of selectedCandidates) {
       if (remainingChars <= 0) break
       const startByte = input.handoffOnly ? session.handoffStartByte : session.startByte
       const endByte = input.handoffOnly ? session.handoffEndByte : session.endByte
@@ -579,11 +608,14 @@ function queryDailyIndex(input = {}) {
       remainingChars -= content.length
       if (range.truncated) break
     }
-    const truncated = candidates.length > matches.length || matches.some(item => item.truncated)
+    const nextOffset = offset + matches.length
+    const hasMoreItems = candidates.length > nextOffset
+    const truncated = hasMoreItems || matches.some(item => item.truncated)
     return {
       status: 'fresh',
       source: payload.source,
       matches,
+      totalMatched: candidates.length,
       warnings: payload.warnings,
       envelope: buildQueryEnvelope({
         status: 'fresh',
@@ -591,7 +623,7 @@ function queryDailyIndex(input = {}) {
         coverage: { status: 'complete', sourceIdentity: fresh.current.pointer.sourceIdentity },
         items: matches,
         truncated,
-        nextPointer: truncated ? { offset: matches.length } : null,
+        nextPointer: hasMoreItems ? { offset: nextOffset } : null,
         evidencePointers: [
           fresh.partition.pointerIdentity,
           fresh.partition.manifestIdentity,
@@ -637,6 +669,7 @@ module.exports = {
   compactReceipt,
   observationMatches,
   observeSource,
+  paginateMemoryItems,
   queryDailyIndex,
   queryStatusIndex,
   querySummaryIndex,

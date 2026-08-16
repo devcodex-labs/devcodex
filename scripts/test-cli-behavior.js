@@ -13,7 +13,7 @@ const {
   isSourceCandidateMismatch
 } = require('./lib/cli-maintenance-commands.js')
 const { readControlInstructionRoot, resolveControlAsset } = require('./lib/control-content-delivery')
-const { inspectWorkspaceTemp } = require('./lib/workspace-temp.js')
+const { inspectWorkspaceTempGovernance } = require('./lib/workspace-temp-governance.js')
 const {
   buildDevCodexReadiness,
   readCurrentSessionEvidence
@@ -739,37 +739,43 @@ function testRuntimeStatusAndPruneAreBounded() {
 }
 
 function testWorkspaceTempStatusAndPruneAreManifestBounded() {
-  const { registerWorkspaceTempArtifactAtRoot } = require('./lib/workspace-temp.js')
+  const { withWorkspaceTempArtifactAtRoot } = require('./lib/workspace-temp.js')
   const root = createTempRoot('devcodex-cli-workspace-temp-')
   writeFile(root, 'package.json', '{ "name": "workspace-temp" }\n')
   runCli(['init'], root)
   const tempRoot = indexApi.resolveWorkspaceTempRoot(root)
-  const target = path.join(tempRoot, 'runs', 'workspace', 'cli-test', 'expired')
-  writeFile(target, 'result.txt', 'expired\n')
-  registerWorkspaceTempArtifactAtRoot(tempRoot, {
+  const artifact = withWorkspaceTempArtifactAtRoot(tempRoot, {
     artifactId: 'cli-expired-run',
     type: 'run',
     owner: 'cli-behavior-test',
     project: 'workspace',
     producer: 'cli-test',
-    targetPath: target,
-    createdAt: '2026-07-01T00:00:00.000Z',
-    expiresAt: '2026-07-02T00:00:00.000Z'
-  })
+    targetName: 'result.txt',
+    nowMs: Date.parse('2026-07-01T00:00:00.000Z'),
+    ttlMs: 24 * 60 * 60 * 1000
+  }, ({ targetPath }) => fs.writeFileSync(targetPath, 'expired\n'))
+  const target = artifact.targetPath
 
   const status = JSON.parse(runCli(['tmp', 'status', '--json'], root))
-  assert.strictEqual(status.payload.schemaVersion, 'WorkspaceTempStatusV1')
+  assert.strictEqual(status.payload.schemaVersion, 'WorkspaceTempGovernanceStatusV2')
   assert.strictEqual(status.payload.canonicalRoot, tempRoot)
-  assert.strictEqual(status.payload.totals.candidates, 1)
+  assert.strictEqual(status.payload.totals.eligible, 1)
   const preview = JSON.parse(runCli(['tmp', 'prune', '--json'], root))
-  assert.strictEqual(preview.payload.mode, 'dry-run')
+  assert.strictEqual(preview.payload.receipt.mode, 'plan-only')
   assert.ok(fs.existsSync(target), 'tmp prune defaults to a zero-write preview')
   const conflict = JSON.parse(runCliFailure(['tmp', 'prune', '--dry-run', '--apply', '--json'], root))
   assert.strictEqual(conflict.errorCode, 'CLI_INVALID_OPTION')
-  const applied = JSON.parse(runCli(['tmp', 'prune', '--apply', '--json'], root))
-  assert.strictEqual(applied.payload.removed.length, 1)
+  const missingScope = JSON.parse(runCliFailure(['tmp', 'prune', '--apply', '--json'], root))
+  assert.strictEqual(missingScope.errorCode, 'WORKSPACE_TEMP_EXPLICIT_COMPLETE_SCOPE_REQUIRED')
+  const applied = JSON.parse(runCli([
+    'tmp', 'prune', '--apply', '--project=workspace', '--partition=runs', '--json'
+  ], root))
+  assert.strictEqual(applied.payload.receipt.removed.length, 1)
   assert.ok(!fs.existsSync(target), 'tmp prune --apply removes only the inspected eligible target')
-  assert.match(runCli(['help', 'tmp'], root), /canonical workspace temp root/i)
+  assert.match(
+    runCli(['help', 'tmp'], root),
+    /scoped workspace temp inventory.*prune remains a compatibility alias/is
+  )
 
   fs.rmSync(root, { recursive: true, force: true })
 }
@@ -885,9 +891,11 @@ function testCodexInitBacksUpManagedFiles() {
     findBackups(backupRoot, 'config.toml').length >= 1,
     'changing existing .codex/config.toml must create a backup'
   )
-  const tempStatus = inspectWorkspaceTemp(root)
-  assert.strictEqual(tempStatus.blocked.some(item => item.reasons.includes('unknown-owner')), false)
-  assert.ok(tempStatus.manifests.some(item => item.producer === 'codex-config-toml'))
+  const tempStatus = inspectWorkspaceTempGovernance(root)
+  assert.strictEqual(tempStatus.scopes.flatMap(scope => scope.blocked)
+    .some(item => item.reasons.includes('unknown-owner')), false)
+  assert.ok(tempStatus.scopes.flatMap(scope => scope.allRecords)
+    .some(item => item.producer === 'codex-config-toml'))
 
   const doctor = JSON.parse(runCli(['doctor', '--json'], root))
   assert.strictEqual(doctor.ok, true)

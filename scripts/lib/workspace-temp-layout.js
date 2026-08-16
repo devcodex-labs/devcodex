@@ -86,11 +86,9 @@ function resolveWorkspaceTempProject(cwdOrActiveRoot, explicitProject = '') {
   }
 
   const projectRoot = resolveLegacyWorkspaceRoot(absolute)
-  const project = String(explicitProject || '').trim() || path.basename(projectRoot) || 'workspace'
-  if (path.isAbsolute(project) || /[\\/]/.test(project) || project === '.' || project === '..') {
-    throw new Error(`invalid legacy temporary project partition: ${project}`)
-  }
-  return project
+  const project = String(explicitProject || '') || path.basename(projectRoot) || 'workspace'
+  if (!explicitProject && project === 'workspace') return 'workspace'
+  return normalizeProjectNamespace(project, { layout, allowEmpty: false })
 }
 
 /** Resolve the project-partitioned backup root beneath the canonical temp root. */

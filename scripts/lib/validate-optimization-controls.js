@@ -101,6 +101,10 @@ function buildOptimizationControlChecks(ctx) {
         if (!node?.inputs?.includes(input)) err(`[V92] ${nodeId} missing tracked consumer input: ${input}`)
       }
     }
+    const globalHostRemovalNode = validationManifest.nodes?.find(item => item.id === 'global-host-removal')
+    if (!globalHostRemovalNode || Number(globalHostRemovalNode.timeoutMs) < 600000) {
+      err('[V92] global-host-removal timeout must cover the measured Windows six-host removal matrix')
+    }
     const requiredPackageFiles = [
       'scripts/validation-manifest.json',
       'scripts/run-validation.js',
@@ -128,7 +132,7 @@ function buildOptimizationControlChecks(ctx) {
       if (!pkg.files?.includes(relative)) err(`[V92] package files missing validation DAG consumer: ${relative}`)
     }
     const profileContract = read(path.join(ROOT, 'mcp/profile-server.js'))
-    for (const needle of ['profile_skill_plan', 'sectionSelectors', 'ProfileLoadReceiptV2', 'BundleDecisionV2']) {
+    for (const needle of ['profile_skill_plan', 'sectionSelectors', 'ProfileLoadReceiptV3', 'BundleDecisionV2']) {
       if (!profileContract.includes(needle)) err(`[V92] Profile/Skill progressive-load contract missing: ${needle}`)
     }
     const profileSelector = read(path.join(ROOT, 'mcp/profile-section-selector.cjs'))

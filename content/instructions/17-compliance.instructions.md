@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 模式合规检查规则，覆盖 FC/SC/RC/T、入口检查与完成验证
 priority: P4
-version: 1.17.8
+version: 1.17.9
 ---
 # 合规检查规则（17-compliance）
 

@@ -9,6 +9,7 @@ const { spawnSync } = require('child_process')
 const {
   applyGlobalHostConfig,
   buildGlobalHostConfigPlan,
+  grokGlobalHookDelegationDocument,
   MCP_RUNTIME_DEPS,
   inspectGlobalHostConfig,
   inspectGlobalHostConfiguration,
@@ -25,6 +26,7 @@ const {
   tomlManagedFileMatches
 } = require('./lib/global-host-config-merge.js')
 const {
+  buildHostHookCommand,
   canonicalNodeExecutable,
   decodeHostHookCommand
 } = require('./lib/host-command.js')
@@ -36,10 +38,11 @@ const {
   contextAcquisitionObservedTools
 } = require('./lib/s15-context-evidence.js')
 const {
+  isGrokImportedClaudeHook,
   resolveCurrentAdapter
 } = require('../hooks/_runtime/host-hook-launcher.cjs')
 const {
-  executeGlobalHostTransaction
+  executeGlobalHostTransaction: executeGlobalHostTransactionRaw
 } = require('./lib/global-host-config-transaction.js')
 const {
   GLOBAL_HOST_IDS,
@@ -56,6 +59,12 @@ const packageRoot = path.resolve(__dirname, '..')
 const cliEntry = path.join(packageRoot, 'index.js')
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-global-host config with spaces-'))
 let tempCleaned = false
+function executeGlobalHostTransaction(operations, options = {}) {
+  return executeGlobalHostTransactionRaw(operations, {
+    ...options,
+    transactionRoot: options.transactionRoot || path.join(options.allowedRoots[0], '.devcodex-test-transactions')
+  })
+}
 function cleanupTempFixture() {
   if (tempCleaned) return
   fs.rmSync(tmp, { recursive: true, force: true })
@@ -242,6 +251,20 @@ assert.strictEqual(isDevCodexManagedHookEntry({
   matcher: '',
   hooks: [{ type: 'command', command: legacyClaudeCompatibleCommand }]
 }), true)
+const legacyGrokManagedCommand = 'node .grok/hooks/_runtime/lifecycle-host-adapters.cjs grok'
+const grokUserCommand = 'echo grok-user-hook'
+assert.strictEqual(isDevCodexManagedHookEntry(legacyGrokManagedCommand), true)
+fs.mkdirSync(path.join(home, '.grok', 'hooks'), { recursive: true })
+fs.writeFileSync(path.join(home, '.grok', 'hooks', 'devcodex.json'), JSON.stringify({
+  description: 'legacy global Grok hooks with user-owned content',
+  hooks: {
+    PreToolUse: [
+      { matcher: 'user', hooks: [{ type: 'command', command: grokUserCommand }] },
+      { matcher: '', hooks: [{ type: 'command', command: legacyGrokManagedCommand }] }
+    ],
+    Stop: [{ matcher: '', hooks: [{ type: 'command', command: legacyGrokManagedCommand }] }]
+  }
+}, null, 2) + '\n')
 fs.mkdirSync(path.join(home, '.cursor'), { recursive: true })
 fs.writeFileSync(path.join(home, '.cursor', 'hooks.json'), JSON.stringify({
   version: 1,
@@ -315,6 +338,28 @@ const hostileHookProbe = spawnSync(hostileHookCommand, {
 })
 assert.strictEqual(hostileHookProbe.status, 0, hostileHookProbe.stderr || hostileHookProbe.stdout)
 assert.deepStrictEqual(JSON.parse(hostileHookProbe.stdout), ['grok'])
+const directHostHookCommand = buildHostHookCommand(hostileHookScript, ['grok'])
+assert.deepStrictEqual(hookCommandArgv(directHostHookCommand), [hostileHookScript, 'grok'])
+if (process.platform === 'win32') {
+  assert.match(directHostHookCommand, /^cmd\.exe \/d \/s \/c call /)
+  const powershellHookProbe = spawnSync('powershell.exe', [
+    '-NoProfile',
+    '-NonInteractive',
+    '-Command',
+    directHostHookCommand
+  ], {
+    cwd: workspace,
+    encoding: 'utf8',
+    env: { ...env, DEVCODEX_EXPAND: 'MUST_NOT_EXPAND' },
+    windowsHide: true
+  })
+  assert.strictEqual(
+    powershellHookProbe.status,
+    0,
+    powershellHookProbe.stderr || powershellHookProbe.stdout
+  )
+  assert.deepStrictEqual(JSON.parse(powershellHookProbe.stdout), ['grok'])
+}
 
 const plan = buildGlobalHostConfigPlan({ packageRoot, env, home })
 assert.strictEqual(plan.workspaceHostDirectoriesWritten, false)
@@ -455,6 +500,47 @@ for (const target of targets) {
   assert.strictEqual(probePayload.host, target.host)
   assert.strictEqual(probePayload.status, 'passed')
 }
+const grokReservedEnvNames = [
+  'GROK_HOOK_EVENT',
+  'GROK_HOOK_NAME',
+  'GROK_SESSION_ID',
+  'GROK_WORKSPACE_ROOT'
+]
+const cleanLauncherEnv = Object.fromEntries(Object.entries(env).filter(([key]) =>
+  !grokReservedEnvNames.some(name => name.toLowerCase() === key.toLowerCase())
+))
+const importedClaudeEnv = {
+  ...cleanLauncherEnv,
+  GROK_HOOK_EVENT: 'PreToolUse',
+  GROK_HOOK_NAME: 'devcodex-global-claude',
+  GROK_SESSION_ID: 'grok-session-fixture',
+  GROK_WORKSPACE_ROOT: workspace
+}
+assert.strictEqual(isGrokImportedClaudeHook('claude', importedClaudeEnv), true)
+assert.strictEqual(isGrokImportedClaudeHook('grok', importedClaudeEnv), false)
+for (const missingName of grokReservedEnvNames) {
+  const incompleteEnv = { ...importedClaudeEnv }
+  delete incompleteEnv[missingName]
+  assert.strictEqual(isGrokImportedClaudeHook('claude', incompleteEnv), false)
+}
+const sourceStableLauncher = path.join(packageRoot, 'hooks', '_runtime', 'host-hook-launcher.cjs')
+const importedClaudeProbe = spawnSync(process.execPath, [sourceStableLauncher, 'claude'], {
+  cwd: workspace,
+  env: importedClaudeEnv,
+  encoding: 'utf8',
+  windowsHide: true
+})
+assert.strictEqual(importedClaudeProbe.status, 0, importedClaudeProbe.stderr || importedClaudeProbe.stdout)
+assert.strictEqual(importedClaudeProbe.stdout, '')
+assert.strictEqual(importedClaudeProbe.stderr, '')
+const nativeClaudeProbe = spawnSync(process.execPath, [sourceStableLauncher, 'claude'], {
+  cwd: workspace,
+  env: cleanLauncherEnv,
+  encoding: 'utf8',
+  windowsHide: true
+})
+assert.strictEqual(nativeClaudeProbe.status, 2)
+assert.match(nativeClaudeProbe.stderr, /GLOBAL_HOST_LAUNCHER_METADATA_INVALID/)
 const launcherEscapeRoot = path.join(tmp, 'launcher-runtime-escape')
 fs.mkdirSync(launcherEscapeRoot, { recursive: true })
 fs.writeFileSync(path.join(launcherEscapeRoot, 'global-host-receipt.json'), JSON.stringify({
@@ -537,9 +623,25 @@ const grokGlobalHooks = JSON.parse(fs.readFileSync(
 ))
 const grokGlobalTarget = targets.find(target => target.host === 'grok')
 const grokGlobalRuntimeEntry = path.join(grokGlobalTarget.runtimeBaseRoot, 'host-hook-launcher.cjs')
-for (const event of ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop']) {
+assert.deepStrictEqual(grokGlobalHookDelegationDocument().hooks, {})
+assert.match(grokGlobalHooks.description, /owned by the enabled devcodex-workspace plugin/)
+assert.strictEqual(
+  Object.values(grokGlobalHooks.hooks || {}).flat().some(isDevCodexManagedHookEntry),
+  false,
+  'Grok global hooks must not retain a DevCodex lifecycle declaration'
+)
+assert.deepStrictEqual(grokGlobalHooks.hooks.PreToolUse, [
+  { matcher: 'user', hooks: [{ type: 'command', command: grokUserCommand }] }
+])
+assert.strictEqual(grokGlobalHooks.hooks.Stop, undefined)
+const grokPluginHooks = JSON.parse(fs.readFileSync(
+  path.join(grokGlobalTarget.files.plugin, 'hooks', 'hooks.json'),
+  'utf8'
+))
+for (const event of ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'PreCompact']) {
+  assert.strictEqual(grokPluginHooks.hooks[event].length, 1, `Grok ${event} must have one plugin owner`)
   assert.deepStrictEqual(
-    hookCommandArgv(grokGlobalHooks.hooks[event][0].hooks[0].command),
+    hookCommandArgv(grokPluginHooks.hooks[event][0].hooks[0].command),
     [grokGlobalRuntimeEntry, 'grok']
   )
 }
@@ -1534,7 +1636,9 @@ if (physicalEscapeProbeCreated) {
   assert.throws(() => executeGlobalHostTransaction([
     { path: path.join(physicalRootLink, 'escaped-via-root.txt'), content: 'forbidden\n' }
   ], {
-    allowedRoots: [physicalRootLink],
+    allowedRoots: [physicalRootLink, physicalBoundaryRoot],
+    safetyRoots: [physicalRootLink, physicalBoundaryRoot],
+    transactionRoot: path.join(physicalBoundaryRoot, '.root-link-probe-transactions'),
     dryRun: true
   }), error => error.code === 'GLOBAL_HOST_OPERATION_ROOT_UNSAFE')
 
@@ -1561,9 +1665,10 @@ if (physicalEscapeProbeCreated) {
   assert.throws(() => executeGlobalHostTransaction([
     { path: exactAllowedFile, content: '{"managed":true}\n', kind: 'json' }
   ], {
-    allowedRoots: [rollbackRoot],
+    allowedRoots: [rollbackRoot, physicalBoundaryRoot],
     allowedFiles: [exactAllowedFile],
     safetyRoots: [physicalBoundaryRoot],
+    transactionRoot: path.join(physicalBoundaryRoot, '.exact-file-probe-transactions'),
     dryRun: true
   }), error => error.code === 'GLOBAL_HOST_OPERATION_REPARSE')
 

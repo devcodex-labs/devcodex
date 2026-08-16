@@ -6,9 +6,10 @@ const fs = require('fs')
 const path = require('path')
 const { buildBundle } = require('./control-content-source')
 const {
+  createWorkspaceTempArtifactAtRoot,
   ensureWorkspaceTempPartitions,
   inspectPathBoundary,
-  registerWorkspaceTempArtifactAtRoot
+  v2ManifestPath
 } = require('./workspace-temp.js')
 const {
   resolveWorkspaceTempProject,
@@ -234,7 +235,7 @@ function resolveQuarantineBase (root, options = {}, { prepare = false } = {}) {
   }
   const tempRoot = resolveWorkspaceTempRoot(root)
   if (prepare) ensureWorkspaceTempPartitions(tempRoot)
-  const quarantineBase = path.join(tempRoot, 'quarantine', DEFAULT_QUARANTINE)
+  const quarantineBase = path.join(tempRoot, 'quarantine')
   const boundary = inspectPathBoundary(tempRoot, quarantineBase)
   if (!boundary.safe) throw new Error(`CONTENT_ROOT_DELETE_QUARANTINE_PATH_UNSAFE: ${boundary.reason}`)
   if (prepare) {
@@ -246,7 +247,17 @@ function resolveQuarantineBase (root, options = {}, { prepare = false } = {}) {
 }
 
 function quarantineTransactionRoot (root, previewDigestValue, options = {}) {
-  return path.join(resolveQuarantineBase(root, options), previewDigestValue)
+  if (options.quarantineRoot) return path.join(resolveQuarantineBase(root, options), previewDigestValue)
+  const project = resolveWorkspaceTempProject(root)
+  const artifactId = `content-root-delete-${String(previewDigestValue).slice(0, 24)}`
+  return path.join(
+    resolveWorkspaceTempRoot(root),
+    'quarantine',
+    ...String(project).split('/').filter(Boolean),
+    'content-root-delete-transaction',
+    artifactId,
+    'transaction'
+  )
 }
 
 function quarantinePath (root, previewDigestValue, relative, options = {}) {
@@ -257,7 +268,12 @@ function removeTransactionManifest (root, receipt, options = {}) {
   if (options.quarantineRoot) return false
   const artifactId = `content-root-delete-${String(receipt.previewDigest || '').slice(0, 24)}`
   const tempRoot = resolveWorkspaceTempRoot(root)
-  const manifestPath = path.join(tempRoot, 'manifests', `${artifactId}.json`)
+  const manifestPath = v2ManifestPath(
+    tempRoot,
+    resolveWorkspaceTempProject(root),
+    'quarantine',
+    artifactId
+  )
   if (!fs.existsSync(manifestPath)) return false
   const stats = fs.lstatSync(manifestPath)
   if (stats.isSymbolicLink() || !stats.isFile()) return false
@@ -267,12 +283,13 @@ function removeTransactionManifest (root, receipt, options = {}) {
   try { manifest = JSON.parse(raw.toString('utf8')) } catch { return false }
   const expectedTarget = quarantineTransactionRoot(root, receipt.previewDigest, options)
   if (
-    manifest?.schemaVersion !== 'WorkspaceTempManifestV1' ||
+    manifest?.schemaVersion !== 'WorkspaceTempManifestV2' ||
     manifest?.artifactId !== artifactId ||
     manifest?.owner !== 'devcodex-content-root-delete' ||
     manifest?.producer !== 'content-root-delete-transaction' ||
     manifest?.cleanupPolicy !== 'retain' ||
-    path.resolve(String(manifest?.targetPath || '')) !== path.resolve(expectedTarget)
+    manifest?.lifecycleState !== 'finalized' ||
+    path.resolve(tempRoot, String(manifest?.targetRelativePath || '')) !== path.resolve(expectedTarget)
   ) return false
   fs.unlinkSync(manifestPath)
   return true
@@ -305,6 +322,18 @@ function stageDeleteTransaction (root, previewPath, receiptPath, expectedDigest,
     }))
   }
   resolveQuarantineBase(resolvedRoot, options, { prepare: true })
+  let tempArtifact = null
+  if (!options.quarantineRoot) {
+    tempArtifact = createWorkspaceTempArtifactAtRoot(resolveWorkspaceTempRoot(resolvedRoot), {
+      artifactId: `content-root-delete-${receipt.previewDigest.slice(0, 24)}`,
+      type: 'quarantine',
+      owner: 'devcodex-content-root-delete',
+      project: resolveWorkspaceTempProject(resolvedRoot),
+      producer: 'content-root-delete-transaction',
+      targetName: 'transaction',
+      cleanupPolicy: 'retain'
+    })
+  }
   writeJsonAtomic(resolvedReceipt, receipt)
   try {
     for (const record of receipt.records) {
@@ -316,28 +345,23 @@ function stageDeleteTransaction (root, previewPath, receiptPath, expectedDigest,
       writeJsonAtomic(resolvedReceipt, receipt)
     }
     if (!options.quarantineRoot) {
-      const tempRoot = resolveWorkspaceTempRoot(resolvedRoot)
       const transactionRoot = quarantineTransactionRoot(resolvedRoot, receipt.previewDigest, options)
-      const registration = registerWorkspaceTempArtifactAtRoot(tempRoot, {
-        artifactId: `content-root-delete-${receipt.previewDigest.slice(0, 24)}`,
-        type: 'quarantine',
-        owner: 'devcodex-content-root-delete',
-        project: resolveWorkspaceTempProject(resolvedRoot),
-        producer: 'content-root-delete-transaction',
-        targetPath: transactionRoot,
-        cleanupPolicy: 'retain',
-        transactionStatus: 'staged'
-      })
+      tempArtifact.activate()
+      const finalReceipt = tempArtifact.finalize({ finalDisposition: 'retained' })
       receipt.tempArtifact = {
-        manifestPath: registration.manifestPath,
-        manifestDigest: sha256(fs.readFileSync(registration.manifestPath)),
-        targetPath: transactionRoot
+        manifestPath: tempArtifact.manifestPath,
+        manifestDigest: sha256(fs.readFileSync(tempArtifact.manifestPath)),
+        targetPath: transactionRoot,
+        lifecycleReceipt: finalReceipt
       }
     }
     receipt.state = 'staged'
     receipt.stagedAt = new Date().toISOString()
     writeJsonAtomic(resolvedReceipt, receipt)
   } catch (error) {
+    if (tempArtifact) {
+      try { tempArtifact.abandon({ failureCode: error.code || 'CONTENT_ROOT_DELETE_STAGE_FAILED' }) } catch { }
+    }
     for (const relative of [...receipt.moved].reverse()) {
       const stagedPath = quarantinePath(resolvedRoot, receipt.previewDigest, relative, options)
       const sourcePath = path.join(resolvedRoot, relative)

@@ -3,9 +3,11 @@
 const fs = require('fs')
 const path = require('path')
 
-// Transport-level shape only; normalizeProjectNamespace remains the authority for
-// traversal, reserved-root and workspace-containment checks.
-const PROJECT_NAMESPACE_SCHEMA_PATTERN = '^[\\w.-]+(?:/[\\w.-]+)*$'
+// One transport/runtime alphabet: ASCII segments joined by one forward slash.
+// Semantic checks (reserved roots and traversal-only segments) remain in the
+// canonical normalizer and always report PROJECT_NAMESPACE_INVALID.
+const PROJECT_NAMESPACE_SCHEMA_PATTERN = '^[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*$'
+const PROJECT_NAMESPACE_SCHEMA_REGEX = new RegExp(PROJECT_NAMESPACE_SCHEMA_PATTERN)
 
 const RESERVED_NAMESPACE_ROOTS = new Set([
   'workspace',
@@ -403,36 +405,51 @@ function inferProjectFromCwd(cwd, layout) {
 }
 
 function normalizeProjectNamespace(projectName, { layout, contextProject = '', allowEmpty = true } = {}) {
-  const raw = normalizeNamespaceInput(projectName || contextProject)
+  const supplied = String(projectName || contextProject || '')
+  const raw = supplied.trim()
   if (!raw) {
     if (allowEmpty) return ''
-    throw new Error('project namespace is required')
+    throw projectNamespaceError('required', 'project namespace is required')
   }
-  if (path.isAbsolute(String(projectName || contextProject || ''))) {
-    throw new Error(`project namespace must be workspace-relative, got absolute path: ${projectName || contextProject}`)
+  if (raw !== supplied || !PROJECT_NAMESPACE_SCHEMA_REGEX.test(raw)) {
+    throw projectNamespaceError(
+      'invalid-shape',
+      `project namespace must use canonical ASCII segments joined by one forward slash: ${supplied}`
+    )
+  }
+  if (path.isAbsolute(supplied)) {
+    throw projectNamespaceError('absolute-path', `project namespace must be workspace-relative, got absolute path: ${supplied}`)
   }
   const segments = splitNamespace(raw)
   if (!segments.length) {
     if (allowEmpty) return ''
-    throw new Error('project namespace is required')
+    throw projectNamespaceError('required', 'project namespace is required')
   }
   for (const segment of segments) {
     if (segment === '.' || segment === '..') {
-      throw new Error(`project namespace must not contain traversal segments: ${raw}`)
+      throw projectNamespaceError('traversal-segment', `project namespace must not contain traversal segments: ${raw}`)
     }
   }
   const first = String(segments[0] || '').trim().toLowerCase()
   if (RESERVED_NAMESPACE_ROOTS.has(first)) {
-    throw new Error(`project namespace root is reserved: ${segments[0]}`)
+    throw projectNamespaceError('reserved-root', `project namespace root is reserved: ${segments[0]}`)
   }
   if (layout?.enabled) {
     const candidateRoot = namespaceRootPath(layout.workspaceRoot, joinNamespaceSegments(segments))
     const relative = path.relative(path.join(layout.workspaceRoot, '.devcodex'), candidateRoot)
     if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
-      throw new Error(`project namespace escapes workspace: ${raw}`)
+      throw projectNamespaceError('workspace-escape', `project namespace escapes workspace: ${raw}`)
     }
   }
   return joinNamespaceSegments(segments)
+}
+
+function projectNamespaceError(reasonCode, message) {
+  const error = new Error(message)
+  error.name = 'ProjectNamespaceError'
+  error.code = 'PROJECT_NAMESPACE_INVALID'
+  error.reasonCode = reasonCode
+  return error
 }
 
 function resolveLegacyProjectRoot(inputRoot, projectName) {

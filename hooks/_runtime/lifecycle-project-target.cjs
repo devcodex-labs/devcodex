@@ -52,10 +52,38 @@ function buildLifecycleProjectTargetUtils({
     )
   }
 
+  /**
+   * Treat a nearby explicit negation as authoritative for an otherwise positive
+   * mode/scope token. This keeps keyword aliases from overriding user intent.
+   * @param {string} text
+   * @param {number} matchIndex
+   * @returns {boolean}
+   */
+  function isIntentMatchNegated(text, matchIndex) {
+    const prefix = String(text || '').slice(Math.max(0, matchIndex - 64), matchIndex)
+    return /(?:不要|别|勿|禁止|无需|不(?:要|再|需|应|可|想)?|do\s+not|don['’]?t|dont|never|without|not|no)\s*(?:(?:进入|启用|开启|使用|切换(?:到)?|扫描|处理|覆盖|面向|针对|扩大(?:到)?|执行|继续|调用|采用)|(?:enter|enable|use|switch(?:\s+to)?|scan|process|cover|target|expand(?:\s+to)?|run|continue))?\s*$/i.test(prefix)
+  }
+
+  function hasUnnegatedRegexMatch(text, pattern) {
+    const source = pattern instanceof RegExp ? pattern.source : String(pattern || '')
+    const flags = pattern instanceof RegExp ? pattern.flags.replace(/g/g, '') : 'i'
+    const re = new RegExp(source, `${flags}g`)
+    let match
+    while ((match = re.exec(String(text || ''))) !== null) {
+      if (!isIntentMatchNegated(text, match.index)) return true
+      if (match[0].length === 0) re.lastIndex += 1
+    }
+    return false
+  }
+
   function hasMultiProjectExemption(prompt) {
     if (!prompt) return false
-    const lower = prompt.toLowerCase()
-    return MULTI_PROJECT_EXEMPTION_KEYWORDS.some(k => lower.includes(k.toLowerCase()))
+    const text = String(prompt)
+    return MULTI_PROJECT_EXEMPTION_KEYWORDS.some(keyword => {
+      const escaped = escapeRegExp(String(keyword || ''))
+      if (!escaped) return false
+      return hasUnnegatedRegexMatch(text, new RegExp(escaped, 'i'))
+    })
   }
 
   function detectProjectFromPrompt(prompt) {
@@ -251,6 +279,18 @@ function buildLifecycleProjectTargetUtils({
     return new RegExp(`(?:^|[^A-Za-z0-9_@])${escaped}(?=$|[^A-Za-z0-9_-])`, 'i').test(String(prompt || ''))
   }
 
+  function hasUnnegatedMentionToken(prompt, alias) {
+    const escaped = escapeRegExp(alias)
+    const re = new RegExp(`(?:^|[^A-Za-z0-9_@])(${escaped})(?=$|[^A-Za-z0-9_-])`, 'ig')
+    const text = String(prompt || '')
+    let match
+    while ((match = re.exec(text)) !== null) {
+      const aliasOffset = match[0].lastIndexOf(match[1])
+      if (!isIntentMatchNegated(text, match.index + Math.max(aliasOffset, 0))) return true
+    }
+    return false
+  }
+
   const DEFAULT_AUTO_ALIASES = ['@rocky']
 
   function emptyStickyAuto(reason) {
@@ -288,11 +328,11 @@ function buildLifecycleProjectTargetUtils({
 
   function resolveAutoAuthorization(prompt, state, target) {
     const text = String(prompt || '')
-    if (hasMentionToken(text, '@devcodex-auto')) {
+    if (hasMentionToken(text, '@devcodex-auto') && hasUnnegatedMentionToken(text, '@devcodex-auto')) {
       return { authorized: true, source: '@devcodex-auto', kind: 'explicit' }
     }
     for (const alias of getConfiguredAutoAliases(state, target)) {
-      if (hasMentionToken(text, alias)) {
+      if (hasMentionToken(text, alias) && hasUnnegatedMentionToken(text, alias)) {
         return { authorized: true, source: alias, kind: 'alias' }
       }
     }
@@ -302,7 +342,7 @@ function buildLifecycleProjectTargetUtils({
       /(?:auto|自动|全自动)\s*(?:模式)?\s*(?:开始|继续|执行|推进|处理|修复|实施)/i,
       /(?:run|continue|proceed)\s+(?:in\s+)?auto\s+mode/i
     ]
-    if (naturalLanguageAutoPatterns.some(pattern => pattern.test(normalized))) {
+    if (naturalLanguageAutoPatterns.some(pattern => hasUnnegatedRegexMatch(normalized, pattern))) {
       return { authorized: true, source: 'natural-language', kind: 'nl' }
     }
     return { authorized: false, source: '', kind: '' }
@@ -330,13 +370,9 @@ function buildLifecycleProjectTargetUtils({
     if (!updatedAtMs || Date.now() - updatedAtMs > STICKY_PROJECT_TTL_MS) return null
     const currentSessionKey = getPayloadSessionKey(payload)
     const stickySessionKey = String(sticky.sessionKey || '').trim()
-    // Fail only on explicit session mismatch. Allow:
-    // - both empty (file-scoped sticky for hosts without session ids)
-    // - sticky has session but current prompt omits it (common host payload gaps)
-    // Reject when both present and differ.
-    if (currentSessionKey && stickySessionKey && currentSessionKey !== stickySessionKey) {
-      return null
-    }
+    // Sticky authority is reusable only when both sides expose the same exact,
+    // non-empty host session identity. A missing identity remains turn-local.
+    if (!currentSessionKey || !stickySessionKey || currentSessionKey !== stickySessionKey) return null
     return sticky
   }
 
@@ -344,7 +380,18 @@ function buildLifecycleProjectTargetUtils({
     if (!state || typeof state !== 'object') return
     const sessionKey = getPayloadSessionKey(payload)
     const now = Date.now()
-    const authorityRef = `auto:${source || 'unknown'}:${sessionKey || 'no-session'}:${now}`
+    const authorityRef = `auto:${source || 'unknown'}:${sessionKey || 'turn-only'}:${now}`
+    if (!sessionKey) {
+      state.stickyAuto = {
+        ...emptyStickyAuto('missing-session'),
+        source: source || 'unknown',
+        kind: kind || 'unknown',
+        updatedAt: new Date().toISOString(),
+        updatedAtMs: now,
+        authorityRef
+      }
+      return
+    }
     state.stickyAuto = {
       active: true,
       source: source || 'unknown',

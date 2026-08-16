@@ -10,6 +10,9 @@ const {
 const {
   handleSkillRoute
 } = require('../../hooks/_runtime/skill-route-tool.cjs')
+const {
+  commitLifecycleState
+} = require('../../hooks/_runtime/lifecycle-state-commit.cjs')
 const { resolveRuntimeStateRoot } = require('../../hooks/_runtime/workspace-layout.cjs')
 
 function runHooksRuntimeBootstrapLayoutScenarios(context) {
@@ -191,6 +194,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
       latestRows: [],
       activeSessionIds: [],
       conflicts: [],
+      coverage: { status: 'complete' },
       contextBinding: responseContextBinding,
       ...projectionOverrides
     }
@@ -377,6 +381,9 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.strictEqual(reconciledActiveState.contextAcquisition.plan.planId, newerPlanId)
   assert.strictEqual(reconciledSessionState.contextAcquisition.plan.planId, newerPlanId)
 
+  // Projection files are no longer authoritative after LifecycleStateCommitV3.
+  // A foreign active projection and an older session projection must both be
+  // repaired from the last identity-bound committed generation.
   const foreignActiveState = JSON.parse(JSON.stringify(reconciledActiveState))
   const isolatedSessionState = JSON.parse(JSON.stringify(reconciledSessionState))
   foreignActiveState.updatedAt = '2030-08-05T00:00:00.000Z'
@@ -395,7 +402,10 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     tool_response: { ok: true }
   }, TEMP_ROOT, { DEVCODEX_HOST_PLATFORM: 'codex' })
   const isolatedAfterForeignState = JSON.parse(fs.readFileSync(pendingSessionFile, 'utf8'))
-  assert.strictEqual(isolatedAfterForeignState.contextAcquisition.plan, null)
+  assert.strictEqual(isolatedAfterForeignState.contextAcquisition.plan.planId, newerPlanId)
+  assert.strictEqual(isolatedAfterForeignState.contextAcquisition.hostSessionId, pendingSession)
+  const activeAfterForeignState = JSON.parse(fs.readFileSync(getLayoutStateFile('devcodex'), 'utf8'))
+  assert.strictEqual(activeAfterForeignState.contextAcquisition.hostSessionId, pendingSession)
 
   cleanState()
 
@@ -1239,6 +1249,10 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   memoryState = observeMemoryStatus('wrong-memory-target', { project: 'other-project' })
   assert.strictEqual(memoryState.bootstrapComplete, false)
   assert(memoryState.contextAcquisition.receipt.missingSourceIds.includes('memory:memory_status'))
+  memoryState = observeMemoryStatus('partial-memory-coverage', { coverage: { status: 'partial' } })
+  assert.strictEqual(memoryState.bootstrapComplete, false)
+  assert.strictEqual(memoryState.contextAcquisition.lastError.errorCode, 'MEMORY_COVERAGE_PARTIAL')
+  assert(memoryState.contextAcquisition.receipt.missingSourceIds.includes('memory:memory_status'))
   memoryState = observeMemoryStatus('correct-memory-schema')
   assert.strictEqual(memoryState.bootstrapComplete, true)
   completeCurrentSkillRoute()
@@ -1507,6 +1521,20 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.ok(!fs.existsSync(path.join(TEMP_ROOT, '.devcodex', '.memory', 'hooks', 'chat', 'lifecycle-state.json')))
 
   layoutState.executionMode = 'auto'
+  const autoModeCommit = commitLifecycleState({
+    metaDir: path.dirname(getWorkspaceLayoutStateFile()),
+    state: layoutState,
+    identity: {
+      project: layoutState.activeProject,
+      scope: layoutState.activeScope,
+      sessionKey: layoutState.contextAcquisition.hostSessionId || ''
+    },
+    targets: [
+      { role: 'active', dir: path.dirname(getLayoutStateFile('chat')) },
+      { role: 'meta', dir: path.dirname(getWorkspaceLayoutStateFile()) }
+    ]
+  }, { fs })
+  assert.strictEqual(autoModeCommit.status, 'committed')
   fs.writeFileSync(getLayoutStateFile('chat'), JSON.stringify(layoutState, null, 2))
   const misplacedTmpWrite = run({
     hookEventName: 'PreToolUse',

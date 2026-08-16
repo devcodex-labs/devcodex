@@ -1,5 +1,9 @@
 'use strict'
 
+const {
+  commitLifecycleState
+} = require('../../hooks/_runtime/lifecycle-state-commit.cjs')
+
 function runHooksRuntimeVisibilityScenarios(context) {
   const {
     assert,
@@ -56,6 +60,17 @@ function runHooksRuntimeVisibilityScenarios(context) {
         handled: false,
         lastDecisionError: ''
       }
+      const governanceResetCommit = commitLifecycleState({
+        metaDir: STATE_DIR,
+        state,
+        identity: {
+          project: state.activeProject || state.contextAcquisition?.project || '',
+          scope: state.activeScope || '',
+          sessionKey: state.contextAcquisition?.hostSessionId || ''
+        },
+        targets: [{ role: 'active', dir: STATE_DIR }]
+      }, { fs })
+      assert.strictEqual(governanceResetCommit.status, 'committed')
       fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
     }
     return output

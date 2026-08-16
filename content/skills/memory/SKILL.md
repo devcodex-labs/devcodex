@@ -50,6 +50,7 @@ status/current/month/day byte-range 分区。该索引不是记忆真相源：
   parser；允许返回 additive `indexReceipt/coverage`，不得改变旧字段、排序或错误。
 - query 与 fallback 均保持 zero-write；不得为了修复索引在读取阶段创建或改写 memory 文件。
 - byte-range 或截断结果只能证明已返回范围，不能声明完整 daily/SUMMARY 正文已验证。
+- `memory_session_query` / `memory_summary_query` 首次可省略 cursor；有安全下一页时读取 `MemoryPaginationV1.nextCursor`，并把 opaque `MemoryCursorV1` 原样回传同一 tool。cursor 绑定 tool、target/activeRoot、ContextRead binding、query、source identity 与 offset；绑定或来源变化必须稳定拒绝，禁止静默重置到第一页。partial source 不得签发不安全的下一页 cursor。
 
 | 场景 | 读取范围 | 执行顺序 |
 |------|---------|---------|
@@ -75,7 +76,7 @@ status/current/month/day byte-range 分区。该索引不是记忆真相源：
 
 - 新会话必须优先通过 `memory_session_allocate(project, date, title, intent, sourceMessage)` 原子分配；该工具会在 active-root / agent / date 作用域内持有 writer lock，并写入 reserved daily 段，返回含 `sessionId`、不透明 `sessionBinding` 与 transaction 的 `MemorySessionAllocationReceiptV1`。
 - 每次 `memory_session_write` 都必须原样回传同一 allocation receipt 的 `sessionId` + `sessionBinding`。writer 只允许内容进入该绑定会话段，并用 `MemorySessionWriteReceiptV1` 证明绑定已验证、目标段已变化、非目标段未变化与落盘读回一致；缺字段、错配、目标不存在、无目标、未知参数或超出 262144 字符上限均须零写入失败。旧版无 binding marker 的 daily 会话保持可读但不可继续无绑定写入；需要续接时自动分配一个新的绑定会话，禁止让用户执行额外命令。
-- `memory_session_write` 与 `memory_summary_append` 必须返回 `MemoryTransactionReceiptV1`，包含 activeRoot、agent、file、beforeDigest、afterDigest、transactionId 与完成时间；新会话写入还必须包含 `MemorySessionWriteReceiptV1`。报告/记忆可引用 receipt，而不是只写“已追加”。
+- `memory_session_allocate`、`memory_session_write`、`memory_summary_append` 与 CP 状态写入共用 `MemoryFileTransactionV1` owner，并必须返回 `MemoryFileTransactionReceiptV1`：除 activeRoot/agent/file/beforeDigest/afterDigest/transactionId 外，还包含 final CAS、file/directory flush、readback、bytesRead/bytesWritten/writeAmplificationRatio 与 metadata receipt；新会话写入还必须包含 `MemorySessionWriteReceiptV1`。已有文件的纯 EOF 增长走 append fast path，创建走 atomic temp+rename，中段更新才 rewrite；任何外部编辑都 fail closed。POSIX 保留 mode/uid/gid 且新文件 0600，Windows DACL 未实证时必须保持 `WARN/UNVERIFIED`。报告/记忆可引用 receipt，而不是只写“已追加”。
 - 遇到 `MEMORY_TRANSACTION_LOCKED` 时，当前写入方必须重读 `memory_status` / `memory_summary_query` 后重试或降级为阻塞说明，禁止忽略锁继续手工写同一文件。
 - MCP **能力不可用**时才可使用宿主增量编辑 fallback：必须以高熵唯一 sessionId 在一次增量编辑中追加“新会话标题 + 本次完整正文”，禁止向任何既有会话段追加；写前后核对 daily 与 SUMMARY digest，检测到并发变化则重读后换新 ID 重试一次，仍冲突即阻塞，并在报告/记忆标记 `memoryWriter=fallback`。MCP 已返回 binding/target/layout/lock 错误不属于“能力不可用”，禁止绕过 Tool 改用手工写同一 daily 文件。
 

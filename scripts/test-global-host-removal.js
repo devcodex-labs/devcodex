@@ -15,13 +15,19 @@ const {
 } = require('./lib/global-host-removal.js')
 const { removeGrokPluginRegistration } = require('./lib/host-adapter-scope.js')
 const { resolveGlobalHostTargets } = require('./lib/global-host-target.js')
-const { executeGlobalHostTransaction } = require('./lib/global-host-config-transaction.js')
+const { executeGlobalHostTransaction: executeGlobalHostTransactionRaw } = require('./lib/global-host-config-transaction.js')
 const { operationDigest } = require('./lib/global-host-config-transaction.js')
 const { mergeManagedBlock, removeManagedBlock } = require('./lib/global-host-config-merge.js')
 
 const packageRoot = path.resolve(__dirname, '..')
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-global-host-removal-'))
 let cleaned = false
+function executeGlobalHostTransaction(operations, options = {}) {
+  return executeGlobalHostTransactionRaw(operations, {
+    ...options,
+    transactionRoot: options.transactionRoot || path.join(options.allowedRoots[0], '.devcodex-test-transactions')
+  })
+}
 function cleanup() {
   if (cleaned) return
   fs.rmSync(tmp, { recursive: true, force: true })
@@ -248,21 +254,29 @@ function fakeGrokUninstall() {
   const before = fs.readFileSync(target.files.config, 'utf8')
   const after = removeGrokPluginRegistration(before, target.files.plugin).desired
   const tempRoot = path.join(home, '.tmp', 'devcodex')
-  const backupPath = path.join(tempRoot, 'backups', 'grok', 'config.toml.bak')
-  const backupManifestPath = path.join(tempRoot, 'manifests', 'backup-grok-removal.json')
+  const backupPath = path.join(
+    tempRoot, 'backups', 'grok', 'grok-plugin-uninstall', 'backup-grok-removal', 'config.toml.bak'
+  )
+  const backupManifestPath = path.join(
+    tempRoot, 'manifests', 'v2', digestText('grok'), 'backups', 'backup-grok-removal.json'
+  )
   fs.mkdirSync(path.dirname(backupPath), { recursive: true })
   fs.mkdirSync(path.dirname(backupManifestPath), { recursive: true })
   fs.writeFileSync(backupPath, before)
   fs.writeFileSync(backupManifestPath, JSON.stringify({
-    schemaVersion: 'WorkspaceTempManifestV1',
+    schemaVersion: 'WorkspaceTempManifestV2',
     artifactId: 'backup-grok-removal',
     type: 'backup',
     owner: 'devcodex-grok-adapter',
     project: 'grok',
     producer: 'grok-plugin-uninstall',
-    targetPath: backupPath.replace(/\\/g, '/'),
+    targetName: 'config.toml.bak',
+    targetRelativePath: 'backups/grok/grok-plugin-uninstall/backup-grok-removal/config.toml.bak',
+    ownerTokenDigest: digestText('owner-token'),
+    lifecycleState: 'finalized',
+    finalDisposition: 'retained',
     cleanupPolicy: 'delete',
-    transactionStatus: 'completed'
+    leaseId: 'backup-grok-removal'
   }, null, 2) + '\n')
   const uninstall = ({ dryRun }) => {
     if (dryRun) {

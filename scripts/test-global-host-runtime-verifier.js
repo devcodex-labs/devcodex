@@ -157,10 +157,23 @@ assert.deepStrictEqual(cursorWindowsCalls.map(call => call.args[3]), ['--version
 
 const canonicalPlugin = path.join(grokRoot, 'devcodex', 'plugins', 'devcodex-workspace')
 const installedPlugin = path.join(grokRoot, 'installed-plugins', 'canonical')
-const grokRuntime = resolveGlobalHostTarget('grok', { env, home }).runtimeRoot
+const grokTarget = resolveGlobalHostTarget('grok', { env, home })
+const grokRuntime = grokTarget.runtimeRoot
 fs.mkdirSync(path.join(grokRoot, 'installed-plugins'), { recursive: true })
 fs.cpSync(path.join(__dirname, '..', 'grok', 'plugins', 'devcodex-workspace'), canonicalPlugin, { recursive: true })
-fs.cpSync(canonicalPlugin, installedPlugin, { recursive: true })
+const grokRuntimeEntry = path.join(grokTarget.runtimeBaseRoot, 'host-hook-launcher.cjs')
+const grokHookCommand = buildHostHookCommand(grokRuntimeEntry, ['grok'])
+const canonicalGrokHooksFile = path.join(canonicalPlugin, 'hooks', 'hooks.json')
+const canonicalGrokHooks = JSON.parse(fs.readFileSync(canonicalGrokHooksFile, 'utf8'))
+for (const entries of Object.values(canonicalGrokHooks.hooks)) {
+  entries[0].hooks[0].command = grokHookCommand
+}
+fs.writeFileSync(canonicalGrokHooksFile, JSON.stringify(canonicalGrokHooks, null, 2), 'utf8')
+fs.mkdirSync(path.dirname(grokTarget.files.hooks), { recursive: true })
+fs.writeFileSync(grokTarget.files.hooks, JSON.stringify({
+  description: 'DevCodex Grok lifecycle is delegated to the plugin.',
+  hooks: {}
+}, null, 2), 'utf8')
 fs.mkdirSync(path.join(grokRuntime, 'mcp'), { recursive: true })
 for (const name of ['memory-server.js', 'profile-server.js']) {
   fs.writeFileSync(path.join(grokRuntime, 'mcp', name), 'process.stdin.resume()\n', 'utf8')
@@ -177,6 +190,7 @@ fs.writeFileSync(path.join(canonicalPlugin, '.mcp.json'), JSON.stringify({
     }
   }
 }, null, 2), 'utf8')
+fs.cpSync(canonicalPlugin, installedPlugin, { recursive: true })
 fs.writeFileSync(path.join(grokRoot, 'installed-plugins', 'registry.json'), JSON.stringify({
   version: 1,
   repos: {
@@ -279,7 +293,19 @@ assert(healthy.hosts.every(host => host.ready === false))
 assert(healthy.hosts.every(host => host.operationalState === 'unverified'))
 assert.strictEqual(healthy.hosts.find(host => host.host === 'copilot').contractStatus, 'passed')
 assert.strictEqual(healthy.hosts.find(host => host.host === 'copilot').nativeStatus, 'unverified')
-assert.strictEqual(healthy.hosts.find(host => host.host === 'grok').nativeStatus, 'unverified')
+const healthyGrok = healthy.hosts.find(host => host.host === 'grok')
+assert.strictEqual(healthyGrok.nativeStatus, 'unverified')
+assert.strictEqual(healthyGrok.contractStatus, 'passed')
+assert.strictEqual(healthyGrok.probes.grokStatic.lifecycleOwnerStatus, 'passed')
+for (const topology of Object.values(healthyGrok.probes.grokStatic.lifecycleOwnerTopology.events)) {
+  assert.deepStrictEqual(topology, {
+    globalManagedDeclarations: 0,
+    pluginManagedDeclarations: 1,
+    physicalDeclarations: 1,
+    effectiveHandlersAfterExactDedup: 1,
+    mutationOwners: 1
+  })
+}
 const healthyCursor = healthy.hosts.find(host => host.host === 'cursor')
 assert.strictEqual(healthyCursor.contractStatus, 'passed')
 assert.strictEqual(healthyCursor.nativeStatus, 'unverified')
@@ -292,6 +318,40 @@ assert.deepStrictEqual(healthyCursor.variants.map(variant => variant.id), [
   'cursor-cloud-agent'
 ])
 assert.strictEqual(healthyCursor.variants.find(variant => variant.id === 'cursor-cloud-agent').support, 'partial')
+
+const healthyGrokGlobalHooks = fs.readFileSync(grokTarget.files.hooks, 'utf8')
+const duplicateGrokGlobalHooks = JSON.parse(healthyGrokGlobalHooks)
+duplicateGrokGlobalHooks.hooks.PreToolUse = [{
+  matcher: '',
+  hooks: [{ type: 'command', command: grokHookCommand, timeout: 30 }]
+}]
+fs.writeFileSync(grokTarget.files.hooks, JSON.stringify(duplicateGrokGlobalHooks, null, 2), 'utf8')
+const duplicateGrokOwner = verifyGlobalHostRuntime({
+  configuration: {
+    mode: 'GlobalOnlyHostConfigModeV1',
+    workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
+    packageVersion: 'test',
+    hosts
+  },
+  env,
+  home,
+  fs,
+  spawnSync: spawnProbe
+})
+const duplicateGrokOwnerHost = duplicateGrokOwner.hosts.find(host => host.host === 'grok')
+assert.strictEqual(duplicateGrokOwnerHost.contractStatus, 'failed')
+assert(duplicateGrokOwnerHost.issues.some(issue => issue.code === 'GROK_LIFECYCLE_OWNER_TOPOLOGY_FAILED'))
+assert.deepStrictEqual(
+  duplicateGrokOwnerHost.probes.grokStatic.lifecycleOwnerTopology.events.PreToolUse,
+  {
+    globalManagedDeclarations: 1,
+    pluginManagedDeclarations: 1,
+    physicalDeclarations: 2,
+    effectiveHandlersAfterExactDedup: 1,
+    mutationOwners: 2
+  }
+)
+fs.writeFileSync(grokTarget.files.hooks, healthyGrokGlobalHooks, 'utf8')
 
 const healthyCursorHooks = fs.readFileSync(cursorTarget.files.hooks, 'utf8')
 const duplicateCursorHooks = JSON.parse(healthyCursorHooks)

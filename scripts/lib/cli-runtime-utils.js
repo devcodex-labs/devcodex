@@ -1,4 +1,67 @@
-const { registerWorkspaceTempBackup } = require('./workspace-temp.js')
+const { withWorkspaceTempBackup } = require('./workspace-temp.js')
+
+function normalizeGitignorePattern(value) {
+  let pattern = String(value || '').trim().replace(/\\/g, '/')
+  if (!pattern || pattern.startsWith('#') || pattern.startsWith('!')) return ''
+  pattern = pattern.replace(/^\.\//, '').replace(/^\//, '').replace(/\/{2,}/g, '/')
+  pattern = pattern.replace(/\/\*\*\/?$/, '/').replace(/\/+$/, '/')
+  return pattern
+}
+
+function gitignorePatternRegex(value) {
+  const pattern = normalizeGitignorePattern(value)
+  if (!pattern) return null
+  const directoryPattern = pattern.endsWith('/')
+  const segments = pattern.replace(/\/$/, '').split('/')
+  let source = '^'
+  for (let index = 0; index < segments.length; index++) {
+    const segment = segments[index]
+    if (segment === '**') {
+      source += index === 0 ? '(?:[^/]+/)*' : '/(?:[^/]+/)*'
+      continue
+    }
+    if (index > 0 && segments[index - 1] !== '**') source += '/'
+    source += segment
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '[^/]*')
+      .replace(/\?/g, '[^/]')
+  }
+  source += directoryPattern ? '(?:/.*)?$' : '$'
+  return new RegExp(source)
+}
+
+function gitignoreRequiredWitnesses(value) {
+  const pattern = normalizeGitignorePattern(value)
+  if (!pattern) return []
+  const directoryPattern = pattern.endsWith('/')
+  const segments = pattern.replace(/\/$/, '').split('/')
+  let variants = [[]]
+  for (const segment of segments) {
+    if (segment === '**') {
+      variants = variants.flatMap(parts => [
+        parts,
+        [...parts, 'level-a'],
+        [...parts, 'level-a', 'level-b', 'level-c']
+      ])
+      continue
+    }
+    const concrete = segment.replace(/\*/g, 'wildcard').replace(/\?/g, 'q')
+    variants = variants.map(parts => [...parts, concrete])
+  }
+  const paths = variants.map(parts => parts.join('/'))
+  if (directoryPattern) paths.push(...variants.map(parts => [...parts, 'probe.txt'].join('/')))
+  return [...new Set(paths)]
+}
+
+function gitignorePatternCovers(existingPattern, requiredPattern) {
+  const existing = normalizeGitignorePattern(existingPattern)
+  const required = normalizeGitignorePattern(requiredPattern)
+  if (!existing || !required) return false
+  if (existing === required) return true
+  const matcher = gitignorePatternRegex(existing)
+  const witnesses = gitignoreRequiredWitnesses(required)
+  return Boolean(matcher && witnesses.length && witnesses.every(candidate => matcher.test(candidate)))
+}
 
 function buildCliRuntimeUtils({
   fs,
@@ -136,7 +199,10 @@ function buildCliRuntimeUtils({
     if (dryRun) return 0
     const gitignorePath = path.join(cwd, '.gitignore')
     const existing = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : ''
-    const missing = devcodexGitignoreEntries.filter(entry => !existing.includes(entry))
+    const existingPatterns = existing.split(/\r?\n/).map(normalizeGitignorePattern).filter(Boolean)
+    const missing = devcodexGitignoreEntries.filter(entry =>
+      !existingPatterns.some(pattern => gitignorePatternCovers(pattern, entry))
+    )
     if (!missing.length) return 0
     const header = '# DevCodex runtime state (auto-generated, do not commit)'
     const prefix = existing.trimEnd() ? '\n\n' : ''
@@ -178,11 +244,13 @@ function buildCliRuntimeUtils({
 
     let backupPath = null
     if (backup && exists && (binary ? current.length > 0 : current.trim().length > 0)) {
-      backupPath = path.join(backupDir || path.dirname(dest), `${path.basename(dest)}.bak.${backupSuffix()}`)
+      const targetName = `${path.basename(dest)}.bak.${backupSuffix()}`
+      backupPath = path.join(backupDir || path.dirname(dest), targetName)
       if (!dryRun) {
-        fs.mkdirSync(path.dirname(backupPath), { recursive: true })
-        fs.copyFileSync(dest, backupPath)
-        registerWorkspaceTempBackup(backupPath, { owner: 'devcodex-cli', producer: 'copy-managed-text-file' })
+        const artifact = withWorkspaceTempBackup(backupDir || path.dirname(dest), {
+          owner: 'devcodex-cli', producer: 'copy-managed-text-file', targetName
+        }, ({ targetPath }) => fs.copyFileSync(dest, targetPath))
+        backupPath = artifact.targetPath
       }
     }
 
@@ -218,11 +286,13 @@ function buildCliRuntimeUtils({
 
     let backupPath = null
     if (backup && exists && current.trim().length > 0) {
-      backupPath = path.join(backupDir || path.dirname(dest), `${path.basename(dest)}.bak.${backupSuffix()}`)
+      const targetName = `${path.basename(dest)}.bak.${backupSuffix()}`
+      backupPath = path.join(backupDir || path.dirname(dest), targetName)
       if (!dryRun) {
-        fs.mkdirSync(path.dirname(backupPath), { recursive: true })
-        fs.copyFileSync(dest, backupPath)
-        registerWorkspaceTempBackup(backupPath, { owner: 'devcodex-cli', producer: 'write-managed-json-file' })
+        const artifact = withWorkspaceTempBackup(backupDir || path.dirname(dest), {
+          owner: 'devcodex-cli', producer: 'write-managed-json-file', targetName
+        }, ({ targetPath }) => fs.copyFileSync(dest, targetPath))
+        backupPath = artifact.targetPath
       }
     }
 
@@ -239,6 +309,7 @@ function buildCliRuntimeUtils({
     ensureRuntimeDirs,
     resolveProfileDir,
     ensureDevCodexGitignore,
+    gitignorePatternCovers,
     getLegacyCounts,
     copyManagedTextFile,
     readJsonFileWithStatus,
@@ -247,5 +318,9 @@ function buildCliRuntimeUtils({
 }
 
 module.exports = {
-  buildCliRuntimeUtils
+  buildCliRuntimeUtils,
+  gitignorePatternCovers,
+  gitignorePatternRegex,
+  gitignoreRequiredWitnesses,
+  normalizeGitignorePattern
 }

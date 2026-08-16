@@ -61,14 +61,23 @@ function buildHostHookCommand(runtimeFile, argv = [], options = {}) {
   const canonicalArgv = [path.resolve(runtimeFile), ...argv.map(value => String(value))]
   const payload = Buffer.from(JSON.stringify(canonicalArgv), 'utf8').toString('base64url')
   const platform = options.platform || process.platform
-  return [
+  const invocation = [
     quoteShellArgument(executable, platform),
     '-e',
     quoteShellArgument(HOST_HOOK_RUNNER_SOURCE, platform),
     '--',
     payload,
     HOST_HOOK_COMMAND_MARKER
-  ].join(' ')
+  ]
+  if (platform === 'win32') {
+    // Grok Build executes command hooks through PowerShell on Windows, while
+    // other supported hosts may use cmd.exe. A quoted executable as the first
+    // PowerShell token is only a string expression, so its following `-e`
+    // fails before Node can read the hook JSON. Starting with cmd.exe and using
+    // CALL keeps the same canonical argv executable in both shells.
+    return ['cmd.exe', '/d', '/s', '/c', 'call', ...invocation].join(' ')
+  }
+  return invocation.join(' ')
 }
 
 function decodeHostHookCommand(command) {

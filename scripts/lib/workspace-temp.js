@@ -5,6 +5,7 @@ const fs = require('fs')
 const path = require('path')
 const {
   findLayoutInfo,
+  normalizeProjectNamespace,
   resolveActiveRuntimeRoot
 } = require('../../hooks/_runtime/workspace-layout.cjs')
 const {
@@ -13,9 +14,12 @@ const {
   resolveWorkspaceTempRoot
 } = require('./workspace-temp-layout.js')
 
-const MANIFEST_SCHEMA = 'WorkspaceTempManifestV1'
-const STATUS_SCHEMA = 'WorkspaceTempStatusV1'
-const PRUNE_SCHEMA = 'WorkspaceTempPruneV1'
+const LEGACY_MANIFEST_SCHEMA = 'WorkspaceTempManifestV1'
+const MANIFEST_SCHEMA = 'WorkspaceTempManifestV2'
+const LEASE_SCHEMA = 'WorkspaceTempLeaseV2'
+const LIFECYCLE_RECEIPT_SCHEMA = 'WorkspaceTempLifecycleReceiptV2'
+const STATUS_SCHEMA = 'WorkspaceTempStatusV2'
+const PRUNE_SCHEMA = 'WorkspaceTempPruneV2'
 const MAX_ENTRIES = 10000
 const MAX_CONTROL_FILE_BYTES = 64 * 1024
 const PARTITIONS = Object.freeze(['runs', 'cache', 'backups', 'leases', 'quarantine', 'manifests'])
@@ -63,6 +67,46 @@ function isContained(root, candidate) {
 function safeIdentifier(value) {
   const text = String(value || '').trim()
   return /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(text)
+}
+
+function tempContractError(code, message = code, details = {}) {
+  const error = new Error(message)
+  error.name = 'WorkspaceTempContractError'
+  error.code = code
+  Object.assign(error, details)
+  return error
+}
+
+function permissionReceipt(targetPath, kind) {
+  if (process.platform === 'win32') {
+    return {
+      schemaVersion: 'WorkspaceTempPermissionReceiptV1',
+      targetPath,
+      kind,
+      platform: 'win32',
+      status: 'UNVERIFIED',
+      evidence: 'DACL not probed by the source runtime'
+    }
+  }
+  const mode = fs.statSync(targetPath).mode & 0o777
+  const expectedMode = kind === 'directory' ? 0o700 : 0o600
+  return {
+    schemaVersion: 'WorkspaceTempPermissionReceiptV1',
+    targetPath,
+    kind,
+    platform: process.platform,
+    status: mode === expectedMode ? 'PASS' : 'WARN',
+    mode,
+    expectedMode
+  }
+}
+
+function enforceWorkspaceTempTargetPermission(targetPath) {
+  const stats = fs.lstatSync(targetPath)
+  if (stats.isSymbolicLink()) throw tempContractError('WORKSPACE_TEMP_TARGET_REPARSE', targetPath)
+  const kind = stats.isDirectory() ? 'directory' : 'file'
+  if (process.platform !== 'win32') fs.chmodSync(targetPath, kind === 'directory' ? 0o700 : 0o600)
+  return permissionReceipt(targetPath, kind)
 }
 
 function captureTargetIdentity(targetPath) {
@@ -142,7 +186,8 @@ function ensureWorkspaceTempPartitions(tempRoot) {
   if (fs.existsSync(root) && fs.lstatSync(root).isSymbolicLink()) {
     throw new Error(`WORKSPACE_TEMP_ROOT_REPARSE: ${root}`)
   }
-  fs.mkdirSync(root, { recursive: true })
+  fs.mkdirSync(root, { recursive: true, mode: 0o700 })
+  if (process.platform !== 'win32') fs.chmodSync(root, 0o700)
   if (fs.lstatSync(root).isSymbolicLink()) {
     throw new Error(`WORKSPACE_TEMP_ROOT_REPARSE: ${root}`)
   }
@@ -151,7 +196,8 @@ function ensureWorkspaceTempPartitions(tempRoot) {
     if (fs.existsSync(partitionPath) && fs.lstatSync(partitionPath).isSymbolicLink()) {
       throw new Error(`WORKSPACE_TEMP_PARTITION_REPARSE: ${partitionPath}`)
     }
-    fs.mkdirSync(partitionPath, { recursive: true })
+    fs.mkdirSync(partitionPath, { recursive: true, mode: 0o700 })
+    if (process.platform !== 'win32') fs.chmodSync(partitionPath, 0o700)
     if (fs.lstatSync(partitionPath).isSymbolicLink()) {
       throw new Error(`WORKSPACE_TEMP_PARTITION_REPARSE: ${partitionPath}`)
     }
@@ -171,14 +217,16 @@ function prepareWorkspaceTempBackupRoot(cwdOrActiveRoot, explicitProject = '') {
 }
 
 function atomicWriteJson(file, value) {
-  fs.mkdirSync(path.dirname(file), { recursive: true })
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 })
+  if (process.platform !== 'win32') fs.chmodSync(path.dirname(file), 0o700)
   const temporary = `${file}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`
   const content = JSON.stringify(value, null, 2) + '\n'
   if (Buffer.byteLength(content, 'utf8') > MAX_CONTROL_FILE_BYTES) {
     throw new Error(`WORKSPACE_TEMP_CONTROL_FILE_TOO_LARGE: ${file}`)
   }
   try {
-    fs.writeFileSync(temporary, content, { encoding: 'utf8', flag: 'wx' })
+    fs.writeFileSync(temporary, content, { encoding: 'utf8', flag: 'wx', mode: 0o600 })
+    if (process.platform !== 'win32') fs.chmodSync(temporary, 0o600)
     try {
       fs.linkSync(temporary, file)
     } catch (error) {
@@ -188,6 +236,7 @@ function atomicWriteJson(file, value) {
   } finally {
     if (fs.existsSync(temporary)) fs.rmSync(temporary, { force: true })
   }
+  return permissionReceipt(file, 'file')
 }
 
 function manifestDigest(file) {
@@ -215,44 +264,126 @@ function findWorkspaceTempRootForPath(targetPath) {
   }
 }
 
-function registerWorkspaceTempArtifactAtRoot(tempRoot, input = {}) {
-  const root = ensureWorkspaceTempPartitions(tempRoot)
-  const targetPath = path.resolve(input.targetPath || '')
-  const type = String(input.type || '').trim()
-  const expectedPartition = TYPE_PARTITION[type]
-  if (!expectedPartition) throw new Error(`WORKSPACE_TEMP_TYPE_UNSUPPORTED: ${type || '(empty)'}`)
-  if (!isContained(root, targetPath)) throw new Error(`WORKSPACE_TEMP_PATH_ESCAPE: ${targetPath}`)
-  if (!fs.existsSync(targetPath)) throw new Error(`WORKSPACE_TEMP_TARGET_MISSING: ${targetPath}`)
-  const boundary = inspectPathBoundary(root, targetPath)
-  if (!boundary.safe) throw new Error(`WORKSPACE_TEMP_PATH_UNSAFE: ${boundary.reason}: ${targetPath}`)
-  const relative = path.relative(root, targetPath).split(path.sep).filter(Boolean)
-  if (relative[0] !== expectedPartition) {
-    throw new Error(`WORKSPACE_TEMP_PARTITION_MISMATCH: ${type} must live under ${expectedPartition}`)
-  }
-  if (relative.length < 2) {
-    throw new Error(`WORKSPACE_TEMP_PARTITION_ROOT_RESERVED: ${targetPath}`)
-  }
+function controlFileDigest(file) {
+  const stats = fs.lstatSync(file)
+  if (stats.isSymbolicLink() || !stats.isFile()) throw tempContractError('WORKSPACE_TEMP_CONTROL_NOT_REGULAR', file)
+  if (stats.size > MAX_CONTROL_FILE_BYTES) throw tempContractError('WORKSPACE_TEMP_CONTROL_FILE_TOO_LARGE', file)
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
+}
 
-  const createdAtMs = input.createdAt ? Date.parse(input.createdAt) : Date.now()
-  if (!Number.isFinite(createdAtMs)) throw new Error('WORKSPACE_TEMP_CREATED_AT_INVALID')
-  const expiresAtMs = input.expiresAt
-    ? Date.parse(input.expiresAt)
-    : createdAtMs + (Number.isFinite(input.ttlMs) ? input.ttlMs : DEFAULT_TTL_MS[type])
-  if (!Number.isFinite(expiresAtMs) || expiresAtMs < createdAtMs) {
-    throw new Error('WORKSPACE_TEMP_EXPIRES_AT_INVALID')
+function readControlJson(file) {
+  const digest = controlFileDigest(file)
+  const value = JSON.parse(fs.readFileSync(file, 'utf8'))
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw tempContractError('WORKSPACE_TEMP_CONTROL_INVALID', file)
   }
+  return { value, digest }
+}
+
+function atomicReplaceJson(file, value, expectedDigest) {
+  if (!fs.existsSync(file) || controlFileDigest(file) !== expectedDigest) {
+    throw tempContractError('WORKSPACE_TEMP_CONTROL_CAS_MISMATCH', file)
+  }
+  const content = `${JSON.stringify(value, null, 2)}\n`
+  if (Buffer.byteLength(content) > MAX_CONTROL_FILE_BYTES) {
+    throw tempContractError('WORKSPACE_TEMP_CONTROL_FILE_TOO_LARGE', file)
+  }
+  const temporary = `${file}.tmp-${process.pid}-${crypto.randomBytes(6).toString('hex')}`
+  fs.writeFileSync(temporary, content, { encoding: 'utf8', flag: 'wx', mode: 0o600 })
+  try {
+    if (process.platform !== 'win32') fs.chmodSync(temporary, 0o600)
+    if (controlFileDigest(file) !== expectedDigest) {
+      throw tempContractError('WORKSPACE_TEMP_CONTROL_CAS_MISMATCH', file)
+    }
+    fs.renameSync(temporary, file)
+    if (controlFileDigest(file) !== crypto.createHash('sha256').update(content).digest('hex')) {
+      throw tempContractError('WORKSPACE_TEMP_CONTROL_READBACK_MISMATCH', file)
+    }
+  } finally {
+    if (fs.existsSync(temporary)) fs.rmSync(temporary, { force: true })
+  }
+  return { digest: controlFileDigest(file), permission: permissionReceipt(file, 'file') }
+}
+
+function normalizeTempProject(project) {
+  const value = String(project || 'workspace')
+  if (value === 'workspace') return value
+  return normalizeProjectNamespace(value, { layout: { enabled: false }, allowEmpty: false })
+}
+
+function projectSegments(project) {
+  return String(project).split('/').filter(Boolean)
+}
+
+function v2ManifestPath(root, project, partition, artifactId) {
+  const projectDigest = crypto.createHash('sha256').update(project).digest('hex')
+  return path.join(root, 'manifests', 'v2', projectDigest, partition, `${artifactId}.json`)
+}
+
+function expectedV2TargetRelative(manifest) {
+  const partition = TYPE_PARTITION[manifest.type]
+  if (!partition) return ''
+  return portable(path.join(
+    partition,
+    ...projectSegments(manifest.project),
+    manifest.producer,
+    manifest.artifactId,
+    manifest.targetName
+  ))
+}
+
+function validateV2ManifestIdentity(manifest, root, manifestPath = '') {
+  const errors = []
+  if (manifest?.schemaVersion !== MANIFEST_SCHEMA) errors.push('schema-version-invalid')
+  if (!safeIdentifier(manifest?.artifactId)) errors.push('artifact-id-invalid')
+  if (!TYPE_PARTITION[manifest?.type]) errors.push('type-invalid')
+  if (!safeIdentifier(manifest?.owner) || !safeIdentifier(manifest?.producer)) errors.push('owner-invalid')
+  if (!safeIdentifier(manifest?.targetName)) errors.push('target-name-invalid')
+  let project = ''
+  try { project = normalizeTempProject(manifest?.project) } catch { errors.push('project-invalid') }
+  if (project && project !== manifest.project) errors.push('project-noncanonical')
+  if (!/^[a-f0-9]{64}$/.test(String(manifest?.ownerTokenDigest || ''))) errors.push('owner-token-invalid')
+  const expectedRelative = expectedV2TargetRelative(manifest)
+  if (!expectedRelative || portable(manifest?.targetRelativePath) !== expectedRelative) errors.push('target-relative-identity-mismatch')
+  const targetPath = path.resolve(root, String(manifest?.targetRelativePath || ''))
+  if (!isContained(root, targetPath)) errors.push('target-path-escape')
+  if (manifestPath) {
+    const expectedManifest = v2ManifestPath(root, project || 'workspace', TYPE_PARTITION[manifest?.type], manifest?.artifactId)
+    if (pathComparisonKey(expectedManifest) !== pathComparisonKey(manifestPath)) errors.push('manifest-path-identity-mismatch')
+  }
+  return { valid: errors.length === 0, errors, targetPath, expectedRelative }
+}
+
+function createWorkspaceTempArtifactAtRoot(tempRoot, input = {}) {
+  const root = ensureWorkspaceTempPartitions(tempRoot)
+  const type = String(input.type || '').trim()
+  const partition = TYPE_PARTITION[type]
+  if (!partition) throw tempContractError('WORKSPACE_TEMP_TYPE_UNSUPPORTED', type || '(empty)')
   const owner = String(input.owner || '').trim()
   const producer = String(input.producer || owner).trim()
-  const project = String(input.project || 'workspace').trim()
-  if (!owner || !producer || !project) throw new Error('WORKSPACE_TEMP_OWNER_REQUIRED')
-  const generatedId = crypto.createHash('sha256')
-    .update(`${portable(targetPath)}\0${createdAtMs}\0${process.pid}\0${crypto.randomBytes(8).toString('hex')}`)
-    .digest('hex').slice(0, 24)
-  const artifactId = String(input.artifactId || `${type}-${generatedId}`).trim()
-  if (!safeIdentifier(artifactId)) throw new Error(`WORKSPACE_TEMP_ARTIFACT_ID_INVALID: ${artifactId}`)
-  const leaseId = input.leaseId == null ? null : String(input.leaseId).trim()
-  if (leaseId !== null && !safeIdentifier(leaseId)) throw new Error(`WORKSPACE_TEMP_LEASE_ID_INVALID: ${leaseId}`)
-
+  const targetName = String(input.targetName || 'artifact').trim()
+  if (!safeIdentifier(owner) || !safeIdentifier(producer) || !safeIdentifier(targetName)) {
+    throw tempContractError('WORKSPACE_TEMP_OWNER_INVALID')
+  }
+  const project = normalizeTempProject(input.project)
+  const artifactId = String(input.artifactId || `${type}-${crypto.randomBytes(12).toString('hex')}`).trim()
+  if (!safeIdentifier(artifactId)) throw tempContractError('WORKSPACE_TEMP_ARTIFACT_ID_INVALID', artifactId)
+  const ownerToken = String(input.ownerToken || crypto.randomBytes(32).toString('hex'))
+  const ownerTokenDigest = crypto.createHash('sha256').update(ownerToken).digest('hex')
+  const createdAtMs = Number.isFinite(input.nowMs) ? input.nowMs : Date.now()
+  const ttlMs = Number.isFinite(input.ttlMs) && input.ttlMs > 0 ? input.ttlMs : DEFAULT_TTL_MS[type]
+  const targetRelativePath = portable(path.join(
+    partition,
+    ...projectSegments(project),
+    producer,
+    artifactId,
+    targetName
+  ))
+  const targetPath = path.resolve(root, targetRelativePath)
+  const manifestPath = v2ManifestPath(root, project, partition, artifactId)
+  if (fs.existsSync(manifestPath) || fs.existsSync(targetPath)) {
+    throw tempContractError('WORKSPACE_TEMP_ARTIFACT_ID_CONFLICT', artifactId)
+  }
   const manifest = {
     schemaVersion: MANIFEST_SCHEMA,
     artifactId,
@@ -260,38 +391,238 @@ function registerWorkspaceTempArtifactAtRoot(tempRoot, input = {}) {
     owner,
     project,
     producer,
-    targetPath,
-    targetIdentity: captureTargetIdentity(targetPath),
+    targetName,
+    targetRelativePath,
+    ownerTokenDigest,
+    lifecycleState: 'allocated',
+    targetIdentity: null,
     createdAt: new Date(createdAtMs).toISOString(),
-    expiresAt: new Date(expiresAtMs).toISOString(),
+    updatedAt: new Date(createdAtMs).toISOString(),
+    expiresAt: new Date(createdAtMs + ttlMs).toISOString(),
     cleanupPolicy: input.cleanupPolicy || 'delete',
-    transactionStatus: input.transactionStatus || (type === 'backup' ? 'completed' : 'not-applicable'),
-    leaseId
+    finalDisposition: null,
+    leaseId: artifactId,
+    generation: 1
   }
-  const manifestPath = path.join(root, 'manifests', `${artifactId}.json`)
-  if (fs.existsSync(manifestPath)) {
-    throw new Error(`WORKSPACE_TEMP_ARTIFACT_ID_CONFLICT: ${artifactId}`)
+  const permission = atomicWriteJson(manifestPath, manifest)
+  const validation = validateV2ManifestIdentity(manifest, root, manifestPath)
+  if (!validation.valid) throw tempContractError('WORKSPACE_TEMP_MANIFEST_IDENTITY_INVALID', validation.errors.join(','))
+
+  function transition(nextState, details = {}) {
+    const current = readControlJson(manifestPath)
+    const observed = current.value
+    if (observed.ownerTokenDigest !== ownerTokenDigest) {
+      throw tempContractError('WORKSPACE_TEMP_OWNER_TOKEN_MISMATCH')
+    }
+    const allowed = {
+      allocated: new Set(['active', 'abandoned']),
+      active: new Set(['finalized', 'abandoned']),
+      finalized: new Set(),
+      abandoned: new Set()
+    }
+    if (!allowed[observed.lifecycleState]?.has(nextState)) {
+      throw tempContractError('WORKSPACE_TEMP_LIFECYCLE_TRANSITION_INVALID', `${observed.lifecycleState}->${nextState}`)
+    }
+    let targetIdentity = observed.targetIdentity
+    let targetPermission = null
+    if (nextState === 'active' || (nextState === 'abandoned' && fs.existsSync(targetPath))) {
+      if (!fs.existsSync(targetPath)) throw tempContractError('WORKSPACE_TEMP_TARGET_MISSING', targetPath)
+      targetPermission = enforceWorkspaceTempTargetPermission(targetPath)
+      targetIdentity = captureTargetIdentity(targetPath)
+    }
+    const nowMs = Number.isFinite(details.nowMs) ? details.nowMs : Date.now()
+    const next = {
+      ...observed,
+      lifecycleState: nextState,
+      targetIdentity,
+      finalDisposition: nextState === 'finalized' ? (details.finalDisposition || 'retained') : observed.finalDisposition,
+      updatedAt: new Date(nowMs).toISOString(),
+      generation: Number(observed.generation || 0) + 1,
+      ...(details.failureCode ? { failureCode: details.failureCode } : {})
+    }
+    const write = atomicReplaceJson(manifestPath, next, current.digest)
+    return {
+      schemaVersion: LIFECYCLE_RECEIPT_SCHEMA,
+      status: nextState,
+      artifactId,
+      ownerTokenDigest,
+      project,
+      producer,
+      targetPath,
+      manifestPath,
+      manifestDigest: write.digest,
+      generation: next.generation,
+      permission: write.permission,
+      targetPermission
+    }
   }
-  atomicWriteJson(manifestPath, manifest)
-  return { manifestPath, manifest }
+
+  const allocationReceipt = {
+    schemaVersion: LIFECYCLE_RECEIPT_SCHEMA,
+    status: 'allocated',
+    artifactId,
+    ownerTokenDigest,
+    project,
+    producer,
+    targetPath,
+    manifestPath,
+    manifestDigest: controlFileDigest(manifestPath),
+    generation: 1,
+    permission
+  }
+  return Object.freeze({
+    artifactId,
+    ownerToken,
+    ownerTokenDigest,
+    targetPath,
+    manifestPath,
+    allocationReceipt,
+    activate: options => transition('active', options),
+    finalize: options => transition('finalized', options),
+    abandon: options => transition('abandoned', options)
+  })
+}
+
+function createWorkspaceTempArtifact(cwdOrActiveRoot, input = {}) {
+  const tempRoot = resolveWorkspaceTempRoot(cwdOrActiveRoot)
+  const project = input.project || resolveWorkspaceTempProject(cwdOrActiveRoot)
+  return createWorkspaceTempArtifactAtRoot(tempRoot, { ...input, project })
+}
+
+function withWorkspaceTempArtifactAtRoot(tempRoot, input, producer) {
+  if (typeof producer !== 'function') throw tempContractError('WORKSPACE_TEMP_PRODUCER_REQUIRED')
+  const artifact = createWorkspaceTempArtifactAtRoot(tempRoot, input)
+  fs.mkdirSync(path.dirname(artifact.targetPath), { recursive: true, mode: 0o700 })
+  if (process.platform !== 'win32') fs.chmodSync(path.dirname(artifact.targetPath), 0o700)
+  try {
+    const value = producer({
+      artifactId: artifact.artifactId,
+      ownerToken: artifact.ownerToken,
+      targetPath: artifact.targetPath,
+      manifestPath: artifact.manifestPath
+    })
+    if (value && typeof value.then === 'function') {
+      throw tempContractError('WORKSPACE_TEMP_ASYNC_PRODUCER_UNSUPPORTED')
+    }
+    const activeReceipt = artifact.activate()
+    const finalReceipt = artifact.finalize({ finalDisposition: input.finalDisposition || 'retained' })
+    return { ...artifact, value, activeReceipt, finalReceipt }
+  } catch (error) {
+    try { artifact.abandon({ failureCode: error.code || 'WORKSPACE_TEMP_PRODUCER_FAILED' }) } catch { }
+    throw error
+  }
+}
+
+function withWorkspaceTempArtifact(cwdOrActiveRoot, input, producer) {
+  const project = input.project || resolveWorkspaceTempProject(cwdOrActiveRoot)
+  return withWorkspaceTempArtifactAtRoot(resolveWorkspaceTempRoot(cwdOrActiveRoot), { ...input, project }, producer)
+}
+
+function withWorkspaceTempBackup(backupRoot, input, producer) {
+  const absoluteBackupRoot = path.resolve(backupRoot)
+  const tempRoot = findWorkspaceTempRootForPath(path.join(absoluteBackupRoot, 'candidate'))
+  if (!tempRoot) throw tempContractError('WORKSPACE_TEMP_BACKUP_ROOT_INVALID', absoluteBackupRoot)
+  const relative = path.relative(path.join(tempRoot, 'backups'), absoluteBackupRoot)
+  const project = portable(relative).split('/').filter(Boolean).join('/') || 'workspace'
+  return withWorkspaceTempArtifactAtRoot(tempRoot, {
+    ...input,
+    type: 'backup',
+    project,
+    targetName: input.targetName || 'backup'
+  }, producer)
+}
+
+function acquireWorkspaceTempLease(tempRoot, input = {}) {
+  const root = path.resolve(tempRoot)
+  const artifactId = String(input.artifactId || '')
+  const ownerToken = String(input.ownerToken || '')
+  if (!safeIdentifier(artifactId) || !ownerToken) throw tempContractError('WORKSPACE_TEMP_LEASE_INPUT_INVALID')
+  const project = normalizeTempProject(input.project)
+  const partition = TYPE_PARTITION[String(input.type || '')]
+  if (!partition) throw tempContractError('WORKSPACE_TEMP_LEASE_INPUT_INVALID')
+  const manifestPath = v2ManifestPath(root, project, partition, artifactId)
+  if (!fs.existsSync(manifestPath)) throw tempContractError('WORKSPACE_TEMP_ARTIFACT_NOT_FOUND', artifactId)
+  const manifest = readControlJson(manifestPath).value
+  const validation = validateV2ManifestIdentity(manifest, root, manifestPath)
+  if (!validation.valid || manifest.project !== project || TYPE_PARTITION[manifest.type] !== partition) {
+    throw tempContractError('WORKSPACE_TEMP_MANIFEST_IDENTITY_INVALID', validation.errors.join(','))
+  }
+  const ownerTokenDigest = crypto.createHash('sha256').update(ownerToken).digest('hex')
+  if (manifest.ownerTokenDigest !== ownerTokenDigest) throw tempContractError('WORKSPACE_TEMP_OWNER_TOKEN_MISMATCH')
+  const leaseToken = String(input.leaseToken || crypto.randomBytes(32).toString('hex'))
+  const nowMs = Number.isFinite(input.nowMs) ? input.nowMs : Date.now()
+  const ttlMs = Number.isFinite(input.ttlMs) && input.ttlMs > 0 ? input.ttlMs : 5 * 60 * 1000
+  const lease = {
+    schemaVersion: LEASE_SCHEMA,
+    artifactId,
+    project: manifest.project,
+    producer: manifest.producer,
+    ownerTokenDigest,
+    leaseTokenDigest: crypto.createHash('sha256').update(leaseToken).digest('hex'),
+    generation: 1,
+    acquiredAt: new Date(nowMs).toISOString(),
+    expiresAt: new Date(nowMs + ttlMs).toISOString()
+  }
+  const leasePath = path.join(root, 'leases', `${artifactId}.json`)
+  const permission = atomicWriteJson(leasePath, lease)
+  return { leasePath, leaseToken, leaseTokenDigest: lease.leaseTokenDigest, generation: 1, permission }
+}
+
+function mutateWorkspaceTempLease(tempRoot, artifactId, leaseToken, mutation) {
+  const leasePath = path.join(path.resolve(tempRoot), 'leases', `${artifactId}.json`)
+  const current = readControlJson(leasePath)
+  if (current.value.schemaVersion !== LEASE_SCHEMA ||
+      !workspaceTempLeaseTokenMatches(current.value, leaseToken)) {
+    throw tempContractError('WORKSPACE_TEMP_LEASE_TOKEN_MISMATCH')
+  }
+  return mutation({ leasePath, current })
+}
+
+function workspaceTempLeaseTokenMatches(lease, leaseToken) {
+  const expected = String(lease?.leaseTokenDigest || '')
+  const observed = crypto.createHash('sha256').update(String(leaseToken || '')).digest('hex')
+  return /^[a-f0-9]{64}$/.test(expected) && expected === observed
+}
+
+function renewWorkspaceTempLease(tempRoot, input = {}) {
+  return mutateWorkspaceTempLease(tempRoot, input.artifactId, input.leaseToken, ({ leasePath, current }) => {
+    const nowMs = Number.isFinite(input.nowMs) ? input.nowMs : Date.now()
+    const ttlMs = Number.isFinite(input.ttlMs) && input.ttlMs > 0 ? input.ttlMs : 5 * 60 * 1000
+    const next = {
+      ...current.value,
+      generation: Number(current.value.generation || 0) + 1,
+      renewedAt: new Date(nowMs).toISOString(),
+      expiresAt: new Date(nowMs + ttlMs).toISOString()
+    }
+    const write = atomicReplaceJson(leasePath, next, current.digest)
+    return { status: 'renewed', leasePath, generation: next.generation, digest: write.digest }
+  })
+}
+
+function releaseWorkspaceTempLease(tempRoot, input = {}) {
+  return mutateWorkspaceTempLease(tempRoot, input.artifactId, input.leaseToken, ({ leasePath, current }) => {
+    if (controlFileDigest(leasePath) !== current.digest) throw tempContractError('WORKSPACE_TEMP_LEASE_CAS_MISMATCH')
+    fs.rmSync(leasePath, { force: true })
+    return { status: 'released', leasePath, generation: current.value.generation }
+  })
+}
+
+function registerWorkspaceTempArtifactAtRoot(tempRoot, input = {}) {
+  void tempRoot
+  void input
+  throw tempContractError(
+    'WORKSPACE_TEMP_V1_REGISTRATION_READ_ONLY',
+    'WorkspaceTempManifestV1 is read-only; use createWorkspaceTempArtifactAtRoot or withWorkspaceTempArtifactAtRoot'
+  )
 }
 
 function registerWorkspaceTempBackup(targetPath, options = {}) {
-  const tempRoot = options.tempRoot || findWorkspaceTempRootForPath(targetPath)
-  if (!tempRoot) return null
-  const parentParts = path.relative(tempRoot, path.dirname(path.resolve(targetPath))).split(path.sep).filter(Boolean)
-  const inferredProject = parentParts[0] === 'backups' && parentParts.length > 1
-    ? parentParts.slice(1).join('/')
-    : 'workspace'
-  return registerWorkspaceTempArtifactAtRoot(tempRoot, {
-    ...options,
-    targetPath,
-    type: 'backup',
-    owner: options.owner || 'devcodex-cli',
-    project: options.project || inferredProject,
-    producer: options.producer || 'managed-backup',
-    transactionStatus: options.transactionStatus || 'completed'
-  })
+  void targetPath
+  void options
+  throw tempContractError(
+    'WORKSPACE_TEMP_V1_REGISTRATION_READ_ONLY',
+    'late backup registration is disabled; use withWorkspaceTempBackup'
+  )
 }
 
 function inspectTarget(targetPath, maxEntries = MAX_ENTRIES) {
@@ -306,7 +637,7 @@ function inspectTarget(targetPath, maxEntries = MAX_ENTRIES) {
   let files = 0
   let bytes = 0
   let reparse = false
-  let lock = false
+  let ordinaryLocks = 0
   let unreadable = false
   let truncated = false
   while (pending.length && visited < maxEntries) {
@@ -321,7 +652,7 @@ function inspectTarget(targetPath, maxEntries = MAX_ENTRIES) {
       reparse = true
       continue
     }
-    if (path.basename(current).endsWith('.lock')) lock = true
+    if (path.basename(current).endsWith('.lock')) ordinaryLocks += 1
     if (!stats.isDirectory()) {
       files++
       bytes += stats.size
@@ -347,10 +678,20 @@ function inspectTarget(targetPath, maxEntries = MAX_ENTRIES) {
       try { directory.closeSync() } catch { unreadable = true }
     }
   }
-  return { exists: true, files, bytes, entries: visited, truncated: truncated || pending.length > 0, reparse, lock, unreadable }
+  return {
+    exists: true,
+    files,
+    bytes,
+    entries: visited,
+    truncated: truncated || pending.length > 0,
+    reparse,
+    lock: false,
+    ordinaryLocks,
+    unreadable
+  }
 }
 
-function readLease(root, leaseId, nowMs) {
+function readLease(root, leaseId, nowMs, expectedManifest = null) {
   if (!leaseId) return { status: 'none', path: null }
   const leasePath = path.join(root, 'leases', `${leaseId}.json`)
   if (!fs.existsSync(leasePath)) return { status: 'missing', path: leasePath }
@@ -360,12 +701,29 @@ function readLease(root, leaseId, nowMs) {
     if (stats.size > MAX_CONTROL_FILE_BYTES) return { status: 'invalid', path: leasePath, reason: 'lease-too-large' }
     const raw = fs.readFileSync(leasePath)
     const value = JSON.parse(raw.toString('utf8'))
-    if (value?.schemaVersion !== 'WorkspaceTempLeaseV1') return { status: 'invalid', path: leasePath, reason: 'unknown-lease-schema' }
+    if (![LEASE_SCHEMA, 'WorkspaceTempLeaseV1'].includes(value?.schemaVersion)) {
+      return { status: 'invalid', path: leasePath, reason: 'unknown-lease-schema' }
+    }
+    if (value.schemaVersion === LEASE_SCHEMA) {
+      const bindingValid = safeIdentifier(value.artifactId) && value.artifactId === leaseId &&
+        /^[a-f0-9]{64}$/.test(String(value.ownerTokenDigest || '')) &&
+        /^[a-f0-9]{64}$/.test(String(value.leaseTokenDigest || '')) &&
+        Number.isInteger(value.generation) && value.generation > 0 &&
+        (!expectedManifest || (
+          value.artifactId === expectedManifest.artifactId &&
+          value.project === expectedManifest.project &&
+          value.producer === expectedManifest.producer &&
+          value.ownerTokenDigest === expectedManifest.ownerTokenDigest
+        ))
+      if (!bindingValid) return { status: 'invalid', path: leasePath, reason: 'lease-binding-invalid' }
+    }
     const expiresAtMs = Date.parse(value?.expiresAt)
     if (!Number.isFinite(expiresAtMs)) return { status: 'invalid', path: leasePath }
     return {
       status: expiresAtMs > nowMs ? 'active' : 'expired',
       path: leasePath,
+      schemaVersion: value.schemaVersion,
+      generation: value.generation || null,
       expiresAt: new Date(expiresAtMs).toISOString(),
       digest: crypto.createHash('sha256').update(raw).digest('hex')
     }
@@ -391,18 +749,28 @@ function inspectManifest(root, manifestPath, nowMs, maxTargetEntries = MAX_ENTRI
     return { manifestPath, eligible: false, reasons: ['invalid-manifest-json'] }
   }
   const reasons = []
-  if (manifest?.schemaVersion !== MANIFEST_SCHEMA) reasons.push('unknown-manifest-schema')
+  const isV2 = manifest?.schemaVersion === MANIFEST_SCHEMA
+  const isLegacy = manifest?.schemaVersion === LEGACY_MANIFEST_SCHEMA
+  if (!isV2 && !isLegacy) reasons.push('unknown-manifest-schema')
+  if (isLegacy) reasons.push('legacy-manifest-read-only')
   if (!safeIdentifier(manifest?.artifactId) || path.basename(manifestPath) !== `${manifest.artifactId}.json`) reasons.push('invalid-artifact-id')
   const type = String(manifest?.type || '')
   if (!TYPE_PARTITION[type]) reasons.push('unknown-artifact-type')
-  if (!String(manifest?.owner || '').trim()) reasons.push('unknown-owner')
+  if (!String(manifest?.owner || '').trim() || (isV2 && !safeIdentifier(manifest.owner))) reasons.push('unknown-owner')
   if (!String(manifest?.project || '').trim() || !String(manifest?.producer || '').trim()) reasons.push('incomplete-owner-scope')
   if (manifest?.cleanupPolicy !== 'delete') reasons.push('cleanup-policy-not-delete')
-  if (manifest?.targetIdentity == null) reasons.push('target-identity-missing')
-  else if (!validTargetIdentity(manifest.targetIdentity)) reasons.push('target-identity-invalid')
+  if (manifest?.targetIdentity == null) {
+    if (!isV2 || !['allocated', 'abandoned'].includes(manifest.lifecycleState)) reasons.push('target-identity-missing')
+  } else if (!validTargetIdentity(manifest.targetIdentity)) reasons.push('target-identity-invalid')
 
-  const targetPath = path.resolve(String(manifest?.targetPath || root))
-  const targetContained = Boolean(manifest?.targetPath) && path.isAbsolute(String(manifest.targetPath)) && isContained(root, targetPath)
+  const v2Identity = isV2 ? validateV2ManifestIdentity(manifest, root, manifestPath) : null
+  if (v2Identity && !v2Identity.valid) reasons.push(...v2Identity.errors)
+  const targetPath = isV2
+    ? v2Identity.targetPath
+    : path.resolve(String(manifest?.targetPath || root))
+  const targetContained = isV2
+    ? v2Identity.valid && isContained(root, targetPath)
+    : Boolean(manifest?.targetPath) && path.isAbsolute(String(manifest.targetPath)) && isContained(root, targetPath)
   const boundary = targetContained
     ? inspectPathBoundary(root, targetPath)
     : { safe: false, reason: 'path-escape' }
@@ -414,12 +782,16 @@ function inspectManifest(root, manifestPath, nowMs, maxTargetEntries = MAX_ENTRI
   if (TYPE_PARTITION[type] && path.relative(root, targetPath).split(path.sep).filter(Boolean).length < 2) {
     reasons.push('partition-root-reserved')
   }
+  if (isV2 && !['allocated', 'active', 'finalized', 'abandoned'].includes(manifest.lifecycleState)) {
+    reasons.push('lifecycle-state-invalid')
+  }
+  if (isV2 && ['allocated', 'active'].includes(manifest.lifecycleState)) reasons.push('lifecycle-not-finalized')
   const createdAtMs = Date.parse(manifest?.createdAt)
   const expiresAtMs = Date.parse(manifest?.expiresAt)
   if (!Number.isFinite(createdAtMs) || !Number.isFinite(expiresAtMs) || expiresAtMs < createdAtMs) reasons.push('invalid-retention-window')
-  if (type === 'backup' && manifest?.transactionStatus !== 'completed') reasons.push('backup-transaction-incomplete')
+  if (isLegacy && type === 'backup' && manifest?.transactionStatus !== 'completed') reasons.push('backup-transaction-incomplete')
   if (manifest?.leaseId != null && !safeIdentifier(manifest.leaseId)) reasons.push('invalid-lease-id')
-  const lease = readLease(root, safeIdentifier(manifest?.leaseId) ? manifest.leaseId : null, nowMs)
+  const lease = readLease(root, safeIdentifier(manifest?.leaseId) ? manifest.leaseId : null, nowMs, isV2 ? manifest : null)
   if (lease.status === 'active') reasons.push('active-lease')
   if (lease.status === 'invalid') reasons.push('invalid-lease')
 
@@ -427,7 +799,6 @@ function inspectManifest(root, manifestPath, nowMs, maxTargetEntries = MAX_ENTRI
     ? inspectTarget(targetPath, maxTargetEntries)
     : { exists: false, files: 0, bytes: 0, entries: 0, truncated: false, reparse: false, lock: false, unreadable: false }
   if (target.reparse) reasons.push('reparse-point')
-  if (target.lock) reasons.push('lock-present')
   if (target.unreadable) reasons.push('target-unreadable')
   if (target.truncated) reasons.push('inspection-truncated')
   let observedTargetIdentity = null
@@ -446,17 +817,21 @@ function inspectManifest(root, manifestPath, nowMs, maxTargetEntries = MAX_ENTRI
     manifestPath,
     manifestDigest: crypto.createHash('sha256').update(raw).digest('hex'),
     artifactId: manifest?.artifactId || null,
+    manifestSchema: manifest?.schemaVersion || null,
+    lifecycleState: manifest?.lifecycleState || (isLegacy ? 'legacy-read-only' : null),
     type: manifest?.type || null,
     owner: manifest?.owner || null,
     project: manifest?.project || null,
     producer: manifest?.producer || null,
     leaseId: safeIdentifier(manifest?.leaseId) ? manifest.leaseId : null,
     targetPath,
+    targetRelativePath: isV2 ? manifest.targetRelativePath : null,
     targetIdentity: validTargetIdentity(manifest?.targetIdentity) ? manifest.targetIdentity : null,
     observedTargetIdentity,
     expiresAt: Number.isFinite(expiresAtMs) ? new Date(expiresAtMs).toISOString() : null,
     target,
     lease,
+    category: isLegacy ? 'legacy' : (isV2 ? 'registered' : 'invalid'),
     eligible: reasons.length === 0,
     reasons
   }
@@ -936,6 +1311,74 @@ function inspectWorkspaceTemp(cwd, nowMs = Date.now(), options = {}) {
   }
 }
 
+function applyWorkspaceTempCandidate(canonicalRoot, candidate, nowMs) {
+  const partial = { targetRemoved: false, leaseRemoved: false, manifestRemoved: false }
+  try {
+    if (!isContained(canonicalRoot, candidate.targetPath)) {
+      throw tempContractError('WORKSPACE_TEMP_PATH_ESCAPE', 'path escaped canonical root')
+    }
+    if (!fs.existsSync(candidate.manifestPath) || manifestDigest(candidate.manifestPath) !== candidate.manifestDigest) {
+      throw tempContractError('WORKSPACE_TEMP_MANIFEST_CHANGED', 'manifest changed after inspection')
+    }
+    const refreshLimit = Math.max(1, Math.min(MAX_ENTRIES, (candidate.target?.entries || 0) + 1))
+    const refreshed = inspectManifest(canonicalRoot, candidate.manifestPath, nowMs, refreshLimit)
+    if (!refreshed.eligible || refreshed.manifestDigest !== candidate.manifestDigest ||
+        pathComparisonKey(refreshed.targetPath) !== pathComparisonKey(candidate.targetPath) ||
+        refreshed.artifactId !== candidate.artifactId || refreshed.type !== candidate.type) {
+      throw tempContractError('WORKSPACE_TEMP_TARGET_CHANGED', 'retention, lease or target safety state changed after inspection')
+    }
+    const finalBoundary = inspectPathBoundary(canonicalRoot, refreshed.targetPath)
+    const currentTarget = inspectTarget(refreshed.targetPath, refreshLimit)
+    if (!finalBoundary.safe || currentTarget.reparse || currentTarget.unreadable || currentTarget.truncated) {
+      throw tempContractError('WORKSPACE_TEMP_TARGET_CHANGED', 'target safety state changed after inspection')
+    }
+    let expiredLease = null
+    if (candidate.leaseId) {
+      const currentLease = readLease(canonicalRoot, candidate.leaseId, nowMs)
+      if (currentLease.status === 'active' || currentLease.status === 'invalid') {
+        throw tempContractError('WORKSPACE_TEMP_LEASE_CHANGED', 'lease state changed after inspection')
+      }
+      if (currentLease.status === 'expired') {
+        if (currentLease.digest !== refreshed.lease.digest) {
+          throw tempContractError('WORKSPACE_TEMP_LEASE_CHANGED', 'lease changed after inspection')
+        }
+        expiredLease = currentLease
+      }
+    }
+    if (manifestDigest(candidate.manifestPath) !== candidate.manifestDigest) {
+      throw tempContractError('WORKSPACE_TEMP_MANIFEST_CHANGED', 'manifest changed before deletion')
+    }
+    const targetRemoval = removeIdentityBoundTarget(
+      canonicalRoot,
+      refreshed.targetPath,
+      refreshed.targetIdentity,
+      refreshed.artifactId
+    )
+    partial.targetRemoved = targetRemoval.removed
+    if (expiredLease && fs.existsSync(expiredLease.path)) {
+      const finalLease = readLease(canonicalRoot, candidate.leaseId, nowMs)
+      if (finalLease.status !== 'expired' || finalLease.digest !== expiredLease.digest) {
+        throw tempContractError('WORKSPACE_TEMP_LEASE_CHANGED', 'lease changed before deletion')
+      }
+      fs.rmSync(expiredLease.path, { force: true })
+      partial.leaseRemoved = true
+    }
+    fs.rmSync(candidate.manifestPath, { force: true })
+    partial.manifestRemoved = true
+    removeEmptyParents(path.dirname(refreshed.targetPath), path.join(canonicalRoot, TYPE_PARTITION[candidate.type]))
+    return {
+      artifactId: candidate.artifactId,
+      targetPath: refreshed.targetPath,
+      manifestPath: candidate.manifestPath,
+      leasePath: expiredLease?.path || null,
+      partial
+    }
+  } catch (error) {
+    error.partial = partial
+    throw error
+  }
+}
+
 function pruneWorkspaceTemp(cwd, { apply = false, nowMs = Date.now(), maxEntries = MAX_ENTRIES } = {}) {
   const status = inspectWorkspaceTemp(cwd, nowMs, { maxEntries })
   const removed = []
@@ -949,77 +1392,15 @@ function pruneWorkspaceTemp(cwd, { apply = false, nowMs = Date.now(), maxEntries
     })
   } else if (apply) {
     for (const candidate of status.candidates) {
-      let targetRemoved = false
-      let leaseRemoved = false
-      let manifestRemoved = false
       try {
-        if (!isContained(status.canonicalRoot, candidate.targetPath)) throw Object.assign(new Error('path escaped canonical root'), { code: 'WORKSPACE_TEMP_PATH_ESCAPE' })
-        if (!fs.existsSync(candidate.manifestPath) || manifestDigest(candidate.manifestPath) !== candidate.manifestDigest) {
-          throw Object.assign(new Error('manifest changed after inspection'), { code: 'WORKSPACE_TEMP_MANIFEST_CHANGED' })
-        }
-        const refreshLimit = Math.max(1, Math.min(MAX_ENTRIES, (candidate.target?.entries || 0) + 1))
-        const refreshed = inspectManifest(status.canonicalRoot, candidate.manifestPath, nowMs, refreshLimit)
-        if (
-          !refreshed.eligible ||
-          refreshed.manifestDigest !== candidate.manifestDigest ||
-          pathComparisonKey(refreshed.targetPath) !== pathComparisonKey(candidate.targetPath) ||
-          refreshed.artifactId !== candidate.artifactId ||
-          refreshed.type !== candidate.type
-        ) {
-          throw Object.assign(new Error('retention, lease or target safety state changed after inspection'), { code: 'WORKSPACE_TEMP_TARGET_CHANGED' })
-        }
-        const finalBoundary = inspectPathBoundary(status.canonicalRoot, refreshed.targetPath)
-        const currentTarget = inspectTarget(refreshed.targetPath, refreshLimit)
-        if (!finalBoundary.safe || currentTarget.reparse || currentTarget.lock || currentTarget.unreadable || currentTarget.truncated) {
-          throw Object.assign(new Error('target safety state changed after inspection'), { code: 'WORKSPACE_TEMP_TARGET_CHANGED' })
-        }
-        let expiredLease = null
-        if (candidate.leaseId) {
-          const currentLease = readLease(status.canonicalRoot, candidate.leaseId, nowMs)
-          if (currentLease.status === 'active' || currentLease.status === 'invalid') {
-            throw Object.assign(new Error('lease state changed after inspection'), { code: 'WORKSPACE_TEMP_LEASE_CHANGED' })
-          }
-          if (currentLease.status === 'expired') {
-            if (currentLease.digest !== refreshed.lease.digest) {
-              throw Object.assign(new Error('lease changed after inspection'), { code: 'WORKSPACE_TEMP_LEASE_CHANGED' })
-            }
-            expiredLease = currentLease
-          }
-        }
-        if (manifestDigest(candidate.manifestPath) !== candidate.manifestDigest) {
-          throw Object.assign(new Error('manifest changed before deletion'), { code: 'WORKSPACE_TEMP_MANIFEST_CHANGED' })
-        }
-        const targetRemoval = removeIdentityBoundTarget(
-          status.canonicalRoot,
-          refreshed.targetPath,
-          refreshed.targetIdentity,
-          refreshed.artifactId
-        )
-        targetRemoved = targetRemoval.removed
-        if (expiredLease && fs.existsSync(expiredLease.path)) {
-          const finalLease = readLease(status.canonicalRoot, candidate.leaseId, nowMs)
-          if (finalLease.status !== 'expired' || finalLease.digest !== expiredLease.digest) {
-            throw Object.assign(new Error('lease changed before deletion'), { code: 'WORKSPACE_TEMP_LEASE_CHANGED' })
-          }
-          fs.rmSync(expiredLease.path, { force: true })
-          leaseRemoved = true
-        }
-        fs.rmSync(candidate.manifestPath, { force: true })
-        manifestRemoved = true
-        removeEmptyParents(path.dirname(refreshed.targetPath), path.join(status.canonicalRoot, TYPE_PARTITION[candidate.type]))
-        removed.push({
-          artifactId: candidate.artifactId,
-          targetPath: refreshed.targetPath,
-          manifestPath: candidate.manifestPath,
-          leasePath: expiredLease?.path || null
-        })
+        removed.push(applyWorkspaceTempCandidate(status.canonicalRoot, candidate, nowMs))
       } catch (error) {
         failed.push({
           artifactId: candidate.artifactId,
           targetPath: candidate.targetPath,
           errorCode: error.code || 'WORKSPACE_TEMP_PRUNE_FAILED',
           message: error.message,
-          partial: { targetRemoved, leaseRemoved, manifestRemoved }
+          partial: error.partial || { targetRemoved: false, leaseRemoved: false, manifestRemoved: false }
         })
       }
     }
@@ -1061,24 +1442,45 @@ function removeEmptyParents(start, stop) {
 module.exports = {
   ARTIFACT_PARTITIONS,
   DEFAULT_TTL_MS,
+  LEASE_SCHEMA,
+  LEGACY_MANIFEST_SCHEMA,
+  LIFECYCLE_RECEIPT_SCHEMA,
   MANIFEST_SCHEMA,
   MAX_CONTROL_FILE_BYTES,
   MAX_ENTRIES,
   PARTITIONS,
   PRUNE_SCHEMA,
   STATUS_SCHEMA,
+  acquireWorkspaceTempLease,
+  applyWorkspaceTempCandidate,
+  createWorkspaceTempArtifact,
+  createWorkspaceTempArtifactAtRoot,
   ensureWorkspaceTempPartitions,
+  enforceWorkspaceTempTargetPermission,
   findWorkspaceTempRootForPath,
   inspectWorkspaceTemp,
   inspectLegacyWorkspaceTempRoots,
+  inspectManifest,
+  inspectTarget,
   isLegacyWorkspaceTempDirectoryName,
   isContained,
+  normalizeTempProject,
+  pathComparisonKey,
   prepareWorkspaceTempBackupRoot,
   pruneWorkspaceTemp,
+  releaseWorkspaceTempLease,
   registerWorkspaceTempArtifactAtRoot,
   registerWorkspaceTempBackup,
+  renewWorkspaceTempLease,
   inspectPathBoundary,
   captureTargetIdentity,
+  collectLeafEntries,
   targetIdentityMatches,
-  validTargetIdentity
+  validTargetIdentity,
+  validateV2ManifestIdentity,
+  v2ManifestPath,
+  withWorkspaceTempArtifact,
+  withWorkspaceTempArtifactAtRoot,
+  withWorkspaceTempBackup,
+  workspaceTempLeaseTokenMatches
 }

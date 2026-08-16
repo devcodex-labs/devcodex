@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node -e \"const fs=require('fs'),p=require('path'),o=require('os');const root=p.resolve(process.env.GROK_PLUGIN_DATA||o.tmpdir());const d=p.join(root,'devcodex-grok-session-stamps');const raw=String(process.env.GROK_SESSION_ID||'s');const safe=(raw.replace(/[^\\w.-]+/g,'_').replace(/^\\.+/,'_').replace(/^_+$/,'_')||'s');const target=p.resolve(d,safe+'.json');const rel=p.relative(d,target);if(rel.startsWith('..')||p.isAbsolute(rel))process.exit(0);fs.mkdirSync(d,{recursive:true});fs.writeFileSync(target,JSON.stringify({schemaVersion:'GrokSessionStartStampV1',sessionId:raw,stampedAt:new Date().toISOString(),cwd:process.cwd()}));\"",
+            "command": "node -e \"const fs=require('fs'),p=require('path');const roots=[process.env.GROK_PLUGIN_ROOT,'.grok/devcodex/plugins/devcodex-workspace','.grok/plugins/devcodex-workspace'].filter(Boolean);const f=roots.map(x=>p.resolve(x,'hooks','session-start.cjs')).find(x=>fs.existsSync(x));if(f)require(f).main();\"",
             "timeout": 30
           }
         ]

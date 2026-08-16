@@ -273,7 +273,7 @@ function buildContextReadControlChecks(ctx) {
       "case 'profile_context_plan'", "case 'profile_load'", 'bounded-top-level-profile-inventory',
       'CONTEXT_READ_CONTRACT', 'handleProfileContextPlan', 'ContextPlanComputationCacheV1',
       'CONTEXT_CACHE_MAX_BYTES', 'applyContextPlanComputationCache', 'sectionSelectors',
-      'ProfileLoadReceiptV2', 'BundleDecisionV2', 'ContextReadBindingV1', 'CONTEXT_BINDING_INVALID',
+      'ProfileLoadReceiptV3', 'BundleDecisionV2', 'ContextReadBindingV1', 'CONTEXT_BINDING_INVALID',
       'CONTEXT_BINDING_MISMATCH'
     ])
     checkFile('mcp/profile-section-selector.cjs', [

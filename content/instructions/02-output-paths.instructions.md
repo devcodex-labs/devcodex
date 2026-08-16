@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 产物输出路径与命名规范，定义 active-root 下的 requirements、bugs、reports 与记忆落点
 priority: P5
-version: 1.17.8
+version: 1.17.9
 ---
 # 产物输出路径规范
 
@@ -85,7 +85,7 @@ version: 1.17.8
 | **任务隔离** | 每个 `<中文描述>/` 目录只服务一个明确任务 |
 | **禁止非规范路径** | 当前 active namespace 根下只允许上述目录树中的一级目录 |
 | **scripts/ 触发条件** | 任务目录（requirements/<任务>/ 或 bugs/<任务>/）下有共享辅助脚本（数据迁移/数据填充/自动化验证等）时创建对应 `scripts/` 子目录；默认禁止放入业务逻辑或网络请求。`*-接口验证.cjs` 属规范强制产物，存放任务根目录（非 scripts/）。除用户明确要求写入业务仓库/规范仓库外，需求辅助脚本默认归档到对应任务目录 `scripts/`，并在报告说明用途与执行边界；新增脚本前执行 `OneOffRequirementScriptPlacementGate`，一次性需求脚本、入库脚本、迁移辅助或验证脚本优先放入对应任务目录，只有长期复用、发布、维护或运维入口才进入项目通用 `scripts/` |
-| **本地临时脚本豁免** | 仅本地执行、不会提交发布链路的临时脚本/配置必须进入 canonical temp 的 `runs/<project>/<producer>/<run-id>/local-scripts/` 并登记 `WorkspaceTempManifestV1`；禁止在 requirements、bugs、源码或 active-root 下另建 `.tmp/tmp/temp`。允许直接使用局部常量、敏感信息和网络请求，但不得伪装成共享正式产物 |
+| **本地临时脚本豁免** | 仅本地执行、不会提交发布链路的临时脚本/配置必须通过 lifecycle constructor 先分配 `WorkspaceTempManifestV2`，再写入 canonical temp 的 `runs/<project>/<producer>/<run-id>/local-scripts/`；禁止在 requirements、bugs、源码或 active-root 下另建 `.tmp/tmp/temp`。允许直接使用局部常量、敏感信息和网络请求，但不得伪装成共享正式产物；V1 manifest 仅作历史只读输入 |
 | **入口类型分类** | CP1 / 问题确认前必须先区分纯新需求、需求变更和 Bug 问题：纯新需求落 `requirements/<需求>/00-需求概况.md`；需求变更落 `requirements/<需求>/00-需求变更概况.md` 并回写目标需求真相源；Bug 落 `bugs/<问题>/00-问题概况.md`。不得把 Bug 或需求变更塞入纯新需求概况 |
 | **00-需求概况 触发条件** | 仅当纯新需求来自用户、运营、老板、客户、内部使用方、PRD/Word、原型、截图、会议纪要、聊天记录或后续补充消息时创建/更新；它是需求方原始输入模板，只记录新增能力、背景、痛点、期望结果、样例、附件和不确定点，不写验收、测试、数据库字段或接口 Schema |
 | **00-需求变更概况 触发条件** | 当用户调整/修改/补充已确认需求、规则、流程、页面、字段口径、优先级或范围时创建/更新；必须锚定原需求基线、变更前后差异、影响范围、明确不变内容、兼容/迁移/回滚/告知和目标真相源 |
@@ -112,16 +112,16 @@ version: 1.17.8
 ├── runs/<project>/<producer>/<run-id>/
 ├── cache/<producer>/<cache-key>/
 ├── backups/<project>/<transaction-id>/
-├── leases/<run-id>.json
+├── leases/<artifact-id>.json
 ├── quarantine/<timestamp>/
-└── manifests/<artifact-id>.json
+└── manifests/v2/<project-digest>/<partition>/<artifact-id>.json
 ```
 
-- 新写入必须由 `scripts/lib/workspace-temp-layout.js` 的 workspace-temp resolver 定位，并在写入前由 lifecycle owner 验证 canonical root/partition 非 reparse；禁止自行拼接 project-local `.tmp`，也不得让该 CLI 路径能力污染 SkillRoute 宿主运行时契约。
+- 新写入必须由 `scripts/lib/workspace-temp-layout.js` 的 resolver 定位，并由 `WorkspaceTempManifestV2` constructor 在 target 前分配 artifactId/owner token/相对 canonical identity；生命周期仅允许 allocated→active→finalized/abandoned。写入前由 lifecycle owner 验证 canonical root/partition 非 reparse；禁止自行拼接 project-local `.tmp`，也不得让该 CLI 路径能力污染 SkillRoute 宿主运行时契约。
 - DevCodex 只拥有 `<workspace>/.tmp/devcodex/`；`.tmp` 容器、其他 producer 子目录、工作区根 `tmp/.tmp-*` 与外部传输 spool 不得被本 lifecycle 枚举为 owner、阻断、迁移或删除。
-- 可清理对象必须具有 `WorkspaceTempManifestV1`、可识别 owner/type、已到期 TTL、无活动 lease，且 backup 事务为 `completed`。
-- `devcodex tmp status --json` 只读盘点；`devcodex tmp prune` 默认 dry-run，只有显式 `--apply` 才删除本次检查得到的安全候选。
-- canonical 文件/目录与 `.devcodex/**/.tmp` legacy 目录观察共用 10,000 项相关对象上限；`runs/cache/backups/quarantine` 分区根不可被 manifest 整体认领。unknown owner、共享或损坏 lease、未知分区、lock、reparse point、路径逃逸、不完整 backup 和检查截断一律 fail closed，不自动迁移或删除。对象成功删除时同步回收其唯一且明确过期的 lease。
+- 可清理对象必须具有有效 `WorkspaceTempManifestV2`、可识别 owner/type/target identity、已到期 TTL、无活动 token-bound lease，且 backup 事务为 `completed`。`WorkspaceTempManifestV1` 仅只读报告，不能登记新对象或自动提升为 V2 authority。
+- `devcodex tmp status --json` 零写入盘点；project/partition scope 使用 `WorkspaceTempCursorV1` 分页并分别记录 inventory/orphan completeness。`devcodex tmp maintain` 与兼容的 `tmp prune` 默认 plan-only；scheduler/opportunistic 路径也必须固定 `apply:false`。
+- 实际 cleanup 只能由当前调用显式使用 `--apply --project=<id> --partition=<runs|cache|backups|quarantine>`，并且该唯一 scope 没有 cursor、inventory 与 orphan scan 完整；AI 发起仍须先展示 exact targets 并等待 yes/no。apply 必须重新核对 manifest/target/lease CAS；共享或损坏 lease、普通伪造 lock、unknown owner、跨 scope ownership、reparse、路径逃逸、不完整 backup 和 scope 截断一律 fail closed。对象成功删除时只回收其唯一且明确过期的 token-bound lease。
 - OS temp 仅限尚无 workspace、全局安装事务或测试隔离；目录必须使用 `devcodex-*` 前缀，并由创建者在 `finally`/收尾阶段清理。
 
 ## 报告路径

@@ -819,7 +819,12 @@ try {
   assert.deepStrictEqual(grokPortableEvidence.crossHostIsolation, {
     cursorHooksCompatibility: { enabled: false, source: 'env' },
     cursorHookSourceCount: 0,
-    devcodexGrokHooks: { userGlobal: true, plugin: true }
+    devcodexGrokHooks: {
+      userGlobal: false,
+      plugin: true,
+      mutationOwner: 'plugin',
+      managedPhysicalDeclarations: 6
+    }
   })
 
   // Acceptance M02a: probe authority is exact-bound and cannot be forged by env.

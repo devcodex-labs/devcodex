@@ -25,6 +25,12 @@
     "scripts/lib/checked-command.js",
     "hooks/_runtime/stdio-bounds.cjs",
     "mcp/stdio-jsonrpc.cjs",
+    "mcp/memory-server.js",
+    "mcp/memory-file-transaction.cjs",
+    "scripts/test-v1178-batch-d.js",
+    "mcp/profile-server.js",
+    "scripts/lib/profile-current-truth.js",
+    "scripts/test-v1178-batch-e.js",
     "scripts/critical-risk-coverage.json",
     "scripts/check-critical-risk-coverage.js",
     "scripts/lib/security-audit-runner.js",
@@ -3002,6 +3008,17 @@
         "scripts/validate-profile.js",
         "scripts/validate-all-profiles.js",
         "scripts/test-validate-profile.js",
+        "scripts/lib/profile-current-truth.js",
+        "scripts/test-v1178-batch-e.js",
+        "mcp/profile-server.js",
+        ".github/workflows/ci.yml",
+        "package.json",
+        "README.md",
+        "changelogs/unreleased.md",
+        "content/instructions/02-output-paths.instructions.md",
+        "content/instructions/15-memory.instructions.md",
+        "content/skills/memory/SKILL.md",
+        "content/skills/host-instruction-projection/SKILL.md",
         "skills/load-profile/**",
         "skills/profile-bootstrap/**",
         "data/templates/profile/**"
@@ -3011,9 +3028,12 @@
         "client-contracts"
       ],
       "invariants": [
-        "contract"
+        "contract",
+        "profile-final-source-identity-before-delivery",
+        "profile-current-truth-single-record",
+        "profile-current-ci-release-truth"
       ],
-      "riskClass": "normal",
+      "riskClass": "high",
       "cachePolicy": "never",
       "writeScopes": [
         "isolated-temp"
@@ -3027,7 +3047,9 @@
         "timeout": "ETIMEDOUT"
       },
       "evidenceArtifacts": [
-        "ValidationExecutionReceiptV1"
+        "ValidationExecutionReceiptV1",
+        "ProfileLoadReceiptV3",
+        "ProfileCurrentTruthV1"
       ]
     },
     {
@@ -3546,15 +3568,21 @@
       "inputs": [
         "mcp/**",
         "scripts/test-mcp-servers.js",
+        "scripts/test-v1178-batch-d.js",
+        "scripts/lib/memory-index.js",
         "hooks/_runtime/execution-optimization-routing.cjs",
         "hooks/_runtime/context-read-contract.cjs",
         "hooks/_runtime/task-continuation-contract.cjs"
       ],
       "consumers": [],
       "invariants": [
-        "contract"
+        "contract",
+        "memory-file-cas-durability-metadata",
+        "memory-opaque-cursor",
+        "memory-schema-runtime-parity",
+        "memory-bounded-write-amplification"
       ],
-      "riskClass": "normal",
+      "riskClass": "high",
       "cachePolicy": "never",
       "writeScopes": [
         "isolated-temp"
@@ -3568,7 +3596,9 @@
         "timeout": "ETIMEDOUT"
       },
       "evidenceArtifacts": [
-        "ValidationExecutionReceiptV1"
+        "ValidationExecutionReceiptV1",
+        "MemoryFileTransactionReceiptV1",
+        "MemoryCursorV1"
       ]
     },
     {
@@ -4540,7 +4570,7 @@
       "writeScopes": [
         "isolated-temp"
       ],
-      "timeoutMs": 240000,
+      "timeoutMs": 720000,
       "exitMap": {
         "success": [
           0

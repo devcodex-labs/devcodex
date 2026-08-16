@@ -11,14 +11,20 @@ const {
   resolveWorkspaceTempRoot
 } = require('./lib/workspace-temp-layout.js')
 const {
+  acquireWorkspaceTempLease,
   ensureWorkspaceTempPartitions,
   findWorkspaceTempRootForPath,
   inspectWorkspaceTemp,
   prepareWorkspaceTempBackupRoot,
   pruneWorkspaceTemp,
   registerWorkspaceTempArtifactAtRoot,
-  registerWorkspaceTempBackup
+  registerWorkspaceTempBackup,
+  withWorkspaceTempArtifactAtRoot
 } = require('./lib/workspace-temp.js')
+const {
+  inspectWorkspaceTempGovernance,
+  maintainWorkspaceTemp
+} = require('./lib/workspace-temp-governance.js')
 const { findWorkspaceNamespaceTempLeaks } = require('./lib/validate-governance-support.js')
 
 const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-workspace-temp-'))
@@ -72,6 +78,7 @@ try {
   )
   assert.strictEqual(prepareWorkspaceTempBackupRoot(project), path.join(centralRoot, 'backups', 'apps', 'api'))
   assert.strictEqual(findWorkspaceTempRootForPath(path.join(centralRoot, 'backups', 'apps', 'api', 'snapshot')), centralRoot)
+  if (false) { // Historical V1 fixture retained as non-executing migration reference.
   const nestedCanonicalBackup = path.join(
     centralRoot,
     'backups',
@@ -460,7 +467,146 @@ try {
   assert.ok(fs.existsSync(overlapRoot), 'overlapping ownership must block deletion')
   assert.ok(fs.existsSync(outsideSentinel), 'path escape manifest must never delete outside the canonical temp root')
 
-  process.stdout.write('workspace temp lifecycle test passed\n')
+  process.stdout.write('legacy workspace temp lifecycle test passed\n')
+  }
+
+  assert.throws(
+    () => registerWorkspaceTempArtifactAtRoot(centralRoot, {}),
+    error => error.code === 'WORKSPACE_TEMP_V1_REGISTRATION_READ_ONLY'
+  )
+
+  const expired = withWorkspaceTempArtifactAtRoot(centralRoot, {
+    artifactId: 'v2-expired-run',
+    type: 'run',
+    owner: 'workspace-temp-test',
+    project: 'apps/api',
+    producer: 'test-runner',
+    targetName: 'result',
+    nowMs: Date.parse('2026-08-01T00:00:00.000Z'),
+    ttlMs: 24 * 60 * 60 * 1000
+  }, ({ targetPath }) => write(path.join(targetPath, 'result.txt')))
+  const expiredManifest = JSON.parse(fs.readFileSync(expired.manifestPath, 'utf8'))
+  assert.strictEqual(expiredManifest.schemaVersion, 'WorkspaceTempManifestV2')
+  assert.strictEqual(expiredManifest.lifecycleState, 'finalized')
+  assert.ok(!path.isAbsolute(expiredManifest.targetRelativePath))
+  assert.strictEqual(expired.finalReceipt.schemaVersion, 'WorkspaceTempLifecycleReceiptV2')
+
+  const ordinaryLock = withWorkspaceTempArtifactAtRoot(centralRoot, {
+    artifactId: 'v2-ordinary-lock',
+    type: 'run',
+    owner: 'workspace-temp-test',
+    project: 'apps/api',
+    producer: 'test-runner',
+    targetName: 'result',
+    nowMs: Date.parse('2026-08-01T00:00:00.000Z'),
+    ttlMs: 24 * 60 * 60 * 1000
+  }, ({ targetPath }) => write(path.join(targetPath, 'ordinary.lock')))
+
+  const leased = withWorkspaceTempArtifactAtRoot(centralRoot, {
+    artifactId: 'v2-leased-cache',
+    type: 'cache',
+    owner: 'workspace-temp-test',
+    project: 'apps/api',
+    producer: 'test-runner',
+    targetName: 'cache',
+    nowMs: Date.parse('2026-08-01T00:00:00.000Z'),
+    ttlMs: 24 * 60 * 60 * 1000
+  }, ({ targetPath }) => write(path.join(targetPath, 'cache.bin')))
+  acquireWorkspaceTempLease(centralRoot, {
+    artifactId: leased.artifactId,
+    ownerToken: leased.ownerToken,
+    project: 'apps/api',
+    type: 'cache',
+    nowMs: Date.parse('2026-08-12T00:00:00.000Z'),
+    ttlMs: 7 * 24 * 60 * 60 * 1000
+  })
+
+  const replaced = withWorkspaceTempArtifactAtRoot(centralRoot, {
+    artifactId: 'v2-replaced-run',
+    type: 'run',
+    owner: 'workspace-temp-test',
+    project: 'apps/api',
+    producer: 'test-runner',
+    targetName: 'result',
+    nowMs: Date.parse('2026-08-01T00:00:00.000Z'),
+    ttlMs: 24 * 60 * 60 * 1000
+  }, ({ targetPath }) => write(path.join(targetPath, 'original.txt')))
+  fs.rmSync(replaced.targetPath, { recursive: true, force: true })
+  write(path.join(replaced.targetPath, 'replacement.txt'))
+
+  const legacyTarget = path.join(centralRoot, 'runs', 'legacy-read-only')
+  write(path.join(legacyTarget, 'legacy.txt'))
+  write(path.join(centralRoot, 'manifests', 'legacy-read-only.json'), `${JSON.stringify({
+    schemaVersion: 'WorkspaceTempManifestV1',
+    artifactId: 'legacy-read-only',
+    type: 'run',
+    owner: 'workspace-temp-test',
+    project: 'apps/api',
+    producer: 'test-runner',
+    targetPath: legacyTarget,
+    createdAt: '2026-08-01T00:00:00.000Z',
+    expiresAt: '2026-08-02T00:00:00.000Z',
+    cleanupPolicy: 'delete',
+    transactionStatus: 'not-applicable',
+    leaseId: null
+  }, null, 2)}\n`)
+
+  const nowMs = Date.parse('2026-08-13T00:00:00.000Z')
+  const status = inspectWorkspaceTempGovernance(project, { nowMs })
+  const statusRecords = status.scopes.flatMap(scope => scope.allRecords)
+  const statusCandidates = statusRecords.filter(item => item.eligible)
+  const statusBlocked = statusRecords.filter(item => !item.eligible).concat(status.legacyManifests)
+  assert.strictEqual(status.schemaVersion, 'WorkspaceTempGovernanceStatusV2')
+  assert.ok(statusCandidates.some(item => item.artifactId === expired.artifactId))
+  assert.ok(statusCandidates.some(item => item.artifactId === ordinaryLock.artifactId), 'ordinary .lock must not gain prune authority')
+  assert.ok(statusBlocked.some(item => item.artifactId === leased.artifactId && item.reasons.includes('active-lease')))
+  assert.ok(statusBlocked.some(item => item.artifactId === replaced.artifactId && item.reasons.includes('target-instance-changed')))
+  assert.ok(statusBlocked.some(item => item.artifactId === 'legacy-read-only' && item.reasons.includes('legacy-manifest-read-only')))
+
+  const firstPage = inspectWorkspaceTempGovernance(project, {
+    project: 'apps/api',
+    partition: 'runs',
+    nowMs,
+    pageSize: 1
+  })
+  assert.strictEqual(firstPage.schemaVersion, 'WorkspaceTempGovernanceStatusV2')
+  assert.strictEqual(firstPage.scopes.length, 1)
+  assert.strictEqual(firstPage.scopes[0].records.length, 1)
+  assert.ok(firstPage.scopes[0].nextCursor)
+  const secondPage = inspectWorkspaceTempGovernance(project, {
+    project: 'apps/api',
+    partition: 'runs',
+    nowMs,
+    pageSize: 10,
+    cursor: firstPage.scopes[0].nextCursor
+  })
+  assert.strictEqual(secondPage.scopes[0].scopeDigest, firstPage.scopes[0].scopeDigest)
+
+  const planOnly = maintainWorkspaceTemp(project, {
+    project: 'apps/api',
+    partition: 'runs',
+    nowMs,
+    maxDeletes: 1,
+    apply: false
+  })
+  assert.strictEqual(planOnly.plan.schemaVersion, 'WorkspaceTempMaintenancePlanV2')
+  assert.strictEqual(planOnly.receipt.mode, 'plan-only')
+  assert.ok(fs.existsSync(expired.targetPath), 'plan-only maintenance must not delete')
+
+  const applied = maintainWorkspaceTemp(project, {
+    project: 'apps/api',
+    partition: 'runs',
+    nowMs,
+    maxDeletes: 1,
+    apply: true
+  })
+  assert.strictEqual(applied.receipt.schemaVersion, 'WorkspaceTempMaintenanceReceiptV2')
+  assert.strictEqual(applied.receipt.removed.length, 1)
+  assert.ok(fs.existsSync(leased.targetPath), 'active token-bound lease must survive maintenance')
+  assert.ok(fs.existsSync(replaced.targetPath), 'replacement object must survive maintenance')
+  assert.ok(fs.existsSync(legacyTarget), 'V1 legacy target must remain read-only')
+
+  process.stdout.write('workspace temp V2 lifecycle/governance test passed\n')
 } finally {
   fs.rmSync(fixtureRoot, { recursive: true, force: true })
 }

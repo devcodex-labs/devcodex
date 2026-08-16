@@ -681,7 +681,13 @@ function transactionBoundaries(targets) {
     allowedFiles.push(...files)
     safetyRoots.push(...targetSafety)
   }
-  return { allowedByHost, allowedRoots, allowedFiles, safetyRoots }
+  return {
+    allowedByHost,
+    allowedRoots,
+    allowedFiles,
+    safetyRoots,
+    transactionRoot: path.join(targets[0].runtimeBaseRoot, 'transactions')
+  }
 }
 
 function refreshAuthorizedGrokConfigMutation(plan, grokTarget, integration, fsImpl = fs) {
@@ -828,6 +834,20 @@ function pruneEmptyManagedDirectories(operations, targets, fsImpl = fs) {
   return { removed: Array.from(new Set(removed)), failures }
 }
 
+function workspaceTempRootFromManifest(manifestPath) {
+  let current = path.dirname(path.resolve(manifestPath))
+  while (true) {
+    if (path.basename(current).toLowerCase() === 'manifests') {
+      const candidate = path.dirname(current)
+      if (path.basename(candidate).toLowerCase() === 'devcodex' &&
+          path.basename(path.dirname(candidate)).toLowerCase() === '.tmp') return candidate
+    }
+    const parent = path.dirname(current)
+    if (parent === current) return null
+    current = parent
+  }
+}
+
 function cleanupGrokRecoveryArtifact(integration, fsImpl = fs) {
   const backupPath = integration?.backupPath ? path.resolve(integration.backupPath) : null
   const manifestPath = integration?.backupManifestPath ? path.resolve(integration.backupManifestPath) : null
@@ -842,9 +862,8 @@ function cleanupGrokRecoveryArtifact(integration, fsImpl = fs) {
     })
     return { status: 'blocked', transaction: null, failures }
   }
-  const tempRoot = path.dirname(path.dirname(manifestPath))
-  if (path.basename(tempRoot).toLowerCase() !== 'devcodex' ||
-      path.basename(path.dirname(tempRoot)).toLowerCase() !== '.tmp' ||
+  const tempRoot = workspaceTempRootFromManifest(manifestPath)
+  if (!tempRoot ||
       !isUnderPhysical(tempRoot, backupPath, fsImpl) ||
       !isUnderPhysical(path.join(tempRoot, 'manifests'), manifestPath, fsImpl)) {
     failures.push({
@@ -869,11 +888,32 @@ function cleanupGrokRecoveryArtifact(integration, fsImpl = fs) {
     failures.push({ errorCode: error.code || 'GLOBAL_HOST_GROK_RECOVERY_MANIFEST_INVALID', error: error.message })
     return { status: 'blocked', transaction: null, failures }
   }
-  if (manifest.schemaVersion !== 'WorkspaceTempManifestV1' ||
+  const v1Proof = manifest.schemaVersion === 'WorkspaceTempManifestV1' &&
+    path.isAbsolute(String(manifest.targetPath || '')) &&
+    samePathValue(manifest.targetPath, backupPath)
+  const v2Target = manifest.schemaVersion === 'WorkspaceTempManifestV2'
+    ? path.resolve(tempRoot, String(manifest.targetRelativePath || ''))
+    : null
+  const v2ManifestPath = manifest.schemaVersion === 'WorkspaceTempManifestV2'
+    ? path.join(
+        tempRoot,
+        'manifests',
+        'v2',
+        crypto.createHash('sha256').update(String(manifest.project || '')).digest('hex'),
+        'backups',
+        `${manifest.artifactId}.json`
+      )
+    : null
+  const v2Proof = manifest.schemaVersion === 'WorkspaceTempManifestV2' &&
+    manifest.type === 'backup' &&
+    manifest.lifecycleState === 'finalized' &&
+    manifest.finalDisposition === 'retained' &&
+    /^[a-f0-9]{64}$/.test(String(manifest.ownerTokenDigest || '')) &&
+    samePathValue(v2Target, backupPath) &&
+    samePathValue(v2ManifestPath, manifestPath)
+  if ((!v1Proof && !v2Proof) ||
       manifest.owner !== 'devcodex-grok-adapter' ||
-      manifest.producer !== 'grok-plugin-uninstall' ||
-      !path.isAbsolute(String(manifest.targetPath || '')) ||
-      !samePathValue(manifest.targetPath, backupPath)) {
+      manifest.producer !== 'grok-plugin-uninstall') {
     failures.push({
       errorCode: 'GLOBAL_HOST_GROK_RECOVERY_OWNERSHIP_INVALID',
       path: portable(manifestPath),
@@ -913,6 +953,8 @@ function cleanupGrokRecoveryArtifact(integration, fsImpl = fs) {
     const transaction = executeGlobalHostTransaction(operations, {
       fs: fsImpl,
       allowedRoots: [tempRoot],
+      safetyRoots: [tempRoot],
+      transactionRoot: path.join(tempRoot, 'transactions'),
       allowedByHost: {
         'grok-recovery': { allowedRoots: [tempRoot], allowedFiles: [] }
       }

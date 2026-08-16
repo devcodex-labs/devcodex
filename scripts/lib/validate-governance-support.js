@@ -262,7 +262,9 @@ function buildGovernanceSupportChecks(ctx) {
       read(path.join(ROOT, 'scripts/lib/cli-install-commands.js')),
       read(path.join(ROOT, 'scripts/lib/host-adapter-scope.js')),
       read(path.join(ROOT, 'scripts/lib/cli-command-registry.js')),
-      read(path.join(ROOT, 'scripts/lib/workspace-temp.js'))
+      read(path.join(ROOT, 'scripts/lib/workspace-temp.js')),
+      read(path.join(ROOT, 'scripts/lib/workspace-temp-governance.js')),
+      read(path.join(ROOT, 'scripts/lib/cli-temp-commands.js'))
     ].join('\n')
     for (const needle of [
       'resolveActiveRuntimeRoot',
@@ -271,7 +273,10 @@ function buildGovernanceSupportChecks(ctx) {
       'resolveWorkspaceTempRoot',
       'resolveWorkspaceTempBackupRoot',
       'prepareWorkspaceTempBackupRoot',
-      'registerWorkspaceTempBackup',
+      'withWorkspaceTempArtifact',
+      'withWorkspaceTempBackup',
+      'WorkspaceTempManifestV2',
+      'maintainWorkspaceTemp',
       'cmdTemp',
       '.tmp/devcodex/'
     ]) {

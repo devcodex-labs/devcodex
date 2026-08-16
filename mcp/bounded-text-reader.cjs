@@ -16,7 +16,116 @@ function boundedTextReadError(code, message, details = {}) {
   return error
 }
 
-function readBoundedTextFileSync(filePath, options = {}) {
+function statIdentity(stat) {
+  return {
+    dev: String(stat.dev),
+    ino: String(stat.ino),
+    size: stat.size,
+    mtimeMs: stat.mtimeMs
+  }
+}
+
+function sameStatIdentity(left, right) {
+  return !!left && !!right && left.dev === right.dev && left.ino === right.ino &&
+    left.size === right.size && left.mtimeMs === right.mtimeMs
+}
+
+function readExactSync(fsImpl, descriptor, length, startByte = 0) {
+  const bytes = Buffer.allocUnsafe(length)
+  let read = 0
+  while (read < length) {
+    const count = fsImpl.readSync(descriptor, bytes, read, length - read, startByte + read)
+    if (count === 0) break
+    read += count
+  }
+  return read === length ? bytes : bytes.subarray(0, read)
+}
+
+function verifyFinalPathSnapshot(resolved, expectedIdentity, observedBytes, startByte, fsImpl, details) {
+  let descriptor
+  try {
+    descriptor = fsImpl.openSync(resolved, 'r')
+    const pathIdentity = statIdentity(fsImpl.fstatSync(descriptor))
+    const replay = readExactSync(fsImpl, descriptor, observedBytes.length, startByte)
+    const digest = operationDigest(observedBytes)
+    const replayDigest = operationDigest(replay)
+    if (!sameStatIdentity(pathIdentity, expectedIdentity) || replay.length !== observedBytes.length || digest !== replayDigest) {
+      throw boundedTextReadError('SOURCE_CHANGED_DURING_READ', `Context source changed during final path verification: ${resolved}`, {
+        filePath: resolved,
+        ...details
+      })
+    }
+    return { pathIdentity, digest }
+  } catch (error) {
+    if (error?.contextReadCode === 'SOURCE_CHANGED_DURING_READ') throw error
+    throw boundedTextReadError('SOURCE_CHANGED_DURING_READ', `Context source changed during final path verification: ${resolved}`, {
+      filePath: resolved,
+      ...details,
+      causeCode: error?.code || null
+    })
+  } finally {
+    if (descriptor !== undefined) fsImpl.closeSync(descriptor)
+  }
+}
+
+function verifyFinalPathDigest(resolved, expectedIdentity, expectedDigest, length, startByte, fsImpl, details) {
+  let descriptor
+  try {
+    descriptor = fsImpl.openSync(resolved, 'r')
+    const pathIdentity = statIdentity(fsImpl.fstatSync(descriptor))
+    if (!sameStatIdentity(pathIdentity, expectedIdentity)) {
+      throw boundedTextReadError('SOURCE_CHANGED_DURING_READ', `Context source path identity changed: ${resolved}`, {
+        filePath: resolved,
+        ...details
+      })
+    }
+    const digest = crypto.createHash('sha256')
+    let sourceBytesRead = 0
+    while (sourceBytesRead < length) {
+      const requested = Math.min(DEFAULT_CHUNK_BYTES, length - sourceBytesRead)
+      const chunk = Buffer.allocUnsafe(requested)
+      const count = fsImpl.readSync(descriptor, chunk, 0, requested, startByte + sourceBytesRead)
+      if (count === 0) break
+      sourceBytesRead += count
+      digest.update(chunk.subarray(0, count))
+    }
+    if (sourceBytesRead !== length || digest.digest('hex') !== expectedDigest) {
+      throw boundedTextReadError('SOURCE_CHANGED_DURING_READ', `Context source digest changed during final verification: ${resolved}`, {
+        filePath: resolved,
+        ...details
+      })
+    }
+    return pathIdentity
+  } catch (error) {
+    if (error?.contextReadCode === 'SOURCE_CHANGED_DURING_READ') throw error
+    throw boundedTextReadError('SOURCE_CHANGED_DURING_READ', `Context source changed during final verification: ${resolved}`, {
+      filePath: resolved,
+      ...details,
+      causeCode: error?.code || null
+    })
+  } finally {
+    if (descriptor !== undefined) fsImpl.closeSync(descriptor)
+  }
+}
+
+function operationDigest(bytes) {
+  return crypto.createHash('sha256').update(bytes).digest('hex')
+}
+
+function withSingleSourceRetry(reader, filePath, options) {
+  let firstError = null
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return reader(filePath, { ...options, sourceReadAttempt: attempt + 1 })
+    } catch (error) {
+      if (error?.contextReadCode !== 'SOURCE_CHANGED_DURING_READ' || attempt > 0) throw error
+      firstError = error
+    }
+  }
+  throw firstError
+}
+
+function readBoundedTextFileOnceSync(filePath, options = {}) {
   const fsImpl = options.fs || fs
   const maxBytes = Number(options.maxBytes)
   if (!Number.isInteger(maxBytes) || maxBytes < 1) {
@@ -85,6 +194,24 @@ function readBoundedTextFileSync(filePath, options = {}) {
       })
     }
     const bytes = Buffer.concat(chunks, sourceBytesRead)
+    const initialIdentity = statIdentity(initial)
+    const finalIdentity = statIdentity(finalStat)
+    if (!sameStatIdentity(initialIdentity, finalIdentity)) {
+      throw boundedTextReadError('SOURCE_CHANGED_DURING_READ', `Context source changed during bounded read: ${resolved}`, {
+        filePath: resolved,
+        logicalBytes: finalStat.size,
+        maxBytes,
+        sourceBytesRead
+      })
+    }
+    const verification = verifyFinalPathSnapshot(
+      resolved,
+      finalIdentity,
+      bytes,
+      0,
+      fsImpl,
+      { logicalBytes: finalStat.size, maxBytes, sourceBytesRead }
+    )
     let content
     try {
       content = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
@@ -103,6 +230,9 @@ function readBoundedTextFileSync(filePath, options = {}) {
       sourceBytesRead,
       chars: content.length,
       modifiedAt: finalStat.mtime.toISOString(),
+      sourceDigest: verification.digest,
+      identity: finalIdentity,
+      sourceReadAttempt: options.sourceReadAttempt || 1,
       content
     }
   } finally {
@@ -110,7 +240,11 @@ function readBoundedTextFileSync(filePath, options = {}) {
   }
 }
 
-function scanBoundedTextLinesSync(filePath, options = {}) {
+function readBoundedTextFileSync(filePath, options = {}) {
+  return withSingleSourceRetry(readBoundedTextFileOnceSync, filePath, options)
+}
+
+function scanBoundedTextLinesOnceSync(filePath, options = {}) {
   const fsImpl = options.fs || fs
   const maxBytes = Number(options.maxBytes)
   if (!Number.isInteger(maxBytes) || maxBytes < 1) {
@@ -241,8 +375,9 @@ function scanBoundedTextLinesSync(filePath, options = {}) {
     }
 
     const finalStat = fsImpl.fstatSync(descriptor)
-    const identityChanged = initial.dev !== finalStat.dev || initial.ino !== finalStat.ino ||
-      initial.size !== finalStat.size || initial.mtimeMs !== finalStat.mtimeMs
+    const initialIdentity = statIdentity(initial)
+    const finalIdentity = statIdentity(finalStat)
+    const identityChanged = !sameStatIdentity(initialIdentity, finalIdentity)
     if (identityChanged) {
       throw boundedTextReadError('SOURCE_CHANGED_DURING_READ', `Context source changed during bounded scan: ${resolved}`, {
         filePath: resolved,
@@ -268,6 +403,15 @@ function scanBoundedTextLinesSync(filePath, options = {}) {
       }
     }
     const scannedDigest = digest.digest('hex')
+    verifyFinalPathDigest(
+      resolved,
+      finalIdentity,
+      scannedDigest,
+      sourceBytesRead,
+      0,
+      fsImpl,
+      { logicalBytes: finalStat.size, maxBytes, sourceBytesRead }
+    )
     return {
       path: resolved,
       exists: true,
@@ -286,19 +430,29 @@ function scanBoundedTextLinesSync(filePath, options = {}) {
       lineCount: lineNumber,
       oversizedLines,
       modifiedAt: finalStat.mtime.toISOString(),
-      identity: {
-        dev: String(finalStat.dev),
-        ino: String(finalStat.ino),
-        size: finalStat.size,
-        mtimeMs: finalStat.mtimeMs
-      }
+      identity: finalIdentity,
+      sourceReadAttempt: options.sourceReadAttempt || 1
     }
   } finally {
     fsImpl.closeSync(descriptor)
   }
 }
 
-function readBoundedTextRangeSync(filePath, options = {}) {
+function scanBoundedTextLinesSync(filePath, options = {}) {
+  const onLine = typeof options.onLine === 'function' ? options.onLine : () => {}
+  let emitted = []
+  const result = withSingleSourceRetry((candidate, attemptOptions) => {
+    emitted = []
+    return scanBoundedTextLinesOnceSync(candidate, {
+      ...attemptOptions,
+      onLine: line => emitted.push(line)
+    })
+  }, filePath, options)
+  for (const line of emitted) onLine(line)
+  return result
+}
+
+function readBoundedTextRangeOnceSync(filePath, options = {}) {
   const fsImpl = options.fs || fs
   const maxBytes = Number(options.maxBytes)
   const startByte = Number(options.startByte)
@@ -363,6 +517,27 @@ function readBoundedTextRangeSync(filePath, options = {}) {
         endByte
       })
     }
+    const finalStat = fsImpl.fstatSync(descriptor)
+    const initialIdentity = statIdentity(initial)
+    const finalIdentity = statIdentity(finalStat)
+    if (!sameStatIdentity(initialIdentity, finalIdentity)) {
+      throw boundedTextReadError('SOURCE_CHANGED_DURING_READ', `Context source changed during bounded range read: ${resolved}`, {
+        filePath: resolved,
+        logicalBytes: finalStat.size,
+        maxBytes,
+        sourceBytesRead,
+        startByte,
+        endByte
+      })
+    }
+    const verification = verifyFinalPathSnapshot(
+      resolved,
+      finalIdentity,
+      bytes,
+      startByte,
+      fsImpl,
+      { logicalBytes: finalStat.size, maxBytes, sourceBytesRead, startByte, endByte }
+    )
     let content
     try {
       content = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
@@ -383,11 +558,18 @@ function readBoundedTextRangeSync(filePath, options = {}) {
       startByte,
       endByte,
       chars: content.length,
+      sourceDigest: verification.digest,
+      identity: finalIdentity,
+      sourceReadAttempt: options.sourceReadAttempt || 1,
       content
     }
   } finally {
     fsImpl.closeSync(descriptor)
   }
+}
+
+function readBoundedTextRangeSync(filePath, options = {}) {
+  return withSingleSourceRetry(readBoundedTextRangeOnceSync, filePath, options)
 }
 
 module.exports = {

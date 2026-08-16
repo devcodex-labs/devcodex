@@ -940,6 +940,11 @@ function main() {
 
         assert.strictEqual(allProfilesResult.status, 0, allProfilesOutput)
         assert.match(allProfilesOutput, /checked=2/)
+        const batchEResult = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'test-v1178-batch-e.js')], {
+            cwd: ROOT,
+            encoding: 'utf8'
+        })
+        assert.strictEqual(batchEResult.status, 0, `${batchEResult.stdout}\n${batchEResult.stderr}`)
         console.log('\x1b[32m✓ validate-profile regression tests passed\x1b[0m')
     } finally {
         TEMP_ROOTS.forEach(root => fs.rmSync(root, { recursive: true, force: true }))

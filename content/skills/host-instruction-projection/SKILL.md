@@ -95,6 +95,12 @@ wrapper 只允许宿主能力提示和 shared kernel 指针；不得复制完整
 
 full fallback 是兼容/故障路径，不得与 kernel 同时作为两个 always-on 完整副本加载。
 
+## GrokFullLaunchAndPrivateTempGate
+
+- `devcodex grok` 的 SkillRoute bootstrap 必须明确 active，才允许物化 `GrokPrivateTempOwnerV1` prompt snapshot 并 spawn child；bootstrap error/inactive 分别返回 `GROK_FULL_BOOTSTRAP_ERROR` / `GROK_FULL_BOOTSTRAP_INACTIVE`，且 `promptMaterialized=0`、`spawnCount=0`。plain Grok 继续保持 Partial，不能用 SessionStart fallback 冒充 Full bootstrap。
+- launcher 的 prompt snapshot 与 plugin SessionStart 分属两个 writer，只共享 `grok/plugins/devcodex-workspace/lib/private-temp-contract.cjs` 的 schema/identity/path guard；installed plugin 不得反向 require source-only 文件，诊断 owner record 不保存 prompt body。
+- SessionStart 每次创建 `GrokSessionPrivateOwnerV1` nonce owner root；sessionId 缺失也必须保持唯一。owner token、host/PID、path containment、TTL 与 state 任一不可验证都 fail closed；仅 `expired + dead owner` 可进入恢复，live/unknown owner 不得抢占或清理。
+
 ## HostInstructionCollisionGate
 
 碰撞检查至少记录：`path / surface / role / digest / bytes / lines / sourceDigest / cwd / projectRoot`。

@@ -12,6 +12,7 @@ const {
 } = require('./lib/checked-command')
 const { resolveControlAsset } = require('./lib/control-content-delivery')
 const { decodeHostHookCommand } = require('./lib/host-command')
+const { isDevCodexManagedHookEntry } = require('./lib/global-host-config-merge')
 
 const packageRoot = path.resolve(__dirname, '..')
 const packageJson = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'))
@@ -166,6 +167,26 @@ for (const host of ['.copilot', '.claude', '.codex', path.join('gemini-cli-home'
   assert.deepStrictEqual(receipt.pendingStaleManagedPaths, [])
   assert.strictEqual(receipt.workspaceCleanMode, 'GlobalOnlyWorkspaceCleanModeV1')
 }
+const installedGrokGlobalHooks = JSON.parse(fs.readFileSync(
+  path.join(globalHome, '.grok', 'hooks', 'devcodex.json'),
+  'utf8'
+))
+assert.strictEqual(
+  Object.values(installedGrokGlobalHooks.hooks || {}).flat().some(isDevCodexManagedHookEntry),
+  false,
+  'packed install must not retain a managed Grok global lifecycle declaration'
+)
+const installedGrokPluginHooks = JSON.parse(fs.readFileSync(
+  path.join(globalHome, '.grok', 'devcodex', 'plugins', 'devcodex-workspace', 'hooks', 'hooks.json'),
+  'utf8'
+))
+for (const event of ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'PreCompact']) {
+  const entries = installedGrokPluginHooks.hooks[event]
+  assert.strictEqual(entries.length, 1, `packed Grok ${event} must have one plugin declaration`)
+  const decoded = decodeHostHookCommand(entries[0].hooks[0].command)
+  assert.ok(decoded, `packed Grok ${event} must use CanonicalHostHookCommandV1`)
+  assert.deepStrictEqual(decoded.argv.slice(-1), ['grok'])
+}
 const installedCursorRoot = path.join(globalHome, '.cursor')
 const installedCursorPlugin = path.join(installedCursorRoot, 'devcodex', 'plugins', 'devcodex-workspace')
 assert.strictEqual(fs.existsSync(path.join(installedCursorRoot, 'hooks.json')), true)
@@ -292,6 +313,24 @@ const importedClaudeHook = JSON.parse(runCommand(process.execPath, [installedCla
 }).stdout)
 assert.strictEqual(importedClaudeHook.continue, true)
 assert.strictEqual(importedClaudeHook.devcodexCompatibilityBypass, 'grok-imported-claude-hook')
+
+const installedClaudeLauncher = path.join(
+  path.dirname(installedRuntimeRoot('claude')),
+  'host-hook-launcher.cjs'
+)
+const importedClaudeLauncherProbe = runCommand(process.execPath, [installedClaudeLauncher, 'claude'], {
+  cwd: workspace,
+  env: {
+    ...installedEnv,
+    GROK_HOOK_EVENT: 'PreToolUse',
+    GROK_HOOK_NAME: 'devcodex-global-claude',
+    GROK_SESSION_ID: 'installed-grok-import-fixture',
+    GROK_WORKSPACE_ROOT: workspace
+  },
+  shell: false
+})
+assert.strictEqual(importedClaudeLauncherProbe.stdout, '')
+assert.strictEqual(importedClaudeLauncherProbe.stderr, '')
 
 const installedCodexAdapter = path.join(
   path.dirname(installedRuntimeRoot('codex')),

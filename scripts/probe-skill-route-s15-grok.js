@@ -445,20 +445,38 @@ function main () {
       hook.hookType === 'file'
     )
     assert(pluginHook, 'Grok did not discover the DevCodex plugin Hook file')
-    const globalHook = inspection.hooks.find(hook =>
+    const globalManagedHooks = inspection.hooks.filter(hook =>
       hook.source?.type === 'user' &&
       hook.hookType === 'command' &&
       isManagedGrokHookCommand(hook.target, globalTarget)
     )
-    assert(globalHook, 'Grok did not discover the always-trusted DevCodex user Hook')
+    assert.strictEqual(
+      globalManagedHooks.length,
+      0,
+      'Grok must not retain a user-global DevCodex lifecycle owner when the plugin is enabled'
+    )
     const pluginHookConfig = JSON.parse(fs.readFileSync(pluginHook.target, 'utf8'))
-    const pluginHookCommands = Object.values(pluginHookConfig.hooks || {})
-      .flatMap(groups => groups)
-      .flatMap(group => group.hooks || [])
-      .map(hook => String(hook.command || ''))
-    assert(pluginHookCommands.some(command =>
-      isManagedGrokHookCommand(command, globalTarget)
-    ), 'Grok plugin Hook is not bound to the installed DevCodex grok adapter')
+    const lifecycleEvents = [
+      'SessionStart',
+      'UserPromptSubmit',
+      'PreToolUse',
+      'PostToolUse',
+      'Stop',
+      'PreCompact'
+    ]
+    const pluginHookCommands = []
+    for (const event of lifecycleEvents) {
+      const commands = (pluginHookConfig.hooks?.[event] || [])
+        .flatMap(group => group.hooks || [])
+        .map(hook => String(hook.command || ''))
+      assert.strictEqual(commands.length, 1, `Grok plugin ${event} must have exactly one lifecycle owner`)
+      assert(
+        isManagedGrokHookCommand(commands[0], globalTarget),
+        `Grok plugin ${event} is not bound to the installed DevCodex grok adapter`
+      )
+      pluginHookCommands.push(commands[0])
+    }
+    assert.strictEqual(pluginHookCommands.length, 6)
 
     const grokVersion = run('grok', ['--version'], {
       cwd: fixture.projectRoot,
@@ -801,8 +819,10 @@ function main () {
           /[\\/]\.cursor(?:[\\/]|$)/i.test(String(hook.source?.path || ''))
         ).length,
         devcodexGrokHooks: {
-          userGlobal: Boolean(globalHook),
-          plugin: Boolean(pluginHook)
+          userGlobal: false,
+          plugin: Boolean(pluginHook),
+          mutationOwner: 'plugin',
+          managedPhysicalDeclarations: pluginHookCommands.length
         }
       },
       observedOps: [

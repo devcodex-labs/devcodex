@@ -28,7 +28,7 @@
     "idempotencyKey": "decisionRef+candidateDigest",
     "timeoutOwner": "application",
     "cancellation": "cancel before transaction commit",
-    "receipt": "MemoryTransactionReceiptV1",
+    "receipt": "MemoryFileTransactionReceiptV1",
     "auditTrail": "task memory"
   },
   "hostMatrix": [

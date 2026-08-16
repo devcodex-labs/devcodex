@@ -203,7 +203,7 @@ const SKILL_ROUTE_INPUT_SCHEMA = {
 const TOOLS = [
   {
     name: 'skill_route',
-    description: '渐进式 Skill 路由：catalog 建目录，commit 选 Skill，rebind 换绑，load_stage 分阶段加载，status 查状态；参数以 input schema 为准。',
+    description: 'Skill 路由：catalog/commit/rebind/load_stage/status；参数见 schema。',
     inputSchema: SKILL_ROUTE_INPUT_SCHEMA
   },
   {
@@ -383,12 +383,37 @@ const PROFILE_CONFIG_SOURCE_MAX_BYTES = 256 * 1024
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function readFileText(filePath, options = {}) {
-  const document = readBoundedTextFileSync(filePath, {
+function readProfileTextDocument(filePath, options = {}) {
+  return readBoundedTextFileSync(filePath, {
     maxBytes: options.maxBytes || PROFILE_SOURCE_MAX_BYTES,
     allowMissing: true
   })
+}
+
+function readFileText(filePath, options = {}) {
+  const document = readProfileTextDocument(filePath, options)
   return document.exists ? document.content : null
+}
+
+function profileSourceSnapshot(filePath, document) {
+  const exists = document?.exists === true
+  return {
+    schemaVersion: 'ProfileSourceSnapshotV1',
+    path: path.resolve(filePath),
+    exists,
+    logicalBytes: exists ? Number(document.logicalBytes || 0) : 0,
+    sourceBytesRead: exists ? Number(document.sourceBytesRead || 0) : 0,
+    sourceDigest: exists ? (document.sourceDigest || null) : null,
+    sourcePrefixDigest: exists ? (document.sourcePrefixDigest || document.sourceDigest || null) : null,
+    identity: exists && document.identity
+      ? {
+          dev: String(document.identity.dev),
+          ino: String(document.identity.ino),
+          size: Number(document.identity.size),
+          mtimeMs: Number(document.identity.mtimeMs)
+        }
+      : null
+  }
 }
 
 function readRuntimeKernelText() {
@@ -428,7 +453,18 @@ function readProfileConfigFile(filePath, options = {}) {
     ),
     allowMissing: true
   })
-  if (!document.exists) return null
+  if (!document.exists) {
+    return options.captureMissingSnapshot === true
+      ? {
+          exists: false,
+          content: null,
+          config: null,
+          logicalBytes: 0,
+          sourceBytesRead: 0,
+          sourceSnapshot: profileSourceSnapshot(filePath, document)
+        }
+      : null
+  }
   const content = document.content
   let config
   try {
@@ -443,7 +479,8 @@ function readProfileConfigFile(filePath, options = {}) {
     content,
     config,
     logicalBytes: document.logicalBytes,
-    sourceBytesRead: document.sourceBytesRead
+    sourceBytesRead: document.sourceBytesRead,
+    sourceSnapshot: profileSourceSnapshot(filePath, document)
   }
 }
 
@@ -528,55 +565,67 @@ function resolveProfileFile(name, projectName, options = {}) {
   if (safeName === 'config.json') return resolveConfigFile(projectName, options)
 
   if (!LAYOUT.enabled) {
+    const sourceSnapshots = []
     for (const dir of getLegacyProfileDirs(projectName)) {
       const fullPath = resolveInside(dir, safeName)
-      const content = readFileText(fullPath, options)
-      if (content !== null) {
+      const document = readProfileTextDocument(fullPath, options)
+      sourceSnapshots.push(profileSourceSnapshot(fullPath, document))
+      if (document.exists) {
         return {
           exists: true,
-          content,
+          content: document.content,
           fullPath,
           sourceLabel: getLegacySourceLabel(dir, projectName),
           sourcePaths: [fullPath],
-          sourceBytesRead: Buffer.byteLength(content, 'utf8')
+          sourceSnapshots,
+          sourceBytesRead: document.sourceBytesRead
         }
       }
     }
-    return null
+    return options.captureMissingSnapshots === true
+      ? { exists: false, content: null, fullPath: null, sourceLabel: '未命中', sourcePaths: [], sourceSnapshots, sourceBytesRead: 0 }
+      : null
   }
 
   const projectDir = getProjectNamespaceProfileDir(projectName)
   const workspaceDir = getWorkspaceProfileDir()
   const projectPath = projectDir ? resolveInside(projectDir, safeName) : null
   const workspacePath = resolveInside(workspaceDir, safeName)
+  const sourceSnapshots = []
 
   if (projectPath) {
-    const projectContent = readFileText(projectPath, options)
-    if (projectContent !== null) {
+    const projectDocument = readProfileTextDocument(projectPath, options)
+    sourceSnapshots.push(profileSourceSnapshot(projectPath, projectDocument))
+    if (projectDocument.exists) {
       return {
         exists: true,
-        content: projectContent,
+        content: projectDocument.content,
         fullPath: projectPath,
         sourceLabel: `项目命名空间（${resolveProjectName(projectName)}）`,
         sourcePaths: [projectPath],
-        sourceBytesRead: Buffer.byteLength(projectContent, 'utf8')
+        sourceSnapshots,
+        sourceBytesRead: projectDocument.sourceBytesRead
       }
     }
   }
 
-  const workspaceContent = readFileText(workspacePath, options)
-  if (workspaceContent !== null) {
+  const workspaceDocument = readProfileTextDocument(workspacePath, options)
+  sourceSnapshots.push(profileSourceSnapshot(workspacePath, workspaceDocument))
+  if (workspaceDocument.exists) {
     return {
       exists: true,
-      content: workspaceContent,
+      content: workspaceDocument.content,
       fullPath: workspacePath,
       sourceLabel: '工作区基座（workspace）',
       sourcePaths: [workspacePath],
-      sourceBytesRead: Buffer.byteLength(workspaceContent, 'utf8')
+      sourceSnapshots,
+      sourceBytesRead: workspaceDocument.sourceBytesRead
     }
   }
 
-  return null
+  return options.captureMissingSnapshots === true
+    ? { exists: false, content: null, fullPath: null, sourceLabel: '未命中', sourcePaths: [], sourceSnapshots, sourceBytesRead: 0 }
+    : null
 }
 
 function resolveProfileSectionFile(name, projectName, options = {}) {
@@ -586,6 +635,7 @@ function resolveProfileSectionFile(name, projectName, options = {}) {
     error.code = 'PROFILE_SECTION_SELECTOR_INVALID'
     throw error
   }
+  const sourceSnapshots = []
   const selectAt = (fullPath, sourceLabel) => {
     const selected = selectProfileSectionsFromFileSync({
       file: safeName,
@@ -594,6 +644,7 @@ function resolveProfileSectionFile(name, projectName, options = {}) {
       maxScanBytes: options.maxScanBytes,
       maxTotalSourceBytes: options.maxTotalSourceBytes
     })
+    sourceSnapshots.push(profileSourceSnapshot(fullPath, selected.scan))
     if (!selected.exists) return null
     return {
       exists: true,
@@ -601,6 +652,7 @@ function resolveProfileSectionFile(name, projectName, options = {}) {
       fullPath,
       sourceLabel,
       sourcePaths: [fullPath],
+      sourceSnapshots: [...sourceSnapshots],
       sourceBytesRead: selected.sourceBytesRead,
       selection: selected
     }
@@ -612,7 +664,9 @@ function resolveProfileSectionFile(name, projectName, options = {}) {
       const selected = selectAt(fullPath, getLegacySourceLabel(dir, projectName))
       if (selected) return selected
     }
-    return null
+    return options.captureMissingSnapshots === true
+      ? { exists: false, content: null, fullPath: null, sourceLabel: '未命中', sourcePaths: [], sourceSnapshots, sourceBytesRead: 0 }
+      : null
   }
 
   const projectDir = getProjectNamespaceProfileDir(projectName)
@@ -622,7 +676,10 @@ function resolveProfileSectionFile(name, projectName, options = {}) {
     if (selected) return selected
   }
   const workspacePath = resolveInside(getWorkspaceProfileDir(), safeName)
-  return selectAt(workspacePath, '工作区基座（workspace）')
+  const selected = selectAt(workspacePath, '工作区基座（workspace）')
+  return selected || (options.captureMissingSnapshots === true
+    ? { exists: false, content: null, fullPath: null, sourceLabel: '未命中', sourcePaths: [], sourceSnapshots, sourceBytesRead: 0 }
+    : null)
 }
 
 function resolveConfigFile(projectName, options = {}) {
@@ -642,28 +699,41 @@ function resolveConfigFile(projectName, options = {}) {
     const loaded = readProfileConfigFile(filePath, {
       maxBytes: Number.isFinite(remainingSourceBytes)
         ? Math.max(1, remainingSourceBytes)
-        : PROFILE_CONFIG_SOURCE_MAX_BYTES
+        : PROFILE_CONFIG_SOURCE_MAX_BYTES,
+      captureMissingSnapshot: options.captureMissingSnapshots === true
     })
     remainingSourceBytes -= Number(loaded?.sourceBytesRead || 0)
     return loaded
   }
   if (!LAYOUT.enabled) {
+    const sourceSnapshots = []
     for (const dir of getLegacyProfileDirs(projectName)) {
       const fullPath = path.join(dir, 'config.json')
       const loaded = loadConfig(fullPath)
-      if (loaded !== null) {
+      if (loaded?.sourceSnapshot) sourceSnapshots.push(loaded.sourceSnapshot)
+      if (loaded?.config !== null && loaded?.config !== undefined) {
         return {
           exists: true,
           content: loaded.content,
           fullPath,
           sourceLabel: getLegacySourceLabel(dir, projectName),
           sourcePaths: [fullPath],
+          sourceSnapshots,
           config: loaded.config,
           sourceBytesRead: loaded.sourceBytesRead
         }
       }
     }
-    return { exists: false, content: null, fullPath: null, sourceLabel: '未命中', sourcePaths: [], config: null }
+    return {
+      exists: false,
+      content: null,
+      fullPath: null,
+      sourceLabel: '未命中',
+      sourcePaths: [],
+      sourceSnapshots,
+      config: null,
+      sourceBytesRead: 0
+    }
   }
 
   const workspaceDir = getWorkspaceProfileDir()
@@ -687,6 +757,7 @@ function resolveConfigFile(projectName, options = {}) {
       ? `工作区基座（workspace） + 项目命名空间（${resolveProjectName(projectName)}）`
       : (workspaceConfig !== null ? '工作区基座（workspace）' : '未命中'),
     sourcePaths,
+    sourceSnapshots: [workspaceLoaded?.sourceSnapshot, projectLoaded?.sourceSnapshot].filter(Boolean),
     config: exists ? merged : null,
     sourceBytesRead: Number(workspaceLoaded?.sourceBytesRead || 0) + Number(projectLoaded?.sourceBytesRead || 0)
   }
@@ -1545,6 +1616,95 @@ function profileLoadError(errorCode, message, nextStep, details = {}) {
   }
 }
 
+const PROFILE_SOURCE_RETRY_POLICY = Object.freeze({
+  schemaVersion: 'ProfileSourceRetryPolicyV1',
+  requiresReplan: true,
+  maxRetries: 1,
+  onSecondFailure: 'stop-without-body'
+})
+
+function profileSourceChangedError(sourcePath, reason, expected, observed) {
+  const error = new Error(`Profile source changed before delivery: ${sourcePath} (${reason}).`)
+  error.code = 'PROFILE_SOURCE_CHANGED'
+  error.contextReadCode = 'PROFILE_SOURCE_CHANGED'
+  error.details = {
+    schemaVersion: 'ProfileSourceFinalIdentityFailureV1',
+    status: 'failed',
+    bodyDelivered: false,
+    sourcePath,
+    reason,
+    expected,
+    observed,
+    retryPolicy: PROFILE_SOURCE_RETRY_POLICY
+  }
+  return error
+}
+
+function sameProfileSourceIdentity(left, right) {
+  return !!left && !!right && left.dev === right.dev && left.ino === right.ino &&
+    left.size === right.size && left.mtimeMs === right.mtimeMs
+}
+
+function observeProfileSourceSnapshot(expected) {
+  let document
+  try {
+    document = readProfileTextDocument(expected.path, {
+      maxBytes: Math.max(1, Number(expected.logicalBytes || 0))
+    })
+  } catch (error) {
+    throw profileSourceChangedError(expected.path, error.code || 'final-read-failed', expected, {
+      errorCode: error.code || null,
+      message: error.message
+    })
+  }
+  const observed = profileSourceSnapshot(expected.path, document)
+  if (document.exists && !expected.sourceDigest && expected.sourcePrefixDigest) {
+    const prefixBytes = Buffer.from(document.content, 'utf8').subarray(0, expected.sourceBytesRead)
+    observed.sourcePrefixDigest = crypto.createHash('sha256').update(prefixBytes).digest('hex')
+  }
+  return observed
+}
+
+function verifyProfileSourceSnapshots(snapshots, options = {}) {
+  const observer = typeof options.observe === 'function' ? options.observe : observeProfileSourceSnapshot
+  const unique = new Map()
+  for (const candidate of snapshots || []) {
+    if (!candidate?.path) continue
+    const key = process.platform === 'win32' ? path.resolve(candidate.path).toLowerCase() : path.resolve(candidate.path)
+    const prior = unique.get(key)
+    if (prior && (prior.sourceDigest !== candidate.sourceDigest || !sameProfileSourceIdentity(prior.identity, candidate.identity))) {
+      throw profileSourceChangedError(candidate.path, 'initial-snapshot-conflict', prior, candidate)
+    }
+    unique.set(key, candidate)
+  }
+  const sources = []
+  for (const expected of unique.values()) {
+    const observed = observer(expected)
+    let reason = null
+    if (observed?.exists !== expected.exists) reason = 'existence-changed'
+    else if (expected.exists && !sameProfileSourceIdentity(expected.identity, observed.identity)) reason = 'identity-changed'
+    else if (expected.exists && expected.sourceDigest && expected.sourceDigest !== observed.sourceDigest) reason = 'content-digest-changed'
+    else if (expected.exists && !expected.sourceDigest && expected.sourcePrefixDigest !== observed.sourcePrefixDigest) reason = 'content-prefix-digest-changed'
+    if (reason) throw profileSourceChangedError(expected.path, reason, expected, observed)
+    sources.push({
+      path: expected.path,
+      exists: expected.exists,
+      logicalBytes: expected.logicalBytes,
+      sourceDigest: expected.sourceDigest,
+      sourcePrefixDigest: expected.sourcePrefixDigest,
+      identity: expected.identity,
+      status: 'verified'
+    })
+  }
+  return {
+    schemaVersion: 'ProfileSourceFinalIdentityReceiptV1',
+    status: 'verified',
+    sourceCount: sources.length,
+    sources,
+    retryPolicy: PROFILE_SOURCE_RETRY_POLICY
+  }
+}
+
 function handleProfileLoad(args = {}, internal = {}) {
   if (args.files !== undefined && !Array.isArray(args.files)) {
     return profileLoadError('PROFILE_FILES_INVALID', 'files must be an array.', 'Pass a bounded array of top-level Profile filenames.')
@@ -1729,7 +1889,7 @@ function handleProfileLoad(args = {}, internal = {}) {
         PROFILE_AGGREGATE_SOURCE_MAX_BYTES - sourceBytesRead
       )
       resolved = selector
-        ? resolveProfileSectionFile(name, target.project, {
+          ? resolveProfileSectionFile(name, target.project, {
             selector: {
               ...selector,
               maxBytes: Math.min(
@@ -1738,10 +1898,12 @@ function handleProfileLoad(args = {}, internal = {}) {
               )
             },
             maxScanBytes: Math.min(PROFILE_SOURCE_MAX_BYTES, remainingAggregateSourceBytes),
-            maxTotalSourceBytes: remainingAggregateSourceBytes
+            maxTotalSourceBytes: remainingAggregateSourceBytes,
+            captureMissingSnapshots: true
           })
         : resolveProfileFile(name, target.project, {
-            maxBytes: Math.min(PROFILE_SOURCE_MAX_BYTES, remainingAggregateSourceBytes)
+            maxBytes: Math.min(PROFILE_SOURCE_MAX_BYTES, remainingAggregateSourceBytes),
+            captureMissingSnapshots: true
           })
     } catch (error) {
       if (['SOURCE_TOO_LARGE', 'SOURCE_NOT_REGULAR_FILE', 'SOURCE_INVALID_UTF8', 'SOURCE_CHANGED_DURING_READ'].includes(error.code)) {
@@ -1836,6 +1998,7 @@ function handleProfileLoad(args = {}, internal = {}) {
         file: name,
         body,
         sourcePaths: resolved.sourcePaths || [],
+        sourceSnapshots: resolved.sourceSnapshots || [],
         missing: false
       })
       if (selection) {
@@ -1863,7 +2026,8 @@ function handleProfileLoad(args = {}, internal = {}) {
       deliveredProfiles.push({
         file: name,
         body: '',
-        sourcePaths: [],
+        sourcePaths: resolved?.sourcePaths || [],
+        sourceSnapshots: resolved?.sourceSnapshots || [],
         missing: true
       })
     }
@@ -1886,7 +2050,7 @@ function handleProfileLoad(args = {}, internal = {}) {
 
   let text = parts.join('\n\n---\n\n')
   const meta = {
-    schemaVersion: 'ProfileLoadReceiptV2',
+    schemaVersion: 'ProfileLoadReceiptV3',
     completion: missing.length ? 'failed' : (deferred.length > 0 || truncatedByBytes || truncatedBySections ? 'partial' : 'complete'),
     truncated: deferred.length > 0 || truncatedByBytes || truncatedBySections,
     loadedFiles: loaded,
@@ -1927,6 +2091,37 @@ function handleProfileLoad(args = {}, internal = {}) {
   if (missing.length > 0) {
     text = `⚠️ 必需 Profile 文件缺失，AI 将以保守降级模式运行：${missing.join('、')}\n\n---\n\n` + text
   }
+  let sourceFinalIdentity
+  try {
+    if (typeof internal.beforeFinalSourceVerification === 'function') {
+      internal.beforeFinalSourceVerification({
+        target,
+        loadedFiles: [...loaded],
+        sourceSnapshots: deliveredProfiles.flatMap(item => item.sourceSnapshots)
+      })
+    }
+    sourceFinalIdentity = verifyProfileSourceSnapshots(
+      deliveredProfiles.flatMap(item => item.sourceSnapshots)
+    )
+  } catch (error) {
+    return profileLoadError(
+      'PROFILE_SOURCE_CHANGED',
+      error.message,
+      'Discard this response, regenerate the ContextReadPlanV2, and retry once. If the retry also changes, stop without using any Profile body.',
+      {
+        loadReceipt: {
+          schemaVersion: 'ProfileLoadReceiptV3',
+          completion: 'failed',
+          bodyDelivered: false,
+          loadedFiles: loaded,
+          retryPolicy: PROFILE_SOURCE_RETRY_POLICY
+        },
+        sourceFinalIdentity: error.details || null
+      }
+    )
+  }
+  meta.bodyDelivered = true
+  meta.sourceFinalIdentity = sourceFinalIdentity
   let contextObservation
   if (bootstrapAuthorized) {
     contextObservation = {
@@ -2243,6 +2438,15 @@ function dispatch(method, params) {
 
 // ─── bounded stdio transport ──────────────────────────────────────────────────
 
-createJsonLineServer({ dispatch, onEnd: () => process.exit(0) })
-process.on('SIGINT', () => process.exit(0))
-process.on('SIGTERM', () => process.exit(0))
+if (require.main === module) {
+  createJsonLineServer({ dispatch, onEnd: () => process.exit(0) })
+  process.on('SIGINT', () => process.exit(0))
+  process.on('SIGTERM', () => process.exit(0))
+}
+
+module.exports = {
+  dispatch,
+  handleProfileLoad,
+  profileSourceSnapshot,
+  verifyProfileSourceSnapshots
+}

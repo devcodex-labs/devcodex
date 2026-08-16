@@ -22,6 +22,27 @@ function launcherError (code, detail) {
   return error
 }
 
+function envValue (env, name) {
+  const key = Object.keys(env || {}).find(candidate => candidate.toLowerCase() === name.toLowerCase())
+  return key ? String(env[key] || '').trim() : ''
+}
+
+/**
+ * Grok imports user Claude hooks by default. The dedicated DevCodex Grok
+ * plugin owns lifecycle execution, so an imported DevCodex Claude hook must
+ * exit before receipt resolution or a second runtime process is started.
+ * Grok reserves and injects all four variables for every hook process.
+ */
+function isGrokImportedClaudeHook (host, env = process.env) {
+  if (String(host || '').trim().toLowerCase() !== 'claude') return false
+  return [
+    'GROK_HOOK_EVENT',
+    'GROK_HOOK_NAME',
+    'GROK_SESSION_ID',
+    'GROK_WORKSPACE_ROOT'
+  ].every(name => envValue(env, name) !== '')
+}
+
 function isInside (root, candidate) {
   const relative = path.relative(path.resolve(root), path.resolve(candidate))
   return relative === '' || (
@@ -95,6 +116,10 @@ function resolveCurrentAdapter (host, options = {}) {
 }
 
 function main () {
+  if (isGrokImportedClaudeHook(process.argv[2], process.env)) {
+    process.exit(0)
+    return
+  }
   let resolved
   try {
     resolved = resolveCurrentAdapter(process.argv[2])
@@ -127,5 +152,6 @@ module.exports = {
   COMPATIBLE_HOSTS,
   SUPPORTED_HOSTS,
   isInside,
+  isGrokImportedClaudeHook,
   resolveCurrentAdapter
 }

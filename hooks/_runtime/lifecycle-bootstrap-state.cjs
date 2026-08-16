@@ -6,6 +6,11 @@ const {
   validateContentIdentity
 } = require('./content-identity.cjs')
 const { readContextPlanObservation } = require('./context-plan-observation.cjs')
+const {
+  atomicWriteJson,
+  readLifecycleStateCommit,
+  updateLifecycleStateCommit
+} = require('./lifecycle-state-commit.cjs')
 
 function parseContextToolIdentity (rawName, explicitServer = '') {
   const raw = String(rawName || '').trim()
@@ -32,6 +37,24 @@ function parseContextToolIdentity (rawName, explicitServer = '') {
   if (server === 'devcodex_profile') server = 'devcodex-profile'
   if (server === 'devcodex_memory') server = 'devcodex-memory'
   return { raw, server, tool }
+}
+
+/**
+ * Classify whether a bounded Memory response proves complete source coverage.
+ * Transport/schema success alone must never become observed source success.
+ * @param {Record<string, unknown>} body
+ * @returns {{status: string, complete: boolean, errorCode: string|null}}
+ */
+function classifyMemoryCoverage (body) {
+  const status = String(body?.coverage?.status || 'missing').trim().toLowerCase()
+  if (status === 'complete' || status === 'legacy-complete') {
+    return { status, complete: true, errorCode: null }
+  }
+  return {
+    status,
+    complete: false,
+    errorCode: status === 'partial' ? 'MEMORY_COVERAGE_PARTIAL' : 'MEMORY_COVERAGE_UNVERIFIED'
+  }
 }
 
 function buildLifecycleBootstrapStateUtils(ctx) {
@@ -643,20 +666,28 @@ function buildLifecycleBootstrapStateUtils(ctx) {
   }
 
   function loadState(modeHint, sessionKey = '') {
-    const metaState = readJsonFile(META_STATE_PATHS.file)
-    const canonicalSessionFile = sessionStateFile(metaState || buildDefaultState(modeHint), sessionKey)
-    let sessionState = canonicalSessionFile ? readJsonFile(canonicalSessionFile) : null
+    const committed = readLifecycleStateCommit({
+      metaDir: META_STATE_PATHS.dir,
+      sessionKey
+    }, { fs })
+    const committedState = committed.status === 'fresh' ? committed.state : null
+    const metaState = committedState || readJsonFile(META_STATE_PATHS.file)
+    let sessionState = committedState
     if (!(sessionState && typeof sessionState === 'object')) {
-      for (const legacyFile of legacySessionStateFiles(sessionKey, metaState)) {
-        const legacy = readJsonFile(legacyFile)
-        if (legacy && typeof legacy === 'object') {
-          sessionState = legacy
-          break
+      const canonicalSessionFile = sessionStateFile(metaState || buildDefaultState(modeHint), sessionKey)
+      sessionState = canonicalSessionFile ? readJsonFile(canonicalSessionFile) : null
+      if (!(sessionState && typeof sessionState === 'object')) {
+        for (const legacyFile of legacySessionStateFiles(sessionKey, metaState)) {
+          const legacy = readJsonFile(legacyFile)
+          if (legacy && typeof legacy === 'object') {
+            sessionState = legacy
+            break
+          }
         }
       }
     }
     let saved = sessionState
-    if (saved && typeof saved === 'object' && LAYOUT.enabled) {
+    if (committed.status !== 'fresh' && saved && typeof saved === 'object' && LAYOUT.enabled) {
       const preferredProject = String(
         saved.activeProject || saved.contextAcquisition?.project || CONTEXT_PROJECT || ''
       ).trim()
@@ -719,27 +750,60 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     syncContextProjection(state)
     state.updatedAt = new Date().toISOString()
     const activePaths = getStatePaths(state)
-    fs.mkdirSync(activePaths.dir, { recursive: true })
-    fs.writeFileSync(activePaths.file, JSON.stringify(state, null, 2))
-    if (LAYOUT.enabled && activePaths.file !== META_STATE_PATHS.file) {
-      const metaState = {
-        ...state,
-        bootstrap: { ...(state.bootstrap || {}) },
-        visible: { ...(state.visible || {}) },
-        stickyProject: { ...(state.stickyProject || {}) },
-        stickyAuto: { ...(state.stickyAuto || {}) },
-        dangerousApprovals: { ...(state.dangerousApprovals || {}) }
-      }
-      fs.mkdirSync(META_STATE_PATHS.dir, { recursive: true })
-      fs.writeFileSync(META_STATE_PATHS.file, JSON.stringify(metaState, null, 2))
-    }
     const sessionKey = state.contextAcquisition?.hostSessionId
     const sessionFile = sessionStateFile(state, sessionKey)
-    if (sessionFile) {
-      fs.mkdirSync(path.dirname(sessionFile), { recursive: true })
-      fs.writeFileSync(sessionFile, JSON.stringify(state, null, 2))
-      pruneSessionStates(path.dirname(sessionFile))
+    const targets = [{ role: 'active', dir: activePaths.dir }]
+    if (LAYOUT.enabled && activePaths.file !== META_STATE_PATHS.file) {
+      targets.push({ role: 'meta', dir: META_STATE_PATHS.dir })
     }
+    if (sessionFile) targets.push({ role: 'session', dir: path.dirname(sessionFile) })
+    const commit = updateLifecycleStateCommit({
+      metaDir: META_STATE_PATHS.dir,
+      identity: {
+        project: state.activeProject || state.contextAcquisition?.project || '',
+        scope: state.activeScope || DEFAULT_SCOPE,
+        sessionKey: sessionKey || ''
+      },
+      targets,
+      readFallback: () => readJsonFile(activePaths.file) || readJsonFile(META_STATE_PATHS.file)
+    }, current => preferNewerSameSessionContext(state, current, sessionKey), { fs })
+    if (commit.status !== 'committed') {
+      const error = new Error(`LifecycleStateCommitV3 failed: ${commit.errorCode || commit.status}`)
+      error.code = commit.errorCode || 'LIFECYCLE_STATE_COMMIT_FAILED'
+      throw error
+    }
+    const committedState = commit.state || state
+    if (committedState.contextAcquisition) {
+      state.contextAcquisition = JSON.parse(JSON.stringify(committedState.contextAcquisition))
+    }
+    state.updatedAt = committedState.updatedAt || state.updatedAt
+
+    const projectionWarnings = []
+    try { atomicWriteJson(activePaths.file, committedState, { fs }) } catch (error) {
+      projectionWarnings.push({ role: 'active', file: activePaths.file, message: error.message })
+    }
+    if (LAYOUT.enabled && activePaths.file !== META_STATE_PATHS.file) {
+      const metaState = {
+        ...committedState,
+        bootstrap: { ...(committedState.bootstrap || {}) },
+        visible: { ...(committedState.visible || {}) },
+        stickyProject: { ...(committedState.stickyProject || {}) },
+        stickyAuto: { ...(committedState.stickyAuto || {}) },
+        dangerousApprovals: { ...(committedState.dangerousApprovals || {}) }
+      }
+      try { atomicWriteJson(META_STATE_PATHS.file, metaState, { fs }) } catch (error) {
+        projectionWarnings.push({ role: 'meta', file: META_STATE_PATHS.file, message: error.message })
+      }
+    }
+    if (sessionFile) {
+      try {
+        atomicWriteJson(sessionFile, committedState, { fs })
+        pruneSessionStates(path.dirname(sessionFile))
+      } catch (error) {
+        projectionWarnings.push({ role: 'session', file: sessionFile, message: error.message })
+      }
+    }
+    return { ...commit, projectionStatus: projectionWarnings.length ? 'warn' : 'persisted', projectionWarnings }
   }
 
   function resetState(mode, previousState) {
@@ -1403,8 +1467,15 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       validateContentIdentity(body.contentIdentity).valid &&
       stableDigest(body.contentIdentity) === stableDigest(computedIdentity)
     )
+    const coverage = classifyMemoryCoverage(body || {})
+    if (outcome.transportSuccess && !coverage.complete && binding.valid) {
+      acquisition.lastError = contextError(
+        coverage.errorCode,
+        `Memory response coverage=${coverage.status}; continue the bounded query before claiming source completion.`
+      )
+    }
     const successful = outcome.transportSuccess && schemaMatch && targetMatch && queryMatch &&
-      binding.valid && !!selected && suppliedIdentityValid
+      binding.valid && !!selected && suppliedIdentityValid && coverage.complete
     return [{
       observationId: `post-${attempt.attemptId}-${sourceId}`,
       toolCallId: attempt.toolCallId,
@@ -1413,7 +1484,9 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       planId: plan.planId,
       activeRoot: attempt.activeRoot,
       sourceLayer: 'memory-query',
-      outcome: successful ? 'observed-success' : (outcome.error ? 'failed' : 'invalid'),
+      outcome: successful
+        ? 'observed-success'
+        : (outcome.error ? 'failed' : (!coverage.complete ? 'partial' : 'invalid')),
       successful,
       observable: outcome.observable,
       transportSuccess: outcome.transportSuccess,
@@ -1423,6 +1496,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       contentIdentity: computedIdentity,
       bodyObserved: successful,
       hostSessionId: acquisition.hostSessionId,
+      coverageStatus: coverage.status,
+      errorCode: successful ? null : coverage.errorCode,
       bytes: computedIdentity?.bytes ?? null,
       chars: computedProjectionIdentity?.canonicalJson.length ?? null,
       hostDeliveredBytes: outcome.telemetry.bytes
@@ -1816,5 +1891,6 @@ function buildLifecycleBootstrapStateUtils(ctx) {
 
 module.exports = {
   buildLifecycleBootstrapStateUtils,
-  parseContextToolIdentity
+  parseContextToolIdentity,
+  classifyMemoryCoverage
 }

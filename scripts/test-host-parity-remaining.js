@@ -119,7 +119,7 @@ const platformReq = path.join(__dirname, 'fixtures/host-parity/platform-capabili
 assert.ok(fs.existsSync(platformReq), 'source-contained platform capability request fixture must exist')
 assert.match(fs.readFileSync(platformReq, 'utf8'), /P-GROK-1/)
 
-// SessionStart stamp
+// SessionStart private owner
 const root = makeTempRoot('devcodex-parity-remain-')
 const sessionStart = path.join(__dirname, '../grok/plugins/devcodex-workspace/hooks/session-start.cjs')
 const stamp = spawnSync(process.execPath, [sessionStart], {
@@ -127,7 +127,8 @@ const stamp = spawnSync(process.execPath, [sessionStart], {
   encoding: 'utf8'
 })
 assert.strictEqual(stamp.status, 0)
-assert.ok(fs.existsSync(path.join(root, 'pdata', 'session-stamps', 'smoke-1.json')))
+const privateSessionRoot = path.join(root, 'pdata', 'private-sessions')
+assert.strictEqual(fs.readdirSync(privateSessionRoot).length, 1)
 
 // Portable Grok hook SessionStart must treat session id as an untrusted filename
 const portableHook = JSON.parse(fs.readFileSync(path.join(__dirname, '../grok/hooks/devcodex.json'), 'utf8'))
@@ -135,18 +136,25 @@ const portableSessionStart = portableHook.hooks.SessionStart[0].hooks[0].command
 const portableRoot = makeTempRoot('devcodex-portable-grok-')
 const hostileStamp = spawnSync(portableSessionStart, {
   shell: true,
-  env: { ...process.env, GROK_PLUGIN_DATA: portableRoot, GROK_SESSION_ID: '../escape' },
+  env: {
+    ...process.env,
+    GROK_PLUGIN_DATA: portableRoot,
+    GROK_PLUGIN_ROOT: path.join(__dirname, '../grok/plugins/devcodex-workspace'),
+    GROK_SESSION_ID: '../escape'
+  },
   encoding: 'utf8'
 })
 assert.strictEqual(hostileStamp.status, 0)
-const portableStampDir = path.join(portableRoot, 'devcodex-grok-session-stamps')
+const portableStampDir = path.join(portableRoot, 'private-sessions')
 const portableFiles = fs.readdirSync(portableStampDir)
-assert.ok(portableFiles.length >= 1)
+assert.strictEqual(portableFiles.length, 1)
 assert.strictEqual(fs.existsSync(path.join(portableRoot, 'escape.json')), false)
 for (const file of portableFiles) {
   const target = path.resolve(portableStampDir, file)
   const rel = path.relative(portableStampDir, target)
-  assert.ok(rel && !rel.startsWith('..') && !path.isAbsolute(rel), `portable stamp escaped: ${target}`)
+  assert.ok(rel && !rel.startsWith('..') && !path.isAbsolute(rel), `portable owner escaped: ${target}`)
+  const record = JSON.parse(fs.readFileSync(path.join(target, 'session.json'), 'utf8'))
+  assert.strictEqual(record.schemaVersion, 'GrokSessionPrivateOwnerV1')
 }
 
 // Scorecard against real workspace root if present

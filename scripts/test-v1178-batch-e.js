@@ -2,6 +2,7 @@
 'use strict'
 
 const assert = require('assert')
+const { execFileSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 const {
@@ -31,6 +32,13 @@ function read(relativePath) {
 
 function profile(fileName) {
   return fs.readFileSync(path.join(PROFILE_ROOT, fileName), 'utf8')
+}
+
+function currentSourceGitHead() {
+  return String(execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: ROOT,
+    encoding: 'utf8'
+  })).trim()
 }
 
 function currentRecord(overrides = {}) {
@@ -82,10 +90,10 @@ probe('ProfileCurrentTruthV1 strict generic schema', () => {
 })
 
 probe('Profile current truth matches package, workflow, release, and refs', () => {
-  const releaseProfileText = ACTIVE_PROFILE_AVAILABLE ? profile('05-发布规范.md') : recordMarkdown()
-  const overviewProfileText = ACTIVE_PROFILE_AVAILABLE ? profile('01-项目信息.md') : `# Overview\n\n${PROFILE_CURRENT_TRUTH_REF}\n`
-  const testProfileText = ACTIVE_PROFILE_AVAILABLE ? profile('04-测试规范.md') : `# Test\n\n${PROFILE_CURRENT_TRUTH_REF}\n`
-  const docsProfileText = ACTIVE_PROFILE_AVAILABLE ? profile('07-用户文档与契约规范.md') : `# Docs\n\n${PROFILE_CURRENT_TRUTH_REF}\n`
+  const releaseProfileText = recordMarkdown(candidateRecord())
+  const overviewProfileText = `# Overview\n\n${PROFILE_CURRENT_TRUTH_REF}\n`
+  const testProfileText = `# Test\n\n${PROFILE_CURRENT_TRUTH_REF}\n`
+  const docsProfileText = `# Docs\n\n${PROFILE_CURRENT_TRUTH_REF}\n`
   const result = validateDevCodexCurrentTruth({
     releaseProfileText,
     overviewProfileText,
@@ -100,12 +108,25 @@ probe('Profile current truth matches package, workflow, release, and refs', () =
   assert.strictEqual(result.record.publishRun.id, '31910507513')
   assert.strictEqual(result.record.githubRelease.tag, 'v1.17.8')
 
+  if (ACTIVE_PROFILE_AVAILABLE) {
+    const activeResult = validateDevCodexCurrentTruth({
+      releaseProfileText: profile('05-发布规范.md'),
+      overviewProfileText: profile('01-项目信息.md'),
+      testProfileText: profile('04-测试规范.md'),
+      docsProfileText: profile('07-用户文档与契约规范.md'),
+      packageVersion: JSON.parse(read('package.json')).version,
+      gitHead: currentSourceGitHead(),
+      workflowText: read('.github/workflows/ci.yml')
+    })
+    assert.deepStrictEqual(activeResult.errors, [])
+  }
+
   const missingOverviewRef = validateDevCodexCurrentTruth({
     releaseProfileText,
     overviewProfileText: '# Overview without current truth ref\n',
     testProfileText,
     docsProfileText,
-    packageVersion: '1.17.8',
+    packageVersion: '1.17.9',
     gitHead: '85f3a8eadf61b0614f88d6817d255f255de968c2',
     workflowText: read('.github/workflows/ci.yml')
   })
@@ -117,7 +138,7 @@ probe('Profile current truth matches package, workflow, release, and refs', () =
     overviewProfileText,
     testProfileText,
     docsProfileText,
-    packageVersion: '1.17.8',
+    packageVersion: '1.17.9',
     gitHead: '85f3a8eadf61b0614f88d6817d255f255de968c2',
     workflowText: changedWorkflow
   })

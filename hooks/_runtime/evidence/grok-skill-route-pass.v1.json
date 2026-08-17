@@ -5,24 +5,24 @@
   "hostVariant": "grok-cli-single/global-launcher-local-stdio",
   "testedVersion": "grok 1.0.4 (d846eb93d9)",
   "protocol": "MCP 2024-11-05",
-  "runtimeContractDigest": "eee026a79787348c9ee5fc17872974224184b31c29e8613e6a97ec7609737b9e",
+  "runtimeContractDigest": "c56cd4b8ce6beff7d138b311ea6e3ce01af6954b59cd2fee4421151a2961db6c",
   "hostAdapterDigest": "4ff2b358a3014b0e18914e7986b9eeedbea73936e23ab838da6c495889b513df",
-  "sourceEvidenceDigest": "a465ee456a27735b1b3e07df0e42d64b847de8dfb719aab4fa3694241ed10d5c",
+  "sourceEvidenceDigest": "c2e789a64207f312e6689a80d624cffb858e7869fe897861f388002dc3a9c7d1",
   "sourceProbe": {
     "schemaVersion": "SkillRouteS15EvidenceV1",
-    "probeRunId": "s15-grok-probe-79460820-201c-456b-b738-cdffe153711c",
+    "probeRunId": "s15-grok-probe-a608bf3a-e14d-4608-973f-e4970e760a41",
     "authorizationSource": "installed-source-probe-authority",
     "contextSource": "host-hooks",
     "observationMode": "structured-context-receipt",
     "receiptStatus": "relevant-complete",
-    "completedAt": "2026-08-16T17:41:52.559Z"
+    "completedAt": "2026-08-17T12:13:40.748Z"
   },
   "runtimeBinding": {
     "source": "installed-source-candidate",
-    "expectedDigest": "eee026a79787348c9ee5fc17872974224184b31c29e8613e6a97ec7609737b9e",
-    "generationDigest": "eee026a79787348c9ee5fc17872974224184b31c29e8613e6a97ec7609737b9e",
-    "modeReceiptDigest": "eee026a79787348c9ee5fc17872974224184b31c29e8613e6a97ec7609737b9e",
-    "routeEnvelopeDigest": "eee026a79787348c9ee5fc17872974224184b31c29e8613e6a97ec7609737b9e"
+    "expectedDigest": "c56cd4b8ce6beff7d138b311ea6e3ce01af6954b59cd2fee4421151a2961db6c",
+    "generationDigest": "c56cd4b8ce6beff7d138b311ea6e3ce01af6954b59cd2fee4421151a2961db6c",
+    "modeReceiptDigest": "c56cd4b8ce6beff7d138b311ea6e3ce01af6954b59cd2fee4421151a2961db6c",
+    "routeEnvelopeDigest": "c56cd4b8ce6beff7d138b311ea6e3ce01af6954b59cd2fee4421151a2961db6c"
   },
   "crossHostIsolation": {
     "cursorHooksCompatibility": {

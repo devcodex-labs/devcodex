@@ -1,6 +1,6 @@
 {
   "name": "devcodex",
-  "version": "1.17.9",
+  "version": "1.17.10",
   "description": "DevCodex — intent-driven AI coding workflow runtime for Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok, and Cursor",
   "main": "index.js",
   "bin": {
@@ -177,7 +177,7 @@
     "type": "git",
     "url": "git+https://github.com/devcodex-labs/devcodex.git"
   },
-  "homepage": "https://github.com/devcodex-labs/devcodex",
+  "homepage": "https://devcodex-labs.github.io/devcodex/",
   "bugs": {
     "url": "https://github.com/devcodex-labs/devcodex/issues"
   },

@@ -161,6 +161,21 @@ const migrationReady = evaluatePublicReadmeContractV2(syntheticReadme, {
 })
 assert.strictEqual(migrationReady.valid, true)
 
+const githubMetadataReady = evaluatePublicReadmeContractV2(syntheticReadme, {
+  root: ROOT,
+  projection,
+  requireGitHubMetadata: true,
+  githubMetadata: {
+    description: projection.consumers.githubDescription,
+    homepage: projection.endpoints.productPagesCandidate,
+    topics: [...projection.expression.discoveryPolicy.githubTopics].sort()
+  }
+})
+assert.strictEqual(githubMetadataReady.valid, true)
+assert(githubMetadataReady.consumers.parity
+  .filter(item => item.surface === 'GitHub repository')
+  .every(item => item.status === 'PASS'))
+
 const missingWorkflow = evaluatePublicReadmeContractV2(
   syntheticReadme.replace('`self-fix`', 'self-fix'),
   { root: ROOT, projection }

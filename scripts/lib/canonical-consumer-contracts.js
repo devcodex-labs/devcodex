@@ -186,13 +186,19 @@ function evaluatePublicConsumerParity (root, text, projection, options, violatio
     }
   }
 
+  function compareSet (surface, field, actual, expected) {
+    const actualValues = Array.isArray(actual) ? [...actual].sort() : actual
+    const expectedValues = Array.isArray(expected) ? [...expected].sort() : expected
+    compare(surface, field, actualValues, expectedValues)
+  }
+
   compare('README.md', 'hero', text.includes(`# ${projection.consumers.readmeHero}`), true)
   compare('package.json', 'description', pkg?.description, projection.consumers.packageDescription)
-  compare('package.json', 'homepage', pkg?.homepage, projection.endpoints.repositoryFallback)
+  compare('package.json', 'homepage', pkg?.homepage, projection.endpoints.productPagesCandidate)
   compare('package.json', 'keywords', pkg?.keywords, projection.expression.discoveryPolicy.packageKeywords)
   compare('plugin.json', 'displayName', plugin?.displayName, projection.consumers.pluginDisplayName)
   compare('plugin.json', 'description', plugin?.description, projection.consumers.pluginDescription)
-  compare('plugin.json', 'homepage', plugin?.homepage, projection.endpoints.repositoryFallback)
+  compare('plugin.json', 'homepage', plugin?.homepage, projection.endpoints.productPagesCandidate)
   compare('plugin.json', 'keywords', plugin?.keywords, projection.expression.discoveryPolicy.packageKeywords)
   const cliSubtitleSuffix = projection.consumers.cliSubtitle.slice('DevCodex'.length)
   compare('CLI help', 'subtitle', cli == null ? null : cli.includes(cliSubtitleSuffix), true)
@@ -215,7 +221,7 @@ function evaluatePublicConsumerParity (root, text, projection, options, violatio
   if (github || options.requireGitHubMetadata === true) {
     compare('GitHub repository', 'description', github?.description, projection.consumers.githubDescription)
     compare('GitHub repository', 'homepage', github?.homepage, projection.endpoints.productPagesCandidate)
-    compare('GitHub repository', 'topics', github?.topics, projection.expression.discoveryPolicy.githubTopics)
+    compareSet('GitHub repository', 'topics', github?.topics, projection.expression.discoveryPolicy.githubTopics)
   }
   return results
 }

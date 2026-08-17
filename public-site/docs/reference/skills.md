@@ -25,4 +25,32 @@ DevCodex 只加载当前任务和阶段需要的 Skill。看到 Skill 目录或 
 
 `SKILL.md` 写目标、步骤、输入输出和边界；`intent.json` 写可验证的触发语义。Workspace Skill 只影响其所在项目或 workspace。
 
+最小示例：
+
+```md
+---
+name: release-check
+description: 当用户准备发布版本、检查 changelog、tag 或 npm publish 时使用。
+---
+
+# release-check
+
+1. 检查版本、变更记录和发布分支。
+2. 运行项目约定的测试与打包命令。
+3. 输出发布前风险和下一步。
+```
+
+```json
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "release-check",
+  "intents": [{
+    "id": "release",
+    "label": "发布检查",
+    "include": ["发布", "release", "tag", "npm"]
+  }],
+  "summary": "发布前检查版本、changelog、tag、测试、打包和发布风险。"
+}
+```
+
 DevCodex 不扫描、复制、合并、覆盖或删除 Codex、Claude Code 等宿主自己的原生 Skill 和个人配置。需要六宿主共享时使用 Workspace Skill；只服务单一宿主时继续使用该宿主原生机制。

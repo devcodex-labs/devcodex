@@ -99,7 +99,7 @@ probe('Profile current truth matches package, workflow, release, and refs', () =
     overviewProfileText,
     testProfileText,
     docsProfileText,
-    packageVersion: JSON.parse(read('package.json')).version,
+    packageVersion: candidateRecord().sourceVersion,
     gitHead: '85f3a8eadf61b0614f88d6817d255f255de968c2',
     workflowText: read('.github/workflows/ci.yml')
   })

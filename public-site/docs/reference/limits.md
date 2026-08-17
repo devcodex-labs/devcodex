@@ -29,3 +29,21 @@ DevCodex 的工作流状态、Profile、报告、记忆和 Workspace Skill 以�
 HTTP 200 不足以证明某个产品页面正确；配置存在不足以证明宿主可执行；测试通过也不自动证明 npm、GitHub Release 或本机已更新。DevCodex 分别记录源码、构建、发布、线上回读和本机消费证据。
 
 遇到不确定状态时查看 [故障排查](/guide/troubleshooting) 和 [宿主边界](/reference/hosts)。
+
+## 运行态协议参考
+
+以下名称用于诊断和证据回读，不要求普通用户手工构造：
+
+| 协议 | 说明 |
+|---|---|
+| `StageLoadReceiptV1` | 证明 SkillRoute 某个阶段正文已经加载；catalog 或 commit 不能替代 |
+| `NextActionEnvelopeV1` | 结构化记录当前唯一恢复动作；界面通常只显示压缩后的自然语言动作 |
+| `MemoryCursorV1` | 绑定工具、项目、ContextRead、查询与来源身份的分页游标，下一页必须原样回传 |
+| `MemoryFileTransactionReceiptV1` | 记录 memory 文件事务的提交前后摘要、CAS、flush/readback 与字节证据 |
+| `WorkspaceTempManifestV2` | 临时对象的 owner、目标、生命周期、TTL 与 lease 权威；V1 只读兼容 |
+
+这些协议都采用失败关闭：绑定、来源或 scope 变化时不会静默回到第一页、猜测另一项目或自动重放修改性动作。
+
+## 清理边界
+
+`runtime prune` 和 `tmp maintain` 默认只预览。实际清理必须显式 `--apply`，并且只能作用于 DevCodex 可证明拥有、已经过期且没有活动 lease 的对象。用户配置、宿主根目录、未知临时文件、共享对象和无法验证的遗留内容都不属于自动清理范围。

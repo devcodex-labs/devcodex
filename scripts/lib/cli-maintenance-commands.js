@@ -1068,7 +1068,7 @@ function buildCliMaintenanceCommands(ctx) {
     ${detail[1]}
 
     Run ${c.cyan('devcodex help')} for the command overview.
-    User guide: https://github.com/devcodex-labs/devcodex#readme
+    User guide: https://devcodex-labs.github.io/devcodex/
   `)
       return
     }
@@ -1123,7 +1123,7 @@ function buildCliMaintenanceCommands(ctx) {
       devcodex uninstall --dry-run  →  --apply  →  npm uninstall -g devcodex
 
     Every command supports ${c.cyan('<command> --help')} and ${c.cyan('help <command>')} without writing files.
-    User guide: https://github.com/devcodex-labs/devcodex#readme
+    User guide: https://devcodex-labs.github.io/devcodex/
   `)
   }
 

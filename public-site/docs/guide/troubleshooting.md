@@ -28,6 +28,17 @@ devcodex global-adapters apply
 
 它只表示对应宿主的原生 CLI 或真实模型回放尚无当前 direct evidence，不等于已配置的 adapter 一定失败。判断时把配置合同、原生 CLI 和端到端回放分开。
 
+## 状态字段怎么恢复
+
+| 诊断 | 含义 | 最短恢复路径 |
+|---|---|---|
+| `adapter=not-ready` | 受管入口缺失或未刷新 | `devcodex global-adapters apply` 后重开宿主 |
+| `contract=failed` | 已安装内容与当前合同不一致 | 保存 doctor 输出，重新 apply；仍失败则按首个 typed error 修复 |
+| `host kernel not installed` | 当前宿主没有可读取的内核入口 | 在受支持版本执行 apply，并确认目标 HOME |
+| `native=unverified` | 缺少原生 CLI / 模型回放证据 | 检查宿主命令身份；不要把它误报为 ready 或 failed |
+
+`status` 展示摘要，`doctor --json` 展示逐宿主、逐合同和恢复动作。文件存在、命令同名或另一个宿主通过都不能替代当前宿主证据。
+
 ## Grok 没有完整上下文
 
 优先在项目目录运行：
@@ -48,7 +59,38 @@ Windows 上若 `agent --version` 命中其他同名命令，优先检查 `cursor
 
 ## 沙箱或权限错误
 
-`sandbox-exec-denied`、`sandbox-read-denied` 或 `GLOBAL_HOST_TARGET_UNVERIFIED` 表示当前精确命令或目录未被允许。只批准验证所需的最小 launcher 或目录后重试，不需要把永久完全访问作为默认修复。
+`node runtime BLOCK (... reason=sandbox-exec-denied)` 表示宿主在 DevCodex JavaScript 启动前拒绝执行 Node launcher。`GLOBAL_HOST_TARGET_UNVERIFIED` / `sandbox-read-denied` 表示对应用户级宿主目录当前不可读，其他宿主仍可继续检查。
+
+先运行：
+
+```powershell
+Get-Command node
+node --version
+devcodex doctor --json
+```
+
+只对精确 launcher 或精确用户目录做最小范围批准，再重试。Volta、NVM、FNM 或 asdf 更新 shim 物理路径后可能需要重新批准；永久完全访问不是默认修复方案。
+
+## 临时目录与运行态
+
+工作区临时产物的 canonical root 是 `<workspace>/.tmp/devcodex/`。先按 project/partition 查看和生成维护计划：
+
+```bash
+devcodex tmp status --json
+devcodex tmp status --project=<project> --partition=runs
+devcodex tmp maintain --project=<project> --partition=runs
+```
+
+`tmp maintain` 默认 plan-only。只有 owner、target、TTL、lease 与备份事务都可验证，并且用户显式给出 `--apply` 和一个完整 scope 时，才允许处理候选；legacy、未知 owner、共享 lease、reparse point、路径逃逸或分页未完成都会保持 blocked。
+
+查看普通运行态占用时使用：
+
+```bash
+devcodex runtime status
+devcodex runtime prune --dry-run
+```
+
+不要手动把 `.devcodex/**/.tmp`、锁文件或未知临时目录当作可安全删除对象。
 
 ## 更新
 
@@ -71,3 +113,9 @@ npm uninstall -g devcodex
 ```
 
 如果仍无法恢复，请提交 `devcodex status`、`devcodex doctor`、宿主名称、版本和最小复现步骤；不要提交 token、私有代码或无关配置全文。
+
+## 全局安装包缺少源码测试脚本
+
+npm 安装包是用户运行时，不是维护者源码仓镜像。最终 tarball 只公开安装生命周期、`npm run validate` 与宿主适配的必要入口；测试、benchmark、生成器和发布编排留在源码仓。
+
+如果已安装包中的 `npm run validate` 或 `npm pack` 报 `MODULE_NOT_FOUND`，这是包完整性故障，应升级并提交完整输出，不应通过完全访问绕过。开发或发布 DevCodex 时请使用源码 checkout。

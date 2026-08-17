@@ -1,9 +1,9 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要；历史版本见对应详细变更文件。
-> **最新版本详细变更文档**: [`changelogs/releases/v1.17.9.md`](./changelogs/releases/v1.17.9.md)
+> **最新版本详细变更文档**: [`changelogs/releases/v1.17.10.md`](./changelogs/releases/v1.17.10.md)
 > **最后更新**: 2026-08-17
-> **当前版本**: v1.17.9 修复 Windows Grok Hook 的 PowerShell 命令解析，收敛为插件唯一 lifecycle Owner，并补齐事务、临时目录、Memory/Profile current-truth 与发布链回归；版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
+> **当前版本**: v1.17.10 统一 DevCodex 的公开产品表达，建立公开用户文档与 GitHub Pages，收敛 README 信息架构和跨入口 metadata，并补强动态工作流、Skill、宿主与 endpoint 身份合同；版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
 
 ---
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.17.10](./changelogs/releases/v1.17.10.md) | 2026-08-17 | 📚 **公开产品表达与用户文档站**：统一意图驱动 AI Coding 工作流运行时定位；README 迁移到任务型入口，公开 Rspress/Pages 文档上线；package/plugin/CLI/GitHub metadata 对齐；V2 动态事实与 endpoint 身份负向合同防止跨入口漂移 | [查看](./changelogs/releases/v1.17.10.md) |
 | [v1.17.9](./changelogs/releases/v1.17.9.md) | 2026-08-17 | 🔧 **Grok Hook 启动与唯一 Owner 修复**：Windows canonical transport 兼容 PowerShell；用户级 Grok Hook 退役受管 lifecycle 声明，由插件独占六事件；verifier 分离物理声明、精确去重结果与 mutation owner，并同步事务、workspace temp、Memory/Profile 发布链闭环 | [查看](./changelogs/releases/v1.17.9.md) |
 | [v1.17.8](./changelogs/releases/v1.17.8.md) | 2026-08-16 | 🔧 **宿主稳定入口与 SkillRoute 自举修复**：Hook 信任身份与不可变 runtime generation 解耦；Codex 未分发 UserPromptSubmit 时由结构化 MCP 回退建立同一 SkillRoute envelope；多项目 pending 保留 exact host/显式 Skill，ContextRead 拒绝用 sidecar 覆盖复合返回体失配；S15 兼容 Hook/MCP 两种证据形态并绑定真实入口，closure 复算当前 runtime/adapter/evidence | [查看](./changelogs/releases/v1.17.8.md) |
 | [v1.17.7](./changelogs/releases/v1.17.7.md) | 2026-08-15 | 🔧 **全局运行态一致性与首载闭环修复**：正文读取绑定持久计划并在源层有界；未解析目标、catalog sidecar、Memory 状态、配置 CAS/Readiness、命令/对象身份与 CLI/Desktop 证据分层完成跨消费者收敛；Windows Node 18 插桩递归与验证预算假失败已关闭 | [查看](./changelogs/releases/v1.17.7.md) |

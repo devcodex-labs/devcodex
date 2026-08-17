@@ -4,7 +4,7 @@ const fs = require('fs')
 const path = require('path')
 const {
   createCanonicalAwareReader,
-  evaluatePublicReadmeContract
+  evaluatePublicReadmeContractV2
 } = require('./canonical-consumer-contracts')
 
 const REQUIRED_DEFINITIONS = [
@@ -168,9 +168,12 @@ function inspectWorkflowCompletionControls(root, io = {}) {
   for (const [relative, anchors] of publicConsumers) {
     const content = read(relative)
     if (relative === 'README.md') {
-      const contract = evaluatePublicReadmeContract(content)
+      const contract = evaluatePublicReadmeContractV2(content, { root })
       if (!contract.valid) {
-        issues.push(`completion-public-consumer-drift:README.md:PublicReadmeContractV1:${contract.missing.join('|')}`)
+        const evidence = contract.violations
+          .map(item => `${item.code}:${item.evidence}`)
+          .join('|')
+        issues.push(`completion-public-consumer-drift:README.md:PublicReadmeContractV2:${evidence}`)
       }
       continue
     }

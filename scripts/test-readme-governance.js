@@ -5,7 +5,7 @@ const fs = require('fs')
 const path = require('path')
 const {
   createCanonicalAwareReader,
-  evaluatePublicReadmeContract
+  evaluatePublicReadmeContractV2
 } = require('./lib/canonical-consumer-contracts')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -18,7 +18,7 @@ function read(file) {
 
 function mustInclude(file, needle) {
   const content = read(file)
-  if (file === 'README.md' && evaluatePublicReadmeContract(content).valid) return
+  if (file === 'README.md' && evaluatePublicReadmeContractV2(content, { root: ROOT }).valid) return
   if (!content.includes(needle)) failures.push(`${file} missing "${needle}"`)
 }
 
@@ -44,7 +44,7 @@ function assertOrder(file, headings) {
 }
 
 const plugin = JSON.parse(read('plugin.json'))
-const publicReadmeContract = evaluatePublicReadmeContract(read('README.md'))
+const publicReadmeContract = evaluatePublicReadmeContractV2(read('README.md'), { root: ROOT })
 if (!publicReadmeContract.valid) {
   failures.push(`README.md public contract missing: ${publicReadmeContract.missing.join(', ')}`)
 }

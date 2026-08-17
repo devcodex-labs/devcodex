@@ -1,19 +1,37 @@
-# DevCodex
+# DevCodex — 意图驱动的 AI Coding 工作流运行时
 
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
 
-DevCodex 是面向 AI 编程宿主的工作流运行时和宿主适配包。它通过一个 npm 全局包，把上下文、记忆、80+ 内置 Skill、报告与验证闭环接入 Codex、Claude Code、GitHub Copilot、Gemini CLI、Grok 和 Cursor（Beta），让不同宿主在同一个项目里按更一致的开发流程协作。
+> **让 AI 编程从一次性聊天，变成可验证、可续接的工程流程。**
 
-如果你经常遇到 AI 新会话忘记项目背景、长任务中途断线、不同宿主规则不一致、修复过程没有记录、验证结果说不清这些问题，DevCodex 的目标就是把“随口聊天式开发”变成有上下文、有流程、有记录、可继续的 AI 编程协作。
+DevCodex 是面向 Codex、Claude Code、GitHub Copilot、Gemini CLI、Grok 和 Cursor 的意图驱动 AI Coding 工作流运行时。它先识别任务目的、目标项目和风险，再按需加载项目 Profile、上下文、记忆和专业 Skill，并把确认、执行、验证、报告与任务续接组织成一套共享工作流模型。
+
+本地优先、文件支撑的控制层与六宿主适配包，把项目上下文、专业 Skill、确认、验证和报告闭环带入多个 AI Coding 宿主。作为工作流运行时和宿主适配包，它负责协调工程流程，不负责托管模型。
+
+它把三件对真实工程最重要的事放在同一条用户路径里：
+
+- 按任务意图选择工作流、上下文与专业 Skill
+- 把需求、确认、实现、验证、报告和续接形成可追踪闭环
+- 在六个 AI Coding 宿主间保持一致流程，同时诚实保留能力差异
 
 ```bash
 npm install -g devcodex
+cd <你的项目根目录>
+devcodex init
+devcodex status
 devcodex --version
 ```
 
 安装或更新后，先在目标项目或工作区完成下方初始化与状态检查，再完全退出并重新打开宿主的新会话。
 
-DevCodex 不替代业务框架、GitHub CI、安全审计或人工评审。它也不接管 Codex、Claude Code 等宿主原有的个人 Skill、项目指令或配置文件。
+### DevCodex 不是什么
+
+- 它不是模型网关，不代理或托管模型调用。
+- 它不是通用 Agent 框架，也不是多 Agent 编排器。
+- 它不替代业务框架、GitHub CI、安全审计或人工评审。
+- 它不保证六个宿主拥有完全相同的 Hook、MCP、插件、权限或生命周期事件。
+
+“本地优先”只描述 DevCodex 的工作流状态、Profile、报告、记忆和项目 Skill 以本地文件保存；普通使用不需要额外后台服务。模型执行和数据处理仍遵循所选 AI Coding 宿主的规则。
 
 ## 目录
 
@@ -23,8 +41,10 @@ DevCodex 不替代业务框架、GitHub CI、安全审计或人工评审。它�
 - [它如何工作？](#它如何工作)
 - [适合谁？](#适合谁)
 - [5 分钟开始](#5-分钟开始)
+- [安装会改变什么](#安装会改变什么)
 - [项目 Profile](#项目-profile)
 - [首次信任提示](#首次信任提示)
+- [工作流、Skill 与宿主边界](#工作流skill-与宿主边界)
 - [常见任务怎么说](#常见任务怎么说)
 - [常见问题与排错](#常见问题与排错)
 - [更新](#更新)
@@ -165,6 +185,18 @@ Cursor 当前是第六宿主 Beta。全局安装会写入用户级 `~/.cursor/ho
 
 Cursor 与 Grok 同机安装时，`devcodex grok` 只在它启动的 Grok 子进程中关闭 Grok 对 Cursor Hooks 的兼容导入，避免 Grok 二次解析 `~/.cursor/hooks.json`；Cursor 官方 Hook 配置不会被改写，用户直接运行普通 `grok` 时的兼容偏好也不会被永久修改。
 
+## 安装会改变什么
+
+| 位置 | DevCodex 的行为 |
+|------|-----------------|
+| 用户 HOME | 安装或刷新 DevCodex 受管的六宿主适配器 |
+| 项目或 workspace | 仅在你执行 `devcodex init` 后创建 `.devcodex/` 运行态 |
+| 项目源码 | 安装本身不自动修改业务源码 |
+| 后台服务 | 普通使用不启动常驻网络服务 |
+| 宿主原生 Skill 与配置 | 不扫描、复制、合并、覆盖或删除用户已有资产 |
+
+DevCodex 的文件状态留在本机；模型请求、联网能力和数据处理仍由你选择的 AI Coding 宿主及其配置决定。
+
 ## 项目 Profile
 
 普通单项目只需执行 `devcodex init`，无需再运行 Profile 命令。多项目 workspace 中，如果某个子项目需要独立于 workspace 基线的 Profile，可在 workspace 根目录按项目名初始化：
@@ -220,15 +252,15 @@ DevCodex 会按任务意图选择流程和 Skill。普通使用者不需要手�
 
 如果当前宿主是 Cursor，请使用安装或更新后重新打开的本地 IDE / CLI 会话；不要把 Cursor Cloud Agent 的 Partial 行为当作本地 Beta 适配器故障。
 
-### 自动推进：`@rocky`
+### 自动推进：`@devcodex-auto`
 
-如果你希望 DevCodex 在明确任务范围内自动继续执行，可以在请求里带上 `@rocky`：
+如果你希望 DevCodex 在明确任务范围内自动继续执行，公开的 canonical 入口是 `@devcodex-auto`：
 
 ```text
-@rocky 阅读当前项目，修复失败的 CI，完成后提交。
+@devcodex-auto 阅读当前项目，修复失败的 CI，完成后提交。
 ```
 
-`@rocky` 是全局默认 `@rocky` 自动推进别名。进入自动推进后，DevCodex 会在当前会话里尽量连续完成需求、实现、验证、报告等步骤；如果你想退出，直接说“退出 auto”或“exit auto mode”即可。
+`@rocky` 是默认兼容快捷别名，行为与 `@devcodex-auto` 一致。进入自动推进后，DevCodex 会在当前会话里尽量连续完成需求、实现、验证、报告等步骤；如果你想退出，直接说“退出 auto”或“exit auto mode”即可。
 
 自动推进不等于无限授权：删除文件、不可逆操作、越过项目范围、需要外部确认的发布动作等仍会遵守 DevCodex 的安全边界。当前只有 Hook 支持且白名单路径提供 runtime 级硬保证；在只依赖指令回退的宿主中，DevCodex 会尽量按语义继续推进，但不承诺完全等价的自动放行。
 
@@ -250,7 +282,65 @@ DevCodex 会按任务意图选择流程和 Skill。普通使用者不需要手�
 }
 ```
 
-`extensions.devcodex.autoAliases` 用于替换全局默认别名；省略该字段表示继续使用默认 `@rocky`，设置为空数组 `[]` 表示关闭默认自动推进别名。
+`extensions.devcodex.autoAliases` 用于替换全局默认快捷别名；非空数组会替换默认 `@rocky`，省略该字段会继续使用它，设置为空数组 `[]` 则关闭默认快捷别名。正式入口 `@devcodex-auto` 不因 Profile 别名配置而改名。
+
+## 工作流、Skill 与宿主边界
+
+<!-- devcodex-public:workflows primary=dev,fix,analyze,audit,resume,chat advanced=self-fix,other -->
+<!-- devcodex-public:skills total=86 active=83 gray=3 bucket=80+ -->
+<!-- devcodex-public:hosts ids=copilot,claude,codex,gemini,grok,cursor variants=13 -->
+<!-- devcodex-public:auto canonical=@devcodex-auto default=@rocky profile-replacement=true empty-array-disables=true -->
+
+### 意图驱动的工作流
+
+用户只需描述目标，DevCodex 会判断任务是需要变更还是只读结论，并选择对应工作流。六个主工作流面向日常使用；两个高级工作流用于治理或兜底，不需要用户平时手动选择。
+
+| 层级 | 工作流 | 适用目的 |
+|------|--------|----------|
+| 主工作流 | `dev` | 开发或重构功能 |
+| 主工作流 | `fix` | 复现、定位并修复问题 |
+| 主工作流 | `analyze` | 只读分析与建议 |
+| 主工作流 | `audit` | 基于证据的审查 |
+| 主工作流 | `resume` | 从项目文件继续既有任务 |
+| 主工作流 | `chat` | 不需要项目执行链的交流 |
+| 高级工作流 | `self-fix` | 修复 DevCodex 自身治理或流程缺陷 |
+| 高级工作流 | `other` | 无法安全归入上述类别的规划兜底 |
+
+`plan` 是阶段或能力，不是第九个 canonical workflow。
+
+### 五个产品支柱
+
+1. **理解任务**：识别用户目的、目标项目、作用域和风险。
+2. **加载正确上下文**：按需读取 Profile、项目资料、文件记忆和任务状态。
+3. **路由专业能力**：渐进加载当前任务需要的工作流、领域、交付治理或 Workspace Skill。
+4. **治理执行**：区分只读与变更流程，管理确认边界并按宿主能力执行。
+5. **验证并续接**：记录测试、报告、证据、剩余风险和可恢复的任务状态。
+
+### Skill 如何组织
+
+当前机器事实为 **86 个 Skill（83 active + 3 gray）**；首页使用动态摘要 **80+**，精确数量和生命周期由 Skill portfolio 校验，不由 README 独立维护。
+
+| 类型 | 作用 |
+|------|------|
+| Workflow Skill | 负责开发、修复、分析、审查等主流程 |
+| Domain Skill | 提供架构、安全、数据、前后端、性能等专业判断 |
+| Delivery & Governance Skill | 负责测试、文档、发布、报告、质量和流程闭环 |
+| Workspace Skill | 保存某个项目或团队自己的流程与知识 |
+
+Rules / `AGENTS.md` 提供项目约束，Skills 提供专业流程和知识，MCP 提供结构化工具与数据访问；DevCodex 根据意图、项目现实和宿主能力协调这些层，并维护工作流状态、确认边界、验证证据与任务续接。它不替代这些层，也不把它们简化成胜负关系。
+
+### 六宿主适配边界
+
+DevCodex 共享一套工作流模型，但执行强度取决于各宿主可用的 Hooks、MCP、插件、权限和生命周期事件。
+
+| 宿主 | 推荐入口 | 公开状态 |
+|------|----------|----------|
+| GitHub Copilot | Copilot CLI；VS Code / JetBrains 使用 instruction fallback | 入口能力不同，按精确宿主证据执行 |
+| Claude Code | Claude Code | Full（以当前 direct evidence 为上限） |
+| Codex | Codex App / CLI | Beta（Hook / MCP 取决于宿主配置） |
+| Gemini CLI | Gemini CLI | Beta / UNVERIFIED（需要 direct replay 才能升级） |
+| Grok | `devcodex grok` | Full launcher；普通 grok 为 Partial |
+| Cursor | 本地 IDE / CLI | 本地 Beta；Cloud Partial / UNVERIFIED |
 
 ## 常见任务怎么说
 
@@ -287,7 +377,7 @@ DevCodex 会按任务意图选择流程和 Skill。普通使用者不需要手�
 ### 自动修复并验证
 
 ```text
-@rocky 修复当前失败的 GitHub CI，检查是否还有同类问题，运行完整验证，完成后提交。
+@devcodex-auto 修复当前失败的 GitHub CI，检查是否还有同类问题，运行完整验证，完成后提交。
 ```
 
 ### 深度审查
@@ -313,7 +403,7 @@ DevCodex 会按任务意图选择流程和 Skill。普通使用者不需要手�
 提交、push、tag、GitHub Release 和 npm publish 都属于独立动作。需要发布时请直接写明：
 
 ```text
-@rocky 完成修复和全部验证后提交并推送 main，发布新的 patch 版本到 npm 和 GitHub Release，再用线上包重新安装验证。
+@devcodex-auto 完成修复和全部验证后提交并推送 main，发布新的 patch 版本到 npm 和 GitHub Release，再用线上包重新安装验证。
 ```
 
 几个实用技巧：
@@ -322,7 +412,7 @@ DevCodex 会按任务意图选择流程和 Skill。普通使用者不需要手�
 - 指定项目、目录或文件范围，避免在多项目 workspace 中产生歧义。
 - 写明必须运行的测试，或要求 DevCodex 根据影响范围选择验证。
 - “完成”不自动等于 commit、push 或发布；这些动作需要在当前请求中明确写出。
-- `@rocky` 只负责在已授权范围内自动推进，不会扩大删除、越界访问或发布权限。
+- `@devcodex-auto`（以及默认快捷别名 `@rocky`）只负责在已授权范围内自动推进，不会扩大删除、越界访问或发布权限。
 
 ## 常见问题与排错
 

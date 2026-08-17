@@ -33,6 +33,10 @@
     "scripts/test-v1178-batch-e.js",
     "scripts/critical-risk-coverage.json",
     "scripts/check-critical-risk-coverage.js",
+    "public-product-expression.json",
+    "scripts/lib/public-product-expression.js",
+    "scripts/lib/public-endpoint-identity.js",
+    "scripts/test-public-product-expression.js",
     "scripts/lib/security-audit-runner.js",
     "scripts/test-security-audit-runner.js",
     "scripts/lib/always-on-governance.js",
@@ -186,6 +190,7 @@
         "governance-intake",
         "governance-ledger-integrity",
         "profile-governance",
+        "public-product-expression",
         "readme-governance",
         "requirement-artifacts",
         "control-content-source",
@@ -275,6 +280,7 @@
         "governance-intake",
         "governance-ledger-integrity",
         "profile-governance",
+        "public-product-expression",
         "readme-governance",
         "requirement-artifacts",
         "control-content-source",
@@ -374,6 +380,7 @@
         "security-audit-runner",
         "validation-dag",
         "profile-governance",
+        "public-product-expression",
         "readme-governance",
         "control-content-source",
         "candidate-review-bundle",
@@ -3054,6 +3061,62 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "public-product-expression",
+      "owner": "public-product-expression",
+      "command": "node",
+      "args": [
+        "scripts/test-public-product-expression.js"
+      ],
+      "dependencies": [
+        "workflow-capabilities",
+        "always-on-governance"
+      ],
+      "inputs": [
+        "public-product-expression.json",
+        "skills/routing/workflow-capabilities.json",
+        "skills/portfolio.json",
+        "scripts/lib/public-product-expression.js",
+        "scripts/lib/public-endpoint-identity.js",
+        "scripts/lib/canonical-consumer-contracts.js",
+        "scripts/lib/host-surface-descriptors.js",
+        "scripts/lib/global-host-target.js",
+        "scripts/lib/always-on-governance.js",
+        "scripts/lib/global-host-runtime-verifier.js",
+        "scripts/test-public-product-expression.js",
+        "scripts/fixtures/public-product-expression/**"
+      ],
+      "consumers": [
+        "readme-governance",
+        "release-metadata",
+        "public-text-integrity",
+        "docs-surface-inventory"
+      ],
+      "invariants": [
+        "public-product-expression",
+        "workflow-skill-host-projection",
+        "endpoint-identity"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "PublicProductProjectionV1",
+        "EndpointIdentityEvidenceV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "readme-governance",
       "owner": "readme-governance",
       "command": "node",
@@ -3503,7 +3566,7 @@
       "writeScopes": [
         "isolated-temp"
       ],
-      "timeoutMs": 240000,
+      "timeoutMs": 600000,
       "exitMap": {
         "success": [
           0
@@ -4488,7 +4551,10 @@
         "scripts/lib/runtime-dependency-closure.js",
         "scripts/fixtures/global-host-config/**",
         "scripts/test-global-host-config.js",
-        "scripts/test-global-host-runtime-verifier.js"
+        "scripts/test-global-host-runtime-verifier.js",
+        "scripts/test-skills-deploy-mode.js",
+        "scripts/lib/skills-deploy-mode.js",
+        "scripts/test-global-skill-runtime-root.js"
       ],
       "consumers": [
         "global-host-removal",
@@ -4514,7 +4580,7 @@
       "writeScopes": [
         "isolated-temp"
       ],
-      "timeoutMs": 300000,
+      "timeoutMs": 600000,
       "exitMap": {
         "success": [
           0
@@ -4601,12 +4667,16 @@
       ],
       "inputs": [
         "package.json",
+        "public-product-expression.json",
         "scripts/postinstall.js",
         "scripts/lib/npm-lifecycle-adapter.js",
         "scripts/lib/checked-command.js",
         "scripts/lib/global-host-*.js",
+        "scripts/lib/public-product-expression.js",
+        "scripts/lib/public-endpoint-identity.js",
         "cursor/**",
         "scripts/lib/runtime-dependency-closure.js",
+        "scripts/test-public-product-expression.js",
         "scripts/test-global-install-smoke.js"
       ],
       "consumers": [
@@ -4630,7 +4700,7 @@
       "writeScopes": [
         "isolated-temp"
       ],
-      "timeoutMs": 180000,
+      "timeoutMs": 600000,
       "exitMap": {
         "success": [
           0
@@ -4750,7 +4820,9 @@
       ],
       "dependencies": [],
       "inputs": [
+        "public-site/**",
         "website/**",
+        ".github/workflows/pages.yml",
         "README.md",
         "scripts/test-generated-site-links.js",
         "scripts/check-generated-site-links.js"
@@ -4790,7 +4862,9 @@
         "public-text-integrity"
       ],
       "inputs": [
+        "public-site/**",
         "website/**",
+        ".github/workflows/pages.yml",
         "README.md",
         "scripts/test-generated-site-links.js",
         "scripts/run-website-build-if-present.js",
@@ -4805,9 +4879,10 @@
       "riskClass": "release",
       "cachePolicy": "never",
       "writeScopes": [
-        "website-build"
+        "website-build",
+        "public-site-build"
       ],
-      "timeoutMs": 240000,
+      "timeoutMs": 600000,
       "exitMap": {
         "success": [
           0
@@ -4832,7 +4907,9 @@
         "website-build"
       ],
       "inputs": [
+        "public-site/**",
         "website/**",
+        ".github/workflows/pages.yml",
         "README.md",
         "scripts/check-generated-site-links-if-present.js",
         "scripts/check-generated-site-links.js"
@@ -4873,6 +4950,7 @@
         "mcp/**",
         "prompts/**",
         "instructions/**",
+        "public-site/docs/**",
         "website/docs/**",
         "scripts/lib/docs-surface-inventory.js",
         "scripts/test-docs-surface-inventory.js",

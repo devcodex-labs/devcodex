@@ -1073,7 +1073,7 @@ function buildCliMaintenanceCommands(ctx) {
       return
     }
     console.log(`
-    ${c.bold('DevCodex')} — AI-powered development workflow rules for Copilot, Claude, Codex, Gemini, Grok & Cursor Beta
+    ${c.bold('DevCodex')} — intent-driven AI coding workflow runtime for Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok & Cursor
 
     ${c.bold('Usage:')}
       devcodex <command> [options]

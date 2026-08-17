@@ -1,0 +1,20 @@
+{
+  "name": "@devcodex/public-site",
+  "version": "0.0.0-private",
+  "private": true,
+  "description": "Public user documentation for DevCodex",
+  "scripts": {
+    "dev": "rspress dev",
+    "build": "rspress build",
+    "preview": "rspress preview"
+  },
+  "devDependencies": {
+    "@rspress/core": "2.0.18"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "dependencies": {
+    "devcodex": "file:.."
+  }
+}

@@ -9,20 +9,35 @@ const ROOT = path.resolve(__dirname, '..')
 
 function main(options = {}) {
   const root = options.root ? path.resolve(options.root) : ROOT
-  const websitePackage = path.join(root, 'website', 'package.json')
-  if (!fs.existsSync(websitePackage)) {
-    console.log('Website build skipped: website/package.json not present')
+  const sites = [
+    { id: 'public-site', install: true },
+    { id: 'website', install: false }
+  ].filter(site => fs.existsSync(path.join(root, site.id, 'package.json')))
+  if (!sites.length) {
+    console.log('Website build skipped: no public-site or maintainer website package present')
     return 0
   }
 
   try {
-    const evidence = runChecked('npm', ['--prefix', 'website', 'run', 'build'], {
-      cwd: root,
-      timeoutMs: 240000,
-      summaryLimit: 12000
-    })
-    if (evidence.stdout) process.stdout.write(evidence.stdout)
-    if (evidence.stderr) process.stderr.write(evidence.stderr)
+    for (const site of sites) {
+      if (site.install) {
+        const install = runChecked('npm', ['--prefix', site.id, 'ci', '--ignore-scripts'], {
+          cwd: root,
+          timeoutMs: 240000,
+          summaryLimit: 12000
+        })
+        if (install.stdout) process.stdout.write(install.stdout)
+        if (install.stderr) process.stderr.write(install.stderr)
+      }
+      const evidence = runChecked('npm', ['--prefix', site.id, 'run', 'build'], {
+        cwd: root,
+        timeoutMs: 240000,
+        summaryLimit: 12000
+      })
+      if (evidence.stdout) process.stdout.write(evidence.stdout)
+      if (evidence.stderr) process.stderr.write(evidence.stderr)
+      console.log(`Website build passed: ${site.id}`)
+    }
     return 0
   } catch (error) {
     if (error instanceof CheckedCommandError) {

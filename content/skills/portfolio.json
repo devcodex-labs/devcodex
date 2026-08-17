@@ -8,13 +8,13 @@
     "registry": "plugin.json",
     "sourceDigest": "87e6d5320b8b08ada220da1922748c965a7e91da3f83a5a677b933ac6a6250ae",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
-    "pluginDigest": "cea2bea94774beffcc3ad568efc0f9282b57984223857806722456661855df60",
+    "pluginDigest": "cd763dc7b10027d2be8afc203d2e06c69d3afb75e2aadcbf30d8ec522814558b",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 540,
-    "consumerInventoryDigest": "b5b1718067a78a7c2519ec0dda7180541f1f5a476f1a709cafa85a6bad85e745",
-    "consumerProjectionDigest": "485829b5c51de2b34ac32b3bce916cde3b01621bc1bbc8a75292ae569a9c4d0d",
-    "portfolioInputDigest": "972738c3eea0b316d03f4a5367230662dd949c2b0184324966bc38ac3409085e"
+    "consumerInventoryFileCount": 558,
+    "consumerInventoryDigest": "cc787254656bec7d8bc47c5197eebaa7bce566d97b4a45681387f19edecf758b",
+    "consumerProjectionDigest": "771389600b9fb713044cfa9533d3562af7f87e816db9209268b7277b36f9d9a6",
+    "portfolioInputDigest": "3628cf597d62acdc64757783ac6fc2f6660a6b4b2b9ddadcc0f5a0063de51bae"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -10137,6 +10137,14 @@
           "role": "current"
         },
         {
+          "path": "public-product-expression.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/docs/reference/skills.md",
+          "role": "current"
+        },
+        {
           "path": "README.md",
           "role": "current"
         },
@@ -10181,6 +10189,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/cli-maintenance-commands.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/content-root-delete-transaction.js",
           "role": "current"
         },
@@ -10202,6 +10214,10 @@
         },
         {
           "path": "scripts/lib/npm-lifecycle-adapter.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/public-product-expression.js",
           "role": "current"
         },
         {
@@ -12320,6 +12336,10 @@
           "role": "current"
         },
         {
+          "path": "public-site/docs/reference/workflows.md",
+          "role": "current"
+        },
+        {
           "path": "README.md",
           "role": "current"
         },
@@ -12469,6 +12489,10 @@
         },
         {
           "path": "scripts/lib/project-knowledge-store.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/public-product-expression.js",
           "role": "current"
         },
         {
@@ -12776,6 +12800,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-public-product-expression.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-r10-control-plane-honesty.js",
           "role": "current"
         },
@@ -12911,6 +12939,7 @@
         "scripts/test-process-enforcement-e2e.js",
         "scripts/test-project-knowledge-store.js",
         "scripts/test-project-knowledge-v2.js",
+        "scripts/test-public-product-expression.js",
         "scripts/test-r10-control-plane-honesty.js",
         "scripts/test-release-metadata.js",
         "scripts/test-repair-prevention-assessment.js",
@@ -13016,6 +13045,7 @@
           "scripts/test-process-enforcement-e2e.js",
           "scripts/test-project-knowledge-store.js",
           "scripts/test-project-knowledge-v2.js",
+          "scripts/test-public-product-expression.js",
           "scripts/test-r10-control-plane-honesty.js",
           "scripts/test-release-metadata.js",
           "scripts/test-repair-prevention-assessment.js",
@@ -14923,6 +14953,10 @@
           "role": "current"
         },
         {
+          "path": "public-product-expression.json",
+          "role": "current"
+        },
+        {
           "path": "README.md",
           "role": "current"
         },
@@ -16269,6 +16303,10 @@
         },
         {
           "path": "scripts/lib/host-instruction-projection.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/public-product-expression.js",
           "role": "current"
         },
         {
@@ -18207,6 +18245,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/public-product-expression.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/runtime-state-index.js",
           "role": "current"
         },
@@ -18367,6 +18409,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-public-product-expression.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-runtime-state-index.js",
           "role": "current"
         },
@@ -18428,6 +18474,7 @@
         "scripts/test-migrate-layout.js",
         "scripts/test-pack-clean.js",
         "scripts/test-process-enforcement-e2e.js",
+        "scripts/test-public-product-expression.js",
         "scripts/test-runtime-state-index.js",
         "scripts/test-skill-intents.js",
         "scripts/test-skill-portfolio.js",
@@ -18500,6 +18547,7 @@
           "scripts/test-migrate-layout.js",
           "scripts/test-pack-clean.js",
           "scripts/test-process-enforcement-e2e.js",
+          "scripts/test-public-product-expression.js",
           "scripts/test-runtime-state-index.js",
           "scripts/test-skill-intents.js",
           "scripts/test-skill-portfolio.js",

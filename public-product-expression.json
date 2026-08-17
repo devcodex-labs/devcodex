@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "PublicProductExpressionV1",
+  "productId": "devcodex",
+  "name": "DevCodex",
+  "repository": "https://github.com/devcodex-labs/devcodex",
+  "category": {
+    "zh": "意图驱动的 AI Coding 工作流运行时",
+    "en": "Intent-driven AI coding workflow runtime",
+    "semanticInvariants": [
+      "intent-driven",
+      "AI coding workflow",
+      "runtime"
+    ]
+  },
+  "technicalDefinition": {
+    "zh": "本地优先、文件支撑的控制层与六宿主适配包，把项目上下文、专业 Skill、确认、验证和报告闭环带入多个 AI Coding 宿主。",
+    "en": "A local-first, file-backed control layer and six-host adapter package for project context, skills, approvals, validation, reports, and resumable handoffs."
+  },
+  "valuePropositions": [
+    "按任务意图选择工作流、上下文与专业 Skill",
+    "把需求、确认、实现、验证、报告和续接形成可追踪闭环",
+    "在六个 AI Coding 宿主间保持一致流程，同时诚实保留能力差异"
+  ],
+  "mustNot": [
+    "model-gateway",
+    "general-agent-framework",
+    "multi-agent-orchestrator",
+    "business-framework",
+    "ci-security-human-review-replacement"
+  ],
+  "autoEntry": {
+    "canonical": "@devcodex-auto",
+    "defaultShortcut": "@rocky",
+    "replacement": "A non-empty extensions.devcodex.autoAliases array replaces the default shortcut.",
+    "disabled": "An empty extensions.devcodex.autoAliases array disables the default shortcut.",
+    "runtimeBehaviorChanged": false
+  },
+  "workflowPresentation": {
+    "primary": [
+      "dev",
+      "fix",
+      "analyze",
+      "audit",
+      "resume",
+      "chat"
+    ],
+    "advanced": [
+      "self-fix",
+      "other"
+    ]
+  },
+  "hostPresentation": {
+    "copilot": {
+      "label": "GitHub Copilot",
+      "recommendedEntry": "Copilot CLI；VS Code / JetBrains 使用 instruction fallback",
+      "publicStatus": "入口能力不同，按精确宿主证据执行"
+    },
+    "claude": {
+      "label": "Claude Code",
+      "recommendedEntry": "Claude Code",
+      "publicStatus": "Full（以当前 direct evidence 为上限）"
+    },
+    "codex": {
+      "label": "Codex",
+      "recommendedEntry": "Codex App / CLI",
+      "publicStatus": "Beta（Hook / MCP 取决于宿主配置）"
+    },
+    "gemini": {
+      "label": "Gemini CLI",
+      "recommendedEntry": "Gemini CLI",
+      "publicStatus": "Beta / UNVERIFIED（需要 direct replay 才能升级）"
+    },
+    "grok": {
+      "label": "Grok",
+      "recommendedEntry": "devcodex grok",
+      "publicStatus": "Full launcher；普通 grok 为 Partial"
+    },
+    "cursor": {
+      "label": "Cursor",
+      "recommendedEntry": "本地 IDE / CLI",
+      "publicStatus": "本地 Beta；Cloud Partial / UNVERIFIED"
+    }
+  },
+  "discoveryPolicy": {
+    "packageKeywords": [
+      "ai-coding",
+      "workflow-runtime",
+      "developer-tools",
+      "coding-agent",
+      "local-first",
+      "github-copilot",
+      "claude-code",
+      "codex",
+      "gemini-cli",
+      "grok",
+      "cursor"
+    ],
+    "githubTopics": [
+      "ai-coding",
+      "workflow-runtime",
+      "developer-tools",
+      "coding-agent",
+      "local-first",
+      "github-copilot",
+      "claude-code",
+      "codex",
+      "gemini-cli",
+      "grok",
+      "cursor"
+    ],
+    "forbiddenConcepts": [
+      "agent-runtime",
+      "multi-agent",
+      "agent-framework"
+    ]
+  },
+  "endpointPolicy": {
+    "repositoryFallback": "https://github.com/devcodex-labs/devcodex",
+    "productPagesCandidate": "https://devcodex-labs.github.io/devcodex/",
+    "customDomainCandidate": "https://devcodex.dev",
+    "requiredBrandMarkers": [
+      "DevCodex",
+      "Intent-driven AI Coding Workflow Runtime"
+    ],
+    "forbiddenMarkers": [
+      "Parked Domain",
+      "domain for sale",
+      "VextJS",
+      "Nacos",
+      "404"
+    ]
+  },
+  "consumers": {
+    "readmeHero": "DevCodex — 意图驱动的 AI Coding 工作流运行时",
+    "packageDescription": "DevCodex — intent-driven AI coding workflow runtime for Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok, and Cursor",
+    "pluginDisplayName": "DevCodex — AI Coding Workflow Runtime",
+    "pluginDescription": "Intent-driven AI coding workflow runtime for consistent context, skills, approvals, validation, and handoffs across Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok, and Cursor.",
+    "cliSubtitle": "DevCodex — intent-driven AI coding workflow runtime for Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok & Cursor",
+    "githubDescription": "Intent-driven AI coding workflow runtime for consistent context, skills, approvals, validation, and handoffs across six AI coding hosts.",
+    "siteTitle": "DevCodex — Intent-driven AI Coding Workflow Runtime"
+  }
+}

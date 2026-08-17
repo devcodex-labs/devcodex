@@ -111,6 +111,10 @@ function scanDocsSurfaceInventory (root) {
   const scriptsLib = listFiles(root, 'scripts/lib', /\.js$/i)
   const scriptsTop = listFiles(root, 'scripts', /\.(js|cjs|mjs)$/i)
   const npmScripts = Object.keys(pkg.scripts || {}).sort()
+  const sourceCheckoutMode = fs.existsSync(path.join(root, '.git'))
+  const publicSiteDocsRoot = path.join(root, 'public-site', 'docs')
+  const publicSitePresent = fs.existsSync(publicSiteDocsRoot)
+  const publicSiteMd = publicSitePresent ? walkMd(root, 'public-site/docs').sort() : []
   // website/ is maintainer-only and may be absent from public clones (not shipped in npm / public git).
   const websiteDocsRoot = path.join(root, 'website', 'docs')
   const websitePresent = fs.existsSync(websiteDocsRoot)
@@ -155,6 +159,9 @@ function scanDocsSurfaceInventory (root) {
     scriptsLib: scriptsLib.length,
     scriptsTop: scriptsTop.length,
     npmScripts: npmScripts.length,
+    sourceCheckoutMode,
+    publicSitePresent,
+    publicSiteMd: publicSiteMd.length,
     websitePresent,
     websiteMd: websiteMd.length,
     gateGroups,
@@ -204,6 +211,12 @@ function assertDocsSurfaceInventory (inv) {
   if (inv.prompts !== 30) failures.push(`prompts expected 30 got ${inv.prompts}`)
   if (inv.instructionsMain !== 15) {
     failures.push(`instructions main expected 15 got ${inv.instructionsMain}`)
+  }
+  if (inv.sourceCheckoutMode && !inv.publicSitePresent) {
+    failures.push('public-site docs missing from source checkout')
+  }
+  if (inv.publicSitePresent && inv.publicSiteMd !== 9) {
+    failures.push(`public-site md expected 9 got ${inv.publicSiteMd}`)
   }
   // Public tree policy: website is optional. When present (maintainer checkout), enforce floor.
   if (inv.websitePresent && inv.websiteMd < 156) {

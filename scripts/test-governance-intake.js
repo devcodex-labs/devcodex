@@ -8,7 +8,7 @@ const { spawnSync } = require('child_process')
 const { buildLifecycleGovernanceIntakeUtils } = require('../hooks/_runtime/lifecycle-governance-intake.cjs')
 const {
   createCanonicalAwareReader,
-  evaluatePublicReadmeContract
+  evaluatePublicReadmeContractV2
 } = require('./lib/canonical-consumer-contracts')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -21,7 +21,7 @@ const read = file => readAbsolute(path.join(ROOT, file))
 
 function mustInclude(file, needle, label = needle) {
   const content = read(file)
-  if (file === 'README.md' && evaluatePublicReadmeContract(content).valid) return
+  if (file === 'README.md' && evaluatePublicReadmeContractV2(content, { root: ROOT }).valid) return
   if (!content.includes(needle)) {
     failures.push(`${file} missing "${label}"`)
   }

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": "PublicEndpointFixtureSetV1",
+  "cases": [
+    {
+      "id": "product-pages-pass",
+      "expected": "PASS",
+      "input": {
+        "requestedUrl": "https://devcodex-labs.github.io/devcodex/",
+        "finalUrl": "https://devcodex-labs.github.io/devcodex/",
+        "status": 200,
+        "expectedIdentity": "product-pages",
+        "requiredBrandMarkers": ["DevCodex", "Intent-driven AI Coding Workflow Runtime"],
+        "forbiddenMarkers": ["Parked Domain", "VextJS", "404"],
+        "body": "<html><head><title>DevCodex — Intent-driven AI Coding Workflow Runtime</title></head><body>DevCodex</body></html>"
+      }
+    },
+    {
+      "id": "repository-script-token-pass",
+      "expected": "PASS",
+      "input": {
+        "requestedUrl": "https://github.com/devcodex-labs/devcodex",
+        "finalUrl": "https://github.com/devcodex-labs/devcodex",
+        "status": 200,
+        "expectedIdentity": "repository-fallback",
+        "requiredBrandMarkers": ["DevCodex"],
+        "forbiddenMarkers": ["Parked Domain", "Nacos", "404"],
+        "body": "<html><head><title>GitHub - devcodex-labs/devcodex: DevCodex</title><script>window.statuses=[404]; window.projects=['Nacos'];</script></head><body>DevCodex repository</body></html>"
+      }
+    },
+    {
+      "id": "parked-200-block",
+      "expected": "BLOCK",
+      "input": {
+        "requestedUrl": "https://devcodex.dev",
+        "finalUrl": "https://devcodex.dev/",
+        "status": 200,
+        "expectedIdentity": "custom-domain",
+        "requiredBrandMarkers": ["DevCodex"],
+        "forbiddenMarkers": ["Parked Domain", "domain for sale"],
+        "body": "<html><title>Parked Domain name on Hostinger DNS system</title><body>domain for sale</body></html>"
+      }
+    },
+    {
+      "id": "organization-umbrella-200-block",
+      "expected": "BLOCK",
+      "input": {
+        "requestedUrl": "https://devcodex-labs.github.io",
+        "finalUrl": "https://devcodex-labs.github.io/",
+        "status": 200,
+        "expectedIdentity": "product-pages",
+        "requiredBrandMarkers": ["DevCodex"],
+        "forbiddenMarkers": ["VextJS", "Nacos"],
+        "body": "<html><title>DevCodex Labs</title><body>DevCodex VextJS Nacos OpenTelemetry</body></html>"
+      }
+    },
+    {
+      "id": "product-404-block",
+      "expected": "BLOCK",
+      "input": {
+        "requestedUrl": "https://devcodex-labs.github.io/devcodex/",
+        "finalUrl": "https://devcodex-labs.github.io/devcodex/",
+        "status": 404,
+        "expectedIdentity": "product-pages",
+        "requiredBrandMarkers": ["DevCodex"],
+        "forbiddenMarkers": ["404"],
+        "body": "<html><title>404 · GitHub Pages</title><body>There isn't a GitHub Pages site here.</body></html>"
+      }
+    },
+    {
+      "id": "offline-unverified",
+      "expected": "UNVERIFIED",
+      "input": {
+        "requestedUrl": "https://devcodex-labs.github.io/devcodex/",
+        "expectedIdentity": "product-pages",
+        "error": "ETIMEDOUT"
+      }
+    }
+  ]
+}

@@ -10,10 +10,12 @@
 | `npm pack` / `npm install -g devcodex` | **否**（`package.json` `files` 未列入） |
 | 维护者本机 | **是**（本地保留完整 `website/` 以便 `cd website && npm run dev`） |
 
-## 用户文档
+## 公开用户文档
 
-公开用户请阅读仓库根目录 **[README.md](../README.md)**。
+公开文档源码位于 **[public-site](../public-site/docs/index.md)**，由独立的 Rspress 包构建并通过 GitHub Pages 工作流发布；公开线上地址只有通过品牌身份回读后才可作为 canonical homepage。
+
+仓库根目录 **[README.md](../README.md)** 仍是 npm 包与仓库首页的第一入口，不由本目录生成。
 
 ## 维护者
 
-若你已有本目录完整历史拷贝，可在本机继续构建文档站。若从公开仓全新克隆，默认 **没有** `website/docs` 全量内容；门禁会将 website 视为 optional。
+若你已有本目录完整历史拷贝，可在本机继续构建维护者站点。若从公开仓全新克隆，默认 **没有** `website/docs` 全量内容；门禁会将 website 视为 optional。公开用户文档的构建与链接门禁始终以 `public-site/` 为准，不依赖本目录。

@@ -1266,7 +1266,7 @@ inspectMutation(files => { files['hooks/_runtime/lifecycle-workflow-completion.c
 inspectMutation(files => { files['hooks/_runtime/lifecycle-workflow-completion.cjs'] = files['hooks/_runtime/lifecycle-workflow-completion.cjs'].split('recordShadowEvidenceSample').join('recordShadowSample') }, 'lifecycle-adapter-export-missing:recordShadowEvidenceSample')
 inspectMutation(files => { files['hooks/_runtime/lifecycle-workflow-completion.cjs'] += '\nconst workflowComplete = true\n' }, 'lifecycle-adapter-direct-completion-forbidden')
 inspectMutation(files => { files['scripts/test-host-adapters.js'] = files['scripts/test-host-adapters.js'].split('hostCompletionFixtures').join('hostCompletionSamples') }, 'host-completion-matrix-anchor-missing:hostCompletionFixtures')
-inspectMutation(files => { files['README.md'] = files['README.md'].split('npm install -g devcodex').join('') }, 'completion-public-consumer-drift:README.md:PublicReadmeContractV1:npm install -g devcodex')
+inspectMutation(files => { files['README.md'] = files['README.md'].split('npm install -g devcodex').join('') }, 'completion-public-consumer-drift:README.md:PublicReadmeContractV2:README_PHRASE_MISSING:npm install -g devcodex')
 inspectMutation(files => {
   files['.git'] = 'source-checkout-fixture'
   delete files['website/docs/guide/development.md']

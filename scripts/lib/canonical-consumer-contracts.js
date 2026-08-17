@@ -4,6 +4,7 @@ const fs = require('fs')
 const path = require('path')
 const { buildBundle } = require('./control-content-source')
 const { resolveControlAsset } = require('./control-content-delivery')
+const { DEFAULT_ROOT, buildPublicProductProjection } = require('./public-product-expression')
 
 const CONTRACTS = new Map([
   ['skills/spec-governance/SKILL.md', ['skills/spec-governance/gate-registry.json']],
@@ -87,13 +88,232 @@ const PUBLIC_README_REQUIRED_MARKERS = Object.freeze([
   '[许可证](#许可证)'
 ])
 
+const PUBLIC_README_V2_REQUIRED_SECTIONS = Object.freeze([
+  '# DevCodex — 意图驱动的 AI Coding 工作流运行时',
+  '## 为什么需要 DevCodex？',
+  '## 5 分钟开始',
+  '## 安装会改变什么',
+  '## 工作流、Skill 与宿主边界',
+  '## 常见任务怎么说',
+  '## 常见问题与排错',
+  '## 更新',
+  '## 卸载',
+  '## 边界',
+  '## 许可证'
+])
+
+const PUBLIC_README_V2_REQUIRED_PHRASES = Object.freeze([
+  'npm install -g devcodex',
+  'devcodex init',
+  'npm update -g devcodex',
+  'devcodex uninstall --dry-run',
+  'devcodex uninstall --apply',
+  'npm uninstall -g devcodex',
+  'devcodex status',
+  '重新打开宿主的新会话',
+  '@devcodex-auto',
+  '@rocky',
+  'extensions.devcodex.autoAliases',
+  '空数组 `[]`',
+  '不是模型网关',
+  '不是通用 Agent 框架',
+  '不是多 Agent 编排器',
+  '不替代业务框架、GitHub CI、安全审计或人工评审',
+  '模型执行和数据处理仍遵循所选 AI Coding 宿主的规则'
+])
+
 function evaluatePublicReadmeContract (content) {
   const text = String(content || '')
   const missing = PUBLIC_README_REQUIRED_MARKERS.filter(marker => !text.includes(marker))
   return {
     schemaVersion: 'PublicReadmeContractV1',
+    legacy: true,
     valid: missing.length === 0,
     missing
+  }
+}
+
+function addViolation (violations, code, surface, evidence) {
+  violations.push({ code, surface, evidence: String(evidence) })
+}
+
+function orderedSectionViolations (text, headings) {
+  const violations = []
+  let previous = -1
+  for (const heading of headings) {
+    const index = text.indexOf(heading)
+    if (index === -1) {
+      addViolation(violations, 'README_SECTION_MISSING', 'README.md', heading)
+      continue
+    }
+    if (index < previous) addViolation(violations, 'README_SECTION_ORDER', 'README.md', heading)
+    previous = Math.max(previous, index)
+  }
+  return violations
+}
+
+function readJsonIfPresent (file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+function readTextIfPresent (file) {
+  try {
+    return fs.readFileSync(file, 'utf8')
+  } catch {
+    return null
+  }
+}
+
+function evaluatePublicConsumerParity (root, text, projection, options, violations) {
+  const pkg = readJsonIfPresent(path.join(root, 'package.json'))
+  const plugin = readJsonIfPresent(path.join(root, 'plugin.json'))
+  const cli = readTextIfPresent(path.join(root, 'scripts', 'lib', 'cli-maintenance-commands.js'))
+  const siteConfig = readTextIfPresent(path.join(root, 'public-site', 'rspress.config.ts'))
+  const siteHome = readTextIfPresent(path.join(root, 'public-site', 'docs', 'index.md'))
+  const results = []
+
+  function compare (surface, field, actual, expected, required = true) {
+    const status = actual == null
+      ? (required ? 'BLOCK' : 'N/A')
+      : (JSON.stringify(actual) === JSON.stringify(expected) ? 'PASS' : 'BLOCK')
+    results.push({ surface, field, status, expected, actual: actual ?? null })
+    if (status === 'BLOCK') {
+      addViolation(violations, 'PUBLIC_CONSUMER_PARITY', surface, `${field}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual ?? null)}`)
+    }
+  }
+
+  compare('README.md', 'hero', text.includes(`# ${projection.consumers.readmeHero}`), true)
+  compare('package.json', 'description', pkg?.description, projection.consumers.packageDescription)
+  compare('package.json', 'homepage', pkg?.homepage, projection.endpoints.repositoryFallback)
+  compare('package.json', 'keywords', pkg?.keywords, projection.expression.discoveryPolicy.packageKeywords)
+  compare('plugin.json', 'displayName', plugin?.displayName, projection.consumers.pluginDisplayName)
+  compare('plugin.json', 'description', plugin?.description, projection.consumers.pluginDescription)
+  compare('plugin.json', 'homepage', plugin?.homepage, projection.endpoints.repositoryFallback)
+  compare('plugin.json', 'keywords', plugin?.keywords, projection.expression.discoveryPolicy.packageKeywords)
+  const cliSubtitleSuffix = projection.consumers.cliSubtitle.slice('DevCodex'.length)
+  compare('CLI help', 'subtitle', cli == null ? null : cli.includes(cliSubtitleSuffix), true)
+  compare(
+    'public-site',
+    'title',
+    siteConfig == null ? null : siteConfig.includes(projection.consumers.siteTitle),
+    true,
+    options.requirePublicSite === true
+  )
+  compare(
+    'public-site',
+    'product-category',
+    siteHome == null ? null : siteHome.includes('Intent-driven AI Coding Workflow Runtime'),
+    true,
+    options.requirePublicSite === true
+  )
+
+  const github = options.githubMetadata || null
+  if (github || options.requireGitHubMetadata === true) {
+    compare('GitHub repository', 'description', github?.description, projection.consumers.githubDescription)
+    compare('GitHub repository', 'homepage', github?.homepage, projection.endpoints.productPagesCandidate)
+    compare('GitHub repository', 'topics', github?.topics, projection.expression.discoveryPolicy.githubTopics)
+  }
+  return results
+}
+
+function evaluatePublicReadmeContractV2 (content, options = {}) {
+  const text = String(content || '')
+  const root = options.root || DEFAULT_ROOT
+  const projection = options.projection || buildPublicProductProjection({ root })
+  const legacy = evaluatePublicReadmeContract(text)
+  const violations = orderedSectionViolations(text, PUBLIC_README_V2_REQUIRED_SECTIONS)
+
+  for (const phrase of PUBLIC_README_V2_REQUIRED_PHRASES) {
+    if (!text.includes(phrase)) addViolation(violations, 'README_PHRASE_MISSING', 'README.md', phrase)
+  }
+  for (const marker of Object.values(projection.markers)) {
+    if (!text.includes(marker)) addViolation(violations, 'README_PROJECTION_MARKER_MISSING', 'README.md', marker)
+  }
+  for (const workflow of projection.workflows.canonical) {
+    if (!text.includes(`\`${workflow}\``)) addViolation(violations, 'README_WORKFLOW_MISSING', 'README.md', workflow)
+  }
+  for (const host of projection.hosts) {
+    if (!text.includes(host.label)) addViolation(violations, 'README_HOST_MISSING', 'README.md', host.hostId)
+    if (!text.includes(host.recommendedEntry)) addViolation(violations, 'README_HOST_ENTRY_MISSING', 'README.md', host.hostId)
+    if (!text.includes(host.publicStatus)) addViolation(violations, 'README_HOST_STATUS_MISSING', 'README.md', host.hostId)
+  }
+  if (!text.includes(`${projection.skills.total} 个`)) {
+    addViolation(violations, 'README_SKILL_TOTAL_MISSING', 'README.md', projection.skills.total)
+  }
+  if (!text.includes(`${projection.skills.active} active + ${projection.skills.gray} gray`)) {
+    addViolation(violations, 'README_SKILL_LIFECYCLE_MISSING', 'README.md', `${projection.skills.active}/${projection.skills.gray}`)
+  }
+  if (!text.includes(projection.expression.technicalDefinition.zh)) {
+    addViolation(violations, 'README_TECHNICAL_DEFINITION_MISSING', 'README.md', projection.expression.technicalDefinition.zh)
+  }
+  for (const value of projection.expression.valuePropositions) {
+    if (!text.includes(value)) addViolation(violations, 'README_VALUE_PROPOSITION_MISSING', 'README.md', value)
+  }
+  for (const forbidden of projection.expression.discoveryPolicy.forbiddenConcepts) {
+    const publicMetadata = [
+      readJsonIfPresent(path.join(root, 'package.json'))?.description,
+      readJsonIfPresent(path.join(root, 'plugin.json'))?.description,
+      readTextIfPresent(path.join(root, 'scripts', 'lib', 'cli-maintenance-commands.js'))
+    ].filter(Boolean).join('\n').toLowerCase()
+    if (publicMetadata.includes(forbidden.toLowerCase())) {
+      addViolation(violations, 'FORBIDDEN_PUBLIC_CONCEPT', 'public metadata', forbidden)
+    }
+  }
+
+  const endpointEvidence = options.endpointEvidence || null
+  if (endpointEvidence?.result === 'BLOCK') addViolation(violations, 'ENDPOINT_IDENTITY_BLOCKED', 'homepage', endpointEvidence.violations?.join(', ') || 'blocked')
+  if (options.requireEndpointPass === true && endpointEvidence?.result !== 'PASS') {
+    addViolation(violations, 'ENDPOINT_IDENTITY_NOT_PASSED', 'homepage', endpointEvidence?.result || 'missing')
+  }
+
+  const docsMigration = options.docsMigrationEvidence || {
+    result: 'N/A',
+    reason: 'README migration is not claimed by this evaluation'
+  }
+  if (docsMigration.result === 'BLOCK' || (options.requireDocsMigrationPass === true && docsMigration.result !== 'PASS')) {
+    addViolation(violations, 'DOCS_MIGRATION_NOT_PASSED', 'README → public-site', docsMigration.reason || docsMigration.result)
+  }
+  const consumerParity = evaluatePublicConsumerParity(root, text, projection, options, violations)
+
+  return {
+    schemaVersion: 'PublicReadmeContractV2',
+    valid: violations.length === 0,
+    violations,
+    missing: violations.map(item => `${item.code}:${item.surface}:${item.evidence}`),
+    sourceIdentities: { ...projection.sourceIdentities },
+    expression: {
+      productId: projection.expression.productId,
+      category: projection.expression.category,
+      mustNot: [...projection.expression.mustNot]
+    },
+    workflows: { ...projection.workflows },
+    skills: { ...projection.skills },
+    hosts: projection.hosts.map(host => ({
+      hostId: host.hostId,
+      label: host.label,
+      recommendedEntry: host.recommendedEntry,
+      publicStatus: host.publicStatus
+    })),
+    consumers: {
+      expected: { ...projection.consumers },
+      parity: consumerParity
+    },
+    endpoint: endpointEvidence || { result: 'UNVERIFIED', reason: 'online evidence not supplied' },
+    userJourney: {
+      install: text.includes('npm install -g devcodex'),
+      update: text.includes('npm update -g devcodex'),
+      uninstall: text.includes('devcodex uninstall --apply'),
+      recovery: text.includes('devcodex status') && text.includes('重新打开宿主的新会话')
+    },
+    migrationSafety: {
+      legacyContractRetained: legacy.valid,
+      runtimeBehaviorChanged: projection.expression.autoEntry.runtimeBehaviorChanged,
+      docsMigration
+    }
   }
 }
 
@@ -106,7 +326,7 @@ function isLegacyDerivedNeedle(needle) {
 function hasValidCanonicalContract(root, file, content) {
   const relative = file.replace(/\\/g, '/')
   if (relative === 'README.md') {
-    return evaluatePublicReadmeContract(content).valid
+    return evaluatePublicReadmeContractV2(content, { root }).valid
   }
   const refs = CONTRACTS.get(relative)
   if (!refs) return false
@@ -228,8 +448,12 @@ function createCanonicalAwareReader(root, readRaw, existsRaw = file => fs.exists
 module.exports = {
   CONTRACTS,
   PUBLIC_README_REQUIRED_MARKERS,
+  PUBLIC_README_V2_REQUIRED_PHRASES,
+  PUBLIC_README_V2_REQUIRED_SECTIONS,
   createCanonicalAwareReader,
   evaluatePublicReadmeContract,
+  evaluatePublicReadmeContractV2,
+  evaluatePublicConsumerParity,
   hasValidCanonicalContract,
   isOptionalMaintainerWebsiteAsset,
   isLegacyDerivedNeedle

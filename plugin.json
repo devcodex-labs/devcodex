@@ -5,12 +5,12 @@
   "version": "1.17.9",
   "name": "DevCodex",
   "publisher": "Rocky",
-  "displayName": "DevCodex — AI Development Workflow Assistant",
-  "description": "Standardized AI-assisted development workflow system for Copilot, Claude Code, Codex, Gemini CLI, Grok and Cursor Beta.",
+  "displayName": "DevCodex — AI Coding Workflow Runtime",
+  "description": "Intent-driven AI coding workflow runtime for consistent context, skills, approvals, validation, and handoffs across Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok, and Cursor.",
   "icon": "assets/icon-512.png",
   "license": "AGPL-3.0-or-later",
   "repository": "https://github.com/devcodex-labs/devcodex",
-  "homepage": "https://devcodex.dev",
+  "homepage": "https://github.com/devcodex-labs/devcodex",
   "tier": "free",
   "agents": [
     {
@@ -540,11 +540,12 @@
     "file": ".mcp.json"
   },
   "keywords": [
-    "copilot",
-    "dev-guidelines",
-    "workflow",
-    "audit",
-    "ai-dev",
+    "ai-coding",
+    "workflow-runtime",
+    "developer-tools",
+    "coding-agent",
+    "local-first",
+    "github-copilot",
     "claude-code",
     "codex",
     "gemini-cli",

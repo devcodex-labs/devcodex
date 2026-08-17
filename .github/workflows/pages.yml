@@ -1,0 +1,70 @@
+name: Public docs Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'public-site/**'
+      - 'public-product-expression.json'
+      - '.github/workflows/pages.yml'
+  pull_request:
+    paths:
+      - 'public-site/**'
+      - 'public-product-expression.json'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.17.0
+          cache: npm
+          cache-dependency-path: public-site/package-lock.json
+
+      - name: Install public-site dependencies
+        run: npm --prefix public-site ci
+
+      - name: Build public-site
+        run: npm --prefix public-site run build
+
+      - name: Verify generated links
+        run: node scripts/check-generated-site-links.js --root public-site/doc_build --base /devcodex/
+
+      - name: Configure Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public-site/doc_build
+
+  deploy:
+    if: github.event_name != 'pull_request' && (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

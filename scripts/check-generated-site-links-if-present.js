@@ -9,19 +9,26 @@ const ROOT = path.resolve(__dirname, '..')
 
 function main(options = {}) {
   const root = options.root ? path.resolve(options.root) : ROOT
-  const websitePackage = path.join(root, 'website', 'package.json')
-  if (!fs.existsSync(websitePackage)) {
-    console.log('Generated site link check skipped: website/package.json not present')
+  const sites = [
+    { id: 'public-site', output: 'doc_build' },
+    { id: 'website', output: 'dist' }
+  ].filter(site => fs.existsSync(path.join(root, site.id, 'package.json')))
+  if (!sites.length) {
+    console.log('Generated site link check skipped: no built site package present')
     return 0
   }
 
   try {
-    const result = scanGeneratedSite({ rootDir: path.join(root, 'website', 'dist') })
-    console.log(`Generated site links: html=${result.htmlCount} missing=${result.missing.length} uniqueTargets=${result.uniqueTargets.length}`)
-    for (const item of result.missing) {
-      console.error(`MISSING ${item.source} -> ${item.href} (${item.target})`)
+    let missing = 0
+    for (const site of sites) {
+      const result = scanGeneratedSite({ rootDir: path.join(root, site.id, site.output), base: '/devcodex/' })
+      console.log(`Generated site links (${site.id}): html=${result.htmlCount} missing=${result.missing.length} uniqueTargets=${result.uniqueTargets.length}`)
+      for (const item of result.missing) {
+        console.error(`MISSING ${site.id}/${item.source} -> ${item.href} (${item.target})`)
+      }
+      missing += result.missing.length
     }
-    return result.missing.length > 0 ? 2 : 0
+    return missing > 0 ? 2 : 0
   } catch (error) {
     console.error(error.message)
     return 1

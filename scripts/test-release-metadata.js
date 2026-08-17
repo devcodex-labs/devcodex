@@ -3,7 +3,7 @@
 
 const fs = require('fs')
 const path = require('path')
-const { evaluatePublicReadmeContract } = require('./lib/canonical-consumer-contracts')
+const { evaluatePublicReadmeContractV2 } = require('./lib/canonical-consumer-contracts')
 
 const ROOT = path.resolve(__dirname, '..')
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
@@ -13,7 +13,7 @@ const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')
 const publicCi = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8')
 
 const errors = []
-const publicReadmeContract = evaluatePublicReadmeContract(readme)
+const publicReadmeContract = evaluatePublicReadmeContractV2(readme, { root: ROOT })
 
 function expect(condition, message) {
   if (!condition) errors.push(message)

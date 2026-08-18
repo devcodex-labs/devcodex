@@ -3,27 +3,36 @@ pageType: home
 hero:
   name: DevCodex
   text: Intent-driven AI Coding Workflow Runtime
-  tagline: 让 AI 编程从一次性聊天，变成可验证、可续接的工程流程。
+  tagline: 一条请求进来之后：判断意图 → 加载上下文和 Skill → 按工作流确认与验证 → 必要时跨会话续接。
   actions:
     - text: 5 分钟开始
       link: /guide/getting-started
       theme: brand
-    - text: 查看工作流
-      link: /reference/workflows
+    - text: 它怎么跑
+      link: /concepts/architecture
+      theme: alt
+    - text: 续接案例
+      link: /examples/resume
       theme: alt
 features:
-  - title: 理解真实任务
-    details: 识别用户目的、目标项目、作用域和风险，而不是只匹配关键词。
-  - title: 按需加载上下文
-    details: 从项目 Profile、文件记忆和相关源码中读取当前任务真正需要的信息。
-  - title: 渐进路由 Skill
-    details: 只加载匹配当前阶段的工作流、领域、交付治理或 Workspace Skill。
-  - title: 治理执行边界
-    details: 区分只读与变更流程，保留确认、危险操作和宿主能力边界。
-  - title: 用证据结束任务
-    details: 记录验证、报告与剩余风险，不把一句“完成”当作证据。
-  - title: 支持跨会话续接
-    details: 通过项目文件状态恢复长任务，减少每次重新解释背景。
+  - title: 1. 先判断意图
+    details: 先决定这次是分析、修复还是开发，会不会改文件。不是只匹配关键词。
+    link: /concepts/intent-driven
+  - title: 2. 再加载上下文
+    details: 只读当前任务需要的 Profile、记忆和源码，不会把整个仓库塞进模型。
+    link: /concepts/profile-context-memory
+  - title: 3. 按需路由 Skill
+    details: 只加载当前阶段的专业流程。看到 Skill 目录不等于已经全部生效。
+    link: /concepts/progressive-skill-routing
+  - title: 4. 工作流划定边界
+    details: analyze 只读，fix/dev 要确认后才改文件。六个主工作流各有独立说明。
+    link: /workflows/
+  - title: 5. 用证据结束
+    details: 完成必须对应验证和报告，不能只靠一句「做好了」。
+    link: /concepts/evidence-and-completion
+  - title: 6. 跨会话续接
+    details: 进度写在项目文件里。新会话说「继续任务名」即可接着做。
+    link: /examples/resume
 ---
 
 # DevCodex
@@ -44,4 +53,6 @@ devcodex init
 devcodex status
 ```
 
-从 [5 分钟开始](/guide/getting-started)，或先了解 [工作流](/reference/workflows)、[Skill](/reference/skills) 与 [六宿主能力边界](/reference/hosts)。
+从 [5 分钟开始](/guide/getting-started)。想先看它怎么跑，读 [架构](/concepts/architecture) 和 [工作流总览](/workflows/)；想看一次跨会话续接，打开 [案例](/examples/resume)。
+
+旧链接 [工作流参考](/reference/workflows)、[Skill](/reference/skills) 与 [六宿主能力边界](/reference/hosts) 仍然有效。

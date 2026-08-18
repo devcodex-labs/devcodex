@@ -35,6 +35,7 @@
     "test:profile-governance": "node scripts/test-validate-profile.js",
     "test:profile-all": "node scripts/validate-all-profiles.js",
     "test:readme-governance": "node scripts/test-readme-governance.js",
+    "site:generate-data": "node scripts/generate-public-site-data.js",
     "test:public-product-expression": "node scripts/test-public-product-expression.js",
     "test:requirement-artifacts": "node scripts/test-requirement-artifacts.js",
     "test:candidate-review-bundle": "node scripts/test-candidate-review-bundle.js",

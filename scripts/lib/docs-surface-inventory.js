@@ -34,6 +34,34 @@ const REQUIRED_PROCESS_FILES = Object.freeze([
   'scripts/test-process-enforcement-e2e.js'
 ])
 
+const PUBLIC_SITE_REQUIRED_MD = Object.freeze([
+  'public-site/docs/index.md',
+  'public-site/docs/guide/getting-started.md',
+  'public-site/docs/guide/common-tasks.md',
+  'public-site/docs/guide/troubleshooting.md',
+  'public-site/docs/reference/workflows.md',
+  'public-site/docs/reference/skills.md',
+  'public-site/docs/reference/hosts.md',
+  'public-site/docs/reference/configuration.md',
+  'public-site/docs/reference/limits.md',
+  'public-site/docs/concepts/architecture.md',
+  'public-site/docs/concepts/intent-driven.md',
+  'public-site/docs/concepts/profile-context-memory.md',
+  'public-site/docs/concepts/progressive-skill-routing.md',
+  'public-site/docs/concepts/evidence-and-completion.md',
+  'public-site/docs/concepts/task-resume.md',
+  'public-site/docs/workflows/index.md',
+  'public-site/docs/workflows/dev.md',
+  'public-site/docs/workflows/fix.md',
+  'public-site/docs/workflows/analyze.md',
+  'public-site/docs/workflows/audit.md',
+  'public-site/docs/workflows/resume.md',
+  'public-site/docs/workflows/chat.md',
+  'public-site/docs/examples/resume.md'
+])
+
+const PUBLIC_SITE_MD_FLOOR = PUBLIC_SITE_REQUIRED_MD.length
+
 function listDirs (root, dir) {
   const full = path.join(root, dir)
   if (!fs.existsSync(full)) return []
@@ -162,6 +190,7 @@ function scanDocsSurfaceInventory (root) {
     sourceCheckoutMode,
     publicSitePresent,
     publicSiteMd: publicSiteMd.length,
+    publicSiteMdPaths: publicSiteMd,
     websitePresent,
     websiteMd: websiteMd.length,
     gateGroups,
@@ -215,8 +244,14 @@ function assertDocsSurfaceInventory (inv) {
   if (inv.sourceCheckoutMode && !inv.publicSitePresent) {
     failures.push('public-site docs missing from source checkout')
   }
-  if (inv.publicSitePresent && inv.publicSiteMd !== 9) {
-    failures.push(`public-site md expected 9 got ${inv.publicSiteMd}`)
+  if (inv.publicSitePresent && inv.publicSiteMd < PUBLIC_SITE_MD_FLOOR) {
+    failures.push(`public-site md expected >=${PUBLIC_SITE_MD_FLOOR} got ${inv.publicSiteMd}`)
+  }
+  if (inv.publicSitePresent) {
+    const present = new Set(inv.publicSiteMdPaths || [])
+    for (const required of PUBLIC_SITE_REQUIRED_MD) {
+      if (!present.has(required)) failures.push(`public-site missing ${required}`)
+    }
   }
   // Public tree policy: website is optional. When present (maintainer checkout), enforce floor.
   if (inv.websitePresent && inv.websiteMd < 156) {
@@ -244,6 +279,8 @@ module.exports = {
   REQUIRED_WORKFLOWS,
   REQUIRED_HOOK_EVENTS,
   REQUIRED_PROCESS_FILES,
+  PUBLIC_SITE_REQUIRED_MD,
+  PUBLIC_SITE_MD_FLOOR,
   scanDocsSurfaceInventory,
   assertDocsSurfaceInventory
 }

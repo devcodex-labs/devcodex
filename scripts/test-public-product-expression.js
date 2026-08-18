@@ -10,6 +10,7 @@ const {
   validateWorkflowPresentation
 } = require('./lib/public-product-expression')
 const { classifyEndpointIdentity } = require('./lib/public-endpoint-identity')
+const { PUBLIC_SITE_REQUIRED_MD } = require('./lib/docs-surface-inventory')
 const {
   PUBLIC_README_REQUIRED_MARKERS,
   PUBLIC_README_V2_REQUIRED_PHRASES,
@@ -64,14 +65,21 @@ for (const needle of [
   "github.event_name != 'pull_request'"
 ]) assert(pagesWorkflow.includes(needle), needle)
 
-const publicDocs = []
-for (const dir of ['', 'guide', 'reference']) {
-  const full = path.join(ROOT, 'public-site', 'docs', dir)
-  for (const entry of fs.readdirSync(full, { withFileTypes: true })) {
-    if (entry.isFile() && entry.name.endsWith('.md')) publicDocs.push(path.join(dir, entry.name))
-  }
+for (const rel of PUBLIC_SITE_REQUIRED_MD) {
+  assert(fs.existsSync(path.join(ROOT, rel)), rel)
 }
-assert.strictEqual(publicDocs.length, 9)
+const committed = JSON.parse(fs.readFileSync(
+  path.join(ROOT, 'public-site', 'data', 'public-product-projection.json'),
+  'utf8'
+))
+assert.strictEqual(committed.schemaVersion, projection.schemaVersion)
+assert.deepStrictEqual(committed.workflows, projection.workflows)
+assert.deepStrictEqual(committed.skills, projection.skills)
+assert.deepStrictEqual(committed.markers, projection.markers)
+assert.deepStrictEqual(
+  committed.hosts.map((item) => item.hostId),
+  projection.hosts.map((item) => item.hostId)
+)
 for (const marker of Object.values(projection.markers)) assert(publicSiteHome.includes(marker), marker)
 
 assert.deepStrictEqual(

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "PublicProductProjectionV1",
+  "generatedAt": "2026-08-18T13:57:42.041Z",
+  "workflows": {
+    "canonical": [
+      "dev",
+      "fix",
+      "self-fix",
+      "analyze",
+      "audit",
+      "other",
+      "chat",
+      "resume"
+    ],
+    "primary": [
+      "dev",
+      "fix",
+      "analyze",
+      "audit",
+      "resume",
+      "chat"
+    ],
+    "advanced": [
+      "self-fix",
+      "other"
+    ]
+  },
+  "skills": {
+    "total": 86,
+    "active": 83,
+    "gray": 3,
+    "bucket": "80+"
+  },
+  "hosts": [
+    {
+      "hostId": "copilot",
+      "label": "GitHub Copilot",
+      "recommendedEntry": "Copilot CLI；VS Code / JetBrains 使用 instruction fallback",
+      "publicStatus": "入口能力不同，按精确宿主证据执行",
+      "variantCount": 2
+    },
+    {
+      "hostId": "claude",
+      "label": "Claude Code",
+      "recommendedEntry": "Claude Code",
+      "publicStatus": "Full（以当前 direct evidence 为上限）",
+      "variantCount": 1
+    },
+    {
+      "hostId": "codex",
+      "label": "Codex",
+      "recommendedEntry": "Codex App / CLI",
+      "publicStatus": "Beta（Hook / MCP 取决于宿主配置）",
+      "variantCount": 1
+    },
+    {
+      "hostId": "gemini",
+      "label": "Gemini CLI",
+      "recommendedEntry": "Gemini CLI",
+      "publicStatus": "Beta / UNVERIFIED（需要 direct replay 才能升级）",
+      "variantCount": 1
+    },
+    {
+      "hostId": "grok",
+      "label": "Grok",
+      "recommendedEntry": "devcodex grok",
+      "publicStatus": "Full launcher；普通 grok 为 Partial",
+      "variantCount": 3
+    },
+    {
+      "hostId": "cursor",
+      "label": "Cursor",
+      "recommendedEntry": "本地 IDE / CLI",
+      "publicStatus": "本地 Beta；Cloud Partial / UNVERIFIED",
+      "variantCount": 5
+    }
+  ],
+  "markers": {
+    "workflows": "<!-- devcodex-public:workflows primary=dev,fix,analyze,audit,resume,chat advanced=self-fix,other -->",
+    "skills": "<!-- devcodex-public:skills total=86 active=83 gray=3 bucket=80+ -->",
+    "hosts": "<!-- devcodex-public:hosts ids=copilot,claude,codex,gemini,grok,cursor variants=13 -->",
+    "auto": "<!-- devcodex-public:auto canonical=@devcodex-auto default=@rocky profile-replacement=true empty-array-disables=true -->"
+  },
+  "sourceIdentities": {
+    "expression": "4e60fd53c93a759bb0ca572df93e598b6a8106fe380dbe76c909e7aee1acc315",
+    "workflows": "8577bb60f9fac3efac4abb9d8c31b95df9b5c31ab77b664d44dde3f252fcd825",
+    "portfolio": "a48e3f5af9488d01e82028ef9952d14bf9c7094fa3bb751fbb8f42a4175aa7cc"
+  }
+}

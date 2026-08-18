@@ -5,6 +5,7 @@
 
 ## 当前未发布实现候选
 
+- **公开站点内容与事实生成升级**：在保留已发布 9 个 URL 的前提下增加 concepts / workflows / 一条续接案例；生成器从现有投影器写出 `public-site/data/public-product-projection.json` 并刷新 marker 与 README V2 数字句；页数合同改为必存在路径 + 下限 23。
 - **需求状态字段回写**：把 v1.17.10 从「发布候选」改为已归档；需求 `00-需求概况.md` / `01-需求确认.md` 头部改为 `released-v1.17.10`。不改 README、package、plugin、homepage 或运行时。
 
 ## 已归档发布说明

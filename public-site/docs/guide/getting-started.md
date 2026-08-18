@@ -60,4 +60,10 @@ devcodex grok
 
 默认快捷别名 `@rocky` 保持兼容。自动推进不会扩大删除、发布或越过项目范围的权限。
 
+这次只读任务不改文件。如果模型开始改代码，停下来重说「只分析，不修改文件」。
+
+## 6. 第一次任务之后
+
+读 [架构怎么跑](/concepts/architecture) 和 [`analyze` 工作流](/workflows/analyze)，确认只读与改文件的差别。若要跨天继续，用 `继续<任务名>任务`，见 [任务续接](/concepts/task-resume)。
+
 下一步可以查看 [常见任务](/guide/common-tasks)；遇到未出现流程或宿主未就绪时，前往 [故障排查](/guide/troubleshooting)。

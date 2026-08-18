@@ -33,6 +33,7 @@ devcodex status
 ## 目录
 
 - [为什么需要 DevCodex？](#为什么需要-devcodex)
+- [它如何工作？](#它如何工作)
 - [5 分钟开始](#5-分钟开始)
 - [安装会改变什么](#安装会改变什么)
 - [工作流、Skill 与宿主边界](#工作流skill-与宿主边界)
@@ -44,7 +45,7 @@ devcodex status
 - [边界](#边界)
 - [许可证](#许可证)
 
-完整用户文档：[DevCodex Docs](https://devcodex-labs.github.io/devcodex/)。
+完整用户文档：[DevCodex Docs](https://devcodex-labs.github.io/devcodex/)。运行机制：[架构](https://devcodex-labs.github.io/devcodex/concepts/architecture)、[工作流](https://devcodex-labs.github.io/devcodex/workflows/)、[续接案例](https://devcodex-labs.github.io/devcodex/examples/resume)。
 
 ## 为什么需要 DevCodex？
 
@@ -83,6 +84,8 @@ DevCodex 把意图识别、按需上下文、专业 Skill、确认边界、验�
   → 执行开发 / 修复 / 分析 / 审计
   → 验证、报告并写入可续接状态
 ```
+
+逐步说明见站点：[架构](https://devcodex-labs.github.io/devcodex/concepts/architecture)、[意图驱动](https://devcodex-labs.github.io/devcodex/concepts/intent-driven)、[六个主工作流](https://devcodex-labs.github.io/devcodex/workflows/)、[跨会话续接案例](https://devcodex-labs.github.io/devcodex/examples/resume)。旧的[工作流参考页](https://devcodex-labs.github.io/devcodex/reference/workflows)仍然可用。
 
 用户仍然用自然语言提出任务；底层强制能力取决于当前宿主可用的 Hook、MCP、插件和权限。
 

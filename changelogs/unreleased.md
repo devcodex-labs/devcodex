@@ -1,12 +1,16 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.17.9 已发布并完成 R7；v1.17.10 已生成公开产品表达、README 契约与公开站点发布候选。目标 tag、npm 与 GitHub Release 完成前仍只属于候选，当前发行事实由 Profile 05 的 `ProfileCurrentTruthV1` 对照 package、workflow、npm 与 GitHub。
+> **当前**: v1.17.10 已发布并完成 R7。当前没有新的未发布实现候选；后续变更再记入本节。发行事实以 Git tag、npm registry、GitHub Release 与 Profile 05 的 `ProfileCurrentTruthV1` 为准。
 
 ## 当前未发布实现候选
 
-- **v1.17.10 公开产品表达、README V2 与 GitHub Pages 发布候选**：稳定产品语义与动态工作流/Skill/六宿主投影已经接入；公共 README 收敛为任务入口，详细 Grok/Cursor/sandbox/runtime 内容迁入独立 `public-site/`，维护者 `website/` 继续不进入公开仓/npm 包。Pages 已以 workflow 模式上线并通过 URL/title/brand/404 负向身份回读，package/plugin/CLI/GitHub homepage 已切到该产品页面；发布后仍须验证 npm registry、provenance、fresh install、本机六宿主与新会话生效。完整说明见 `changelogs/releases/v1.17.10.md`。
-- **v1.17.9 聚合发布候选**：纳入 v1.17.8 发布后已核实的 35 项失败关闭、事务/CAS、workspace temp V2、Memory 与 Profile current-truth 修复；同时修复 Windows Grok 通过 PowerShell 执行受管 Hook 时首个引号可执行文件被解析为字符串而触发 `ParserError`，统一使用可被 `cmd.exe` 与 PowerShell 接受的稳定 Node 启动命令。Grok 用户级全局文件退出 DevCodex lifecycle 声明，六事件由用户级 `devcodex-workspace` plugin 单独拥有；runtime verifier 分别核对物理声明、Grok 精确去重后的有效 handler 与 mutation owner。Grok 默认导入 DevCodex Claude Hook 时，稳定 launcher 依据四项 Grok 保留环境指纹在回执读取前静默退出；用户自有 Hook、Grok Claude 兼容偏好、portable 模式与其他五宿主语义不变。完整说明见 `changelogs/releases/v1.17.9.md`。
+- **需求状态字段回写**：把 v1.17.10 从「发布候选」改为已归档；需求 `00-需求概况.md` / `01-需求确认.md` 头部改为 `released-v1.17.10`。不改 README、package、plugin、homepage 或运行时。
+
+## 已归档发布说明
+
+- **v1.17.10 公开产品表达、README V2 与 GitHub Pages 已归档**：稳定产品语义与动态工作流/Skill/六宿主投影已经接入；公共 README 收敛为任务入口，详细 Grok/Cursor/sandbox/runtime 内容迁入独立 `public-site/`，维护者 `website/` 继续不进入公开仓/npm 包。Pages 已以 workflow 模式上线并通过 URL/title/brand/404 负向身份回读，package/plugin/CLI/GitHub homepage 已切到该产品页面；npm registry、provenance、fresh install、本机六宿主与新会话证据已在 2026-08-17 R7 关闭。完整说明见 `changelogs/releases/v1.17.10.md`。
+- **v1.17.9 聚合发布已归档**：纳入 v1.17.8 发布后已核实的 35 项失败关闭、事务/CAS、workspace temp V2、Memory 与 Profile current-truth 修复；同时修复 Windows Grok 通过 PowerShell 执行受管 Hook 时首个引号可执行文件被解析为字符串而触发 `ParserError`，统一使用可被 `cmd.exe` 与 PowerShell 接受的稳定 Node 启动命令。Grok 用户级全局文件退出 DevCodex lifecycle 声明，六事件由用户级 `devcodex-workspace` plugin 单独拥有；runtime verifier 分别核对物理声明、Grok 精确去重后的有效 handler 与 mutation owner。Grok 默认导入 DevCodex Claude Hook 时，稳定 launcher 依据四项 Grok 保留环境指纹在回执读取前静默退出；用户自有 Hook、Grok Claude 兼容偏好、portable 模式与其他五宿主语义不变。完整说明见 `changelogs/releases/v1.17.9.md`。
 - **v1.17.8 宿主稳定入口与 SkillRoute 自举修复已归档（PI-251～255 / PF-303～307）**：六宿主 Hook 改为稳定 launcher，由 committed receipt 安全转发到当前不可变 runtime，避免每次升级改变 Codex Hook 信任身份；`profile_context_plan` 在宿主没有分发 UserPromptSubmit 时返回并复用精确 SkillRoute bootstrap，并把多项目 pending 的 canonical hostVariant/显式 Skill 保真带入 MCP；ContextRead 对复合 content 选择唯一主 schema，拒绝用 sidecar 覆盖可观察的身份失配；S15 归一化 Hook history 与结构化 receipt，并以 evidence-bound hostVariant 阻止 Desktop ambient 污染 CLI。完整说明见 `changelogs/releases/v1.17.8.md`；正式发布事实以 Git tag、npm registry、GitHub Release 与 `ProfileCurrentTruthV1` 为准。
 - **v1.17.7 全局运行态一致性与首次加载闭环修复已归档**：22 项确认问题及 Windows Node 18 插桩递归、验证预算假失败均已关闭；GitHub CI、Publish、npm/GitHub tarball parity 与六宿主本机更新已经完成。完整说明见 `changelogs/releases/v1.17.7.md`。
 - **v1.17.6 工作区 Skill 非显式 Stop 完备性修复已归档（VL-098 / PF-296 / GR-088）**：非显式 `PLAN_NOT_COMMITTED` 除既有 PreToolUse 外，在最终 Stop 也 fail closed，并复用 `NextActionEnvelopeV1` 返回精确首个 catalog 调用；普通聊天通过统一 catalog 后 `commit(null)` 完成 0/1 决策，Hook 不恢复关键词 auto-match 或新增 final-text classifier。重复 Stop 继续使用现有 3 次饱和与 notice fingerprint，PreCompact、ContextRead allowlist、retirement 与 must-reply 合同不变。完整说明见 `changelogs/releases/v1.17.6.md`；正式发布事实仍以 Git tag、npm registry 与 GitHub Release 为准。

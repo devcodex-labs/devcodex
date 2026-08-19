@@ -2,6 +2,8 @@
 
 普通单项目只需 `devcodex init`。需要团队别名或完成策略时，再编辑 workspace Profile 的 `config.json`。
 
+workspace-namespace 使用 workspace base + project overlay。配置只对所属 scope 生效；不要把另一个项目的 Profile 当成当前 active-root。术语见[术语表](/reference/glossary)。
+
 ## 自动推进别名
 
 正式入口始终是 `@devcodex-auto`。默认快捷别名为 `@rocky`。
@@ -31,6 +33,15 @@ devcodex init --profile <项目相对路径>
 ```
 
 目标必须真实存在且唯一。`--dry-run` 不创建文件；正式执行只补充缺失基线，不覆盖已编辑内容。
+
+高级 Profile 也可以先预览：
+
+```bash
+devcodex profile plan --tier profile-closed-loop
+devcodex profile init --tier profile-closed-loop
+```
+
+`--force` 可能覆盖 DevCodex 管理的目标文件；使用前先保存计划和当前 diff。
 
 ## 状态优先于猜测
 

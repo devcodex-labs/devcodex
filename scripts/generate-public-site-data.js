@@ -70,6 +70,7 @@ function writeProjection (projection) {
   const payload = {
     schemaVersion: projection.schemaVersion,
     generatedAt: new Date().toISOString(),
+    release: projection.release,
     workflows: projection.workflows,
     skills: projection.skills,
     capabilityScenarios: projection.capabilityScenarios,

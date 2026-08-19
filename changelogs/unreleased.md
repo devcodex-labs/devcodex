@@ -1,10 +1,12 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.17.10 已发布并完成 R7。当前没有新的未发布实现候选；后续变更再记入本节。发行事实以 Git tag、npm registry、GitHub Release 与 Profile 05 的 `ProfileCurrentTruthV1` 为准。
+> **当前**: v1.17.10 已发布并完成 R7；下列文档站重构为未发布工作树候选，不代表 registry 用户已经获得。发行事实以 Git tag、npm registry、GitHub Release 与 Profile 05 的 `ProfileCurrentTruthV1` 为准。
 
 ## 当前未发布实现候选
 
+- **公开站工作流完整分层与语义流程**：公开站从“总览 + 6 个 primary ID”收敛为工作流选择、开发与修复、分析/审查/规划、对话/续接 4 个任务入口；完整解释 8 个 canonical workflow、6 primary + 2 advanced、12 个用户任务 subtype、1 个内部 `dev.plan-review` step 和 7 个 audit target。六个旧 URL 保留，架构与选择流程改为无需图表运行时的语义化响应式列表；控制面仅同步 `other/plan` 与内部步骤术语，runtime/CLI/Hook/MCP 行为和依赖不变。
+- **公开用户文档站任务化重构**：公开站从概念摘要扩展为 Journey / Trust / Reference 三层，新增四个任务教程、宿主与 workspace 设置、信任/安全/数据、CLI、状态错误码、运行态维护和术语表；quick start 收敛为单一只读首次成功路径，README 缩短并把深入说明指向 canonical Pages。四张首页能力卡各自进入独立教程；package 版本与生成时间写入 public projection，host reference 与产品表达由测试对账。旧 URL 全部保留，CLI/runtime/adapter 行为和依赖不变。
 - **公开站点内容与事实生成升级**：在保留已发布 9 个 URL 的前提下增加 concepts / workflows / 一条续接案例；生成器从现有投影器写出 `public-site/data/public-product-projection.json` 并刷新 marker 与 README V2 数字句；页数合同改为必存在路径 + 下限 23。
 - **需求状态字段回写**：把 v1.17.10 从「发布候选」改为已归档；需求 `00-需求概况.md` / `01-需求确认.md` 头部改为 `released-v1.17.10`。不改 README、package、plugin、homepage 或运行时。
 

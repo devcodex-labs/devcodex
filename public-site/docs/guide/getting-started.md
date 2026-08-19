@@ -1,6 +1,6 @@
 # 5 分钟开始
 
-本页的目标是让一个新项目在最短路径内获得可验证的 DevCodex 会话。
+本页只完成一件事：在一个真实项目里发起只读分析，并用可观察结果确认 DevCodex 已经进入工作。全程不需要 auto、提交或发布权限。
 
 ## 1. 检查环境
 
@@ -24,7 +24,7 @@ devcodex --version
 
 ## 3. 初始化项目
 
-进入真实项目或 workspace 根目录：
+进入真实项目根目录：
 
 ```bash
 cd <你的项目或 workspace 根目录>
@@ -32,45 +32,39 @@ devcodex init
 devcodex status
 ```
 
-`devcodex init` 创建 `.devcodex/` 运行态。多项目 workspace 可以只在 workspace 根初始化；子项目会按稳定命名空间保存自己的报告、记忆和任务状态。
+`devcodex init` 创建或刷新 `.devcodex/` 工作区状态，不修改业务源码。第一次成功先使用单项目路径；多项目 workspace 放到[宿主与工作区设置](/guide/hosts)再处理。
 
-### 这一步成功后能看到什么
+### 这一步成功后应看到什么
 
 - `devcodex --version` 能返回已安装版本；
-- 项目根出现 `.devcodex/`，且 `devcodex status` 能输出当前项目状态；
-- 安装不等于把所有 83 个 active Skill 一次塞进会话：它们会按后续任务的意图和阶段渐进路由；
-- 如果状态提示 adapter 未就绪、契约失败或入口不明确，再执行 `devcodex doctor`，然后按 [故障排查](/guide/troubleshooting) 恢复。
+- 项目根出现 `.devcodex/`，`devcodex status` 能识别当前 workspace 或项目；
+- 状态把 configured、adapter contract、native probe 与最终 readiness 分开显示，未验证项不会伪装成 ready；
+- 如果出现 `Profile README.md is missing`、adapter 未就绪或契约失败，先执行 `devcodex doctor`，再按[故障排查](/guide/troubleshooting)恢复。
 
 ## 4. 新建宿主会话
 
-完全退出旧会话，再在同一项目目录打开 Codex、Claude Code、GitHub Copilot、Gemini CLI、Grok 或 Cursor 的新会话。已经打开的会话不会在中途自动换用新版本。
-
-Grok 的完整入口是：
-
-```bash
-devcodex grok
-```
-
-普通 `grok` 仅是 Partial 兼容入口。Cursor Cloud Agent 同样保持 Partial / `UNVERIFIED`，不能继承本地 IDE 或 CLI 的 Beta 结论。
+完全退出旧会话，再从同一项目目录打开你实际使用的宿主。已经打开的会话不会在中途自动换用新版本。各宿主入口不同；Grok、Cursor Cloud 和 IDE/CLI 差异见[宿主与工作区设置](/guide/hosts)。
 
 ## 5. 发起第一个任务
 
 ```text
-分析当前项目，告诉我最应该先改进的三个问题。只分析，不修改文件。
+分析当前项目，告诉我最应该先改进的三个问题。请先说明读取范围和证据，只分析，不修改文件。
 ```
 
-需要自动推进时使用正式入口：
+### 这次任务的可见成功信号
 
-```text
-@devcodex-auto 修复当前失败的 CI，运行相关测试，只在验证通过后告诉我完成。
-```
+1. 回复开头显示入口检查，意图或最终路由为 `analyze`。
+2. 它说明项目边界、读取了哪些资料，以及哪些范围没有读取。
+3. 三个问题都能指向文件、配置或命令输出；推断会明确标注。
+4. 没有修改业务文件，也没有把建议描述成已完成的修复。
 
-默认快捷别名 `@rocky` 保持兼容。自动推进不会扩大删除、发布或越过项目范围的权限。
-
-这次只读任务不改文件。如果模型开始改代码，停下来重说「只分析，不修改文件」。
+用 `git status --short` 或宿主的变更面板复核：除了你原有的改动，不应出现本次分析产生的业务源码修改。如果入口没有出现、路由不是 `analyze`，或 Profile 无法加载，停止任务并进入[故障排查](/guide/troubleshooting)。
 
 ## 6. 第一次任务之后
 
-读 [架构怎么跑](/concepts/architecture) 和 [`analyze` 工作流](/workflows/analyze)，确认只读与改文件的差别。若要跨天继续，用 `继续<任务名>任务`，见 [任务续接](/concepts/task-resume)。
+这一步通过后，你已经证明了“项目识别 → 意图路由 → 有界读取 → 证据结论”的最短路径。下一步选择：
 
-下一步可以查看 [常见任务](/guide/common-tasks)；遇到未出现流程或宿主未就绪时，前往 [故障排查](/guide/troubleshooting)。
+- 把模糊请求整理成需求：[完整教程](/tutorials/ambiguous-request)
+- 修改代码或文档：[`dev` 工作流](/workflows/dev)
+- 修复现有问题：[修复并控制回归](/tutorials/fix-regression)
+- 配置 auto、多项目或特殊宿主：[宿主与工作区设置](/guide/hosts)

@@ -25,6 +25,7 @@ function resolveExisting (root, candidates) {
 }
 
 function loadSources (root = DEFAULT_ROOT) {
+  const packagePath = path.join(root, 'package.json')
   const expressionPath = path.join(root, 'public-product-expression.json')
   const workflowPath = resolveExisting(root, [
     'content/skills/routing/workflow-capabilities.json',
@@ -35,9 +36,11 @@ function loadSources (root = DEFAULT_ROOT) {
     'skills/portfolio.json'
   ])
   return {
+    packagePath,
     expressionPath,
     workflowPath,
     portfolioPath,
+    package: readJson(packagePath),
     expression: readJson(expressionPath),
     workflow: readJson(workflowPath),
     portfolio: readJson(portfolioPath)
@@ -58,6 +61,34 @@ function validateWorkflowPresentation (presentation, canonicalIds) {
   const actual = [...presented].sort()
   if (JSON.stringify(actual) !== JSON.stringify(expected)) errors.push('workflow-presentation-not-bijective')
   if (presented.includes('plan')) errors.push('plan-promoted-to-canonical-workflow')
+  return errors
+}
+
+function validateRoutePresentation (presentation) {
+  const errors = []
+  const fields = ['userTaskSubtypes', 'internalStepRouteKeys', 'auditTargets']
+  const values = {}
+  for (const field of fields) {
+    values[field] = Array.isArray(presentation?.[field]) ? presentation[field] : []
+    if (!Array.isArray(presentation?.[field])) errors.push(`route-presentation-${field}-missing`)
+    if (new Set(values[field]).size !== values[field].length) {
+      errors.push(`route-presentation-${field}-duplicate`)
+    }
+  }
+  const all = fields.flatMap(field => values[field])
+  if (new Set(all).size !== all.length) errors.push('route-presentation-layer-overlap')
+  if (values.userTaskSubtypes.includes('dev.plan-review')) {
+    errors.push('plan-review-promoted-to-user-subtype')
+  }
+  if (values.userTaskSubtypes.some(routeKey => !/^(dev|fix|analyze)\./.test(routeKey))) {
+    errors.push('route-presentation-user-subtype-prefix')
+  }
+  if (values.internalStepRouteKeys.some(routeKey => routeKey !== 'dev.plan-review')) {
+    errors.push('route-presentation-internal-step-unknown')
+  }
+  if (values.auditTargets.some(routeKey => !routeKey.startsWith('audit.'))) {
+    errors.push('route-presentation-audit-target-prefix')
+  }
   return errors
 }
 
@@ -193,6 +224,7 @@ function validatePublicProductExpression (expression, workflow, portfolio) {
   if (expression?.autoEntry?.defaultShortcut !== '@rocky') errors.push('expression-auto-shortcut')
   if (expression?.autoEntry?.runtimeBehaviorChanged !== false) errors.push('expression-auto-runtime-drift')
   errors.push(...validateWorkflowPresentation(expression?.workflowPresentation, workflowIds(workflow)))
+  errors.push(...validateRoutePresentation(workflow?.routePresentation))
   errors.push(...validateCapabilityScenarios(expression?.capabilityScenarios, portfolio))
   const summary = portfolio?.summary || {}
   if (summary.skillCount !== summary.activeSkillCount + summary.graySkillCount) errors.push('portfolio-lifecycle-count')
@@ -250,11 +282,19 @@ function buildPublicProductProjection (options = {}) {
   const summary = sources.portfolio.summary
   const projection = {
     schemaVersion: 'PublicProductProjectionV1',
+    release: {
+      version: sources.package.version
+    },
     expression: sources.expression,
     workflows: {
       canonical,
       primary: [...sources.expression.workflowPresentation.primary],
-      advanced: [...sources.expression.workflowPresentation.advanced]
+      advanced: [...sources.expression.workflowPresentation.advanced],
+      routeLayers: {
+        userTaskSubtypes: [...sources.workflow.routePresentation.userTaskSubtypes],
+        internalStepRouteKeys: [...sources.workflow.routePresentation.internalStepRouteKeys],
+        auditTargets: [...sources.workflow.routePresentation.auditTargets]
+      }
     },
     skills: {
       total: summary.skillCount,
@@ -270,6 +310,7 @@ function buildPublicProductProjection (options = {}) {
     consumers: { ...sources.expression.consumers },
     endpoints: { ...sources.expression.endpointPolicy },
     sourceIdentities: {
+      package: sha256(fs.readFileSync(sources.packagePath)),
       expression: sha256(fs.readFileSync(sources.expressionPath)),
       workflows: sha256(fs.readFileSync(sources.workflowPath)),
       portfolio: sha256(fs.readFileSync(sources.portfolioPath))
@@ -286,5 +327,6 @@ module.exports = {
   loadSources,
   validateCapabilityScenarios,
   validatePublicProductExpression,
+  validateRoutePresentation,
   validateWorkflowPresentation
 }

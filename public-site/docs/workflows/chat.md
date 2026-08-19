@@ -1,5 +1,7 @@
 # `chat`：普通交流
 
+新的主入口是 [对话与任务续接](/workflows/session)。本页保留 `/workflows/chat` 深链，并说明 chat 为什么不进入项目执行链；稳定定义见[工作流索引](/reference/workflows)。
+
 ## 适用 / 不适用
 
 适用：解释概念、闲聊产品定位、不需要改项目文件的问答。  

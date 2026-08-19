@@ -1,6 +1,9 @@
 {
   "schemaVersion": "PublicProductProjectionV1",
-  "generatedAt": "2026-08-19T04:50:59.452Z",
+  "generatedAt": "2026-08-19T12:06:48.324Z",
+  "release": {
+    "version": "1.17.10"
+  },
   "workflows": {
     "canonical": [
       "dev",
@@ -23,7 +26,35 @@
     "advanced": [
       "self-fix",
       "other"
-    ]
+    ],
+    "routeLayers": {
+      "userTaskSubtypes": [
+        "dev.default",
+        "dev.docs",
+        "dev.refactor",
+        "dev.database",
+        "dev.init",
+        "dev.optimization",
+        "dev.scenario-test",
+        "fix.default",
+        "fix.incident",
+        "fix.security",
+        "analyze.default",
+        "analyze.research"
+      ],
+      "internalStepRouteKeys": [
+        "dev.plan-review"
+      ],
+      "auditTargets": [
+        "audit.规范文件",
+        "audit.技术方案",
+        "audit.需求文档",
+        "audit.项目工程",
+        "audit.报告",
+        "audit.通用文档",
+        "audit.发布前审查"
+      ]
+    }
   },
   "skills": {
     "total": 86,
@@ -43,7 +74,7 @@
       ],
       "skillFocus": "意图识别、需求与验收、风险驱动验证",
       "workflowBoundary": "具体路径由任务意图与风险决定；并非每次都加载全部 Skill。",
-      "nextHref": "/guide/common-tasks"
+      "nextHref": "/tutorials/ambiguous-request"
     },
     {
       "id": "fix-with-regression-confidence",
@@ -56,7 +87,7 @@
       ],
       "skillFocus": "复现与根因、回归范围、用户路径验证",
       "workflowBoundary": "代表 Skill 只在适用阶段加载；不承诺全量修复能力常驻。",
-      "nextHref": "/guide/common-tasks"
+      "nextHref": "/tutorials/fix-regression"
     },
     {
       "id": "evolve-cross-domain-change",
@@ -69,7 +100,7 @@
       ],
       "skillFocus": "前端体验、业务领域、API 契约",
       "workflowBoundary": "是否进入各专业路径取决于真实任务，不把目录展示当作已加载事实。",
-      "nextHref": "/workflows/"
+      "nextHref": "/tutorials/cross-domain-change"
     },
     {
       "id": "deliver-with-evidence-and-handoff",
@@ -82,7 +113,7 @@
       ],
       "skillFocus": "质量策略、交付准备、文档同步",
       "workflowBoundary": "不替代人工发布授权、宿主权限或既有 CI。",
-      "nextHref": "/concepts/evidence-and-completion"
+      "nextHref": "/tutorials/evidence-handoff"
     }
   ],
   "hosts": [
@@ -137,8 +168,9 @@
     "capabilities": "<!-- devcodex-public:capabilities ids=turn-ambiguous-request-into-action,fix-with-regression-confidence,evolve-cross-domain-change,deliver-with-evidence-and-handoff -->"
   },
   "sourceIdentities": {
-    "expression": "89e6183824f75371c7912d2d3cd2ba129c33560b25e2809ff9b49d4e68bcb1e3",
-    "workflows": "8577bb60f9fac3efac4abb9d8c31b95df9b5c31ab77b664d44dde3f252fcd825",
-    "portfolio": "a48e3f5af9488d01e82028ef9952d14bf9c7094fa3bb751fbb8f42a4175aa7cc"
+    "package": "37cfd65efb4c855c7f4ed7706c29acabf0f5c1f26f11f31006bc70b2a9885cd5",
+    "expression": "10873b4e2c7cf6b9a015a6054442f373c7cb6f4b0ac859feabfca790bd138739",
+    "workflows": "d9eb7086866fe3c3815f673957ed978c1594079261009ac775bf3e1336ad44fd",
+    "portfolio": "455c9a9cf042d52bae1f740990cea4eb3b1b0720e4d13ad946d4064509d45d2b"
   }
 }

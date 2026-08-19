@@ -34,7 +34,7 @@
       ],
       "skillFocus": "意图识别、需求与验收、风险驱动验证",
       "workflowBoundary": "具体路径由任务意图与风险决定；并非每次都加载全部 Skill。",
-      "nextHref": "/guide/common-tasks"
+      "nextHref": "/tutorials/ambiguous-request"
     },
     {
       "id": "fix-with-regression-confidence",
@@ -47,7 +47,7 @@
       ],
       "skillFocus": "复现与根因、回归范围、用户路径验证",
       "workflowBoundary": "代表 Skill 只在适用阶段加载；不承诺全量修复能力常驻。",
-      "nextHref": "/guide/common-tasks"
+      "nextHref": "/tutorials/fix-regression"
     },
     {
       "id": "evolve-cross-domain-change",
@@ -60,7 +60,7 @@
       ],
       "skillFocus": "前端体验、业务领域、API 契约",
       "workflowBoundary": "是否进入各专业路径取决于真实任务，不把目录展示当作已加载事实。",
-      "nextHref": "/workflows/"
+      "nextHref": "/tutorials/cross-domain-change"
     },
     {
       "id": "deliver-with-evidence-and-handoff",
@@ -73,7 +73,7 @@
       ],
       "skillFocus": "质量策略、交付准备、文档同步",
       "workflowBoundary": "不替代人工发布授权、宿主权限或既有 CI。",
-      "nextHref": "/concepts/evidence-and-completion"
+      "nextHref": "/tutorials/evidence-handoff"
     }
   ],
   "mustNot": [

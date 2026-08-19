@@ -7,6 +7,26 @@ devcodex status
 devcodex doctor
 ```
 
+先按这个顺序判断，不要直接重装或删除目录：
+
+1. **workspace 未识别**：确认当前目录和 `.devcodex`，再检查 Profile。
+2. **adapter 未 configured**：运行 `devcodex global-adapters apply`，完全重开宿主。
+3. **contract failed**：按 doctor 的首个 typed issue 修复，不用兄弟宿主的 PASS 覆盖。
+4. **native unverified**：保留 `UNVERIFIED`；只有当前用户路径需要时再补 direct probe。
+
+完整决策树和错误码见[状态与错误码](/reference/diagnostics)。
+
+## Profile README 缺失或项目绑定错误
+
+出现 `CONTEXT_PLAN_INVALID`、`Profile README.md is missing for the active target`，先确认 status 显示的 cwd、workspace root、project 与 active-root 是否对应真实项目。多项目 workspace 不要只凭当前目录名猜 project。
+
+```bash
+devcodex profile plan
+devcodex profile plan --tier profile-closed-loop
+```
+
+`profile plan` 只预览。确认目标与文件清单后再执行 `profile init`；不要在错误的会话临时目录中初始化一个同名 Profile 来掩盖绑定问题。
+
 ## 安装后没有 PC、确认或 SkillRoute
 
 依次确认：
@@ -91,6 +111,8 @@ devcodex runtime prune --dry-run
 ```
 
 不要手动把 `.devcodex/**/.tmp`、锁文件或未知临时目录当作可安全删除对象。
+
+完整的 apply 边界见[运行态维护](/reference/runtime-operations)。
 
 ## 更新
 

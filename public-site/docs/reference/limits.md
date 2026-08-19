@@ -14,6 +14,8 @@ DevCodex 的工作流状态、Profile、报告、记忆和 Workspace Skill 以�
 
 “本地优先”不表示所有代码永不离开本机，也不表示模型在本地运行。
 
+数据位置、宿主数据处理和安全报告路径见[信任、安全与数据](/guide/trust-security-data)。
+
 ## 安装边界
 
 | 位置 | 行为 |
@@ -29,6 +31,10 @@ DevCodex 的工作流状态、Profile、报告、记忆和 Workspace Skill 以�
 HTTP 200 不足以证明某个产品页面正确；配置存在不足以证明宿主可执行；测试通过也不自动证明 npm、GitHub Release 或本机已更新。DevCodex 分别记录源码、构建、发布、线上回读和本机消费证据。
 
 遇到不确定状态时查看 [故障排查](/guide/troubleshooting) 和 [宿主边界](/reference/hosts)。
+
+## 文档与版本边界
+
+站点首页的版本来自 `package.json`，更新时间来自生成的 public projection。它们证明当前文档构建使用了哪组源码事实，不自动证明 npm registry、GitHub Release、用户本机或已打开会话已更新。
 
 ## 运行态协议参考
 

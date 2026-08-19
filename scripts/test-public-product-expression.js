@@ -8,6 +8,7 @@ const {
   buildPublicProductProjection,
   validateCapabilityScenarios,
   validatePublicProductExpression,
+  validateRoutePresentation,
   validateWorkflowPresentation
 } = require('./lib/public-product-expression')
 const { classifyEndpointIdentity } = require('./lib/public-endpoint-identity')
@@ -34,15 +35,33 @@ const rootPackage = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 
 const publicSitePackage = JSON.parse(fs.readFileSync(path.join(ROOT, 'public-site', 'package.json'), 'utf8'))
 const publicSiteConfig = fs.readFileSync(path.join(ROOT, 'public-site', 'rspress.config.ts'), 'utf8')
 const publicSiteHome = fs.readFileSync(path.join(ROOT, 'public-site', 'docs', 'index.md'), 'utf8')
+const publicSiteHosts = fs.readFileSync(path.join(ROOT, 'public-site', 'docs', 'reference', 'hosts.md'), 'utf8')
+const workflowOverview = fs.readFileSync(path.join(ROOT, 'public-site', 'docs', 'workflows', 'index.md'), 'utf8')
+const workflowChange = fs.readFileSync(path.join(ROOT, 'public-site', 'docs', 'workflows', 'change.md'), 'utf8')
+const workflowReadOnly = fs.readFileSync(path.join(ROOT, 'public-site', 'docs', 'workflows', 'read-only.md'), 'utf8')
+const workflowSession = fs.readFileSync(path.join(ROOT, 'public-site', 'docs', 'workflows', 'session.md'), 'utf8')
+const workflowReference = fs.readFileSync(path.join(ROOT, 'public-site', 'docs', 'reference', 'workflows.md'), 'utf8')
 const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')
 const pagesWorkflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'pages.yml'), 'utf8')
 
 assert.strictEqual(projection.schemaVersion, 'PublicProductProjectionV1')
+assert.strictEqual(projection.release.version, rootPackage.version)
 assert.deepStrictEqual(projection.workflows.canonical, [
   'dev', 'fix', 'self-fix', 'analyze', 'audit', 'other', 'chat', 'resume'
 ])
 assert.deepStrictEqual(projection.workflows.primary, ['dev', 'fix', 'analyze', 'audit', 'resume', 'chat'])
 assert.deepStrictEqual(projection.workflows.advanced, ['self-fix', 'other'])
+assert.deepStrictEqual(projection.workflows.routeLayers.userTaskSubtypes, [
+  'dev.default', 'dev.docs', 'dev.refactor', 'dev.database', 'dev.init',
+  'dev.optimization', 'dev.scenario-test', 'fix.default', 'fix.incident',
+  'fix.security', 'analyze.default', 'analyze.research'
+])
+assert.deepStrictEqual(projection.workflows.routeLayers.internalStepRouteKeys, ['dev.plan-review'])
+assert.deepStrictEqual(projection.workflows.routeLayers.auditTargets, [
+  'audit.规范文件', 'audit.技术方案', 'audit.需求文档', 'audit.项目工程',
+  'audit.报告', 'audit.通用文档', 'audit.发布前审查'
+])
+assert.deepStrictEqual(validateRoutePresentation(sourceWorkflow.routePresentation), [])
 assert.strictEqual(projection.skills.total, 86)
 assert.strictEqual(projection.skills.active, 83)
 assert.strictEqual(projection.skills.gray, 3)
@@ -57,7 +76,12 @@ assert.deepStrictEqual(projection.hosts.map(item => item.hostId), [
 ])
 assert(projection.hosts.every(item => item.installedSurfacePresent))
 assert(projection.hosts.every(item => item.variants.length > 0))
-assert.strictEqual(Object.keys(projection.sourceIdentities).length, 3)
+for (const host of projection.hosts) {
+  assert(publicSiteHosts.includes(host.label), `host label drift: ${host.hostId}`)
+  assert(publicSiteHosts.includes(host.recommendedEntry), `host entry drift: ${host.hostId}`)
+  assert(publicSiteHosts.includes(host.publicStatus), `host status drift: ${host.hostId}`)
+}
+assert.strictEqual(Object.keys(projection.sourceIdentities).length, 4)
 assert.strictEqual(projection.expression.autoEntry.runtimeBehaviorChanged, false)
 assert.strictEqual(publicSitePackage.private, true)
 assert.strictEqual(publicSitePackage.devDependencies['@rspress/core'], '2.0.18')
@@ -72,6 +96,15 @@ for (const needle of [
   "icon: '/favicon.png'",
   "logoText: 'DevCodex'"
 ]) assert(publicSiteConfig.includes(needle), needle)
+for (const needle of [
+  "{ text: '工作流选择', link: '/workflows/' }",
+  "{ text: '开发与修复', link: '/workflows/change' }",
+  "{ text: '分析、审查与规划', link: '/workflows/read-only' }",
+  "{ text: '对话与任务续接', link: '/workflows/session' }"
+]) assert(publicSiteConfig.includes(needle), needle)
+for (const legacyItem of ['dev', 'fix', 'analyze', 'audit', 'resume', 'chat']) {
+  assert(!publicSiteConfig.includes(`{ text: '${legacyItem}', link: '/workflows/${legacyItem}' }`))
+}
 assert(fs.existsSync(path.join(ROOT, 'public-site', 'docs', 'public', 'favicon.png')))
 for (const needle of [
   'pull_request:',
@@ -86,11 +119,31 @@ for (const needle of [
 for (const rel of PUBLIC_SITE_REQUIRED_MD) {
   assert(fs.existsSync(path.join(ROOT, rel)), rel)
 }
+const groupedWorkflowDocs = [workflowChange, workflowReadOnly, workflowSession].join('\n')
+const workflowPublicDocs = [workflowOverview, groupedWorkflowDocs, workflowReference].join('\n')
+for (const workflowId of projection.workflows.canonical) {
+  assert(workflowOverview.includes(`\`${workflowId}\``), `workflow overview missing ${workflowId}`)
+}
+for (const routeKey of projection.workflows.routeLayers.userTaskSubtypes) {
+  assert(groupedWorkflowDocs.includes(`\`${routeKey}\``), `grouped workflow docs missing ${routeKey}`)
+}
+for (const routeKey of projection.workflows.routeLayers.internalStepRouteKeys) {
+  assert(workflowPublicDocs.includes(`\`${routeKey}\``), `workflow docs missing internal step ${routeKey}`)
+  assert(!workflowReadOnly.includes(`| \`${routeKey}\` |`), `internal step presented as user choice ${routeKey}`)
+}
+for (const routeKey of projection.workflows.routeLayers.auditTargets) {
+  assert(workflowReadOnly.includes(`\`${routeKey}\``), `read-only workflow docs missing ${routeKey}`)
+}
+assert(workflowOverview.includes('8 个 canonical workflow'))
+assert(workflowReference.includes('用户任务 subtype（12）'))
+assert(workflowReference.includes('内部步骤 route key（1）'))
+assert(workflowReference.includes('audit target（7）'))
 const committed = JSON.parse(fs.readFileSync(
   path.join(ROOT, 'public-site', 'data', 'public-product-projection.json'),
   'utf8'
 ))
 assert.strictEqual(committed.schemaVersion, projection.schemaVersion)
+assert.deepStrictEqual(committed.release, projection.release)
 assert.deepStrictEqual(committed.workflows, projection.workflows)
 assert.deepStrictEqual(committed.skills, projection.skills)
 assert.deepStrictEqual(committed.capabilityScenarios, projection.capabilityScenarios)
@@ -112,6 +165,11 @@ assert(validateWorkflowPresentation({
   primary: projection.workflows.primary,
   advanced: [...projection.workflows.advanced, 'plan']
 }, projection.workflows.canonical).includes('plan-promoted-to-canonical-workflow'))
+
+const invalidRoutePresentation = JSON.parse(JSON.stringify(sourceWorkflow.routePresentation))
+invalidRoutePresentation.userTaskSubtypes.push('dev.plan-review')
+assert(validateRoutePresentation(invalidRoutePresentation).includes('plan-review-promoted-to-user-subtype'))
+assert(validateRoutePresentation(invalidRoutePresentation).includes('route-presentation-layer-overlap'))
 
 const invalid = JSON.parse(JSON.stringify(projection.expression))
 invalid.autoEntry.canonical = '@wrong'

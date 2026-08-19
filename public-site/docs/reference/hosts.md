@@ -2,6 +2,8 @@
 
 DevCodex 在六个 AI Coding 宿主中共享工作流模型，但执行强度取决于各宿主可用的 Hooks、MCP、插件、权限和生命周期事件。
 
+下表与 `public-product-expression.json` 的 host presentation 由测试对账；当前页面仍应结合首页显示的 package 版本与投影日期阅读。首次选择入口请看[宿主与工作区设置](/guide/hosts)。
+
 | 宿主 | 推荐入口 | 公开状态 |
 |------|----------|----------|
 | GitHub Copilot | Copilot CLI；VS Code / JetBrains 使用 instruction fallback | 入口能力不同，按精确宿主证据执行 |

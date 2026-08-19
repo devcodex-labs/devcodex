@@ -1,5 +1,7 @@
 # `audit`：基于证据审查
 
+新的主入口是 [分析、审查与规划](/workflows/read-only)。本页保留 `/workflows/audit` 深链，并提供 audit 的证据边界；7 类 audit target 以分组页和[工作流索引](/reference/workflows)为准。
+
 ## 适用 / 不适用
 
 适用：对照仓库事实审查代码、文档或方案，指出缺口。  

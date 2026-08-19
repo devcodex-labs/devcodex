@@ -30,51 +30,19 @@ devcodex status
 
 “本地优先”表示工作流状态、Profile、报告、记忆和工作区 Skill 以本地文件保存；模型执行和数据处理仍遵循所选 AI Coding 宿主的规则。
 
-## 目录
+README 只保留安装、定位和必要边界；完整教程与持续更新的参考以 [DevCodex Docs](https://devcodex-labs.github.io/devcodex/) 为准：
 
-- [为什么需要 DevCodex？](#为什么需要-devcodex)
-- [安装后，你能解决什么？](#安装后你能解决什么)
-- [什么时候直接使用宿主，什么时候用 DevCodex？](#什么时候直接使用宿主什么时候用-devcodex)
-- [它如何工作？](#它如何工作)
-- [5 分钟开始](#5-分钟开始)
-- [安装会改变什么](#安装会改变什么)
-- [工作流、Skill 与宿主边界](#工作流skill-与宿主边界)
-- [常见任务怎么说](#常见任务怎么说)
-- [常见问题与排错](#常见问题与排错)
-- [更新](#更新)
-- [卸载](#卸载)
-- [添加自己的 Skill](#添加自己的-skill)
-- [边界](#边界)
-- [许可证](#许可证)
-
-完整用户文档：[DevCodex Docs](https://devcodex-labs.github.io/devcodex/)。运行机制：[架构](https://devcodex-labs.github.io/devcodex/concepts/architecture)、[工作流](https://devcodex-labs.github.io/devcodex/workflows/)、[续接案例](https://devcodex-labs.github.io/devcodex/examples/resume)。
+- [5 分钟开始](https://devcodex-labs.github.io/devcodex/guide/getting-started)
+- [四个任务教程](https://devcodex-labs.github.io/devcodex/tutorials/ambiguous-request)
+- [CLI 命令](https://devcodex-labs.github.io/devcodex/reference/cli)
+- [故障排查](https://devcodex-labs.github.io/devcodex/guide/troubleshooting)
+- [信任、安全与数据](https://devcodex-labs.github.io/devcodex/guide/trust-security-data)
 
 ## 为什么需要 DevCodex？
 
 真实工程任务往往跨文件、跨轮次、跨宿主：新会话缺少项目背景，长任务容易断层，项目规范难复用，验证也容易被一句“完成了”替代。
 
 DevCodex 把意图识别、按需上下文、专业 Skill、确认边界、验证、报告和续接放进同一条流程，让 AI 在明确项目与证据范围内工作。
-
-## DevCodex 解决什么问题？
-
-| 问题 | 处理方式 | 收益 |
-|---|---|---|
-| 重复解释项目背景 | 按意图读取必要 Profile、记忆与源码 | 更快进入有效状态 |
-| 长任务难续接 | 报告和文件记忆记录真实进度 | 新会话可恢复 |
-| 多宿主规则分散 | 一个包刷新六宿主适配 | 保留一致工作流习惯 |
-| 只有 prompt、没有闭环 | 需求、执行、验证与交付串联 | 减少“假完成” |
-| 团队流程难复用 | 项目级工作区 Skill | 跨宿主共享约定 |
-
-## 核心特色
-
-| 特色 | 说明 |
-|---|---|
-| 六宿主适配 | 支持 Codex、Claude Code、GitHub Copilot、Gemini CLI、Grok 和 Cursor（Beta），同时保留能力差异 |
-| 按需上下文 | 只加载当前任务需要的项目资料和专业能力 |
-| 文件记忆 | 记录任务进度、验证证据与剩余风险 |
-| 80+ 内置专业 Skill | 覆盖开发、修复、审查、测试、发布、文档和平台治理，并按任务渐进加载 |
-| 本地优先 | 普通使用不需要额外后台服务 |
-| 原生资产共存 | 不接管宿主自己的 Skill、指令或个人配置 |
 
 <!-- devcodex-public:capability-scenarios:start -->
 ## 安装后，你能解决什么？
@@ -119,75 +87,24 @@ DevCodex 把意图识别、按需上下文、专业 Skill、确认边界、验�
 
 ## 它如何工作？
 
-```text
-用户请求
-  → 判断任务意图与项目边界
-  → 读取必要上下文和记忆
-  → 加载匹配的内置 Skill 或工作区 Skill
-  → 执行开发 / 修复 / 分析 / 审计
-  → 验证、报告并写入可续接状态
-```
-
-逐步说明见站点：[架构](https://devcodex-labs.github.io/devcodex/concepts/architecture)、[意图驱动](https://devcodex-labs.github.io/devcodex/concepts/intent-driven)、[六个主工作流](https://devcodex-labs.github.io/devcodex/workflows/)、[跨会话续接案例](https://devcodex-labs.github.io/devcodex/examples/resume)。旧的[工作流参考页](https://devcodex-labs.github.io/devcodex/reference/workflows)仍然可用。
-
-用户仍然用自然语言提出任务；底层强制能力取决于当前宿主可用的 Hook、MCP、插件和权限。
-
-## 适合谁？
-
-- 同时使用一个或多个受支持 AI Coding 宿主的开发者。
-- 经常处理跨文件、跨轮次、需要验证的工程任务的人。
-- 希望项目规则、发布流程和团队检查清单可复用的人。
+用户请求 → 意图与项目边界 → 有界 Profile/记忆/源码 → 当前阶段 Skill → 只读结论或确认后写入 → 验证、报告与续接。逐步说明见[架构](https://devcodex-labs.github.io/devcodex/concepts/architecture)。
 
 ## 5 分钟开始
 
-### 系统要求
-
-- Node.js `>=18.17.0`
-- npm
-- 至少一个受支持宿主
-
 ```bash
-node -v
-npm -v
 npm install -g devcodex
-devcodex --version
-```
-
-安装前请确认 registry 上的版本；如果 registry 上的版本不是文档对应版本，不要把本地源码版本当作已经发布。
-
-进入项目或多项目 workspace 的真实根目录：
-
-```bash
 cd <你的项目根目录>
 devcodex init
 devcodex status
-devcodex doctor
 ```
 
-`devcodex init` 创建 `.devcodex/` 运行态；安装生命周期中刷新用户级宿主适配，但安装本身不修改业务源码。更新后必须重新打开宿主的新会话，已打开的会话不会中途换版本。
-
-Grok 推荐使用 Grok Full 入口：
-
-```bash
-devcodex grok
-```
-
-普通 `grok` 是 Partial 兼容入口。Cursor 本地 IDE / CLI 为 Beta；Cursor Cloud Agent 保持 Partial / `UNVERIFIED`。
-
-### 安装后的成功信号
-
-1. `devcodex --version` 能返回版本；
-2. `devcodex init` 后项目根出现 `.devcodex/`，且 `devcodex status` 能读取该运行态；
-3. 完全重新打开目标项目的宿主会话后，先发送一条“只分析，不修改文件”的任务；
-4. 如果适配器未就绪、契约失败或宿主入口不明确，运行 `devcodex doctor`，再按 [故障排查](https://devcodex-labs.github.io/devcodex/guide/troubleshooting) 恢复。
-
-第一个任务可以直接写：
+需要 Node.js `>=18.17.0` 和 npm。`devcodex init` 创建 `.devcodex/` 运行态；安装生命周期中刷新用户级宿主适配，但安装本身不修改业务源码。安装或更新后必须重新打开宿主的新会话。第一个任务：
 
 ```text
 分析当前项目最应该先改进的三个问题。只分析，不修改文件。
 ```
 
-更多步骤见[快速开始](https://devcodex-labs.github.io/devcodex/guide/getting-started)。
+入口、预期结果和失败恢复见[5 分钟开始](https://devcodex-labs.github.io/devcodex/guide/getting-started)。
 
 ## 安装会改变什么
 
@@ -199,44 +116,7 @@ devcodex grok
 | 后台服务 | 普通使用不启动常驻网络服务 |
 | 宿主原生资产 | 不扫描、复制、合并、覆盖或删除 |
 
-## 项目 Profile
-
-普通单项目只需 `devcodex init`。多项目 workspace 的子项目需要独立 Profile 时，从 workspace 根预览并初始化：
-
-```bash
-devcodex init --profile <项目相对路径> --dry-run
-devcodex init --profile <项目相对路径>
-```
-
-目标必须真实且唯一；预览不写入，正式执行只补缺失基线，不覆盖已编辑内容。详见[配置](https://devcodex-labs.github.io/devcodex/reference/configuration)。
-
-## 首次信任提示
-
-首次打开新会话时，宿主可能要求允许 DevCodex 管理的 Hook、MCP、插件或本地命令。只允许 DevCodex-managed 项；若拒绝，依赖这些能力的流程不会完整。
-
-第一次直接用自然语言即可：
-
-```text
-阅读这个仓库，修复当前失败的 GitHub CI，并运行相关测试。
-```
-
-### 自动推进：`@devcodex-auto`
-
-正式入口是 `@devcodex-auto`；`@rocky` 是默认兼容快捷别名。自动推进只在明确范围内连续工作，不扩大删除、发布或越过项目范围的权限。
-
-项目配置可以替换默认快捷别名：
-
-```json
-{
-  "extensions": {
-    "devcodex": {
-      "autoAliases": ["@team-auto"]
-    }
-  }
-}
-```
-
-`extensions.devcodex.autoAliases` 为非空数组时替换 `@rocky`；省略时保留默认值；空数组 `[]` 关闭默认快捷别名，但不会改名 `@devcodex-auto`。
+正式 auto 入口是 `@devcodex-auto`，`@rocky` 是默认快捷别名。`extensions.devcodex.autoAliases` 的非空数组会替换默认别名，空数组 `[]` 会关闭默认别名；auto 不扩大删除或发布权限。多项目与 Profile 设置见[配置](https://devcodex-labs.github.io/devcodex/reference/configuration)。
 
 ## 工作流、Skill 与宿主边界
 
@@ -282,51 +162,16 @@ Rules / `AGENTS.md` 提供约束，Skills 提供专业流程，MCP 提供结构�
 分析当前架构风险，给出证据和优先级。只分析，不修改文件。
 ```
 
-```text
-为当前 API 增加幂等支持。先整理需求，确认后实施并运行相关测试。
-```
-
-```text
-复现支付回调重复入账，定位根因，检查同类路径并修复。
-```
-
-```text
-继续<任务名>任务
-```
-
-```text
-@devcodex-auto 修复失败的 CI，验证通过后提交。
-```
-
-只有明确写出 `push、tag、GitHub Release 和 npm publish`，才把对应发布动作纳入任务范围。更多示例见[常见任务](https://devcodex-labs.github.io/devcodex/guide/common-tasks)。
+功能、修复、审查、auto 和续接示例见[常见任务](https://devcodex-labs.github.io/devcodex/guide/common-tasks)与[四个教程](https://devcodex-labs.github.io/devcodex/tutorials/ambiguous-request)。只有明确写出 `push、tag、GitHub Release 和 npm publish`，才把对应发布动作纳入范围。
 
 ## 常见问题与排错
-
-### 安装最新版后，为什么没有需求概况、PC0~PC7 或 CP 流程？
-
-在目标项目运行：
 
 ```bash
 devcodex status
 devcodex doctor --json
-devcodex global-adapters apply
 ```
 
-然后完全退出宿主并新建会话。`adapter=not-ready`、`contract=failed` 或 `host kernel not installed` 表示受管入口未就绪；`native=unverified` 只表示缺少原生回放证据，不等于 adapter 失败。
-
-### Grok 能看到 Skill 或 MCP，但没有完整上下文怎么办？
-
-使用 `devcodex grok`。普通 `grok` 是 Partial；catalog 或路由决定不等于正文已加载，`StageLoadReceiptV1` 才是阶段正文成功回执。Grok ParserError、Hook 双来源与恢复步骤见[宿主边界](https://devcodex-labs.github.io/devcodex/reference/hosts)。
-
-### Cursor 已安装 DevCodex，但为什么没有流程或 SkillRoute？
-
-检查 `devcodex doctor --json` 和 `agent --version`。受管 Hook 位于 `~/.cursor/hooks.json`；Cursor Cloud Agent 不加载用户级 Hook，不能继承本地 Beta 结论。命令碰撞与 IDE / CLI / Headless 差异见[宿主边界](https://devcodex-labs.github.io/devcodex/reference/hosts)。
-
-### “帮我审批”时反复重新连接，是否必须开启完全访问？
-
-不需要永久开启 Full access。`node runtime BLOCK` / `sandbox-exec-denied` 表示 Node launcher 被当前沙箱拒绝；`GLOBAL_HOST_TARGET_UNVERIFIED` 表示对应用户级宿主目录当前不可读。先按最小范围批准并重跑 `devcodex doctor`，不要把完全访问当作默认修复。
-
-完整的 adapter、contract、native、sandbox、临时目录与运行态排查见[故障排查](https://devcodex-labs.github.io/devcodex/guide/troubleshooting)和[限制与边界](https://devcodex-labs.github.io/devcodex/reference/limits)。
+先区分 workspace、configured、contract 与 native evidence。按 typed issue 修复；`UNVERIFIED` 不等于失败。完整决策树见[故障排查](https://devcodex-labs.github.io/devcodex/guide/troubleshooting)和[状态与错误码](https://devcodex-labs.github.io/devcodex/reference/diagnostics)。
 
 ## 更新
 
@@ -350,52 +195,14 @@ npm uninstall -g devcodex
 
 用户自己的配置、指令和 Hook 会保留；若受管资产被修改或所有权无法验证，清理会失败关闭。不要先卸载 npm 包，否则安全清理命令会先消失。
 
-## 运行态与临时产物检查
-
-```bash
-devcodex runtime status
-devcodex runtime prune --dry-run
-devcodex tmp status --json
-devcodex tmp maintain --project=<project> --partition=runs
-```
-
-清理类命令默认只预览；实际操作必须显式 `--apply` 和完整 scope。`MemoryCursorV1`、`MemoryFileTransactionReceiptV1`、`WorkspaceTempManifestV2` 与 `NextActionEnvelopeV1` 等高级协议见[限制与边界](https://devcodex-labs.github.io/devcodex/reference/limits)。
-
-## 生效方式
-
-DevCodex 分为用户 HOME 下的宿主适配层与项目 / workspace 的 `.devcodex/` 运行态。内置 Skill 随 npm 包安装；工作区 Skill 由项目提供。
-
-多项目 workspace 的典型结构和恢复路径见[配置](https://devcodex-labs.github.io/devcodex/reference/configuration)与[故障排查](https://devcodex-labs.github.io/devcodex/guide/troubleshooting)。
-
-## 添加自己的 Skill
-
-在项目或 workspace 根创建：
-
-```text
-<你的项目根目录>/
-  .devcodex/
-    workspace/
-      skills/
-        <id>/
-          SKILL.md
-          intent.json
-```
-
-稳定路径是 `<你的项目根目录>/.devcodex/workspace/skills/<id>/SKILL.md`。`SKILL.md` 写目标、步骤、输入输出和边界；`intent.json` 写可验证的触发语义。完整示例见[Skill 参考](https://devcodex-labs.github.io/devcodex/reference/skills)。
-
-## 与宿主原生 Skill 共存
-
-DevCodex 不扫描、复制、合并、覆盖或删除这些用户资产。Codex、Claude Code 等宿主自己的 Skill、项目指令和个人配置继续按宿主规则生效。
-
-需要六宿主共享时使用 DevCodex 工作区 Skill；只服务单一宿主时继续使用该宿主原生机制。
-
 ## 边界
 
 - DevCodex 不替代业务框架、GitHub CI、安全审计或人工评审。
 - 宿主能力、权限与生命周期事件不同，不能互相继承验证结论。
 - 安装不会把用户级宿主配置写进业务 workspace；项目侧只保存 `.devcodex/` 运行态。
 - 工作区 Skill 只影响其所在项目或 workspace。
-- 更多限制见[限制与边界](https://devcodex-labs.github.io/devcodex/reference/limits)。
+- 模型执行和数据处理仍遵循所选 AI Coding 宿主的规则。
+- 更多限制见[限制与边界](https://devcodex-labs.github.io/devcodex/reference/limits)和[信任、安全与数据](https://devcodex-labs.github.io/devcodex/guide/trust-security-data)。
 
 ---
 

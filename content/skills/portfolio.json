@@ -11,10 +11,10 @@
     "pluginDigest": "07088a5a179a16245a951c4f551d74b299376ed1637db6e6a31277eec893dec7",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 559,
-    "consumerInventoryDigest": "132cf48f6c69dfd0d9abacb4d9fda1e258a3bb42003805a0782292161b3faf52",
-    "consumerProjectionDigest": "f30289cc8f70c9700ebac2c426b8e77b1323d46f63d3d70fd3271ff76887ba5a",
-    "portfolioInputDigest": "baf16a5ec827f189a5ebe2b8db36a0f061c618b9764cb8ac940b94f1d6b21af0"
+    "consumerInventoryFileCount": 575,
+    "consumerInventoryDigest": "8c6858cb5b3922695b3a4be94ab6c5897b792bdf1ead0054265b1b4d4d4530ba",
+    "consumerProjectionDigest": "fd7d8dcb149459d927f173c6fc5bb34b121631f4686a08751a40b451c9164a87",
+    "portfolioInputDigest": "6f5a85bb9522080c76f329c7afe7818eb0209bb34be9b1347e0dcad902db32bf"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -1406,6 +1406,18 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-product-expression.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {
@@ -3958,6 +3970,18 @@
           "role": "current"
         },
         {
+          "path": "public-product-expression.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -4136,6 +4160,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-public-product-expression.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skill-portfolio.js",
           "role": "current"
         },
@@ -4155,6 +4183,7 @@
         "scripts/test-global-host-config.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-mcp-servers.js",
+        "scripts/test-public-product-expression.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
       ],
@@ -4209,6 +4238,7 @@
           "scripts/test-global-host-config.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-mcp-servers.js",
+          "scripts/test-public-product-expression.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
         ],
@@ -5808,6 +5838,18 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-product-expression.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {
@@ -7621,6 +7663,18 @@
           "role": "current"
         },
         {
+          "path": "public-product-expression.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/canonical-consumer-contracts.js",
           "role": "current"
         },
@@ -8544,6 +8598,18 @@
           "role": "current"
         },
         {
+          "path": "public-product-expression.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/always-on-governance.js",
           "role": "current"
         },
@@ -8878,6 +8944,18 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-product-expression.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {
@@ -10141,7 +10219,23 @@
           "role": "current"
         },
         {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/docs/concepts/architecture.md",
+          "role": "current"
+        },
+        {
+          "path": "public-site/docs/index.md",
+          "role": "current"
+        },
+        {
           "path": "public-site/docs/reference/skills.md",
+          "role": "current"
+        },
+        {
+          "path": "public-site/rspress.config.ts",
           "role": "current"
         },
         {
@@ -10194,6 +10288,10 @@
         },
         {
           "path": "scripts/lib/content-root-delete-transaction.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/docs-surface-inventory.js",
           "role": "current"
         },
         {
@@ -11249,7 +11347,23 @@
           "role": "current"
         },
         {
+          "path": "public-site/docs/concepts/architecture.md",
+          "role": "current"
+        },
+        {
+          "path": "public-site/docs/concepts/task-resume.md",
+          "role": "current"
+        },
+        {
+          "path": "public-site/docs/index.md",
+          "role": "current"
+        },
+        {
           "path": "public-site/docs/reference/limits.md",
+          "role": "current"
+        },
+        {
+          "path": "public-site/rspress.config.ts",
           "role": "current"
         },
         {
@@ -12336,11 +12450,31 @@
           "role": "current"
         },
         {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/docs/concepts/intent-driven.md",
+          "role": "current"
+        },
+        {
           "path": "public-site/docs/guide/troubleshooting.md",
           "role": "current"
         },
         {
+          "path": "public-site/docs/reference/configuration.md",
+          "role": "current"
+        },
+        {
           "path": "public-site/docs/reference/workflows.md",
+          "role": "current"
+        },
+        {
+          "path": "public-site/docs/workflows/dev.md",
+          "role": "current"
+        },
+        {
+          "path": "public-site/docs/workflows/index.md",
           "role": "current"
         },
         {
@@ -13595,6 +13729,18 @@
           "role": "current"
         },
         {
+          "path": "public-product-expression.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -13935,6 +14081,18 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-product-expression.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {
@@ -16266,6 +16424,14 @@
           "role": "current"
         },
         {
+          "path": "public-site/docs/index.md",
+          "role": "current"
+        },
+        {
+          "path": "public-site/rspress.config.ts",
+          "role": "current"
+        },
+        {
           "path": "scripts/fixtures/capability-surface-decision/valid-rule-skill.json",
           "role": "current"
         },
@@ -16418,6 +16584,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-public-product-expression.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-review-execution-contract.js",
           "role": "current"
         },
@@ -16457,6 +16627,7 @@
         "scripts/test-host-installation.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-package-compatibility-projection.js",
+        "scripts/test-public-product-expression.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-route-contracts.js",
@@ -16534,6 +16705,7 @@
           "scripts/test-host-installation.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-package-compatibility-projection.js",
+          "scripts/test-public-product-expression.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-route-contracts.js",
@@ -18718,6 +18890,18 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-product-expression.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {

@@ -6,9 +6,11 @@ version: 1.17.10
 ---
 # 开发工作流规则（10-dev）
 
-> 本文件定义 dev 工作流的完整规则，含 8 个子类型和 CP 门控。
+> 本文件定义 dev 工作流的完整规则，含 7 个用户任务子类型、1 个内部 `plan-review` 步骤和 CP 门控。
 
-> 子类型标识：`dev.default` / `dev.docs` / `dev.refactor` / `dev.database` / `dev.init` / `dev.optimization` / `dev.scenario-test` / `dev.plan-review`
+> 用户任务子类型：`dev.default` / `dev.docs` / `dev.refactor` / `dev.database` / `dev.init` / `dev.optimization` / `dev.scenario-test`
+>
+> 内部步骤 route key：`dev.plan-review`。它在 CP2 后按规则触发，不参与用户任务子类型选择。
 
 ## 子类型路由
 
@@ -20,10 +22,10 @@ version: 1.17.10
 | 性能/optimize/优化指标 | optimization |
 | 测试/scenario-test/压测 | scenario-test |
 | 文档/docs/README/注释 | docs |
-| 方案评审/plan-review/review | plan-review |
 | 默认（新功能/需求）| default |
 
 - optimization/scenario-test 前置条件：`api-verification` 已通过，否则阻断并提示
+- 用户请求“评审方案”时先按最终目的路由到 `audit` 或 `dev`；`dev.plan-review` 只表示 dev 内部的方案复审步骤。
 
 ## C12 合理性评估（必须执行）
 
@@ -483,6 +485,6 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 - 当文档任务属于契约驱动型需求时，可先冻结目标文档，再做简化版 CP2 文档大纲确认
 - 文档质量标准：结构完整 / 示例可执行 / 版本同步 / 链接有效
 
-### plan-review（方案评审）
+### 内部步骤 plan-review（方案评审）
 - 豁免 plan-review（防递归）
 - 本身即为审查工作流

@@ -13,6 +13,12 @@ type CapabilityScenario = {
 }
 
 const scenarios = projection.capabilityScenarios as CapabilityScenario[]
+const projectionDate = new Intl.DateTimeFormat('zh-CN', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  timeZone: 'UTC'
+}).format(new Date(projection.generatedAt))
 
 function CapabilityShowcase () {
   return (
@@ -23,6 +29,9 @@ function CapabilityShowcase () {
         <p>
           DevCodex 已登记 {projection.skills.total} 个 Skill（{projection.skills.active} active、{projection.skills.gray} gray）。
           它们不会一次性塞进会话，而是随任务意图和阶段渐进路由，让需要的专业路径在需要时进入工作。
+        </p>
+        <p className="devcodex-home-freshness">
+          当前文档事实：DevCodex v{projection.release.version} · 投影更新于 {projectionDate}
         </p>
       </section>
 
@@ -44,7 +53,7 @@ function CapabilityShowcase () {
               <p>{scenario.userOutcome}</p>
               <span className="devcodex-capability-focus">代表专业流程：{scenario.skillFocus}</span>
               <span className="devcodex-capability-boundary">{scenario.workflowBoundary}</span>
-              <span className="devcodex-capability-link">查看适用任务 →</span>
+              <span className="devcodex-capability-link">进入完整教程 →</span>
             </Link>
           ))}
         </div>

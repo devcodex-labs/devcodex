@@ -1,6 +1,34 @@
 {
   "schemaVersion": 1,
   "ownerSkill": "routing",
+  "routePresentation": {
+    "userTaskSubtypes": [
+      "dev.default",
+      "dev.docs",
+      "dev.refactor",
+      "dev.database",
+      "dev.init",
+      "dev.optimization",
+      "dev.scenario-test",
+      "fix.default",
+      "fix.incident",
+      "fix.security",
+      "analyze.default",
+      "analyze.research"
+    ],
+    "internalStepRouteKeys": [
+      "dev.plan-review"
+    ],
+    "auditTargets": [
+      "audit.规范文件",
+      "audit.技术方案",
+      "audit.需求文档",
+      "audit.项目工程",
+      "audit.报告",
+      "audit.通用文档",
+      "audit.发布前审查"
+    ]
+  },
   "workflows": [
     {
       "id": "dev",

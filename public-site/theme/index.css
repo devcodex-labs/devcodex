@@ -1,0 +1,222 @@
+.devcodex-home-content,
+.devcodex-first-success {
+  width: min(1120px, calc(100% - 40px));
+  margin: 0 auto;
+}
+
+.devcodex-home-intro,
+.devcodex-home-section,
+.devcodex-host-split,
+.devcodex-first-success {
+  margin-top: 48px;
+}
+
+.devcodex-home-intro,
+.devcodex-host-split,
+.devcodex-first-success {
+  border: 1px solid var(--rp-c-divider-light);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--rp-c-bg-soft) 86%, transparent);
+  padding: clamp(24px, 5vw, 48px);
+}
+
+.devcodex-home-eyebrow {
+  margin: 0 0 10px;
+  color: var(--rp-c-brand);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.devcodex-home-intro h2,
+.devcodex-home-section h2,
+.devcodex-host-split h2,
+.devcodex-first-success h2 {
+  margin: 0;
+  color: var(--rp-c-text-1);
+  font-size: clamp(1.625rem, 3vw, 2.5rem);
+  line-height: 1.18;
+}
+
+.devcodex-home-intro > p:last-child,
+.devcodex-host-split p,
+.devcodex-capability-card p {
+  color: var(--rp-c-text-2);
+  line-height: 1.72;
+}
+
+.devcodex-home-intro > p:last-child {
+  max-width: 850px;
+  margin: 18px 0 0;
+}
+
+.devcodex-home-section-heading {
+  max-width: 760px;
+  margin-bottom: 20px;
+}
+
+.devcodex-capability-grid,
+.devcodex-host-split-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.devcodex-capability-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.devcodex-capability-card {
+  display: flex;
+  min-height: 270px;
+  flex-direction: column;
+  border: 1px solid var(--rp-c-divider-light);
+  border-radius: 16px;
+  background: var(--rp-c-bg);
+  color: inherit;
+  padding: 24px;
+  text-decoration: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.devcodex-capability-card:hover {
+  border-color: var(--rp-c-brand);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--rp-c-brand) 16%, transparent);
+  transform: translateY(-2px);
+}
+
+.devcodex-capability-card:focus-visible,
+.devcodex-first-success-link:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--rp-c-brand) 52%, transparent);
+  outline-offset: 3px;
+}
+
+.devcodex-capability-index,
+.devcodex-capability-focus,
+.devcodex-capability-boundary,
+.devcodex-capability-link {
+  display: block;
+}
+
+.devcodex-capability-index {
+  color: var(--rp-c-brand);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+}
+
+.devcodex-capability-card h3 {
+  margin: 12px 0 0;
+  color: var(--rp-c-text-1);
+  font-size: 1.2rem;
+  line-height: 1.45;
+}
+
+.devcodex-capability-card p {
+  margin: 12px 0;
+}
+
+.devcodex-capability-focus {
+  color: var(--rp-c-text-1);
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.devcodex-capability-boundary {
+  margin-top: 10px;
+  color: var(--rp-c-text-3);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.devcodex-capability-link {
+  margin-top: auto;
+  padding-top: 18px;
+  color: var(--rp-c-brand);
+  font-weight: 650;
+}
+
+.devcodex-host-split-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 28px;
+}
+
+.devcodex-host-split article {
+  border-top: 2px solid color-mix(in srgb, var(--rp-c-brand) 38%, var(--rp-c-divider-light));
+  padding-top: 16px;
+}
+
+.devcodex-host-split h3 {
+  margin: 0;
+  color: var(--rp-c-text-1);
+  font-size: 1.05rem;
+}
+
+.devcodex-host-split p {
+  margin: 9px 0 0;
+}
+
+.devcodex-first-success {
+  margin-bottom: 64px;
+}
+
+.devcodex-first-success ol {
+  display: grid;
+  gap: 10px;
+  margin: 22px 0;
+  padding-left: 1.4rem;
+  color: var(--rp-c-text-2);
+  line-height: 1.6;
+}
+
+.devcodex-first-success-link {
+  color: var(--rp-c-brand);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+@media (width <= 768px) {
+  .rp-nav__left,
+  .rp-nav__title,
+  .rp-nav__title__link {
+    min-width: 0;
+  }
+
+  .rp-nav__title {
+    max-width: calc(100vw - 112px);
+    overflow: hidden;
+  }
+
+  .rp-nav__title__link {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .rp-nav-hamburger__sm {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 auto;
+  }
+
+  .devcodex-home-content,
+  .devcodex-first-success {
+    width: min(100% - 28px, 1120px);
+  }
+
+  .devcodex-home-intro,
+  .devcodex-host-split,
+  .devcodex-first-success {
+    border-radius: 16px;
+    padding: 24px;
+  }
+
+  .devcodex-capability-grid,
+  .devcodex-host-split-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .devcodex-capability-card {
+    min-height: 0;
+  }
+}

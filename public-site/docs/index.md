@@ -3,13 +3,13 @@ pageType: home
 hero:
   name: DevCodex
   text: Intent-driven AI Coding Workflow Runtime
-  tagline: 一条请求进来之后：判断意图 → 加载上下文和 Skill → 按工作流确认与验证 → 必要时跨会话续接。
+  tagline: 安装后，按任务渐进加载预置专业 Skill：把模糊请求变成可执行、可验证、可续接的工程任务。
   actions:
     - text: 5 分钟开始
       link: /guide/getting-started
       theme: brand
-    - text: 它怎么跑
-      link: /concepts/architecture
+    - text: 能解决什么
+      link: /guide/common-tasks
       theme: alt
     - text: 续接案例
       link: /examples/resume
@@ -43,6 +43,7 @@ DevCodex 是面向 Codex、Claude Code、GitHub Copilot、Gemini CLI、Grok 和 
 <!-- devcodex-public:skills total=86 active=83 gray=3 bucket=80+ -->
 <!-- devcodex-public:hosts ids=copilot,claude,codex,gemini,grok,cursor variants=13 -->
 <!-- devcodex-public:auto canonical=@devcodex-auto default=@rocky profile-replacement=true empty-array-disables=true -->
+<!-- devcodex-public:capabilities ids=turn-ambiguous-request-into-action,fix-with-regression-confidence,evolve-cross-domain-change,deliver-with-evidence-and-handoff -->
 
 它不会托管模型，也不是通用 Agent 框架或多 Agent 编排器。它在本地保存工作流状态、Profile、报告、记忆和项目 Skill；模型执行与数据处理仍遵循所选宿主的规则。
 

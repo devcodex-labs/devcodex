@@ -1,6 +1,6 @@
 {
   "schemaVersion": "PublicProductProjectionV1",
-  "generatedAt": "2026-08-18T13:57:42.041Z",
+  "generatedAt": "2026-08-19T04:50:59.452Z",
   "workflows": {
     "canonical": [
       "dev",
@@ -31,6 +31,60 @@
     "gray": 3,
     "bucket": "80+"
   },
+  "capabilityScenarios": [
+    {
+      "id": "turn-ambiguous-request-into-action",
+      "userProblem": "需求说得不完整，不知道该先分析、立项还是直接修改。",
+      "userOutcome": "先明确目标、边界、验收和下一步，再进入合适的工作流。",
+      "representativeSkillIds": [
+        "intent",
+        "dev-default",
+        "quality-strategy"
+      ],
+      "skillFocus": "意图识别、需求与验收、风险驱动验证",
+      "workflowBoundary": "具体路径由任务意图与风险决定；并非每次都加载全部 Skill。",
+      "nextHref": "/guide/common-tasks"
+    },
+    {
+      "id": "fix-with-regression-confidence",
+      "userProblem": "只知道报错，却不知道根因、同类路径和回归范围。",
+      "userOutcome": "获得复现、根因、同类检查和定向验证，而不止是一段解释。",
+      "representativeSkillIds": [
+        "fix-default",
+        "test-router",
+        "frontend-architecture"
+      ],
+      "skillFocus": "复现与根因、回归范围、用户路径验证",
+      "workflowBoundary": "代表 Skill 只在适用阶段加载；不承诺全量修复能力常驻。",
+      "nextHref": "/guide/common-tasks"
+    },
+    {
+      "id": "evolve-cross-domain-change",
+      "userProblem": "需求跨前端、业务和接口，宿主的通用提示难以划清责任边界。",
+      "userOutcome": "在适用时获得架构、接口和实现边界的专业路径。",
+      "representativeSkillIds": [
+        "frontend-architecture",
+        "backend-domain-architecture",
+        "api-contract-architecture"
+      ],
+      "skillFocus": "前端体验、业务领域、API 契约",
+      "workflowBoundary": "是否进入各专业路径取决于真实任务，不把目录展示当作已加载事实。",
+      "nextHref": "/workflows/"
+    },
+    {
+      "id": "deliver-with-evidence-and-handoff",
+      "userProblem": "交付前需要测试、排错、交接，下一会话却容易丢失上下文。",
+      "userOutcome": "让风险、验证、报告和续接状态都留下可查证据。",
+      "representativeSkillIds": [
+        "quality-strategy",
+        "production-readiness-sre",
+        "document-sync"
+      ],
+      "skillFocus": "质量策略、交付准备、文档同步",
+      "workflowBoundary": "不替代人工发布授权、宿主权限或既有 CI。",
+      "nextHref": "/concepts/evidence-and-completion"
+    }
+  ],
   "hosts": [
     {
       "hostId": "copilot",
@@ -79,10 +133,11 @@
     "workflows": "<!-- devcodex-public:workflows primary=dev,fix,analyze,audit,resume,chat advanced=self-fix,other -->",
     "skills": "<!-- devcodex-public:skills total=86 active=83 gray=3 bucket=80+ -->",
     "hosts": "<!-- devcodex-public:hosts ids=copilot,claude,codex,gemini,grok,cursor variants=13 -->",
-    "auto": "<!-- devcodex-public:auto canonical=@devcodex-auto default=@rocky profile-replacement=true empty-array-disables=true -->"
+    "auto": "<!-- devcodex-public:auto canonical=@devcodex-auto default=@rocky profile-replacement=true empty-array-disables=true -->",
+    "capabilities": "<!-- devcodex-public:capabilities ids=turn-ambiguous-request-into-action,fix-with-regression-confidence,evolve-cross-domain-change,deliver-with-evidence-and-handoff -->"
   },
   "sourceIdentities": {
-    "expression": "4e60fd53c93a759bb0ca572df93e598b6a8106fe380dbe76c909e7aee1acc315",
+    "expression": "89e6183824f75371c7912d2d3cd2ba129c33560b25e2809ff9b49d4e68bcb1e3",
     "workflows": "8577bb60f9fac3efac4abb9d8c31b95df9b5c31ab77b664d44dde3f252fcd825",
     "portfolio": "a48e3f5af9488d01e82028ef9952d14bf9c7094fa3bb751fbb8f42a4175aa7cc"
   }

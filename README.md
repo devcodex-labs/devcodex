@@ -33,6 +33,8 @@ devcodex status
 ## 目录
 
 - [为什么需要 DevCodex？](#为什么需要-devcodex)
+- [安装后，你能解决什么？](#安装后你能解决什么)
+- [什么时候直接使用宿主，什么时候用 DevCodex？](#什么时候直接使用宿主什么时候用-devcodex)
 - [它如何工作？](#它如何工作)
 - [5 分钟开始](#5-分钟开始)
 - [安装会改变什么](#安装会改变什么)
@@ -70,9 +72,50 @@ DevCodex 把意图识别、按需上下文、专业 Skill、确认边界、验�
 | 六宿主适配 | 支持 Codex、Claude Code、GitHub Copilot、Gemini CLI、Grok 和 Cursor（Beta），同时保留能力差异 |
 | 按需上下文 | 只加载当前任务需要的项目资料和专业能力 |
 | 文件记忆 | 记录任务进度、验证证据与剩余风险 |
-| 80+ 内置 Skill | 覆盖开发、修复、审查、测试、发布、文档和平台治理 |
+| 80+ 内置专业 Skill | 覆盖开发、修复、审查、测试、发布、文档和平台治理，并按任务渐进加载 |
 | 本地优先 | 普通使用不需要额外后台服务 |
 | 原生资产共存 | 不接管宿主自己的 Skill、指令或个人配置 |
+
+<!-- devcodex-public:capability-scenarios:start -->
+## 安装后，你能解决什么？
+
+安装后获得按任务渐进加载的预置专业 Skill 组合，而不是从零手写每一套流程。下面四类结果由现有 active Skill 约束；它们是代表性路径，不是一次全量加载。
+
+### 1. 需求说得不完整，不知道该先分析、立项还是直接修改。
+
+- **得到什么**：先明确目标、边界、验收和下一步，再进入合适的工作流。
+- **代表专业流程**：意图识别、需求与验收、风险驱动验证（intent、dev-default、quality-strategy）
+- **诚实边界**：具体路径由任务意图与风险决定；并非每次都加载全部 Skill。
+
+### 2. 只知道报错，却不知道根因、同类路径和回归范围。
+
+- **得到什么**：获得复现、根因、同类检查和定向验证，而不止是一段解释。
+- **代表专业流程**：复现与根因、回归范围、用户路径验证（fix-default、test-router、frontend-architecture）
+- **诚实边界**：代表 Skill 只在适用阶段加载；不承诺全量修复能力常驻。
+
+### 3. 需求跨前端、业务和接口，宿主的通用提示难以划清责任边界。
+
+- **得到什么**：在适用时获得架构、接口和实现边界的专业路径。
+- **代表专业流程**：前端体验、业务领域、API 契约（frontend-architecture、backend-domain-architecture、api-contract-architecture）
+- **诚实边界**：是否进入各专业路径取决于真实任务，不把目录展示当作已加载事实。
+
+### 4. 交付前需要测试、排错、交接，下一会话却容易丢失上下文。
+
+- **得到什么**：让风险、验证、报告和续接状态都留下可查证据。
+- **代表专业流程**：质量策略、交付准备、文档同步（quality-strategy、production-readiness-sre、document-sync）
+- **诚实边界**：不替代人工发布授权、宿主权限或既有 CI。
+<!-- devcodex-public:capability-scenarios:end -->
+
+## 什么时候直接使用宿主，什么时候用 DevCodex？
+
+| 场景 | 更合适的选择 | 原因 |
+|---|---|---|
+| 一次性问答、短小编辑、只依赖某个宿主特有工具 | 直接使用宿主 | 宿主原生能力最快；不需要额外的任务状态或验证链。 |
+| 跨文件修改、需要先澄清范围或验收 | DevCodex | 把意图、项目上下文、专业流程和确认边界放到同一条可追踪路径。 |
+| 修复问题且担心同类回归 | DevCodex | 把复现、根因、同类检查和定向验证连成闭环，而不是只生成一个解释。 |
+| 换宿主、换会话、多人接力或需要留下证据 | DevCodex | 项目级记忆、报告和任务状态让后续会话可以基于文件继续。 |
+
+两者不是替代关系：宿主提供模型、编辑器和原生工具；DevCodex 在适用的工程任务上增加按需专业 Skill、项目边界、验证与续接。它不接管宿主自己的 Skill、指令或个人配置。
 
 ## 它如何工作？
 
@@ -130,6 +173,13 @@ devcodex grok
 ```
 
 普通 `grok` 是 Partial 兼容入口。Cursor 本地 IDE / CLI 为 Beta；Cursor Cloud Agent 保持 Partial / `UNVERIFIED`。
+
+### 安装后的成功信号
+
+1. `devcodex --version` 能返回版本；
+2. `devcodex init` 后项目根出现 `.devcodex/`，且 `devcodex status` 能读取该运行态；
+3. 完全重新打开目标项目的宿主会话后，先发送一条“只分析，不修改文件”的任务；
+4. 如果适配器未就绪、契约失败或宿主入口不明确，运行 `devcodex doctor`，再按 [故障排查](https://devcodex-labs.github.io/devcodex/guide/troubleshooting) 恢复。
 
 第一个任务可以直接写：
 
@@ -194,6 +244,7 @@ devcodex init --profile <项目相对路径>
 <!-- devcodex-public:skills total=86 active=83 gray=3 bucket=80+ -->
 <!-- devcodex-public:hosts ids=copilot,claude,codex,gemini,grok,cursor variants=13 -->
 <!-- devcodex-public:auto canonical=@devcodex-auto default=@rocky profile-replacement=true empty-array-disables=true -->
+<!-- devcodex-public:capabilities ids=turn-ambiguous-request-into-action,fix-with-regression-confidence,evolve-cross-domain-change,deliver-with-evidence-and-handoff -->
 
 六个主工作流面向日常任务，两个高级工作流只用于治理或兜底：
 

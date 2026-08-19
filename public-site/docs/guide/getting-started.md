@@ -34,6 +34,13 @@ devcodex status
 
 `devcodex init` 创建 `.devcodex/` 运行态。多项目 workspace 可以只在 workspace 根初始化；子项目会按稳定命名空间保存自己的报告、记忆和任务状态。
 
+### 这一步成功后能看到什么
+
+- `devcodex --version` 能返回已安装版本；
+- 项目根出现 `.devcodex/`，且 `devcodex status` 能输出当前项目状态；
+- 安装不等于把所有 83 个 active Skill 一次塞进会话：它们会按后续任务的意图和阶段渐进路由；
+- 如果状态提示 adapter 未就绪、契约失败或入口不明确，再执行 `devcodex doctor`，然后按 [故障排查](/guide/troubleshooting) 恢复。
+
 ## 4. 新建宿主会话
 
 完全退出旧会话，再在同一项目目录打开 Codex、Claude Code、GitHub Copilot、Gemini CLI、Grok 或 Cursor 的新会话。已经打开的会话不会在中途自动换用新版本。

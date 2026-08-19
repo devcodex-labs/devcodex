@@ -61,6 +61,72 @@ function validateWorkflowPresentation (presentation, canonicalIds) {
   return errors
 }
 
+function validateCapabilityScenarios (scenarios, portfolio) {
+  const errors = []
+  if (!Array.isArray(scenarios) || scenarios.length !== 4) {
+    return ['capability-scenario-count']
+  }
+
+  const seenIds = new Set()
+  const skillById = new Map((portfolio?.skills || []).map(skill => [skill.id, skill]))
+  const requiredFields = ['userProblem', 'userOutcome', 'skillFocus', 'workflowBoundary', 'nextHref']
+  for (const [index, scenario] of scenarios.entries()) {
+    const hasScenarioId = typeof scenario?.id === 'string' && Boolean(scenario.id.trim())
+    const scenarioId = hasScenarioId ? scenario.id.trim() : `index-${index}`
+    if (!hasScenarioId) {
+      errors.push(`capability-scenario-id:${index}`)
+    } else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(scenarioId)) {
+      errors.push(`capability-scenario-id-format:${scenarioId}`)
+    } else if (seenIds.has(scenarioId)) {
+      errors.push(`capability-scenario-duplicate-id:${scenarioId}`)
+    }
+    seenIds.add(scenarioId)
+
+    for (const field of requiredFields) {
+      if (typeof scenario?.[field] !== 'string' || !scenario[field].trim()) {
+        errors.push(`capability-scenario-${field}:${scenarioId}`)
+      }
+    }
+    if (typeof scenario?.nextHref === 'string' &&
+      (!scenario.nextHref.startsWith('/') || scenario.nextHref.startsWith('//'))) {
+      errors.push(`capability-scenario-next-href:${scenarioId}`)
+    }
+
+    const skillIds = Array.isArray(scenario?.representativeSkillIds)
+      ? scenario.representativeSkillIds
+      : []
+    if (!skillIds.length) {
+      errors.push(`capability-scenario-skill-ids:${scenarioId}`)
+    }
+    if (new Set(skillIds).size !== skillIds.length) {
+      errors.push(`capability-scenario-skill-duplicate:${scenarioId}`)
+    }
+    for (const skillId of skillIds) {
+      if (typeof skillId !== 'string' || !skillId.trim()) {
+        errors.push(`capability-scenario-skill-id:${scenarioId}`)
+        continue
+      }
+      const skill = skillById.get(skillId)
+      if (!skill) {
+        errors.push(`capability-scenario-skill-missing:${skillId}`)
+      } else if (skill.lifecycleState !== 'active') {
+        errors.push(`capability-scenario-skill-not-active:${skillId}`)
+      }
+    }
+
+    const scenarioText = [
+      scenario?.userProblem,
+      scenario?.userOutcome,
+      scenario?.skillFocus,
+      scenario?.workflowBoundary
+    ].filter(value => typeof value === 'string').join(' ')
+    if (/(?:全部|所有|全量).{0,8}(?:skill|技能).{0,8}(?:加载|生效)|all\s+skills?\s+(?:are\s+)?(?:loaded|active)/i.test(scenarioText)) {
+      errors.push(`capability-scenario-overclaim:${scenarioId}`)
+    }
+  }
+  return errors
+}
+
 function hostVariantsFor (hostId, compatibility, cursorVariants) {
   const match = compatibility.hosts.filter(item => {
     if (hostId === 'copilot') return item.hostId.startsWith('copilot-')
@@ -127,6 +193,7 @@ function validatePublicProductExpression (expression, workflow, portfolio) {
   if (expression?.autoEntry?.defaultShortcut !== '@rocky') errors.push('expression-auto-shortcut')
   if (expression?.autoEntry?.runtimeBehaviorChanged !== false) errors.push('expression-auto-runtime-drift')
   errors.push(...validateWorkflowPresentation(expression?.workflowPresentation, workflowIds(workflow)))
+  errors.push(...validateCapabilityScenarios(expression?.capabilityScenarios, portfolio))
   const summary = portfolio?.summary || {}
   if (summary.skillCount !== summary.activeSkillCount + summary.graySkillCount) errors.push('portfolio-lifecycle-count')
   if (summary.skillCount !== (portfolio?.skills || []).length) errors.push('portfolio-skill-count')
@@ -159,7 +226,8 @@ function buildProjectionMarkers (projection) {
     workflows: `<!-- devcodex-public:workflows primary=${projection.workflows.primary.join(',')} advanced=${projection.workflows.advanced.join(',')} -->`,
     skills: `<!-- devcodex-public:skills total=${projection.skills.total} active=${projection.skills.active} gray=${projection.skills.gray} bucket=${projection.skills.bucket} -->`,
     hosts: `<!-- devcodex-public:hosts ids=${projection.hosts.map(item => item.hostId).join(',')} variants=${hostVariantCount} -->`,
-    auto: `<!-- devcodex-public:auto canonical=${projection.expression.autoEntry.canonical} default=${projection.expression.autoEntry.defaultShortcut} profile-replacement=true empty-array-disables=true -->`
+    auto: `<!-- devcodex-public:auto canonical=${projection.expression.autoEntry.canonical} default=${projection.expression.autoEntry.defaultShortcut} profile-replacement=true empty-array-disables=true -->`,
+    capabilities: `<!-- devcodex-public:capabilities ids=${projection.capabilityScenarios.map(item => item.id).join(',')} -->`
   }
 }
 
@@ -194,6 +262,10 @@ function buildPublicProductProjection (options = {}) {
       gray: summary.graySkillCount,
       bucket: `${Math.floor(summary.skillCount / 10) * 10}+`
     },
+    capabilityScenarios: sources.expression.capabilityScenarios.map(scenario => ({
+      ...scenario,
+      representativeSkillIds: [...scenario.representativeSkillIds]
+    })),
     hosts: buildHostProjection(sources.expression),
     consumers: { ...sources.expression.consumers },
     endpoints: { ...sources.expression.endpointPolicy },
@@ -212,6 +284,7 @@ module.exports = {
   buildProjectionMarkers,
   buildPublicProductProjection,
   loadSources,
+  validateCapabilityScenarios,
   validatePublicProductExpression,
   validateWorkflowPresentation
 }

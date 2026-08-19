@@ -19,7 +19,62 @@
   "valuePropositions": [
     "按任务意图选择工作流、上下文与专业 Skill",
     "把需求、确认、实现、验证、报告和续接形成可追踪闭环",
-    "在六个 AI Coding 宿主间保持一致流程，同时诚实保留能力差异"
+    "在六个 AI Coding 宿主间保持一致流程，同时诚实保留能力差异",
+    "安装后获得按任务渐进加载的预置专业 Skill 组合，而不是从零手写每一套流程"
+  ],
+  "capabilityScenarios": [
+    {
+      "id": "turn-ambiguous-request-into-action",
+      "userProblem": "需求说得不完整，不知道该先分析、立项还是直接修改。",
+      "userOutcome": "先明确目标、边界、验收和下一步，再进入合适的工作流。",
+      "representativeSkillIds": [
+        "intent",
+        "dev-default",
+        "quality-strategy"
+      ],
+      "skillFocus": "意图识别、需求与验收、风险驱动验证",
+      "workflowBoundary": "具体路径由任务意图与风险决定；并非每次都加载全部 Skill。",
+      "nextHref": "/guide/common-tasks"
+    },
+    {
+      "id": "fix-with-regression-confidence",
+      "userProblem": "只知道报错，却不知道根因、同类路径和回归范围。",
+      "userOutcome": "获得复现、根因、同类检查和定向验证，而不止是一段解释。",
+      "representativeSkillIds": [
+        "fix-default",
+        "test-router",
+        "frontend-architecture"
+      ],
+      "skillFocus": "复现与根因、回归范围、用户路径验证",
+      "workflowBoundary": "代表 Skill 只在适用阶段加载；不承诺全量修复能力常驻。",
+      "nextHref": "/guide/common-tasks"
+    },
+    {
+      "id": "evolve-cross-domain-change",
+      "userProblem": "需求跨前端、业务和接口，宿主的通用提示难以划清责任边界。",
+      "userOutcome": "在适用时获得架构、接口和实现边界的专业路径。",
+      "representativeSkillIds": [
+        "frontend-architecture",
+        "backend-domain-architecture",
+        "api-contract-architecture"
+      ],
+      "skillFocus": "前端体验、业务领域、API 契约",
+      "workflowBoundary": "是否进入各专业路径取决于真实任务，不把目录展示当作已加载事实。",
+      "nextHref": "/workflows/"
+    },
+    {
+      "id": "deliver-with-evidence-and-handoff",
+      "userProblem": "交付前需要测试、排错、交接，下一会话却容易丢失上下文。",
+      "userOutcome": "让风险、验证、报告和续接状态都留下可查证据。",
+      "representativeSkillIds": [
+        "quality-strategy",
+        "production-readiness-sre",
+        "document-sync"
+      ],
+      "skillFocus": "质量策略、交付准备、文档同步",
+      "workflowBoundary": "不替代人工发布授权、宿主权限或既有 CI。",
+      "nextHref": "/concepts/evidence-and-completion"
+    }
   ],
   "mustNot": [
     "model-gateway",

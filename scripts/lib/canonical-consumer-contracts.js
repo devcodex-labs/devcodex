@@ -91,6 +91,8 @@ const PUBLIC_README_REQUIRED_MARKERS = Object.freeze([
 const PUBLIC_README_V2_REQUIRED_SECTIONS = Object.freeze([
   '# DevCodex — 意图驱动的 AI Coding 工作流运行时',
   '## 为什么需要 DevCodex？',
+  '## 安装后，你能解决什么？',
+  '## 什么时候直接使用宿主，什么时候用 DevCodex？',
   '## 5 分钟开始',
   '## 安装会改变什么',
   '## 工作流、Skill 与宿主边界',
@@ -259,6 +261,20 @@ function evaluatePublicReadmeContractV2 (content, options = {}) {
   for (const value of projection.expression.valuePropositions) {
     if (!text.includes(value)) addViolation(violations, 'README_VALUE_PROPOSITION_MISSING', 'README.md', value)
   }
+  for (const scenario of projection.capabilityScenarios) {
+    const evidence = [
+      scenario.userProblem,
+      scenario.userOutcome,
+      scenario.skillFocus,
+      scenario.workflowBoundary,
+      ...scenario.representativeSkillIds
+    ]
+    for (const value of evidence) {
+      if (!text.includes(value)) {
+        addViolation(violations, 'README_CAPABILITY_SCENARIO_MISSING', 'README.md', `${scenario.id}:${value}`)
+      }
+    }
+  }
   for (const forbidden of projection.expression.discoveryPolicy.forbiddenConcepts) {
     const publicMetadata = [
       readJsonIfPresent(path.join(root, 'package.json'))?.description,
@@ -298,6 +314,10 @@ function evaluatePublicReadmeContractV2 (content, options = {}) {
     },
     workflows: { ...projection.workflows },
     skills: { ...projection.skills },
+    capabilityScenarios: projection.capabilityScenarios.map(scenario => ({
+      id: scenario.id,
+      representativeSkillIds: [...scenario.representativeSkillIds]
+    })),
     hosts: projection.hosts.map(host => ({
       hostId: host.hostId,
       label: host.label,

@@ -6,6 +6,7 @@ const fs = require('fs')
 const path = require('path')
 const {
   buildPublicProductProjection,
+  validateCapabilityScenarios,
   validatePublicProductExpression,
   validateWorkflowPresentation
 } = require('./lib/public-product-expression')
@@ -21,10 +22,19 @@ const {
 
 const ROOT = path.resolve(__dirname, '..')
 const projection = buildPublicProductProjection({ root: ROOT })
+const sourceWorkflow = JSON.parse(fs.readFileSync(
+  path.join(ROOT, 'content', 'skills', 'routing', 'workflow-capabilities.json'),
+  'utf8'
+))
+const sourcePortfolio = JSON.parse(fs.readFileSync(
+  path.join(ROOT, 'content', 'skills', 'portfolio.json'),
+  'utf8'
+))
 const rootPackage = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const publicSitePackage = JSON.parse(fs.readFileSync(path.join(ROOT, 'public-site', 'package.json'), 'utf8'))
 const publicSiteConfig = fs.readFileSync(path.join(ROOT, 'public-site', 'rspress.config.ts'), 'utf8')
 const publicSiteHome = fs.readFileSync(path.join(ROOT, 'public-site', 'docs', 'index.md'), 'utf8')
+const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')
 const pagesWorkflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'pages.yml'), 'utf8')
 
 assert.strictEqual(projection.schemaVersion, 'PublicProductProjectionV1')
@@ -37,6 +47,11 @@ assert.strictEqual(projection.skills.total, 86)
 assert.strictEqual(projection.skills.active, 83)
 assert.strictEqual(projection.skills.gray, 3)
 assert.strictEqual(projection.skills.bucket, '80+')
+assert.strictEqual(projection.capabilityScenarios.length, 4)
+assert(projection.capabilityScenarios.every((scenario) =>
+  scenario.representativeSkillIds.length > 0 && scenario.nextHref.startsWith('/')
+))
+assert.deepStrictEqual(validateCapabilityScenarios(projection.capabilityScenarios, sourcePortfolio), [])
 assert.deepStrictEqual(projection.hosts.map(item => item.hostId), [
   'copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor'
 ])
@@ -53,8 +68,11 @@ for (const needle of [
   "outDir: 'doc_build'",
   'checkDeadLinks: true',
   'checkAnchors: true',
-  projection.consumers.siteTitle
+  projection.consumers.siteTitle,
+  "icon: '/favicon.png'",
+  "logoText: 'DevCodex'"
 ]) assert(publicSiteConfig.includes(needle), needle)
+assert(fs.existsSync(path.join(ROOT, 'public-site', 'docs', 'public', 'favicon.png')))
 for (const needle of [
   'pull_request:',
   'workflow_dispatch:',
@@ -75,12 +93,16 @@ const committed = JSON.parse(fs.readFileSync(
 assert.strictEqual(committed.schemaVersion, projection.schemaVersion)
 assert.deepStrictEqual(committed.workflows, projection.workflows)
 assert.deepStrictEqual(committed.skills, projection.skills)
+assert.deepStrictEqual(committed.capabilityScenarios, projection.capabilityScenarios)
 assert.deepStrictEqual(committed.markers, projection.markers)
 assert.deepStrictEqual(
   committed.hosts.map((item) => item.hostId),
   projection.hosts.map((item) => item.hostId)
 )
-for (const marker of Object.values(projection.markers)) assert(publicSiteHome.includes(marker), marker)
+for (const marker of Object.values(projection.markers)) {
+  assert(publicSiteHome.includes(marker), marker)
+  assert(readme.includes(marker), marker)
+}
 
 assert.deepStrictEqual(
   validateWorkflowPresentation({ primary: ['dev'], advanced: ['dev'] }, projection.workflows.canonical),
@@ -107,6 +129,16 @@ const invalidSkillSummary = {
 assert(validatePublicProductExpression(projection.expression, {
   workflows: projection.workflows.canonical.map(id => ({ id }))
 }, invalidSkillSummary).includes('portfolio-lifecycle-count'))
+
+const invalidGraySkill = JSON.parse(JSON.stringify(projection.expression))
+invalidGraySkill.capabilityScenarios[0].representativeSkillIds = ['brand-visual-quality']
+assert(validatePublicProductExpression(invalidGraySkill, sourceWorkflow, sourcePortfolio)
+  .includes('capability-scenario-skill-not-active:brand-visual-quality'))
+
+const invalidOverclaim = JSON.parse(JSON.stringify(projection.expression))
+invalidOverclaim.capabilityScenarios[0].workflowBoundary = '全部 Skill 已加载并生效'
+assert(validatePublicProductExpression(invalidOverclaim, sourceWorkflow, sourcePortfolio)
+  .includes('capability-scenario-overclaim:turn-ambiguous-request-into-action'))
 
 const missingHost = JSON.parse(JSON.stringify(projection.expression))
 delete missingHost.hostPresentation.cursor
@@ -143,6 +175,13 @@ const syntheticReadme = [
   ...PUBLIC_README_V2_REQUIRED_PHRASES,
   projection.expression.technicalDefinition.zh,
   ...projection.expression.valuePropositions,
+  ...projection.capabilityScenarios.flatMap(scenario => [
+    scenario.userProblem,
+    scenario.userOutcome,
+    scenario.skillFocus,
+    scenario.workflowBoundary,
+    ...scenario.representativeSkillIds
+  ]),
   ...Object.values(projection.markers),
   ...projection.workflows.canonical.map(id => `\`${id}\``),
   ...projection.hosts.flatMap(host => [host.label, host.recommendedEntry, host.publicStatus]),
@@ -159,6 +198,9 @@ assert.strictEqual(v2.valid, true)
 assert.strictEqual(v2.migrationSafety.legacyContractRetained, true)
 assert.strictEqual(v2.endpoint.result, 'UNVERIFIED')
 assert(v2.consumers.parity.every(item => item.status === 'PASS' || item.status === 'N/A'))
+
+const currentReadme = evaluatePublicReadmeContractV2(readme, { root: ROOT, projection })
+assert.strictEqual(currentReadme.valid, true, JSON.stringify(currentReadme.violations))
 
 const migrationReady = evaluatePublicReadmeContractV2(syntheticReadme, {
   root: ROOT,

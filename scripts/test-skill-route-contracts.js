@@ -809,7 +809,7 @@ try {
   )
   assert.strictEqual(
     grokAlias.hostEligibility,
-    'PASS',
+    'UNVERIFIED',
     JSON.stringify(grokAlias, null, 2)
   )
   const grokPortableEvidence = JSON.parse(fs.readFileSync(

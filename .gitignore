@@ -11,6 +11,7 @@ coverage/
 *.log
 .env
 .env.local
+/.playwright-cli/
 
 # Maintainer docs site (Rspress) — NOT in public git / NOT in npm pack.
 # Keep a local copy for maintainers; public users use README only.

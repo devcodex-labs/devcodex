@@ -80,6 +80,12 @@ status/current/month/day byte-range 分区。该索引不是记忆真相源：
 - 遇到 `MEMORY_TRANSACTION_LOCKED` 时，当前写入方必须重读 `memory_status` / `memory_summary_query` 后重试或降级为阻塞说明，禁止忽略锁继续手工写同一文件。
 - MCP **能力不可用**时才可使用宿主增量编辑 fallback：必须以高熵唯一 sessionId 在一次增量编辑中追加“新会话标题 + 本次完整正文”，禁止向任何既有会话段追加；写前后核对 daily 与 SUMMARY digest，检测到并发变化则重读后换新 ID 重试一次，仍冲突即阻塞，并在报告/记忆标记 `memoryWriter=fallback`。MCP 已返回 binding/target/layout/lock 错误不属于“能力不可用”，禁止绕过 Tool 改用手工写同一 daily 文件。
 
+### ArtifactLinkProjectionGate
+
+- 新增本地 Markdown 关联前，先调用 `memory_artifact_link_project(operation: "project", documentPath, artifacts, linkCapability)`。`documentPath` 与每个 `targetPath` 必须相对 active-root；目标必须是 canonical/reparse containment 校验通过的现存普通文件。`ArtifactLinkProjectionSetV1` 按 canonical path 去重，以目标文档目录为基准生成 `/` 分隔相对 href，空格使用 Markdown angle destination；禁止 `file://`、绝对路径 fallback 与越界链接。
+- 推荐写入面直接传结构化字段：daily 使用 `memory_session_write.artifacts[]`，Agent SUMMARY 使用 `memory_summary_append.reportArtifact/memoryArtifact`，CP 继续传 digest-bound `artifactPath`。writer 必须返回投影及 `validate-existing` readback；SUMMARY 第 5/6 列和 CP `artifactPath` 单元格由 writer 生成，不能由调用方拼接不受校验的链接。
+- 宿主增量编辑 fallback 也必须遵守“先 project、后 write、再 validate-existing”。legacy raw content/row 可继续写，但其中新增的本地 Markdown 链接必须从当前 document 解析且指向 active-root 内现存目标；broken link、`file://`、绝对/越界/reparse 链接零写入失败。历史 active-root 链接只能先产出有界预览，未经单独确认禁止批量改写。
+
 ### MemoryCannotSatisfyBootstrapGate
 
 宿主或产品内置的 Memories、模型长期偏好、对话摘要、ContextHandoffCard 或 SUMMARY 都不能替代当前文件真相源读取：
@@ -130,7 +136,7 @@ mismatch 错误含 nextStep：改完 rehash 再 confirm。Grok 状态条因此�
 - 🔴 **禁止询问用户"是否需要写入记忆"**（[C05/S05](../../instructions/00-safety.instructions.md) 自动写入）
 - 追加段落时优先使用 `memory_session_allocate` + `memory_session_write` 事务写入；MCP 不可用时才使用增量编辑 fallback，禁止覆盖已有内容（[C06/S04](../../instructions/00-safety.instructions.md)）
 - 禁止使用 `Set-Content` 等命令修改 .md 文件（[C09](../../instructions/01-common.instructions.md)）
-- 写入报告路径、ContextHandoffCard 或 artifact-links 前执行 `ArtifactLinkSetDedupeGate`：同一物理文件按 canonical path 只保留一个主引用。session、daily、SUMMARY、task state 和 checkpoint 必须进入 `ArtifactDeliveryManifestV1`，但默认 `internal-only`；只有 resume/handoff、状态冲突、写入失败、审计取证或用户明确要求时进入 `UserFacingArtifactSetV1`。
+- 写入报告路径、ContextHandoffCard 或 artifact-links 前执行 `ArtifactLinkSetDedupeGate`：同一物理文件按 canonical path 只保留一个主引用，并按 `ArtifactLinkProjectionGate` 完成写前 project 与写后 validate-existing。session、daily、SUMMARY、task state 和 checkpoint 必须进入 `ArtifactDeliveryManifestV1`，但默认 `internal-only`；只有 resume/handoff、状态冲突、写入失败、审计取证或用户明确要求时进入 `UserFacingArtifactSetV1`。
 - 需求修订、再次复审、宣布“可确认 / 暂不通过 / 已修订待复审”或从修复清单回写真相源时，记忆写入必须配合 `RequirementVerdictStateSyncGate`：daily tasks、需求级 sessions 和 SUMMARY 的状态口径不得与需求真相源顶部状态、推荐结论、修复清单或 audit-state decision 冲突。
 
 ## 新会话 🔄 检测
@@ -204,7 +210,7 @@ mismatch 错误含 nextStep：改完 rehash 再 confirm。Grok 状态条因此�
 - 多任务会话：一行覆盖全部任务，不拆多行
 - 排序：按时间正序追加（最新在最后）
 - 状态折叠：同一“日期 + 会话”允许有多个 append-only 状态事件；最后一行是当前状态，早期行是历史，不得让 stale-index fallback 重新暴露已完成的旧 `🔄`；合法的前向转移不报冲突，completed 后的状态回退必须报冲突
-- 关联报告与关联记忆按 `ArtifactLinkSetDedupeGate` 只写当前主报告 / 主记忆索引；同一物理文件用 canonical path 归并。内部索引不因用户面默认隐藏而停止写入或从 ECR 排除。
+- 关联报告与关联记忆按 `ArtifactLinkSetDedupeGate` 只写当前主报告 / 主记忆索引；同一物理文件用 canonical path 归并，并优先通过 `memory_summary_append.reportArtifact/memoryArtifact` 生成相对链接与回读 receipt。内部索引不因用户面默认隐藏而停止写入或从 ECR 排除。
 
 > 🔴 **SUMMARY 纯索引约束**：SUMMARY 仅包含表头 + 会话索引行，**禁止添加任何自由文本段落**（如"当前状态""关键决策""待处理事项"等非索引内容）。🔄 状态标记仅出现在索引表的「状态」列，不得出现在表外文本中。已有旧格式 SUMMARY 应在下次写入时迁移（移除非索引段落，内容转入 daily file 或 profile）。
 

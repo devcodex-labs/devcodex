@@ -59,7 +59,9 @@ function fixtureManifest(nodes) {
     description: 'fixture',
     consumerGraphComplete: true,
     criticalInputs: ['scripts/validation-manifest.json'],
+    iterativeEscalationInputs: ['scripts/validation-manifest.json'],
     invariantNodes: [ids[0]],
+    iterativeInvariantNodes: [ids[0]],
     routes: {
       fast: { nodes: ids },
       full: { nodes: ids },
@@ -93,6 +95,22 @@ function run() {
     assert.ok(manifest.criticalInputs.includes('content/**'))
     assert.ok(manifest.criticalInputs.includes('hooks/_runtime/evidence/*.json'))
     assert.ok(!manifest.criticalInputs.includes('content-source/**'))
+    assert.deepStrictEqual(manifest.iterativeInvariantNodes, ['validation-dag'])
+    assert.ok(manifest.iterativeEscalationInputs.includes('scripts/lib/validation-dag.js'))
+    assert.ok(!manifest.iterativeEscalationInputs.includes('content/**'))
+    assert.deepStrictEqual(manifest.semanticInputs.packageJson.publicMetadataNodes, [
+      'public-product-expression',
+      'release-metadata'
+    ])
+    const expectedPortfolioConsumerInputs = ['**/*.md', '**/*.js', '**/*.cjs', '**/*.json', '**/*.ts', '**/*.yml', '**/*.yaml']
+    for (const portfolioNodeId of ['skill-portfolio', 'skill-portfolio-current']) {
+      const skillPortfolioInputs = manifest.nodes.find(node => node.id === portfolioNodeId).inputs
+      assert.ok(skillPortfolioInputs.includes('content/skills/**'))
+      assert.ok(skillPortfolioInputs.includes('plugin.json'))
+      for (const input of expectedPortfolioConsumerInputs) {
+        assert.ok(skillPortfolioInputs.includes(input), `${portfolioNodeId} must track ${input}`)
+      }
+    }
     const packageReleaseNodes = new Set(manifest.routes['package-release'].nodes)
     for (const required of [
       'cli-behavior',
@@ -157,6 +175,8 @@ function run() {
       candidateId: 'fixture-full'
     })
     assert.strictEqual(fullPlan.selectedNodeCount, manifest.routes.full.nodes.length)
+    assert.strictEqual(fullPlan.validationLayer, 'qualification')
+    assert.strictEqual(fullPlan.budget.selectionRatio, 1)
     assert.strictEqual(fullPlan.duplicateLeafCount, 0)
     assert.strictEqual(fullPlan.requiredNodeMisses, 0)
     assert.match(fullPlan.impactGraphDigest, /^[a-f0-9]{64}$/)
@@ -303,13 +323,9 @@ function run() {
       candidateStable: true,
       candidateId: 'fixture-context'
     })
-    assert.strictEqual(contextChanged.routeResolved, 'changed')
-    for (const required of ['content-identity', 'task-continuation', 'context-read', 'project-knowledge-store', 'mcp-servers', 'hooks-runtime']) {
-      assert(contextChanged.selectedNodes.some(node => node.id === required), 'changed closure missing ' + required)
-    }
-    for (const invariant of manifest.invariantNodes) {
-      assert(contextChanged.selectedNodes.some(node => node.id === invariant), 'invariant missing ' + invariant)
-    }
+    assert.strictEqual(contextChanged.routeResolved, 'full')
+    assert.strictEqual(contextChanged.validationLayer, 'qualification')
+    assert.strictEqual(contextChanged.fullFallback, 'validation-control-plane-changed')
 
     const profileSelectorChanged = planValidation({
       manifest,
@@ -393,6 +409,38 @@ function run() {
     assert.strictEqual(critical.routeResolved, 'full')
     assert.strictEqual(critical.fullFallback, 'validation-control-plane-changed')
 
+    const publicMetadata = planValidation({
+      manifest,
+      route: 'changed',
+      changedFiles: ['package.json'],
+      changeDescriptors: [{ path: 'package.json', fields: ['description', 'keywords'] }],
+      changedSource: 'explicit',
+      riskClass: 'normal',
+      candidateStable: true,
+      candidateId: 'fixture-public-metadata'
+    })
+    assert.strictEqual(publicMetadata.routeResolved, 'changed')
+    assert.strictEqual(publicMetadata.validationLayer, 'iterative')
+    assert.deepStrictEqual(publicMetadata.changeDescriptors[0].fields, ['description', 'keywords'])
+    for (const required of ['public-product-expression', 'release-metadata', 'validation-dag']) {
+      assert(publicMetadata.selectedNodes.some(node => node.id === required), `public metadata closure missing ${required}`)
+    }
+    assert.ok(publicMetadata.budget.selectionRatio < 0.8)
+    assert.ok(Object.values(publicMetadata.selectionReasons).every(reasons => reasons.length > 0))
+
+    const packageControl = planValidation({
+      manifest,
+      route: 'changed',
+      changedFiles: ['package.json'],
+      changeDescriptors: [{ path: 'package.json', fields: ['version'] }],
+      changedSource: 'explicit',
+      riskClass: 'normal',
+      candidateStable: true,
+      candidateId: 'fixture-package-control'
+    })
+    assert.strictEqual(packageControl.routeResolved, 'full')
+    assert.strictEqual(packageControl.changeDescriptors[0].semanticClass, 'package-control')
+
     const highRisk = planValidation({
       manifest,
       route: 'changed',
@@ -458,9 +506,14 @@ function run() {
       candidateId: 'fixture-clean'
     })
     assert.strictEqual(clean.routeResolved, 'changed')
-    for (const invariant of manifest.invariantNodes) {
+    assert.strictEqual(clean.validationLayer, 'iterative')
+    for (const invariant of manifest.iterativeInvariantNodes) {
       assert(clean.selectedNodes.some(node => node.id === invariant))
     }
+    for (const invariant of manifest.invariantNodes.filter(id => !manifest.iterativeInvariantNodes.includes(id))) {
+      assert(!clean.selectedNodes.some(node => node.id === invariant), `qualification invariant leaked into clean changed plan: ${invariant}`)
+    }
+    assert.deepStrictEqual(clean.delegatedParentIds, clean.nestedParentIds)
 
     const firstCandidate = buildCandidateIdentity({ repoRoot: ROOT })
     const secondCandidate = buildCandidateIdentity({ repoRoot: ROOT })
@@ -507,6 +560,11 @@ function run() {
     assert.match(firstRun.receipt.delegatedClosureDigest, /^[a-f0-9]{64}$/)
     assert.match(firstRun.receipt.testRouteDigest, /^[a-f0-9]{64}$/)
     assert.strictEqual(firstRun.receipt.executionMode, 'orchestrated-serial-lock-aware')
+    assert.strictEqual(firstRun.receipt.validationLayer, 'qualification')
+    assert.deepStrictEqual(firstRun.receipt.budget, cachedPlan.budget)
+    assert.deepStrictEqual(firstRun.receipt.delegatedParentIds, cachedPlan.delegatedParentIds)
+    assert.ok(firstRun.receipt.stdoutBytes >= 2)
+    assert.strictEqual(firstRun.receipt.stderrBytes, 0)
     assert.match(firstRun.receipt.executionSchedule.scheduleDigest, /^[a-f0-9]{64}$/)
     assert.match(firstRun.receipt.nestedCommandGraphDigest || '', /^[a-f0-9]{64}$|^$/)
     assert.strictEqual(firstRun.receipt.contextBindingTrace.status, 'unverified')
@@ -877,7 +935,11 @@ function run() {
 
     console.log(`validation DAG tests passed: manifestNodes=${manifest.nodes.length} fullNodes=${fullPlan.selectedNodeCount} duplicateLeaf=0 requiredMiss=0 graphFallback=closed cacheTamper/invariant/unstable=closed nativeExit=0/1/2`)
   } finally {
-    fs.rmSync(tempRoot, { recursive: true, force: true })
+    if (process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1') {
+      console.log(`kept validation DAG fixture: ${tempRoot}`)
+    } else {
+      fs.rmSync(tempRoot, { recursive: true, force: true })
+    }
   }
 }
 

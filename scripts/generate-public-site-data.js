@@ -15,6 +15,9 @@ const README_SKILL_RE = /当前机器事实为 \*\*\d+ 个 Skill（\d+ active \+
 const README_CAPABILITY_START = '<!-- devcodex-public:capability-scenarios:start -->'
 const README_CAPABILITY_END = '<!-- devcodex-public:capability-scenarios:end -->'
 const README_CAPABILITY_BLOCK_RE = /<!-- devcodex-public:capability-scenarios:start -->[\s\S]*?<!-- devcodex-public:capability-scenarios:end -->/
+const README_SKILL_CATEGORIES_START = '<!-- devcodex-public:skill-categories:start -->'
+const README_SKILL_CATEGORIES_END = '<!-- devcodex-public:skill-categories:end -->'
+const README_SKILL_CATEGORIES_BLOCK_RE = /<!-- devcodex-public:skill-categories:start -->[\s\S]*?<!-- devcodex-public:skill-categories:end -->/
 
 function replaceMarkers (text, markers, label) {
   let out = text
@@ -66,6 +69,33 @@ function replaceReadmeCapabilityBlock (text, scenarios) {
   )
 }
 
+function formatReadmeSkillCategories (skills) {
+  const lines = [
+    '| Bundled 分类 | 数量 | 代表 active Skill |',
+    '|---|---:|---|'
+  ]
+  for (const category of skills.categories) {
+    const href = `https://devcodex-labs.github.io/devcodex/reference/skills?category=${category.id}`
+    const representatives = category.representativeSkills.map(skill => `\`${skill.id}\``).join('、')
+    lines.push(`| [${category.label}](${href}) | ${category.count} | ${representatives} |`)
+  }
+  lines.push(
+    '',
+    'Workspace Skill 是项目级扩展（`extensionSource=workspace`），不进入 bundled assignments，也不进入 86/83/3 分母。'
+  )
+  return lines.join('\n')
+}
+
+function replaceReadmeSkillCategoryBlock (text, skills) {
+  if (!README_SKILL_CATEGORIES_BLOCK_RE.test(text)) {
+    throw new Error('README missing skill-categories marker block')
+  }
+  return text.replace(
+    README_SKILL_CATEGORIES_BLOCK_RE,
+    `${README_SKILL_CATEGORIES_START}\n${formatReadmeSkillCategories(skills)}\n${README_SKILL_CATEGORIES_END}`
+  )
+}
+
 function writeProjection (projection) {
   const payload = {
     schemaVersion: projection.schemaVersion,
@@ -93,10 +123,13 @@ function main () {
   const projection = buildPublicProductProjection({ root: ROOT })
   writeProjection(projection)
 
-  const readme = replaceReadmeSkillSentence(
-    replaceReadmeCapabilityBlock(
-      replaceMarkers(fs.readFileSync(README_FILE, 'utf8'), projection.markers, 'README.md'),
-      projection.capabilityScenarios
+  const readme = replaceReadmeSkillCategoryBlock(
+    replaceReadmeSkillSentence(
+      replaceReadmeCapabilityBlock(
+        replaceMarkers(fs.readFileSync(README_FILE, 'utf8'), projection.markers, 'README.md'),
+        projection.capabilityScenarios
+      ),
+      projection.skills
     ),
     projection.skills
   )
@@ -118,8 +151,10 @@ if (require.main === module) main()
 
 module.exports = {
   formatReadmeCapabilityScenarios,
+  formatReadmeSkillCategories,
   replaceMarkers,
   replaceReadmeCapabilityBlock,
+  replaceReadmeSkillCategoryBlock,
   replaceReadmeSkillSentence,
   writeProjection
 }

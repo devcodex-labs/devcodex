@@ -500,6 +500,11 @@ function linkCapabilityIntegrityErrors(capability) {
   return errors
 }
 
+function validateLinkCapabilityDecision(capability) {
+  const errors = linkCapabilityIntegrityErrors(capability)
+  return { valid: errors.length === 0, errors }
+}
+
 function deriveStatus(checks) {
   if (!checks.length) return 'N/A'
   return checks.slice().sort((left, right) => STATUS_SEVERITY.get(right.status) - STATUS_SEVERITY.get(left.status))[0].status
@@ -1076,6 +1081,7 @@ module.exports = {
   createArtifactAnchor,
   createArtifactDeliveryManifest,
   createLinkCapabilityDecision,
+  validateLinkCapabilityDecision,
   createVisibleEnvelope,
   analyzeFinalValidationSummarySample,
   analyzeDialogueNarrativeSample,

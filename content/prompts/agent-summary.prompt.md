@@ -30,6 +30,7 @@ applyTo: .devcodex/**/.memory/**
   - **禁止** `/` 拼接（`fix/dev`、`audit/ECR`）、自由标签（`ops`、`ledger`、`release`、`governance-record`）与状态符号（`✅`）
   - 映射提示：审查/复审/走查 → `audit`；结论/根因/清单 → `analyze`；SC15 ECR / 实施闭环 → `dev` 或 `self-fix`（不是 audit）；运维命令 → `other` 或并入主工作流
   - MCP `memory_summary_append` 会硬校验；非法类型写入失败
+- **关联报告 / 关联记忆**：优先传 `reportArtifact` / `memoryArtifact`，由 writer 生成相对 SUMMARY document 的链接并执行 `validate-existing` readback；legacy row 仍可用，但 broken local Markdown、`file://`、绝对/越界链接拒写。
 - **摘要**：一行 50~100 字，包含做了什么 + 关键数字/结果
 - **多任务会话**：一行覆盖全部任务，不拆多行
 - **排序**：按时间正序追加（最新在最后）

@@ -54,7 +54,8 @@ const { observeWorkflowCompletionEvent } = require('./lifecycle-workflow-complet
 const {
   collectWorkspaceProjectNamespaces,
   findLayoutInfo,
-  inferProjectFromCwd,
+  PROJECT_ROOT_MARKERS,
+  resolveHostWorkspaceBinding,
   resolveWorkspaceProjectTarget
 } = require('./workspace-layout.cjs')
 const {
@@ -195,7 +196,13 @@ const LAYOUT = findLayoutInfo(CONTEXT_ROOT)
 const WORKSPACE_ROOT = LAYOUT.workspaceRoot
 
 function inferContextProject() {
-  return inferProjectFromCwd(CONTEXT_ROOT, LAYOUT)
+  const binding = resolveHostWorkspaceBinding({
+    cwd: CONTEXT_ROOT,
+    layout: LAYOUT,
+    capability: process.env.DEVCODEX_HOST_WORKSPACE_CAPABILITY || 'physical',
+    allowUniqueProject: false
+  })
+  return binding.status === 'resolved' ? binding.projectNamespace : ''
 }
 
 const CONTEXT_PROJECT = inferContextProject()
@@ -403,6 +410,7 @@ const {
   STICKY_PROJECT_TTL_MS,
   EXECUTION_MODE,
   MULTI_PROJECT_EXEMPTION_KEYWORDS,
+  PROJECT_ROOT_MARKERS,
   collectWorkspaceProjectNamespaces,
   resolveWorkspaceProjectTarget,
   escapeRegExp,
@@ -527,6 +535,7 @@ const {
   getToolInputStrings,
   getCommandText,
   getPayloadSessionKey,
+  setStickyProject,
   getRecentBootstrapTaskStamps,
   isRecentBootstrapTaskPath,
   buildInterceptionOutput,
@@ -2022,6 +2031,7 @@ async function main() {
       if (routeCoordination?.required && [
         'route-control',
         'plan',
+        'plan-refresh',
         'profile-load',
         'memory-query'
       ].includes(observedKind)) {

@@ -71,6 +71,7 @@ function assertSafeTarget (relative) {
   const value = portable(relative)
   const safe = value === 'instructions.md' ||
     value === 'skills/portfolio.json' ||
+    value === 'skills/public-taxonomy.json' ||
     /^instructions\/[^/].+$/.test(value) ||
     /^prompts\/[^/].*\.md$/.test(value) ||
     /^skills\/(?:_schemas\/[^/].+|[^/]+\/[^/].*)$/.test(value)

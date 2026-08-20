@@ -8,12 +8,16 @@ const os = require('os')
 const path = require('path')
 const { scanGeneratedSite } = require('./check-generated-site-links')
 const { main: checkGeneratedSiteLinksIfPresent } = require('./check-generated-site-links-if-present')
-const { main: runWebsiteBuildIfPresent } = require('./run-website-build-if-present')
+const {
+  WEBSITE_COMMAND_TIMEOUT_MS,
+  main: runWebsiteBuildIfPresent
+} = require('./run-website-build-if-present')
 
 const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-generated-links-'))
 const cleanRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-generated-links-clean-'))
 
 try {
+  assert.strictEqual(WEBSITE_COMMAND_TIMEOUT_MS, 600000)
   fs.mkdirSync(path.join(rootDir, 'guide'), { recursive: true })
   fs.mkdirSync(path.join(rootDir, 'static'), { recursive: true })
   fs.writeFileSync(path.join(rootDir, 'guide', 'index.html'), '<p>guide</p>')

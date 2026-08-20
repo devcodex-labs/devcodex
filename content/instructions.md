@@ -126,9 +126,9 @@
   - `config.json`：`<工作区根>/.devcodex/workspace/profile/` 作为 base，`<工作区根>/.devcodex/<project>/profile/` 作为 overlay；Auto 精确别名全局默认 `@rocky`，可用 `extensions.devcodex.autoAliases` 替换全局默认别名（省略表示沿用默认，空数组表示关闭默认别名），也可在 `extensions.devcodex.concurrency` 配置 `ConcurrencyPolicy`
   - `config.local.json`：与 `config.json` 使用相同的 `workspace base + project overlay` 路径模型，可作为用户 / 项目指定的本地 overlay（长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>`）；不得覆盖 `mode` / `agent` / `pluginVersion`
   - 连接配置来源遵循 S02：默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json` 时，脚本、测试、数据库 / SSH / MongoDB / 数据操作才从当前 Profile 路径模型下的 `config.local.json` 读取，缺失文件或字段时提醒补齐
-  - Profile 文档：项目命名空间文件优先，缺失回退到 `workspace/profile/`
+  - Profile 文档：已存在项目 Profile 根时，项目命名空间文件优先，单个文件缺失可回退到 `workspace/profile/`；物理项目存在但整个项目 Profile 根缺失时返回 `PROFILE_MISSING`，不得以 workspace base 冒充项目 Profile 成功
   - 运行态目录：单项目写 `<工作区根>/.devcodex/<project>/...`，全工作区写 `<工作区根>/.devcodex/workspace/...`
-- workspace-namespace 下缺少 workspace profile 的多项目提示必须指向 `.devcodex/workspace/profile/`；同一宿主会话已识别唯一目标项目时，后续“继续 / 确认”等消息可在短 TTL 内沿用 sticky `activeProject` 与项目 `mode`，但新会话、TTL 过期、命中多个项目或用户显式选择 workspace 时必须重新判断。
+- workspace-namespace 下缺少 workspace profile 的多项目提示必须指向 `.devcodex/workspace/profile/`；已由物理 marker、layout identity 与 allowlist 复证的唯一项目可在短 TTL 内沿用 `ProjectTargetLeaseV1`，host session 仅作审计，session rotation/compact 不单独撤销租约；TTL 过期、marker/layout 漂移、歧义、显式目标冲突或用户选择 workspace 时必须立即重新判断。
 - 未启用 `layout.json` 时，继续兼容 `<项目根>/.devcodex/...`
 
 | 文件 | 说明 | 必须 |
@@ -598,6 +598,8 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 | 📨 对话记录 | 四列表格：`轮次 \| 👤 用户消息 \| 🤖 AI执行 \| 状态` |
 
 命中 HostCapabilityRoutingGate 时，daily tasks、需求级 memory、report 与 handoff 只保存同一个 `instructionRefId` / `decisionId` 及 bounded projection；禁止复制完整用户原文或 catalog row。confirm/compact/resume 前后若只有 compat/none authority，自动 mutation 必须停止并回绑 digest-bound CP/task artifact 或请求重述。
+
+新增本地关联链接必须走 `ArtifactLinkProjectionGate`：写前调用 `memory_artifact_link_project(operation: "project")`，写后用同一 document/artifacts/capability 执行 `validate-existing`。daily 的 `artifacts[]`、SUMMARY 的 `reportArtifact/memoryArtifact` 和 digest-bound CP confirmation 由 Memory writer 生成 document-relative Markdown 并返回 readback；按 canonical path 去重，含空格 href 使用 angle destination，broken/absolute/`file://`/越界/reparse 链接拒写。历史链接未经单独确认只预览、不批量改写。
 
 ### SUMMARY 文件
 

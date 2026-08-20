@@ -3,6 +3,48 @@
   "contractVersion": "1",
   "description": "Canonical serial validation graph for DevCodex source, package and deployment consumers.",
   "consumerGraphComplete": true,
+  "iterativeEscalationInputs": [
+    "package.json",
+    "scripts/validation-manifest.json",
+    "scripts/run-validation.js",
+    "scripts/lib/validation-dag.js",
+    "scripts/lib/validation-orchestration.js",
+    "scripts/lib/checked-command.js",
+    "hooks/_runtime/content-identity.cjs"
+  ],
+  "semanticInputs": {
+    "packageJson": {
+      "controlFields": [
+        "version",
+        "engines",
+        "scripts",
+        "files",
+        "bin",
+        "exports",
+        "main",
+        "type",
+        "dependencies",
+        "devDependencies",
+        "optionalDependencies",
+        "peerDependencies",
+        "packageManager"
+      ],
+      "publicMetadataFields": [
+        "description",
+        "keywords",
+        "homepage",
+        "repository",
+        "bugs",
+        "author",
+        "license",
+        "funding"
+      ],
+      "publicMetadataNodes": [
+        "public-product-expression",
+        "release-metadata"
+      ]
+    }
+  },
   "criticalInputs": [
     ".github/workflows/**",
     "package.json",
@@ -26,6 +68,7 @@
     "hooks/_runtime/stdio-bounds.cjs",
     "mcp/stdio-jsonrpc.cjs",
     "mcp/memory-server.js",
+    "mcp/artifact-link-projection.cjs",
     "mcp/memory-file-transaction.cjs",
     "scripts/test-v1178-batch-d.js",
     "mcp/profile-server.js",
@@ -35,8 +78,10 @@
     "scripts/check-critical-risk-coverage.js",
     "public-product-expression.json",
     "scripts/lib/public-product-expression.js",
+    "scripts/lib/public-skill-taxonomy.js",
     "scripts/lib/public-endpoint-identity.js",
     "scripts/test-public-product-expression.js",
+    "scripts/test-public-skill-taxonomy.js",
     "scripts/lib/security-audit-runner.js",
     "scripts/test-security-audit-runner.js",
     "scripts/lib/always-on-governance.js",
@@ -130,6 +175,9 @@
     "pack-clean",
     "syntax"
   ],
+  "iterativeInvariantNodes": [
+    "validation-dag"
+  ],
   "routes": {
     "fast": {
       "nodes": [
@@ -140,6 +188,7 @@
         "critical-risk-coverage",
         "security-audit-runner",
         "skill-sidecar-contract",
+        "public-skill-taxonomy",
         "skill-resolve",
         "skill-resolution-hook-paths",
         "skill-portfolio",
@@ -229,6 +278,7 @@
         "critical-risk-coverage",
         "security-audit-runner",
         "skill-sidecar-contract",
+        "public-skill-taxonomy",
         "skill-resolve",
         "skill-resolution-hook-paths",
         "skill-portfolio",
@@ -315,6 +365,7 @@
         "syntax",
         "generated-site-precheck",
         "website-build",
+        "public-skill-catalog-build",
         "generated-site-postcheck",
         "docs-surface-inventory",
         "process-enforcement-e2e"
@@ -421,8 +472,11 @@
         "syntax",
         "generated-site-precheck",
         "website-build",
+        "public-skill-catalog-build",
         "generated-site-postcheck",
         "skill-sidecar-contract",
+        "public-skill-taxonomy",
+        "skill-portfolio-current",
         "skill-resolve",
         "skill-resolution-hook-paths",
         "skill-intents",
@@ -947,6 +1001,53 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "public-skill-taxonomy",
+      "owner": "skill-lifecycle",
+      "command": "node",
+      "args": [
+        "scripts/test-public-skill-taxonomy.js"
+      ],
+      "dependencies": [
+        "skill-sidecar-contract"
+      ],
+      "inputs": [
+        "content/skills/public-taxonomy.json",
+        "content/skills/portfolio.json",
+        "plugin.json",
+        "scripts/lib/public-skill-taxonomy.js",
+        "scripts/lib/skill-portfolio-utils.js",
+        "scripts/lib/public-product-expression.js",
+        "scripts/test-public-skill-taxonomy.js"
+      ],
+      "consumers": [
+        "skill-portfolio",
+        "skill-portfolio-current",
+        "public-product-expression"
+      ],
+      "invariants": [
+        "exact-registered-coverage",
+        "single-public-category",
+        "workspace-extension-excluded",
+        "deterministic"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "PublicSkillTaxonomyV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "skill-portfolio",
       "owner": "skill-lifecycle",
       "command": "node",
@@ -954,10 +1055,10 @@
         "scripts/test-skill-portfolio.js"
       ],
       "dependencies": [
-        "skill-sidecar-contract"
+        "skill-sidecar-contract",
+        "public-skill-taxonomy"
       ],
       "inputs": [
-        "skills/**",
         "**/*.md",
         "**/*.js",
         "**/*.cjs",
@@ -965,7 +1066,10 @@
         "**/*.ts",
         "**/*.yml",
         "**/*.yaml",
+        "content/skills/**",
+        "plugin.json",
         "scripts/lib/skill-portfolio-utils.js",
+        "scripts/lib/public-skill-taxonomy.js",
         "scripts/lib/skill-sidecar-contract.js",
         "scripts/test-skill-portfolio.js",
         "scripts/generate-skill-portfolio.js"
@@ -1003,10 +1107,10 @@
         "--check"
       ],
       "dependencies": [
-        "skill-sidecar-contract"
+        "skill-sidecar-contract",
+        "public-skill-taxonomy"
       ],
       "inputs": [
-        "skills/**",
         "**/*.md",
         "**/*.js",
         "**/*.cjs",
@@ -1014,7 +1118,10 @@
         "**/*.ts",
         "**/*.yml",
         "**/*.yaml",
+        "content/skills/**",
+        "plugin.json",
         "scripts/lib/skill-portfolio-utils.js",
+        "scripts/lib/public-skill-taxonomy.js",
         "scripts/lib/skill-sidecar-contract.js",
         "scripts/generate-skill-portfolio.js"
       ],
@@ -3069,13 +3176,17 @@
       ],
       "dependencies": [
         "workflow-capabilities",
-        "always-on-governance"
+        "always-on-governance",
+        "public-skill-taxonomy",
+        "skill-portfolio-current"
       ],
       "inputs": [
         "public-product-expression.json",
         "skills/routing/workflow-capabilities.json",
         "skills/portfolio.json",
+        "skills/public-taxonomy.json",
         "scripts/lib/public-product-expression.js",
+        "scripts/lib/public-skill-taxonomy.js",
         "scripts/lib/public-endpoint-identity.js",
         "scripts/lib/canonical-consumer-contracts.js",
         "scripts/lib/host-surface-descriptors.js",
@@ -3083,6 +3194,7 @@
         "scripts/lib/always-on-governance.js",
         "scripts/lib/global-host-runtime-verifier.js",
         "scripts/test-public-product-expression.js",
+        "scripts/test-public-skill-taxonomy.js",
         "scripts/fixtures/public-product-expression/**"
       ],
       "consumers": [
@@ -3630,6 +3742,7 @@
       ],
       "inputs": [
         "mcp/**",
+        "scripts/test-artifact-link-projection.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-v1178-batch-d.js",
         "scripts/lib/memory-index.js",
@@ -4931,6 +5044,48 @@
       },
       "evidenceArtifacts": [
         "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "public-skill-catalog-build",
+      "owner": "public-product-expression",
+      "command": "node",
+      "args": [
+        "scripts/check-public-skill-catalog-build.js"
+      ],
+      "dependencies": [
+        "website-build",
+        "public-product-expression"
+      ],
+      "inputs": [
+        "public-site/components/SkillCatalog.tsx",
+        "public-site/components/skill-catalog.css",
+        "public-site/data/public-product-projection.json",
+        "public-site/docs/reference/skills.mdx",
+        "scripts/check-public-skill-catalog-build.js"
+      ],
+      "consumers": [],
+      "invariants": [
+        "complete-catalog-ssr",
+        "no-js-readable-fallback",
+        "category-filter-links",
+        "workspace-extension-excluded"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "PublicSkillCatalogBuildReceiptV1"
       ]
     },
     {

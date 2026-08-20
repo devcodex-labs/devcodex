@@ -12,6 +12,20 @@ function sha256Text(text) {
   return crypto.createHash('sha256').update(String(text), 'utf8').digest('hex').toUpperCase()
 }
 
+function parseArtifactPathCell(value) {
+  const cell = String(value || '').trim()
+  const markdown = /^\[(.*)\]\((?:<([^>]+)>|([^)]+))\)$/.exec(cell)
+  if (markdown) {
+    return {
+      artifactPath: markdown[1].replace(/\\([\\\[\]|])/g, '$1'),
+      artifactPathCell: cell,
+      artifactHref: markdown[2] || markdown[3] || null
+    }
+  }
+  const artifactPath = cell.replace(/^`|`$/g, '') || null
+  return { artifactPath, artifactPathCell: cell || null, artifactHref: null }
+}
+
 /**
  * Parse sessions.md CP rows. Supports legacy 3-col and digest-extended tables.
  * Extended: | CP | status | artifactPath | version | sha256 | sourceMessage | confirmedAt |
@@ -45,12 +59,17 @@ function parseCpSessions(text) {
     // legacy: time only (0–1 cells)
     // extended: path | version | sha256 | sourceMessage | confirmedAt
     let artifactPath = null
+    let artifactPathCell = null
+    let artifactHref = null
     let artifactVersion = null
     let artifactSha256 = null
     let sourceMessage = null
     let confirmedAt = null
     if (cells.length >= 5) {
-      artifactPath = cells[0] || null
+      const parsedArtifact = parseArtifactPathCell(cells[0])
+      artifactPath = parsedArtifact.artifactPath
+      artifactPathCell = parsedArtifact.artifactPathCell
+      artifactHref = parsedArtifact.artifactHref
       artifactVersion = cells[1] || null
       artifactSha256 = (cells[2] || '').replace(/`/g, '').toUpperCase() || null
       sourceMessage = cells[3] || null
@@ -62,6 +81,8 @@ function parseCpSessions(text) {
       confirmed: confirmed && !stale,
       stale,
       artifactPath,
+      artifactPathCell,
+      artifactHref,
       artifactVersion,
       artifactSha256,
       sourceMessage,
@@ -69,7 +90,7 @@ function parseCpSessions(text) {
     }
   }
   if (rows.CP3Exempt) {
-    rows.CP3 = rows.CP3 || { confirmed: true, stale: false, artifactPath: null, artifactVersion: null, artifactSha256: null, sourceMessage: null, confirmedAt: null }
+    rows.CP3 = rows.CP3 || { confirmed: true, stale: false, artifactPath: null, artifactPathCell: null, artifactHref: null, artifactVersion: null, artifactSha256: null, sourceMessage: null, confirmedAt: null }
     rows.CP3.confirmed = true
   }
   return rows

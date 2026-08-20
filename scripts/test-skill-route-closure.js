@@ -170,8 +170,8 @@ const codexVariant = 'codex-cli/exec-user-global-local-stdio'
 const grokVariant = 'grok-cli-single/global-launcher-local-stdio'
 assert.deepStrictEqual(
   pass.map(item => item.hostVariant).sort(),
-  [codexVariant, grokVariant].sort(),
-  'only source-replayed host variants may retain PASS evidence'
+  [codexVariant],
+  'only freshly source-replayed host variants may retain PASS evidence'
 )
 const currentRuntimeDigest = getRuntimeContractDigest()
 const currentAdapterDigests = {
@@ -205,6 +205,12 @@ assert(desktopCapability, `missing capability declaration for ${desktopVariant}`
 assert.strictEqual(desktopCapability.status, 'UNVERIFIED')
 assert.strictEqual(desktopCapability.evidenceRef, null)
 assert.strictEqual(desktopCapability.defaultEligible, false)
+
+const grokCapability = capabilities.capabilities.find(item => item.hostVariant === grokVariant)
+assert(grokCapability, `missing capability declaration for ${grokVariant}`)
+assert.strictEqual(grokCapability.status, 'UNVERIFIED')
+assert.strictEqual(grokCapability.evidenceRef, null)
+assert.strictEqual(grokCapability.defaultEligible, false)
 
 console.log(
   `test-skill-route-closure: ok requirements=${expectedRequirements.length} ` +

@@ -13,6 +13,11 @@ const {
   sidecarRelativePath
 } = require('./skill-sidecar-contract')
 const { renderContent } = require('./control-content-source')
+const {
+  indexPublicSkillTaxonomy,
+  publicCategoryCounts,
+  validatePublicSkillTaxonomy
+} = require('./public-skill-taxonomy')
 
 const LEGAL_STATES = new Set(['draft', 'gray', 'active', 'deprecated', 'retired', 'blocked'])
 const SKILL_INDEX_EVIDENCE_STATES = new Set(['unverified', 'source-backed', 'validated'])
@@ -561,6 +566,9 @@ function buildPortfolio(root, options = {}) {
   const packageJson = JSON.parse(readText('package.json'))
   const pluginPath = 'plugin.json'
   const plugin = JSON.parse(readText(pluginPath))
+  const publicTaxonomyPath = 'content/skills/public-taxonomy.json'
+  const publicTaxonomy = JSON.parse(readText(publicTaxonomyPath))
+  const publicTaxonomyIndex = indexPublicSkillTaxonomy(publicTaxonomy, plugin.skills || [])
   const portfolioEvidencePath = 'content/skills/portfolio-evidence.json'
   const portfolioEvidence = JSON.parse(readText(portfolioEvidencePath))
   if (portfolioEvidence.schemaVersion !== 2 || portfolioEvidence.ownerSkill !== 'skill-lifecycle-governance') {
@@ -672,6 +680,7 @@ function buildPortfolio(root, options = {}) {
       sourceBytes,
       version: packageJson.version,
       lifecycleState,
+      publicCategory: publicTaxonomyIndex.assignmentBySkillId.get(id),
       dependencies,
       references,
       conflicts,
@@ -705,6 +714,7 @@ function buildPortfolio(root, options = {}) {
   const sourceDigest = sha256(sourceRows.sort().join('\n'))
   const sidecarDigest = sha256(sidecarRows.length ? sidecarRows.sort().join('\n') : 'sidecar-none')
   const pluginDigest = sha256(canonicalizeTextForDigest(readText(pluginPath)))
+  const publicTaxonomyDigest = sha256(canonicalizeTextForDigest(readText(publicTaxonomyPath)))
   const portfolioEvidenceDigest = sha256(canonicalizeTextForDigest(readText(portfolioEvidencePath)))
   const consumerInventoryDigest = sha256(consumers.map(item => item.path).sort().join('\n'))
   const consumerProjectionDigest = sha256(consumerProjectionRows.sort().join('\n'))
@@ -712,6 +722,7 @@ function buildPortfolio(root, options = {}) {
     `skills:${sourceDigest}`,
     `sidecar:${sidecarDigest}`,
     `plugin:${pluginDigest}`,
+    `public-taxonomy:${publicTaxonomyDigest}`,
     `evidence:${portfolioEvidenceDigest}`,
     `consumer-inventory:${consumerInventoryDigest}`,
     `consumer-projection:${consumerProjectionDigest}`
@@ -735,6 +746,8 @@ function buildPortfolio(root, options = {}) {
       sourceDigest,
       sidecarDigest,
       pluginDigest,
+      publicTaxonomy: publicTaxonomyPath,
+      publicTaxonomyDigest,
       portfolioEvidence: portfolioEvidencePath,
       portfolioEvidenceDigest,
       consumerInventoryFileCount: consumers.length,
@@ -756,8 +769,10 @@ function buildPortfolio(root, options = {}) {
       triggerPrecisionMeasuredCount,
       instructionBudgetP95Bytes: percentile(skillPaths.map(relative => Buffer.byteLength(canonicalizeTextForDigest(readText(relative)), 'utf8')), 0.95),
       triggerQuality,
-      sidecarPresentCount: skills.filter(skill => skill.sidecar && skill.sidecar.state === 'valid').length
+      sidecarPresentCount: skills.filter(skill => skill.sidecar && skill.sidecar.state === 'valid').length,
+      publicCategoryCounts: publicCategoryCounts(skills, publicTaxonomyIndex.projection.categories)
     },
+    publicTaxonomy: publicTaxonomyIndex.projection,
     dependencyGraph: { nodes, edges, cycles },
     referenceGraph: { edges: referenceEdges.sort((a, b) => `${a.from}:${a.to}`.localeCompare(`${b.from}:${b.to}`)) },
     health: {
@@ -779,6 +794,12 @@ function validatePortfolio(portfolio) {
   }
   for (const field of ['consumerInventoryDigest', 'consumerProjectionDigest', 'portfolioInputDigest']) {
     if (!/^[a-f0-9]{64}$/.test(String(generatedFrom[field] || ''))) errors.push(`invalid ${field}`)
+  }
+  if (generatedFrom.publicTaxonomy !== 'content/skills/public-taxonomy.json') {
+    errors.push('invalid publicTaxonomy source')
+  }
+  if (!/^[a-f0-9]{64}$/.test(String(generatedFrom.publicTaxonomyDigest || ''))) {
+    errors.push('invalid publicTaxonomyDigest')
   }
   if (generatedFrom.sidecarDigest != null && !/^[a-f0-9]{64}$/.test(String(generatedFrom.sidecarDigest))) {
     errors.push('invalid sidecarDigest')
@@ -822,6 +843,25 @@ function validatePortfolio(portfolio) {
   }
   if ((portfolio.dependencyGraph && portfolio.dependencyGraph.cycles || []).length) {
     errors.push('dependency graph contains cycles')
+  }
+  const projectedTaxonomy = portfolio.publicTaxonomy || {}
+  const taxonomyValidation = validatePublicSkillTaxonomy({
+    ...projectedTaxonomy,
+    assignments: (portfolio.skills || []).map(skill => ({
+      skillId: skill.id,
+      publicCategory: skill.publicCategory
+    }))
+  }, (portfolio.skills || []).map(skill => ({
+    id: skill.id,
+    lifecycleState: skill.lifecycleState
+  })))
+  errors.push(...taxonomyValidation.map(issue => `public taxonomy: ${issue}`))
+  const expectedCategoryCounts = publicCategoryCounts(
+    portfolio.skills || [],
+    Array.isArray(projectedTaxonomy.categories) ? projectedTaxonomy.categories : []
+  )
+  if (JSON.stringify(portfolio.summary?.publicCategoryCounts || {}) !== JSON.stringify(expectedCategoryCounts)) {
+    errors.push('summary publicCategoryCounts mismatch')
   }
   if (portfolio.summary && portfolio.summary.skillCount !== ids.size) errors.push('summary skillCount mismatch')
   if (portfolio.summary && !['structural-only', 'mixed', 'measured'].includes(portfolio.summary.triggerQuality)) {

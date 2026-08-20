@@ -255,6 +255,28 @@ function evaluatePublicReadmeContractV2 (content, options = {}) {
   if (!text.includes(`${projection.skills.active} active + ${projection.skills.gray} gray`)) {
     addViolation(violations, 'README_SKILL_LIFECYCLE_MISSING', 'README.md', `${projection.skills.active}/${projection.skills.gray}`)
   }
+  for (const category of projection.skills.categories || []) {
+    const href = `/reference/skills?category=${category.id}`
+    if (!text.includes(href)) {
+      addViolation(violations, 'README_SKILL_CATEGORY_LINK_MISSING', 'README.md', category.id)
+    }
+    if (!text.includes(category.label) || !text.includes(`| ${category.count} |`)) {
+      addViolation(violations, 'README_SKILL_CATEGORY_COUNT_MISSING', 'README.md', `${category.id}:${category.count}`)
+    }
+    for (const representative of category.representativeSkills || []) {
+      if (!text.includes(`\`${representative.id}\``)) {
+        addViolation(violations, 'README_SKILL_REPRESENTATIVE_MISSING', 'README.md', `${category.id}:${representative.id}`)
+      }
+    }
+  }
+  if (!text.includes('extensionSource=workspace') ||
+      !text.includes('不进入 bundled assignments') ||
+      !text.includes('不进入 86/83/3 分母')) {
+    addViolation(violations, 'README_WORKSPACE_SKILL_DENOMINATOR_BOUNDARY_MISSING', 'README.md', 'workspace extension exclusion')
+  }
+  if (text.includes('Workspace 四类') || text.includes('Delivery & Governance 和 Workspace 四类')) {
+    addViolation(violations, 'README_WORKSPACE_SKILL_BUNDLED_CATEGORY', 'README.md', 'Workspace')
+  }
   if (!text.includes(projection.expression.technicalDefinition.zh)) {
     addViolation(violations, 'README_TECHNICAL_DEFINITION_MISSING', 'README.md', projection.expression.technicalDefinition.zh)
   }

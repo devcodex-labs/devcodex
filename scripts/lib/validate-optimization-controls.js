@@ -35,9 +35,12 @@ function buildOptimizationControlChecks(ctx) {
       'scripts/test-execution-attempt-ledger.js',
       'scripts/publish-dry-run.js',
       'scripts/lib/skill-portfolio-utils.js',
+      'scripts/lib/public-skill-taxonomy.js',
       'scripts/generate-skill-portfolio.js',
+      'scripts/test-public-skill-taxonomy.js',
       'skills/portfolio-evidence.json',
       'skills/portfolio.json',
+      'skills/public-taxonomy.json',
       'scripts/lib/runtime-state-index.js',
       'scripts/check-runtime-state.js',
       'scripts/lib/deployment-manifest-utils.js',
@@ -68,6 +71,7 @@ function buildOptimizationControlChecks(ctx) {
       'test:project-knowledge-v2',
       'test:execution-attempt-ledger',
       'test:validation-dag',
+      'test:public-skill-taxonomy',
       'test:changed',
       'test:profile-deploy',
       'test:package-release',
@@ -101,6 +105,16 @@ function buildOptimizationControlChecks(ctx) {
         if (!node?.inputs?.includes(input)) err(`[V92] ${nodeId} missing tracked consumer input: ${input}`)
       }
     }
+    const taxonomyNode = validationManifest.nodes?.find(item => item.id === 'public-skill-taxonomy')
+    for (const input of [
+      'content/skills/public-taxonomy.json',
+      'content/skills/portfolio.json',
+      'plugin.json',
+      'scripts/lib/public-skill-taxonomy.js',
+      'scripts/test-public-skill-taxonomy.js'
+    ]) {
+      if (!taxonomyNode?.inputs?.includes(input)) err(`[V92] public-skill-taxonomy missing input: ${input}`)
+    }
     const globalHostRemovalNode = validationManifest.nodes?.find(item => item.id === 'global-host-removal')
     if (!globalHostRemovalNode || Number(globalHostRemovalNode.timeoutMs) < 600000) {
       err('[V92] global-host-removal timeout must cover the measured Windows six-host removal matrix')
@@ -118,8 +132,10 @@ function buildOptimizationControlChecks(ctx) {
       'scripts/test-host-adapters.js',
       'scripts/test-host-installation.js',
       'scripts/test-host-instruction-projection.js',
+      'scripts/test-public-skill-taxonomy.js',
       'scripts/lib/project-knowledge-store.js',
       'scripts/lib/validation-dag.js',
+      'scripts/lib/public-skill-taxonomy.js',
       'scripts/lib/host-instruction-projection.js',
       'scripts/lib/host-surface-descriptors.js',
       'scripts/test-mcp-stdio-transport.js',
@@ -200,6 +216,12 @@ function buildOptimizationControlChecks(ctx) {
     const portfolioErrors = validatePortfolio(portfolio)
     if (portfolio.summary.skillCount !== 86) err(`[V92] expected 86 skills, got ${portfolio.summary.skillCount}`)
     if (portfolio.summary.graySkillCount !== 3) err(`[V92] expected three gray skills, got ${portfolio.summary.graySkillCount}`)
+    if (JSON.stringify(portfolio.summary.publicCategoryCounts) !== JSON.stringify({
+      'workflow-routing': 20,
+      'domain-architecture': 21,
+      'quality-delivery': 28,
+      'runtime-governance': 17
+    })) err('[V92] public Skill category counts drifted')
     if (portfolio.summary.dependencyEdgeCount < 1) err('[V92] explicit Skill dependency graph has no edges')
     if (portfolio.summary.operationalEvidenceCompleteCount !== 86) err('[V92] operational lifecycle evidence is incomplete')
     if (portfolio.summary.triggerQuality !== 'mixed') err('[V92] trigger precision must reflect measured kernel samples')
@@ -208,6 +230,12 @@ function buildOptimizationControlChecks(ctx) {
     }
     for (const field of ['consumerInventoryDigest', 'consumerProjectionDigest', 'portfolioInputDigest']) {
       if (!/^[a-f0-9]{64}$/.test(String(portfolio.generatedFrom[field] || ''))) err(`[V92] portfolio missing ${field}`)
+    }
+    if (!/^[a-f0-9]{64}$/.test(String(portfolio.generatedFrom.publicTaxonomyDigest || ''))) {
+      err('[V92] portfolio missing publicTaxonomyDigest')
+    }
+    if (portfolio.publicTaxonomy?.extensionPolicy?.includedInBundledCounts !== false) {
+      err('[V92] Workspace Skills must stay outside bundled category counts')
     }
     portfolioErrors.forEach(error => err(`[V92] portfolio: ${error}`))
     const committedText = String(read(path.join(ROOT, 'skills/portfolio.json')))

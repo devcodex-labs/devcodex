@@ -18,7 +18,7 @@ function buildGovernanceMidChecks(ctx) {
       },
       {
         file: 'hooks/_runtime/lifecycle-project-target.cjs',
-        needles: ['.devcodex/workspace/profile/', 'stickySessionKey', 'hasMultiProjectExemption']
+        needles: ['.devcodex/workspace/profile/', 'ProjectTargetLeaseV1', 'observedSessionRef', 'hasMultiProjectExemption']
       },
       {
         file: 'scripts/lib/test-hooks-runtime-bootstrap-layout.js',
@@ -359,15 +359,15 @@ function buildGovernanceMidChecks(ctx) {
     const probes = [
       {
         file: 'hooks/_runtime/workspace-layout.cjs',
-        needles: ['namespaceHasRuntimeState', 'collectWorkspaceProjectNamespaces', 'UTILITY_ROOT_DIR_NAMES', 'CONTAINER_DIR_NAMES']
+        needles: ['resolveHostWorkspaceBinding', 'HostWorkspaceBindingV1', 'collectActiveWorkspaceProjectNamespaces', 'UTILITY_ROOT_DIR_NAMES', 'CONTAINER_DIR_NAMES']
       },
       {
         file: 'hooks/_runtime/lifecycle.cjs',
-        needles: ['collectWorkspaceProjectNamespaces']
+        needles: ['collectWorkspaceProjectNamespaces', 'resolveHostWorkspaceBinding']
       },
       {
         file: 'hooks/_runtime/lifecycle-project-target.cjs',
-        needles: ['!currentSessionKey || !stickySessionKey', 'collectWorkspaceProjectNamespaces']
+        needles: ['validateStickyProjectLease', 'layoutIdentity', 'observedSessionRef', 'collectWorkspaceProjectNamespaces']
       },
       {
         file: 'index.js',
@@ -383,7 +383,7 @@ function buildGovernanceMidChecks(ctx) {
       },
       {
         file: 'scripts/lib/test-hooks-runtime-bootstrap-layout.js',
-        needles: ['noSessionFollowup', 'nestedWorkspaceAmbiguity', 'toolingSiblingPrompt']
+        needles: ['noSessionFollowup', 'newSessionFollowup', 'layoutDriftFollowup', 'nestedWorkspaceAmbiguity', 'toolingSiblingPrompt']
       },
       {
         file: 'scripts/test-migrate-layout.js',

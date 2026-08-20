@@ -19,7 +19,7 @@ devcodex init
 devcodex status
 ```
 
-安装或更新后，请完全退出旧会话，再从目标项目打开宿主的新会话。
+安装命令只会获取 npm registry 上的版本；不要把本地候选、未推送提交或 `main` 上的最新源码误认为已经发布。安装或更新后，请完全退出旧会话，再从目标项目打开宿主的新会话。
 
 ### DevCodex 不是什么
 
@@ -121,7 +121,7 @@ devcodex status
 ## 工作流、Skill 与宿主边界
 
 <!-- devcodex-public:workflows primary=dev,fix,analyze,audit,resume,chat advanced=self-fix,other -->
-<!-- devcodex-public:skills total=86 active=83 gray=3 bucket=80+ -->
+<!-- devcodex-public:skills total=86 active=83 gray=3 bucket=80+ categories=workflow-routing:20,domain-architecture:21,quality-delivery:28,runtime-governance:17 -->
 <!-- devcodex-public:hosts ids=copilot,claude,codex,gemini,grok,cursor variants=13 -->
 <!-- devcodex-public:auto canonical=@devcodex-auto default=@rocky profile-replacement=true empty-array-disables=true -->
 <!-- devcodex-public:capabilities ids=turn-ambiguous-request-into-action,fix-with-regression-confidence,evolve-cross-domain-change,deliver-with-evidence-and-handoff -->
@@ -141,7 +141,18 @@ devcodex status
 
 `plan` 是阶段或能力，不是第九个 canonical workflow。
 
-当前机器事实为 **86 个 Skill（83 active + 3 gray）**；公开摘要使用 **80+**。Workflow、Domain、Delivery & Governance 和 Workspace 四类 Skill 按任务与阶段渐进加载。
+当前机器事实为 **86 个 Skill（83 active + 3 gray）**；公开摘要使用 **80+**。四类 bundled Skill 按任务与阶段渐进加载：
+
+<!-- devcodex-public:skill-categories:start -->
+| Bundled 分类 | 数量 | 代表 active Skill |
+|---|---:|---|
+| [Workflow & Routing](https://devcodex-labs.github.io/devcodex/reference/skills?category=workflow-routing) | 20 | `intent`、`dev-default`、`fix-default`、`audit-common` |
+| [Domain & Architecture](https://devcodex-labs.github.io/devcodex/reference/skills?category=domain-architecture) | 21 | `product-strategy`、`frontend-architecture`、`backend-domain-architecture`、`data-architecture` |
+| [Quality & Delivery](https://devcodex-labs.github.io/devcodex/reference/skills?category=quality-delivery) | 28 | `quality-strategy`、`dev-testing`、`review-checklist`、`release-verification` |
+| [Runtime & Governance](https://devcodex-labs.github.io/devcodex/reference/skills?category=runtime-governance) | 17 | `host-capability-routing`、`memory`、`skill-lifecycle-governance`、`spec-governance` |
+
+Workspace Skill 是项目级扩展（`extensionSource=workspace`），不进入 bundled assignments，也不进入 86/83/3 分母。
+<!-- devcodex-public:skill-categories:end -->
 
 | 宿主 | 推荐入口 | 公开状态 |
 |---|---|---|

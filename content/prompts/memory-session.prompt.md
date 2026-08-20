@@ -39,9 +39,9 @@ applyTo: .devcodex/**/.memory/**
 ```markdown
 ### 📄 关联报告
 
-| 报告 | 路径 |
-|------|------|
-| [报告名称] | `E:\路径\NN--简述.md` |
+> 优先向 `memory_session_write.artifacts[]` 传结构化产物，由 writer 按当前 daily document 生成并回读相对链接；宿主 fallback 必须先 project、写后 validate-existing。
+
+- [报告名称](<../../../../reports/requirements/<agent>/YYYYMMDD/NN--简述.md>) — [用途]
 
 ### 💡 关键决策
 

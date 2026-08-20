@@ -1,6 +1,6 @@
 {
   "schemaVersion": "PublicProductProjectionV1",
-  "generatedAt": "2026-08-19T12:06:48.324Z",
+  "generatedAt": "2026-08-20T14:58:44.086Z",
   "release": {
     "version": "1.17.10"
   },
@@ -60,7 +60,778 @@
     "total": 86,
     "active": 83,
     "gray": 3,
-    "bucket": "80+"
+    "bucket": "80+",
+    "categoryCounts": {
+      "workflow-routing": 20,
+      "domain-architecture": 21,
+      "quality-delivery": 28,
+      "runtime-governance": 17
+    },
+    "categories": [
+      {
+        "id": "workflow-routing",
+        "label": "Workflow & Routing",
+        "description": "Selects the task workflow, subtype, stage, confirmation path, and bounded orchestration route.",
+        "count": 20,
+        "active": 20,
+        "gray": 0,
+        "representativeSkills": [
+          {
+            "id": "intent",
+            "name": "intent",
+            "description": "识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resume/other），采用前置识别 + 三问法。Free 层可用。",
+            "lifecycleState": "active",
+            "publicCategory": "workflow-routing"
+          },
+          {
+            "id": "dev-default",
+            "name": "dev-default",
+            "description": "默认开发子类型规范 — 通用功能开发六阶段流程（CP1→PR-1自检→CP2→plan-review→CP3→执行→ECR执行闭环复审）",
+            "lifecycleState": "active",
+            "publicCategory": "workflow-routing"
+          },
+          {
+            "id": "fix-default",
+            "name": "fix-default",
+            "description": "默认修复子类型规范 — Bug 修复三步扫描 + CP 流程",
+            "lifecycleState": "active",
+            "publicCategory": "workflow-routing"
+          },
+          {
+            "id": "audit-common",
+            "name": "audit-common",
+            "description": "审查公共维度 G0~G5 + Profile Freshness Check — 所有 audit 子类型必先执行的基础维度层",
+            "lifecycleState": "active",
+            "publicCategory": "workflow-routing"
+          }
+        ]
+      },
+      {
+        "id": "domain-architecture",
+        "label": "Domain & Architecture",
+        "description": "Provides product, experience, system, data, security, and operational architecture expertise.",
+        "count": 21,
+        "active": 20,
+        "gray": 1,
+        "representativeSkills": [
+          {
+            "id": "product-strategy",
+            "name": "product-strategy",
+            "description": "产品策略专家 Owner — 当任务涉及需求价值、目标用户、范围取舍、优先级、路线图、成功指标、产品化文档或用户要求从产品专家角度审查时使用；要求把方案绑定用户问题、业务价值、阶段边界和可验证信号。",
+            "lifecycleState": "active",
+            "publicCategory": "domain-architecture"
+          },
+          {
+            "id": "frontend-architecture",
+            "name": "frontend-architecture",
+            "description": "前端架构专家 Owner — 当任务涉及页面、组件、状态管理、数据获取、异步缓存、SSR/Nuxt、runtime config、i18n、SSE、空白页、性能、可访问性或前端验证路线时使用；要求优先保证旧数据可见、异步刷新、渲染稳定和用户主路径不断线。",
+            "lifecycleState": "active",
+            "publicCategory": "domain-architecture"
+          },
+          {
+            "id": "backend-domain-architecture",
+            "name": "backend-domain-architecture",
+            "description": "后端领域架构专家 Owner — 当任务涉及领域模型、业务流程、权限、API、事务、一致性、幂等、兼容、数据边界、服务职责或用户要求从后端/领域专家角度审查时使用；要求用领域语言和业务不变量约束实现。",
+            "lifecycleState": "active",
+            "publicCategory": "domain-architecture"
+          },
+          {
+            "id": "data-architecture",
+            "name": "data-architecture",
+            "description": "数据架构专家 Owner — 当任务涉及数据模型、Schema、迁移、索引、查询、生命周期、数据质量、派生指标、分析消费者、跨环境数据或持久化状态时使用；要求把数据结构、演进和消费链设计清楚。",
+            "lifecycleState": "active",
+            "publicCategory": "domain-architecture"
+          }
+        ]
+      },
+      {
+        "id": "quality-delivery",
+        "label": "Quality & Delivery",
+        "description": "Covers testing, review, documentation, evidence, release verification, and delivery closure.",
+        "count": 28,
+        "active": 26,
+        "gray": 2,
+        "representativeSkills": [
+          {
+            "id": "quality-strategy",
+            "name": "quality-strategy",
+            "description": "质量策略专家 Owner — 当任务涉及测试策略、验收矩阵、覆盖率、风险分层、回归范围、发布信心、质量度量、测试金字塔或用户要求 QA/质量专家视角时使用；要求用风险驱动选择验证组合。",
+            "lifecycleState": "active",
+            "publicCategory": "quality-delivery"
+          },
+          {
+            "id": "dev-testing",
+            "name": "dev-testing",
+            "description": "测试规范 — 单元测试/集成测试/API测试/E2E测试四类覆盖标准与触发条件",
+            "lifecycleState": "active",
+            "publicCategory": "quality-delivery"
+          },
+          {
+            "id": "review-checklist",
+            "name": "review-checklist",
+            "description": "复审清单整理与审查规范 — 创建、冻结、证据执行、状态更新与收敛关闭",
+            "lifecycleState": "active",
+            "publicCategory": "quality-delivery"
+          },
+          {
+            "id": "release-verification",
+            "name": "release-verification",
+            "description": "发布验证规范 — 覆盖版本、changelog、测试、pack、install smoke、commit/tag/push/publish 前确认与发布后 registry/tag 验收",
+            "lifecycleState": "active",
+            "publicCategory": "quality-delivery"
+          }
+        ]
+      },
+      {
+        "id": "runtime-governance",
+        "label": "Runtime & Governance",
+        "description": "Governs host runtime, context, memory, instructions, Skill lifecycle, policy, and user-visible contracts.",
+        "count": 17,
+        "active": 17,
+        "gray": 0,
+        "representativeSkills": [
+          {
+            "id": "host-capability-routing",
+            "name": "host-capability-routing",
+            "description": "宿主能力路由 Owner — 当已识别工作流意图后，需要在五个逻辑宿主、八个受支持 variant 上选择 direct / plan_first / auto_authorized，核验原始指令 authority，或判断 native lever 是否具备新鲜且安全的直接证据时使用。",
+            "lifecycleState": "active",
+            "publicCategory": "runtime-governance"
+          },
+          {
+            "id": "memory",
+            "name": "memory",
+            "description": "管理会话记忆的读取与写入。三层记忆体系：Agent 日记 / 需求记忆 / 项目总记忆。",
+            "lifecycleState": "active",
+            "publicCategory": "runtime-governance"
+          },
+          {
+            "id": "skill-lifecycle-governance",
+            "name": "skill-lifecycle-governance",
+            "description": "Skill 生命周期治理 Owner — 当任务涉及 Skill 组合、重叠冲突、依赖关系、误触发/漏触发、active/gray/deprecated/retired 状态、合并拆分、废弃退役、质量指标或自我进化后的 Skill portfolio 健康度时使用。",
+            "lifecycleState": "active",
+            "publicCategory": "runtime-governance"
+          },
+          {
+            "id": "spec-governance",
+            "name": "spec-governance",
+            "description": "规范治理生命周期 — 意图驱动记录、RecordRouter 分流、SCV 规范变更验证；规范吸纳执行细节由 spec-absorption 承接",
+            "lifecycleState": "active",
+            "publicCategory": "runtime-governance"
+          }
+        ]
+      }
+    ],
+    "catalog": [
+      {
+        "id": "accessibility-i18n",
+        "name": "accessibility-i18n",
+        "description": "无障碍与国际化专家 Owner — 当任务涉及可访问性、键盘操作、焦点、屏幕阅读器、ARIA、语言地区、本地化、RTL、翻译资源、用户可见文案或多语言文档时使用；要求把包容性体验和本地化验证绑定到真实用户路径。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "ai-agent-system-architecture",
+        "name": "ai-agent-system-architecture",
+        "description": "AI Agent 系统架构专家 Owner — 当任务涉及 Agent 路由、工具调用、上下文管理、记忆、状态机、权限、人机协作、可观测性、回放验证或模型辅助治理时使用；要求把 Agent 行为设计成可解释、可恢复、可审计。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "ai-evaluation-engineering",
+        "name": "ai-evaluation-engineering",
+        "description": "AI 评测工程专家 Owner — 当任务涉及模型/Prompt 评测、模型选择、黄金集、评分量表、LLM-as-judge、Judge 校准、重复采样、方差、质量-成本-延迟权衡、提示词回归或模型升级回归时使用；要求把概率性结果转化为可复现、可比较且防污染的评测证据。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "analyze-default",
+        "name": "analyze-default",
+        "description": "默认分析工作流规范 — 只读多轮分析、代码事实优先、analyze-lite 关联联查与 PCV 收敛验证",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "analyze-research",
+        "name": "analyze-research",
+        "description": "技术调研子类型规范 — 技术选型/可行性评估/根因调查，只读工作流",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "api-contract-architecture",
+        "name": "api-contract-architecture",
+        "description": "API 契约架构专家 Owner — 当任务涉及 public API、HTTP/SDK/CLI 契约、版本兼容、错误模型、分页过滤、幂等、Schema、类型、迁移或消费者影响时使用；要求先冻结消费者契约，再设计实现与验证。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "api-verification",
+        "name": "api-verification",
+        "description": "接口验证规范 — 双产物（.http + .cjs）生成 + 自动化执行脚本",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "audit-common",
+        "name": "audit-common",
+        "description": "审查公共维度 G0~G5 + Profile Freshness Check — 所有 audit 子类型必先执行的基础维度层",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "audit-dimensions",
+        "name": "audit-dimensions",
+        "description": "D1~D25 规范文件审查维度总览 — 规范库/specs 文件专属审查层",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "audit-document",
+        "name": "audit-document",
+        "description": "通用文档审查维度 DA-1~DA-6 — README/架构文档/开发指南专属审查层",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "audit-execution-guide",
+        "name": "audit-execution-guide",
+        "description": "审查执行指南 — 维度优先级分批、定向审查子集、联动检查清单",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "audit-project",
+        "name": "audit-project",
+        "description": "项目工程审查维度 PE-1~PE-12 — 代码质量/项目结构/依赖安全/资源泄漏专属审查层",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "audit-readme",
+        "name": "audit-readme",
+        "description": "README / 用户使用文档专项审查维度 RM-1~RM-6 — 聚焦用户路径、快速开始、示例真实度、配置排错与消费链一致性",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "audit-release",
+        "name": "audit-release",
+        "description": "发布前审查维度 — 审查 release readiness、发布说明质量、兼容性/迁移风险、package/plugin 元数据、文档/Profile/website 同步、回滚策略、registry/tag 风险和发布后验收；用于用户要求发版前 review、release pre-review、publish/tag 前风险审查或 audit 工作流识别为发布准备审查时。不同于 release-verification，本 Skill 负责审查判断，不执行真实发布动作。",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "audit-report",
+        "name": "audit-report",
+        "description": "报告审查维度 RA-1~RA-6 — 分析报告/审查报告质量专属审查层",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "audit-requirements",
+        "name": "audit-requirements",
+        "description": "需求文档审查维度 RQ-1~RQ-8 — 需求定义/功能描述/产品事实源与可派生验证边界专属审查层",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "audit-session",
+        "name": "audit-session",
+        "description": "审计工作流的跨会话状态机 — 在 <audit-root>/.audit-state/<session-id>.json 持久化轮次/发现项/收敛状态，支持 Token 中断后精准恢复",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      },
+      {
+        "id": "audit-tech-design",
+        "name": "audit-tech-design",
+        "description": "技术方案审查维度 TD-1~TD-13 — 架构/技术选型/实施方案专属审查层",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "audit-user-manual",
+        "name": "audit-user-manual",
+        "description": "用户侧文档专项审查聚合入口 — 用于审查最终用户文档、站点文档、文档站、README、quick start、接入手册、项目文档、菜单导航、sidebar、信息架构、文档设计、用户路径、配置排错、真实工作流、生成站点和维护者内容边界；当用户要求 review/审查/复审/检查用户侧文档或项目文档可用性时使用。",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "backend-domain-architecture",
+        "name": "backend-domain-architecture",
+        "description": "后端领域架构专家 Owner — 当任务涉及领域模型、业务流程、权限、API、事务、一致性、幂等、兼容、数据边界、服务职责或用户要求从后端/领域专家角度审查时使用；要求用领域语言和业务不变量约束实现。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "brand-visual-quality",
+        "name": "brand-visual-quality",
+        "description": "品牌视觉资产生产质量 Owner — 当任务涉及品牌标志、图标、主题变体、微尺寸光学校正、单色母版、主资产谱系或视觉验收证据时使用；要求把几何一致性、变体关系和人工视觉结论绑定到可重放证据，避免只凭文件存在或单次截图宣告完成。",
+        "lifecycleState": "gray",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "business-model-review",
+        "name": "business-model-review",
+        "description": "商业模型审查专家 Owner — 当任务涉及商业化、定价、套餐、成本收益、收入模型、运营负担、市场渠道、付费路径、商业风险或长期可持续性时使用；要求把技术方案和产品范围绑定到价值交换、成本结构和可持续运营。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "compliance",
+        "name": "compliance",
+        "description": "执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC7 入口检查所有模式启用；仅 dev 模式执行全量合规校验，prod 模式不执行（规范已验证）。chat 豁免合规块。",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      },
+      {
+        "id": "consumer-validation-engineering",
+        "name": "consumer-validation-engineering",
+        "description": "跨仓消费者验证工程 Owner — 当任务涉及独立 consumer/verification repository、SDK/CLI/框架/公共包的跨仓完整验证、源码 link 与 packed artifact 一致性、多分母 100% 声明、跨仓 CI、新鲜度或漂移治理时使用；要求冻结可复现身份链、分别计算适用分母，并以真实安装和跨仓运行证据约束发布。",
+        "lifecycleState": "gray",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "cp-gate",
+        "name": "cp-gate",
+        "description": "执行 CP1（需求确认）/ CP2（方案确认）与条件 CP3（实施计划确认）。CP1→CP2 强制按序，CP3 按工作流能力矩阵判定。",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "data-architecture",
+        "name": "data-architecture",
+        "description": "数据架构专家 Owner — 当任务涉及数据模型、Schema、迁移、索引、查询、生命周期、数据质量、派生指标、分析消费者、跨环境数据或持久化状态时使用；要求把数据结构、演进和消费链设计清楚。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "design-system-architecture",
+        "name": "design-system-architecture",
+        "description": "设计系统架构专家 Owner — 当任务涉及设计系统、主题、Token、组件变体、Figma/代码同步、UI 一致性、可访问性、国际化、品牌视觉或组件库治理时使用；要求把视觉规则沉淀为可复用、可验证的系统契约。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "dev-database",
+        "name": "dev-database",
+        "description": "数据库开发子类型规范 — Migration 安全策略 + Schema 变更审查",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "dev-default",
+        "name": "dev-default",
+        "description": "默认开发子类型规范 — 通用功能开发六阶段流程（CP1→PR-1自检→CP2→plan-review→CP3→执行→ECR执行闭环复审）",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "dev-docs",
+        "name": "dev-docs",
+        "description": "文档开发子类型规范 — 技术文档/API文档/README 编写规范",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "dev-init",
+        "name": "dev-init",
+        "description": "项目初始化子类型规范 — 新项目/模块脚手架 + Profile 自动生成",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "dev-optimization",
+        "name": "dev-optimization",
+        "description": "性能优化子类型规范 — 基准测试前置 + autocannon 压测集成",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "dev-plan-review",
+        "name": "dev-plan-review",
+        "description": "技术方案验证（两阶段质量门禁）— PR-1 CP2 前自检 + PR-2～PR-7 详细验证，阻断不合格方案进入编码",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "dev-refactor",
+        "name": "dev-refactor",
+        "description": "重构子类型规范 — 测试覆盖前置确认 + 三段式重构流程",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "dev-scenario-test",
+        "name": "dev-scenario-test",
+        "description": "场景测试子类型规范 — 端到端/集成测试 + artillery 负载测试",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "dev-testing",
+        "name": "dev-testing",
+        "description": "测试规范 — 单元测试/集成测试/API测试/E2E测试四类覆盖标准与触发条件",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "developer-experience-architecture",
+        "name": "developer-experience-architecture",
+        "description": "开发者体验架构专家 Owner — 当任务涉及 CLI、SDK、API、Hook、插件、框架、README、quick start、示例、错误信息、迁移、贡献路径或开发者接入体验时使用；要求验证第一次成功路径、真实示例、错误恢复和维护者消费链。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "distributed-systems-architecture",
+        "name": "distributed-systems-architecture",
+        "description": "分布式系统架构专家 Owner — 当任务涉及消息队列、RPC、事件驱动、跨服务一致性、分布式锁/租约、交付语义、顺序、幂等、重试、补偿、分区、背压或故障注入时使用；要求把网络与重复执行视为常态并冻结可验证的不变量。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "document-sync",
+        "name": "document-sync",
+        "description": "文档同步规范 — 代码变更后同步必查与条件文档",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "evolution-governance",
+        "name": "evolution-governance",
+        "description": "自我进化治理能力 — 规范、Skill、Prompt、探针和发布流程自动优化的控制面门禁",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      },
+      {
+        "id": "execution-contract",
+        "name": "execution-contract",
+        "description": "执行契约规范 — 为长流程、多文件、Auto 或控制面任务生成/校验 ExecutionContract，约束范围、路径、产物、验证路线、偏离分级与恢复策略",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      },
+      {
+        "id": "expert-output-quality",
+        "name": "expert-output-quality",
+        "description": "专家型产物质量门禁 — 当任务涉及代码、文档、示例、fixture、quick start、技术方案、报告或用户指出“不专业 / 像初级 / 示例误导 / 没有资深架构视角”时使用；要求区分生产推荐路径、框架原生能力、测试夹具边界、反模式与证据矩阵。",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "external-integration-architecture",
+        "name": "external-integration-architecture",
+        "description": "外部集成架构专家 Owner — 当任务涉及第三方 API、Webhook、OAuth、回调、provider/connector、配额、重试、降级、供应商锁定、外部故障或集成文档时使用；要求隔离外部边界并设计失败恢复。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "fix-default",
+        "name": "fix-default",
+        "description": "默认修复子类型规范 — Bug 修复三步扫描 + CP 流程",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "fix-security",
+        "name": "fix-security",
+        "description": "安全修复子类型规范 — CVE/漏洞响应 + 四项安全专项扫描",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "frontend-architecture",
+        "name": "frontend-architecture",
+        "description": "前端架构专家 Owner — 当任务涉及页面、组件、状态管理、数据获取、异步缓存、SSR/Nuxt、runtime config、i18n、SSE、空白页、性能、可访问性或前端验证路线时使用；要求优先保证旧数据可见、异步刷新、渲染稳定和用户主路径不断线。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "growth-analytics",
+        "name": "growth-analytics",
+        "description": "增长分析专家 Owner — 当任务涉及增长指标、埋点、漏斗、转化、留存、实验、产品数据决策、增长看板或数据驱动优化时使用；要求把事件、指标、隐私边界和决策闭环绑定到真实用户行为。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "host-capability-routing",
+        "name": "host-capability-routing",
+        "description": "宿主能力路由 Owner — 当已识别工作流意图后，需要在五个逻辑宿主、八个受支持 variant 上选择 direct / plan_first / auto_authorized，核验原始指令 authority，或判断 native lever 是否具备新鲜且安全的直接证据时使用。",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      },
+      {
+        "id": "host-contract-verification",
+        "name": "host-contract-verification",
+        "description": "宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible envelope / workspace guard / LinkCapabilityDecision / MCP fallback 定义 direct replay、fixture replay、部署同步与证据路线",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "host-instruction-projection",
+        "name": "host-instruction-projection",
+        "description": "宿主指令投影 Owner — 从统一 instructions 真相源确定性生成精简 Host Kernel、薄包装、覆盖回执与完整回退",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      },
+      {
+        "id": "impact-review",
+        "name": "impact-review",
+        "description": "影响评估规范 — 代码变更六维影响框架 + 回归风险评级",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "incremental-project-analysis",
+        "name": "incremental-project-analysis",
+        "description": "增量项目分析 Owner — 知识快照、内容 digest、分析视角覆盖、changed→impact 选择性失效、智能分批可见交付、全局优先级综合、分析精度合同与双层验证；大型/逐文件分析禁止只缓存自然语言总结。",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "intent",
+        "name": "intent",
+        "description": "识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resume/other），采用前置识别 + 三问法。Free 层可用。",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "load-profile",
+        "name": "load-profile",
+        "description": "项目 Profile 加载规范 — 先形成语义意图种子与唯一目标，再按计划加载最小充分配置",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "maintainer-docs-site-authoring",
+        "name": "maintainer-docs-site-authoring",
+        "description": "维护者/贡献者开发站点文档写作 Owner — 本地开发、贡献、测试、发版 runbook、internals/ADR；与用户使用站不等价；写文档时经 DocsAudienceIntent 路由。",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "memory",
+        "name": "memory",
+        "description": "管理会话记忆的读取与写入。三层记忆体系：Agent 日记 / 需求记忆 / 项目总记忆。",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      },
+      {
+        "id": "performance-engineering",
+        "name": "performance-engineering",
+        "description": "性能工程专家 Owner — 当任务涉及性能优化、性能预算、benchmark、profiling、p95/p99、吞吐、延迟、资源效率、容量规划、压测或性能回归时使用；要求先建立可比较基线，再定位瓶颈、评估容量并形成统计可信的回归结论。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "plan",
+        "name": "plan",
+        "description": "制定结构化执行计划。当用户请求不匹配任何已有工作流（other 路由）时，由 devcodex.agent.md 的 plan 兜底路由触发。",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "platform-ecosystem-architecture",
+        "name": "platform-ecosystem-architecture",
+        "description": "平台生态架构专家 Owner — 当任务涉及 CLI、Hook、多宿主、插件、扩展点、能力发现、部署副本、兼容矩阵、迁移、版本分发或生态治理时使用；要求把平台能力设计成可发现、可扩展、可兼容、可发布。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "privacy-compliance-architecture",
+        "name": "privacy-compliance-architecture",
+        "description": "隐私与合规架构专家 Owner — 当任务涉及个人信息/PII、数据分类、目的限制、同意、最小化、保留删除、数据驻留、跨境、日志脱敏、主体访问导出删除权或隐私审计时使用；要求把数据生命周期和用户权利映射到真实系统路径与证据。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "product-strategy",
+        "name": "product-strategy",
+        "description": "产品策略专家 Owner — 当任务涉及需求价值、目标用户、范围取舍、优先级、路线图、成功指标、产品化文档或用户要求从产品专家角度审查时使用；要求把方案绑定用户问题、业务价值、阶段边界和可验证信号。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "production-readiness-sre",
+        "name": "production-readiness-sre",
+        "description": "生产可用性 / SRE 专家 Owner — 当任务涉及发布风险、运行稳定性、可观测性、容量、资源生命周期、内存泄漏、回滚、故障恢复、运行手册、长连接、队列、缓存或生产验收时使用；要求把实现映射到可运行、可监控、可恢复、可回滚。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "profile-bootstrap",
+        "name": "profile-bootstrap",
+        "description": "Profile 计划与分档生成 — 先预览目标根、推荐档位和文件动作，再按统一契约生成可追踪的 .devcodex/profile/ 草稿",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      },
+      {
+        "id": "quality-strategy",
+        "name": "quality-strategy",
+        "description": "质量策略专家 Owner — 当任务涉及测试策略、验收矩阵、覆盖率、风险分层、回归范围、发布信心、质量度量、测试金字塔或用户要求 QA/质量专家视角时使用；要求用风险驱动选择验证组合。",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "readme-authoring",
+        "name": "readme-authoring",
+        "description": "README 写作规范 — 为 README / 用户使用文档收口用户视角、章节顺序、示例策略与 consumer map",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "release-verification",
+        "name": "release-verification",
+        "description": "发布验证规范 — 覆盖版本、changelog、测试、pack、install smoke、commit/tag/push/publish 前确认与发布后 registry/tag 验收",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "repair-prevention-assessment",
+        "name": "repair-prevention-assessment",
+        "description": "修复防复发完成门禁 Owner — 任何 fix、self-fix 或 dev 中的 repair 切片在 accepted 前使用；形成可机器验证的 RepairPreventionAssessmentV1，分离当前关闭证据与长期前瞻有效性，避免 active 工作流依赖未部署的 gray 能力。",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "report",
+        "name": "report",
+        "description": "生成并写入工作流执行报告。适用于 dev/fix/analyze/audit/self-fix（chat 豁免）。",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "requirement-parallel-orchestration",
+        "name": "requirement-parallel-orchestration",
+        "description": "多需求并行编排 Skill — 当任务涉及多个需求/问题/优化并行推进、子会话、子 Agent、worktree 或多 active work 执行前判定时，生成 RequirementIndependenceGate、SharedSurfaceLockMap 与 ParallelLaunchCard。",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "review-checklist",
+        "name": "review-checklist",
+        "description": "复审清单整理与审查规范 — 创建、冻结、证据执行、状态更新与收敛关闭",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "rework-prevention-engineering",
+        "name": "rework-prevention-engineering",
+        "description": "返工预防工程 Owner — 当任务涉及返工率、一次通过率、反复返修、复审持续出现新问题、重复逃逸、whyMissed 复发、预防措施有效性或希望把问题发现前移时使用；要求区分返工与需求变化，建立可比较基线，并用后续任务的前瞻证据验证控制是否有效。",
+        "lifecycleState": "gray",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "routing",
+        "name": "routing",
+        "description": "定义意图识别结果到工作流的路由映射。本 Skill 为人类可读参考，实际路由由 `01-common.instructions.md` + `intent/SKILL.md` + 各工作流 instructions 共同定义。",
+        "lifecycleState": "active",
+        "publicCategory": "workflow-routing"
+      },
+      {
+        "id": "security-threat-modeling",
+        "name": "security-threat-modeling",
+        "description": "安全威胁建模专家 Owner — 当任务涉及权限、认证、授权、输入输出信任边界、密钥策略、审计、攻击面、Webhook/OAuth、敏感操作或用户要求安全专家视角时使用；要求识别滥用路径并绑定缓解验证。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "skill-gap-analysis",
+        "name": "skill-gap-analysis",
+        "description": "Skill 缺口与大语料分析 Owner — 当任务涉及项目/工作区产物扫描、能力盘点、缺少哪些 Skill、全量审查前规模判断、大目录分批、抽样深读、扫描恢复或自我进化候选发现时使用；要求先识别项目并形成规模决策，再进行有边界的证据扫描。",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      },
+      {
+        "id": "skill-lifecycle-governance",
+        "name": "skill-lifecycle-governance",
+        "description": "Skill 生命周期治理 Owner — 当任务涉及 Skill 组合、重叠冲突、依赖关系、误触发/漏触发、active/gray/deprecated/retired 状态、合并拆分、废弃退役、质量指标或自我进化后的 Skill portfolio 健康度时使用。",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      },
+      {
+        "id": "skill-load-verify",
+        "name": "skill-load-verify",
+        "description": "仅用于验证 DevCodex 全局 skill 是否能被加载。\n触发：「验证技能」「验证技能加载」「skill load verify」「用 skill-load-verify skill」、\n「技能加载验证」「ping skill-load-verify」。\n不要用于业务开发、分析项目、写代码或发版。",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      },
+      {
+        "id": "source-consumer-sync",
+        "name": "source-consumer-sync",
+        "description": "真相源-消费者同步规范 — 为规范源、模板、validate、文档站与部署副本变更建立 Concept Sync Map，区分当前消费者与历史镜像",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "spec-absorption",
+        "name": "spec-absorption",
+        "description": "规范吸纳执行 Skill — 用于检查 data 最新可吸纳项、证明通用规范价值、剔除项目独有规则、输出吸纳清单、分层决策、同步消费者和验证探针；当用户说“吸纳规范 / 最新可吸纳 / 仍需吸纳 / 检查 data 是否有规范 / 开始吸纳”时使用。",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      },
+      {
+        "id": "spec-governance",
+        "name": "spec-governance",
+        "description": "规范治理生命周期 — 意图驱动记录、RecordRouter 分流、SCV 规范变更验证；规范吸纳执行细节由 spec-absorption 承接",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      },
+      {
+        "id": "summary",
+        "name": "summary",
+        "description": "写入会话摘要到记忆日文件。区别于 memory Skill（会话记录读写）。任务结束前与 memory Skill 配合完成记忆持久化。",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      },
+      {
+        "id": "test-router",
+        "name": "test-router",
+        "description": "测试路由规范 — 根据变更类型、影响范围与风险选择静态、单元、集成、API、E2E、场景/负载、pack 或发布验证，并记录跳过理由",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "token-check",
+        "name": "token-check",
+        "description": "授权占位规范 — 当前所有功能全量开放，无 tier 限制。Tier 门控为预留功能。",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      },
+      {
+        "id": "user-manual-authoring",
+        "name": "user-manual-authoring",
+        "description": "开源/公开用户站点与最终用户手册写作 Owner — guide/README/reference/migration/changelog/operations；与维护者开发站不等价；经 DocsAudienceIntent 路由。",
+        "lifecycleState": "active",
+        "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "user-visible-output-contract",
+        "name": "user-visible-output-contract",
+        "description": "用户可见输出契约 Owner — 统一入口检查、完成检查、确认、进度、结果、阻断及内部产物到用户交付的确定性投影",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      },
+      {
+        "id": "ux-interaction-architecture",
+        "name": "ux-interaction-architecture",
+        "description": "UX 交互架构专家 Owner — 当任务涉及页面流程、信息架构、任务路径、交互状态、空/错/加载/恢复、可理解性、操作成本、键盘/无障碍触点或用户要求补充交互设计规范时使用；要求从用户任务和状态反馈闭环审查体验。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
+      },
+      {
+        "id": "workspace-skill-author",
+        "name": "workspace-skill-author",
+        "description": "编写、生成、修改工作区 skill（SKILL.md）或 .devcodex/workspace/DEVCODEX.md 时使用。\n触发：「写 skill」「创建 workspace skill」「改 DEVCODEX.md」「优化 skill description」、\n「帮我写一个…skill」。不要用于普通业务开发任务。",
+        "lifecycleState": "active",
+        "publicCategory": "runtime-governance"
+      }
+    ],
+    "extensionPolicy": {
+      "extensionSource": "workspace",
+      "assignmentScope": "bundled-registered-only",
+      "includedInAssignments": false,
+      "includedInBundledCounts": false,
+      "description": "Workspace Skills are project-scoped extensions. They are explained separately and never enter bundled Skill assignments or the 86/83/3 denominators."
+    }
   },
   "capabilityScenarios": [
     {
@@ -162,15 +933,16 @@
   ],
   "markers": {
     "workflows": "<!-- devcodex-public:workflows primary=dev,fix,analyze,audit,resume,chat advanced=self-fix,other -->",
-    "skills": "<!-- devcodex-public:skills total=86 active=83 gray=3 bucket=80+ -->",
+    "skills": "<!-- devcodex-public:skills total=86 active=83 gray=3 bucket=80+ categories=workflow-routing:20,domain-architecture:21,quality-delivery:28,runtime-governance:17 -->",
     "hosts": "<!-- devcodex-public:hosts ids=copilot,claude,codex,gemini,grok,cursor variants=13 -->",
     "auto": "<!-- devcodex-public:auto canonical=@devcodex-auto default=@rocky profile-replacement=true empty-array-disables=true -->",
     "capabilities": "<!-- devcodex-public:capabilities ids=turn-ambiguous-request-into-action,fix-with-regression-confidence,evolve-cross-domain-change,deliver-with-evidence-and-handoff -->"
   },
   "sourceIdentities": {
-    "package": "37cfd65efb4c855c7f4ed7706c29acabf0f5c1f26f11f31006bc70b2a9885cd5",
+    "package": "fbdb7046172b805df3f1225c8107e63a1f0db1cbaa0fcca028662cd3e773e323",
     "expression": "10873b4e2c7cf6b9a015a6054442f373c7cb6f4b0ac859feabfca790bd138739",
     "workflows": "d9eb7086866fe3c3815f673957ed978c1594079261009ac775bf3e1336ad44fd",
-    "portfolio": "455c9a9cf042d52bae1f740990cea4eb3b1b0720e4d13ad946d4064509d45d2b"
+    "portfolio": "934d75eaa758d9924128c750e9b25004933f6a467401237f5da6f393aa18f7f6",
+    "taxonomy": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030"
   }
 }

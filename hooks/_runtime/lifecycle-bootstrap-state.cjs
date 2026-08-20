@@ -84,6 +84,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     getToolInputStrings,
     getCommandText,
     getPayloadSessionKey,
+    setStickyProject,
     getRecentBootstrapTaskStamps,
     isRecentBootstrapTaskPath,
     buildInterceptionOutput,
@@ -528,8 +529,20 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       productMutationCountThisTurn: 0,
       s07ProductWarnEmitted: false,
       stickyProject: {
-        project: CONTEXT_PROJECT || '',
-        source: CONTEXT_PROJECT ? 'context' : '',
+        schemaVersion: 'ProjectTargetLeaseV1',
+        leaseId: '',
+        targetDigest: '',
+        layoutIdentity: '',
+        project: '',
+        physicalRoot: '',
+        activeRoot: '',
+        source: '',
+        validatedAt: '',
+        validatedAtMs: 0,
+        expiresAt: '',
+        expiresAtMs: 0,
+        invalidationReason: '',
+        observedSessionRef: '',
         sessionKey: '',
         updatedAt: '',
         updatedAtMs: 0
@@ -591,6 +604,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       sourceRefreshPending: null,
       legacyObserved: { profileRead: false, summaryRead: false, tasksRead: false, bootstrapComplete: false }
     }
+    if (CONTEXT_PROJECT) setStickyProject(state, CONTEXT_PROJECT, 'context', {})
     return state
   }
 
@@ -910,6 +924,23 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     return /^vscode[_-]?askquestions$/.test(getToolName(payload).toLowerCase())
   }
 
+  function canRefreshCommittedRouteContext(state, acquisition) {
+    const routeStop = state?.progressiveSkillRouteStop
+    return !!(
+      acquisition?.plan &&
+      acquisition?.receipt?.status === 'relevant-complete' &&
+      acquisition.replanCount === 0 &&
+      routeStop?.present === true &&
+      routeStop?.complete !== true &&
+      routeStop?.processComplete !== true &&
+      routeStop?.retired !== true &&
+      !routeStop?.errorCode &&
+      routeStop?.nextOp === 'load_stage' &&
+      routeStop?.turnBinding &&
+      routeStop.contextEpoch === acquisition.contextEpoch
+    )
+  }
+
   function classifyContextAcquisitionTool(payload, state) {
     const acquisition = syncContextProjection(state)
     const identity = canonicalContextTool(payload)
@@ -956,6 +987,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       if (identity.tool === 'profile_context_plan') {
         const epoch = String(args.contextEpoch || '').trim()
         const planKey = stableDigest({ contextEpoch: acquisition.contextEpoch, canonical: identity.canonical, args })
+        const repeatedPlan = acquisition.planAttemptKeys.includes(planKey) && acquisition.plan
+        const routeContextRefresh = repeatedPlan && canRefreshCommittedRouteContext(state, acquisition)
         if ((!acquisition.targetResolved && !pendingPlanTarget) ||
             !epoch ||
             epoch !== acquisition.contextEpoch) {
@@ -964,12 +997,13 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         if (acquisition.failedPlanKeys.includes(planKey)) {
           return { allowed: false, suspicious: true, reason: 'the same failed plan call cannot be retried in this epoch' }
         }
-        if (acquisition.planAttemptKeys.includes(planKey) && acquisition.plan) {
+        if (repeatedPlan && !routeContextRefresh) {
           return { allowed: false, suspicious: true, reason: 'the same installed plan call is already recorded for this epoch' }
         }
         return {
           allowed: true,
-          kind: 'plan',
+          kind: routeContextRefresh ? 'plan-refresh' : 'plan',
+          routeContextRefresh,
           ...identity,
           args,
           argsDigest: stableDigest(args),
@@ -1133,11 +1167,22 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     }
     if (classified.allowed) {
       if (classified.fallback) activateFallback(acquisition, classified.kind)
-      if (classified.kind === 'plan') {
+      if (classified.kind === 'plan' || classified.kind === 'plan-refresh') {
         acquisition.planCallCount += 1
         if (!acquisition.planAttemptKeys.includes(classified.planKey)) {
           acquisition.planAttemptKeys.push(classified.planKey)
           acquisition.planAttemptKeys = acquisition.planAttemptKeys.slice(-10)
+        }
+        if (classified.kind === 'plan-refresh') {
+          acquisition.receipt = markContextReadReceiptStale(
+            acquisition.receipt,
+            acquisition.plan,
+            'scope-drift'
+          )
+          acquisition.replanCount = Math.max(
+            acquisition.replanCount,
+            acquisition.receipt.replanCount
+          )
         }
       } else if (acquisition.plan &&
           acquisition.receipt &&
@@ -1703,20 +1748,16 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         activateFallback(acquisition, 'PostToolUse input mismatch')
         acquisition.lastError = contextError('CONTEXT_PLAN_INVALID', 'PostToolUse input does not match the correlated PreToolUse attempt.')
       }
-    } else if (attempt.kind === 'plan') {
+    } else if (attempt.kind === 'plan' || attempt.kind === 'plan-refresh') {
       const installed = installObservedPlan(acquisition, attempt, payload)
       if (installed && !targetWasResolved) {
         state.activeProject = acquisition.project
         state.activeScope = 'project'
         state.activeProjectSource = 'context-plan'
         state.mode = readProfileMode(state, acquisition.project)
-        state.stickyProject = {
-          project: acquisition.project,
-          source: 'context-plan',
-          sessionKey: acquisition.hostSessionId,
-          updatedAt: new Date().toISOString(),
-          updatedAtMs: Date.now()
-        }
+        setStickyProject(state, acquisition.project, 'context-plan', {
+          session_id: acquisition.hostSessionId
+        })
       }
     } else if (attempt.kind === 'profile-load' && acquisition.plan && acquisition.receipt) {
       const parsed = profileSourceResults(acquisition, attempt, outcome)

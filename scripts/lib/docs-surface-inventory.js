@@ -50,7 +50,7 @@ const PUBLIC_SITE_REQUIRED_MD = Object.freeze([
   'public-site/docs/reference/diagnostics.md',
   'public-site/docs/reference/runtime-operations.md',
   'public-site/docs/reference/glossary.md',
-  'public-site/docs/reference/skills.md',
+  'public-site/docs/reference/skills.mdx',
   'public-site/docs/reference/hosts.md',
   'public-site/docs/reference/configuration.md',
   'public-site/docs/reference/limits.md',
@@ -241,7 +241,7 @@ function assertDocsSurfaceInventory (inv) {
     failures.push('workflow id "plan" must not exist (use other + plan Skill)')
   }
 
-  if (inv.mcpToolCount !== 15) failures.push(`mcp tools expected 15 got ${inv.mcpToolCount}`)
+  if (inv.mcpToolCount !== 16) failures.push(`mcp tools expected 16 got ${inv.mcpToolCount}`)
 
   for (const ev of REQUIRED_HOOK_EVENTS) {
     if (!inv.hookEvents.includes(ev)) failures.push(`missing hook event ${ev}`)

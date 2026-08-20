@@ -20,6 +20,10 @@ const {
   evaluatePublicReadmeContract,
   evaluatePublicReadmeContractV2
 } = require('./lib/canonical-consumer-contracts')
+const {
+  formatReadmeSkillCategories,
+  replaceReadmeSkillCategoryBlock
+} = require('./generate-public-site-data')
 
 const ROOT = path.resolve(__dirname, '..')
 const projection = buildPublicProductProjection({ root: ROOT })
@@ -41,6 +45,9 @@ const workflowChange = fs.readFileSync(path.join(ROOT, 'public-site', 'docs', 'w
 const workflowReadOnly = fs.readFileSync(path.join(ROOT, 'public-site', 'docs', 'workflows', 'read-only.md'), 'utf8')
 const workflowSession = fs.readFileSync(path.join(ROOT, 'public-site', 'docs', 'workflows', 'session.md'), 'utf8')
 const workflowReference = fs.readFileSync(path.join(ROOT, 'public-site', 'docs', 'reference', 'workflows.md'), 'utf8')
+const skillReference = fs.readFileSync(path.join(ROOT, 'public-site', 'docs', 'reference', 'skills.mdx'), 'utf8')
+const skillCatalogComponent = fs.readFileSync(path.join(ROOT, 'public-site', 'components', 'SkillCatalog.tsx'), 'utf8')
+const skillCatalogCss = fs.readFileSync(path.join(ROOT, 'public-site', 'components', 'skill-catalog.css'), 'utf8')
 const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')
 const pagesWorkflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'pages.yml'), 'utf8')
 
@@ -66,6 +73,23 @@ assert.strictEqual(projection.skills.total, 86)
 assert.strictEqual(projection.skills.active, 83)
 assert.strictEqual(projection.skills.gray, 3)
 assert.strictEqual(projection.skills.bucket, '80+')
+assert.deepStrictEqual(projection.skills.categoryCounts, {
+  'workflow-routing': 20,
+  'domain-architecture': 21,
+  'quality-delivery': 28,
+  'runtime-governance': 17
+})
+assert.strictEqual(projection.skills.categories.length, 4)
+assert.strictEqual(projection.skills.catalog.length, 86)
+assert.strictEqual(new Set(projection.skills.catalog.map(skill => skill.id)).size, 86)
+assert(projection.skills.catalog.every(skill => typeof skill.publicCategory === 'string'))
+assert(projection.skills.categories.every(category =>
+  category.representativeSkills.length > 0 &&
+  category.representativeSkills.every(skill => skill.lifecycleState === 'active')
+))
+assert.strictEqual(projection.skills.extensionPolicy.extensionSource, 'workspace')
+assert.strictEqual(projection.skills.extensionPolicy.includedInAssignments, false)
+assert.strictEqual(projection.skills.extensionPolicy.includedInBundledCounts, false)
 assert.strictEqual(projection.capabilityScenarios.length, 4)
 assert(projection.capabilityScenarios.every((scenario) =>
   scenario.representativeSkillIds.length > 0 && scenario.nextHref.startsWith('/')
@@ -81,12 +105,37 @@ for (const host of projection.hosts) {
   assert(publicSiteHosts.includes(host.recommendedEntry), `host entry drift: ${host.hostId}`)
   assert(publicSiteHosts.includes(host.publicStatus), `host status drift: ${host.hostId}`)
 }
-assert.strictEqual(Object.keys(projection.sourceIdentities).length, 4)
+assert.strictEqual(Object.keys(projection.sourceIdentities).length, 5)
 assert.strictEqual(projection.expression.autoEntry.runtimeBehaviorChanged, false)
 assert.strictEqual(publicSitePackage.private, true)
 assert.strictEqual(publicSitePackage.devDependencies['@rspress/core'], '2.0.18')
 assert.strictEqual(Object.keys(rootPackage.dependencies || {}).length, 0)
 assert(!rootPackage.files.includes('public-site/'))
+assert.strictEqual(fs.existsSync(path.join(ROOT, 'public-site', 'docs', 'reference', 'skills.md')), false)
+for (const category of projection.skills.categories) {
+  assert(skillReference.includes(`/reference/skills?category=${category.id}`), `Skill reference missing category ${category.id}`)
+  assert(skillReference.includes(`| ${category.count} |`), `Skill reference missing count ${category.id}`)
+}
+for (const needle of [
+  "import { SkillCatalog } from '../../components/SkillCatalog'",
+  '<SkillCatalog />',
+  '不进入 bundled assignments',
+  '不进入 86/83/3 分母'
+]) assert(skillReference.includes(needle), needle)
+for (const needle of [
+  'filterSkillCatalog',
+  'URLSearchParams',
+  'type="search"',
+  '<select',
+  'value="active"',
+  'value="gray"',
+  'aria-live="polite"',
+  'data-skill-id={skill.id}',
+  'skillProjection.catalog'
+]) assert(skillCatalogComponent.includes(needle), needle)
+for (const needle of ['@media (max-width: 900px)', '@media (max-width: 640px)', ':focus-visible']) {
+  assert(skillCatalogCss.includes(needle), needle)
+}
 for (const needle of [
   "base: '/devcodex/'",
   "outDir: 'doc_build'",
@@ -243,6 +292,15 @@ const syntheticReadme = [
   ...Object.values(projection.markers),
   ...projection.workflows.canonical.map(id => `\`${id}\``),
   ...projection.hosts.flatMap(host => [host.label, host.recommendedEntry, host.publicStatus]),
+  ...projection.skills.categories.flatMap(category => [
+    category.label,
+    `| ${category.count} |`,
+    `/reference/skills?category=${category.id}`,
+    ...category.representativeSkills.map(skill => `\`${skill.id}\``)
+  ]),
+  'extensionSource=workspace',
+  '不进入 bundled assignments',
+  '不进入 86/83/3 分母',
   `${projection.skills.total} 个 Skill（${projection.skills.active} active + ${projection.skills.gray} gray）`
 ].join('\n\n')
 const v2 = evaluatePublicReadmeContractV2(syntheticReadme, { root: ROOT, projection })
@@ -289,6 +347,30 @@ const missingWorkflow = evaluatePublicReadmeContractV2(
   { root: ROOT, projection }
 )
 assert(missingWorkflow.violations.some(item => item.code === 'README_WORKFLOW_MISSING' && item.evidence === 'self-fix'))
+
+const missingCategoryLink = evaluatePublicReadmeContractV2(
+  syntheticReadme.replace('/reference/skills?category=workflow-routing', '/reference/skills'),
+  { root: ROOT, projection }
+)
+assert(missingCategoryLink.violations.some(item =>
+  item.code === 'README_SKILL_CATEGORY_LINK_MISSING' && item.evidence === 'workflow-routing'
+))
+
+const workspaceAsBundled = evaluatePublicReadmeContractV2(
+  `${syntheticReadme}\nWorkspace 四类`,
+  { root: ROOT, projection }
+)
+assert(workspaceAsBundled.violations.some(item => item.code === 'README_WORKSPACE_SKILL_BUNDLED_CATEGORY'))
+
+const formattedSkillCategories = formatReadmeSkillCategories(projection.skills)
+for (const category of projection.skills.categories) {
+  assert(formattedSkillCategories.includes(`/reference/skills?category=${category.id}`))
+  assert(formattedSkillCategories.includes(`| ${category.count} |`))
+}
+assert(replaceReadmeSkillCategoryBlock(
+  '<!-- devcodex-public:skill-categories:start -->\nstale\n<!-- devcodex-public:skill-categories:end -->',
+  projection.skills
+).includes(formattedSkillCategories))
 
 const blockedEndpoint = classifyEndpointIdentity(fixtures.cases.find(item => item.id === 'parked-200-block').input)
 assert(evaluatePublicReadmeContractV2(syntheticReadme, {

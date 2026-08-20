@@ -6,15 +6,17 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "87e6d5320b8b08ada220da1922748c965a7e91da3f83a5a677b933ac6a6250ae",
+    "sourceDigest": "69b0d1b6153b9332909dba73202a70c3a6914a794e07ed4b4992c9af6e8f7cdd",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "07088a5a179a16245a951c4f551d74b299376ed1637db6e6a31277eec893dec7",
+    "publicTaxonomy": "content/skills/public-taxonomy.json",
+    "publicTaxonomyDigest": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 575,
-    "consumerInventoryDigest": "8c6858cb5b3922695b3a4be94ab6c5897b792bdf1ead0054265b1b4d4d4530ba",
-    "consumerProjectionDigest": "fd7d8dcb149459d927f173c6fc5bb34b121631f4686a08751a40b451c9164a87",
-    "portfolioInputDigest": "6f5a85bb9522080c76f329c7afe7818eb0209bb34be9b1347e0dcad902db32bf"
+    "consumerInventoryFileCount": 586,
+    "consumerInventoryDigest": "03714d54f8b99c70358f9814f8e8f6c2599d10a52f8641354f8efa8a6d69c4b2",
+    "consumerProjectionDigest": "8988b8466110f071b0ca03f658afab052583740727f586bc588ba15fb5e6bc4c",
+    "portfolioInputDigest": "3f6aaa12dc2273d88a71cd663e43e86818dc302ccf653d995a17defe74f2cfa4"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -28,9 +30,73 @@
     "conflictReviewedCount": 86,
     "operationalEvidenceCompleteCount": 86,
     "triggerPrecisionMeasuredCount": 3,
-    "instructionBudgetP95Bytes": 23451,
+    "instructionBudgetP95Bytes": 24999,
     "triggerQuality": "mixed",
-    "sidecarPresentCount": 0
+    "sidecarPresentCount": 0,
+    "publicCategoryCounts": {
+      "workflow-routing": 20,
+      "domain-architecture": 21,
+      "quality-delivery": 28,
+      "runtime-governance": 17
+    }
+  },
+  "publicTaxonomy": {
+    "schemaVersion": "PublicSkillTaxonomyV1",
+    "registrySource": "plugin.json#skills",
+    "assignmentKey": "publicCategory",
+    "extensionPolicy": {
+      "extensionSource": "workspace",
+      "assignmentScope": "bundled-registered-only",
+      "includedInAssignments": false,
+      "includedInBundledCounts": false,
+      "description": "Workspace Skills are project-scoped extensions. They are explained separately and never enter bundled Skill assignments or the 86/83/3 denominators."
+    },
+    "categories": [
+      {
+        "id": "workflow-routing",
+        "label": "Workflow & Routing",
+        "description": "Selects the task workflow, subtype, stage, confirmation path, and bounded orchestration route.",
+        "representativeSkillIds": [
+          "intent",
+          "dev-default",
+          "fix-default",
+          "audit-common"
+        ]
+      },
+      {
+        "id": "domain-architecture",
+        "label": "Domain & Architecture",
+        "description": "Provides product, experience, system, data, security, and operational architecture expertise.",
+        "representativeSkillIds": [
+          "product-strategy",
+          "frontend-architecture",
+          "backend-domain-architecture",
+          "data-architecture"
+        ]
+      },
+      {
+        "id": "quality-delivery",
+        "label": "Quality & Delivery",
+        "description": "Covers testing, review, documentation, evidence, release verification, and delivery closure.",
+        "representativeSkillIds": [
+          "quality-strategy",
+          "dev-testing",
+          "review-checklist",
+          "release-verification"
+        ]
+      },
+      {
+        "id": "runtime-governance",
+        "label": "Runtime & Governance",
+        "description": "Governs host runtime, context, memory, instructions, Skill lifecycle, policy, and user-visible contracts.",
+        "representativeSkillIds": [
+          "host-capability-routing",
+          "memory",
+          "skill-lifecycle-governance",
+          "spec-governance"
+        ]
+      }
+    ]
   },
   "dependencyGraph": {
     "nodes": [
@@ -581,6 +647,7 @@
       "sourceBytes": 5180,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -599,6 +666,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -731,6 +802,7 @@
       "sourceBytes": 11498,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -749,6 +821,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -896,6 +972,7 @@
       "sourceBytes": 3106,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -914,6 +991,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -1043,6 +1124,7 @@
       "sourceBytes": 10645,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [
         "load-profile"
       ],
@@ -1075,6 +1157,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -1232,6 +1318,7 @@
       "sourceBytes": 3578,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -1250,6 +1337,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -1388,6 +1479,7 @@
       "sourceBytes": 5490,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -1554,6 +1646,7 @@
       "sourceBytes": 9559,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -1588,6 +1681,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -1755,6 +1852,7 @@
       "sourceBytes": 30192,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [],
       "references": [
         "audit-execution-guide",
@@ -1816,6 +1914,14 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {
@@ -1987,6 +2093,7 @@
       "sourceBytes": 12881,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -2009,6 +2116,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -2129,6 +2240,7 @@
       "sourceBytes": 5636,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -2155,6 +2267,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -2303,6 +2419,7 @@
       "sourceBytes": 6946,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [
         "audit-common",
@@ -2348,6 +2465,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -2495,6 +2616,7 @@
       "sourceBytes": 6585,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -2521,6 +2643,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -2679,6 +2805,7 @@
       "sourceBytes": 9730,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -2717,6 +2844,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -2887,6 +3018,7 @@
       "sourceBytes": 6307,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -2917,6 +3049,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -3092,6 +3228,7 @@
       "sourceBytes": 3834,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -3106,6 +3243,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -3241,6 +3382,7 @@
       "sourceBytes": 14093,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -3271,6 +3413,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -3427,6 +3573,7 @@
       "sourceBytes": 8488,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [],
       "references": [
         "audit-execution-guide"
@@ -3463,6 +3610,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -3611,6 +3762,7 @@
       "sourceBytes": 10730,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -3629,6 +3781,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -3773,6 +3929,7 @@
       "sourceBytes": 8323,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -3799,6 +3956,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -3949,6 +4110,7 @@
       "sourceBytes": 4067,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -4101,6 +4263,7 @@
       "sourceBytes": 7536,
       "version": "1.17.10",
       "lifecycleState": "gray",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [
@@ -4125,6 +4288,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -4302,6 +4469,7 @@
       "sourceBytes": 4355,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -4320,6 +4488,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -4453,6 +4625,7 @@
       "sourceBytes": 23457,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [
         "intent"
       ],
@@ -4583,6 +4756,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -4830,6 +5007,7 @@
       "sourceBytes": 11031,
       "version": "1.17.10",
       "lifecycleState": "gray",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -4856,6 +5034,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -5009,6 +5191,7 @@
       "sourceBytes": 26801,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -5083,6 +5266,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -5313,6 +5500,7 @@
       "sourceBytes": 3104,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -5331,6 +5519,14 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {
@@ -5455,6 +5651,7 @@
       "sourceBytes": 3618,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -5473,6 +5670,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -5605,6 +5806,7 @@
       "sourceBytes": 3487,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -5631,6 +5833,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -5762,6 +5968,7 @@
       "sourceBytes": 15506,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [
         "cp-gate",
         "execution-contract",
@@ -6035,6 +6242,7 @@
       "sourceBytes": 9377,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -6081,6 +6289,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -6233,6 +6445,7 @@
       "sourceBytes": 2932,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -6251,6 +6464,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -6378,6 +6595,7 @@
       "sourceBytes": 2596,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -6400,6 +6618,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -6528,6 +6750,7 @@
       "sourceBytes": 22363,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [
         "impact-review"
       ],
@@ -6616,6 +6839,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -6793,6 +7020,7 @@
       "sourceBytes": 1736,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [
         "impact-review"
       ],
@@ -6813,6 +7041,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         }
       ],
@@ -6927,6 +7159,7 @@
       "sourceBytes": 4180,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -6945,6 +7178,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -7091,6 +7328,7 @@
       "sourceBytes": 19285,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [
         "api-verification",
         "dev-scenario-test"
@@ -7134,6 +7372,14 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {
@@ -7298,6 +7544,7 @@
       "sourceBytes": 6386,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -7316,6 +7563,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -7449,6 +7700,7 @@
       "sourceBytes": 4108,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -7467,6 +7719,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -7596,6 +7852,7 @@
       "sourceBytes": 9429,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [
         "source-consumer-sync"
       ],
@@ -7837,6 +8094,7 @@
       "sourceBytes": 10088,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [
         "skill-lifecycle-governance"
       ],
@@ -7857,6 +8115,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -7990,6 +8252,7 @@
       "sourceBytes": 19710,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -8032,6 +8295,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -8244,6 +8511,7 @@
       "sourceBytes": 9773,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -8274,6 +8542,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -8406,6 +8678,7 @@
       "sourceBytes": 3314,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -8424,6 +8697,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -8550,6 +8827,7 @@
       "sourceBytes": 7515,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [
         "impact-review",
         "requirement-parallel-orchestration"
@@ -8785,6 +9063,7 @@
       "sourceBytes": 1663,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -8799,6 +9078,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -8926,6 +9209,7 @@
       "sourceBytes": 4371,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -9083,6 +9367,7 @@
       "sourceBytes": 4098,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -9101,6 +9386,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -9227,6 +9516,7 @@
       "sourceBytes": 10925,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -9249,6 +9539,14 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {
@@ -9397,6 +9695,7 @@
       "sourceBytes": 12967,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -9423,6 +9722,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -9605,6 +9908,7 @@
       "sourceBytes": 12604,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -9619,6 +9923,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -9786,6 +10094,7 @@
       "sourceBytes": 1912,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [
         "dev-database"
@@ -9798,6 +10107,10 @@
       "consumers": [
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         }
       ],
@@ -9913,6 +10226,7 @@
       "sourceBytes": 12066,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [
         "analyze-default",
         "skill-gap-analysis"
@@ -9930,6 +10244,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -10088,6 +10406,7 @@
       "sourceBytes": 12679,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [],
       "references": [
         "spec-governance"
@@ -10231,7 +10550,7 @@
           "role": "current"
         },
         {
-          "path": "public-site/docs/reference/skills.md",
+          "path": "public-site/docs/workflows/read-only.md",
           "role": "current"
         },
         {
@@ -10708,6 +11027,7 @@
       "sourceBytes": 23127,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -10766,6 +11086,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -10945,6 +11269,7 @@
       "sourceBytes": 2962,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -10955,6 +11280,10 @@
       "consumers": [
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         }
       ],
@@ -11068,10 +11397,11 @@
         "content/skills/memory/SKILL.md"
       ],
       "source": "content/skills/memory/SKILL.md",
-      "hash": "9b37f76126a4d8582d8a079a9c39e1d4af60e16189c3cbb9b002770ac7bafeff",
-      "sourceBytes": 23989,
+      "hash": "4ec505c896bc39668b0d69845e0ab325f5586943cb0c18769ff46a551394f14a",
+      "sourceBytes": 25537,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [],
       "references": [
         "compliance"
@@ -11347,6 +11677,10 @@
           "role": "current"
         },
         {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
           "path": "public-site/docs/concepts/architecture.md",
           "role": "current"
         },
@@ -11359,11 +11693,27 @@
           "role": "current"
         },
         {
+          "path": "public-site/docs/reference/diagnostics.md",
+          "role": "current"
+        },
+        {
+          "path": "public-site/docs/reference/glossary.md",
+          "role": "current"
+        },
+        {
           "path": "public-site/docs/reference/limits.md",
           "role": "current"
         },
         {
+          "path": "public-site/docs/tutorials/evidence-handoff.md",
+          "role": "current"
+        },
+        {
           "path": "public-site/rspress.config.ts",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {
@@ -11977,6 +12327,7 @@
       "sourceBytes": 5535,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -11995,6 +12346,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -12134,6 +12489,7 @@
       "sourceBytes": 1658,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [],
       "references": [
         "compliance",
@@ -12462,11 +12818,23 @@
           "role": "current"
         },
         {
+          "path": "public-site/docs/reference/cli.md",
+          "role": "current"
+        },
+        {
           "path": "public-site/docs/reference/configuration.md",
           "role": "current"
         },
         {
+          "path": "public-site/docs/reference/diagnostics.md",
+          "role": "current"
+        },
+        {
           "path": "public-site/docs/reference/workflows.md",
+          "role": "current"
+        },
+        {
+          "path": "public-site/docs/workflows/change.md",
           "role": "current"
         },
         {
@@ -12475,6 +12843,10 @@
         },
         {
           "path": "public-site/docs/workflows/index.md",
+          "role": "current"
+        },
+        {
+          "path": "public-site/docs/workflows/read-only.md",
           "role": "current"
         },
         {
@@ -13272,6 +13644,7 @@
       "sourceBytes": 4811,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -13290,6 +13663,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -13424,6 +13801,7 @@
       "sourceBytes": 3093,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -13442,6 +13820,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -13568,6 +13950,7 @@
       "sourceBytes": 3860,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -13586,6 +13969,14 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {
@@ -13708,6 +14099,7 @@
       "sourceBytes": 4304,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -13862,6 +14254,7 @@
       "sourceBytes": 10399,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -13912,6 +14305,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -14063,6 +14460,7 @@
       "sourceBytes": 4222,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -14228,6 +14626,7 @@
       "sourceBytes": 7834,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [
         "audit-readme"
       ],
@@ -14260,6 +14659,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -14411,6 +14814,7 @@
       "sourceBytes": 17557,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -14465,6 +14869,14 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {
@@ -14660,6 +15072,7 @@
       "sourceBytes": 4889,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -14682,6 +15095,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -14842,6 +15259,7 @@
       "sourceBytes": 21360,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [
         "compliance"
       ],
@@ -15116,6 +15534,10 @@
         },
         {
           "path": "public-product-expression.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -15721,6 +16143,7 @@
       "sourceBytes": 7016,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -15739,6 +16162,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -15868,6 +16295,7 @@
       "sourceBytes": 15785,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -15902,6 +16330,14 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {
@@ -16081,6 +16517,7 @@
       "sourceBytes": 10416,
       "version": "1.17.10",
       "lifecycleState": "gray",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [
         "repair-prevention-assessment"
@@ -16113,6 +16550,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -16280,6 +16721,7 @@
       "sourceBytes": 17535,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "workflow-routing",
       "dependencies": [
         "intent",
         "skill-lifecycle-governance"
@@ -16424,11 +16866,19 @@
           "role": "current"
         },
         {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
           "path": "public-site/docs/index.md",
           "role": "current"
         },
         {
           "path": "public-site/rspress.config.ts",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {
@@ -16525,6 +16975,10 @@
         },
         {
           "path": "scripts/lib/validate-governance-review.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-optimization-controls.js",
           "role": "current"
         },
         {
@@ -16776,6 +17230,7 @@
       "sourceBytes": 5648,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -16794,6 +17249,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -16918,6 +17377,7 @@
       "sourceBytes": 8519,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -16940,6 +17400,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -17068,6 +17532,7 @@
       "sourceBytes": 10702,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -17090,6 +17555,14 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {
@@ -17255,6 +17728,7 @@
       "sourceBytes": 1385,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -17269,6 +17743,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -17395,6 +17873,7 @@
       "sourceBytes": 6066,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -17425,6 +17904,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -17590,6 +18073,7 @@
       "sourceBytes": 28698,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [
         "skill-gap-analysis"
       ],
@@ -17626,6 +18110,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -17804,6 +18292,7 @@
       "sourceBytes": 35305,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [
         "spec-absorption"
       ],
@@ -17968,6 +18457,14 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {
@@ -18238,6 +18735,7 @@
       "sourceBytes": 3322,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [],
       "references": [
         "compliance"
@@ -18349,7 +18847,7 @@
           "role": "current"
         },
         {
-          "path": "public-site/docs/reference/skills.md",
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -18794,6 +19292,7 @@
       "sourceBytes": 12048,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [
         "expert-output-quality"
@@ -19160,6 +19659,7 @@
       "sourceBytes": 803,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -19182,6 +19682,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -19313,6 +19817,7 @@
       "sourceBytes": 12146,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "quality-delivery",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -19339,6 +19844,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -19491,6 +20000,7 @@
       "sourceBytes": 20477,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -19537,6 +20047,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -19694,6 +20208,7 @@
       "sourceBytes": 4072,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -19712,6 +20227,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         },
         {
@@ -19838,6 +20357,7 @@
       "sourceBytes": 2828,
       "version": "1.17.10",
       "lifecycleState": "active",
+      "publicCategory": "runtime-governance",
       "dependencies": [],
       "references": [],
       "conflicts": [],
@@ -19852,6 +20372,10 @@
         },
         {
           "path": "plugin.json",
+          "role": "current"
+        },
+        {
+          "path": "public-site/data/public-product-projection.json",
           "role": "current"
         }
       ],

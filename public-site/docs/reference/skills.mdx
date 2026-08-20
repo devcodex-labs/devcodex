@@ -1,17 +1,23 @@
+import { SkillCatalog } from '../../components/SkillCatalog'
+
 # Skill
 
 公开摘要使用 **80+** 个 Skill。精确计数、生命周期与冲突关系以首页和 README 的投影为准，由仓库 portfolio 生成和验证。
 
-## 四类公开理解方式
+## 四类 bundled Skill
 
-| 类型 | 解决什么问题 |
-|------|--------------|
-| Workflow Skill | 实现开发、修复、分析、审查等主流程 |
-| Domain Skill | 提供架构、安全、数据、前后端、性能等专业判断 |
-| Delivery & Governance Skill | 负责测试、文档、发布、报告、质量与交付闭环 |
-| Workspace Skill | 保存项目或团队自己的流程、清单和知识 |
+| 分类 | 数量 | 解决什么问题 |
+|------|-----:|--------------|
+| [Workflow & Routing](/reference/skills?category=workflow-routing) | 20 | 选择工作流、子类型、阶段、确认路径与有界编排 |
+| [Domain & Architecture](/reference/skills?category=domain-architecture) | 21 | 提供产品、体验、系统、数据、安全与运维架构判断 |
+| [Quality & Delivery](/reference/skills?category=quality-delivery) | 28 | 负责测试、审查、文档、证据、发布验证与交付闭环 |
+| [Runtime & Governance](/reference/skills?category=runtime-governance) | 17 | 管理宿主、上下文、记忆、指令、Skill 生命周期与治理契约 |
+
+这四类只统计随 DevCodex 分发的 registered Skill。Workspace Skill 是项目级扩展来源，不进入 bundled assignments，也不进入 86/83/3 分母。
 
 DevCodex 只加载当前任务和阶段需要的 Skill。看到 Skill 目录或 catalog 不等于正文已经加载；最终能力仍受宿主的 Hook、MCP、权限与生命周期事件限制。
+
+<SkillCatalog />
 
 ## 添加 Workspace Skill
 

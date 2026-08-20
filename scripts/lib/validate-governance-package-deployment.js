@@ -137,6 +137,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
         'hooks/devcodex.lifecycle.json',
         'hooks/_runtime/lifecycle.cjs',
         'mcp/memory-server.js',
+        'mcp/artifact-link-projection.cjs',
         'mcp/profile-server.js',
         'scripts/instruction-fallback-check.js',
         'scripts/migrate-layout.js',
@@ -315,6 +316,7 @@ function buildGovernancePackageDeploymentChecks(ctx) {
       { src: 'prompts/report-scenario-test.prompt.md', claude: 'prompts/report-scenario-test.prompt.md', github: 'prompts/report-scenario-test.prompt.md' },
       { src: 'hooks/_runtime/lifecycle.cjs', claude: 'hooks/_runtime/lifecycle.cjs', github: 'hooks/_runtime/lifecycle.cjs' },
       { src: 'mcp/memory-server.js', claude: 'mcp/memory-server.js', github: null },
+      { src: 'mcp/artifact-link-projection.cjs', claude: 'mcp/artifact-link-projection.cjs', github: null },
       { src: 'mcp/profile-server.js', claude: 'mcp/profile-server.js', github: null },
       { src: 'host-projections/CLAUDE.md', claude: '../CLAUDE.md', github: null }
     ]

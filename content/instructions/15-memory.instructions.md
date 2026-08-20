@@ -87,6 +87,12 @@ daily/SUMMARY 仍是唯一真相源：受管 writer 在文件提交后刷新索�
 - 已存在 canonical 文件的纯 EOF 增长走 append fast path；创建走 atomic temp+rename，中段更新保留 rewrite。append/rewrite 都必须在最终写入窗口重新比较 source identity，外部编辑时 fail closed 且不得覆盖。
 - POSIX rewrite 保留 mode/uid/gid，新文件 mode=0600；Windows DACL 未执行真实 before/after probe 时必须明确 `WARN/UNVERIFIED`，不得用 POSIX mode 模拟 PASS。事务只清理由自己创建的临时文件。
 
+### ArtifactLinkProjectionGate
+
+- 新增本地 Markdown 关联前，先调用 `memory_artifact_link_project(operation: "project", documentPath, artifacts, linkCapability)`；`documentPath` 与每个 `targetPath` 都必须相对 active-root，目标必须是 canonical containment 校验通过的现存普通文件。投影固定返回 `ArtifactLinkProjectionSetV1`，按 canonical path 去重，从 `documentPath` 所在目录生成 `/` 分隔的相对 href；含空格的 href 使用 Markdown angle destination，禁止 `file://`、绝对路径 fallback 和越界/reparse traversal。
+- `memory_session_write.artifacts[]`、`memory_summary_append.reportArtifact/memoryArtifact` 与 digest-bound `memory_cp_confirm` 由 writer 使用同一投影 owner：daily 自动生成“关联产物”块，SUMMARY 自动生成第 5/6 列，CP `artifactPath` 单元格生成相对链接；receipt 必须同时返回投影与 `validate-existing` 写后回读。legacy raw content/row 保持兼容，但其中新增的本地 Markdown 链接若不是从当前目标文档解析、目标不存在或越界，必须零写入失败。
+- 手工/宿主 fallback 写入时，落盘前使用 `operation: "project"`，落盘后对同一 `{documentPath, artifacts, linkCapability}` 使用 `operation: "validate-existing"`；缺任一阶段不得声称链接交付完成。历史 active-root 文档只允许先做有界预览与问题清单，未经单独确认禁止批量回写旧链接。
+
 ## Context Rehydration Contract（记忆侧）
 
 压缩恢复、summary 恢复、resume 或用户明确要求“按文件真相重建”时，记忆侧上下文必须按以下优先级参与重建：

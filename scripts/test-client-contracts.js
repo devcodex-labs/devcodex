@@ -5,7 +5,7 @@ const fs = require('fs')
 const path = require('path')
 const {
   createCanonicalAwareReader,
-  evaluatePublicReadmeContract,
+  evaluatePublicReadmeContractV2,
   hasValidCanonicalContract
 } = require('./lib/canonical-consumer-contracts')
 const { createLinkCapabilityDecision } = require('../hooks/_runtime/visible-output-contract.cjs')
@@ -13,7 +13,7 @@ const { createLinkCapabilityDecision } = require('../hooks/_runtime/visible-outp
 const ROOT = path.resolve(__dirname, '..')
 const failures = []
 const publicReadme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')
-const publicReadmeContract = evaluatePublicReadmeContract(publicReadme)
+const publicReadmeContract = evaluatePublicReadmeContractV2(publicReadme, { root: ROOT })
 if (!publicReadmeContract.valid) {
   failures.push(`public README contract missing: ${publicReadmeContract.missing.join(', ')}`)
 }
@@ -26,7 +26,7 @@ if (!hasValidCanonicalContract(
   failures.push('valid public README must retire legacy internal-anchor projection')
 }
 const damagedPublicReadme = publicReadme.replaceAll('npm install -g devcodex', '')
-if (evaluatePublicReadmeContract(damagedPublicReadme).valid ||
+if (evaluatePublicReadmeContractV2(damagedPublicReadme, { root: ROOT }).valid ||
     hasValidCanonicalContract(
       ROOT,
       'README.md',
@@ -36,33 +36,38 @@ if (evaluatePublicReadmeContract(damagedPublicReadme).valid ||
   failures.push('incomplete public README must not bypass legacy consumer checks')
 }
 const missingTaskTutorial = publicReadme.replace('## 常见任务怎么说', '## 任务示例')
-if (evaluatePublicReadmeContract(missingTaskTutorial).valid) {
+if (evaluatePublicReadmeContractV2(missingTaskTutorial, { root: ROOT }).valid) {
   failures.push('public README without the common-task tutorial must fail its contract')
 }
 const missingTroubleshooting = publicReadme.replace('## 常见问题与排错', '## 排错')
-if (evaluatePublicReadmeContract(missingTroubleshooting).valid) {
+if (evaluatePublicReadmeContractV2(missingTroubleshooting, { root: ROOT }).valid) {
   failures.push('public README without the troubleshooting entry must fail its contract')
 }
-const missingAdapterRepair = publicReadme.replaceAll('devcodex global-adapters apply', '')
-if (evaluatePublicReadmeContract(missingAdapterRepair).valid) {
-  failures.push('public README without the global adapter repair command must fail its contract')
+const missingUpdateCommand = publicReadme.replaceAll('npm update -g devcodex', '')
+if (evaluatePublicReadmeContractV2(missingUpdateCommand, { root: ROOT }).valid) {
+  failures.push('public README without the V2 update command must fail its contract')
 }
-const missingSandboxRecovery = publicReadme
-  .replaceAll('sandbox-exec-denied', '')
-  .replaceAll('GLOBAL_HOST_TARGET_UNVERIFIED', '')
-if (evaluatePublicReadmeContract(missingSandboxRecovery).valid) {
-  failures.push('public README without Windows sandbox/runtime recovery diagnostics must fail its contract')
+const missingProductBoundary = publicReadme.replaceAll('不是模型网关', '')
+if (evaluatePublicReadmeContractV2(missingProductBoundary, { root: ROOT }).valid) {
+  failures.push('public README without the V2 product boundary must fail its contract')
 }
 const missingGrokFullEntry = publicReadme
   .replaceAll('devcodex grok', '')
   .replaceAll('Grok Full 入口', '')
   .replaceAll('普通 `grok` 是 Partial', '')
-if (evaluatePublicReadmeContract(missingGrokFullEntry).valid) {
+if (evaluatePublicReadmeContractV2(missingGrokFullEntry, { root: ROOT }).valid) {
   failures.push('public README without the Grok Full/Partial entry contract must fail')
 }
-const missingStageLoadReceipt = publicReadme.replaceAll('StageLoadReceiptV1', '')
-if (evaluatePublicReadmeContract(missingStageLoadReceipt).valid) {
-  failures.push('public README without the canonical Skill body receipt must fail')
+const missingSkillProjection = publicReadme.replace(/<!-- devcodex-public:skills[^>]*-->/, '')
+if (evaluatePublicReadmeContractV2(missingSkillProjection, { root: ROOT }).valid) {
+  failures.push('public README without the V2 Skill projection marker must fail')
+}
+const missingSkillCategories = publicReadme.replace(
+  /<!-- devcodex-public:skill-categories:start -->[\s\S]*?<!-- devcodex-public:skill-categories:end -->/,
+  ''
+)
+if (evaluatePublicReadmeContractV2(missingSkillCategories, { root: ROOT }).valid) {
+  failures.push('public README without the V2 Skill category projection must fail')
 }
 
 const readAbsolute = createCanonicalAwareReader(ROOT, file => fs.readFileSync(file, 'utf8'))

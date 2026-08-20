@@ -85,6 +85,9 @@ function buildLifecycleNamespaceStateUtils(ctx) {
 
   function getProjectRoot(projectName) {
     const name = resolveProjectName(projectName)
+    // Legacy layout has exactly one physical project: CONTEXT_ROOT. Its
+    // namespace is a label, not a child directory beneath WORKSPACE_ROOT.
+    if (!LAYOUT.enabled) return CONTEXT_ROOT
     if (name) return path.join(WORKSPACE_ROOT, name)
     return CONTEXT_ROOT
   }

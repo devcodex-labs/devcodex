@@ -20,7 +20,7 @@ const {
 } = require('./lib/package-compatibility-projection')
 
 const ROOT = path.resolve(__dirname, '..')
-const EXPECTED_ENTRY_COUNT = 250
+const EXPECTED_ENTRY_COUNT = 251
 
 function git (root, args) {
   return execFileSync('git', ['-C', root, ...args], {
@@ -100,6 +100,7 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
     assert.strictEqual(materialized.reusedExistingCount, 0)
     assert.strictEqual(fs.existsSync(path.join(root, 'instructions.md')), true)
     assert.strictEqual(fs.existsSync(path.join(root, 'skills', 'portfolio.json')), true)
+    assert.strictEqual(fs.existsSync(path.join(root, 'skills', 'public-taxonomy.json')), true)
     assert.strictEqual(fs.existsSync(path.join(root, 'skills', 'routing', 'intent.json')), true)
     assert.strictEqual(fs.existsSync(statePaths.receiptPath), true)
 

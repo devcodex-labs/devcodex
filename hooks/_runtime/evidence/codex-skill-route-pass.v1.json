@@ -5,24 +5,24 @@
   "hostVariant": "codex-cli/exec-user-global-local-stdio",
   "testedVersion": "codex-cli 0.147.0",
   "protocol": "MCP 2024-11-05",
-  "runtimeContractDigest": "c56cd4b8ce6beff7d138b311ea6e3ce01af6954b59cd2fee4421151a2961db6c",
-  "hostAdapterDigest": "a4447dddc1bf757d2e111255e00d64945df24a1bdf15ecb107103c2a6048bcfc",
-  "sourceEvidenceDigest": "873d8c9aeee29706cc898fe2073ce7c2ed1ae5ac8c6b16e6f728f1382fde0d5f",
+  "runtimeContractDigest": "a87c6f355fff617ac36eef724473df1c26c9013a0c983689489a6b09cfe97737",
+  "hostAdapterDigest": "68fa315e2983ef056f86d069f2e4aa4659142ec2f3424da48f8829ccd30d47f1",
+  "sourceEvidenceDigest": "3eaf45093f7a20f5501fb52afe1874b6ec288c50a3917a15ad6f9ef35e27b68a",
   "sourceProbe": {
     "schemaVersion": "SkillRouteS15EvidenceV1",
-    "probeRunId": "s15-codex-probe-96538595-ef71-4fe3-9c5f-8556c7e77e90",
+    "probeRunId": "s15-codex-probe-c56693af-a843-4824-bc4d-13466f17f784",
     "authorizationSource": "isolated-probe-authority",
     "contextSource": "host-hooks",
     "observationMode": "hook-post-history",
     "receiptStatus": "relevant-complete",
-    "completedAt": "2026-08-17T12:06:00.490Z"
+    "completedAt": "2026-08-20T16:01:18.697Z"
   },
   "runtimeBinding": {
     "source": "isolated-source-candidate",
-    "expectedDigest": "c56cd4b8ce6beff7d138b311ea6e3ce01af6954b59cd2fee4421151a2961db6c",
-    "generationDigest": "c56cd4b8ce6beff7d138b311ea6e3ce01af6954b59cd2fee4421151a2961db6c",
-    "modeReceiptDigest": "c56cd4b8ce6beff7d138b311ea6e3ce01af6954b59cd2fee4421151a2961db6c",
-    "routeEnvelopeDigest": "c56cd4b8ce6beff7d138b311ea6e3ce01af6954b59cd2fee4421151a2961db6c"
+    "expectedDigest": "a87c6f355fff617ac36eef724473df1c26c9013a0c983689489a6b09cfe97737",
+    "generationDigest": "a87c6f355fff617ac36eef724473df1c26c9013a0c983689489a6b09cfe97737",
+    "modeReceiptDigest": "a87c6f355fff617ac36eef724473df1c26c9013a0c983689489a6b09cfe97737",
+    "routeEnvelopeDigest": "a87c6f355fff617ac36eef724473df1c26c9013a0c983689489a6b09cfe97737"
   },
   "probe": {
     "schemaVersion": "SkillRouteProbeSummaryV1",
@@ -33,18 +33,17 @@
       "memory_status",
       "catalog",
       "commit",
-      "conditional-replan",
+      "context-refresh",
+      "rebind",
       "load_stage",
       "status"
     ],
     "requiredStageIds": [
       "entry",
-      "execution:test-validation",
       "closeout"
     ],
     "loadedStageIds": [
       "entry",
-      "execution:test-validation",
       "closeout"
     ],
     "retirementAnomalies": {

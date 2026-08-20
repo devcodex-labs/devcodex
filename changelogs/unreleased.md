@@ -1,10 +1,15 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.17.10 已发布并完成 R7；下列文档站重构为未发布工作树候选，不代表 registry 用户已经获得。发行事实以 Git tag、npm registry、GitHub Release 与 Profile 05 的 `ProfileCurrentTruthV1` 为准。
+> **当前**: v1.17.10 已发布并完成 R7；下列工作区交付链、验证控制面与文档站变更均为未发布工作树候选，不代表 registry 用户已经获得。发行事实以 Git tag、npm registry、GitHub Release 与 Profile 05 的 `ProfileCurrentTruthV1` 为准。
 
 ## 当前未发布实现候选
 
+- **验证分层与计划可解释性**：`ValidationPlanV1` 与 `ValidationExecutionReceiptV2` 明确区分 iterative changed-route 和 qualification route，记录逐节点选择原因、预算、完整回退原因及执行回执；验证控制面自身变化、未知输入或闭包超过阈值时仍 fail closed 到 full，不用“优化”削弱最终资格验证。
+- **工作区绑定与续接一致性**：`HostWorkspaceBindingV1` 统一宿主工作区、workspace namespace 与 active project 的物理身份；`ProjectTargetLeaseV1` 只允许在短 TTL、marker/layout/allowlist 均未漂移时沿用目标，歧义、显式冲突或 workspace 选择立即重判，避免 session 轮换导致错误换项目。
+- **Memory 产物链接投影**：新增单一 `ArtifactLinkProjectionV1` owner，把合法任务产物投影为可点击本地链接；路径必须 canonical containment、去重且保留原真相源，越界、伪 URI、目录或缺失目标不生成链接。Memory MCP、提示、可见输出、任务续接及 package consumers 同步接入。
+- **公开 Skill 分类与可发现目录**：新增 canonical `PublicSkillTaxonomyV1`，将 86 个 bundled Skill 精确归入 workflow-routing 20、domain-architecture 21、quality-delivery 28、runtime-governance 17；83 active + 3 gray 生命周期保持独立。README 与 public-site 从同一投影生成分类计数、代表 Skill 和完整 86 项目录；`SkillCatalog` 服务端默认输出全部目录，并提供关键字、分类、生命周期及 `?category=` 过滤。Workspace Skill 不计入 bundled 86，也不成为第五分类。
+- **工作树交付边界**：仓库根 `.playwright-cli/` 由 repository-owned ignore 与 Git/package 路径集合守卫排除；验证只判断其是否被跟踪或进入 tarball，不读取、枚举、修改、移动或删除目录内容。本候选只允许本地实现、审查与验证收敛，不改版本、不 commit/tag/push/publish，也不更新 registry 或已发布运行态。
 - **公开站工作流完整分层与语义流程**：公开站从“总览 + 6 个 primary ID”收敛为工作流选择、开发与修复、分析/审查/规划、对话/续接 4 个任务入口；完整解释 8 个 canonical workflow、6 primary + 2 advanced、12 个用户任务 subtype、1 个内部 `dev.plan-review` step 和 7 个 audit target。六个旧 URL 保留，架构与选择流程改为无需图表运行时的语义化响应式列表；控制面仅同步 `other/plan` 与内部步骤术语，runtime/CLI/Hook/MCP 行为和依赖不变。
 - **公开用户文档站任务化重构**：公开站从概念摘要扩展为 Journey / Trust / Reference 三层，新增四个任务教程、宿主与 workspace 设置、信任/安全/数据、CLI、状态错误码、运行态维护和术语表；quick start 收敛为单一只读首次成功路径，README 缩短并把深入说明指向 canonical Pages。四张首页能力卡各自进入独立教程；package 版本与生成时间写入 public projection，host reference 与产品表达由测试对账。旧 URL 全部保留，CLI/runtime/adapter 行为和依赖不变。
 - **公开站点内容与事实生成升级**：在保留已发布 9 个 URL 的前提下增加 concepts / workflows / 一条续接案例；生成器从现有投影器写出 `public-site/data/public-product-projection.json` 并刷新 marker 与 README V2 数字句；页数合同改为必存在路径 + 下限 23。

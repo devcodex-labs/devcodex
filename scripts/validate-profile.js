@@ -30,6 +30,7 @@ const {
   parseProfileCurrentTruth,
   validateDevCodexCurrentTruth
 } = require('./lib/profile-current-truth')
+const { buildCandidateIdentity } = require('./lib/validation-dag')
 
 // ProfileGenerationContractGate / FeatureInventorySchemaGate / ProfileTierMigrationSafetyGate
 // share the tier vocabulary: profile-lite | profile-standard | profile-closed-loop.
@@ -323,6 +324,15 @@ function currentSourceGitHead() {
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'ignore']
     }).trim()
+  } catch {
+    return ''
+  }
+}
+
+function currentSourceCandidateId() {
+  if (!isActiveDevCodexProfileTarget()) return ''
+  try {
+    return buildCandidateIdentity({ repoRoot: PLUGIN_ROOT }).candidateId
   } catch {
     return ''
   }
@@ -831,6 +841,8 @@ if (isActiveDevCodexProfileTarget()) {
     docsProfileText: readProfileFile('07-用户文档与契约规范.md'),
     packageVersion: pluginVersion,
     gitHead: currentSourceGitHead(),
+    candidateId: currentSourceCandidateId(),
+    requireSourceCandidate: true,
     workflowText: readFileIfExists(path.join(PLUGIN_ROOT, '.github', 'workflows', 'ci.yml'))
   })
   for (const message of truth.errors) err(`[profile] ProfileCurrentTruthGate ${message}`)

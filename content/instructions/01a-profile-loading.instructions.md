@@ -42,7 +42,7 @@ version: 1.17.10
 - 计划选中的正文通过 `profile_load({ project, files })` 定向加载。只有与 contextEpoch / invocation `planId` / `planContentId` / activeRoot / sourceId 精确相关且由 `PostToolUse` 观察成功的 `ContextReadReceiptV2`（兼容 `ContextReadReceiptV1`）才能证明 loaded；PreToolUse 只记 attempted。
 - `planContentId` 只证明等价计划内容，可跨进程复用解析/索引等 computation metadata；它不能证明正文已交付。正文 delivery reuse 仅限同一 host session、同一 contextEpoch、相同 source identity 且当前模型已有成功 body observation；新会话、压缩/恢复新 epoch、不可观察 session 或任一失效因子变化都必须重新交付所需正文。
 - 全量升级仅允许 `explicit-user/project-policy/audit/migration/low-confidence/required-source-missing` 等可审计原因，并写 `fullReadReason`；`config.local.json` 必须另有用户 / 项目明确要求，不能因文件存在自动入选。
-- 覆盖 `.devcodex/<project>/profile` 读取链、`.devcodex/workspace/profile` 回退链和 sticky activeProject 生效边界；目标变化、scope/action/risk 漂移、Profile digest 变化或 compact/resume 才触发重新规划，不得每个工具动作都重复加载。
+- 覆盖 `.devcodex/<project>/profile` 读取链、`.devcodex/workspace/profile` 回退链和 sticky `activeProject` 生效边界；目标变化、scope/action/risk 漂移、Profile digest 变化或 compact/resume 才触发重新规划，不得每个工具动作都重复加载。
 - 复审服务 / 框架规范时列出全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆消费者。
 - 从单服务抽公共规范时同步执行 `StrongestProfileSourceGate` / `ServiceSpecificResidueSweep`，以最强 Profile 为基线并清扫服务化残留。
 
@@ -75,7 +75,8 @@ version: 1.17.10
 - 豁免词：用户消息含 `workspace` / `monorepo` / `全工作区` / `all projects` / `所有项目` 则允许全工作区扫描。
 - `lifecycle.cjs` 默认 `safety-only` 下只输出提醒并放行工具，`strict` 模式下才执行 runtime 硬拦截；本条仍是 AI 侧必须遵守的流程约束。
 - 当启用 `workspace-namespace` 且缺少 workspace profile 时，运行时提示必须指向真实路径 `.devcodex/workspace/profile/`。
-- 若同一宿主会话已识别唯一目标项目，后续“继续 / 确认”等消息可在短 TTL 内沿用 sticky `activeProject` 与项目 `mode`；新会话、TTL 过期、命中多个项目或用户显式选择 workspace 时必须重新判断。
+- 物理项目已绑定但 `.devcodex/<project>/profile/` 整体缺失时必须返回 `PROFILE_MISSING`；只有项目 Profile 根已存在时，单文件缺失才可按 workspace base + project overlay 规则读取 workspace 文件。
+- 若已用物理 marker、layout identity 与 allowlist 复证唯一目标项目，后续“继续 / 确认”等消息可在短 TTL 内沿用 `ProjectTargetLeaseV1` 的 `activeProject` 与项目 `mode`；host session 仅作审计，session rotation/compact 不单独撤销租约。TTL 过期、marker/layout 漂移、命中多个项目、显式目标冲突或用户选择 workspace 时必须立即重新判断。
 - 完整 `继续<任务名>任务` / `继续 <任务名>` 应先用 `TaskResolutionV1` 的 bounded exact resolver 定位项目，再形成该 active namespace 的 ContextReadPlan；该定位阶段不得预读 Profile 正文，且歧义/完成/stale/scale-blocked 不得错误绑定项目。
 
 ## 项目现实扩展（Project Reality Expansion）

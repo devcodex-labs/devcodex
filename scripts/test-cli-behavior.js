@@ -280,6 +280,7 @@ function assertCodexAdapterState(root) {
 
   // Codex MCP managed block (devcodex-memory + profile via .claude/mcp)
   assert.ok(fs.existsSync(path.join(root, '.claude', 'mcp', 'memory-server.js')), 'Codex init must deploy memory-server.js')
+  assert.ok(fs.existsSync(path.join(root, '.claude', 'mcp', 'artifact-link-projection.cjs')), 'Codex init must deploy artifact-link-projection.cjs')
   assert.ok(fs.existsSync(path.join(root, '.claude', 'mcp', 'profile-server.js')), 'Codex init must deploy profile-server.js')
   assert.ok(fs.existsSync(path.join(root, '.claude', 'mcp', 'stdio-jsonrpc.cjs')), 'Codex init must deploy bounded stdio transport')
   const codexConfig = fs.readFileSync(path.join(root, '.codex', 'config.toml'), 'utf8')

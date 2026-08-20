@@ -11,6 +11,8 @@ const {
   parseProfileCurrentTruth,
   validateDevCodexCurrentTruth
 } = require('./lib/profile-current-truth')
+const { buildCandidateIdentity } = require('./lib/validation-dag')
+const { evaluatePublicReadmeContractV2 } = require('./lib/canonical-consumer-contracts')
 const {
   verifyProfileSourceSnapshots
 } = require('../mcp/profile-server')
@@ -42,12 +44,22 @@ function currentSourceGitHead() {
 }
 
 function currentRecord(overrides = {}) {
+  const releaseCommit = '85f3a8eadf61b0614f88d6817d255f255de968c2'
   return {
     schemaVersion: 'ProfileCurrentTruthV1',
     sourceVersion: '1.17.8',
     releaseState: 'released',
     npmLatest: '1.17.8',
-    gitHead: '85f3a8eadf61b0614f88d6817d255f255de968c2',
+    gitHead: releaseCommit,
+    releaseCommit,
+    sourceCandidate: {
+      schemaVersion: 'SourceCandidateTruthV1',
+      candidateId: `validation-candidate-${'a'.repeat(64)}`,
+      status: 'RELEASED',
+      localQualification: { status: 'PASS', runId: 'local-release-1', observedAt: '2026-08-16T13:47:39Z' },
+      remoteCi: { status: 'PASS', runId: '31910021943', head: releaseCommit, observedAt: '2026-08-16T13:47:39Z' },
+      releaseAuthorized: false
+    },
     ciRun: { id: '31910021943', status: 'PASS', observedAt: '2026-08-16T13:47:39Z', completedAt: '2026-08-15T21:49:27Z' },
     publishRun: { id: '31910507513', status: 'PASS', observedAt: '2026-08-16T13:47:39Z', completedAt: '2026-08-15T21:59:55Z' },
     githubRelease: { tag: 'v1.17.8', status: 'PASS', observedAt: '2026-08-16T13:47:39Z', publishedAt: '2026-08-15T22:00:24Z' },
@@ -116,6 +128,8 @@ probe('Profile current truth matches package, workflow, release, and refs', () =
       docsProfileText: profile('07-用户文档与契约规范.md'),
       packageVersion: JSON.parse(read('package.json')).version,
       gitHead: currentSourceGitHead(),
+      candidateId: buildCandidateIdentity({ repoRoot: ROOT }).candidateId,
+      requireSourceCandidate: true,
       workflowText: read('.github/workflows/ci.yml')
     })
     assert.deepStrictEqual(activeResult.errors, [])
@@ -152,6 +166,8 @@ probe('Profile current truth distinguishes source candidate from released distri
     docsProfileText: `# Docs\n\n${PROFILE_CURRENT_TRUTH_REF}\n`,
     packageVersion: '1.17.9',
     gitHead: '85f3a8eadf61b0614f88d6817d255f255de968c2',
+    candidateId: `validation-candidate-${'a'.repeat(64)}`,
+    requireSourceCandidate: true,
     workflowText: read('.github/workflows/ci.yml')
   }
   const valid = validateDevCodexCurrentTruth({
@@ -173,6 +189,42 @@ probe('Profile current truth distinguishes source candidate from released distri
     })
     assert(result.errors.length > 0, `${label} drift must fail closed`)
   }
+
+  const missingSourceTruth = currentRecord()
+  delete missingSourceTruth.releaseCommit
+  delete missingSourceTruth.sourceCandidate
+  const missingSourceResult = validateDevCodexCurrentTruth({
+    ...common,
+    packageVersion: '1.17.8',
+    releaseProfileText: recordMarkdown(missingSourceTruth)
+  })
+  assert(missingSourceResult.errors.some(item => item.includes('releaseCommit is required')))
+  assert(missingSourceResult.errors.some(item => item.includes('sourceCandidate is required')))
+
+  const mismatchedCandidate = validateDevCodexCurrentTruth({
+    ...common,
+    packageVersion: '1.17.8',
+    candidateId: `validation-candidate-${'b'.repeat(64)}`,
+    releaseProfileText: recordMarkdown(currentRecord())
+  })
+  assert(mismatchedCandidate.errors.some(item => item.includes('sourceCandidate.candidateId drift')))
+
+  const failedCiShape = currentRecord({
+    gitHead: 'b'.repeat(40),
+    sourceCandidate: {
+      ...currentRecord().sourceCandidate,
+      status: 'CI_PASS',
+      remoteCi: { ...currentRecord().sourceCandidate.remoteCi, head: 'c'.repeat(40) }
+    }
+  })
+  const failedCiShapeResult = validateDevCodexCurrentTruth({
+    ...common,
+    packageVersion: '1.17.8',
+    gitHead: 'b'.repeat(40),
+    candidateId: failedCiShape.sourceCandidate.candidateId,
+    releaseProfileText: recordMarkdown(failedCiShape)
+  })
+  assert(failedCiShapeResult.errors.some(item => item.includes('sourceCandidate.remoteCi.head drift')))
 
   const releasedWithCandidate = validateDevCodexCurrentTruth({
     ...common,
@@ -231,9 +283,9 @@ probe('public consumers use the repaired contracts', () => {
   const hostProjection = read('content/skills/host-instruction-projection/SKILL.md')
   const unreleased = read('changelogs/unreleased.md')
   const fixture = read('scripts/fixtures/capability-surface-decision/valid-controlled-tool.json')
-  for (const text of [readme, outputPaths]) assert.match(text, /WorkspaceTempManifestV2/)
-  assert.match(readme, /devcodex tmp maintain/)
-  for (const text of [readme, memoryInstructions, memorySkill]) {
+  assert.strictEqual(evaluatePublicReadmeContractV2(readme, { root: ROOT }).valid, true)
+  assert.match(outputPaths, /WorkspaceTempManifestV2/)
+  for (const text of [memoryInstructions, memorySkill]) {
     assert.match(text, /MemoryCursorV1/)
     assert.match(text, /MemoryFileTransactionReceiptV1/)
   }

@@ -1,6 +1,7 @@
 'use strict'
 
 const PROFILE_CURRENT_TRUTH_SCHEMA = 'ProfileCurrentTruthV1'
+const SOURCE_CANDIDATE_TRUTH_SCHEMA = 'SourceCandidateTruthV1'
 const PROFILE_CURRENT_TRUTH_HEADING = '## ProfileCurrentTruthV1'
 const PROFILE_CURRENT_TRUTH_REF = 'currentTruthRef=05-发布规范.md#ProfileCurrentTruthV1'
 const REQUIRED_FIELDS = Object.freeze([
@@ -21,6 +22,15 @@ const CANDIDATE_STATUSES = new Set([
   'CI_PENDING',
   'PUBLISH_PENDING'
 ])
+const SOURCE_CANDIDATE_STATUSES = new Set([
+  'LOCAL_PENDING',
+  'LOCAL_QUALIFIED',
+  'CI_PENDING',
+  'CI_PASS',
+  'CI_FAILED',
+  'RELEASED'
+])
+const SOURCE_EVIDENCE_STATUSES = new Set(['PASS', 'BLOCK', 'UNVERIFIED'])
 
 function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -68,6 +78,69 @@ function validateCandidateObject(value, errors) {
   }
 }
 
+function validateSourceEvidenceObject(value, label, identityField, errors) {
+  if (!isPlainObject(value)) {
+    errors.push(`${label} must be an object`)
+    return
+  }
+  if (typeof value[identityField] !== 'string' || !value[identityField].trim()) {
+    errors.push(`${label}.${identityField} must be a non-empty string`)
+  }
+  if (!SOURCE_EVIDENCE_STATUSES.has(value.status)) {
+    errors.push(`${label}.status must be PASS, BLOCK, or UNVERIFIED`)
+  }
+  if (!isIsoTimestamp(value.observedAt)) {
+    errors.push(`${label}.observedAt must be an ISO timestamp`)
+  }
+}
+
+function validateSourceCandidateObject(value, record, errors) {
+  if (!isPlainObject(value)) {
+    errors.push('sourceCandidate must be an object')
+    return
+  }
+  if (value.schemaVersion !== SOURCE_CANDIDATE_TRUTH_SCHEMA) {
+    errors.push(`sourceCandidate.schemaVersion must equal ${SOURCE_CANDIDATE_TRUTH_SCHEMA}`)
+  }
+  if (!/^validation-candidate-[0-9a-f]{64}$/i.test(String(value.candidateId || ''))) {
+    errors.push('sourceCandidate.candidateId must be a validation-candidate SHA-256 identity')
+  }
+  if (!SOURCE_CANDIDATE_STATUSES.has(value.status)) {
+    errors.push(`sourceCandidate.status must be one of: ${Array.from(SOURCE_CANDIDATE_STATUSES).join(', ')}`)
+  }
+  validateSourceEvidenceObject(value.localQualification, 'sourceCandidate.localQualification', 'runId', errors)
+  validateSourceEvidenceObject(value.remoteCi, 'sourceCandidate.remoteCi', 'runId', errors)
+  if (!/^[0-9a-f]{40}$/i.test(String(value.remoteCi?.head || ''))) {
+    errors.push('sourceCandidate.remoteCi.head must be a 40-character commit SHA')
+  }
+  if (typeof value.releaseAuthorized !== 'boolean') {
+    errors.push('sourceCandidate.releaseAuthorized must be a boolean')
+  }
+
+  const localPassStates = new Set(['LOCAL_QUALIFIED', 'CI_PENDING', 'CI_PASS', 'CI_FAILED', 'RELEASED'])
+  if (localPassStates.has(value.status) && value.localQualification?.status !== 'PASS') {
+    errors.push(`sourceCandidate.localQualification.status must be PASS for ${value.status}`)
+  }
+  if (value.status === 'CI_PENDING' && value.remoteCi?.status !== 'UNVERIFIED') {
+    errors.push('sourceCandidate.remoteCi.status must be UNVERIFIED for CI_PENDING')
+  }
+  if (value.status === 'CI_PASS' && value.remoteCi?.status !== 'PASS') {
+    errors.push('sourceCandidate.remoteCi.status must be PASS for CI_PASS')
+  }
+  if (value.status === 'CI_FAILED' && value.remoteCi?.status !== 'BLOCK') {
+    errors.push('sourceCandidate.remoteCi.status must be BLOCK for CI_FAILED')
+  }
+  if (['CI_PENDING', 'CI_PASS', 'CI_FAILED'].includes(value.status) && value.remoteCi?.head !== record.gitHead) {
+    errors.push(`sourceCandidate.remoteCi.head drift: ${value.remoteCi?.head} != ${record.gitHead}`)
+  }
+  if (value.status === 'RELEASED') {
+    if (value.remoteCi?.status !== 'PASS') errors.push('sourceCandidate.remoteCi.status must be PASS for RELEASED')
+    if (record.releaseCommit && record.releaseCommit !== record.gitHead) {
+      errors.push(`RELEASED sourceCandidate requires releaseCommit == gitHead: ${record.releaseCommit} != ${record.gitHead}`)
+    }
+  }
+}
+
 function compareSemver(left, right) {
   const a = String(left || '').split('.').map(Number)
   const b = String(right || '').split('.').map(Number)
@@ -99,6 +172,13 @@ function validateTruthRecord(record) {
   }
   if (!/^[0-9a-f]{40}$/i.test(String(record.gitHead || ''))) {
     errors.push('gitHead must be a 40-character commit SHA')
+  }
+  if (Object.prototype.hasOwnProperty.call(record, 'releaseCommit') &&
+      !/^[0-9a-f]{40}$/i.test(String(record.releaseCommit || ''))) {
+    errors.push('releaseCommit must be a 40-character commit SHA')
+  }
+  if (Object.prototype.hasOwnProperty.call(record, 'sourceCandidate')) {
+    validateSourceCandidateObject(record.sourceCandidate, record, errors)
   }
   validateObservedObject(record.ciRun, 'ciRun', 'id', errors)
   validateObservedObject(record.publishRun, 'publishRun', 'id', errors)
@@ -219,6 +299,17 @@ function validateDevCodexCurrentTruth(input = {}) {
     if (input.gitHead && record.gitHead !== input.gitHead) {
       errors.push(`gitHead drift: ${record.gitHead} != ${input.gitHead}`)
     }
+    if (input.requireSourceCandidate === true) {
+      if (!/^[0-9a-f]{40}$/i.test(String(record.releaseCommit || ''))) {
+        errors.push('releaseCommit is required for the active DevCodex Profile')
+      }
+      if (!isPlainObject(record.sourceCandidate)) {
+        errors.push('sourceCandidate is required for the active DevCodex Profile')
+      }
+    }
+    if (input.candidateId && record.sourceCandidate?.candidateId !== input.candidateId) {
+      errors.push(`sourceCandidate.candidateId drift: ${record.sourceCandidate?.candidateId} != ${input.candidateId}`)
+    }
     if (!released && !candidate) {
       errors.push(`releaseState must describe a released source or an authorized candidate: ${record.releaseState}`)
     } else if (released) {
@@ -278,6 +369,7 @@ module.exports = {
   PROFILE_CURRENT_TRUTH_HEADING,
   PROFILE_CURRENT_TRUTH_REF,
   PROFILE_CURRENT_TRUTH_SCHEMA,
+  SOURCE_CANDIDATE_TRUTH_SCHEMA,
   REQUIRED_FIELDS,
   extractWorkflowCurrentTruth,
   parseProfileCurrentTruth,

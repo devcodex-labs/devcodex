@@ -105,14 +105,19 @@ function compactPlan(plan, executionOptimization = null) {
     routeRequested: plan.routeRequested,
     routeResolved: plan.routeResolved,
     riskClass: plan.riskClass,
+    validationLayer: plan.validationLayer,
     candidateId: plan.candidateId,
     candidateStable: plan.candidateStable,
     changedSource: plan.changedSource,
     changedFiles: plan.changedFiles,
+    changeDescriptors: plan.changeDescriptors,
     impactGraphDigest: plan.impactGraphDigest,
     planDigest: plan.planDigest,
     fullFallback: plan.fullFallback,
     selectedNodes: plan.selectedNodes.map(node => node.id),
+    selectionReasons: plan.selectionReasons,
+    budget: plan.budget,
+    delegatedParentIds: plan.delegatedParentIds,
     skipped: plan.skipped,
     selectedNodeCount: plan.selectedNodeCount,
     fullNodeCount: plan.fullNodeCount,
@@ -182,6 +187,7 @@ function main(argv = process.argv.slice(2)) {
         process.stdout.write('Validation plan: ' + options.route + ' -> ' + plan.routeResolved + '\n')
         if (routeForMode !== options.route) process.stdout.write('Execution optimization fallback: full-validation\n')
         if (plan.fullFallback) process.stdout.write('Full fallback: ' + plan.fullFallback + '\n')
+        process.stdout.write('Layer: ' + plan.validationLayer + ' budget=' + plan.budget.selectionRatio + '\n')
         process.stdout.write('Selected (' + plan.selectedNodeCount + '): ' +
           plan.selectedNodes.map(node => node.id).join(', ') + '\n')
       }

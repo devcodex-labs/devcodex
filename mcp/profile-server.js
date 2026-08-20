@@ -66,11 +66,11 @@ const {
 const { captureRuntimeProcessIdentity } = require('../hooks/_runtime/runtime-generation-identity.cjs')
 const {
   findLayoutInfo,
-  inferProjectFromCwd,
   namespaceRootPath,
   normalizeExecutionOptimizationMode,
   PROJECT_NAMESPACE_SCHEMA_PATTERN,
   normalizeProjectNamespace,
+  resolveHostWorkspaceBinding,
   resolveLegacyProjectRoot,
   resolveRuntimeStateRoot
 } = require('../hooks/_runtime/workspace-layout.cjs')
@@ -506,18 +506,45 @@ function mergeConfig(workspaceConfig, projectConfig) {
 const LAYOUT = findLayoutInfo(INPUT_ROOT)
 
 function inferContextProject() {
-  return inferProjectFromCwd(INPUT_ROOT, LAYOUT)
+  const binding = resolveHostWorkspaceBinding({
+    cwd: INPUT_ROOT,
+    layout: LAYOUT,
+    capability: process.env.DEVCODEX_HOST_WORKSPACE_CAPABILITY || 'physical',
+    allowUniqueProject: false
+  })
+  return binding.status === 'resolved' ? binding.projectNamespace : ''
 }
 
 const CONTEXT_PROJECT = inferContextProject()
 
+function throwWorkspaceBindingError(binding) {
+  const error = new Error(binding?.error?.message || 'host workspace binding failed')
+  error.code = binding?.error?.code || 'HOST_WORKSPACE_UNRESOLVED'
+  error.candidates = binding?.error?.candidates || []
+  error.workspaceBinding = binding
+  throw error
+}
+
+function resolveProjectBinding(projectName, { requireProfile = true } = {}) {
+  if (!LAYOUT.enabled) return null
+  if (projectName === WORKSPACE_CONTEXT_PROJECT) return null
+  const target = String(projectName || CONTEXT_PROJECT || '').trim()
+  if (!target) return null
+  const binding = resolveHostWorkspaceBinding({
+    cwd: INPUT_ROOT,
+    layout: LAYOUT,
+    explicitProject: target,
+    capability: process.env.DEVCODEX_HOST_WORKSPACE_CAPABILITY || 'physical',
+    requireProfile,
+    allowUniqueProject: false
+  })
+  if (binding.status !== 'resolved') throwWorkspaceBindingError(binding)
+  return binding
+}
+
 function resolveProjectName(projectName) {
   if (LAYOUT.enabled) {
-    return normalizeProjectNamespace(projectName, {
-      layout: LAYOUT,
-      contextProject: CONTEXT_PROJECT,
-      allowEmpty: true
-    })
+    return resolveProjectBinding(projectName)?.projectNamespace || ''
   }
   const raw = String(projectName || '').trim()
   if (!raw) return ''
@@ -786,11 +813,13 @@ function resolveProfilePlanTarget(projectName, scope) {
         activeRoot: path.join(LAYOUT.workspaceRoot, '.devcodex', 'workspace')
       }
     }
-    const project = resolveProjectName(projectName)
+    const binding = resolveProjectBinding(projectName)
+    const project = binding?.projectNamespace || ''
     if (!project) throw new Error('project is required for profile_context_plan when MCP runs from workspace root')
     return {
       project,
-      activeRoot: namespaceRootPath(LAYOUT.workspaceRoot, project)
+      activeRoot: binding.activeRoot,
+      workspaceBinding: binding
     }
   }
   if (scope === 'workspace') {
@@ -1526,9 +1555,9 @@ function handleProfileContextPlan(args = {}) {
     target = resolveProfilePlanTarget(args.project, args.scope)
   } catch (error) {
     return contextPlanResult(buildContextReadError(
-      'CONTEXT_ACTIVE_TARGET_MISMATCH',
+      error.code || 'CONTEXT_ACTIVE_TARGET_MISMATCH',
       error.message,
-      'Resolve one active project before planning Profile context.'
+      error.workspaceBinding?.error?.nextStep || 'Resolve one active project before planning Profile context.'
     ))
   }
 
@@ -1755,9 +1784,9 @@ function handleProfileLoad(args = {}, internal = {}) {
     }
   } catch (error) {
     return profileLoadError(
-      error.contextReadCode || 'CONTEXT_BINDING_INVALID',
+      error.contextReadCode || error.code || 'CONTEXT_BINDING_INVALID',
       error.message,
-      'Regenerate the ContextReadPlanV2 for the resolved active target and pass its exact ContextReadBindingV1.'
+      error.workspaceBinding?.error?.nextStep || 'Regenerate the ContextReadPlanV2 for the resolved active target and pass its exact ContextReadBindingV1.'
     )
   }
 
@@ -2409,8 +2438,10 @@ function dispatch(method, params) {
             throw Object.assign(new Error(`Unknown tool: ${name}`), { code: -32601 })
         }
       } catch (err) {
+        const errorCode = typeof err.code === 'string' ? err.code : null
         return {
-          content: [{ type: 'text', text: `Error: ${err.message}` }],
+          content: [{ type: 'text', text: `Error: ${errorCode ? `${errorCode}: ` : ''}${err.message}` }],
+          ...(err.workspaceBinding ? { structuredContent: err.workspaceBinding } : {}),
           isError: true
         }
       }
@@ -2424,8 +2455,10 @@ function dispatch(method, params) {
       try {
         return handlePromptsGet(args)
       } catch (err) {
+        const errorCode = typeof err.code === 'string' ? err.code : null
         return {
-          content: [{ type: 'text', text: `Error: ${err.message}` }],
+          content: [{ type: 'text', text: `Error: ${errorCode ? `${errorCode}: ` : ''}${err.message}` }],
+          ...(err.workspaceBinding ? { structuredContent: err.workspaceBinding } : {}),
           isError: true
         }
       }

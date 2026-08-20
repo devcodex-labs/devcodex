@@ -18,6 +18,23 @@ function digest(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
 }
 
+function forbiddenPlaywrightPaths(paths) {
+  return paths
+    .map(item => String(item || '').replace(/\\/g, '/').replace(/^\.\//, ''))
+    .filter(item => item === '.playwright-cli' || item.startsWith('.playwright-cli/'))
+}
+
+const sourceRoot = path.resolve(__dirname, '..')
+const rootIgnore = fs.readFileSync(path.join(sourceRoot, '.gitignore'), 'utf8').replace(/\r\n/g, '\n')
+assert(rootIgnore.split('\n').includes('/.playwright-cli/'), 'repository root ignore must contain exact /.playwright-cli/ rule')
+const ignoreProbe = spawnSync('git', ['check-ignore', '--no-index', '--quiet', '--', '.playwright-cli/contract-probe'], {
+  cwd: sourceRoot,
+  encoding: 'utf8'
+})
+assert.strictEqual(ignoreProbe.status, 0, `root ignore probe failed: ${ignoreProbe.stderr || ignoreProbe.stdout}`)
+const sourceTracked = git(sourceRoot, ['ls-files', '-z']).split('\0').filter(Boolean)
+assert.deepStrictEqual(forbiddenPlaywrightPaths(sourceTracked), [], 'source index contains forbidden .playwright-cli path')
+
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-index-isolation-'))
 try {
   git(root, ['init', '--quiet'])
@@ -26,6 +43,18 @@ try {
   fs.writeFileSync(path.join(root, 'tracked.txt'), 'base\n')
   git(root, ['add', 'tracked.txt'])
   git(root, ['commit', '--quiet', '-m', 'base'])
+
+  fs.writeFileSync(path.join(root, '.gitignore'), '/.playwright-cli/\n')
+  fs.mkdirSync(path.join(root, '.playwright-cli'), { recursive: true })
+  fs.writeFileSync(path.join(root, '.playwright-cli', 'forced.txt'), 'forced path-set fixture\n')
+  git(root, ['add', '-f', '--', '.playwright-cli/forced.txt'])
+  const forcedTracked = git(root, ['ls-files', '-z']).split('\0').filter(Boolean)
+  assert.deepStrictEqual(
+    forbiddenPlaywrightPaths(forcedTracked),
+    ['.playwright-cli/forced.txt'],
+    'forced tracked .playwright-cli fixture must be detected from the path set'
+  )
+  git(root, ['reset', '--quiet', 'HEAD', '--', '.playwright-cli/forced.txt'])
 
   fs.writeFileSync(path.join(root, 'tracked.txt'), 'user staged\n')
   git(root, ['add', 'tracked.txt'])
@@ -45,7 +74,11 @@ try {
   assert.strictEqual(digest(realIndex), beforeDigest, 'real index digest changed')
   assert.strictEqual(git(root, ['diff', '--cached', '--name-status']), beforeStaged, 'real staged set changed')
 } finally {
-  fs.rmSync(root, { recursive: true, force: true })
+  if (process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1') {
+    console.log(`kept isolated Git fixture: ${root}`)
+  } else {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
 }
 
-console.log('✓ temporary GIT_INDEX_FILE preserves the user index and staged set')
+console.log('✓ Git index isolation + repository-owned .playwright-cli path-set guards passed')

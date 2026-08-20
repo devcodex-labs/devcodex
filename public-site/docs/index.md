@@ -40,7 +40,7 @@ features:
 DevCodex 是面向 Codex、Claude Code、GitHub Copilot、Gemini CLI、Grok 和 Cursor 的意图驱动 AI Coding 工作流运行时。
 
 <!-- devcodex-public:workflows primary=dev,fix,analyze,audit,resume,chat advanced=self-fix,other -->
-<!-- devcodex-public:skills total=86 active=83 gray=3 bucket=80+ -->
+<!-- devcodex-public:skills total=86 active=83 gray=3 bucket=80+ categories=workflow-routing:20,domain-architecture:21,quality-delivery:28,runtime-governance:17 -->
 <!-- devcodex-public:hosts ids=copilot,claude,codex,gemini,grok,cursor variants=13 -->
 <!-- devcodex-public:auto canonical=@devcodex-auto default=@rocky profile-replacement=true empty-array-disables=true -->
 <!-- devcodex-public:capabilities ids=turn-ambiguous-request-into-action,fix-with-regression-confidence,evolve-cross-domain-change,deliver-with-evidence-and-handoff -->

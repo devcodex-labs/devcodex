@@ -188,6 +188,8 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 `ArtifactLinkSet` 保留为可见集合的兼容投影名，不再是真相源；`ArtifactLinkSetDedupeGate` 执行规范化绝对路径去重，按 canonical path 合并同一物理文件。禁止 `file://`，禁止只输出裸文件名，禁止询问“是否需要打开”。
 
+记忆交付链使用 `ArtifactLinkProjectionSetV1` 作为确定性写入投影：写前 `memory_artifact_link_project(operation: "project")`，写后 `operation: "validate-existing"`；daily、SUMMARY 与 CP writer 的结构化 artifact 字段必须返回同口径 readback。document/target 都以 active-root-relative 输入，href 以 document 目录为基准；历史链接未经单独确认只预览、不批量改写。
+
 推荐 Rich 示例（语义链接 + portable 路径列）：
 
 ```markdown

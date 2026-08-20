@@ -26,6 +26,13 @@ const VALIDATION_CACHE_MAX_ENTRIES = 8192
 const REQUIRED_ROUTES = ['fast', 'full', 'changed', 'profile-deploy', 'package-release']
 const RISK_CLASSES = new Set(['normal', 'high', 'release', 'security', 'destructive'])
 const CACHE_POLICIES = new Set(['never', 'candidate-bound'])
+const PACKAGE_CONTROL_FIELDS = new Set([
+  'version', 'engines', 'scripts', 'files', 'bin', 'exports', 'main', 'type',
+  'dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'packageManager'
+])
+const PACKAGE_PUBLIC_METADATA_FIELDS = new Set([
+  'description', 'keywords', 'homepage', 'repository', 'bugs', 'author', 'license', 'funding'
+])
 
 class ValidationDagError extends Error {
   constructor(code, message, details = null) {
@@ -246,8 +253,14 @@ function validateValidationManifest(manifest, options = {}) {
   if (!Array.isArray(manifest.invariantNodes) || manifest.invariantNodes.length === 0) {
     errors.push('invariantNodes must be a non-empty array')
   }
+  if (!Array.isArray(manifest.iterativeInvariantNodes) || manifest.iterativeInvariantNodes.length === 0) {
+    errors.push('iterativeInvariantNodes must be a non-empty array')
+  }
   if (!Array.isArray(manifest.criticalInputs) || manifest.criticalInputs.length === 0) {
     errors.push('criticalInputs must be a non-empty array')
+  }
+  if (!Array.isArray(manifest.iterativeEscalationInputs) || manifest.iterativeEscalationInputs.length === 0) {
+    errors.push('iterativeEscalationInputs must be a non-empty array')
   }
   if (typeof manifest.consumerGraphComplete !== 'boolean') {
     errors.push('consumerGraphComplete must be a boolean')
@@ -419,8 +432,25 @@ function validateValidationManifest(manifest, options = {}) {
   for (const id of manifest.invariantNodes) {
     if (!byId.has(id)) errors.push('unknown invariant node: ' + id)
   }
+  for (const id of manifest.iterativeInvariantNodes) {
+    if (!byId.has(id)) errors.push('unknown iterative invariant node: ' + id)
+  }
   for (const glob of manifest.criticalInputs) {
     try { globToRegExp(glob) } catch (error) { errors.push('invalid critical input glob: ' + error.message) }
+  }
+  for (const glob of manifest.iterativeEscalationInputs) {
+    try { globToRegExp(glob) } catch (error) { errors.push('invalid iterative escalation input glob: ' + error.message) }
+  }
+  const packageSemantic = manifest.semanticInputs?.packageJson
+  if (packageSemantic !== undefined) {
+    for (const field of ['controlFields', 'publicMetadataFields', 'publicMetadataNodes']) {
+      if (!Array.isArray(packageSemantic[field]) || packageSemantic[field].length === 0) {
+        errors.push(`semanticInputs.packageJson.${field} must be a non-empty array`)
+      }
+    }
+    for (const id of packageSemantic.publicMetadataNodes || []) {
+      if (!byId.has(id)) errors.push('semanticInputs.packageJson has unknown public metadata node: ' + id)
+    }
   }
 
   if (!errors.length) {
@@ -495,15 +525,76 @@ function addConsumers(ids, byId) {
   return selected
 }
 
-function buildValidationImpactGraph({ manifest, changedFiles = [] }) {
+function buildChangeDescriptors(changedFiles, descriptors = []) {
+  const provided = new Map()
+  for (const descriptor of descriptors || []) {
+    const descriptorPath = normalizeRelativePath(descriptor?.path || descriptor?.file || '')
+    if (provided.has(descriptorPath)) {
+      throw new ValidationDagError('VALIDATION_CHANGE_DESCRIPTOR_INVALID', 'duplicate change descriptor: ' + descriptorPath)
+    }
+    provided.set(descriptorPath, descriptor)
+  }
+  for (const descriptorPath of provided.keys()) {
+    if (!changedFiles.includes(descriptorPath)) {
+      throw new ValidationDagError('VALIDATION_CHANGE_DESCRIPTOR_INVALID', 'descriptor path is not in changedFiles: ' + descriptorPath)
+    }
+  }
+  return changedFiles.map(file => {
+    const explicit = provided.get(file) || {}
+    const fields = [...new Set((explicit.fields || []).map(String))].sort()
+    let kind = String(explicit.kind || '')
+    let semanticClass = String(explicit.semanticClass || '')
+    if (file === 'package.json') {
+      kind = kind || 'package-manifest'
+      if (!fields.length) semanticClass = semanticClass || 'package-fields-unknown'
+      else if (fields.every(field => PACKAGE_PUBLIC_METADATA_FIELDS.has(field))) semanticClass = 'package-public-metadata'
+      else if (fields.some(field => PACKAGE_CONTROL_FIELDS.has(field))) semanticClass = 'package-control'
+      else semanticClass = 'package-fields-unknown'
+    } else {
+      if (!kind) {
+        if (/^(README\.md|public-site\/|website\/)/.test(file)) kind = 'public-documentation'
+        else if (/^content\/skills\//.test(file)) kind = 'skill-catalog'
+        else if (/^(scripts\/validation-manifest\.json|scripts\/run-validation\.js|scripts\/lib\/validation-)/.test(file)) kind = 'validation-control-plane'
+        else if (/^scripts\/test-/.test(file)) kind = 'test'
+        else if (/\.mdx?$/.test(file)) kind = 'documentation'
+        else kind = 'source'
+      }
+      semanticClass = semanticClass || kind
+    }
+    return {
+      schemaVersion: 'ValidationChangeDescriptorV1',
+      path: file,
+      kind,
+      fields,
+      semanticClass
+    }
+  })
+}
+
+function buildValidationImpactGraph({ manifest, changedFiles = [], changeDescriptors = [], invariantNodeIds = null }) {
   const normalizedChanged = [...new Set(changedFiles.map(normalizeRelativePath))].sort()
+  const descriptors = buildChangeDescriptors(normalizedChanged, changeDescriptors)
+  const descriptorByPath = new Map(descriptors.map(descriptor => [descriptor.path, descriptor]))
   const byId = new Map(manifest.nodes.map(node => [node.id, node]))
-  const matchedNodeIds = manifest.nodes
-    .filter(node => normalizedChanged.some(file => matchesAnyGlob(file, node.inputs)))
-    .map(node => node.id)
-  const unknownInputs = normalizedChanged.filter(file => !manifest.nodes.some(node => matchesAnyGlob(file, node.inputs)))
+  const semanticPackageNodes = new Set(manifest.semanticInputs?.packageJson?.publicMetadataNodes || [])
+  const matchedNodeIds = manifest.nodes.filter(node => normalizedChanged.some(file => {
+    const descriptor = descriptorByPath.get(file)
+    if (file === 'package.json' && descriptor?.semanticClass === 'package-public-metadata') {
+      return semanticPackageNodes.has(node.id)
+    }
+    return matchesAnyGlob(file, node.inputs)
+  })).map(node => node.id)
+  const matchedSet = new Set(matchedNodeIds)
+  const unknownInputs = normalizedChanged.filter(file => {
+    const descriptor = descriptorByPath.get(file)
+    if (file === 'package.json' && descriptor?.semanticClass === 'package-public-metadata') {
+      return ![...semanticPackageNodes].some(id => matchedSet.has(id))
+    }
+    return !manifest.nodes.some(node => matchesAnyGlob(file, node.inputs))
+  })
   let affected = addConsumers(new Set(matchedNodeIds), byId)
-  for (const invariant of manifest.invariantNodes) affected.add(invariant)
+  const invariantIds = invariantNodeIds || manifest.iterativeInvariantNodes || manifest.invariantNodes
+  for (const invariant of invariantIds) affected.add(invariant)
   affected = addDependencies(affected, byId)
   const affectedNodeIds = topologicalNodeOrder(manifest).filter(node => affected.has(node.id)).map(node => node.id)
   const edges = []
@@ -514,9 +605,10 @@ function buildValidationImpactGraph({ manifest, changedFiles = [] }) {
   const core = {
     schemaVersion: 'ValidationImpactGraphV1',
     changedFiles: normalizedChanged,
+    changeDescriptors: descriptors,
     matchedNodeIds,
     affectedNodeIds,
-    invariantNodeIds: manifest.invariantNodes.filter(id => affected.has(id)),
+    invariantNodeIds: invariantIds.filter(id => affected.has(id)),
     unknownInputs,
     consumerGraphComplete: manifest.consumerGraphComplete === true,
     edges: edges.sort((left, right) => stableStringify(left).localeCompare(stableStringify(right)))
@@ -528,7 +620,7 @@ function buildValidationImpactGraph({ manifest, changedFiles = [] }) {
   }
 }
 
-function planValidation({ manifest, route = 'changed', changedFiles = [], changedSource = 'explicit',
+function planValidation({ manifest, route = 'changed', changedFiles = [], changeDescriptors = [], changedSource = 'explicit',
   riskClass = 'normal', candidateStable = true, candidateId = null }) {
   validateValidationManifest(manifest)
   if (!REQUIRED_ROUTES.includes(route)) {
@@ -538,10 +630,18 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     throw new ValidationDagError('VALIDATION_RISK_UNKNOWN', 'unknown risk class: ' + riskClass)
   }
   const normalizedChanged = [...new Set(changedFiles.map(normalizeRelativePath))].sort()
+  const normalizedDescriptors = buildChangeDescriptors(normalizedChanged, changeDescriptors)
+  const descriptorByPath = new Map(normalizedDescriptors.map(descriptor => [descriptor.path, descriptor]))
   const byId = new Map(manifest.nodes.map(node => [node.id, node]))
   const ordered = topologicalNodeOrder(manifest)
   const fullIds = new Set(manifest.routes.full.nodes)
-  const impactGraph = buildValidationImpactGraph({ manifest, changedFiles: normalizedChanged })
+  const iterativeInvariantIds = manifest.iterativeInvariantNodes || manifest.invariantNodes
+  let impactGraph = buildValidationImpactGraph({
+    manifest,
+    changedFiles: normalizedChanged,
+    changeDescriptors: normalizedDescriptors,
+    invariantNodeIds: route === 'changed' ? iterativeInvariantIds : manifest.invariantNodes
+  })
   let selected = new Set()
   let routeResolved = route
   let fullFallback = null
@@ -560,7 +660,11 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     routeResolved = 'full'
     fullFallback = 'consumer-graph-incomplete'
     selected = new Set(fullIds)
-  } else if (normalizedChanged.some(file => matchesAnyGlob(file, manifest.criticalInputs))) {
+  } else if (normalizedChanged.some(file => {
+    const descriptor = descriptorByPath.get(file)
+    if (file === 'package.json' && descriptor?.semanticClass === 'package-public-metadata') return false
+    return matchesAnyGlob(file, manifest.iterativeEscalationInputs || manifest.criticalInputs)
+  })) {
     routeResolved = 'full'
     fullFallback = 'validation-control-plane-changed'
     selected = new Set(fullIds)
@@ -580,9 +684,19 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     }
   }
 
+  const validationLayer = route === 'changed' && routeResolved === 'changed' ? 'iterative' : 'qualification'
+  const invariantIds = validationLayer === 'iterative' ? iterativeInvariantIds : manifest.invariantNodes
+  if (validationLayer === 'qualification' && route === 'changed') {
+    impactGraph = buildValidationImpactGraph({
+      manifest,
+      changedFiles: normalizedChanged,
+      changeDescriptors: normalizedDescriptors,
+      invariantNodeIds: invariantIds
+    })
+  }
   const coveredNodeIds = new Set([...selected].flatMap(id => byId.get(id)?.coversNodes || []))
-  const coveredInvariantNodes = manifest.invariantNodes.filter(id => coveredNodeIds.has(id))
-  for (const invariant of manifest.invariantNodes) {
+  const coveredInvariantNodes = invariantIds.filter(id => coveredNodeIds.has(id))
+  for (const invariant of invariantIds) {
     if (!coveredNodeIds.has(invariant)) selected.add(invariant)
   }
   selected = addDependencies(selected, byId)
@@ -608,6 +722,27 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
       nestedParentIds[edge.childId].push(edge.parentId)
     }
   }
+  const matchedIds = new Set(impactGraph.matchedNodeIds)
+  const affectedIds = new Set(impactGraph.affectedNodeIds)
+  const invariantSet = new Set(invariantIds)
+  const selectionReasons = {}
+  for (const node of selectedNodes) {
+    const reasons = []
+    if (routeResolved === 'full') reasons.push(fullFallback ? `fallback:${fullFallback}` : 'route:full')
+    else if (route !== 'changed') reasons.push(`route:${routeResolved}`)
+    if (matchedIds.has(node.id)) reasons.push('input-match')
+    else if (affectedIds.has(node.id)) reasons.push('impact-closure')
+    if (invariantSet.has(node.id)) reasons.push(`${validationLayer}-invariant`)
+    if (nestedParentIds[node.id]?.length) reasons.push('delegated-leaf')
+    if (!reasons.length) reasons.push('dependency-closure')
+    selectionReasons[node.id] = [...new Set(reasons)].sort()
+  }
+  const budget = {
+    selectedNodeCount: selectedNodes.length,
+    fullNodeCount: fullIds.size,
+    savedNodeCount: Math.max(0, fullIds.size - selectedNodes.length),
+    selectionRatio: fullIds.size === 0 ? 1 : Number((selectedNodes.length / fullIds.size).toFixed(4))
+  }
   const planCore = {
     schemaVersion: 'ValidationPlanV1',
     routeRequested: route,
@@ -617,14 +752,19 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     candidateStable,
     changedSource,
     changedFiles: normalizedChanged,
+    validationLayer,
+    changeDescriptors: normalizedDescriptors,
     impactGraph,
     impactGraphDigest: impactGraph.impactGraphDigest,
     nestedCommandGraphDigest: nestedCommandGraph.digest,
     nestedEdgeCount: nestedCommandGraph.edgeCount,
     nestedParentIds,
+    delegatedParentIds: nestedParentIds,
     executionSchedule,
     fullFallback,
     selectedNodes,
+    selectionReasons,
+    budget,
     skipped,
     selectedNodeCount: selectedNodes.length,
     fullNodeCount: fullIds.size,
@@ -1065,6 +1205,8 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
   }
 
   const completedAtMs = Date.now()
+  const stdoutBytes = results.reduce((sum, result) => sum + Buffer.byteLength(String(result.stdout || ''), 'utf8'), 0)
+  const stderrBytes = results.reduce((sum, result) => sum + Buffer.byteLength(String(result.stderr || ''), 'utf8'), 0)
   const semanticReceipt = {
     schemaVersion: VALIDATION_RECEIPT_SCHEMA,
     contractVersion: VALIDATION_CONTRACT_VERSION,
@@ -1083,8 +1225,10 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     routeRequested: effectivePlan.routeRequested,
     routeResolved: effectivePlan.routeResolved,
     riskClass: effectivePlan.riskClass,
+    validationLayer: effectivePlan.validationLayer,
     changedSource: effectivePlan.changedSource,
     changedFiles: effectivePlan.changedFiles,
+    changeDescriptors: effectivePlan.changeDescriptors || [],
     impactGraphDigest: effectivePlan.impactGraphDigest,
     nodeContractDigest: sha256(Buffer.from(stableStringify(results.map(result => [result.nodeId, result.nodeContractDigest])), 'utf8')),
     dependencyReceiptDigests: Object.fromEntries(results.map(result => [result.nodeId, result.dependencyReceiptDigests || []])),
@@ -1098,6 +1242,7 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     nestedCommandGraphDigest: effectivePlan.nestedCommandGraphDigest || null,
     nestedEdgeCount: effectivePlan.nestedEdgeCount || 0,
     nestedParentIds: effectivePlan.nestedParentIds || {},
+    delegatedParentIds: effectivePlan.delegatedParentIds || effectivePlan.nestedParentIds || {},
     executionSchedule,
     cacheDecision: {
       requested: useCache,
@@ -1107,6 +1252,8 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     },
     fullFallback: effectivePlan.fullFallback,
     selectedNodes: effectivePlan.selectedNodes.map(node => node.id),
+    selectionReasons: effectivePlan.selectionReasons || {},
+    budget: effectivePlan.budget || null,
     executionOrder: executionNodes.map(node => node.id),
     skipped: effectivePlan.skipped,
     results,
@@ -1120,6 +1267,8 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     startedAt,
     completedAt: new Date(completedAtMs).toISOString(),
     wallTimeMs: completedAtMs - startedAtMs,
+    stdoutBytes,
+    stderrBytes,
     nativeExitCode: failedNode ? 1 : 0
   }
   const receiptId = 'validation-receipt-' + sha256(Buffer.from(stableStringify(semanticReceipt), 'utf8'))

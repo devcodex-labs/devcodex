@@ -81,6 +81,45 @@ try {
   writeJson(path.join(stagedFixtureRoot, 'plugin.json'), {
     skills: [{ id: 'intent', file: 'skills/intent/SKILL.md', lifecycleState: 'active' }]
   })
+  writeJson(path.join(stagedFixtureRoot, 'content', 'skills', 'public-taxonomy.json'), {
+    schemaVersion: 'PublicSkillTaxonomyV1',
+    registrySource: 'plugin.json#skills',
+    assignmentKey: 'publicCategory',
+    extensionPolicy: {
+      extensionSource: 'workspace',
+      assignmentScope: 'bundled-registered-only',
+      includedInAssignments: false,
+      includedInBundledCounts: false,
+      description: 'Workspace Skills are excluded from bundled assignments and counts.'
+    },
+    categories: [
+      {
+        id: 'workflow-routing',
+        label: 'Workflow & Routing',
+        description: 'Fixture workflow category.',
+        representativeSkillIds: ['intent']
+      },
+      {
+        id: 'domain-architecture',
+        label: 'Domain & Architecture',
+        description: 'Fixture domain category.',
+        representativeSkillIds: []
+      },
+      {
+        id: 'quality-delivery',
+        label: 'Quality & Delivery',
+        description: 'Fixture quality category.',
+        representativeSkillIds: []
+      },
+      {
+        id: 'runtime-governance',
+        label: 'Runtime & Governance',
+        description: 'Fixture runtime category.',
+        representativeSkillIds: []
+      }
+    ],
+    assignments: [{ skillId: 'intent', publicCategory: 'workflow-routing' }]
+  })
   writeJson(path.join(stagedFixtureRoot, 'content', 'skills', 'portfolio-evidence.json'), {
     schemaVersion: 2,
     ownerSkill: 'skill-lifecycle-governance',
@@ -257,6 +296,19 @@ assert.strictEqual(first.schemaVersion, 2)
 assert.strictEqual(first.summary.registeredSkillCount, 86)
 assert.strictEqual(first.summary.activeSkillCount, 83)
 assert.strictEqual(first.summary.graySkillCount, 3)
+assert.deepStrictEqual(first.summary.publicCategoryCounts, {
+  'workflow-routing': 20,
+  'domain-architecture': 21,
+  'quality-delivery': 28,
+  'runtime-governance': 17
+})
+assert.strictEqual(first.generatedFrom.publicTaxonomy, 'content/skills/public-taxonomy.json')
+assert.match(first.generatedFrom.publicTaxonomyDigest, /^[a-f0-9]{64}$/)
+assert.strictEqual(first.publicTaxonomy.schemaVersion, 'PublicSkillTaxonomyV1')
+assert.strictEqual(first.publicTaxonomy.extensionPolicy.extensionSource, 'workspace')
+assert.strictEqual(first.publicTaxonomy.extensionPolicy.includedInAssignments, false)
+assert.strictEqual(first.publicTaxonomy.extensionPolicy.includedInBundledCounts, false)
+assert(first.skills.every(skill => typeof skill.publicCategory === 'string'))
 assert.strictEqual(first.skills.find(skill => skill.id === 'rework-prevention-engineering').lifecycleState, 'gray')
 assert.strictEqual(first.skills.find(skill => skill.id === 'repair-prevention-assessment').lifecycleState, 'active')
 assert.strictEqual(first.skills.find(skill => skill.id === 'consumer-validation-engineering').lifecycleState, 'gray')

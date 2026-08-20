@@ -26,6 +26,7 @@ const {
   loadEnvelope
 } = require('../hooks/_runtime/skill-route-state.cjs')
 const { readBoundedTextFileSync } = require('../mcp/bounded-text-reader.cjs')
+const { createLinkCapabilityDecision } = require('../hooks/_runtime/visible-output-contract.cjs')
 const {
   createOptimizationState,
   persistOptimizationState
@@ -526,6 +527,7 @@ function setupLayoutWorkspace() {
   fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile'), { recursive: true })
   fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'chat', 'profile'), { recursive: true })
   fs.mkdirSync(path.join(TEMP_ROOT, 'chat'), { recursive: true })
+  fs.writeFileSync(path.join(TEMP_ROOT, 'chat', 'package.json'), '{}')
   fs.writeFileSync(path.join(TEMP_ROOT, 'CLAUDE.md'), '# CLAUDE.md\n\nWorkspace rules\n')
   fs.writeFileSync(
     path.join(TEMP_ROOT, '.devcodex', 'layout.json'),
@@ -636,6 +638,7 @@ function setupDevCodexRouteRecipeWorkspace() {
   fs.mkdirSync(workspaceProfile, { recursive: true })
   fs.mkdirSync(projectProfile, { recursive: true })
   fs.mkdirSync(projectRoot, { recursive: true })
+  fs.writeFileSync(path.join(projectRoot, 'package.json'), '{}')
   fs.writeFileSync(
     path.join(TEMP_ROOT, '.devcodex', 'layout.json'),
     JSON.stringify({ version: 1, mode: 'workspace-namespace' }, null, 2)
@@ -726,7 +729,7 @@ function testProfilePromptRequiresProjectAtWorkspaceRoot() {
   assert.strictEqual(toolJson(missingPlanTarget).errorCode, 'CONTEXT_ACTIVE_TARGET_MISMATCH')
   const traversalPlanTarget = resultById(responses, 4)
   assert.strictEqual(traversalPlanTarget.isError, true)
-  assert.strictEqual(toolJson(traversalPlanTarget).errorCode, 'CONTEXT_ACTIVE_TARGET_MISMATCH')
+  assert.strictEqual(toolJson(traversalPlanTarget).errorCode, 'PROJECT_NAMESPACE_INVALID')
 }
 
 function testMissingProfileRecoveryUsesCanonicalInitCommand() {
@@ -1049,14 +1052,14 @@ function testMemoryCpConfirmPreservesOrdinaryTables() {
   assert.ok(sessions.includes(buildExtendedCpTable({
     phases: {
       CP1: { status: '⏳', artifactPath: '—', artifactVersion: '—', artifactSha256: '—', sourceMessage: '—', confirmedAt: '—' },
-      CP2: { status: '✅', artifactPath: '`02-技术方案.md`', artifactVersion: 'v1.0', artifactSha256: `\`${digest.toUpperCase()}\``, sourceMessage: '批准 确认 继续', confirmedAt: '12:00' },
+      CP2: { status: '✅', artifactPath: '[02-技术方案.md](../02-技术方案.md)', artifactVersion: 'v1.0', artifactSha256: `\`${digest.toUpperCase()}\``, sourceMessage: '批准 确认 继续', confirmedAt: '12:00' },
       CP3: { status: '⏹️', artifactPath: '—', artifactVersion: '—', artifactSha256: '—', sourceMessage: '—', confirmedAt: '—' }
     }
   })), 'memory MCP CP writer must match scripts/lib/cp-digest.js renderer')
   const parsedByOwner = parseCpSessions(sessions)
   assert.strictEqual(parsedByOwner.CP2.artifactSha256, digest.toUpperCase())
   assert.strictEqual(parsedByOwner.CP2.sourceMessage, '批准 确认 继续')
-  assert.match(sessions, /\| CP2 \| ✅ \| `02-技术方案\.md` \| v1\.0 \| `[A-F0-9]{64}` \| 批准 确认 继续 \| 12:00 \|/)
+  assert.match(sessions, /\| CP2 \| ✅ \| \[02-技术方案\.md\]\(\.\.\/02-技术方案\.md\) \| v1\.0 \| `[A-F0-9]{64}` \| 批准 确认 继续 \| 12:00 \|/)
 
   const second = runServer('mcp/memory-server.js', [
     rpcRequest(2, 'tools/call', {
@@ -1469,7 +1472,7 @@ function testMemoryProjectionLayoutTargets() {
 
   const traversal = resultById(responses, 4)
   assert.strictEqual(traversal.isError, true)
-  assert.strictEqual(toolJson(traversal).errorCode, 'MEMORY_QUERY_INVALID')
+  assert.strictEqual(toolJson(traversal).errorCode, 'PROJECT_NAMESPACE_INVALID')
   assert.ok(!fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'escape')))
 }
 
@@ -3463,6 +3466,183 @@ function testMemorySessionAllocationAndTransactions() {
   assert.strictEqual(fs.existsSync(liveFile), false, 'live writer lock must remain fail-closed')
 }
 
+function testMemoryArtifactLinkProjectionAndWriterIntegration() {
+  setupLayoutWorkspace()
+  const projectRoot = path.join(TEMP_ROOT, 'chat')
+  const activeRoot = path.join(TEMP_ROOT, '.devcodex', 'chat')
+  const reportPath = path.join(activeRoot, 'reports', 'Report One.md')
+  const memoryPath = path.join(activeRoot, 'reports', 'Memory Index.md')
+  fs.mkdirSync(path.dirname(reportPath), { recursive: true })
+  fs.writeFileSync(reportPath, '# Report One\n', 'utf8')
+  fs.writeFileSync(memoryPath, '# Memory Index\n', 'utf8')
+  const allocation = allocateMemorySession(projectRoot, {
+    date: '20260820', title: 'artifact links', intent: 'fix'
+  })
+  const dailyDocument = '.memory/clients/claude-code/tasks/20260820.md'
+  const capability = createLinkCapabilityDecision({
+    surface: 'memory-mcp-test',
+    evidenceState: 'verified',
+    supportsMarkdown: true,
+    supportsClickable: false,
+    workspaceRoot: activeRoot,
+    targetRelation: 'workspace',
+    evidenceRefs: ['test:canonical-containment']
+  })
+  const reportArtifact = {
+    id: 'report',
+    label: 'Report One',
+    targetPath: 'reports/Report One.md',
+    purpose: 'primary report'
+  }
+  const duplicateArtifact = {
+    id: 'report-duplicate',
+    label: 'Duplicate report',
+    targetPath: 'reports/Report One.md',
+    purpose: 'dedupe probe'
+  }
+  const projected = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/list'),
+    rpcRequest(2, 'tools/call', {
+      name: 'memory_artifact_link_project',
+      arguments: {
+        operation: 'project',
+        documentPath: dailyDocument,
+        artifacts: [reportArtifact, duplicateArtifact],
+        linkCapability: capability
+      }
+    })
+  ], projectRoot)
+  const listedTools = resultById(projected, 1).tools
+  const projectionSchema = findToolSchema(listedTools, 'memory_artifact_link_project')
+  assert.deepStrictEqual(projectionSchema.required, ['documentPath', 'artifacts', 'linkCapability'])
+  assert.deepStrictEqual(projectionSchema.properties.operation.enum, ['project', 'validate-existing'])
+  const projection = toolJson(resultById(projected, 2))
+  assert.strictEqual(projection.schemaVersion, 'ArtifactLinkProjectionSetV1')
+  assert.strictEqual(projection.dedupe.inputCount, 2)
+  assert.strictEqual(projection.dedupe.projectedCount, 1)
+  assert.strictEqual(projection.dedupe.suppressedCount, 1)
+  assert.strictEqual(
+    projection.links[0].markdown,
+    '[Report One](<../../../../reports/Report One.md>)'
+  )
+
+  const writes = runServer('mcp/memory-server.js', [
+    rpcRequest(3, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: {
+        date: '20260820',
+        sessionId: allocation.sessionId,
+        sessionBinding: allocation.sessionBinding,
+        content: 'artifact-link-session-write\n',
+        artifacts: [reportArtifact, duplicateArtifact]
+      }
+    }),
+    rpcRequest(4, 'tools/call', {
+      name: 'memory_summary_append',
+      arguments: {
+        row: '| 2026-08-20 | 01 | fix | artifact links | — | — | 🔄 |',
+        reportArtifact: {
+          label: 'Report One', targetPath: 'reports/Report One.md', purpose: 'primary report'
+        },
+        memoryArtifact: {
+          label: 'Memory Index', targetPath: 'reports/Memory Index.md', purpose: 'memory index'
+        }
+      }
+    })
+  ], projectRoot)
+  const sessionReceipt = memoryTransactionJson(resultById(writes, 3))
+  assert.strictEqual(sessionReceipt.artifactLinks.dedupe.projectedCount, 1)
+  assert.strictEqual(sessionReceipt.artifactLinkReadback.existingValidation.status, 'verified')
+  assert.strictEqual(sessionReceipt.localLinkValidation.validation.valid, true)
+  const summaryReceipt = memoryTransactionJson(resultById(writes, 4))
+  assert.strictEqual(summaryReceipt.artifactLinks.links.length, 2)
+  assert.strictEqual(summaryReceipt.artifactLinkReadback.existingValidation.status, 'verified')
+  const dailyPath = path.join(activeRoot, dailyDocument)
+  const summaryPath = path.join(activeRoot, '.memory', 'clients', 'claude-code', 'SUMMARY.md')
+  assert.match(fs.readFileSync(dailyPath, 'utf8'), /\[Report One\]\(<\.\.\/\.\.\/\.\.\/\.\.\/reports\/Report One\.md>\)/)
+  assert.match(fs.readFileSync(summaryPath, 'utf8'), /\[Report One\]\(<\.\.\/\.\.\/\.\.\/reports\/Report One\.md>\)/)
+  assert.match(fs.readFileSync(summaryPath, 'utf8'), /\[Memory Index\]\(<\.\.\/\.\.\/\.\.\/reports\/Memory Index\.md>\)/)
+
+  const taskRoot = path.join(activeRoot, 'bugs', '链接任务')
+  const cpArtifactPath = path.join(taskRoot, '02-技术方案.md')
+  fs.mkdirSync(path.join(taskRoot, '.memory'), { recursive: true })
+  fs.writeFileSync(cpArtifactPath, '# CP2 artifact\n', 'utf8')
+  const cpDigest = crypto.createHash('sha256').update(fs.readFileSync(cpArtifactPath)).digest('hex')
+  const cpResult = runServer('mcp/memory-server.js', [
+    rpcRequest(5, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: {
+        requirement: '链接任务', kind: 'bugs', phase: 'CP2',
+        artifactPath: '02-技术方案.md', artifactVersion: 'v0.1.0',
+        artifactSha256: cpDigest, sourceMessage: 'confirm links'
+      }
+    })
+  ], projectRoot)
+  const confirmation = resultById(cpResult, 5).structuredContent
+  assert.strictEqual(confirmation.artifactLinks.schemaVersion, 'ArtifactLinkProjectionSetV1')
+  assert.strictEqual(confirmation.artifactLinkReadback.existingValidation.status, 'verified')
+  const cpSessions = fs.readFileSync(path.join(taskRoot, '.memory', 'sessions.md'), 'utf8')
+  assert.match(cpSessions, /\[02-技术方案\.md\]\(\.\.\/02-技术方案\.md\)/)
+  assert.strictEqual(parseCpSessions(cpSessions).CP2.artifactPath, '02-技术方案.md')
+
+  const validateExisting = runServer('mcp/memory-server.js', [
+    rpcRequest(6, 'tools/call', {
+      name: 'memory_artifact_link_project',
+      arguments: {
+        operation: 'validate-existing',
+        documentPath: dailyDocument,
+        artifacts: [reportArtifact],
+        linkCapability: capability
+      }
+    })
+  ], projectRoot)
+  assert.strictEqual(toolJson(resultById(validateExisting, 6)).existingValidation.status, 'verified')
+
+  const dailyBeforeRejected = fs.readFileSync(dailyPath, 'utf8')
+  const summaryBeforeRejected = fs.readFileSync(summaryPath, 'utf8')
+  const invalidCapability = { ...capability, mode: 'failed' }
+  const rejected = runServer('mcp/memory-server.js', [
+    rpcRequest(10, 'tools/call', {
+      name: 'memory_artifact_link_project',
+      arguments: {
+        documentPath: dailyDocument,
+        artifacts: [{ ...reportArtifact, targetPath: 'reports/Missing.md' }],
+        linkCapability: capability
+      }
+    }),
+    rpcRequest(11, 'tools/call', {
+      name: 'memory_artifact_link_project',
+      arguments: { documentPath: dailyDocument, artifacts: [reportArtifact], linkCapability: invalidCapability }
+    }),
+    rpcRequest(12, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: {
+        date: '20260820', sessionId: allocation.sessionId, sessionBinding: allocation.sessionBinding,
+        content: '[broken](../../../../reports/Missing.md)\n'
+      }
+    }),
+    rpcRequest(13, 'tools/call', {
+      name: 'memory_summary_append',
+      arguments: { row: '| 2026-08-20 | 02 | fix | broken | [missing](../../../reports/Missing.md) | — | 🔄 |' }
+    }),
+    rpcRequest(14, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: {
+        date: '20260820', sessionId: allocation.sessionId, sessionBinding: allocation.sessionBinding,
+        content: '[forbidden](file:///C:/outside.md)\n'
+      }
+    })
+  ], projectRoot)
+  for (const id of [10, 11, 12, 13, 14]) assert.strictEqual(resultById(rejected, id).isError, true)
+  assert.match(resultById(rejected, 10).content[0].text, /ARTIFACT_LINK_TARGET_INVALID/)
+  assert.match(resultById(rejected, 11).content[0].text, /ARTIFACT_LINK_CAPABILITY_INVALID/)
+  assert.match(resultById(rejected, 12).content[0].text, /ARTIFACT_LINK_TARGET_MISSING/)
+  assert.match(resultById(rejected, 13).content[0].text, /ARTIFACT_LINK_TARGET_MISSING/)
+  assert.match(resultById(rejected, 14).content[0].text, /ARTIFACT_LINK_FILE_URI_REJECTED/)
+  assert.strictEqual(fs.readFileSync(dailyPath, 'utf8'), dailyBeforeRejected)
+  assert.strictEqual(fs.readFileSync(summaryPath, 'utf8'), summaryBeforeRejected)
+}
+
 function testMemoryLocalCalendarAndWriterReaderContract() {
   for (const timeZone of ['Pacific/Kiritimati', 'Etc/GMT+12']) {
     setupLegacyWorkspace()
@@ -3669,6 +3849,7 @@ testWorkspaceRootMemoryScopeRequiresExplicitTarget()
 testWorkspaceNamespaceNestedProjectInference()
 testWorkspaceNamespaceTraversalRejected()
 testMemorySessionAllocationAndTransactions()
+testMemoryArtifactLinkProjectionAndWriterIntegration()
 testMemoryLocalCalendarAndWriterReaderContract()
 testAdjacentMcpPathArgumentsRejected()
 testMcpJsonLaunchContract()

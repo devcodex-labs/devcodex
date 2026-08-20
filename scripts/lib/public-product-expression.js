@@ -7,6 +7,10 @@ const { HOST_IDS, projectionDescriptors } = require('./host-surface-descriptors'
 const { GLOBAL_HOST_IDS } = require('./global-host-target')
 const { buildHostAdapterCompatibilityMatrix } = require('./always-on-governance')
 const { cursorVariantMatrix } = require('./global-host-runtime-verifier')
+const {
+  publicCategoryCounts,
+  validatePublicSkillTaxonomy
+} = require('./public-skill-taxonomy')
 
 const DEFAULT_ROOT = path.resolve(__dirname, '..', '..')
 
@@ -16,6 +20,10 @@ function sha256 (value) {
 
 function readJson (file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'))
+}
+
+function canonicalizeTextForDigest (value) {
+  return String(value).replace(/\r\n?/g, '\n')
 }
 
 function resolveExisting (root, candidates) {
@@ -35,15 +43,21 @@ function loadSources (root = DEFAULT_ROOT) {
     'content/skills/portfolio.json',
     'skills/portfolio.json'
   ])
+  const taxonomyPath = resolveExisting(root, [
+    'content/skills/public-taxonomy.json',
+    'skills/public-taxonomy.json'
+  ])
   return {
     packagePath,
     expressionPath,
     workflowPath,
     portfolioPath,
+    taxonomyPath,
     package: readJson(packagePath),
     expression: readJson(expressionPath),
     workflow: readJson(workflowPath),
-    portfolio: readJson(portfolioPath)
+    portfolio: readJson(portfolioPath),
+    taxonomy: readJson(taxonomyPath)
   }
 }
 
@@ -210,7 +224,81 @@ function buildHostProjection (expression) {
   })
 }
 
-function validatePublicProductExpression (expression, workflow, portfolio) {
+function validatePublicSkillCatalog (portfolio, taxonomy, taxonomyDigest) {
+  const errors = []
+  const skills = Array.isArray(portfolio?.skills) ? portfolio.skills : []
+  const projectedTaxonomy = portfolio?.publicTaxonomy || {}
+  const sourceTaxonomy = taxonomy || {
+    ...projectedTaxonomy,
+    assignments: skills.map(skill => ({
+      skillId: skill.id,
+      publicCategory: skill.publicCategory
+    }))
+  }
+  errors.push(...validatePublicSkillTaxonomy(sourceTaxonomy, skills).map(issue => `public-skill-${issue}`))
+
+  if (taxonomy) {
+    const sourceProjection = {
+      schemaVersion: taxonomy.schemaVersion,
+      registrySource: taxonomy.registrySource,
+      assignmentKey: taxonomy.assignmentKey,
+      extensionPolicy: taxonomy.extensionPolicy,
+      categories: taxonomy.categories
+    }
+    if (JSON.stringify(projectedTaxonomy) !== JSON.stringify(sourceProjection)) {
+      errors.push('public-skill-taxonomy-projection-stale')
+    }
+    const sourceAssignments = new Map((taxonomy.assignments || []).map(item => [item.skillId, item.publicCategory]))
+    for (const skill of skills) {
+      if (sourceAssignments.get(skill.id) !== skill.publicCategory) {
+        errors.push(`public-skill-assignment-stale:${skill.id}`)
+      }
+    }
+  }
+
+  if (taxonomyDigest && portfolio?.generatedFrom?.publicTaxonomyDigest !== taxonomyDigest) {
+    errors.push('public-skill-taxonomy-digest-stale')
+  }
+  const counts = publicCategoryCounts(skills, projectedTaxonomy.categories || [])
+  if (JSON.stringify(portfolio?.summary?.publicCategoryCounts || {}) !== JSON.stringify(counts)) {
+    errors.push('public-skill-category-counts-stale')
+  }
+  if (Object.values(counts).reduce((total, count) => total + count, 0) !== skills.length) {
+    errors.push('public-skill-category-counts-not-bijective')
+  }
+  return errors
+}
+
+function buildPublicSkillProjection (portfolio) {
+  const catalog = portfolio.skills.map(skill => ({
+    id: skill.id,
+    name: skill.name,
+    description: skill.description,
+    lifecycleState: skill.lifecycleState,
+    publicCategory: skill.publicCategory
+  }))
+  const byId = new Map(catalog.map(skill => [skill.id, skill]))
+  const categories = portfolio.publicTaxonomy.categories.map(category => {
+    const categorySkills = catalog.filter(skill => skill.publicCategory === category.id)
+    return {
+      id: category.id,
+      label: category.label,
+      description: category.description,
+      count: categorySkills.length,
+      active: categorySkills.filter(skill => skill.lifecycleState === 'active').length,
+      gray: categorySkills.filter(skill => skill.lifecycleState === 'gray').length,
+      representativeSkills: category.representativeSkillIds.map(skillId => ({ ...byId.get(skillId) }))
+    }
+  })
+  return {
+    categoryCounts: { ...portfolio.summary.publicCategoryCounts },
+    categories,
+    catalog,
+    extensionPolicy: { ...portfolio.publicTaxonomy.extensionPolicy }
+  }
+}
+
+function validatePublicProductExpression (expression, workflow, portfolio, taxonomy, taxonomyDigest) {
   const errors = []
   if (expression?.schemaVersion !== 'PublicProductExpressionV1') errors.push('expression-schema-version')
   if (expression?.productId !== 'devcodex') errors.push('expression-product-id')
@@ -229,6 +317,7 @@ function validatePublicProductExpression (expression, workflow, portfolio) {
   const summary = portfolio?.summary || {}
   if (summary.skillCount !== summary.activeSkillCount + summary.graySkillCount) errors.push('portfolio-lifecycle-count')
   if (summary.skillCount !== (portfolio?.skills || []).length) errors.push('portfolio-skill-count')
+  errors.push(...validatePublicSkillCatalog(portfolio, taxonomy, taxonomyDigest))
   if (JSON.stringify(HOST_IDS) !== JSON.stringify(GLOBAL_HOST_IDS)) errors.push('host-owner-identity-conflict')
   const hostKeys = Object.keys(expression?.hostPresentation || {}).sort()
   if (JSON.stringify(hostKeys) !== JSON.stringify([...HOST_IDS].sort())) errors.push('host-presentation-coverage')
@@ -254,9 +343,12 @@ function validatePublicProductExpression (expression, workflow, portfolio) {
 
 function buildProjectionMarkers (projection) {
   const hostVariantCount = projection.hosts.reduce((total, host) => total + host.variants.length, 0)
+  const categoryCounts = projection.skills.categories
+    .map(category => `${category.id}:${category.count}`)
+    .join(',')
   return {
     workflows: `<!-- devcodex-public:workflows primary=${projection.workflows.primary.join(',')} advanced=${projection.workflows.advanced.join(',')} -->`,
-    skills: `<!-- devcodex-public:skills total=${projection.skills.total} active=${projection.skills.active} gray=${projection.skills.gray} bucket=${projection.skills.bucket} -->`,
+    skills: `<!-- devcodex-public:skills total=${projection.skills.total} active=${projection.skills.active} gray=${projection.skills.gray} bucket=${projection.skills.bucket} categories=${categoryCounts} -->`,
     hosts: `<!-- devcodex-public:hosts ids=${projection.hosts.map(item => item.hostId).join(',')} variants=${hostVariantCount} -->`,
     auto: `<!-- devcodex-public:auto canonical=${projection.expression.autoEntry.canonical} default=${projection.expression.autoEntry.defaultShortcut} profile-replacement=true empty-array-disables=true -->`,
     capabilities: `<!-- devcodex-public:capabilities ids=${projection.capabilityScenarios.map(item => item.id).join(',')} -->`
@@ -271,7 +363,14 @@ function buildProjectionMarkers (projection) {
 function buildPublicProductProjection (options = {}) {
   const root = options.root || DEFAULT_ROOT
   const sources = loadSources(root)
-  const errors = validatePublicProductExpression(sources.expression, sources.workflow, sources.portfolio)
+  const taxonomyDigest = sha256(canonicalizeTextForDigest(fs.readFileSync(sources.taxonomyPath, 'utf8')))
+  const errors = validatePublicProductExpression(
+    sources.expression,
+    sources.workflow,
+    sources.portfolio,
+    sources.taxonomy,
+    taxonomyDigest
+  )
   if (errors.length) {
     const error = new Error(`Invalid PublicProductExpressionV1: ${errors.join(', ')}`)
     error.code = 'PUBLIC_PRODUCT_EXPRESSION_INVALID'
@@ -280,6 +379,7 @@ function buildPublicProductProjection (options = {}) {
   }
   const canonical = workflowIds(sources.workflow)
   const summary = sources.portfolio.summary
+  const publicSkills = buildPublicSkillProjection(sources.portfolio)
   const projection = {
     schemaVersion: 'PublicProductProjectionV1',
     release: {
@@ -300,7 +400,8 @@ function buildPublicProductProjection (options = {}) {
       total: summary.skillCount,
       active: summary.activeSkillCount,
       gray: summary.graySkillCount,
-      bucket: `${Math.floor(summary.skillCount / 10) * 10}+`
+      bucket: `${Math.floor(summary.skillCount / 10) * 10}+`,
+      ...publicSkills
     },
     capabilityScenarios: sources.expression.capabilityScenarios.map(scenario => ({
       ...scenario,
@@ -313,7 +414,8 @@ function buildPublicProductProjection (options = {}) {
       package: sha256(fs.readFileSync(sources.packagePath)),
       expression: sha256(fs.readFileSync(sources.expressionPath)),
       workflows: sha256(fs.readFileSync(sources.workflowPath)),
-      portfolio: sha256(fs.readFileSync(sources.portfolioPath))
+      portfolio: sha256(fs.readFileSync(sources.portfolioPath)),
+      taxonomy: taxonomyDigest
     }
   }
   projection.markers = buildProjectionMarkers(projection)
@@ -324,9 +426,11 @@ module.exports = {
   DEFAULT_ROOT,
   buildProjectionMarkers,
   buildPublicProductProjection,
+  buildPublicSkillProjection,
   loadSources,
   validateCapabilityScenarios,
   validatePublicProductExpression,
+  validatePublicSkillCatalog,
   validateRoutePresentation,
   validateWorkflowPresentation
 }

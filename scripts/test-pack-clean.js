@@ -35,7 +35,9 @@ for (const directory of [packRoot, installRoot, selfPackRoot, isolatedAppData, i
   fs.mkdirSync(directory, { recursive: true })
 }
 fs.writeFileSync(npmUserConfig, '')
-process.on('exit', () => fs.rmSync(runRoot, { recursive: true, force: true }))
+if (process.env.DEVCODEX_KEEP_TEST_ARTIFACTS !== '1') {
+  process.on('exit', () => fs.rmSync(runRoot, { recursive: true, force: true }))
+}
 
 const npmEnv = {
   HOME: isolatedHome,
@@ -108,6 +110,7 @@ function collectRuntimeDependencies(file, seen = new Set()) {
 }
 
 const forbidden = [
+  /(^|\/)\.playwright-cli(?:\/|$)/,
   /data\/violations\.md/,
   /data\/pending-fixes\.md/,
   /data\/process-improvements\.md/,
@@ -119,6 +122,27 @@ const forbidden = [
   /schema-dsl/i,
   /vext-test/i,
 ]
+
+function forbiddenPlaywrightPackPaths (paths) {
+  return paths
+    .map(file => String(file || '').replace(/\\/g, '/').replace(/^package\//, '').replace(/^\.\//, ''))
+    .filter(file => file === '.playwright-cli' || file.startsWith('.playwright-cli/'))
+}
+
+const syntheticForbiddenPaths = forbiddenPlaywrightPackPaths([
+  'README.md',
+  'package/.playwright-cli/forced.txt',
+  'scripts/test-pack-clean.js'
+])
+if (syntheticForbiddenPaths.length !== 1 || syntheticForbiddenPaths[0] !== '.playwright-cli/forced.txt') {
+  throw new Error('PLAYWRIGHT_PACK_PREFIX_NEGATIVE_PROBE_FAILED')
+}
+const actualForbiddenPaths = forbiddenPlaywrightPackPaths(files)
+if (actualForbiddenPaths.length) {
+  console.error('\x1b[31m✗ Pack contains forbidden .playwright-cli paths:\x1b[0m')
+  actualForbiddenPaths.forEach(file => console.error('  ' + file))
+  process.exit(1)
+}
 
 function walk(dir) {
   if (!fs.existsSync(dir)) return []
@@ -195,6 +219,7 @@ const required = [
   'hooks/devcodex.lifecycle.json',
   'hooks/_runtime/lifecycle.cjs',
   'mcp/memory-server.js',
+  'mcp/artifact-link-projection.cjs',
   'mcp/profile-server.js',
   'mcp/agent-identity.cjs',
   'host-projections/AGENTS.md',
@@ -203,6 +228,7 @@ const required = [
   'scripts/migrate-layout.js',
   'assets/icon-512.png',
   'skills/portfolio.json',
+  'skills/public-taxonomy.json',
 ].concat(
   packageFiles,
   pluginFiles,

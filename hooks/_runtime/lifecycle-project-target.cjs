@@ -1,5 +1,7 @@
 'use strict'
 
+const crypto = require('crypto')
+
 function buildLifecycleProjectTargetUtils({
   fs,
   path,
@@ -10,6 +12,7 @@ function buildLifecycleProjectTargetUtils({
   STICKY_PROJECT_TTL_MS,
   EXECUTION_MODE,
   MULTI_PROJECT_EXEMPTION_KEYWORDS,
+  PROJECT_ROOT_MARKERS,
   collectWorkspaceProjectNamespaces,
   resolveWorkspaceProjectTarget,
   escapeRegExp,
@@ -182,30 +185,189 @@ function buildLifecycleProjectTargetUtils({
     return candidates.map(value => String(value || '').trim()).find(Boolean) || ''
   }
 
-  function getValidStickyProject(previousState, payload) {
+  function digestIdentity(value) {
+    return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex')
+  }
+
+  function normalizedIdentityPath(value) {
+    const resolved = path.resolve(value)
+    return process.platform === 'win32' ? resolved.toLocaleLowerCase('en-US') : resolved
+  }
+
+  function readPhysicalMarkerIdentity(projectRoot) {
+    const markerName = (PROJECT_ROOT_MARKERS || []).find(name => fs.existsSync(path.join(projectRoot, name)))
+    if (!markerName) return null
+    const markerPath = path.join(projectRoot, markerName)
+    let stat
+    try { stat = fs.statSync(markerPath) } catch { return null }
+    return {
+      markerName,
+      markerPath: normalizedIdentityPath(markerPath),
+      kind: stat.isDirectory() ? 'directory' : 'file',
+      dev: Number.isFinite(Number(stat.dev)) ? Number(stat.dev) : null,
+      ino: Number.isFinite(Number(stat.ino)) ? Number(stat.ino) : null
+    }
+  }
+
+  function currentLayoutIdentity() {
+    if (!LAYOUT.enabled) {
+      return digestIdentity({ mode: 'legacy-project-root', workspaceRoot: normalizedIdentityPath(WORKSPACE_ROOT) })
+    }
+    const markerPath = LAYOUT.markerPath || path.join(WORKSPACE_ROOT, '.devcodex', 'layout.json')
+    let markerDigest = null
+    try { markerDigest = digestIdentity(fs.readFileSync(markerPath, 'utf8')) } catch {}
+    return digestIdentity({
+      mode: LAYOUT.mode || 'workspace-namespace',
+      workspaceRoot: normalizedIdentityPath(WORKSPACE_ROOT),
+      markerPath: normalizedIdentityPath(markerPath),
+      markerDigest
+    })
+  }
+
+  function resolveProjectTargetIdentity(project) {
+    const raw = String(project || '').trim()
+    if (!raw) return null
+    let resolved
+    if (LAYOUT.enabled) {
+      resolved = resolveWorkspaceProjectTarget(WORKSPACE_ROOT, raw)
+    } else {
+      // In legacy layout the project namespace is the current root basename;
+      // it must not be appended as a second path segment.
+      if (raw !== path.basename(WORKSPACE_ROOT)) return null
+      const physicalRoot = WORKSPACE_ROOT
+      resolved = {
+        namespace: raw,
+        projectRoot: physicalRoot,
+        runtimeRoot: path.join(physicalRoot, '.devcodex')
+      }
+    }
+    const physicalMarker = readPhysicalMarkerIdentity(resolved.projectRoot)
+    if (!physicalMarker) return null
+    const layoutIdentity = currentLayoutIdentity()
+    const physicalRoot = path.resolve(resolved.projectRoot)
+    const activeRoot = path.resolve(resolved.runtimeRoot)
+    const targetDigest = digestIdentity({
+      project: resolved.namespace,
+      physicalRoot: normalizedIdentityPath(physicalRoot),
+      activeRoot: normalizedIdentityPath(activeRoot),
+      physicalMarker
+    })
+    return {
+      project: resolved.namespace,
+      physicalRoot,
+      activeRoot,
+      physicalMarker,
+      layoutIdentity,
+      targetDigest
+    }
+  }
+
+  function validateStickyProjectLease(previousState) {
     const sticky = previousState?.stickyProject || {}
     const project = String(sticky.project || '').trim()
-    if (!project) return null
-    const currentSessionKey = getPayloadSessionKey(payload)
-    const stickySessionKey = String(sticky.sessionKey || '').trim()
-    if (!currentSessionKey || !stickySessionKey) return null
-    if (currentSessionKey && stickySessionKey && currentSessionKey !== stickySessionKey) return null
-    return { project, source: sticky.source || 'sticky', sessionKey: stickySessionKey }
+    if (!project) return { valid: false, reason: 'missing-project', lease: null }
+    const now = Date.now()
+    const expiresAtMs = Number(sticky.expiresAtMs || 0) ||
+      Number(Date.parse(sticky.expiresAt || '')) ||
+      (Number(sticky.updatedAtMs || 0) + STICKY_PROJECT_TTL_MS)
+    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= now) {
+      return { valid: false, reason: 'ttl-expired', lease: null }
+    }
+    let identity
+    try { identity = resolveProjectTargetIdentity(project) } catch (error) {
+      return { valid: false, reason: error?.code || 'target-unresolved', lease: null }
+    }
+    if (!identity) return { valid: false, reason: 'physical-marker-missing', lease: null }
+    if (sticky.schemaVersion === 'ProjectTargetLeaseV1') {
+      if (sticky.targetDigest !== identity.targetDigest) return { valid: false, reason: 'target-drift', lease: null }
+      if (sticky.layoutIdentity !== identity.layoutIdentity) return { valid: false, reason: 'layout-drift', lease: null }
+      if (normalizedIdentityPath(sticky.physicalRoot || '') !== normalizedIdentityPath(identity.physicalRoot)) {
+        return { valid: false, reason: 'physical-root-drift', lease: null }
+      }
+      if (normalizedIdentityPath(sticky.activeRoot || '') !== normalizedIdentityPath(identity.activeRoot)) {
+        return { valid: false, reason: 'active-root-drift', lease: null }
+      }
+    }
+    return {
+      valid: true,
+      reason: sticky.schemaVersion === 'ProjectTargetLeaseV1' ? '' : 'legacy-revalidated',
+      lease: { ...sticky, ...identity, project: identity.project, expiresAtMs }
+    }
+  }
+
+  function getValidStickyProject(previousState, payload) {
+    const validation = validateStickyProjectLease(previousState)
+    if (!validation.valid) return null
+    return {
+      project: validation.lease.project,
+      source: validation.lease.source || 'sticky',
+      observedSessionRef: getPayloadSessionKey(payload),
+      validationReason: validation.reason,
+      lease: validation.lease
+    }
   }
 
   function setStickyProject(state, project, source, payload) {
     if (!project) return
+    let identity
+    try { identity = resolveProjectTargetIdentity(project) } catch {}
+    if (!identity) {
+      clearStickyProject(state, 'physical-target-unresolved')
+      return
+    }
+    const validatedAtMs = Date.now()
+    const expiresAtMs = validatedAtMs + STICKY_PROJECT_TTL_MS
+    const observedSessionRef = getPayloadSessionKey(payload)
+    const originalSource = source === 'sticky'
+      ? (state?.stickyProject?.source || 'sticky')
+      : (source || 'unknown')
     state.stickyProject = {
-      project,
-      source: source || 'unknown',
-      sessionKey: getPayloadSessionKey(payload),
-      updatedAt: new Date().toISOString(),
-      updatedAtMs: Date.now()
+      schemaVersion: 'ProjectTargetLeaseV1',
+      leaseId: `project-target-lease-${digestIdentity({
+        targetDigest: identity.targetDigest,
+        layoutIdentity: identity.layoutIdentity,
+        validatedAtMs
+      }).slice(0, 24)}`,
+      targetDigest: identity.targetDigest,
+      layoutIdentity: identity.layoutIdentity,
+      project: identity.project,
+      physicalRoot: identity.physicalRoot,
+      activeRoot: identity.activeRoot,
+      physicalMarker: identity.physicalMarker,
+      source: originalSource,
+      validatedAt: new Date(validatedAtMs).toISOString(),
+      validatedAtMs,
+      expiresAt: new Date(expiresAtMs).toISOString(),
+      expiresAtMs,
+      invalidationReason: '',
+      observedSessionRef,
+      sessionKey: observedSessionRef,
+      updatedAt: new Date(validatedAtMs).toISOString(),
+      updatedAtMs: validatedAtMs
     }
   }
 
   function clearStickyProject(state, reason) {
-    state.stickyProject = { project: '', source: '', sessionKey: '', updatedAt: '', updatedAtMs: 0, reason: reason || '' }
+    state.stickyProject = {
+      schemaVersion: 'ProjectTargetLeaseV1',
+      leaseId: '',
+      targetDigest: '',
+      layoutIdentity: '',
+      project: '',
+      physicalRoot: '',
+      activeRoot: '',
+      source: '',
+      validatedAt: '',
+      validatedAtMs: 0,
+      expiresAt: '',
+      expiresAtMs: 0,
+      invalidationReason: reason || '',
+      observedSessionRef: '',
+      sessionKey: '',
+      updatedAt: '',
+      updatedAtMs: 0,
+      reason: reason || ''
+    }
   }
 
   function resolvePromptTarget(previousState, payload, prompt, projectCandidate) {
@@ -225,6 +387,15 @@ function buildLifecycleProjectTargetUtils({
     if (sticky) {
       return { activeProject: sticky.project, activeScope: 'project', source: 'sticky' }
     }
+    if (String(previousState?.stickyProject?.project || '').trim()) {
+      const validation = validateStickyProjectLease(previousState)
+      return {
+        activeProject: '',
+        activeScope: LAYOUT.enabled ? 'workspace' : DEFAULT_SCOPE,
+        source: `sticky-invalid:${validation.reason}`,
+        clearSticky: true
+      }
+    }
     return { activeProject: '', activeScope: LAYOUT.enabled ? 'workspace' : DEFAULT_SCOPE, source: 'workspace' }
   }
 
@@ -242,7 +413,7 @@ function buildLifecycleProjectTargetUtils({
     state.activeProjectSource = target?.source || ''
     if (target?.clearSticky) {
       clearStickyProject(state, target.source)
-    } else if (target?.activeProject && target.source !== 'sticky') {
+    } else if (target?.activeProject) {
       setStickyProject(state, target.activeProject, target.source, payload)
     }
   }
@@ -483,6 +654,8 @@ function buildLifecycleProjectTargetUtils({
     detectProjectMentions,
     payloadValueMatchesProject,
     getPayloadSessionKey,
+    resolveProjectTargetIdentity,
+    validateStickyProjectLease,
     getValidStickyProject,
     setStickyProject,
     clearStickyProject,

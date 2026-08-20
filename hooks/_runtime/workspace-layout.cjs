@@ -221,13 +221,6 @@ function namespaceHasRuntimeState(root) {
   ].some(name => fs.existsSync(path.join(root, name)))
 }
 
-function namespaceExists(layout, namespaceValue) {
-  if (!layout?.enabled) return false
-  if (!namespaceValue) return false
-  const root = namespaceRootPath(layout.workspaceRoot, namespaceValue)
-  return fs.existsSync(root) && namespaceHasRuntimeState(root)
-}
-
 function hasProjectRootMarker(dir) {
   return PROJECT_ROOT_MARKERS.some(marker => fs.existsSync(path.join(dir, marker)))
 }
@@ -391,17 +384,239 @@ function inferProjectFromCwd(cwd, layout) {
   if (!segments.length) return ''
   if (segments[0] === '.devcodex' || segments[0] === 'workspace') return ''
 
-  for (let length = segments.length; length >= 1; length--) {
-    const candidate = joinNamespaceSegments(segments.slice(0, length))
-    if (namespaceExists(layout, candidate)) return candidate
+  const matches = collectActiveWorkspaceProjectNamespaces(layout.workspaceRoot)
+    .map(namespace => ({
+      namespace,
+      projectRoot: path.join(layout.workspaceRoot, ...splitNamespace(namespace))
+    }))
+    .filter(candidate => {
+      const projectRelative = path.relative(candidate.projectRoot, absoluteCwd)
+      return !projectRelative.startsWith('..') && !path.isAbsolute(projectRelative)
+    })
+    .sort((left, right) => splitNamespace(right.namespace).length - splitNamespace(left.namespace).length)
+
+  return matches[0]?.namespace || ''
+}
+
+function normalizeHostWorkspaceCapability(value, layout) {
+  const raw = String(value || '').trim().toLowerCase()
+  if (['none', 'no-bridge', 'unavailable', 'instruction-only'].includes(raw)) return 'no-bridge'
+  if (raw === 'context-bridge') return 'context-bridge'
+  if (raw === 'legacy') return 'legacy'
+  return layout?.enabled ? 'physical' : 'legacy'
+}
+
+function buildHostWorkspaceBindingError(code, message, details = {}) {
+  return {
+    code,
+    message,
+    candidates: Array.isArray(details.candidates) ? details.candidates : [],
+    ...(details.causeCode ? { causeCode: details.causeCode } : {}),
+    ...(details.nextStep ? { nextStep: details.nextStep } : {})
+  }
+}
+
+function findLegacyPhysicalRoot(cwd) {
+  let current = path.resolve(cwd)
+  while (true) {
+    if (hasProjectRootMarker(current) || fs.existsSync(path.join(current, '.devcodex', 'profile'))) return current
+    const parent = path.dirname(current)
+    if (parent === current) return null
+    current = parent
+  }
+}
+
+/**
+ * Produce one host-neutral, physical workspace binding. Consumers must use the
+ * returned project namespace/root instead of synthesizing a namespace from an
+ * arbitrary cwd or caller string.
+ */
+function resolveHostWorkspaceBinding(options = {}) {
+  const cwd = path.resolve(options.cwd || process.cwd())
+  const layout = options.layout || findLayoutInfo(cwd)
+  const capability = normalizeHostWorkspaceCapability(options.capability, layout)
+  const requireProfile = options.requireProfile === true
+  const empty = {
+    schemaVersion: 'HostWorkspaceBindingV1',
+    status: 'unresolved',
+    capability,
+    physicalRoot: null,
+    workspaceRoot: layout?.workspaceRoot ? path.resolve(layout.workspaceRoot) : null,
+    projectNamespace: null,
+    activeRoot: null,
+    runtimeRoot: null,
+    source: 'none',
+    confidence: 'none',
+    lease: options.lease || null,
+    error: null
   }
 
-  for (let length = segments.length; length >= 1; length--) {
-    const dir = path.join(layout.workspaceRoot, ...segments.slice(0, length))
-    if (hasProjectRootMarker(dir)) return joinNamespaceSegments(segments.slice(0, length))
+  if (capability === 'no-bridge') {
+    return {
+      ...empty,
+      status: 'unavailable',
+      error: buildHostWorkspaceBindingError(
+        'HOST_WORKSPACE_UNAVAILABLE',
+        'host has no verified local filesystem workspace bridge',
+        { nextStep: 'switch to a host with a local workspace bridge or provide portable content' }
+      )
+    }
   }
 
-  return joinNamespaceSegments(segments)
+  if (!layout?.enabled) {
+    const physicalRoot = findLegacyPhysicalRoot(cwd)
+    if (!physicalRoot) {
+      return {
+        ...empty,
+        error: buildHostWorkspaceBindingError(
+          'HOST_WORKSPACE_UNRESOLVED',
+          'legacy project root has no physical project marker or Profile',
+          { nextStep: 'open a marker-backed project root and retry' }
+        )
+      }
+    }
+    try {
+      resolveLegacyProjectRoot(physicalRoot, options.explicitProject || '')
+    } catch (error) {
+      return {
+        ...empty,
+        status: 'invalid',
+        physicalRoot,
+        error: buildHostWorkspaceBindingError(
+          'PROJECT_NAMESPACE_INVALID',
+          error.message,
+          { causeCode: error.code || 'LEGACY_PROJECT_TARGET_INVALID' }
+        )
+      }
+    }
+    const activeRoot = path.join(physicalRoot, '.devcodex')
+    const profileExists = fs.existsSync(path.join(activeRoot, 'profile'))
+    const projectNamespace = path.basename(physicalRoot)
+    return {
+      ...empty,
+      status: requireProfile && !profileExists ? 'profile-missing' : 'resolved',
+      capability: 'legacy',
+      physicalRoot,
+      workspaceRoot: physicalRoot,
+      projectNamespace,
+      activeRoot,
+      runtimeRoot: resolveRuntimeStateRoot(activeRoot, projectNamespace).root,
+      source: options.explicitProject ? 'explicit-target' : 'legacy-root',
+      confidence: 'verified',
+      error: requireProfile && !profileExists
+        ? buildHostWorkspaceBindingError(
+            'PROFILE_MISSING',
+            `Profile is missing for physical project: ${projectNamespace}`,
+            { nextStep: `initialize Profile at ${path.join(activeRoot, 'profile')}` }
+          )
+        : null
+    }
+  }
+
+  const candidates = collectActiveWorkspaceProjectNamespaces(layout.workspaceRoot)
+  let resolved = null
+  let source = 'none'
+  let confidence = 'none'
+  const attempts = []
+  if (String(options.explicitProject || '').trim()) {
+    attempts.push({ target: options.explicitProject, source: 'explicit-target', confidence: 'exact' })
+  } else {
+    const inferred = inferProjectFromCwd(cwd, layout)
+    if (inferred) attempts.push({ target: inferred, source: 'bridge-cwd', confidence: 'verified' })
+    if (String(options.contextProject || '').trim()) {
+      attempts.push({ target: options.contextProject, source: 'context-bridge', confidence: 'verified' })
+    }
+    const leaseProject = String(options.lease?.project || '').trim()
+    const leaseExpiresAtMs = Number(options.lease?.expiresAtMs || Date.parse(options.lease?.expiresAt || ''))
+    if (leaseProject && (!Number.isFinite(leaseExpiresAtMs) || leaseExpiresAtMs > Date.now())) {
+      attempts.push({ target: leaseProject, source: 'project-lease', confidence: 'revalidated' })
+    }
+    if (options.allowUniqueProject !== false && candidates.length === 1) {
+      attempts.push({ target: candidates[0], source: 'unique-physical-project', confidence: 'unique' })
+    }
+  }
+
+  for (const attempt of attempts) {
+    try {
+      resolved = resolveWorkspaceProjectTarget(layout.workspaceRoot, attempt.target)
+      source = attempt.source
+      confidence = attempt.confidence
+      break
+    } catch (error) {
+      if (attempt.source !== 'explicit-target') continue
+      if (error?.code === 'PROFILE_TARGET_AMBIGUOUS') {
+        return {
+          ...empty,
+          status: 'ambiguous',
+          error: buildHostWorkspaceBindingError(error.code, error.message, {
+            candidates: error.candidates,
+            nextStep: 'provide the exact workspace project namespace'
+          })
+        }
+      }
+      if (error?.code === 'PROJECT_NAMESPACE_INVALID') {
+        return {
+          ...empty,
+          status: 'invalid',
+          error: buildHostWorkspaceBindingError(error.code, error.message, {
+            candidates,
+            nextStep: 'use one canonical allowlisted project namespace'
+          })
+        }
+      }
+      return {
+        ...empty,
+        error: buildHostWorkspaceBindingError(
+          'HOST_WORKSPACE_UNRESOLVED',
+          error.message,
+          {
+            candidates: error.candidates || candidates,
+            causeCode: error.code,
+            nextStep: 'rebind to one of the exact physical workspace project namespaces'
+          }
+        )
+      }
+    }
+  }
+
+  if (!resolved) {
+    return {
+      ...empty,
+      error: buildHostWorkspaceBindingError(
+        'HOST_WORKSPACE_UNRESOLVED',
+        'cwd, context, lease, and physical project set did not resolve one project',
+        {
+          candidates,
+          nextStep: candidates.length > 1
+            ? 'provide the exact workspace project namespace'
+            : 'open or explicitly bind a marker-backed project'
+        }
+      )
+    }
+  }
+
+  const activeRoot = resolved.runtimeRoot
+  const profileExists = fs.existsSync(path.join(activeRoot, 'profile'))
+  return {
+    ...empty,
+    status: requireProfile && !profileExists ? 'profile-missing' : 'resolved',
+    physicalRoot: resolved.projectRoot,
+    projectNamespace: resolved.namespace,
+    activeRoot,
+    runtimeRoot: resolveRuntimeStateRoot(activeRoot, resolved.namespace).root,
+    source,
+    confidence,
+    error: requireProfile && !profileExists
+      ? buildHostWorkspaceBindingError(
+          'PROFILE_MISSING',
+          `Profile is missing for physical project: ${resolved.namespace}`,
+          {
+            candidates: [resolved.namespace],
+            nextStep: `initialize Profile at ${path.join(activeRoot, 'profile')}`
+          }
+        )
+      : null
+  }
 }
 
 function normalizeProjectNamespace(projectName, { layout, contextProject = '', allowEmpty = true } = {}) {
@@ -550,6 +765,7 @@ module.exports = {
   readJsonFile,
   resolveExecutionOptimizationModeForCwd,
   resolveActiveRuntimeRoot,
+  resolveHostWorkspaceBinding,
   resolveLegacyProjectRoot,
   resolveProfileDir,
   resolveRuntimeStateRoot,

@@ -6,6 +6,7 @@ const path = require('path')
 const { CheckedCommandError, runChecked } = require('./lib/checked-command')
 
 const ROOT = path.resolve(__dirname, '..')
+const WEBSITE_COMMAND_TIMEOUT_MS = 600000
 
 function main(options = {}) {
   const root = options.root ? path.resolve(options.root) : ROOT
@@ -23,7 +24,7 @@ function main(options = {}) {
       if (site.install) {
         const install = runChecked('npm', ['--prefix', site.id, 'ci', '--ignore-scripts'], {
           cwd: root,
-          timeoutMs: 240000,
+          timeoutMs: WEBSITE_COMMAND_TIMEOUT_MS,
           summaryLimit: 12000
         })
         if (install.stdout) process.stdout.write(install.stdout)
@@ -31,7 +32,7 @@ function main(options = {}) {
       }
       const evidence = runChecked('npm', ['--prefix', site.id, 'run', 'build'], {
         cwd: root,
-        timeoutMs: 240000,
+        timeoutMs: WEBSITE_COMMAND_TIMEOUT_MS,
         summaryLimit: 12000
       })
       if (evidence.stdout) process.stdout.write(evidence.stdout)
@@ -53,4 +54,4 @@ function main(options = {}) {
 
 if (require.main === module) process.exitCode = main()
 
-module.exports = { main }
+module.exports = { WEBSITE_COMMAND_TIMEOUT_MS, main }

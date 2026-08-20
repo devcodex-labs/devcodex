@@ -317,6 +317,7 @@ function buildTestHooksRuntimeFixtures({
       fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
     }
     fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'profile'), { recursive: true })
+    fs.writeFileSync(path.join(TEMP_ROOT, 'package.json'), '{}')
     writeProfileFixture(path.join(TEMP_ROOT, '.devcodex', 'profile'))
     fs.writeFileSync(
       path.join(TEMP_ROOT, '.devcodex', 'profile', 'config.json'),
@@ -334,6 +335,7 @@ function buildTestHooksRuntimeFixtures({
     fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'chat', 'profile'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, 'chat'), { recursive: true })
+    fs.writeFileSync(path.join(TEMP_ROOT, 'chat', 'package.json'), '{}')
     writeProfileFixture(path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile'))
     fs.writeFileSync(
       path.join(TEMP_ROOT, '.devcodex', 'layout.json'),

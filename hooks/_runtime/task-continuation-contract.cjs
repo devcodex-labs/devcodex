@@ -309,9 +309,14 @@ function deriveTaskStatus(descriptor) {
 function parseCpBindings(descriptor) {
   const bindings = []
   for (const line of descriptor.sessionsSource.text.split(/\r?\n/u)) {
-    const match = line.match(/^\|\s*(CP[123])\s*\|\s*([^|]+)\|\s*`?([^|`]+)`?\s*\|\s*([^|]+)\|\s*`?([a-fA-F0-9]{64})`?\s*\|/u)
+    const match = line.match(/^\|\s*(CP[123])\s*\|\s*([^|]+)\|\s*([^|]+?)\s*\|\s*([^|]+)\|\s*`?([a-fA-F0-9]{64})`?\s*\|/u)
     if (!match || !/✅/u.test(match[2])) continue
-    bindings.push({ phase: match[1], artifactPath: match[3].trim(), expectedSha256: match[5].toLowerCase() })
+    const artifactCell = match[3].trim()
+    const projected = /^\[(.*)\]\((?:<[^>]+>|[^)]+)\)$/u.exec(artifactCell)
+    const artifactPath = projected
+      ? projected[1].replace(/\\([\\\[\]|])/gu, '$1')
+      : artifactCell.replace(/^`|`$/gu, '')
+    bindings.push({ phase: match[1], artifactPath, expectedSha256: match[5].toLowerCase() })
   }
   return bindings
 }

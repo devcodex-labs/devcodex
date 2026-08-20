@@ -13,7 +13,11 @@ const {
 const {
   commitLifecycleState
 } = require('../../hooks/_runtime/lifecycle-state-commit.cjs')
-const { resolveRuntimeStateRoot } = require('../../hooks/_runtime/workspace-layout.cjs')
+const {
+  findLayoutInfo,
+  resolveHostWorkspaceBinding,
+  resolveRuntimeStateRoot
+} = require('../../hooks/_runtime/workspace-layout.cjs')
 
 function runHooksRuntimeBootstrapLayoutScenarios(context) {
   const {
@@ -46,7 +50,31 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   }
 
-  function completeCurrentSkillRoute() {
+  function persistWorkspaceLayoutState(state) {
+    const workspaceStateFile = getWorkspaceLayoutStateFile()
+    const project = String(state.activeProject || '').trim()
+    const activeStateFile = project ? getLayoutStateFile(project) : workspaceStateFile
+    const targets = [
+      { role: 'active', dir: path.dirname(activeStateFile) },
+      { role: 'meta', dir: path.dirname(workspaceStateFile) }
+    ]
+    const receipt = commitLifecycleState({
+      metaDir: path.dirname(workspaceStateFile),
+      state,
+      identity: {
+        project,
+        scope: state.activeScope || 'workspace',
+        sessionKey: state.contextAcquisition?.hostSessionId || ''
+      },
+      targets
+    }, { fs })
+    assert.strictEqual(receipt.status, 'committed')
+    for (const file of new Set([activeStateFile, workspaceStateFile])) {
+      fs.writeFileSync(file, `${JSON.stringify(state, null, 2)}\n`)
+    }
+  }
+
+  function completeCurrentSkillRoute({ loadStages = true } = {}) {
     const state = readLegacyState()
     const bootstrap = state.progressiveSkillRoute?.bootstrap
     assert(bootstrap, 'SkillRoute bootstrap must exist before completing the route')
@@ -93,6 +121,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
       }
     }, options)
     assert.strictEqual(commit.ok, true, JSON.stringify(commit))
+    if (!loadStages) return commit
     for (const stageId of commit.receipt.obligations.requiredStageIds) {
       let stageCursor = null
       do {
@@ -111,6 +140,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
         stageCursor = stage.receipt.nextCursor
       } while (stageCursor)
     }
+    return commit
   }
 
   function mutatePlanResult(result, mutate, { recomputePlanId = false } = {}) {
@@ -221,6 +251,37 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
       tool_name: 'devcodex-memory/memory_status',
       tool_input: args,
       tool_result: result
+    })
+    return readLegacyState()
+  }
+
+  function observeProfileLoad(callId = 'profile-load-call') {
+    const state = readLegacyState()
+    const args = {
+      project: state.contextAcquisition.project,
+      files: state.contextAcquisition.plan.profile.selectedFiles,
+      contextBinding: {
+        schemaVersion: 'ContextReadBindingV1',
+        contextEpoch: state.contextAcquisition.contextEpoch,
+        planId: state.contextAcquisition.plan.planId,
+        planContentId: state.contextAcquisition.plan.planContentId,
+        activeRoot: state.contextAcquisition.activeRoot,
+        project: state.contextAcquisition.project
+      }
+    }
+    run({
+      hookEventName: 'PreToolUse',
+      tool_use_id: callId,
+      tool_name: 'devcodex-profile/profile_load',
+      tool_input: args
+    })
+    const result = callProfileTool(TEMP_ROOT, 'profile_load', args)
+    run({
+      hookEventName: 'PostToolUse',
+      tool_use_id: callId,
+      tool_name: 'devcodex-profile/profile_load',
+      tool_input: args,
+      tool_response: result
     })
     return readLegacyState()
   }
@@ -701,6 +762,11 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   runBootstrapReads(FALLBACK_BOOTSTRAP_AGENT)
   const fallbackState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(fallbackState.bootstrapComplete, true)
+  assert.strictEqual(
+    path.resolve(fallbackState.contextAcquisition.activeRoot),
+    path.resolve(TEMP_ROOT, '.devcodex'),
+    'legacy ContextReadPlan must bind to the physical project root exactly once'
+  )
 
   // A2: every prompt receives one opaque epoch and a bounded handoff; prompt
   // content is never encoded into the identifier or context message.
@@ -967,6 +1033,36 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.strictEqual(sourceStaleState.contextAcquisition.receipt.status, 'stale')
   assert.strictEqual(sourceStaleState.contextAcquisition.receipt.delivery.eligible, false)
   assert(sourceStaleState.contextAcquisition.receipt.escalations.some(item => item.trigger === 'source-digest'))
+
+  // A committed route may refresh the same ContextRead inputs once before
+  // rebind. The refresh must replace its stale receipt with a fresh observed
+  // plan; ordinary duplicate planners remain denied outside this boundary.
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'route-context-rebind-session',
+    prompt: 'route context rebind lifecycle regression'
+  })
+  let routeRefreshState = observePlan({
+    intent: 'dev',
+    changeTypes: ['source-code'],
+    callId: 'route-context-rebind-initial-plan'
+  }).state
+  routeRefreshState = observeProfileLoad('route-context-rebind-initial-profile')
+  routeRefreshState = observeMemoryStatus('route-context-rebind-initial-memory')
+  assert.strictEqual(routeRefreshState.contextAcquisition.receipt.status, 'relevant-complete')
+  const uncompletedCommit = completeCurrentSkillRoute({ loadStages: false })
+  assert(uncompletedCommit.receipt.obligations.requiredStageIds.length > 0)
+  const refreshPlanCount = routeRefreshState.contextAcquisition.planCallCount
+  routeRefreshState = observePlan({
+    intent: 'dev',
+    changeTypes: ['source-code'],
+    callId: 'route-context-rebind-refresh-plan'
+  }).state
+  assert.strictEqual(routeRefreshState.contextAcquisition.planCallCount, refreshPlanCount + 1)
+  assert.strictEqual(routeRefreshState.contextAcquisition.replanCount, 1)
+  assert.notStrictEqual(routeRefreshState.contextAcquisition.receipt.status, 'stale')
+  assert.strictEqual(routeRefreshState.contextAcquisition.lastError, null)
 
   cleanState()
   run({ hookEventName: 'UserPromptSubmit', session_id: 'context-session-1', prompt: 'release scope expansion' })
@@ -1351,6 +1447,73 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.notStrictEqual(promptUserWordState.activeProjectSource, 'prompt')
 
   cleanLayoutMultiProjectState()
+  const bindingLayout = findLayoutInfo(TEMP_ROOT)
+  const explicitWorkspaceBinding = resolveHostWorkspaceBinding({
+    cwd: TEMP_ROOT,
+    layout: bindingLayout,
+    explicitProject: 'devcodex',
+    requireProfile: true,
+    allowUniqueProject: false
+  })
+  assert.strictEqual(explicitWorkspaceBinding.schemaVersion, 'HostWorkspaceBindingV1')
+  assert.strictEqual(explicitWorkspaceBinding.status, 'resolved')
+  assert.strictEqual(explicitWorkspaceBinding.projectNamespace, 'devcodex')
+  assert.strictEqual(explicitWorkspaceBinding.source, 'explicit-target')
+  assert.strictEqual(explicitWorkspaceBinding.physicalRoot, path.join(TEMP_ROOT, 'devcodex'))
+
+  const cwdWorkspaceBinding = resolveHostWorkspaceBinding({
+    cwd: path.join(TEMP_ROOT, 'payment'),
+    layout: bindingLayout,
+    allowUniqueProject: false
+  })
+  assert.strictEqual(cwdWorkspaceBinding.status, 'resolved')
+  assert.strictEqual(cwdWorkspaceBinding.projectNamespace, 'payment')
+  assert.strictEqual(cwdWorkspaceBinding.source, 'bridge-cwd')
+
+  const unavailableWorkspaceBinding = resolveHostWorkspaceBinding({
+    cwd: TEMP_ROOT,
+    layout: bindingLayout,
+    capability: 'no-bridge',
+    explicitProject: 'devcodex'
+  })
+  assert.strictEqual(unavailableWorkspaceBinding.status, 'unavailable')
+  assert.strictEqual(unavailableWorkspaceBinding.error.code, 'HOST_WORKSPACE_UNAVAILABLE')
+
+  const unresolvedWorkspaceBinding = resolveHostWorkspaceBinding({
+    cwd: path.join(TEMP_ROOT, 'tools', 'scratch'),
+    layout: bindingLayout,
+    allowUniqueProject: false
+  })
+  assert.strictEqual(unresolvedWorkspaceBinding.status, 'unresolved')
+  assert.strictEqual(unresolvedWorkspaceBinding.projectNamespace, null)
+  assert.strictEqual(unresolvedWorkspaceBinding.error.code, 'HOST_WORKSPACE_UNRESOLVED')
+
+  fs.mkdirSync(path.join(TEMP_ROOT, 'profileless'), { recursive: true })
+  fs.writeFileSync(path.join(TEMP_ROOT, 'profileless', 'package.json'), '{}')
+  const missingProfileBinding = resolveHostWorkspaceBinding({
+    cwd: TEMP_ROOT,
+    layout: bindingLayout,
+    explicitProject: 'profileless',
+    requireProfile: true,
+    allowUniqueProject: false
+  })
+  assert.strictEqual(missingProfileBinding.status, 'profile-missing')
+  assert.strictEqual(missingProfileBinding.error.code, 'PROFILE_MISSING')
+
+  fs.mkdirSync(path.join(TEMP_ROOT, 'apps', 'app-a'), { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, 'services', 'app-a'), { recursive: true })
+  fs.writeFileSync(path.join(TEMP_ROOT, 'apps', 'app-a', 'package.json'), '{}')
+  fs.writeFileSync(path.join(TEMP_ROOT, 'services', 'app-a', 'package.json'), '{}')
+  const ambiguousWorkspaceBinding = resolveHostWorkspaceBinding({
+    cwd: TEMP_ROOT,
+    layout: bindingLayout,
+    explicitProject: 'app-a',
+    allowUniqueProject: false
+  })
+  assert.strictEqual(ambiguousWorkspaceBinding.status, 'ambiguous')
+  assert.strictEqual(ambiguousWorkspaceBinding.error.code, 'PROFILE_TARGET_AMBIGUOUS')
+
+  cleanLayoutMultiProjectState()
   const layoutExplicitProject = run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'sticky-session',
@@ -1363,6 +1526,12 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.strictEqual(workspaceLayoutState.activeScope, 'project')
   assert.strictEqual(workspaceLayoutState.mode, 'dev')
   assert.strictEqual(workspaceLayoutState.stickyProject.project, 'devcodex')
+  assert.strictEqual(workspaceLayoutState.stickyProject.schemaVersion, 'ProjectTargetLeaseV1')
+  assert.match(workspaceLayoutState.stickyProject.leaseId, /^project-target-lease-[a-f0-9]{24}$/)
+  assert.match(workspaceLayoutState.stickyProject.targetDigest, /^[a-f0-9]{64}$/)
+  assert.match(workspaceLayoutState.stickyProject.layoutIdentity, /^[a-f0-9]{64}$/)
+  assert.strictEqual(workspaceLayoutState.stickyProject.observedSessionRef, 'sticky-session')
+  assert.ok(workspaceLayoutState.stickyProject.expiresAtMs > workspaceLayoutState.stickyProject.validatedAtMs)
   assert.strictEqual(workspaceLayoutState.activeProjectSource, 'prompt')
   assert.ok(fs.existsSync(getLayoutStateFile('devcodex')))
 
@@ -1452,7 +1621,11 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     session_id: 'new-session',
     prompt: '继续'
   })
-  assert.match(newSessionFollowup.systemMessage || '', /multi-project-workspace/)
+  assert.ok(!/multi-project-workspace/.test(newSessionFollowup.systemMessage || ''))
+  workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex')
+  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'sticky')
+  assert.strictEqual(workspaceLayoutState.stickyProject.observedSessionRef, 'new-session')
 
   cleanLayoutMultiProjectState()
   run({
@@ -1461,17 +1634,18 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     prompt: '修复 devcodex 项目'
   })
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
-  workspaceLayoutState.stickyProject.updatedAtMs = 1
-  fs.writeFileSync(getWorkspaceLayoutStateFile(), JSON.stringify(workspaceLayoutState, null, 2))
+  workspaceLayoutState.stickyProject.expiresAtMs = 1
+  workspaceLayoutState.stickyProject.expiresAt = new Date(1).toISOString()
+  persistWorkspaceLayoutState(workspaceLayoutState)
   const agedSameSessionFollowup = run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'aged-sticky-session',
     prompt: '继续'
   })
-  assert.ok(!/multi-project-workspace/.test(agedSameSessionFollowup.systemMessage || ''))
+  assert.match(agedSameSessionFollowup.systemMessage || '', /multi-project-workspace/)
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
-  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex')
-  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'sticky')
+  assert.strictEqual(workspaceLayoutState.activeProject, '')
+  assert.match(workspaceLayoutState.stickyProject.invalidationReason, /ttl-expired/)
 
   cleanLayoutMultiProjectState()
   run({
@@ -1482,7 +1656,11 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     hookEventName: 'UserPromptSubmit',
     prompt: '继续'
   })
-  assert.match(noSessionFollowup.systemMessage || '', /multi-project-workspace/)
+  assert.ok(!/multi-project-workspace/.test(noSessionFollowup.systemMessage || ''))
+  workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex')
+  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'sticky')
+  assert.strictEqual(workspaceLayoutState.stickyProject.observedSessionRef, '')
 
   cleanLayoutMultiProjectState()
   run({
@@ -1490,13 +1668,49 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     prompt: '修复 devcodex 项目'
   })
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
-  workspaceLayoutState.stickyProject.updatedAtMs = 1
-  fs.writeFileSync(getWorkspaceLayoutStateFile(), JSON.stringify(workspaceLayoutState, null, 2))
+  workspaceLayoutState.stickyProject.expiresAtMs = 1
+  workspaceLayoutState.stickyProject.expiresAt = new Date(1).toISOString()
+  persistWorkspaceLayoutState(workspaceLayoutState)
   const expiredStickyFollowup = run({
     hookEventName: 'UserPromptSubmit',
     prompt: '继续'
   })
   assert.match(expiredStickyFollowup.systemMessage || '', /multi-project-workspace/)
+
+  cleanLayoutMultiProjectState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'layout-drift-session',
+    prompt: '修复 devcodex 项目'
+  })
+  workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  workspaceLayoutState.stickyProject.layoutIdentity = '0'.repeat(64)
+  persistWorkspaceLayoutState(workspaceLayoutState)
+  const layoutDriftFollowup = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'layout-drift-rotated-session',
+    prompt: '继续'
+  })
+  assert.match(layoutDriftFollowup.systemMessage || '', /multi-project-workspace/)
+  workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.match(workspaceLayoutState.stickyProject.invalidationReason, /layout-drift/)
+
+  cleanLayoutMultiProjectState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'explicit-conflict-session',
+    prompt: '修复 devcodex 项目'
+  })
+  const explicitConflictFollowup = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'explicit-conflict-session',
+    prompt: '切换到 payment 项目'
+  })
+  assert.ok(!/multi-project-workspace/.test(explicitConflictFollowup.systemMessage || ''))
+  workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(workspaceLayoutState.activeProject, 'payment')
+  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'prompt')
+  assert.strictEqual(workspaceLayoutState.stickyProject.project, 'payment')
 
   cleanLayoutState()
   const layoutProjectRoot = path.join(TEMP_ROOT, 'chat')

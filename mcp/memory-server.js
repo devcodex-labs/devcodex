@@ -14,6 +14,7 @@
  *   memory_task_resolve   — Resolve an exact task identity without loading task bodies
  *   memory_session_read   — Read today's/yesterday's session memory file
  *   memory_session_write  — Append a block to one allocation-bound daily session
+ *   memory_artifact_link_project — Project or validate active-root-relative artifact links
  *   memory_cp_confirm     — Record CP checkpoint confirmation in sessions.md
  *   memory_summary_read   — Read agent SUMMARY.md
  *   memory_summary_append — Append one index row to agent SUMMARY.md
@@ -27,15 +28,20 @@ const { assertSingleSegment, resolveInside, resolveExistingRegularFileInside } =
 const { createJsonLineServer } = require('./stdio-jsonrpc.cjs')
 const { createMemoryFileTransaction } = require('./memory-file-transaction.cjs')
 const {
+  createArtifactLinkProjectionSet,
+  renderArtifactLinkBlock,
+  validateMarkdownLocalLinks
+} = require('./artifact-link-projection.cjs')
+const {
   readBoundedTextFileSync,
   scanBoundedTextLinesSync
 } = require('./bounded-text-reader.cjs')
 const {
   findLayoutInfo,
-  inferProjectFromCwd,
   namespaceRootPath,
   PROJECT_NAMESPACE_SCHEMA_PATTERN,
   normalizeProjectNamespace,
+  resolveHostWorkspaceBinding,
   resolveLegacyProjectRoot,
   resolveRuntimeStateRoot
 } = require('../hooks/_runtime/workspace-layout.cjs')
@@ -57,6 +63,7 @@ const {
   TaskContinuationError,
   resolveTaskContinuation
 } = require('../hooks/_runtime/task-continuation-contract.cjs')
+const { createLinkCapabilityDecision } = require('../hooks/_runtime/visible-output-contract.cjs')
 
 function loadCpDigestContract() {
   try {
@@ -132,6 +139,60 @@ const CONTEXT_READ_BINDING_SCHEMA = {
   },
   additionalProperties: false
 }
+
+const ARTIFACT_LINK_DESCRIPTOR_SCHEMA = Object.freeze({
+  type: 'object',
+  additionalProperties: false,
+  required: ['id', 'label', 'targetPath', 'purpose'],
+  properties: {
+    id: { type: 'string', minLength: 1, maxLength: 80 },
+    label: { type: 'string', minLength: 1, maxLength: 200 },
+    targetPath: { type: 'string', minLength: 1, description: 'active-root-relative target path' },
+    purpose: { type: 'string', minLength: 1, maxLength: 300 }
+  }
+})
+
+const SUMMARY_ARTIFACT_DESCRIPTOR_SCHEMA = Object.freeze({
+  type: 'object',
+  additionalProperties: false,
+  required: ['label', 'targetPath', 'purpose'],
+  properties: {
+    id: { type: 'string', minLength: 1, maxLength: 80 },
+    label: { type: 'string', minLength: 1, maxLength: 200 },
+    targetPath: { type: 'string', minLength: 1, description: 'active-root-relative target path' },
+    purpose: { type: 'string', minLength: 1, maxLength: 300 }
+  }
+})
+
+const LINK_CAPABILITY_DECISION_SCHEMA = Object.freeze({
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'schemaVersion', 'surface', 'evidenceState', 'mode', 'workspaceRoot', 'targetRelation',
+    'absolutePathFallback', 'fallbackReason', 'evidenceRefs', 'decisionId', 'validation'
+  ],
+  properties: {
+    schemaVersion: { const: 'LinkCapabilityDecisionV1' },
+    surface: { type: 'string', minLength: 1 },
+    evidenceState: { type: 'string', enum: ['verified', 'inferred', 'failed'] },
+    mode: { type: 'string', enum: ['clickable', 'portable', 'plain', 'failed'] },
+    workspaceRoot: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    targetRelation: { type: 'string', enum: ['workspace', 'external', 'ambiguous'] },
+    absolutePathFallback: { type: 'boolean' },
+    fallbackReason: { type: 'string', minLength: 1 },
+    evidenceRefs: { type: 'array', items: { type: 'string', minLength: 1 } },
+    decisionId: { type: 'string', minLength: 1 },
+    validation: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['valid', 'errors'],
+      properties: {
+        valid: { type: 'boolean' },
+        errors: { type: 'array', items: { type: 'string' } }
+      }
+    }
+  }
+})
 
 const TOOLS = [
   {
@@ -240,7 +301,7 @@ const TOOLS = [
   },
   {
     name: 'memory_session_write',
-    description: '把内容追加到已分配的精确会话段。必须传 memory_session_allocate 返回的 sessionId 与 sessionBinding；旧版无绑定会话保持只读，需先分配新的绑定会话。',
+    description: '把内容追加到已分配的精确会话段。可传 artifacts，由写入器按 daily document 上下文生成 canonical 去重的相对 Markdown 链接块。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -249,10 +310,28 @@ const TOOLS = [
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
         content: { type: 'string', minLength: 1, maxLength: MAX_MEMORY_SESSION_WRITE_CHARS, description: '追加的 Markdown 内容，最多 262144 字符' },
+        artifacts: { type: 'array', minItems: 1, maxItems: 20, items: ARTIFACT_LINK_DESCRIPTOR_SCHEMA, description: '可选关联产物；targetPath 必须相对 active-root 且指向现存普通文件。' },
         sessionId: { type: 'string', minLength: 1, maxLength: 64, description: 'memory_session_allocate 返回的精确会话编号。每次写入必填。' },
         sessionBinding: { type: 'string', pattern: '^[a-f0-9]{64}$', description: 'memory_session_allocate 返回的不透明绑定值。每次写入必填且必须原样回传。' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
         project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误写项目记忆。' }
+      }
+    }
+  },
+  {
+    name: 'memory_artifact_link_project',
+    description: '把 1–20 个 active-root 内现存产物投影为相对 documentPath 的 Markdown 链接；operation=validate-existing 时再校验链接已写入目标文档。',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['documentPath', 'artifacts', 'linkCapability'],
+      properties: {
+        operation: { type: 'string', enum: ['project', 'validate-existing'], description: '默认 project。' },
+        documentPath: { type: 'string', minLength: 1, description: 'active-root-relative Markdown document path。' },
+        artifacts: { type: 'array', minItems: 1, maxItems: 20, items: ARTIFACT_LINK_DESCRIPTOR_SCHEMA },
+        linkCapability: LINK_CAPABILITY_DECISION_SCHEMA,
+        scope: { type: 'string', enum: ['project', 'workspace'] },
+        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '可选项目命名空间。' }
       }
     }
   },
@@ -292,13 +371,16 @@ const TOOLS = [
   },
   {
     name: 'memory_summary_append',
-    description: '向 Agent SUMMARY.md 追加一条状态事件；同一日期/会话的最后事件形成当前状态，历史行保留用于审计。',
+    description: '向 Agent SUMMARY.md 追加一条状态事件；可传 reportArtifact/memoryArtifact，由写入器生成第 5/6 列相对链接。同一日期/会话最后事件形成当前状态。',
     inputSchema: {
       type: 'object',
+      additionalProperties: false,
       required: ['row'],
       properties: {
         agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
         row: { type: 'string', description: 'Markdown 表格行（含首尾 |）' },
+        reportArtifact: SUMMARY_ARTIFACT_DESCRIPTOR_SCHEMA,
+        memoryArtifact: SUMMARY_ARTIFACT_DESCRIPTOR_SCHEMA,
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
         project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误写 SUMMARY。' }
       }
@@ -363,18 +445,50 @@ function readJsonFile(filePath) {
 const LAYOUT = findLayoutInfo(INPUT_ROOT)
 
 function inferContextProject() {
-  return inferProjectFromCwd(INPUT_ROOT, LAYOUT)
+  const binding = resolveHostWorkspaceBinding({
+    cwd: INPUT_ROOT,
+    layout: LAYOUT,
+    capability: process.env.DEVCODEX_HOST_WORKSPACE_CAPABILITY || 'physical',
+    allowUniqueProject: false
+  })
+  return binding.status === 'resolved' ? binding.projectNamespace : ''
 }
 
 const CONTEXT_PROJECT = inferContextProject()
 const DEFAULT_SCOPE = LAYOUT.enabled ? (CONTEXT_PROJECT ? 'project' : 'workspace') : 'project'
 
-function resolveProjectName(projectName) {
-  const normalized = normalizeProjectNamespace(projectName, {
+function throwWorkspaceBindingError(binding) {
+  const error = new Error(binding?.error?.message || 'host workspace binding failed')
+  error.code = binding?.error?.code || 'HOST_WORKSPACE_UNRESOLVED'
+  error.candidates = binding?.error?.candidates || []
+  error.workspaceBinding = binding
+  throw error
+}
+
+function resolveProjectBinding(projectName, { requireProfile = true } = {}) {
+  if (!LAYOUT.enabled) return null
+  const target = String(projectName || CONTEXT_PROJECT || '').trim()
+  if (!target) return null
+  const binding = resolveHostWorkspaceBinding({
+    cwd: INPUT_ROOT,
     layout: LAYOUT,
-    contextProject: LAYOUT.enabled ? CONTEXT_PROJECT : '',
-    allowEmpty: true
+    explicitProject: target,
+    capability: process.env.DEVCODEX_HOST_WORKSPACE_CAPABILITY || 'physical',
+    requireProfile,
+    allowUniqueProject: false
   })
+  if (binding.status !== 'resolved') throwWorkspaceBindingError(binding)
+  return binding
+}
+
+function resolveProjectName(projectName) {
+  const normalized = LAYOUT.enabled
+    ? (resolveProjectBinding(projectName)?.projectNamespace || '')
+    : normalizeProjectNamespace(projectName, {
+        layout: LAYOUT,
+        contextProject: '',
+        allowEmpty: true
+      })
   if (LAYOUT.enabled || !normalized) return normalized
   return path.basename(resolveLegacyProjectRoot(INPUT_ROOT, normalized))
 }
@@ -461,10 +575,15 @@ function parseCpTableRows(text) {
   let match
   while ((match = lineRe.exec(String(text || ''))) !== null) {
     const cells = String(match[3] || '').split('|').map(cell => cell.trim()).filter(Boolean)
+    const artifactPathCell = cells.length >= 5 ? cells[0] : null
+    const projectedArtifact = /^\[(.*)\]\((?:<[^>]+>|[^)]+)\)$/.exec(String(artifactPathCell || ''))
     rows[match[1]] = {
       confirmed: match[2].includes('✅') && !/stale/i.test(match[2]),
       stale: /stale/i.test(match[2]),
-      artifactPath: cells.length >= 5 ? cells[0] : null,
+      artifactPath: projectedArtifact
+        ? projectedArtifact[1].replace(/\\([\\\[\]|])/g, '$1')
+        : String(artifactPathCell || '').replace(/^`|`$/g, '') || null,
+      artifactPathCell,
       artifactVersion: cells.length >= 5 ? cells[1] : null,
       artifactSha256: cells.length >= 5 ? String(cells[2] || '').replace(/`/g, '').toUpperCase() : null,
       sourceMessage: cells.length >= 5 ? cells[3] : null,
@@ -589,6 +708,12 @@ function cpCodeCell(value) {
   return normalized && normalized !== '—' ? `\`${normalized}\`` : '—'
 }
 
+function cpArtifactPathCell(row) {
+  const projected = String(row?.artifactPathCell || '').trim()
+  if (/^\[.*\]\((?:<[^>]+>|[^)]+)\)$/.test(projected)) return projected
+  return cpCodeCell(row?.artifactPath)
+}
+
 function cpTextCell(value, fallback = '—') {
   const normalized = String(value || '').replace(/[|\r\n]+/g, ' ').trim()
   return normalized || fallback
@@ -598,7 +723,7 @@ function existingCpPhaseRow(parsed, phase) {
   const row = parsed[phase]
   return {
     status: row?.confirmed ? '✅' : (row?.stale ? '⚠️ stale' : (phase === 'CP1' ? '⏳' : '⏹️')),
-    artifactPath: cpCodeCell(row?.artifactPath),
+    artifactPath: cpArtifactPathCell(row),
     artifactVersion: cpTextCell(row?.artifactVersion),
     artifactSha256: cpCodeCell(row?.artifactSha256),
     sourceMessage: cpTextCell(row?.sourceMessage),
@@ -620,7 +745,7 @@ function renderCpConfirmation(existing, args, binding) {
   active.status = '✅'
   active.confirmedAt = cpTextCell(binding.time)
   if (binding.hasDigest) {
-    active.artifactPath = cpCodeCell(binding.artifactPath)
+    active.artifactPath = binding.artifactLink || cpCodeCell(binding.artifactPath)
     active.artifactVersion = cpTextCell(binding.artifactVersion)
     active.artifactSha256 = cpCodeCell(binding.sha)
     active.sourceMessage = cpTextCell(binding.sourceMessage)
@@ -649,6 +774,46 @@ function fileDigest(content) {
 
 function relativeToActiveRoot(target, filePath) {
   return path.relative(target.activeRoot, filePath).replace(/\\/g, '/')
+}
+
+function memoryLinkCapability(target, surface) {
+  return createLinkCapabilityDecision({
+    surface,
+    evidenceState: 'verified',
+    supportsMarkdown: true,
+    supportsClickable: false,
+    workspaceRoot: target.activeRoot,
+    targetRelation: 'workspace',
+    evidenceRefs: ['MemoryArtifactLinkProjectionV1:canonical-containment']
+  })
+}
+
+function projectMemoryArtifactLinks(target, documentPath, artifacts, options = {}) {
+  return createArtifactLinkProjectionSet({
+    activeRoot: target.activeRoot,
+    operation: options.operation || 'project',
+    documentPath,
+    artifacts,
+    linkCapability: options.linkCapability || memoryLinkCapability(target, options.surface || 'memory-mcp-markdown')
+  })
+}
+
+function joinMarkdownBlocks(content, block) {
+  const source = String(content || '')
+  if (!block) return source
+  if (!source) return `${block}\n`
+  if (source.endsWith('\n\n')) return `${source}${block}\n`
+  if (source.endsWith('\n')) return `${source}\n${block}\n`
+  return `${source}\n\n${block}\n`
+}
+
+function summaryArtifactDescriptor(value, defaultId) {
+  if (!value) return null
+  return { ...value, id: value.id || defaultId }
+}
+
+function escapeSummaryCell(value) {
+  return String(value || '').replace(/(^|[^\\])\|/g, '$1\\|')
 }
 
 function memoryLockDir(target, filePath) {
@@ -838,7 +1003,13 @@ const MEMORY_SESSION_ALLOCATE_FIELDS = new Set([
   'agent', 'scope', 'project', 'date', 'title', 'intent', 'sourceMessage'
 ])
 const MEMORY_SESSION_WRITE_FIELDS = new Set([
-  'agent', 'scope', 'project', 'date', 'content', 'sessionId', 'sessionBinding'
+  'agent', 'scope', 'project', 'date', 'content', 'artifacts', 'sessionId', 'sessionBinding'
+])
+const MEMORY_ARTIFACT_LINK_PROJECT_FIELDS = new Set([
+  'operation', 'documentPath', 'artifacts', 'linkCapability', 'scope', 'project'
+])
+const MEMORY_SUMMARY_APPEND_FIELDS = new Set([
+  'agent', 'scope', 'project', 'row', 'reportArtifact', 'memoryArtifact'
 ])
 
 function memorySessionBindingMarker(sessionId, sessionBinding) {
@@ -1437,6 +1608,15 @@ function resolveMemoryTarget(args) {
     }
   } catch (error) {
     if (error.contextReadCode) throw error
+    if (error.workspaceBinding) {
+      const bindingError = memoryQueryError(
+        error.message,
+        error.workspaceBinding.error?.nextStep || 'Resolve one physical workspace project and retry once.',
+        error.code || 'HOST_WORKSPACE_UNRESOLVED'
+      )
+      bindingError.workspaceBinding = error.workspaceBinding
+      throw bindingError
+    }
     const code = /ambiguous|requires project|workspace root/i.test(error.message)
       ? 'MEMORY_SCOPE_AMBIGUOUS'
       : 'MEMORY_QUERY_INVALID'
@@ -2549,20 +2729,34 @@ function handleMemorySessionWrite(args) {
       'MEMORY_WRITER_ARGUMENT_INVALID'
     )
   }
-  if (args.content.length > MAX_MEMORY_SESSION_WRITE_CHARS) {
-    throw memoryQueryError(
-      `content exceeds the ${MAX_MEMORY_SESSION_WRITE_CHARS}-character limit.`,
-      'Split the memory update into bounded writes using the same allocation binding.',
-      'MEMORY_WRITER_ARGUMENT_INVALID'
-    )
-  }
   validateDate(args.date)
   const binding = normalizeMemorySessionWriteBinding(args)
   const target = resolveMemoryTarget(args)
   const p = memoryClientPath(target, 'tasks', `${args.date || today()}.md`)
+  const documentPath = relativeToActiveRoot(target, p)
+  let artifactLinks = null
+  let renderedContent = args.content
+  if (args.artifacts !== undefined) {
+    artifactLinks = projectMemoryArtifactLinks(target, documentPath, args.artifacts, {
+      surface: 'memory-session-artifacts'
+    })
+    renderedContent = joinMarkdownBlocks(renderedContent, renderArtifactLinkBlock(artifactLinks))
+  }
+  if (renderedContent.length > MAX_MEMORY_SESSION_WRITE_CHARS) {
+    throw memoryQueryError(
+      `content plus projected artifacts exceeds the ${MAX_MEMORY_SESSION_WRITE_CHARS}-character limit.`,
+      'Split the memory update into bounded writes using the same allocation binding.',
+      'MEMORY_WRITER_ARGUMENT_INVALID'
+    )
+  }
+  const localLinkValidation = validateMarkdownLocalLinks({
+    activeRoot: target.activeRoot,
+    documentPath,
+    markdown: renderedContent
+  })
   let sessionWriteReceipt = null
   const receipt = withMemoryTransaction(target, p, existing => {
-    const rendered = insertMemorySessionContent(existing, args.content, binding)
+    const rendered = insertMemorySessionContent(existing, renderedContent, binding)
     sessionWriteReceipt = rendered.receipt
     return {
       content: rendered.content,
@@ -2573,12 +2767,39 @@ function handleMemorySessionWrite(args) {
   })
   receipt.sessionWrite = sessionWriteReceipt
   receipt.indexReceipt = refreshDailyMemoryIndex(target, p, args.date || today())
+  receipt.localLinkValidation = localLinkValidation
+  if (artifactLinks) {
+    receipt.artifactLinks = artifactLinks
+    receipt.artifactLinkReadback = projectMemoryArtifactLinks(target, documentPath, args.artifacts, {
+      operation: 'validate-existing',
+      surface: 'memory-session-artifacts'
+    })
+  }
   return {
     content: [{
       type: 'text',
       text: `已追加到 ${relativeToActiveRoot(target, p)}\n${JSON.stringify(receipt)}`
     }],
     structuredContent: receipt
+  }
+}
+
+function handleMemoryArtifactLinkProject(args) {
+  validateMemoryWriterArgs(
+    args,
+    MEMORY_ARTIFACT_LINK_PROJECT_FIELDS,
+    'memory_artifact_link_project',
+    ['documentPath', 'artifacts', 'linkCapability']
+  )
+  const target = resolveMemoryTarget(args)
+  const projection = projectMemoryArtifactLinks(target, args.documentPath, args.artifacts, {
+    operation: args.operation || 'project',
+    linkCapability: args.linkCapability,
+    surface: 'memory-artifact-link-project'
+  })
+  return {
+    content: [{ type: 'text', text: JSON.stringify(projection) }],
+    structuredContent: projection
   }
 }
 
@@ -2647,6 +2868,7 @@ function handleMemoryCpConfirm(args) {
   if (!TASK_KINDS.has(kind)) throw new Error(`kind must be one of: ${[...TASK_KINDS].join(', ')}`)
 
   const p = taskSessionsPath(kind, args.requirement, args)
+  const target = taskMemoryTransactionTarget(args)
   const time = args.time || currentTime()
   const hasDigest = Boolean(args.artifactPath || args.artifactSha256 || args.artifactVersion)
   if (hasDigest && (!args.artifactPath || !args.artifactSha256)) {
@@ -2657,6 +2879,8 @@ function handleMemoryCpConfirm(args) {
   const artifactVersion = args.artifactVersion || '—'
   const sourceMessage = args.sourceMessage || '—'
   let artifactAuthority = null
+  let artifactTargetPath = null
+  let artifactLinks = null
 
   if (hasDigest && artifactPath) {
     const taskDir = path.dirname(path.dirname(p)) // .../<task>/.memory/sessions.md
@@ -2698,6 +2922,7 @@ function handleMemoryCpConfirm(args) {
         throw new Error(`ConfirmBindingGate: artifactPath changed during verification: ${artifactPath}`)
       }
       artifactPath = afterRead.relative
+      artifactTargetPath = relativeToActiveRoot(target, afterRead.currentPath)
       const rootStat = fs.statSync(canonicalRoot)
       artifactAuthority = {
         schemaVersion: 'MemoryCpArtifactAuthorityV1',
@@ -2718,15 +2943,21 @@ function handleMemoryCpConfirm(args) {
         'Do not reuse a hash computed before subsequent writes.'
       )
     }
+    artifactLinks = projectMemoryArtifactLinks(target, relativeToActiveRoot(target, p), [{
+      id: `cp-${String(args.phase).toLowerCase()}-artifact`,
+      label: artifactPath,
+      targetPath: artifactTargetPath,
+      purpose: `${args.phase} confirmation artifact`
+    }], { surface: 'memory-cp-confirmation' })
   }
 
-  const target = taskMemoryTransactionTarget(args)
   const transaction = withMemoryTransaction(target, p, existing => renderCpConfirmation(existing, args, {
     hasDigest,
     sha,
     artifactPath,
     artifactVersion,
     sourceMessage,
+    artifactLink: artifactLinks?.links?.[0]?.markdown || null,
     time
   }))
   const persisted = readFile(p)
@@ -2755,6 +2986,15 @@ function handleMemoryCpConfirm(args) {
     artifactPath,
     artifactSha256: sha,
     artifactAuthority,
+    artifactLinks,
+    artifactLinkReadback: artifactLinks
+      ? projectMemoryArtifactLinks(target, relativeToActiveRoot(target, p), [{
+          id: `cp-${String(args.phase).toLowerCase()}-artifact`,
+          label: artifactPath,
+          targetPath: artifactTargetPath,
+          purpose: `${args.phase} confirmation artifact`
+        }], { operation: 'validate-existing', surface: 'memory-cp-confirmation' })
+      : null,
     confirmedAt: time,
     cpRowCount,
     readbackVerified: true,
@@ -2779,6 +3019,7 @@ function handleMemorySummaryRead(args) {
 }
 
 function handleMemorySummaryAppend(args) {
+  validateMemoryWriterArgs(args, MEMORY_SUMMARY_APPEND_FIELDS, 'memory_summary_append', ['row'])
   if (!args.row) throw new Error('row is required')
   if (typeof args.row !== 'string' || args.row !== args.row.trim() || /[\r\n]/.test(args.row)) {
     throw memoryQueryError('Invalid SUMMARY row: pass one trimmed Markdown table row.')
@@ -2814,12 +3055,30 @@ function handleMemorySummaryAppend(args) {
   if (normalizedMemoryState(cells[6]) === 'unknown') {
     throw memoryQueryError('Invalid SUMMARY row: status must map to active, completed, or blocked.')
   }
-  // Prefer original row when type already matches normalized form (stable spacing)
-  const finalRow = String(cells[2] || '').trim() === normalizedType
-    ? args.row
-    : `| ${cells[0]} | ${cells[1]} | ${normalizedType} | ${cells[3]} | ${cells[4]} | ${cells[5]} | ${cells[6]} |`
   const target = resolveMemoryTarget(args)
   const p = memoryClientPath(target, 'SUMMARY.md')
+  const documentPath = relativeToActiveRoot(target, p)
+  const reportArtifact = summaryArtifactDescriptor(args.reportArtifact, 'summary-report')
+  const memoryArtifact = summaryArtifactDescriptor(args.memoryArtifact, 'summary-memory')
+  const artifactInputs = [reportArtifact, memoryArtifact].filter(Boolean)
+  let artifactLinks = null
+  if (artifactInputs.length) {
+    artifactLinks = projectMemoryArtifactLinks(target, documentPath, artifactInputs, {
+      surface: 'memory-summary-artifacts'
+    })
+    const projectedById = new Map(artifactLinks.links.map(link => [link.id, link.markdown]))
+    cells[4] = reportArtifact ? (projectedById.get(reportArtifact.id) || '—') : cells[4]
+    cells[5] = memoryArtifact ? (projectedById.get(memoryArtifact.id) || '—') : cells[5]
+  }
+  // Preserve the legacy row byte shape when no normalization or structured projection is needed.
+  const finalRow = String(cells[2] || '').trim() === normalizedType && !artifactInputs.length
+    ? args.row
+    : `| ${cells.map((cell, index) => escapeSummaryCell(index === 2 ? normalizedType : cell)).join(' | ')} |`
+  const localLinkValidation = validateMarkdownLocalLinks({
+    activeRoot: target.activeRoot,
+    documentPath,
+    markdown: finalRow
+  })
   const receipt = withMemoryTransaction(target, p, existing => {
     const appendText = existing
       ? finalRow + '\n'
@@ -2842,6 +3101,14 @@ function handleMemorySummaryAppend(args) {
     sessionKey: `${appended.day}#${appended.sessionId}`,
     currentState: appended.state,
     rowNumber: appended.rowNumber
+  }
+  receipt.localLinkValidation = localLinkValidation
+  if (artifactLinks) {
+    receipt.artifactLinks = artifactLinks
+    receipt.artifactLinkReadback = projectMemoryArtifactLinks(target, documentPath, artifactInputs, {
+      operation: 'validate-existing',
+      surface: 'memory-summary-artifacts'
+    })
   }
   return {
     content: [{ type: 'text', text: `已追加到 SUMMARY.md\n${JSON.stringify(receipt)}` }],
@@ -2891,6 +3158,7 @@ function dispatch(method, params) {
           case 'memory_session_allocate': return handleMemorySessionAllocate(args)
           case 'memory_session_read': return handleMemorySessionRead(args)
           case 'memory_session_write': return handleMemorySessionWrite(args)
+          case 'memory_artifact_link_project': return handleMemoryArtifactLinkProject(args)
           case 'memory_cp_confirm': return handleMemoryCpConfirm(args)
           case 'memory_summary_read': return handleMemorySummaryRead(args)
           case 'memory_summary_append': return handleMemorySummaryAppend(args)
@@ -2898,10 +3166,12 @@ function dispatch(method, params) {
             throw Object.assign(new Error(`Unknown tool: ${name}`), { code: -32601 })
         }
       } catch (err) {
-        const errorCode = err.contextReadCode || null
+        const errorCode = err.contextReadCode || (typeof err.code === 'string' ? err.code : null)
         return {
           content: [{ type: 'text', text: `Error: ${errorCode ? `${errorCode}: ` : ''}${err.message}` }],
-          ...(errorCode ? {
+          ...(err.workspaceBinding ? {
+            structuredContent: err.workspaceBinding
+          } : errorCode ? {
             structuredContent: {
               schemaVersion: 'MemoryWriterErrorV1',
               errorCode,

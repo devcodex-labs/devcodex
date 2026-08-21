@@ -14,9 +14,26 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 
 机器可读输入、selector、输出与跳过字段以同目录 `test-route-schema.json` 为唯一事实源。稳定输入只有：
 
-`workflow / changeTypes / risk / publicSurface / runtimeBoundary / profileConstraints / candidateState / capabilitySurfaceDecision / requestedClaims`
+`workflow / changeTypes / risk / publicSurface / runtimeBoundary / profileConstraints / candidateState / capabilitySurfaceDecision / requestedClaims / verificationIntent`
 
 领域专属证据不得复制进 TestRoute 输入清单；先从 `../spec-governance/gate-registry.json` 解析适用 `gateGroup`，再由目标 Owner Skill 提供证据字段和阈值。
+
+### VerificationIntentV1 与执行层级
+
+必须先判断“本轮要证明什么”，再选择可执行节点。`VerificationIntentV1` 固定包含 `level / purpose / affectedBoundaries / riskClass / releaseAuthorized / explicitFullAudit / authoritySource / claimCeiling / authorizationDigest / intentDigest`：
+
+| level | 默认 purpose | 允许的最大声明 | 典型入口 |
+|---|---|---|---|
+| V0 | `edit-loop` | 单点编辑证据 | `test:fast` 或精确单测 |
+| V1 | `delivery` | 当前变更影响闭包 | `test:changed` / `test:delivery` |
+| V2 | `boundary` | 已列明边界的资格结论 | `test:boundary -- --boundary <owner>`、profile/package 兼容边界 |
+| V3 | `full-audit` / `release` | 全审计或发布候选 | `npm test` / `test:full`；发布还需显式 release authorization |
+
+`risk=high`、R3/R4、ECR、控制面命中、文件数、cache miss/stale、未知输入或消费者图不完整都不是 V3 授权。V0/V1 命中高风险或控制面时，只能扩张到可证明的 V2 边界；无法安全推导时输出 BLOCK、缺失边界和下一步，不得 silent full。只有明确 `full-audit`，或已有发布授权且 purpose=`release`，才能形成 V3。
+
+消费者边必须区分 `runtimeConsumer / qualificationConsumer / releaseConsumer`。V1 只沿 runtime 边扩散，V2 可再沿 qualification 边扩散，release consumer 只在 V3 激活。`fast` 必须保持动态 V0；兼容入口 `profile-deploy` 与 `package-release` 分别固定为 profile/package V2 边界，不能因同一工作树还有其他变更而吸收其他边界或 V3 节点。V0～V2 的 `ValidationEvidenceV2` cache 身份绑定 `HEAD + 所有匹配节点声明输入的 dirty digest + node contract + node verification policy + dependency nodeReceiptDigest + runtime`；节点回执摘要向下游级联，不能用未变的 stdout 掩盖上游输入漂移，也不得绑定整个 candidateId 造成无关重跑。执行前必须重新核对 manifest identity、candidate identity 与 plan digest；任一绑定变化只重跑失效前沿。V3 禁止复用节点 cache，必须执行冻结候选的完整节点集合。
+
+非发布计划估算超过 600 秒或包含 heavy 节点时，先输出绑定 `planDigest` 的 `BudgetCardV1`。`estimatedDurationMs` 必须使用 manifest estimate 或有上限的默认估算，并同时公开 `estimateConfidence`、独立的 `hardTimeoutUpperBoundMs`、`logBudgetBytes` 与 `waitReasons`；禁止把所有 timeout 简单相加冒充预计耗时。只有匹配摘要的确认才能执行；确认不得复用于候选或计划摘要已经变化的下一轮。
 
 ## 路由选择
 
@@ -29,7 +46,7 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 | `package-release` | package candidate 或 release 声明 | candidateDiff、pack、install、registry |
 | `profile-deploy` | Profile、宿主或分发面变化 | profileValidation、deploymentParity |
 
-先按变化事实选择所有适用 selector，再按风险升级验证层级。不得仅因“已有单测”跳过跨边界、真实 runtime、package candidate、Profile 或部署副本验证；不适用的 selector 必须形成结构化跳过记录。
+先按变化事实选择所有适用 selector，再用风险扩大 V0～V2 内的影响边界。风险本身不得升级到 V3。不得仅因“已有单测”跳过跨边界、真实 runtime、package candidate、Profile 或部署副本验证；不适用的 selector 必须形成结构化跳过记录。
 
 `brandVisualQuality` 是 `brand-visual-quality` gateGroup 的领域绑定，不新增顶层 selector：至少选择 `static`，并用 Owner Skill 的同画布渲染、微尺寸/单色预览和人工视觉结论补充 evidence；涉及网站或产品运行态采用资产时再叠加 `runtime-e2e`。若任务只改 token/component 而不生产品牌资产，写结构化 skipReason 并交给设计系统 Owner。
 
@@ -39,7 +56,7 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 
 `context-acquisition` 是同名 gateGroup 的领域绑定，不新增顶层 selector：契约、Profile/Memory MCP 或 Hook receipt 变化至少选择 `unit-integration + runtime-e2e`；规范、Prompt、README/website 或部署面变化叠加 `static`，触达 Profile/宿主分发时再叠加 `profile-deploy`。Owner evidence 至少链接 IntentSeed/plan/receipt correlation、**`ContextReadBindingV1`（request-bound；legacy-unbound 不得 claim complete）**、`ProfilePlanNoHiddenFullReadProbe`、bounded memory query、failed-Pre/false-complete 负例、legacy compatibility 与 V99。ValidationExecutionReceipt 须携带 **`testRouteDigest`** 与可选 **`intentExpansionDigest`**（PF-149），使 TestRoute 选择与上下文绑定可对账。性能证据记录 bytes/chars/latency/cache/escalation；input tokens 不可观测时必须标 N/A，不能用 chars 冒充。staged consumer 只允许精确列出 missing consumer 与后续 Owner batch，不得把 known-red 泛化为通过。
 
-`executionChainOptimization` 是执行链性能与稳定演进的领域绑定：至少选择 `static + unit-integration + runtime-e2e`，执行 manifest 节点 `execution-chain-evolution`、V101、任务/Context/Profile/Skill/knowledge 的 full-only 负例，并逐一验证 `ExecutionOptimizationFeatureDecisionV1` 在 `off / shadow / rolled-back / sunset` 下真实阻断六类优化消费者。触达 Profile/部署叠加 `profile-deploy`，公开 package/benchmark 脚本叠加 `package-release` smoke，网站说明变化追加 website build/link。只有 full route、correctness oracle 和可比 benchmark 都通过才可声明 accepted；否则状态保持 `provisional`，但 `full-only` 正确路径必须继续为 green。
+`executionChainOptimization` 是执行链性能与稳定演进的领域绑定：至少选择 `static + unit-integration + runtime-e2e`，执行 manifest 节点 `execution-chain-evolution`、V101、任务/Context/Profile/Skill/knowledge 的 full-only 负例，并逐一验证 `ExecutionOptimizationFeatureDecisionV1` 在 `off / shadow / rolled-back / sunset` 下真实阻断六类优化消费者。validation 的关闭路径必须是保留显式 intent/route 且禁用 cache/reuse 的 `direct-validation-plan`，不得转成 full；其余消费者走各自完整读取 fallback。触达 Profile/部署叠加 `profile-deploy`，公开 package/benchmark 脚本叠加 `package-release` smoke，网站说明变化追加 website build/link。只有安全 fallback、correctness oracle 和可比 benchmark 都通过才可声明 accepted；否则状态保持 `provisional`，但 `full-only` 正确路径必须继续为 green。
 
 `derivedArtifactFreshness` 绑定 `skill-lifecycle` 或对应派生资产 Owner，不新增顶层 selector：至少选择 `static + unit-integration + runtime-e2e`，覆盖确定性生成、先生成后 stage 的负例、精确 staged/index candidate check 与 post-commit clean-tree replay；触达 Profile/部署副本叠加 `profile-deploy`，触达 package/release candidate 叠加 `package-release`。working-tree check、staged check 与 post-commit replay 必须分别记录 candidateState，不能复用一次结果冒充三种状态。
 
@@ -59,16 +76,33 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 
 ### 发布候选验证
 
-选择 `package-release` 时必须调用 `release-verification`，并把 `npm run test:audit`、package completeness gate、publish dry-run 和远端 CI 作为独立证据记录。pack 或本地 install 通过不能替代远端 CI，也不能替代发布前的 package completeness gate；未形成真实发布候选时必须记录 skipReason，不得把普通开发验证写成发布完成。
+`package-release` selector 可在 V2 只表示 package compatibility 边界；它不会执行 tag、publish 或 registry mutation。只有 purpose=`release` 且 `releaseAuthorized=true` 的 V3 才必须调用 `release-verification`，并把 `npm run test:audit`、package completeness gate、publish dry-run 和远端 CI 作为独立证据记录。pack 或本地 install 通过不能替代远端 CI，也不能替代发布前的 package completeness gate；未形成真实发布候选时必须记录 skipReason，不得把普通开发验证写成发布完成。
 
 ## TestRoute 输出
 
-输出固定为 `selectedRoutes / commands / evidence / skipped / residualRisk / coverageClaim`。推荐使用以下最小结构：
+输出固定为 `verificationIntent / validationPlan / budgetCard / selectedRoutes / commands / evidence / skipped / residualRisk / coverageClaim`。推荐使用以下最小结构：
 
 ```yaml
 workflow: fix
 changeTypes: [control-plane, documentation]
 risk: high
+verificationIntent:
+  schemaVersion: VerificationIntentV1
+  level: V2
+  purpose: delivery
+  affectedBoundaries: [validation-control-plane]
+  releaseAuthorized: false
+  explicitFullAudit: false
+  authoritySource: confirmed-CP3
+  claimCeiling: boundary-qualified
+  authorizationDigest: <sha256>
+  intentDigest: <sha256>
+validationPlan:
+  schemaVersion: ValidationPlanV2
+  executionState: ready
+budgetCard:
+  schemaVersion: BudgetCardV1
+  confirmationRequired: false
 selectedRoutes:
   - selector: static
     commands: [npm run test:control-plane]

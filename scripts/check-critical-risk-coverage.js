@@ -19,20 +19,12 @@ assert.deepStrictEqual(
 )
 assert.match(map.subprocessCoveragePolicy, /no line-coverage claim/i)
 
-const plans = Object.fromEntries(['fast', 'full', 'package-release'].map(route => [
-  route,
-  new Set(planValidation({ manifest, route }).selectedNodes.map(node => node.id))
-]))
-const directRoutes = Object.fromEntries(['fast', 'full', 'package-release'].map(route => [route, new Set(manifest.routes[route].nodes)]))
-assert.ok(
-  directRoutes.full.size - directRoutes.fast.size >= map.fastRoutePolicy.minimumDirectNodeDelta,
-  'fast route does not preserve the accepted node-count reduction boundary'
-)
-for (const nodeId of map.fastRoutePolicy.excludedReleaseIntegrationNodes) {
-  assert.ok(!directRoutes.fast.has(nodeId), `${nodeId} must stay outside fast`)
-  for (const route of map.fastRoutePolicy.requiredReleaseRoutes) {
-    assert.ok(directRoutes[route].has(nodeId), `${nodeId} must remain mandatory in ${route}`)
-  }
+assert.strictEqual(manifest.routes.fast.dynamic, true, 'fast must remain an impact-driven V0 route')
+assert.ok(!Array.isArray(manifest.routes.fast.nodes), 'fast must not retain a static near-full node list')
+assert.deepStrictEqual(map.iterativeRoutePolicy.requiredV3Routes, ['full'])
+const fullPlan = new Set(planValidation({ manifest, route: 'full' }).selectedNodes.map(node => node.id))
+for (const invariant of map.iterativeRoutePolicy.requiredInvariantNodes) {
+  assert.ok(manifest.iterativeInvariantNodes.includes(invariant), `iterative invariant missing: ${invariant}`)
 }
 
 for (const finding of map.findings) {
@@ -47,10 +39,33 @@ for (const finding of map.findings) {
   const probePath = path.join(ROOT, finding.probeSource)
   assert.ok(fs.existsSync(probePath), `${finding.id} probe source missing`)
   assert.ok(fs.readFileSync(probePath, 'utf8').includes(finding.negativeProbeMarker), `${finding.id} negative probe marker missing`)
-  for (const route of Object.keys(plans)) {
-    assert.ok(plans[route].has(finding.validationNode), `${finding.id} authoritative node missing from ${route}`)
-  }
+  const impactPlan = planValidation({
+    manifest,
+    route: 'fast',
+    changedFiles: finding.modules,
+    changedSource: 'critical-risk-map',
+    candidateStable: true,
+    candidateId: `critical-risk-${finding.id}`
+  })
+  const impactNodes = new Set(impactPlan.selectedNodes.map(item => item.id))
+  assert.notStrictEqual(impactPlan.verificationLevel, 'V3', `${finding.id} risk coverage must not authorize V3`)
+  assert.ok(impactNodes.has(finding.validationNode), `${finding.id} authoritative node missing from its impact plan`)
+  assert.ok(fullPlan.has(finding.validationNode), `${finding.id} authoritative node missing from explicit full`)
 }
+
+const highRiskPlan = planValidation({
+  manifest,
+  route: 'fast',
+  changedFiles: ['scripts/lib/validation-dag.js'],
+  changedSource: 'critical-risk-negative-probe',
+  riskClass: 'high',
+  candidateStable: true,
+  candidateId: 'critical-risk-no-v3-authority'
+})
+assert.strictEqual(highRiskPlan.verificationLevel, 'V2')
+assert.strictEqual(highRiskPlan.routeResolved, 'boundary')
+assert.strictEqual(highRiskPlan.fullFallback, null)
+assert.ok(highRiskPlan.selectedNodeCount < highRiskPlan.fullNodeCount, 'risk label silently expanded to full')
 
 const configuredCoverage = new Set((coverage.modules || []).map(item => item.path))
 for (const item of map.directCoverageModules || []) {

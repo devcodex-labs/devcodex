@@ -71,11 +71,11 @@ SUMMARY；只有显式 `--write-index` 才同时写 legacy
 
 ## ExecutionOptimizationLifecycleGate
 
-执行链性能能力以 `OptimizationFeatureStateV1` 管理 `off → shadow → trial → default`，有害候选进入 `rolled-back`，连续两个 release candidate 无有效收益或维护税超过收益时进入 `sunset` review。当前受控能力仅包括 task index、context computation reuse、changed-scope validation、Profile section load、Skill bundle 与 ProjectKnowledge reuse；新增 feature 必须先补消费者、full fallback、负向探针和 V101，不得只向状态数组追加名称。
+执行链性能能力以 `OptimizationFeatureStateV1` 管理 `off → shadow → trial → default`，有害候选进入 `rolled-back`，连续两个 release candidate 无有效收益或维护税超过收益时进入 `sunset` review。当前受控能力仅包括 task index、context computation reuse、changed-scope validation、Profile section load、Skill bundle 与 ProjectKnowledge reuse；新增 feature 必须先补消费者、安全 fallback、负向探针和 V101，不得只向状态数组追加名称。
 
-`safe-auto` 只允许已通过 trial 的加速路径；`full-only` 必须关闭全部选择性复用并保持 bounded task resolver、完整 Context/Profile/Skill 读取、full validation 与 full-project-analysis 可用。状态 schema 只读兼容上一版，writer 只写当前版；未知未来 schema 或无效配置 fail-closed，不猜测迁移。promotion 必须同时满足 prospective trials、正确性零错误、收益阈值、fallback regression、overhead 与 false-positive 预算，任一正确性错误立即 rollback。
+`safe-auto` 只允许已通过 trial 的加速路径；`full-only` 必须关闭全部选择性复用并保持 bounded task resolver、完整 Context/Profile/Skill 读取、intent-preserving direct validation plan 与 full-project-analysis 可用。validation 只有获得显式 full-audit 或 release authorization 才能进入 V3。状态 schema 只读兼容上一版，writer 只写当前版；未知未来 schema 或无效配置 fail-closed，不猜测迁移。promotion 必须同时满足 prospective trials、正确性零错误、收益阈值、fallback regression、overhead 与 false-positive 预算，任一正确性错误立即 rollback。
 
-生命周期不是观测面标签。task resolver、Context cache、validation runner、Profile loader、Skill planner 与 ProjectKnowledge planner 必须在每次真实动作前消费 `ExecutionOptimizationFeatureDecisionV1`；`off / shadow / rolled-back / sunset` 禁止进入优化分支。状态文件缺失可按 trial 兼容启动，但读取失败、容量绕过、未知 schema、identity 无效或目标 root 不明确必须走该 feature 的 full route，并由负向探针证明六类消费者均未漏接。
+生命周期不是观测面标签。task resolver、Context cache、validation runner、Profile loader、Skill planner 与 ProjectKnowledge planner 必须在每次真实动作前消费 `ExecutionOptimizationFeatureDecisionV1`；`off / shadow / rolled-back / sunset` 禁止进入优化分支。状态文件缺失可按 trial 兼容启动，但读取失败、容量绕过、未知 schema、identity 无效或目标 root 不明确必须走该 feature 的安全 fallback：validation 使用保留显式 intent/route 的 `direct-validation-plan` 并禁用 cache/reuse，不能安全推导则 BLOCK；其他 feature 走完整读取 route。负向探针必须证明六类消费者均未漏接。
 
 ## 负向用例
 

@@ -73,6 +73,8 @@ function buildOptimizationControlChecks(ctx) {
       'test:validation-dag',
       'test:public-skill-taxonomy',
       'test:changed',
+      'test:delivery',
+      'test:boundary',
       'test:profile-deploy',
       'test:package-release',
       'test:skill-portfolio:staged',
@@ -91,13 +93,22 @@ function buildOptimizationControlChecks(ctx) {
     }
     if (pkg.scripts?.test !== 'node scripts/run-validation.js --route full' ||
         pkg.scripts?.['test:fast'] !== 'node scripts/run-validation.js --route fast' ||
-        pkg.scripts?.['test:full'] !== 'node scripts/run-validation.js --route full') {
+        pkg.scripts?.['test:full'] !== 'node scripts/run-validation.js --route full' ||
+        pkg.scripts?.['test:delivery'] !== 'node scripts/run-validation.js --route delivery' ||
+        pkg.scripts?.['test:boundary'] !== 'node scripts/run-validation.js --route boundary') {
       err('[V92] stable test entry points must route through the canonical validation manifest')
     }
     if (pkg.scripts?.['test:skill-portfolio:staged'] !== 'node scripts/generate-skill-portfolio.js --check-staged') {
       err('[V92] staged Skill portfolio command must target the Git index candidate')
     }
     const validationManifest = JSON.parse(read(path.join(ROOT, 'scripts/validation-manifest.json')))
+    for (const route of ['delivery', 'boundary']) {
+      if (validationManifest.routes?.[route]?.dynamic !== true) err(`[V92] validation route missing or not dynamic: ${route}`)
+    }
+    if (!validationManifest.verificationBoundaries?.['validation-control-plane'] ||
+        !validationManifest.nodeVerificationPolicies?.defaultConsumerEdgeType) {
+      err('[V92] validation intent boundary/policy control plane missing')
+    }
     const portfolioInputGlobs = ['**/*.md', '**/*.js', '**/*.cjs', '**/*.json', '**/*.ts', '**/*.yml', '**/*.yaml']
     for (const nodeId of ['skill-portfolio', 'skill-portfolio-current']) {
       const node = validationManifest.nodes?.find(item => item.id === nodeId)

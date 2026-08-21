@@ -158,19 +158,13 @@
       "platforms": ["all"]
     }
   ],
-  "fastRoutePolicy": {
-    "excludedReleaseIntegrationNodes": [
-      "runtime-rolling-upgrade",
-      "critical-coverage",
-      "mcp-runtime-closure",
-      "npm-lifecycle-adapter",
-      "global-host-config",
-      "global-install-smoke",
-      "host-installation"
-    ],
-    "minimumDirectNodeDelta": 7,
-    "requiredReleaseRoutes": ["full", "package-release"],
-    "rationale": "Fast keeps authoritative bug probes and canonical invariants while release/install/coverage integrations remain mandatory in full and package-release."
+  "iterativeRoutePolicy": {
+    "route": "fast",
+    "dynamic": true,
+    "requiredInvariantNodes": ["validation-dag"],
+    "requiredV3Routes": ["full"],
+    "forbiddenImplicitAuthorities": ["risk", "finding", "review-grade", "ecr"],
+    "rationale": "Fast selects the changed finding owner and iterative invariant dynamically; risk labels may expand to a bounded V2 plan but never authorize V3. Release integrations remain mandatory only in explicit release/full routes."
   },
   "directCoverageModules": [
     {

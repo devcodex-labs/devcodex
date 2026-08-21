@@ -49,13 +49,21 @@ try {
   fs.writeFileSync(store.filePath, '{broken', 'utf8')
   assert.strictEqual(store.read().status, 'invalid')
 
-  const locked = createDerivedStateStore({ root, relativePath: '.runtime-state/locked.json', lockWaitMs: 0 })
+  let lockNow = Date.now()
+  const locked = createDerivedStateStore({
+    root,
+    relativePath: '.runtime-state/locked.json',
+    lockWaitMs: 0,
+    lockLeaseMs: 1000,
+    now: () => lockNow
+  })
   fs.mkdirSync(path.dirname(locked.lockPath), { recursive: true })
   fs.writeFileSync(locked.lockPath, '{"pid":1}\n', 'utf8')
+  lockNow = fs.statSync(locked.lockPath).mtimeMs + 500
   const lockReceipt = locked.write({ schemaVersion: 'FixtureV1', sourceIdentity: jsonIdentity })
   assert.strictEqual(lockReceipt.status, 'bypassed')
   assert.strictEqual(lockReceipt.errorCode, 'DERIVED_STATE_LOCK_TIMEOUT')
-  assert.strictEqual(fs.existsSync(locked.lockPath), true, 'a foreign/stale lock must never be deleted automatically')
+  assert.strictEqual(fs.existsSync(locked.lockPath), true, 'a fresh malformed lock must never be quarantined automatically')
 
   const bounded = createDerivedStateStore({ root, relativePath: '.runtime-state/bounded.json', maxBytes: 64 })
   const boundedReceipt = bounded.write({ schemaVersion: 'FixtureV1', body: 'x'.repeat(100) })

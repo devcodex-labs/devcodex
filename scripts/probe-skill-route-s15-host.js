@@ -44,6 +44,9 @@ const {
   contextAcquisitionObservedTools
 } = require('./lib/s15-context-evidence')
 const {
+  resolveExecutableOnPath
+} = require('./lib/checked-command')
+const {
   parseModelResult,
   writeProbeSkill
 } = require('./probe-skill-route-s15-grok')
@@ -112,7 +115,8 @@ function buildHostInvocationEvidence (options = {}) {
       command: String(executable.command || ''),
       prefix: Array.isArray(executable.prefix)
         ? executable.prefix.map(value => String(value))
-        : []
+        : [],
+      resolutionSource: String(executable.resolutionSource || 'unspecified')
     },
     argvCount: argv.length,
     argvDigest: sha256(argv),
@@ -141,18 +145,28 @@ function modelTimeoutMs () {
   return Math.min(1800000, Math.max(60000, requested))
 }
 
-function resolveExecutable (hostId) {
-  if (hostId === 'codex' && process.platform === 'win32') {
-    const explicit = process.env.DEVCODEX_CODEX_CLI
-    if (explicit && fs.existsSync(explicit)) {
-      return { command: explicit, prefix: [] }
+function resolveExecutable (hostId, options = {}) {
+  const platform = options.platform || process.platform
+  const env = options.env || process.env
+  const fsImpl = options.fs || fs
+  const spawnSyncImpl = options.spawnSync || spawnSync
+  const resolveOnPath = options.resolveExecutableOnPath || resolveExecutableOnPath
+  if (hostId === 'codex' && platform === 'win32') {
+    const explicit = env.DEVCODEX_CODEX_CLI
+    if (explicit && fsImpl.existsSync(explicit)) {
+      return { command: explicit, prefix: [], resolutionSource: 'explicit' }
     }
-    const resolved = spawnSync('volta', ['which', 'codex'], {
+    const activePathExecutable = resolveOnPath('codex.exe', env)
+    if (activePathExecutable) {
+      return { command: activePathExecutable, prefix: [], resolutionSource: 'path' }
+    }
+    const resolved = spawnSyncImpl('volta', ['which', 'codex'], {
       encoding: 'utf8',
       timeout: 30000
     })
+    const pathApi = path.win32
     const commandRoot = resolved.status === 0
-      ? path.dirname(String(resolved.stdout || '').trim())
+      ? pathApi.dirname(String(resolved.stdout || '').trim())
       : ''
     const platformPackage = process.arch === 'arm64'
       ? 'codex-win32-arm64'
@@ -160,7 +174,7 @@ function resolveExecutable (hostId) {
     const targetTriple = process.arch === 'arm64'
       ? 'aarch64-pc-windows-msvc'
       : 'x86_64-pc-windows-msvc'
-    const nativeExecutable = path.join(
+    const nativeExecutable = pathApi.join(
       commandRoot,
       'node_modules',
       '@openai',
@@ -173,27 +187,27 @@ function resolveExecutable (hostId) {
       'bin',
       'codex.exe'
     )
-    if (commandRoot && fs.existsSync(nativeExecutable)) {
-      return { command: nativeExecutable, prefix: [] }
+    if (commandRoot && fsImpl.existsSync(nativeExecutable)) {
+      return { command: nativeExecutable, prefix: [], resolutionSource: 'volta-native-fallback' }
     }
   }
-  if (hostId !== 'copilot') return { command: 'volta', prefix: ['run', hostId] }
-  const explicit = process.env.DEVCODEX_COPILOT_CLI
-  if (explicit && fs.existsSync(explicit)) return { command: explicit, prefix: [] }
-  const localAppData = process.env.LOCALAPPDATA || ''
+  if (hostId !== 'copilot') return { command: 'volta', prefix: ['run', hostId], resolutionSource: 'volta-run' }
+  const explicit = env.DEVCODEX_COPILOT_CLI
+  if (explicit && fsImpl.existsSync(explicit)) return { command: explicit, prefix: [], resolutionSource: 'explicit' }
+  const localAppData = env.LOCALAPPDATA || ''
   const wingetRoot = path.join(localAppData, 'Microsoft', 'WinGet', 'Packages')
-  if (fs.existsSync(wingetRoot)) {
-    const packageDir = fs.readdirSync(wingetRoot).find(name =>
+  if (fsImpl.existsSync(wingetRoot)) {
+    const packageDir = fsImpl.readdirSync(wingetRoot).find(name =>
       name.startsWith('GitHub.Copilot_')
     )
     const candidate = packageDir
       ? path.join(wingetRoot, packageDir, 'copilot.exe')
       : ''
-    if (candidate && fs.existsSync(candidate)) {
-      return { command: candidate, prefix: [] }
+    if (candidate && fsImpl.existsSync(candidate)) {
+      return { command: candidate, prefix: [], resolutionSource: 'winget' }
     }
   }
-  return { command: 'copilot', prefix: [] }
+  return { command: 'copilot', prefix: [], resolutionSource: 'path-command' }
 }
 
 function run (command, args, options = {}) {
@@ -261,6 +275,7 @@ function buildPrompt ({ contextEpoch, hostId, project, skillId, exerciseContextR
   const afterCommitSteps = exerciseContextRebind
     ? [
         'CONTEXT REBIND MODE: conditional replan is forbidden in this probe. Do not use lateConditionId and do not load any stage from generation=0.',
+        'The harness validates the persisted route ledger: any generation=0 stage delivery makes the probe fail, even if a later rebind preserves that progress.',
         'Immediately after the first commit, refresh ContextRead inside this same host session so the candidate crosses the real MCP → PostToolUse → SkillRoute rebind boundary.',
         'Call profile_context_plan a second time with:',
         JSON.stringify({
@@ -541,6 +556,74 @@ function discoverFixtureState (fixture) {
     }
   }
   return found
+}
+
+function buildRouteOperationTrace (state) {
+  const items = Array.isArray(state?.contributionLedger?.items)
+    ? state.contributionLedger.items
+    : []
+  return items
+    .map((item, ledgerIndex) => ({ item, ledgerIndex }))
+    .filter(({ item }) => ['commit', 'rebind', 'load_stage'].includes(item?.op))
+    .map(({ item, ledgerIndex }) => ({
+      ledgerIndex,
+      op: item.op,
+      generation: Number.isInteger(item.generation) ? item.generation : null,
+      stageId: item.stageId || null,
+      runtimeServedPages: Number.isInteger(item.runtimeServedPages)
+        ? item.runtimeServedPages
+        : null,
+      observedAt: item.observedAt || null
+    }))
+}
+
+function validateContextRebindOrder (state, requiredStageIds = []) {
+  const orderedRouteTrace = buildRouteOperationTrace(state)
+  const generationOneRebinds = orderedRouteTrace.filter(item =>
+    item.op === 'rebind' && item.generation === 1
+  )
+  assert.strictEqual(
+    generationOneRebinds.length,
+    1,
+    'context rebind probe requires exactly one successful generation=1 rebind'
+  )
+  const rebindEntry = generationOneRebinds[0]
+  const initialCommit = orderedRouteTrace.find(item =>
+    item.op === 'commit' && item.generation === 0 && item.ledgerIndex < rebindEntry.ledgerIndex
+  )
+  assert(initialCommit, 'context rebind probe requires a generation=0 commit before rebind')
+
+  const stageLoads = orderedRouteTrace.filter(item => item.op === 'load_stage')
+  const preRebindStageLoads = stageLoads.filter(item =>
+    item.ledgerIndex < rebindEntry.ledgerIndex
+  )
+  assert.strictEqual(
+    preRebindStageLoads.length,
+    0,
+    'generation=0 stage delivery occurred before context rebind'
+  )
+  const wrongGenerationLoads = stageLoads.filter(item => item.generation !== 1)
+  assert.strictEqual(
+    wrongGenerationLoads.length,
+    0,
+    'all context rebind probe stage delivery must use generation=1'
+  )
+
+  const generationOneStageIds = [...new Set(stageLoads.map(item => item.stageId))]
+  assert.deepStrictEqual(
+    generationOneStageIds,
+    [...requiredStageIds],
+    'generation=1 did not directly deliver every required stage in dependency order'
+  )
+  return {
+    schemaVersion: 'SkillRouteS15RebindOrderV1',
+    rebindGeneration: rebindEntry.generation,
+    rebindLedgerIndex: rebindEntry.ledgerIndex,
+    preRebindStageLoads: preRebindStageLoads.length,
+    generationOneStageLoads: stageLoads.length,
+    generationOneStageIds,
+    orderedRouteTrace
+  }
 }
 
 const PROBE_HOOK_FLAGS = Object.freeze([
@@ -844,6 +927,9 @@ function main () {
     )
     const rebindLedgerEntries = (state.contributionLedger?.items || [])
       .filter(item => item.op === 'rebind')
+    const contextRebindOrder = exerciseContextRebind
+      ? validateContextRebindOrder(state, requiredStageIds)
+      : null
 
     assert.strictEqual(final.status, 'PASS')
     assert.strictEqual(final.contextReceiptStatus, 'relevant-complete')
@@ -967,7 +1053,8 @@ function main () {
       contextRebind: {
         exercised: exerciseContextRebind,
         ledgerEntries: rebindLedgerEntries.length,
-        finalGeneration: state.plan.generation
+        finalGeneration: state.plan.generation,
+        order: contextRebindOrder
       },
       retirementAnomalies: {
         legacyFallback: 0,
@@ -1060,5 +1147,6 @@ module.exports = {
   resolveHostEntrySurface,
   resultSchema,
   scrubCodexDesktopAmbientMarkers,
-  stripProbeHookArgs
+  stripProbeHookArgs,
+  validateContextRebindOrder
 }

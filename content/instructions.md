@@ -145,8 +145,8 @@
 ### ExecutionChainOptimizationGate（执行链优化与回滚）
 
 - 执行链优化状态使用 `ExecutionOptimizationStateV2` / `OptimizationFeatureStateV1`，生命周期为 `off → shadow → trial → default`，异常进入 `rolled-back`，连续无收益或维护税过高可进入 `sunset`。
-- `extensions.devcodex.executionOptimization.mode` 只允许 `safe-auto | full-only`，缺省 `safe-auto`。`full-only` 是正确性优先的 kill switch：禁用索引/cache/changed-scope/section/bundle/snapshot 复用，但保留有界任务定位、完整上下文读取、full validation 与完整项目分析。
-- 每个真实消费者在动作前必须读取当前 active-root 的只读状态，并形成 `ExecutionOptimizationFeatureDecisionV1`；`off / shadow / rolled-back / sunset` 必须立即走该 feature 的完整 fallback。状态缺失沿用 trial 兼容路径，状态损坏、超预算、未知 schema、身份不匹配或目标无法确定时必须 fail-closed，禁止只在 status/doctor 展示 lifecycle 而执行链仍继续加速。
+- `extensions.devcodex.executionOptimization.mode` 只允许 `safe-auto | full-only`，缺省 `safe-auto`。`full-only` 是正确性优先的 kill switch：禁用索引/cache/changed-scope/section/bundle/snapshot 复用，但保留有界任务定位、完整上下文读取、按已授权 `VerificationIntentV1` 直接生成验证计划与完整项目分析；验证优化关闭不得把 V0～V2 暗升为 V3/full。
+- 每个真实消费者在动作前必须读取当前 active-root 的只读状态，并形成 `ExecutionOptimizationFeatureDecisionV1`；`off / shadow / rolled-back / sunset` 必须立即走该 feature 的安全 fallback。验证消费者的 fallback 是 `direct-validation-plan`（关闭 cache/reuse、保留显式 route/level/purpose），无法安全推导时 BLOCK；其余消费者保持各自完整读取路径。状态缺失沿用 trial 兼容路径，状态损坏、超预算、未知 schema、身份不匹配或目标无法确定时必须 fail-closed，禁止只在 status/doctor 展示 lifecycle 而执行链仍继续加速。
 - promotion 必须使用 prospective trial：正确性错误为 0、直接收益与样本量达标、full fallback 回归/观测开销/false-positive 在预算内；任何 wrong task/root/CP、mandatory miss、required finding miss 或 false complete 非 0，立即 rollback，禁止用历史成功样例抵消。
 - 相关实现或消费者变化必须执行 `test:execution-chain-evolution`、V101 与适用的 full/Profile/package/website 路由；benchmark 未满足可比环境或样本策略时只能标 `provisional`，不得宣称目标收益。
 

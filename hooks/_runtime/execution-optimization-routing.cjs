@@ -24,7 +24,7 @@ const ALLOWED_STATES = new Set(['off', 'shadow', 'trial', 'default', 'rolled-bac
 const FEATURE_DEFINITIONS = Object.freeze([
   { id: 'task-index-acceleration', aliases: ['task-index', 'taskIndex'], fullRoute: 'bounded-direct' },
   { id: 'context-computation-reuse', aliases: ['context-cache', 'contextReuse'], fullRoute: 'full-context-read' },
-  { id: 'validation-changed-scope', aliases: ['validation-changed', 'changed-validation'], fullRoute: 'full-validation' },
+  { id: 'validation-changed-scope', aliases: ['validation-changed', 'changed-validation'], fullRoute: 'direct-validation-plan' },
   { id: 'profile-section-load', aliases: ['profile-progressive-load', 'profile-sections'], fullRoute: 'full-profile-file' },
   { id: 'skill-bundle', aliases: ['skill-bundle-v1', 'skill-selection'], fullRoute: 'full-skill-read' },
   { id: 'project-knowledge-reuse', aliases: ['project-analysis-cache', 'knowledge-snapshot'], fullRoute: 'full-project-analysis' }

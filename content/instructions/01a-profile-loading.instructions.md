@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 意图驱动的 Profile 加载、active-root 路径、目标项目识别与项目现实扩展规范
 priority: P5
-version: 1.17.10
+version: 1.17.11
 ---
 # Profile 加载与项目现实扩展
 
@@ -23,7 +23,7 @@ version: 1.17.10
 ### Profile / config 读取
 
 - `config.json` 采用 `workspace base + project overlay`；Auto 精确别名全局默认 `@rocky`，可用 `extensions.devcodex.autoAliases` 替换全局默认别名（省略表示沿用默认，空数组表示关闭默认别名），也可在 `extensions.devcodex.concurrency` 配置 `ConcurrencyPolicy`
-- `extensions.devcodex.executionOptimization.mode` 只允许 `safe-auto | full-only`，缺省 `safe-auto`；`full-only` 关闭选择性复用但不关闭正确的完整执行路径
+- `extensions.devcodex.executionOptimization.mode` 只允许 `safe-auto | full-only`，缺省 `safe-auto`；`full-only` 关闭选择性复用但不关闭正确执行路径，其中 validation 必须保留已授权 intent 并用 direct plan，禁止暗升 V3/full
 - `extensions.devcodex.concurrency` 缺省为 `mode=auto`：只读准备与隔离验证可按通道上限并行；`mode=serial` 表示全串行；项目只能追加 `locks.additionalSingleWriterScopes`，不得删除核心单写者域或开启并行 mutation
 - `config.local.json` 与 `config.json` 同路径模型，可作为用户 / 项目指定的本地 overlay（长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>`），不得覆盖 `mode` / `agent` / `pluginVersion`
 - 连接配置来源遵循 S02：默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json` 时，脚本、测试、数据库 / SSH / MongoDB / 数据操作才从当前 Profile 路径模型下的 `config.local.json` 读取，缺失文件或字段时提醒补齐

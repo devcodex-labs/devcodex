@@ -11,6 +11,7 @@ const {
   validateCandidateReviewBundle
 } = require('./lib/candidate-review-bundle')
 const { createCanonicalAwareReader } = require('./lib/canonical-consumer-contracts')
+const { planValidation } = require('./lib/validation-dag')
 
 const ROOT = path.resolve(__dirname, '..')
 const FIXTURE_ROOT = path.join(__dirname, 'fixtures', 'candidate-review-bundle')
@@ -185,10 +186,20 @@ assert(packageJson.files.includes('scripts/lib/candidate-review-bundle.js'))
 assert(packageJson.files.includes('scripts/fixtures/candidate-review-bundle/'))
 
 const manifest = JSON.parse(source('scripts/validation-manifest.json'))
-assert(manifest.routes.fast.nodes.includes('candidate-review-bundle'))
+assert.strictEqual(manifest.routes.fast.dynamic, true)
 assert(manifest.routes.full.nodes.includes('candidate-review-bundle'))
 const manifestNode = manifest.nodes.find(node => node.id === 'candidate-review-bundle')
 assert(manifestNode, 'validation manifest missing candidate-review-bundle node')
 assert(manifestNode.inputs.includes('scripts/lib/candidate-review-bundle.js'))
+const fastPlan = planValidation({
+  manifest,
+  route: 'fast',
+  changedFiles: ['scripts/lib/candidate-review-bundle.js'],
+  changedSource: 'candidate-review-fixture',
+  candidateStable: true,
+  candidateId: 'candidate-review-fast-fixture'
+})
+assert(fastPlan.selectedNodes.some(node => node.id === 'candidate-review-bundle'))
+assert.notStrictEqual(fastPlan.verificationLevel, 'V3')
 
 console.log('candidate review bundle tests passed')

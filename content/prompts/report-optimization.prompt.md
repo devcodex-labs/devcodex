@@ -53,7 +53,7 @@ applyTo: .devcodex/**/reports/optimizations/**
 
 执行链优化追加 `ExecutionChainBenchmarkResultV1`：列出 environment identity、cold/warm、warmup/measurement、四个 direct-benefit 维度的 median/p95/sampleCount、correctness、instrumentation overhead、几何平均改善与 improvedDimensions。环境或样本不可比时结论必须为 `provisional`；token/TTFT 不可观测写 `N/A + reason`，禁止用 bytes/chars 代替。
 
-同时给出六类消费者的 `ExecutionOptimizationFeatureDecisionV1` 负向证据：feature 置为 `rolled-back` 或 state 无效时，task index、Context cache、changed validation、Profile section、Skill bundle、ProjectKnowledge 必须逐一命中完整 fallback。ProjectKnowledge 命中时追加 V2 binding/Merkle、SemanticClaim range/authority、5% oracle、V1 read-only migration 与 accepted-only pointer 证据，并明确结构化 bootstrap 不等于人工逐文件深读。只有 status/doctor 显示回滚、真实消费者未切换时属于阻断性 correctness failure。
+同时给出六类消费者的 `ExecutionOptimizationFeatureDecisionV1` 负向证据：feature 置为 `rolled-back` 或 state 无效时，task index、Context cache、changed validation、Profile section、Skill bundle、ProjectKnowledge 必须逐一命中安全 fallback；changed validation 的证据必须证明显式 intent/route 未变、cache/reuse 已关闭且未暗升 full。ProjectKnowledge 命中时追加 V2 binding/Merkle、SemanticClaim range/authority、5% oracle、V1 read-only migration 与 accepted-only pointer 证据，并明确结构化 bootstrap 不等于人工逐文件深读。只有 status/doctor 显示回滚、真实消费者未切换时属于阻断性 correctness failure。
 
 | feature | lifecycle | baseline/candidate | direct benefit | correctness | fallback regression | overhead/false positive | verdict |
 |---------|-----------|--------------------|----------------|-------------|---------------------|-------------------------|---------|

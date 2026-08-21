@@ -10,9 +10,11 @@ const grokHooks = require('../grok/hooks/devcodex.json')
 const {
   buildPrompt: buildS15HostPrompt,
   buildHostInvocationEvidence,
+  resolveExecutable,
   resolveHostEntrySurface,
   resultSchema: buildS15HostResultSchema,
-  scrubCodexDesktopAmbientMarkers
+  scrubCodexDesktopAmbientMarkers,
+  validateContextRebindOrder
 } = require('./probe-skill-route-s15-host')
 const {
   parseContextToolIdentity
@@ -31,6 +33,7 @@ const {
   STDIO_CHILD_TIMEOUT_MS,
   STDIO_MAX_FRAME_BYTES,
   applyCliEnvironmentOverrides,
+  adaptCodexOutput,
   adaptHostOutput,
   isGrokImportedClaudePayload,
   normalizeHostPayload,
@@ -173,6 +176,57 @@ assert.notStrictEqual(
   getLifecycleHostAdapterDigest('codex', { env: codexDesktopEnvironment })
 )
 assert.strictEqual(resolveHostEntrySurface('codex'), 'codex-cli-exec')
+const activeCodexPath = 'C:\\Users\\fixture\\OpenAI\\Codex\\bin\\codex.exe'
+assert.deepStrictEqual(resolveExecutable('codex', {
+  platform: 'win32',
+  env: { PATH: 'C:\\Users\\fixture\\OpenAI\\Codex\\bin' },
+  resolveExecutableOnPath: (name) => name === 'codex.exe' ? activeCodexPath : null,
+  spawnSync: () => {
+    throw new Error('Volta fallback must not run when the active PATH command exists')
+  }
+}), {
+  command: activeCodexPath,
+  prefix: [],
+  resolutionSource: 'path'
+})
+const explicitCodexPath = 'C:\\fixture\\explicit-codex.exe'
+assert.deepStrictEqual(resolveExecutable('codex', {
+  platform: 'win32',
+  env: { DEVCODEX_CODEX_CLI: explicitCodexPath },
+  fs: { existsSync: candidate => candidate === explicitCodexPath },
+  resolveExecutableOnPath: () => {
+    throw new Error('PATH resolution must not run when an explicit executable is valid')
+  }
+}), {
+  command: explicitCodexPath,
+  prefix: [],
+  resolutionSource: 'explicit'
+})
+const voltaCommandRoot = 'C:\\fixture\\volta\\codex'
+const voltaNativeCodex = path.win32.join(
+  voltaCommandRoot,
+  'node_modules',
+  '@openai',
+  'codex',
+  'node_modules',
+  '@openai',
+  'codex-win32-x64',
+  'vendor',
+  'x86_64-pc-windows-msvc',
+  'bin',
+  'codex.exe'
+)
+assert.deepStrictEqual(resolveExecutable('codex', {
+  platform: 'win32',
+  env: {},
+  fs: { existsSync: candidate => candidate === voltaNativeCodex },
+  resolveExecutableOnPath: () => null,
+  spawnSync: () => ({ status: 0, stdout: `${path.win32.join(voltaCommandRoot, 'codex.exe')}\n` })
+}), {
+  command: voltaNativeCodex,
+  prefix: [],
+  resolutionSource: 'volta-native-fallback'
+})
 assert.strictEqual(
   normalizeHostVariant('codex', {
     entrySurface: 'codex-cli-exec',
@@ -192,6 +246,7 @@ const desktopParentCliInvocation = buildHostInvocationEvidence({
 assert.strictEqual(desktopParentCliInvocation.hostVariant, HOST_VARIANTS.codex)
 assert.strictEqual(desktopParentCliInvocation.entrySurface, 'codex-cli-exec')
 assert.strictEqual(desktopParentCliInvocation.ambientDesktopMarkersPresent, true)
+assert.strictEqual(desktopParentCliInvocation.executable.resolutionSource, 'unspecified')
 const scrubbedCodexCliEnvironment = scrubCodexDesktopAmbientMarkers(codexDesktopEnvironment, 'codex')
 assert.strictEqual(Object.prototype.hasOwnProperty.call(scrubbedCodexCliEnvironment, 'CODEX_THREAD_ID'), false)
 assert.strictEqual(Object.prototype.hasOwnProperty.call(scrubbedCodexCliEnvironment, 'CODEX_INTERNAL_ORIGINATOR_OVERRIDE'), false)
@@ -697,6 +752,7 @@ assert.doesNotMatch(contextRebindProbePrompt, /"docs"/)
 assert.doesNotMatch(contextRebindProbePrompt, /"documentation"/)
 assert.match(contextRebindProbePrompt, /deliberately preserves the first plan semantics/)
 assert.match(contextRebindProbePrompt, /generation=1/)
+assert.match(contextRebindProbePrompt, /generation=0 stage delivery makes the probe fail/)
 assert.doesNotMatch(contextRebindProbePrompt, /lateConditionId=test-validation/)
 assert.doesNotMatch(contextRebindProbePrompt, /execution:test-validation, then closeout/)
 assert.deepStrictEqual(
@@ -709,6 +765,44 @@ assert.deepStrictEqual(
 )
 assert.strictEqual(buildS15HostResultSchema(true).properties.loadedStages.minItems, 2)
 assert.strictEqual(buildS15HostResultSchema().properties.loadedStages.minItems, 3)
+const validRebindOrder = validateContextRebindOrder({
+  contributionLedger: {
+    items: [
+      { op: 'commit', generation: 0, stageId: null },
+      { op: 'rebind', generation: 1, stageId: null },
+      { op: 'load_stage', generation: 1, stageId: 'entry', runtimeServedPages: 1 },
+      { op: 'load_stage', generation: 1, stageId: 'closeout', runtimeServedPages: 1 },
+      { op: 'load_stage', generation: 1, stageId: 'closeout', runtimeServedPages: 2 }
+    ]
+  }
+}, ['entry', 'closeout'])
+assert.strictEqual(validRebindOrder.rebindGeneration, 1)
+assert.strictEqual(validRebindOrder.preRebindStageLoads, 0)
+assert.deepStrictEqual(validRebindOrder.generationOneStageIds, ['entry', 'closeout'])
+assert.throws(
+  () => validateContextRebindOrder({
+    contributionLedger: {
+      items: [
+        { op: 'commit', generation: 0, stageId: null },
+        { op: 'load_stage', generation: 0, stageId: 'entry', runtimeServedPages: 1 },
+        { op: 'rebind', generation: 1, stageId: null },
+        { op: 'load_stage', generation: 1, stageId: 'closeout', runtimeServedPages: 1 }
+      ]
+    }
+  }, ['entry', 'closeout']),
+  /generation=0 stage delivery occurred before context rebind/
+)
+assert.throws(
+  () => validateContextRebindOrder({
+    contributionLedger: {
+      items: [
+        { op: 'commit', generation: 0, stageId: null },
+        { op: 'rebind', generation: 1, stageId: null }
+      ]
+    }
+  }, ['entry', 'closeout']),
+  /generation=1 did not directly deliver every required stage/
+)
 const grokProbeSource = fs.readFileSync(
   require.resolve('./probe-skill-route-s15-grok'),
   'utf8'
@@ -785,6 +879,194 @@ assert.deepStrictEqual(codexPost.payload.tool_result, {
   success: false,
   error: { code: 'CONDITIONAL_UNAVAILABLE' }
 })
+assert.deepStrictEqual(adaptCodexOutput('PreToolUse', {
+  continue: true,
+  suppressOutput: false,
+  stopReason: 'unsupported on PreToolUse',
+  devcodexCode: 'private-noop'
+}), {})
+assert.deepStrictEqual(adaptHostOutput('codex', 'PreToolUse', {
+  continue: true,
+  systemMessage: 'DevCodex denied the tool.',
+  hookSpecificOutput: {
+    permissionDecision: 'deny',
+    permissionDecisionReason: 'context incomplete',
+    additionalContext: 'load ContextRead first',
+    updatedInput: { command: 'must-not-survive-deny' },
+    devcodexCode: 'progressive-skill-route'
+  },
+  devcodexNextAction: { op: 'load_stage' }
+}), {
+  systemMessage: 'DevCodex denied the tool.',
+  hookSpecificOutput: {
+    hookEventName: 'PreToolUse',
+    permissionDecision: 'deny',
+    permissionDecisionReason: 'context incomplete',
+    additionalContext: 'load ContextRead first'
+  }
+})
+assert.deepStrictEqual(adaptHostOutput('codex', 'PreToolUse', {
+  hookSpecificOutput: {
+    permissionDecision: 'allow',
+    permissionDecisionReason: 'normalized input',
+    updatedInput: { command: 'Get-Date' },
+    unknown: true
+  }
+}), {
+  hookSpecificOutput: {
+    hookEventName: 'PreToolUse',
+    permissionDecision: 'allow',
+    permissionDecisionReason: 'normalized input',
+    updatedInput: { command: 'Get-Date' }
+  }
+})
+assert.deepStrictEqual(adaptHostOutput('codex', 'PreToolUse', {
+  hookSpecificOutput: {
+    permissionDecision: 'allow',
+    permissionDecisionReason: 'allow without rewrite is not a Codex control effect',
+    additionalContext: 'context survives without an invalid allow decision'
+  }
+}), {
+  hookSpecificOutput: {
+    hookEventName: 'PreToolUse',
+    additionalContext: 'context survives without an invalid allow decision'
+  }
+})
+assert.deepStrictEqual(adaptHostOutput('codex', 'PreToolUse', {
+  hookSpecificOutput: { permissionDecision: 'deny' }
+}), {
+  hookSpecificOutput: {
+    hookEventName: 'PreToolUse',
+    permissionDecision: 'deny',
+    permissionDecisionReason: 'DevCodex denied this tool call.'
+  }
+})
+assert.deepStrictEqual(adaptHostOutput('codex', 'PreToolUse', {
+  decision: 'block',
+  reason: 'legacy block'
+}), {
+  decision: 'block',
+  reason: 'legacy block'
+})
+assert.deepStrictEqual(adaptHostOutput('codex', 'PreToolUse', {
+  continue: false,
+  stopReason: 'fail closed without a portable continue field'
+}), {
+  hookSpecificOutput: {
+    hookEventName: 'PreToolUse',
+    permissionDecision: 'deny',
+    permissionDecisionReason: 'fail closed without a portable continue field'
+  }
+})
+assert.deepStrictEqual(adaptCodexOutput('PermissionRequest', {
+  continue: true,
+  hookSpecificOutput: {
+    permissionDecision: 'deny',
+    permissionDecisionReason: 'permission denied',
+    updatedInput: { forbidden: true }
+  }
+}), {
+  hookSpecificOutput: {
+    hookEventName: 'PermissionRequest',
+    decision: {
+      behavior: 'deny',
+      message: 'permission denied'
+    }
+  }
+})
+assert.deepStrictEqual(adaptCodexOutput('PermissionRequest', {
+  systemMessage: 'permission normalized',
+  hookSpecificOutput: {
+    decision: { behavior: 'allow', message: 'approved' },
+    updatedPermissions: ['forbidden'],
+    interrupt: true
+  }
+}), {
+  systemMessage: 'permission normalized',
+  hookSpecificOutput: {
+    hookEventName: 'PermissionRequest',
+    decision: { behavior: 'allow', message: 'approved' }
+  }
+})
+assert.deepStrictEqual(adaptHostOutput('codex', 'PostToolUse', {
+  continue: true,
+  systemMessage: 'post tool notice',
+  decision: 'block',
+  reason: 'result requires review',
+  hookSpecificOutput: {
+    additionalContext: 'review the result',
+    devcodexCode: 'private-post'
+  },
+  updatedMCPToolOutput: { forbidden: true },
+  suppressOutput: true
+}), {
+  systemMessage: 'post tool notice',
+  decision: 'block',
+  reason: 'result requires review',
+  hookSpecificOutput: {
+    hookEventName: 'PostToolUse',
+    additionalContext: 'review the result'
+  }
+})
+assert.deepStrictEqual(adaptHostOutput('codex', 'PostToolUse', {
+  continue: false,
+  stopReason: 'stop after tool'
+}), {
+  continue: false,
+  stopReason: 'stop after tool'
+})
+assert.deepStrictEqual(adaptHostOutput('codex', 'PostToolUse', {
+  decision: 'block'
+}), {
+  decision: 'block',
+  reason: 'DevCodex blocked continuation.'
+})
+assert.deepStrictEqual(adaptHostOutput('codex', 'PreCompact', {
+  continue: false,
+  stopReason: 'compact blocked',
+  suppressOutput: false
+}), {
+  continue: false,
+  stopReason: 'compact blocked'
+})
+assert.deepStrictEqual(adaptHostOutput('codex', 'UserPromptSubmit', {
+  continue: true,
+  systemMessage: 'bootstrap available',
+  hookSpecificOutput: {
+    additionalContext: 'load the DevCodex bootstrap before acting',
+    devcodexCode: 'private-bootstrap'
+  },
+  suppressOutput: false
+}), {
+  systemMessage: 'bootstrap available',
+  hookSpecificOutput: {
+    hookEventName: 'UserPromptSubmit',
+    additionalContext: 'load the DevCodex bootstrap before acting'
+  }
+})
+assert.deepStrictEqual(adaptCodexOutput('SessionStart', {
+  continue: true,
+  systemMessage: 'session initialized',
+  hookSpecificOutput: {
+    additionalContext: 'load workspace conventions',
+    unsupported: true
+  }
+}), {
+  systemMessage: 'session initialized',
+  hookSpecificOutput: {
+    hookEventName: 'SessionStart',
+    additionalContext: 'load workspace conventions'
+  }
+})
+assert.deepStrictEqual(adaptHostOutput('codex', 'Stop', {
+  decision: 'block',
+  reason: 'closure incomplete',
+  devcodexCode: 'private-stop'
+}), {
+  decision: 'block',
+  reason: 'closure incomplete'
+})
+assert.deepStrictEqual(adaptCodexOutput('UnknownEvent', { continue: false, reason: 'unknown' }), {})
 const copilot = normalizeHostPayload('copilot', {
   hookEventName: 'preToolUse',
   sessionId: 'copilot-session',
@@ -997,7 +1279,7 @@ const childSuccess = runHostAdapter('codex', { hookEventName: 'UserPromptSubmit'
   spawnSync: () => ({ status: 0, stdout: '{"continue":true}', stderr: '' })
 })
 assert.strictEqual(childSuccess.status, 0)
-assert.strictEqual(childSuccess.output.continue, true)
+assert.deepStrictEqual(childSuccess.output, {})
 let observedLifecycleCwd = null
 let observedLifecycleTimeout = null
 const childWithPayloadCwd = runHostAdapter('copilot', {
@@ -1558,6 +1840,8 @@ const recoveryCard = hookOut.formatProgressiveSkillRouteRecoveryCard({
 })
 assert.match(recoveryCard, /Next call \(exact\): /)
 assert.ok(recoveryCard.includes(JSON.stringify(exactNextCall)))
+assert.match(recoveryCard, /Allowed proactive alternative before this load_stage: call profile_context_plan once/)
+assert.match(recoveryCard, /complete refreshed ContextRead and skill_route rebind before any load_stage/)
 assert.doesNotMatch(recoveryCard, /NextActionEnvelopeV1:\s*\{/)
 assert.doesNotMatch(recoveryCard, /intentionally/)
 const noCallRecoveryCard = hookOut.formatProgressiveSkillRouteRecoveryCard({

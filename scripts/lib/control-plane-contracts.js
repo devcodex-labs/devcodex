@@ -57,6 +57,34 @@ function validateTestRouteSchema(schema) {
   unique(schema.stableInputs || [], 'TestRoute input', errors)
   unique((schema.selectors || []).map(item => item.id), 'TestRoute selector', errors)
   unique(schema.outputs || [], 'TestRoute output', errors)
+  if (!schema.stableInputs?.includes('verificationIntent')) errors.push('TestRoute missing verificationIntent input')
+  if (schema.verificationIntent?.schemaVersion !== 'VerificationIntentV1') errors.push('TestRoute verification intent schema mismatch')
+  for (const level of ['V0', 'V1', 'V2', 'V3']) {
+    if (!schema.verificationIntent?.levels?.includes(level)) errors.push(`TestRoute verification level missing: ${level}`)
+  }
+  for (const edgeType of ['runtimeConsumer', 'qualificationConsumer', 'releaseConsumer']) {
+    if (!schema.consumerEdgeTypes?.includes(edgeType)) errors.push(`TestRoute consumer edge type missing: ${edgeType}`)
+  }
+  if (schema.scopedRouteBoundaries?.['profile-deploy'] !== 'profile' ||
+      schema.scopedRouteBoundaries?.['package-release'] !== 'package') {
+    errors.push('TestRoute scoped route boundary mismatch')
+  }
+  for (const field of ['manifestIdentity', 'candidateId', 'candidateStable', 'planDigest']) {
+    if (!schema.executionBinding?.requiredFields?.includes(field)) {
+      errors.push(`TestRoute execution binding missing: ${field}`)
+    }
+  }
+  if (schema.executionBinding?.cacheSchema !== 'ValidationEvidenceV2' ||
+      schema.executionBinding?.cacheNamespace !== 'validation-evidence/v2' ||
+      schema.executionBinding?.downstreamBinding !== 'nodeReceiptDigest' ||
+      schema.executionBinding?.v3CacheReuse !== false) {
+    errors.push('TestRoute execution/cache binding mismatch')
+  }
+  if (schema.budgetPolicy?.nonReleaseThresholdMs !== 600000 ||
+      schema.budgetPolicy?.unknownImpactAction !== 'block' ||
+      schema.budgetPolicy?.staleCacheAction !== 'rerun-precise-node') {
+    errors.push('TestRoute budget/fallback policy mismatch')
+  }
   return errors
 }
 

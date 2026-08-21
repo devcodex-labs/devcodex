@@ -52,7 +52,7 @@ DevCodex 自身的任务续接、上下文/Profile/Skill 读取、验证 DAG 与
 
 只有 correctness 指标全为 0、综合改善至少 25%、至少 3/4 维度改善 20%、任一维度回归不超过 5%、instrumentation overhead 不超过 3% 时，结果才可 `accepted`。样本不足、环境不一致或宿主 token/TTFT 不可观测时保持 `provisional` / `N/A`；不得用 bytes 冒充 token。任何默认晋级还必须有 prospective trial（至少 3 个可比 WorkUnit 或 2 个独立上下文），历史样例只能证明基线。
 
-性能 accepted 还必须证明 lifecycle 能控制真实执行路径：将每个受控 feature 置为 `rolled-back` 后，task index、Context cache、changed validation、Profile section、Skill bundle 与 ProjectKnowledge 都必须通过 `ExecutionOptimizationFeatureDecisionV1` 回到完整路径；只有 status/doctor 投影变化、消费者仍走加速时属于 correctness failure，收益数据作废。
+性能 accepted 还必须证明 lifecycle 能控制真实执行路径：将每个受控 feature 置为 `rolled-back` 后，task index、Context cache、changed validation、Profile section、Skill bundle 与 ProjectKnowledge 都必须通过 `ExecutionOptimizationFeatureDecisionV1` 回到安全非优化路径；changed validation 必须保留显式 intent/route 并执行 `direct-validation-plan`，不得暗升 full，其余消费者回到完整读取路径。只有 status/doctor 投影变化、消费者仍走加速时属于 correctness failure，收益数据作废。
 
 基准 evaluator 使用 `npm run benchmark:execution-chain -- --input <ExecutionChainBenchmarkInputV1.json>`；只有显式 `--output` 才可写结果。benchmark、website build 与 package smoke 串行执行，避免派生产物污染可比性。
 

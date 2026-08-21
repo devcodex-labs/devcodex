@@ -41,7 +41,13 @@ class MemoryFs {
     this.nextIno = 100
     this.clock = 1000
     this.openCounts = new Map()
+    this.readCounts = new Map()
+    this.renameCounts = new Map()
+    this.unlinkCounts = new Map()
     this.onOpen = null
+    this.onRead = null
+    this.onRename = null
+    this.onUnlink = null
   }
 
   key(file) {
@@ -91,6 +97,12 @@ class MemoryFs {
     })
   }
 
+  setMtime(file, mtimeMs) {
+    const entry = this.entries.get(this.key(file))
+    if (!entry) throw fsError('ENOENT')
+    entry.mtimeMs = mtimeMs
+  }
+
   writeFileSync(target, value, options = {}) {
     if (typeof target === 'number') {
       const descriptor = this.descriptors.get(target)
@@ -106,7 +118,11 @@ class MemoryFs {
   readFileSync(target, encoding) {
     const file = typeof target === 'number' ? this.descriptors.get(target)?.file : target
     if (!file) throw fsError('EBADF')
-    const entry = this.entries.get(this.key(file))
+    const key = this.key(file)
+    const count = (this.readCounts.get(key) || 0) + 1
+    this.readCounts.set(key, count)
+    if (this.onRead) this.onRead(file, count, this)
+    const entry = this.entries.get(key)
     if (!entry) throw fsError('ENOENT')
     if (entry.type !== 'file') throw fsError('EISDIR')
     const bytes = Buffer.from(entry.data)
@@ -182,6 +198,10 @@ class MemoryFs {
 
   renameSync(source, destination) {
     const sourceKey = this.key(source)
+    const destinationKey = this.key(destination)
+    const count = (this.renameCounts.get(destinationKey) || 0) + 1
+    this.renameCounts.set(destinationKey, count)
+    if (this.onRename) this.onRename(source, destination, count, this)
     const entry = this.entries.get(sourceKey)
     if (!entry) throw fsError('ENOENT')
     this.ensureDirectory(path.dirname(path.resolve(destination)))
@@ -191,6 +211,9 @@ class MemoryFs {
 
   unlinkSync(file) {
     const key = this.key(file)
+    const count = (this.unlinkCounts.get(key) || 0) + 1
+    this.unlinkCounts.set(key, count)
+    if (this.onUnlink) this.onUnlink(file, count, this)
     const entry = this.entries.get(key)
     if (!entry) throw fsError('ENOENT')
     if (entry.type !== 'file') throw fsError('EISDIR')
@@ -248,29 +271,134 @@ function testDerivedStateOwnerAndCas() {
   }).status, 'persisted')
   assert.deepStrictEqual(store.read().value, { value: 2 })
 
-  const deadLock = `${path.join(root, 'dead.json')}.lock`
-  memory.writeFileSync(deadLock, `${JSON.stringify({
-    schemaVersion: 'DerivedStateLockV2', ownerToken: 'dead-owner', hostname: 'host-a',
-    pid: 99, leaseExpiresAtMs: 1
-  })}\n`)
-  const deadStore = createDerivedStateStore({
-    root, relativePath: 'dead.json', fs: memory, lockWaitMs: 0,
-    hostname: () => 'host-a', processKill: () => { throw fsError('ESRCH') }, randomUUID: () => `dead-${++token}`
+  const fixedNow = 10_000
+  const validRecord = (ownerToken, hostname, leaseExpiresAtMs) => ({
+    schemaVersion: 'DerivedStateLockV2',
+    ownerToken,
+    hostname,
+    pid: 88,
+    leaseExpiresAtMs
   })
-  const reclaimed = deadStore.write({ recovered: true })
-  assert.strictEqual(reclaimed.status, 'persisted')
-  assert.strictEqual(reclaimed.staleLockQuarantined, true)
+  const seedLock = (name, value, mtimeMs) => {
+    const lockPath = `${path.join(root, `${name}.json`)}.lock`
+    memory.writeFileSync(lockPath, value)
+    memory.setMtime(lockPath, mtimeMs)
+    return lockPath
+  }
+  const recoveryStore = (name, processKill = () => {}) => createDerivedStateStore({
+    root,
+    relativePath: `${name}.json`,
+    fs: memory,
+    lockWaitMs: 0,
+    lockLeaseMs: 1000,
+    now: () => fixedNow,
+    hostname: () => 'host-a',
+    pid: 10,
+    processKill,
+    randomUUID: () => `${name}-${++token}`
+  })
 
-  for (const [name, record, processKill] of [
-    ['live', { schemaVersion: 'DerivedStateLockV2', ownerToken: 'live', hostname: 'host-a', pid: 88, leaseExpiresAtMs: 999999 }, () => {}],
-    ['unknown', { schemaVersion: 'DerivedStateLockV2', ownerToken: 'remote', hostname: 'host-b', pid: 88, leaseExpiresAtMs: 1 }, () => { throw fsError('ESRCH') }]
+  const freshMalformedPath = seedLock('fresh-malformed', '', fixedNow - 500)
+  const freshMalformed = recoveryStore('fresh-malformed').write({ forbidden: true })
+  assert.strictEqual(freshMalformed.errorCode, 'DERIVED_STATE_LOCK_TIMEOUT')
+  assert.strictEqual(memory.existsSync(freshMalformedPath), true)
+
+  for (const [name, value] of [
+    ['stale-empty', ''],
+    ['stale-corrupt', '{broken']
   ]) {
-    memory.writeFileSync(`${path.join(root, `${name}.json`)}.lock`, `${JSON.stringify(record)}\n`)
-    const blocked = createDerivedStateStore({
-      root, relativePath: `${name}.json`, fs: memory, lockWaitMs: 0,
-      hostname: () => 'host-a', processKill
-    }).write({ forbidden: true })
-    assert.strictEqual(blocked.errorCode, 'DERIVED_STATE_LOCK_TIMEOUT')
+    seedLock(name, value, fixedNow - 2000)
+    const recovered = recoveryStore(name).write({ recovered: true })
+    assert.strictEqual(recovered.status, 'persisted')
+    assert.strictEqual(recovered.staleLockQuarantined, true)
+    assert.strictEqual(recovered.lockRecoveryReason, 'stale-malformed')
+    assert.strictEqual(memory.existsSync(recovered.quarantinePath), true)
+  }
+
+  seedLock('dead', `${JSON.stringify(validRecord('dead-owner', 'host-a', fixedNow + 1000))}\n`, fixedNow)
+  const dead = recoveryStore('dead', () => { throw fsError('ESRCH') }).write({ recovered: true })
+  assert.strictEqual(dead.status, 'persisted')
+  assert.strictEqual(dead.staleLockQuarantined, true)
+  assert.strictEqual(dead.lockRecoveryReason, 'dead-owner')
+
+  seedLock('live-expired', `${JSON.stringify(validRecord('live', 'host-a', fixedNow - 1))}\n`, fixedNow - 2000)
+  const liveExpired = recoveryStore('live-expired').write({ forbidden: true })
+  assert.strictEqual(liveExpired.errorCode, 'DERIVED_STATE_LOCK_TIMEOUT')
+
+  seedLock('remote-unexpired', `${JSON.stringify(validRecord('remote-new', 'host-b', fixedNow + 1))}\n`, fixedNow)
+  const remoteUnexpired = recoveryStore('remote-unexpired').write({ forbidden: true })
+  assert.strictEqual(remoteUnexpired.errorCode, 'DERIVED_STATE_LOCK_TIMEOUT')
+
+  seedLock('remote-expired', `${JSON.stringify(validRecord('remote-old', 'host-b', fixedNow - 1))}\n`, fixedNow - 2000)
+  const remoteExpired = recoveryStore('remote-expired').write({ recovered: true })
+  assert.strictEqual(remoteExpired.status, 'persisted')
+  assert.strictEqual(remoteExpired.lockRecoveryReason, 'expired-unknown-owner')
+
+  seedLock('eperm-expired', `${JSON.stringify(validRecord('eperm-old', 'host-a', fixedNow - 1))}\n`, fixedNow - 2000)
+  const epermExpired = recoveryStore('eperm-expired', () => { throw fsError('EPERM') }).write({ recovered: true })
+  assert.strictEqual(epermExpired.status, 'persisted')
+  assert.strictEqual(epermExpired.lockRecoveryReason, 'expired-unknown-owner')
+
+  const driftMemory = new MemoryFs()
+  driftMemory.mkdirSync(root, { recursive: true })
+  const driftPath = `${path.join(root, 'identity-drift.json')}.lock`
+  driftMemory.writeFileSync(driftPath, `${JSON.stringify(validRecord('remote-old', 'host-b', fixedNow - 1))}\n`)
+  driftMemory.setMtime(driftPath, fixedNow - 2000)
+  driftMemory.onRead = (file, count, fsImpl) => {
+    if (fsImpl.key(file) !== fsImpl.key(driftPath) || count !== 2) return
+    fsImpl.setFile(file, `${JSON.stringify(validRecord('live-replacement', 'host-a', fixedNow + 1000))}\n`, {
+      replaceIdentity: true
+    })
+    fsImpl.setMtime(file, fixedNow)
+  }
+  const driftReceipt = createDerivedStateStore({
+    root,
+    relativePath: 'identity-drift.json',
+    fs: driftMemory,
+    lockWaitMs: 0,
+    lockLeaseMs: 1000,
+    now: () => fixedNow,
+    hostname: () => 'host-a',
+    processKill: () => {},
+    randomUUID: () => `drift-${++token}`
+  }).write({ forbidden: true })
+  assert.strictEqual(driftReceipt.errorCode, 'DERIVED_STATE_LOCK_TIMEOUT')
+  assert.strictEqual(JSON.parse(driftMemory.readFileSync(driftPath, 'utf8')).ownerToken, 'live-replacement')
+
+  if (process.platform === 'win32') {
+    const transientMemory = new MemoryFs()
+    transientMemory.mkdirSync(root, { recursive: true })
+    const transientFile = path.join(root, 'windows-transient.json')
+    const transientLock = `${transientFile}.lock`
+    transientMemory.onOpen = (file, flag, count) => {
+      if (transientMemory.key(file) === transientMemory.key(transientLock) && flag === 'wx' && count <= 2) {
+        throw fsError('EPERM')
+      }
+    }
+    transientMemory.onRename = (_source, destination, count) => {
+      if (transientMemory.key(destination) === transientMemory.key(transientFile) && count <= 2) {
+        throw fsError('EPERM')
+      }
+    }
+    transientMemory.onUnlink = (file, count) => {
+      if (transientMemory.key(file) === transientMemory.key(transientLock) && count <= 2) {
+        throw fsError('EPERM')
+      }
+    }
+    let transientNow = 0
+    const transientReceipt = createDerivedStateStore({
+      root,
+      relativePath: 'windows-transient.json',
+      fs: transientMemory,
+      lockWaitMs: 2000,
+      now: () => { transientNow += 10; return transientNow },
+      hostname: () => 'host-a',
+      pid: 10,
+      randomUUID: () => `transient-${++token}`
+    }).write({ recovered: true })
+    assert.strictEqual(transientReceipt.status, 'persisted')
+    assert.strictEqual(transientReceipt.replaceRetries, 2)
+    assert.strictEqual(transientMemory.existsSync(transientLock), false)
   }
 }
 

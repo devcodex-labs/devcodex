@@ -18,7 +18,8 @@ const SCHEMAS = Object.freeze({
   commit: 'WorkflowCompletionCommitV1',
   commitValidation: 'CommitValidationResultV1',
   projection: 'WorkflowCompletionProjectionV1',
-  shadow: 'ShadowEvidenceWindowV1'
+  shadow: 'ShadowEvidenceWindowV1',
+  verificationIntent: 'VerificationIntentV1'
 })
 
 const STATUS = new Set(['PASS', 'WARN', 'BLOCK', 'UNVERIFIED', 'N/A'])
@@ -28,6 +29,15 @@ const APPLICABILITY = new Set(['required', 'optional', 'N/A'])
 const RECEIPT_RESULTS = new Set(['passed', 'failed', 'inconclusive', 'skipped'])
 const SOURCE_KINDS = new Set(['cp', 'attempt', 'validation', 'review', 'checkpoint', 'sync', 'delivery', 'manual'])
 const ROLLOUT_MODES = new Set(['off', 'shadow', 'enforce', 'rolled-back'])
+const VERIFICATION_LEVELS = new Set(['V0', 'V1', 'V2', 'V3'])
+const VERIFICATION_PURPOSES = new Set(['edit-loop', 'delivery', 'boundary', 'full-audit', 'release'])
+const VERIFICATION_RISK_CLASSES = new Set(['normal', 'high', 'release', 'security', 'destructive'])
+const VERIFICATION_CLAIM_CEILINGS = Object.freeze({
+  V0: 'edit-evidence-only',
+  V1: 'delivery-scope',
+  V2: 'boundary-qualified',
+  V3: 'full-audit'
+})
 const ZONED_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/
 const DIGEST = /^[a-f0-9]{64}$/
 const CANDIDATE_ID = /^workflow-candidate-[a-f0-9]{64}$/
@@ -95,6 +105,89 @@ function validation(valid, errors) {
 
 function requireValid(result, code, message) {
   if (!result.valid) throw new WorkflowCompletionError(code, message, result.errors)
+}
+
+/**
+ * Own the semantic verification decision separately from the executable DAG.
+ * Risk and review grade may widen V0-V2, but only explicit audit/release
+ * authority may create V3.
+ */
+function createVerificationIntent(input = {}) {
+  const level = String(input.level || '')
+  const purpose = String(input.purpose || '')
+  const affectedBoundaries = sortedUnique((input.affectedBoundaries || []).map(String))
+  const releaseAuthorized = input.releaseAuthorized === true
+  const explicitFullAudit = input.explicitFullAudit === true
+  const riskClass = String(input.riskClass || 'normal')
+  const authoritySource = String(input.authoritySource || '')
+  const claimCeiling = purpose === 'release'
+    ? 'release-candidate'
+    : VERIFICATION_CLAIM_CEILINGS[level]
+  const semanticIntent = {
+    schemaVersion: SCHEMAS.verificationIntent,
+    level,
+    purpose,
+    affectedBoundaries,
+    riskClass,
+    releaseAuthorized,
+    explicitFullAudit,
+    authoritySource,
+    claimCeiling
+  }
+  const intent = Object.freeze({
+    ...semanticIntent,
+    authorizationDigest: digest({
+      level,
+      purpose,
+      releaseAuthorized,
+      explicitFullAudit,
+      authoritySource
+    }),
+    intentDigest: digest(semanticIntent)
+  })
+  requireValid(validateVerificationIntent(intent), 'VERIFICATION_INTENT_INVALID', 'verification intent is invalid')
+  return intent
+}
+
+function validateVerificationIntent(intent) {
+  const errors = []
+  if (!intent || typeof intent !== 'object' || Array.isArray(intent)) {
+    return validation(false, ['verification-intent-invalid'])
+  }
+  if (intent.schemaVersion !== SCHEMAS.verificationIntent) errors.push('verification-intent-schema-invalid')
+  if (!VERIFICATION_LEVELS.has(intent.level)) errors.push('verification-level-invalid')
+  if (!VERIFICATION_PURPOSES.has(intent.purpose)) errors.push('verification-purpose-invalid')
+  if (!uniqueTextList(intent.affectedBoundaries || [], { maxItems: 32 })) errors.push('verification-boundaries-invalid')
+  if (!VERIFICATION_RISK_CLASSES.has(intent.riskClass)) errors.push('verification-risk-invalid')
+  if (typeof intent.releaseAuthorized !== 'boolean') errors.push('verification-release-authorization-invalid')
+  if (typeof intent.explicitFullAudit !== 'boolean') errors.push('verification-full-audit-authorization-invalid')
+  if (!text(intent.authoritySource)) errors.push('verification-authority-source-required')
+  if (intent.level === 'V3') {
+    if (!['full-audit', 'release'].includes(intent.purpose)) errors.push('verification-v3-purpose-invalid')
+    if (intent.purpose === 'release' && !intent.releaseAuthorized) errors.push('verification-release-authorization-required')
+    if (intent.purpose === 'full-audit' && !intent.explicitFullAudit) errors.push('verification-full-audit-authorization-required')
+  } else if (intent.purpose === 'release' || intent.explicitFullAudit) {
+    errors.push('verification-v3-authority-without-v3')
+  }
+  const expectedCeiling = intent.purpose === 'release'
+    ? 'release-candidate'
+    : VERIFICATION_CLAIM_CEILINGS[intent.level]
+  if (intent.claimCeiling !== expectedCeiling) errors.push('verification-claim-ceiling-invalid')
+  if (!DIGEST.test(intent.authorizationDigest || '')) errors.push('verification-authorization-digest-invalid')
+  if (!DIGEST.test(intent.intentDigest || '')) errors.push('verification-intent-digest-invalid')
+  if (errors.length === 0) {
+    const semanticIntent = without(intent, ['authorizationDigest', 'intentDigest'])
+    if (digest(semanticIntent) !== intent.intentDigest) errors.push('verification-intent-digest-mismatch')
+    const expectedAuthorization = digest({
+      level: intent.level,
+      purpose: intent.purpose,
+      releaseAuthorized: intent.releaseAuthorized,
+      explicitFullAudit: intent.explicitFullAudit,
+      authoritySource: intent.authoritySource
+    })
+    if (expectedAuthorization !== intent.authorizationDigest) errors.push('verification-authorization-digest-mismatch')
+  }
+  return validation(errors.length === 0, errors)
 }
 
 function validateTaskScope(scope) {
@@ -797,6 +890,9 @@ function evaluateShadowEvidenceWindow(samples, ruleSetDigest, { now = Date.now()
 module.exports = {
   BLOCKING_RANK,
   SCHEMAS,
+  VERIFICATION_CLAIM_CEILINGS,
+  VERIFICATION_LEVELS,
+  VERIFICATION_PURPOSES,
   WorkflowCompletionError,
   createCommitValidationResult,
   createRiskAcceptanceReceipt,
@@ -804,6 +900,7 @@ module.exports = {
   createWorkflowCompletionCommit,
   createWorkflowCompletionPlan,
   createWorkflowEvidenceReceipt,
+  createVerificationIntent,
   decisionSort,
   evaluateReceiptFreshness,
   evaluateShadowEvidenceWindow,
@@ -815,5 +912,6 @@ module.exports = {
   validateWorkflowCompletionCommit,
   validateWorkflowCompletionPlan,
   validateWorkflowCompletionSnapshot,
-  validateWorkflowEvidenceReceipt
+  validateWorkflowEvidenceReceipt,
+  validateVerificationIntent
 }

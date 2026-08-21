@@ -208,8 +208,9 @@ function buildHostInstructionControlChecks(ctx) {
     }
 
     const manifest = JSON.parse(String(read(path.join(ROOT, 'scripts/validation-manifest.json'))))
-    const riskCoverage = JSON.parse(String(read(path.join(ROOT, 'scripts/critical-risk-coverage.json'))))
-    const fastExclusions = new Set(riskCoverage.fastRoutePolicy?.excludedReleaseIntegrationNodes || [])
+    if (manifest.routes?.fast?.dynamic !== true || Array.isArray(manifest.routes?.fast?.nodes)) {
+      err('[V103] fast route must remain impact-driven')
+    }
     for (const nodeId of [
       'host-instruction-projection',
       'host-adapters',
@@ -218,13 +219,9 @@ function buildHostInstructionControlChecks(ctx) {
       'global-install-smoke'
     ]) {
       if (!manifest.nodes?.some(node => node.id === nodeId)) err(`[V103] validation node missing: ${nodeId}`)
-      for (const route of ['fast', 'full', 'profile-deploy', 'package-release']) {
-        const included = manifest.routes?.[route]?.nodes?.includes(nodeId)
-        if (route === 'fast' && fastExclusions.has(nodeId)) {
-          if (included) err(`[V103] fast route unexpectedly includes release integration node ${nodeId}`)
-        } else if (!included) {
-          err(`[V103] ${route} route omits ${nodeId}`)
-        }
+      if (!manifest.routes?.full?.nodes?.includes(nodeId)) err(`[V103] full route omits ${nodeId}`)
+      for (const route of ['profile-deploy', 'package-release']) {
+        if (manifest.routes?.[route]?.nodes?.includes(nodeId)) err(`[V103] ${route} route leaks ${nodeId}`)
       }
     }
     console.log('[V103] host kernel coverage / global-only six-host distribution / collision closure checked')

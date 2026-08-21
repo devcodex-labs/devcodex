@@ -15,17 +15,44 @@ const {
 const { createDerivedStateStore } = require('../../hooks/_runtime/derived-state-store.cjs')
 const { createRuntimeStateStore } = require('../../hooks/_runtime/runtime-state-store.cjs')
 const { resolveRuntimeStateRoot } = require('../../hooks/_runtime/workspace-layout.cjs')
+const {
+  VERIFICATION_LEVELS,
+  VERIFICATION_PURPOSES,
+  createVerificationIntent
+} = require('../../hooks/_runtime/workflow-completion-contract.cjs')
 
 const VALIDATION_MANIFEST_SCHEMA = 'ValidationManifestV1'
 const VALIDATION_NODE_SCHEMA = 'ValidationNodeV1'
 const VALIDATION_RECEIPT_SCHEMA = 'ValidationExecutionReceiptV2'
-const VALIDATION_CACHE_SCHEMA = 'ValidationEvidenceV1'
+const VALIDATION_CACHE_SCHEMA = 'ValidationEvidenceV2'
 const VALIDATION_CONTRACT_VERSION = '1'
 const VALIDATION_CACHE_MAX_BYTES = 256 * 1024 * 1024
 const VALIDATION_CACHE_MAX_ENTRIES = 8192
-const REQUIRED_ROUTES = ['fast', 'full', 'changed', 'profile-deploy', 'package-release']
+const REQUIRED_ROUTES = ['fast', 'full', 'changed', 'delivery', 'boundary', 'profile-deploy', 'package-release']
 const RISK_CLASSES = new Set(['normal', 'high', 'release', 'security', 'destructive'])
 const CACHE_POLICIES = new Set(['never', 'candidate-bound'])
+const CONSUMER_EDGE_TYPES = new Set(['runtimeConsumer', 'qualificationConsumer', 'releaseConsumer'])
+const LEVEL_RANK = Object.freeze({ V0: 0, V1: 1, V2: 2, V3: 3 })
+const LEVEL_CONSUMER_TYPES = Object.freeze({
+  V0: [],
+  V1: ['runtimeConsumer'],
+  V2: ['runtimeConsumer', 'qualificationConsumer'],
+  V3: ['runtimeConsumer', 'qualificationConsumer', 'releaseConsumer']
+})
+const ROUTE_INTENT_DEFAULTS = Object.freeze({
+  fast: { level: 'V0', purpose: 'edit-loop' },
+  changed: { level: 'V1', purpose: 'delivery' },
+  delivery: { level: 'V1', purpose: 'delivery' },
+  boundary: { level: 'V2', purpose: 'boundary' },
+  'profile-deploy': { level: 'V2', purpose: 'boundary', boundaries: ['profile'] },
+  'package-release': { level: 'V2', purpose: 'boundary', boundaries: ['package'] },
+  full: { level: 'V3', purpose: 'full-audit', explicitFullAudit: true }
+})
+const BUDGET_CONFIRMATION_THRESHOLD_MS = 600000
+const HEAVY_NODE_TIMEOUT_MS = 300000
+const DEFAULT_NODE_ESTIMATE_MS = 10000
+const DEFAULT_HEAVY_NODE_ESTIMATE_MS = 120000
+const LOG_SUMMARY_BUDGET_BYTES_PER_NODE = 8000
 const PACKAGE_CONTROL_FIELDS = new Set([
   'version', 'engines', 'scripts', 'files', 'bin', 'exports', 'main', 'type',
   'dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'packageManager'
@@ -265,6 +292,14 @@ function validateValidationManifest(manifest, options = {}) {
   if (typeof manifest.consumerGraphComplete !== 'boolean') {
     errors.push('consumerGraphComplete must be a boolean')
   }
+  if (!manifest.verificationBoundaries || typeof manifest.verificationBoundaries !== 'object' ||
+      Array.isArray(manifest.verificationBoundaries) || Object.keys(manifest.verificationBoundaries).length === 0) {
+    errors.push('verificationBoundaries must be a non-empty object')
+  }
+  if (!manifest.nodeVerificationPolicies || typeof manifest.nodeVerificationPolicies !== 'object' ||
+      Array.isArray(manifest.nodeVerificationPolicies)) {
+    errors.push('nodeVerificationPolicies must be an object')
+  }
   if (errors.length) throw new ValidationDagError('VALIDATION_MANIFEST_INVALID', errors.join('; '), errors)
 
   const byId = new Map()
@@ -313,6 +348,10 @@ function validateValidationManifest(manifest, options = {}) {
     if (!RISK_CLASSES.has(node.riskClass)) nodeErrors.push('riskClass')
     if (!CACHE_POLICIES.has(node.cachePolicy)) nodeErrors.push('cachePolicy')
     if (!Number.isInteger(node.timeoutMs) || node.timeoutMs < 1) nodeErrors.push('timeoutMs')
+    if (node.estimatedDurationMs !== undefined && (
+      !Number.isInteger(node.estimatedDurationMs) || node.estimatedDurationMs < 1 ||
+      (Number.isInteger(node.timeoutMs) && node.estimatedDurationMs > node.timeoutMs)
+    )) nodeErrors.push('estimatedDurationMs')
     if (!node.exitMap || stableStringify(node.exitMap.success || []) !== '[0]') nodeErrors.push('exitMap.success')
     if (node.cachePolicy === 'candidate-bound' && (node.riskClass !== 'normal' || node.writeScopes.length !== 0)) {
       nodeErrors.push('candidate-bound requires normal risk and empty writeScopes')
@@ -408,14 +447,71 @@ function validateValidationManifest(manifest, options = {}) {
     }
   }
 
+  for (const [boundaryId, boundary] of Object.entries(manifest.verificationBoundaries || {})) {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(boundaryId)) {
+      errors.push('invalid verification boundary id: ' + boundaryId)
+      continue
+    }
+    if (!boundary || typeof boundary !== 'object' || Array.isArray(boundary)) {
+      errors.push('verification boundary must be an object: ' + boundaryId)
+      continue
+    }
+    if (!Array.isArray(boundary.inputs) || boundary.inputs.length === 0) {
+      errors.push('verification boundary inputs required: ' + boundaryId)
+    }
+    if (!Array.isArray(boundary.nodes) || boundary.nodes.length === 0) {
+      errors.push('verification boundary nodes required: ' + boundaryId)
+    }
+    if (boundary.enforceForMatchingInputs !== undefined && typeof boundary.enforceForMatchingInputs !== 'boolean') {
+      errors.push('verification boundary enforceForMatchingInputs invalid: ' + boundaryId)
+    }
+    if (boundary.excludeSemanticClasses !== undefined && !Array.isArray(boundary.excludeSemanticClasses)) {
+      errors.push('verification boundary excludeSemanticClasses invalid: ' + boundaryId)
+    }
+    for (const glob of boundary.inputs || []) {
+      try { globToRegExp(glob) } catch (error) { errors.push('verification boundary ' + boundaryId + ' invalid input glob: ' + error.message) }
+    }
+    for (const id of boundary.nodes || []) {
+      if (!byId.has(id)) errors.push('verification boundary ' + boundaryId + ' has unknown node ' + id)
+      else if (LEVEL_RANK[nodeMinimumLevel(manifest, id)] > LEVEL_RANK.V2) {
+        errors.push('verification boundary ' + boundaryId + ' contains V3-only node ' + id)
+      }
+    }
+  }
+
+  const policies = manifest.nodeVerificationPolicies || {}
+  if (!CONSUMER_EDGE_TYPES.has(policies.defaultConsumerEdgeType)) {
+    errors.push('nodeVerificationPolicies.defaultConsumerEdgeType invalid')
+  }
+  if (!policies.overrides || typeof policies.overrides !== 'object' || Array.isArray(policies.overrides)) {
+    errors.push('nodeVerificationPolicies.overrides must be an object')
+  } else {
+    for (const [nodeId, policy] of Object.entries(policies.overrides)) {
+      if (!byId.has(nodeId)) errors.push('nodeVerificationPolicies override has unknown node ' + nodeId)
+      if (!policy || typeof policy !== 'object' || Array.isArray(policy)) {
+        errors.push('nodeVerificationPolicies override invalid: ' + nodeId)
+        continue
+      }
+      if (policy.consumerEdgeType !== undefined && !CONSUMER_EDGE_TYPES.has(policy.consumerEdgeType)) {
+        errors.push('nodeVerificationPolicies consumerEdgeType invalid: ' + nodeId)
+      }
+      if (policy.minimumLevel !== undefined && !VERIFICATION_LEVELS.has(policy.minimumLevel)) {
+        errors.push('nodeVerificationPolicies minimumLevel invalid: ' + nodeId)
+      }
+      if (policy.heavy !== undefined && typeof policy.heavy !== 'boolean') {
+        errors.push('nodeVerificationPolicies heavy invalid: ' + nodeId)
+      }
+    }
+  }
+
   for (const route of REQUIRED_ROUTES) {
     const descriptor = manifest.routes[route]
     if (!descriptor || typeof descriptor !== 'object') {
       errors.push('missing route: ' + route)
       continue
     }
-    if (route === 'changed') {
-      if (descriptor.dynamic !== true) errors.push('changed route must be dynamic')
+    if (['fast', 'changed', 'delivery', 'boundary'].includes(route)) {
+      if (descriptor.dynamic !== true) errors.push(route + ' route must be dynamic')
       continue
     }
     if (!Array.isArray(descriptor.nodes) || descriptor.nodes.length === 0) {
@@ -425,6 +521,10 @@ function validateValidationManifest(manifest, options = {}) {
     const seen = new Set()
     for (const id of descriptor.nodes) {
       if (!byId.has(id)) errors.push('route ' + route + ' has unknown node ' + id)
+      else if (['profile-deploy', 'package-release'].includes(route) &&
+          LEVEL_RANK[nodeMinimumLevel(manifest, id)] > LEVEL_RANK.V2) {
+        errors.push('route ' + route + ' contains V3-only node ' + id)
+      }
       if (seen.has(id)) errors.push('route ' + route + ' has duplicate node ' + id)
       seen.add(id)
     }
@@ -510,12 +610,34 @@ function addDependencies(ids, byId) {
   return selected
 }
 
-function addConsumers(ids, byId) {
+function consumerEdgeType(manifest, sourceId, consumerId) {
+  const explicit = manifest.consumerEdgeTypes?.[`${sourceId}->${consumerId}`]
+  if (CONSUMER_EDGE_TYPES.has(explicit)) return explicit
+  const targetPolicy = manifest.nodeVerificationPolicies?.overrides?.[consumerId]
+  if (CONSUMER_EDGE_TYPES.has(targetPolicy?.consumerEdgeType)) return targetPolicy.consumerEdgeType
+  return manifest.nodeVerificationPolicies?.defaultConsumerEdgeType || 'runtimeConsumer'
+}
+
+function nodeMinimumLevel(manifest, nodeId) {
+  const policy = manifest.nodeVerificationPolicies?.overrides?.[nodeId]
+  if (VERIFICATION_LEVELS.has(policy?.minimumLevel)) return policy.minimumLevel
+  if (policy?.consumerEdgeType === 'releaseConsumer') return 'V3'
+  if (policy?.consumerEdgeType === 'qualificationConsumer') return 'V2'
+  return 'V0'
+}
+
+function addConsumers(ids, byId, options = {}) {
   const selected = new Set(ids)
   const queue = [...selected]
+  const allowedTypes = options.allowedTypes ? new Set(options.allowedTypes) : null
+  const manifest = options.manifest || null
+  const verificationLevel = options.verificationLevel || 'V3'
   while (queue.length) {
     const id = queue.shift()
     for (const consumer of byId.get(id).consumers) {
+      const edgeType = manifest ? consumerEdgeType(manifest, id, consumer) : 'runtimeConsumer'
+      if (allowedTypes && !allowedTypes.has(edgeType)) continue
+      if (manifest && LEVEL_RANK[nodeMinimumLevel(manifest, consumer)] > LEVEL_RANK[verificationLevel]) continue
       if (!selected.has(consumer)) {
         selected.add(consumer)
         queue.push(consumer)
@@ -571,39 +693,57 @@ function buildChangeDescriptors(changedFiles, descriptors = []) {
   })
 }
 
-function buildValidationImpactGraph({ manifest, changedFiles = [], changeDescriptors = [], invariantNodeIds = null }) {
+function buildValidationImpactGraph({ manifest, changedFiles = [], changeDescriptors = [], invariantNodeIds = null,
+  verificationLevel = 'V3' }) {
   const normalizedChanged = [...new Set(changedFiles.map(normalizeRelativePath))].sort()
   const descriptors = buildChangeDescriptors(normalizedChanged, changeDescriptors)
   const descriptorByPath = new Map(descriptors.map(descriptor => [descriptor.path, descriptor]))
   const byId = new Map(manifest.nodes.map(node => [node.id, node]))
   const semanticPackageNodes = new Set(manifest.semanticInputs?.packageJson?.publicMetadataNodes || [])
-  const matchedNodeIds = manifest.nodes.filter(node => normalizedChanged.some(file => {
-    const descriptor = descriptorByPath.get(file)
-    if (file === 'package.json' && descriptor?.semanticClass === 'package-public-metadata') {
-      return semanticPackageNodes.has(node.id)
-    }
-    return matchesAnyGlob(file, node.inputs)
-  })).map(node => node.id)
+  const eligibleNodes = manifest.nodes.filter(node =>
+    LEVEL_RANK[nodeMinimumLevel(manifest, node.id)] <= LEVEL_RANK[verificationLevel])
+  const eligibleNodeIds = new Set(eligibleNodes.map(node => node.id))
+  const matchedNodeIds = eligibleNodes.filter(node =>
+    normalizedChanged.some(file => {
+      const descriptor = descriptorByPath.get(file)
+      if (file === 'package.json' && descriptor?.semanticClass === 'package-public-metadata') {
+        return semanticPackageNodes.has(node.id)
+      }
+      return matchesAnyGlob(file, node.inputs)
+    })).map(node => node.id)
   const matchedSet = new Set(matchedNodeIds)
   const unknownInputs = normalizedChanged.filter(file => {
     const descriptor = descriptorByPath.get(file)
     if (file === 'package.json' && descriptor?.semanticClass === 'package-public-metadata') {
-      return ![...semanticPackageNodes].some(id => matchedSet.has(id))
+      return ![...semanticPackageNodes].some(id => eligibleNodeIds.has(id) && matchedSet.has(id))
     }
-    return !manifest.nodes.some(node => matchesAnyGlob(file, node.inputs))
+    return !eligibleNodes.some(node => matchesAnyGlob(file, node.inputs))
   })
-  let affected = addConsumers(new Set(matchedNodeIds), byId)
+  const allowedConsumerTypes = LEVEL_CONSUMER_TYPES[verificationLevel] || LEVEL_CONSUMER_TYPES.V3
+  let affected = addConsumers(new Set(matchedNodeIds), byId, {
+    manifest,
+    allowedTypes: allowedConsumerTypes,
+    verificationLevel
+  })
   const invariantIds = invariantNodeIds || manifest.iterativeInvariantNodes || manifest.invariantNodes
   for (const invariant of invariantIds) affected.add(invariant)
   affected = addDependencies(affected, byId)
   const affectedNodeIds = topologicalNodeOrder(manifest).filter(node => affected.has(node.id)).map(node => node.id)
   const edges = []
+  const typedConsumerEdges = []
   for (const node of manifest.nodes) {
     for (const dependency of node.dependencies) if (affected.has(node.id) || affected.has(dependency)) edges.push([dependency, node.id, 'dependency'])
-    for (const consumer of node.consumers) if (affected.has(node.id) || affected.has(consumer)) edges.push([node.id, consumer, 'consumer'])
+    for (const consumer of node.consumers) {
+      if (!affected.has(node.id) && !affected.has(consumer)) continue
+      const edgeType = consumerEdgeType(manifest, node.id, consumer)
+      edges.push([node.id, consumer, edgeType])
+      typedConsumerEdges.push({ source: node.id, target: consumer, type: edgeType })
+    }
   }
   const core = {
-    schemaVersion: 'ValidationImpactGraphV1',
+    schemaVersion: 'ValidationImpactGraphV2',
+    verificationLevel,
+    allowedConsumerTypes,
     changedFiles: normalizedChanged,
     changeDescriptors: descriptors,
     matchedNodeIds,
@@ -611,7 +751,8 @@ function buildValidationImpactGraph({ manifest, changedFiles = [], changeDescrip
     invariantNodeIds: invariantIds.filter(id => affected.has(id)),
     unknownInputs,
     consumerGraphComplete: manifest.consumerGraphComplete === true,
-    edges: edges.sort((left, right) => stableStringify(left).localeCompare(stableStringify(right)))
+    edges: edges.sort((left, right) => stableStringify(left).localeCompare(stableStringify(right))),
+    typedConsumerEdges: typedConsumerEdges.sort((left, right) => stableStringify(left).localeCompare(stableStringify(right)))
   }
   return {
     ...core,
@@ -620,8 +761,58 @@ function buildValidationImpactGraph({ manifest, changedFiles = [], changeDescrip
   }
 }
 
+function deriveAffectedBoundaries({ manifest, changedFiles, changeDescriptors }) {
+  const descriptorByPath = new Map(changeDescriptors.map(descriptor => [descriptor.path, descriptor]))
+  const matches = []
+  for (const [boundaryId, boundary] of Object.entries(manifest.verificationBoundaries || {})) {
+    const matched = changedFiles.some(file => {
+      const semanticClass = descriptorByPath.get(file)?.semanticClass
+      if ((boundary.excludeSemanticClasses || []).includes(semanticClass)) return false
+      return matchesAnyGlob(file, boundary.inputs || [])
+    })
+    if (matched) matches.push(boundaryId)
+  }
+  return matches.sort()
+}
+
+function normalizeBoundaryIds(manifest, values = []) {
+  const normalized = [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))].sort()
+  const unknown = normalized.filter(id => !manifest.verificationBoundaries?.[id])
+  if (unknown.length) {
+    throw new ValidationDagError('VALIDATION_BOUNDARY_UNKNOWN', 'unknown verification boundary: ' + unknown.join(','), unknown)
+  }
+  return normalized
+}
+
+function boundaryNodeIds(manifest, boundaryIds) {
+  return new Set(boundaryIds.flatMap(id => manifest.verificationBoundaries?.[id]?.nodes || []))
+}
+
+function toValidationPlanV1(plan) {
+  const legacyFields = [
+    'routeRequested', 'routeResolved', 'riskClass', 'candidateId', 'candidateStable', 'changedSource',
+    'changedFiles', 'validationLayer', 'changeDescriptors', 'impactGraph', 'impactGraphDigest',
+    'nestedCommandGraphDigest', 'nestedEdgeCount', 'nestedParentIds', 'delegatedParentIds',
+    'executionSchedule', 'fullFallback', 'selectedNodes', 'selectionReasons', 'budget', 'skipped',
+    'selectedNodeCount', 'fullNodeCount', 'coveredInvariantNodes', 'duplicateLeafCount',
+    'requiredNodeMisses', 'planDigest'
+  ]
+  const projection = Object.fromEntries([['schemaVersion', 'ValidationPlanV1'], ...legacyFields.map(field => [field, plan[field]])])
+  if (plan.impactGraph) {
+    const { typedConsumerEdges, allowedConsumerTypes, verificationLevel, ...legacyGraph } = plan.impactGraph
+    projection.impactGraph = {
+      ...legacyGraph,
+      schemaVersion: 'ValidationImpactGraphV1',
+      edges: (legacyGraph.edges || []).map(edge => [edge[0], edge[1], edge[2] === 'dependency' ? 'dependency' : 'consumer'])
+    }
+  }
+  return projection
+}
+
 function planValidation({ manifest, route = 'changed', changedFiles = [], changeDescriptors = [], changedSource = 'explicit',
-  riskClass = 'normal', candidateStable = true, candidateId = null }) {
+  riskClass = 'normal', candidateStable = true, candidateId = null, purpose = null, level = null,
+  affectedBoundaries = [], releaseAuthorized = false, explicitFullAudit = false,
+  authoritySource = null, approvePlanDigest = null }) {
   validateValidationManifest(manifest)
   if (!REQUIRED_ROUTES.includes(route)) {
     throw new ValidationDagError('VALIDATION_ROUTE_UNKNOWN', 'unknown route: ' + route)
@@ -629,78 +820,139 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
   if (!RISK_CLASSES.has(riskClass)) {
     throw new ValidationDagError('VALIDATION_RISK_UNKNOWN', 'unknown risk class: ' + riskClass)
   }
+  if (level !== null && !VERIFICATION_LEVELS.has(level)) {
+    throw new ValidationDagError('VALIDATION_LEVEL_UNKNOWN', 'unknown verification level: ' + level)
+  }
+  if (purpose !== null && !VERIFICATION_PURPOSES.has(purpose)) {
+    throw new ValidationDagError('VALIDATION_PURPOSE_UNKNOWN', 'unknown verification purpose: ' + purpose)
+  }
+
+  const defaults = ROUTE_INTENT_DEFAULTS[route]
+  const scopedBoundaryRoute = ['profile-deploy', 'package-release'].includes(route)
   const normalizedChanged = [...new Set(changedFiles.map(normalizeRelativePath))].sort()
   const normalizedDescriptors = buildChangeDescriptors(normalizedChanged, changeDescriptors)
   const descriptorByPath = new Map(normalizedDescriptors.map(descriptor => [descriptor.path, descriptor]))
-  const byId = new Map(manifest.nodes.map(node => [node.id, node]))
-  const ordered = topologicalNodeOrder(manifest)
-  const fullIds = new Set(manifest.routes.full.nodes)
-  const iterativeInvariantIds = manifest.iterativeInvariantNodes || manifest.invariantNodes
-  let impactGraph = buildValidationImpactGraph({
+  const derivedBoundaries = deriveAffectedBoundaries({
     manifest,
     changedFiles: normalizedChanged,
-    changeDescriptors: normalizedDescriptors,
-    invariantNodeIds: route === 'changed' ? iterativeInvariantIds : manifest.invariantNodes
+    changeDescriptors: normalizedDescriptors
   })
-  let selected = new Set()
-  let routeResolved = route
-  let fullFallback = null
-
-  if (route !== 'changed') {
-    selected = new Set(manifest.routes[route].nodes)
-  } else if (!candidateStable || changedSource === 'unknown') {
-    routeResolved = 'full'
-    fullFallback = 'candidate-identity-unstable'
-    selected = new Set(fullIds)
-  } else if (riskClass !== 'normal') {
-    routeResolved = 'full'
-    fullFallback = 'risk-' + riskClass
-    selected = new Set(fullIds)
-  } else if (!manifest.consumerGraphComplete) {
-    routeResolved = 'full'
-    fullFallback = 'consumer-graph-incomplete'
-    selected = new Set(fullIds)
-  } else if (normalizedChanged.some(file => {
+  const requestedBoundaryIds = normalizeBoundaryIds(manifest, affectedBoundaries)
+  if (scopedBoundaryRoute && requestedBoundaryIds.some(id => !(defaults.boundaries || []).includes(id))) {
+    throw new ValidationDagError('VALIDATION_BOUNDARY_ROUTE_CONFLICT',
+      `${route} is restricted to ${(defaults.boundaries || []).join(',')} boundary`)
+  }
+  let boundaryIds = normalizeBoundaryIds(manifest, [
+    ...(defaults.boundaries || []),
+    ...requestedBoundaryIds
+  ])
+  const escalationInputMatched = normalizedChanged.some(file => {
     const descriptor = descriptorByPath.get(file)
     if (file === 'package.json' && descriptor?.semanticClass === 'package-public-metadata') return false
     return matchesAnyGlob(file, manifest.iterativeEscalationInputs || manifest.criticalInputs)
-  })) {
+  })
+  const enforcedBoundaries = derivedBoundaries.filter(id =>
+    manifest.verificationBoundaries[id]?.enforceForMatchingInputs === true)
+  const boundaryExpansionRequired = riskClass !== 'normal' || escalationInputMatched || enforcedBoundaries.length > 0 ||
+    defaults.level === 'V2'
+  if (boundaryExpansionRequired && !scopedBoundaryRoute) {
+    boundaryIds = normalizeBoundaryIds(manifest, [...boundaryIds, ...derivedBoundaries])
+  }
+
+  let verificationLevel = level || defaults.level
+  let verificationPurpose = purpose || defaults.purpose
+  let fullAuditAuthority = explicitFullAudit === true || defaults.explicitFullAudit === true
+  if (verificationPurpose === 'release') verificationLevel = 'V3'
+  if (fullAuditAuthority && purpose === null) verificationPurpose = 'full-audit'
+  if (fullAuditAuthority) verificationLevel = 'V3'
+  if (LEVEL_RANK[verificationLevel] < LEVEL_RANK[defaults.level]) {
+    throw new ValidationDagError('VALIDATION_LEVEL_ROUTE_CONFLICT', `${route} requires at least ${defaults.level}`)
+  }
+  if (boundaryExpansionRequired && LEVEL_RANK[verificationLevel] < LEVEL_RANK.V2) verificationLevel = 'V2'
+  if (verificationLevel === 'V3' && !fullAuditAuthority && verificationPurpose !== 'release') {
+    throw new ValidationDagError('VALIDATION_V3_AUTHORITY_REQUIRED', 'V3 requires --full-audit or the explicit full route')
+  }
+  if (verificationPurpose === 'release' && releaseAuthorized !== true) {
+    throw new ValidationDagError('VALIDATION_RELEASE_AUTHORIZATION_REQUIRED', 'release purpose requires explicit release authorization')
+  }
+
+  const verificationIntent = createVerificationIntent({
+    level: verificationLevel,
+    purpose: verificationPurpose,
+    affectedBoundaries: boundaryIds,
+    riskClass,
+    releaseAuthorized: releaseAuthorized === true,
+    explicitFullAudit: fullAuditAuthority,
+    authoritySource: authoritySource || `route:${route}`
+  })
+  const iterativeInvariantIds = manifest.iterativeInvariantNodes || manifest.invariantNodes
+  const invariantIds = verificationLevel === 'V3'
+    ? manifest.invariantNodes
+    : iterativeInvariantIds
+  const scopedChangedFiles = scopedBoundaryRoute && verificationLevel !== 'V3'
+    ? normalizedChanged.filter(file => boundaryIds.some(id => {
+        const boundary = manifest.verificationBoundaries[id]
+        const semanticClass = descriptorByPath.get(file)?.semanticClass
+        return !(boundary.excludeSemanticClasses || []).includes(semanticClass) &&
+          matchesAnyGlob(file, boundary.inputs || [])
+      }))
+    : normalizedChanged
+  const scopedChangedSet = new Set(scopedChangedFiles)
+  const impactGraph = buildValidationImpactGraph({
+    manifest,
+    changedFiles: scopedChangedFiles,
+    changeDescriptors: normalizedDescriptors.filter(descriptor => scopedChangedSet.has(descriptor.path)),
+    invariantNodeIds: invariantIds,
+    verificationLevel
+  })
+  const byId = new Map(manifest.nodes.map(node => [node.id, node]))
+  const ordered = topologicalNodeOrder(manifest)
+  const fullIds = new Set(manifest.routes.full.nodes)
+  const executionBlockers = []
+  if (verificationLevel !== 'V3' && (!candidateStable || changedSource === 'unknown')) {
+    executionBlockers.push({ code: 'VALIDATION_CANDIDATE_IDENTITY_UNSTABLE', detail: changedSource })
+  }
+  if (verificationLevel !== 'V3' && !manifest.consumerGraphComplete) {
+    executionBlockers.push({ code: 'VALIDATION_CONSUMER_GRAPH_INCOMPLETE', detail: 'consumerGraphComplete=false' })
+  }
+  if (verificationLevel !== 'V3' && impactGraph.unknownInputs.length > 0) {
+    executionBlockers.push({ code: 'VALIDATION_UNKNOWN_INPUT', detail: impactGraph.unknownInputs.join(',') })
+  }
+  if (verificationLevel === 'V2' && boundaryIds.length === 0) {
+    executionBlockers.push({ code: 'VALIDATION_BOUNDARY_REQUIRED', detail: 'no affected boundary could be derived' })
+  }
+  if (verificationLevel !== 'V3' && boundaryExpansionRequired && boundaryIds.length === 0) {
+    executionBlockers.push({ code: 'VALIDATION_BOUNDARY_UNRESOLVED', detail: `risk=${riskClass}; escalation=${escalationInputMatched}` })
+  }
+  if (verificationPurpose === 'release' && !candidateStable) {
+    executionBlockers.push({ code: 'VALIDATION_RELEASE_CANDIDATE_UNSTABLE', detail: changedSource })
+  }
+
+  let selected
+  let routeResolved = route
+  if (verificationLevel === 'V3') {
     routeResolved = 'full'
-    fullFallback = 'validation-control-plane-changed'
     selected = new Set(fullIds)
   } else {
-    const unknown = impactGraph.unknownInputs
-    if (unknown.length) {
-      routeResolved = 'full'
-      fullFallback = 'unknown-input:' + unknown.join(',')
-      selected = new Set(fullIds)
-    } else {
-      selected = new Set(impactGraph.affectedNodeIds)
-      if (selected.size / fullIds.size > 0.8) {
-        routeResolved = 'full'
-        fullFallback = 'closure-over-80-percent'
-        selected = new Set(fullIds)
-      }
+    selected = scopedBoundaryRoute ? new Set() : new Set(impactGraph.affectedNodeIds)
+    if (verificationLevel === 'V2') {
+      routeResolved = ['profile-deploy', 'package-release'].includes(route) ? route : 'boundary'
+      for (const id of boundaryNodeIds(manifest, boundaryIds)) selected.add(id)
+      if (manifest.routes[route]?.nodes) for (const id of manifest.routes[route].nodes) selected.add(id)
+    } else if (route === 'delivery') {
+      routeResolved = 'delivery'
     }
   }
 
-  const validationLayer = route === 'changed' && routeResolved === 'changed' ? 'iterative' : 'qualification'
-  const invariantIds = validationLayer === 'iterative' ? iterativeInvariantIds : manifest.invariantNodes
-  if (validationLayer === 'qualification' && route === 'changed') {
-    impactGraph = buildValidationImpactGraph({
-      manifest,
-      changedFiles: normalizedChanged,
-      changeDescriptors: normalizedDescriptors,
-      invariantNodeIds: invariantIds
-    })
-  }
+  const validationLayer = verificationLevel === 'V3'
+    ? 'qualification'
+    : (verificationLevel === 'V2' ? 'boundary' : 'iterative')
   const coveredNodeIds = new Set([...selected].flatMap(id => byId.get(id)?.coversNodes || []))
   const coveredInvariantNodes = invariantIds.filter(id => coveredNodeIds.has(id))
   for (const invariant of invariantIds) {
     if (!coveredNodeIds.has(invariant)) selected.add(invariant)
   }
   selected = addDependencies(selected, byId)
-  // PF-148 slice-2: make nested delegated leaves explicit in the selected plan graph
   selected = expandSelectedWithNestedLeaves(selected, byId)
   selected = addDependencies(selected, byId)
   const selectedNodes = ordered.filter(node => selected.has(node.id))
@@ -708,46 +960,76 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
   const executionSchedule = planLockAwareSchedule(selectedNodes)
   const skipped = ordered.filter(node => !selected.has(node.id)).map(node => ({
     nodeId: node.id,
-    authority: routeResolved === 'full' ? 'full-route-manifest' : 'changed-closure',
-    reason: 'not selected by ' + routeResolved + ' route',
-    residualRisk: 'covered by invariant roots and full-fallback rules',
-    upgradeCondition: 'input, consumer, risk, manifest, or candidate identity changes'
+    authority: `VerificationIntentV1:${verificationIntent.intentDigest}`,
+    reason: `not selected by ${verificationLevel} ${routeResolved} scope`,
+    residualRisk: verificationIntent.claimCeiling,
+    upgradeCondition: 'changed input, typed consumer edge, affected boundary, explicit audit, or release authority changes'
   }))
   const signatures = new Set(selectedNodes.map(commandSignature))
   const nestedParentIds = {}
   for (const edge of nestedCommandGraph.edges) {
     if (!selected.has(edge.childId) || !selected.has(edge.parentId)) continue
     if (!nestedParentIds[edge.childId]) nestedParentIds[edge.childId] = []
-    if (!nestedParentIds[edge.childId].includes(edge.parentId)) {
-      nestedParentIds[edge.childId].push(edge.parentId)
-    }
+    if (!nestedParentIds[edge.childId].includes(edge.parentId)) nestedParentIds[edge.childId].push(edge.parentId)
   }
   const matchedIds = new Set(impactGraph.matchedNodeIds)
   const affectedIds = new Set(impactGraph.affectedNodeIds)
   const invariantSet = new Set(invariantIds)
+  const boundarySet = boundaryNodeIds(manifest, boundaryIds)
   const selectionReasons = {}
   for (const node of selectedNodes) {
-    const reasons = []
-    if (routeResolved === 'full') reasons.push(fullFallback ? `fallback:${fullFallback}` : 'route:full')
-    else if (route !== 'changed') reasons.push(`route:${routeResolved}`)
+    const reasons = [`verification:${verificationLevel}`]
+    if (verificationLevel === 'V3') reasons.push('route:full-explicit')
     if (matchedIds.has(node.id)) reasons.push('input-match')
     else if (affectedIds.has(node.id)) reasons.push('impact-closure')
+    if (boundarySet.has(node.id)) reasons.push('boundary-contract')
     if (invariantSet.has(node.id)) reasons.push(`${validationLayer}-invariant`)
     if (nestedParentIds[node.id]?.length) reasons.push('delegated-leaf')
-    if (!reasons.length) reasons.push('dependency-closure')
+    if (reasons.length === 1) reasons.push('dependency-closure')
     selectionReasons[node.id] = [...new Set(reasons)].sort()
   }
+  const heavyNodeIds = selectedNodes
+    .filter(node => node.timeoutMs >= HEAVY_NODE_TIMEOUT_MS || manifest.nodeVerificationPolicies.overrides?.[node.id]?.heavy === true)
+    .map(node => node.id)
+  const heavyNodeSet = new Set(heavyNodeIds)
+  const explicitEstimateCount = selectedNodes.filter(node => Number.isInteger(node.estimatedDurationMs)).length
+  const estimatedDurationMs = selectedNodes.reduce((sum, node) => sum + (
+    Number.isInteger(node.estimatedDurationMs)
+      ? node.estimatedDurationMs
+      : Math.min(node.timeoutMs, heavyNodeSet.has(node.id) ? DEFAULT_HEAVY_NODE_ESTIMATE_MS : DEFAULT_NODE_ESTIMATE_MS)
+  ), 0)
+  const hardTimeoutUpperBoundMs = selectedNodes.reduce((sum, node) => sum + node.timeoutMs, 0)
+  const estimateConfidence = explicitEstimateCount === selectedNodes.length
+    ? 'high'
+    : (explicitEstimateCount > 0 ? 'medium' : 'low')
+  const logBudgetBytes = selectedNodes.length * LOG_SUMMARY_BUDGET_BYTES_PER_NODE
   const budget = {
     selectedNodeCount: selectedNodes.length,
     fullNodeCount: fullIds.size,
     savedNodeCount: Math.max(0, fullIds.size - selectedNodes.length),
-    selectionRatio: fullIds.size === 0 ? 1 : Number((selectedNodes.length / fullIds.size).toFixed(4))
+    selectionRatio: fullIds.size === 0 ? 1 : Number((selectedNodes.length / fullIds.size).toFixed(4)),
+    estimatedDurationMs,
+    estimateConfidence,
+    estimationBasis: 'manifest-estimate-or-capped-default-v1',
+    explicitEstimateCount,
+    defaultEstimateCount: selectedNodes.length - explicitEstimateCount,
+    hardTimeoutUpperBoundMs,
+    logBudgetBytes,
+    heavyNodeIds
   }
   const planCore = {
-    schemaVersion: 'ValidationPlanV1',
+    schemaVersion: 'ValidationPlanV2',
+    contractVersion: '2',
+    manifestIdentity: manifestIdentity(manifest),
     routeRequested: route,
     routeResolved,
     riskClass,
+    verificationIntent,
+    verificationLevel,
+    verificationPurpose,
+    affectedBoundaries: boundaryIds,
+    authorizationDigest: verificationIntent.authorizationDigest,
+    claimCeiling: verificationIntent.claimCeiling,
     candidateId,
     candidateStable,
     changedSource,
@@ -756,23 +1038,67 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     changeDescriptors: normalizedDescriptors,
     impactGraph,
     impactGraphDigest: impactGraph.impactGraphDigest,
+    invalidationFrontier: [],
     nestedCommandGraphDigest: nestedCommandGraph.digest,
     nestedEdgeCount: nestedCommandGraph.edgeCount,
     nestedParentIds,
     delegatedParentIds: nestedParentIds,
     executionSchedule,
-    fullFallback,
+    fullFallback: null,
     selectedNodes,
     selectionReasons,
     budget,
     skipped,
+    executionBlockers,
     selectedNodeCount: selectedNodes.length,
     fullNodeCount: fullIds.size,
     coveredInvariantNodes,
     duplicateLeafCount: selectedNodes.length - signatures.size,
-    requiredNodeMisses: 0
+    requiredNodeMisses: executionBlockers.length
   }
-  return { ...planCore, planDigest: sha256(Buffer.from(stableStringify(planCore), 'utf8')) }
+  const planDigest = sha256(Buffer.from(stableStringify(planCore), 'utf8'))
+  const budgetApprovalRequired = verificationLevel !== 'V3' &&
+    (estimatedDurationMs > BUDGET_CONFIRMATION_THRESHOLD_MS || heavyNodeIds.length > 0)
+  const waitReasons = []
+  if (estimatedDurationMs > BUDGET_CONFIRMATION_THRESHOLD_MS) waitReasons.push('estimated-duration-exceeds-threshold')
+  if (heavyNodeIds.length > 0) waitReasons.push('heavy-node-selected')
+  const budgetDigest = sha256(Buffer.from(stableStringify({
+    schemaVersion: 'BudgetCardV1',
+    planDigest,
+    estimatedDurationMs,
+    estimateConfidence,
+    hardTimeoutUpperBoundMs,
+    logBudgetBytes,
+    heavyNodeIds,
+    waitReasons,
+    thresholdMs: BUDGET_CONFIRMATION_THRESHOLD_MS
+  }), 'utf8'))
+  const budgetApproved = !budgetApprovalRequired || approvePlanDigest === budgetDigest
+  const budgetCard = {
+    schemaVersion: 'BudgetCardV1',
+    planDigest,
+    digest: budgetDigest,
+    estimatedDurationMs,
+    estimateConfidence,
+    estimationBasis: budget.estimationBasis,
+    hardTimeoutUpperBoundMs,
+    logBudgetBytes,
+    thresholdMs: BUDGET_CONFIRMATION_THRESHOLD_MS,
+    heavyNodeIds,
+    waitReasons,
+    confirmationRequired: budgetApprovalRequired,
+    status: budgetApprovalRequired
+      ? (budgetApproved ? 'approved' : (approvePlanDigest ? 'digest-mismatch' : 'awaiting-confirmation'))
+      : 'not-required',
+    nextStep: budgetApprovalRequired && !budgetApproved
+      ? `rerun the same command with --approve-plan ${budgetDigest}`
+      : null
+  }
+  const executionState = executionBlockers.length > 0
+    ? 'blocked'
+    : (budgetApproved ? 'ready' : 'awaiting-confirmation')
+  const plan = { ...planCore, planDigest, budgetCard, executionState }
+  return { ...plan, compatibilityProjection: toValidationPlanV1(plan) }
 }
 
 function gitOutput(repoRoot, args, encoding = 'utf8') {
@@ -826,6 +1152,22 @@ function buildCandidateIdentity({ repoRoot, explicitChangedFiles = null }) {
       }
     }
   }
+  const dirtyIdentityByPath = new Map(dirtyIdentities.map(item => [item.path, item]))
+  const scopeIdentities = []
+  if (stable) {
+    for (const relativePath of changedFiles) {
+      if (dirtyIdentityByPath.has(relativePath)) {
+        scopeIdentities.push(dirtyIdentityByPath.get(relativePath))
+        continue
+      }
+      const absolutePath = path.resolve(absoluteRoot, relativePath)
+      if (!fs.existsSync(absolutePath)) scopeIdentities.push({ path: relativePath, deleted: true })
+      else {
+        const content = fs.readFileSync(absolutePath)
+        scopeIdentities.push({ path: relativePath, deleted: false, digest: sha256(content), bytes: content.length })
+      }
+    }
+  }
   const identityInputs = {
     schemaVersion: 'ValidationCandidateIdentityV1',
     repoKey: path.basename(absoluteRoot),
@@ -839,7 +1181,7 @@ function buildCandidateIdentity({ repoRoot, explicitChangedFiles = null }) {
     value: identityInputs,
     contractVersion: VALIDATION_CONTRACT_VERSION
   }).identity.digest
-  return { candidateId, stable, head, changedFiles, changedSource, dirtyIdentities, identityInputs }
+  return { candidateId, stable, head, changedFiles, changedSource, dirtyIdentities, scopeIdentities, identityInputs }
 }
 
 function manifestIdentity(manifest) {
@@ -850,17 +1192,80 @@ function manifestIdentity(manifest) {
   }).identity
 }
 
-function cacheDescriptor({ manifestIdentityValue, candidate, node }) {
-  const selectedInputs = candidate.dirtyIdentities.filter(item => matchesAnyGlob(item.path, node.inputs))
+function assertExecutablePlanBinding({ manifest, plan, candidate }) {
+  const currentManifestIdentity = manifestIdentity(manifest)
+  if (stableStringify(plan.manifestIdentity) !== stableStringify(currentManifestIdentity)) {
+    throw new ValidationDagError('VALIDATION_PLAN_MANIFEST_MISMATCH',
+      'validation manifest changed after the plan was created')
+  }
+  if (plan.candidateId !== candidate.candidateId || plan.candidateStable !== candidate.stable) {
+    throw new ValidationDagError('VALIDATION_PLAN_CANDIDATE_MISMATCH',
+      'validation candidate changed after the plan was created')
+  }
+  const {
+    planDigest,
+    budgetCard,
+    executionState,
+    compatibilityProjection,
+    ...planCore
+  } = plan
+  const observedPlanDigest = sha256(Buffer.from(stableStringify(planCore), 'utf8'))
+  if (planDigest !== observedPlanDigest || budgetCard?.planDigest !== planDigest) {
+    throw new ValidationDagError('VALIDATION_PLAN_DIGEST_MISMATCH',
+      'validation plan content no longer matches its approved digest')
+  }
+}
+
+function resolvedNodeVerificationPolicy(manifest, node) {
+  if (!manifest) return null
+  const override = manifest.nodeVerificationPolicies?.overrides?.[node.id] || {}
+  return {
+    consumerEdgeType: CONSUMER_EDGE_TYPES.has(override.consumerEdgeType)
+      ? override.consumerEdgeType
+      : manifest.nodeVerificationPolicies?.defaultConsumerEdgeType,
+    minimumLevel: nodeMinimumLevel(manifest, node.id),
+    heavy: override.heavy === true,
+    outgoingConsumerEdges: (node.consumers || []).map(target => ({
+      target,
+      type: consumerEdgeType(manifest, node.id, target)
+    })).sort((left, right) => left.target.localeCompare(right.target))
+  }
+}
+
+function buildNodeReceiptDigest(value) {
+  return sha256(Buffer.from(stableStringify({
+    nodeId: value.nodeId,
+    nodeContractDigest: value.nodeContractDigest,
+    inputBindingDigest: value.inputBindingDigest,
+    nodeVerificationPolicyDigest: value.nodeVerificationPolicyDigest,
+    dependencyReceiptDigests: value.dependencyReceiptDigests || [],
+    delegatedClosureDigest: value.delegatedClosureDigest,
+    evidenceDigest: value.evidenceDigest
+  }), 'utf8'))
+}
+
+function cacheDescriptor({ manifest = null, candidate, node, executionNode = node, dependencyReceiptDigests = [] }) {
+  const observedIdentities = Array.isArray(candidate.dirtyIdentities)
+    ? candidate.dirtyIdentities
+    : (candidate.scopeIdentities || [])
+  const selectedInputs = observedIdentities
+    .filter(item => matchesAnyGlob(item.path, node.inputs))
+    .sort((left, right) => left.path.localeCompare(right.path))
+  const nodeContractDigest = sha256(Buffer.from(stableStringify(executionNode), 'utf8'))
+  const nodeVerificationPolicy = resolvedNodeVerificationPolicy(manifest, node)
+  const nodeVerificationPolicyDigest = sha256(Buffer.from(stableStringify(nodeVerificationPolicy), 'utf8'))
   const value = {
     schemaVersion: VALIDATION_CACHE_SCHEMA,
-    candidateId: candidate.candidateId,
-    manifestIdentity: manifestIdentityValue,
+    cacheBindingVersion: 'node-input-dependency-v2',
+    candidateHead: candidate.head || null,
     nodeId: node.id,
-    command: node.command,
-    args: node.args,
-    environment: node.environment || {},
+    nodeContractDigest,
+    nodeVerificationPolicy,
+    command: executionNode.command,
+    args: executionNode.args,
+    environment: executionNode.environment || {},
     selectedInputs,
+    dependencyReceiptDigests,
     nodeVersion: node.schemaVersion,
     contractVersion: VALIDATION_CONTRACT_VERSION,
     nodeRuntime: process.version,
@@ -877,9 +1282,13 @@ function cacheDescriptor({ manifestIdentityValue, candidate, node }) {
     selectedInputs,
     expectedEvidence: {
       nodeId: node.id,
-      command: node.command,
-      args: node.args,
-      environment: node.environment || {},
+      nodeContractDigest,
+      inputBindingDigest: identity.digest,
+      nodeVerificationPolicyDigest,
+      dependencyReceiptDigests,
+      command: executionNode.command,
+      args: executionNode.args,
+      environment: executionNode.environment || {},
       invariantCoverage: node.invariants
     }
   }
@@ -906,7 +1315,7 @@ function directoryUsage(root, maxEntries = VALIDATION_CACHE_MAX_ENTRIES) {
 }
 
 function cacheRelativePath(cacheKey) {
-  return path.join('.runtime-state', 'validation-evidence', 'v1', 'cache', cacheKey + '.json')
+  return path.join('.runtime-state', 'validation-evidence', 'v2', 'cache', cacheKey + '.json')
 }
 
 function cacheStoreRelativePath(cacheKey) {
@@ -938,11 +1347,16 @@ function readNodeCache({ activeRoot, descriptor }) {
   const evidenceValid = value.nodeEvidence.status === 'passed' &&
     value.nodeEvidence.exitCode === 0 &&
     value.nodeEvidence.nodeId === expected.nodeId &&
+    value.nodeEvidence.nodeContractDigest === expected.nodeContractDigest &&
+    value.nodeEvidence.inputBindingDigest === expected.inputBindingDigest &&
+    value.nodeEvidence.nodeVerificationPolicyDigest === expected.nodeVerificationPolicyDigest &&
+    stableStringify(value.nodeEvidence.dependencyReceiptDigests || []) === stableStringify(expected.dependencyReceiptDigests) &&
     value.nodeEvidence.command === expected.command &&
     stableStringify(value.nodeEvidence.args) === stableStringify(expected.args) &&
     stableStringify(value.nodeEvidence.environment || {}) === stableStringify(expected.environment) &&
     stableStringify(value.nodeEvidence.invariantCoverage) === stableStringify(expected.invariantCoverage) &&
-    stableStringify(value.invariantCoverage) === stableStringify(expected.invariantCoverage)
+    stableStringify(value.invariantCoverage) === stableStringify(expected.invariantCoverage) &&
+    value.nodeEvidence.nodeReceiptDigest === buildNodeReceiptDigest(value.nodeEvidence)
   if (!evidenceValid) {
     return { status: 'invalid', evidence: null, filePath: store.filePath }
   }
@@ -963,7 +1377,7 @@ function writeNodeCache({ activeRoot, descriptor, nodeEvidence, maxCacheBytes = 
     invariantCoverage: nodeEvidence.invariantCoverage,
     nodeEvidence
   }
-  const evidenceRoot = path.join(resolveRuntimeStateRoot(activeRoot).root, 'validation-evidence', 'v1')
+  const evidenceRoot = path.join(resolveRuntimeStateRoot(activeRoot).root, 'validation-evidence', 'v2')
   const usage = directoryUsage(evidenceRoot)
   const pendingBytes = Buffer.byteLength(JSON.stringify(value, null, 2) + '\n')
   if (!usage.bounded || usage.bytes + pendingBytes > maxCacheBytes) {
@@ -980,8 +1394,8 @@ function writeNodeCache({ activeRoot, descriptor, nodeEvidence, maxCacheBytes = 
 }
 
 function persistReceipt(activeRoot, receipt, maxCacheBytes = VALIDATION_CACHE_MAX_BYTES) {
-  const evidenceRoot = path.join(resolveRuntimeStateRoot(activeRoot).root, 'validation-evidence', 'v1')
-  const relativePath = path.join('validation-evidence', 'v1', 'receipts', receipt.runId + '.json')
+  const evidenceRoot = path.join(resolveRuntimeStateRoot(activeRoot).root, 'validation-evidence', 'v2')
+  const relativePath = path.join('validation-evidence', 'v2', 'receipts', receipt.runId + '.json')
   const receiptText = stableStringify(receipt)
   const receiptIdentity = buildContentIdentity({
     sourceKey: 'validation-receipt/' + receipt.runId,
@@ -1004,49 +1418,30 @@ function persistReceipt(activeRoot, receipt, maxCacheBytes = VALIDATION_CACHE_MA
   return store.write(persistedValue)
 }
 
-function resolveCacheEvidenceFallback({ manifest, plan, candidate, activeRoot, useCache, manifestIdentityValue }) {
-  if (!useCache || !candidate.stable || plan.routeRequested !== 'changed' || plan.routeResolved !== 'changed') {
-    return plan
-  }
-  for (const node of plan.selectedNodes) {
-    if (node.cachePolicy !== 'candidate-bound') continue
-    const descriptor = cacheDescriptor({ manifestIdentityValue, candidate, node })
-    const cached = readNodeCache({ activeRoot, descriptor })
-    if (cached.status !== 'stale' && cached.status !== 'invalid') continue
-    const fullPlan = planValidation({
-      manifest,
-      route: 'full',
-      changedFiles: plan.changedFiles,
-      changedSource: plan.changedSource,
-      riskClass: plan.riskClass,
-      candidateStable: candidate.stable,
-      candidateId: candidate.candidateId
-    })
-    return {
-      ...fullPlan,
-      routeRequested: plan.routeRequested,
-      fullFallback: 'cache-evidence-' + cached.status + ':' + node.id
-    }
-  }
-  return plan
-}
-
 function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot, useCache = true,
   runCommand = null, onNode = null, maxCacheBytes = VALIDATION_CACHE_MAX_BYTES }) {
+  assertExecutablePlanBinding({ manifest, plan, candidate })
+  if (plan.executionState && plan.executionState !== 'ready') {
+    const code = plan.executionState === 'awaiting-confirmation'
+      ? 'VALIDATION_BUDGET_APPROVAL_REQUIRED'
+      : 'VALIDATION_PLAN_BLOCKED'
+    const next = plan.budgetCard?.nextStep || plan.executionBlockers?.map(item => item.code).join(',') || 'resolve blockers'
+    throw new ValidationDagError(code, `validation plan is ${plan.executionState}: ${next}`, {
+      planDigest: plan.planDigest,
+      executionState: plan.executionState,
+      blockers: plan.executionBlockers || [],
+      budgetCard: plan.budgetCard || null
+    })
+  }
   const startedAtMs = Date.now()
   const startedAt = new Date(startedAtMs).toISOString()
   const runId = 'validation-' + startedAt.replace(/[-:.TZ]/g, '') + '-' + crypto.randomBytes(4).toString('hex')
   const manifestIdentityValue = manifestIdentity(manifest)
-  const effectivePlan = resolveCacheEvidenceFallback({
-    manifest,
-    plan,
-    candidate,
-    activeRoot,
-    useCache,
-    manifestIdentityValue
-  })
+  const effectivePlan = plan
   const results = []
   const abortedNodes = []
+  const cacheInvalidations = [...(effectivePlan.cacheInvalidations || [])]
+  const invalidatedNodeIds = new Set(cacheInvalidations.map(item => item.nodeId))
   let failedNode = null
   const invoke = runCommand || ((node) => runChecked(node.command, node.args, {
     cwd: repoRoot,
@@ -1087,7 +1482,7 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     const nodeContractDigest = sha256(Buffer.from(stableStringify(executionNode), 'utf8'))
     const dependencyReceiptDigests = node.dependencies.map(dependency => {
       const prior = results.find(result => result.nodeId === dependency)
-      return prior ? prior.evidenceDigest || prior.cacheIdentity?.digest || null : null
+      return prior ? prior.nodeReceiptDigest || prior.evidenceDigest || null : null
     })
     const delegatedClosureDigest = sha256(Buffer.from(stableStringify({
       nodeId: node.id,
@@ -1097,8 +1492,15 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
       delegatedNodeIds,
       executionMode: 'orchestrated'
     }), 'utf8'))
-    const descriptor = cacheDescriptor({ manifestIdentityValue, candidate, node })
-    const cacheEligible = useCache && candidate.stable && node.cachePolicy === 'candidate-bound'
+    const descriptor = cacheDescriptor({
+      manifest,
+      candidate,
+      node,
+      executionNode,
+      dependencyReceiptDigests
+    })
+    const cacheEligible = useCache && candidate.stable && effectivePlan.verificationLevel !== 'V3' &&
+      node.cachePolicy === 'candidate-bound'
     if (cacheEligible) {
       const cached = readNodeCache({ activeRoot, descriptor })
       if (cached.status === 'hit') {
@@ -1107,6 +1509,10 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
         seenCommandSignatures.set(commandSignature(executionNode), node.id)
         if (onNode) onNode(result)
         continue
+      }
+      if (!invalidatedNodeIds.has(node.id)) {
+        invalidatedNodeIds.add(node.id)
+        cacheInvalidations.push({ nodeId: node.id, status: cached.status, action: 'rerun-precise-node' })
       }
     }
 
@@ -1117,17 +1523,22 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
       const prior = results.find(result => result.nodeId === priorOwner &&
         (result.status === 'passed' || result.status === 'cache-hit'))
       if (prior) {
+        const reusedEvidenceDigest = prior.evidenceDigest
         const reused = {
           ...prior,
           nodeId: node.id,
           nodeContractDigest,
+          inputBindingDigest: descriptor.cacheKey,
+          nodeVerificationPolicyDigest: descriptor.expectedEvidence.nodeVerificationPolicyDigest,
           dependencyReceiptDigests,
           delegatedClosureDigest,
+          evidenceDigest: reusedEvidenceDigest,
           status: 'cache-hit',
           cacheStatus: 'hit-duplicate-leaf',
           reuseOfNodeId: priorOwner,
           evidenceReuse: 'duplicate-leaf-command-signature'
         }
+        reused.nodeReceiptDigest = buildNodeReceiptDigest(reused)
         results.push(reused)
         if (onNode) onNode(reused)
         continue
@@ -1136,14 +1547,28 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
 
     try {
       const evidence = invoke(executionNode)
+      const evidenceDigest = sha256(Buffer.from(stableStringify({
+        nodeId: node.id,
+        command: executionNode.command,
+        args: executionNode.args,
+        environment: executionNode.environment || {},
+        exitCode: evidence.exitCode,
+        signal: evidence.signal || null,
+        stdout: evidence.stdout || '',
+        stderr: evidence.stderr || ''
+      }), 'utf8'))
       const nodeEvidence = {
         nodeId: node.id,
         nodeContractDigest,
+        inputBindingDigest: descriptor.cacheKey,
+        nodeVerificationPolicyDigest: descriptor.expectedEvidence.nodeVerificationPolicyDigest,
         dependencyReceiptDigests,
         delegatedClosureDigest,
         status: 'passed',
         cacheStatus: node.cachePolicy === 'candidate-bound'
-          ? (candidate.stable ? 'miss' : 'bypassed-unstable')
+          ? (effectivePlan.verificationLevel === 'V3'
+              ? 'disabled-v3'
+              : (candidate.stable ? 'miss' : 'bypassed-unstable'))
           : 'disabled',
         command: executionNode.command,
         args: executionNode.args,
@@ -1154,17 +1579,9 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
         stdout: evidence.stdout || '',
         stderr: evidence.stderr || '',
         invariantCoverage: node.invariants,
-        evidenceDigest: sha256(Buffer.from(stableStringify({
-          nodeId: node.id,
-          command: executionNode.command,
-          args: executionNode.args,
-          environment: executionNode.environment || {},
-          exitCode: evidence.exitCode,
-          signal: evidence.signal || null,
-          stdout: evidence.stdout || '',
-          stderr: evidence.stderr || ''
-        }), 'utf8'))
+        evidenceDigest
       }
+      nodeEvidence.nodeReceiptDigest = buildNodeReceiptDigest(nodeEvidence)
       if (cacheEligible) {
         nodeEvidence.cacheWrite = writeNodeCache({
           activeRoot,
@@ -1207,6 +1624,11 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
   const completedAtMs = Date.now()
   const stdoutBytes = results.reduce((sum, result) => sum + Buffer.byteLength(String(result.stdout || ''), 'utf8'), 0)
   const stderrBytes = results.reduce((sum, result) => sum + Buffer.byteLength(String(result.stderr || ''), 'utf8'), 0)
+  cacheInvalidations.sort((left, right) => left.nodeId.localeCompare(right.nodeId))
+  const invalidationFrontier = [...new Set([
+    ...(effectivePlan.invalidationFrontier || []),
+    ...cacheInvalidations.map(item => item.nodeId)
+  ])].sort()
   const semanticReceipt = {
     schemaVersion: VALIDATION_RECEIPT_SCHEMA,
     contractVersion: VALIDATION_CONTRACT_VERSION,
@@ -1219,18 +1641,30 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
       head: candidate.head || null,
       changedSource: candidate.changedSource || 'unknown',
       changedFiles: candidate.changedFiles || [],
-      dirtyIdentities: candidate.dirtyIdentities || []
+      dirtyIdentities: candidate.dirtyIdentities || [],
+      scopeIdentities: candidate.scopeIdentities || candidate.dirtyIdentities || []
     },
     manifestIdentity: manifestIdentityValue,
+    validationPlanSchema: effectivePlan.schemaVersion,
     routeRequested: effectivePlan.routeRequested,
     routeResolved: effectivePlan.routeResolved,
     riskClass: effectivePlan.riskClass,
+    verificationIntent: effectivePlan.verificationIntent || null,
+    verificationLevel: effectivePlan.verificationLevel || null,
+    verificationPurpose: effectivePlan.verificationPurpose || null,
+    affectedBoundaries: effectivePlan.affectedBoundaries || [],
+    authorizationDigest: effectivePlan.authorizationDigest || null,
+    claimCeiling: effectivePlan.claimCeiling || null,
+    executionState: effectivePlan.executionState || 'ready',
     validationLayer: effectivePlan.validationLayer,
     changedSource: effectivePlan.changedSource,
     changedFiles: effectivePlan.changedFiles,
     changeDescriptors: effectivePlan.changeDescriptors || [],
     impactGraphDigest: effectivePlan.impactGraphDigest,
+    invalidationFrontier,
+    cacheInvalidations,
     nodeContractDigest: sha256(Buffer.from(stableStringify(results.map(result => [result.nodeId, result.nodeContractDigest])), 'utf8')),
+    nodeReceiptDigests: Object.fromEntries(results.map(result => [result.nodeId, result.nodeReceiptDigest || null])),
     dependencyReceiptDigests: Object.fromEntries(results.map(result => [result.nodeId, result.dependencyReceiptDigests || []])),
     delegatedClosureDigest: sha256(Buffer.from(stableStringify(results.map(result => [result.nodeId, result.delegatedClosureDigest])), 'utf8')),
     testRouteDigest: effectivePlan.planDigest,
@@ -1246,7 +1680,7 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     executionSchedule,
     cacheDecision: {
       requested: useCache,
-      eligibleRoute: effectivePlan.routeRequested === 'changed' && effectivePlan.routeResolved === 'changed',
+      eligibleRoute: effectivePlan.verificationLevel !== 'V3',
       hitCount: results.filter(result => result.status === 'cache-hit').length,
       duplicateLeafReuseCount: results.filter(result => result.cacheStatus === 'hit-duplicate-leaf').length
     },
@@ -1254,6 +1688,7 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     selectedNodes: effectivePlan.selectedNodes.map(node => node.id),
     selectionReasons: effectivePlan.selectionReasons || {},
     budget: effectivePlan.budget || null,
+    budgetCard: effectivePlan.budgetCard || null,
     executionOrder: executionNodes.map(node => node.id),
     skipped: effectivePlan.skipped,
     results,
@@ -1279,6 +1714,7 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
 
 module.exports = {
   CACHE_POLICIES,
+  CONSUMER_EDGE_TYPES,
   REQUIRED_ROUTES,
   RISK_CLASSES,
   VALIDATION_CACHE_MAX_BYTES,
@@ -1289,12 +1725,14 @@ module.exports = {
   VALIDATION_RECEIPT_SCHEMA,
   ValidationDagError,
   buildCandidateIdentity,
+  boundaryNodeIds,
   buildNestedCommandGraph,
   buildValidationImpactGraph,
   cacheDescriptor,
   cacheRelativePath,
   commandSignature,
   directoryUsage,
+  deriveAffectedBoundaries,
   executeValidationPlan,
   expandSelectedWithNestedLeaves,
   extractScriptPathFromCommandLine,
@@ -1303,11 +1741,13 @@ module.exports = {
   matchesAnyGlob,
   normalizeCommandLine,
   normalizeRelativePath,
+  normalizeBoundaryIds,
   planLockAwareSchedule,
   planValidation,
   readNodeCache,
   readValidationManifest,
   topologicalNodeOrder,
+  toValidationPlanV1,
   validateValidationManifest,
   writeNodeCache,
   writeScopesConflict

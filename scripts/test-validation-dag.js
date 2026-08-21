@@ -22,9 +22,11 @@ const {
   manifestIdentity,
   planValidation,
   readValidationManifest,
+  toValidationPlanV1,
   validateValidationManifest
 } = require('./lib/validation-dag')
 const { createValidationOrchestration } = require('./lib/validation-orchestration')
+const { parseArgs } = require('./run-validation')
 
 const ROOT = path.resolve(__dirname, '..')
 const MANIFEST_PATH = path.join(__dirname, 'validation-manifest.json')
@@ -47,6 +49,7 @@ function fixtureNode(id, options = {}) {
     timeoutMs: options.timeoutMs || 5000,
     exitMap: { success: [0], failure: 'nonzero-or-signal', timeout: 'ETIMEDOUT' },
     evidenceArtifacts: ['ValidationExecutionReceiptV1'],
+    ...(options.estimatedDurationMs === undefined ? {} : { estimatedDurationMs: options.estimatedDurationMs }),
     ...(options.delegatedClosure === undefined ? {} : { delegatedClosure: options.delegatedClosure })
   }
 }
@@ -58,14 +61,27 @@ function fixtureManifest(nodes) {
     contractVersion: '1',
     description: 'fixture',
     consumerGraphComplete: true,
+    verificationBoundaries: {
+      fixture: {
+        inputs: ['fixture/**'],
+        nodes: ids,
+        enforceForMatchingInputs: false
+      }
+    },
+    nodeVerificationPolicies: {
+      defaultConsumerEdgeType: 'runtimeConsumer',
+      overrides: {}
+    },
     criticalInputs: ['scripts/validation-manifest.json'],
     iterativeEscalationInputs: ['scripts/validation-manifest.json'],
     invariantNodes: [ids[0]],
     iterativeInvariantNodes: [ids[0]],
     routes: {
-      fast: { nodes: ids },
+      fast: { dynamic: true },
       full: { nodes: ids },
       changed: { dynamic: true },
+      delivery: { dynamic: true },
+      boundary: { dynamic: true },
       'profile-deploy': { nodes: ids },
       'package-release': { nodes: ids }
     },
@@ -98,6 +114,9 @@ function run() {
     assert.deepStrictEqual(manifest.iterativeInvariantNodes, ['validation-dag'])
     assert.ok(manifest.iterativeEscalationInputs.includes('scripts/lib/validation-dag.js'))
     assert.ok(!manifest.iterativeEscalationInputs.includes('content/**'))
+    assert.deepStrictEqual(Object.keys(manifest.verificationBoundaries).sort(),
+      ['hook-runtime', 'mcp-runtime', 'package', 'profile', 'validation-control-plane'])
+    assert.strictEqual(manifest.nodeVerificationPolicies.defaultConsumerEdgeType, 'runtimeConsumer')
     assert.deepStrictEqual(manifest.semanticInputs.packageJson.publicMetadataNodes, [
       'public-product-expression',
       'release-metadata'
@@ -111,7 +130,17 @@ function run() {
         assert.ok(skillPortfolioInputs.includes(input), `${portfolioNodeId} must track ${input}`)
       }
     }
-    const packageReleaseNodes = new Set(manifest.routes['package-release'].nodes)
+    assert.deepStrictEqual(
+      [...manifest.routes['profile-deploy'].nodes].sort(),
+      [...manifest.verificationBoundaries.profile.nodes].sort(),
+      'profile-deploy must stay scoped to the profile V2 boundary'
+    )
+    assert.deepStrictEqual(
+      [...manifest.routes['package-release'].nodes].sort(),
+      [...manifest.verificationBoundaries.package.nodes].sort(),
+      'package-release must stay scoped to the package V2 boundary'
+    )
+    const fullRouteNodes = new Set(manifest.routes.full.nodes)
     for (const required of [
       'cli-behavior',
       'task-continuation',
@@ -128,7 +157,7 @@ function run() {
       'skill-route-lifecycle',
       'skill-route-closure'
     ]) {
-      assert(packageReleaseNodes.has(required), `package-release missing F1-F14 gate: ${required}`)
+      assert(fullRouteNodes.has(required), `V3 full route missing F1-F14 gate: ${required}`)
     }
     const reportIndexNode = manifest.nodes.find(node => node.id === 'report-index')
     assert.strictEqual(reportIndexNode.owner, 'report-maintenance-preview')
@@ -164,7 +193,11 @@ function run() {
     assert.strictEqual(fallbackInvocations, 1)
     assert.strictEqual(delegatedOrchestration.isDelegated('hooks-runtime'), true)
     assert.deepStrictEqual(Object.keys(manifest.routes).sort(),
-      ['changed', 'fast', 'full', 'package-release', 'profile-deploy'])
+      ['boundary', 'changed', 'delivery', 'fast', 'full', 'package-release', 'profile-deploy'])
+    assert.strictEqual(parseArgs(['--intent', 'boundary']).purpose, 'boundary')
+    assert.strictEqual(parseArgs(['--intent=release']).purpose, 'release')
+    assert.strictEqual(parseArgs(['--purpose', 'delivery']).purpose, 'delivery')
+    assert.ok(cacheRelativePath('fixture').includes(path.join('validation-evidence', 'v2')))
     const fullPlan = planValidation({
       manifest,
       route: 'full',
@@ -175,10 +208,18 @@ function run() {
       candidateId: 'fixture-full'
     })
     assert.strictEqual(fullPlan.selectedNodeCount, manifest.routes.full.nodes.length)
+    assert.strictEqual(fullPlan.schemaVersion, 'ValidationPlanV2')
+    assert.strictEqual(fullPlan.verificationLevel, 'V3')
+    assert.strictEqual(fullPlan.verificationPurpose, 'full-audit')
+    assert.strictEqual(fullPlan.executionState, 'ready')
+    assert.strictEqual(fullPlan.fullFallback, null)
+    assert.strictEqual(toValidationPlanV1(fullPlan).schemaVersion, 'ValidationPlanV1')
+    assert.strictEqual(toValidationPlanV1(fullPlan).impactGraph.schemaVersion, 'ValidationImpactGraphV1')
     assert.strictEqual(fullPlan.validationLayer, 'qualification')
     assert.strictEqual(fullPlan.budget.selectionRatio, 1)
     assert.strictEqual(fullPlan.duplicateLeafCount, 0)
     assert.strictEqual(fullPlan.requiredNodeMisses, 0)
+    assert.match(fullPlan.manifestIdentity.digest, /^[a-f0-9]{64}$/)
     assert.match(fullPlan.impactGraphDigest, /^[a-f0-9]{64}$/)
     assert.match(fullPlan.planDigest, /^[a-f0-9]{64}$/)
     assert.strictEqual(new Set(manifest.nodes.map(commandSignature)).size, manifest.nodes.length)
@@ -193,16 +234,41 @@ function run() {
     })
     const profileDeployIds = profileDeployPlan.selectedNodes.map(node => node.id)
     assert.ok(!profileDeployIds.includes('validate-core'), 'profile-deploy must not execute the source/full validator twice')
-    assert.ok(profileDeployIds.includes('validate-workspace'))
-    const coreDelegates = manifest.nodes.find(node => node.id === 'validate-core').delegatedClosure
-    const workspaceDelegates = manifest.nodes.find(node => node.id === 'validate-workspace').delegatedClosure
-    assert.deepStrictEqual(workspaceDelegates, coreDelegates, 'workspace validator must own the same delegated leaf closure')
-    assert.deepStrictEqual(profileDeployPlan.coveredInvariantNodes, ['validate-core'])
+    assert.ok(!profileDeployIds.includes('validate-workspace'), 'profile V2 must not reuse the full workspace validator')
+    assert.ok(profileDeployIds.includes('profile-governance'))
+    assert.ok(profileDeployIds.includes('validation-dag'))
+    assert.strictEqual(profileDeployPlan.verificationLevel, 'V2')
+    assert.ok(profileDeployPlan.selectedNodeCount < fullPlan.selectedNodeCount)
     assert.strictEqual(
       profileDeployPlan.selectedNodes.filter(node => node.command === 'node' && node.args.join(' ') === 'scripts/validate.js').length,
-      1,
-      'profile-deploy must contain one full validation command'
+      0,
+      'profile V2 must not contain the V3 workspace validation command'
     )
+    const packageBoundaryPlan = planValidation({
+      manifest,
+      route: 'package-release',
+      changedFiles: [],
+      changedSource: 'explicit',
+      riskClass: 'normal',
+      candidateStable: true,
+      candidateId: 'fixture-package-boundary'
+    })
+    const packageBoundaryIds = packageBoundaryPlan.selectedNodes.map(node => node.id)
+    assert.strictEqual(packageBoundaryPlan.verificationLevel, 'V2')
+    assert.ok(packageBoundaryIds.includes('pack-clean'))
+    assert.ok(packageBoundaryIds.includes('published-package-scripts-contract'))
+    assert.ok(!packageBoundaryIds.includes('global-install-smoke'))
+    assert.ok(!packageBoundaryIds.includes('critical-coverage'))
+    assert.ok(packageBoundaryPlan.selectedNodeCount < fullPlan.selectedNodeCount)
+    assert.throws(() => planValidation({
+      manifest,
+      route: 'profile-deploy',
+      affectedBoundaries: ['hook-runtime'],
+      changedFiles: [],
+      changedSource: 'explicit',
+      candidateStable: true,
+      candidateId: 'fixture-profile-boundary-conflict'
+    }), error => error instanceof ValidationDagError && error.code === 'VALIDATION_BOUNDARY_ROUTE_CONFLICT')
 
     const impactFixture = fixtureManifest([
       fixtureNode('impact-source', { inputs: ['src/**'], consumers: ['impact-consumer'] }),
@@ -212,7 +278,34 @@ function run() {
     assert.deepStrictEqual(impactGraph.matchedNodeIds, ['impact-source'])
     assert.deepStrictEqual(impactGraph.affectedNodeIds, ['impact-source', 'impact-consumer'])
     assert.strictEqual(impactGraph.complete, true)
+    assert.strictEqual(impactGraph.schemaVersion, 'ValidationImpactGraphV2')
+    assert.deepStrictEqual(impactGraph.typedConsumerEdges,
+      [{ source: 'impact-source', target: 'impact-consumer', type: 'runtimeConsumer' }])
     assert.strictEqual(buildValidationImpactGraph({ manifest: impactFixture, changedFiles: ['unknown/a.js'] }).complete, false)
+
+    const typedImpactFixture = fixtureManifest([
+      fixtureNode('typed-source', { inputs: ['typed/**'], consumers: ['typed-qualification'] }),
+      fixtureNode('typed-qualification', { inputs: ['qualification/**'], consumers: ['typed-release'] }),
+      fixtureNode('typed-release', { inputs: ['release/**'] })
+    ])
+    typedImpactFixture.nodeVerificationPolicies.overrides = {
+      'typed-qualification': { consumerEdgeType: 'qualificationConsumer' },
+      'typed-release': { consumerEdgeType: 'releaseConsumer' }
+    }
+    const typedV1 = buildValidationImpactGraph({
+      manifest: typedImpactFixture,
+      changedFiles: ['typed/a.js'],
+      verificationLevel: 'V1'
+    })
+    assert.deepStrictEqual(typedV1.affectedNodeIds, ['typed-source'])
+    const typedV2 = buildValidationImpactGraph({
+      manifest: typedImpactFixture,
+      changedFiles: ['typed/a.js'],
+      verificationLevel: 'V2'
+    })
+    assert.deepStrictEqual(typedV2.affectedNodeIds, ['typed-source', 'typed-qualification'])
+    assert(typedV2.typedConsumerEdges.some(edge => edge.type === 'qualificationConsumer'))
+    assert(!typedV2.affectedNodeIds.includes('typed-release'))
 
     const duplicateId = clone(manifest)
     duplicateId.nodes.push(clone(duplicateId.nodes[0]))
@@ -231,6 +324,16 @@ function run() {
     assert.throws(() => validateValidationManifest(unknownConsumer),
       error => error instanceof ValidationDagError && /unknown consumer/.test(error.message))
 
+    const v3NodeInBoundary = clone(manifest)
+    v3NodeInBoundary.verificationBoundaries.profile.nodes.push('global-install-smoke')
+    assert.throws(() => validateValidationManifest(v3NodeInBoundary),
+      error => error instanceof ValidationDagError && /contains V3-only node/.test(error.message))
+
+    const v3NodeInScopedRoute = clone(manifest)
+    v3NodeInScopedRoute.routes['profile-deploy'].nodes.push('global-install-smoke')
+    assert.throws(() => validateValidationManifest(v3NodeInScopedRoute),
+      error => error instanceof ValidationDagError && /contains V3-only node/.test(error.message))
+
     const missingGraphStatus = clone(manifest)
     delete missingGraphStatus.consumerGraphComplete
     assert.throws(() => validateValidationManifest(missingGraphStatus),
@@ -240,6 +343,12 @@ function run() {
     invalidDelegatedClosure.nodes.find(node => node.id === 'validate-core').delegatedClosure[0].nodeId = 'Missing_Node'
     assert.throws(() => validateValidationManifest(invalidDelegatedClosure),
       error => error instanceof ValidationDagError && /delegatedClosure.entry/.test(error.message))
+
+    const invalidDurationEstimate = fixtureManifest([
+      fixtureNode('invalid-duration-estimate', { timeoutMs: 5000, estimatedDurationMs: 6000 })
+    ])
+    assert.throws(() => validateValidationManifest(invalidDurationEstimate),
+      error => error instanceof ValidationDagError && /estimatedDurationMs/.test(error.message))
 
     const invalidCoveredNode = clone(manifest)
     invalidCoveredNode.nodes.find(node => node.id === 'validate-workspace').coversNodes = ['missing-node']
@@ -323,9 +432,12 @@ function run() {
       candidateStable: true,
       candidateId: 'fixture-context'
     })
-    assert.strictEqual(contextChanged.routeResolved, 'full')
-    assert.strictEqual(contextChanged.validationLayer, 'qualification')
-    assert.strictEqual(contextChanged.fullFallback, 'validation-control-plane-changed')
+    assert.strictEqual(contextChanged.routeResolved, 'boundary')
+    assert.strictEqual(contextChanged.verificationLevel, 'V2')
+    assert.strictEqual(contextChanged.validationLayer, 'boundary')
+    assert.strictEqual(contextChanged.fullFallback, null)
+    assert(contextChanged.affectedBoundaries.includes('hook-runtime'))
+    assert.notStrictEqual(contextChanged.selectedNodeCount, contextChanged.fullNodeCount)
 
     const profileSelectorChanged = planValidation({
       manifest,
@@ -394,8 +506,48 @@ function run() {
       candidateStable: true,
       candidateId: 'fixture-unknown'
     })
-    assert.strictEqual(unknown.routeResolved, 'full')
-    assert.match(unknown.fullFallback, /^unknown-input:/)
+    assert.strictEqual(unknown.routeResolved, 'changed')
+    assert.strictEqual(unknown.executionState, 'blocked')
+    assert(unknown.executionBlockers.some(item => item.code === 'VALIDATION_UNKNOWN_INPUT'))
+    assert.strictEqual(unknown.fullFallback, null)
+
+    const releaseOnlyManifest = fixtureManifest([
+      fixtureNode('fixture-invariant', { inputs: ['base/**'] }),
+      fixtureNode('release-only', { inputs: ['release-only/**'] })
+    ])
+    releaseOnlyManifest.nodeVerificationPolicies.overrides['release-only'] = {
+      consumerEdgeType: 'releaseConsumer'
+    }
+    releaseOnlyManifest.verificationBoundaries.fixture.nodes = ['fixture-invariant']
+    releaseOnlyManifest.routes['profile-deploy'].nodes = ['fixture-invariant']
+    releaseOnlyManifest.routes['package-release'].nodes = ['fixture-invariant']
+    const releaseOnlyInput = planValidation({
+      manifest: releaseOnlyManifest,
+      route: 'changed',
+      changedFiles: ['release-only/candidate.json'],
+      changedSource: 'explicit',
+      riskClass: 'normal',
+      candidateStable: true,
+      candidateId: 'fixture-release-only-input'
+    })
+    assert.strictEqual(releaseOnlyInput.verificationLevel, 'V1')
+    assert.strictEqual(releaseOnlyInput.executionState, 'blocked')
+    assert(releaseOnlyInput.executionBlockers.some(item => item.code === 'VALIDATION_UNKNOWN_INPUT'))
+    assert.deepStrictEqual(releaseOnlyInput.impactGraph.unknownInputs, ['release-only/candidate.json'])
+
+    const unresolvedBoundaryManifest = fixtureManifest([
+      fixtureNode('unresolved-boundary-owner', { inputs: ['outside-boundary/**'] })
+    ])
+    const unresolvedBoundary = planValidation({
+      manifest: unresolvedBoundaryManifest,
+      route: 'boundary',
+      changedFiles: ['outside-boundary/input.js'],
+      changedSource: 'explicit',
+      candidateStable: true,
+      candidateId: 'fixture-unresolved-boundary'
+    })
+    assert.strictEqual(unresolvedBoundary.executionState, 'blocked')
+    assert(unresolvedBoundary.executionBlockers.some(item => item.code === 'VALIDATION_BOUNDARY_REQUIRED'))
 
     const critical = planValidation({
       manifest,
@@ -406,8 +558,10 @@ function run() {
       candidateStable: true,
       candidateId: 'fixture-critical'
     })
-    assert.strictEqual(critical.routeResolved, 'full')
-    assert.strictEqual(critical.fullFallback, 'validation-control-plane-changed')
+    assert.strictEqual(critical.routeResolved, 'boundary')
+    assert.strictEqual(critical.verificationLevel, 'V2')
+    assert(critical.affectedBoundaries.includes('package'))
+    assert.strictEqual(critical.fullFallback, null)
 
     const publicMetadata = planValidation({
       manifest,
@@ -438,7 +592,9 @@ function run() {
       candidateStable: true,
       candidateId: 'fixture-package-control'
     })
-    assert.strictEqual(packageControl.routeResolved, 'full')
+    assert.strictEqual(packageControl.routeResolved, 'boundary')
+    assert.strictEqual(packageControl.verificationLevel, 'V2')
+    assert(packageControl.affectedBoundaries.includes('package'))
     assert.strictEqual(packageControl.changeDescriptors[0].semanticClass, 'package-control')
 
     const highRisk = planValidation({
@@ -450,8 +606,11 @@ function run() {
       candidateStable: true,
       candidateId: 'fixture-high'
     })
-    assert.strictEqual(highRisk.routeResolved, 'full')
-    assert.strictEqual(highRisk.fullFallback, 'risk-high')
+    assert.strictEqual(highRisk.routeResolved, 'boundary')
+    assert.strictEqual(highRisk.verificationLevel, 'V2')
+    assert.strictEqual(highRisk.executionState, 'blocked')
+    assert(highRisk.executionBlockers.some(item => item.code === 'VALIDATION_BOUNDARY_UNRESOLVED'))
+    assert.strictEqual(highRisk.fullFallback, null)
 
     const unstable = planValidation({
       manifest,
@@ -462,8 +621,10 @@ function run() {
       candidateStable: false,
       candidateId: 'fixture-unstable'
     })
-    assert.strictEqual(unstable.routeResolved, 'full')
-    assert.strictEqual(unstable.fullFallback, 'candidate-identity-unstable')
+    assert.strictEqual(unstable.routeResolved, 'changed')
+    assert.strictEqual(unstable.executionState, 'blocked')
+    assert(unstable.executionBlockers.some(item => item.code === 'VALIDATION_CANDIDATE_IDENTITY_UNSTABLE'))
+    assert.strictEqual(unstable.fullFallback, null)
 
     const incompleteGraphManifest = clone(manifest)
     incompleteGraphManifest.consumerGraphComplete = false
@@ -476,8 +637,10 @@ function run() {
       candidateStable: true,
       candidateId: 'fixture-incomplete-graph'
     })
-    assert.strictEqual(incompleteGraph.routeResolved, 'full')
-    assert.strictEqual(incompleteGraph.fullFallback, 'consumer-graph-incomplete')
+    assert.strictEqual(incompleteGraph.routeResolved, 'changed')
+    assert.strictEqual(incompleteGraph.executionState, 'blocked')
+    assert(incompleteGraph.executionBlockers.some(item => item.code === 'VALIDATION_CONSUMER_GRAPH_INCOMPLETE'))
+    assert.strictEqual(incompleteGraph.fullFallback, null)
 
     const wideNodes = Array.from({ length: 5 }, (_, index) => fixtureNode('wide-' + index, {
       inputs: index === 0 ? ['src/**'] : ['other-' + index + '/**'],
@@ -493,8 +656,10 @@ function run() {
       candidateStable: true,
       candidateId: 'fixture-wide'
     })
-    assert.strictEqual(wide.routeResolved, 'full')
-    assert.strictEqual(wide.fullFallback, 'closure-over-80-percent')
+    assert.strictEqual(wide.routeResolved, 'changed')
+    assert.strictEqual(wide.verificationLevel, 'V1')
+    assert.strictEqual(wide.fullFallback, null)
+    assert.strictEqual(wide.selectedNodeCount, wide.fullNodeCount)
 
     const clean = planValidation({
       manifest,
@@ -514,6 +679,90 @@ function run() {
       assert(!clean.selectedNodes.some(node => node.id === invariant), `qualification invariant leaked into clean changed plan: ${invariant}`)
     }
     assert.deepStrictEqual(clean.delegatedParentIds, clean.nestedParentIds)
+    assert.ok(clean.budget.estimatedDurationMs < clean.budget.hardTimeoutUpperBoundMs)
+    assert.strictEqual(clean.budget.estimateConfidence, 'low')
+    assert.strictEqual(clean.budget.logBudgetBytes, clean.selectedNodeCount * 8000)
+
+    const heavyManifest = fixtureManifest([
+      fixtureNode('heavy-boundary', { timeoutMs: 700000, estimatedDurationMs: 120000, inputs: ['heavy/**'] })
+    ])
+    const awaitingBudget = planValidation({
+      manifest: heavyManifest,
+      route: 'boundary',
+      affectedBoundaries: ['fixture'],
+      changedFiles: ['heavy/a.js'],
+      changedSource: 'explicit',
+      riskClass: 'high',
+      candidateStable: true,
+      candidateId: 'fixture-heavy'
+    })
+    assert.strictEqual(awaitingBudget.verificationLevel, 'V2')
+    assert.strictEqual(awaitingBudget.executionState, 'awaiting-confirmation')
+    assert.strictEqual(awaitingBudget.budgetCard.schemaVersion, 'BudgetCardV1')
+    assert.strictEqual(awaitingBudget.budgetCard.confirmationRequired, true)
+    assert.strictEqual(awaitingBudget.budgetCard.estimatedDurationMs, 120000)
+    assert.strictEqual(awaitingBudget.budgetCard.hardTimeoutUpperBoundMs, 700000)
+    assert.strictEqual(awaitingBudget.budgetCard.estimateConfidence, 'high')
+    assert.deepStrictEqual(awaitingBudget.budgetCard.waitReasons, ['heavy-node-selected'])
+    assert.match(awaitingBudget.budgetCard.digest, /^[a-f0-9]{64}$/)
+    assert.throws(() => executeValidationPlan({
+      manifest: heavyManifest,
+      plan: awaitingBudget,
+      candidate: { candidateId: 'fixture-heavy', stable: true, changedFiles: ['heavy/a.js'], changedSource: 'explicit' },
+      repoRoot: ROOT,
+      activeRoot: tempRoot,
+      useCache: false,
+      runCommand: successEvidence
+    }), error => error instanceof ValidationDagError && error.code === 'VALIDATION_BUDGET_APPROVAL_REQUIRED')
+    const approvedBudget = planValidation({
+      manifest: heavyManifest,
+      route: 'boundary',
+      affectedBoundaries: ['fixture'],
+      changedFiles: ['heavy/a.js'],
+      changedSource: 'explicit',
+      riskClass: 'high',
+      candidateStable: true,
+      candidateId: 'fixture-heavy',
+      approvePlanDigest: awaitingBudget.budgetCard.digest
+    })
+    assert.strictEqual(approvedBudget.executionState, 'ready')
+    assert.strictEqual(approvedBudget.planDigest, awaitingBudget.planDigest,
+      'budget approval must not change the semantic plan digest')
+    assert.strictEqual(approvedBudget.budgetCard.status, 'approved')
+
+    assert.throws(() => planValidation({
+      manifest,
+      route: 'changed',
+      level: 'V3',
+      changedFiles: ['README.md'],
+      changedSource: 'explicit',
+      candidateStable: true,
+      candidateId: 'fixture-unowned-v3'
+    }), error => error instanceof ValidationDagError && error.code === 'VALIDATION_V3_AUTHORITY_REQUIRED')
+    assert.throws(() => planValidation({
+      manifest,
+      route: 'full',
+      purpose: 'release',
+      changedFiles: [],
+      changedSource: 'git-clean',
+      candidateStable: true,
+      candidateId: 'fixture-release-no-authority'
+    }), error => error instanceof ValidationDagError && error.code === 'VALIDATION_RELEASE_AUTHORIZATION_REQUIRED')
+    const releasePlan = planValidation({
+      manifest,
+      route: 'full',
+      purpose: 'release',
+      releaseAuthorized: true,
+      changedFiles: [],
+      changedSource: 'git-clean',
+      candidateStable: true,
+      candidateId: 'fixture-release-authorized',
+      authoritySource: 'fixture-user-confirmation'
+    })
+    assert.strictEqual(releasePlan.verificationLevel, 'V3')
+    assert.strictEqual(releasePlan.verificationPurpose, 'release')
+    assert.strictEqual(releasePlan.claimCeiling, 'release-candidate')
+    assert.strictEqual(releasePlan.selectedNodeCount, fullPlan.selectedNodeCount)
 
     const firstCandidate = buildCandidateIdentity({ repoRoot: ROOT })
     const secondCandidate = buildCandidateIdentity({ repoRoot: ROOT })
@@ -528,13 +777,15 @@ function run() {
     const candidate = {
       candidateId: 'candidate-one',
       stable: true,
-      dirtyIdentities: [],
+      head: 'fixture-head',
+      dirtyIdentities: [{ path: 'fixture/a.js', deleted: false, digest: 'fixture-a', bytes: 1 }],
+      scopeIdentities: [{ path: 'fixture/a.js', deleted: false, digest: 'fixture-a', bytes: 1 }],
       changedFiles: ['fixture/a.js'],
       changedSource: 'explicit'
     }
     const cachedPlan = planValidation({
       manifest: cachedManifest,
-      route: 'full',
+      route: 'changed',
       changedFiles: candidate.changedFiles,
       changedSource: candidate.changedSource,
       riskClass: 'normal',
@@ -560,7 +811,7 @@ function run() {
     assert.match(firstRun.receipt.delegatedClosureDigest, /^[a-f0-9]{64}$/)
     assert.match(firstRun.receipt.testRouteDigest, /^[a-f0-9]{64}$/)
     assert.strictEqual(firstRun.receipt.executionMode, 'orchestrated-serial-lock-aware')
-    assert.strictEqual(firstRun.receipt.validationLayer, 'qualification')
+    assert.strictEqual(firstRun.receipt.validationLayer, 'iterative')
     assert.deepStrictEqual(firstRun.receipt.budget, cachedPlan.budget)
     assert.deepStrictEqual(firstRun.receipt.delegatedParentIds, cachedPlan.delegatedParentIds)
     assert.ok(firstRun.receipt.stdoutBytes >= 2)
@@ -569,6 +820,35 @@ function run() {
     assert.match(firstRun.receipt.nestedCommandGraphDigest || '', /^[a-f0-9]{64}$|^$/)
     assert.strictEqual(firstRun.receipt.contextBindingTrace.status, 'unverified')
     assert.strictEqual(runCount, 1)
+
+    const tamperedExecutablePlan = clone(cachedPlan)
+    tamperedExecutablePlan.selectedNodes[0].timeoutMs += 1
+    assert.throws(() => executeValidationPlan({
+      manifest: cachedManifest,
+      plan: tamperedExecutablePlan,
+      candidate,
+      repoRoot: ROOT,
+      activeRoot: tempRoot,
+      runCommand
+    }), error => error instanceof ValidationDagError && error.code === 'VALIDATION_PLAN_DIGEST_MISMATCH')
+    assert.throws(() => executeValidationPlan({
+      manifest: cachedManifest,
+      plan: cachedPlan,
+      candidate: { ...candidate, candidateId: 'candidate-drift' },
+      repoRoot: ROOT,
+      activeRoot: tempRoot,
+      runCommand
+    }), error => error instanceof ValidationDagError && error.code === 'VALIDATION_PLAN_CANDIDATE_MISMATCH')
+    const changedManifestAfterPlan = clone(cachedManifest)
+    changedManifestAfterPlan.nodes[0].timeoutMs += 1
+    assert.throws(() => executeValidationPlan({
+      manifest: changedManifestAfterPlan,
+      plan: cachedPlan,
+      candidate,
+      repoRoot: ROOT,
+      activeRoot: tempRoot,
+      runCommand
+    }), error => error instanceof ValidationDagError && error.code === 'VALIDATION_PLAN_MANIFEST_MISMATCH')
 
     const delegatedCore = fixtureNode('generic-validation-owner', {
       dependencies: [],
@@ -614,7 +894,7 @@ function run() {
     assert.strictEqual(runCount, 1)
 
     const descriptor = cacheDescriptor({
-      manifestIdentityValue: manifestIdentity(cachedManifest),
+      manifest: cachedManifest,
       candidate,
       node: cachedNode
     })
@@ -656,14 +936,14 @@ function run() {
     const candidateTwo = { ...candidate, candidateId: 'candidate-two' }
     const planTwo = planValidation({
       manifest: cachedManifest,
-      route: 'full',
+      route: 'changed',
       changedFiles: candidateTwo.changedFiles,
       changedSource: candidateTwo.changedSource,
       riskClass: 'normal',
       candidateStable: true,
       candidateId: candidateTwo.candidateId
     })
-    executeValidationPlan({
+    const candidateTwoRun = executeValidationPlan({
       manifest: cachedManifest,
       plan: planTwo,
       candidate: candidateTwo,
@@ -671,12 +951,39 @@ function run() {
       activeRoot: tempRoot,
       runCommand
     })
-    assert.strictEqual(runCount, 4)
+    assert.strictEqual(candidateTwoRun.receipt.cacheHitCount, 1)
+    assert.strictEqual(runCount, 3, 'candidate id drift alone must not invalidate an unchanged node scope')
 
-    const candidateThree = { ...candidate, candidateId: 'candidate-three' }
-    const planThree = planValidation({
+    const v3Plan = planValidation({
       manifest: cachedManifest,
       route: 'full',
+      changedFiles: candidateTwo.changedFiles,
+      changedSource: candidateTwo.changedSource,
+      riskClass: 'normal',
+      candidateStable: true,
+      candidateId: candidateTwo.candidateId
+    })
+    const v3Run = executeValidationPlan({
+      manifest: cachedManifest,
+      plan: v3Plan,
+      candidate: candidateTwo,
+      repoRoot: ROOT,
+      activeRoot: tempRoot,
+      runCommand
+    })
+    assert.strictEqual(v3Run.receipt.cacheHitCount, 0)
+    assert.strictEqual(v3Run.receipt.results[0].cacheStatus, 'disabled-v3')
+    assert.strictEqual(runCount, 4, 'V3 must execute even when a V1 cache entry is fresh')
+
+    const candidateThree = {
+      ...candidate,
+      candidateId: 'candidate-three',
+      dirtyIdentities: [{ path: 'fixture/a.js', deleted: false, digest: 'fixture-b', bytes: 1 }],
+      scopeIdentities: []
+    }
+    const planThree = planValidation({
+      manifest: cachedManifest,
+      route: 'changed',
       changedFiles: candidateThree.changedFiles,
       changedSource: candidateThree.changedSource,
       riskClass: 'normal',
@@ -695,6 +1002,7 @@ function run() {
     assert.strictEqual(capacityRun.receipt.nativeExitCode, 0)
     assert.strictEqual(capacityRun.receipt.results[0].cacheWrite, 'bypassed')
     assert.strictEqual(capacityRun.persistence.status, 'bypassed')
+    assert.deepStrictEqual(capacityRun.receipt.invalidationFrontier, ['fixture-cache'])
     assert.strictEqual(runCount, 5)
 
     const unstableCacheCandidate = { ...candidate, candidateId: 'candidate-unstable-cache', stable: false }
@@ -721,7 +1029,7 @@ function run() {
         }
       })
       assert.strictEqual(unstableCacheRun.receipt.cacheHitCount, 0)
-      assert.strictEqual(unstableCacheRun.receipt.results[0].cacheStatus, 'bypassed-unstable')
+      assert.strictEqual(unstableCacheRun.receipt.results[0].cacheStatus, 'disabled-v3')
     }
     assert.strictEqual(unstableRunCount, 2)
 
@@ -735,11 +1043,13 @@ function run() {
     const focusedCandidate = {
       ...candidate,
       candidateId: 'candidate-focused-cache',
+      dirtyIdentities: [{ path: 'focus/a.js', deleted: false, digest: 'focus-a', bytes: 1 }],
+      scopeIdentities: [{ path: 'focus/a.js', deleted: false, digest: 'focus-a', bytes: 1 }],
       changedFiles: ['focus/a.js']
     }
     const focusedFullPlan = planValidation({
       manifest: focusedManifest,
-      route: 'full',
+      route: 'changed',
       changedFiles: focusedCandidate.changedFiles,
       changedSource: 'explicit',
       riskClass: 'normal',
@@ -759,9 +1069,9 @@ function run() {
       activeRoot: tempRoot,
       runCommand: focusedCommand
     })
-    assert.strictEqual(focusedRunCount, 2)
+    assert.strictEqual(focusedRunCount, 1)
     const focusedDescriptor = cacheDescriptor({
-      manifestIdentityValue: manifestIdentity(focusedManifest),
+      manifest: focusedManifest,
       candidate: focusedCandidate,
       node: focusCacheNode
     })
@@ -793,10 +1103,89 @@ function run() {
       activeRoot: tempRoot,
       runCommand: focusedCommand
     })
-    assert.strictEqual(focusedFallbackRun.receipt.routeResolved, 'full')
-    assert.strictEqual(focusedFallbackRun.receipt.selectedNodeCount, 2)
-    assert.match(focusedFallbackRun.receipt.fullFallback, /^cache-evidence-invalid:/)
-    assert.strictEqual(focusedRunCount, 4)
+    assert.strictEqual(focusedFallbackRun.receipt.routeResolved, 'changed')
+    assert.strictEqual(focusedFallbackRun.receipt.selectedNodeCount, 1)
+    assert.strictEqual(focusedFallbackRun.receipt.fullFallback, null)
+    assert.deepStrictEqual(focusedFallbackRun.receipt.invalidationFrontier, ['focus-cache'])
+    assert.deepStrictEqual(focusedFallbackRun.receipt.cacheInvalidations,
+      [{ nodeId: 'focus-cache', status: 'invalid', action: 'rerun-precise-node' }])
+    assert.strictEqual(focusedRunCount, 2)
+
+    const cascadeManifest = fixtureManifest([
+      fixtureNode('cache-upstream', {
+        inputs: ['cascade/**'],
+        consumers: ['cache-downstream'],
+        cachePolicy: 'candidate-bound',
+        writeScopes: []
+      }),
+      fixtureNode('cache-downstream', {
+        inputs: ['downstream/**'],
+        dependencies: ['cache-upstream'],
+        cachePolicy: 'candidate-bound',
+        writeScopes: []
+      })
+    ])
+    const cascadeCandidateA = {
+      ...candidate,
+      candidateId: 'candidate-cascade-a',
+      dirtyIdentities: [{ path: 'cascade/input.js', deleted: false, digest: 'cascade-a', bytes: 1 }],
+      scopeIdentities: [{ path: 'cascade/input.js', deleted: false, digest: 'cascade-a', bytes: 1 }],
+      changedFiles: ['cascade/input.js']
+    }
+    const cascadePlanA = planValidation({
+      manifest: cascadeManifest,
+      route: 'changed',
+      changedFiles: cascadeCandidateA.changedFiles,
+      changedSource: 'explicit',
+      candidateStable: true,
+      candidateId: cascadeCandidateA.candidateId
+    })
+    let cascadeRunCount = 0
+    const cascadeCommand = node => {
+      cascadeRunCount += 1
+      return successEvidence(node)
+    }
+    const cascadeRunA = executeValidationPlan({
+      manifest: cascadeManifest,
+      plan: cascadePlanA,
+      candidate: cascadeCandidateA,
+      repoRoot: ROOT,
+      activeRoot: tempRoot,
+      runCommand: cascadeCommand
+    })
+    assert.strictEqual(cascadeRunCount, 2)
+    const cascadeCandidateB = {
+      ...cascadeCandidateA,
+      candidateId: 'candidate-cascade-b',
+      dirtyIdentities: [{ path: 'cascade/input.js', deleted: false, digest: 'cascade-b', bytes: 1 }],
+      scopeIdentities: [{ path: 'cascade/input.js', deleted: false, digest: 'cascade-b', bytes: 1 }]
+    }
+    const cascadePlanB = planValidation({
+      manifest: cascadeManifest,
+      route: 'changed',
+      changedFiles: cascadeCandidateB.changedFiles,
+      changedSource: 'explicit',
+      candidateStable: true,
+      candidateId: cascadeCandidateB.candidateId
+    })
+    const cascadeRunB = executeValidationPlan({
+      manifest: cascadeManifest,
+      plan: cascadePlanB,
+      candidate: cascadeCandidateB,
+      repoRoot: ROOT,
+      activeRoot: tempRoot,
+      runCommand: cascadeCommand
+    })
+    assert.strictEqual(cascadeRunCount, 4, 'changed upstream input must invalidate its dependent even when stdout is unchanged')
+    assert.deepStrictEqual(cascadeRunB.receipt.invalidationFrontier, ['cache-downstream', 'cache-upstream'])
+    assert.notStrictEqual(
+      cascadeRunA.receipt.nodeReceiptDigests['cache-upstream'],
+      cascadeRunB.receipt.nodeReceiptDigests['cache-upstream']
+    )
+    assert.strictEqual(
+      cascadeRunB.receipt.dependencyReceiptDigests['cache-downstream'][0],
+      cascadeRunB.receipt.nodeReceiptDigests['cache-upstream']
+    )
 
     const serialManifest = fixtureManifest([
       fixtureNode('serial-a'),
@@ -870,6 +1259,8 @@ function run() {
     assert.strictEqual(packageJson.scripts.test, 'node scripts/run-validation.js --route full')
     assert.strictEqual(packageJson.scripts['test:fast'], 'node scripts/run-validation.js --route fast')
     assert.strictEqual(packageJson.scripts['test:full'], 'node scripts/run-validation.js --route full')
+    assert.strictEqual(packageJson.scripts['test:delivery'], 'node scripts/run-validation.js --route delivery')
+    assert.strictEqual(packageJson.scripts['test:boundary'], 'node scripts/run-validation.js --route boundary')
     for (const file of [
       'scripts/validation-manifest.json',
       'scripts/run-validation.js',
@@ -894,6 +1285,33 @@ function run() {
     assert.strictEqual(planEnvelope.schemaVersion, 'ValidationCliEnvelopeV1')
     assert.strictEqual(planEnvelope.ok, true)
     assert.strictEqual(planEnvelope.error, null)
+    assert.notStrictEqual(planEnvelope.data.plan.routeResolved, 'full')
+    assert.strictEqual(planEnvelope.data.plan.fullFallback, null)
+
+    const highHookPlan = spawnSync(process.execPath, [
+      'scripts/run-validation.js',
+      '--route', 'changed',
+      '--risk', 'high',
+      '--changed', 'hooks/_runtime/lifecycle-host-adapters.cjs',
+      '--plan',
+      '--json'
+    ], { cwd: ROOT, encoding: 'utf8', windowsHide: true })
+    assert.strictEqual(highHookPlan.status, 0, highHookPlan.stderr)
+    const highHookEnvelope = JSON.parse(highHookPlan.stdout)
+    assert.strictEqual(highHookEnvelope.data.plan.routeResolved, 'boundary')
+    assert.strictEqual(highHookEnvelope.data.plan.verificationLevel, 'V2')
+    assert.strictEqual(highHookEnvelope.data.plan.fullFallback, null)
+    assert(highHookEnvelope.data.plan.affectedBoundaries.includes('hook-runtime'))
+
+    const unauthorizedRelease = spawnSync(process.execPath, [
+      'scripts/run-validation.js',
+      '--route', 'full',
+      '--purpose', 'release',
+      '--plan',
+      '--json'
+    ], { cwd: ROOT, encoding: 'utf8', windowsHide: true })
+    assert.strictEqual(unauthorizedRelease.status, 2)
+    assert.strictEqual(JSON.parse(unauthorizedRelease.stdout).error.code, 'VALIDATION_RELEASE_AUTHORIZATION_REQUIRED')
 
     const invalidRoute = spawnSync(process.execPath, [
       'scripts/run-validation.js',

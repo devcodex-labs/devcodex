@@ -94,7 +94,7 @@ const harmful = transitionFeature(transition.state, 'task-index-acceleration', '
 assert.strictEqual(harmful.receipt.verdict, 'harmful')
 assert.strictEqual(harmful.receipt.to, 'rolled-back')
 assert.strictEqual(decideFeatureRoute({ mode: 'safe-auto', state: harmful.state, featureId: 'task-index' }).route, 'bounded-direct')
-assert.strictEqual(decideFeatureRoute({ mode: 'full-only', state: promoted.state, featureId: 'validation-changed' }).route, 'full-validation')
+assert.strictEqual(decideFeatureRoute({ mode: 'full-only', state: promoted.state, featureId: 'validation-changed' }).route, 'direct-validation-plan')
 
 const sunset = transitionFeature(harmful.state, 'task-index-acceleration', 'sunset', { releaseCandidatesWithoutBenefit: 2 })
 assert.strictEqual(sunset.receipt.to, 'sunset')
@@ -240,8 +240,10 @@ const validationCli = spawnSync(process.execPath, [
 })
 assert.strictEqual(validationCli.status, 0, validationCli.stderr || validationCli.stdout)
 const validationResult = JSON.parse(validationCli.stdout)
-assert.strictEqual(validationResult.data.plan.executionOptimization.routeApplied, 'full')
+assert.strictEqual(validationResult.data.plan.executionOptimization.routeApplied, 'changed')
 assert.strictEqual(validationResult.data.plan.executionOptimization.reasonCode, 'feature-rolled-back')
+assert.strictEqual(validationResult.data.plan.executionOptimization.fallback, null)
+assert.strictEqual(validationResult.data.plan.executionOptimization.precisionStatus, 'explicit-route-retained-cache-disabled')
 
 const consumerRepo = path.join(tempRoot, 'consumer-repo')
 fs.mkdirSync(path.join(consumerRepo, '.devcodex'), { recursive: true })

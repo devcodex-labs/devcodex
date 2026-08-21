@@ -13,7 +13,11 @@ const {
 const { resolveControlAsset } = require('./lib/control-content-delivery')
 const { decodeHostHookCommand } = require('./lib/host-command')
 const { isDevCodexManagedHookEntry } = require('./lib/global-host-config-merge')
+const { cleanupPackageProjection } = require('./lib/package-compatibility-projection')
+const { restorePublishedPackageManifest } = require('./lib/published-package-manifest-projection')
 
+const NPM_COMMAND_TIMEOUT_MS = 180000
+const PACKAGE_PACK_TIMEOUT_MS = 600000
 const packageRoot = path.resolve(__dirname, '..')
 const packageJson = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'))
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-global-install-smoke-'))
@@ -29,6 +33,26 @@ function cleanupTempFixture() {
   if (tempCleaned) return
   fs.rmSync(tmp, { recursive: true, force: true })
   tempCleaned = true
+}
+
+function recoverInterruptedSourcePack() {
+  const failures = []
+  try {
+    restorePublishedPackageManifest(packageRoot)
+  } catch (error) {
+    failures.push(error)
+  }
+  try {
+    cleanupPackageProjection(packageRoot)
+  } catch (error) {
+    failures.push(error)
+  }
+  if (failures.length) {
+    const error = new Error('GLOBAL_INSTALL_SMOKE_PACKAGE_PROJECTION_RECOVERY_FAILED')
+    error.code = 'GLOBAL_INSTALL_SMOKE_PACKAGE_PROJECTION_RECOVERY_FAILED'
+    error.causes = failures
+    throw error
+  }
 }
 
 process.once('exit', cleanupTempFixture)
@@ -67,7 +91,7 @@ function runNpm(args, options = {}) {
     env,
     encoding: 'utf8',
     input: options.input,
-    timeout: options.timeout || 180000
+    timeout: options.timeout || NPM_COMMAND_TIMEOUT_MS
   })
   assert.strictEqual(
     result.status,
@@ -138,7 +162,17 @@ function listFiles(root) {
   return files.sort()
 }
 
-const pack = runNpm(['pack', '--json', '--pack-destination', packDir], { timeout: 180000 })
+let pack
+try {
+  pack = runNpm(['pack', '--json', '--pack-destination', packDir], { timeout: PACKAGE_PACK_TIMEOUT_MS })
+} catch (error) {
+  try {
+    recoverInterruptedSourcePack()
+  } catch (recoveryError) {
+    error.packageProjectionRecoveryError = recoveryError
+  }
+  throw error
+}
 const packResult = JSON.parse(pack.stdout)
 assert.ok(Array.isArray(packResult) && packResult.length === 1)
 const tarball = path.join(packDir, packResult[0].filename)

@@ -1,15 +1,15 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.17.10 已发布并完成 R7；下列工作区交付链、验证控制面与文档站变更均为未发布工作树候选，不代表 registry 用户已经获得。发行事实以 Git tag、npm registry、GitHub Release 与 Profile 05 的 `ProfileCurrentTruthV1` 为准。
+> **当前**: 下列变更已冻结到 v1.17.11；在 Git tag、npm registry、GitHub Release 与 Profile 05 的 `ProfileCurrentTruthV1` 完成一致回读前，仍按发布候选处理，不提前冒充已发布事实。
 
 ## 当前未发布实现候选
 
-- **验证分层与计划可解释性**：`ValidationPlanV1` 与 `ValidationExecutionReceiptV2` 明确区分 iterative changed-route 和 qualification route，记录逐节点选择原因、预算、完整回退原因及执行回执；验证控制面自身变化、未知输入或闭包超过阈值时仍 fail closed 到 full，不用“优化”削弱最终资格验证。
+- **验证意图、四级执行与预算门（PF-315）**：新增 `VerificationIntentV1`、V0～V3、`ValidationPlanV2`（保留 V1 投影）、`ValidationImpactGraphV2` 类型化 runtime/qualification/release consumers、节点 `minimumLevel` 与 `BudgetCardV1`。`fast` 改为动态影响选择，`profile-deploy` / `package-release` 固定为各自 V2 边界；普通 edit/delivery/boundary 不再因 high risk、R3/R4、ECR、控制面、cache stale、未知输入或闭包比例 silent full。未知影响 BLOCK；`ValidationEvidenceV2` 绑定 manifest、全部节点匹配 dirty 输入、节点契约/策略及依赖 `nodeReceiptDigest`，上游输入即使 stdout 不变也会精确级联失效。CLI 以 `--intent` 为正式参数、保留 `--purpose` 兼容别名，并把预计耗时与硬超时上限分开呈现。新增 `test:delivery` / `test:boundary`，发布候选仍以显式授权的无缓存 V3 保持原 full 99-node parity。
 - **工作区绑定与续接一致性**：`HostWorkspaceBindingV1` 统一宿主工作区、workspace namespace 与 active project 的物理身份；`ProjectTargetLeaseV1` 只允许在短 TTL、marker/layout/allowlist 均未漂移时沿用目标，歧义、显式冲突或 workspace 选择立即重判，避免 session 轮换导致错误换项目。
 - **Memory 产物链接投影**：新增单一 `ArtifactLinkProjectionV1` owner，把合法任务产物投影为可点击本地链接；路径必须 canonical containment、去重且保留原真相源，越界、伪 URI、目录或缺失目标不生成链接。Memory MCP、提示、可见输出、任务续接及 package consumers 同步接入。
 - **公开 Skill 分类与可发现目录**：新增 canonical `PublicSkillTaxonomyV1`，将 86 个 bundled Skill 精确归入 workflow-routing 20、domain-architecture 21、quality-delivery 28、runtime-governance 17；83 active + 3 gray 生命周期保持独立。README 与 public-site 从同一投影生成分类计数、代表 Skill 和完整 86 项目录；`SkillCatalog` 服务端默认输出全部目录，并提供关键字、分类、生命周期及 `?category=` 过滤。Workspace Skill 不计入 bundled 86，也不成为第五分类。
-- **工作树交付边界**：仓库根 `.playwright-cli/` 由 repository-owned ignore 与 Git/package 路径集合守卫排除；验证只判断其是否被跟踪或进入 tarball，不读取、枚举、修改、移动或删除目录内容。本候选只允许本地实现、审查与验证收敛，不改版本、不 commit/tag/push/publish，也不更新 registry 或已发布运行态。
+- **工作树交付边界**：仓库根 `.playwright-cli/` 由 repository-owned ignore 与 Git/package 路径集合守卫排除；验证只判断其是否被跟踪或进入 tarball，不读取、枚举、修改、移动或删除目录内容。候选冻结前不改版本、不发布；本轮已获“修复收敛后发布并更新本机”授权，R4～R7 的真实执行与回读完成前不得提前写成 released。
 - **公开站工作流完整分层与语义流程**：公开站从“总览 + 6 个 primary ID”收敛为工作流选择、开发与修复、分析/审查/规划、对话/续接 4 个任务入口；完整解释 8 个 canonical workflow、6 primary + 2 advanced、12 个用户任务 subtype、1 个内部 `dev.plan-review` step 和 7 个 audit target。六个旧 URL 保留，架构与选择流程改为无需图表运行时的语义化响应式列表；控制面仅同步 `other/plan` 与内部步骤术语，runtime/CLI/Hook/MCP 行为和依赖不变。
 - **公开用户文档站任务化重构**：公开站从概念摘要扩展为 Journey / Trust / Reference 三层，新增四个任务教程、宿主与 workspace 设置、信任/安全/数据、CLI、状态错误码、运行态维护和术语表；quick start 收敛为单一只读首次成功路径，README 缩短并把深入说明指向 canonical Pages。四张首页能力卡各自进入独立教程；package 版本与生成时间写入 public projection，host reference 与产品表达由测试对账。旧 URL 全部保留，CLI/runtime/adapter 行为和依赖不变。
 - **公开站点内容与事实生成升级**：在保留已发布 9 个 URL 的前提下增加 concepts / workflows / 一条续接案例；生成器从现有投影器写出 `public-site/data/public-product-projection.json` 并刷新 marker 与 README V2 数字句；页数合同改为必存在路径 + 下限 23。
@@ -17,6 +17,7 @@
 
 ## 已归档发布说明
 
+- **v1.17.11 影响范围验证、Codex Hook 韧性与交付体验增强**：日常修改按 VerificationIntent V0～V2 和类型化影响图选择最小充分验证，显式发布才执行无缓存 V3；状态锁、Codex 事件输出、S15 rebind/PATH、组合 deadline 与 pack 中断恢复同步修复。v1.17.10 后的 workspace binding、Memory 产物链接、86 项 Skill 分类目录和公开任务文档增强一并纳入。完整说明见 `changelogs/releases/v1.17.11.md`；发行事实仍以外部回读为准。
 - **v1.17.10 公开产品表达、README V2 与 GitHub Pages 已归档**：稳定产品语义与动态工作流/Skill/六宿主投影已经接入；公共 README 收敛为任务入口，详细 Grok/Cursor/sandbox/runtime 内容迁入独立 `public-site/`，维护者 `website/` 继续不进入公开仓/npm 包。Pages 已以 workflow 模式上线并通过 URL/title/brand/404 负向身份回读，package/plugin/CLI/GitHub homepage 已切到该产品页面；npm registry、provenance、fresh install、本机六宿主与新会话证据已在 2026-08-17 R7 关闭。完整说明见 `changelogs/releases/v1.17.10.md`。
 - **v1.17.9 聚合发布已归档**：纳入 v1.17.8 发布后已核实的 35 项失败关闭、事务/CAS、workspace temp V2、Memory 与 Profile current-truth 修复；同时修复 Windows Grok 通过 PowerShell 执行受管 Hook 时首个引号可执行文件被解析为字符串而触发 `ParserError`，统一使用可被 `cmd.exe` 与 PowerShell 接受的稳定 Node 启动命令。Grok 用户级全局文件退出 DevCodex lifecycle 声明，六事件由用户级 `devcodex-workspace` plugin 单独拥有；runtime verifier 分别核对物理声明、Grok 精确去重后的有效 handler 与 mutation owner。Grok 默认导入 DevCodex Claude Hook 时，稳定 launcher 依据四项 Grok 保留环境指纹在回执读取前静默退出；用户自有 Hook、Grok Claude 兼容偏好、portable 模式与其他五宿主语义不变。完整说明见 `changelogs/releases/v1.17.9.md`。
 - **v1.17.8 宿主稳定入口与 SkillRoute 自举修复已归档（PI-251～255 / PF-303～307）**：六宿主 Hook 改为稳定 launcher，由 committed receipt 安全转发到当前不可变 runtime，避免每次升级改变 Codex Hook 信任身份；`profile_context_plan` 在宿主没有分发 UserPromptSubmit 时返回并复用精确 SkillRoute bootstrap，并把多项目 pending 的 canonical hostVariant/显式 Skill 保真带入 MCP；ContextRead 对复合 content 选择唯一主 schema，拒绝用 sidecar 覆盖可观察的身份失配；S15 归一化 Hook history 与结构化 receipt，并以 evidence-bound hostVariant 阻止 Desktop ambient 污染 CLI。完整说明见 `changelogs/releases/v1.17.8.md`；正式发布事实以 Git tag、npm registry、GitHub Release 与 `ProfileCurrentTruthV1` 为准。

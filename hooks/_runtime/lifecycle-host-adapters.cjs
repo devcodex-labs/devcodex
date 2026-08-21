@@ -20,6 +20,7 @@ const CLAUDE_EVENT_MAP = Object.freeze({
 
 const CODEX_EVENT_MAP = Object.freeze({
   PreToolUse: 'PreToolUse',
+  PermissionRequest: 'PermissionRequest',
   UserPromptSubmit: 'UserPromptSubmit',
   PostToolUse: 'PostToolUse',
   PreCompact: 'PreCompact',
@@ -774,6 +775,146 @@ function adaptCursorOutput(originalEvent, output, input = {}, options = {}) {
   return {}
 }
 
+function nonEmptyString(value) {
+  return typeof value === 'string' && value.trim() ? value : ''
+}
+
+function addCodexSystemMessage(next, value) {
+  const systemMessage = nonEmptyString(value?.systemMessage)
+  if (systemMessage) next.systemMessage = systemMessage
+}
+
+function addCodexBlock(next, value) {
+  if (!['block', 'deny'].includes(value?.decision)) return
+  next.decision = 'block'
+  next.reason = nonEmptyString(value.reason || value.stopReason) || 'DevCodex blocked continuation.'
+}
+
+function addCodexExplicitStop(next, value) {
+  if (value?.continue !== false) return
+  next.continue = false
+  next.stopReason = nonEmptyString(value.stopReason || value.reason) || 'DevCodex stopped continuation.'
+}
+
+function adaptCodexOutput(originalEvent, output) {
+  const value = output && typeof output === 'object' && !Array.isArray(output) ? output : {}
+  const specific = value.hookSpecificOutput && typeof value.hookSpecificOutput === 'object' && !Array.isArray(value.hookSpecificOutput)
+    ? value.hookSpecificOutput
+    : {}
+  const event = normalizeEventToken(originalEvent)
+  const canonicalEvent = {
+    pretooluse: 'PreToolUse',
+    permissionrequest: 'PermissionRequest',
+    posttooluse: 'PostToolUse',
+    userpromptsubmit: 'UserPromptSubmit',
+    precompact: 'PreCompact',
+    postcompact: 'PostCompact',
+    sessionstart: 'SessionStart',
+    stop: 'Stop',
+    agentstop: 'Stop',
+    subagentstop: 'SubagentStop'
+  }[event]
+  if (!canonicalEvent) return {}
+
+  const next = {}
+  addCodexSystemMessage(next, value)
+
+  if (event === 'pretooluse') {
+    let permission = ['allow', 'deny'].includes(specific.permissionDecision)
+      ? specific.permissionDecision
+      : (['allow', 'deny'].includes(value.permissionDecision) ? value.permissionDecision : '')
+    if (!permission && value.continue === false) permission = 'deny'
+    const updatedInput = specific.updatedInput || value.updatedInput || value.modifiedInput || value.modifiedArgs
+    if (permission === 'allow' && (!updatedInput || typeof updatedInput !== 'object' || Array.isArray(updatedInput))) {
+      permission = ''
+    }
+    const hookSpecificOutput = {}
+    if (permission) {
+      hookSpecificOutput.permissionDecision = permission
+      const permissionReason = nonEmptyString(
+        specific.permissionDecisionReason || value.permissionDecisionReason || value.reason || value.stopReason
+      ) || (permission === 'deny' ? 'DevCodex denied this tool call.' : '')
+      if (permissionReason) hookSpecificOutput.permissionDecisionReason = permissionReason
+      if (permission === 'allow' && updatedInput && typeof updatedInput === 'object' && !Array.isArray(updatedInput)) {
+        hookSpecificOutput.updatedInput = updatedInput
+      }
+    } else {
+      addCodexBlock(next, value)
+    }
+    const additionalContext = nonEmptyString(specific.additionalContext || value.additionalContext)
+    if (additionalContext) hookSpecificOutput.additionalContext = additionalContext
+    if (Object.keys(hookSpecificOutput).length) {
+      next.hookSpecificOutput = { hookEventName: canonicalEvent, ...hookSpecificOutput }
+    }
+    return next
+  }
+
+  if (event === 'permissionrequest') {
+    const requestedBehavior = specific.decision?.behavior
+    let behavior = ['allow', 'deny'].includes(requestedBehavior) ? requestedBehavior : ''
+    if (!behavior && ['allow', 'deny'].includes(specific.permissionDecision)) behavior = specific.permissionDecision
+    if (!behavior && ['allow', 'deny'].includes(value.permissionDecision)) behavior = value.permissionDecision
+    if (!behavior && value.decision === 'allow') behavior = 'allow'
+    if (!behavior && ['block', 'deny'].includes(value.decision)) behavior = 'deny'
+    if (!behavior && value.continue === false) behavior = 'deny'
+    if (behavior) {
+      const decision = { behavior }
+      const message = nonEmptyString(
+        specific.decision?.message ||
+        specific.permissionDecisionReason ||
+        value.permissionDecisionReason ||
+        value.reason ||
+        value.stopReason
+      )
+      if (message) decision.message = message
+      next.hookSpecificOutput = { hookEventName: canonicalEvent, decision }
+    }
+    return next
+  }
+
+  if (event === 'posttooluse') {
+    addCodexBlock(next, value)
+    addCodexExplicitStop(next, value)
+    const additionalContext = nonEmptyString(specific.additionalContext || value.additionalContext)
+    if (additionalContext) {
+      next.hookSpecificOutput = { hookEventName: canonicalEvent, additionalContext }
+    }
+    return next
+  }
+
+  if (event === 'userpromptsubmit') {
+    addCodexBlock(next, value)
+    addCodexExplicitStop(next, value)
+    const additionalContext = nonEmptyString(specific.additionalContext || value.additionalContext)
+    if (additionalContext) {
+      next.hookSpecificOutput = { hookEventName: canonicalEvent, additionalContext }
+    }
+    return next
+  }
+
+  if (['stop', 'agentstop', 'subagentstop'].includes(event)) {
+    addCodexBlock(next, value)
+    addCodexExplicitStop(next, value)
+    return next
+  }
+
+  if (event === 'sessionstart') {
+    addCodexExplicitStop(next, value)
+    const additionalContext = nonEmptyString(specific.additionalContext || value.additionalContext)
+    if (additionalContext) {
+      next.hookSpecificOutput = { hookEventName: canonicalEvent, additionalContext }
+    }
+    return next
+  }
+
+  if (['precompact', 'postcompact'].includes(event)) {
+    addCodexExplicitStop(next, value)
+    return next
+  }
+
+  return {}
+}
+
 function adaptHostOutput(host, originalEvent, output, input = {}, options = {}) {
   const value = output && typeof output === 'object' && !Array.isArray(output) ? { ...output } : { continue: true }
   if (value.hookSpecificOutput && typeof value.hookSpecificOutput === 'object') {
@@ -787,6 +928,9 @@ function adaptHostOutput(host, originalEvent, output, input = {}, options = {}) 
   }
   if (host === 'cursor') {
     return adaptCursorOutput(originalEvent, value, input, options)
+  }
+  if (host === 'codex') {
+    return adaptCodexOutput(originalEvent, value)
   }
   if (host !== 'gemini') return value
 
@@ -903,14 +1047,31 @@ function probeHostAdapterContract(host) {
   }
   const events = Object.keys(EVENT_MAP[host]).map(originalEvent => {
     const normalized = normalizeHostPayload(host, { hookEventName: originalEvent })
-    const output = adaptHostOutput(host, originalEvent, { continue: true })
+    const output = adaptHostOutput(host, originalEvent, {
+      continue: true,
+      suppressOutput: false,
+      stopReason: 'no-op fields must be omitted',
+      devcodexProbePrivate: true
+    })
+    const outputKeys = output && typeof output === 'object' && !Array.isArray(output)
+      ? Object.keys(output)
+      : []
+    const contractValid = host !== 'codex' || (
+      !outputKeys.includes('continue') &&
+      !outputKeys.includes('suppressOutput') &&
+      !outputKeys.includes('stopReason') &&
+      !outputKeys.some(key => key.startsWith('devcodex'))
+    )
     return {
       originalEvent,
       mappedEvent: normalized.mappedEvent,
-      outputShape: output && typeof output === 'object' && !Array.isArray(output) ? 'object' : 'invalid'
+      outputShape: output && typeof output === 'object' && !Array.isArray(output) ? 'object' : 'invalid',
+      contractValid
     }
   })
-  const passed = events.length > 0 && events.every(event => event.mappedEvent && event.outputShape === 'object')
+  const passed = events.length > 0 && events.every(event => (
+    event.mappedEvent && event.outputShape === 'object' && event.contractValid
+  ))
   return {
     schemaVersion: 'HostLifecycleAdapterContractProbeV1',
     host,
@@ -1000,6 +1161,7 @@ module.exports = {
   STDIO_CHILD_TIMEOUT_MS,
   STDIO_MAX_FRAME_BYTES,
   applyCliEnvironmentOverrides,
+  adaptCodexOutput,
   adaptCopilotOutput,
   adaptCursorOutput,
   adaptHostOutput,

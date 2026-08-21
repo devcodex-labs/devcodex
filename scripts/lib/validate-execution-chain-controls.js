@@ -5,7 +5,7 @@ const { evaluatePublicReadmeContractV2 } = require('./canonical-consumer-contrac
 const EXPECTED_FEATURE_ROUTES = Object.freeze({
   'task-index-acceleration': 'bounded-direct',
   'context-computation-reuse': 'full-context-read',
-  'validation-changed-scope': 'full-validation',
+  'validation-changed-scope': 'direct-validation-plan',
   'profile-section-load': 'full-profile-file',
   'skill-bundle': 'full-skill-read',
   'project-knowledge-reuse': 'full-project-analysis'
@@ -125,10 +125,14 @@ function buildExecutionChainControlChecks(ctx) {
         if (!node.dependencies.includes(dependency)) err(`[V101] evolution node dependency missing: ${dependency}`)
       }
     }
-    for (const route of ['fast', 'full', 'profile-deploy']) {
-      if (!manifest.routes?.[route]?.nodes?.includes('execution-chain-evolution')) {
-        err(`[V101] ${route} route omits execution-chain-evolution`)
-      }
+    if (manifest.routes?.fast?.dynamic !== true || Array.isArray(manifest.routes?.fast?.nodes)) {
+      err('[V101] fast route must remain dynamic')
+    }
+    if (!manifest.routes?.full?.nodes?.includes('execution-chain-evolution')) {
+      err('[V101] full route omits execution-chain-evolution')
+    }
+    if (manifest.routes?.['profile-deploy']?.nodes?.includes('execution-chain-evolution')) {
+      err('[V101] profile-deploy route leaks execution-chain-evolution')
     }
   }
 

@@ -2,7 +2,44 @@
   "schemaVersion": 1,
   "ownerSkill": "test-router",
   "gateRegistryRef": "skills/spec-governance/gate-registry.json",
-  "stableInputs": ["workflow", "changeTypes", "risk", "publicSurface", "runtimeBoundary", "profileConstraints", "candidateState", "capabilitySurfaceDecision", "requestedClaims"],
+  "stableInputs": ["workflow", "changeTypes", "risk", "publicSurface", "runtimeBoundary", "profileConstraints", "candidateState", "capabilitySurfaceDecision", "requestedClaims", "verificationIntent"],
+  "verificationIntent": {
+    "schemaVersion": "VerificationIntentV1",
+    "levels": ["V0", "V1", "V2", "V3"],
+    "purposes": ["edit-loop", "delivery", "boundary", "full-audit", "release"],
+    "requiredFields": ["level", "purpose", "affectedBoundaries", "riskClass", "releaseAuthorized", "explicitFullAudit", "authoritySource", "claimCeiling", "authorizationDigest", "intentDigest"],
+    "v3Authorities": ["explicitFullAudit", "releaseAuthorized"],
+    "forbiddenImplicitAuthorities": ["risk", "reviewGrade", "controlPlane", "ecr", "cacheMiss", "cacheStale", "consumerGraphIncomplete", "unknownInput"]
+  },
+  "executionLevels": [
+    { "id": "V0", "purpose": "edit-loop", "maximumClaim": "edit-evidence-only" },
+    { "id": "V1", "purpose": "delivery", "maximumClaim": "delivery-scope" },
+    { "id": "V2", "purpose": "boundary", "maximumClaim": "boundary-qualified" },
+    { "id": "V3", "purpose": "full-audit-or-release", "maximumClaim": "full-audit-or-release-candidate" }
+  ],
+  "consumerEdgeTypes": ["runtimeConsumer", "qualificationConsumer", "releaseConsumer"],
+  "scopedRouteBoundaries": {
+    "profile-deploy": "profile",
+    "package-release": "package"
+  },
+  "executionBinding": {
+    "requiredFields": ["manifestIdentity", "candidateId", "candidateStable", "planDigest"],
+    "cacheSchema": "ValidationEvidenceV2",
+    "cacheNamespace": "validation-evidence/v2",
+    "nodeBindingFields": ["HEAD", "matchedDirtyInputs", "nodeContract", "nodeVerificationPolicy", "dependencyReceiptDigests", "runtime"],
+    "downstreamBinding": "nodeReceiptDigest",
+    "v3CacheReuse": false
+  },
+  "budgetPolicy": {
+    "schemaVersion": "BudgetCardV1",
+    "nonReleaseThresholdMs": 600000,
+    "confirmationBinding": "planDigest",
+    "durationEstimate": "manifest estimate or capped default; timeout upper bound reported separately",
+    "estimateConfidenceValues": ["low", "medium", "high"],
+    "requiredCardFields": ["estimatedDurationMs", "estimateConfidence", "hardTimeoutUpperBoundMs", "logBudgetBytes", "heavyNodeIds", "waitReasons"],
+    "unknownImpactAction": "block",
+    "staleCacheAction": "rerun-precise-node"
+  },
   "selectors": [
     { "id": "static", "when": "source or contract changes", "evidence": ["command", "exitCode"] },
     { "id": "unit-integration", "when": "behavior or cross-module changes", "evidence": ["suite", "result", "coverageDecision"] },
@@ -11,6 +48,6 @@
     { "id": "package-release", "when": "package candidate or release claim", "evidence": ["candidateDiff", "pack", "install", "registry"] },
     { "id": "profile-deploy", "when": "Profile, host or distribution changes", "evidence": ["profileValidation", "deploymentParity"] }
   ],
-  "outputs": ["selectedRoutes", "commands", "evidence", "skipped", "residualRisk", "coverageClaim"],
+  "outputs": ["verificationIntent", "validationPlan", "budgetCard", "selectedRoutes", "commands", "evidence", "skipped", "residualRisk", "coverageClaim"],
   "skipRequiredFields": ["route", "reason", "authority", "residualRisk", "upgradeCondition"]
 }

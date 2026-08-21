@@ -63,10 +63,14 @@ function buildVisibleOutputControlChecks(ctx) {
     }
 
     const manifest = JSON.parse(read(path.join(ROOT, 'scripts/validation-manifest.json')))
+    if (manifest.routes?.fast?.dynamic !== true || Array.isArray(manifest.routes?.fast?.nodes)) {
+      err('[V102] fast route must remain impact-driven')
+    }
     for (const nodeId of ['visible-output-contract', 'review-execution-contract']) {
       if (!manifest.nodes?.some(node => node.id === nodeId)) err(`[V102] validation node missing: ${nodeId}`)
-      for (const route of ['fast', 'full', 'profile-deploy', 'package-release']) {
-        if (!manifest.routes?.[route]?.nodes?.includes(nodeId)) err(`[V102] ${route} route omits ${nodeId}`)
+      if (!manifest.routes?.full?.nodes?.includes(nodeId)) err(`[V102] full route omits ${nodeId}`)
+      for (const route of ['profile-deploy', 'package-release']) {
+        if (manifest.routes?.[route]?.nodes?.includes(nodeId)) err(`[V102] ${route} route leaks ${nodeId}`)
       }
     }
     console.log('[V102] visible output / review execution contract and consumer closure checked')

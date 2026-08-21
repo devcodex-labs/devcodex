@@ -8,6 +8,11 @@ function formatProgressiveSkillRouteRecoveryCard(coordination) {
   const lines = [coordination.message || 'Progressive Skill route reconciliation is required.']
   if (envelope.nextCall && typeof envelope.nextCall === 'object') {
     lines.push(`Next call (exact): ${JSON.stringify(envelope.nextCall)}`)
+    if (envelope.nextOp === 'load_stage') {
+      lines.push(
+        'Allowed proactive alternative before this load_stage: call profile_context_plan once with the same project/contextEpoch; if selected, complete refreshed ContextRead and skill_route rebind before any load_stage.'
+      )
+    }
   } else {
     lines.push(
       `Route status: ${envelope.status || 'blocked'}; ` +

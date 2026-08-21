@@ -291,6 +291,8 @@ function buildGovernanceIntakeChecks(ctx) {
       ['test', 'node scripts/run-validation.js --route full'],
       ['test:fast', 'node scripts/run-validation.js --route fast'],
       ['test:full', 'node scripts/run-validation.js --route full'],
+      ['test:delivery', 'node scripts/run-validation.js --route delivery'],
+      ['test:boundary', 'node scripts/run-validation.js --route boundary'],
       ['test:validation-dag', 'node scripts/test-validation-dag.js'],
       ['test:all', 'npm test'],
       ['test:all:with-audit', 'npm run test:audit'],
@@ -302,7 +304,7 @@ function buildGovernanceIntakeChecks(ctx) {
       if (!value.includes(needle)) err(`[V42] package.json script ${scriptName} missing "${needle}"`)
     }
     const validationManifest = JSON.parse(read(path.join(ROOT, 'scripts', 'validation-manifest.json')))
-    for (const route of ['fast', 'full', 'changed', 'profile-deploy', 'package-release']) {
+    for (const route of ['fast', 'full', 'changed', 'delivery', 'boundary', 'profile-deploy', 'package-release']) {
       if (!validationManifest.routes?.[route]) err(`[V42] validation manifest missing route ${route}`)
     }
     if (!validationManifest.nodes?.some(node => node.id === 'release-metadata') ||

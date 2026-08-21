@@ -466,7 +466,7 @@ function buildAlwaysOnLayerMatrix(options = {}) {
       ownerSkill: 'host-instruction-projection',
       reason: 'state, schema, evidence or freshness uncertainty must restore full behavior',
       trigger: 'unknown schema, identity mismatch, stale projection, user challenge or full-only mode',
-      fallback: 'read full fallback and full validation route',
+      fallback: 'read full instruction/profile fallback; preserve validation intent and block unsafe plans instead of escalating to V3',
       probe: 'test-host-instruction-projection'
     }
   )

@@ -12,6 +12,7 @@ const {
   validateParallelLaunchCard
 } = require('./lib/requirement-parallel-orchestration')
 const { createCanonicalAwareReader } = require('./lib/canonical-consumer-contracts')
+const { planValidation } = require('./lib/validation-dag')
 
 const ROOT = path.resolve(__dirname, '..')
 const FIXTURE_ROOT = path.join(__dirname, 'fixtures', 'requirement-parallel-orchestration')
@@ -99,10 +100,20 @@ assert(plugin.skills.some(skill => skill.id === 'requirement-parallel-orchestrat
 
 const manifest = JSON.parse(source('scripts/validation-manifest.json'))
 assert(manifest.criticalInputs.includes('scripts/lib/requirement-parallel-orchestration.js'))
-assert(manifest.routes.fast.nodes.includes('requirement-parallel-orchestration'))
+assert.strictEqual(manifest.routes.fast.dynamic, true)
 assert(manifest.routes.full.nodes.includes('requirement-parallel-orchestration'))
 const manifestNode = manifest.nodes.find(node => node.id === 'requirement-parallel-orchestration')
 assert(manifestNode, 'validation manifest missing requirement-parallel-orchestration node')
 assert(manifestNode.inputs.includes('scripts/fixtures/requirement-parallel-orchestration/**'))
+const fastPlan = planValidation({
+  manifest,
+  route: 'fast',
+  changedFiles: ['scripts/lib/requirement-parallel-orchestration.js'],
+  changedSource: 'requirement-parallel-fixture',
+  candidateStable: true,
+  candidateId: 'requirement-parallel-fast-fixture'
+})
+assert(fastPlan.selectedNodes.some(node => node.id === 'requirement-parallel-orchestration'))
+assert.notStrictEqual(fastPlan.verificationLevel, 'V3')
 
 console.log('requirement parallel orchestration tests passed')

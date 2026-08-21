@@ -100,6 +100,8 @@ function inspectWorkflowCompletionControls(root, io = {}) {
   for (const anchor of [
     'createWorkflowCompletionCandidate',
     'createWorkflowCompletionPlan',
+    'createVerificationIntent',
+    'validateVerificationIntent',
     'createWorkflowEvidenceReceipt',
     'evaluateReceiptFreshness',
     'evaluateWorkflowCompletion',
@@ -210,8 +212,16 @@ function inspectWorkflowCompletionControls(root, io = {}) {
       if (!node.evidenceArtifacts?.includes(artifact)) issues.push(`validation-node-artifact-missing:${artifact}`)
     }
   }
-  for (const route of ['fast', 'full', 'profile-deploy', 'package-release']) {
-    if (!manifest.routes?.[route]?.nodes?.includes('workflow-completion-contract')) issues.push(`validation-route-missing:${route}`)
+  if (manifest.routes?.fast?.dynamic !== true || Array.isArray(manifest.routes?.fast?.nodes)) {
+    issues.push('validation-route-fast-not-dynamic')
+  }
+  if (!manifest.routes?.full?.nodes?.includes('workflow-completion-contract')) {
+    issues.push('validation-route-missing:full')
+  }
+  for (const route of ['profile-deploy', 'package-release']) {
+    if (manifest.routes?.[route]?.nodes?.includes('workflow-completion-contract')) {
+      issues.push(`validation-route-boundary-leak:${route}`)
+    }
   }
 
   const activeProfileRoot = activeRoot ? pathApi.join(activeRoot, 'profile') : null

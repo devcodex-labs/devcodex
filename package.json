@@ -1,6 +1,6 @@
 {
   "name": "devcodex",
-  "version": "1.17.10",
+  "version": "1.17.11",
   "description": "DevCodex — intent-driven AI coding workflow runtime for Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok, and Cursor",
   "main": "index.js",
   "bin": {
@@ -64,6 +64,7 @@
     "test:checkpoint-validation": "node scripts/test-checkpoint-validation.js",
     "test:local-task-trace": "node scripts/test-local-task-trace.js",
     "test:content-identity": "node scripts/test-content-identity.js",
+    "test:derived-state-lock-concurrency": "node scripts/test-derived-state-lock-concurrency.js",
     "test:task-continuation": "node scripts/test-task-continuation.js",
     "test:execution-continuation": "npm run test:content-identity && npm run test:task-continuation",
     "test:profile-section-selector": "node scripts/test-profile-section-selector.js",
@@ -119,6 +120,8 @@
     "benchmark:report-index-wide": "node scripts/benchmark-runtime-indexes.js --include-wide",
     "test:validation-dag": "node scripts/test-validation-dag.js",
     "test:changed": "node scripts/run-validation.js --route changed",
+    "test:delivery": "node scripts/run-validation.js --route delivery",
+    "test:boundary": "node scripts/run-validation.js --route boundary",
     "test:profile-deploy": "node scripts/run-validation.js --route profile-deploy",
     "test:package-release": "node scripts/run-validation.js --route package-release",
     "test:control-plane-module-contracts": "node scripts/test-control-plane-module-contracts.js",
@@ -268,6 +271,7 @@
     "scripts/test-profile-section-selector.js",
     "scripts/test-context-binding.js",
     "scripts/test-host-adapters.js",
+    "scripts/test-derived-state-lock-concurrency.js",
     "scripts/test-host-installation.js",
     "scripts/test-host-instruction-projection.js",
     "scripts/project-analysis-state.js",

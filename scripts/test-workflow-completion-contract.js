@@ -9,6 +9,7 @@ const {
   createWorkflowCompletionCommit,
   createWorkflowCompletionPlan,
   createWorkflowEvidenceReceipt,
+  createVerificationIntent,
   evaluateReceiptFreshness,
   evaluateShadowEvidenceWindow,
   evaluateWorkflowCompletion,
@@ -19,7 +20,8 @@ const {
   validateWorkflowCompletionCommit,
   validateWorkflowCompletionPlan,
   validateWorkflowCompletionSnapshot,
-  validateWorkflowEvidenceReceipt
+  validateWorkflowEvidenceReceipt,
+  validateVerificationIntent
 } = require('../hooks/_runtime/workflow-completion-contract.cjs')
 const { buildContentIdentity, sha256 } = require('../hooks/_runtime/content-identity.cjs')
 const { projectWorkflowCompletionVisibleState } = require('../hooks/_runtime/lifecycle-visible-reply.cjs')
@@ -74,6 +76,41 @@ function expectNegative(name, predicate) {
 function clone(value) {
   return JSON.parse(JSON.stringify(value))
 }
+
+const deliveryIntent = createVerificationIntent({
+  level: 'V2',
+  purpose: 'delivery',
+  affectedBoundaries: ['hook-runtime'],
+  riskClass: 'high',
+  releaseAuthorized: false,
+  explicitFullAudit: false,
+  authoritySource: 'fixture-confirmed-cp3'
+})
+assert.strictEqual(deliveryIntent.schemaVersion, 'VerificationIntentV1')
+assert.strictEqual(deliveryIntent.claimCeiling, 'boundary-qualified')
+assert.strictEqual(validateVerificationIntent(deliveryIntent).valid, true)
+const tamperedIntent = clone(deliveryIntent)
+tamperedIntent.level = 'V3'
+expectNegative('verification-intent-digest-binding', () => !validateVerificationIntent(tamperedIntent).valid)
+assert.throws(() => createVerificationIntent({
+  level: 'V3',
+  purpose: 'release',
+  affectedBoundaries: [],
+  riskClass: 'release',
+  releaseAuthorized: false,
+  explicitFullAudit: false,
+  authoritySource: 'fixture-missing-release-authority'
+}), error => error instanceof WorkflowCompletionError && error.code === 'VERIFICATION_INTENT_INVALID')
+const releaseIntent = createVerificationIntent({
+  level: 'V3',
+  purpose: 'release',
+  affectedBoundaries: [],
+  riskClass: 'release',
+  releaseAuthorized: true,
+  explicitFullAudit: false,
+  authoritySource: 'fixture-user-release-authority'
+})
+assert.strictEqual(releaseIntent.claimCeiling, 'release-candidate')
 
 function taskScope(suffix = 'alpha') {
   const source = JSON.stringify({ project: 'devcodex', task: suffix })
@@ -1340,9 +1377,9 @@ inspectMutation(files => {
 }, 'validation-node-artifact-missing')
 inspectMutation(files => {
   const value = JSON.parse(files['scripts/validation-manifest.json'])
-  value.routes.fast.nodes = value.routes.fast.nodes.filter(item => item !== 'workflow-completion-contract')
+  value.routes.fast.dynamic = false
   files['scripts/validation-manifest.json'] = JSON.stringify(value)
-}, 'validation-route-missing:fast')
+}, 'validation-route-fast-not-dynamic')
 inspectMutation(files => { files['instructions.md'] += ['T1', 'T9'].join('~') }, 'legacy-completion-range')
 inspectMutation(files => { files['instructions.md'] = files['instructions.md'].replace('| T13 | `post-delivery.self-check` |', '| T13 | `wrong` |') }, 'completion-alias-drift')
 

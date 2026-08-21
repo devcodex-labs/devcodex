@@ -30,6 +30,8 @@ const isolatedAppData = path.join(isolatedHome, 'AppData', 'Roaming')
 const isolatedLocalAppData = path.join(isolatedHome, 'AppData', 'Local')
 const npmCache = path.join(runRoot, 'npm-cache')
 const npmUserConfig = path.join(runRoot, 'npmrc')
+const NPM_COMMAND_TIMEOUT_MS = 180000
+const PACKAGE_INSTALL_TIMEOUT_MS = 600000
 
 for (const directory of [packRoot, installRoot, selfPackRoot, isolatedAppData, isolatedLocalAppData, npmCache]) {
   fs.mkdirSync(directory, { recursive: true })
@@ -51,11 +53,11 @@ const npmEnv = {
   npm_config_update_notifier: 'false'
 }
 
-function runNpm (args, cwd = ROOT) {
+function runNpm (args, cwd = ROOT, timeoutMs = NPM_COMMAND_TIMEOUT_MS) {
   return runChecked('npm', args, {
     cwd,
     env: npmEnv,
-    timeoutMs: 180000,
+    timeoutMs,
     maxBuffer: 16 * 1024 * 1024,
     summaryLimit: 16 * 1024 * 1024
   })
@@ -293,7 +295,7 @@ runNpm([
   '--prefix',
   installRoot,
   tarballPath
-], runRoot)
+], runRoot, PACKAGE_INSTALL_TIMEOUT_MS)
 
 const installedRoot = path.join(installRoot, 'node_modules', pack.name || 'devcodex')
 const installedManifestPath = path.join(installedRoot, 'package.json')

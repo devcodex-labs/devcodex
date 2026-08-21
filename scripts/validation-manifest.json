@@ -45,6 +45,146 @@
       ]
     }
   },
+  "verificationBoundaries": {
+    "validation-control-plane": {
+      "inputs": [
+        "scripts/validation-manifest.json",
+        "scripts/run-validation.js",
+        "scripts/lib/validation-dag.js",
+        "scripts/test-validation-dag.js",
+        "content/skills/test-router/**",
+        "hooks/_runtime/workflow-completion-contract.cjs",
+        "hooks/_runtime/lifecycle-workflow-completion.cjs",
+        "scripts/lib/validate-workflow-completion-controls.js",
+        "scripts/test-workflow-completion-contract.js"
+      ],
+      "nodes": [
+        "validation-dag",
+        "control-plane-contracts",
+        "critical-risk-coverage",
+        "workflow-completion-contract"
+      ],
+      "enforceForMatchingInputs": true
+    },
+    "hook-runtime": {
+      "inputs": [
+        "hooks/**",
+        "scripts/test-hooks-runtime.js",
+        "scripts/lib/test-hooks-runtime-*.js",
+        "scripts/test-host-adapters.js",
+        "scripts/test-content-identity.js",
+        "scripts/test-derived-state-lock-concurrency.js",
+        "scripts/test-skill-route-*.js",
+        "scripts/probe-skill-route-s15-host.js"
+      ],
+      "nodes": [
+        "content-identity",
+        "derived-state-lock-concurrency",
+        "skill-route-contracts",
+        "skill-route-budget",
+        "skill-route-state",
+        "skill-route-lifecycle",
+        "skill-route-closure",
+        "workflow-completion-contract",
+        "hooks-runtime",
+        "host-adapters"
+      ],
+      "enforceForMatchingInputs": true
+    },
+    "mcp-runtime": {
+      "inputs": [
+        "mcp/**",
+        "scripts/test-mcp-*.js",
+        "scripts/test-context-*.js",
+        "scripts/test-memory-index.js",
+        "scripts/test-profile-section-selector.js"
+      ],
+      "nodes": [
+        "mcp-stdio",
+        "context-read",
+        "context-binding",
+        "context-read-controls",
+        "memory-index",
+        "profile-section-selector",
+        "mcp-servers"
+      ],
+      "enforceForMatchingInputs": true
+    },
+    "profile": {
+      "inputs": [
+        "data/templates/profile/**",
+        "skills/load-profile/**",
+        "skills/profile-bootstrap/**",
+        "scripts/validate-profile.js",
+        "scripts/validate-all-profiles.js",
+        "scripts/test-validate-profile.js"
+      ],
+      "nodes": [
+        "validation-dag",
+        "profile-section-selector",
+        "context-read-controls",
+        "deployment-manifest",
+        "profile-governance"
+      ],
+      "enforceForMatchingInputs": true
+    },
+    "package": {
+      "inputs": [
+        "package.json",
+        "plugin.json",
+        ".github/workflows/**",
+        "index.js",
+        "scripts/prepack-control-content.js",
+        "scripts/postpack-control-content.js",
+        "scripts/validate-installed-package.js",
+        "scripts/lib/package-compatibility-projection.js",
+        "scripts/lib/published-package-manifest-projection.js",
+        "scripts/lib/published-package-scripts-contract.js",
+        "scripts/test-published-package-scripts-contract.js"
+      ],
+      "nodes": [
+        "validation-dag",
+        "validate-versions",
+        "release-metadata",
+        "published-package-scripts-contract",
+        "pack-clean"
+      ],
+      "enforceForMatchingInputs": true,
+      "excludeSemanticClasses": [
+        "package-public-metadata"
+      ]
+    }
+  },
+  "nodeVerificationPolicies": {
+    "defaultConsumerEdgeType": "runtimeConsumer",
+    "overrides": {
+      "validate-core": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V3" },
+      "validate-workspace": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V2" },
+      "critical-risk-coverage": { "consumerEdgeType": "qualificationConsumer" },
+      "validation-dag": { "consumerEdgeType": "qualificationConsumer" },
+      "control-plane-contracts": { "consumerEdgeType": "qualificationConsumer" },
+      "workflow-completion-contract": { "consumerEdgeType": "qualificationConsumer" },
+      "hooks-runtime": { "consumerEdgeType": "qualificationConsumer", "heavy": true },
+      "host-adapters": { "consumerEdgeType": "qualificationConsumer" },
+      "mcp-servers": { "consumerEdgeType": "qualificationConsumer" },
+      "client-contracts": { "consumerEdgeType": "qualificationConsumer" },
+      "profile-governance": { "consumerEdgeType": "qualificationConsumer" },
+      "release-metadata": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V1" },
+      "published-package-scripts-contract": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V2" },
+      "critical-coverage": { "consumerEdgeType": "releaseConsumer" },
+      "pack-clean": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V2", "heavy": true },
+      "global-host-config": { "consumerEdgeType": "releaseConsumer", "heavy": true },
+      "global-host-removal": { "consumerEdgeType": "releaseConsumer", "heavy": true },
+      "global-install-smoke": { "consumerEdgeType": "releaseConsumer", "heavy": true },
+      "mcp-runtime-closure": { "consumerEdgeType": "releaseConsumer" },
+      "npm-lifecycle-adapter": { "consumerEdgeType": "releaseConsumer" },
+      "host-installation": { "consumerEdgeType": "releaseConsumer" },
+      "generated-site-precheck": { "consumerEdgeType": "releaseConsumer" },
+      "website-build": { "consumerEdgeType": "releaseConsumer", "heavy": true },
+      "public-skill-catalog-build": { "consumerEdgeType": "releaseConsumer" },
+      "generated-site-postcheck": { "consumerEdgeType": "releaseConsumer" }
+    }
+  },
   "criticalInputs": [
     ".github/workflows/**",
     "package.json",
@@ -180,94 +320,7 @@
   ],
   "routes": {
     "fast": {
-      "nodes": [
-        "validate-versions",
-        "validate-core",
-        "checked-command",
-        "mcp-stdio",
-        "critical-risk-coverage",
-        "security-audit-runner",
-        "skill-sidecar-contract",
-        "public-skill-taxonomy",
-        "skill-resolve",
-        "skill-resolution-hook-paths",
-        "skill-portfolio",
-        "skill-portfolio-current",
-        "skill-intents",
-        "skill-route-contracts",
-        "skill-route-budget",
-        "skill-route-state",
-        "skill-route-lifecycle",
-        "skill-route-closure",
-        "profile-section-selector",
-        "project-knowledge-store",
-        "runtime-state-index",
-        "deployment-manifest",
-        "content-identity",
-        "derived-index-contract",
-        "memory-index",
-        "report-index",
-        "task-continuation",
-        "validation-dag",
-        "probe-registry",
-        "cli-command-registry",
-        "cli-json-contract",
-        "always-on-governance",
-        "intent-consistency",
-        "local-probe",
-        "context-read",
-        "context-binding",
-        "context-read-controls",
-        "tenant-selection",
-        "workflow-capabilities",
-        "api-verification-contracts",
-        "git-index-isolation",
-        "control-plane-contracts",
-        "markdown-structure",
-        "control-plane-module-contracts",
-        "consumer-evolution-controls",
-        "residual-absorption-controls",
-        "brand-visual-quality",
-        "turn-liveness",
-        "execution-attempt-ledger",
-        "execution-chain-evolution",
-        "checkpoint-validation",
-        "local-task-trace",
-        "turn-liveness-controls",
-        "closure-evidence",
-        "spec-governance",
-        "governance-intake",
-        "governance-ledger-integrity",
-        "profile-governance",
-        "public-product-expression",
-        "readme-governance",
-        "requirement-artifacts",
-        "control-content-source",
-        "candidate-review-bundle",
-        "capability-surface-decision",
-        "host-capability-routing",
-        "requirement-parallel-orchestration",
-        "evidence-freshness",
-        "hooks-runtime",
-        "instruction-fallback",
-        "mcp-servers",
-        "client-contracts",
-        "migrate-layout",
-        "cli-behavior",
-        "release-metadata",
-        "published-package-scripts-contract",
-        "pack-clean",
-        "public-text-integrity",
-        "review-execution-contract",
-        "visible-output-contract",
-        "repair-prevention-assessment",
-        "workflow-completion-contract",
-        "host-instruction-projection",
-        "host-adapters",
-        "syntax",
-        "docs-surface-inventory",
-        "process-enforcement-e2e"
-      ]
+      "dynamic": true
     },
     "full": {
       "nodes": [
@@ -295,6 +348,7 @@
         "runtime-state-index",
         "deployment-manifest",
         "content-identity",
+        "derived-state-lock-concurrency",
         "derived-index-contract",
         "memory-index",
         "report-index",
@@ -374,118 +428,28 @@
     "changed": {
       "dynamic": true
     },
+    "delivery": {
+      "dynamic": true
+    },
+    "boundary": {
+      "dynamic": true
+    },
     "profile-deploy": {
       "nodes": [
-        "validate-versions",
-        "validate-workspace",
         "validation-dag",
-        "deployment-manifest",
-        "context-binding",
         "context-read-controls",
-        "always-on-governance",
-        "governance-ledger-integrity",
         "profile-section-selector",
-        "execution-chain-evolution",
-        "profile-governance",
-        "instruction-fallback",
-        "mcp-servers",
-        "mcp-stdio",
-        "client-contracts",
-        "migrate-layout",
-        "control-content-source",
-        "published-package-scripts-contract",
-        "pack-clean",
-        "public-text-integrity",
-        "review-execution-contract",
-        "visible-output-contract",
-        "repair-prevention-assessment",
-        "workflow-completion-contract",
-        "critical-coverage",
-        "host-instruction-projection",
-        "host-adapters",
-        "mcp-runtime-closure",
-        "npm-lifecycle-adapter",
-        "global-host-config",
-        "global-host-removal",
-        "global-install-smoke",
-        "host-installation",
-        "syntax",
-        "skill-sidecar-contract",
-        "skill-resolve",
-        "skill-resolution-hook-paths",
-        "skill-intents",
-        "skill-route-contracts",
-        "skill-route-budget",
-        "skill-route-state",
-        "skill-route-lifecycle",
-        "runtime-rolling-upgrade",
-        "skill-route-closure"
+        "deployment-manifest",
+        "profile-governance"
       ]
     },
     "package-release": {
       "nodes": [
         "validate-versions",
-        "validate-core",
-        "mcp-stdio",
-        "critical-risk-coverage",
-        "security-audit-runner",
         "validation-dag",
-        "profile-governance",
-        "public-product-expression",
-        "readme-governance",
-        "control-content-source",
-        "candidate-review-bundle",
-        "capability-surface-decision",
-        "host-capability-routing",
-        "always-on-governance",
-        "governance-ledger-integrity",
-        "derived-index-contract",
-        "memory-index",
-        "report-index",
-        "task-continuation",
-        "cli-command-registry",
-        "cli-json-contract",
-        "context-read",
-        "context-binding",
-        "context-read-controls",
-        "hooks-runtime",
-        "mcp-servers",
-        "cli-behavior",
-        "client-contracts",
         "release-metadata",
         "published-package-scripts-contract",
-        "pack-clean",
-        "public-text-integrity",
-        "review-execution-contract",
-        "visible-output-contract",
-        "repair-prevention-assessment",
-        "workflow-completion-contract",
-        "critical-coverage",
-        "host-instruction-projection",
-        "host-adapters",
-        "mcp-runtime-closure",
-        "npm-lifecycle-adapter",
-        "global-host-config",
-        "global-host-removal",
-        "global-install-smoke",
-        "host-installation",
-        "syntax",
-        "generated-site-precheck",
-        "website-build",
-        "public-skill-catalog-build",
-        "generated-site-postcheck",
-        "skill-sidecar-contract",
-        "public-skill-taxonomy",
-        "skill-portfolio-current",
-        "skill-resolve",
-        "skill-resolution-hook-paths",
-        "skill-intents",
-        "skill-route-contracts",
-        "skill-route-budget",
-        "skill-route-state",
-        "skill-route-lifecycle",
-        "runtime-rolling-upgrade",
-        "skill-route-closure"
+        "pack-clean"
       ]
     }
   },
@@ -1743,6 +1707,50 @@
         "contract"
       ],
       "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "derived-state-lock-concurrency",
+      "owner": "runtime-derived-state-lock",
+      "command": "node",
+      "args": [
+        "scripts/test-derived-state-lock-concurrency.js"
+      ],
+      "dependencies": [
+        "content-identity"
+      ],
+      "inputs": [
+        "hooks/_runtime/derived-state-store.cjs",
+        "scripts/test-derived-state-lock-concurrency.js"
+      ],
+      "consumers": [
+        "workflow-completion-contract",
+        "runtime-state-index",
+        "memory-index",
+        "report-index",
+        "project-knowledge-store"
+      ],
+      "invariants": [
+        "single-writer",
+        "crash-recovery",
+        "no-lost-update"
+      ],
+      "riskClass": "high",
       "cachePolicy": "never",
       "writeScopes": [
         "isolated-temp"
@@ -3678,7 +3686,7 @@
       "writeScopes": [
         "isolated-temp"
       ],
-      "timeoutMs": 600000,
+      "timeoutMs": 900000,
       "exitMap": {
         "success": [
           0
@@ -3881,7 +3889,7 @@
       "writeScopes": [
         "isolated-temp"
       ],
-      "timeoutMs": 180000,
+      "timeoutMs": 300000,
       "exitMap": {
         "success": [
           0
@@ -4022,7 +4030,7 @@
       "writeScopes": [
         "isolated-temp"
       ],
-      "timeoutMs": 180000,
+      "timeoutMs": 900000,
       "exitMap": {
         "success": [
           0
@@ -4693,7 +4701,7 @@
       "writeScopes": [
         "isolated-temp"
       ],
-      "timeoutMs": 600000,
+      "timeoutMs": 900000,
       "exitMap": {
         "success": [
           0
@@ -4749,7 +4757,7 @@
       "writeScopes": [
         "isolated-temp"
       ],
-      "timeoutMs": 720000,
+      "timeoutMs": 900000,
       "exitMap": {
         "success": [
           0
@@ -4813,7 +4821,7 @@
       "writeScopes": [
         "isolated-temp"
       ],
-      "timeoutMs": 600000,
+      "timeoutMs": 1800000,
       "exitMap": {
         "success": [
           0
@@ -4995,7 +5003,7 @@
         "website-build",
         "public-site-build"
       ],
-      "timeoutMs": 600000,
+      "timeoutMs": 1500000,
       "exitMap": {
         "success": [
           0

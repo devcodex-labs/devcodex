@@ -185,6 +185,6 @@ applyTo: .devcodex/**/requirements/**
 - [ ] ContextAcquisition 触发时，plan/receipt/hidden-read/bounded-memory/V99 证据与 staged consumer owner 已记录
 - [ ] VisibleOutputContract 触发时，planned=observed=internalDelivered、required hidden=0、计数守恒、semanticDigest 与 renderer parity 已记录；internal-only 文件未默认进入用户列表
 - [ ] 派生资产触发时，post-stage candidate receipt 与 post-commit replay 均已记录，且不复用 working-tree check
-- [ ] 控制面/高风险任务已执行 targeted + related + full validation 或明确降级
+- [ ] 控制面/高风险任务已执行 V0/V1 与适用 V2 boundary；只有显式 full-audit/release 授权才执行 V3/full，无法推导边界时结构化 BLOCK
 - [ ] CHANGELOG 只按 unreleased/release 状态和项目三轨规则更新
 - [ ] delivery-checklist 已核对 active task 的内部完整 manifest、用户可见交付集合与最终 Envelope

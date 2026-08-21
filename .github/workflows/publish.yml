@@ -40,7 +40,14 @@ jobs:
         run: npm ci
 
       - name: Run package release checks
-        run: npm run test:package-release
+        shell: bash
+        run: |
+          set -euo pipefail
+          PLAN_DIGEST="$(
+            node scripts/run-validation.js --route package-release --plan --json |
+              node -e 'const fs = require("fs"); const envelope = JSON.parse(fs.readFileSync(0, "utf8")); const plan = envelope?.data?.plan; const digest = plan?.budgetCard?.digest; if (envelope?.ok !== true || plan?.routeResolved !== "package-release" || plan?.candidateStable !== true || !/^[a-f0-9]{64}$/.test(String(digest || ""))) process.exit(1); process.stdout.write(digest)'
+          )"
+          node scripts/run-validation.js --route package-release --approve-plan "${PLAN_DIGEST}"
 
       - name: Preview package contents
         run: npm pack --dry-run

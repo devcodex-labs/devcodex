@@ -11,6 +11,7 @@ const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugin.json'), 'utf8'
 const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'))
 const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')
 const publicCi = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8')
+const publishWorkflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'publish.yml'), 'utf8')
 
 const errors = []
 const publicReadmeContract = evaluatePublicReadmeContractV2(readme, { root: ROOT })
@@ -59,6 +60,17 @@ expect(publicCi.includes('route: test:windows-control-plane'), '公共 CI 必须
 expect(publicCi.includes('name: Full quality (Node 24.17)'), '公共 CI 全量质量门必须使用发布 Node 24.17')
 expect(publicCi.includes('name: Package boundary (Node 24.17)'), '公共 CI package job 必须只声明实际执行的 package boundary')
 expect(!publicCi.includes('Website and package'), '公共 CI 不得把条件缺席的网站构建表述为绿色证据')
+expect(publishWorkflow.includes('set -euo pipefail'), 'Publish workflow 必须让 package plan 管道失败关闭')
+expect(
+  publishWorkflow.includes('node scripts/run-validation.js --route package-release --plan --json'),
+  'Publish workflow 必须先物化 package-release 精确计划'
+)
+expect(publishWorkflow.includes('plan?.budgetCard?.digest'), 'Publish workflow 必须读取 BudgetCard 精确摘要')
+expect(
+  publishWorkflow.includes('--route package-release --approve-plan "${PLAN_DIGEST}"'),
+  'Publish workflow 必须把同一 BudgetCard 摘要绑定回 package-release 执行'
+)
+expect(!publishWorkflow.includes('run: npm run test:package-release'), 'Publish workflow 不得使用缺少非交互计划批准的旧入口')
 expect(nonEmptyString(pkg.publishConfig && pkg.publishConfig.registry), 'package.json publishConfig.registry 不能为空')
 expect(nonEmptyString(pkg.publishConfig && pkg.publishConfig.access), 'package.json publishConfig.access 不能为空')
 expect(files.length > 0, 'package.json files 不能为空')

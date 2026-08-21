@@ -1038,7 +1038,11 @@ function testMemoryCpConfirmPreservesOrdinaryTables() {
     })
   ], TEMP_ROOT)
   const confirmation = resultById(first, 1)
-  assert.strictEqual(confirmation.isError, undefined)
+  assert.notStrictEqual(
+    confirmation.isError,
+    true,
+    confirmation.content?.[0]?.text || 'memory_cp_confirm unexpectedly failed'
+  )
   assert.strictEqual(confirmation.structuredContent.readbackVerified, true)
   assert.strictEqual(confirmation.structuredContent.cpRowCount, 3)
   assert.strictEqual(confirmation.structuredContent.artifactAuthority.schemaVersion, 'MemoryCpArtifactAuthorityV1')

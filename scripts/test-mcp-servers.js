@@ -1049,6 +1049,10 @@ function testMemoryCpConfirmPreservesOrdinaryTables() {
   assert.strictEqual(confirmation.structuredContent.artifactAuthority.rootKind, 'task')
   assert.strictEqual(confirmation.structuredContent.artifactAuthority.canonicalRelativePath, '02-技术方案.md')
   assert.match(confirmation.structuredContent.artifactAuthority.rootIdentity, /^[a-f0-9]{64}$/)
+  assert.strictEqual(
+    confirmation.structuredContent.artifactLinks.links[0].targetPath,
+    'requirements/表格任务/02-技术方案.md'
+  )
   let sessions = fs.readFileSync(sessionsPath, 'utf8')
   assert.ok(sessions.startsWith(ordinaryTable.trimEnd()), 'ordinary session table must remain unchanged')
   assert.strictEqual((sessions.match(/^### CP 确认记录$/gm) || []).length, 1)

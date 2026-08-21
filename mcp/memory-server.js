@@ -776,6 +776,13 @@ function relativeToActiveRoot(target, filePath) {
   return path.relative(target.activeRoot, filePath).replace(/\\/g, '/')
 }
 
+function relativeExistingToActiveRoot(target, filePath) {
+  const realpath = fs.realpathSync.native
+    ? candidate => fs.realpathSync.native(candidate)
+    : candidate => fs.realpathSync(candidate)
+  return path.relative(realpath(target.activeRoot), realpath(filePath)).replace(/\\/g, '/')
+}
+
 function memoryLinkCapability(target, surface) {
   return createLinkCapabilityDecision({
     surface,
@@ -2922,7 +2929,7 @@ function handleMemoryCpConfirm(args) {
         throw new Error(`ConfirmBindingGate: artifactPath changed during verification: ${artifactPath}`)
       }
       artifactPath = afterRead.relative
-      artifactTargetPath = relativeToActiveRoot(target, afterRead.currentPath)
+      artifactTargetPath = relativeExistingToActiveRoot(target, afterRead.currentPath)
       const rootStat = fs.statSync(canonicalRoot)
       artifactAuthority = {
         schemaVersion: 'MemoryCpArtifactAuthorityV1',

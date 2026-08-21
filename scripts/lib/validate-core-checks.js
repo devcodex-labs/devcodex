@@ -448,7 +448,7 @@ function buildValidateCoreChecks(ctx) {
       execSync('node scripts/test-mcp-servers.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
       console.log('[V16] MCP servers smoke test passed')
     } catch (e) {
-      const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
+      const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 24).join(' | ')
       err(`[V16] MCP servers smoke test failed${detail ? `: ${detail}` : ''}`)
     }
   }

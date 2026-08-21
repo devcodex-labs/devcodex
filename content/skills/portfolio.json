@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 594,
     "consumerInventoryDigest": "db3b665a1a9719e18961b806c1809ea4adef3e5c8dec164f904ec652a765a469",
-    "consumerProjectionDigest": "6791449eee68c39da0f90298633c4eae5687e1f9977bb27522f88c108852028a",
-    "portfolioInputDigest": "68b31658186cf1830b1482557d2deb119046252699a62d2638f1d7c9faacd8e3"
+    "consumerProjectionDigest": "95e18474632fccbf7c8de5292e5dda32f7b93f4fb62506435cd29caa0c87c53f",
+    "portfolioInputDigest": "a0823c42997b6185aed088133aab725ae6b6e6b057d4cadba043f8c774777a1a"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -12547,6 +12547,10 @@
         },
         {
           "path": ".github/workflows/ci.yml",
+          "role": "current"
+        },
+        {
+          "path": ".github/workflows/publish.yml",
           "role": "current"
         },
         {

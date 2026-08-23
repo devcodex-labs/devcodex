@@ -1916,6 +1916,19 @@ function maintainTaskRecoveryStore(metaDir, options = {}) {
         after: before
       }
     }
+    const usageLedgerNeedsReconcile = before.usageLedgerStatus !== 'fresh' ||
+      before.usageLedgerTaskSlotBytes !== before.taskSlotBytes
+    if (usageLedgerNeedsReconcile) {
+      actions.push({
+        action: 'reconcile-usage-ledger',
+        ledgerStatus: before.usageLedgerStatus,
+        ledgerTaskSlotBytes: before.usageLedgerTaskSlotBytes,
+        scannedTaskSlotBytes: before.taskSlotBytes,
+        ledgerAdjustmentBytes: Number.isInteger(before.usageLedgerTaskSlotBytes)
+          ? before.taskSlotBytes - before.usageLedgerTaskSlotBytes
+          : null
+      })
+    }
     maintainWriterOwnedArtifacts(paths, inventory, actions, failures, { ...options, apply })
     maintainEphemeralCache(paths, actions, failures, { ...options, apply })
     const taskRecords = inventory.directories

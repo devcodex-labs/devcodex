@@ -1,8 +1,8 @@
 {
   "schemaVersion": "PublicProductProjectionV2",
-  "generatedAt": "2026-08-23T02:22:54.303Z",
+  "generatedAt": "2026-08-23T04:58:27.831Z",
   "release": {
-    "version": "1.18.0"
+    "version": "1.18.1"
   },
   "expression": {
     "schemaVersion": "PublicProductExpressionV2",
@@ -1191,10 +1191,10 @@
     "capabilities": "<!-- devcodex-public:capabilities ids=turn-ambiguous-request-into-action,fix-with-regression-confidence,evolve-cross-domain-change,deliver-with-evidence-and-handoff -->"
   },
   "sourceIdentities": {
-    "package": "8ff95e2f709139c6ea939f67f6b9a6bb78ffce29f72978a047f14b8aecbf9b2d",
+    "package": "06252b110d38a4782429a5bc857a9fb7dddaedb5f1668f3d3184dfddcb0da4aa",
     "expression": "60e525d34e5531e6b4bbbb77f8b34bb93c9ca9ebee5df4fe2812749232175c3c",
     "workflows": "d9eb7086866fe3c3815f673957ed978c1594079261009ac775bf3e1336ad44fd",
-    "portfolio": "c62ab332afff4d6b75c84175ec91833ceeec01a0be2801adf329173f1fe39c53",
+    "portfolio": "7bbe8ee052465a790258412187dfed534bd770bba27d86090c662926a25254f3",
     "taxonomy": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030"
   }
 }

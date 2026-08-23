@@ -1,6 +1,6 @@
 {
   "name": "devcodex",
-  "version": "1.18.0",
+  "version": "1.18.1",
   "description": "DevCodex — cross-host AI coding engineering harness for Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok, and Cursor",
   "main": "index.js",
   "bin": {

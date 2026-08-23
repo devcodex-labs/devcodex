@@ -430,6 +430,43 @@ try {
   assert.strictEqual(transactionalUpdate.status, 'committed')
   assert.strictEqual(lockTracking.unlockedTaskSlotReads(), 0, 'transactional update must read task slots only while the store lock is held')
 
+  const usageDriftMeta = path.join(tempRoot, 'usage-drift-hooks')
+  const usageDriftId = '00000000-0000-4000-8000-000000000013'
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir: usageDriftMeta,
+    identity: identity(usageDriftId),
+    state: state(usageDriftId)
+  }, baseOptions).status, 'committed')
+  const usageDriftPaths = storePaths(usageDriftMeta)
+  const driftedLedger = JSON.parse(fs.readFileSync(usageDriftPaths.manifest, 'utf8'))
+  driftedLedger.taskSlotBytes += 123
+  driftedLedger.payloadDigest = digestValue({
+    schemaVersion: driftedLedger.schemaVersion,
+    sequence: driftedLedger.sequence,
+    updatedAt: driftedLedger.updatedAt,
+    taskSlotBytes: driftedLedger.taskSlotBytes,
+    source: driftedLedger.source,
+    lastMaintenanceAt: driftedLedger.lastMaintenanceAt
+  })
+  fs.writeFileSync(usageDriftPaths.manifest, `${JSON.stringify(driftedLedger, null, 2)}\n`, 'utf8')
+  const driftedDoctor = diagnoseTaskRecoveryStore(usageDriftMeta, baseOptions)
+  assert.strictEqual(driftedDoctor.checks.find(check => check.id === 'usage-ledger').status, 'WARN')
+  const reconcilePreview = maintainTaskRecoveryStore(usageDriftMeta, baseOptions)
+  const previewReconcileAction = reconcilePreview.actions.find(action => action.action === 'reconcile-usage-ledger')
+  assert(previewReconcileAction, 'dry-run must disclose usage-ledger reconciliation')
+  assert.strictEqual(previewReconcileAction.ledgerAdjustmentBytes, -123)
+  assert.strictEqual(
+    diagnoseTaskRecoveryStore(usageDriftMeta, baseOptions).checks.find(check => check.id === 'usage-ledger').status,
+    'WARN',
+    'dry-run must not reconcile the usage ledger'
+  )
+  const reconcileApply = maintainTaskRecoveryStore(usageDriftMeta, { ...baseOptions, apply: true })
+  assert(reconcileApply.actions.some(action => action.action === 'reconcile-usage-ledger'))
+  assert.strictEqual(
+    diagnoseTaskRecoveryStore(usageDriftMeta, baseOptions).checks.find(check => check.id === 'usage-ledger').status,
+    'PASS'
+  )
+
   const telemetryMeta = path.join(tempRoot, 'telemetry-hooks')
   fs.mkdirSync(telemetryMeta, { recursive: true })
   const retainedLegacyLog = path.join(telemetryMeta, 'interceptions.jsonl')

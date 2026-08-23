@@ -213,11 +213,13 @@ function taskReadLockTrackingFs(metaDir) {
 
 try {
   const stableKey = createTaskRecoveryKey(identity('00000000-0000-4000-8000-000000000001'))
-  assert.strictEqual(stableKey, createTaskRecoveryKey({
+  const caseVariantKey = createTaskRecoveryKey({
     activeRoot: activeRoot.toUpperCase(),
     project: 'DEVCODEX',
     taskId: '00000000-0000-4000-8000-000000000001'
-  }))
+  })
+  if (process.platform === 'win32') assert.strictEqual(stableKey, caseVariantKey)
+  else assert.notStrictEqual(stableKey, caseVariantKey)
 
   const oversized = state('00000000-0000-4000-8000-000000000001')
   const dataUrl = `data:image/jpeg;base64,${'A'.repeat(600000)}`

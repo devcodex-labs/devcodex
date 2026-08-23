@@ -13,7 +13,7 @@
 - **RuntimeGenerationRetention P2（PI-276 / PF-338）**：用户级六宿主不可变 `runtime-*` 不再只有 retained 列表而无收敛路径。本机 `generationAdoptions` 防止旧 release 刚安装即越过宽限；Profile/Memory MCP 与 global-host activation 共用稳定 `RuntimeGenerationLeaseV1`，GC claim 与激活双向互斥。GC 只接受非 current、无 live lease、已过本机 24 小时宽限且 manifest/content-tree/receipt/path 全可证的候选；预览零写，普通 apply 零 generation 删除，只有匹配 `RuntimeGenerationGcPlanV1.planDigest` 的显式 apply 才执行。完整 claim replan 与全部候选预检失败时零删除，逐项删除失败如实 partial；崩溃遗留 claim 仅在超龄、PID 明确死亡且原子搬移读回一致时由固定 stale 槽接管。`status/doctor` 六宿主合计最多 12 条 generation 样本、每个 inventory 最多 12 类摘要、TaskRecovery task 最多 8 条；maintenance 的 task before/after 各最多 8 条，actions/failures 与 generation candidates/retained/removed/failed 各最多 24 条并保留真实总量，避免诊断本身产生巨量 Token。
 - **Grok SessionStart 无界 owner 修复**：诊断观察从每会话随机 owner 目录改为固定 16 槽 `GrokSessionPrivateObservationV2`；100-session 与故障注入证明正常/失败均不形成新文件链。旧 V1 owner 只读保留。
 - **候选代际时间真相修复**：未发布候选从 `候选日期` 生成确定性 runtime `createdAt`，权威标记为 `candidate-changelog`；正式发布后才使用 `release-changelog`，同时避免候选安装回执出现 `createdAt=null` 或误写发布日期。
-- **当前源码 S15**：P2 runtime `3c762817…daf842` / adapter `b4662345…d2f00` 的 Codex CLI S15 已 PASS，run=`s15-codex-probe-f9b1014d-bde6-4381-8584-b23ce1e2af8d`，portable evidence=`55be4e4a…82524`，异常计数全 0。Codex Desktop 仍须独立 fresh-task 复验，不从 CLI 继承。
+- **当前源码 S15**：v1.18.1 runtime `50accd83…13f8a` / adapter `b4662345…d2f00` 的隔离候选 Codex CLI S15 已 PASS，run=`s15-codex-probe-adb724a8-6300-4b2e-8cb0-4986c24f7562`，source evidence=`ccd8c749…62e90`、portable evidence=`791d67e9…0ec00`，rebind、entry/closeout 完整且异常计数全 0。Codex Desktop 仍须独立 fresh-task 复验，不从 CLI 继承。
 - v1.18.0 完整说明见 [`changelogs/releases/v1.18.0.md`](./releases/v1.18.0.md)；v1.18.1 补丁候选说明见 [`changelogs/releases/v1.18.1.md`](./releases/v1.18.1.md)。
 
 ## v1.18.0 已归档发布候选

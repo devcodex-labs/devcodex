@@ -635,7 +635,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 | PC7 | 续接：新会话/resume 有界检测结果 |
 
 下一步：[必要动作，一句人话]
-`DevCodexVisibleEnvelopeV1 · entry-check · [状态] · [semanticDigest]`
+`DevCodexVisibleEnvelopeV2 · entry-check · [状态] · [semanticDigest]`
 ```
 
 **禁止**：`PC2–PC7` 折叠行；PC3/PC6 写成内部进度条；用图标冒充 PASS 且无证据。  

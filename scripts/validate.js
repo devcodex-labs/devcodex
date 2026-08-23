@@ -104,7 +104,7 @@ const { buildConsumerEvolutionControlChecks } = require('./lib/validate-consumer
 const { buildResidualAbsorptionControlChecks } = require('./lib/validate-residual-absorption-controls')
 const { buildBrandVisualQualityChecks } = require('./lib/validate-brand-visual-quality')
 const { buildTurnLivenessControlChecks } = require('./lib/validate-turn-liveness-controls')
-const { buildContextReadControlChecks } = require('./lib/validate-context-read-controls')
+const { buildContextReadControlChecks, resolveValidationActiveRoot } = require('./lib/validate-context-read-controls')
 const { buildClosureEvidenceControlChecks } = require('./lib/validate-closure-evidence-controls')
 const { buildExecutionChainControlChecks } = require('./lib/validate-execution-chain-controls')
 const { buildVisibleOutputControlChecks } = require('./lib/validate-visible-output-controls'), { buildWorkflowCompletionControlChecks } = require('./lib/validate-workflow-completion-controls')
@@ -157,7 +157,7 @@ function resolveActiveDevcodexRoot(repoRoot) {
   return legacyRoot
 }
 
-const ACTIVE_DEVCODEX_ROOT = resolveActiveDevcodexRoot(ROOT)
+const ACTIVE_DEVCODEX_ROOT = resolveValidationActiveRoot(ROOT, { resolveActiveRoot: resolveActiveDevcodexRoot })
 const validationOrchestration = createValidationOrchestration({ root: ROOT, reportError: err })
 const isValidationDelegated = validationOrchestration.isDelegated
 function activePath(...segments) {

@@ -25,6 +25,16 @@ function runHooksRuntimeVisibilityScenarios(context) {
     writeTranscriptEntries
   } = context
 
+  function readCaptureEntries() {
+    const telemetryRoot = path.dirname(CAPTURE_LOG)
+    return [0, 1, 2, 3]
+      .map(index => path.join(telemetryRoot, `telemetry-${index}.ndjson`))
+      .filter(file => fs.existsSync(file))
+      .flatMap(file => fs.readFileSync(file, 'utf8').trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line)))
+      .filter(entry => entry.recordType === 'final-payload-sample')
+      .sort((left, right) => Date.parse(left.capturedAt || left.observedAt || '') - Date.parse(right.capturedAt || right.observedAt || ''))
+  }
+
   const FULL_ENTRY_CHECK_LINES = [
     '### DevCodex · 入口检查',
     '- PC0 [PASS] Context plan',
@@ -88,7 +98,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
   })
   assert.strictEqual(noVisiblePayloadReminder.continue, true)
   assert.ok(!noVisiblePayloadReminder.systemMessage)
-  assert.ok(!fs.existsSync(CAPTURE_LOG))
+  assert.strictEqual(readCaptureEntries().length, 0)
 
   fs.mkdirSync(STATE_DIR, { recursive: true })
   fs.writeFileSync(CAPTURE_FLAG, 'capture final payload once\n')
@@ -99,7 +109,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
   })
 
   assert.ok(fs.existsSync(CAPTURE_LOG))
-  let captureEntries = fs.readFileSync(CAPTURE_LOG, 'utf8').trim().split(/\r?\n/).map(line => JSON.parse(line))
+  let captureEntries = readCaptureEntries()
   assert.strictEqual(captureEntries[0].eventName, 'PreCompact')
   assert.strictEqual(captureEntries[0].visiblePayloadDetected, true)
   assert.ok(captureEntries[0].interestingStrings.some(entry => entry.path === 'assistantMessage'))
@@ -209,7 +219,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
   const duplicateMessage = duplicateMissingPrecheckReminder.systemMessage || ''
   assert.ok(!/entry check block/i.test(duplicateMessage))
   assert.match(duplicateMessage, /Stop gate incomplete|incomplete closure/i)
-  captureEntries = fs.readFileSync(CAPTURE_LOG, 'utf8').trim().split(/\r?\n/).map(line => JSON.parse(line))
+  captureEntries = readCaptureEntries()
   assert.strictEqual(captureEntries.length, 2)
   assert.strictEqual(captureEntries[1].eventName, 'Stop')
   assert.strictEqual(fs.existsSync(CAPTURE_FLAG), false)

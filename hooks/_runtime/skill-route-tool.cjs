@@ -43,6 +43,11 @@ const {
   projectPendingStages
 } = require('./skill-route-budget.cjs')
 const { replayMcpContextSourceObservations } = require('./context-source-observation.cjs')
+const { getContextDeliveryDecision } = require('./context-delivery-ledger-v2.cjs')
+const {
+  resolveTaskRecoveryMetaDir,
+  writeStableProjection
+} = require('./task-recovery-store-v5.cjs')
 const {
   bootstrapSkillRoute,
   collectExpiredTurns,
@@ -132,22 +137,11 @@ function resolveProjectTarget (inputRoot, project) {
 }
 
 function lifecycleStatePath (target) {
-  if (target.layout.enabled) {
-    return path.join(
-      target.activeRoot,
-      '.memory',
-      'hooks',
-      target.project,
-      'lifecycle-state.json'
-    )
-  }
-  return path.join(
-    target.activeRoot,
-    '.memory',
-    'hooks',
-    '__workspace__',
-    'lifecycle-state.json'
-  )
+  return path.join(resolveTaskRecoveryMetaDir({
+    activeRoot: target.activeRoot,
+    project: target.project,
+    workspaceNamespace: target.layout.enabled
+  }), 'lifecycle-state.json')
 }
 
 function readJson (file, fsImpl = fs) {
@@ -156,14 +150,6 @@ function readJson (file, fsImpl = fs) {
   } catch {
     return null
   }
-}
-
-function writeJsonAtomic (file, value, fsImpl = fs) {
-  const dir = path.dirname(file)
-  fsImpl.mkdirSync(dir, { recursive: true })
-  const tmp = `${file}.tmp.${process.pid}.${Date.now()}`
-  fsImpl.writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
-  fsImpl.renameSync(tmp, file)
 }
 
 /**
@@ -242,11 +228,7 @@ function tryRebindLifecycleFromPlanObservation (binding, target, lifecycle, opti
   lifecycle.contextAcquisition = acquisition
   lifecycle.updatedAt = new Date(options.nowMs || Date.now()).toISOString()
   const statePath = lifecycleStatePath(target)
-  try {
-    writeJsonAtomic(statePath, lifecycle, fsImpl)
-  } catch {
-    // Still use in-memory rebinding for this call even if persist fails.
-  }
+  writeStableProjection(statePath, lifecycle, { fs: fsImpl })
   return { rebound: true, lifecycle }
 }
 
@@ -363,11 +345,7 @@ function validateTrustedContextBinding (binding, target, options = {}) {
       acquisition.receipt = receipt
       lifecycle.contextAcquisition = acquisition
       lifecycle.updatedAt = new Date(options.nowMs || Date.now()).toISOString()
-      try {
-        writeJsonAtomic(statePath, lifecycle, options.fs || fs)
-      } catch {
-        // The durable source ledger remains authoritative recovery evidence.
-      }
+      writeStableProjection(statePath, lifecycle, { fs: options.fs || fs })
     }
   }
   if (!plan || !receipt) {
@@ -1648,8 +1626,49 @@ function validateRouteContextPrecondition (state, target, options = {}) {
   return liveContext
 }
 
+function skillRouteLifecycleMetaDir (state, target, options = {}) {
+  if (options.lifecycleMetaDir) return path.resolve(options.lifecycleMetaDir)
+  return resolveTaskRecoveryMetaDir({
+    activeRoot: target.activeRoot,
+    project: state.project,
+    ...(typeof options.workspaceNamespace === 'boolean'
+      ? { workspaceNamespace: options.workspaceNamespace }
+      : {})
+  })
+}
+
+function applySkillRouteContextDelivery (response, state, target, options = {}) {
+  const chunks = Array.isArray(response?.bodyChunks) ? response.bodyChunks : []
+  if (response?.op !== 'load_stage' || !chunks.length || !response.receipt?.pageDigest) return response
+  const conversationId = String(
+    state.hostSessionId || options.sessionId || options.env?.DEVCODEX_HOST_SESSION_ID || ''
+  ).trim()
+  const decision = getContextDeliveryDecision({
+    metaDir: skillRouteLifecycleMetaDir(state, target, options),
+    activeRoot: target.activeRoot,
+    project: state.project,
+    conversationId,
+    contextEpoch: state.contextEpoch,
+    sourceKey: `skill-route:${state.turnBinding}:${state.plan.planDigest}:${response.receipt.stageId}:${response.receipt.pageIndex}`,
+    sourceDigest: response.receipt.pageDigest,
+    bodyCarrier: 'skill-route-body-chunks-v1',
+    bodyIdentity: chunks,
+    bodyBytes: response.receipt.bodyBytes
+  }, options)
+  response.delivery.contextDelivery = decision.descriptor
+  response.delivery.bodyDeliverySkipped = decision.bodyDeliverySkipped === true
+  response.delivery.contextDeliveryStatus = decision.status
+  response.delivery.deliveredBodyBytes = decision.deliveredBodyBytes
+  response.delivery.deduplicatedBodyBytes = decision.deduplicatedBodyBytes
+  response.delivery.tokenEquivalentEstimate = decision.tokenEquivalentEstimate
+  response.receipt.bodyDeliverySkipped = decision.bodyDeliverySkipped === true
+  response.receipt.deliveredBodyBytes = decision.bodyDeliverySkipped === true ? 0 : response.receipt.bodyBytes
+  if (decision.bodyDeliverySkipped === true) response.bodyChunks = []
+  return finalizeResponse(response, BODY_PAGE_LIMIT_BYTES)
+}
+
 function handleLoadStage (input, target, options) {
-  return transactEnvelope(
+  const transaction = transactEnvelope(
     target.activeRoot,
     input.turnBinding,
     input,
@@ -1823,7 +1842,13 @@ function handleLoadStage (input, target, options) {
       return { envelope, response }
     },
     options
-  ).response
+  )
+  return applySkillRouteContextDelivery(
+    transaction.response,
+    transaction.envelope.state,
+    target,
+    options
+  )
 }
 
 function handleStatus (input, target, options) {

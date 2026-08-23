@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 意图驱动的 Profile 加载、active-root 路径、目标项目识别与项目现实扩展规范
 priority: P5
-version: 1.17.11
+version: 1.18.0
 ---
 # Profile 加载与项目现实扩展
 
@@ -25,6 +25,8 @@ version: 1.17.11
 - `config.json` 采用 `workspace base + project overlay`；Auto 精确别名全局默认 `@rocky`，可用 `extensions.devcodex.autoAliases` 替换全局默认别名（省略表示沿用默认，空数组表示关闭默认别名），也可在 `extensions.devcodex.concurrency` 配置 `ConcurrencyPolicy`
 - `extensions.devcodex.executionOptimization.mode` 只允许 `safe-auto | full-only`，缺省 `safe-auto`；`full-only` 关闭选择性复用但不关闭正确执行路径，其中 validation 必须保留已授权 intent 并用 direct plan，禁止暗升 V3/full
 - `extensions.devcodex.concurrency` 缺省为 `mode=auto`：只读准备与隔离验证可按通道上限并行；`mode=serial` 表示全串行；项目只能追加 `locks.additionalSingleWriterScopes`，不得删除核心单写者域或开启并行 mutation
+- `extensions.devcodex.git` 缺省为 `collaborationMode=unverified / branchPolicy=no-auto-branch / worktreePolicy=explicit-only / crossBranchIntegration=unverified / sharedActionsRequireExplicitAuthorization=true`；project overlay 只覆盖声明字段，递归合并后不得把共享动作授权降为 false
+- Git Profile 只声明政策，不授权动作：branch-create/switch/commit/cherry-pick/push 分离确认；same-branch 不集成，选择性跨分支默认 ordered cherry-pick，完整线性历史仅显式 `merge --ff-only`
 - `config.local.json` 与 `config.json` 同路径模型，可作为用户 / 项目指定的本地 overlay（长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>`），不得覆盖 `mode` / `agent` / `pluginVersion`
 - 连接配置来源遵循 S02：默认可直写或沿用项目既有模式；只有用户或项目明确指定 `config.local.json` 时，脚本、测试、数据库 / SSH / MongoDB / 数据操作才从当前 Profile 路径模型下的 `config.local.json` 读取，缺失文件或字段时提醒补齐
 - `config.local.json` 可保存 host、port、database、schema、username、内部 URL、连接别名、password、token、apiKey、privateKey、clientSecret、signingKey、connectionPassword、connectionString 等本地字段；`*Env` / `secretRef` 只有在用户指定、项目既有配置或用户指定的发布流程明确要求时才使用
@@ -106,7 +108,7 @@ version: 1.17.11
 | `05-交付发布规范.md` / `05-发布规范.md` | 版本号/发布流程 | `profile-standard` 起必需 |
 | `06-功能清单.md` | `FeatureInventorySchemaV2` 规范功能清单（兼容读取 V1） | standard 默认生成；closed-loop 必需 |
 | `07-用户文档与契约规范.md` | 用户文档与公开契约维护规则 | `profile-closed-loop` 必需 |
-| `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识；Auto 别名全局默认 `@rocky`，可配置 `extensions.devcodex.autoAliases` 替换默认别名；也可配置 `extensions.devcodex.concurrency` 并发策略及可选 `extensions.devcodex.executionOptimization.mode`（缺省 `safe-auto`） | 按需 |
+| `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识；Auto 别名、并发、执行优化，以及 `extensions.devcodex.git` 的协作/分支/worktree/跨分支集成/共享动作授权边界 | 按需 |
 | `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` 扩展位 | 可选 |
 
 ## ENV_MODE 注入

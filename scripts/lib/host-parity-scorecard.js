@@ -560,7 +560,7 @@ function composeEntryCheckBlock(options = {}) {
     '| PC7 | 续接：新会话或 resume 有界检测 |',
     '',
     `下一步：${next}`,
-    `DevCodexVisibleEnvelopeV1 · entry-check · ${overall} · ${digest}`
+    `DevCodexVisibleEnvelopeV2 · entry-check · ${overall} · ${digest}`
   ].join('\n')
 }
 

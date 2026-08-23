@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devcodex.dev/schemas/worktree-lifecycle-receipt-v1.json",
+  "title": "WorktreeLifecycleReceiptV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "worktreePath", "gitCommonDir", "headRef", "headCommit", "owner",
+    "ownershipEvidenceRefs", "dirtyState", "lockState", "activeJobState", "createdByRunId",
+    "teardownPlan", "cleanupAuthorization", "cleanupAuthorizationEvidenceRefs",
+    "safeDirectoryMutationAllowed", "validation"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "WorktreeLifecycleReceiptV1" },
+    "worktreePath": { "type": "string", "pattern": "^(?:[A-Za-z]:[\\\\/]|/)" },
+    "gitCommonDir": { "type": "string", "pattern": "^(?:[A-Za-z]:[\\\\/]|/)" },
+    "headRef": { "type": ["string", "null"] },
+    "headCommit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "owner": { "enum": ["devcodex-guided", "host-owned", "external-unowned", "unverified"] },
+    "ownershipEvidenceRefs": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "dirtyState": { "enum": ["clean", "dirty", "unverified"] },
+    "lockState": { "enum": ["unlocked", "locked", "unverified"] },
+    "activeJobState": { "enum": ["none", "active", "unverified"] },
+    "createdByRunId": { "type": ["string", "null"] },
+    "teardownPlan": { "type": ["string", "null"] },
+    "cleanupAuthorization": { "enum": ["not-requested", "explicit-confirmed", "forbidden"] },
+    "cleanupAuthorizationEvidenceRefs": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "safeDirectoryMutationAllowed": { "const": false },
+    "validation": { "$ref": "#/$defs/validation" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "owner": { "const": "devcodex-guided" } }, "required": ["owner"] },
+      "then": {
+        "properties": {
+          "createdByRunId": { "type": "string", "minLength": 1 },
+          "teardownPlan": { "type": "string", "minLength": 1 }
+        }
+      },
+      "else": {
+        "properties": {
+          "createdByRunId": { "type": "null" },
+          "teardownPlan": { "type": "null" },
+          "cleanupAuthorization": { "const": "forbidden" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "cleanupAuthorization": { "const": "explicit-confirmed" } }, "required": ["cleanupAuthorization"] },
+      "then": { "properties": { "cleanupAuthorizationEvidenceRefs": { "minItems": 1 } } },
+      "else": { "properties": { "cleanupAuthorizationEvidenceRefs": { "maxItems": 0 } } }
+    }
+  ],
+  "$defs": {
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["valid", "errors", "cleanupEligible"],
+      "properties": {
+        "valid": { "type": "boolean" },
+        "errors": { "type": "array", "items": { "type": "string" } },
+        "cleanupEligible": { "type": "boolean" }
+      }
+    }
+  }
+}

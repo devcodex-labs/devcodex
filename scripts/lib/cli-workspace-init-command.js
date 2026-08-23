@@ -5,7 +5,7 @@ const { parseWorkspaceInitArgs } = require('./cli-workspace-init-args.js')
 
 function buildWorkspaceInitCommand(ctx) {
   const {
-    process, console, c, cliMetadata, initArgumentFailure, readTenantSelection,
+    process, console, c, path, cliMetadata, initArgumentFailure, readTenantSelection,
     findLayoutInfo, resolveWorkspaceProjectTarget, ensureWorkspaceNamespaceLayout,
     ensureRuntimeDirs, initializeProfile, globalRefreshGuidance
   } = ctx
@@ -73,7 +73,33 @@ function buildWorkspaceInitCommand(ctx) {
       return envelope
     }
     const runtimeRoot = layout.runtimeRoot
-    if (!dryRun) ensureRuntimeDirs(cwd, false)
+    const workspaceRuntimeRoot = path.join(layout.workspaceRoot, '.devcodex', 'workspace')
+    let workspaceProvisioning
+    try {
+      workspaceProvisioning = ensureRuntimeDirs(cwd, dryRun, { workspaceRuntimeRoot })
+    } catch (error) {
+      const envelope = createCliFailure(
+        refresh ? 'update' : 'init',
+        error.code || 'WORKSPACE_RUNTIME_PROVISIONING_FAILED',
+        error.message,
+        'Repair the reported workspace path or decision contract, then retry the same command.',
+        cliMetadata,
+        {
+          cwd,
+          runtimeRoot,
+          workspaceProvisioning: error.receipt || null,
+          runtimeFailure: error.runtimeFailure || null,
+          workspaceHostDirectoriesWritten: false
+        }
+      )
+      if (json) printCliJson(console, envelope)
+      else {
+        console.log(c.red(`  ${envelope.errorCode}: ${envelope.message}`))
+        console.log(c.dim(`  ${envelope.nextStep}`))
+      }
+      process.exitCode = 2
+      return envelope
+    }
     const profileArgv = dryRun ? ['--dry-run'] : []
     const workspaceProfile = !refresh && typeof initializeProfile === 'function'
       ? initializeProfile(profileArgv, { cwdOverride: layout.workspaceRoot, source: 'workspace-init', silent: json })
@@ -113,6 +139,7 @@ function buildWorkspaceInitCommand(ctx) {
       layoutMarker: layout.markerPath,
       layoutCreated: layout.created,
       layoutPlanned: layout.planned,
+      workspaceProvisioning,
       workspaceProfile: {
         status: workspaceProfile.status || (refresh ? 'unchanged-by-update' : 'initialized'),
         tier: workspaceProfile.targetTier,
@@ -139,6 +166,7 @@ function buildWorkspaceInitCommand(ctx) {
       console.log(c.bold('  DevCodex') + c.dim(` — workspace ${refresh ? 'refresh' : 'initialization'}`))
       console.log(c.dim('  ──────────────────────────────────────'))
       console.log(`  ${c.cyan('Runtime:')} ${c.dim(runtimeRoot)}`)
+      console.log(`  ${c.cyan('Evolution:')} ${c.dim(workspaceProvisioning.status)}`)
       console.log(`  ${c.cyan('Host config:')} ${c.dim('user-global only')}`)
       if (dryRun) console.log(c.yellow('  [DRY RUN] No files were written.'))
       else console.log(c.green('  ✓ Workspace .devcodex runtime is ready.'))

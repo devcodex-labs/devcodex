@@ -71,6 +71,9 @@
         "hooks/**",
         "scripts/test-hooks-runtime.js",
         "scripts/lib/test-hooks-runtime-*.js",
+        "scripts/test-task-recovery-store-v5.js",
+        "scripts/test-runtime-generation-retention.js",
+        "scripts/test-context-delivery-ledger-v2.js",
         "scripts/test-host-adapters.js",
         "scripts/test-content-identity.js",
         "scripts/test-derived-state-lock-concurrency.js",
@@ -85,6 +88,9 @@
         "skill-route-state",
         "skill-route-lifecycle",
         "skill-route-closure",
+        "task-recovery",
+        "runtime-generation-retention",
+        "context-delivery",
         "workflow-completion-contract",
         "hooks-runtime",
         "host-adapters"
@@ -97,13 +103,17 @@
         "scripts/test-mcp-*.js",
         "scripts/test-context-*.js",
         "scripts/test-memory-index.js",
-        "scripts/test-profile-section-selector.js"
+        "scripts/test-profile-section-selector.js",
+        "hooks/_runtime/context-delivery-ledger-v2.cjs",
+        "hooks/_runtime/task-recovery-store-v5.cjs"
       ],
       "nodes": [
         "mcp-stdio",
         "context-read",
+        "context-delivery",
         "context-binding",
         "context-read-controls",
+        "runtime-generation-retention",
         "memory-index",
         "profile-section-selector",
         "mcp-servers"
@@ -165,6 +175,9 @@
       "control-plane-contracts": { "consumerEdgeType": "qualificationConsumer" },
       "workflow-completion-contract": { "consumerEdgeType": "qualificationConsumer" },
       "hooks-runtime": { "consumerEdgeType": "qualificationConsumer", "heavy": true },
+      "task-recovery": { "consumerEdgeType": "qualificationConsumer" },
+      "runtime-generation-retention": { "consumerEdgeType": "qualificationConsumer" },
+      "context-delivery": { "consumerEdgeType": "qualificationConsumer" },
       "host-adapters": { "consumerEdgeType": "qualificationConsumer" },
       "mcp-servers": { "consumerEdgeType": "qualificationConsumer" },
       "client-contracts": { "consumerEdgeType": "qualificationConsumer" },
@@ -196,6 +209,9 @@
     "scripts/test-npm-lifecycle-adapter.js",
     "scripts/lib/global-host-*.js",
     "scripts/lib/runtime-dependency-closure.js",
+    "scripts/lib/runtime-generation-retention.js",
+    "hooks/_runtime/runtime-generation-lease.cjs",
+    "scripts/test-runtime-generation-retention.js",
     "scripts/test-global-host-config.js",
     "scripts/test-global-host-removal.js",
     "scripts/test-global-host-runtime-verifier.js",
@@ -292,6 +308,9 @@
     "hooks/_runtime/model-skill-catalog.cjs",
     "hooks/_runtime/progressive-skill-plan.cjs",
     "hooks/_runtime/context-plan-observation.cjs",
+    "hooks/_runtime/lifecycle-state-projection-v5.cjs",
+    "hooks/_runtime/task-recovery-store-v5.cjs",
+    "hooks/_runtime/context-delivery-ledger-v2.cjs",
     "hooks/_runtime/workflow-root-registry.v1.json",
     "skills/_schemas/skill-intent.v1.schema.json",
     "skills/_schemas/workflow-root-registry.v1.schema.json",
@@ -301,6 +320,11 @@
     "scripts/test-skill-route-contracts.js",
     "scripts/test-skill-route-state.js",
     "scripts/test-skill-route-lifecycle.js",
+    "scripts/test-task-recovery-store-v5.js",
+    "hooks/_runtime/runtime-generation-lease.cjs",
+    "scripts/lib/runtime-generation-retention.js",
+    "scripts/test-runtime-generation-retention.js",
+    "scripts/test-context-delivery-ledger-v2.js",
     "scripts/test-runtime-rolling-upgrade.js",
     "scripts/fixtures/runtime-rolling-upgrade/**",
     "scripts/test-skill-route-closure.js",
@@ -348,6 +372,8 @@
         "runtime-state-index",
         "deployment-manifest",
         "content-identity",
+        "task-recovery",
+        "runtime-generation-retention",
         "derived-state-lock-concurrency",
         "derived-index-contract",
         "memory-index",
@@ -361,12 +387,17 @@
         "intent-consistency",
         "local-probe",
         "context-read",
+        "context-delivery",
         "context-binding",
         "context-read-controls",
         "tenant-selection",
         "workflow-capabilities",
         "api-verification-contracts",
         "git-index-isolation",
+        "git-execution-context",
+        "evolution-target-decision",
+        "workspace-provisioning",
+        "worktree-lifecycle",
         "control-plane-contracts",
         "markdown-structure",
         "control-plane-module-contracts",
@@ -1265,7 +1296,8 @@
         "scripts/test-skill-route-state.js"
       ],
       "dependencies": [
-        "skill-route-budget"
+        "skill-route-budget",
+        "context-delivery"
       ],
       "inputs": [
         "hooks/_runtime/skill-route-budget.cjs",
@@ -1323,6 +1355,9 @@
         "hooks/_runtime/lifecycle-cursor-compatible-preload.cjs",
         "hooks/_runtime/lifecycle-bootstrap-state.cjs",
         "hooks/_runtime/lifecycle-skill-route-coordinator.cjs",
+        "hooks/_runtime/progressive-skill-route-enforcement.cjs",
+        "hooks/_runtime/progressive-skill-route-enforcement.v1.json",
+        "hooks/_runtime/runtime-generation-identity.cjs",
         "hooks/_runtime/host-adapter-identity.cjs",
         "hooks/_runtime/context-plan-observation.cjs",
         "hooks/_runtime/skill-route-budget.cjs",
@@ -1368,7 +1403,8 @@
         "scripts/test-runtime-rolling-upgrade.js"
       ],
       "dependencies": [
-        "skill-route-lifecycle"
+        "skill-route-lifecycle",
+        "runtime-generation-retention"
       ],
       "inputs": [
         "package.json",
@@ -2252,6 +2288,170 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "task-recovery",
+      "owner": "runtime-recovery",
+      "command": "node",
+      "args": [
+        "scripts/test-task-recovery-store-v5.js"
+      ],
+      "dependencies": [
+        "content-identity"
+      ],
+      "inputs": [
+        "hooks/_runtime/lifecycle-state-projection-v5.cjs",
+        "hooks/_runtime/task-recovery-config-v1.cjs",
+        "hooks/_runtime/task-recovery-store-v5.cjs",
+        "hooks/_runtime/lifecycle.cjs",
+        "hooks/_runtime/lifecycle-bootstrap-state.cjs",
+        "hooks/_runtime/lifecycle-turn-liveness.cjs",
+        "hooks/_runtime/lifecycle-workflow-completion.cjs",
+        "scripts/test-task-recovery-store-v5.js",
+        "scripts/validate-profile.js",
+        "scripts/test-validate-profile.js"
+      ],
+      "consumers": [
+        "context-delivery",
+        "skill-route-lifecycle",
+        "hooks-runtime",
+        "mcp-servers",
+        "cli-behavior"
+      ],
+      "invariants": [
+        "stable-task-ab",
+        "bounded-write-amplification",
+        "semantic-noop",
+        "emergency-closeout",
+        "legacy-retention"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 300000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "TaskRecoveryStoreV5"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "runtime-generation-retention",
+      "owner": "host-runtime",
+      "command": "node",
+      "args": [
+        "scripts/test-runtime-generation-retention.js"
+      ],
+      "dependencies": [
+        "content-identity"
+      ],
+      "inputs": [
+        "hooks/_runtime/runtime-generation-identity.cjs",
+        "hooks/_runtime/runtime-generation-lease.cjs",
+        "hooks/_runtime/skill-route-mode.cjs",
+        "mcp/memory-server.js",
+        "mcp/profile-server.js",
+        "scripts/lib/cli-runtime-commands.js",
+        "scripts/lib/cli-runtime-projection.js",
+        "scripts/lib/global-host-config.js",
+        "scripts/lib/runtime-generation.js",
+        "scripts/lib/runtime-generation-retention.js",
+        "scripts/test-runtime-generation-retention.js"
+      ],
+      "consumers": [
+        "runtime-rolling-upgrade",
+        "hooks-runtime",
+        "mcp-servers",
+        "cli-behavior",
+        "global-host-config",
+        "pack-clean"
+      ],
+      "invariants": [
+      "stable-long-lived-process-lease",
+      "local-adoption-grace-not-release-date",
+      "activation-lease-gc-claim-mutual-exclusion",
+      "preview-zero-mutation",
+      "exact-plan-digest-apply",
+      "claim-and-recheck-before-delete",
+      "bounded-candidate-retained-removed-failed-json",
+      "unknown-evidence-fails-closed",
+        "legacy-lifecycle-state-zero-delete"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "RuntimeGenerationGcPlanV1",
+        "RuntimeGenerationGcApplyReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "context-delivery",
+      "owner": "context-acquisition",
+      "command": "node",
+      "args": [
+        "scripts/test-context-delivery-ledger-v2.js"
+      ],
+      "dependencies": [
+        "task-recovery",
+        "context-read"
+      ],
+      "inputs": [
+        "hooks/_runtime/context-delivery-ledger-v2.cjs",
+        "hooks/_runtime/skill-route-tool.cjs",
+        "mcp/profile-server.js",
+        "scripts/test-context-delivery-ledger-v2.js"
+      ],
+      "consumers": [
+        "skill-route-state",
+        "mcp-servers",
+        "hooks-runtime"
+      ],
+      "invariants": [
+        "same-task-conversation-epoch",
+        "same-source-identity-digest",
+        "hook-observed-delivery-only",
+        "fail-closed-full-delivery"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "ContextDeliveryReceiptV2"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "context-read",
       "owner": "context-acquisition",
       "command": "node",
@@ -2475,6 +2675,218 @@
       },
       "evidenceArtifacts": [
         "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "git-execution-context",
+      "owner": "execution-contract",
+      "command": "node",
+      "args": [
+        "scripts/test-git-execution-context.js"
+      ],
+      "dependencies": [
+        "git-index-isolation"
+      ],
+      "inputs": [
+        "scripts/lib/git-execution-context.js",
+        "scripts/test-git-execution-context.js",
+        "content/skills/execution-contract/SKILL.md",
+        "content/skills/execution-contract/git-execution-context.v1.schema.json",
+        "content/skills/execution-contract/worktree-lifecycle-receipt.v1.schema.json",
+        "content/skills/load-profile/SKILL.md",
+        "content/skills/profile-bootstrap/SKILL.md",
+        "content/instructions/01-common.instructions.md",
+        "content/instructions/01a-profile-loading.instructions.md",
+        "skills/execution-contract/SKILL.md",
+        "skills/execution-contract/git-execution-context.v1.schema.json",
+        "skills/execution-contract/worktree-lifecycle-receipt.v1.schema.json",
+        "skills/load-profile/SKILL.md",
+        "skills/profile-bootstrap/SKILL.md",
+        "instructions/01-common.instructions.md",
+        "instructions/01a-profile-loading.instructions.md"
+      ],
+      "consumers": [
+        "profile-governance",
+        "mcp-servers",
+        "cli-behavior"
+      ],
+      "invariants": [
+        "no-auto-branch",
+        "same-branch-no-integration",
+        "ordered-cherry-pick",
+        "shared-action-authorization",
+        "conflict-stop",
+        "read-only-inspection"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [],
+      "timeoutMs": 30000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "GitExecutionContextV1",
+        "WorktreeLifecycleReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "evolution-target-decision",
+      "owner": "evolution-governance",
+      "command": "node",
+      "args": [
+        "scripts/test-evolution-target-decision.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/lib/evolution-target-decision.js",
+        "scripts/test-evolution-target-decision.js",
+        "content/skills/evolution-governance/SKILL.md",
+        "content/skills/evolution-governance/evolution-target-decision.v1.schema.json",
+        "content/skills/workspace-skill-author/SKILL.md",
+        "skills/evolution-governance/SKILL.md",
+        "skills/evolution-governance/evolution-target-decision.v1.schema.json",
+        "skills/workspace-skill-author/SKILL.md"
+      ],
+      "consumers": [
+        "consumer-evolution-controls",
+        "skill-intents",
+        "skill-resolve"
+      ],
+      "invariants": [
+        "workspace-local-default",
+        "candidate-resolver-isolation",
+        "project-specific-evidence",
+        "upstream-maintainer-authorization",
+        "external-automation-control-plane"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "candidate-bound",
+      "writeScopes": [],
+      "timeoutMs": 30000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "EvolutionTargetDecisionV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "workspace-provisioning",
+      "owner": "workspace-provisioning",
+      "command": "node",
+      "args": [
+        "scripts/test-workspace-provisioning.js"
+      ],
+      "dependencies": [
+        "evolution-target-decision"
+      ],
+      "inputs": [
+        "scripts/lib/workspace-provisioning.js",
+        "scripts/lib/cli-runtime-utils.js",
+        "scripts/lib/cli-workspace-init-command.js",
+        "scripts/lib/cli-install-commands.js",
+        "scripts/test-workspace-provisioning.js",
+        "content/skills/evolution-governance/SKILL.md",
+        "content/skills/evolution-governance/workspace-provisioning-receipt.v1.schema.json",
+        "skills/evolution-governance/SKILL.md",
+        "skills/evolution-governance/workspace-provisioning-receipt.v1.schema.json"
+      ],
+      "consumers": [
+        "cli-behavior",
+        "host-installation",
+        "consumer-evolution-controls"
+      ],
+      "invariants": [
+        "fresh-existing-planned-failed",
+        "dry-run-zero-write",
+        "no-overwrite",
+        "typed-failure",
+        "caller-receipt-consumption",
+        "read-only-status-doctor"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 30000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "WorkspaceProvisioningReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "worktree-lifecycle",
+      "owner": "execution-contract",
+      "command": "node",
+      "args": [
+        "scripts/test-worktree-lifecycle.js"
+      ],
+      "dependencies": [
+        "git-execution-context"
+      ],
+      "inputs": [
+        "scripts/lib/worktree-lifecycle.js",
+        "scripts/lib/cli-worktree-diagnostics.js",
+        "scripts/lib/cli-maintenance-commands.js",
+        "scripts/test-worktree-lifecycle.js",
+        "content/skills/execution-contract/SKILL.md",
+        "content/skills/execution-contract/worktree-lifecycle-receipt.v1.schema.json",
+        "content/skills/execution-contract/worktree-diagnostics.v1.schema.json",
+        "skills/execution-contract/SKILL.md",
+        "skills/execution-contract/worktree-lifecycle-receipt.v1.schema.json",
+        "skills/execution-contract/worktree-diagnostics.v1.schema.json"
+      ],
+      "consumers": [
+        "cli-behavior",
+        "release-metadata"
+      ],
+      "invariants": [
+        "owned-vs-external",
+        "bounded-read-only-inventory",
+        "dirty-lock-job-evidence",
+        "no-auto-cleanup",
+        "no-safe-directory-mutation"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 30000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "WorktreeLifecycleReceiptV1",
+        "WorktreeDiagnosticsV1"
       ]
     },
     {
@@ -3231,7 +3643,8 @@
       },
       "evidenceArtifacts": [
         "ValidationExecutionReceiptV1",
-        "PublicProductProjectionV1",
+        "PublicProductProjectionV2",
+        "PublicProductExpressionCompatibilityReceiptV1",
         "EndpointIdentityEvidenceV1"
       ]
     },
@@ -3668,6 +4081,9 @@
       "dependencies": [
         "task-continuation",
         "context-read",
+        "task-recovery",
+        "runtime-generation-retention",
+        "context-delivery",
         "intent-consistency",
         "turn-liveness"
       ],
@@ -3746,6 +4162,9 @@
       "dependencies": [
         "task-continuation",
         "context-read",
+        "task-recovery",
+        "runtime-generation-retention",
+        "context-delivery",
         "profile-governance"
       ],
       "inputs": [
@@ -3870,7 +4289,9 @@
       ],
       "dependencies": [
         "cli-json-contract",
-        "task-continuation"
+        "task-continuation",
+        "task-recovery",
+        "runtime-generation-retention"
       ],
       "inputs": [
         "index.js",
@@ -4416,6 +4837,8 @@
         "UserFacingArtifactSetV1",
         "FinalValidationSummaryV1",
         "DevCodexVisibleEnvelopeV1",
+        "DevCodexVisibleEnvelopeV2",
+        "PostCompletionActionSetV1",
         "LinkCapabilityDecisionV1"
       ]
     },
@@ -4656,7 +5079,9 @@
         "run",
         "test:global-host-config"
       ],
-      "dependencies": [],
+      "dependencies": [
+        "runtime-generation-retention"
+      ],
       "inputs": [
         "package.json",
         "host-projections/**",

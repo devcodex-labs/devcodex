@@ -6,6 +6,7 @@ const { buildGovernanceStatusSummary } = require('./governance-status-summary.js
 const { evaluateGrokHostParity } = require('./host-parity-scorecard.js')
 const { readCompletionForCli } = require('./cli-execution-commands.js')
 const { inspectGlobalHostConfig } = require('./global-host-config.js')
+const cliWorktrees = require('./cli-worktree-diagnostics.js')
 const { createReadinessCollector } = require('./devcodex-readiness.js')
 const { buildGlobalHostComparison, buildScopedHostParity, isSourceCandidateMismatch } = require('./cli-host-diagnostic-scope.js')
 const {
@@ -308,6 +309,7 @@ function buildCliMaintenanceCommands(ctx) {
         featureInventory: profileState.featureInventory || null
       },
       executionOptimization,
+      worktrees: cliWorktrees.inspect(cwd),
       governanceSummary,
       readiness,
       hostConfigPolicy,
@@ -331,7 +333,7 @@ function buildCliMaintenanceCommands(ctx) {
     const {
       cwd, hostRoot, sourceRepository: isSrc, trackedEntryFiles: total, installSurfaces,
       entryFiles, profile, executionOptimization, governanceSummary, globalHostConfig,
-      globalHostComparison, legacy, hostParity, readiness
+      globalHostComparison, legacy, hostParity, readiness, worktrees
     } = facts
     console.log()
     console.log(c.bold('  DevCodex status') + c.dim(` in ${cwd}`))
@@ -388,6 +390,7 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(`  ${c.cyan('profile'.padEnd(14))} ${profileLabel}`)
     console.log(`  ${c.cyan('optimization'.padEnd(14))} ${executionOptimization.config.effective} (${executionOptimization.stateStatus}; ${executionOptimization.features.filter(item => item.decision.optimizationAllowed).length}/${executionOptimization.features.length} accelerated)`)
     console.log(`  ${c.cyan('governance'.padEnd(14))} ${formatGovernanceSummary(governanceSummary)}`)
+    cliWorktrees.renderStatus({ console, c, worktrees })
     if (facts.completion) {
       const projection = facts.completion.completion?.projection
       console.log(`  ${c.cyan('completion'.padEnd(14))} ${projection ? `${projection.workflowEvidenceState}/${projection.completionPhase}` : 'UNVERIFIED/unavailable'}`)
@@ -766,6 +769,7 @@ function buildCliMaintenanceCommands(ctx) {
         featureInventory: profileState.featureInventory || null
       },
       executionOptimization,
+      worktrees: cliWorktrees.inspect(cwd),
       governanceSummary,
       readiness,
       capabilityBoundary: {
@@ -797,7 +801,7 @@ function buildCliMaintenanceCommands(ctx) {
       profile: profileState,
       executionOptimization,
       governanceSummary,
-      hostParity, globalHostConfig, globalHostComparison, sourceRepository, completion, workspaceSkills,
+      hostParity, globalHostConfig, globalHostComparison, sourceRepository, completion, workspaceSkills, worktrees,
       readiness
     } = facts
     const {
@@ -845,6 +849,7 @@ function buildCliMaintenanceCommands(ctx) {
     console.log(`  mode:            ${c.bold(mode)}`)
     console.log(`  optimization:    ${c.bold(executionOptimization.config.effective)} ${c.dim(`(${executionOptimization.config.status}; state=${executionOptimization.stateStatus})`)}`)
     console.log(`  governance:      ${formatGovernanceSummary(governanceSummary)}`)
+    cliWorktrees.renderDoctor({ console, c, worktrees })
     if (completion) {
       const projection = completion.completion?.projection
       console.log(`  completion:      ${projection ? `${projection.workflowEvidenceState}/${projection.completionPhase}` : 'UNVERIFIED/unavailable'}`)
@@ -1047,7 +1052,7 @@ function buildCliMaintenanceCommands(ctx) {
       status: ['devcodex status [--completion] [--json]', 'Show workspace and user-global adapter readiness.'],
       doctor: ['devcodex doctor [--completion] [--json]', 'Diagnose adapter, native host and workflow readiness.'],
       profile: ['devcodex profile plan|init [--tier <tier>] [--dry-run] [--force] [--prod]', 'Preview or create an advanced project Profile. Ordinary workspaces only need `devcodex init`.'],
-      runtime: ['devcodex runtime status|prune [--dry-run|--apply] [--json]', 'Inspect runtime-state usage or preview safe stale-temp cleanup.'],
+      runtime: ['devcodex runtime status|doctor|maintenance [--dry-run|--apply] [--json]', 'Inspect TaskRecovery V5/legacy usage, diagnose pressure, or preview bounded V5 maintenance; prune remains a compatibility alias.'],
       tmp: ['devcodex tmp status|maintain [--apply --project=<id> --partition=<name>] [--json]', 'Inspect scoped workspace temp inventory or build a bounded maintenance plan; prune remains a compatibility alias.'],
       uninstall: ['devcodex uninstall [--dry-run|--apply] [--json] [--home <dir>]', 'Preview or explicitly remove receipt-owned user-global host artifacts. After --apply succeeds, run `npm uninstall -g devcodex`.'],
       'global-adapters': ['devcodex global-adapters apply [--dry-run] [--json] | devcodex global-adapters remove [--dry-run|--apply] [--json]', 'Advanced: refresh or safely remove user-global host adapters from the current package root.'],
@@ -1073,7 +1078,7 @@ function buildCliMaintenanceCommands(ctx) {
       return
     }
     console.log(`
-    ${c.bold('DevCodex')} — intent-driven AI coding workflow runtime for Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok & Cursor
+    ${c.bold('DevCodex')} — cross-host AI coding engineering harness for Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok & Cursor
 
     ${c.bold('Usage:')}
       devcodex <command> [options]
@@ -1084,7 +1089,9 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('update')}            Refresh workspace-owned .devcodex runtime state only
       ${c.cyan('status')}            Check workspace and host adapter readiness
       ${c.cyan('doctor')}            Diagnose installation or workflow problems
-      ${c.cyan('runtime status')}    Inspect runtime-state owners, size and last-use timestamps
+      ${c.cyan('runtime status')}    Inspect runtime-state plus TaskRecovery V5/legacy disk usage
+      ${c.cyan('runtime doctor')}    Diagnose TaskRecovery slots, reserve, capacity and legacy-writer activity
+      ${c.cyan('runtime maintenance')} Preview/apply bounded V5 maintenance; legacy files stay read-only
       ${c.cyan('runtime prune')}     Preview safe stale-temp cleanup; add --apply to remove
       ${c.cyan('tmp status')}        Inspect project/partition temp inventory, completeness and pagination
       ${c.cyan('tmp maintain')}      Build a quota-bound plan; apply requires one explicit complete scope
@@ -1163,14 +1170,6 @@ function buildCliMaintenanceCommands(ctx) {
       result.error = String(err && err.message ? err.message : err)
     }
     return result
-  }
-
-  function formatCodexHookCommandStatus(diagnostics) {
-    if (!diagnostics.exists) return c.red('not installed')
-    if (diagnostics.error) return c.red('invalid JSON')
-    if (!diagnostics.commands.length) return c.red('missing command')
-    if (diagnostics.invalidCommands.length) return c.yellow(`invalid (${diagnostics.invalidCommands.length}/${diagnostics.commands.length})`)
-    return c.green('expected')
   }
 
   function formatGovernanceSummary(summary) {

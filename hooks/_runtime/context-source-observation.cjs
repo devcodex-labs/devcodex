@@ -2,7 +2,6 @@
 
 const fs = require('fs')
 const path = require('path')
-const crypto = require('crypto')
 const {
   createContextReadReceipt,
   recordContextReadOutcome,
@@ -12,11 +11,14 @@ const {
 const { readContextPlanObservation } = require('./context-plan-observation.cjs')
 const { createRuntimeStateStore } = require('./runtime-state-store.cjs')
 const {
-  atomicWriteJson,
-  updateLifecycleStateCommit
-} = require('./lifecycle-state-commit.cjs')
+  resolveTaskRecoveryMetaDir,
+  updateTaskRecoveryState,
+  writeStableProjection
+} = require('./task-recovery-store-v5.cjs')
+const { compactLifecycleStateV5 } = require('./lifecycle-state-projection-v5.cjs')
 
-const CONTEXT_SOURCE_LEDGER_SCHEMA = 'ContextSourceObservationLedgerV3'
+const CONTEXT_SOURCE_LEDGER_SCHEMA = 'ContextSourceObservationLedgerV4'
+const PREVIOUS_CONTEXT_SOURCE_LEDGER_SCHEMA = 'ContextSourceObservationLedgerV3'
 const LEGACY_CONTEXT_SOURCE_LEDGER_SCHEMA = 'ContextSourceObservationLedgerV1'
 const CONTEXT_SOURCE_LEDGER_SLOT_COUNT = 128
 const CONTEXT_SOURCE_LEDGER_MAX_BYTES = 512 * 1024
@@ -45,16 +47,24 @@ function comparableRoot(value) {
 }
 
 function lifecycleStatePath({ activeRoot, project, workspaceNamespace }) {
-  return path.join(
+  return path.join(resolveTaskRecoveryMetaDir({
     activeRoot,
-    '.memory',
-    'hooks',
-    workspaceNamespace ? String(project || '__workspace__') : '__workspace__',
-    'lifecycle-state.json'
-  )
+    project,
+    workspaceNamespace
+  }), 'lifecycle-state.json')
 }
 
 function contextSourceLedgerRelativePath(contextEpoch) {
+  const digest = stableDigest(String(contextEpoch || '').trim())
+  const slot = Number.parseInt(digest.slice(0, 8), 16) % CONTEXT_SOURCE_LEDGER_SLOT_COUNT
+  return path.join(
+    'context-source-observations',
+    'v4',
+    `slot-${String(slot).padStart(3, '0')}.json`
+  )
+}
+
+function previousContextSourceLedgerRelativePath(contextEpoch) {
   const digest = stableDigest(String(contextEpoch || '').trim())
   return path.join(
     'context-source-observations',
@@ -90,6 +100,15 @@ function contextSourceLedgerStore(target, contextEpoch, options = {}) {
   const legacy = createRuntimeStateStore({
     activeRoot: target.activeRoot,
     project: target.project,
+    relativePath: previousContextSourceLedgerRelativePath(contextEpoch),
+    maxBytes: CONTEXT_SOURCE_LEDGER_MAX_BYTES,
+    lockWaitMs,
+    maxWrites: 0,
+    fs: options.fs || fs
+  })
+  const legacyV1 = createRuntimeStateStore({
+    activeRoot: target.activeRoot,
+    project: target.project,
     relativePath: legacyContextSourceLedgerRelativePath(contextEpoch),
     maxBytes: CONTEXT_SOURCE_LEDGER_MAX_BYTES,
     lockWaitMs,
@@ -99,7 +118,11 @@ function contextSourceLedgerStore(target, contextEpoch, options = {}) {
   function read(readOptions = {}) {
     const current = primary.read(readOptions)
     if (current.status !== 'missing') return current
-    const old = legacy.read(readOptions)
+    const previous = legacy.read(readOptions)
+    if (previous.status !== 'missing') {
+      return { ...previous, stateSource: 'legacy-v3-read-only', canonicalFilePath: primary.filePath }
+    }
+    const old = legacyV1.read(readOptions)
     return old.status === 'missing'
       ? current
       : { ...old, stateSource: 'legacy-v1-read-only', canonicalFilePath: primary.filePath }
@@ -504,7 +527,9 @@ function readMcpContextSourceObservations(input = {}, options = {}) {
   const ledger = read.value
   const acceptedSchema = read.stateSource === 'legacy-v1-read-only'
     ? LEGACY_CONTEXT_SOURCE_LEDGER_SCHEMA
-    : CONTEXT_SOURCE_LEDGER_SCHEMA
+    : (read.stateSource === 'legacy-v3-read-only'
+        ? PREVIOUS_CONTEXT_SOURCE_LEDGER_SCHEMA
+        : CONTEXT_SOURCE_LEDGER_SCHEMA)
   if (ledger?.schemaVersion !== acceptedSchema || !ledgerIdentityMatches(ledger, binding, target)) {
     return { status: 'stale', reasonCode: 'ledger-identity-mismatch', sourceResults: [], filePath: store.filePath }
   }
@@ -602,27 +627,23 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
 
   const ledgerWrite = persistContextSourceLedger(target, binding, sourceResults, options)
 
-  const statePath = lifecycleStatePath(target)
   const workspaceNamespace = target.workspaceNamespace || looksLikeWorkspaceNamespaceActiveRoot(target.activeRoot, target.project)
+  const recoveryMetaDir = resolveTaskRecoveryMetaDir({ ...target, workspaceNamespace })
+  const statePath = path.join(recoveryMetaDir, 'lifecycle-state.json')
   const metaDir = workspaceNamespace
-    ? path.join(path.dirname(target.activeRoot), 'workspace', '.memory', 'hooks', '__workspace__')
-    : path.dirname(statePath)
+    ? resolveTaskRecoveryMetaDir({ ...target, workspaceNamespace: true, scope: 'workspace' })
+    : recoveryMetaDir
   const sessionKey = String(input.hostSessionId || '')
-  const sessionFile = sessionKey
-    ? path.join(metaDir, 'sessions', `${crypto.createHash('sha256').update(sessionKey).digest('hex')}.json`)
-    : ''
-  const targets = [{ role: 'active', dir: path.dirname(statePath) }]
-  if (path.resolve(metaDir) !== path.resolve(path.dirname(statePath))) targets.push({ role: 'meta', dir: metaDir })
-  if (sessionFile) targets.push({ role: 'session', dir: path.dirname(sessionFile) })
-  const write = updateLifecycleStateCommit({
-    metaDir,
-    identity: {
-      project: target.project,
-      scope: workspaceNamespace ? 'project' : 'workspace',
-      sessionKey
-    },
-    targets,
-    readFallback: () => readJson(statePath, options.fs || fs)
+  const recoveryIdentity = {
+    activeRoot: target.activeRoot,
+    project: target.project
+  }
+  const write = updateTaskRecoveryState({
+    metaDir: recoveryMetaDir,
+    sessionKey,
+    expectedIdentity: recoveryIdentity,
+    identity: recoveryIdentity,
+    readFallback: () => readJson(statePath, options.fs || fs) || {}
   }, lifecycle => {
     const acquisition = installObservedPlan(lifecycle, observed.plan, binding, target, input.hostSessionId)
     for (const result of sourceResults) {
@@ -634,23 +655,32 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
     lifecycle.contextAcquisition = acquisition
     lifecycle.updatedAt = new Date(options.nowMs || Date.now()).toISOString()
     return lifecycle
-  }, options)
-  if (write.status !== 'committed') return write
+  }, {
+    ...options,
+    reason: 'context-source-observation',
+    force: true,
+    touchSessionMapping: true
+  })
+  if (!['committed', 'ephemeral-stub', 'skipped'].includes(write.status)) return write
 
   const projectionWarnings = []
+  const projectedState = write.state || compactLifecycleStateV5(readJson(statePath, options.fs || fs) || {}).state
   for (const projection of [
     { role: 'active', file: statePath },
     ...(path.resolve(metaDir) === path.resolve(path.dirname(statePath))
       ? []
-      : [{ role: 'meta', file: path.join(metaDir, 'lifecycle-state.json') }]),
-    ...(sessionFile ? [{ role: 'session', file: sessionFile }] : [])
+      : [{ role: 'meta', file: path.join(metaDir, 'lifecycle-state.json') }])
   ]) {
-    try { atomicWriteJson(projection.file, write.state, { fs: options.fs || fs }) } catch (error) {
-      projectionWarnings.push({ ...projection, message: error.message })
+    const projectionState = projection.role === 'meta'
+      ? { ...projectedState, taskRecoveryBinding: null }
+      : projectedState
+    const projectionWrite = writeStableProjection(projection.file, projectionState, { fs: options.fs || fs })
+    if (projectionWrite.status !== 'persisted') {
+      projectionWarnings.push({ ...projection, message: projectionWrite.message, errorCode: projectionWrite.errorCode })
     }
   }
 
-  const refreshed = write.state
+  const refreshed = projectedState
   const receipt = refreshed.contextAcquisition?.receipt || null
   const durable = ledgerWrite.status === 'persisted'
   return {

@@ -1,8 +1,260 @@
 {
-  "schemaVersion": "PublicProductProjectionV1",
-  "generatedAt": "2026-08-21T18:48:00.632Z",
+  "schemaVersion": "PublicProductProjectionV2",
+  "generatedAt": "2026-08-23T02:22:54.303Z",
   "release": {
-    "version": "1.17.11"
+    "version": "1.18.0"
+  },
+  "expression": {
+    "schemaVersion": "PublicProductExpressionV2",
+    "productId": "devcodex",
+    "name": "DevCodex",
+    "repository": "https://github.com/devcodex-labs/devcodex",
+    "category": {
+      "zh": "跨宿主 AI Coding 工程 Harness",
+      "en": "Cross-host AI Coding Engineering Harness",
+      "semanticInvariants": [
+        "cross-host",
+        "AI coding",
+        "engineering harness",
+        "workflow runtime"
+      ]
+    },
+    "technicalDefinition": {
+      "zh": "DevCodex 是 intent-driven、local-first、file-backed 的工作流运行时与宿主适配层，把项目上下文、专业 Skill、确认、验证、报告、证据和续接闭环带入六个 AI Coding 宿主。",
+      "en": "An intent-driven, local-first, file-backed workflow runtime and host-adapter layer that brings project context, skills, approvals, validation, reports, evidence, and resumable handoffs to six AI coding hosts.",
+      "semanticInvariants": [
+        "intent-driven",
+        "local-first",
+        "file-backed",
+        "workflow runtime",
+        "host-adapter layer"
+      ]
+    },
+    "modelCapabilityBoundary": {
+      "changesModelParameters": false,
+      "changesModelWeights": false,
+      "changesContextWindow": false,
+      "changesBaseReasoningCeiling": false,
+      "engineeringEffect": {
+        "zh": "DevCodex 不会提升模型本身的参数能力，也不会改变模型参数、权重、上下文窗口或基础推理上限；它通过上下文、专业 Skill、工作流、工具、记忆、验证与证据链，显著提升模型在真实软件工程中的有效智能表现，让 AI Coding 从“聪明地回答问题”升级为“聪明地完成工程任务”。",
+        "en": "DevCodex does not change model parameters, weights, context windows, or the base reasoning ceiling. It improves effective engineering intelligence through context, skills, workflows, tools, memory, validation, and evidence-backed completion."
+      },
+      "effectMechanisms": [
+        "bounded-project-context",
+        "progressive-professional-skills",
+        "workflow-and-authorization",
+        "tool-and-memory-coordination",
+        "validation-and-evidence"
+      ]
+    },
+    "ownershipBoundary": {
+      "devcodexOwns": [
+        "intent-project-routing",
+        "profile-context-memory",
+        "progressive-skills",
+        "confirmation-authorization",
+        "validation",
+        "reports-evidence-handoff",
+        "cross-host-adapters"
+      ],
+      "hostOwns": [
+        "model-inference",
+        "native-agent-loop",
+        "primary-tool-execution",
+        "session-transport-lifecycle",
+        "authentication",
+        "sandbox-environment"
+      ]
+    },
+    "valuePropositions": [
+      "按任务意图选择工作流、上下文与专业 Skill",
+      "把需求、确认、实现、验证、报告和续接形成可追踪闭环",
+      "在六个 AI Coding 宿主间保持一致流程，同时诚实保留能力差异",
+      "安装后获得按任务渐进加载的预置专业 Skill 组合，而不是从零手写每一套流程"
+    ],
+    "capabilityScenarios": [
+      {
+        "id": "turn-ambiguous-request-into-action",
+        "userProblem": "需求说得不完整，不知道该先分析、立项还是直接修改。",
+        "userOutcome": "先明确目标、边界、验收和下一步，再进入合适的工作流。",
+        "representativeSkillIds": [
+          "intent",
+          "dev-default",
+          "quality-strategy"
+        ],
+        "skillFocus": "意图识别、需求与验收、风险驱动验证",
+        "workflowBoundary": "具体路径由任务意图与风险决定；并非每次都加载全部 Skill。",
+        "nextHref": "/tutorials/ambiguous-request"
+      },
+      {
+        "id": "fix-with-regression-confidence",
+        "userProblem": "只知道报错，却不知道根因、同类路径和回归范围。",
+        "userOutcome": "获得复现、根因、同类检查和定向验证，而不止是一段解释。",
+        "representativeSkillIds": [
+          "fix-default",
+          "test-router",
+          "frontend-architecture"
+        ],
+        "skillFocus": "复现与根因、回归范围、用户路径验证",
+        "workflowBoundary": "代表 Skill 只在适用阶段加载；不承诺全量修复能力常驻。",
+        "nextHref": "/tutorials/fix-regression"
+      },
+      {
+        "id": "evolve-cross-domain-change",
+        "userProblem": "需求跨前端、业务和接口，宿主的通用提示难以划清责任边界。",
+        "userOutcome": "在适用时获得架构、接口和实现边界的专业路径。",
+        "representativeSkillIds": [
+          "frontend-architecture",
+          "backend-domain-architecture",
+          "api-contract-architecture"
+        ],
+        "skillFocus": "前端体验、业务领域、API 契约",
+        "workflowBoundary": "是否进入各专业路径取决于真实任务，不把目录展示当作已加载事实。",
+        "nextHref": "/tutorials/cross-domain-change"
+      },
+      {
+        "id": "deliver-with-evidence-and-handoff",
+        "userProblem": "交付前需要测试、排错、交接，下一会话却容易丢失上下文。",
+        "userOutcome": "让风险、验证、报告和续接状态都留下可查证据。",
+        "representativeSkillIds": [
+          "quality-strategy",
+          "production-readiness-sre",
+          "document-sync"
+        ],
+        "skillFocus": "质量策略、交付准备、文档同步",
+        "workflowBoundary": "不替代人工发布授权、宿主权限或既有 CI。",
+        "nextHref": "/tutorials/evidence-handoff"
+      }
+    ],
+    "mustNot": [
+      "model-gateway",
+      "model-parameter-enhancer",
+      "general-agent-framework",
+      "multi-agent-orchestrator",
+      "native-agent-loop-replacement",
+      "business-framework",
+      "ci-security-human-review-replacement"
+    ],
+    "autoEntry": {
+      "canonical": "@devcodex-auto",
+      "defaultShortcut": "@rocky",
+      "replacement": "A non-empty extensions.devcodex.autoAliases array replaces the default shortcut.",
+      "disabled": "An empty extensions.devcodex.autoAliases array disables the default shortcut.",
+      "runtimeBehaviorChanged": false
+    },
+    "workflowPresentation": {
+      "primary": [
+        "dev",
+        "fix",
+        "analyze",
+        "audit",
+        "resume",
+        "chat"
+      ],
+      "advanced": [
+        "self-fix",
+        "other"
+      ]
+    },
+    "hostPresentation": {
+      "copilot": {
+        "label": "GitHub Copilot",
+        "recommendedEntry": "Copilot CLI；VS Code / JetBrains 使用 instruction fallback",
+        "publicStatus": "入口能力不同，按精确宿主证据执行"
+      },
+      "claude": {
+        "label": "Claude Code",
+        "recommendedEntry": "Claude Code",
+        "publicStatus": "Full（以当前 direct evidence 为上限）"
+      },
+      "codex": {
+        "label": "Codex",
+        "recommendedEntry": "Codex App / CLI",
+        "publicStatus": "Beta（Hook / MCP 取决于宿主配置）"
+      },
+      "gemini": {
+        "label": "Gemini CLI",
+        "recommendedEntry": "Gemini CLI",
+        "publicStatus": "Beta / UNVERIFIED（需要 direct replay 才能升级）"
+      },
+      "grok": {
+        "label": "Grok",
+        "recommendedEntry": "devcodex grok",
+        "publicStatus": "Full launcher；普通 grok 为 Partial"
+      },
+      "cursor": {
+        "label": "Cursor",
+        "recommendedEntry": "本地 IDE / CLI",
+        "publicStatus": "本地 Beta；Cloud Partial / UNVERIFIED"
+      }
+    },
+    "discoveryPolicy": {
+      "packageKeywords": [
+        "ai-coding",
+        "coding-harness",
+        "workflow-runtime",
+        "developer-tools",
+        "coding-agent",
+        "local-first",
+        "github-copilot",
+        "claude-code",
+        "codex",
+        "gemini-cli",
+        "grok",
+        "cursor"
+      ],
+      "githubTopics": [
+        "ai-coding",
+        "coding-harness",
+        "workflow-runtime",
+        "developer-tools",
+        "coding-agent",
+        "local-first",
+        "github-copilot",
+        "claude-code",
+        "codex",
+        "gemini-cli",
+        "grok",
+        "cursor"
+      ],
+      "forbiddenConcepts": [
+        "agent-runtime",
+        "multi-agent",
+        "agent-framework"
+      ]
+    },
+    "endpointPolicy": {
+      "repositoryFallback": "https://github.com/devcodex-labs/devcodex",
+      "productPagesCandidate": "https://devcodex-labs.github.io/devcodex/",
+      "customDomainCandidate": "https://devcodex.dev",
+      "requiredBrandMarkers": [
+        "DevCodex",
+        "Cross-host AI Coding Engineering Harness"
+      ],
+      "forbiddenMarkers": [
+        "Parked Domain",
+        "domain for sale",
+        "VextJS",
+        "Nacos",
+        "404"
+      ]
+    },
+    "consumers": {
+      "readmeHero": "DevCodex — 跨宿主 AI Coding 工程 Harness",
+      "packageDescription": "DevCodex — cross-host AI coding engineering harness for Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok, and Cursor",
+      "pluginDisplayName": "DevCodex — Cross-host AI Coding Engineering Harness",
+      "pluginDescription": "Cross-host AI coding engineering harness for consistent context, skills, approvals, validation, evidence, and handoffs across Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok, and Cursor.",
+      "cliSubtitle": "DevCodex — cross-host AI coding engineering harness for Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok & Cursor",
+      "githubDescription": "Cross-host AI coding engineering harness for context, skills, approvals, validation, evidence, and handoffs across six AI coding hosts.",
+      "siteTitle": "DevCodex — Cross-host AI Coding Engineering Harness"
+    }
+  },
+  "expressionCompatibility": {
+    "schemaVersion": "PublicProductExpressionCompatibilityReceiptV1",
+    "sourceSchemaVersion": "PublicProductExpressionV2",
+    "readMode": "current-v2",
+    "modelCapabilityBoundary": "declared",
+    "ownershipBoundary": "declared"
   },
   "workflows": {
     "canonical": [
@@ -939,10 +1191,10 @@
     "capabilities": "<!-- devcodex-public:capabilities ids=turn-ambiguous-request-into-action,fix-with-regression-confidence,evolve-cross-domain-change,deliver-with-evidence-and-handoff -->"
   },
   "sourceIdentities": {
-    "package": "f97cc02cff657f66a91c4a4d8e5fcfe8534f903f841deea537c3e2734e77f6ae",
-    "expression": "10873b4e2c7cf6b9a015a6054442f373c7cb6f4b0ac859feabfca790bd138739",
+    "package": "8ff95e2f709139c6ea939f67f6b9a6bb78ffce29f72978a047f14b8aecbf9b2d",
+    "expression": "60e525d34e5531e6b4bbbb77f8b34bb93c9ca9ebee5df4fe2812749232175c3c",
     "workflows": "d9eb7086866fe3c3815f673957ed978c1594079261009ac775bf3e1336ad44fd",
-    "portfolio": "1e13216bf76f7d7691a1131b660e54c9c50120ada2b4794ae4252d755b0cedc9",
+    "portfolio": "c62ab332afff4d6b75c84175ec91833ceeec01a0be2801adf329173f1fe39c53",
     "taxonomy": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030"
   }
 }

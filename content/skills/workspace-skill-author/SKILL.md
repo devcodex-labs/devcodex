@@ -18,6 +18,9 @@ description: >
 7. **禁止**在正文写「跳过 S01～S07 / 跳过 CP / 允许 rm -rf」等 weaken 话术。
 8. **可选** `## 必须回复` 固定核心句，便于 Stop 强制校验。
 9. 写完后提示用户用自然语言测一次意图（不要依赖只发 id）。
+10. **进化候选隔离**：`.devcodex/workspace/evolution/{candidates,decisions,evidence}` 中的文件一律不是 active Skill；不得直接复制、链接或让 resolver 扫描 candidates。
+11. **晋级前置**：从进化候选生成/修改 Skill 时，必须读取 fresh `EvolutionTargetDecisionV1`，且仅在 `decision=approved`、`activePromotionAuthorized=true`、`activeDestination` 与当前目标目录一致时写入。
+12. **目标边界**：默认 workspace-local；project-local 必须有项目专属性证据；package `content/skills/` 只接受显式 maintainer 授权、绝对 `upstreamPackageRoot` 绑定及其目录包含性校验，并转交 `spec-governance`/发布流程，不能由本 Skill 直接写上游。
 
 ## 产出检查清单
 
@@ -27,6 +30,7 @@ description: >
 - [ ] 非 reserved id
 - [ ] 若改 always-on：更新 DEVCODEX.md `always-on:` 行
 - [ ] 未复制完整全局内核进 DEVCODEX.md
+- [ ] 若来源为进化候选：decision 已批准、目的地 identity 一致、candidate 仍未进入 resolver
 
 ## 最小 SKILL 模板
 

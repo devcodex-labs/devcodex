@@ -304,7 +304,7 @@ const upsPassive = adaptHostOutput('grok', 'UserPromptSubmit', { decision: 'bloc
 assert.strictEqual(upsPassive.continue, true)
 assert.strictEqual(Object.prototype.hasOwnProperty.call(upsPassive, 'decision'), false)
 
-// SessionStart creates one private owner root and exits 0
+// SessionStart creates one bounded observation slot and exits 0
 const sessionStart = path.join(__dirname, '../grok/plugins/devcodex-workspace/hooks/session-start.cjs')
 assert.ok(fs.existsSync(sessionStart))
 const { spawnSync } = require('child_process')
@@ -314,11 +314,13 @@ const stampRun = spawnSync(process.execPath, [sessionStart], {
 })
 assert.strictEqual(stampRun.status, 0)
 const sessionPrivateRoot = path.join(root, 'plugin-data', 'private-sessions')
-const sessionOwners = fs.readdirSync(sessionPrivateRoot)
-assert.strictEqual(sessionOwners.length, 1)
-const sessionOwner = JSON.parse(fs.readFileSync(path.join(sessionPrivateRoot, sessionOwners[0], 'session.json'), 'utf8'))
-assert.strictEqual(sessionOwner.schemaVersion, 'GrokSessionPrivateOwnerV1')
-assert.strictEqual(sessionOwner.sessionIdPresent, true)
+const sessionObservations = fs.readdirSync(sessionPrivateRoot)
+assert.strictEqual(sessionObservations.length, 1)
+assert.match(sessionObservations[0], /^slot-(?:0\d|1[0-5])\.json$/)
+const sessionObservation = JSON.parse(fs.readFileSync(path.join(sessionPrivateRoot, sessionObservations[0]), 'utf8'))
+assert.strictEqual(sessionObservation.schemaVersion, 'GrokSessionPrivateObservationV2')
+assert.strictEqual(sessionObservation.sessionIdPresent, true)
+assert.strictEqual(sessionObservation.slotCount, 16)
 
 cleanupTempFixture()
 assert.strictEqual(fs.existsSync(root), false, 'host parity temporary fixture must be removed before success')

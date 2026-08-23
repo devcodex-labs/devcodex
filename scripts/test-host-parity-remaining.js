@@ -17,6 +17,7 @@ const path = require('path')
 const { spawnSync } = require('child_process')
 const { adaptHostOutput, runHostAdapter } = require('../hooks/_runtime/lifecycle-host-adapters.cjs')
 const { buildLifecycleHookOutput } = require('../hooks/_runtime/lifecycle-hook-output.cjs')
+const { runSessionStart } = require('../grok/plugins/devcodex-workspace/hooks/session-start.cjs')
 const {
   composeEntryCheckBlock,
   evaluateGrokHostParity,
@@ -108,9 +109,11 @@ if (siteText) {
   assert.match(siteText, /Skill 强制包|Skill bundle|Intent → Skill/i)
   assert.match(siteText, /UnalignedLedger|U-A1|未对齐|cannotClaim/i)
 } else {
-  const websiteReadme = fs.readFileSync(path.join(__dirname, '../website/README.md'), 'utf8')
-  assert.match(websiteReadme, /不进入公开 Git 默认跟踪/)
-  assert.match(websiteReadme, /website 视为 optional/)
+  const websiteReadme = readIfExists(path.join(__dirname, '../website/README.md'))
+  if (websiteReadme) {
+    assert.match(websiteReadme, /不进入公开 Git 默认跟踪/)
+    assert.match(websiteReadme, /website 视为 optional/)
+  }
 }
 assert.ok(fs.existsSync(path.join(__dirname, 'fixtures/host-parity/unaligned-ledger.v1.json')))
 
@@ -119,7 +122,7 @@ const platformReq = path.join(__dirname, 'fixtures/host-parity/platform-capabili
 assert.ok(fs.existsSync(platformReq), 'source-contained platform capability request fixture must exist')
 assert.match(fs.readFileSync(platformReq, 'utf8'), /P-GROK-1/)
 
-// SessionStart private owner
+// SessionStart uses a fixed diagnostic observation ring rather than one owner directory per session.
 const root = makeTempRoot('devcodex-parity-remain-')
 const sessionStart = path.join(__dirname, '../grok/plugins/devcodex-workspace/hooks/session-start.cjs')
 const stamp = spawnSync(process.execPath, [sessionStart], {
@@ -128,7 +131,55 @@ const stamp = spawnSync(process.execPath, [sessionStart], {
 })
 assert.strictEqual(stamp.status, 0)
 const privateSessionRoot = path.join(root, 'pdata', 'private-sessions')
-assert.strictEqual(fs.readdirSync(privateSessionRoot).length, 1)
+let privateSessionFiles = fs.readdirSync(privateSessionRoot)
+assert.strictEqual(privateSessionFiles.length, 1)
+assert.match(privateSessionFiles[0], /^slot-(?:0\d|1[0-5])\.json$/)
+assert.strictEqual(
+  JSON.parse(fs.readFileSync(path.join(privateSessionRoot, privateSessionFiles[0]), 'utf8')).schemaVersion,
+  'GrokSessionPrivateObservationV2'
+)
+for (let index = 0; index < 100; index += 1) {
+  runSessionStart({
+    env: {
+      ...process.env,
+      GROK_PLUGIN_DATA: path.join(root, 'pdata'),
+      GROK_SESSION_ID: `bounded-session-${index}`
+    },
+    nonce: `bounded-nonce-${index}`,
+    ownerToken: `bounded-owner-token-${index}`,
+    nowMs: 1000 + index
+  })
+}
+privateSessionFiles = fs.readdirSync(privateSessionRoot)
+assert(privateSessionFiles.length > 1)
+assert(privateSessionFiles.length <= 16)
+assert(privateSessionFiles.every(file => /^slot-(?:0\d|1[0-5])\.json$/.test(file)))
+
+const failureRoot = makeTempRoot('devcodex-parity-session-failure-')
+const renameFailureFs = new Proxy(fs, {
+  get(target, property) {
+    if (property === 'renameSync') {
+      return (source, destination) => {
+        if (String(source).endsWith('.next.tmp')) {
+          const error = new Error('injected session observation rename failure')
+          error.code = 'EPERM'
+          throw error
+        }
+        return target.renameSync(source, destination)
+      }
+    }
+    const value = target[property]
+    return typeof value === 'function' ? value.bind(target) : value
+  }
+})
+assert.throws(() => runSessionStart({
+  fs: renameFailureFs,
+  env: { ...process.env, GROK_PLUGIN_DATA: failureRoot, GROK_SESSION_ID: 'failure-session' },
+  nonce: 'failure-nonce',
+  ownerToken: 'failure-owner-token',
+  nowMs: 2000
+}), error => error?.code === 'EPERM')
+assert.deepStrictEqual(fs.readdirSync(path.join(failureRoot, 'private-sessions')), [])
 
 // Portable Grok hook SessionStart must treat session id as an untrusted filename
 const portableHook = JSON.parse(fs.readFileSync(path.join(__dirname, '../grok/hooks/devcodex.json'), 'utf8'))
@@ -152,9 +203,10 @@ assert.strictEqual(fs.existsSync(path.join(portableRoot, 'escape.json')), false)
 for (const file of portableFiles) {
   const target = path.resolve(portableStampDir, file)
   const rel = path.relative(portableStampDir, target)
-  assert.ok(rel && !rel.startsWith('..') && !path.isAbsolute(rel), `portable owner escaped: ${target}`)
-  const record = JSON.parse(fs.readFileSync(path.join(target, 'session.json'), 'utf8'))
-  assert.strictEqual(record.schemaVersion, 'GrokSessionPrivateOwnerV1')
+  assert.ok(rel && !rel.startsWith('..') && !path.isAbsolute(rel), `portable observation escaped: ${target}`)
+  assert.match(file, /^slot-(?:0\d|1[0-5])\.json$/)
+  const record = JSON.parse(fs.readFileSync(target, 'utf8'))
+  assert.strictEqual(record.schemaVersion, 'GrokSessionPrivateObservationV2')
 }
 
 // Scorecard against real workspace root if present

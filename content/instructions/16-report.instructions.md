@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 报告输出规则，覆盖路径、命名、结构、ECR 引用与用户面产物路径要求
 priority: P5
-version: 1.17.11
+version: 1.18.0
 ---
 # 报告输出规则（16-report）
 

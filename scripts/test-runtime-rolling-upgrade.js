@@ -207,6 +207,7 @@ async function main () {
   const projectRoot = path.join(workspace, 'rolling-upgrade-fixture')
   const planFile = path.join(tempRoot, 'legacy-plan.json')
   let oldProcess = null
+  let newProcess = null
   try {
     fs.mkdirSync(projectRoot, { recursive: true })
     fs.writeFileSync(path.join(workspace, 'package.json'), '{"name":"rolling-upgrade-workspace","private":true,"workspaces":["rolling-upgrade-fixture"]}\n')
@@ -304,6 +305,30 @@ async function main () {
     assert(fs.existsSync(path.join(newTarget.runtimeRoot, 'runtime-generation.json')))
     process.kill(oldPid, 0)
 
+    const currentMcp = startMcp(path.join(newTarget.runtimeRoot, 'mcp', 'profile-server.js'), workspace, env)
+    newProcess = currentMcp.child
+    const currentInitialized = await currentMcp.call({ jsonrpc: '2.0', id: 101, method: 'initialize', params: {} })
+    assert(currentInitialized.result)
+    const currentLeaseRoot = path.join(
+      newTarget.runtimeBaseRoot,
+      '.runtime-generation-leases',
+      newTarget.runtimeGeneration.generationId
+    )
+    const currentLeaseFiles = fs.readdirSync(currentLeaseRoot)
+      .filter(name => name.endsWith('.json') && name !== '.gc-claim.json')
+    assert.strictEqual(currentLeaseFiles.length, 1, 'installed long-lived MCP must own one stable generation lease')
+    const currentLease = JSON.parse(fs.readFileSync(path.join(currentLeaseRoot, currentLeaseFiles[0]), 'utf8'))
+    assert.strictEqual(currentLease.role, 'profile-mcp')
+    assert.strictEqual(path.resolve(currentLease.runtimeRoot), path.resolve(newTarget.runtimeRoot))
+    currentMcp.child.stdin.end()
+    await new Promise(resolve => newProcess.once('exit', resolve))
+    newProcess = null
+    assert.strictEqual(
+      fs.existsSync(path.join(currentLeaseRoot, currentLeaseFiles[0])),
+      false,
+      'normal MCP closeout must remove its generation lease'
+    )
+
     const hookEnv = {
       ...env,
       DEVCODEX_AGENT: 'codex',
@@ -392,6 +417,10 @@ async function main () {
       result: 'PASS'
     }))
   } finally {
+    if (newProcess && newProcess.exitCode === null) {
+      newProcess.kill()
+      await new Promise(resolve => newProcess.once('exit', resolve))
+    }
     if (oldProcess && oldProcess.exitCode === null) {
       oldProcess.kill()
       await new Promise(resolve => oldProcess.once('exit', resolve))

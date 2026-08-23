@@ -18,12 +18,14 @@ const REQUIRED_FIELDS = Object.freeze([
 const CURRENT_STATUSES = new Set(['PASS', 'WARN', 'BLOCK', 'UNVERIFIED'])
 const CANDIDATE_STATUSES = new Set([
   'LOCAL_QUALIFICATION',
+  'QUALIFICATION_BLOCKED',
   'SOURCE_QUALIFIED',
   'CI_PENDING',
   'PUBLISH_PENDING'
 ])
 const SOURCE_CANDIDATE_STATUSES = new Set([
   'LOCAL_PENDING',
+  'INVALIDATED',
   'LOCAL_QUALIFIED',
   'CI_PENDING',
   'CI_PASS',
@@ -70,8 +72,15 @@ function validateCandidateObject(value, errors) {
   if (!CANDIDATE_STATUSES.has(value.status)) {
     errors.push(`candidate.status must be one of: ${Array.from(CANDIDATE_STATUSES).join(', ')}`)
   }
-  if (value.releaseAuthorized !== true) {
-    errors.push('candidate.releaseAuthorized must be true')
+  if (typeof value.releaseAuthorized !== 'boolean') {
+    errors.push('candidate.releaseAuthorized must be a boolean')
+  }
+  if (value.status === 'QUALIFICATION_BLOCKED' && value.releaseAuthorized !== false) {
+    errors.push('candidate.releaseAuthorized must be false for QUALIFICATION_BLOCKED')
+  }
+  if (['LOCAL_QUALIFICATION', 'SOURCE_QUALIFIED', 'CI_PENDING', 'PUBLISH_PENDING'].includes(value.status) &&
+      value.releaseAuthorized !== true) {
+    errors.push(`candidate.releaseAuthorized must be true for ${value.status}`)
   }
   if (value.externalState !== 'pending') {
     errors.push('candidate.externalState must equal pending before release closure')
@@ -129,6 +138,12 @@ function validateSourceCandidateObject(value, record, errors) {
   }
   if (value.status === 'CI_FAILED' && value.remoteCi?.status !== 'BLOCK') {
     errors.push('sourceCandidate.remoteCi.status must be BLOCK for CI_FAILED')
+  }
+  if (value.status === 'INVALIDATED' && value.localQualification?.status !== 'BLOCK') {
+    errors.push('sourceCandidate.localQualification.status must be BLOCK for INVALIDATED')
+  }
+  if (value.status === 'INVALIDATED' && value.releaseAuthorized !== false) {
+    errors.push('sourceCandidate.releaseAuthorized must be false for INVALIDATED')
   }
   if (['CI_PENDING', 'CI_PASS', 'CI_FAILED'].includes(value.status) && value.remoteCi?.head !== record.gitHead) {
     errors.push(`sourceCandidate.remoteCi.head drift: ${value.remoteCi?.head} != ${record.gitHead}`)

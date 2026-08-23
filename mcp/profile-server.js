@@ -48,6 +48,8 @@ const {
   authorizeContextRead,
   recordMcpContextSourceObservations
 } = require('../hooks/_runtime/context-source-observation.cjs')
+const { getContextDeliveryDecision } = require('../hooks/_runtime/context-delivery-ledger-v2.cjs')
+const { resolveTaskRecoveryMetaDir } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const { resolveExecutionFeatureDecisionForCwd } = require('../hooks/_runtime/execution-optimization-routing.cjs')
 const { resolveGlobalSkillRuntimeRoot } = require('../hooks/_runtime/global-skill-runtime-root.cjs')
 const {
@@ -86,6 +88,8 @@ const PROFILE_PROCESS_IDENTITY = captureRuntimeProcessIdentity({
 })
 const PROFILE_INIT_BOOTSTRAP_AUTHORITY = Symbol('devcodex-init-profile-bootstrap')
 const WORKSPACE_CONTEXT_PROJECT = '__workspace__'
+const SKILL_ROUTE_TRACE_MAX_BYTES = 256 * 1024
+const SKILL_ROUTE_TRACE_RECORD_MAX_BYTES = 16 * 1024
 
 function traceSkillRouteCall(args, result) {
   const configured = String(process.env.DEVCODEX_SKILL_ROUTE_TRACE || '').trim()
@@ -93,23 +97,50 @@ function traceSkillRouteCall(args, result) {
   const target = path.resolve(configured)
   const relative = path.relative(INPUT_ROOT, target)
   if (relative.startsWith('..') || path.isAbsolute(relative)) return
+  const lockPath = `${target}.lock`
+  let descriptor
   try {
-    if (fs.existsSync(target) && fs.statSync(target).size > 256 * 1024) return
     fs.mkdirSync(path.dirname(target), { recursive: true })
-    fs.appendFileSync(target, `${JSON.stringify({
+    descriptor = fs.openSync(lockPath, 'wx')
+    const response = {
+      ok: result?.ok === true,
+      op: result?.op || args?.op || null,
+      errorCode: result?.errorCode || null,
+      receiptSchema: result?.receipt?.schemaVersion || null,
+      serializedBytes: result?.delivery?.serializedBytes || null
+    }
+    const requestJson = JSON.stringify(args || {})
+    let record = {
       schemaVersion: 'SkillRouteCallTraceV1',
       observedAt: new Date().toISOString(),
       request: args,
-      response: {
-        ok: result?.ok === true,
-        op: result?.op || args?.op || null,
-        errorCode: result?.errorCode || null,
-        receiptSchema: result?.receipt?.schemaVersion || null,
-        serializedBytes: result?.delivery?.serializedBytes || null
+      response
+    }
+    let line = `${JSON.stringify(record)}\n`
+    if (Buffer.byteLength(line, 'utf8') > SKILL_ROUTE_TRACE_RECORD_MAX_BYTES) {
+      record = {
+        schemaVersion: 'SkillRouteCallTraceV1',
+        observedAt: record.observedAt,
+        compacted: true,
+        requestBytes: Buffer.byteLength(requestJson, 'utf8'),
+        requestDigest: crypto.createHash('sha256').update(requestJson).digest('hex'),
+        requestOp: String(args?.op || '').slice(0, 64),
+        response
       }
-    })}\n`, 'utf8')
+      line = `${JSON.stringify(record)}\n`
+    }
+    const lineBytes = Buffer.byteLength(line, 'utf8')
+    if (lineBytes > SKILL_ROUTE_TRACE_RECORD_MAX_BYTES) return
+    const currentBytes = fs.existsSync(target) ? fs.statSync(target).size : 0
+    if (currentBytes + lineBytes > SKILL_ROUTE_TRACE_MAX_BYTES) return
+    fs.appendFileSync(target, line, 'utf8')
   } catch {
     // Diagnostics must never alter Tool behavior.
+  } finally {
+    if (descriptor !== undefined) {
+      try { fs.closeSync(descriptor) } catch {}
+      try { fs.unlinkSync(lockPath) } catch {}
+    }
   }
 }
 
@@ -485,22 +516,29 @@ function readProfileConfigFile(filePath, options = {}) {
 }
 
 function mergeConfig(workspaceConfig, projectConfig) {
-  const merged = {}
-  for (const source of [workspaceConfig, projectConfig]) {
-    if (!isPlainObject(source)) continue
-    for (const [key, value] of Object.entries(source)) {
-      if (Array.isArray(value)) {
-        merged[key] = value.slice()
-      } else if (isPlainObject(value) && isPlainObject(merged[key])) {
-        merged[key] = { ...merged[key], ...value }
-      } else if (isPlainObject(value)) {
-        merged[key] = { ...value }
-      } else {
-        merged[key] = value
+  function mergeLayer(base, overlay) {
+    const merged = {}
+    if (isPlainObject(base)) {
+      for (const [key, value] of Object.entries(base)) {
+        merged[key] = Array.isArray(value)
+          ? value.slice()
+          : isPlainObject(value)
+            ? mergeLayer({}, value)
+            : value
       }
     }
+    if (isPlainObject(overlay)) {
+      for (const [key, value] of Object.entries(overlay)) {
+        merged[key] = Array.isArray(value)
+          ? value.slice()
+          : isPlainObject(value)
+            ? mergeLayer(isPlainObject(merged[key]) ? merged[key] : {}, value)
+            : value
+      }
+    }
+    return merged
   }
-  return merged
+  return mergeLayer(workspaceConfig, projectConfig)
 }
 
 const LAYOUT = findLayoutInfo(INPUT_ROOT)
@@ -2213,13 +2251,75 @@ function handleProfileLoad(args = {}, internal = {}) {
     satisfiedSourceIds: (contextObservation?.satisfiedSourceIds || []).slice(0, 20),
     missingSourceIds: (contextObservation?.missingSourceIds || []).slice(0, 20)
   }
+  const hostSessionId = String(process.env.DEVCODEX_HOST_SESSION_ID || '').trim()
+  const profileSourceDigest = stableDigest({
+    planContentId: contextBinding.planContentId,
+    loadedFiles: deliveredProfiles.map(item => ({
+      file: item.file,
+      missing: item.missing,
+      bodyDigest: stableDigest(item.body),
+      sourcePaths: item.sourcePaths
+    })),
+    sourceFinalIdentity,
+    sectionReceipts,
+    routeRecipeDigest: routeLoadRecipe?.recipeDigest || null,
+    explicitFull
+  })
+  const deliveryDecision = contextObservation?.status === 'persisted'
+    ? getContextDeliveryDecision({
+        metaDir: resolveTaskRecoveryMetaDir({
+          activeRoot: contextBinding.activeRoot,
+          project: contextBinding.project,
+          workspaceNamespace: LAYOUT.enabled
+        }),
+        activeRoot: contextBinding.activeRoot,
+        project: contextBinding.project,
+        conversationId: hostSessionId,
+        contextEpoch: contextBinding.contextEpoch,
+        sourceKey: `profile-load:${contextBinding.planContentId}`,
+        sourceDigest: profileSourceDigest,
+        bodyCarrier: 'profile-load-text-v1',
+        bodyIdentity: text,
+        bodyBytes: Buffer.byteLength(text, 'utf8')
+      })
+    : {
+        schemaVersion: 'ContextDeliveryDecisionV2',
+        status: 'full-delivery',
+        reasonCode: 'context-observation-unverified',
+        bodyDeliverySkipped: false,
+        descriptor: null
+      }
+  meta.bodyDeliverySkipped = deliveryDecision.bodyDeliverySkipped === true
+  meta.bodyDelivered = !meta.bodyDeliverySkipped
+  meta.contextDelivery = {
+    schemaVersion: deliveryDecision.schemaVersion,
+    status: deliveryDecision.status,
+    reasonCode: deliveryDecision.reasonCode,
+    bodyDeliverySkipped: meta.bodyDeliverySkipped,
+    observedAt: deliveryDecision.observedAt || null,
+    deliveredBodyBytes: deliveryDecision.deliveredBodyBytes ?? Buffer.byteLength(text, 'utf8'),
+    deduplicatedBodyBytes: deliveryDecision.deduplicatedBodyBytes || 0,
+    tokenEquivalentEstimate: deliveryDecision.tokenEquivalentEstimate || null
+  }
+  if (meta.bodyDeliverySkipped) {
+    text = [
+      'ContextDeliveryReuseV2: the identical Profile body was already observed for this formal task, conversation, context epoch, and source identity.',
+      `sourceDigest=${profileSourceDigest}`,
+      'The body is omitted from this tool result. If any identity or source evidence changes, profile_load returns the full bounded body again.'
+    ].join('\n')
+  }
   text = `<!-- profile_load_budget ${JSON.stringify(meta)} -->\n\n` + text
 
   return {
     content: [{
       type: 'text',
       text
-    }]
+    }],
+    _meta: {
+      ...(deliveryDecision.descriptor ? { devcodexContextDelivery: deliveryDecision.descriptor } : {}),
+      bodyDeliverySkipped: meta.bodyDeliverySkipped,
+      contextDeliveryStatus: deliveryDecision.status
+    }
   }
 }
 
@@ -2404,12 +2504,21 @@ function dispatch(method, params) {
           case 'skill_route': {
             const result = handleSkillRoute(args, {
               inputRoot: INPUT_ROOT,
-              env: process.env
+              env: process.env,
+              sessionId: process.env.DEVCODEX_HOST_SESSION_ID || '',
+              workspaceNamespace: LAYOUT.enabled
             })
             traceSkillRouteCall(args, result)
             return {
               content: [{ type: 'text', text: JSON.stringify(result) }],
               structuredContent: result,
+              _meta: {
+                devcodexRuntimeProcessIdentity: PROFILE_PROCESS_IDENTITY,
+                ...(result.delivery?.contextDelivery
+                  ? { devcodexContextDelivery: result.delivery.contextDelivery }
+                  : {}),
+                bodyDeliverySkipped: result.delivery?.bodyDeliverySkipped === true
+              },
               isError: result.ok !== true
             }
           }

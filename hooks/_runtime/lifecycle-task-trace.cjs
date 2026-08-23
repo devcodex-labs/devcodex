@@ -6,6 +6,8 @@ const LOCAL_TASK_TRACE_SCHEMA_VERSION = 'LocalTaskTraceV1'
 const LOCAL_TASK_TRACE_REPLAY_SCHEMA_VERSION = 'LocalTaskTraceReplayV1'
 const TRACE_STATUSES = new Set(['open', 'complete', 'failed', 'interrupted'])
 const TERMINAL_RESULTS = new Set(['complete', 'failed', 'interrupted'])
+const TRACE_MAX_EVENTS = 128
+const TRACE_MAX_BYTES = 128 * 1024
 
 class LocalTaskTraceError extends Error {
   constructor(code, message, nextStep) {
@@ -35,6 +37,17 @@ function clonePayload(value) {
   return { ...value }
 }
 
+function jsonBytes(value) {
+  return Buffer.byteLength(JSON.stringify(value), 'utf8')
+}
+
+function extendPrefixDigest(prefixDigest, event) {
+  return crypto.createHash('sha256').update(JSON.stringify({
+    prefixDigest: prefixDigest || null,
+    event
+  })).digest('hex')
+}
+
 function createTraceEventId(trace, parts) {
   return stableId('event', [trace?.traceId || '', ...(Array.isArray(parts) ? parts : [parts])])
 }
@@ -53,6 +66,9 @@ function createLocalTaskTrace(options = {}) {
     turnKey,
     status: 'open',
     sequence: 0,
+    sequenceBase: 0,
+    droppedEvents: 0,
+    prefixDigest: null,
     openedAt,
     completedAt: null,
     events: []
@@ -64,11 +80,18 @@ function normalizeLocalTaskTrace(raw, options = {}) {
     const turnKey = String(options.turnKey || '').trim()
     return turnKey ? createLocalTaskTrace({ ...options, turnKey }) : null
   }
+  const events = Array.isArray(raw.events)
+    ? raw.events.map(event => ({ ...event, payload: clonePayload(event?.payload) }))
+    : raw.events
+  const inferredBase = Array.isArray(events) && events.length
+    ? Math.max(0, Number(events[0]?.sequence || 1) - 1)
+    : Math.max(0, Number(raw.sequence) || 0)
   return {
     ...raw,
-    events: Array.isArray(raw.events)
-      ? raw.events.map(event => ({ ...event, payload: clonePayload(event?.payload) }))
-      : raw.events
+    sequenceBase: Math.max(0, Number(raw.sequenceBase) || inferredBase),
+    droppedEvents: Math.max(0, Number(raw.droppedEvents) || inferredBase),
+    prefixDigest: raw.prefixDigest || null,
+    events
   }
 }
 
@@ -98,8 +121,9 @@ function validateLocalTaskTrace(raw) {
 
   const eventIds = new Set()
   const terminalIndexes = []
+  const sequenceBase = Math.max(0, Number(trace.sequenceBase) || 0)
   trace.events.forEach((event, index) => {
-    const expected = index + 1
+    const expected = sequenceBase + index + 1
     const payloadValid = event?.payload && typeof event.payload === 'object' && !Array.isArray(event.payload)
     if (
       !event ||
@@ -118,8 +142,8 @@ function validateLocalTaskTrace(raw) {
     }
     if (event?.type === 'TurnTerminal') terminalIndexes.push(index)
   })
-  if (trace.sequence !== trace.events.length) {
-    violations.push(violation('TRACE_SEQUENCE_INVALID', `Trace sequence ${trace.sequence} does not match event count ${trace.events.length}.`))
+  if (trace.sequence !== sequenceBase + trace.events.length) {
+    violations.push(violation('TRACE_SEQUENCE_INVALID', `Trace sequence ${trace.sequence} does not match retained range ${sequenceBase + trace.events.length}.`))
   }
   if (terminalIndexes.length > 1 || (terminalIndexes.length === 1 && terminalIndexes[0] !== trace.events.length - 1)) {
     violations.push(violation('TRACE_TERMINAL_INVALID', 'A terminal event must appear exactly once and must be the final event.'))
@@ -178,13 +202,23 @@ function appendLocalTaskTraceEvent(raw, input = {}, options = {}) {
     result: terminalStatus || String(input.result || 'observed'),
     payload: clonePayload(input.payload)
   }
-  return {
+  const next = {
     ...raw,
     status: terminalStatus || 'open',
     sequence: suppliedSequence,
     completedAt: terminalStatus ? observedAt : null,
     events: [...raw.events.map(existing => ({ ...existing, payload: clonePayload(existing.payload) })), event]
   }
+  next.sequenceBase = Math.max(0, Number(raw.sequenceBase) || 0)
+  next.droppedEvents = Math.max(0, Number(raw.droppedEvents) || next.sequenceBase)
+  next.prefixDigest = raw.prefixDigest || null
+  while (next.events.length > TRACE_MAX_EVENTS || jsonBytes(next) > TRACE_MAX_BYTES) {
+    const dropped = next.events.shift()
+    next.sequenceBase += 1
+    next.droppedEvents += 1
+    next.prefixDigest = extendPrefixDigest(next.prefixDigest, dropped)
+  }
+  return next
 }
 
 /** Return an ordered data projection only; payloads are never invoked or dispatched. */
@@ -205,6 +239,9 @@ function replayLocalTaskTrace(raw) {
       payloadExecution: false,
       processControl: false
     },
+    sequenceBase: Math.max(0, Number(raw?.sequenceBase) || 0),
+    droppedEvents: Math.max(0, Number(raw?.droppedEvents) || 0),
+    prefixDigest: raw?.prefixDigest || null,
     events: []
   }
   if (!validation.valid) return base

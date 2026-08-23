@@ -91,6 +91,44 @@ function recordMarkdown(record = currentRecord()) {
 probe('ProfileCurrentTruthV1 strict generic schema', () => {
   assert.strictEqual(parseProfileCurrentTruth('# Generic profile\n').valid, true)
   assert.strictEqual(parseProfileCurrentTruth(recordMarkdown()).valid, true)
+  const blocked = candidateRecord({
+    releaseState: 'candidate / release-blocked-p0-qualification',
+    candidate: {
+      targetVersion: '1.17.9',
+      targetTag: 'v1.17.9',
+      status: 'QUALIFICATION_BLOCKED',
+      releaseAuthorized: false,
+      externalState: 'pending'
+    },
+    sourceCandidate: {
+      ...currentRecord().sourceCandidate,
+      status: 'INVALIDATED',
+      localQualification: {
+        status: 'BLOCK',
+        runId: 'superseded-by-p0',
+        observedAt: '2026-08-16T13:47:39Z'
+      },
+      remoteCi: {
+        status: 'UNVERIFIED',
+        runId: 'not-pushed',
+        head: '85f3a8eadf61b0614f88d6817d255f255de968c2',
+        observedAt: '2026-08-16T13:47:39Z'
+      },
+      releaseAuthorized: false
+    }
+  })
+  assert.deepStrictEqual(parseProfileCurrentTruth(recordMarkdown(blocked)).errors, [])
+  const blockedWithAuthorization = structuredClone(blocked)
+  blockedWithAuthorization.candidate.releaseAuthorized = true
+  assert(parseProfileCurrentTruth(recordMarkdown(blockedWithAuthorization)).errors.some(item =>
+    item.includes('must be false for QUALIFICATION_BLOCKED')
+  ))
+  const publishWithoutAuthorization = candidateRecord()
+  publishWithoutAuthorization.candidate.status = 'PUBLISH_PENDING'
+  publishWithoutAuthorization.candidate.releaseAuthorized = false
+  assert(parseProfileCurrentTruth(recordMarkdown(publishWithoutAuthorization)).errors.some(item =>
+    item.includes('must be true for PUBLISH_PENDING')
+  ))
   assert.strictEqual(parseProfileCurrentTruth(recordMarkdown().replace(
     '## ProfileCurrentTruthV1\n',
     '## ProfileCurrentTruthV1\n\n'

@@ -24,8 +24,9 @@ applyTo: "**"
 | PC6 | 工作区：git dirty 范围 · 任务目录 |
 | PC7 | 续接：新会话/resume 有界检测 |
 
-下一步：[一句人话]
-`DevCodexVisibleEnvelopeV1 · entry-check · [状态] · [semanticDigest]`
+下一步：[仅当存在已核实的主动作时输出一句人话；否则省略]
+PostCompletionActionSetV1：[requiredNow / primaryAction / conditionalActions，含适用性、证据和授权边界]
+`DevCodexVisibleEnvelopeV2 · entry-check · [状态] · [semanticDigest]`
 ```
 
 ## chat / prod 模式

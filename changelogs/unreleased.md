@@ -1,9 +1,29 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: 下列变更已冻结到 v1.17.11；在 Git tag、npm registry、GitHub Release 与 Profile 05 的 `ProfileCurrentTruthV1` 完成一致回读前，仍按发布候选处理，不提前冒充已发布事实。
+> **当前**: v1.18.0 的 TaskRecoveryStoreV5 P0 与 PI-276/PF-338 P2 已完成实现和定向验证，最终发行日期已物化。用户已授权深审与 R4 全绿后直接发布；最终候选冻结、106-node R4、package/六宿主/fresh-process、exact-head CI、Publish 与 R7 完成前，外部发行事实仍以 v1.17.11 为准。
 
 ## 当前未发布实现候选
+
+- **TaskRecoveryStoreV5 P0（PI-275 / PF-337）**：根因是旧 lifecycle writer 按 Hook/工具状态变化创建 UUID 全量 JSON，而 pointer 数量限制不回收物理孤儿。新 writer 按 formal task 使用稳定 hot A/B、cold resume stub、terminal 退出缓存与 ephemeral A/B；正式任务数无硬上限，默认 256/512 MiB soft/hard，8 MiB closeout reserve。辅助 observation/telemetry/trace/temp 同步有界；现有 legacy 零删除。
+- **ContextDeliveryLedgerV2**：只在同 task/conversation/context epoch/project/root/source/body identity 完全一致且正文已观察时复用；其余全文 fail-safe。402,848-byte 正文基准每次重复避免约 80,570～134,283 token-equivalent，serialized reduction 99.543%；actual host tokens 仍为 `UNVERIFIED`。
+- **运行态运维面**：新增 `devcodex runtime status|doctor|maintenance` 的 V5/legacy/physical/reserve/hot/cold/terminal/ephemeral 分栏；maintenance 默认预览，apply 也不删除 legacy。Profile 只允许 safe integer `hardLimitMiB >= 512`。
+- **RuntimeGenerationRetention P2（PI-276 / PF-338）**：用户级六宿主不可变 `runtime-*` 不再只有 retained 列表而无收敛路径。本机 `generationAdoptions` 防止旧 release 刚安装即越过宽限；Profile/Memory MCP 与 global-host activation 共用稳定 `RuntimeGenerationLeaseV1`，GC claim 与激活双向互斥。GC 只接受非 current、无 live lease、已过本机 24 小时宽限且 manifest/content-tree/receipt/path 全可证的候选；预览零写，普通 apply 零 generation 删除，只有匹配 `RuntimeGenerationGcPlanV1.planDigest` 的显式 apply 才执行。完整 claim replan 与全部候选预检失败时零删除，逐项删除失败如实 partial；崩溃遗留 claim 仅在超龄、PID 明确死亡且原子搬移读回一致时由固定 stale 槽接管。`status/doctor` 六宿主合计最多 12 条 generation 样本、每个 inventory 最多 12 类摘要、TaskRecovery task 最多 8 条；maintenance 的 task before/after 各最多 8 条，actions/failures 与 generation candidates/retained/removed/failed 各最多 24 条并保留真实总量，避免诊断本身产生巨量 Token。
+- **Grok SessionStart 无界 owner 修复**：诊断观察从每会话随机 owner 目录改为固定 16 槽 `GrokSessionPrivateObservationV2`；100-session 与故障注入证明正常/失败均不形成新文件链。旧 V1 owner 只读保留。
+- **候选代际时间真相修复**：未发布候选从 `候选日期` 生成确定性 runtime `createdAt`，权威标记为 `candidate-changelog`；正式发布后才使用 `release-changelog`，同时避免候选安装回执出现 `createdAt=null` 或误写发布日期。
+- **当前源码 S15**：P2 runtime `3c762817…daf842` / adapter `b4662345…d2f00` 的 Codex CLI S15 已 PASS，run=`s15-codex-probe-f9b1014d-bde6-4381-8584-b23ce1e2af8d`，portable evidence=`55be4e4a…82524`，异常计数全 0。Codex Desktop 仍须独立 fresh-task 复验，不从 CLI 继承。
+- 完整候选说明持续更新在 [`changelogs/releases/v1.18.0.md`](./releases/v1.18.0.md)；正式 tag/npm/GitHub Release 仍未创建。
+
+## v1.18.0 已归档发布候选
+
+- **Codex SkillRoute Hook 循环与代际终止修复（PF-328）**：Codex CLI/Desktop 的 progressive route 在 `PreToolUse` 与 `Stop` 改为 advisory-only，但危险命令、Context、CP、closure 等同事件普通 Hook 流程继续执行；`stop_hook_active`、当前/N-1 producer identity、terminal tool failure、三次无进展退休和旧 fingerprint 抑制形成同一有界闭环。损坏 terminal tuple、未知 disposition、非法 digest 及越界/非有限计数全部 fail closed；policy 缺失或损坏时 Codex 两事件继续 advisory，其余宿主/事件恢复 hard default。冻结源码的 Codex CLI candidate S15 `s15-codex-probe-02d0fda4-f2c3-4ac1-9277-580d507946cc` 已 PASS（runtime `879b147c…fcdc`、adapter `d544f7b1…4eec`、异常计数均为 0）；Desktop 继续保持 `UNVERIFIED`，不从 CLI 继承。
+- **完成态动作与交付文件分离**：新增 `PostCompletionActionSetV1` 和 `DevCodexVisibleEnvelopeV2`；完成态必须 `requiredNow=[]`，用户文件只来自 artifact manifest，下一步最多一个主动作和两个条件动作。接口文档、`.http`、commit、switch、cherry-pick、push 都由事实差额决定；Git 写动作逐项显式授权，V1 只读兼容且不得推断动作或授权。
+- **跨宿主 AI Coding 工程 Harness 公开定位**：`PublicProductExpressionV2` 统一 README、public-site、package、plugin 与 CLI；明确 DevCodex 不改变模型参数、权重、上下文窗口或基础推理上限，而通过上下文、Skill、工作流、工具、记忆、验证和证据链提升真实软件工程中的有效智能表现。DevCodex owns 与 host owns 边界同步固定，保留 workflow runtime / host-adapter 技术定义。
+- **安装实例本地进化与可观察初始化**：新增 `EvolutionTargetDecisionV1` 和 `.devcodex/workspace/evolution/{candidates,decisions,evidence}`；candidate 不进入 resolver，默认 workspace-local，项目专属和 upstream package 分别要求项目证据与维护者显式授权，active promotion 另有独立证据。初始化返回 fresh/existing/planned/failed typed receipt，所有 CLI dry-run 消费者也执行只读规划并保持零写入；成功 receipt 强制绝对 root、有效 decision ID 与精确路径，失败摘要必须和逐路径错误码一致。
+- **Git 默认与 worktree 生命周期透明化**：新增 `GitExecutionContextV1` 与 `WorktreeLifecycleReceiptV1`；默认不建功能分支，同分支不做集成，跨分支选择性交付才 ordered cherry-pick，fast-forward 仅显式选择；authorization 与 execution evidence 分阶段绑定。Git integration 与 worktree clean 探针都覆盖 tracked/untracked/ignored。`status/doctor` 增加有单命令/总预算的只读 `WorktreeDiagnosticsV1`，stale ref 会退休清理授权，外部记录不得伪造 guided provenance；不深入 prunable 或外部未归属路径，不自动清理，也不修改全局 `safe.directory`。
+- **验证路由与发布闭包防漏选**：Git、Evolution、Workspace Provisioning 与 Worktree Lifecycle 节点同时声明 canonical `content/...` 真相源和 package 投影输入；changed-route 对每个 canonical input 独立回归。CLI worktree 子模块进入 npm files 与 V93 直接依赖清单，避免源码可用但安装包缺模块。隔离 exact-tree qualification 还会把 canonical active-root 传播到全部叶节点，V99 显式消费该绑定，避免资格仓路径让 Profile consumer 产生假缺失。
+
+### 历史兼容锚点（不属于当前未发布候选）
 
 - **验证意图、四级执行与预算门（PF-315）**：新增 `VerificationIntentV1`、V0～V3、`ValidationPlanV2`（保留 V1 投影）、`ValidationImpactGraphV2` 类型化 runtime/qualification/release consumers、节点 `minimumLevel` 与 `BudgetCardV1`。`fast` 改为动态影响选择，`profile-deploy` / `package-release` 固定为各自 V2 边界；普通 edit/delivery/boundary 不再因 high risk、R3/R4、ECR、控制面、cache stale、未知输入或闭包比例 silent full。未知影响 BLOCK；`ValidationEvidenceV2` 绑定 manifest、全部节点匹配 dirty 输入、节点契约/策略及依赖 `nodeReceiptDigest`，上游输入即使 stdout 不变也会精确级联失效。CLI 以 `--intent` 为正式参数、保留 `--purpose` 兼容别名，并把预计耗时与硬超时上限分开呈现。新增 `test:delivery` / `test:boundary`，发布候选仍以显式授权的无缓存 V3 保持原 full 99-node parity。
 - **工作区绑定与续接一致性**：`HostWorkspaceBindingV1` 统一宿主工作区、workspace namespace 与 active project 的物理身份；`ProjectTargetLeaseV1` 只允许在短 TTL、marker/layout/allowlist 均未漂移时沿用目标，歧义、显式冲突或 workspace 选择立即重判，避免 session 轮换导致错误换项目。
@@ -17,6 +37,7 @@
 
 ## 已归档发布说明
 
+- **v1.18.0 跨宿主 AI Coding 工程 Harness 与有界 Hook 生命周期**：明确 DevCodex 不改变模型参数而通过上下文、Skill、工作流、工具、记忆、验证和证据链提升真实工程有效智能；修复 Codex progressive route 的 PreToolUse/Stop 循环；新增完成态动作、workspace 本地进化、当前分支优先、ordered cherry-pick 与只读 worktree 诊断。完整说明见 `changelogs/releases/v1.18.0.md`；正式发行事实仍以外部回读为准。
 - **v1.17.11 影响范围验证、Codex Hook 韧性与交付体验增强**：日常修改按 VerificationIntent V0～V2 和类型化影响图选择最小充分验证，显式发布才执行无缓存 V3；状态锁、Codex 事件输出、S15 rebind/PATH、组合 deadline 与 pack 中断恢复同步修复。v1.17.10 后的 workspace binding、Memory 产物链接、86 项 Skill 分类目录和公开任务文档增强一并纳入。完整说明见 `changelogs/releases/v1.17.11.md`；发行事实仍以外部回读为准。
 - **v1.17.10 公开产品表达、README V2 与 GitHub Pages 已归档**：稳定产品语义与动态工作流/Skill/六宿主投影已经接入；公共 README 收敛为任务入口，详细 Grok/Cursor/sandbox/runtime 内容迁入独立 `public-site/`，维护者 `website/` 继续不进入公开仓/npm 包。Pages 已以 workflow 模式上线并通过 URL/title/brand/404 负向身份回读，package/plugin/CLI/GitHub homepage 已切到该产品页面；npm registry、provenance、fresh install、本机六宿主与新会话证据已在 2026-08-17 R7 关闭。完整说明见 `changelogs/releases/v1.17.10.md`。
 - **v1.17.9 聚合发布已归档**：纳入 v1.17.8 发布后已核实的 35 项失败关闭、事务/CAS、workspace temp V2、Memory 与 Profile current-truth 修复；同时修复 Windows Grok 通过 PowerShell 执行受管 Hook 时首个引号可执行文件被解析为字符串而触发 `ParserError`，统一使用可被 `cmd.exe` 与 PowerShell 接受的稳定 Node 启动命令。Grok 用户级全局文件退出 DevCodex lifecycle 声明，六事件由用户级 `devcodex-workspace` plugin 单独拥有；runtime verifier 分别核对物理声明、Grok 精确去重后的有效 handler 与 mutation owner。Grok 默认导入 DevCodex Claude Hook 时，稳定 launcher 依据四项 Grok 保留环境指纹在回执读取前静默退出；用户自有 Hook、Grok Claude 兼容偏好、portable 模式与其他五宿主语义不变。完整说明见 `changelogs/releases/v1.17.9.md`。

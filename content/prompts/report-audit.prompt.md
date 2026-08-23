@@ -33,7 +33,7 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 
 每轮 audit 报告必须引用 candidate-bound `ReviewExecutionPlanV1`、fresh `ReviewEvidenceReceiptV1`、EvidenceSaturation、唯一 `ReviewStateSnapshotV1.snapshotDigest` 与 `StageTimingV1`；targeted 两轮、full/security/release 三轮门禁不因复用而减少。
 
-审查用户可见输出时追加 `VisibleOutputContract`：分别核对内部 `ArtifactDeliveryManifestV1` 完整性、`UserFacingArtifactSetV1` required hidden 与计数守恒、`DevCodexVisibleEnvelopeV1.semanticDigest`、capability evidence 和 renderer parity。Hook 未观察 assistant payload 时只能判 `unverified`，旧格式不能升级为通过。
+审查用户可见输出时追加 `VisibleOutputContract`：分别核对内部 `ArtifactDeliveryManifestV1` 完整性、`UserFacingArtifactSetV1` required hidden 与计数守恒、`PostCompletionActionSetV1` 的适用性/证据/授权边界、`DevCodexVisibleEnvelopeV2.semanticDigest`、capability evidence 和 renderer parity。Hook 未观察 assistant payload 时只能判 `unverified`；V1 旧格式只读兼容，不能作为新写入或升级为通过。
 
 审查 HostContractRoute 的 MCP bridge 降级时核对 `mcpFallback=used`、原始错误、单次有界 fallback 和最终证据状态；重试同一失败调用或把 attempted 当 loaded 均记为问题。
 

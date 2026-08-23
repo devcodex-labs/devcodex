@@ -6,6 +6,8 @@ const path = require('path')
 
 const PRIVATE_TEMP_SCHEMA_VERSION = 'GrokPrivateTempOwnerV1'
 const SESSION_PRIVATE_SCHEMA_VERSION = 'GrokSessionPrivateOwnerV1'
+const SESSION_OBSERVATION_SCHEMA_VERSION = 'GrokSessionPrivateObservationV2'
+const SESSION_OBSERVATION_SLOT_COUNT = 16
 const OWNER_ID_RE = /^[a-f0-9-]{16,80}$/i
 
 function samePath(left, right) {
@@ -198,9 +200,85 @@ function classifyGrokSessionPrivateRecovery(record, options = {}) {
   }
 }
 
+function buildGrokSessionObservation(input = {}) {
+  const pluginData = path.resolve(String(input.pluginData || ''))
+  if (!String(input.pluginData || '').trim()) {
+    throw Object.assign(new Error('GROK_SESSION_OBSERVATION_ROOT_INVALID'), { code: 'GROK_SESSION_OBSERVATION_ROOT_INVALID' })
+  }
+  const sessionId = String(input.sessionId || '').trim()
+  const nonce = String(input.nonce || crypto.randomBytes(24).toString('hex'))
+  const ownerToken = String(input.ownerToken || crypto.randomBytes(32).toString('hex'))
+  if (!nonce || !ownerToken) {
+    throw Object.assign(new Error('GROK_SESSION_OBSERVATION_IDENTITY_INVALID'), { code: 'GROK_SESSION_OBSERVATION_IDENTITY_INVALID' })
+  }
+  const slotSeed = tokenDigest(`${sessionId || '<missing-session>'}\0${nonce}`)
+  const slotIndex = Number.parseInt(slotSeed.slice(0, 8), 16) % SESSION_OBSERVATION_SLOT_COUNT
+  const privateRoot = path.join(pluginData, 'private-sessions')
+  const observationPath = path.join(privateRoot, `slot-${String(slotIndex).padStart(2, '0')}.json`)
+  const nowMs = Number.isFinite(input.nowMs) ? input.nowMs : Date.now()
+  const ttlMs = Number.isFinite(input.ttlMs) && input.ttlMs > 0 ? input.ttlMs : 24 * 60 * 60 * 1000
+  return {
+    schemaVersion: SESSION_OBSERVATION_SCHEMA_VERSION,
+    storageMode: 'bounded-slot-ring',
+    slotIndex,
+    slotCount: SESSION_OBSERVATION_SLOT_COUNT,
+    privateRoot,
+    observationPath,
+    ownerTokenDigest: tokenDigest(ownerToken),
+    sessionBindingDigest: tokenDigest(sessionId || '<missing-session>'),
+    sessionIdPresent: Boolean(sessionId),
+    nonceDigest: tokenDigest(nonce),
+    state: 'observed',
+    pid: Number.isInteger(input.pid) && input.pid > 0 ? input.pid : process.pid,
+    hostname: String(input.hostname || os.hostname()),
+    cwd: path.resolve(String(input.cwd || process.cwd())),
+    workspaceRoot: input.workspaceRoot ? path.resolve(String(input.workspaceRoot)) : null,
+    createdAt: new Date(nowMs).toISOString(),
+    createdAtMs: nowMs,
+    expiresAt: new Date(nowMs + ttlMs).toISOString(),
+    expiresAtMs: nowMs + ttlMs,
+    cleanupPolicy: 'bounded-slot-overwrite',
+    note: 'Diagnostic-only SessionStart observation; never used as task recovery or authorization.'
+  }
+}
+
+function validateGrokSessionObservation(record, expectedPluginData) {
+  const errors = []
+  if (!record || typeof record !== 'object') return { valid: false, errors: ['record-invalid'] }
+  if (record.schemaVersion !== SESSION_OBSERVATION_SCHEMA_VERSION) errors.push('schema-version-invalid')
+  if (record.storageMode !== 'bounded-slot-ring') errors.push('storage-mode-invalid')
+  if (!Number.isInteger(record.slotIndex) || record.slotIndex < 0 || record.slotIndex >= SESSION_OBSERVATION_SLOT_COUNT) {
+    errors.push('slot-index-invalid')
+  }
+  if (record.slotCount !== SESSION_OBSERVATION_SLOT_COUNT) errors.push('slot-count-invalid')
+  if (!/^[a-f0-9]{64}$/.test(String(record.ownerTokenDigest || ''))) errors.push('owner-token-digest-invalid')
+  if (!/^[a-f0-9]{64}$/.test(String(record.sessionBindingDigest || ''))) errors.push('session-binding-invalid')
+  if (!/^[a-f0-9]{64}$/.test(String(record.nonceDigest || ''))) errors.push('nonce-invalid')
+  if (record.state !== 'observed') errors.push('state-invalid')
+  if (!Number.isInteger(record.pid) || record.pid <= 0) errors.push('pid-invalid')
+  if (!String(record.hostname || '').trim()) errors.push('hostname-invalid')
+  if (!Number.isFinite(Number(record.expiresAtMs))) errors.push('expiry-invalid')
+  try {
+    const expectedPrivateRoot = path.join(path.resolve(String(expectedPluginData || path.dirname(record.privateRoot))), 'private-sessions')
+    const expectedObservationPath = path.join(
+      expectedPrivateRoot,
+      `slot-${String(record.slotIndex).padStart(2, '0')}.json`
+    )
+    if (!samePath(record.privateRoot, expectedPrivateRoot)) errors.push('private-root-mismatch')
+    if (!samePath(record.observationPath, expectedObservationPath)) errors.push('observation-path-mismatch')
+    if (!isPathInside(expectedPrivateRoot, record.observationPath)) errors.push('observation-path-escape')
+  } catch {
+    errors.push('path-invalid')
+  }
+  return { valid: errors.length === 0, errors }
+}
+
 module.exports = {
   PRIVATE_TEMP_SCHEMA_VERSION,
+  SESSION_OBSERVATION_SCHEMA_VERSION,
+  SESSION_OBSERVATION_SLOT_COUNT,
   SESSION_PRIVATE_SCHEMA_VERSION,
+  buildGrokSessionObservation,
   buildGrokSessionPrivateOwner,
   buildPrivateTempOwnerRecord,
   classifyGrokSessionPrivateRecovery,
@@ -209,6 +287,7 @@ module.exports = {
   probeOwnerProcess,
   samePath,
   tokenDigest,
+  validateGrokSessionObservation,
   validateGrokSessionPrivateOwner,
   validatePrivateTempOwnerRecord
 }

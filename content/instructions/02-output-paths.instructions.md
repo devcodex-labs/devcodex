@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 产物输出路径与命名规范，定义 active-root 下的 requirements、bugs、reports 与记忆落点
 priority: P5
-version: 1.17.11
+version: 1.18.0
 ---
 # 产物输出路径规范
 
@@ -148,7 +148,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 用户可见文件交付统一由 `skills/user-visible-output-contract/SKILL.md` 管理。执行链固定为：
 
-`ArtifactDeliveryManifestV1（内部完整）→ UserFacingArtifactSetV1（用户最小必要）→ FinalValidationSummaryV1（dev/fix/self-fix 完成态验证摘要）→ DevCodexVisibleEnvelopeV1 → LinkCapabilityDecisionV1 renderer`。
+`ArtifactDeliveryManifestV1（内部完整）→ UserFacingArtifactSetV1（用户最小必要）→ FinalValidationSummaryV1（dev/fix/self-fix 完成态验证摘要）→ PostCompletionActionSetV1（真实且有授权边界的后续动作）→ DevCodexVisibleEnvelopeV2 → LinkCapabilityDecisionV1 renderer`。V1 仅允许一个兼容窗口的只读解析，新生产者不得写入。
 
 ### 内部完整与用户可见分层
 

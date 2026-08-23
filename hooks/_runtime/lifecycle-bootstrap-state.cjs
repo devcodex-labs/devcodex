@@ -6,11 +6,18 @@ const {
   validateContentIdentity
 } = require('./content-identity.cjs')
 const { readContextPlanObservation } = require('./context-plan-observation.cjs')
+const { replayMcpContextSourceObservations } = require('./context-source-observation.cjs')
 const {
-  atomicWriteJson,
-  readLifecycleStateCommit,
-  updateLifecycleStateCommit
+  readLifecycleStateCommit
 } = require('./lifecycle-state-commit.cjs')
+const {
+  commitTaskRecoveryState,
+  readTaskRecoveryState,
+  writeStableProjection
+} = require('./task-recovery-store-v5.cjs')
+const {
+  compactLifecycleStateV5
+} = require('./lifecycle-state-projection-v5.cjs')
 
 function parseContextToolIdentity (rawName, explicitServer = '') {
   const raw = String(rawName || '').trim()
@@ -63,6 +70,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     path,
     crypto,
     env,
+    resolveTaskRecoveryConfigForCwd,
     CONTEXT_ROOT,
     LAYOUT,
     CONTEXT_PROJECT,
@@ -113,7 +121,6 @@ function buildLifecycleBootstrapStateUtils(ctx) {
 
   const PROFILE_SERVER = 'devcodex-profile'
   const MEMORY_SERVER = 'devcodex-memory'
-  const MAX_SESSION_STATE_FILES = 64
   const PROFILE_TOOLS = new Set(['profile_context_plan', 'profile_load'])
   const PROFILE_ROUTE_TOOLS = new Set(['skill_route'])
   const MEMORY_READ_TOOLS = new Set([
@@ -557,6 +564,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         authorityRef: '',
         reason: ''
       },
+      taskRecoveryBinding: null,
+      contextDeliveryReceipts: [],
       cp3Runtime: {},
       governanceIntake: emptyGovernanceIntakeState(),
       turnLiveness: createTurnLivenessState(),
@@ -633,24 +642,6 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       .map(project => path.join(getStatePathsFor(project, 'project').dir, 'sessions', `${digest}.json`))
   }
 
-  function pruneSessionStates(dir) {
-    let entries
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true })
-        .filter(entry => entry.isFile() && /^[a-f0-9]{64}\.json$/.test(entry.name))
-        .map(entry => {
-          const file = path.join(dir, entry.name)
-          return { file, mtimeMs: fs.statSync(file).mtimeMs }
-        })
-        .sort((left, right) => right.mtimeMs - left.mtimeMs)
-    } catch {
-      return
-    }
-    for (const entry of entries.slice(MAX_SESSION_STATE_FILES)) {
-      try { fs.unlinkSync(entry.file) } catch {}
-    }
-  }
-
   function preferNewerSameSessionContext(sessionState, activeState, sessionKey) {
     if (!sessionState || typeof sessionState !== 'object' ||
         !activeState || typeof activeState !== 'object') return sessionState
@@ -679,20 +670,136 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     }
   }
 
-  function loadState(modeHint, sessionKey = '') {
-    const committed = readLifecycleStateCommit({
-      metaDir: META_STATE_PATHS.dir,
-      sessionKey
+  function recoveryProjectForState(state) {
+    return state?.activeScope === 'workspace'
+      ? 'workspace'
+      : String(state?.activeProject || state?.contextAcquisition?.project || CONTEXT_PROJECT || path.basename(CONTEXT_ROOT)).trim()
+  }
+
+  function recoveryIdentityForState(state) {
+    const project = recoveryProjectForState(state)
+    const activeRoot = normalizePath(getActiveNamespaceRoot(state))
+    const binding = state?.taskRecoveryBinding
+    const bindingMatches = binding &&
+      String(binding.project || '') === project &&
+      String(binding.taskId || '').trim()
+    return {
+      activeRoot,
+      project,
+      ...(bindingMatches ? {
+        taskId: String(binding.taskId).trim(),
+        taskStatus: String(binding.status || 'active').trim().toLowerCase()
+      } : {})
+    }
+  }
+
+  function compatibleRecoveryState(candidate, expected, sessionKey = '', { requireSession = false } = {}) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return null
+    const observedProject = candidate.activeScope === 'workspace'
+      ? 'workspace'
+      : String(candidate.activeProject || candidate.contextAcquisition?.project || '').trim()
+    if (observedProject && observedProject !== expected.project) return null
+    const observedRoot = normalizePath(candidate.contextAcquisition?.activeRoot || '')
+    if (observedRoot && normalizePath(expected.activeRoot) !== observedRoot) return null
+    const observedSession = String(candidate.contextAcquisition?.hostSessionId || '').trim()
+    if (requireSession && sessionKey && observedSession !== String(sessionKey).trim()) return null
+    const binding = candidate.taskRecoveryBinding
+    if (binding && (String(binding.project || '') !== expected.project || !String(binding.taskId || '').trim())) return null
+    return candidate
+  }
+
+  function rehydrateEphemeralRecoveryState(candidate, expected, sessionKey) {
+    if (candidate?.recoveryKind !== 'ephemeral-resume-stub') return candidate
+    const context = candidate.contextAcquisition || {}
+    const handoff = context.handoff
+    if (!handoff?.planId || !handoff?.planContentId || !context.contextEpoch) return candidate
+    const observed = readContextPlanObservation({
+      activeRoot: expected.activeRoot,
+      project: expected.project,
+      contextEpoch: context.contextEpoch
+    })
+    if (observed.status !== 'fresh' || !observed.plan ||
+        observed.plan.planId !== handoff.planId ||
+        observed.plan.planContentId !== handoff.planContentId) return candidate
+    context.plan = observed.plan
+    context.receipt = observed.plan.receipt || createContextReadReceipt(observed.plan, {
+      verificationMode: 'structured-plan',
+      planObserved: true,
+      hostSessionId: sessionKey
+    })
+    try {
+      const replayed = replayMcpContextSourceObservations(context.receipt, observed.plan, {
+        activeRoot: expected.activeRoot,
+        project: expected.project,
+        contextBinding: observed.plan.contextBinding,
+        hostSessionId: sessionKey
+      })
+      if (replayed.status === 'replayed') context.receipt = replayed.receipt
+    } catch { }
+    context.verificationMode = context.receipt?.verificationMode || 'structured-plan'
+    candidate.contextAcquisition = context
+    return candidate
+  }
+
+  function loadState(modeHint, sessionKey = '', recoveryHint = null) {
+    const metaProjection = readJsonFile(META_STATE_PATHS.file)
+    const probe = buildDefaultState(modeHint)
+    const hintedProject = String(recoveryHint?.project || '').trim()
+    const workspaceHint = hintedProject.toLowerCase() === 'workspace'
+    const projectedProject = workspaceHint
+      ? ''
+      : String(hintedProject || CONTEXT_PROJECT || metaProjection?.activeProject || '').trim()
+    probe.activeProject = projectedProject
+    probe.activeScope = workspaceHint ? 'workspace' : (projectedProject ? 'project' : DEFAULT_SCOPE)
+    if (String(recoveryHint?.taskId || '').trim()) {
+      probe.taskRecoveryBinding = {
+        schemaVersion: 'TaskRecoveryBindingV1',
+        taskId: String(recoveryHint.taskId).trim(),
+        project: workspaceHint ? 'workspace' : projectedProject,
+        status: String(recoveryHint.taskStatus || 'active').trim().toLowerCase()
+      }
+    }
+    const expected = recoveryIdentityForState(probe)
+    const activePaths = getStatePaths(probe)
+    const activeProjection = compatibleRecoveryState(readJsonFile(activePaths.file), expected, sessionKey, { requireSession: true })
+    const recovered = readTaskRecoveryState({
+      metaDir: activePaths.dir,
+      sessionKey,
+      ...(expected.taskId
+        ? { identity: expected }
+        : { expectedIdentity: expected })
     }, { fs })
-    const committedState = committed.status === 'fresh' ? committed.state : null
-    const metaState = committedState || readJsonFile(META_STATE_PATHS.file)
-    let sessionState = committedState
+    let sessionState = recovered.status === 'fresh'
+      ? recovered.state
+      : (recovered.status === 'ephemeral-stub'
+          ? (activeProjection || rehydrateEphemeralRecoveryState(recovered.state, expected, sessionKey))
+          : null)
+    if (!sessionState && activeProjection) sessionState = activeProjection
+    let committed = { status: 'missing' }
+    if (!sessionState && recovered.status !== 'identity-mismatch') {
+      const legacy = readLifecycleStateCommit({
+        metaDir: META_STATE_PATHS.dir,
+        sessionKey
+      }, { fs })
+      const compatibleLegacy = legacy.status === 'fresh' &&
+        String(legacy.identity?.project || '') === expected.project
+        ? compatibleRecoveryState(legacy.state, expected, sessionKey, { requireSession: !!sessionKey })
+        : null
+      if (compatibleLegacy) {
+        committed = legacy
+        sessionState = compatibleLegacy
+      }
+    }
+    const compatibleMeta = compatibleRecoveryState(metaProjection, expected)
+    const metaState = sessionState || activeProjection || compatibleMeta
     if (!(sessionState && typeof sessionState === 'object')) {
       const canonicalSessionFile = sessionStateFile(metaState || buildDefaultState(modeHint), sessionKey)
-      sessionState = canonicalSessionFile ? readJsonFile(canonicalSessionFile) : null
+      sessionState = canonicalSessionFile
+        ? compatibleRecoveryState(readJsonFile(canonicalSessionFile), expected, sessionKey, { requireSession: true })
+        : null
       if (!(sessionState && typeof sessionState === 'object')) {
         for (const legacyFile of legacySessionStateFiles(sessionKey, metaState)) {
-          const legacy = readJsonFile(legacyFile)
+          const legacy = compatibleRecoveryState(readJsonFile(legacyFile), expected, sessionKey, { requireSession: true })
           if (legacy && typeof legacy === 'object') {
             sessionState = legacy
             break
@@ -701,7 +808,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       }
     }
     let saved = sessionState
-    if (committed.status !== 'fresh' && saved && typeof saved === 'object' && LAYOUT.enabled) {
+    if (committed.status !== 'fresh' && recovered.status !== 'fresh' && saved && typeof saved === 'object' && LAYOUT.enabled) {
       const preferredProject = String(
         saved.activeProject || saved.contextAcquisition?.project || CONTEXT_PROJECT || ''
       ).trim()
@@ -709,20 +816,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       const activeState = readJsonFile(getStatePathsFor(preferredProject, preferredScope).file)
       saved = preferNewerSameSessionContext(saved, activeState, sessionKey)
     }
-    if (!(saved && typeof saved === 'object')) {
-      saved = metaState
-      if (LAYOUT.enabled) {
-        const preferredProject = String(metaState?.activeProject || CONTEXT_PROJECT || '').trim()
-        const preferredScope = metaState?.activeScope || (preferredProject ? 'project' : DEFAULT_SCOPE)
-        const activeState = readJsonFile(getStatePathsFor(preferredProject, preferredScope).file)
-        if (activeState && typeof activeState === 'object') {
-          saved = activeState
-        } else if (CONTEXT_PROJECT) {
-          const contextState = readJsonFile(getStatePathsFor(CONTEXT_PROJECT, 'project').file)
-          if (contextState && typeof contextState === 'object') saved = contextState
-        }
-      }
-    }
+    if (!(saved && typeof saved === 'object')) saved = metaState
     const startsFreshGovernanceSession = !!sessionKey && !(sessionState && typeof sessionState === 'object')
     const sessionBound = !!(sessionState && typeof sessionState === 'object')
     const mode = modeHint || readProfileMode(saved || metaState || null, saved?.activeProject || metaState?.activeProject || '')
@@ -756,65 +850,84 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       },
       dangerousApprovals: { ...current.dangerousApprovals, ...(saved.dangerousApprovals || {}) }
     }
+    if (state.taskRecoveryBinding && String(state.taskRecoveryBinding.project || '') !== recoveryProjectForState(state)) {
+      state.taskRecoveryBinding = null
+    }
     syncContextProjection(state)
     return state
   }
 
-  function saveState(state) {
+  function saveState(state, options = {}) {
     syncContextProjection(state)
     state.updatedAt = new Date().toISOString()
     const activePaths = getStatePaths(state)
-    const sessionKey = state.contextAcquisition?.hostSessionId
-    const sessionFile = sessionStateFile(state, sessionKey)
-    const targets = [{ role: 'active', dir: activePaths.dir }]
-    if (LAYOUT.enabled && activePaths.file !== META_STATE_PATHS.file) {
-      targets.push({ role: 'meta', dir: META_STATE_PATHS.dir })
-    }
-    if (sessionFile) targets.push({ role: 'session', dir: path.dirname(sessionFile) })
-    const commit = updateLifecycleStateCommit({
-      metaDir: META_STATE_PATHS.dir,
-      identity: {
-        project: state.activeProject || state.contextAcquisition?.project || '',
-        scope: state.activeScope || DEFAULT_SCOPE,
-        sessionKey: sessionKey || ''
-      },
-      targets,
-      readFallback: () => readJsonFile(activePaths.file) || readJsonFile(META_STATE_PATHS.file)
-    }, current => preferNewerSameSessionContext(state, current, sessionKey), { fs })
-    if (commit.status !== 'committed') {
-      const error = new Error(`LifecycleStateCommitV3 failed: ${commit.errorCode || commit.status}`)
+    const sessionKey = String(state.contextAcquisition?.hostSessionId || state.turnLiveness?.turnKey || '').trim()
+    const identity = recoveryIdentityForState(state)
+    const recoveryConfig = typeof resolveTaskRecoveryConfigForCwd === 'function'
+      ? resolveTaskRecoveryConfigForCwd(CONTEXT_ROOT, identity.project)
+      : null
+    const testReserveBytes = env.DEVCODEX_TASK_RECOVERY_TEST_MODE === '1'
+      ? Number.parseInt(env.DEVCODEX_TASK_RECOVERY_TEST_RESERVE_BYTES, 10)
+      : 0
+    const commit = commitTaskRecoveryState({
+      metaDir: activePaths.dir,
+      identity,
+      sessionKey,
+      state
+    }, {
+      fs,
+      reason: String(options.reason || ''),
+      force: options.force === true,
+      touchSessionMapping: options.touchSessionMapping === true,
+      ...(Number.isInteger(recoveryConfig?.softBytes) ? { softBytes: recoveryConfig.softBytes } : {}),
+      ...(Number.isInteger(recoveryConfig?.hardBytes) ? { hardBytes: recoveryConfig.hardBytes } : {}),
+      ...(Number.isInteger(testReserveBytes) && testReserveBytes >= 1024 ? { reserveBytes: testReserveBytes } : {})
+    })
+    if (['error', 'bypassed'].includes(commit.status)) {
+      const error = new Error(`TaskRecoveryStoreV5 failed: ${commit.errorCode || commit.status}`)
       error.code = commit.errorCode || 'LIFECYCLE_STATE_COMMIT_FAILED'
       throw error
     }
-    const committedState = commit.state || state
-    if (committedState.contextAcquisition) {
-      state.contextAcquisition = JSON.parse(JSON.stringify(committedState.contextAcquisition))
+    if (commit.status === 'closeout-reserved') {
+      state.turnLiveness = {
+        ...(state.turnLiveness || {}),
+        state: 'stateful-blocked',
+        lastMutationCloseout: {
+          schemaVersion: 'TaskRecoveryReservedCloseoutV1',
+          observedAt: new Date().toISOString(),
+          sequence: commit.sequence,
+          errorCode: commit.errorCode || 'LIFECYCLE_STATE_COMMIT_FAILED',
+          recoveryRequired: true
+        }
+      }
+      const error = new Error('TaskRecoveryStoreV5 used the emergency closeout reserve; reconciliation is required')
+      error.code = 'LIFECYCLE_STATEFUL_BLOCKED_CLOSEOUT_RESERVED'
+      error.details = commit
+      throw error
     }
-    state.updatedAt = committedState.updatedAt || state.updatedAt
-
+    const shouldProject = ['committed', 'ephemeral-stub', 'skipped'].includes(commit.status)
+    if (!shouldProject) {
+      return { ...commit, projectionStatus: 'semantic-noop', projectionWarnings: [] }
+    }
+    const committedState = commit.state || compactLifecycleStateV5(state).state
     const projectionWarnings = []
-    try { atomicWriteJson(activePaths.file, committedState, { fs }) } catch (error) {
-      projectionWarnings.push({ role: 'active', file: activePaths.file, message: error.message })
+    const activeProjectionWrite = writeStableProjection(activePaths.file, committedState, { fs })
+    if (activeProjectionWrite.status !== 'persisted') {
+      projectionWarnings.push({ role: 'active', file: activePaths.file, message: activeProjectionWrite.message, errorCode: activeProjectionWrite.errorCode })
     }
     if (LAYOUT.enabled && activePaths.file !== META_STATE_PATHS.file) {
       const metaState = {
         ...committedState,
+        taskRecoveryBinding: null,
         bootstrap: { ...(committedState.bootstrap || {}) },
         visible: { ...(committedState.visible || {}) },
         stickyProject: { ...(committedState.stickyProject || {}) },
         stickyAuto: { ...(committedState.stickyAuto || {}) },
         dangerousApprovals: { ...(committedState.dangerousApprovals || {}) }
       }
-      try { atomicWriteJson(META_STATE_PATHS.file, metaState, { fs }) } catch (error) {
-        projectionWarnings.push({ role: 'meta', file: META_STATE_PATHS.file, message: error.message })
-      }
-    }
-    if (sessionFile) {
-      try {
-        atomicWriteJson(sessionFile, committedState, { fs })
-        pruneSessionStates(path.dirname(sessionFile))
-      } catch (error) {
-        projectionWarnings.push({ role: 'session', file: sessionFile, message: error.message })
+      const metaProjectionWrite = writeStableProjection(META_STATE_PATHS.file, metaState, { fs })
+      if (metaProjectionWrite.status !== 'persisted') {
+        projectionWarnings.push({ role: 'meta', file: META_STATE_PATHS.file, message: metaProjectionWrite.message, errorCode: metaProjectionWrite.errorCode })
       }
     }
     return { ...commit, projectionStatus: projectionWarnings.length ? 'warn' : 'persisted', projectionWarnings }
@@ -829,6 +942,11 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     state.lastMultiProjectWarningKey = previousState?.lastMultiProjectWarningKey || ''
     state.stickyProject = { ...state.stickyProject, ...(previousState?.stickyProject || {}) }
     state.stickyAuto = { ...state.stickyAuto, ...(previousState?.stickyAuto || {}) }
+    const previousBinding = previousState?.taskRecoveryBinding
+    const nextProject = state.activeScope === 'workspace' ? 'workspace' : state.activeProject
+    if (previousBinding && String(previousBinding.project || '') === String(nextProject || '')) {
+      state.taskRecoveryBinding = { ...previousBinding }
+    }
     state.cp3Runtime = { ...(previousState?.cp3Runtime || {}) }
     state.governanceIntake = normalizeGovernanceIntakeState(previousState?.governanceIntake)
     state.turnLiveness = normalizeTurnLivenessState(previousState?.turnLiveness)
@@ -846,7 +964,6 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         project: previousAcquisition.project
       }
     }
-    saveState(state)
     return state
   }
 
@@ -1858,7 +1975,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         '下一步：先输出完整 PC0~PC7，再完成 ContextReadPlan 证据后重试工具',
         'GrokTurnChecklist: PC0~PC7 → Intent→Skill bundle → context plan → work → report+memory → honest ceiling',
         'Skill bundle (non-chat): intent+compliance+user-visible-output-contract+workflow+report+memory',
-        'DevCodexVisibleEnvelopeV1 · entry-check · BLOCK · s07-assist-context-incomplete',
+        'DevCodexVisibleEnvelopeV2 · entry-check · BLOCK · s07-assist-context-incomplete',
         '--- end S07 assist ---'
       ].join('\n')
     }

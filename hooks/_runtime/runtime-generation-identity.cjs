@@ -3,6 +3,7 @@
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
+const { acquireRuntimeGenerationLease } = require('./runtime-generation-lease.cjs')
 
 const PROCESS_IDENTITY_SCHEMA = 'RuntimeProcessIdentityV2'
 const RUNTIME_GENERATION_SCHEMA = 'RuntimeGenerationManifestV1'
@@ -87,6 +88,23 @@ function captureRuntimeProcessIdentity (options = {}) {
     manifestStatus: generation.status
   }
   const identity = { ...material, identityDigest: sha256(material) }
+  const persistentRole = /(?:^|-)mcp$/i.test(role)
+  if (options.acquireLease === true || (options.acquireLease !== false && persistentRole)) {
+    const lease = acquireRuntimeGenerationLease({
+      fs: fsImpl,
+      runtimeRoot,
+      role,
+      heartbeatIntervalMs: options.heartbeatIntervalMs,
+      leaseTtlMs: options.leaseTtlMs,
+      registerExit: options.registerLeaseExit
+    })
+    if (persistentRole && generation.status === 'resolved' && lease.status !== 'active') {
+      const error = new Error(`RUNTIME_GENERATION_LEASE_REQUIRED: ${lease.reasonCode || lease.status}`)
+      error.code = 'RUNTIME_GENERATION_LEASE_REQUIRED'
+      error.lease = lease
+      throw error
+    }
+  }
   if (!options.noCache) identityCache.set(cacheKey, identity)
   return identity
 }
@@ -111,10 +129,66 @@ function validateRuntimeProcessIdentity (value) {
   return { valid: true, reasonCode: 'process-identity-valid', identity }
 }
 
+function compareRuntimeProcessIdentity (producer, consumer) {
+  const producerValidation = validateRuntimeProcessIdentity(producer)
+  const consumerValidation = validateRuntimeProcessIdentity(consumer)
+  if (!producerValidation.valid || !consumerValidation.valid) {
+    return {
+      compatible: false,
+      current: false,
+      status: 'refresh-required',
+      reasonCode: !producerValidation.valid
+        ? `producer-${producerValidation.reasonCode}`
+        : `consumer-${consumerValidation.reasonCode}`,
+      producerValidation,
+      consumerValidation
+    }
+  }
+  const left = producerValidation.identity
+  const right = consumerValidation.identity
+  const sameGeneration = left.generationId === right.generationId &&
+    left.runtimeContractVersion === right.runtimeContractVersion &&
+    left.bootRuntimeContractDigest === right.bootRuntimeContractDigest
+  if (sameGeneration) {
+    return {
+      compatible: true,
+      current: true,
+      status: 'current-generation',
+      reasonCode: 'runtime-generation-current',
+      producerValidation,
+      consumerValidation
+    }
+  }
+  const versionDelta = right.runtimeContractVersion - left.runtimeContractVersion
+  if (versionDelta < 0 || versionDelta > 1) {
+    return {
+      compatible: false,
+      current: false,
+      status: 'refresh-required',
+      reasonCode: 'runtime-contract-outside-n-1-window',
+      versionDelta,
+      producerValidation,
+      consumerValidation
+    }
+  }
+  return {
+    compatible: true,
+    current: false,
+    status: 'generation-superseded',
+    reasonCode: versionDelta === 1
+      ? 'runtime-generation-n-1-superseded'
+      : 'runtime-generation-replaced',
+    versionDelta,
+    producerValidation,
+    consumerValidation
+  }
+}
+
 module.exports = {
   PROCESS_IDENTITY_SCHEMA,
   RUNTIME_CONTRACT_VERSION,
   RUNTIME_GENERATION_SCHEMA,
+  compareRuntimeProcessIdentity,
   captureRuntimeProcessIdentity,
   defaultRuntimeRoot,
   readRuntimeGenerationManifest,

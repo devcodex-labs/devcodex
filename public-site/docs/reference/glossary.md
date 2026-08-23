@@ -10,6 +10,8 @@
 | ECR | Execution Closure Review；完成前对照需求、diff、测试和报告的复审 |
 | evidence | 支持结论的文件、命令输出、退出码、回执或真实用户路径 |
 | Full / Beta / Partial | 某个精确宿主 variant 的公开能力等级，不能跨宿主继承 |
+| engineering harness | 围绕模型和宿主组织项目上下文、专业流程、工具、授权、验证、证据与续接的工程控制层；不等于模型或原生 agent loop |
+| effective engineering intelligence | 模型在真实项目约束下完成工程任务的有效表现；可由上下文和流程提升，但不代表模型参数、权重或基础推理上限改变 |
 | Hook | 宿主在会话或工具生命周期触发的入口；不同宿主事件不同 |
 | MCP | 为宿主提供 Profile、记忆等结构化工具的本地 stdio 接口 |
 | Profile | 项目的技术栈、架构、风格、测试、发布和功能清单 |

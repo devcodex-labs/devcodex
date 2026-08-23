@@ -89,7 +89,7 @@ const PUBLIC_README_REQUIRED_MARKERS = Object.freeze([
 ])
 
 const PUBLIC_README_V2_REQUIRED_SECTIONS = Object.freeze([
-  '# DevCodex — 意图驱动的 AI Coding 工作流运行时',
+  '# DevCodex — 跨宿主 AI Coding 工程 Harness',
   '## 为什么需要 DevCodex？',
   '## 安装后，你能解决什么？',
   '## 什么时候直接使用宿主，什么时候用 DevCodex？',
@@ -117,6 +117,11 @@ const PUBLIC_README_V2_REQUIRED_PHRASES = Object.freeze([
   '@rocky',
   'extensions.devcodex.autoAliases',
   '空数组 `[]`',
+  '跨宿主 AI Coding 工程 Harness',
+  '不会提升模型本身的参数能力',
+  '显著提升模型在真实软件工程中的有效智能表现',
+  'DevCodex owns',
+  'Host owns',
   '不是模型网关',
   '不是通用 Agent 框架',
   '不是多 Agent 编排器',
@@ -214,7 +219,7 @@ function evaluatePublicConsumerParity (root, text, projection, options, violatio
   compare(
     'public-site',
     'product-category',
-    siteHome == null ? null : siteHome.includes('Intent-driven AI Coding Workflow Runtime'),
+    siteHome == null ? null : siteHome.includes(projection.expression.category.en),
     true,
     options.requirePublicSite === true
   )
@@ -332,6 +337,10 @@ function evaluatePublicReadmeContractV2 (content, options = {}) {
     expression: {
       productId: projection.expression.productId,
       category: projection.expression.category,
+      technicalDefinition: projection.expression.technicalDefinition,
+      modelCapabilityBoundary: projection.expression.modelCapabilityBoundary || null,
+      ownershipBoundary: projection.expression.ownershipBoundary || null,
+      compatibility: { ...projection.expressionCompatibility },
       mustNot: [...projection.expression.mustNot]
     },
     workflows: { ...projection.workflows },

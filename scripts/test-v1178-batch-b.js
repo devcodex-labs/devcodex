@@ -430,14 +430,14 @@ function testLifecycleGenerationPointer() {
   assert.strictEqual(readLifecycleStateCommit({ metaDir, sessionKey: 's1' }, { fs: memory }).status, 'fresh')
 }
 
-function testObservationFullDigestPath() {
+function testObservationBoundedSlotPath() {
   const paths = new Set()
   for (let index = 0; index < 512; index += 1) {
     paths.add(contextSourceLedgerRelativePath(`epoch-${index}`))
   }
-  assert.strictEqual(paths.size, 512)
+  assert(paths.size <= 128)
   for (const file of paths) {
-    assert.match(file.replace(/\\/g, '/'), /context-source-observations\/v3\/[a-f0-9]{2}\/[a-f0-9]{64}\.json$/)
+    assert.match(file.replace(/\\/g, '/'), /context-source-observations\/v4\/slot-(?:0\d\d|1[01]\d|12[0-7])\.json$/)
   }
 }
 
@@ -479,6 +479,33 @@ function testGlobalConfigJournalRecovery() {
   assert.strictEqual(recovered.status, 'committed')
   assert.strictEqual(recovered.recoveredTransactions[0].status, 'recovered-rolled-back')
   assert.strictEqual(memory.readFileSync(config, 'utf8'), 'new')
+
+  const lockFailureMemory = new MemoryFs()
+  const lockFailureRoot = path.resolve('C:/global-host-lock-failure')
+  const lockFailureConfig = path.join(lockFailureRoot, 'config.json')
+  const lockFailureTransactionRoot = path.join(lockFailureRoot, 'devcodex', 'transactions')
+  const lockFailureFile = path.join(lockFailureTransactionRoot, 'owner.lock')
+  lockFailureMemory.setFile(lockFailureConfig, 'old')
+  lockFailureMemory.fsyncSync = () => { throw fsError('EIO', 'injected lock fsync failure') }
+  assert.throws(
+    () => executeGlobalHostTransaction([{
+      host: 'test', action: 'write', kind: 'text', path: lockFailureConfig,
+      content: 'new', expectedDigest: operationDigest('old')
+    }], {
+      fs: lockFailureMemory,
+      allowedRoots: [lockFailureRoot],
+      safetyRoots: [lockFailureRoot],
+      allowedByHost: {
+        test: { allowedRoots: [lockFailureRoot], allowedFiles: [], safetyRoots: [lockFailureRoot] }
+      },
+      transactionRoot: lockFailureTransactionRoot,
+      transactionId: 'lock-fsync-failure'
+    }),
+    error => error?.code === 'EIO'
+  )
+  assert.strictEqual(lockFailureMemory.descriptors.size, 0)
+  assert.strictEqual(lockFailureMemory.existsSync(lockFailureFile), false)
+  assert.strictEqual(lockFailureMemory.readFileSync(lockFailureConfig, 'utf8'), 'old')
 }
 
 function testBoundedReaderFinalIdentity() {
@@ -548,7 +575,7 @@ function testNamespaceAndVscodeContract() {
 
 testDerivedStateOwnerAndCas()
 testLifecycleGenerationPointer()
-testObservationFullDigestPath()
+testObservationBoundedSlotPath()
 testGlobalConfigJournalRecovery()
 testBoundedReaderFinalIdentity()
 testNamespaceAndVscodeContract()

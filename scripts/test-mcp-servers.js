@@ -539,12 +539,34 @@ function setupLayoutWorkspace() {
   fs.writeFileSync(path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile', '03-代码风格.md'), '# workspace 03\n')
   fs.writeFileSync(
     path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile', 'config.json'),
-    JSON.stringify({ mode: 'prod', agent: 'claude-code', flags: { read: true, write: false }, tags: ['workspace'] }, null, 2)
+    JSON.stringify({
+      mode: 'prod',
+      agent: 'claude-code',
+      flags: { read: true, write: false },
+      tags: ['workspace'],
+      extensions: {
+        devcodex: {
+          workflowCompletion: { mode: 'shadow' },
+          git: {
+            collaborationMode: 'unverified',
+            branchPolicy: 'no-auto-branch',
+            worktreePolicy: 'explicit-only',
+            crossBranchIntegration: 'unverified',
+            sharedActionsRequireExplicitAuthorization: true
+          }
+        }
+      }
+    }, null, 2)
   )
   fs.writeFileSync(path.join(TEMP_ROOT, '.devcodex', 'chat', 'profile', '03-代码风格.md'), '# chat 03\n')
   fs.writeFileSync(
     path.join(TEMP_ROOT, '.devcodex', 'chat', 'profile', 'config.json'),
-    JSON.stringify({ mode: 'dev', flags: { write: true }, tags: ['project'] }, null, 2)
+    JSON.stringify({
+      mode: 'dev',
+      flags: { write: true },
+      tags: ['project'],
+      extensions: { devcodex: { git: { collaborationMode: 'solo', branchPolicy: 'keep-current' } } }
+    }, null, 2)
   )
   fs.writeFileSync(
     path.join(TEMP_ROOT, '.devcodex', 'chat', 'profile', 'config.local.json'),
@@ -1789,6 +1811,10 @@ function testContextReadBindingContract() {
     rpcRequest(6, 'tools/call', {
       name: 'profile_load',
       arguments: { files: ['01-项目信息.md'] }
+    }),
+    rpcRequest(7, 'tools/call', {
+      name: 'skill_route',
+      arguments: { op: 'catalog' }
     })
   ], TEMP_ROOT)
   const listedResult = resultById(profileResponses, 2)
@@ -1853,8 +1879,46 @@ function testContextReadBindingContract() {
   const skillPlan = toolJson(resultById(profileResponses, 5))
   assert.strictEqual(skillPlan.contextBinding.bindingStatus, 'verified')
   const unboundProfile = toolJson(resultById(profileResponses, 6))
+  const routeErrorResult = resultById(profileResponses, 7)
+  assert.strictEqual(routeErrorResult.isError, true)
+  assert.strictEqual(toolJson(routeErrorResult).ok, false)
+  assert.strictEqual(
+    routeErrorResult._meta?.devcodexRuntimeProcessIdentity?.schemaVersion,
+    'RuntimeProcessIdentityV2'
+  )
+  assert.strictEqual(
+    routeErrorResult._meta.devcodexRuntimeProcessIdentity.role,
+    'profile-mcp',
+    'skill_route errors must carry the same producer generation handshake as successes'
+  )
   assert.strictEqual(resultById(profileResponses, 6).isError, true)
   assert.strictEqual(unboundProfile.errorCode, 'CONTEXT_BINDING_REQUIRED')
+
+  const skillRouteTracePath = path.join(TEMP_ROOT, 'skill-route-call-trace.ndjson')
+  runServer('mcp/profile-server.js', [
+    rpcRequest(701, 'tools/call', {
+      name: 'skill_route',
+      arguments: {
+        op: 'status',
+        diagnosticBody: 'x'.repeat(300 * 1024)
+      }
+    })
+  ], TEMP_ROOT, { DEVCODEX_SKILL_ROUTE_TRACE: skillRouteTracePath })
+  const compactedSkillRouteTrace = JSON.parse(fs.readFileSync(skillRouteTracePath, 'utf8').trim())
+  assert.strictEqual(compactedSkillRouteTrace.compacted, true)
+  assert.strictEqual(typeof compactedSkillRouteTrace.requestDigest, 'string')
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(compactedSkillRouteTrace, 'request'), false)
+  assert(fs.statSync(skillRouteTracePath).size <= 16 * 1024)
+  fs.writeFileSync(skillRouteTracePath, 'x'.repeat((256 * 1024) - 32), 'utf8')
+  const traceBytesBeforeCapProbe = fs.statSync(skillRouteTracePath).size
+  runServer('mcp/profile-server.js', [
+    rpcRequest(702, 'tools/call', {
+      name: 'skill_route',
+      arguments: { op: 'status' }
+    })
+  ], TEMP_ROOT, { DEVCODEX_SKILL_ROUTE_TRACE: skillRouteTracePath })
+  assert.strictEqual(fs.statSync(skillRouteTracePath).size, traceBytesBeforeCapProbe)
+  assert.strictEqual(fs.existsSync(`${skillRouteTracePath}.lock`), false)
 
   const memoryResponses = runServer('mcp/memory-server.js', [
     rpcRequest(7, 'tools/list'),
@@ -2525,6 +2589,12 @@ function testProfileContextPlanContract() {
   assert.strictEqual(chatPlan.baselineContext.effectiveConfig.flags.read, true)
   assert.strictEqual(chatPlan.baselineContext.effectiveConfig.flags.write, true)
   assert.deepStrictEqual(chatPlan.baselineContext.effectiveConfig.tags, ['project'])
+  assert.strictEqual(chatPlan.baselineContext.effectiveConfig.extensions.devcodex.workflowCompletion.mode, 'shadow')
+  assert.strictEqual(chatPlan.baselineContext.effectiveConfig.extensions.devcodex.git.collaborationMode, 'solo')
+  assert.strictEqual(chatPlan.baselineContext.effectiveConfig.extensions.devcodex.git.branchPolicy, 'keep-current')
+  assert.strictEqual(chatPlan.baselineContext.effectiveConfig.extensions.devcodex.git.worktreePolicy, 'explicit-only')
+  assert.strictEqual(chatPlan.baselineContext.effectiveConfig.extensions.devcodex.git.crossBranchIntegration, 'unverified')
+  assert.strictEqual(chatPlan.baselineContext.effectiveConfig.extensions.devcodex.git.sharedActionsRequireExplicitAuthorization, true)
   assert(chatPlan.baselineContext.catalog.some(item => item.file === '08-服务约束.md'))
   assert(chatPlan.baselineContext.catalog.some(item => item.file === '09-项目扩展.md'))
   assert.strictEqual(chatPlan.catalogCoverage.unclassifiedIds.length, 0)
@@ -2547,6 +2617,29 @@ function testProfileContextPlanContract() {
   const devBootstrapText = devBootstrapResult.content?.[1]?.text || ''
   assert.match(devBootstrapText, /^### DevCodex · SkillRouteBootstrapV1/m)
   const devBootstrap = JSON.parse(devBootstrapText.split(/\r?\n/)[1])
+  const routeSuccessResponses = runServer('mcp/profile-server.js', [
+    rpcRequest(20, 'tools/call', {
+      name: 'skill_route',
+      arguments: {
+        op: 'catalog',
+        project: 'chat',
+        turnBinding: devBootstrap.turnBinding,
+        contextEpoch: devBootstrap.contextEpoch
+      }
+    })
+  ], projectRoot)
+  const routeSuccess = resultById(routeSuccessResponses, 20)
+  assert.notStrictEqual(routeSuccess.isError, true)
+  assert.strictEqual(toolJson(routeSuccess).ok, true)
+  assert.strictEqual(
+    routeSuccess._meta?.devcodexRuntimeProcessIdentity?.schemaVersion,
+    'RuntimeProcessIdentityV2'
+  )
+  assert.strictEqual(
+    routeSuccess._meta.devcodexRuntimeProcessIdentity.role,
+    'profile-mcp',
+    'skill_route successes must carry the producer generation handshake'
+  )
   const expectedTurnBinding = deriveTurnBinding(
     'chat',
     path.join(TEMP_ROOT, '.devcodex', 'chat'),

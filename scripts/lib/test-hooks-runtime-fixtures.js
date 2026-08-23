@@ -33,7 +33,7 @@ function buildTestHooksRuntimeFixtures({
   }
 
   function getLayoutCaptureLog(project = 'chat') {
-    return path.join(TEMP_ROOT, '.devcodex', project, '.memory', 'hooks', project, 'captured-final-payloads.ndjson')
+    return path.join(TEMP_ROOT, '.devcodex', project, '.memory', 'hooks', project, 'v5', 'telemetry-0.ndjson')
   }
 
   function getWorkspaceLayoutStateFile() {
@@ -120,6 +120,8 @@ function buildTestHooksRuntimeFixtures({
       GROK_BUILD: '',
       XAI_GROK: '',
       XAI_AGENT: '',
+      DEVCODEX_TASK_RECOVERY_TEST_MODE: '1',
+      DEVCODEX_TASK_RECOVERY_TEST_RESERVE_BYTES: '8192',
       ...env
     }
     const preparedPayload = prepareFixturePayload(payload, cwd)
@@ -467,12 +469,12 @@ function buildTestHooksRuntimeFixtures({
   }
 
   function readInterceptionEntries() {
-    if (!fs.existsSync(path.join(TEMP_ROOT, '.devcodex', '.memory', 'hooks', 'legacy', 'interceptions.jsonl'))) return []
-    return fs.readFileSync(path.join(TEMP_ROOT, '.devcodex', '.memory', 'hooks', 'legacy', 'interceptions.jsonl'), 'utf8')
-      .trim()
-      .split(/\r?\n/)
-      .filter(Boolean)
-      .map(line => JSON.parse(line))
+    const telemetryRoot = path.join(TEMP_ROOT, '.devcodex', '.memory', 'hooks', 'legacy', 'v5')
+    return [0, 1, 2, 3]
+      .map(index => path.join(telemetryRoot, `telemetry-${index}.ndjson`))
+      .filter(file => fs.existsSync(file))
+      .flatMap(file => fs.readFileSync(file, 'utf8').trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line)))
+      .filter(entry => entry.recordType === 'interception')
   }
 
   function writeTranscript(fileName, assistantContent) {

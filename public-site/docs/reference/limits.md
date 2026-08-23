@@ -3,8 +3,10 @@
 ## DevCodex 不是什么
 
 - 不是模型网关，不代理、托管或选择模型供应商；
+- 不是模型参数增强器，不改变参数、权重、上下文窗口或基础推理上限；
 - 不是通用 Agent 框架；
 - 不是多 Agent 编排器；
+- 不替代宿主原生 agent loop、认证、sandbox 或主要工具执行；
 - 不替代业务框架、GitHub CI、安全审计或人工评审；
 - 不保证所有宿主的 Hook、MCP、插件与权限完全相同。
 
@@ -13,6 +15,8 @@
 DevCodex 的工作流状态、Profile、报告、记忆和 Workspace Skill 以本地文件保存，普通使用不需要额外后台服务。模型执行、联网行为和数据处理仍遵循所选 AI Coding 宿主及其账号配置。
 
 “本地优先”不表示所有代码永不离开本机，也不表示模型在本地运行。
+
+“提升工程有效智能”也不表示底层模型变大或推理上限被改写。提升来自更准确的项目上下文、渐进专业 Skill、工作流与授权、工具和记忆协调，以及完成前验证与证据闭环。
 
 数据位置、宿主数据处理和安全报告路径见[信任、安全与数据](/guide/trust-security-data)。
 
@@ -52,4 +56,24 @@ HTTP 200 不足以证明某个产品页面正确；配置存在不足以证明�
 
 ## 清理边界
 
-`runtime prune` 和 `tmp maintain` 默认只预览。实际清理必须显式 `--apply`，并且只能作用于 DevCodex 可证明拥有、已经过期且没有活动 lease 的对象。用户配置、宿主根目录、未知临时文件、共享对象和无法验证的遗留内容都不属于自动清理范围。
+`runtime prune` 和 `tmp maintain` 默认只预览。实际清理必须显式 `--apply`，并且只能作用于 DevCodex 可证明拥有、已经过期且没有活动 lease 的对象。用户级安装 runtime generation 还要求 `--generation-plan <完整 SHA-256>`；普通 apply 不会顺带删除。用户配置、宿主根目录、未知临时文件、共享对象和无法验证的遗留内容都不属于自动清理范围。
+
+## 任务恢复容量边界
+
+| 对象 | 默认边界 | 达到边界时 |
+|---|---:|---|
+| 正式任务数量 | 无硬上限 | 不按数量拒绝或淘汰；仍受总字节与磁盘 headroom 约束 |
+| hot task slot | 256 KiB；A/B 合计 512 KiB | 拒绝超大 envelope；可重建内容不塞入恢复状态 |
+| cold resume stub | 16 KiB | 只保留精确恢复主键和最小 checkpoint |
+| ephemeral entry / 总量 | 8 KiB / 1 MiB | 使用有界降级；过期后退出，不提高上限容纳完整 plan |
+| store soft / hard | 256 / 512 MiB | soft 安全冷化与退出缓存；hard 阻止普通 mutation |
+| closeout reserve | 8 MiB A/B | 只用于 hard pressure 后的最小收口，不承担普通写入 |
+| context source observations | 128 个固定槽 | 槽身份不匹配时全文 fail-safe，不新建无限文件 |
+
+可通过 Profile 把 `hardLimitMiB` 提高到不小于 512 的 safe integer；soft limit 与对象级上限不会随之放大。现有项目内 legacy lifecycle generation/temp/log 只读报告，`runtime maintenance --apply` 也不会删除。
+
+用户 HOME 下的不可变 `devcodex/runtime-*` 使用另一套租约回收合同：正式数量没有固定上限；当前、live、24 小时宽限与 unknown 证据均保留。只有完整预览计划中的 orphan candidate 可由匹配摘要显式应用。单 generation 超过 20,000 个条目、单文件 32 MiB 或整棵树 512 MiB 时停止深扫并标记 unknown，避免诊断自身造成无界内存或 I/O。
+
+## Token 边界
+
+停止生成磁盘快照或将其删除，不等于减少模型上下文，通常只能带来约 0～<1% 的间接 Token 变化。可量化的节省来自精确正文送达去重：实际形状基准中，每个重复响应避免 402,848 body bytes，约 80,570～134,283 token-equivalent；serialized bytes 减少 99.543%。这是按 3～5 UTF-8 bytes/token 的估算，不是宿主账单或真实 tokenizer 计数；宿主未暴露 actual tokens 时状态保持 `UNVERIFIED`。

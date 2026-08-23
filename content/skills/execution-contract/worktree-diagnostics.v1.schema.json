@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devcodex.dev/schemas/worktree-diagnostics-v1.json",
+  "title": "WorktreeDiagnosticsV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "status", "repoRoot", "gitCommonDir", "boundedInventory",
+    "worktrees", "mutationEvidence", "issues"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "WorktreeDiagnosticsV1" },
+    "status": { "enum": ["PASS", "WARN", "UNVERIFIED"] },
+    "repoRoot": { "type": ["string", "null"] },
+    "gitCommonDir": { "type": ["string", "null"] },
+    "boundedInventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["limit", "discovered", "returned", "truncated"],
+      "properties": {
+        "limit": { "type": "integer", "minimum": 1 },
+        "discovered": { "type": "integer", "minimum": 0 },
+        "returned": { "type": "integer", "minimum": 0 },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "worktrees": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["receipt", "detached", "prunable", "prunableReason", "lockedReason", "dirtyIssue"],
+        "properties": {
+          "receipt": { "$ref": "./worktree-lifecycle-receipt.v1.schema.json" },
+          "detached": { "type": "boolean" },
+          "prunable": { "type": "boolean" },
+          "prunableReason": { "type": ["string", "null"] },
+          "lockedReason": { "type": ["string", "null"] },
+          "dirtyIssue": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "mutationEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mutationCount", "safeDirectoryMutationAttempted", "commands"],
+      "properties": {
+        "mutationCount": { "const": 0 },
+        "safeDirectoryMutationAttempted": { "const": false },
+        "commands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["command", "args", "cwd"],
+            "properties": {
+              "command": { "const": "git" },
+              "args": { "type": "array", "items": { "type": "string" } },
+              "cwd": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1 },
+          "worktreePath": { "type": "string", "minLength": 1 },
+          "message": { "type": "string", "minLength": 1 }
+        },
+        "anyOf": [
+          { "required": ["worktreePath"] },
+          { "required": ["message"] }
+        ]
+      }
+    }
+  }
+}

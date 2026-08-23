@@ -50,7 +50,13 @@ const { formatLanguageContextInstruction, resolveLanguageContext } = require('./
 const {
   reconcileProgressiveSkillRoute
 } = require('./lifecycle-skill-route-coordinator.cjs')
+const {
+  resolveProgressiveSkillRouteEnforcement
+} = require('./progressive-skill-route-enforcement.cjs')
 const { observeWorkflowCompletionEvent } = require('./lifecycle-workflow-completion.cjs')
+const { observeContextDeliveryFromPayload } = require('./context-delivery-ledger-v2.cjs')
+const { resolveTaskRecoveryConfigForCwd } = require('./task-recovery-config-v1.cjs')
+const { appendTaskRecoveryTelemetry } = require('./task-recovery-store-v5.cjs')
 const {
   collectWorkspaceProjectNamespaces,
   findLayoutInfo,
@@ -358,8 +364,20 @@ function appendInterception(state, entry) {
   const targets = [getStatePaths(state)]
   if (LAYOUT.enabled && targets[0].file !== META_STATE_PATHS.file) targets.push(META_STATE_PATHS)
   for (const target of targets) {
-    fs.mkdirSync(target.dir, { recursive: true })
-    fs.appendFileSync(target.interceptionLog, `${JSON.stringify(record)}\n`)
+    const telemetry = appendTaskRecoveryTelemetry(target.dir, {
+      schemaVersion: 'LifecycleInterceptionTelemetryV1',
+      recordType: 'interception',
+      observedAt: record.time,
+      ...record
+    })
+    if (telemetry.status !== 'persisted') {
+      state.taskRecoveryTelemetryWarning = {
+        schemaVersion: 'TaskRecoveryTelemetryWarningV1',
+        recordType: 'interception',
+        errorCode: telemetry.errorCode || 'LIFECYCLE_TELEMETRY_WRITE_FAILED',
+        observedAt: new Date().toISOString()
+      }
+    }
   }
 }
 
@@ -459,6 +477,41 @@ function getToolName(payload) {
   return String(payload.tool_name || payload.toolName || '').trim()
 }
 
+function resolveContinuationAtIngress(prompt, projectCandidate) {
+  const command = parseContinuationCommand(prompt)
+  if (!command) return { command: null, resolution: null, recoveryHint: null }
+  let resolution
+  try {
+    resolution = resolveTaskContinuation({
+      cwd: CONTEXT_ROOT,
+      name: command.displayQuery,
+      project: projectCandidate?.project || '',
+      scope: projectCandidate?.project ? 'project' : 'workspace'
+    })
+  } catch (error) {
+    if (!(error instanceof TaskContinuationError)) throw error
+    resolution = {
+      schemaVersion: 'TaskResolutionV1',
+      status: 'not-found',
+      errorCode: error.code,
+      message: error.message,
+      nextStep: error.nextStep || 'Specify the exact task name and project.'
+    }
+  }
+  const candidate = resolution?.status === 'resolved-active' ? resolution.candidate : null
+  return {
+    command,
+    resolution,
+    recoveryHint: candidate?.taskId && candidate?.project
+      ? {
+          taskId: candidate.taskId,
+          project: candidate.project,
+          taskStatus: candidate.status || 'active'
+        }
+      : null
+  }
+}
+
 function collectProjectPayloadStrings(value, keyPath = '', out = []) {
   if (typeof value === 'string') {
     if (isProjectPayloadKeyPath(keyPath)) out.push(value)
@@ -514,6 +567,7 @@ const {
   path,
   crypto,
   env: process.env,
+  resolveTaskRecoveryConfigForCwd,
   CONTEXT_ROOT,
   LAYOUT,
   CONTEXT_PROJECT,
@@ -676,6 +730,59 @@ function getTaskRoots(state) {
     { kind: 'optimizations', dir: path.join(namespaceRoot, 'optimizations') },
     { kind: 'scenario-tests', dir: path.join(namespaceRoot, 'scenario-tests') }
   ]
+}
+
+function taskRuntimeStatus(task, fallback = 'active') {
+  const explicit = String(task?.status || '').trim().toLowerCase()
+  if (['active', 'completed', 'rejected'].includes(explicit)) return explicit
+  const sessionsFile = task?.fullPath ? path.join(task.fullPath, '.memory', 'sessions.md') : ''
+  let text = ''
+  try { text = fs.readFileSync(sessionsFile, 'utf8') } catch { }
+  const statusLine = text.split(/\r?\n/u).find(line => /(?:当前状态|\bstatus\b)/iu.test(line)) || ''
+  if (/❌|rejected|已拒绝|已废弃/iu.test(statusLine)) return 'rejected'
+  if (/✅|completed|已完成|closed/iu.test(statusLine)) return 'completed'
+  return fallback
+}
+
+function bindTaskRecoveryState(state, task) {
+  const rawTaskRoot = String(task?.taskRoot || task?.fullPath || '').trim()
+  if (!rawTaskRoot) return false
+  const taskRoot = path.resolve(rawTaskRoot)
+  if (!fs.existsSync(taskRoot)) return false
+  const identityFile = path.join(taskRoot, '.memory', 'task.json')
+  let identity
+  try { identity = JSON.parse(fs.readFileSync(identityFile, 'utf8')) } catch { return false }
+  const taskId = String(identity?.taskId || task?.taskId || '').trim().toLowerCase()
+  const displayName = String(identity?.displayName || task?.displayName || task?.name || '').trim()
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(taskId) || !displayName) return false
+  const project = String(
+    task?.project || (state.activeScope === 'workspace' ? 'workspace' : state.activeProject || CONTEXT_PROJECT)
+  ).trim()
+  if (!project) return false
+  state.taskRecoveryBinding = {
+    schemaVersion: 'TaskRecoveryBindingV1',
+    taskId,
+    displayName,
+    project,
+    kind: String(task?.kind || ''),
+    taskRoot,
+    status: taskRuntimeStatus({ ...task, fullPath: taskRoot }),
+    identityRevision: Number(identity.identityRevision) || 1,
+    boundAt: state.taskRecoveryBinding?.taskId === taskId
+      ? state.taskRecoveryBinding.boundAt
+      : new Date().toISOString()
+  }
+  return true
+}
+
+function refreshTaskRecoveryBinding(state) {
+  const binding = state?.taskRecoveryBinding
+  if (!binding?.taskRoot || !binding?.taskId) return false
+  return bindTaskRecoveryState(state, {
+    ...binding,
+    fullPath: binding.taskRoot,
+    name: binding.displayName
+  })
 }
 
 function findIncompleteTask(state) {
@@ -1223,6 +1330,38 @@ function markProductMutationOrder(state, payload, platform) {
   return true
 }
 
+function isRecoveryMutation(payload, platform, state) {
+  return isSourceCodeMutation(payload, platform, state) || isProductArtifactMutation(payload, platform)
+}
+
+function maybeBindTaskRecoveryForPayload(state, payload, platform) {
+  if (refreshTaskRecoveryBinding(state)) return true
+  for (const target of extractToolPaths(payload)) {
+    const scoped = getTaskScopeFromPath(target, state)
+    if (scoped && bindTaskRecoveryState(state, scoped)) return true
+  }
+  if (!isRecoveryMutation(payload, platform, state)) return false
+  const task = findIncompleteTaskForPaths(payload, state) || findIncompleteTask(state)
+  return task ? bindTaskRecoveryState(state, task) : false
+}
+
+function startAllowedToolRecovery(state, payload, platform) {
+  const mutating = isRecoveryMutation(payload, platform, state)
+  state.turnLiveness = startToolLease(
+    state.turnLiveness,
+    payload,
+    getToolName(payload),
+    { mutating }
+  )
+  return mutating
+}
+
+function preToolRecoverySaveOptions(mutating, contextMilestone = false) {
+  if (mutating) return { reason: 'mutation-preflight', force: true, touchSessionMapping: true }
+  if (contextMilestone) return { reason: 'context-attempt', force: true, touchSessionMapping: true }
+  return {}
+}
+
 const {
   hasVisibleReplyPayload,
   updateVisibleReplyState,
@@ -1262,14 +1401,16 @@ function evaluateCurrentProgressiveSkillRoute (state, payload, platform, trigger
         action: 'call-profile-context-plan-for-one-real-project'
       }
     }
-    state.progressiveSkillRouteStop = routeStop
-    return reconcileProgressiveSkillRoute(state, routeStop, {
+    const coordination = reconcileProgressiveSkillRoute(state, routeStop, {
       trigger,
       payload,
       contextPost,
       sessionKey: pending.hostSessionId || getPayloadSessionKey(payload),
-      requireBusiness: trigger === 'Stop'
+      requireBusiness: trigger === 'Stop',
+      consumerIdentity: state.progressiveSkillRoute?.modeReceipt?.processRuntimeIdentity || null
     })
+    state.progressiveSkillRouteStop = coordination.routeStop || routeStop
+    return coordination
   }
   const {
     evaluateProgressiveSkillRouteStop,
@@ -1284,7 +1425,6 @@ function evaluateCurrentProgressiveSkillRoute (state, payload, platform, trigger
     inputRoot: CONTEXT_ROOT,
     env: process.env
   })
-  state.progressiveSkillRouteStop = routeStop
   const explicitRoutePending =
     state.progressiveSkillRoute?.bootstrap?.explicitStatus === 'ready'
   const enforce = shouldEnforceProgressiveSkillRouteStop(
@@ -1300,13 +1440,37 @@ function evaluateCurrentProgressiveSkillRoute (state, payload, platform, trigger
         businessSatisfied: true,
         complete: true
       }
-  return reconcileProgressiveSkillRoute(state, effectiveRouteStop, {
+  const coordination = reconcileProgressiveSkillRoute(state, effectiveRouteStop, {
     trigger,
     payload,
     contextPost,
     sessionKey: state.contextAcquisition.hostSessionId || getPayloadSessionKey(payload),
-    requireBusiness: trigger === 'Stop'
+    requireBusiness: trigger === 'Stop',
+    consumerIdentity: state.progressiveSkillRoute?.modeReceipt?.processRuntimeIdentity || null
   })
+  state.progressiveSkillRouteStop = coordination.routeStop || effectiveRouteStop
+  return coordination
+}
+
+function observeProgressiveSkillRouteEnforcement (state, platform, eventName) {
+  const decision = resolveProgressiveSkillRouteEnforcement({
+    hostVariant: state.progressiveSkillRoute?.modeReceipt?.hostVariant || platform,
+    eventName
+  })
+  const prior = state.progressiveSkillRouteEnforcement &&
+    typeof state.progressiveSkillRouteEnforcement === 'object'
+    ? state.progressiveSkillRouteEnforcement
+    : {}
+  state.progressiveSkillRouteEnforcement = {
+    schemaVersion: 'ProgressiveSkillRouteEnforcementStateV1',
+    decisions: {
+      ...(prior.decisions || {}),
+      [eventName]: decision
+    },
+    lastDecision: decision,
+    observedAt: new Date().toISOString()
+  }
+  return decision
 }
 
 function progressiveSkillRouteOutputMeta (coordination, nextStep) {
@@ -1331,10 +1495,15 @@ function buildProgressiveSkillRouteContextOutput (eventName, coordination) {
   )
 }
 
-function buildProgressiveSkillRouteBlockOutput (state, platform, eventName, coordination) {
+function buildProgressiveSkillRouteBlockOutput (state, platform, eventName, coordination, enforcement = null) {
   const reason = formatProgressiveSkillRouteRecoveryCard(coordination)
-  const meta = progressiveSkillRouteOutputMeta(coordination, reason)
-  if (eventSupportsHardBlock(platform, eventName)) {
+  const decision = enforcement || observeProgressiveSkillRouteEnforcement(state, platform, eventName)
+  const meta = {
+    ...progressiveSkillRouteOutputMeta(coordination, reason),
+    devcodexEffective: decision.hardEnforcement,
+    devcodexProgressiveSkillRouteEnforcement: decision
+  }
+  if (decision.hardEnforcement && eventSupportsHardBlock(platform, eventName)) {
     recordInterception(
       state,
       eventName,
@@ -1350,19 +1519,11 @@ function buildProgressiveSkillRouteBlockOutput (state, platform, eventName, coor
       meta
     )
   }
-  return decorateHookOutput(
-    buildInterceptionOutput(
-      state,
-      platform,
-      eventName,
-      INTERCEPTION_ACTION.REQUIRE_COMPLETION,
-      'progressive-skill-route',
-      'Progressive Skill route reconciliation required',
-      reason,
-      reason
-    ),
-    meta
-  )
+  return decorateHookOutput(warningOutput(
+    'Progressive Skill route reconciliation advisory',
+    reason,
+    eventName
+  ), meta)
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -1382,13 +1543,22 @@ async function main() {
   const projectCandidate = eventName === 'UserPromptSubmit'
     ? detectProjectCandidate(prompt, payload)
     : { project: '', source: '' }
+  const continuationIngress = eventName === 'UserPromptSubmit'
+    ? resolveContinuationAtIngress(prompt, projectCandidate)
+    : { command: null, resolution: null, recoveryHint: null }
+  const continuationCommand = continuationIngress.command
+  let continuationResolution = continuationIngress.resolution
   const eventSessionKey = getPayloadSessionKey(payload)
-  let state = loadState(undefined, eventSessionKey)
+  let state = loadState(undefined, eventSessionKey, continuationIngress.recoveryHint)
   const promptTarget = eventName === 'UserPromptSubmit'
     ? resolvePromptTarget(state, payload, prompt, projectCandidate)
     : null
   if (eventName === 'UserPromptSubmit') {
-    state = loadState(readModeForPromptTarget(state, promptTarget), eventSessionKey)
+    state = loadState(
+      readModeForPromptTarget(state, promptTarget),
+      eventSessionKey,
+      continuationIngress.recoveryHint
+    )
   }
   const mode = state.mode
 
@@ -1454,26 +1624,7 @@ async function main() {
     livenessObservation = observeTurnEvent(state.turnLiveness, eventName, payload)
     state.turnLiveness = livenessObservation.state
     applyPromptTarget(state, promptTarget, payload)
-    const continuationCommand = parseContinuationCommand(prompt)
-    let continuationResolution = null
     if (continuationCommand) {
-      try {
-        continuationResolution = resolveTaskContinuation({
-          cwd: CONTEXT_ROOT,
-          name: continuationCommand.displayQuery,
-          project: projectCandidate.project || '',
-          scope: projectCandidate.project ? 'project' : 'workspace'
-        })
-      } catch (error) {
-        if (!(error instanceof TaskContinuationError)) throw error
-        continuationResolution = {
-          schemaVersion: 'TaskResolutionV1',
-          status: 'not-found',
-          errorCode: error.code,
-          message: error.message,
-          nextStep: error.nextStep || 'Specify the exact task name and project.'
-        }
-      }
       const resolvedProject = continuationResolution?.candidate?.project || ''
       if (resolvedProject) {
         const workspaceTask = resolvedProject === 'workspace'
@@ -1506,6 +1657,9 @@ async function main() {
           cpMutation: false,
           processWakeup: false
         }
+      }
+      if (continuationResolution.status === 'resolved-active') {
+        bindTaskRecoveryState(state, continuationResolution.candidate)
       }
     }
     beginContextAcquisition(state, payload, platform)
@@ -1671,6 +1825,7 @@ async function main() {
 
   if (isToolUse) {
     state.toolUseCount += 1
+    maybeBindTaskRecoveryForPayload(state, payload, platform)
 
     // 1. Dangerous command guard
     const danger = checkDangerousCommand(payload, platform)
@@ -1708,16 +1863,20 @@ async function main() {
         'PreToolUse'
       )
       if (routeCoordination?.required && !routeCoordination.allowAction) {
-        state.lastReason = 'progressive-skill-route'
-        const output = buildProgressiveSkillRouteBlockOutput(
-          state,
-          platform,
-          eventName,
-          routeCoordination
-        )
-        saveState(state)
-        writeStdout(output)
-        return
+        const enforcement = observeProgressiveSkillRouteEnforcement(state, platform, 'PreToolUse')
+        state.lastReason = enforcement.reasonCode
+        if (enforcement.hardEnforcement) {
+          const output = buildProgressiveSkillRouteBlockOutput(
+            state,
+            platform,
+            eventName,
+            routeCoordination,
+            enforcement
+          )
+          saveState(state)
+          writeStdout(output)
+          return
+        }
       }
     } catch (error) {
       state.progressiveSkillRouteCoordinatorError = String(
@@ -1748,8 +1907,8 @@ async function main() {
       state.lastReason = 'auto-whitelist-bypass'
       markProductMutationOrder(state, payload, platform)
       updateArtifactTouches(state, payload, platform)
-      state.turnLiveness = startToolLease(state.turnLiveness, payload, getToolName(payload))
-      saveState(state)
+      const mutating = startAllowedToolRecovery(state, payload, platform)
+      saveState(state, preToolRecoverySaveOptions(mutating))
       writeStdout(contextGateOutput || noopOutput())
       return
     }
@@ -1926,8 +2085,8 @@ async function main() {
           state.s07ProductWarnEmitted = true
           state.lastReason = `${reason}-warn`
           updateArtifactTouches(state, payload, platform)
-          state.turnLiveness = startToolLease(state.turnLiveness, payload, getToolName(payload))
-          saveState(state)
+          const mutating = startAllowedToolRecovery(state, payload, platform)
+          saveState(state, preToolRecoverySaveOptions(mutating))
           writeStdout(buildInterceptionOutput(
             state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, reason,
             reason,
@@ -1940,16 +2099,24 @@ async function main() {
     }
 
     updateArtifactTouches(state, payload, platform)
-    state.turnLiveness = startToolLease(state.turnLiveness, payload, getToolName(payload))
-    saveState(state)
+    const mutating = startAllowedToolRecovery(state, payload, platform)
+    saveState(state, preToolRecoverySaveOptions(mutating, contextPre?.classified?.allowed === true))
     writeStdout(contextGateOutput || noopOutput())
     return
   }
 
   // ── PostToolUse ────────────────────────────────────────────────────────────
   if (eventName === 'PostToolUse') {
+    maybeBindTaskRecoveryForPayload(state, payload, platform)
+    const contextDeliveryObservation = observeContextDeliveryFromPayload(state, payload)
+    const mutationCloseout = state.turnLiveness?.inFlightOperation?.mutating === true
     const pendingSkillRoute = state.progressiveSkillRoute?.pending || null
     const contextPost = recordContextPostToolUse(state, payload)
+    const postSaveOptions = mutationCloseout
+      ? { reason: 'mutation-closeout', force: true, touchSessionMapping: true }
+      : (contextPost?.attempt || contextDeliveryObservation.status === 'observed'
+          ? { reason: 'context-observation', force: true, touchSessionMapping: true }
+          : {})
     markContextPostMutationStale(state, payload, platform)
     observeGovernanceLedgerWrite(state, payload, {
       activeRoot: getActiveNamespaceRoot(state),
@@ -2002,7 +2169,7 @@ async function main() {
           active: route.active === true,
           errorCode: null
         }
-        saveState(state)
+        saveState(state, postSaveOptions)
         const bootstrapAlreadyDelivered = hasMatchingSkillRouteBootstrapDelivery(payload, route.bootstrap)
         writeStdout(contextMessageOutput(
           'PostToolUse',
@@ -2036,7 +2203,7 @@ async function main() {
         'memory-query'
       ].includes(observedKind)) {
         state.lastReason = 'progressive-skill-route-next-action'
-        saveState(state)
+        saveState(state, postSaveOptions)
         writeStdout(buildProgressiveSkillRouteContextOutput('PostToolUse', routeCoordination))
         return
       }
@@ -2045,17 +2212,28 @@ async function main() {
         error.code || error.message || 'SKILL_ROUTE_COORDINATOR_FAILED'
       )
     }
-    saveState(state)
+    saveState(state, postSaveOptions)
     writeStdout(noopOutput())
     return
   }
 
   // ── PreCompact / Stop ──────────────────────────────────────────────────────
   if (eventName === 'PreCompact' || eventName === 'Stop') {
+    refreshTaskRecoveryBinding(state)
+    if (eventName === 'PreCompact') state.contextDeliveryReceipts = []
+    const terminalSaveOptions = {
+      reason: eventName === 'Stop' ? 'terminal-stop' : 'pre-compact',
+      force: true,
+      touchSessionMapping: true
+    }
     if (eventName === 'PreCompact') markContextAcquisitionStale(state, 'compact')
     captureFinalPayloadSample(payload, eventName, state)
+    const stopHookActive = eventName === 'Stop' &&
+      !!(payload.stopHookActive || payload.stop_hook_active)
+    let stopRouteCoordination = null
+    let stopRouteEnforcement = null
 
-    if (state.contextAcquisition?.contextEpoch) {
+    if (state.contextAcquisition?.contextEpoch && !stopHookActive) {
       try {
         const routeCoordination = evaluateCurrentProgressiveSkillRoute(
           state,
@@ -2063,19 +2241,16 @@ async function main() {
           platform,
           eventName
         )
+        stopRouteCoordination = routeCoordination
         if (routeCoordination?.required) {
-          state.lastReason = 'progressive-skill-route'
-          const output = eventName === 'Stop'
-            ? buildProgressiveSkillRouteBlockOutput(
-                state,
-                platform,
-                eventName,
-                routeCoordination
-              )
-            : buildProgressiveSkillRouteContextOutput('PreCompact', routeCoordination)
-          saveState(state)
-          writeStdout(output)
-          return
+          if (eventName === 'PreCompact') {
+            state.lastReason = 'progressive-skill-route'
+            saveState(state, terminalSaveOptions)
+            writeStdout(buildProgressiveSkillRouteContextOutput('PreCompact', routeCoordination))
+            return
+          }
+          stopRouteEnforcement = observeProgressiveSkillRouteEnforcement(state, platform, 'Stop')
+          state.lastReason = stopRouteEnforcement.reasonCode
         }
       } catch (error) {
         state.progressiveSkillRouteCoordinatorError = String(
@@ -2101,7 +2276,6 @@ async function main() {
         extractLastAssistantMessage(payload) ||
         getVisibleReplyText(payload) ||
         ''
-      const stopHookActive = !!(payload.stopHookActive || payload.stop_hook_active)
       const continuationCount = Number(state.stopContinuationCount || 0)
       const gateResult = evaluateStopCompletionGate({
         mode: state.mode || '',
@@ -2172,6 +2346,16 @@ async function main() {
         }
       }
 
+      if (stopRouteCoordination?.required && stopRouteEnforcement?.hardEnforcement) {
+        output = buildProgressiveSkillRouteBlockOutput(
+          state,
+          platform,
+          eventName,
+          stopRouteCoordination,
+          stopRouteEnforcement
+        )
+      }
+
       const failed = payload.success === false || payload.is_error === true || payload.isError === true || !!payload.error
       state.turnLiveness = markTurnTerminal(
         state.turnLiveness,
@@ -2179,7 +2363,7 @@ async function main() {
         failed ? 'stop-event-error' : 'stop-event-completed'
       )
     }
-    saveState(state)
+    saveState(state, terminalSaveOptions)
     writeStdout(output)
     return
   }

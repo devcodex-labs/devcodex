@@ -241,18 +241,18 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
   assert.strictEqual(r.decision, 'allow', `gaps=${r.gaps.join(',')}`)
 }
 
-// softCap
+// Stop re-entry is observation-only immediately; never create another continuation.
 {
   const r = evaluateStopCompletionGate({
     mode: 'dev',
     mutated: true,
     lastAssistantMessage: 'incomplete',
     stopHookActive: true,
-    continuationCount: 8,
+    continuationCount: 0,
     softCap: 8
   })
   assert.strictEqual(r.decision, 'allow')
-  assert.ok(r.honesty.processGaps.includes('stop-continuation-exhausted'))
+  assert.ok(r.honesty.processGaps.includes('stop-reentrant-observation-only'))
 }
 
 // T10 pr1-skipped

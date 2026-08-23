@@ -6,6 +6,7 @@ const fs = require('fs')
 const path = require('path')
 const {
   buildPublicProductProjection,
+  normalizePublicProductExpression,
   validateCapabilityScenarios,
   validatePublicProductExpression,
   validateRoutePresentation,
@@ -51,7 +52,18 @@ const skillCatalogCss = fs.readFileSync(path.join(ROOT, 'public-site', 'componen
 const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')
 const pagesWorkflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'pages.yml'), 'utf8')
 
-assert.strictEqual(projection.schemaVersion, 'PublicProductProjectionV1')
+assert.strictEqual(projection.schemaVersion, 'PublicProductProjectionV2')
+assert.strictEqual(projection.expression.schemaVersion, 'PublicProductExpressionV2')
+assert.deepStrictEqual(projection.expressionCompatibility, {
+  schemaVersion: 'PublicProductExpressionCompatibilityReceiptV1',
+  sourceSchemaVersion: 'PublicProductExpressionV2',
+  readMode: 'current-v2',
+  modelCapabilityBoundary: 'declared',
+  ownershipBoundary: 'declared'
+})
+assert.strictEqual(projection.expression.modelCapabilityBoundary.changesModelParameters, false)
+assert(projection.expression.ownershipBoundary.devcodexOwns.includes('validation'))
+assert(projection.expression.ownershipBoundary.hostOwns.includes('native-agent-loop'))
 assert.strictEqual(projection.release.version, rootPackage.version)
 assert.deepStrictEqual(projection.workflows.canonical, [
   'dev', 'fix', 'self-fix', 'analyze', 'audit', 'other', 'chat', 'resume'
@@ -228,6 +240,62 @@ assert(validatePublicProductExpression(invalid, {
   summary: { skillCount: 86, activeSkillCount: 83, graySkillCount: 3 },
   skills: Array.from({ length: 86 }, (_, index) => ({ id: `s-${index}` }))
 }).includes('expression-auto-canonical'))
+
+const legacyExpression = JSON.parse(JSON.stringify(projection.expression))
+legacyExpression.schemaVersion = 'PublicProductExpressionV1'
+legacyExpression.category = {
+  zh: '意图驱动的 AI Coding 工作流运行时',
+  en: 'Intent-driven AI coding workflow runtime',
+  semanticInvariants: ['intent-driven', 'AI coding workflow', 'runtime']
+}
+legacyExpression.technicalDefinition = {
+  zh: '本地优先、文件支撑的控制层与六宿主适配包。',
+  en: 'A local-first, file-backed control layer and six-host adapter package.'
+}
+delete legacyExpression.modelCapabilityBoundary
+delete legacyExpression.ownershipBoundary
+legacyExpression.mustNot = legacyExpression.mustNot.filter(value =>
+  !['model-parameter-enhancer', 'native-agent-loop-replacement'].includes(value)
+)
+legacyExpression.discoveryPolicy.packageKeywords = legacyExpression.discoveryPolicy.packageKeywords
+  .filter(value => value !== 'coding-harness')
+legacyExpression.discoveryPolicy.githubTopics = legacyExpression.discoveryPolicy.githubTopics
+  .filter(value => value !== 'coding-harness')
+const legacyCompatibility = normalizePublicProductExpression(legacyExpression)
+assert.strictEqual(legacyCompatibility.compatibility.readMode, 'legacy-v1-read-only')
+assert.strictEqual(legacyCompatibility.compatibility.modelCapabilityBoundary, 'UNVERIFIED')
+assert.strictEqual(legacyCompatibility.compatibility.ownershipBoundary, 'UNVERIFIED')
+const legacyErrors = validatePublicProductExpression(legacyExpression, sourceWorkflow, sourcePortfolio)
+assert(!legacyErrors.includes('expression-schema-version'))
+assert(!legacyErrors.some(value => value.startsWith('expression-model-parameter-enhancer')))
+assert.throws(
+  () => normalizePublicProductExpression({ schemaVersion: 'PublicProductExpressionV99' }),
+  error => error.code === 'PUBLIC_PRODUCT_EXPRESSION_SCHEMA_UNSUPPORTED'
+)
+
+const bareHarness = JSON.parse(JSON.stringify(projection.expression))
+bareHarness.technicalDefinition.semanticInvariants = ['workflow runtime']
+assert(validatePublicProductExpression(bareHarness, sourceWorkflow, sourcePortfolio)
+  .includes('expression-bare-harness-overclaim'))
+
+const modelEnhancer = JSON.parse(JSON.stringify(projection.expression))
+modelEnhancer.modelCapabilityBoundary.changesModelParameters = true
+assert(validatePublicProductExpression(modelEnhancer, sourceWorkflow, sourcePortfolio)
+  .includes('expression-model-parameter-enhancer-overclaim'))
+
+const hostReplacement = JSON.parse(JSON.stringify(projection.expression))
+hostReplacement.ownershipBoundary.hostOwns = hostReplacement.ownershipBoundary.hostOwns
+  .filter(value => value !== 'native-agent-loop')
+assert(validatePublicProductExpression(hostReplacement, sourceWorkflow, sourcePortfolio)
+  .includes('expression-host-ownership-boundary'))
+
+const missingHarnessDiscovery = JSON.parse(JSON.stringify(projection.expression))
+missingHarnessDiscovery.discoveryPolicy.packageKeywords = missingHarnessDiscovery.discoveryPolicy.packageKeywords
+  .filter(value => value !== 'coding-harness')
+missingHarnessDiscovery.discoveryPolicy.githubTopics = missingHarnessDiscovery.discoveryPolicy.githubTopics
+  .filter(value => value !== 'coding-harness')
+assert(validatePublicProductExpression(missingHarnessDiscovery, sourceWorkflow, sourcePortfolio)
+  .includes('discovery-harness-runtime-pair-missing'))
 
 const invalidSkillSummary = {
   summary: { skillCount: 86, activeSkillCount: 82, graySkillCount: 3 },

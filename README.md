@@ -1,16 +1,25 @@
-# DevCodex — 意图驱动的 AI Coding 工作流运行时
+# DevCodex — 跨宿主 AI Coding 工程 Harness
 
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green)](LICENSE)
 
-> **让 AI 编程从一次性聊天，变成可验证、可续接的工程流程。**
+> **让 AI Coding 从“聪明地回答问题”，升级为“聪明地完成工程任务”。**
 
-DevCodex 是面向 Codex、Claude Code、GitHub Copilot、Gemini CLI、Grok 和 Cursor 的意图驱动 AI Coding 工作流运行时。它先识别任务目的、目标项目和风险，再按需加载项目 Profile、上下文、记忆和专业 Skill，并把确认、执行、验证、报告与任务续接组织成一套共享工作流模型。
+DevCodex 是面向 Codex、Claude Code、GitHub Copilot、Gemini CLI、Grok 和 Cursor 的跨宿主 AI Coding 工程 Harness。它先识别任务目的、目标项目和风险，再按需加载项目 Profile、上下文、记忆和专业 Skill，并把确认、执行、验证、报告与任务续接组织成一套共享工程工作流。
 
-本地优先、文件支撑的控制层与六宿主适配包，把项目上下文、专业 Skill、确认、验证和报告闭环带入多个 AI Coding 宿主。作为工作流运行时和宿主适配包，它协调工程流程，不托管模型。
+DevCodex 是 intent-driven、local-first、file-backed 的工作流运行时与宿主适配层，把项目上下文、专业 Skill、确认、验证、报告、证据和续接闭环带入六个 AI Coding 宿主。换成更白话的说法，它仍是工作流运行时和宿主适配包：协调工程流程，但不托管模型，也不替代宿主原生 agent loop。
 
 - 按任务意图选择工作流、上下文与专业 Skill
 - 把需求、确认、实现、验证、报告和续接形成可追踪闭环
 - 在六个 AI Coding 宿主间保持一致流程，同时诚实保留能力差异
+
+### 它提升的是什么
+
+DevCodex 不会提升模型本身的参数能力，也不会改变模型参数、权重、上下文窗口或基础推理上限。它通过有界项目上下文、专业 Skill、工作流、工具、记忆、验证与证据链，显著提升模型在真实软件工程中的有效智能表现。
+
+- **DevCodex owns**：意图与项目路由、Profile / context / memory、渐进 Skill、确认与授权、验证、报告 / 证据 / 续接，以及跨宿主适配。
+- **Host owns**：模型推理、原生 agent loop、主要工具执行、会话传输与生命周期、身份认证，以及 sandbox / environment。
+
+因此这里的 “Harness” 是跨宿主工程控制与证据层，不是更大的模型，也不是宿主运行时的替代品。
 
 ```bash
 npm install -g devcodex
@@ -24,7 +33,9 @@ devcodex status
 ### DevCodex 不是什么
 
 - 它不是模型网关，不代理或托管模型调用。
+- 它不是模型参数增强器，不修改权重、上下文窗口或基础推理上限。
 - 它不是通用 Agent 框架，也不是多 Agent 编排器。
+- 它不替代宿主的原生 agent loop、认证、sandbox 或主要工具执行。
 - 它不替代业务框架、GitHub CI、安全审计或人工评审。
 - 它不保证六个宿主拥有完全相同的 Hook、MCP、插件、权限或生命周期事件。
 
@@ -88,6 +99,29 @@ DevCodex 把意图识别、按需上下文、专业 Skill、确认边界、验�
 ## 它如何工作？
 
 用户请求 → 意图与项目边界 → 有界 Profile/记忆/源码 → 当前阶段 Skill → 只读结论或确认后写入 → 验证、报告与续接。逐步说明见[架构](https://devcodex-labs.github.io/devcodex/concepts/architecture)。
+
+### 任务恢复为何不再无限生成 JSON
+
+旧 lifecycle 存储几乎在每次 Hook 或工具状态变化时写一份 UUID 命名的完整快照；可达 pointer 虽然有数量限制，物理孤儿却没有被回收，因此单个 workspace 可能在一周内增长到数十 GiB。新写入改为按正式需求/任务保存：每个任务使用稳定 hot A/B，安全 checkpoint 可降为 cold resume stub，terminal 状态退出 hot cache；普通只读 Hook 不再写完整状态，也不再按事件创建 generation 文件。
+
+正式任务数量没有硬上限；容量按字节治理，默认 soft/hard 为 256/512 MiB，并预留 8 MiB closeout reserve。达到 soft 时只安全冷化可恢复任务并退出过期缓存；达到 hard 时阻止新的普通 mutation，但仍可写最小收口状态，不会静默删除活跃任务。现有 `.devcodex/**/.memory/hooks/**/generations` legacy JSON/temp 只读保留，本版本不会自动删除。查看真实占用与下一步：
+
+```bash
+devcodex runtime status --json
+devcodex runtime doctor --json
+devcodex runtime maintenance --dry-run --json
+```
+
+用户 HOME 下各宿主的 `devcodex/runtime-*` 是另一类“安装 runtime generation”，不属于上述项目恢复 JSON。v1.18.0 起，Profile/Memory 长驻 MCP 与宿主激活事务对正在使用/切换的 generation 写稳定 lease；当前、活动 lease、本机首次采用后 24 小时宽限或证据不完整的 generation 一律保留。宽限使用本机 adoption 记录，不直接使用上游发布日期。maintenance 预览会为其余 DevCodex-owned 不可变 generation 生成 `RuntimeGenerationGcPlanV1`；普通 `--apply` 不会删除它们，只有再次提交预览给出的完整 SHA-256 才会应用：
+
+```bash
+devcodex runtime maintenance --apply --generation-plan <planDigest> --json
+devcodex global-adapters apply --json
+```
+
+计划摘要绑定完整 generation 清单、宿主回执、本机 adoption、manifest、候选内容树与稳定 lease identity；同一进程的正常心跳不会制造无意义过期，新 lease、入口或内容变化仍会使计划失效。GC claim 与安装 activation lease 双向互斥，全部候选预检通过前零删除；崩溃遗留 claim 只有在超龄且 PID 明确死亡后才按固定恢复槽原子接管，存活、未知或损坏证据仍失败关闭。`status/doctor` 在六宿主合计最多显示 12 条 generation 样本，每个 inventory 最多显示 12 类摘要，TaskRecovery task 最多显示 8 条；maintenance 的 task before/after 各最多 8 条，actions/failures 与 generation candidates/retained/removed/failed 各最多 24 条。每个 runtime root 的 current refs 最多显示 12 条，每个 receipt 只返回 ref 总数。所有投影同时保留真实总数、字节和 truncated，内部摘要仍覆盖完整集合。这里没有“只留 N 个”的数量淘汰，也没有后台守护进程；同一内容 generation 重复 apply 保持幂等，跨版本或开发候选的旧 generation 由显式 maintenance 收敛。
+
+这项磁盘修复本身通常不会显著减少模型 Token。Token 节省来自同一正式任务、conversation、context epoch、source/body identity 完全一致时复用已送达正文；任一身份变化都会恢复全文。实际形状基准中，每次精确重复避免返回 402,848 body bytes，约等于 80,570～134,283 个 UTF-8 token-equivalent；序列化响应从 404,290 bytes 降到 1,846 bytes（99.543%）。宿主真实 token 计数不可见时，这只是估算，必须视为 `UNVERIFIED`。
 
 ## 5 分钟开始
 
@@ -174,6 +208,16 @@ Rules / `AGENTS.md` 提供约束，Skills 提供专业流程，MCP 提供结构�
 ```
 
 功能、修复、审查、auto 和续接示例见[常见任务](https://devcodex-labs.github.io/devcodex/guide/common-tasks)与[四个教程](https://devcodex-labs.github.io/devcodex/tutorials/ambiguous-request)。只有明确写出 `push、tag、GitHub Release 和 npm publish`，才把对应发布动作纳入范围。
+
+## 完成提示、本地进化与 Git 默认
+
+任务完成时，DevCodex 先列出本批交付文件和验证证据，再根据真实差额给出至多一个主建议和两个条件建议，例如生成接口文档、补 `.http` 验证、提交、切换目标分支、按 commit ID `cherry-pick` 或推送。已经完成、不适用或缺少证据的动作不会凑成菜单；接口文档或 `.http` 若本来就是验收要求，必须在宣称完成前交付。Git 写动作仍须逐项授权，尤其不能从“建议推送”推定为已授权 push。
+
+`devcodex init` 会准备 `.devcodex/workspace/evolution/{candidates,decisions,evidence}`。安装实例产生的进化建议默认留在 workspace-local 候选区，不直接进入 Skill resolver，也不会自动改写开源包中的默认 Skill；批准并单独授权晋级后，才进入 workspace 或项目 active Skill。
+
+Git 默认保持当前分支，不自动创建功能分支或 worktree。同分支开发不需要 merge/cherry-pick；只有从 dev、detached 或 worktree 选择性交付到另一个目标分支时，才推荐按源 commit 顺序 cherry-pick。它仍可能冲突，并会产生新的目标 commit ID。`devcodex status` / `doctor --json` 只读列出 worktree 的归属、dirty/lock/prunable 证据，不执行 prune、remove、unlock 或 `safe.directory` 修改。完整策略见[配置](https://devcodex-labs.github.io/devcodex/reference/configuration)。
+
+历史上“提交时意外创建新分支”不是 DevCodex 产品代码中的自动建分支器，而是代理把面向多人协作的通用 GitHub 分支惯例误用于单人仓库，同时缺少创建前说明与逐动作授权。现在 Profile 明确区分 `solo` 与未核实协作模式；任何例外的 branch create/switch 都必须先说明原因、影响、替代方案、目标与回收计划，并取得单独授权。
 
 ## 常见问题与排错
 

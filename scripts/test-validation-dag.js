@@ -130,6 +130,45 @@ function run() {
         assert.ok(skillPortfolioInputs.includes(input), `${portfolioNodeId} must track ${input}`)
       }
     }
+    const canonicalControlInputs = {
+      'git-execution-context': [
+        'content/skills/execution-contract/SKILL.md',
+        'content/skills/execution-contract/git-execution-context.v1.schema.json',
+        'content/instructions/01-common.instructions.md'
+      ],
+      'evolution-target-decision': [
+        'content/skills/evolution-governance/SKILL.md',
+        'content/skills/evolution-governance/evolution-target-decision.v1.schema.json'
+      ],
+      'workspace-provisioning': [
+        'content/skills/evolution-governance/SKILL.md',
+        'content/skills/evolution-governance/workspace-provisioning-receipt.v1.schema.json'
+      ],
+      'worktree-lifecycle': [
+        'scripts/lib/cli-worktree-diagnostics.js',
+        'content/skills/execution-contract/SKILL.md',
+        'content/skills/execution-contract/worktree-lifecycle-receipt.v1.schema.json',
+        'content/skills/execution-contract/worktree-diagnostics.v1.schema.json'
+      ]
+    }
+    for (const [nodeId, requiredInputs] of Object.entries(canonicalControlInputs)) {
+      const nodeInputs = manifest.nodes.find(node => node.id === nodeId).inputs
+      for (const input of requiredInputs) {
+        assert.ok(nodeInputs.includes(input), `${nodeId} must track canonical source ${input}`)
+        const changedPlan = planValidation({
+          manifest,
+          route: 'changed',
+          changedFiles: [input],
+          changedSource: 'explicit',
+          candidateStable: true,
+          candidateId: `fixture-canonical-${nodeId}`
+        })
+        assert.ok(
+          changedPlan.selectedNodes.some(node => node.id === nodeId),
+          `${nodeId} must be selected when canonical input ${input} changes`
+        )
+      }
+    }
     assert.deepStrictEqual(
       [...manifest.routes['profile-deploy'].nodes].sort(),
       [...manifest.verificationBoundaries.profile.nodes].sort(),
@@ -879,9 +918,11 @@ function run() {
       }
     })
     assert.strictEqual(delegatedRun.receipt.nativeExitCode, 0)
+    assert.strictEqual(observedNodes[0].environment.DEVCODEX_VALIDATION_ACTIVE_ROOT, path.resolve(tempRoot))
     assert.strictEqual(observedNodes[0].environment.DEVCODEX_VALIDATION_ORCHESTRATED, '1')
     assert.strictEqual(observedNodes[0].environment.DEVCODEX_VALIDATION_DELEGATED_NODES, 'hooks-runtime')
     assert.strictEqual(observedNodes[1].environment?.DEVCODEX_VALIDATION_ORCHESTRATED, undefined)
+    assert.strictEqual(observedNodes[1].environment.DEVCODEX_VALIDATION_ACTIVE_ROOT, path.resolve(tempRoot))
     const secondRun = executeValidationPlan({
       manifest: cachedManifest,
       plan: cachedPlan,
@@ -896,7 +937,14 @@ function run() {
     const descriptor = cacheDescriptor({
       manifest: cachedManifest,
       candidate,
-      node: cachedNode
+      node: cachedNode,
+      executionNode: {
+        ...cachedNode,
+        environment: {
+          ...(cachedNode.environment || {}),
+          DEVCODEX_VALIDATION_ACTIVE_ROOT: path.resolve(tempRoot)
+        }
+      }
     })
     const cacheFile = path.join(tempRoot, cacheRelativePath(descriptor.cacheKey))
     const tampered = JSON.parse(fs.readFileSync(cacheFile, 'utf8'))
@@ -1073,7 +1121,14 @@ function run() {
     const focusedDescriptor = cacheDescriptor({
       manifest: focusedManifest,
       candidate: focusedCandidate,
-      node: focusCacheNode
+      node: focusCacheNode,
+      executionNode: {
+        ...focusCacheNode,
+        environment: {
+          ...(focusCacheNode.environment || {}),
+          DEVCODEX_VALIDATION_ACTIVE_ROOT: path.resolve(tempRoot)
+        }
+      }
     })
     const focusedCacheFile = path.join(tempRoot, cacheRelativePath(focusedDescriptor.cacheKey))
     const invalidFocusedCache = JSON.parse(fs.readFileSync(focusedCacheFile, 'utf8'))

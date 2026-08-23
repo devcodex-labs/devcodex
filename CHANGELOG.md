@@ -1,9 +1,9 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要；历史版本见对应详细变更文件。
-> **最新版本详细变更文档**: [`changelogs/releases/v1.17.11.md`](./changelogs/releases/v1.17.11.md)
-> **最后更新**: 2026-08-22
-> **当前版本**: v1.17.11 让日常验证按真实影响边界选择 V0～V2，把完整 V3 保留给显式发布；同时修复 Codex Hook 状态锁恢复、事件输出契约、S15 证据顺序与慢节点 deadline，并纳入 v1.17.10 后的工作区交付和公开文档增强。版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
+> **最新版本详细变更文档**: [`changelogs/releases/v1.18.0.md`](./changelogs/releases/v1.18.0.md)
+> **最后更新**: 2026-08-23
+> **当前版本**: v1.18.0 将 DevCodex 定位为跨宿主 AI Coding 工程 Harness，修复 Codex progressive SkillRoute 循环，并以 TaskRecoveryStoreV5 把 Hook 状态从事件级 UUID 全快照改为正式任务稳定 A/B；同时交付完成态动作、workspace 本地进化、当前分支优先、ordered cherry-pick、worktree 透明诊断和用户级 immutable runtime generation 的显式收敛。版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
 
 ---
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.18.0](./changelogs/releases/v1.18.0.md) | 2026-08-23 | 🧰 **跨宿主 AI Coding 工程 Harness 与按任务恢复的有界 Hook 状态**：明确不改变模型参数而提升真实工程有效智能；修复 Codex progressive route 循环；TaskRecoveryStoreV5 以正式任务稳定 A/B、256/512 MiB 与 8 MiB reserve 取代事件级 UUID 全快照，legacy 零删除；新增完成态动作、本地进化、默认不建分支、ordered cherry-pick、只读 worktree 诊断与显式 runtime generation 收敛 | [查看](./changelogs/releases/v1.18.0.md) |
 | [v1.17.11](./changelogs/releases/v1.17.11.md) | 2026-08-22 | ⚡ **影响范围验证与 Codex Hook 韧性**：新增 VerificationIntent V0～V3、类型化影响图、预算卡和精确证据缓存；小改动不再误跑发布全链；修复锁恢复、Codex 事件输出、S15 rebind 顺序、PATH 身份、组合 deadline 与 pack 中断恢复，并汇入工作区绑定、Memory 产物链接、Skill 目录和公开任务文档增强 | [查看](./changelogs/releases/v1.17.11.md) |
 | [v1.17.10](./changelogs/releases/v1.17.10.md) | 2026-08-17 | 📚 **公开产品表达与用户文档站**：统一意图驱动 AI Coding 工作流运行时定位；README 迁移到任务型入口，公开 Rspress/Pages 文档上线；package/plugin/CLI/GitHub metadata 对齐；V2 动态事实与 endpoint 身份负向合同防止跨入口漂移 | [查看](./changelogs/releases/v1.17.10.md) |
 | [v1.17.9](./changelogs/releases/v1.17.9.md) | 2026-08-17 | 🔧 **Grok Hook 启动与唯一 Owner 修复**：Windows canonical transport 兼容 PowerShell；用户级 Grok Hook 退役受管 lifecycle 声明，由插件独占六事件；verifier 分离物理声明、精确去重结果与 mutation owner，并同步事务、workspace temp、Memory/Profile 发布链闭环 | [查看](./changelogs/releases/v1.17.9.md) |

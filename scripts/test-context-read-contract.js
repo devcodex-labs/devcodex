@@ -429,6 +429,9 @@ assert.strictEqual(rawRouteFailure.errorCode, 'CONTEXT_BINDING_STALE')
 assert.strictEqual(rawRouteFailure.stateChanged, false)
 const wrappedRouteFailure = normalizeContextToolOutcome({
   success: true,
+  _meta: {
+    devcodexRuntimeProcessIdentity: producerIdentity(2)
+  },
   structuredContent: {
     schemaVersion: 'SkillRouteToolResultV1',
     ok: false,
@@ -438,6 +441,11 @@ const wrappedRouteFailure = normalizeContextToolOutcome({
 })
 assert.strictEqual(wrappedRouteFailure.transportSuccess, false, 'wrapped ok=false must never count as a successful route-control outcome')
 assert.strictEqual(wrappedRouteFailure.errorCode, 'STAGE_ORDER_VIOLATION')
+assert.strictEqual(
+  wrappedRouteFailure.producerIdentity?.generationId,
+  'legacy-contract-2',
+  'PostToolUse normalization must preserve the MCP producer generation on errors'
+)
 assert.strictEqual(normalizeContextToolOutcome({
   success: true,
   result: { isError: true, error: { message: 'nested failure' } }

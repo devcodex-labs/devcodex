@@ -101,6 +101,8 @@ function writeProjection (projection) {
     schemaVersion: projection.schemaVersion,
     generatedAt: new Date().toISOString(),
     release: projection.release,
+    expression: projection.expression,
+    expressionCompatibility: projection.expressionCompatibility,
     workflows: projection.workflows,
     skills: projection.skills,
     capabilityScenarios: projection.capabilityScenarios,

@@ -52,6 +52,8 @@ function buildModularityControlChecks(ctx) {
     for (const file of [
       'scripts/lib/cli-install-commands.js',
       'scripts/lib/cli-maintenance-commands.js',
+      'scripts/lib/cli-worktree-diagnostics.js',
+      'scripts/lib/worktree-lifecycle.js',
       'scripts/lib/cli-command-registry.js'
     ]) {
       if (!packageJson.files.includes(file)) err(`[V93] package files missing CLI runtime dependency: ${file}`)

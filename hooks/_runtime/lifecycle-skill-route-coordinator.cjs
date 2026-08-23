@@ -1,13 +1,33 @@
 'use strict'
 
 const crypto = require('crypto')
+const {
+  compareRuntimeProcessIdentity
+} = require('./runtime-generation-identity.cjs')
 
 const COORDINATOR_SCHEMA = 'ActiveReconciliationCoordinatorV1'
 const NEXT_ACTION_SCHEMA = 'NextActionEnvelopeV1'
 const NO_PROGRESS_LIMIT = 3
+const DIGEST_RE = /^[a-f0-9]{64}$/
+const TERMINAL_DISPOSITIONS = new Set([
+  'retired-no-progress',
+  'terminal-tool-failure',
+  'generation-superseded',
+  'refresh-required'
+])
 const BUDGET_TERMINAL_ERRORS = new Set([
   'BUDGET_BLOCKED',
   'BUDGET_RESERVATION_BLOCKED'
+])
+const TERMINAL_TOOL_FAILURE_ERRORS = new Set([
+  'BUDGET_BLOCKED',
+  'BUDGET_RESERVATION_BLOCKED',
+  'MODE_CAPABILITY_STALE',
+  'REBIND_SEMANTIC_DRIFT',
+  'RUNTIME_CONTRACT_STALE',
+  'RUNTIME_REFRESH_REQUIRED',
+  'TURN_ENVELOPE_READBACK_FAILED',
+  'TURN_EXPIRED'
 ])
 const PRECOMMIT_BOUND_CONTEXT_TOOLS = new Set([
   'profile_load',
@@ -136,18 +156,47 @@ function buildRouteStateFingerprint (routeStop = {}, input = {}) {
   })
 }
 
+function boundedCounter (value, maximum = Number.MAX_SAFE_INTEGER) {
+  const numeric = Number(value)
+  return Number.isSafeInteger(numeric) && numeric >= 0 && numeric <= maximum
+    ? numeric
+    : 0
+}
+
 function normalizeCoordinatorState (value) {
   const source = value && typeof value === 'object' ? value : {}
+  const stateFingerprint = String(source.stateFingerprint || '')
+  const noProgressCount = boundedCounter(source.noProgressCount, NO_PROGRESS_LIMIT)
+  const progressCount = boundedCounter(source.progressCount)
+  const circuitOpen = source.circuitOpen === true && noProgressCount === NO_PROGRESS_LIMIT
+  const terminalFingerprint = String(source.terminalFingerprint || '')
+  const terminalDisposition = String(source.terminalDisposition || '')
+  const terminalReasonCode = String(source.terminalReasonCode || '')
+  const terminalEvidenceDigest = String(source.terminalEvidenceDigest || '')
+  const terminalStateValid = terminalFingerprint === stateFingerprint &&
+    DIGEST_RE.test(terminalFingerprint) &&
+    TERMINAL_DISPOSITIONS.has(terminalDisposition) &&
+    terminalReasonCode.trim().length > 0 &&
+    DIGEST_RE.test(terminalEvidenceDigest) &&
+    (terminalDisposition !== 'retired-no-progress' || circuitOpen)
   return {
     schemaVersion: COORDINATOR_SCHEMA,
-    stateFingerprint: String(source.stateFingerprint || ''),
+    stateFingerprint,
     lastHookRunId: String(source.lastHookRunId || ''),
-    noProgressCount: Math.max(0, Number(source.noProgressCount || 0)),
-    progressCount: Math.max(0, Number(source.progressCount || 0)),
-    circuitOpen: source.circuitOpen === true,
+    noProgressCount,
+    progressCount,
+    circuitOpen,
     lastTrigger: String(source.lastTrigger || ''),
     lastAction: String(source.lastAction || ''),
     lastNoticeFingerprint: String(source.lastNoticeFingerprint || ''),
+    terminalFingerprint: terminalStateValid ? terminalFingerprint : '',
+    terminalDisposition: terminalStateValid ? terminalDisposition : '',
+    terminalReasonCode: terminalStateValid ? terminalReasonCode : '',
+    terminalEvidenceDigest: terminalStateValid ? terminalEvidenceDigest : '',
+    generationReconciliation: source.generationReconciliation &&
+      typeof source.generationReconciliation === 'object'
+      ? source.generationReconciliation
+      : null,
     updatedAt: String(source.updatedAt || '')
   }
 }
@@ -286,6 +335,145 @@ function retireUnexecutableRoute (routeStop) {
   }
 }
 
+function parseOutcomeObject (outcome) {
+  const value = outcome?.payload
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value
+  if (typeof value !== 'string') return null
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function hasTerminalRecovery (value, depth = 0, seen = new WeakSet()) {
+  if (!value || typeof value !== 'object' || depth > 6 || seen.has(value)) return false
+  seen.add(value)
+  if (value.terminal === true && value.retrySameCall === false) return true
+  for (const key of ['details', 'recovery', 'receipt', 'retirement', 'structuredContent', 'result']) {
+    if (hasTerminalRecovery(value[key], depth + 1, seen)) return true
+  }
+  return false
+}
+
+function isTerminalToolErrorCode (errorCode) {
+  const code = String(errorCode || '')
+  return TERMINAL_TOOL_FAILURE_ERRORS.has(code) || code.startsWith('BODY_CHARGE_')
+}
+
+function terminalRouteProjection (routeStop, terminal) {
+  const businessPending = routeStop?.businessSatisfied === false
+  return {
+    ...routeStop,
+    complete: !businessPending,
+    processComplete: false,
+    retired: true,
+    retirementReason: terminal.reasonCode,
+    completionDisposition: terminal.disposition,
+    errorCode: terminal.reasonCode,
+    nextOp: null,
+    nextCall: null,
+    recovery: {
+      schemaVersion: 'SkillRouteTerminalReconciliationV2',
+      terminal: true,
+      stateChanged: terminal.stateChanged === true,
+      retrySameCall: false,
+      automatic: !businessPending,
+      action: businessPending
+        ? 'preserve-business-evidence-without-route-replay'
+        : 'retire-and-rebootstrap-next-user-prompt',
+      mustReplyCore: routeStop?.mustReplyCore || null,
+      rebootstrapOnNextUserPrompt: true,
+      evidenceDigest: terminal.evidenceDigest || null
+    }
+  }
+}
+
+function storedTerminalProjection (routeStop, coordinator) {
+  return terminalRouteProjection(routeStop, {
+    disposition: coordinator.terminalDisposition || 'terminal-tool-failure',
+    reasonCode: coordinator.terminalReasonCode || 'SKILL_ROUTE_TERMINAL',
+    evidenceDigest: coordinator.terminalEvidenceDigest || null,
+    stateChanged: false
+  })
+}
+
+function classifyPostToolTerminal (input, expected, progressObserved) {
+  if (String(input.trigger || '') !== 'PostToolUse' || expected?.action?.tool !== 'skill_route') {
+    return { terminal: null, generationReconciliation: null }
+  }
+  const outcome = input.contextPost?.outcome || null
+  if (!outcome) return { terminal: null, generationReconciliation: null }
+  const producer = outcome.producerIdentity || null
+  const consumer = input.consumerIdentity || null
+  let generationReconciliation = null
+  if (producer && consumer) {
+    const comparison = compareRuntimeProcessIdentity(producer, consumer)
+    generationReconciliation = {
+      schemaVersion: 'RuntimeGenerationHandshakeV1',
+      status: comparison.status,
+      reasonCode: comparison.reasonCode,
+      producerGenerationId: producer.generationId || null,
+      consumerGenerationId: consumer.generationId || null,
+      producerRuntimeContractVersion: producer.runtimeContractVersion ?? null,
+      consumerRuntimeContractVersion: consumer.runtimeContractVersion ?? null,
+      durableProgressObserved: progressObserved,
+      observedAt: new Date().toISOString()
+    }
+    if (!comparison.current) {
+      if (comparison.status === 'generation-superseded' && progressObserved) {
+        generationReconciliation.status = 'durable-state-reconciled'
+      } else {
+        const disposition = comparison.status === 'generation-superseded'
+          ? 'generation-superseded'
+          : 'refresh-required'
+        return {
+          terminal: {
+            disposition,
+            reasonCode: comparison.reasonCode,
+            stateChanged: outcome.stateChanged === true,
+            evidenceDigest: digest({
+              resultDigest: outcome.resultDigest || null,
+              producerIdentityDigest: producer.identityDigest || null,
+              consumerIdentityDigest: consumer.identityDigest || null,
+              comparison: comparison.status
+            })
+          },
+          generationReconciliation
+        }
+      }
+    }
+  } else {
+    generationReconciliation = {
+      schemaVersion: 'RuntimeGenerationHandshakeV1',
+      status: 'identity-unavailable',
+      reasonCode: producer ? 'consumer-identity-missing' : 'producer-identity-missing',
+      durableProgressObserved: progressObserved,
+      observedAt: new Date().toISOString()
+    }
+  }
+  const body = parseOutcomeObject(outcome)
+  const errorCode = String(outcome.errorCode || body?.errorCode || '')
+  const failed = outcome.success === false || outcome.ok === false || !!outcome.error
+  if (failed && (hasTerminalRecovery(body) || isTerminalToolErrorCode(errorCode))) {
+    return {
+      terminal: {
+        disposition: 'terminal-tool-failure',
+        reasonCode: errorCode || 'TERMINAL_TOOL_FAILURE',
+        stateChanged: outcome.stateChanged === true,
+        evidenceDigest: digest({
+          resultDigest: outcome.resultDigest || null,
+          errorCode: errorCode || null,
+          terminalRecovery: hasTerminalRecovery(body)
+        })
+      },
+      generationReconciliation
+    }
+  }
+  return { terminal: null, generationReconciliation }
+}
+
 function buildNextActionEnvelope (routeStop, input = {}) {
   const required = input.required !== false
   return {
@@ -338,6 +526,36 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
   const terminalCheck = trigger === 'Stop' || trigger === 'PreCompact'
   const attemptedExpectedAction = trigger === 'PostToolUse' && expected.expected
 
+  if (required && coordinator.terminalFingerprint === fingerprint) {
+    const terminalRoute = storedTerminalProjection(routeStop, coordinator)
+    Object.assign(coordinator, {
+      lastHookRunId: hookRunId || coordinator.lastHookRunId,
+      lastTrigger: trigger,
+      lastAction: 'terminal-replay-suppressed',
+      updatedAt: new Date().toISOString()
+    })
+    state.progressiveSkillRouteCoordinator = coordinator
+    return {
+      required: false,
+      allowAction: true,
+      duplicate,
+      noticeSuppressed: true,
+      progressObserved: false,
+      coordinator,
+      routeStop: terminalRoute,
+      envelope: buildNextActionEnvelope(terminalRoute, {
+        hookRunId,
+        stateFingerprint: fingerprint,
+        trigger,
+        noProgressCount: coordinator.noProgressCount,
+        circuitOpen: coordinator.circuitOpen,
+        required: false
+      }),
+      action: expected.action,
+      message: 'Progressive Skill route terminal state already reconciled; no route instruction was replayed.'
+    }
+  }
+
   if (!required) {
     Object.assign(coordinator, {
       stateFingerprint: fingerprint,
@@ -347,6 +565,11 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
       lastTrigger: trigger,
       lastAction: routeStop?.retired === true ? 'retired' : 'complete',
       lastNoticeFingerprint: '',
+      terminalFingerprint: '',
+      terminalDisposition: '',
+      terminalReasonCode: '',
+      terminalEvidenceDigest: '',
+      generationReconciliation: null,
       updatedAt: new Date().toISOString()
     })
     state.progressiveSkillRouteCoordinator = coordinator
@@ -356,6 +579,7 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
       duplicate,
       progressObserved,
       coordinator,
+      routeStop,
       envelope: buildNextActionEnvelope(routeStop, {
         hookRunId,
         stateFingerprint: fingerprint,
@@ -367,6 +591,13 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
     }
   }
 
+  if (coordinator.terminalFingerprint && coordinator.terminalFingerprint !== fingerprint) {
+    coordinator.terminalFingerprint = ''
+    coordinator.terminalDisposition = ''
+    coordinator.terminalReasonCode = ''
+    coordinator.terminalEvidenceDigest = ''
+  }
+
   let noProgressCount = coordinator.noProgressCount
   if (progressObserved) {
     noProgressCount = 0
@@ -375,6 +606,15 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
     noProgressCount = Math.min(NO_PROGRESS_LIMIT, noProgressCount + 1)
   }
   const circuitOpen = noProgressCount >= NO_PROGRESS_LIMIT
+  const postToolTerminal = classifyPostToolTerminal(input, expected, progressObserved)
+  const terminal = postToolTerminal.terminal || (circuitOpen
+    ? {
+        disposition: 'retired-no-progress',
+        reasonCode: 'NO_PROGRESS_LIMIT_REACHED',
+        stateChanged: false,
+        evidenceDigest: digest({ fingerprint, noProgressCount, nextOp: routeStop?.nextOp || null })
+      }
+    : null)
   const noticeFingerprint = terminalCheck
     ? digest({
         stateFingerprint: fingerprint,
@@ -396,8 +636,42 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
     lastNoticeFingerprint: terminalCheck
       ? noticeFingerprint
       : coordinator.lastNoticeFingerprint,
+    generationReconciliation: postToolTerminal.generationReconciliation ||
+      coordinator.generationReconciliation,
     updatedAt: new Date().toISOString()
   })
+  if (terminal) {
+    const terminalRoute = terminalRouteProjection(routeStop, terminal)
+    Object.assign(coordinator, {
+      terminalFingerprint: fingerprint,
+      terminalDisposition: terminal.disposition,
+      terminalReasonCode: terminal.reasonCode,
+      terminalEvidenceDigest: terminal.evidenceDigest || '',
+      lastAction: terminal.disposition
+    })
+    state.progressiveSkillRouteCoordinator = coordinator
+    return {
+      required: false,
+      allowAction: true,
+      duplicate,
+      noticeSuppressed,
+      progressObserved,
+      coordinator,
+      routeStop: terminalRoute,
+      envelope: buildNextActionEnvelope(terminalRoute, {
+        hookRunId,
+        stateFingerprint: fingerprint,
+        trigger,
+        noProgressCount,
+        circuitOpen,
+        required: false
+      }),
+      action: expected.action,
+      message: terminal.disposition === 'retired-no-progress'
+        ? `Progressive Skill route retired after ${noProgressCount} reconciliation attempts without durable progress.`
+        : `Progressive Skill route retired with ${terminal.disposition}; the old instruction will not be replayed.`
+    }
+  }
   state.progressiveSkillRouteCoordinator = coordinator
   const envelope = buildNextActionEnvelope(routeStop, {
     hookRunId,
@@ -414,11 +688,10 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
     noticeSuppressed,
     progressObserved,
     coordinator,
+    routeStop,
     envelope,
     action: expected.action,
-    message: circuitOpen
-      ? `Progressive Skill route made no durable progress after ${noProgressCount} reconciliation attempts. Execute the exact actionable field in the structured recovery card; do not replay an older hook instruction.`
-      : `Progressive Skill route requires ${routeStop?.nextOp || 'completion'} before unrelated work. Use the exact next call in the structured recovery card.`
+    message: `Progressive Skill route requires ${routeStop?.nextOp || 'completion'} before unrelated work. Use the exact next call in the structured recovery card.`
   }
 }
 
@@ -427,6 +700,7 @@ module.exports = {
   COORDINATOR_SCHEMA,
   NEXT_ACTION_SCHEMA,
   NO_PROGRESS_LIMIT,
+  TERMINAL_TOOL_FAILURE_ERRORS,
   buildNextActionEnvelope,
   buildRouteStateFingerprint,
   getHookRunId,

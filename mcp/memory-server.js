@@ -55,6 +55,9 @@ const {
   recordMcpContextSourceObservations
 } = require('../hooks/_runtime/context-source-observation.cjs')
 const {
+  acquireRuntimeGenerationLease
+} = require('../hooks/_runtime/runtime-generation-lease.cjs')
+const {
   currentActiveSessionIds,
   rowsByCurrentState,
   summaryStateConflicts
@@ -99,6 +102,18 @@ const SUMMARY_TYPE_CANON = loadSummaryTypeCanon()
 const INPUT_ROOT = process.argv[2]
   ? path.resolve(process.argv[2])
   : process.cwd()
+
+const MEMORY_RUNTIME_GENERATION_LEASE = acquireRuntimeGenerationLease({
+  role: 'memory-mcp',
+  runtimeRoot: path.resolve(__dirname, '..')
+})
+if (!['active', 'not-installed-generation'].includes(MEMORY_RUNTIME_GENERATION_LEASE.status)) {
+  const error = new Error(
+    `RUNTIME_GENERATION_LEASE_REQUIRED: ${MEMORY_RUNTIME_GENERATION_LEASE.reasonCode || MEMORY_RUNTIME_GENERATION_LEASE.status}`
+  )
+  error.code = 'RUNTIME_GENERATION_LEASE_REQUIRED'
+  throw error
+}
 
 // ─── Server metadata ──────────────────────────────────────────────────────────
 

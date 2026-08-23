@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devcodex.dev/schemas/workspace-provisioning-receipt-v1.json",
+  "title": "WorkspaceProvisioningReceiptV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "status",
+    "dryRun",
+    "workspaceRuntimeRoot",
+    "targetDecisionId",
+    "paths",
+    "summary",
+    "failure"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "WorkspaceProvisioningReceiptV1" },
+    "status": { "enum": ["fresh", "existing", "planned", "failed"] },
+    "dryRun": { "type": "boolean" },
+    "workspaceRuntimeRoot": { "type": "string", "minLength": 1 },
+    "targetDecisionId": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^evolution-target-[a-f0-9]{64}$" }
+      ]
+    },
+    "paths": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "path", "status", "inspectionState", "existedBefore", "errorCode"],
+        "properties": {
+          "role": { "enum": ["candidates", "decisions", "evidence"] },
+          "path": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["fresh", "existing", "planned", "failed"] },
+          "inspectionState": { "enum": ["observed", "not-inspected"] },
+          "existedBefore": { "type": ["boolean", "null"] },
+          "errorCode": { "type": ["string", "null"] }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "inspectionState": { "const": "not-inspected" } }, "required": ["inspectionState"] },
+            "then": { "properties": { "existedBefore": { "type": "null" }, "status": { "const": "failed" } } }
+          },
+          {
+            "if": { "properties": { "status": { "const": "existing" } }, "required": ["status"] },
+            "then": { "properties": { "inspectionState": { "const": "observed" }, "existedBefore": { "const": true }, "errorCode": { "type": "null" } } }
+          },
+          {
+            "if": { "properties": { "status": { "enum": ["fresh", "planned"] } }, "required": ["status"] },
+            "then": { "properties": { "inspectionState": { "const": "observed" }, "existedBefore": { "const": false }, "errorCode": { "type": "null" } } }
+          },
+          {
+            "if": { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+            "then": { "properties": { "errorCode": { "type": "string", "minLength": 1 } } }
+          }
+        ]
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fresh", "existing", "planned", "failed"],
+      "properties": {
+        "fresh": { "type": "integer", "minimum": 0 },
+        "existing": { "type": "integer", "minimum": 0 },
+        "planned": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "failure": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message", "partialWritesPreserved"],
+          "properties": {
+            "code": { "type": "string", "minLength": 1 },
+            "message": { "type": "string", "minLength": 1 },
+            "partialWritesPreserved": { "const": true }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "failed" } }, "required": ["status"] },
+      "then": { "properties": { "failure": { "type": "object" } } },
+      "else": { "properties": { "failure": { "type": "null" } } }
+    }
+  ]
+}

@@ -127,26 +127,28 @@ function atomicWriteJson (file, value, fsImpl = fs) {
   const dir = path.dirname(file)
   fsImpl.mkdirSync(dir, { recursive: true })
   recoverEnvelopeBackup(file, fsImpl)
-  const temp = `${file}.tmp.${process.pid}.${Date.now()}`
+  const temp = `${file}.next.tmp`
+  const backup = `${file}.replace.v1`
   const content = `${JSON.stringify(value, null, 2)}\n`
   let fd
   try {
+    if (fsImpl.existsSync(temp)) fsImpl.unlinkSync(temp)
     fd = fsImpl.openSync(temp, 'wx')
     fsImpl.writeFileSync(fd, content, 'utf8')
     fsImpl.fsyncSync(fd)
     fsImpl.closeSync(fd)
     fd = null
     if (fsImpl.existsSync(file)) {
-      const backup = `${file}.replace.${process.pid}.${Date.now()}`
+      if (fsImpl.existsSync(backup)) fsImpl.unlinkSync(backup)
       fsImpl.renameSync(file, backup)
       try {
         fsImpl.renameSync(temp, file)
-        fsImpl.unlinkSync(backup)
       } catch (error) {
         if (fsImpl.existsSync(file)) fsImpl.unlinkSync(file)
         if (fsImpl.existsSync(backup)) fsImpl.renameSync(backup, file)
         throw error
       }
+      try { fsImpl.unlinkSync(backup) } catch {}
     } else {
       fsImpl.renameSync(temp, file)
     }
@@ -159,6 +161,18 @@ function atomicWriteJson (file, value, fsImpl = fs) {
     }
   }
   return { bytes: byteLength(content), digest: sha256(content) }
+}
+
+function quarantineStaleLock (lockFile, fsImpl = fs) {
+  const stale = `${lockFile}.stale`
+  try {
+    if (fsImpl.existsSync(stale)) fsImpl.unlinkSync(stale)
+    fsImpl.renameSync(lockFile, stale)
+    try { fsImpl.unlinkSync(stale) } catch {}
+    return true
+  } catch {
+    return false
+  }
 }
 
 function normalizeCatalogProgressPages(pages, pageCount) {
@@ -397,12 +411,7 @@ function acquireLock (paths, op, key, options = {}) {
       const current = readJson(paths.lock, fsImpl)
       const age = Date.now() - Date.parse(current?.startedAt || 0)
       if (age > (options.lockStaleMs || LOCK_STALE_MS) && !lockOwnerAlive(current)) {
-        const stale = `${paths.lock}.stale.${Date.now()}`
-        try {
-          fsImpl.renameSync(paths.lock, stale)
-          try { fsImpl.unlinkSync(stale) } catch {}
-          continue
-        } catch {}
+        if (quarantineStaleLock(paths.lock, fsImpl)) continue
       }
       if (Date.now() - started > (options.lockTimeoutMs || 5000)) {
         const timeout = new Error('TURN_LOCK_TIMEOUT')
@@ -438,12 +447,7 @@ function acquireGcLock (routeRoot, options = {}) {
       const current = readJson(lockFile, fsImpl)
       const age = Date.now() - Date.parse(current?.startedAt || 0)
       if (age > (options.lockStaleMs || LOCK_STALE_MS) && !lockOwnerAlive(current)) {
-        const stale = `${lockFile}.stale.${Date.now()}`
-        try {
-          fsImpl.renameSync(lockFile, stale)
-          try { fsImpl.unlinkSync(stale) } catch {}
-          continue
-        } catch {}
+        if (quarantineStaleLock(lockFile, fsImpl)) continue
       }
       if (Date.now() - started > (options.gcLockTimeoutMs || 5000)) {
         const timeout = new Error('GC_LOCK_TIMEOUT')
@@ -481,12 +485,7 @@ function acquireRootMutationLock (routeRoot, op, key, options = {}) {
       const current = readJson(lockFile, fsImpl)
       const age = Date.now() - Date.parse(current?.startedAt || 0)
       if (age > (options.lockStaleMs || LOCK_STALE_MS) && !lockOwnerAlive(current)) {
-        const stale = `${lockFile}.stale.${Date.now()}`
-        try {
-          fsImpl.renameSync(lockFile, stale)
-          try { fsImpl.unlinkSync(stale) } catch {}
-          continue
-        } catch {}
+        if (quarantineStaleLock(lockFile, fsImpl)) continue
       }
       if (Date.now() - started > (options.rootLockTimeoutMs || 5000)) {
         const timeout = new Error('ROOT_MUTATION_LOCK_TIMEOUT')

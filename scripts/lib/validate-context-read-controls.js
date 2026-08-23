@@ -79,6 +79,19 @@ const FORBIDDEN_LEGACY_PRIMARY = Object.freeze([
   ['skills/memory/SKILL.md', ['正常会话：SUMMARY 优先 → 再读今日/昨日任务文件（索引驱动）']]
 ])
 
+function resolveValidationActiveRoot(root, options = {}) {
+  const env = options.env || process.env
+  const pathApi = options.pathApi || path
+  const explicit = typeof env.DEVCODEX_VALIDATION_ACTIVE_ROOT === 'string'
+    ? env.DEVCODEX_VALIDATION_ACTIVE_ROOT.trim()
+    : ''
+  if (explicit) return pathApi.resolve(explicit)
+  if (typeof options.resolveActiveRoot !== 'function') {
+    throw new TypeError('resolveActiveRoot is required when DEVCODEX_VALIDATION_ACTIVE_ROOT is absent')
+  }
+  return options.resolveActiveRoot(root)
+}
+
 function classifyContractSchemaSnapshot(schemas) {
   if (!schemas || typeof schemas !== 'object' || Array.isArray(schemas)) return 'invalid-schema-snapshot'
   return Object.entries(EXPECTED_SCHEMAS).every(([key, value]) => schemas[key] === value)
@@ -237,6 +250,23 @@ function buildContextReadControlChecks(ctx) {
     expect(classifyConsumerClosure({ forbiddenLegacy: ['full-read-first'] }), 'legacy-primary-drift', 'legacy primary negative')
     expect(classifyConsumerClosure({ compatibilityMissing: ['ContextReadReceiptV1'] }), 'reader-compatibility-incomplete', 'V1 reader compatibility negative')
     expect(classifyConsumerClosure({ canonicalMissing: [], compatibilityMissing: [], forbiddenLegacy: [] }), 'consumer-ready', 'consumer positive')
+    const explicitActiveRoot = path.resolve('fixture-validation-active-root')
+    expect(
+      resolveValidationActiveRoot(ROOT, {
+        env: { DEVCODEX_VALIDATION_ACTIVE_ROOT: `  ${explicitActiveRoot}  ` },
+        resolveActiveRoot: () => 'fallback-must-not-win'
+      }),
+      explicitActiveRoot,
+      'explicit validation active-root must win'
+    )
+    expect(
+      resolveValidationActiveRoot(ROOT, {
+        env: { DEVCODEX_VALIDATION_ACTIVE_ROOT: '   ' },
+        resolveActiveRoot: () => 'fallback-active-root'
+      }),
+      'fallback-active-root',
+      'blank validation active-root must use canonical resolver'
+    )
 
     // PF-149 binding classifiers
     expect(
@@ -454,7 +484,9 @@ function runStandalone() {
   const read = createCanonicalAwareReader(ROOT, file => fs.readFileSync(file, 'utf8'))
   const checks = buildContextReadControlChecks({
     ROOT,
-    ACTIVE_DEVCODEX_ROOT: resolveActiveRuntimeRoot(ROOT),
+    ACTIVE_DEVCODEX_ROOT: resolveValidationActiveRoot(ROOT, {
+      resolveActiveRoot: resolveActiveRuntimeRoot
+    }),
     fs,
     path,
     read,
@@ -479,5 +511,6 @@ module.exports = {
   classifyContextReadBindingSample,
   classifyContractSchemaSnapshot,
   classifyProfilePlanReadTrace,
-  classifyRuntimeToolSurface
+  classifyRuntimeToolSurface,
+  resolveValidationActiveRoot
 }

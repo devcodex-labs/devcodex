@@ -24,20 +24,21 @@ function jsonObject(file, fsImpl = fs) {
   }
 }
 
-function durableJsonWrite(file, value, fsImpl = fs, token = crypto.randomUUID()) {
+function durableJsonWrite(file, value, fsImpl = fs) {
   const serialized = `${JSON.stringify(value, null, 2)}\n`
-  const temp = `${file}.tmp-${process.pid}-${token}`
+  const temp = `${file}.next.tmp`
   fsImpl.mkdirSync(path.dirname(file), { recursive: true })
-  const descriptor = fsImpl.openSync(temp, 'wx')
+  let descriptor
   try {
+    if (fsImpl.existsSync(temp)) fsImpl.unlinkSync(temp)
+    descriptor = fsImpl.openSync(temp, 'wx')
     fsImpl.writeFileSync(descriptor, serialized, 'utf8')
     if (typeof fsImpl.fsyncSync === 'function') fsImpl.fsyncSync(descriptor)
-  } finally {
     fsImpl.closeSync(descriptor)
-  }
-  try {
+    descriptor = undefined
     fsImpl.renameSync(temp, file)
   } catch (error) {
+    if (descriptor !== undefined) try { fsImpl.closeSync(descriptor) } catch { }
     try { fsImpl.unlinkSync(temp) } catch { }
     throw error
   }
@@ -90,8 +91,14 @@ function acquireJournalLock(transactionRoot, options = {}) {
         acquiredAt: new Date(nowMs).toISOString(),
         leaseExpiresAtMs: nowMs + leaseMs
       }
-      fsImpl.writeFileSync(descriptor, `${JSON.stringify(record)}\n`, 'utf8')
-      if (typeof fsImpl.fsyncSync === 'function') fsImpl.fsyncSync(descriptor)
+      try {
+        fsImpl.writeFileSync(descriptor, `${JSON.stringify(record)}\n`, 'utf8')
+        if (typeof fsImpl.fsyncSync === 'function') fsImpl.fsyncSync(descriptor)
+      } catch (error) {
+        try { fsImpl.closeSync(descriptor) } catch { }
+        try { fsImpl.unlinkSync(lockFile) } catch { }
+        throw error
+      }
       return { descriptor, file: lockFile, ownerToken }
     } catch (error) {
       if (error?.code !== 'EEXIST') throw error
@@ -111,7 +118,8 @@ function acquireJournalLock(transactionRoot, options = {}) {
         locked.code = 'GLOBAL_HOST_TRANSACTION_LOCKED'
         throw locked
       }
-      const quarantine = `${lockFile}.quarantine-${observed.ownerToken}-${crypto.randomUUID()}`
+      const quarantine = `${lockFile}.quarantine`
+      if (fsImpl.existsSync(quarantine)) fsImpl.unlinkSync(quarantine)
       fsImpl.renameSync(lockFile, quarantine)
     }
   }

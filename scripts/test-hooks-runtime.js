@@ -16,6 +16,11 @@ const { resolveLanguageContext } = require('../hooks/_runtime/language-context.c
 const { createRuntimeStateStore } = require('../hooks/_runtime/runtime-state-store.cjs')
 const { resolveRuntimeStateRoots } = require('../hooks/_runtime/workspace-layout.cjs')
 const { buildLifecycleNamespaceStateUtils } = require('../hooks/_runtime/lifecycle-namespace-state.cjs')
+const {
+  commitTaskRecoveryState,
+  readTaskRecoveryState,
+  storePaths
+} = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 const RUNTIME = path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs')
@@ -26,7 +31,7 @@ const TEMP_ROOT = path.join(os.tmpdir(), `devcodex-hooks-test-${process.pid}`)
 const STATE_DIR = path.join(TEMP_ROOT, '.devcodex', '.memory', 'hooks', 'legacy')
 const STATE_FILE = path.join(STATE_DIR, 'lifecycle-state.json')
 const CAPTURE_FLAG = path.join(STATE_DIR, 'capture-final-payload.flag')
-const CAPTURE_LOG = path.join(STATE_DIR, 'captured-final-payloads.ndjson')
+const CAPTURE_LOG = path.join(STATE_DIR, 'v5', 'telemetry-0.ndjson')
 const INTERCEPTION_LOG = path.join(STATE_DIR, 'interceptions.jsonl')
 const TEST_AGENT = 'claude-code'
 const FALLBACK_BOOTSTRAP_AGENT = (() => {
@@ -242,6 +247,53 @@ function main() {
   const continuationContext = resolvedContinuation.hookSpecificOutput?.additionalContext || resolvedContinuation.systemMessage || ''
   assert.match(continuationContext, /TaskResolutionV1 resolved-active/)
   assert.match(continuationContext, /LanguageContextV1/)
+  const continuationStore = storePaths(STATE_DIR)
+  const taskSlotFiles = []
+  const pendingTaskDirs = [continuationStore.tasks]
+  while (pendingTaskDirs.length) {
+    const current = pendingTaskDirs.pop()
+    let entries
+    try { entries = fs.readdirSync(current, { withFileTypes: true }) } catch { continue }
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name)
+      if (entry.isDirectory()) pendingTaskDirs.push(fullPath)
+      else if (/^state-[ab]\.json$/.test(entry.name)) taskSlotFiles.push(fullPath)
+    }
+  }
+  assert(taskSlotFiles.length >= 1, 'resolved formal task must create a durable V5 task slot')
+  const continuationEnvelope = taskSlotFiles
+    .map(file => JSON.parse(fs.readFileSync(file, 'utf8')))
+    .sort((left, right) => right.sequence - left.sequence)[0]
+  const continuationRecovered = readTaskRecoveryState({
+    metaDir: STATE_DIR,
+    identity: continuationEnvelope.identity
+  })
+  assert.strictEqual(continuationRecovered.status, 'fresh')
+  continuationRecovered.state.cp3Runtime = {
+    ...(continuationRecovered.state.cp3Runtime || {}),
+    recoverySentinel: 'formal-task-a-b-rehydrated'
+  }
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir: STATE_DIR,
+    identity: continuationEnvelope.identity,
+    sessionKey: 'task-continuation-unique',
+    state: continuationRecovered.state
+  }, { force: true, reserveBytes: 8192 }).status, 'committed')
+  for (const file of continuationStore.ephemeral) {
+    try { fs.unlinkSync(file) } catch { }
+  }
+  try { fs.unlinkSync(STATE_FILE) } catch { }
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'task-continuation-new-session',
+    prompt: '继续 Hook续接任务'
+  })
+  const crossSessionContinuationState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(
+    crossSessionContinuationState.cp3Runtime?.recoverySentinel,
+    'formal-task-a-b-rehydrated',
+    'a unique formal task continuation must load task A/B before resetting the new turn'
+  )
   assert.match(continuationContext, /language: zh-CN/)
   const continuationState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(continuationState.taskContinuation.status, 'resolved-active')
@@ -547,7 +599,7 @@ function main() {
     tool_input: { filePath: getMemoryFilePath('claude-code', 'SUMMARY.md') }
   }, TEMP_ROOT, { CODEX_HOME: '1' })
   const codexMismatchState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
-  assert.strictEqual(codexMismatchState.bootstrap.profileRead, false)
+  assert.strictEqual(codexMismatchState.bootstrap.profileRead, true)
   assert.strictEqual(codexMismatchState.bootstrap.summaryRead, false)
   run({
     hookEventName: 'PreToolUse',
@@ -562,11 +614,11 @@ function main() {
   const codexBootstrapState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(codexBootstrapState.bootstrapComplete, false)
   assert.deepStrictEqual(codexBootstrapState.contextAcquisition.legacyObserved, {
-    profileRead: false,
-    summaryRead: false,
-    tasksRead: false,
+    profileRead: true,
+    summaryRead: true,
+    tasksRead: true,
     bootstrapComplete: false
-  }, 'pre-commit raw-file reads must not bypass the structured route/context contract')
+  }, 'advisory-only raw-file observations must not bypass the structured route/context contract')
 
   cleanLayoutState(
     { mode: 'prod', agent: TEST_AGENT },

@@ -13,6 +13,21 @@ const DELIVERY_REQUIREMENTS = new Set(['required', 'supporting', 'internal'])
 const PRESENTATION_TIERS = new Set(['rich-markdown', 'portable-markdown', 'plain-text'])
 const LINK_MODES = new Set(['clickable', 'portable', 'plain', 'failed'])
 const EVIDENCE_STATES = new Set(['verified', 'unverified', 'failed'])
+const POST_COMPLETION_ACTION_KINDS = new Set([
+  'api-docs', 'http-verification', 'commit', 'switch-target', 'cherry-pick', 'push', 'other'
+])
+const POST_COMPLETION_APPLICABILITIES = new Set(['required-now', 'applicable', 'conditional'])
+const POST_COMPLETION_AUTHORIZATIONS = new Set(['not-required', 'suggest-only', 'explicit-required'])
+const VISIBLE_ENVELOPE_V1_KEYS = Object.freeze([
+  'schemaVersion', 'messageKind', 'status', 'context', 'checks', 'decision', 'recommendedAction',
+  'artifactManifest', 'userFacingArtifactSet', 'artifactLinks', 'linkCapability', 'presentation',
+  'semanticDigest', 'validation'
+])
+const VISIBLE_ENVELOPE_V2_KEYS = Object.freeze([
+  'schemaVersion', 'messageKind', 'status', 'context', 'checks', 'decision', 'postCompletionActions',
+  'artifactManifest', 'userFacingArtifactSet', 'artifactLinks', 'linkCapability', 'presentation',
+  'semanticDigest', 'validation'
+])
 const VISIBILITY_ORDER = new Map([
   ['decision-required', 0], ['result', 1], ['evidence', 2], ['optional-detail', 3], ['internal-only', 4]
 ])
@@ -472,6 +487,9 @@ function linkCapabilityIntegrityErrors(capability) {
     'absolutePathFallback', 'fallbackReason', 'evidenceRefs', 'decisionId', 'validation'
   ])) errors.push('linkCapability-sibling-fields-invalid')
   if (!capability.validation?.valid) errors.push('linkCapability-invalid')
+  if (!hasExactKeys(capability.validation, ['valid', 'errors']) || capability.validation.errors?.length !== 0) {
+    errors.push('linkCapability-validation-shape-invalid')
+  }
   if (!text(capability.surface) || !EVIDENCE_STATES.has(capability.evidenceState) || !LINK_MODES.has(capability.mode) ||
       !['workspace', 'external', 'ambiguous'].includes(capability.targetRelation) ||
       typeof capability.absolutePathFallback !== 'boolean' || !text(capability.fallbackReason) ||
@@ -510,7 +528,82 @@ function deriveStatus(checks) {
   return checks.slice().sort((left, right) => STATUS_SEVERITY.get(right.status) - STATUS_SEVERITY.get(left.status))[0].status
 }
 
-function invalidEnvelope(errors, input = {}) {
+function normalizePostCompletionAction(action, expectedApplicability, pathName, errors) {
+  const normalized = {
+    kind: action?.kind,
+    label: action?.label,
+    reason: action?.reason,
+    evidenceRefs: action?.evidenceRefs,
+    applicability: action?.applicability,
+    authorization: action?.authorization
+  }
+  if (!hasExactKeys(action, Object.keys(normalized))) errors.push(`${pathName}-fields-invalid`)
+  if (!POST_COMPLETION_ACTION_KINDS.has(normalized.kind)) errors.push(`${pathName}.kind-invalid`)
+  if (!text(normalized.label)) errors.push(`${pathName}.label-required`)
+  if (!text(normalized.reason)) errors.push(`${pathName}.reason-required`)
+  if (!textList(normalized.evidenceRefs) || normalized.evidenceRefs.length === 0) {
+    errors.push(`${pathName}.evidenceRefs-required`)
+  }
+  if (hasDuplicates(normalized.evidenceRefs)) errors.push(`${pathName}.evidenceRefs-duplicate`)
+  if (!POST_COMPLETION_APPLICABILITIES.has(normalized.applicability) ||
+      normalized.applicability !== expectedApplicability) {
+    errors.push(`${pathName}.applicability-invalid`)
+  }
+  if (!POST_COMPLETION_AUTHORIZATIONS.has(normalized.authorization)) {
+    errors.push(`${pathName}.authorization-invalid`)
+  }
+  if (['commit', 'switch-target', 'cherry-pick', 'push'].includes(normalized.kind) &&
+      normalized.authorization !== 'explicit-required') {
+    errors.push(`${pathName}.git-authorization-must-be-explicit`)
+  }
+  if (expectedApplicability !== 'required-now' &&
+      !['commit', 'switch-target', 'cherry-pick', 'push'].includes(normalized.kind) &&
+      normalized.authorization !== 'suggest-only') {
+    errors.push(`${pathName}.optional-action-must-be-suggest-only`)
+  }
+  return normalized
+}
+
+function createPostCompletionActionSet(input = {}) {
+  const errors = []
+  const source = input?.schemaVersion === 'PostCompletionActionSetV1'
+    ? {
+        requiredNow: input.requiredNow,
+        primaryAction: input.primaryAction,
+        conditionalActions: input.conditionalActions
+      }
+    : input
+  const requiredNowInput = source?.requiredNow ?? []
+  const conditionalInput = source?.conditionalActions ?? []
+  if (!Array.isArray(requiredNowInput)) errors.push('requiredNow-invalid')
+  if (!Array.isArray(conditionalInput)) errors.push('conditionalActions-invalid')
+  if (Array.isArray(conditionalInput) && conditionalInput.length > 2) errors.push('conditionalActions-max-two')
+  const requiredNow = Array.isArray(requiredNowInput)
+    ? requiredNowInput.map((action, index) => normalizePostCompletionAction(action, 'required-now', `requiredNow.${index}`, errors))
+    : []
+  const primaryAction = source?.primaryAction === null || source?.primaryAction === undefined
+    ? null
+    : normalizePostCompletionAction(source.primaryAction, 'applicable', 'primaryAction', errors)
+  const conditionalActions = Array.isArray(conditionalInput)
+    ? conditionalInput.map((action, index) => normalizePostCompletionAction(action, 'conditional', `conditionalActions.${index}`, errors))
+    : []
+  const identities = [...requiredNow, ...(primaryAction ? [primaryAction] : []), ...conditionalActions]
+    .map(action => `${action.kind}\u0000${action.label}`)
+  if (hasDuplicates(identities)) errors.push('postCompletionActions-duplicate')
+  const knownKinds = [...requiredNow, ...(primaryAction ? [primaryAction] : []), ...conditionalActions]
+    .map(action => action.kind)
+    .filter(kind => kind !== 'other')
+  if (hasDuplicates(knownKinds)) errors.push('postCompletionActions-kind-duplicate')
+  return {
+    schemaVersion: 'PostCompletionActionSetV1',
+    requiredNow,
+    primaryAction,
+    conditionalActions,
+    validation: { valid: errors.length === 0, errors }
+  }
+}
+
+function invalidLegacyEnvelopeV1(errors, input = {}) {
   const core = {
     schemaVersion: 'DevCodexVisibleEnvelopeV1',
     messageKind: 'error-block',
@@ -533,7 +626,7 @@ function invalidEnvelope(errors, input = {}) {
   return { ...core, semanticDigest: digest({ ...core, presentation: undefined, validation: undefined }) }
 }
 
-function createVisibleEnvelope(input) {
+function createLegacyVisibleEnvelopeV1(input) {
   const errors = []
   if (!MESSAGE_KINDS.has(input?.messageKind)) errors.push('messageKind-invalid')
   if (!input?.context || typeof input.context !== 'object' || Array.isArray(input.context)) errors.push('context-required')
@@ -612,7 +705,7 @@ function createVisibleEnvelope(input) {
       !(presentation.degradationReason === null || text(presentation.degradationReason))) {
     errors.push('presentation-invalid')
   }
-  if (errors.length) return invalidEnvelope(errors, input)
+  if (errors.length) return invalidLegacyEnvelopeV1(errors, input)
 
   const status = deriveStatus(checks)
   const artifactLinks = (input?.userFacingArtifactSet?.items || []).map(item => ({
@@ -658,6 +751,370 @@ function createVisibleEnvelope(input) {
     presentation,
     semanticDigest: digest(semanticCore),
     validation: { valid: true, errors: [] }
+  }
+}
+
+function invalidEnvelope(errors, input = {}) {
+  const postCompletionActions = createPostCompletionActionSet({
+    requiredNow: [{
+      kind: 'other',
+      label: '修正可见输出契约',
+      reason: '当前 envelope 未通过确定性校验，不能继续作强完成声明',
+      evidenceRefs: ['VISIBLE_ENVELOPE_INVALID'],
+      applicability: 'required-now',
+      authorization: 'not-required'
+    }],
+    primaryAction: null,
+    conditionalActions: []
+  })
+  const core = {
+    schemaVersion: 'DevCodexVisibleEnvelopeV2',
+    messageKind: 'error-block',
+    status: 'BLOCK',
+    context: input.context || null,
+    checks: [{
+      id: 'VISIBLE_ENVELOPE_INVALID', ordinal: 0, status: 'BLOCK',
+      summaryKey: 'visible-envelope-invalid', summary: '可见输出契约无效', evidenceState: 'verified',
+      evidenceRefs: [], requiredAction: '回退到 expanded portable 输出并修正契约'
+    }],
+    decision: null,
+    postCompletionActions,
+    artifactManifest: null,
+    userFacingArtifactSet: null,
+    artifactLinks: [],
+    linkCapability: null,
+    presentation: { requestedTier: 'portable-markdown', effectiveTier: 'portable-markdown', degradationReason: 'contract-invalid' },
+    validation: { valid: false, errors }
+  }
+  return { ...core, semanticDigest: digest({ ...core, presentation: undefined, validation: undefined }) }
+}
+
+function createVisibleEnvelope(input) {
+  const errors = []
+  if (Object.prototype.hasOwnProperty.call(input || {}, 'recommendedAction')) {
+    errors.push('recommendedAction-v1-write-forbidden')
+  }
+  const postCompletionActions = createPostCompletionActionSet(input?.postCompletionActions || {})
+  errors.push(...postCompletionActions.validation.errors.map(error => `postCompletionActions.${error}`))
+  if (['completion-check', 'final-result'].includes(input?.messageKind) && postCompletionActions.requiredNow.length > 0) {
+    errors.push('completion-claim-requiredNow-must-be-empty')
+  }
+  const legacy = createLegacyVisibleEnvelopeV1({ ...input, recommendedAction: null })
+  if (!legacy.validation.valid) errors.push(...legacy.validation.errors)
+  if (errors.length) return invalidEnvelope([...new Set(errors)], input)
+
+  const semanticCore = {
+    schemaVersion: 'DevCodexVisibleEnvelopeV2',
+    messageKind: legacy.messageKind,
+    status: legacy.status,
+    context: legacy.context,
+    checks: legacy.checks.map(({ summary, ...check }) => check),
+    decision: legacy.decision,
+    artifactManifest: legacy.artifactManifest,
+    userFacingArtifactSet: legacy.userFacingArtifactSet ? {
+      setId: legacy.userFacingArtifactSet.setId,
+      manifestId: legacy.userFacingArtifactSet.manifestId,
+      scope: legacy.userFacingArtifactSet.scope,
+      heading: legacy.userFacingArtifactSet.heading,
+      items: legacy.userFacingArtifactSet.items,
+      counts: legacy.userFacingArtifactSet.counts
+    } : null,
+    linkCapability: semanticLinkCapability(legacy.linkCapability),
+    postCompletionActions: {
+      schemaVersion: postCompletionActions.schemaVersion,
+      requiredNow: postCompletionActions.requiredNow,
+      primaryAction: postCompletionActions.primaryAction,
+      conditionalActions: postCompletionActions.conditionalActions
+    }
+  }
+  return {
+    schemaVersion: 'DevCodexVisibleEnvelopeV2',
+    messageKind: legacy.messageKind,
+    status: legacy.status,
+    context: legacy.context,
+    checks: legacy.checks,
+    decision: legacy.decision,
+    postCompletionActions,
+    artifactManifest: legacy.artifactManifest,
+    userFacingArtifactSet: legacy.userFacingArtifactSet,
+    artifactLinks: legacy.artifactLinks,
+    linkCapability: legacy.linkCapability,
+    presentation: legacy.presentation,
+    semanticDigest: digest(semanticCore),
+    validation: { valid: true, errors: [] }
+  }
+}
+
+function serializedVisibleSet (value) {
+  return value ? {
+    setId: value.setId,
+    manifestId: value.manifestId,
+    scope: value.scope,
+    heading: value.heading,
+    items: value.items,
+    counts: value.counts
+  } : null
+}
+
+function semanticLinkCapability (value) {
+  if (!value) return null
+  return {
+    surface: value.surface,
+    evidenceState: value.evidenceState,
+    workspaceRoot: value.workspaceRoot ?? null,
+    targetRelation: value.targetRelation,
+    absolutePathFallback: value.absolutePathFallback,
+    fallbackReason: value.absolutePathFallback ? value.fallbackReason : null,
+    evidenceRefs: value.evidenceRefs
+  }
+}
+
+function validateSerializedEnvelopeBase (envelope, expectedKeys) {
+  const errors = []
+  if (!hasExactKeys(envelope, expectedKeys)) errors.push('envelope-fields-invalid')
+  if (!MESSAGE_KINDS.has(envelope?.messageKind)) errors.push('messageKind-invalid')
+  if (!envelope?.context || typeof envelope.context !== 'object' || Array.isArray(envelope.context)) {
+    errors.push('context-required')
+  }
+  for (const field of ['project', 'taskId', 'mode', 'intentRoute', 'phase', 'contextEpoch']) {
+    if (!text(envelope?.context?.[field])) errors.push(`context.${field}-required`)
+  }
+  if (!Object.prototype.hasOwnProperty.call(envelope?.context || {}, 'hostSurface') ||
+      !(envelope?.context?.hostSurface === null || text(envelope?.context?.hostSurface))) {
+    errors.push('context.hostSurface-required')
+  }
+  const checks = Array.isArray(envelope?.checks) ? envelope.checks : []
+  if (!Array.isArray(envelope?.checks)) errors.push('checks-invalid')
+  const ids = new Set()
+  const ordinals = new Set()
+  for (const check of checks) {
+    if (!hasExactKeys(check, ['id', 'ordinal', 'status', 'summaryKey', 'summary', 'evidenceState', 'evidenceRefs', 'requiredAction'])) {
+      errors.push('check-fields-invalid')
+    }
+    if (!text(check?.id) || ids.has(check.id)) errors.push('check.id-invalid-or-duplicate')
+    if (!Number.isInteger(check?.ordinal) || ordinals.has(check.ordinal)) errors.push('check.ordinal-invalid-or-duplicate')
+    if (!STATUSES.has(check?.status)) errors.push('check.status-invalid')
+    if (!text(check?.summaryKey) || !text(check?.summary) || !EVIDENCE_STATES.has(check?.evidenceState) || !textList(check?.evidenceRefs)) {
+      errors.push('check.fields-invalid')
+    }
+    if (check?.status === 'PASS' && check?.evidenceState !== 'verified') errors.push('check.pass-evidence-unverified')
+    ids.add(check?.id)
+    ordinals.add(check?.ordinal)
+  }
+  if (envelope?.messageKind === 'entry-check') {
+    const expected = Array.from({ length: 8 }, (_, index) => `PC${index}`)
+    if (checks.length !== 8 || expected.some((id, index) => checks[index]?.id !== id || checks[index]?.ordinal !== index)) {
+      errors.push('entry-check-PC0-PC7-required-in-order')
+    }
+  }
+  if (STATUSES.has(envelope?.status) && deriveStatus(checks) !== envelope.status) {
+    errors.push('status-derived-value-mismatch')
+  } else if (!STATUSES.has(envelope?.status)) {
+    errors.push('status-invalid')
+  }
+  if (envelope?.messageKind === 'confirmation') {
+    const decision = envelope?.decision
+    if (!decision || typeof decision !== 'object' || Array.isArray(decision)) errors.push('confirmation-decision-required')
+    else {
+      const decisionKeys = Object.keys(decision)
+      if (decisionKeys.some(key => !['id', 'kind', 'question', 'options', 'recommendedOption', 'fallbackText'].includes(key))) {
+        errors.push('confirmation.fields-invalid')
+      }
+      for (const field of ['id', 'kind', 'question', 'recommendedOption']) {
+        if (!text(decision[field])) errors.push(`confirmation.${field}-required`)
+      }
+      if (!textList(decision.options) || decision.options.length < 2 || !decision.options.includes(decision.recommendedOption)) {
+        errors.push('confirmation.options-invalid')
+      }
+    }
+  }
+  const hasManifest = Boolean(envelope?.artifactManifest)
+  const hasVisibleSet = Boolean(envelope?.userFacingArtifactSet)
+  if (hasManifest !== hasVisibleSet) errors.push('artifact-manifest-visible-set-pair-required')
+  if (hasManifest) {
+    const manifest = envelope.artifactManifest
+    if (!hasExactKeys(manifest, ['manifestId', 'reconciliationStatus', 'entryCount']) ||
+        !text(manifest.manifestId) || manifest.reconciliationStatus !== 'verified' ||
+        !Number.isInteger(manifest.entryCount) || manifest.entryCount < 0) {
+      errors.push('artifactManifest-projection-invalid')
+    }
+  }
+  if (hasManifest && envelope.artifactManifest.manifestId !== envelope.userFacingArtifactSet.manifestId) {
+    errors.push('artifact-manifest-visible-set-id-mismatch')
+  }
+  if (hasVisibleSet) {
+    const set = envelope.userFacingArtifactSet
+    const setCore = {
+      schemaVersion: set.schemaVersion,
+      manifestId: set.manifestId,
+      scope: set.scope,
+      heading: set.heading,
+      items: set.items,
+      counts: set.counts,
+      reconciliation: set.reconciliation
+    }
+    const itemKeys = [
+      'artifactId', 'canonicalPath', 'lifecycleOperation', 'visibility', 'displayName', 'purposeKey',
+      'purposeText', 'userAction', 'readingOrder', 'contentDigest'
+    ]
+    const itemIds = new Set()
+    const itemPaths = new Set()
+    const itemOrders = new Set()
+    for (const item of Array.isArray(set.items) ? set.items : []) {
+      if (!hasExactKeys(item, itemKeys) || !text(item?.artifactId) || !text(item?.canonicalPath) ||
+          !path.isAbsolute(item?.canonicalPath || '') || /^file:\/\//i.test(item?.canonicalPath || '') ||
+          !LIFECYCLE_OPERATIONS.has(item?.lifecycleOperation) || !VISIBILITIES.has(item?.visibility) ||
+          !isSemanticDisplayName(item?.displayName, item?.canonicalPath) || !text(item?.purposeKey) ||
+          !text(item?.purposeText) || !text(item?.userAction) || !Number.isInteger(item?.readingOrder) ||
+          item.readingOrder < 0 || !text(item?.contentDigest)) errors.push('userFacingArtifactSet-item-invalid')
+      const canonicalPath = canonicalPathIdentity(item?.canonicalPath)
+      if (itemIds.has(item?.artifactId) || itemPaths.has(canonicalPath) || itemOrders.has(item?.readingOrder)) {
+        errors.push('userFacingArtifactSet-item-identity-duplicate')
+      }
+      itemIds.add(item?.artifactId)
+      itemPaths.add(canonicalPath)
+      itemOrders.add(item?.readingOrder)
+    }
+    if (!hasExactKeys(set, ['schemaVersion', 'manifestId', 'scope', 'heading', 'items', 'counts', 'reconciliation', 'setId', 'validation']) ||
+        set.schemaVersion !== 'UserFacingArtifactSetV1' || set.validation?.valid !== true ||
+        !hasExactKeys(set.validation, ['valid', 'errors']) || set.validation.errors?.length !== 0 ||
+        !['default', 'all-deliverable', 'internal-audit'].includes(set.scope) ||
+        set.heading !== ACTION_HEADINGS[envelope?.messageKind] ||
+        !Array.isArray(set.items) || !hasExactKeys(set.counts, ['listed', 'remaining', 'total']) ||
+        !['listed', 'remaining', 'total'].every(field => Number.isInteger(set.counts?.[field]) && set.counts[field] >= 0) ||
+        !hasExactKeys(set.reconciliation, ['status', 'requiredHidden', 'countConserved']) ||
+        set.reconciliation?.status !== 'verified' || set.reconciliation?.countConserved !== true ||
+        (set.reconciliation?.requiredHidden || []).length !== 0 ||
+        set.counts?.listed !== set.items?.length || set.counts?.listed + set.counts?.remaining !== set.counts?.total ||
+        set.setId !== `user-facing-artifacts-${digest(setCore)}`) {
+      errors.push('userFacingArtifactSet-invalid')
+    }
+    if (hasManifest && set.counts?.total !== envelope.artifactManifest?.entryCount) {
+      errors.push('artifactManifest-visible-set-count-mismatch')
+    }
+  }
+  const expectedLinks = (envelope?.userFacingArtifactSet?.items || []).map(item => ({
+    artifactId: item.artifactId,
+    displayName: item.displayName,
+    canonicalPath: item.canonicalPath,
+    capabilityDecisionId: envelope?.linkCapability?.decisionId || null
+  }))
+  if (JSON.stringify(envelope?.artifactLinks || []) !== JSON.stringify(expectedLinks)) {
+    errors.push('artifactLinks-derived-value-mismatch')
+  }
+  if (expectedLinks.length > 0 && !envelope?.linkCapability) errors.push('linkCapability-required-for-visible-items')
+  if (!hasVisibleSet && envelope?.linkCapability) errors.push('linkCapability-without-visible-set')
+  if (envelope?.linkCapability) errors.push(...linkCapabilityIntegrityErrors(envelope.linkCapability))
+  if (envelope?.linkCapability && text(envelope?.context?.hostSurface) &&
+      envelope.linkCapability.surface !== envelope.context.hostSurface) errors.push('linkCapability-surface-mismatch')
+  if (envelope?.linkCapability && envelope?.context?.hostSurface === null &&
+      envelope.linkCapability.evidenceState === 'verified') errors.push('linkCapability-verified-with-unknown-surface')
+  const presentation = envelope?.presentation
+  if (!hasExactKeys(presentation, ['requestedTier', 'effectiveTier', 'degradationReason']) ||
+      !PRESENTATION_TIERS.has(presentation.requestedTier) || !PRESENTATION_TIERS.has(presentation.effectiveTier) ||
+      !(presentation.degradationReason === null || text(presentation.degradationReason))) {
+    errors.push('presentation-invalid')
+  }
+  if (!hasExactKeys(envelope?.validation, ['valid', 'errors']) || envelope?.validation?.valid !== true ||
+      !Array.isArray(envelope?.validation?.errors) || envelope.validation.errors.length) {
+    errors.push('envelope-invalid')
+  }
+  return errors
+}
+
+function normalizeCompatibleVisibleEnvelope(envelope) {
+  if (envelope?.schemaVersion === 'DevCodexVisibleEnvelopeV2') {
+    const postCompletionActions = createPostCompletionActionSet(envelope.postCompletionActions || {})
+    const errors = validateSerializedEnvelopeBase(envelope, VISIBLE_ENVELOPE_V2_KEYS)
+    if (!hasExactKeys(envelope.postCompletionActions, [
+      'schemaVersion', 'requiredNow', 'primaryAction', 'conditionalActions', 'validation'
+    ]) || envelope.postCompletionActions?.schemaVersion !== 'PostCompletionActionSetV1' ||
+      !hasExactKeys(envelope.postCompletionActions?.validation, ['valid', 'errors']) ||
+      envelope.postCompletionActions?.validation?.valid !== true ||
+      (envelope.postCompletionActions?.validation?.errors || []).length !== 0) {
+      errors.push('postCompletionActions-serialized-shape-invalid')
+    }
+    errors.push(...postCompletionActions.validation.errors.map(error => `postCompletionActions.${error}`))
+    if (['completion-check', 'final-result'].includes(envelope.messageKind) && postCompletionActions.requiredNow.length > 0) {
+      errors.push('completion-claim-requiredNow-must-be-empty')
+    }
+    const semanticCore = {
+      schemaVersion: 'DevCodexVisibleEnvelopeV2',
+      messageKind: envelope.messageKind,
+      status: envelope.status,
+      context: envelope.context,
+      checks: (envelope.checks || []).map(({ summary, ...check }) => check),
+      decision: envelope.decision,
+      artifactManifest: envelope.artifactManifest,
+      userFacingArtifactSet: serializedVisibleSet(envelope.userFacingArtifactSet),
+      linkCapability: semanticLinkCapability(envelope.linkCapability),
+      postCompletionActions: {
+        schemaVersion: postCompletionActions.schemaVersion,
+        requiredNow: postCompletionActions.requiredNow,
+        primaryAction: postCompletionActions.primaryAction,
+        conditionalActions: postCompletionActions.conditionalActions
+      }
+    }
+    if (digest(semanticCore) !== envelope.semanticDigest) errors.push('semanticDigest-mismatch')
+    return {
+      schemaVersion: 'CompatibleVisibleEnvelopeViewV1',
+      sourceSchemaVersion: 'DevCodexVisibleEnvelopeV2',
+      migrationStatus: 'current-v2',
+      envelope,
+      postCompletionActions,
+      validation: { valid: errors.length === 0, errors: [...new Set(errors)] }
+    }
+  }
+  if (envelope?.schemaVersion === 'DevCodexVisibleEnvelopeV1') {
+    const errors = validateSerializedEnvelopeBase(envelope, VISIBLE_ENVELOPE_V1_KEYS)
+    if (!(envelope.recommendedAction === null || text(envelope.recommendedAction))) {
+      errors.push('recommendedAction-invalid')
+    }
+    const semanticCore = {
+      schemaVersion: 'DevCodexVisibleEnvelopeV1',
+      messageKind: envelope.messageKind,
+      status: envelope.status,
+      context: envelope.context,
+      checks: (envelope.checks || []).map(({ summary, ...check }) => check),
+      decision: envelope.decision,
+      artifactManifest: envelope.artifactManifest,
+      userFacingArtifactSet: serializedVisibleSet(envelope.userFacingArtifactSet),
+      requiredAction: envelope.recommendedAction || null
+    }
+    if (digest(semanticCore) !== envelope.semanticDigest) errors.push('semanticDigest-mismatch')
+    const legacyAction = text(envelope.recommendedAction) ? {
+      kind: 'legacy',
+      label: envelope.recommendedAction,
+      reason: '来自 V1 recommendedAction；未推断动作类型、适用性或执行授权',
+      evidenceRefs: [],
+      applicability: 'unverified',
+      authorization: 'suggest-only'
+    } : null
+    return {
+      schemaVersion: 'CompatibleVisibleEnvelopeViewV1',
+      sourceSchemaVersion: 'DevCodexVisibleEnvelopeV1',
+      migrationStatus: 'legacy-v1-read-only',
+      envelope,
+      postCompletionActions: {
+        schemaVersion: 'PostCompletionActionSetCompatibilityViewV1',
+        requiredNow: [],
+        primaryAction: legacyAction,
+        conditionalActions: [],
+        validation: { valid: true, errors: [] }
+      },
+      validation: { valid: errors.length === 0, errors: [...new Set(errors)] }
+    }
+  }
+  const compatibilityErrors = Array.isArray(envelope?.validation?.errors) && envelope.validation.errors.length
+    ? envelope.validation.errors
+    : ['envelope-invalid']
+  return {
+    schemaVersion: 'CompatibleVisibleEnvelopeViewV1',
+    sourceSchemaVersion: envelope?.schemaVersion || 'unknown',
+    migrationStatus: 'invalid',
+    envelope: invalidEnvelope(compatibilityErrors),
+    postCompletionActions: null,
+    validation: { valid: false, errors: compatibilityErrors }
   }
 }
 
@@ -863,7 +1320,7 @@ function analyzeDialogueNarrativeSample(sample, options = {}) {
   const forceClaimed = options.forceClaimed === true
   const claimedCloseout =
     forceClaimed ||
-    /DevCodexVisibleEnvelopeV1\s*·\s*(?:completion-check|final-result)/i.test(textSample) ||
+    /DevCodexVisibleEnvelopeV(?:1|2)\s*·\s*(?:completion-check|final-result)/i.test(textSample) ||
     /###\s*DevCodex\s*·\s*(?:完成检查|执行结果)/i.test(textSample) ||
     /🛡️\s*DEV\s*模式\s*\|\s*合规检查/i.test(textSample) ||
     /(?:完成检查|completion-check|CompletionEvidenceGate|final-result)/i.test(textSample) ||
@@ -919,7 +1376,7 @@ function analyzeFinalValidationSummarySample(sample, options = {}) {
   // NoisePolicy: short FVS alone is a valid completion scaffold (no full FC table required).
   const claimedCompletion =
     /FinalValidationSummaryV1|###\s*FinalValidationSummary/i.test(textSample) ||
-    /DevCodexVisibleEnvelopeV1\s*·\s*completion-check/i.test(textSample) ||
+    /DevCodexVisibleEnvelopeV(?:1|2)\s*·\s*completion-check/i.test(textSample) ||
     /###\s*DevCodex\s*·\s*完成检查/i.test(textSample) ||
     /🛡️\s*DEV\s*模式\s*\|\s*合规检查/i.test(textSample) ||
     /####\s*验证摘要|权威验证命令与\s*exitCode/i.test(textSample)
@@ -1018,8 +1475,13 @@ function classifyFinalValidationSummarySample(sample, options = {}) {
 }
 
 function renderVisibleEnvelope(envelope, { tier = null, compact = false } = {}) {
-  const validContract = envelope?.validation?.valid === true
-  if (!validContract) envelope = invalidEnvelope(envelope?.validation?.errors || ['envelope-invalid'])
+  const compatible = normalizeCompatibleVisibleEnvelope(envelope)
+  const validContract = compatible.validation.valid
+  envelope = compatible.envelope
+  if (!validContract) envelope = invalidEnvelope(compatible.validation.errors)
+  const postCompletionActions = validContract
+    ? compatible.postCompletionActions
+    : envelope.postCompletionActions
   const effectiveTier = validContract ? (tier || envelope.presentation?.effectiveTier || 'portable-markdown') : 'portable-markdown'
   if (!PRESENTATION_TIERS.has(effectiveTier)) throw new Error(`unsupported presentation tier: ${effectiveTier}`)
   const kindLabel = {
@@ -1027,14 +1489,16 @@ function renderVisibleEnvelope(envelope, { tier = null, compact = false } = {}) 
     progress: '进度', 'final-result': '执行结果', 'error-block': '阻断'
   }[envelope.messageKind]
   const project = envelope.context?.project || 'unverified-project'
-  const marker = `DevCodexVisibleEnvelopeV1 · ${envelope.messageKind} · ${envelope.status} · ${envelope.semanticDigest}`
+  const marker = `${envelope.schemaVersion} · ${envelope.messageKind} · ${envelope.status} · ${envelope.semanticDigest}`
+  const primaryLabel = postCompletionActions?.primaryAction?.label || null
   const compactAllowed = validContract && ['entry-check', 'progress'].includes(envelope.messageKind) &&
     envelope.checks.every(check => ['PASS', 'N/A'].includes(check.status))
   if (compact && compactAllowed) {
     const ids = envelope.checks.map(check => `${check.id}=${check.status}`).join(' · ')
+    const compactAction = primaryLabel ? `\n下一步：${primaryLabel}` : ''
     return effectiveTier === 'plain-text'
-      ? `${marker}\n${project} | ${ids}\n状态未变化；${envelope.recommendedAction || '继续当前动作'}`
-      : `### DevCodex · ${kindLabel}\n\`${envelope.status}\` · \`${project}\` · 状态未变化\n\n${ids}\n\n${envelope.recommendedAction || '继续当前动作'}\n\n\`${marker}\``
+      ? `${marker}\n${project} | ${ids}\n状态未变化${compactAction}`
+      : `### DevCodex · ${kindLabel}\n\`${envelope.status}\` · \`${project}\` · 状态未变化\n\n${ids}${compactAction ? `\n${compactAction}` : ''}\n\n\`${marker}\``
   }
   const checkLines = envelope.checks.map(check => {
     const action = check.requiredAction ? `；动作：${check.requiredAction}` : ''
@@ -1042,7 +1506,7 @@ function renderVisibleEnvelope(envelope, { tier = null, compact = false } = {}) 
   })
   const decisionLines = envelope.decision ? [
     '', `确认：${envelope.decision.question || envelope.decision.fallbackText || ''}`,
-    `建议：${envelope.decision.recommendedOption || envelope.recommendedAction || 'N/A'}`
+    `建议：${envelope.decision.recommendedOption || primaryLabel || 'N/A'}`
   ] : []
   const artifactSet = envelope.userFacingArtifactSet
   const artifactLines = artifactSet ? [
@@ -1050,7 +1514,17 @@ function renderVisibleEnvelope(envelope, { tier = null, compact = false } = {}) 
     ...artifactSet.items.map(item => renderArtifactItem(item, envelope.linkCapability, effectiveTier)),
     `已列 ${artifactSet.counts.listed} / 总计 ${artifactSet.counts.total}；默认隐藏 ${artifactSet.counts.remaining}`
   ] : []
-  const actionLines = envelope.recommendedAction ? ['', `下一步：${envelope.recommendedAction}`] : []
+  const actionLines = []
+  for (const action of postCompletionActions?.requiredNow || []) {
+    actionLines.push('', `当前必须完成：${action.label}（${action.reason}）`)
+  }
+  if (postCompletionActions?.primaryAction) {
+    const legacy = compatible.migrationStatus === 'legacy-v1-read-only' ? '（V1 兼容读取，适用性与授权未验证）' : ''
+    actionLines.push('', `下一步${legacy}：${postCompletionActions.primaryAction.label}（${postCompletionActions.primaryAction.reason}）`)
+  }
+  for (const action of postCompletionActions?.conditionalActions || []) {
+    actionLines.push(`条件动作：${action.label}（${action.reason}）`)
+  }
   if (effectiveTier === 'plain-text') {
     return [marker, `DevCodex ${kindLabel} | ${envelope.status} | ${project}`, ...checkLines,
       ...decisionLines, ...artifactLines, ...actionLines].join('\n')
@@ -1082,7 +1556,10 @@ module.exports = {
   createArtifactDeliveryManifest,
   createLinkCapabilityDecision,
   validateLinkCapabilityDecision,
+  createPostCompletionActionSet,
+  createLegacyVisibleEnvelopeV1,
   createVisibleEnvelope,
+  normalizeCompatibleVisibleEnvelope,
   analyzeFinalValidationSummarySample,
   analyzeDialogueNarrativeSample,
   buildSimpleGovernanceFastPathDecision,

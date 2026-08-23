@@ -20,7 +20,7 @@ const {
 } = require('./lib/package-compatibility-projection')
 
 const ROOT = path.resolve(__dirname, '..')
-const EXPECTED_ENTRY_COUNT = 251
+const EXPECTED_ENTRY_COUNT = 256
 
 function git (root, args) {
   return execFileSync('git', ['-C', root, ...args], {

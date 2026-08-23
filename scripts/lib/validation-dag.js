@@ -1469,16 +1469,26 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     const delegatedNodeIds = executionNodes
       .filter(item => item.id !== node.id && declaredDelegates.has(item.id))
       .map(item => item.id)
+    const activeRootEnvironment = activeRoot
+      ? { DEVCODEX_VALIDATION_ACTIVE_ROOT: path.resolve(activeRoot) }
+      : {}
+    const baseExecutionNode = {
+      ...node,
+      environment: {
+        ...(node.environment || {}),
+        ...activeRootEnvironment
+      }
+    }
     const executionNode = Array.isArray(node.delegatedClosure) && node.delegatedClosure.length > 0
       ? {
-          ...node,
+          ...baseExecutionNode,
           environment: {
-            ...(node.environment || {}),
+            ...baseExecutionNode.environment,
             DEVCODEX_VALIDATION_ORCHESTRATED: '1',
             DEVCODEX_VALIDATION_DELEGATED_NODES: delegatedNodeIds.join(',')
           }
         }
-      : node
+      : baseExecutionNode
     const nodeContractDigest = sha256(Buffer.from(stableStringify(executionNode), 'utf8'))
     const dependencyReceiptDigests = node.dependencies.map(dependency => {
       const prior = results.find(result => result.nodeId === dependency)

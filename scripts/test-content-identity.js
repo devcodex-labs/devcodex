@@ -71,7 +71,7 @@ try {
   assert.strictEqual(boundedReceipt.errorCode, 'DERIVED_STATE_CAPACITY_EXCEEDED')
 
   assert.throws(() => resolveInside(root, '../escape.json'), error => error instanceof DerivedStateStoreError && error.code === 'DERIVED_STATE_PATH_ESCAPE')
-  const tempResidue = fs.readdirSync(path.join(root, '.runtime-state')).filter(file => file.includes('.tmp-'))
+  const tempResidue = fs.readdirSync(path.join(root, '.runtime-state')).filter(file => file.endsWith('.tmp'))
   assert.deepStrictEqual(tempResidue, [])
   process.stdout.write('content identity and derived-state store tests passed\n')
 } finally {

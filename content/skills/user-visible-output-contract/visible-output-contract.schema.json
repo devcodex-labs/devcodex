@@ -10,7 +10,9 @@
     { "$ref": "#/$defs/UserFacingArtifactSetV1" },
     { "$ref": "#/$defs/LinkCapabilityDecisionV1" },
     { "$ref": "#/$defs/FinalValidationSummaryV1" },
-    { "$ref": "#/$defs/DevCodexVisibleEnvelopeV1" }
+    { "$ref": "#/$defs/PostCompletionActionSetV1" },
+    { "$ref": "#/$defs/DevCodexVisibleEnvelopeV1" },
+    { "$ref": "#/$defs/DevCodexVisibleEnvelopeV2" }
   ],
   "$defs": {
     "status": {
@@ -280,6 +282,43 @@
         "validation": { "$ref": "#/$defs/validation" }
       }
     },
+    "postCompletionAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "label", "reason", "evidenceRefs", "applicability", "authorization"],
+      "properties": {
+        "kind": { "enum": ["api-docs", "http-verification", "commit", "switch-target", "cherry-pick", "push", "other"] },
+        "label": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 },
+        "evidenceRefs": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "applicability": { "enum": ["required-now", "applicable", "conditional"] },
+        "authorization": { "enum": ["not-required", "suggest-only", "explicit-required"] }
+      }
+    },
+    "PostCompletionActionSetV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "requiredNow", "primaryAction", "conditionalActions", "validation"],
+      "properties": {
+        "schemaVersion": { "const": "PostCompletionActionSetV1" },
+        "requiredNow": {
+          "type": "array",
+          "items": { "allOf": [{ "$ref": "#/$defs/postCompletionAction" }, { "properties": { "applicability": { "const": "required-now" } } }] }
+        },
+        "primaryAction": {
+          "oneOf": [
+            { "allOf": [{ "$ref": "#/$defs/postCompletionAction" }, { "properties": { "applicability": { "const": "applicable" } } }] },
+            { "type": "null" }
+          ]
+        },
+        "conditionalActions": {
+          "type": "array",
+          "maxItems": 2,
+          "items": { "allOf": [{ "$ref": "#/$defs/postCompletionAction" }, { "properties": { "applicability": { "const": "conditional" } } }] }
+        },
+        "validation": { "$ref": "#/$defs/validation" }
+      }
+    },
     "DevCodexVisibleEnvelopeV1": {
       "type": "object",
       "additionalProperties": false,
@@ -296,6 +335,31 @@
         "checks": { "type": "array", "items": { "$ref": "#/$defs/visibleCheck" } },
         "decision": { "type": ["object", "null"] },
         "recommendedAction": { "type": ["string", "null"] },
+        "artifactManifest": { "type": ["object", "null"] },
+        "userFacingArtifactSet": { "oneOf": [{ "$ref": "#/$defs/UserFacingArtifactSetV1" }, { "type": "null" }] },
+        "artifactLinks": { "type": "array", "items": { "type": "object" } },
+        "linkCapability": { "oneOf": [{ "$ref": "#/$defs/LinkCapabilityDecisionV1" }, { "type": "null" }] },
+        "presentation": { "type": "object" },
+        "semanticDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "validation": { "$ref": "#/$defs/validation" }
+      }
+    },
+    "DevCodexVisibleEnvelopeV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "messageKind", "status", "context", "checks", "decision", "postCompletionActions",
+        "artifactManifest", "userFacingArtifactSet", "artifactLinks", "linkCapability", "presentation",
+        "semanticDigest", "validation"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "DevCodexVisibleEnvelopeV2" },
+        "messageKind": { "enum": ["entry-check", "completion-check", "confirmation", "progress", "final-result", "error-block"] },
+        "status": { "$ref": "#/$defs/status" },
+        "context": { "type": ["object", "null"] },
+        "checks": { "type": "array", "items": { "$ref": "#/$defs/visibleCheck" } },
+        "decision": { "type": ["object", "null"] },
+        "postCompletionActions": { "$ref": "#/$defs/PostCompletionActionSetV1" },
         "artifactManifest": { "type": ["object", "null"] },
         "userFacingArtifactSet": { "oneOf": [{ "$ref": "#/$defs/UserFacingArtifactSetV1" }, { "type": "null" }] },
         "artifactLinks": { "type": "array", "items": { "type": "object" } },

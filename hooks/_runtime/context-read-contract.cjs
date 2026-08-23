@@ -1483,6 +1483,7 @@ function outcomePayload(raw, path = 'root', depth = 0) {
 function normalizeContextToolOutcome(raw = {}) {
   const extracted = outcomePayload(raw)
   const source = raw && typeof raw === 'object' ? raw : {}
+  const producerIdentity = extractRuntimeProducerIdentity(raw)
   const semantic = parseExactJson(extracted.payload) ||
     (extracted.payload && typeof extracted.payload === 'object' && !Array.isArray(extracted.payload)
       ? extracted.payload
@@ -1519,6 +1520,7 @@ function normalizeContextToolOutcome(raw = {}) {
     stateChanged: typeof semantic.stateChanged === 'boolean'
       ? semantic.stateChanged
       : (typeof source.stateChanged === 'boolean' ? source.stateChanged : null),
+    producerIdentity,
     error: failed
       ? String(
           semantic.errorCode || source.errorCode || semantic.error?.message || semantic.error ||

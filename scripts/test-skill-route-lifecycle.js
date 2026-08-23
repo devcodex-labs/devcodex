@@ -15,14 +15,55 @@ const {
   shouldEnforceProgressiveSkillRouteStop
 } = require('../hooks/_runtime/skill-route-tool.cjs')
 const {
+  buildRouteStateFingerprint,
   reconcileProgressiveSkillRoute
 } = require('../hooks/_runtime/lifecycle-skill-route-coordinator.cjs')
 const {
+  loadPolicy,
+  resolveProgressiveSkillRouteEnforcement,
+  validatePolicy
+} = require('../hooks/_runtime/progressive-skill-route-enforcement.cjs')
+const {
+  compareRuntimeProcessIdentity
+} = require('../hooks/_runtime/runtime-generation-identity.cjs')
+const {
   normalizeCursorPayload
 } = require('../hooks/_runtime/lifecycle-cursor-compatible.cjs')
+const {
+  readTaskRecoveryState
+} = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const { resolveRuntimeStateRoot } = require('../hooks/_runtime/workspace-layout.cjs')
 
 const RUNTIME = path.resolve(__dirname, '..', 'hooks', '_runtime', 'lifecycle.cjs')
+
+function stableValue (value) {
+  if (Array.isArray(value)) return value.map(stableValue)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(Object.keys(value).sort().map(key => [key, stableValue(value[key])]))
+}
+
+function runtimeIdentity (generationId, runtimeContractVersion = 2, bootDigest = 'a'.repeat(64)) {
+  const material = {
+    schemaVersion: 'RuntimeProcessIdentityV2',
+    role: 'fixture',
+    processId: 123,
+    nodeVersion: process.version,
+    generationId,
+    packageVersion: '1.17.11',
+    runtimeContractVersion,
+    bootRuntimeContractDigest: bootDigest,
+    generationRuntimeContractDigest: bootDigest,
+    runtimeContractAligned: true,
+    generationSourceDigest: 'b'.repeat(64),
+    manifestStatus: 'resolved'
+  }
+  return {
+    ...material,
+    identityDigest: crypto.createHash('sha256')
+      .update(JSON.stringify(stableValue(material)))
+      .digest('hex')
+  }
+}
 
 function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoot) {
   const result = spawnSync(process.execPath, [RUNTIME], {
@@ -46,6 +87,81 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
     output: JSON.parse(result.stdout),
     text: result.stdout
   }
+}
+
+function readLifecycleState (fixture, sessionId, options = {}) {
+  const activeRoot = options.activeRoot || fixture.activeRoot
+  const project = options.project || fixture.project
+  const read = readTaskRecoveryState({
+    metaDir: path.join(activeRoot, '.memory', 'hooks', project),
+    sessionKey: sessionId,
+    expectedIdentity: { activeRoot, project }
+  })
+  assert(
+    ['fresh', 'ephemeral-stub'].includes(read.status),
+    `TaskRecoveryStoreV5 session state is unavailable: ${JSON.stringify(read)}`
+  )
+  return read.state
+}
+
+{
+  assert.strictEqual(
+    resolveProgressiveSkillRouteEnforcement({ hostVariant: 'codex', eventName: 'PreToolUse' }).hardEnforcement,
+    false
+  )
+  assert.strictEqual(
+    resolveProgressiveSkillRouteEnforcement({
+      hostVariant: 'codex-desktop/app-user-global-local-stdio',
+      eventName: 'Stop'
+    }).hardEnforcement,
+    false
+  )
+  assert.strictEqual(
+    resolveProgressiveSkillRouteEnforcement({ hostVariant: 'grok', eventName: 'Stop' }).hardEnforcement,
+    true
+  )
+  const policy = loadPolicy()
+  assert.throws(() => validatePolicy({ ...policy, unexpected: true }), /fields are invalid/)
+  const wrongEventPolicy = JSON.parse(JSON.stringify(policy))
+  wrongEventPolicy.overrides[0].eventName = 'pretooluse'
+  assert.throws(() => validatePolicy(wrongEventPolicy), /eventName is invalid/)
+  const bootstrapDisabledPolicy = JSON.parse(JSON.stringify(policy))
+  bootstrapDisabledPolicy.overrides[0].bootstrap = false
+  assert.throws(() => validatePolicy(bootstrapDisabledPolicy), /only disable Codex hard enforcement/)
+  const missingStopOverridePolicy = JSON.parse(JSON.stringify(policy))
+  missingStopOverridePolicy.overrides = missingStopOverridePolicy.overrides.filter(item => item.eventName !== 'Stop')
+  assert.throws(() => validatePolicy(missingStopOverridePolicy), /exactly Codex PreToolUse and Stop/)
+  const leakedHostOverridePolicy = JSON.parse(JSON.stringify(policy))
+  leakedHostOverridePolicy.overrides[1].hostFamily = 'grok'
+  assert.throws(() => validatePolicy(leakedHostOverridePolicy), /only disable Codex hard enforcement/)
+  const falseCapabilityClaimPolicy = JSON.parse(JSON.stringify(policy))
+  falseCapabilityClaimPolicy.overrides[0].capabilityClaim = 'PASS'
+  assert.throws(() => validatePolicy(falseCapabilityClaimPolicy), /claim ceiling/)
+  assert.strictEqual(
+    resolveProgressiveSkillRouteEnforcement({ hostVariant: 'codex', eventName: 'PostToolUse' }).observe,
+    true
+  )
+  const unavailablePolicyFs = {
+    readFileSync() {
+      const error = new Error('policy unavailable')
+      error.code = 'ENOENT'
+      throw error
+    }
+  }
+  const codexFallback = resolveProgressiveSkillRouteEnforcement(
+    { hostVariant: 'codex-cli/exec-user-global-local-stdio', eventName: 'Stop' },
+    { fs: unavailablePolicyFs }
+  )
+  assert.strictEqual(codexFallback.hardEnforcement, false)
+  assert.strictEqual(codexFallback.bootstrap, true)
+  assert.strictEqual(codexFallback.observe, true)
+  assert.strictEqual(codexFallback.source, 'fail-safe-policy-unavailable')
+  const grokFallback = resolveProgressiveSkillRouteEnforcement(
+    { hostVariant: 'grok-cli/native-user-global-plugin', eventName: 'Stop' },
+    { fs: unavailablePolicyFs }
+  )
+  assert.strictEqual(grokFallback.hardEnforcement, true)
+  assert.strictEqual(grokFallback.source, 'fail-safe-policy-unavailable')
 }
 
 {
@@ -261,7 +377,11 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
     trigger: 'Stop', sessionKey: 'session-coordinator', payload: { hook_run_id: 'hook-stop-3' }
   })
   assert.strictEqual(circuit.coordinator.circuitOpen, true)
-  assert.strictEqual(circuit.allowAction, false, 'circuit breaker must not fail open')
+  assert.strictEqual(circuit.required, false, 'the no-progress circuit must retire the stale route')
+  assert.strictEqual(circuit.allowAction, true, 'a retired route must not keep denying unrelated work')
+  assert.strictEqual(circuit.envelope.status, 'retired')
+  assert.strictEqual(circuit.envelope.completionDisposition, 'retired-no-progress')
+  assert.strictEqual(circuit.envelope.nextCall, null)
   let saturated = circuit
   for (let index = 4; index <= 100; index += 1) {
     saturated = reconcileProgressiveSkillRoute(state, pending, {
@@ -273,7 +393,8 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
   assert.strictEqual(saturated.coordinator.noProgressCount, 3, 'no-progress counter must saturate')
   assert.strictEqual(saturated.envelope.noProgressCount, 3)
   assert.strictEqual(saturated.noticeSuppressed, true, 'saturated identical Stop must suppress repeated envelope injection')
-  assert.match(saturated.message, /actionable field/)
+  assert.strictEqual(saturated.required, false)
+  assert.match(saturated.message, /terminal state already reconciled/)
 
   const progressed = reconcileProgressiveSkillRoute(state, {
     ...pending,
@@ -310,6 +431,152 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
   assert.strictEqual(impossible.envelope.status, 'retired')
   assert.strictEqual(impossible.envelope.retirementReason, 'TURN_ENVELOPE_READBACK_FAILED')
   assert.strictEqual(impossible.envelope.recovery.action, 'retire-and-rebootstrap-next-user-prompt')
+
+  const corruptFingerprint = buildRouteStateFingerprint(pending, {
+    sessionKey: 'session-corrupt-terminal'
+  })
+  const corruptTerminalState = {
+    progressiveSkillRouteCoordinator: {
+      stateFingerprint: corruptFingerprint,
+      terminalFingerprint: corruptFingerprint,
+      terminalDisposition: '',
+      terminalReasonCode: 'NO_PROGRESS_LIMIT_REACHED',
+      terminalEvidenceDigest: 'f'.repeat(64)
+    }
+  }
+  const corruptTerminal = reconcileProgressiveSkillRoute(corruptTerminalState, pending, {
+    trigger: 'PreToolUse',
+    sessionKey: 'session-corrupt-terminal',
+    payload: {
+      hook_run_id: 'hook-corrupt-terminal',
+      tool_name: 'exec_command',
+      tool_input: { cmd: 'git status' }
+    }
+  })
+  assert.strictEqual(corruptTerminal.required, true)
+  assert.strictEqual(corruptTerminal.allowAction, false)
+  assert.notStrictEqual(corruptTerminal.coordinator.lastAction, 'terminal-replay-suppressed')
+
+  const corruptCounter = reconcileProgressiveSkillRoute({
+    progressiveSkillRouteCoordinator: {
+      noProgressCount: 'Infinity',
+      progressCount: -1,
+      circuitOpen: true
+    }
+  }, pending, {
+    trigger: 'PreToolUse',
+    sessionKey: 'session-corrupt-counter',
+    payload: {
+      hook_run_id: 'hook-corrupt-counter',
+      tool_name: 'exec_command',
+      tool_input: { cmd: 'git status' }
+    }
+  })
+  assert.strictEqual(corruptCounter.required, true)
+  assert.strictEqual(corruptCounter.allowAction, false)
+  assert.strictEqual(corruptCounter.coordinator.noProgressCount, 0)
+  assert.strictEqual(corruptCounter.coordinator.progressCount, 0)
+  assert.strictEqual(corruptCounter.coordinator.circuitOpen, false)
+}
+
+{
+  const oldProducer = runtimeIdentity('generation-n-1', 1, 'c'.repeat(64))
+  const currentConsumer = runtimeIdentity('generation-n', 2, 'd'.repeat(64))
+  const comparison = compareRuntimeProcessIdentity(oldProducer, currentConsumer)
+  assert.strictEqual(comparison.status, 'generation-superseded')
+  assert.strictEqual(comparison.versionDelta, 1)
+
+  const route = {
+    present: true,
+    complete: false,
+    processComplete: false,
+    businessSatisfied: true,
+    turnBinding: 'turn-generation',
+    contextEpoch: 'ctx-generation',
+    planDigest: 'plan-generation',
+    pendingStageIds: ['closeout'],
+    errorCode: null,
+    nextOp: 'load_stage',
+    nextCall: {
+      op: 'load_stage',
+      project: 'sample',
+      turnBinding: 'turn-generation',
+      contextEpoch: 'ctx-generation',
+      generation: 1,
+      planDigest: 'plan-generation',
+      stageId: 'closeout'
+    }
+  }
+  const state = {}
+  reconcileProgressiveSkillRoute(state, route, {
+    trigger: 'PreToolUse',
+    sessionKey: 'session-generation',
+    payload: { hook_run_id: 'generation-pre', tool_name: 'skill_route', tool_input: route.nextCall },
+    consumerIdentity: currentConsumer
+  })
+  const superseded = reconcileProgressiveSkillRoute(state, route, {
+    trigger: 'PostToolUse',
+    sessionKey: 'session-generation',
+    payload: { hook_run_id: 'generation-post', tool_name: 'skill_route', tool_input: route.nextCall },
+    contextPost: {
+      attempt: { canonical: 'skill_route' },
+      outcome: {
+        success: true,
+        ok: true,
+        stateChanged: false,
+        resultDigest: 'old-result',
+        producerIdentity: oldProducer,
+        payload: { ok: true }
+      }
+    },
+    consumerIdentity: currentConsumer
+  })
+  assert.strictEqual(superseded.required, false)
+  assert.strictEqual(superseded.envelope.completionDisposition, 'generation-superseded')
+  assert.strictEqual(superseded.envelope.nextCall, null)
+  const replay = reconcileProgressiveSkillRoute(state, route, {
+    trigger: 'Stop',
+    sessionKey: 'session-generation',
+    payload: { hook_run_id: 'generation-stop' },
+    consumerIdentity: currentConsumer
+  })
+  assert.strictEqual(replay.required, false)
+  assert.strictEqual(replay.coordinator.lastAction, 'terminal-replay-suppressed')
+
+  const failureState = {}
+  const currentProducer = runtimeIdentity('generation-current', 2, 'e'.repeat(64))
+  reconcileProgressiveSkillRoute(failureState, route, {
+    trigger: 'PreToolUse',
+    sessionKey: 'session-terminal-failure',
+    payload: { hook_run_id: 'failure-pre', tool_name: 'skill_route', tool_input: route.nextCall },
+    consumerIdentity: currentProducer
+  })
+  const terminalFailure = reconcileProgressiveSkillRoute(failureState, route, {
+    trigger: 'PostToolUse',
+    sessionKey: 'session-terminal-failure',
+    payload: { hook_run_id: 'failure-post', tool_name: 'skill_route', tool_input: route.nextCall },
+    contextPost: {
+      attempt: { canonical: 'skill_route' },
+      outcome: {
+        success: false,
+        ok: false,
+        error: 'BUDGET_BLOCKED',
+        errorCode: 'BUDGET_BLOCKED',
+        stateChanged: false,
+        resultDigest: 'terminal-result',
+        producerIdentity: currentProducer,
+        payload: {
+          ok: false,
+          errorCode: 'BUDGET_BLOCKED',
+          details: { terminal: true, retrySameCall: false }
+        }
+      }
+    },
+    consumerIdentity: currentProducer
+  })
+  assert.strictEqual(terminalFailure.required, false)
+  assert.strictEqual(terminalFailure.envelope.completionDisposition, 'terminal-tool-failure')
+  assert.strictEqual(terminalFailure.envelope.errorCode, 'BUDGET_BLOCKED')
 }
 
 {
@@ -410,21 +677,10 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
       })
       assert.match(result.text, /SkillRouteBootstrapV1/)
       assert.doesNotMatch(result.text, /WorkspaceSkillIntent/)
-      const sessionDigest = crypto.createHash('sha256').update(sessionId).digest('hex')
-      const sessionFile = path.join(
-        fixture.root,
-        '.devcodex',
-        'workspace',
-        '.memory',
-        'hooks',
-        'workspace',
-        'sessions',
-        `${sessionDigest}.json`
-      )
-      const state = JSON.parse(fs.readFileSync(sessionFile, 'utf8'))
+      const state = readLifecycleState(fixture, sessionId)
       assert.strictEqual(state.progressiveSkillRoute.modeReceipt.effective, 'unified')
       assert.strictEqual(state.progressiveSkillRoute.modeReceipt.sourceDefault, 'unified')
-      assert.strictEqual(state.workspaceSkillAutoMatch, null)
+      assert.strictEqual(state.workspaceSkillAutoMatch ?? null, null)
       const turnBinding = state.progressiveSkillRoute.bootstrap.turnBinding
       assert(fs.existsSync(path.join(
         resolveRuntimeStateRoot(fixture.activeRoot, fixture.project).root,
@@ -439,17 +695,6 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
     const childSession = 'child-session'
     runLifecycle(fixture, { session_id: parentSession, prompt: 'Parent task' })
     runLifecycle(fixture, { session_id: childSession, prompt: '请使用 routing skill' })
-    const sessionFile = sessionId => path.join(
-      fixture.root,
-      '.devcodex',
-      'workspace',
-      '.memory',
-      'hooks',
-      'workspace',
-      'sessions',
-      `${crypto.createHash('sha256').update(sessionId).digest('hex')}.json`
-    )
-
     // Screenshot regression: Codex must route an ordinary chat prompt too.
     // `chat` is an intent classification, not permission to skip SkillRoute.
     const ordinaryCodexSession = 'ordinary-codex-chat-skill-route'
@@ -462,7 +707,7 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
       CODEX_INTERNAL_ORIGINATOR_OVERRIDE: ''
     })
     assert.match(ordinaryCodexPrompt.text, /SkillRouteBootstrapV1/)
-    const ordinaryCodexState = JSON.parse(fs.readFileSync(sessionFile(ordinaryCodexSession), 'utf8'))
+    const ordinaryCodexState = readLifecycleState(fixture, ordinaryCodexSession)
     assert.strictEqual(ordinaryCodexState.contextAcquisition.targetResolved, true)
     assert.strictEqual(
       ordinaryCodexState.progressiveSkillRoute.modeReceipt.hostVariant,
@@ -470,6 +715,23 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
     )
     assert.strictEqual(ordinaryCodexState.progressiveSkillRoute.bootstrap.explicitStatus, 'none')
     assert.strictEqual(ordinaryCodexState.progressiveSkillRoute.bootstrap.nextOp, 'catalog')
+    const ordinaryCodexTool = runLifecycle(fixture, {
+      hookEventName: 'PreToolUse',
+      hook_run_id: 'ordinary-codex-chat-tool',
+      session_id: ordinaryCodexSession,
+      tool_name: 'exec_command',
+      tool_input: { cmd: 'git status --short' }
+    }, {
+      DEVCODEX_HOST_PLATFORM: 'codex',
+      CODEX_THREAD_ID: ordinaryCodexSession,
+      CODEX_INTERNAL_ORIGINATOR_OVERRIDE: ''
+    })
+    assert.notStrictEqual(ordinaryCodexTool.output.devcodexCode, 'progressive-skill-route')
+    assert.notStrictEqual(
+      ordinaryCodexTool.output.hookSpecificOutput?.permissionDecision,
+      'deny',
+      'Codex PreToolUse must not deny an unrelated tool solely for progressive-skill-route'
+    )
     const ordinaryCodexStop = runLifecycle(fixture, {
       hookEventName: 'Stop',
       hook_run_id: 'ordinary-codex-chat-stop',
@@ -480,10 +742,26 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
       CODEX_THREAD_ID: ordinaryCodexSession,
       CODEX_INTERNAL_ORIGINATOR_OVERRIDE: ''
     })
-    assert.strictEqual(ordinaryCodexStop.output.devcodexCode, 'progressive-skill-route')
-    assert.strictEqual(ordinaryCodexStop.output.devcodexNextAction.errorCode, 'PLAN_NOT_COMMITTED')
-    assert.strictEqual(ordinaryCodexStop.output.devcodexNextAction.trigger, 'Stop')
-    assert.strictEqual(ordinaryCodexStop.output.devcodexNextAction.nextCall.op, 'catalog')
+    assert.notStrictEqual(ordinaryCodexStop.output.devcodexCode, 'progressive-skill-route')
+    assert.notStrictEqual(ordinaryCodexStop.output.decision, 'block')
+    const ordinaryCodexAfterStop = readLifecycleState(fixture, ordinaryCodexSession)
+    assert.strictEqual(
+      ordinaryCodexAfterStop.progressiveSkillRouteEnforcement.decisions.Stop.hardEnforcement,
+      false
+    )
+    const ordinaryCodexReentrantStop = runLifecycle(fixture, {
+      hookEventName: 'Stop',
+      hook_run_id: 'ordinary-codex-chat-stop-reentrant',
+      session_id: ordinaryCodexSession,
+      stop_hook_active: true,
+      last_assistant_message: 'Continuation generated by a prior Stop decision.'
+    }, {
+      DEVCODEX_HOST_PLATFORM: 'codex',
+      CODEX_THREAD_ID: ordinaryCodexSession,
+      CODEX_INTERNAL_ORIGINATOR_OVERRIDE: ''
+    })
+    assert.notStrictEqual(ordinaryCodexReentrantStop.output.devcodexCode, 'progressive-skill-route')
+    assert.notStrictEqual(ordinaryCodexReentrantStop.output.decision, 'block')
 
     const recoverySession = 'structured-recovery-card-session'
     runLifecycle(fixture, {
@@ -492,7 +770,7 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
     }, {
       DEVCODEX_HOST_PLATFORM: 'codex'
     })
-    const recoveryState = JSON.parse(fs.readFileSync(sessionFile(recoverySession), 'utf8'))
+    const recoveryState = readLifecycleState(fixture, recoverySession)
     const recoveryBootstrap = recoveryState.progressiveSkillRoute.bootstrap
     const recoveryContextBinding = writeContextBindingState(
       fixture,
@@ -532,18 +810,20 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
     }, {
       DEVCODEX_HOST_PLATFORM: 'codex'
     })
-    assert.strictEqual(recoveryStop.output.decision, 'block')
-    assert.strictEqual(recoveryStop.output.devcodexCode, 'progressive-skill-route')
-    assert.strictEqual(recoveryStop.output.devcodexNextAction.schemaVersion, 'NextActionEnvelopeV1')
-    assert(recoveryStop.output.devcodexNextAction.nextCall)
-    assert.match(recoveryStop.output.reason, /Next call \(exact\): /)
-    assert.ok(recoveryStop.output.reason.includes(
-      JSON.stringify(recoveryStop.output.devcodexNextAction.nextCall)
-    ))
-    assert.doesNotMatch(recoveryStop.output.reason, /NextActionEnvelopeV1:\s*\{/)
+    assert.notStrictEqual(recoveryStop.output.decision, 'block')
+    assert.notStrictEqual(recoveryStop.output.devcodexCode, 'progressive-skill-route')
+    const recoveryAfterStop = readLifecycleState(fixture, recoverySession)
+    assert(
+      recoveryAfterStop.progressiveSkillRouteEnforcement?.decisions?.Stop,
+      `Stop enforcement decision missing: ${JSON.stringify(recoveryAfterStop)}`
+    )
+    assert.strictEqual(
+      recoveryAfterStop.progressiveSkillRouteEnforcement.decisions.Stop.reasonCode,
+      'codex-progressive-stop-advisory'
+    )
 
-    const parentBefore = JSON.parse(fs.readFileSync(sessionFile(parentSession), 'utf8'))
-    const childBefore = JSON.parse(fs.readFileSync(sessionFile(childSession), 'utf8'))
+    const parentBefore = readLifecycleState(fixture, parentSession)
+    const childBefore = readLifecycleState(fixture, childSession)
     assert.notStrictEqual(
       parentBefore.contextAcquisition.contextEpoch,
       childBefore.contextAcquisition.contextEpoch
@@ -553,8 +833,8 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
       session_id: parentSession,
       lastAssistantMessage: 'Parent task result'
     })
-    const parentAfter = JSON.parse(fs.readFileSync(sessionFile(parentSession), 'utf8'))
-    const childAfter = JSON.parse(fs.readFileSync(sessionFile(childSession), 'utf8'))
+    const parentAfter = readLifecycleState(fixture, parentSession)
+    const childAfter = readLifecycleState(fixture, childSession)
     assert.strictEqual(
       parentAfter.contextAcquisition.contextEpoch,
       parentBefore.contextAcquisition.contextEpoch
@@ -570,7 +850,7 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
       session_id: languageSession,
       prompt: '请检查这个项目并保持中文'
     })
-    const languageBefore = JSON.parse(fs.readFileSync(sessionFile(languageSession), 'utf8'))
+    const languageBefore = readLifecycleState(fixture, languageSession)
     assert.strictEqual(languageBefore.languageContext.language, 'zh-CN')
     runLifecycle(fixture, {
       hookEventName: 'UserPromptSubmit',
@@ -578,7 +858,7 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
       prompt: 'Progressive Skill route stages remain pending: closeout.',
       devcodex_host_continuation: true
     })
-    const languageAfter = JSON.parse(fs.readFileSync(sessionFile(languageSession), 'utf8'))
+    const languageAfter = readLifecycleState(fixture, languageSession)
     assert.deepStrictEqual(
       languageAfter.languageContext,
       languageBefore.languageContext,
@@ -602,8 +882,11 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
     const projectBSession = 'session-first-project-b'
     runLifecycle(fixture, { session_id: projectASession, prompt: 'Project A task' })
     runLifecycle(fixture, { session_id: projectBSession, prompt: 'Project B task' }, {}, otherProjectRoot)
-    const projectABefore = JSON.parse(fs.readFileSync(sessionFile(projectASession), 'utf8'))
-    const projectBBefore = JSON.parse(fs.readFileSync(sessionFile(projectBSession), 'utf8'))
+    const projectABefore = readLifecycleState(fixture, projectASession)
+    const projectBBefore = readLifecycleState(fixture, projectBSession, {
+      activeRoot: otherActiveRoot,
+      project: otherProject
+    })
     assert.strictEqual(projectABefore.activeProject, fixture.project)
     assert.strictEqual(projectBBefore.activeProject, otherProject)
     runLifecycle(fixture, {
@@ -611,7 +894,7 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
       session_id: projectASession,
       lastAssistantMessage: 'Project A result'
     })
-    const projectAAfterMetaSwitch = JSON.parse(fs.readFileSync(sessionFile(projectASession), 'utf8'))
+    const projectAAfterMetaSwitch = readLifecycleState(fixture, projectASession)
     assert.strictEqual(projectAAfterMetaSwitch.activeProject, fixture.project)
     assert.strictEqual(
       projectAAfterMetaSwitch.contextAcquisition.contextEpoch,
@@ -755,7 +1038,7 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
       session_id: staleSession,
       prompt: 'Summarize the current implementation status'
     })
-    const staleBeforeCommit = JSON.parse(fs.readFileSync(sessionFile(staleSession), 'utf8'))
+    const staleBeforeCommit = readLifecycleState(fixture, staleSession)
     const staleBootstrap = staleBeforeCommit.progressiveSkillRoute.bootstrap
     const staleContextBinding = writeContextBindingState(
       fixture,
@@ -819,7 +1102,7 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
     assert.doesNotMatch(staleStop.text, /NextActionEnvelopeV1/)
     assert.notStrictEqual(staleStop.output.decision, 'block')
     assert.notStrictEqual(staleStop.output.continue, false)
-    const staleState = JSON.parse(fs.readFileSync(sessionFile(staleSession), 'utf8'))
+    const staleState = readLifecycleState(fixture, staleSession)
     assert.strictEqual(
       staleState.progressiveSkillRouteStop.errorCode,
       'RUNTIME_CONTRACT_STALE'
@@ -844,7 +1127,7 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
     }, {
       DEVCODEX_GLOBAL_SKILLS_RUNTIME: alternateSkillsRoot
     })
-    const refreshedState = JSON.parse(fs.readFileSync(sessionFile(staleSession), 'utf8'))
+    const refreshedState = readLifecycleState(fixture, staleSession)
     assert.notStrictEqual(refreshedState.contextAcquisition.contextEpoch, staleContextEpoch)
     assert.notStrictEqual(
       refreshedState.progressiveSkillRoute.bootstrap.turnBinding,

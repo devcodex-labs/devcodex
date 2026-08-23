@@ -263,9 +263,9 @@ function createDerivedStateStore({
     if (!recoveryReason) return null
     const confirmed = readLockObservation()
     if (!sameLockObservation(observation, confirmed) || lockRecoveryReason(confirmed) !== recoveryReason) return null
-    const ownerToken = confirmed.record?.ownerToken || `malformed-${confirmed.identity.contentDigest.slice(0, 12)}`
-    const quarantinePath = `${lockPath}.quarantine-${ownerToken}-${randomUUID()}`
+    const quarantinePath = `${lockPath}.quarantine`
     try {
+      if (fsImpl.existsSync(quarantinePath)) fsImpl.unlinkSync(quarantinePath)
       fsImpl.renameSync(lockPath, quarantinePath)
       return { quarantinePath, recoveryReason }
     } catch (error) {
@@ -356,8 +356,9 @@ function createDerivedStateStore({
     }
 
     writes += 1
-    const tempPath = `${filePath}.tmp-${pid}-${randomUUID()}`
+    const tempPath = `${filePath}.next.tmp`
     try {
+      if (fsImpl.existsSync(tempPath)) fsImpl.unlinkSync(tempPath)
       const descriptor = fsImpl.openSync(tempPath, 'wx')
       try {
         fsImpl.writeFileSync(descriptor, serialized, 'utf8')

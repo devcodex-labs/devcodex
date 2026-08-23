@@ -107,7 +107,7 @@ const clientContractProbes = [
   ['skills/audit-common/SKILL.md', 'UserFacingArtifactSetV1'],
   ['prompts/implementation-plan.prompt.md', 'VisibleOutputContract'],
   ['prompts/implementation-progress.prompt.md', 'mcpFallback'],
-  ['prompts/report-dev.prompt.md', 'DevCodexVisibleEnvelopeV1.semanticDigest'],
+  ['prompts/report-dev.prompt.md', 'DevCodexVisibleEnvelopeV2.semanticDigest'],
   ['prompts/report-fix.prompt.md', 'mcpFallback'],
   ['README.md', '用户可见交付与链接兼容'],
   ['README.md', 'profile_load'],
@@ -122,13 +122,13 @@ const forcedCanonicalFallback = createCanonicalAwareReader(ROOT, file => {
   error.code = 'ENOENT'
   throw error
 })
-if (!forcedCanonicalFallback(path.join(ROOT, 'prompts', 'report-dev.prompt.md')).includes('DevCodexVisibleEnvelopeV1')) {
+if (!forcedCanonicalFallback(path.join(ROOT, 'prompts', 'report-dev.prompt.md')).includes('DevCodexVisibleEnvelopeV2')) {
   failures.push('canonical-aware reader did not resolve rendered content delivery')
 }
 
 // website/ is optional on public clones (maintainer-only docs site).
 if (fs.existsSync(path.join(ROOT, 'website', 'docs', 'guide', 'development.md'))) {
-  mustInclude('website/docs/guide/development.md', 'DevCodexVisibleEnvelopeV1')
+  mustInclude('website/docs/guide/development.md', 'DevCodexVisibleEnvelopeV2')
   mustInclude('website/docs/guide/development.md', 'mcpFallback=used')
 }
 

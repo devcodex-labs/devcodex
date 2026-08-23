@@ -71,14 +71,14 @@ function askingCp2Confirm (text) {
 }
 
 function hasEntryCheck (text) {
-  return /###\s*DevCodex\s*·\s*入口检查|PC0\s*[|：:]|PC0~PC7|入口检查块|DevCodexVisibleEnvelopeV1\s*·\s*entry-check/i.test(text || '')
+  return /###\s*DevCodex\s*·\s*入口检查|PC0\s*[|：:]|PC0~PC7|入口检查块|DevCodexVisibleEnvelopeV(?:1|2)\s*·\s*entry-check/i.test(text || '')
 }
 
 /** F-14/F-16: completion-check OR short FinalValidationSummary scaffold */
 function hasCompletionCheck (text) {
   return (
     /###\s*DevCodex\s*·\s*完成检查/i.test(text || '') ||
-    /DevCodexVisibleEnvelopeV1\s*·\s*completion-check/i.test(text || '') ||
+    /DevCodexVisibleEnvelopeV(?:1|2)\s*·\s*completion-check/i.test(text || '') ||
     /🛡️\s*DEV\s*模式\s*\|\s*合规检查/i.test(text || '') ||
     /###\s*FinalValidationSummaryV1/i.test(text || '')
   )
@@ -243,6 +243,20 @@ function evaluateStopCompletionGate (input = {}) {
     uninterceptable: []
   }
 
+  // A Stop continuation is already the result of a prior Stop decision. It may
+  // be observed, but blocking it again would recursively create another
+  // continuation. One initial Stop decision is the only enforcement boundary.
+  if (stopHookActive) {
+    honesty.stopDecision = 'allow'
+    honesty.processGaps.push('stop-reentrant-observation-only')
+    return {
+      decision: 'allow',
+      gaps: [],
+      reason: '',
+      honesty
+    }
+  }
+
   const wf = String(workflow || '').toLowerCase()
   const modeL = String(mode || '').toLowerCase()
   if ((wf === 'chat' || modeL === 'chat') && !mutated) {
@@ -256,17 +270,6 @@ function evaluateStopCompletionGate (input = {}) {
       decision: 'unverified',
       gaps: [],
       reason: 'DevCodex Stop gate: no lastAssistantMessage; cannot hard-block (unverified).',
-      honesty
-    }
-  }
-
-  if (stopHookActive && Number(continuationCount) >= softCap) {
-    honesty.stopDecision = 'allow'
-    honesty.processGaps.push('stop-continuation-exhausted')
-    return {
-      decision: 'allow',
-      gaps: [],
-      reason: '',
       honesty
     }
   }

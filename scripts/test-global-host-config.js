@@ -430,6 +430,14 @@ assert.strictEqual(fs.existsSync(path.join(home, '.cursor', 'devcodex', 'global-
 
 const applied = applyGlobalHostConfig({ packageRoot, env, home })
 assert.strictEqual(applied.transaction.status, 'committed')
+assert.strictEqual(applied.transaction.activationLeaseCleanupIncomplete, false)
+for (const target of applied.targets) {
+  assert.strictEqual(
+    fs.existsSync(path.join(target.runtimeBaseRoot, '.runtime-generation-leases')),
+    false,
+    `${target.host} activation lease directory must be removed after the host transaction`
+  )
+}
 assert.strictEqual(applied.workspaceHostDirectoriesWritten, false)
 for (const [host, configPath] of [
   ['codex', path.join(home, '.codex', 'hooks.json')],
@@ -1018,6 +1026,15 @@ for (const target of targets) {
   assert.match(receipt.runtimeGeneration.runtimeContractDigest, /^[a-f0-9]{64}$/)
   assert.match(receipt.runtimeGeneration.filesDigest, /^[a-f0-9]{64}$/)
   assert.match(receipt.runtimeGeneration.createdAt, /^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/)
+  assert.strictEqual(
+    receipt.runtimeGeneration.creationTimeAuthority,
+    target.runtimeGeneration.creationTimeAuthority
+  )
+  assert.ok(
+    ['candidate-changelog', 'release-changelog'].includes(
+      receipt.runtimeGeneration.creationTimeAuthority
+    )
+  )
   assert.strictEqual(receipt.runtimeGeneration.runtimeRoot, '.')
   assert.strictEqual(path.resolve(receipt.runtimeRoot), path.resolve(target.runtimeRoot))
   assert.deepStrictEqual(
@@ -1036,6 +1053,28 @@ require(path.join(codexRuntime, 'scripts', 'lib', 'host-parity-scorecard.js'))
 require(path.join(codexRuntime, 'mcp', 'memory-server.js'))
 const sourceSkillRouteMode = require(path.join(packageRoot, 'hooks', '_runtime', 'skill-route-mode.cjs'))
 const installedSkillRouteMode = require(path.join(codexRuntime, 'hooks', '_runtime', 'skill-route-mode.cjs'))
+const installedProgressiveEnforcement = require(path.join(
+  codexRuntime,
+  'hooks',
+  '_runtime',
+  'progressive-skill-route-enforcement.cjs'
+))
+assert.strictEqual(
+  installedProgressiveEnforcement.resolveProgressiveSkillRouteEnforcement({
+    hostVariant: 'codex-cli/exec-user-global-local-stdio',
+    eventName: 'PreToolUse'
+  }).hardEnforcement,
+  false,
+  'a host refresh must not resurrect Codex progressive PreToolUse hard enforcement'
+)
+assert.strictEqual(
+  installedProgressiveEnforcement.resolveProgressiveSkillRouteEnforcement({
+    hostVariant: 'codex-desktop/app-user-global-local-stdio',
+    eventName: 'Stop'
+  }).hardEnforcement,
+  false,
+  'a host refresh must not resurrect Codex progressive Stop hard enforcement'
+)
 const sourceRuntimeContractDigest = sourceSkillRouteMode.getRuntimeContractDigest({
   globalRuntime: {
     status: 'resolved',
@@ -1788,6 +1827,14 @@ assert.strictEqual(partial.transaction.hosts.find(item => item.host === 'claude'
 assert.ok(partial.transaction.hosts
   .filter(item => item.host !== 'claude')
   .every(item => item.status === 'committed'))
+assert.strictEqual(partial.transaction.activationLeaseCleanupIncomplete, false)
+for (const target of partial.targets) {
+  assert.strictEqual(
+    fs.existsSync(path.join(target.runtimeBaseRoot, '.runtime-generation-leases')),
+    false,
+    `${target.host} activation lease directory must be removed after partial/rolled-back execution`
+  )
+}
 assert.strictEqual(
   fs.existsSync(path.join(partialHome, '.claude', 'devcodex', 'global-host-receipt.json')),
   false

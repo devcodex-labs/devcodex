@@ -2,8 +2,8 @@
 pageType: home
 hero:
   name: DevCodex
-  text: Intent-driven AI Coding Workflow Runtime
-  tagline: 安装后，按任务渐进加载预置专业 Skill：把模糊请求变成可执行、可验证、可续接的工程任务。
+  text: Cross-host AI Coding Engineering Harness
+  tagline: 让 AI Coding 从“聪明地回答问题”，升级为“聪明地完成工程任务”。
   actions:
     - text: 5 分钟开始
       link: /guide/getting-started
@@ -37,7 +37,9 @@ features:
 
 # DevCodex
 
-DevCodex 是面向 Codex、Claude Code、GitHub Copilot、Gemini CLI、Grok 和 Cursor 的意图驱动 AI Coding 工作流运行时。
+DevCodex 是面向 Codex、Claude Code、GitHub Copilot、Gemini CLI、Grok 和 Cursor 的跨宿主 AI Coding 工程 Harness。它的技术实现仍是 intent-driven、local-first、file-backed 的 workflow runtime and host-adapter layer。
+
+长任务恢复按正式需求/任务保存，而不是按每次 Hook/工具状态变化创建 UUID 全快照；正式任务数量没有硬上限，磁盘按 256/512 MiB soft/hard 与 8 MiB closeout reserve 保护。查看占用、上限处理、legacy 零删除和 Token 估算，请读[运行态维护](/reference/runtime-operations)与[限制与边界](/reference/limits)。
 
 <!-- devcodex-public:workflows primary=dev,fix,analyze,audit,resume,chat advanced=self-fix,other -->
 <!-- devcodex-public:skills total=86 active=83 gray=3 bucket=80+ categories=workflow-routing:20,domain-architecture:21,quality-delivery:28,runtime-governance:17 -->
@@ -45,7 +47,7 @@ DevCodex 是面向 Codex、Claude Code、GitHub Copilot、Gemini CLI、Grok 和 
 <!-- devcodex-public:auto canonical=@devcodex-auto default=@rocky profile-replacement=true empty-array-disables=true -->
 <!-- devcodex-public:capabilities ids=turn-ambiguous-request-into-action,fix-with-regression-confidence,evolve-cross-domain-change,deliver-with-evidence-and-handoff -->
 
-它不会托管模型，也不是通用 Agent 框架或多 Agent 编排器。它在本地保存工作流状态、Profile、报告、记忆和项目 Skill；模型执行与数据处理仍遵循所选宿主的规则。
+它不会改变模型参数、权重、上下文窗口或基础推理上限。它通过项目上下文、专业 Skill、工作流、工具、记忆、验证和证据链提升真实软件工程中的有效智能表现；模型推理、原生 agent loop、认证、sandbox 与主要工具执行仍由所选宿主负责。
 
 ```bash
 npm install -g devcodex

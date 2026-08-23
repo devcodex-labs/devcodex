@@ -1,4 +1,8 @@
 const { withWorkspaceTempBackup } = require('./workspace-temp.js')
+const {
+  createDefaultProvisioningDecision,
+  provisionWorkspaceEvolutionLayout
+} = require('./workspace-provisioning.js')
 
 function normalizeGitignorePattern(value) {
   let pattern = String(value || '').trim().replace(/\\/g, '/')
@@ -175,20 +179,50 @@ function buildCliRuntimeUtils({
     }
   }
 
-  function ensureRuntimeDirs(cwd, dryRun) {
-    if (dryRun) return resolveActiveRuntimeRoot(cwd)
+  function ensureRuntimeDirs(cwd, dryRun, options = {}) {
     const runtimeRoot = resolveActiveRuntimeRoot(cwd)
-    fs.mkdirSync(path.join(runtimeRoot, '.memory'), { recursive: true })
-    fs.mkdirSync(path.join(runtimeRoot, '.audit-state'), { recursive: true })
-    ensureRuntimeDataTemplates(runtimeRoot, dryRun)
-    // P0-1: workspace entry + skills dir under .devcodex/workspace/
-    try {
-      const { ensureDevcodexMdTemplate } = require('../../hooks/_runtime/devcodex-md-entry.cjs')
-      ensureDevcodexMdTemplate(cwd, { dryRun: false })
-    } catch {
-      /* layout not ready or optional during partial installs */
+    const layout = findLayoutInfo(cwd)
+    const workspaceRuntimeRoot = path.resolve(options.workspaceRuntimeRoot || (
+      layout.enabled
+        ? path.join(layout.workspaceRoot, '.devcodex', 'workspace')
+        : path.join(path.resolve(cwd), '.devcodex', 'workspace')
+    ))
+    if (!dryRun && !layout.enabled && !options.workspaceRuntimeRoot) {
+      const error = new Error('workspace namespace layout must be active before runtime provisioning')
+      error.code = 'WORKSPACE_PROVISIONING_LAYOUT_REQUIRED'
+      throw error
     }
-    return runtimeRoot
+    const targetDecision = options.targetDecision || createDefaultProvisioningDecision(workspaceRuntimeRoot, path)
+    const receipt = provisionWorkspaceEvolutionLayout({
+      fsImpl: fs,
+      pathImpl: path,
+      workspaceRuntimeRoot,
+      dryRun,
+      targetDecision
+    })
+    try {
+      if (!dryRun) {
+        fs.mkdirSync(path.join(runtimeRoot, '.memory'), { recursive: true })
+        fs.mkdirSync(path.join(runtimeRoot, '.audit-state'), { recursive: true })
+      }
+      ensureRuntimeDataTemplates(runtimeRoot, dryRun)
+      const { ensureDevcodexMdTemplate } = require('../../hooks/_runtime/devcodex-md-entry.cjs')
+      const workspaceEntry = ensureDevcodexMdTemplate(cwd, { dryRun, fs })
+      if (!workspaceEntry.ok && !dryRun) {
+        const error = new Error(`workspace entry provisioning failed: ${workspaceEntry.reason || 'unknown'}`)
+        error.code = 'WORKSPACE_ENTRY_PROVISIONING_FAILED'
+        throw error
+      }
+    } catch (cause) {
+      const code = cause.code || 'WORKSPACE_RUNTIME_PROVISIONING_FAILED'
+      const error = new Error(`${code}: ${cause.message}`)
+      error.code = code
+      error.causeCode = cause.code || null
+      error.receipt = receipt
+      error.runtimeFailure = { code, message: cause.message, partialWritesPreserved: true }
+      throw error
+    }
+    return receipt
   }
 
   function resolveProfileDir(cwd) {

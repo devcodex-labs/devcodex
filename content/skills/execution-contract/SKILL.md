@@ -50,6 +50,34 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | `longTaskAuthorization` | 条件 | 与 `executionBudget` 同触发；记录授权证据与 cycle 身份，见 `LongTaskAuthorizationGate` |
 | `externalWaitAccounting` | 条件 | 存在 CP 等待、CI/鉴权/人工审批/外部系统等待时必填；见 `ExternalWaitAccountingGate` |
 | `instructionAuthority` | 条件 | 命中 `host-capability-routing`、Auto、跨轮或多批次时，引用 `instructionRefId / decisionId / authority / digestStrength / freshness / fallback`；不复制原文 |
+| `gitExecutionContext` | 条件 | 任何 branch/worktree/commit/merge/cherry-pick/push 规划或执行前必填；引用 `GitExecutionContextV1`，逐项披露并分离授权 |
+| `worktreeLifecycleReceipt` | 条件 | DevCodex 引导创建 worktree 或诊断残留 worktree 时必填；引用 `WorktreeLifecycleReceiptV1`，外部对象保持只读 |
+
+## GitExecutionContextGate
+
+Git 共享状态动作由 `GitExecutionContextV1` 约束；schema 位于 `git-execution-context.v1.schema.json`，纯读取/校验实现位于 `scripts/lib/git-execution-context.js`。该能力不是 Git bot，也不能把宿主 UI 或用户绕过 DevCodex 的原生动作宣称为已拦截。
+
+默认决策：
+
+| 场景 | integrationPolicy | 规则 |
+|---|---|---|
+| 当前分支开发并交付当前分支 | `none` | 不创建/切换功能分支，不 merge、不 cherry-pick；需要时只单独确认 commit |
+| detached/worktree/dev → 目标分支的选择性提交 | `ordered-cherry-pick` | 先形成有序且去重的 `sourceCommitIds`，验证目标基线，再显式 switch 与按序 cherry-pick；目标 commit ID 会变化 |
+| 完整线性历史且需要保留原 commit IDs | `ff-only-explicit` | 仅在用户明确选择后使用 `merge --ff-only`；merge commit 仍非默认 |
+| 功能分支或 merge commit | 非默认例外 | 先说明 reason/impact/alternative/target/recovery 并获得该动作授权 |
+
+`collaborationMode` 未被 Profile/项目事实证明时必须为 `unverified`，仍采用 `no-auto-branch`。solo 项目默认 `keep-current`。`branch-create / switch / commit / cherry-pick / merge-ff-only / push` 每项都必须有独立 disclosure、`authorization`、`authorizationEvidenceRefs` 与 `executionEvidenceRefs`；pending 禁止携带证据，明确确认必须有本动作授权证据，completed 还必须有本动作执行证据。一个动作的确认不能传递给另一个动作，push 始终独立确认。branch create 必须先于 switch，且 branch/switch/integration disclosure 的 `target` 必须与 `targetBranch` 完全一致。读取已保存 context 时必须重算 `validation`，不得信任序列化的 `valid/executable`；`conflictStatus=unverified` 只能先核实，不能执行 Git 写动作。
+
+cherry-pick 前必须满足：repo/HEAD/目标基线已验证，工作树与 index 没有未保护变更，source IDs 有序且不重复；只读 dirty 探针必须同时计入 tracked、untracked 与 ignored 内容，`dirtySummary.untracked` 包含 Git `!!` 条目。不得自动 stash、pull、reset、continue 或 abort。冲突时 `conflictStatus=detected`、`validation.executable=false`，停止并报告冲突文件与可选恢复动作；post-action 必须记录 `targetAfter` 和 `postIntegrationValidationRefs`，不能只凭命令退出码宣称完成。
+
+## WorktreeLifecycleReceiptGate
+
+DevCodex 引导创建的 worktree 必须记录 `worktreePath / gitCommonDir / headRef / headCommit / owner / ownershipEvidenceRefs / dirtyState / lockState / activeJobState / createdByRunId / teardownPlan / cleanupAuthorization / cleanupAuthorizationEvidenceRefs`。`safeDirectoryMutationAllowed` 永远为 false。单项 schema 为 `worktree-lifecycle-receipt.v1.schema.json`，聚合诊断 schema 为 `worktree-diagnostics.v1.schema.json`。
+
+- `devcodex-guided` 只有完整 receipt 经字段、派生 `validation`、`gitCommonDir` 与当前 HEAD/ref 重新校验，且 owner、clean、unlocked、无 active job、teardown plan、本次显式清理授权及独立授权证据全部具备时才可能 cleanupEligible；clean 探针必须同时计入 tracked、untracked 与 ignored 内容，避免删除被 `.gitignore` 隐藏的本地数据。HEAD/ref 已变化时保留创建归属，但立即退休旧清理授权并把 active job 降为 `unverified`。部分字段、冲突 receipt 或自报 `validation.valid=true` 一律不能取得清理资格。
+- `host-owned / external-unowned / unverified` 只读诊断；dirty/owner/lock 任一未知时保持 UNVERIFIED，绝不 prune/remove。
+- `status/doctor` 的 `WorktreeDiagnosticsV1` 同时受 1.5 秒单命令上限和 8 秒总预算约束；prunable 路径不进入，外部未归属路径默认不做 dirty 探测，当前 worktree 与有 DevCodex receipt 的对象才进入有界只读探测。发现 dirty、locked、prunable、external-unowned 或未核实状态时聚合为 WARN，并保留逐项 typed issue。
+- 清理、移动或删除 worktree 仍受 S01/C01 独立 yes/no 确认；receipt 不能替代确认。
 
 ## ExecutionBudgetGate / ExternalWaitAccountingGate / LongTaskAuthorizationGate（PI-118 / PF-137）
 

@@ -68,7 +68,7 @@ function buildProfileBootstrapUtils(context) {
 | 01-项目信息.md | 技术栈 / 仓库 / 版本 |
 | 02-架构约束.md | 目录结构 / 模块边界 |
 | 03-代码风格.md | 编码规范 / lint / 格式化 |
-${tier !== 'profile-lite' ? '| 04-测试规范.md | 测试与验证路线 |\n| 05-发布规范.md | 交付与发布边界 |\n| 06-功能清单.md | 公开能力与消费者 |\n' : ''}${tier === 'profile-closed-loop' ? '| 07-用户文档与契约规范.md | 用户文档与公开契约 |\n' : ''}| config.json | ENV_MODE + agent 兜底标识 |
+${tier !== 'profile-lite' ? '| 04-测试规范.md | 测试与验证路线 |\n| 05-发布规范.md | 交付与发布边界 |\n| 06-功能清单.md | 公开能力与消费者 |\n' : ''}${tier === 'profile-closed-loop' ? '| 07-用户文档与契约规范.md | 用户文档与公开契约 |\n' : ''}| config.json | ENV_MODE + agent 兜底标识 + \`extensions.devcodex.git\` 安全默认值 |
 | config.local.json | 可选，用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、\`extensions.<namespace>\` |
 `
   }
@@ -223,6 +223,7 @@ ${rows}
 - 若项目使用 \`config.local.json\` 保存长期连接别名、本机专属配置或本地明文连接信息，请在本文件说明用途与使用方式。
 - 脚本、测试、数据库 / SSH / MongoDB / 数据操作连接信息默认可按用户提供内容直写或沿用项目既有模式；只有用户或项目明确指定 \`config.local.json\` 时，才从该文件取得，缺失时提醒用户补齐。
 - 项目级扩展只能写在 \`extensions.<namespace>\` 下，并记录字段语义、取值来源和是否依赖 env / secretRef。
+- Git 协作事实未核实时保持 \`extensions.devcodex.git.collaborationMode=unverified\`、\`branchPolicy=no-auto-branch\`；branch/worktree/commit/cherry-pick/push 均不因 Profile 存在而自动获得授权。
 `
   }
 
@@ -265,7 +266,21 @@ ${tree || '(empty)'}
   }
 
   function genConfigJson(agent, mode) {
-    return JSON.stringify({ mode, agent }, null, 2) + '\n'
+    return JSON.stringify({
+      mode,
+      agent,
+      extensions: {
+        devcodex: {
+          git: {
+            collaborationMode: 'unverified',
+            branchPolicy: 'no-auto-branch',
+            worktreePolicy: 'explicit-only',
+            crossBranchIntegration: 'unverified',
+            sharedActionsRequireExplicitAuthorization: true
+          }
+        }
+      }
+    }, null, 2) + '\n'
   }
 
   function detectAgent(cwd) {

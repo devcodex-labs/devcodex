@@ -434,26 +434,33 @@ function promptSnapshotRoot(plan) {
   return path.join(path.resolve(plan.hostScope.ownerRoot), 'devcodex', 'private', 'prompt-snapshots')
 }
 
-function writeOwnerRecord(indexPath, record) {
-  const temporary = `${indexPath}.${process.pid}.${crypto.randomUUID()}.tmp`
-  fs.writeFileSync(temporary, `${JSON.stringify(record, null, 2)}\n`, { flag: 'wx', mode: 0o600 })
-  fs.renameSync(temporary, indexPath)
+function writeOwnerRecord(indexPath, record, fsImpl = fs) {
+  const temporary = `${indexPath}.next.tmp`
+  try {
+    if (fsImpl.existsSync(temporary)) fsImpl.unlinkSync(temporary)
+    fsImpl.writeFileSync(temporary, `${JSON.stringify(record, null, 2)}\n`, { flag: 'wx', mode: 0o600 })
+    fsImpl.renameSync(temporary, indexPath)
+  } catch (error) {
+    try { fsImpl.unlinkSync(temporary) } catch { }
+    throw error
+  }
 }
 
-function readOwnerRecord(indexPath) {
+function readOwnerRecord(indexPath, fsImpl = fs) {
   try {
-    return JSON.parse(fs.readFileSync(indexPath, 'utf8'))
+    return JSON.parse(fsImpl.readFileSync(indexPath, 'utf8'))
   } catch {
     return null
   }
 }
 
 function recoverGrokPromptSnapshots(plan, options = {}) {
+  const fsImpl = options.fs || fs
   const privateRoot = promptSnapshotRoot(plan)
   const indexRoot = path.join(privateRoot, 'index')
   let entries = []
   try {
-    entries = fs.readdirSync(indexRoot).filter(name => name.endsWith('.json')).sort()
+    entries = fsImpl.readdirSync(indexRoot).filter(name => name.endsWith('.json')).sort()
   } catch {
     return { scanned: 0, recovered: 0, skipped: 0 }
   }
@@ -461,7 +468,7 @@ function recoverGrokPromptSnapshots(plan, options = {}) {
   let skipped = 0
   for (const name of entries.slice(0, GROK_PROMPT_RECOVERY_SCAN_LIMIT)) {
     const indexPath = path.join(indexRoot, name)
-    const record = readOwnerRecord(indexPath)
+    const record = readOwnerRecord(indexPath, fsImpl)
     const recovery = classifyPrivateTempRecovery(record, {
       privateRoot,
       nowMs: options.nowMs,
@@ -474,8 +481,12 @@ function recoverGrokPromptSnapshots(plan, options = {}) {
     }
     // Recovery is limited to a validated, expired record whose exact local PID
     // is proven dead. Unknown or mismatched owners remain fail-closed.
-    fs.rmSync(record.ownerRoot, { recursive: true, force: false })
-    fs.unlinkSync(indexPath)
+    try {
+      fsImpl.rmSync(record.ownerRoot, { recursive: true, force: false })
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error
+    }
+    fsImpl.unlinkSync(indexPath)
     recovered += 1
   }
   return {
@@ -488,52 +499,60 @@ function recoverGrokPromptSnapshots(plan, options = {}) {
 
 function materializePromptCarrier(plan, carrier, options = {}) {
   if (!carrier || !carrier.kind.startsWith('prompt-file')) return null
+  const fsImpl = options.fs || fs
   const privateRoot = promptSnapshotRoot(plan)
   const ownersRoot = path.join(privateRoot, 'owners')
   const indexRoot = path.join(privateRoot, 'index')
-  fs.mkdirSync(ownersRoot, { recursive: true, mode: 0o700 })
-  fs.mkdirSync(indexRoot, { recursive: true, mode: 0o700 })
+  fsImpl.mkdirSync(ownersRoot, { recursive: true, mode: 0o700 })
+  fsImpl.mkdirSync(indexRoot, { recursive: true, mode: 0o700 })
   const recovery = recoverGrokPromptSnapshots(plan, options)
   const ownerId = crypto.randomUUID()
   const ownerToken = crypto.randomBytes(32).toString('hex')
   const ownerRoot = path.join(ownersRoot, ownerId)
   const snapshot = path.join(ownerRoot, 'prompt.txt')
   const indexPath = path.join(indexRoot, `${ownerId}.json`)
-  fs.mkdirSync(ownerRoot, { recursive: false, mode: 0o700 })
-  const record = buildPrivateTempOwnerRecord({
-    privateRoot,
-    ownerRoot,
-    snapshotPath: snapshot,
-    ownerId,
-    ownerToken,
-    promptDigest: carrier.digest,
-    ttlMs: options.promptSnapshotTtlMs || GROK_PROMPT_SNAPSHOT_TTL_MS,
-    nowMs: options.nowMs,
-    hostname: options.hostname,
-    state: 'allocated'
-  })
-  writeOwnerRecord(indexPath, record)
-  fs.writeFileSync(snapshot, carrier.buffer, { flag: 'wx', mode: 0o600 })
-  const planIndex = 2 + carrier.index
-  if (carrier.kind === 'prompt-file') {
-    plan.args[planIndex + 1] = snapshot
-  } else {
-    plan.args[planIndex] = `--prompt-file=${snapshot}`
+  fsImpl.mkdirSync(ownerRoot, { recursive: false, mode: 0o700 })
+  try {
+    const record = buildPrivateTempOwnerRecord({
+      privateRoot,
+      ownerRoot,
+      snapshotPath: snapshot,
+      ownerId,
+      ownerToken,
+      promptDigest: carrier.digest,
+      ttlMs: options.promptSnapshotTtlMs || GROK_PROMPT_SNAPSHOT_TTL_MS,
+      nowMs: options.nowMs,
+      hostname: options.hostname,
+      state: 'allocated'
+    })
+    writeOwnerRecord(indexPath, record, fsImpl)
+    fsImpl.writeFileSync(snapshot, carrier.buffer, { flag: 'wx', mode: 0o600 })
+    const planIndex = 2 + carrier.index
+    if (carrier.kind === 'prompt-file') {
+      plan.args[planIndex + 1] = snapshot
+    } else {
+      plan.args[planIndex] = `--prompt-file=${snapshot}`
+    }
+    plan.promptCarrier = {
+      ...plan.promptCarrier,
+      status: 'verified',
+      forwarding: 'snapshot-file',
+      forwardedDigest: carrier.digest,
+      snapshotOwnerId: ownerId,
+      recovery
+    }
+    return { privateRoot, ownerRoot, snapshot, indexPath, ownerId, ownerToken, recovery }
+  } catch (error) {
+    try { fsImpl.unlinkSync(indexPath) } catch { }
+    try { fsImpl.rmSync(ownerRoot, { recursive: true, force: false }) } catch { }
+    throw error
   }
-  plan.promptCarrier = {
-    ...plan.promptCarrier,
-    status: 'verified',
-    forwarding: 'snapshot-file',
-    forwardedDigest: carrier.digest,
-    snapshotOwnerId: ownerId,
-    recovery
-  }
-  return { privateRoot, ownerRoot, snapshot, indexPath, ownerId, ownerToken, recovery }
 }
 
-function finalizePromptCarrier(materialized) {
+function finalizePromptCarrier(materialized, options = {}) {
   if (!materialized) return { finalized: false }
-  const record = readOwnerRecord(materialized.indexPath)
+  const fsImpl = options.fs || fs
+  const record = readOwnerRecord(materialized.indexPath, fsImpl)
   const validation = validatePrivateTempOwnerRecord(record, materialized.privateRoot)
   const exactOwner = validation.valid &&
     record.ownerId === materialized.ownerId &&
@@ -546,13 +565,13 @@ function finalizePromptCarrier(materialized) {
       validation.errors?.join(',') || 'owner identity mismatch'
     )
   }
-  fs.rmSync(materialized.ownerRoot, { recursive: true, force: false })
-  fs.unlinkSync(materialized.indexPath)
+  fsImpl.rmSync(materialized.ownerRoot, { recursive: true, force: false })
+  fsImpl.unlinkSync(materialized.indexPath)
   return {
     finalized: true,
     ownerId: materialized.ownerId,
-    snapshotRemoved: !fs.existsSync(materialized.ownerRoot),
-    indexRemoved: !fs.existsSync(materialized.indexPath)
+    snapshotRemoved: !fsImpl.existsSync(materialized.ownerRoot),
+    indexRemoved: !fsImpl.existsSync(materialized.indexPath)
   }
 }
 
@@ -588,7 +607,7 @@ function launchGrok(argv = [], options = {}) {
     })
   } finally {
     if (materialized) {
-      plan.promptCarrier.finalization = finalizePromptCarrier(materialized)
+      plan.promptCarrier.finalization = finalizePromptCarrier(materialized, options)
       plan.promptCarrier.snapshotRemoved = plan.promptCarrier.finalization.snapshotRemoved
     }
   }

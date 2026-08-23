@@ -77,7 +77,7 @@ applyTo: .devcodex/**/reports/bugs/**
 
 ECR 的 review 状态必须来自唯一 `ReviewStateSnapshotV1`，并引用 planId、candidate/stage、fresh receipt digests、EvidenceSaturation 与 StageTiming；不得在报告手写另一套 open/blocker/stale 计数。
 
-命中用户可见输出时追加 `VisibleOutputContract`：引用同一 `ArtifactDeliveryManifestV1.manifestDigest`、`UserFacingArtifactSetV1` 计数、`DevCodexVisibleEnvelopeV1.semanticDigest`、`LinkCapabilityDecisionV1` 和 renderer parity；默认用户列表不包含 session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger，但这些内部产物仍须写入、验证和参与 ECR。
+命中用户可见输出时追加 `VisibleOutputContract`：引用同一 `ArtifactDeliveryManifestV1.manifestDigest`、`UserFacingArtifactSetV1` 计数、`PostCompletionActionSetV1`、`DevCodexVisibleEnvelopeV2.semanticDigest`、`LinkCapabilityDecisionV1` 和 renderer parity；V1 只读兼容不得作为新产物。默认用户列表不包含 session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger，但这些内部产物仍须写入、验证和参与 ECR。
 
 <!-- devcodex:include shared/report/mcp-fallback-recording.md -->
 

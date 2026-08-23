@@ -413,13 +413,14 @@ try {
     ...observedMcpSourceResult(mcpObservedPlan, sourceId),
     hostSessionId: ''
   }))
-  assert.strictEqual(recordMcpContextSourceObservations({
+  const carriedBridge = recordMcpContextSourceObservations({
     activeRoot: fixture.activeRoot,
     project: fixture.project,
     contextBinding: mcpObservedPlan.contextBinding,
     hostSessionId: 'session-mcp-source-observation',
     sourceResults: emptyCarrierResults
-  }, { nowMs: BASE_MS + 20 }).ledgerStatus, 'persisted')
+  }, { nowMs: BASE_MS + 20 })
+  assert.strictEqual(carriedBridge.ledgerStatus, 'persisted', JSON.stringify(carriedBridge))
   const carriedObservations = readMcpContextSourceObservations({
     activeRoot: fixture.activeRoot,
     project: fixture.project,
@@ -2166,7 +2167,7 @@ try {
     let renameFaultInjected = false
     renameFaultFs.renameSync = (source, target) => {
       if (!renameFaultInjected &&
-          source.startsWith(`${recoveryBoot.paths.envelope}.tmp.`) &&
+          source === `${recoveryBoot.paths.envelope}.next.tmp` &&
           target === recoveryBoot.paths.envelope) {
         renameFaultInjected = true
         const error = new Error('injected envelope rename failure')
@@ -2189,6 +2190,16 @@ try {
     assert.strictEqual(
       fs.readFileSync(recoveryBoot.paths.envelope, 'utf8'),
       stableEnvelope
+    )
+    assert.strictEqual(
+      fs.readdirSync(path.dirname(recoveryBoot.paths.envelope)).some(name => name.endsWith('.tmp')),
+      false,
+      'failed SkillRoute writes must not retain writer temp files'
+    )
+    assert.strictEqual(
+      fs.readdirSync(path.dirname(recoveryBoot.paths.envelope)).filter(name => name.startsWith('route-envelope.json.replace.')).length,
+      0,
+      'failed SkillRoute replacement must restore the prior envelope without backup growth'
     )
 
     const interruptedRequest = {

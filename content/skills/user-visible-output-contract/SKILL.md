@@ -8,7 +8,7 @@ description: 用户可见输出契约 Owner — 统一入口检查、完成检�
 
 当任务需要输出 PC0~PC7、FC/SC/RC/T、CP/危险动作确认、长任务进度、最终结果、阻断原因或文件交付列表时，本 Skill 是用户可见语义与渲染的唯一 Owner。
 
-本 Skill 只负责 `ArtifactDeliveryManifestV1 → ArtifactAnchorProjectionV1 / UserFacingArtifactSetV1 → DevCodexVisibleEnvelopeV1 → renderer`。它不替代 `compliance` 的检查含义、`cp-gate` 的确认状态、`report`/`memory` 的写入职责、`host-contract-verification` 的宿主 direct replay，也不判断专业内容质量。
+本 Skill 只负责 `ArtifactDeliveryManifestV1 → ArtifactAnchorProjectionV1 / UserFacingArtifactSetV1 → PostCompletionActionSetV1 → DevCodexVisibleEnvelopeV2 → renderer`。它不替代 `compliance` 的检查含义、`cp-gate` 的确认状态、`report`/`memory` 的写入职责、`host-contract-verification` 的宿主 direct replay，也不判断专业内容质量。`DevCodexVisibleEnvelopeV1` 只保留一个兼容窗口的读取能力，禁止新生产者继续写入。
 
 确定性实现位于 `hooks/_runtime/visible-output-contract.cjs`，结构约束位于 `visible-output-contract.schema.json`。
 
@@ -40,8 +40,9 @@ description: 用户可见输出契约 Owner — 统一入口检查、完成检�
 1. `ArtifactDeliveryManifestV1`：记录本任务所有持久化 mutation、恢复证据和审计证据；planned、observed、internalDelivered 必须精确对账。
 2. `ArtifactAnchorProjectionV1`：可选上下文锚点投影，只携带 canonical path、contentDigest、projectionDigest、truthSourceKind、stalePolicy 与 evidenceRefs，不复制正文。
 3. `UserFacingArtifactSetV1`：只能由 manifest 纯函数投影，禁止模型临场挑“主要产物”。
-4. `DevCodexVisibleEnvelopeV1`：承载 message kind、稳定状态、checks、decision、visible set、capability 和 semantic digest。
-5. renderer：按已验证能力生成 `rich-markdown / portable-markdown / plain-text`；不得改变语义集合、顺序、状态或动作。
+4. `PostCompletionActionSetV1`：从已验证缺口、Profile 和用户授权边界投影“当前必做 / 唯一主动作 / 最多两个条件动作”；不得把产物文件当动作。
+5. `DevCodexVisibleEnvelopeV2`：承载 message kind、稳定状态、checks、decision、visible set、action set、capability 和 semantic digest。
+6. renderer：按已验证能力生成 `rich-markdown / portable-markdown / plain-text`；不得改变语义集合、顺序、状态或动作。
 
 禁止 renderer、Prompt、Hook parser 或最终回复反向补写 manifest 状态。
 
@@ -136,6 +137,22 @@ Rich clickable 只显示一个语义 Markdown 链接作为名称主表示，**�
 状态固定为 `PASS / WARN / BLOCK / UNVERIFIED / N/A`，整体状态由 checks 严重度推导，禁止调用方覆盖；`PASS` 的 evidenceState 必须为 verified。`entry-check` 必须完整保留 PC0~PC7 及 ordinal 0~7。schema 无效、未知状态、缺必要 check、task/manifest/visible set/capability identity 不一致或 presentation 非法时，必须生成 `VISIBLE_ENVELOPE_INVALID` 的 BLOCK envelope，并强制 expanded portable 降级。
 
 `semanticDigest` 对去展示后的 canonical semantic core 计算；presentation tier、图标、换行、点击形式和本地化 summary 不得改变 digest。
+
+### PostCompletionActionSetGate（V2）
+
+实施或审查结束后，用户面可以提示真正适用的下一步，例如生成接口文档、补 `.http` 验证、提交、切换目标分支、按 commit id `cherry-pick` 或推送；但必须先生成 `PostCompletionActionSetV1`，不能用泛化话术罗列菜单。
+
+| 字段 | 约束 |
+|---|---|
+| `requiredNow[]` | 当前交付不可缺的工作；一旦非空就禁止 `completion-check/final-result` 作完成声明 |
+| `primaryAction` | `null` 或唯一主动作；没有真实缺口时必须为 `null`，不得输出“继续当前动作”凑建议 |
+| `conditionalActions[]` | 最多 2 个，只在 reason 描述的前置条件成立后适用 |
+| action | 必须包含 `kind / label / reason / evidenceRefs / applicability / authorization` |
+| `authorization` | `requiredNow` 可在既有任务授权内使用 `not-required`；可选非 Git 下一步只能是 `suggest-only`；Git 写动作使用 `explicit-required`，`push` 永远不得由建议文字推定为已授权 |
+
+`kind` 至少覆盖 `api-docs / http-verification / commit / switch-target / cherry-pick / push / other`。同一个已知 kind 在一份 action set 中最多出现一次，避免用不同文案重复推荐同一动作；`other` 仍可表达两个真正不同的条件动作。如果接口文档或 `.http` 已被用户请求、Profile 或验收标准规定为本次必交付，它们属于 `requiredNow` 并须在完成前实施，不能挪到“下一步建议”。已完成、不适用或缺证据的动作不得推荐；用户交付文件只来自 `UserFacingArtifactSetV1`。
+
+V1 兼容规则：parser/renderer 可读取 `DevCodexVisibleEnvelopeV1.recommendedAction`，但只能映射为 `legacy-v1-read-only + unverified + suggest-only` 的内存视图，不得据此推断 Git、文档类型、适用性或授权，也不得回写 V1。
 
 ## Dialogue-Primary Closeout（对话内可读收口 / DPC）
 

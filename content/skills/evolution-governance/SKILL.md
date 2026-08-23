@@ -48,6 +48,27 @@ SUMMARY；只有显式 `--write-index` 才同时写 legacy
 | `rollbackPlan` | 如何撤销候选、恢复 active 规范、回退部署副本、撤回发布 |
 | `releaseApproval` | tag / release / publish 前必须有人类确认和 release-verification 证据 |
 
+## EvolutionTargetDecisionGate
+
+每个可泛化进化候选在写入任何 active Skill、项目 overlay 或 package source 前，必须先形成 `EvolutionTargetDecisionV1`。schema 位于同目录 `evolution-target-decision.v1.schema.json`。
+
+| 目标 | 默认与证据要求 | active 目的地 |
+|---|---|---|
+| `workspace-local` | **默认**；适用于跨项目可复用、但尚未达到上游发布标准的本地规则 | `.devcodex/workspace/skills/<id>/` |
+| `project-local` | 仅当行为依赖唯一项目的技术栈、约束或消费者；必须有 `projectSpecificEvidenceRefs` | `.devcodex/<project>/skills/<id>/` |
+| `upstream-package` | 仅显式维护者贡献；必须有 `maintainerAuthorization=explicit-confirmed`、非空 `maintainerAuthorizationEvidenceRefs`，并用绝对 `upstreamPackageRoot` 绑定本次上游仓库，再重新走 spec/package/release 门禁 | `<upstreamPackageRoot>/content/skills/<id>/` 或既有 Owner |
+
+候选真相源固定为 `.devcodex/workspace/evolution/candidates/`，决定与证据分别进入 `decisions/`、`evidence/`。candidate、decision 和 evidence 都不是 Skill resolver 输入；`candidateResolverEligible` 永远为 false。读取已保存 decision 时必须重算字段、`decisionId` 与 `validation`，不能信任其中的 `validation.valid`。只有 `decision=approved`、`activePromotionAuthorized=true` 且 `activePromotionAuthorizationEvidenceRefs` 非空后，另一个受控写步骤才能把内容晋级到 `activeDestination`；upstream 目的地还必须位于该 decision 明确绑定的 `<upstreamPackageRoot>/content/skills/` 内。拒绝、待审、缺证据或缺授权时 `activeDestination=null`，不得通过软链接、目录扫描或兼容 fallback 绕过隔离。
+
+Provider 分两种：
+
+- `host-assisted-local`：使用当前宿主已授权的模型/工具帮助形成本地候选，不要求 DevCodex 再声明一个 provider、tenant 或 quota；`automationControlPlane=null`，仍须保留 diff、证据、人工决定和回滚。
+- `external-automation`：DevCodex 或外部流水线主动调用模型服务，必须填写 provider/model、tenantAndPermissionScope、quotaAndCostBudget、dataPolicy 和 auditLog；任何缺项都保持 candidate-only/BLOCK。
+
+目标判断只决定“候选应归哪里”，不创建目录、不写 active Skill、不发布；workspace provisioning 由独立 CLI 合同拥有，Skill author 只消费已批准的 decision。
+
+`devcodex init/update` 的目录准备必须返回 `WorkspaceProvisioningReceiptV1`（同目录 `workspace-provisioning-receipt.v1.schema.json`）：状态只允许 `fresh / existing / planned / failed`。dry-run 对缺失目录返回 `planned` 且零写入；既有候选、决定和证据不得覆盖；mkdir、路径类型或 workspace-local decision 校验失败必须 typed/nonzero，并保留部分创建事实，不得用空 `catch` 冒充成功。`status/doctor` 只读取该布局，不得隐式创建目录。
+
 ## 必执行门禁
 
 - `EvolutionCapabilityControlPlaneGate`：自我进化能力只能生成候选，不得直接写 active 规范或发布。
@@ -91,6 +112,10 @@ SUMMARY；只有显式 `--write-index` 才同时写 legacy
 8. `metric-gaming`：通过缩小 WorkUnit、把返工改标计划迭代或降低验收标准制造的指标改善必须判无效。
 9. `execution-full-only`：kill switch、无效绑定或未知 schema 下仍命中 cache/changed/section/bundle/snapshot 必须失败。
 10. `execution-lifecycle-disconnected`：状态已为 `off / shadow / rolled-back / sunset`，但任一真实消费者仍进入优化分支，必须失败；仅 status/doctor 显示回滚不构成执行闭包。
+11. `candidate-resolver-leak`：resolver、catalog 或 fallback 直接读取 `evolution/candidates|decisions|evidence` 必须失败。
+12. `project-local-without-project-evidence`：缺项目专属性证据不得选择 project-local。
+13. `upstream-without-maintainer-authorization`：不得把历史贡献身份、仓库写权限或 auto 授权当作本次 maintainer contribution 确认。
+14. `external-automation-incomplete`：provider、tenant/permission、quota/cost、data policy 或 audit 任一缺失不得启动外部自动进化。
 
 ## 交付证据
 

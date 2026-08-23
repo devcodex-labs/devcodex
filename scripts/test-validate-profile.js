@@ -760,6 +760,37 @@ function main() {
         assert.match(invalidWorkflowCompletionOutput, /workflowCompletion contains unsupported key: autoPromote/)
         assert.match(invalidWorkflowCompletionOutput, /workflowCompletion\.mode must be one of: off, shadow, enforce, rolled-back/)
 
+        const validTaskRecoveryRoot = createWorkspace(`${currentProjectInfo()}\n- extensions.devcodex.taskRecovery.hardLimitMiB 配置 TaskRecoveryStoreV5 的 hard 水位。\n`)
+        writeFile(validTaskRecoveryRoot, '.devcodex/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'codex',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    taskRecovery: { hardLimitMiB: 1024 }
+                }
+            }
+        }, null, 2))
+        const validTaskRecoveryResult = runValidate(validTaskRecoveryRoot)
+        assert.strictEqual(validTaskRecoveryResult.status, 0, `${validTaskRecoveryResult.stdout}\n${validTaskRecoveryResult.stderr}`)
+
+        const invalidTaskRecoveryRoot = createWorkspace(currentProjectInfo())
+        writeFile(invalidTaskRecoveryRoot, '.devcodex/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'codex',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    taskRecovery: { hardLimitMiB: 128, disableSlotLimit: true }
+                }
+            }
+        }, null, 2))
+        const invalidTaskRecoveryResult = runValidate(invalidTaskRecoveryRoot)
+        const invalidTaskRecoveryOutput = `${invalidTaskRecoveryResult.stdout}\n${invalidTaskRecoveryResult.stderr}`
+        assert.strictEqual(invalidTaskRecoveryResult.status, 1, invalidTaskRecoveryOutput)
+        assert.match(invalidTaskRecoveryOutput, /taskRecovery contains unsupported key: disableSlotLimit/)
+        assert.match(invalidTaskRecoveryOutput, /taskRecovery\.hardLimitMiB must be a safe integer >= 512/)
+
         const invalidConcurrencyRoot = createWorkspace(currentProjectInfo())
         writeFile(invalidConcurrencyRoot, '.devcodex/profile/config.json', JSON.stringify({
             mode: 'dev',
@@ -810,6 +841,55 @@ function main() {
         assert.match(invalidAutoAliasOutput, /exact mention token/)
         assert.match(invalidAutoAliasOutput, /reserved: @auto/)
         assert.match(invalidAutoAliasOutput, /duplicates another alias/)
+
+        const validGitRoot = createWorkspace(`${currentProjectInfo()}\n- extensions.devcodex.git 分支策略：协作事实未知时 no-auto-branch；所有共享 Git 动作显式授权。\n- extensions.devcodex.executionOptimization.mode 执行优化配置。\n`)
+        writeFile(validGitRoot, '.devcodex/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    executionOptimization: { mode: 'full-only' },
+                    git: {
+                        collaborationMode: 'unverified',
+                        branchPolicy: 'no-auto-branch',
+                        worktreePolicy: 'explicit-only',
+                        crossBranchIntegration: 'unverified',
+                        sharedActionsRequireExplicitAuthorization: true
+                    }
+                }
+            }
+        }, null, 2))
+        const validGitResult = runValidate(validGitRoot)
+        assert.strictEqual(validGitResult.status, 0, `${validGitResult.stdout}\n${validGitResult.stderr}`)
+
+        const invalidGitRoot = createWorkspace(`${currentProjectInfo()}\n- extensions.devcodex.git 分支策略。\n- extensions.devcodex.executionOptimization.mode 执行优化配置。\n`)
+        writeFile(invalidGitRoot, '.devcodex/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    executionOptimization: { mode: 'automatic', autoPromote: true },
+                    git: {
+                        collaborationMode: 'solo',
+                        branchPolicy: 'no-auto-branch',
+                        worktreePolicy: 'automatic',
+                        crossBranchIntegration: 'merge-commit',
+                        sharedActionsRequireExplicitAuthorization: false,
+                        autoCreateBranch: true
+                    }
+                }
+            }
+        }, null, 2))
+        const invalidGitResult = runValidate(invalidGitRoot)
+        const invalidGitOutput = `${invalidGitResult.stdout}\n${invalidGitResult.stderr}`
+        assert.strictEqual(invalidGitResult.status, 1, invalidGitOutput)
+        assert.match(invalidGitOutput, /executionOptimization contains unsupported key: autoPromote/)
+        assert.match(invalidGitOutput, /executionOptimization\.mode must be one of: safe-auto, full-only/)
+        assert.match(invalidGitOutput, /git contains unsupported key: autoCreateBranch/)
+        assert.match(invalidGitOutput, /sharedActionsRequireExplicitAuthorization must be true/)
+        assert.match(invalidGitOutput, /solo collaboration must use branchPolicy=keep-current/)
 
         const staleS02Root = createWorkspace(currentProjectInfo())
         writeFile(staleS02Root, '.devcodex/profile/02-架构约束.md', staleS02ProfileText())
@@ -869,6 +949,65 @@ function main() {
         assert.strictEqual(workspaceResult.status, 0, workspaceOutput)
         assert.doesNotMatch(workspaceOutput, /no \.devcodex\/profile\//)
         assert.doesNotMatch(workspaceOutput, /no profile dir at .*chat[\\/]?.*\.devcodex[\\/]profile/)
+
+        const gitOverlayRoot = createWorkspaceNamespaceWorkspace(`${currentProjectInfo()}\n- extensions.devcodex.git 分支策略与共享动作授权。\n`)
+        const gitOverlayProfile = path.join(gitOverlayRoot, '.devcodex', 'chat', 'profile')
+        writeFile(gitOverlayRoot, '.devcodex/workspace/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    git: {
+                        collaborationMode: 'unverified',
+                        branchPolicy: 'no-auto-branch',
+                        worktreePolicy: 'explicit-only',
+                        crossBranchIntegration: 'unverified',
+                        sharedActionsRequireExplicitAuthorization: true
+                    }
+                }
+            }
+        }, null, 2))
+        writeFile(gitOverlayRoot, '.devcodex/chat/profile/01-项目信息.md', `${currentProjectInfo()}\n- extensions.devcodex.git 分支策略与共享动作授权。\n`)
+        writeFile(gitOverlayRoot, '.devcodex/chat/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: { devcodex: { git: { collaborationMode: 'solo', branchPolicy: 'keep-current' } } }
+        }, null, 2))
+        const validGitOverlayResult = runValidateWithArgs(path.join(gitOverlayRoot, 'chat'), [
+            '--profile-dir', gitOverlayProfile,
+            '--workspace-profile', path.join(gitOverlayRoot, '.devcodex', 'workspace', 'profile')
+        ])
+        assert.strictEqual(validGitOverlayResult.status, 0, `${validGitOverlayResult.stdout}\n${validGitOverlayResult.stderr}`)
+
+        writeFile(gitOverlayRoot, '.devcodex/chat/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: { devcodex: { git: { collaborationMode: 'solo' } } }
+        }, null, 2))
+        const invalidMergedGitResult = runValidateWithArgs(path.join(gitOverlayRoot, 'chat'), [
+            '--profile-dir', gitOverlayProfile,
+            '--workspace-profile', path.join(gitOverlayRoot, '.devcodex', 'workspace', 'profile')
+        ])
+        const invalidMergedGitOutput = `${invalidMergedGitResult.stdout}\n${invalidMergedGitResult.stderr}`
+        assert.strictEqual(invalidMergedGitResult.status, 1, invalidMergedGitOutput)
+        assert.match(invalidMergedGitOutput, /effective workspace\/project config.*solo collaboration must use branchPolicy=keep-current/)
+
+        writeFile(gitOverlayRoot, '.devcodex/chat/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: { devcodex: { git: { sharedActionsRequireExplicitAuthorization: false } } }
+        }, null, 2))
+        const loweredGitOverlayResult = runValidateWithArgs(path.join(gitOverlayRoot, 'chat'), [
+            '--profile-dir', gitOverlayProfile,
+            '--workspace-profile', path.join(gitOverlayRoot, '.devcodex', 'workspace', 'profile')
+        ])
+        const loweredGitOverlayOutput = `${loweredGitOverlayResult.stdout}\n${loweredGitOverlayResult.stderr}`
+        assert.strictEqual(loweredGitOverlayResult.status, 1, loweredGitOverlayOutput)
+        assert.match(loweredGitOverlayOutput, /overlay must not lower .*sharedActionsRequireExplicitAuthorization from true to false/)
 
         const explicitFallbackRoot = createWorkspaceNamespaceWorkspace(currentProjectInfo())
         const chatProfileDir = path.join(explicitFallbackRoot, '.devcodex', 'chat', 'profile')

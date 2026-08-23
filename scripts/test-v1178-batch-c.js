@@ -22,8 +22,11 @@ const {
   gitignorePatternCovers
 } = require('./lib/cli-runtime-utils.js')
 const {
+  SESSION_OBSERVATION_SLOT_COUNT,
+  buildGrokSessionObservation,
   buildGrokSessionPrivateOwner,
   classifyGrokSessionPrivateRecovery,
+  validateGrokSessionObservation,
   validateGrokSessionPrivateOwner
 } = require('../grok/plugins/devcodex-workspace/lib/private-temp-contract.cjs')
 const { sessionPermissionReceipt } = require('../grok/plugins/devcodex-workspace/hooks/session-start.cjs')
@@ -189,6 +192,22 @@ probe('TMP-012 private Grok session owners are isolated and TTL-safe', () => {
   }).recoverable, false)
 })
 
+probe('TMP-017 Grok SessionStart diagnostics use a fixed observation ring', () => {
+  const base = { pluginData: 'C:/grok-data', sessionId: 'same-session', ownerToken: 'token', nowMs: 1000 }
+  const observations = Array.from({ length: 100 }, (_, index) => buildGrokSessionObservation({
+    ...base,
+    nonce: `bounded-observation-${index}`
+  }))
+  const paths = new Set(observations.map(item => item.observationPath))
+  assert(paths.size > 1)
+  assert(paths.size <= SESSION_OBSERVATION_SLOT_COUNT)
+  for (const observation of observations) {
+    assert.strictEqual(validateGrokSessionObservation(observation, base.pluginData).valid, true)
+    assert.match(path.basename(observation.observationPath), /^slot-(?:0\d|1[0-5])\.json$/)
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(observation, 'ownerToken'), false)
+  }
+})
+
 probe('TMP-016 product writers no longer late-register', () => {
   const productFiles = [
     'index.js',
@@ -203,5 +222,5 @@ probe('TMP-016 product writers no longer late-register', () => {
   assert.match(text, /createWorkspaceTempArtifactAtRoot/)
 })
 
-assert.strictEqual(passed, 13)
-process.stdout.write(`Batch C: ${passed}/13 issue probes passed\n`)
+assert.strictEqual(passed, 14)
+process.stdout.write(`Batch C: ${passed}/14 issue probes passed\n`)

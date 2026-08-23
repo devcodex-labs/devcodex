@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "ProgressiveSkillRouteEnforcementPolicyV1",
+  "feature": "progressive-skill-route",
+  "defaults": {
+    "bootstrap": true,
+    "observe": true,
+    "hardEnforcement": true,
+    "reasonCode": "progressive-skill-route-hard-enforcement-default",
+    "capabilityClaim": "policy-only"
+  },
+  "overrides": [
+    {
+      "hostFamily": "codex",
+      "eventName": "PreToolUse",
+      "bootstrap": true,
+      "observe": true,
+      "hardEnforcement": false,
+      "reasonCode": "codex-progressive-pretool-advisory",
+      "capabilityClaim": "policy-only-no-host-pass-claim"
+    },
+    {
+      "hostFamily": "codex",
+      "eventName": "Stop",
+      "bootstrap": true,
+      "observe": true,
+      "hardEnforcement": false,
+      "reasonCode": "codex-progressive-stop-advisory",
+      "capabilityClaim": "policy-only-no-host-pass-claim"
+    }
+  ]
+}

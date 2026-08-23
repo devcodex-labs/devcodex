@@ -1,6 +1,4 @@
 'use strict'
-
-const crypto = require('crypto')
 const {
   contextPlanObservationRelativePath
 } = require('../../hooks/_runtime/context-plan-observation.cjs')
@@ -78,19 +76,6 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     const state = readLegacyState()
     const bootstrap = state.progressiveSkillRoute?.bootstrap
     assert(bootstrap, 'SkillRoute bootstrap must exist before completing the route')
-    // This legacy-layout fixture keeps Hook state under `hooks/legacy`, while
-    // the production SkillRoute context verifier reads the canonical
-    // `hooks/__workspace__` partition. Mirror the same observed state so this
-    // scenario exercises the real verifier instead of bypassing it.
-    const routeLifecycleStatePath = path.join(
-      state.contextAcquisition.activeRoot,
-      '.memory',
-      'hooks',
-      '__workspace__',
-      'lifecycle-state.json'
-    )
-    fs.mkdirSync(path.dirname(routeLifecycleStatePath), { recursive: true })
-    fs.writeFileSync(routeLifecycleStatePath, `${JSON.stringify(state, null, 2)}\n`)
     const options = { inputRoot: TEMP_ROOT }
     let cursor = null
     do {
@@ -335,21 +320,28 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   }, TEMP_ROOT, {
     DEVCODEX_HOST_PLATFORM: 'codex'
   })
-  assert.strictEqual(pendingStop.devcodexCode, 'progressive-skill-route')
-  assert.strictEqual(pendingStop.devcodexNextAction?.nextOp, 'resolve_context_target')
-  assert.strictEqual(pendingStop.devcodexNextAction?.nextCall?.op, 'profile_context_plan')
+  assert.strictEqual(pendingStop.devcodexCode, 'closure-incomplete')
+  assert.notStrictEqual(pendingStop.decision, 'block')
+  const pendingAfterStop = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
   assert.strictEqual(
-    pendingStop.devcodexNextAction?.nextCall?.host,
+    pendingAfterStop.progressiveSkillRouteEnforcement.decisions.Stop.hardEnforcement,
+    false
+  )
+  assert.strictEqual(pendingAfterStop.progressiveSkillRouteStop?.nextOp, 'resolve_context_target')
+  const pendingNextCall = pendingAfterStop.progressiveSkillRouteStop?.nextCall
+  assert.strictEqual(pendingNextCall?.op, 'profile_context_plan')
+  assert.strictEqual(
+    pendingNextCall?.host,
     'codex-cli/exec-user-global-local-stdio'
   )
-  assert.strictEqual(pendingStop.devcodexNextAction?.nextCall?.explicitSkillId, 'audit-project')
+  assert.strictEqual(pendingNextCall?.explicitSkillId, 'audit-project')
   const pendingArgs = {
     intent: 'audit',
     changeTypes: ['testing'],
     contextEpoch: pendingState.contextAcquisition.contextEpoch,
     project: 'devcodex',
-    host: pendingStop.devcodexNextAction.nextCall.host,
-    explicitSkillId: pendingStop.devcodexNextAction.nextCall.explicitSkillId
+    host: pendingNextCall.host,
+    explicitSkillId: pendingNextCall.explicitSkillId
   }
   const pendingCallId = 'pending-project-plan'
   run({
@@ -411,23 +403,13 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     'an unresolved workspace target must not create a synthetic project namespace'
   )
 
-  // PF-256: MCP and SkillRoute update the project lifecycle state outside the
-  // Hook process. The next Hook boundary must adopt a newer projection from the
-  // same host session instead of replaying its older session snapshot forever.
-  const pendingSessionDigest = crypto.createHash('sha256').update(pendingSession).digest('hex')
-  const pendingSessionFile = path.join(
-    path.dirname(getWorkspaceLayoutStateFile()),
-    'sessions',
-    `${pendingSessionDigest}.json`
-  )
+  // TaskRecoveryStoreV5: an ephemeral owner remains in the fixed A/B ring;
+  // no per-session JSON file is created. A same-session stable projection may
+  // still carry a newer MCP/SkillRoute observation into the next Hook boundary.
+  const legacySessionsDir = path.join(path.dirname(getWorkspaceLayoutStateFile()), 'sessions')
   const newerActiveState = JSON.parse(fs.readFileSync(getLayoutStateFile('devcodex'), 'utf8'))
   const newerPlanId = newerActiveState.contextAcquisition.plan.planId
-  const olderSessionState = JSON.parse(JSON.stringify(newerActiveState))
-  olderSessionState.updatedAt = '2026-08-05T00:00:00.000Z'
-  olderSessionState.contextAcquisition.plan = null
-  olderSessionState.contextAcquisition.receipt = null
   newerActiveState.updatedAt = '2026-08-05T00:00:01.000Z'
-  fs.writeFileSync(pendingSessionFile, `${JSON.stringify(olderSessionState, null, 2)}\n`)
   fs.writeFileSync(getLayoutStateFile('devcodex'), `${JSON.stringify(newerActiveState, null, 2)}\n`)
   run({
     hookEventName: 'PostToolUse',
@@ -438,21 +420,14 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     tool_response: { ok: true }
   }, TEMP_ROOT, { DEVCODEX_HOST_PLATFORM: 'codex' })
   const reconciledActiveState = JSON.parse(fs.readFileSync(getLayoutStateFile('devcodex'), 'utf8'))
-  const reconciledSessionState = JSON.parse(fs.readFileSync(pendingSessionFile, 'utf8'))
   assert.strictEqual(reconciledActiveState.contextAcquisition.plan.planId, newerPlanId)
-  assert.strictEqual(reconciledSessionState.contextAcquisition.plan.planId, newerPlanId)
+  assert.strictEqual(fs.existsSync(legacySessionsDir), false)
 
-  // Projection files are no longer authoritative after LifecycleStateCommitV3.
-  // A foreign active projection and an older session projection must both be
-  // repaired from the last identity-bound committed generation.
+  // A foreign projection must not be adopted for the fixed-ring owner. V5
+  // fails closed to the bounded resume stub instead of reading another session.
   const foreignActiveState = JSON.parse(JSON.stringify(reconciledActiveState))
-  const isolatedSessionState = JSON.parse(JSON.stringify(reconciledSessionState))
   foreignActiveState.updatedAt = '2030-08-05T00:00:00.000Z'
   foreignActiveState.contextAcquisition.hostSessionId = 'foreign-session'
-  isolatedSessionState.updatedAt = '2026-08-05T00:00:00.000Z'
-  isolatedSessionState.contextAcquisition.plan = null
-  isolatedSessionState.contextAcquisition.receipt = null
-  fs.writeFileSync(pendingSessionFile, `${JSON.stringify(isolatedSessionState, null, 2)}\n`)
   fs.writeFileSync(getLayoutStateFile('devcodex'), `${JSON.stringify(foreignActiveState, null, 2)}\n`)
   run({
     hookEventName: 'PostToolUse',
@@ -462,11 +437,10 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     tool_input: { file_path: path.join(TEMP_ROOT, 'devcodex', 'package.json') },
     tool_response: { ok: true }
   }, TEMP_ROOT, { DEVCODEX_HOST_PLATFORM: 'codex' })
-  const isolatedAfterForeignState = JSON.parse(fs.readFileSync(pendingSessionFile, 'utf8'))
-  assert.strictEqual(isolatedAfterForeignState.contextAcquisition.plan.planId, newerPlanId)
-  assert.strictEqual(isolatedAfterForeignState.contextAcquisition.hostSessionId, pendingSession)
   const activeAfterForeignState = JSON.parse(fs.readFileSync(getLayoutStateFile('devcodex'), 'utf8'))
   assert.strictEqual(activeAfterForeignState.contextAcquisition.hostSessionId, pendingSession)
+  assert.notStrictEqual(activeAfterForeignState.contextAcquisition.hostSessionId, 'foreign-session')
+  assert.strictEqual(fs.existsSync(legacySessionsDir), false)
 
   cleanState()
 

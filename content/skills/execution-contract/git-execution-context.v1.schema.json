@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devcodex.dev/schemas/git-execution-context-v1.json",
+  "title": "GitExecutionContextV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "repoRoot", "headBranch", "headCommit", "detached", "dirtySummary",
+    "collaborationMode", "collaborationEvidenceRefs", "branchPolicy", "worktreePolicy",
+    "scenario", "integrationPolicy", "targetBranch", "sourceCommitIds", "targetBefore",
+    "targetAfter", "conflictStatus", "postIntegrationValidationRefs", "plannedActions", "validation"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "GitExecutionContextV1" },
+    "repoRoot": { "type": "string", "pattern": "^(?:[A-Za-z]:[\\\\/]|/)" },
+    "headBranch": { "type": ["string", "null"] },
+    "headCommit": { "$ref": "#/$defs/commitId" },
+    "detached": { "type": "boolean" },
+    "dirtySummary": { "$ref": "#/$defs/dirtySummary" },
+    "collaborationMode": { "enum": ["solo", "team", "unverified"] },
+    "collaborationEvidenceRefs": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "branchPolicy": { "enum": ["keep-current", "no-auto-branch", "explicit-exception"] },
+    "worktreePolicy": { "enum": ["explicit-only", "team-policy-unverified"] },
+    "scenario": { "enum": ["same-branch", "cross-branch-selective", "whole-linear-history", "branch-exception"] },
+    "integrationPolicy": { "enum": ["none", "ordered-cherry-pick", "ff-only-explicit"] },
+    "targetBranch": { "type": ["string", "null"] },
+    "sourceCommitIds": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/commitId" } },
+    "targetBefore": { "oneOf": [{ "$ref": "#/$defs/commitId" }, { "type": "null" }] },
+    "targetAfter": { "oneOf": [{ "$ref": "#/$defs/commitId" }, { "type": "null" }] },
+    "conflictStatus": { "enum": ["none", "detected", "resolved", "unverified"] },
+    "postIntegrationValidationRefs": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "plannedActions": { "type": "array", "items": { "$ref": "#/$defs/plannedAction" } },
+    "validation": { "$ref": "#/$defs/validation" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "detached": { "const": true } }, "required": ["detached"] },
+      "then": { "properties": { "headBranch": { "type": "null" } } },
+      "else": { "properties": { "headBranch": { "type": "string", "minLength": 1 } } }
+    },
+    {
+      "if": { "properties": { "scenario": { "const": "same-branch" } }, "required": ["scenario"] },
+      "then": { "properties": { "detached": { "const": false }, "integrationPolicy": { "const": "none" }, "sourceCommitIds": { "maxItems": 0 } } }
+    },
+    {
+      "if": { "properties": { "scenario": { "const": "branch-exception" } }, "required": ["scenario"] },
+      "then": { "properties": { "branchPolicy": { "const": "explicit-exception" }, "integrationPolicy": { "const": "none" }, "targetBranch": { "type": "string", "minLength": 1 } } }
+    }
+  ],
+  "$defs": {
+    "commitId": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "dirtySummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clean", "staged", "tracked", "untracked", "conflicted"],
+      "properties": {
+        "clean": { "type": "boolean" },
+        "staged": { "type": "integer", "minimum": 0 },
+        "tracked": { "type": "integer", "minimum": 0 },
+        "untracked": { "type": "integer", "minimum": 0, "description": "Untracked protection count, including ignored entries reported as !!." },
+        "conflicted": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "plannedAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind", "reason", "impact", "alternative", "target", "recovery", "authorization",
+        "authorizationEvidenceRefs", "executionEvidenceRefs"
+      ],
+      "properties": {
+        "kind": { "enum": ["branch-create", "switch", "commit", "cherry-pick", "merge-ff-only", "push"] },
+        "reason": { "type": "string", "minLength": 1 },
+        "impact": { "type": "string", "minLength": 1 },
+        "alternative": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "recovery": { "type": "string", "minLength": 1 },
+        "authorization": { "enum": ["pending", "explicit-confirmed", "completed"] },
+        "authorizationEvidenceRefs": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "executionEvidenceRefs": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["valid", "errors", "executable", "nextAction"],
+      "properties": {
+        "valid": { "type": "boolean" },
+        "errors": { "type": "array", "items": { "type": "string" } },
+        "executable": { "type": "boolean" },
+        "nextAction": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

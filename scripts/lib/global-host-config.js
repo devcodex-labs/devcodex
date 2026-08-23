@@ -52,6 +52,17 @@ const {
   buildHostHookCommand,
   canonicalNodeExecutable
 } = require('./host-command.js')
+const {
+  RUNTIME_GENERATION_GC_PLAN_SCHEMA,
+  RUNTIME_RETENTION_PROTOCOL_VERSION,
+  resolveRuntimeGenerationRetentionState
+} = require('./runtime-generation-retention.js')
+const {
+  LEASE_ROOT_NAME,
+  RUNTIME_GENERATION_LEASE_SCHEMA,
+  acquirePlannedRuntimeGenerationLease,
+  releaseRuntimeGenerationLease
+} = require('../../hooks/_runtime/runtime-generation-lease.cjs')
 
 const GLOBAL_HOST_CONFIG_SCHEMA = 'GlobalOnlyHostConfigModeV1'
 const GLOBAL_HOST_RECEIPT_SCHEMA = 'GlobalHostConfigReceiptV1'
@@ -1208,6 +1219,21 @@ function buildGlobalHostConfigPlan(options = {}) {
         skillsDeployMode
       }
       hostPlanBuilder(target.host)(hostOperations, targetWithOwner, packageRoot, fsImpl)
+      const runtimeRetentionState = resolveRuntimeGenerationRetentionState(
+        target.runtimeBaseRoot,
+        {
+          fs: fsImpl,
+          nowMs: options.nowMs,
+          generationId: target.runtimeGeneration?.generationId
+        }
+      )
+      addFileOperation(
+        hostOperations,
+        target.host,
+        runtimeRetentionState.file,
+        runtimeRetentionState.content,
+        'json'
+      )
       const nativeRoots = collectHostNativeSkillRoots(targetWithOwner)
       addNativeSkillOwnershipMarkers(hostOperations, nativeRoots, prunableSkillIds)
       const previousReceiptText = options.ignoreExistingReceipts ? '' : readText(target.receiptFile, fsImpl)
@@ -1272,7 +1298,8 @@ function buildGlobalHostConfigPlan(options = {}) {
           : {},
         preservedNativeSkillCollisions,
         previousReceipt,
-        previousReceiptText
+        previousReceiptText,
+        runtimeRetentionState
       })
     } catch (error) {
       hostPlans.push({
@@ -1347,6 +1374,7 @@ function buildGlobalHostConfigPlan(options = {}) {
     ].map(portable)))
       .filter(root => !samePath(root, target.runtimeRoot))
       .filter(root => pathIsInside(target.runtimeBaseRoot, root))
+      .filter(root => fsImpl.existsSync(root))
       .sort()
     hostPlan.retainedManagedArtifacts = retainedManagedArtifacts(
       previousReceipt,
@@ -1411,6 +1439,16 @@ function buildGlobalHostConfigPlan(options = {}) {
         previousReceipt.retainedManagedArtifacts || [],
         hostPlan.retainedManagedArtifacts || []
       ) &&
+      isDeepStrictEqual(previousReceipt.runtimeRetention || null, {
+        schemaVersion: 'RuntimeGenerationRetentionReceiptV1',
+        stateFile: portable(hostPlan.runtimeRetentionState.file),
+        stateDigest: hostPlan.runtimeRetentionState.digest,
+        leaseRoot: portable(path.join(target.runtimeBaseRoot, LEASE_ROOT_NAME)),
+        leaseSchema: RUNTIME_GENERATION_LEASE_SCHEMA,
+        protocolVersion: RUNTIME_RETENTION_PROTOCOL_VERSION,
+        gcPlanSchema: RUNTIME_GENERATION_GC_PLAN_SCHEMA,
+        gcPolicy: 'preview-digest-explicit-apply'
+      }) &&
       sameStringArray(previousReceipt.retainedRuntimeRoots || [], hostPlan.retainedRuntimeRoots || []) &&
       sameStringArray(previousReceipt.pendingStaleManagedPaths || [], pendingStaleManagedPaths) &&
       isDeepStrictEqual(
@@ -1433,6 +1471,16 @@ function buildGlobalHostConfigPlan(options = {}) {
       packageVersion: packageJson.version || 'unknown',
       runtimeGeneration: target.runtimeGeneration || null,
       retainedRuntimeRoots: hostPlan.retainedRuntimeRoots || [],
+      runtimeRetention: {
+        schemaVersion: 'RuntimeGenerationRetentionReceiptV1',
+        stateFile: portable(hostPlan.runtimeRetentionState.file),
+        stateDigest: hostPlan.runtimeRetentionState.digest,
+        leaseRoot: portable(path.join(target.runtimeBaseRoot, LEASE_ROOT_NAME)),
+        leaseSchema: RUNTIME_GENERATION_LEASE_SCHEMA,
+        protocolVersion: RUNTIME_RETENTION_PROTOCOL_VERSION,
+        gcPlanSchema: RUNTIME_GENERATION_GC_PLAN_SCHEMA,
+        gcPolicy: 'preview-digest-explicit-apply'
+      },
       sourcePackageEvidence: {
         rootLifetime: 'install-process-only',
         durableIdentity: true,
@@ -1508,8 +1556,26 @@ function applyGlobalHostConfig(options = {}) {
       : (options.failAfter !== undefined && target.host === fallbackFailureHost
           ? options.failAfter
           : undefined)
+    let activationLease = null
     try {
       const fsImpl = options.fs || fs
+      if (!options.dryRun) {
+        activationLease = acquirePlannedRuntimeGenerationLease({
+          fs: fsImpl,
+          runtimeBaseRoot: target.runtimeBaseRoot,
+          runtimeRoot: target.runtimeRoot,
+          generationId: target.runtimeGeneration?.generationId,
+          role: 'global-host-activation',
+          registerExit: false
+        })
+        if (activationLease.status !== 'active') {
+          const error = new Error(
+            `RUNTIME_GENERATION_ACTIVATION_LEASE_REQUIRED: ${activationLease.reasonCode || activationLease.status}`
+          )
+          error.code = 'RUNTIME_GENERATION_ACTIVATION_LEASE_REQUIRED'
+          throw error
+        }
+      }
       const transactionOperations = preserveSemanticallyEquivalentContent(hostPlan.operations, fsImpl)
       const safetyRoots = targetSafetyRoots(target)
       const hostTransaction = executeGlobalHostTransaction(transactionOperations, {
@@ -1649,6 +1715,14 @@ function applyGlobalHostConfig(options = {}) {
           error: error.message
         })
       })
+    } finally {
+      if (activationLease?.status === 'active') {
+        const released = releaseRuntimeGenerationLease(activationLease)
+        const transaction = hostTransactions[hostTransactions.length - 1]
+        if (!released && transaction?.host === target.host) {
+          transaction.activationLeaseCleanupIncomplete = true
+        }
+      }
     }
   }
 
@@ -1665,6 +1739,9 @@ function applyGlobalHostConfig(options = {}) {
     backupCleanupIncomplete: successful.some(item => item.backupCleanupIncomplete === true),
     backupCleanupFailures: successful.flatMap(item =>
       (item.backupCleanupFailures || []).map(failure => ({ host: item.host, ...failure }))
+    ),
+    activationLeaseCleanupIncomplete: hostTransactions.some(item =>
+      item.activationLeaseCleanupIncomplete === true
     ),
     receiptFinalizationIncomplete: successful.some(item => item.receiptFinalizationIncomplete === true),
     receiptFinalizationFailures: successful
@@ -1810,6 +1887,11 @@ function inspectGlobalHostConfiguration(options = {}) {
       typeof receipt.packageVersion === 'string' &&
       receipt.runtimeGeneration?.schemaVersion === 'RuntimeGenerationManifestV1' &&
       receipt.runtimeGeneration?.generationId === target.runtimeGeneration?.generationId &&
+      receipt.runtimeRetention?.schemaVersion === 'RuntimeGenerationRetentionReceiptV1' &&
+      receipt.runtimeRetention?.leaseSchema === RUNTIME_GENERATION_LEASE_SCHEMA &&
+      receipt.runtimeRetention?.protocolVersion === RUNTIME_RETENTION_PROTOCOL_VERSION &&
+      receipt.runtimeRetention?.gcPlanSchema === RUNTIME_GENERATION_GC_PLAN_SCHEMA &&
+      receipt.runtimeRetention?.gcPolicy === 'preview-digest-explicit-apply' &&
       samePath(receipt.runtimeRoot, target.runtimeRoot) &&
       typeof receipt.sourceDigest === 'string' &&
       typeof receipt.planDigest === 'string' &&
@@ -1843,6 +1925,10 @@ function inspectGlobalHostConfiguration(options = {}) {
       isDeepStrictEqual(
         receipt?.retainedManagedArtifacts || [],
         expectedReceipt.retainedManagedArtifacts || []
+      ) &&
+      isDeepStrictEqual(
+        receipt?.runtimeRetention || null,
+        expectedReceipt.runtimeRetention || null
       ) &&
       sameStringArray(receipt?.retainedRuntimeRoots || [], expectedReceipt.retainedRuntimeRoots || []) &&
       sameStringArray(receipt?.pendingStaleManagedPaths, expectedReceipt.pendingStaleManagedPaths)

@@ -9,9 +9,9 @@
         "finalUrl": "https://devcodex-labs.github.io/devcodex/",
         "status": 200,
         "expectedIdentity": "product-pages",
-        "requiredBrandMarkers": ["DevCodex", "Intent-driven AI Coding Workflow Runtime"],
+        "requiredBrandMarkers": ["DevCodex", "Cross-host AI Coding Engineering Harness"],
         "forbiddenMarkers": ["Parked Domain", "VextJS", "404"],
-        "body": "<html><head><title>DevCodex — Intent-driven AI Coding Workflow Runtime</title></head><body>DevCodex</body></html>"
+        "body": "<html><head><title>DevCodex — Cross-host AI Coding Engineering Harness</title></head><body>DevCodex</body></html>"
       }
     },
     {

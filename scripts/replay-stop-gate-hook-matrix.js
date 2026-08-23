@@ -12,6 +12,9 @@ const { spawnSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
+const {
+  updateLifecycleStateCommit
+} = require('../hooks/_runtime/lifecycle-state-commit.cjs')
 
 const tempRoots = []
 
@@ -131,6 +134,31 @@ function touchMutation (cwd, env, name) {
   })
 }
 
+function isolateStopCompletionGate (cwd, env) {
+  const statePath = path.join(cwd, '.devcodex', '.memory', 'hooks', 'legacy', 'lifecycle-state.json')
+  if (!fs.existsSync(statePath)) {
+    throw new Error(`Stop completion fixture state is missing: ${statePath}`)
+  }
+  // This replay owns the Stop completion gate only. A deliberately unfinished
+  // progressive route has its own lifecycle matrix and would otherwise replace
+  // the completion decision with the correct route-recovery decision.
+  const commit = updateLifecycleStateCommit({
+    metaDir: path.dirname(statePath),
+    identity: { sessionKey: env.GROK_SESSION_ID },
+    readFallback: () => JSON.parse(fs.readFileSync(statePath, 'utf8'))
+  }, state => {
+    state.contextAcquisition = {
+      ...(state.contextAcquisition || {}),
+      contextEpoch: ''
+    }
+    return state
+  }, { fs })
+  if (commit.status !== 'committed') {
+    throw new Error(`Stop completion fixture isolation failed: ${commit.errorCode || commit.status}`)
+  }
+  fs.writeFileSync(statePath, JSON.stringify(commit.state, null, 2) + '\n', 'utf8')
+}
+
 function readHonesty (cwd) {
   const statePath = path.join(cwd, '.devcodex', '.memory', 'hooks', 'legacy', 'lifecycle-state.json')
   if (!fs.existsSync(statePath)) return null
@@ -165,6 +193,7 @@ function scenarioRt5 () {
     prompt: '今天天气怎样，只闲聊，不要写任何文件',
     cwd
   })
+  isolateStopCompletionGate(cwd, env)
   // no mutation
   const stop = runLifecycle(cwd, env, {
     hookEventName: 'Stop',
@@ -197,6 +226,7 @@ function scenarioRt3 () {
     prompt: 'write tmp then claim complete without entry check',
     cwd
   })
+  isolateStopCompletionGate(cwd, env)
   touchMutation(cwd, env, '_replay_stop_gate_tmp.txt')
   const stop = runLifecycle(cwd, env, {
     hookEventName: 'Stop',
@@ -247,6 +277,7 @@ function scenarioRt6 () {
     prompt: 'mutate then complete with full entry and FVS',
     cwd
   })
+  isolateStopCompletionGate(cwd, env)
   touchMutation(cwd, env, '_rt6_src.txt')
   // mark report + memory touched via product-like tool paths
   runLifecycle(cwd, env, {

@@ -11,6 +11,7 @@ const {
 } = require('./global-adapter-refresh-guidance.js')
 const { operationFromArgs } = require('./cli-workspace-init-args.js')
 const { buildWorkspaceInitCommand } = require('./cli-workspace-init-command.js')
+const { validateWorkspaceProvisioningReceipt } = require('./workspace-provisioning.js')
 
 function buildCliInstallCommands(ctx) {
   const {
@@ -43,6 +44,19 @@ function buildCliInstallCommands(ctx) {
   }
 
   const cliMetadata = { packageName: PACKAGE_JSON.name, packageVersion: PACKAGE_JSON.version }
+
+  function consumeWorkspaceProvisioningReceipt(receipt) {
+    const validation = validateWorkspaceProvisioningReceipt(receipt)
+    if (receipt?.schemaVersion !== 'WorkspaceProvisioningReceiptV1' ||
+      !['fresh', 'existing', 'planned'].includes(receipt.status) || !validation.valid) {
+      const error = new Error('workspace provisioning did not return a usable receipt')
+      error.code = 'WORKSPACE_PROVISIONING_RECEIPT_INVALID'
+      error.receipt = receipt || null
+      error.validationErrors = validation.errors
+      throw error
+    }
+    return receipt
+  }
 
   function initArgumentFailure(operation, json, errorCode, message, details = {}) {
     const envelope = createCliFailure(
@@ -129,7 +143,7 @@ function buildCliInstallCommands(ctx) {
   }
 
   const cmdInitWorkspaceRuntime = buildWorkspaceInitCommand({
-    process, console, c, cliMetadata, initArgumentFailure, readTenantSelection,
+    process, console, c, path, cliMetadata, initArgumentFailure, readTenantSelection,
     findLayoutInfo, resolveWorkspaceProjectTarget, ensureWorkspaceNamespaceLayout,
     ensureRuntimeDirs, initializeProfile, globalRefreshGuidance
   })
@@ -316,11 +330,11 @@ function buildCliInstallCommands(ctx) {
     process.chdir(ownerRoot)
     try {
       const result = operation({ hostScope, invocationCwd })
-      if (!options.dryRun && (!process.exitCode || process.exitCode === 0)) {
+      if (!process.exitCode || process.exitCode === 0) {
         // Host assets belong to the workspace owner, but task/runtime state remains
         // project-scoped so intent, Profile, memory and reports never collapse into
         // the shared workspace namespace.
-        ensureRuntimeDirs(invocationCwd, false)
+        consumeWorkspaceProvisioningReceipt(ensureRuntimeDirs(invocationCwd, options.dryRun === true))
       }
       const grokScope = resolveHostAdapterScope(invocationCwd, 'grok')
       retireWorkspaceProjectHostManifest(grokScope, { dryRun: options.dryRun === true })
@@ -462,8 +476,8 @@ function buildCliInstallCommands(ctx) {
     skipped += fallbackCounts.skipped
 
     // Create active .devcodex namespace runtime dirs and update the owning .gitignore
+    consumeWorkspaceProvisioningReceipt(ensureRuntimeDirs(cwd, dryRun))
     if (!dryRun) {
-      ensureRuntimeDirs(cwd, dryRun)
       added += ensureDevCodexGitignore(resolveGitignoreRoot(cwd), dryRun)
     }
 
@@ -675,9 +689,8 @@ function buildCliInstallCommands(ctx) {
     }
 
     // 5. Create active .devcodex namespace runtime dirs and update the owning .gitignore (same as copilot init)
+    consumeWorkspaceProvisioningReceipt(ensureRuntimeDirs(cwd, dryRun))
     if (!dryRun) {
-      ensureRuntimeDirs(cwd, dryRun)
-
       // F-002: warn about legacy .claude/agents/ (Claude Code uses skills/ via Skill tool, not agents/)
       if (!internal) {
         const claudeAgentsDir = path.join(clDir, 'agents')
@@ -904,8 +917,8 @@ function buildCliInstallCommands(ctx) {
       }
     }
 
+    consumeWorkspaceProvisioningReceipt(ensureRuntimeDirs(cwd, dryRun))
     if (!dryRun) {
-      ensureRuntimeDirs(cwd, dryRun)
       added += ensureDevCodexGitignore(resolveGitignoreRoot(cwd), dryRun, log)
     }
 
@@ -1006,8 +1019,8 @@ function buildCliInstallCommands(ctx) {
       log(c.dim('  ~ .gemini/settings.json'))
     }
 
+    consumeWorkspaceProvisioningReceipt(ensureRuntimeDirs(cwd, dryRun))
     if (!dryRun) {
-      ensureRuntimeDirs(cwd, dryRun)
       counts.added += ensureDevCodexGitignore(resolveGitignoreRoot(cwd), dryRun, log)
     }
     printAdapterSummary('Gemini adapter', counts, dryRun, internal, 'Restart Gemini CLI, trust project hooks, then verify with `/hooks panel`.')
@@ -1102,8 +1115,8 @@ function buildCliInstallCommands(ctx) {
         force, dryRun, backupDir, log, inlineLog, tenantId
       }))
     }
+    consumeWorkspaceProvisioningReceipt(ensureRuntimeDirs(targetRoot, dryRun))
     if (!dryRun) {
-      ensureRuntimeDirs(targetRoot, dryRun)
       counts.added += ensureDevCodexGitignore(resolveGitignoreRoot(targetRoot), dryRun, log)
     }
     const nextStep = grokWorkspaceScope

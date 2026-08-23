@@ -591,10 +591,10 @@ function buildGovernanceIntakeChecks(ctx) {
       { file: 'skills/audit-common/SKILL.md', needles: ['UserFacingArtifactSetV1', 'capability evidence'] },
       { file: 'prompts/implementation-plan.prompt.md', needles: ['VisibleOutputContract', 'renderer parity'] },
       { file: 'prompts/implementation-progress.prompt.md', needles: ['VisibleOutputContract', 'mcpFallback'] },
-      { file: 'prompts/report-dev.prompt.md', needles: ['DevCodexVisibleEnvelopeV1.semanticDigest', 'LinkCapabilityDecisionV1'] },
+      { file: 'prompts/report-dev.prompt.md', needles: ['PostCompletionActionSetV1', 'DevCodexVisibleEnvelopeV2.semanticDigest', 'LinkCapabilityDecisionV1'] },
       { file: 'prompts/report-fix.prompt.md', needles: ['VisibleOutputContract', 'mcpFallback'] },
       { file: 'README.md', needles: ['用户可见交付与链接兼容', 'profile_load', 'invoke'] },
-      { file: 'website/docs/guide/development.md', needles: ['DevCodexVisibleEnvelopeV1', 'mcpFallback=used'] },
+      { file: 'website/docs/guide/development.md', needles: ['DevCodexVisibleEnvelopeV2', 'mcpFallback=used'] },
       { file: 'scripts/test-mcp-servers.js', needles: ['testProfileLoadWithoutArguments', 'assert.doesNotMatch(text, /invoke|TypeError/i)'] },
       { file: 'scripts/test-client-contracts.js', needles: ['Client contract checks passed', 'createLinkCapabilityDecision', 'testProfileLoadWithoutArguments'] },
       { file: 'package.json', needles: ['test:client-contracts', 'node scripts/test-client-contracts.js'] }

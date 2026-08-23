@@ -3,6 +3,11 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const {
+  commitTaskRecoveryState,
+  readTaskRecoveryState,
+  writeStableProjection
+} = require('../../hooks/_runtime/task-recovery-store-v5.cjs')
 
 const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')
 
@@ -81,13 +86,26 @@ function writeContextBindingState (
     fixture.project,
     'lifecycle-state.json'
   )
-  writeJson(statePath, {
-    contextAcquisition: {
-      contextEpoch,
-      activeRoot: fixture.activeRoot.replace(/\\/g, '/'),
-      project: fixture.project,
-      hostSessionId,
-      plan: {
+  const metaDir = path.dirname(statePath)
+  const existing = readTaskRecoveryState({
+    metaDir,
+    sessionKey: hostSessionId,
+    expectedIdentity: {
+      activeRoot: fixture.activeRoot,
+      project: fixture.project
+    }
+  })
+  const state = ['fresh', 'ephemeral-stub'].includes(existing.status)
+    ? JSON.parse(JSON.stringify(existing.state || {}))
+    : {}
+  state.contextAcquisition = {
+    ...(state.contextAcquisition || {}),
+    contextEpoch,
+    activeRoot: fixture.activeRoot.replace(/\\/g, '/'),
+    project: fixture.project,
+    targetResolved: true,
+    hostSessionId,
+    plan: {
         schemaVersion: 'ContextReadPlanV2',
         planId,
         planContentId,
@@ -98,17 +116,31 @@ function writeContextBindingState (
         changeTypes: [],
         selectedSources: [],
         mandatorySourceIds: []
-      },
-      receipt: {
+    },
+    receipt: {
         schemaVersion: 'ContextReadReceiptV2',
         receiptId,
         contextEpoch,
         planId,
         planContentId,
         status: 'relevant-complete'
-      }
     }
-  })
+  }
+  writeStableProjection(statePath, state)
+  if (['fresh', 'ephemeral-stub'].includes(existing.status)) {
+    const commit = commitTaskRecoveryState({
+      metaDir,
+      identity: existing.identity || {
+        activeRoot: fixture.activeRoot,
+        project: fixture.project
+      },
+      sessionKey: hostSessionId,
+      state
+    }, { force: true })
+    if (['error', 'bypassed'].includes(commit.status)) {
+      throw new Error(`fixture TaskRecoveryStoreV5 update failed: ${commit.errorCode || commit.status}`)
+    }
+  }
   return {
     schemaVersion: 'ContextReadBindingV1',
     contextEpoch,

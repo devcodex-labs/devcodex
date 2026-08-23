@@ -18,7 +18,7 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible e
 | Stop / PreCompact 可见回复验证语义变更 | 🔴 必须 |
 | sticky `activeProject` / `mode` / workspace guard 变更 | 🔴 必须 |
 | Bootstrap、部署副本、父链同步口径变更 | 🔴 必须 |
-| `DevCodexVisibleEnvelopeV1` / `UserFacingArtifactSetV1` / `LinkCapabilityDecisionV1` 变更 | 🔴 必须 |
+| `DevCodexVisibleEnvelopeV2` / V1 只读兼容 / `PostCompletionActionSetV1` / `UserFacingArtifactSetV1` / `LinkCapabilityDecisionV1` 变更 | 🔴 必须 |
 | Copilot / Codex MCP bridge 报错、`profile_load` fallback、`invoke undefined` 恢复链变更 | 🔴 必须 |
 | `ContextReadPlanV2` / `ContextReadReceiptV2`（含 V1 兼容）、Pre/Post 相关性、内容身份/复用、上下文读取 allowlist 或 fallback 语义变更 | 🔴 必须 |
 | 公开本地 probe、checkpoint 证据语义或 trace show/replay 变更 | 🔴 必须 |
@@ -66,7 +66,7 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible e
 
 ### VisibleOutputHostEvidenceGate
 
-Stop/PreCompact 对最终回复证据必须使用 `verified-present / verified-missing / unverified`：只有观察到可解析 assistant 内容和 `DevCodexVisibleEnvelopeV1` marker、合法动作标题、语义 item 才能判定 present/missing；未观察到只能 unverified。记录 `evidenceSource / missingItems / semanticDigest`，不得保存不必要的完整回复正文。
+Stop/PreCompact 对最终回复证据必须使用 `verified-present / verified-missing / unverified`：只有观察到可解析 assistant 内容和 `DevCodexVisibleEnvelopeV2` marker、合法动作标题、语义 item 才能判定 present/missing；一个兼容窗口内可识别 V1 marker，但须记录 `legacy-v1-read-only`，不得把它当作新写入证据。未观察到只能 unverified。记录 `evidenceSource / missingItems / semanticDigest`，不得保存不必要的完整回复正文。
 
 legacy “主要产物 + 绝对路径”最多为 `unverified-legacy`。能力未 direct 验证时保持 portable/plain；Rich clickable 只显示单个语义链接。session、daily、SUMMARY、task/checkpoint 和 raw ledger 默认 internal-only，但宿主验证仍要核对它们已进入 internal manifest 和 ECR。
 
@@ -77,6 +77,7 @@ legacy “主要产物 + 绝对路径”最多为 `unverified-legacy`。能力�
 - `ContextDeliveryReuseHostProbe` 必须分别证明 computation reuse 与 delivery reuse：跨进程只允许复用内容身份绑定的计算元数据；正文省略还必须同 host session、同 epoch、同 source identity 且当前模型已有成功 body observation。宿主无法提供稳定 session 或 Post body 证据时 delivery reuse 必须降级为 false。
 - 需覆盖结构化 MCP、path-observable 与 instruction-only 三种宿主能力；后两者缺少可验证结果时必须保持 `unverified`，不能由提示文案升级为 `relevant-complete/completed`。
 - MCP bridge 失败只允许一次同计划 bounded fallback 并停止重试；fallback 失败或证据不可观察时输出 warnings / missing sources，但不得形成死循环或跳过后续安全与 CP 门禁。
+- Progressive SkillRoute enforcement policy 缺失、损坏或字段非法时必须使用受控 fail-safe：Codex 的 `PreToolUse/Stop` 继续 advisory-only，其他宿主/事件恢复 hard default；bootstrap 与 observe 均保持，禁止因读取异常静默解除其他宿主强制。
 - direct/fixture replay 至少覆盖 success、tool error、mismatched epoch/target/source、duplicate/stale Post、legacy projection 和 hidden full-read mutation；报告区分 server direct success 与 host bridge verified。
 
 1. 报告必须说明证据来自 direct replay、fixture replay、现有 targeted test，还是 validate probe 推断。

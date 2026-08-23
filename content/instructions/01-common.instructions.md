@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.17.11
+version: 1.18.0
 ---
 # 通用规范
 
@@ -81,6 +81,12 @@ version: 1.17.11
 <!-- devcodex:include shared/instructions/concurrency-config-contract.md -->
 
 <!-- devcodex:include shared/instructions/single-writer-domains.md -->
+
+### GitExecutionContext（共享状态透明度）
+
+- 默认保持当前分支，不自动创建功能分支；协作模式未知时使用 no-auto-branch，solo 项目使用 keep-current。
+- branch-create、switch、commit、cherry-pick、push 分别说明原因、影响、替代、目标、恢复方式并分别获得授权；Profile 与 auto 授权均不把这些动作合并授权。
+- 同分支交付不做 merge/cherry-pick；只有跨分支选择性交付默认 ordered cherry-pick；完整线性历史保留 commit IDs 时才显式选择 `merge --ff-only`。冲突后不得自动 stash/pull/continue/abort。
 
 ### QuestionEvidenceGate（问答证据深度与对比调研门禁）
 

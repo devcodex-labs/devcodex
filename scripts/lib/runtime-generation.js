@@ -9,6 +9,7 @@ const { getRuntimeContractDigest } = require('../../hooks/_runtime/skill-route-m
 
 const RUNTIME_GENERATION_SCHEMA = 'RuntimeGenerationManifestV1'
 const RUNTIME_CONTRACT_VERSION = 2
+const RUNTIME_RETENTION_PROTOCOL_VERSION = 1
 const SOURCE_ROOTS = Object.freeze([
   'content/instructions',
   'host-projections',
@@ -42,11 +43,27 @@ function safeVersion (value) {
   return String(value || 'unknown').replace(/[^A-Za-z0-9._-]/g, '-')
 }
 
-function releaseCreatedAt (root, version, fsImpl = fs) {
+function generationCreationMetadata (root, version, fsImpl = fs) {
   const file = path.join(root, 'changelogs', 'releases', `v${version}.md`)
-  if (!fsImpl.existsSync(file)) return null
-  const match = String(fsImpl.readFileSync(file, 'utf8')).match(/发布日期[:：]\s*(\d{4}-\d{2}-\d{2})/)
-  return match ? `${match[1]}T00:00:00.000Z` : null
+  if (!fsImpl.existsSync(file)) {
+    return { createdAt: null, authority: 'unreleased' }
+  }
+  const content = String(fsImpl.readFileSync(file, 'utf8'))
+  const published = content.match(/发布日期[:：]\s*(\d{4}-\d{2}-\d{2})/)
+  if (published) {
+    return {
+      createdAt: `${published[1]}T00:00:00.000Z`,
+      authority: 'release-changelog'
+    }
+  }
+  const candidate = content.match(/候选日期[:：]\s*(\d{4}-\d{2}-\d{2})/)
+  if (candidate) {
+    return {
+      createdAt: `${candidate[1]}T00:00:00.000Z`,
+      authority: 'candidate-changelog'
+    }
+  }
+  return { createdAt: null, authority: 'unreleased' }
 }
 
 function buildRuntimeGeneration (packageRoot, fsImpl = fs) {
@@ -81,11 +98,13 @@ function buildRuntimeGeneration (packageRoot, fsImpl = fs) {
       companionRoot: skillRoot
     }
   })
-  const createdAt = releaseCreatedAt(root, packageJson.version, fsImpl)
+  const creation = generationCreationMetadata(root, packageJson.version, fsImpl)
+  const createdAt = creation.createdAt
   const sourceDigest = hash(JSON.stringify({
     packageName: packageJson.name || 'devcodex',
     packageVersion: packageJson.version || 'unknown',
     runtimeContractVersion: RUNTIME_CONTRACT_VERSION,
+    runtimeRetentionProtocolVersion: RUNTIME_RETENTION_PROTOCOL_VERSION,
     runtimeContractDigest,
     filesDigest,
     createdAt
@@ -97,12 +116,13 @@ function buildRuntimeGeneration (packageRoot, fsImpl = fs) {
     packageName: packageJson.name || 'devcodex',
     packageVersion: packageJson.version || 'unknown',
     runtimeContractVersion: RUNTIME_CONTRACT_VERSION,
+    runtimeRetentionProtocolVersion: RUNTIME_RETENTION_PROTOCOL_VERSION,
     runtimeContractDigest,
     sourceDigest,
     filesDigest,
     fileCount: sourceEntries.length,
     createdAt,
-    creationTimeAuthority: createdAt ? 'release-changelog' : 'unreleased',
+    creationTimeAuthority: creation.authority,
     runtimeRoot: '.',
     immutable: true
   }
@@ -121,6 +141,7 @@ function runtimeGenerationDirectoryName (generation) {
 module.exports = {
   RUNTIME_CONTRACT_VERSION,
   RUNTIME_GENERATION_SCHEMA,
+  RUNTIME_RETENTION_PROTOCOL_VERSION,
   SOURCE_ROOTS,
   buildRuntimeGeneration,
   runtimeGenerationDirectoryName

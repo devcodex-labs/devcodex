@@ -14,12 +14,15 @@ const {
   buildSimpleGovernanceFastPathDecision,
   classifyArtifactPathColumnSample,
   createLinkCapabilityDecision,
+  createLegacyVisibleEnvelopeV1,
+  createPostCompletionActionSet,
   createVisibleEnvelope,
   analyzeFinalValidationSummarySample,
   analyzeDialogueNarrativeSample,
   projectArtifactAnchorsFromManifest,
   projectUserFacingArtifactSet,
   renderVisibleEnvelope,
+  normalizeCompatibleVisibleEnvelope,
   classifyDialogueNarrativeSample,
   classifyFinalValidationSummarySample,
   hasReadableNarrativeSnippet,
@@ -231,6 +234,27 @@ assert.strictEqual(createLinkCapabilityDecision({
 
 const entrySet = projectUserFacingArtifactSet(deliveryManifest, { messageKind: 'entry-check' })
 
+const postCompletionActions = createPostCompletionActionSet({
+  requiredNow: [],
+  primaryAction: {
+    kind: 'commit',
+    label: '确认后提交已验证改动',
+    reason: '实现与验证已具备提交条件，但提交仍属于独立授权动作',
+    evidenceRefs: ['visible-output-fixture-validation'],
+    applicability: 'applicable',
+    authorization: 'explicit-required'
+  },
+  conditionalActions: [{
+    kind: 'push',
+    label: '提交确认后再决定是否推送',
+    reason: '只有用户选择发布目标且提交成功后才适用',
+    evidenceRefs: ['visible-output-fixture-release-boundary'],
+    applicability: 'conditional',
+    authorization: 'explicit-required'
+  }]
+})
+assert.strictEqual(postCompletionActions.validation.valid, true)
+
 const baseInput = {
   messageKind: 'entry-check',
   context: {
@@ -242,10 +266,11 @@ const baseInput = {
   userFacingArtifactSet: entrySet,
   linkCapability: clickable,
   presentation: { requestedTier: 'rich-markdown', effectiveTier: 'rich-markdown', degradationReason: null },
-  recommendedAction: '继续执行下一批'
+  postCompletionActions
 }
 const envelope = createVisibleEnvelope(baseInput)
 assert.strictEqual(envelope.validation.valid, true)
+assert.strictEqual(envelope.schemaVersion, 'DevCodexVisibleEnvelopeV2')
 assert.strictEqual(envelope.status, 'WARN')
 assert.match(envelope.semanticDigest, /^[a-f0-9]{64}$/)
 const localizedEnvelope = createVisibleEnvelope({ ...baseInput, checks: checks('（另一种本地化）') })
@@ -255,6 +280,19 @@ const portablePresentation = createVisibleEnvelope({
   presentation: { requestedTier: 'plain-text', effectiveTier: 'plain-text', degradationReason: 'fixture' }
 })
 assert.strictEqual(portablePresentation.semanticDigest, envelope.semanticDigest)
+const sameSurfacePlain = createLinkCapabilityDecision({
+  surface: 'codex-app-fixture', evidenceState: 'verified', supportsClickable: false,
+  supportsMarkdown: false, workspaceRoot: WORKSPACE, targetRelation: 'workspace',
+  evidenceRefs: ['direct-replay-codex']
+})
+const plainLinkPresentation = createVisibleEnvelope({ ...baseInput, linkCapability: sameSurfacePlain })
+assert.strictEqual(plainLinkPresentation.semanticDigest, envelope.semanticDigest, 'click presentation alone must not change semantic identity')
+const sameSurfaceFailed = createLinkCapabilityDecision({
+  surface: 'codex-app-fixture', evidenceState: 'failed', supportsMarkdown: true, linkFailed: true,
+  workspaceRoot: WORKSPACE, targetRelation: 'workspace'
+})
+const failedLinkEnvelope = createVisibleEnvelope({ ...baseInput, linkCapability: sameSurfaceFailed })
+assert.notStrictEqual(failedLinkEnvelope.semanticDigest, envelope.semanticDigest, 'failed link capability is a material semantic change')
 
 const richText = renderVisibleEnvelope(envelope, { tier: 'rich-markdown' })
 const portableText = renderVisibleEnvelope(envelope, { tier: 'portable-markdown' })
@@ -275,6 +313,137 @@ assert.doesNotMatch(portableText, /绝对路径[:：]/)
 assert.match(richText, new RegExp(WORKSPACE.replace(/[\\/]/g, '[\\\\/]')))
 assert.doesNotMatch(portableText, new RegExp(WORKSPACE.replace(/[\\/]/g, '[\\\\/]')))
 assert.doesNotMatch(plainText, /####|\[[^\]]+\]\([^\)]+\)/)
+assert.match(richText, /下一步：确认后提交已验证改动/)
+assert.match(richText, /条件动作：提交确认后再决定是否推送/)
+
+const noNextStep = createVisibleEnvelope({
+  ...baseInput,
+  postCompletionActions: createPostCompletionActionSet({ requiredNow: [], primaryAction: null, conditionalActions: [] })
+})
+const noNextStepText = renderVisibleEnvelope(noNextStep, { tier: 'portable-markdown' })
+assert.doesNotMatch(noNextStepText, /继续当前动作|下一步：|条件动作：/)
+
+const legacyInput = { ...baseInput }
+delete legacyInput.postCompletionActions
+legacyInput.recommendedAction = '继续执行下一批'
+const legacyEnvelope = createLegacyVisibleEnvelopeV1(legacyInput)
+assert.strictEqual(legacyEnvelope.schemaVersion, 'DevCodexVisibleEnvelopeV1')
+assert.strictEqual(legacyEnvelope.validation.valid, true)
+const legacyView = normalizeCompatibleVisibleEnvelope(legacyEnvelope)
+assert.strictEqual(legacyView.validation.valid, true)
+assert.strictEqual(legacyView.migrationStatus, 'legacy-v1-read-only')
+assert.strictEqual(legacyView.postCompletionActions.primaryAction.kind, 'legacy')
+assert.strictEqual(legacyView.postCompletionActions.primaryAction.applicability, 'unverified')
+assert.match(renderVisibleEnvelope(legacyEnvelope, { tier: 'portable-markdown' }), /V1 兼容读取/)
+assert.match(renderVisibleEnvelope(legacyEnvelope, { tier: 'portable-markdown' }), /DevCodexVisibleEnvelopeV1/)
+
+const tamperedV2 = JSON.parse(JSON.stringify(envelope))
+tamperedV2.postCompletionActions.requiredNow.push({
+  kind: 'api-docs', label: '伪造完成后必做', reason: '负向读取探针', evidenceRefs: ['tampered'],
+  applicability: 'required-now', authorization: 'not-required'
+})
+tamperedV2.messageKind = 'final-result'
+const tamperedV2View = normalizeCompatibleVisibleEnvelope(tamperedV2)
+assert.strictEqual(tamperedV2View.validation.valid, false)
+assert(tamperedV2View.validation.errors.includes('completion-claim-requiredNow-must-be-empty'))
+assert(tamperedV2View.validation.errors.includes('semanticDigest-mismatch'))
+const extraFieldV2 = { ...envelope, recommendedAction: 'V1 field injection' }
+assert.strictEqual(normalizeCompatibleVisibleEnvelope(extraFieldV2).validation.valid, false)
+const forgedActionValidation = JSON.parse(JSON.stringify(envelope))
+forgedActionValidation.postCompletionActions.validation.valid = false
+assert.strictEqual(normalizeCompatibleVisibleEnvelope(forgedActionValidation).validation.valid, false)
+
+const emptyChecksEnvelope = createVisibleEnvelope({
+  ...baseInput,
+  messageKind: 'progress',
+  checks: [],
+  userFacingArtifactSet: projectUserFacingArtifactSet(deliveryManifest, { messageKind: 'progress' })
+})
+assert.strictEqual(emptyChecksEnvelope.status, 'N/A')
+const forgedEmptyChecksStatus = { ...emptyChecksEnvelope, status: 'PASS' }
+const forgedEmptyChecksView = normalizeCompatibleVisibleEnvelope(forgedEmptyChecksStatus)
+assert(forgedEmptyChecksView.validation.errors.includes('status-derived-value-mismatch'))
+
+const injectedManifestProjection = JSON.parse(JSON.stringify(envelope))
+injectedManifestProjection.artifactManifest.unexpected = true
+assert(normalizeCompatibleVisibleEnvelope(injectedManifestProjection).validation.errors.includes('artifactManifest-projection-invalid'))
+
+const mismatchedLinkSurface = JSON.parse(JSON.stringify(envelope))
+mismatchedLinkSurface.context.hostSurface = 'different-host'
+assert(normalizeCompatibleVisibleEnvelope(mismatchedLinkSurface).validation.errors.includes('linkCapability-surface-mismatch'))
+
+const injectedNestedValidation = JSON.parse(JSON.stringify(envelope))
+injectedNestedValidation.postCompletionActions.validation.unexpected = true
+assert(normalizeCompatibleVisibleEnvelope(injectedNestedValidation).validation.errors.includes('postCompletionActions-serialized-shape-invalid'))
+
+const duplicateActionEvidence = createPostCompletionActionSet({
+  requiredNow: [],
+  primaryAction: {
+    kind: 'other', label: '重复证据', reason: '负向探针', evidenceRefs: ['same', 'same'],
+    applicability: 'applicable', authorization: 'suggest-only'
+  },
+  conditionalActions: []
+})
+assert(duplicateActionEvidence.validation.errors.includes('primaryAction.evidenceRefs-duplicate'))
+
+const duplicateKnownActionKind = createPostCompletionActionSet({
+  requiredNow: [],
+  primaryAction: {
+    kind: 'api-docs', label: '生成接口文档', reason: '存在公开 API', evidenceRefs: ['api-surface'],
+    applicability: 'applicable', authorization: 'suggest-only'
+  },
+  conditionalActions: [{
+    kind: 'api-docs', label: '再生成一份接口说明', reason: '重复动作负例', evidenceRefs: ['api-surface'],
+    applicability: 'conditional', authorization: 'suggest-only'
+  }]
+})
+assert(duplicateKnownActionKind.validation.errors.includes('postCompletionActions-kind-duplicate'))
+
+const optionalActionWithoutSuggestionBoundary = createPostCompletionActionSet({
+  requiredNow: [],
+  primaryAction: {
+    kind: 'api-docs', label: '生成接口文档', reason: '建议动作负例', evidenceRefs: ['api-surface'],
+    applicability: 'applicable', authorization: 'not-required'
+  },
+  conditionalActions: []
+})
+assert(optionalActionWithoutSuggestionBoundary.validation.errors.includes('primaryAction.optional-action-must-be-suggest-only'))
+
+const tamperedLegacy = { ...legacyEnvelope, recommendedAction: '篡改后的旧建议' }
+const tamperedLegacyView = normalizeCompatibleVisibleEnvelope(tamperedLegacy)
+assert.strictEqual(tamperedLegacyView.validation.valid, false)
+assert(tamperedLegacyView.validation.errors.includes('semanticDigest-mismatch'))
+
+assert.strictEqual(createVisibleEnvelope({ ...baseInput, recommendedAction: '禁止回写 V1' }).status, 'BLOCK')
+assert.strictEqual(createVisibleEnvelope({
+  ...baseInput,
+  messageKind: 'final-result',
+  checks: checks().slice(0, 2),
+  userFacingArtifactSet: projectUserFacingArtifactSet(deliveryManifest, { messageKind: 'final-result' }),
+  postCompletionActions: {
+    requiredNow: [{
+      kind: 'api-docs', label: '补齐接口文档', reason: 'Profile 要求', evidenceRefs: ['profile'],
+      applicability: 'required-now', authorization: 'not-required'
+    }],
+    primaryAction: null,
+    conditionalActions: []
+  }
+}).status, 'BLOCK')
+assert.strictEqual(createPostCompletionActionSet({
+  requiredNow: [],
+  primaryAction: null,
+  conditionalActions: [{
+    kind: 'push', label: '推送', reason: '错误授权负例', evidenceRefs: ['negative-probe'],
+    applicability: 'conditional', authorization: 'not-required'
+  }]
+}).validation.valid, false)
+assert.strictEqual(createPostCompletionActionSet({
+  requiredNow: [], primaryAction: null,
+  conditionalActions: [0, 1, 2].map(index => ({
+    kind: 'other', label: `条件动作 ${index}`, reason: '数量上限负例', evidenceRefs: ['negative-probe'],
+    applicability: 'conditional', authorization: 'suggest-only'
+  }))
+}).validation.valid, false)
 
 // PF-175 free-text path column classifier
 assert.strictEqual(
@@ -562,7 +731,9 @@ for (const definition of [
   'UserFacingArtifactSetV1',
   'LinkCapabilityDecisionV1',
   'FinalValidationSummaryV1',
-  'DevCodexVisibleEnvelopeV1'
+  'PostCompletionActionSetV1',
+  'DevCodexVisibleEnvelopeV1',
+  'DevCodexVisibleEnvelopeV2'
 ]) {
   assert.ok(schema.$defs[definition], `schema missing ${definition}`)
   assert.strictEqual(schema.$defs[definition].additionalProperties, false, `${definition} must reject sibling fields`)
@@ -571,5 +742,8 @@ assert.ok(schema.$defs.LinkCapabilityDecisionV1.required.includes('evidenceRefs'
 assert.strictEqual(schema.$defs.ArtifactDeliveryManifestV1.properties.generatedAt.format, 'date-time')
 assert.strictEqual(schema.$defs.ArtifactAnchorV1.properties.generatedAt.format, 'date-time')
 assert.match(schema.$defs.ArtifactAnchorProjectionV1.properties.projectionDigest.pattern, /artifact-anchor-projection/)
+assert.ok(schema.$defs.DevCodexVisibleEnvelopeV1.required.includes('recommendedAction'))
+assert.ok(schema.$defs.DevCodexVisibleEnvelopeV2.required.includes('postCompletionActions'))
+assert.ok(!schema.$defs.DevCodexVisibleEnvelopeV2.required.includes('recommendedAction'))
 
-console.log('visible output contract passed: manifest/projection/anchors/counts/names/links/renderers/message-kinds/compact/fail-closed')
+console.log('visible output contract passed: V2 actions/V1 read-compatibility/manifest/projection/anchors/renderers/fail-closed')

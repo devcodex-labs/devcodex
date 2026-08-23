@@ -1,5 +1,7 @@
 'use strict'
 
+const { appendTaskRecoveryTelemetry } = require('./task-recovery-store-v5.cjs')
+
 /**
  * PF-087: free-text entry-check completeness for PC0~PC7 (extends Envelope rules to markdown paths).
  * Does not invent a parallel gate owner — used by lifecycle-visible-reply + UV contract.
@@ -19,7 +21,7 @@
 function analyzeEntryCheckCompleteness(text, options = {}) {
   const body = String(text || '')
   const mode = String(options.mode || options.envMode || '').toLowerCase()
-  const claimed = /入口检查|预检查（\s*DEV|###\s*DevCodex\s*·\s*入口检查|DevCodexVisibleEnvelopeV1\s*·\s*entry-check|PC0\s*(?:上下文|\[|（)|PC0\s*[：:]/i.test(body)
+  const claimed = /入口检查|预检查（\s*DEV|###\s*DevCodex\s*·\s*入口检查|DevCodexVisibleEnvelopeV(?:1|2)\s*·\s*entry-check|PC0\s*(?:上下文|\[|（)|PC0\s*[：:]/i.test(body)
   if (!claimed) {
     return {
       claimed: false,
@@ -182,7 +184,7 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     const barePathBulletRe = /^\s*[-*]\s*(?:`?[\w./\\-]+\.(?:md|json|js|cjs|mjs|ts)`?|[A-Za-z]:\\[^\s]+)\s*$/
     for (let index = 0; index < lines.length; index++) {
       const line = lines[index]
-      const marker = line.match(/DevCodexVisibleEnvelopeV1\s*·\s*(?:entry-check|completion-check|confirmation|progress|final-result|error-block)\s*·\s*(?:PASS|WARN|BLOCK|UNVERIFIED|N\/A)\s*·\s*([a-f0-9]{64})/)
+      const marker = line.match(/DevCodexVisibleEnvelopeV(?:1|2)\s*·\s*(?:entry-check|completion-check|confirmation|progress|final-result|error-block)\s*·\s*(?:PASS|WARN|BLOCK|UNVERIFIED|N\/A)\s*·\s*([a-f0-9]{64})/)
       if (marker) {
         envelopeMarker = true
         semanticDigest = marker[1]
@@ -285,11 +287,11 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     state.visible.payloadObserved = true
     // Keep bounded sample for soft reminders / F-08 exemption (Stop path)
     state.visible.assistantTextSample = String(text || '').slice(0, 12000)
-    // Accept both legacy and portable envelope precheck markers (W8).
+    // Accept V2 plus the one-window V1 read-compatibility marker (W8).
     // PF-087: presence alone is not enough — require free-text PC0~PC7 column completeness.
     const entryCompleteness = analyzeEntryCheckCompleteness(text, { mode: state.mode })
     state.visible.entryCheckCompleteness = entryCompleteness
-    if (/入口检查（|预检查（DEV 模式）|PC0 上下文|###\s*DevCodex\s*·\s*入口检查|DevCodexVisibleEnvelopeV1\s*·\s*entry-check|PC0\s*[\[（]/.test(text)) {
+    if (/入口检查（|预检查（DEV 模式）|PC0 上下文|###\s*DevCodex\s*·\s*入口检查|DevCodexVisibleEnvelopeV(?:1|2)\s*·\s*entry-check|PC0\s*[\[（]/.test(text)) {
       if (entryCompleteness.complete) {
         state.visible.precheck = true
         state.visible.precheckStatus = 'verified-present'
@@ -318,7 +320,7 @@ function buildLifecycleVisibleReplyUtils(ctx) {
       /###\s*DevCodex\s*·\s*完成检查/i.test(text) ||
       /🛡️\s*DEV\s*模式\s*\|\s*合规检查/i.test(text) ||
       /FC:\s*FC1/i.test(text) ||
-      /DevCodexVisibleEnvelopeV1\s*·\s*completion-check/i.test(text)
+      /DevCodexVisibleEnvelopeV(?:1|2)\s*·\s*completion-check/i.test(text)
     ) {
       state.visible.compliance = true
     }
@@ -388,8 +390,10 @@ function buildLifecycleVisibleReplyUtils(ctx) {
   function captureFinalPayloadSample(payload, eventName, state) {
     const statePaths = getStatePaths(state)
     if ((eventName !== 'PreCompact' && eventName !== 'Stop') || !fs.existsSync(statePaths.finalPayloadFlag)) return
-    fs.mkdirSync(statePaths.dir, { recursive: true })
     const snap = {
+      schemaVersion: 'LifecycleFinalPayloadTelemetryV1',
+      recordType: 'final-payload-sample',
+      observedAt: new Date().toISOString(),
       capturedAt: new Date().toISOString(),
       eventName,
       payloadKeys: Object.keys(payload).sort(),
@@ -397,7 +401,15 @@ function buildLifecycleVisibleReplyUtils(ctx) {
       interestingStrings: collectInterestingStrings(payload),
       state: { mode: state.mode, executionMode: state.executionMode, phase: state.phase, mutated: state.mutated }
     }
-    fs.appendFileSync(statePaths.finalPayloadLog, `${JSON.stringify(snap)}\n`)
+    const telemetry = appendTaskRecoveryTelemetry(statePaths.dir, snap)
+    if (telemetry.status !== 'persisted') {
+      state.taskRecoveryTelemetryWarning = {
+        schemaVersion: 'TaskRecoveryTelemetryWarningV1',
+        recordType: 'final-payload-sample',
+        errorCode: telemetry.errorCode || 'LIFECYCLE_TELEMETRY_WRITE_FAILED',
+        observedAt: new Date().toISOString()
+      }
+    }
     if (eventName === 'Stop') fs.unlinkSync(statePaths.finalPayloadFlag)
   }
 
@@ -467,7 +479,7 @@ function buildLifecycleVisibleReplyUtils(ctx) {
       state.visible &&
       !state.visible.compliance
     ) {
-      items.push('完成检查未输出或未识别（须含 ### DevCodex · 完成检查 或 DevCodexVisibleEnvelopeV1 · completion-check；F-14）')
+      items.push('完成检查未输出或未识别（须含 ### DevCodex · 完成检查 或 DevCodexVisibleEnvelopeV2 · completion-check；V1 仅兼容读取；F-14）')
     }
     if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && state.visible?.compliance) {
       const summaryStatus = state.visible.finalValidationSummaryStatus || 'verified-missing'

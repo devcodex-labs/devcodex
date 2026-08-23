@@ -279,9 +279,20 @@ function getToolCallId(payload) {
 function collectArtifactPaths(value, keyPath = '', output = []) {
   if (output.length >= 20 || value === null || value === undefined) return output
   if (typeof value === 'string') {
-    const normalizedKeyPath = keyPath.replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-    if (/(^|[._-])(file|path|cwd|root|directory|uri|url)(s)?($|[._-])/i.test(normalizedKeyPath) && value.trim()) {
-      output.push(value.trim())
+    const normalizedKeyPath = keyPath
+      .replace(/\[\d+\]/g, '')
+      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+      .toLowerCase()
+    const leaf = normalizedKeyPath.split('.').pop()
+    const text = value.trim()
+    const allowedLeaf = /^(?:file|files|file_path|file_paths|filepath|filepaths|path|paths|cwd|root|directory|directories|dir|dirs|uri|uris|url|urls)$/i.test(leaf)
+    const allowedValue = text && Buffer.byteLength(text, 'utf8') <= 2048 && !/^data:/i.test(text) && (
+      /^[a-z]:[\\/]/i.test(text) || /^\\\\/.test(text) || /^\//.test(text) || /^\.{0,2}[\\/]/.test(text) ||
+      /^(?:https?|artifact|memory|profile|skill):/i.test(text) || /[\\/]/.test(text)
+    )
+    const currentBytes = output.reduce((sum, item) => sum + Buffer.byteLength(item, 'utf8'), 0)
+    if (allowedLeaf && allowedValue && currentBytes + Buffer.byteLength(text, 'utf8') <= 16 * 1024) {
+      output.push(text)
     }
     return output
   }
@@ -384,7 +395,8 @@ function normalizeTurnLivenessState(raw, options = {}) {
         toolName: String(raw.inFlightOperation.toolName || ''),
         startedAt: String(raw.inFlightOperation.startedAt || ''),
         leaseExpiresAt: String(raw.inFlightOperation.leaseExpiresAt || ''),
-        ownedByAgent: raw.inFlightOperation.ownedByAgent === true
+        ownedByAgent: raw.inFlightOperation.ownedByAgent === true,
+        mutating: raw.inFlightOperation.mutating === true
       }
     : null
   return {
@@ -583,7 +595,8 @@ function startToolLease(raw, payload = {}, toolName = '', options = {}) {
     toolName: String(toolName || ''),
     startedAt: toIso(nowMs),
     leaseExpiresAt: toIso(nowMs + state.thresholds.operationLeaseMs),
-    ownedByAgent: true
+    ownedByAgent: true,
+    mutating: options.mutating === true
   }
   state.checkpoint = {
     ...state.checkpoint,
@@ -606,6 +619,7 @@ function startToolLease(raw, payload = {}, toolName = '', options = {}) {
 function completeToolLease(raw, payload = {}, options = {}) {
   const nowMs = nowMsFrom(options)
   const state = normalizeTurnLivenessState(raw, { ...options, nowMs })
+  const completingOperation = state.inFlightOperation ? { ...state.inFlightOperation } : null
   const operationId = getToolCallId(payload) || state.inFlightOperation?.operationId || state.lastToolCallId
   const duplicate = !!(
     operationId && operationId === state.lastToolCallId && state.lastToolOutputAt && !state.inFlightOperation
@@ -623,6 +637,15 @@ function completeToolLease(raw, payload = {}, options = {}) {
     nextAction: toolFailed ? 'inspect tool error and continue safely' : 'await continuation ACK',
     resumeToken: state.checkpoint.resumeToken || stableId('resume', [state.turnKey, operationId]),
     idempotencyKey: state.checkpoint.idempotencyKey || stableId('idem', [state.turnKey, operationId])
+  }
+  if (completingOperation?.mutating === true) {
+    state.lastMutationCloseout = {
+      operationId: completingOperation.operationId,
+      toolName: completingOperation.toolName,
+      completedAt: toIso(nowMs),
+      result: toolFailed ? 'error' : 'success',
+      checkpoint: { ...state.checkpoint, artifactPaths: [...state.checkpoint.artifactPaths] }
+    }
   }
   if (!duplicate) {
     appendStateTrace(state, {

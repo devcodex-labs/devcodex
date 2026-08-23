@@ -438,8 +438,27 @@ function isPlainObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
+function mergePlainObjects(base, overlay) {
+  const result = {}
+  for (const source of [base, overlay]) {
+    if (!isPlainObject(source)) continue
+    for (const [key, value] of Object.entries(source)) {
+      result[key] = Array.isArray(value)
+        ? value.slice()
+        : isPlainObject(value)
+          ? mergePlainObjects(isPlainObject(result[key]) ? result[key] : {}, value)
+          : value
+    }
+  }
+  return result
+}
+
 const RESERVED_AUTO_ALIASES = new Set(['@devcodex', '@devcodex-auto', '@auto'])
 const CONCURRENCY_MODES = new Set(['auto', 'serial'])
+const GIT_COLLABORATION_MODES = new Set(['solo', 'team', 'unverified'])
+const GIT_BRANCH_POLICIES = new Set(['keep-current', 'no-auto-branch', 'explicit-exception'])
+const GIT_WORKTREE_POLICIES = new Set(['explicit-only', 'team-policy-unverified'])
+const GIT_INTEGRATION_POLICIES = new Set(['ordered-cherry-pick', 'ff-only-explicit', 'unverified'])
 const CORE_SINGLE_WRITER_SCOPES = new Set([
   'active-root',
   'memory',
@@ -593,6 +612,71 @@ function validateWorkflowCompletionConfig(workflowCompletion, sourceName) {
   }
 }
 
+function validateExecutionOptimizationConfig(executionOptimization, sourceName) {
+  if (executionOptimization === undefined) return
+  if (!isPlainObject(executionOptimization)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.executionOptimization must be an object`)
+    return
+  }
+  for (const key of Object.keys(executionOptimization)) {
+    if (key !== 'mode') err(`[profile] ${sourceName}.extensions.devcodex.executionOptimization contains unsupported key: ${key}`)
+  }
+  if (executionOptimization.mode !== undefined && !['safe-auto', 'full-only'].includes(executionOptimization.mode)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.executionOptimization.mode must be one of: safe-auto, full-only`)
+  }
+}
+
+function validateTaskRecoveryConfig(taskRecovery, sourceName) {
+  if (taskRecovery === undefined) return
+  if (!isPlainObject(taskRecovery)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.taskRecovery must be an object`)
+    return
+  }
+  for (const key of Object.keys(taskRecovery)) {
+    if (key !== 'hardLimitMiB') err(`[profile] ${sourceName}.extensions.devcodex.taskRecovery contains unsupported key: ${key}`)
+  }
+  if (taskRecovery.hardLimitMiB !== undefined &&
+      (!Number.isSafeInteger(taskRecovery.hardLimitMiB) || taskRecovery.hardLimitMiB < 512)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.taskRecovery.hardLimitMiB must be a safe integer >= 512`)
+  }
+}
+
+function validateGitConfig(git, sourceName) {
+  if (git === undefined) return
+  if (!isPlainObject(git)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.git must be an object`)
+    return
+  }
+  const allowed = new Set([
+    'collaborationMode', 'branchPolicy', 'worktreePolicy', 'crossBranchIntegration',
+    'sharedActionsRequireExplicitAuthorization'
+  ])
+  for (const key of Object.keys(git)) {
+    if (!allowed.has(key)) err(`[profile] ${sourceName}.extensions.devcodex.git contains unsupported key: ${key}`)
+  }
+  if (git.collaborationMode !== undefined && !GIT_COLLABORATION_MODES.has(git.collaborationMode)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.git.collaborationMode must be one of: solo, team, unverified`)
+  }
+  if (git.branchPolicy !== undefined && !GIT_BRANCH_POLICIES.has(git.branchPolicy)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.git.branchPolicy must be one of: keep-current, no-auto-branch, explicit-exception`)
+  }
+  if (git.worktreePolicy !== undefined && !GIT_WORKTREE_POLICIES.has(git.worktreePolicy)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.git.worktreePolicy must be one of: explicit-only, team-policy-unverified`)
+  }
+  if (git.crossBranchIntegration !== undefined && !GIT_INTEGRATION_POLICIES.has(git.crossBranchIntegration)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.git.crossBranchIntegration must be one of: ordered-cherry-pick, ff-only-explicit, unverified`)
+  }
+  if (git.sharedActionsRequireExplicitAuthorization !== undefined && git.sharedActionsRequireExplicitAuthorization !== true) {
+    err(`[profile] ${sourceName}.extensions.devcodex.git.sharedActionsRequireExplicitAuthorization must be true`)
+  }
+  if (git.collaborationMode === 'solo' && git.branchPolicy !== undefined && git.branchPolicy !== 'keep-current') {
+    err(`[profile] ${sourceName}.extensions.devcodex.git solo collaboration must use branchPolicy=keep-current`)
+  }
+  if (git.collaborationMode === 'unverified' && git.branchPolicy !== undefined && git.branchPolicy !== 'no-auto-branch') {
+    err(`[profile] ${sourceName}.extensions.devcodex.git unverified collaboration must use branchPolicy=no-auto-branch`)
+  }
+}
+
 function validateProfileConfigExtensions(cfg, sourceName, projectInfoText, readmeText) {
   const extensions = cfg.extensions
   if (extensions === undefined) return
@@ -607,13 +691,16 @@ function validateProfileConfigExtensions(cfg, sourceName, projectInfoText, readm
     return
   }
   for (const key of Object.keys(devcodex)) {
-    if (!['autoAliases', 'concurrency', 'workflowCompletion'].includes(key)) {
+    if (!['autoAliases', 'concurrency', 'workflowCompletion', 'executionOptimization', 'taskRecovery', 'git'].includes(key)) {
       err(`[profile] ${sourceName}.extensions.devcodex contains unsupported key: ${key}`)
     }
   }
   validateAutoAliases(devcodex.autoAliases, sourceName)
   validateConcurrencyPolicy(devcodex.concurrency, sourceName)
   validateWorkflowCompletionConfig(devcodex.workflowCompletion, sourceName)
+  validateExecutionOptimizationConfig(devcodex.executionOptimization, sourceName)
+  validateTaskRecoveryConfig(devcodex.taskRecovery, sourceName)
+  validateGitConfig(devcodex.git, sourceName)
   if (Array.isArray(devcodex.autoAliases) && devcodex.autoAliases.length > 0) {
     const combined = `${projectInfoText}\n${readmeText}`
     if (!/extensions\.devcodex\.autoAliases|autoAliases|auto 别名|Auto 别名/i.test(combined)) {
@@ -630,6 +717,24 @@ function validateProfileConfigExtensions(cfg, sourceName, projectInfoText, readm
     const combined = `${projectInfoText}\n${readmeText}`
     if (!/extensions\.devcodex\.workflowCompletion|workflowCompletion|完成证据/i.test(combined)) {
       warn(`[profile] ${sourceName}.extensions.devcodex.workflowCompletion is configured but Profile README / 01-项目信息.md does not document it`)
+    }
+  }
+  if (devcodex.executionOptimization !== undefined) {
+    const combined = `${projectInfoText}\n${readmeText}`
+    if (!/extensions\.devcodex\.executionOptimization|ExecutionOptimization|执行优化/i.test(combined)) {
+      warn(`[profile] ${sourceName}.extensions.devcodex.executionOptimization is configured but Profile README / 01-项目信息.md does not document it`)
+    }
+  }
+  if (devcodex.taskRecovery !== undefined) {
+    const combined = `${projectInfoText}\n${readmeText}`
+    if (!/extensions\.devcodex\.taskRecovery|TaskRecoveryStoreV5|任务恢复存储/i.test(combined)) {
+      warn(`[profile] ${sourceName}.extensions.devcodex.taskRecovery is configured but Profile README / 01-项目信息.md does not document it`)
+    }
+  }
+  if (devcodex.git !== undefined) {
+    const combined = `${projectInfoText}\n${readmeText}`
+    if (!/extensions\.devcodex\.git|GitExecutionContext|分支策略|Git 协作/i.test(combined)) {
+      warn(`[profile] ${sourceName}.extensions.devcodex.git is configured but Profile README / 01-项目信息.md does not document it`)
     }
   }
 }
@@ -1030,12 +1135,14 @@ validateProfileTier(profileTier, profileTierCorpus)
 // config.json checks
 const cfgInfo = profileFileInfo('config.json')
 const cfgPath = cfgInfo.path
+let effectiveProfileConfig = null
 if (cfgInfo.source !== 'missing') {
   let cfg
   try { cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8')) } catch (e) {
     err(`[profile] config.json invalid JSON: ${e.message}`)
     cfg = {}
   }
+  effectiveProfileConfig = cfg
   // mode
   if (!cfg.mode) warn('[profile] config.json missing "mode" (defaults to prod)')
   else if (!['dev', 'prod'].includes(cfg.mode)) err(`[profile] invalid mode: ${cfg.mode}`)
@@ -1052,6 +1159,42 @@ if (cfgInfo.source !== 'missing') {
   validateProfileConfigExtensions(cfg, 'config.json', projectInfoText, readmeText)
 } else {
   warn('[profile] config.json missing — defaults applied (mode=prod, agent inferred)')
+}
+
+// ProfileReadChainGate: validate the workspace base even when a project config is present,
+// then reject project overlays that weaken shared Git authorization.
+if (cfgInfo.source === 'project' && workspaceProfileDir && !samePath(profileDir, workspaceProfileDir)) {
+  const workspaceConfigPath = path.join(workspaceProfileDir, 'config.json')
+  if (fs.existsSync(workspaceConfigPath)) {
+    let workspaceCfg
+    try {
+      workspaceCfg = JSON.parse(fs.readFileSync(workspaceConfigPath, 'utf8'))
+    } catch (e) {
+      err(`[profile] workspace config.json invalid JSON: ${e.message}`)
+      workspaceCfg = null
+    }
+    if (workspaceCfg !== null) {
+      validateProfileConfigExtensions(workspaceCfg, 'workspace config.json', projectInfoText, readmeText)
+      const workspaceSharedAuth = workspaceCfg?.extensions?.devcodex?.git?.sharedActionsRequireExplicitAuthorization
+      const projectSharedAuth = effectiveProfileConfig?.extensions?.devcodex?.git?.sharedActionsRequireExplicitAuthorization
+      if (workspaceSharedAuth === true && projectSharedAuth === false) {
+        err('[profile] project config.json overlay must not lower extensions.devcodex.git.sharedActionsRequireExplicitAuthorization from true to false')
+      }
+      effectiveProfileConfig = mergePlainObjects(workspaceCfg, effectiveProfileConfig)
+      validateGitConfig(
+        effectiveProfileConfig?.extensions?.devcodex?.git,
+        'effective workspace/project config'
+      )
+      validateExecutionOptimizationConfig(
+        effectiveProfileConfig?.extensions?.devcodex?.executionOptimization,
+        'effective workspace/project config'
+      )
+      validateTaskRecoveryConfig(
+        effectiveProfileConfig?.extensions?.devcodex?.taskRecovery,
+        'effective workspace/project config'
+      )
+    }
+  }
 }
 
 const localConfigPaths = []

@@ -13,6 +13,40 @@ const {
 } = require('./public-skill-taxonomy')
 
 const DEFAULT_ROOT = path.resolve(__dirname, '..', '..')
+const CURRENT_EXPRESSION_SCHEMA = 'PublicProductExpressionV2'
+const LEGACY_EXPRESSION_SCHEMA = 'PublicProductExpressionV1'
+const CURRENT_PROJECTION_SCHEMA = 'PublicProductProjectionV2'
+
+const V2_CATEGORY_INVARIANTS = Object.freeze([
+  'cross-host',
+  'AI coding',
+  'engineering harness',
+  'workflow runtime'
+])
+const TECHNICAL_DEFINITION_INVARIANTS = Object.freeze([
+  'intent-driven',
+  'local-first',
+  'file-backed',
+  'workflow runtime',
+  'host-adapter layer'
+])
+const DEVCODEX_OWNERSHIP = Object.freeze([
+  'intent-project-routing',
+  'profile-context-memory',
+  'progressive-skills',
+  'confirmation-authorization',
+  'validation',
+  'reports-evidence-handoff',
+  'cross-host-adapters'
+])
+const HOST_OWNERSHIP = Object.freeze([
+  'model-inference',
+  'native-agent-loop',
+  'primary-tool-execution',
+  'session-transport-lifecycle',
+  'authentication',
+  'sandbox-environment'
+])
 
 function sha256 (value) {
   return crypto.createHash('sha256').update(value).digest('hex')
@@ -20,6 +54,37 @@ function sha256 (value) {
 
 function readJson (file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'))
+}
+
+function normalizePublicProductExpression (expression) {
+  const sourceSchemaVersion = expression?.schemaVersion || null
+  if (sourceSchemaVersion === CURRENT_EXPRESSION_SCHEMA) {
+    return {
+      expression,
+      compatibility: {
+        schemaVersion: 'PublicProductExpressionCompatibilityReceiptV1',
+        sourceSchemaVersion,
+        readMode: 'current-v2',
+        modelCapabilityBoundary: 'declared',
+        ownershipBoundary: 'declared'
+      }
+    }
+  }
+  if (sourceSchemaVersion === LEGACY_EXPRESSION_SCHEMA) {
+    return {
+      expression,
+      compatibility: {
+        schemaVersion: 'PublicProductExpressionCompatibilityReceiptV1',
+        sourceSchemaVersion,
+        readMode: 'legacy-v1-read-only',
+        modelCapabilityBoundary: 'UNVERIFIED',
+        ownershipBoundary: 'UNVERIFIED'
+      }
+    }
+  }
+  const error = new Error(`Unsupported public product expression schema: ${sourceSchemaVersion || 'missing'}`)
+  error.code = 'PUBLIC_PRODUCT_EXPRESSION_SCHEMA_UNSUPPORTED'
+  throw error
 }
 
 function canonicalizeTextForDigest (value) {
@@ -47,6 +112,7 @@ function loadSources (root = DEFAULT_ROOT) {
     'content/skills/public-taxonomy.json',
     'skills/public-taxonomy.json'
   ])
+  const normalizedExpression = normalizePublicProductExpression(readJson(expressionPath))
   return {
     packagePath,
     expressionPath,
@@ -54,7 +120,8 @@ function loadSources (root = DEFAULT_ROOT) {
     portfolioPath,
     taxonomyPath,
     package: readJson(packagePath),
-    expression: readJson(expressionPath),
+    expression: normalizedExpression.expression,
+    expressionCompatibility: normalizedExpression.compatibility,
     workflow: readJson(workflowPath),
     portfolio: readJson(portfolioPath),
     taxonomy: readJson(taxonomyPath)
@@ -300,13 +367,53 @@ function buildPublicSkillProjection (portfolio) {
 
 function validatePublicProductExpression (expression, workflow, portfolio, taxonomy, taxonomyDigest) {
   const errors = []
-  if (expression?.schemaVersion !== 'PublicProductExpressionV1') errors.push('expression-schema-version')
+  const schemaVersion = expression?.schemaVersion
+  if (![CURRENT_EXPRESSION_SCHEMA, LEGACY_EXPRESSION_SCHEMA].includes(schemaVersion)) {
+    errors.push('expression-schema-version')
+  }
   if (expression?.productId !== 'devcodex') errors.push('expression-product-id')
   if (!expression?.category?.zh || !expression?.category?.en) errors.push('expression-category')
   if (!Array.isArray(expression?.mustNot) || expression.mustNot.length < 5) errors.push('expression-must-not')
   const semanticInvariants = expression?.category?.semanticInvariants || []
-  for (const invariant of ['intent-driven', 'AI coding workflow', 'runtime']) {
+  const expectedCategoryInvariants = schemaVersion === CURRENT_EXPRESSION_SCHEMA
+    ? V2_CATEGORY_INVARIANTS
+    : ['intent-driven', 'AI coding workflow', 'runtime']
+  for (const invariant of expectedCategoryInvariants) {
     if (!semanticInvariants.includes(invariant)) errors.push(`expression-semantic-invariant:${invariant}`)
+  }
+  if (schemaVersion === CURRENT_EXPRESSION_SCHEMA) {
+    if (expression.category.zh !== '跨宿主 AI Coding 工程 Harness' ||
+      expression.category.en !== 'Cross-host AI Coding Engineering Harness') {
+      errors.push('expression-harness-category-drift')
+    }
+    const technicalInvariants = expression?.technicalDefinition?.semanticInvariants || []
+    if (TECHNICAL_DEFINITION_INVARIANTS.some(value => !technicalInvariants.includes(value)) ||
+      !expression?.technicalDefinition?.zh || !expression?.technicalDefinition?.en) {
+      errors.push('expression-bare-harness-overclaim')
+    }
+    const modelBoundary = expression?.modelCapabilityBoundary
+    const modelFlags = [
+      modelBoundary?.changesModelParameters,
+      modelBoundary?.changesModelWeights,
+      modelBoundary?.changesContextWindow,
+      modelBoundary?.changesBaseReasoningCeiling
+    ]
+    if (modelFlags.some(value => value !== false) ||
+      !modelBoundary?.engineeringEffect?.zh || !modelBoundary?.engineeringEffect?.en ||
+      !Array.isArray(modelBoundary?.effectMechanisms) || modelBoundary.effectMechanisms.length < 5) {
+      errors.push('expression-model-parameter-enhancer-overclaim')
+    }
+    const devcodexOwns = expression?.ownershipBoundary?.devcodexOwns || []
+    const hostOwns = expression?.ownershipBoundary?.hostOwns || []
+    if (DEVCODEX_OWNERSHIP.some(value => !devcodexOwns.includes(value))) {
+      errors.push('expression-devcodex-ownership-boundary')
+    }
+    if (HOST_OWNERSHIP.some(value => !hostOwns.includes(value))) {
+      errors.push('expression-host-ownership-boundary')
+    }
+    for (const value of ['model-parameter-enhancer', 'native-agent-loop-replacement']) {
+      if (!expression.mustNot.includes(value)) errors.push(`expression-must-not-boundary:${value}`)
+    }
   }
   if (expression?.autoEntry?.canonical !== '@devcodex-auto') errors.push('expression-auto-canonical')
   if (expression?.autoEntry?.defaultShortcut !== '@rocky') errors.push('expression-auto-shortcut')
@@ -327,6 +434,10 @@ function validatePublicProductExpression (expression, workflow, portfolio, taxon
   const forbidden = Array.isArray(discovery.forbiddenConcepts) ? discovery.forbiddenConcepts : []
   if (JSON.stringify(packageKeywords) !== JSON.stringify(githubTopics)) errors.push('discovery-surface-drift')
   if (packageKeywords.some(keyword => forbidden.includes(keyword))) errors.push('discovery-forbidden-concept')
+  if (schemaVersion === CURRENT_EXPRESSION_SCHEMA &&
+    (!packageKeywords.includes('workflow-runtime') || !packageKeywords.includes('coding-harness'))) {
+    errors.push('discovery-harness-runtime-pair-missing')
+  }
   const consumers = Object.values(expression?.consumers || {})
   if (consumers.length < 7 || consumers.some(value => typeof value !== 'string' || !value.trim())) {
     errors.push('expression-consumer-coverage')
@@ -372,7 +483,7 @@ function buildPublicProductProjection (options = {}) {
     taxonomyDigest
   )
   if (errors.length) {
-    const error = new Error(`Invalid PublicProductExpressionV1: ${errors.join(', ')}`)
+    const error = new Error(`Invalid ${sources.expression.schemaVersion || 'public product expression'}: ${errors.join(', ')}`)
     error.code = 'PUBLIC_PRODUCT_EXPRESSION_INVALID'
     error.issues = errors
     throw error
@@ -381,11 +492,12 @@ function buildPublicProductProjection (options = {}) {
   const summary = sources.portfolio.summary
   const publicSkills = buildPublicSkillProjection(sources.portfolio)
   const projection = {
-    schemaVersion: 'PublicProductProjectionV1',
+    schemaVersion: CURRENT_PROJECTION_SCHEMA,
     release: {
       version: sources.package.version
     },
     expression: sources.expression,
+    expressionCompatibility: { ...sources.expressionCompatibility },
     workflows: {
       canonical,
       primary: [...sources.expression.workflowPresentation.primary],
@@ -424,10 +536,13 @@ function buildPublicProductProjection (options = {}) {
 
 module.exports = {
   DEFAULT_ROOT,
+  CURRENT_EXPRESSION_SCHEMA,
+  CURRENT_PROJECTION_SCHEMA,
   buildProjectionMarkers,
   buildPublicProductProjection,
   buildPublicSkillProjection,
   loadSources,
+  normalizePublicProductExpression,
   validateCapabilityScenarios,
   validatePublicProductExpression,
   validatePublicSkillCatalog,

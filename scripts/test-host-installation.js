@@ -22,7 +22,8 @@ const {
   buildGrokLaunchPlan,
   extractSinglePrompt,
   getGrokLauncherAdapterDigest,
-  launchGrok
+  launchGrok,
+  materializePromptCarrier
 } = require('./lib/grok-workspace-launcher')
 const {
   applyGlobalHostConfig,
@@ -1106,6 +1107,65 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
   assert.strictEqual(fs.existsSync(forwardedPromptSnapshot), false)
   assert.strictEqual(bootstrapRequests.length, 2)
   assert.strictEqual(bootstrapRequests[1].prompt, 'prompt from immutable snapshot\n')
+
+  const failureCarrier = {
+    kind: 'prompt-file',
+    index: 0,
+    buffer: Buffer.from('prompt snapshot failure probe\n', 'utf8'),
+    digest: crypto.createHash('sha256').update('prompt snapshot failure probe\n').digest('hex')
+  }
+  const failureOwnerRoot = path.join(FIXTURE_ROOT, 'grok-prompt-failure-owner')
+  const makeFailurePlan = () => ({
+    hostScope: { ownerRoot: failureOwnerRoot },
+    args: ['--rules', 'fixture rules', '--prompt-file', promptFile],
+    promptCarrier: { status: 'pending' }
+  })
+  const snapshotFailureFs = new Proxy(fs, {
+    get(target, property) {
+      if (property === 'writeFileSync') {
+        return (file, ...args) => {
+          if (path.basename(String(file)) === 'prompt.txt') {
+            const error = new Error('injected prompt snapshot write failure')
+            error.code = 'EIO'
+            throw error
+          }
+          return target.writeFileSync(file, ...args)
+        }
+      }
+      const value = target[property]
+      return typeof value === 'function' ? value.bind(target) : value
+    }
+  })
+  assert.throws(
+    () => materializePromptCarrier(makeFailurePlan(), failureCarrier, { fs: snapshotFailureFs }),
+    error => error?.code === 'EIO'
+  )
+  const failurePrivateRoot = path.join(failureOwnerRoot, 'devcodex', 'private', 'prompt-snapshots')
+  assert.deepStrictEqual(fs.readdirSync(path.join(failurePrivateRoot, 'owners')), [])
+  assert.deepStrictEqual(fs.readdirSync(path.join(failurePrivateRoot, 'index')), [])
+
+  const renameFailureFs = new Proxy(fs, {
+    get(target, property) {
+      if (property === 'renameSync') {
+        return (source, destination) => {
+          if (String(source).endsWith('.json.next.tmp')) {
+            const error = new Error('injected prompt owner index rename failure')
+            error.code = 'EPERM'
+            throw error
+          }
+          return target.renameSync(source, destination)
+        }
+      }
+      const value = target[property]
+      return typeof value === 'function' ? value.bind(target) : value
+    }
+  })
+  assert.throws(
+    () => materializePromptCarrier(makeFailurePlan(), failureCarrier, { fs: renameFailureFs }),
+    error => error?.code === 'EPERM'
+  )
+  assert.deepStrictEqual(fs.readdirSync(path.join(failurePrivateRoot, 'owners')), [])
+  assert.deepStrictEqual(fs.readdirSync(path.join(failurePrivateRoot, 'index')), [])
   assert.throws(
     () => extractSinglePrompt(['-p', 'first', '--single', 'second'], workspace),
     /GROK_PROMPT_CARRIER_AMBIGUOUS/

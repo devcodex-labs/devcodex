@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devcodex.dev/schemas/evolution-target-decision-v1.json",
+  "title": "EvolutionTargetDecisionV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "decisionId", "candidateId", "activeRoot", "providerMode", "target",
+    "targetEvidenceRefs", "projectSpecificEvidenceRefs", "maintainerAuthorization",
+    "maintainerAuthorizationEvidenceRefs",
+    "automationControlPlane", "candidatePath", "activeDestination", "candidateResolverEligible",
+    "upstreamPackageRoot", "decision", "activePromotionAuthorized",
+    "activePromotionAuthorizationEvidenceRefs", "validation"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "EvolutionTargetDecisionV1" },
+    "decisionId": { "type": "string", "pattern": "^evolution-target-[a-f0-9]{64}$" },
+    "candidateId": { "type": "string", "minLength": 1 },
+    "activeRoot": { "type": "string", "pattern": "^(?:[A-Za-z]:[\\\\/]|/)" },
+    "providerMode": { "enum": ["host-assisted-local", "external-automation"] },
+    "target": { "enum": ["workspace-local", "project-local", "upstream-package"] },
+    "targetEvidenceRefs": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "projectSpecificEvidenceRefs": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "maintainerAuthorization": { "enum": ["not-required", "explicit-confirmed", "missing"] },
+    "maintainerAuthorizationEvidenceRefs": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "automationControlPlane": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["provider", "model", "tenantAndPermissionScope", "quotaAndCostBudget", "dataPolicy", "auditLog"],
+          "properties": {
+            "provider": { "type": "string", "minLength": 1 },
+            "model": { "type": "string", "minLength": 1 },
+            "tenantAndPermissionScope": { "type": "string", "minLength": 1 },
+            "quotaAndCostBudget": { "type": "string", "minLength": 1 },
+            "dataPolicy": { "type": "string", "minLength": 1 },
+            "auditLog": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "candidatePath": { "type": "string", "pattern": "^(?:[A-Za-z]:[\\\\/]|/).*?[\\/]\\.devcodex[\\/]workspace[\\/]evolution[\\/]candidates[\\/]" },
+    "activeDestination": {
+      "oneOf": [
+        { "type": "string", "pattern": "^(?:[A-Za-z]:[\\\\/]|/)" },
+        { "type": "null" }
+      ]
+    },
+    "upstreamPackageRoot": {
+      "oneOf": [
+        { "type": "string", "pattern": "^(?:[A-Za-z]:[\\\\/]|/)" },
+        { "type": "null" }
+      ]
+    },
+    "candidateResolverEligible": { "const": false },
+    "decision": { "enum": ["pending", "approved", "rejected"] },
+    "activePromotionAuthorized": { "type": "boolean" },
+    "activePromotionAuthorizationEvidenceRefs": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "validation": { "$ref": "#/$defs/validation" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "providerMode": { "const": "host-assisted-local" } }, "required": ["providerMode"] },
+      "then": { "properties": { "automationControlPlane": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "providerMode": { "const": "external-automation" } }, "required": ["providerMode"] },
+      "then": { "properties": { "automationControlPlane": { "type": "object" } } }
+    },
+    {
+      "if": { "properties": { "target": { "const": "project-local" } }, "required": ["target"] },
+      "then": { "properties": { "projectSpecificEvidenceRefs": { "minItems": 1 } } }
+    },
+    {
+      "if": { "properties": { "target": { "const": "upstream-package" } }, "required": ["target"] },
+      "then": {
+        "properties": {
+          "maintainerAuthorization": { "const": "explicit-confirmed" },
+          "maintainerAuthorizationEvidenceRefs": { "minItems": 1 },
+          "upstreamPackageRoot": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "target": { "enum": ["workspace-local", "project-local"] } }, "required": ["target"] },
+      "then": {
+        "properties": {
+          "maintainerAuthorization": { "const": "not-required" },
+          "maintainerAuthorizationEvidenceRefs": { "maxItems": 0 },
+          "upstreamPackageRoot": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "decision": { "const": "approved" } }, "required": ["decision"] },
+      "then": {
+        "properties": {
+          "activePromotionAuthorized": { "const": true },
+          "activePromotionAuthorizationEvidenceRefs": { "minItems": 1 },
+          "activeDestination": { "type": "string", "minLength": 1 }
+        }
+      },
+      "else": {
+        "properties": {
+          "activePromotionAuthorized": { "const": false },
+          "activePromotionAuthorizationEvidenceRefs": { "maxItems": 0 },
+          "activeDestination": { "type": "null" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["valid", "errors"],
+      "properties": {
+        "valid": { "type": "boolean" },
+        "errors": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

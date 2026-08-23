@@ -40,6 +40,8 @@ description: 项目 Profile 加载规范 — 先形成语义意图种子与唯�
 
 - `config.json`：`<工作区根>/.devcodex/workspace/profile/config.json` 作为 base，`<工作区根>/.devcodex/<project>/profile/config.json` 作为 overlay；Auto 精确别名全局默认 `@rocky`，可用 `extensions.devcodex.autoAliases` 替换全局默认别名（省略表示沿用默认，空数组表示关闭默认别名），也可在 `extensions.devcodex.concurrency` 配置 `ConcurrencyPolicy`
 - `extensions.devcodex.concurrency` 缺省为 `mode=auto`：只读准备与隔离验证可按通道上限并行；`mode=serial` 表示全串行；项目只能追加 `locks.additionalSingleWriterScopes`，不得删除核心单写者域或开启并行 mutation
+- `extensions.devcodex.git` 缺省投影为 `collaborationMode=unverified / branchPolicy=no-auto-branch / worktreePolicy=explicit-only / crossBranchIntegration=unverified / sharedActionsRequireExplicitAuthorization=true`；项目 overlay 可用证据收窄为 solo/team，但不得把共享动作显式授权降为 false
+- Profile config 的对象层必须递归合并；project `extensions.devcodex.git` 只覆盖声明字段，不能因浅合并丢失 workspace 的授权边界、worktree policy 或其他 sibling 配置
 - `config.local.json`：与 `config.json` 使用相同的 `workspace base + project overlay` 路径模型，可作为用户 / 项目指定的本地 overlay（长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>`）；脚本、测试、数据库 / SSH / MongoDB / 数据操作只有在用户或项目明确指定时才以它作为连接配置入口
 - `README.md`、`01-项目信息.md`、`02-架构约束.md`、`03-代码风格.md`：项目命名空间文件优先，缺失回退到 `workspace/profile/`
 - `<project>` 未确定时，禁止猜测项目命名空间
@@ -162,12 +164,14 @@ node scripts/validate-all-profiles.js --workspace <workspace-root>
 | `05-交付发布规范.md` / `05-发布规范.md` | 版本号/发布流程 | `profile-standard` 起必需 |
 | `06-功能清单.md` | `FeatureInventorySchemaV2` 功能清单规范源（兼容读取 V1）；standard 默认生成，closed-loop 必需 | `profile-standard` 生成；`profile-closed-loop` 必需 |
 | `07-用户文档与契约规范.md` | README、站点文档、quick start、API/CLI/Hook/宿主契约维护规则 | `profile-closed-loop` 必需 |
-| `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识；Auto 别名全局默认 `@rocky`，可配置 `extensions.devcodex.autoAliases` 替换默认别名；也可配置 `extensions.devcodex.concurrency` 并发策略 | 按需 |
+| `config.json` | 运行模式配置（ENV_MODE）+ agent 兜底标识；Auto 别名、并发、执行优化，以及 `extensions.devcodex.git` 的协作/分支/worktree/跨分支集成/共享动作授权边界 | 按需 |
 | `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` | 条件 / 本地 |
 
 > ⚠️ `config.json.agent` 只用于当前实际宿主无法可靠判断时的 fallback hint。产物路径中的 `<agent>` 必须优先使用当前会话/工具链可验证的实际宿主；profile agent 不得覆盖当前会话事实。
 >
 > ⚠️ Auto 精确别名全局默认 `@rocky`。`config.json.extensions.devcodex.autoAliases` 只接受精确 `@alias` token，并用于替换全局默认别名：省略表示沿用 `@rocky`，空数组表示关闭默认别名；普通“继续”、模糊提及或询问 auto 规则不算授权。
+
+> ⚠️ `extensions.devcodex.git` 只描述项目政策与已核实协作事实，不授权实际 Git mutation。未核实项目保持 no-auto-branch；solo 默认 keep-current；选择性跨分支才默认 ordered cherry-pick，push 始终独立确认。
 >
 > ⚠️ `config.local.json` 不得覆盖 `mode` / `agent` / `pluginVersion`。`ENV_MODE` 仍只由 `config.json` 决定；`config.local.json` 只补充本地私有上下文。
 >

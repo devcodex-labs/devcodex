@@ -18,6 +18,9 @@ const {
   buildDevCodexReadiness,
   readCurrentSessionEvidence
 } = require('./lib/devcodex-readiness.js')
+const {
+  commitTaskRecoveryState
+} = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 const CLI = path.join(ROOT, 'index.js')
@@ -459,6 +462,10 @@ function testMachineReadableDiagnosticsAndStableErrors() {
   assert.ok(Object.prototype.hasOwnProperty.call(status.payload.readiness, 'globalKernelFilesPresent'))
   assert.ok(Object.prototype.hasOwnProperty.call(status.payload.readiness, 'managedConfigDrift'))
   assert.ok(Object.prototype.hasOwnProperty.call(status.payload.readiness, 'nextAction'))
+  assert.strictEqual(status.payload.worktrees.schemaVersion, 'WorktreeDiagnosticsV1')
+  assert.match(status.payload.worktrees.status, /^(?:PASS|WARN|UNVERIFIED)$/)
+  assert.strictEqual(status.payload.worktrees.mutationEvidence.mutationCount, 0)
+  assert.strictEqual(status.payload.worktrees.mutationEvidence.safeDirectoryMutationAttempted, false)
 
   const doctor = JSON.parse(runCli(['doctor', '--json'], root))
   assert.strictEqual(doctor.ok, true)
@@ -469,6 +476,9 @@ function testMachineReadableDiagnosticsAndStableErrors() {
   assert.strictEqual(doctor.payload.globalHostComparison.installedHealthClaim, true)
   assert.strictEqual(doctor.payload.hostParity.diagnosticScope, 'installed-package-vs-user-global-receipts')
   assert.strictEqual(doctor.payload.hostParity.installedHealthClaim, true)
+  assert.strictEqual(doctor.payload.worktrees.schemaVersion, 'WorktreeDiagnosticsV1')
+  assert.strictEqual(doctor.payload.worktrees.mutationEvidence.mutationCount, 0)
+  assert.strictEqual(doctor.payload.worktrees.mutationEvidence.safeDirectoryMutationAttempted, false)
   assert.strictEqual(doctor.payload.globalHostRuntime.nodeRuntime.schemaVersion, 'NodeRuntimeReadinessV1')
   assert.strictEqual(doctor.payload.executionOptimization.config.effective, 'safe-auto')
   assert.deepStrictEqual(doctor.payload.hostConfigPolicy, status.payload.hostConfigPolicy)
@@ -550,8 +560,19 @@ function testInitBootstrapsWorkspaceProfileAndOneNamedProject() {
   for (const file of ['README.md', '01-项目信息.md', '02-架构约束.md', '03-代码风格.md', 'config.json']) {
     assert.ok(fs.existsSync(path.join(workspaceProfile, file)), `init must create workspace profile baseline ${file}`)
   }
+  const workspaceConfig = JSON.parse(fs.readFileSync(path.join(workspaceProfile, 'config.json'), 'utf8'))
+  assert.deepStrictEqual(workspaceConfig.extensions.devcodex.git, {
+    collaborationMode: 'unverified',
+    branchPolicy: 'no-auto-branch',
+    worktreePolicy: 'explicit-only',
+    crossBranchIntegration: 'unverified',
+    sharedActionsRequireExplicitAuthorization: true
+  })
   assert.ok(fs.existsSync(path.join(apiProfile, 'README.md')), 'init --profile must initialize the requested project only')
   assert.ok(fs.existsSync(path.join(apiProfile, '06-功能清单.md')), 'init --profile must use the project recommendation instead of forcing profile-lite')
+  const apiConfig = JSON.parse(fs.readFileSync(path.join(apiProfile, 'config.json'), 'utf8'))
+  assert.strictEqual(apiConfig.extensions.devcodex.git.branchPolicy, 'no-auto-branch')
+  assert.strictEqual(apiConfig.extensions.devcodex.git.sharedActionsRequireExplicitAuthorization, true)
   assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'apps', 'web', 'profile')), 'init --profile must not initialize siblings')
   assert.strictEqual(result.payload.projectProfile.namespace, 'apps/api')
 
@@ -695,6 +716,7 @@ function testUpdateNeverCreatesOrUpgradesProfiles() {
 
 function testRuntimeStatusAndPruneAreBounded() {
   const root = createTempRoot('devcodex-cli-runtime-observe-')
+  const runtimeEnv = { DEVCODEX_TEST_HOME: path.join(root, 'host-home') }
   writeFile(root, 'package.json', '{ "name": "runtime-observe" }\n')
   runCli(['init'], root)
   const runtimeRoot = path.join(root, '.devcodex', 'workspace', '.runtime-state', 'workspace')
@@ -716,21 +738,127 @@ function testRuntimeStatusAndPruneAreBounded() {
   const old = new Date(Date.now() - 48 * 60 * 60 * 1000)
   fs.utimesSync(staleTemp, old, old)
 
-  const status = JSON.parse(runCli(['runtime', 'status', '--json'], root))
+  const activeRoot = path.join(root, '.devcodex', 'workspace')
+  const taskRecoveryMetaDir = path.join(activeRoot, '.memory', 'hooks', 'workspace')
+  const legacyGeneration = path.join(taskRecoveryMetaDir, 'generations', 'legacy-fixture.json')
+  fs.mkdirSync(path.dirname(legacyGeneration), { recursive: true })
+  fs.writeFileSync(legacyGeneration, '{"legacy":true}\n')
+  for (let index = 0; index < 40; index += 1) {
+    fs.writeFileSync(
+      path.join(taskRecoveryMetaDir, `lifecycle-state.json.tmp.${index}`),
+      `${index}\n`
+    )
+  }
+  fs.utimesSync(legacyGeneration, old, old)
+  const terminalCommit = commitTaskRecoveryState({
+    metaDir: taskRecoveryMetaDir,
+    identity: {
+      activeRoot,
+      project: 'workspace',
+      taskId: 'cli-terminal-task',
+      taskStatus: 'completed'
+    },
+    sessionKey: 'cli-terminal-session',
+    state: {
+      activeScope: 'workspace',
+      contextAcquisition: {
+        activeRoot,
+        project: 'workspace',
+        hostSessionId: 'cli-terminal-session'
+      },
+      turnLiveness: { state: 'completed', inFlightOperation: null }
+    }
+  }, { nowMs: Date.now() - 8 * 24 * 60 * 60 * 1000 })
+  assert.strictEqual(terminalCommit.status, 'committed', JSON.stringify(terminalCommit))
+  for (let index = 0; index < 16; index += 1) {
+    const activeCommit = commitTaskRecoveryState({
+      metaDir: taskRecoveryMetaDir,
+      identity: {
+        activeRoot,
+        project: 'workspace',
+        taskId: `cli-active-task-${index}`,
+        taskStatus: 'active'
+      },
+      sessionKey: `cli-active-session-${index}`,
+      state: {
+        activeScope: 'workspace',
+        contextAcquisition: {
+          activeRoot,
+          project: 'workspace',
+          hostSessionId: `cli-active-session-${index}`
+        },
+        turnLiveness: { state: 'idle', inFlightOperation: null }
+      }
+    })
+    assert.strictEqual(activeCommit.status, 'committed', JSON.stringify(activeCommit))
+  }
+
+  const statusOutput = runCli(['runtime', 'status', '--json'], root, runtimeEnv)
+  assert.ok(
+    Buffer.byteLength(statusOutput, 'utf8') < 64 * 1024,
+    'runtime status JSON must stay below 64 KiB with many legacy root-level temp files'
+  )
+  const status = JSON.parse(statusOutput)
   assert.strictEqual(status.payload.schemaVersion, 'RuntimeStateStatusV1')
   assert.strictEqual(status.payload.canonicalRoot, runtimeRoot)
   assert.strictEqual(status.payload.totals.pruneCandidates, 1)
   assert.strictEqual(status.payload.totals.blockedLocks, 2)
+  assert.strictEqual(status.payload.taskRecovery.v5.counts.terminal, 1)
+  assert.strictEqual(status.payload.taskRecovery.v5.taskCount, 17)
+  assert.strictEqual(status.payload.taskRecovery.v5.tasks.length, 8)
+  assert.strictEqual(status.payload.taskRecovery.v5.tasksTruncated, true)
+  assert.strictEqual(status.payload.taskRecovery.legacy.generations.files, 1)
+  assert.strictEqual(status.payload.taskRecovery.legacy.deletionSupported, false)
+  assert.ok(status.payload.taskRecovery.legacy.categories.length <= 12)
+  assert.strictEqual(
+    status.payload.taskRecovery.legacy.categories.find(item => item.category === '(root)').files,
+    40,
+    'root-level legacy temp names must aggregate into one category instead of one JSON row per file'
+  )
   const memoryLock = status.payload.partitions
     .flatMap(partition => partition.blocked)
     .find(item => item.reason === 'memory-writer-lock-never-auto-pruned')
   assert.strictEqual(memoryLock.owner.pid, process.pid)
   assert.strictEqual(memoryLock.owner.file, '.memory/clients/codex/tasks/20260805.md')
 
-  const preview = JSON.parse(runCli(['runtime', 'prune', '--dry-run', '--json'], root))
+  const doctorOutput = runCli(['runtime', 'doctor', '--json'], root, runtimeEnv)
+  assert.ok(Buffer.byteLength(doctorOutput, 'utf8') < 64 * 1024, 'runtime doctor JSON must stay below 64 KiB')
+  const doctor = JSON.parse(doctorOutput)
+  assert.strictEqual(doctor.payload.schemaVersion, 'RuntimeStateDoctorV1')
+  assert.strictEqual(doctor.payload.v5.status, 'PASS')
+  assert.strictEqual(doctor.payload.v5.store.taskCount, 17)
+  assert.strictEqual(doctor.payload.v5.store.tasks.length, 8)
+  assert.strictEqual(doctor.payload.v5.store.tasksTruncated, true)
+  assert.strictEqual(doctor.payload.legacy.writerActivity.status, 'UNVERIFIED')
+
+  const maintenancePreviewOutput = runCli(['runtime', 'maintenance', '--dry-run', '--json'], root, runtimeEnv)
+  assert.ok(Buffer.byteLength(maintenancePreviewOutput, 'utf8') < 64 * 1024, 'runtime maintenance preview JSON must stay below 64 KiB')
+  const maintenancePreview = JSON.parse(maintenancePreviewOutput)
+  assert.strictEqual(maintenancePreview.payload.mode, 'dry-run')
+  assert(maintenancePreview.payload.v5.actions.some(item => item.action === 'retire-terminal'))
+  assert.strictEqual(maintenancePreview.payload.v5.before.taskCount, 17)
+  assert.strictEqual(maintenancePreview.payload.v5.before.tasks.length, 8)
+  assert.strictEqual(maintenancePreview.payload.v5.before.tasksTruncated, true)
+  assert.strictEqual(maintenancePreview.payload.legacy.deletedFiles, 0)
+  assert.ok(fs.existsSync(legacyGeneration), 'runtime maintenance preview must not delete legacy state')
+  const maintenanceAppliedOutput = runCli(['runtime', 'maintenance', '--apply', '--json'], root, runtimeEnv)
+  assert.ok(Buffer.byteLength(maintenanceAppliedOutput, 'utf8') < 64 * 1024, 'runtime maintenance apply JSON must stay below 64 KiB')
+  const maintenanceApplied = JSON.parse(maintenanceAppliedOutput)
+  assert.strictEqual(maintenanceApplied.payload.mode, 'apply')
+  assert.strictEqual(maintenanceApplied.payload.v5.after.taskCount, 16)
+  assert.strictEqual(maintenanceApplied.payload.v5.after.tasks.length, 8)
+  assert.strictEqual(maintenanceApplied.payload.v5.after.tasksTruncated, true)
+  assert.strictEqual(maintenanceApplied.payload.legacy.deletedFiles, 0)
+  assert.ok(fs.existsSync(legacyGeneration), 'runtime maintenance apply must never delete legacy state')
+  assert.ok(!fs.existsSync(staleTemp), 'runtime maintenance apply removes selected canonical stale temps')
+
+  fs.writeFileSync(staleTemp, 'stale-again\n')
+  fs.utimesSync(staleTemp, old, old)
+
+  const preview = JSON.parse(runCli(['runtime', 'prune', '--dry-run', '--json'], root, runtimeEnv))
   assert.strictEqual(preview.payload.mode, 'dry-run')
   assert.ok(fs.existsSync(staleTemp), 'runtime prune preview must be zero-write')
-  const applied = JSON.parse(runCli(['runtime', 'prune', '--apply', '--json'], root))
+  const applied = JSON.parse(runCli(['runtime', 'prune', '--apply', '--json'], root, runtimeEnv))
   assert.strictEqual(applied.payload.removed.length, 1)
   assert.ok(!fs.existsSync(staleTemp), 'runtime prune --apply must remove only the selected stale temp file')
   assert.ok(fs.existsSync(activeLock), 'runtime prune must never auto-delete lock files')

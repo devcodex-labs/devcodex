@@ -8,7 +8,7 @@ export default defineConfig({
   icon: '/favicon.png',
   logo: '/favicon.png',
   logoText: 'DevCodex',
-  title: 'DevCodex — Intent-driven AI Coding Workflow Runtime',
+  title: 'DevCodex — Cross-host AI Coding Engineering Harness',
   description: '把自然语言研发请求组织成有上下文、有边界、有验证、可续接的工程工作流。',
   markdown: {
     link: {

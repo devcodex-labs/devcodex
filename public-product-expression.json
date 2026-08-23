@@ -1,20 +1,64 @@
 {
-  "schemaVersion": "PublicProductExpressionV1",
+  "schemaVersion": "PublicProductExpressionV2",
   "productId": "devcodex",
   "name": "DevCodex",
   "repository": "https://github.com/devcodex-labs/devcodex",
   "category": {
-    "zh": "意图驱动的 AI Coding 工作流运行时",
-    "en": "Intent-driven AI coding workflow runtime",
+    "zh": "跨宿主 AI Coding 工程 Harness",
+    "en": "Cross-host AI Coding Engineering Harness",
     "semanticInvariants": [
-      "intent-driven",
-      "AI coding workflow",
-      "runtime"
+      "cross-host",
+      "AI coding",
+      "engineering harness",
+      "workflow runtime"
     ]
   },
   "technicalDefinition": {
-    "zh": "本地优先、文件支撑的控制层与六宿主适配包，把项目上下文、专业 Skill、确认、验证和报告闭环带入多个 AI Coding 宿主。",
-    "en": "A local-first, file-backed control layer and six-host adapter package for project context, skills, approvals, validation, reports, and resumable handoffs."
+    "zh": "DevCodex 是 intent-driven、local-first、file-backed 的工作流运行时与宿主适配层，把项目上下文、专业 Skill、确认、验证、报告、证据和续接闭环带入六个 AI Coding 宿主。",
+    "en": "An intent-driven, local-first, file-backed workflow runtime and host-adapter layer that brings project context, skills, approvals, validation, reports, evidence, and resumable handoffs to six AI coding hosts.",
+    "semanticInvariants": [
+      "intent-driven",
+      "local-first",
+      "file-backed",
+      "workflow runtime",
+      "host-adapter layer"
+    ]
+  },
+  "modelCapabilityBoundary": {
+    "changesModelParameters": false,
+    "changesModelWeights": false,
+    "changesContextWindow": false,
+    "changesBaseReasoningCeiling": false,
+    "engineeringEffect": {
+      "zh": "DevCodex 不会提升模型本身的参数能力，也不会改变模型参数、权重、上下文窗口或基础推理上限；它通过上下文、专业 Skill、工作流、工具、记忆、验证与证据链，显著提升模型在真实软件工程中的有效智能表现，让 AI Coding 从“聪明地回答问题”升级为“聪明地完成工程任务”。",
+      "en": "DevCodex does not change model parameters, weights, context windows, or the base reasoning ceiling. It improves effective engineering intelligence through context, skills, workflows, tools, memory, validation, and evidence-backed completion."
+    },
+    "effectMechanisms": [
+      "bounded-project-context",
+      "progressive-professional-skills",
+      "workflow-and-authorization",
+      "tool-and-memory-coordination",
+      "validation-and-evidence"
+    ]
+  },
+  "ownershipBoundary": {
+    "devcodexOwns": [
+      "intent-project-routing",
+      "profile-context-memory",
+      "progressive-skills",
+      "confirmation-authorization",
+      "validation",
+      "reports-evidence-handoff",
+      "cross-host-adapters"
+    ],
+    "hostOwns": [
+      "model-inference",
+      "native-agent-loop",
+      "primary-tool-execution",
+      "session-transport-lifecycle",
+      "authentication",
+      "sandbox-environment"
+    ]
   },
   "valuePropositions": [
     "按任务意图选择工作流、上下文与专业 Skill",
@@ -78,8 +122,10 @@
   ],
   "mustNot": [
     "model-gateway",
+    "model-parameter-enhancer",
     "general-agent-framework",
     "multi-agent-orchestrator",
+    "native-agent-loop-replacement",
     "business-framework",
     "ci-security-human-review-replacement"
   ],
@@ -139,6 +185,7 @@
   "discoveryPolicy": {
     "packageKeywords": [
       "ai-coding",
+      "coding-harness",
       "workflow-runtime",
       "developer-tools",
       "coding-agent",
@@ -152,6 +199,7 @@
     ],
     "githubTopics": [
       "ai-coding",
+      "coding-harness",
       "workflow-runtime",
       "developer-tools",
       "coding-agent",
@@ -175,7 +223,7 @@
     "customDomainCandidate": "https://devcodex.dev",
     "requiredBrandMarkers": [
       "DevCodex",
-      "Intent-driven AI Coding Workflow Runtime"
+      "Cross-host AI Coding Engineering Harness"
     ],
     "forbiddenMarkers": [
       "Parked Domain",
@@ -186,12 +234,12 @@
     ]
   },
   "consumers": {
-    "readmeHero": "DevCodex — 意图驱动的 AI Coding 工作流运行时",
-    "packageDescription": "DevCodex — intent-driven AI coding workflow runtime for Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok, and Cursor",
-    "pluginDisplayName": "DevCodex — AI Coding Workflow Runtime",
-    "pluginDescription": "Intent-driven AI coding workflow runtime for consistent context, skills, approvals, validation, and handoffs across Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok, and Cursor.",
-    "cliSubtitle": "DevCodex — intent-driven AI coding workflow runtime for Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok & Cursor",
-    "githubDescription": "Intent-driven AI coding workflow runtime for consistent context, skills, approvals, validation, and handoffs across six AI coding hosts.",
-    "siteTitle": "DevCodex — Intent-driven AI Coding Workflow Runtime"
+    "readmeHero": "DevCodex — 跨宿主 AI Coding 工程 Harness",
+    "packageDescription": "DevCodex — cross-host AI coding engineering harness for Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok, and Cursor",
+    "pluginDisplayName": "DevCodex — Cross-host AI Coding Engineering Harness",
+    "pluginDescription": "Cross-host AI coding engineering harness for consistent context, skills, approvals, validation, evidence, and handoffs across Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok, and Cursor.",
+    "cliSubtitle": "DevCodex — cross-host AI coding engineering harness for Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok & Cursor",
+    "githubDescription": "Cross-host AI coding engineering harness for context, skills, approvals, validation, evidence, and handoffs across six AI coding hosts.",
+    "siteTitle": "DevCodex — Cross-host AI Coding Engineering Harness"
   }
 }

@@ -24,11 +24,11 @@ function CapabilityShowcase () {
   return (
     <main className="devcodex-home-content">
       <section className="devcodex-home-intro" aria-labelledby="devcodex-home-value">
-        <p className="devcodex-home-eyebrow">安装后实际得到的增强</p>
-        <h2 id="devcodex-home-value">不只是换一个入口，而是把专业工程流程带进宿主</h2>
+        <p className="devcodex-home-eyebrow">跨宿主 AI Coding 工程 Harness</p>
+        <h2 id="devcodex-home-value">不改模型参数，把专业工程流程和证据闭环带进宿主</h2>
         <p>
           DevCodex 已登记 {projection.skills.total} 个 Skill（{projection.skills.active} active、{projection.skills.gray} gray）。
-          它们不会一次性塞进会话，而是随任务意图和阶段渐进路由，让需要的专业路径在需要时进入工作。
+          它们不会一次性塞进会话，而是随任务意图和阶段渐进路由，让模型从回答问题走向完成可验证、可续接的工程任务。
         </p>
         <p className="devcodex-home-freshness">
           当前文档事实：DevCodex v{projection.release.version} · 投影更新于 {projectionDate}
@@ -75,7 +75,7 @@ function CapabilityShowcase () {
           </article>
           <article>
             <h3>两者可以共存</h3>
-            <p>宿主继续提供模型、编辑器和原生工具；DevCodex 不接管你的原生 Skill、指令或个人配置。</p>
+            <p>宿主继续拥有模型推理、原生 agent loop、认证、sandbox 和主要工具执行；DevCodex 负责跨宿主工程上下文、流程、验证与证据。</p>
           </article>
         </div>
       </section>

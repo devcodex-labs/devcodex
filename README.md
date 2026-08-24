@@ -892,6 +892,9 @@ DevCodex 仍在持续演进。Bug、真实使用反馈、宿主兼容问题、Sk
 安全漏洞请按照仓库 [Security Policy](./SECURITY.md) 私下报告，不要先创建公开 Issue。
 
 ---
+## 社区
+
+本项目认可并感谢 [LINUX DO](https://linux.do/) 社区对开源开发者交流的支持。
 
 ## 许可证
 

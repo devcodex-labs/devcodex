@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="./assets/icon-512.png" width="112" alt="DevCodex" />
-</p>
 
 <h1 align="center">DevCodex</h1>
 

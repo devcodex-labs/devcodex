@@ -20,6 +20,13 @@ const {
   VERIFICATION_PURPOSES,
   createVerificationIntent
 } = require('../../hooks/_runtime/workflow-completion-contract.cjs')
+const {
+  NARRATIVE_MARKDOWN_EXCLUSIONS,
+  assertNarrativeMarkdownPolicy,
+  isNarrativeMarkdownPath,
+  normalizeNarrativePath,
+  partitionNarrativeMarkdownPaths
+} = require('./narrative-markdown-policy')
 
 const VALIDATION_MANIFEST_SCHEMA = 'ValidationManifestV1'
 const VALIDATION_NODE_SCHEMA = 'ValidationNodeV1'
@@ -71,11 +78,11 @@ class ValidationDagError extends Error {
 }
 
 function normalizeRelativePath(value) {
-  const normalized = String(value || '').normalize('NFKC').replace(/\\/g, '/').replace(/^\.\//, '')
-  if (!normalized || normalized.startsWith('/') || normalized === '..' || normalized.startsWith('../')) {
+  try {
+    return normalizeNarrativePath(value)
+  } catch {
     throw new ValidationDagError('VALIDATION_PATH_INVALID', 'changed paths must stay relative to the repository root')
   }
-  return normalized
 }
 
 function commandSignature(node) {
@@ -299,6 +306,11 @@ function validateValidationManifest(manifest, options = {}) {
   if (!manifest.nodeVerificationPolicies || typeof manifest.nodeVerificationPolicies !== 'object' ||
       Array.isArray(manifest.nodeVerificationPolicies)) {
     errors.push('nodeVerificationPolicies must be an object')
+  }
+  try {
+    assertNarrativeMarkdownPolicy(manifest.narrativeMarkdownExclusions)
+  } catch (error) {
+    errors.push(error.message)
   }
   if (errors.length) throw new ValidationDagError('VALIDATION_MANIFEST_INVALID', errors.join('; '), errors)
 
@@ -648,6 +660,7 @@ function addConsumers(ids, byId, options = {}) {
 }
 
 function buildChangeDescriptors(changedFiles, descriptors = []) {
+  const normalizedChangedFiles = [...new Set((changedFiles || []).map(normalizeRelativePath))].sort()
   const provided = new Map()
   for (const descriptor of descriptors || []) {
     const descriptorPath = normalizeRelativePath(descriptor?.path || descriptor?.file || '')
@@ -657,11 +670,11 @@ function buildChangeDescriptors(changedFiles, descriptors = []) {
     provided.set(descriptorPath, descriptor)
   }
   for (const descriptorPath of provided.keys()) {
-    if (!changedFiles.includes(descriptorPath)) {
+    if (!normalizedChangedFiles.includes(descriptorPath)) {
       throw new ValidationDagError('VALIDATION_CHANGE_DESCRIPTOR_INVALID', 'descriptor path is not in changedFiles: ' + descriptorPath)
     }
   }
-  return changedFiles.map(file => {
+  return normalizedChangedFiles.map(file => {
     const explicit = provided.get(file) || {}
     const fields = [...new Set((explicit.fields || []).map(String))].sort()
     let kind = String(explicit.kind || '')
@@ -674,7 +687,8 @@ function buildChangeDescriptors(changedFiles, descriptors = []) {
       else semanticClass = 'package-fields-unknown'
     } else {
       if (!kind) {
-        if (/^(README\.md|public-site\/|website\/)/.test(file)) kind = 'public-documentation'
+        if (isNarrativeMarkdownPath(file)) kind = 'narrative-markdown-no-js'
+        else if (/^(public-site\/|website\/)/.test(file)) kind = 'public-site-executable'
         else if (/^content\/skills\//.test(file)) kind = 'skill-catalog'
         else if (/^(scripts\/validation-manifest\.json|scripts\/run-validation\.js|scripts\/lib\/validation-)/.test(file)) kind = 'validation-control-plane'
         else if (/^scripts\/test-/.test(file)) kind = 'test'
@@ -697,6 +711,8 @@ function buildValidationImpactGraph({ manifest, changedFiles = [], changeDescrip
   verificationLevel = 'V3' }) {
   const normalizedChanged = [...new Set(changedFiles.map(normalizeRelativePath))].sort()
   const descriptors = buildChangeDescriptors(normalizedChanged, changeDescriptors)
+  const { recognizedNoJsInputs, executableInputs } = partitionNarrativeMarkdownPaths(normalizedChanged)
+  const narrativeOnly = recognizedNoJsInputs.length > 0 && executableInputs.length === 0
   const descriptorByPath = new Map(descriptors.map(descriptor => [descriptor.path, descriptor]))
   const byId = new Map(manifest.nodes.map(node => [node.id, node]))
   const semanticPackageNodes = new Set(manifest.semanticInputs?.packageJson?.publicMetadataNodes || [])
@@ -704,7 +720,7 @@ function buildValidationImpactGraph({ manifest, changedFiles = [], changeDescrip
     LEVEL_RANK[nodeMinimumLevel(manifest, node.id)] <= LEVEL_RANK[verificationLevel])
   const eligibleNodeIds = new Set(eligibleNodes.map(node => node.id))
   const matchedNodeIds = eligibleNodes.filter(node =>
-    normalizedChanged.some(file => {
+    executableInputs.some(file => {
       const descriptor = descriptorByPath.get(file)
       if (file === 'package.json' && descriptor?.semanticClass === 'package-public-metadata') {
         return semanticPackageNodes.has(node.id)
@@ -712,7 +728,7 @@ function buildValidationImpactGraph({ manifest, changedFiles = [], changeDescrip
       return matchesAnyGlob(file, node.inputs)
     })).map(node => node.id)
   const matchedSet = new Set(matchedNodeIds)
-  const unknownInputs = normalizedChanged.filter(file => {
+  const unknownInputs = executableInputs.filter(file => {
     const descriptor = descriptorByPath.get(file)
     if (file === 'package.json' && descriptor?.semanticClass === 'package-public-metadata') {
       return ![...semanticPackageNodes].some(id => eligibleNodeIds.has(id) && matchedSet.has(id))
@@ -725,7 +741,9 @@ function buildValidationImpactGraph({ manifest, changedFiles = [], changeDescrip
     allowedTypes: allowedConsumerTypes,
     verificationLevel
   })
-  const invariantIds = invariantNodeIds || manifest.iterativeInvariantNodes || manifest.invariantNodes
+  const invariantIds = narrativeOnly
+    ? []
+    : (invariantNodeIds || manifest.iterativeInvariantNodes || manifest.invariantNodes)
   for (const invariant of invariantIds) affected.add(invariant)
   affected = addDependencies(affected, byId)
   const affectedNodeIds = topologicalNodeOrder(manifest).filter(node => affected.has(node.id)).map(node => node.id)
@@ -745,6 +763,11 @@ function buildValidationImpactGraph({ manifest, changedFiles = [], changeDescrip
     verificationLevel,
     allowedConsumerTypes,
     changedFiles: normalizedChanged,
+    recognizedNoJsInputs,
+    executableChangedFiles: executableInputs,
+    validationDisposition: narrativeOnly
+      ? 'recognized-no-javascript-inputs'
+      : (recognizedNoJsInputs.length > 0 ? 'mixed-inputs' : (executableInputs.length > 0 ? 'executable-inputs' : 'no-changes')),
     changeDescriptors: descriptors,
     matchedNodeIds,
     affectedNodeIds,
@@ -791,7 +814,8 @@ function boundaryNodeIds(manifest, boundaryIds) {
 function toValidationPlanV1(plan) {
   const legacyFields = [
     'routeRequested', 'routeResolved', 'riskClass', 'candidateId', 'candidateStable', 'changedSource',
-    'changedFiles', 'validationLayer', 'changeDescriptors', 'impactGraph', 'impactGraphDigest',
+    'changedFiles', 'recognizedNoJsInputs', 'executableChangedFiles', 'validationDisposition',
+    'javascriptCommandCount', 'validationLayer', 'changeDescriptors', 'impactGraph', 'impactGraphDigest',
     'nestedCommandGraphDigest', 'nestedEdgeCount', 'nestedParentIds', 'delegatedParentIds',
     'executionSchedule', 'fullFallback', 'selectedNodes', 'selectionReasons', 'budget', 'skipped',
     'selectedNodeCount', 'fullNodeCount', 'coveredInvariantNodes', 'duplicateLeafCount',
@@ -831,10 +855,17 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
   const scopedBoundaryRoute = ['profile-deploy', 'package-release'].includes(route)
   const normalizedChanged = [...new Set(changedFiles.map(normalizeRelativePath))].sort()
   const normalizedDescriptors = buildChangeDescriptors(normalizedChanged, changeDescriptors)
+  const { recognizedNoJsInputs, executableInputs } = partitionNarrativeMarkdownPaths(normalizedChanged)
+  const narrativeOnly = recognizedNoJsInputs.length > 0 && executableInputs.length === 0
+  const requestedLevel = level || defaults.level
+  const requestedPurpose = purpose || defaults.purpose
+  const noJsRouteEligible = narrativeOnly && ['fast', 'changed', 'delivery'].includes(route) &&
+    LEVEL_RANK[requestedLevel] <= LEVEL_RANK.V1 && ['edit-loop', 'delivery'].includes(requestedPurpose) &&
+    explicitFullAudit !== true && releaseAuthorized !== true
   const descriptorByPath = new Map(normalizedDescriptors.map(descriptor => [descriptor.path, descriptor]))
   const derivedBoundaries = deriveAffectedBoundaries({
     manifest,
-    changedFiles: normalizedChanged,
+    changedFiles: executableInputs,
     changeDescriptors: normalizedDescriptors
   })
   const requestedBoundaryIds = normalizeBoundaryIds(manifest, affectedBoundaries)
@@ -846,15 +877,15 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     ...(defaults.boundaries || []),
     ...requestedBoundaryIds
   ])
-  const escalationInputMatched = normalizedChanged.some(file => {
+  const escalationInputMatched = executableInputs.some(file => {
     const descriptor = descriptorByPath.get(file)
     if (file === 'package.json' && descriptor?.semanticClass === 'package-public-metadata') return false
     return matchesAnyGlob(file, manifest.iterativeEscalationInputs || manifest.criticalInputs)
   })
   const enforcedBoundaries = derivedBoundaries.filter(id =>
     manifest.verificationBoundaries[id]?.enforceForMatchingInputs === true)
-  const boundaryExpansionRequired = riskClass !== 'normal' || escalationInputMatched || enforcedBoundaries.length > 0 ||
-    defaults.level === 'V2'
+  const boundaryExpansionRequired = !noJsRouteEligible && (riskClass !== 'normal' || escalationInputMatched ||
+    enforcedBoundaries.length > 0 || defaults.level === 'V2')
   if (boundaryExpansionRequired && !scopedBoundaryRoute) {
     boundaryIds = normalizeBoundaryIds(manifest, [...boundaryIds, ...derivedBoundaries])
   }
@@ -890,7 +921,7 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     ? manifest.invariantNodes
     : iterativeInvariantIds
   const scopedChangedFiles = scopedBoundaryRoute && verificationLevel !== 'V3'
-    ? normalizedChanged.filter(file => boundaryIds.some(id => {
+    ? executableInputs.filter(file => boundaryIds.some(id => {
         const boundary = manifest.verificationBoundaries[id]
         const semanticClass = descriptorByPath.get(file)?.semanticClass
         return !(boundary.excludeSemanticClasses || []).includes(semanticClass) &&
@@ -909,19 +940,19 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
   const ordered = topologicalNodeOrder(manifest)
   const fullIds = new Set(manifest.routes.full.nodes)
   const executionBlockers = []
-  if (verificationLevel !== 'V3' && (!candidateStable || changedSource === 'unknown')) {
+  if (!noJsRouteEligible && verificationLevel !== 'V3' && (!candidateStable || changedSource === 'unknown')) {
     executionBlockers.push({ code: 'VALIDATION_CANDIDATE_IDENTITY_UNSTABLE', detail: changedSource })
   }
-  if (verificationLevel !== 'V3' && !manifest.consumerGraphComplete) {
+  if (!noJsRouteEligible && verificationLevel !== 'V3' && !manifest.consumerGraphComplete) {
     executionBlockers.push({ code: 'VALIDATION_CONSUMER_GRAPH_INCOMPLETE', detail: 'consumerGraphComplete=false' })
   }
   if (verificationLevel !== 'V3' && impactGraph.unknownInputs.length > 0) {
     executionBlockers.push({ code: 'VALIDATION_UNKNOWN_INPUT', detail: impactGraph.unknownInputs.join(',') })
   }
-  if (verificationLevel === 'V2' && boundaryIds.length === 0) {
+  if (!noJsRouteEligible && verificationLevel === 'V2' && boundaryIds.length === 0) {
     executionBlockers.push({ code: 'VALIDATION_BOUNDARY_REQUIRED', detail: 'no affected boundary could be derived' })
   }
-  if (verificationLevel !== 'V3' && boundaryExpansionRequired && boundaryIds.length === 0) {
+  if (!noJsRouteEligible && verificationLevel !== 'V3' && boundaryExpansionRequired && boundaryIds.length === 0) {
     executionBlockers.push({ code: 'VALIDATION_BOUNDARY_UNRESOLVED', detail: `risk=${riskClass}; escalation=${escalationInputMatched}` })
   }
   if (verificationPurpose === 'release' && !candidateStable) {
@@ -934,7 +965,9 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     routeResolved = 'full'
     selected = new Set(fullIds)
   } else {
-    selected = scopedBoundaryRoute ? new Set() : new Set(impactGraph.affectedNodeIds)
+    selected = noJsRouteEligible
+      ? new Set()
+      : (scopedBoundaryRoute ? new Set() : new Set(impactGraph.affectedNodeIds))
     if (verificationLevel === 'V2') {
       routeResolved = ['profile-deploy', 'package-release'].includes(route) ? route : 'boundary'
       for (const id of boundaryNodeIds(manifest, boundaryIds)) selected.add(id)
@@ -947,9 +980,10 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
   const validationLayer = verificationLevel === 'V3'
     ? 'qualification'
     : (verificationLevel === 'V2' ? 'boundary' : 'iterative')
+  const effectiveInvariantIds = noJsRouteEligible ? [] : invariantIds
   const coveredNodeIds = new Set([...selected].flatMap(id => byId.get(id)?.coversNodes || []))
-  const coveredInvariantNodes = invariantIds.filter(id => coveredNodeIds.has(id))
-  for (const invariant of invariantIds) {
+  const coveredInvariantNodes = effectiveInvariantIds.filter(id => coveredNodeIds.has(id))
+  for (const invariant of effectiveInvariantIds) {
     if (!coveredNodeIds.has(invariant)) selected.add(invariant)
   }
   selected = addDependencies(selected, byId)
@@ -974,7 +1008,7 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
   }
   const matchedIds = new Set(impactGraph.matchedNodeIds)
   const affectedIds = new Set(impactGraph.affectedNodeIds)
-  const invariantSet = new Set(invariantIds)
+  const invariantSet = new Set(effectiveInvariantIds)
   const boundarySet = boundaryNodeIds(manifest, boundaryIds)
   const selectionReasons = {}
   for (const node of selectedNodes) {
@@ -1003,6 +1037,8 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     ? 'high'
     : (explicitEstimateCount > 0 ? 'medium' : 'low')
   const logBudgetBytes = selectedNodes.length * LOG_SUMMARY_BUDGET_BYTES_PER_NODE
+  const javascriptCommandCount = selectedNodes.filter(node =>
+    /^(?:node|npm|npx|pnpm|yarn)(?:\.cmd|\.exe)?$/i.test(String(node.command || ''))).length
   const budget = {
     selectedNodeCount: selectedNodes.length,
     fullNodeCount: fullIds.size,
@@ -1034,6 +1070,12 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     candidateStable,
     changedSource,
     changedFiles: normalizedChanged,
+    recognizedNoJsInputs,
+    executableChangedFiles: executableInputs,
+    validationDisposition: noJsRouteEligible
+      ? 'recognized-no-javascript-inputs'
+      : (recognizedNoJsInputs.length > 0 ? 'mixed-inputs' : (executableInputs.length > 0 ? 'executable-inputs' : 'no-changes')),
+    javascriptCommandCount,
     validationLayer,
     changeDescriptors: normalizedDescriptors,
     impactGraph,
@@ -1109,7 +1151,9 @@ function nullSeparated(value) {
   return String(value || '').split('\0').filter(Boolean)
 }
 
-function buildCandidateIdentity({ repoRoot, explicitChangedFiles = null }) {
+function buildCandidateIdentity({ repoRoot, explicitChangedFiles = null,
+  narrativeMarkdownExclusions = NARRATIVE_MARKDOWN_EXCLUSIONS }) {
+  assertNarrativeMarkdownPolicy(narrativeMarkdownExclusions)
   const absoluteRoot = path.resolve(repoRoot)
   let head = null
   let statusBuffer = ''
@@ -1145,7 +1189,9 @@ function buildCandidateIdentity({ repoRoot, explicitChangedFiles = null }) {
         break
       }
       if (!fs.existsSync(absolutePath)) {
-        dirtyIdentities.push({ path: relativePath, deleted: true })
+        dirtyIdentities.push({ path: relativePath, deleted: true, narrativeMarkdown: isNarrativeMarkdownPath(relativePath) })
+      } else if (isNarrativeMarkdownPath(relativePath)) {
+        dirtyIdentities.push({ path: relativePath, deleted: false, narrativeMarkdown: true, contentOmitted: true })
       } else {
         const content = fs.readFileSync(absolutePath)
         dirtyIdentities.push({ path: relativePath, deleted: false, digest: sha256(content), bytes: content.length })
@@ -1161,8 +1207,10 @@ function buildCandidateIdentity({ repoRoot, explicitChangedFiles = null }) {
         continue
       }
       const absolutePath = path.resolve(absoluteRoot, relativePath)
-      if (!fs.existsSync(absolutePath)) scopeIdentities.push({ path: relativePath, deleted: true })
-      else {
+      if (!fs.existsSync(absolutePath)) scopeIdentities.push({ path: relativePath, deleted: true, narrativeMarkdown: isNarrativeMarkdownPath(relativePath) })
+      else if (isNarrativeMarkdownPath(relativePath)) {
+        scopeIdentities.push({ path: relativePath, deleted: false, narrativeMarkdown: true, contentOmitted: true })
+      } else {
         const content = fs.readFileSync(absolutePath)
         scopeIdentities.push({ path: relativePath, deleted: false, digest: sha256(content), bytes: content.length })
       }
@@ -1735,6 +1783,7 @@ module.exports = {
   VALIDATION_RECEIPT_SCHEMA,
   ValidationDagError,
   buildCandidateIdentity,
+  buildChangeDescriptors,
   boundaryNodeIds,
   buildNestedCommandGraph,
   buildValidationImpactGraph,
@@ -1749,6 +1798,7 @@ module.exports = {
   globToRegExp,
   manifestIdentity,
   matchesAnyGlob,
+  NARRATIVE_MARKDOWN_EXCLUSIONS,
   normalizeCommandLine,
   normalizeRelativePath,
   normalizeBoundaryIds,

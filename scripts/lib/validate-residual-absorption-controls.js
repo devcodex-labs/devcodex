@@ -185,7 +185,7 @@ function buildResidualAbsorptionControlChecks(ctx) {
       promptTemplate: { state: 'not-applicable', skipReason: 'no prompt change' },
       executionConsumer: { state: 'required', evidence: 'scripts/plan-absorption-candidates.js' },
       validationProbe: { state: 'required', evidence: 'test:residual-absorption-controls' },
-      publicDocs: { state: 'required', evidence: 'README.md' },
+      publicDocs: { state: 'required', evidence: 'changelogs/unreleased.md' },
       deployCopy: { state: 'required', evidence: 'devcodex global-adapters apply' }
     }
     const structuredMatrix = {
@@ -201,7 +201,7 @@ function buildResidualAbsorptionControlChecks(ctx) {
         targetLayer: 'existing-skill-subgate',
         layerChecks,
         validationRoute: ['npm run test:residual-absorption-controls'],
-        consumerSync: ['README.md'],
+        consumerSync: ['changelogs/unreleased.md', 'scripts/validation-manifest.json'],
         sourceExistence: {
           claimedCapability: 'SourceExistenceVerificationGate',
           searchAnchors: ['SourceExistenceVerificationGate'],
@@ -257,10 +257,7 @@ function buildResidualAbsorptionControlChecks(ctx) {
       ['skills/test-router/SKILL.md', ['baseAdmissionGovernance', 'BaseImpactAssessmentV1', 'V96']],
       ['skills/report/report-schema.json', ['ReleaseEfficiencyControl', 'ConsumerValidationEngineering']],
       ['skills/report/SKILL.md', ['WorkspaceSyncStatus', 'CompletionEvidenceGate', 'PostDeliverySelfCheck', 'ExecutionBudget']],
-      ['skills/compliance/SKILL.md', ['T11', 'T12', 'T13', 'ExecutionBudget']],
-      ['README.md', ['ReleaseEfficiencyControlGate', 'IsolatedConsumerCwdGate', 'ScenarioCoverageMatrixProbe', 'DesignFitnessGate', 'V96', 'ExecutionBudgetGate']],
-      ['website/docs/guide/development.md', ['CurrentBatchScopeDiffProbe', 'ContractVariantIsolationMutationGate', 'PhaseDeliverySemanticGate', 'ScenarioCoverageMatrixProbe', 'DesignFitnessGate', 'V96']],
-      ['website/docs/guide/release.md', ['CandidateFreezeGate', 'ReleaseCriticalPathBudgetGate', 'ValidationEvidenceReuseGate', 'IsolatedConsumerCwdGate']]
+      ['skills/compliance/SKILL.md', ['T11', 'T12', 'T13', 'ExecutionBudget']]
     ]
     for (const [file, needles] of required) checkFile(file, needles)
 

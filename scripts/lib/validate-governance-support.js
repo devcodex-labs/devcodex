@@ -5,6 +5,7 @@ const {
   PARTITIONS,
   inspectLegacyWorkspaceTempRoots
 } = require('./workspace-temp.js')
+const { filterExecutableValidationProbes } = require('./narrative-markdown-policy')
 
 function findWorkspaceNamespaceTempLeaks(workspaceRoot, { maxEntries = MAX_ENTRIES } = {}) {
   const inspection = inspectLegacyWorkspaceTempRoots(workspaceRoot, maxEntries)
@@ -71,7 +72,7 @@ function buildGovernanceSupportChecks(ctx) {
       ['website/docs/specs/precheck-flow.md', 'Intent Expansion Card', 'website precheck intent card'],
       ['website/docs/specs/report-output-flow.md', '推荐结论', 'website report recommendation']
     ]
-    for (const [file, needle, label] of probes) mustInclude(file, needle, label)
+    for (const [file, needle, label] of filterExecutableValidationProbes(probes)) mustInclude(file, needle, label)
     const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
     const releaseChangelog = `changelogs/releases/v${pkg.version}.md`
     const releaseNeedleFound = (
@@ -138,7 +139,7 @@ function buildGovernanceSupportChecks(ctx) {
       }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -161,7 +162,6 @@ function buildGovernanceSupportChecks(ctx) {
     for (const [file, needle] of templateProbes) mustInclude(file, needle, `template ${needle}`)
 
     const activeRuleFiles = [
-      'README.md',
       'instructions.md',
       'instructions/00-safety.instructions.md',
       'instructions/12-audit.instructions.md',
@@ -455,7 +455,7 @@ function buildGovernanceSupportChecks(ctx) {
       }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {

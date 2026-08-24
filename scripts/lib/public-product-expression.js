@@ -452,20 +452,6 @@ function validatePublicProductExpression (expression, workflow, portfolio, taxon
   return errors
 }
 
-function buildProjectionMarkers (projection) {
-  const hostVariantCount = projection.hosts.reduce((total, host) => total + host.variants.length, 0)
-  const categoryCounts = projection.skills.categories
-    .map(category => `${category.id}:${category.count}`)
-    .join(',')
-  return {
-    workflows: `<!-- devcodex-public:workflows primary=${projection.workflows.primary.join(',')} advanced=${projection.workflows.advanced.join(',')} -->`,
-    skills: `<!-- devcodex-public:skills total=${projection.skills.total} active=${projection.skills.active} gray=${projection.skills.gray} bucket=${projection.skills.bucket} categories=${categoryCounts} -->`,
-    hosts: `<!-- devcodex-public:hosts ids=${projection.hosts.map(item => item.hostId).join(',')} variants=${hostVariantCount} -->`,
-    auto: `<!-- devcodex-public:auto canonical=${projection.expression.autoEntry.canonical} default=${projection.expression.autoEntry.defaultShortcut} profile-replacement=true empty-array-disables=true -->`,
-    capabilities: `<!-- devcodex-public:capabilities ids=${projection.capabilityScenarios.map(item => item.id).join(',')} -->`
-  }
-}
-
 /**
  * Builds the public projection from stable product semantics and current machine owners.
  * Dynamic workflow, Skill, host, version, and external endpoint facts are never copied
@@ -530,7 +516,6 @@ function buildPublicProductProjection (options = {}) {
       taxonomy: taxonomyDigest
     }
   }
-  projection.markers = buildProjectionMarkers(projection)
   return projection
 }
 
@@ -538,7 +523,6 @@ module.exports = {
   DEFAULT_ROOT,
   CURRENT_EXPRESSION_SCHEMA,
   CURRENT_PROJECTION_SCHEMA,
-  buildProjectionMarkers,
   buildPublicProductProjection,
   buildPublicSkillProjection,
   loadSources,

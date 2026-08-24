@@ -3,18 +3,15 @@
 
 const fs = require('fs')
 const path = require('path')
-const { evaluatePublicReadmeContractV2 } = require('./lib/canonical-consumer-contracts')
 
 const ROOT = path.resolve(__dirname, '..')
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugin.json'), 'utf8'))
 const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'))
-const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')
 const publicCi = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8')
 const publishWorkflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'publish.yml'), 'utf8')
 
 const errors = []
-const publicReadmeContract = evaluatePublicReadmeContractV2(readme, { root: ROOT })
 
 function expect(condition, message) {
   if (!condition) errors.push(message)
@@ -89,28 +86,6 @@ expect(nonEmptyString(plugin.homepage), 'plugin.json homepage 不能为空')
 expect(nonEmptyString(plugin.license), 'plugin.json license 不能为空')
 expect(pluginKeywords.length >= 3, 'plugin.json keywords 至少需要 3 个非空条目')
 expect(pluginCategories.length > 0, 'plugin.json categories 不能为空')
-expect(
-  publicReadmeContract.valid,
-  `README 公共安装契约不完整：${publicReadmeContract.missing.join(', ')}`
-)
-
-if ((pkg.publishConfig.registry || '').includes('npm.pkg.github.com') || pkg.publishConfig.access === 'restricted') {
-  for (const needle of ['GitHub Packages', 'npm.pkg.github.com', 'NODE_AUTH_TOKEN', `v${pkg.version}`, '当前唯一发布通道']) {
-    expect(readme.includes(needle), `README 必须显式说明 GitHub Packages 安装边界：${needle}`)
-  }
-  expect(!readme.includes(`npmjs public | ✅ v${pkg.version} 已发布`), 'README 不得把 GitHub-only 版本伪报为 npmjs 已发布')
-}
-
-if ((pkg.publishConfig.registry || '').includes('registry.npmjs.org') || pkg.publishConfig.access === 'public') {
-  for (const needle of [`npm install -g ${pkg.name}`, 'registry 上的版本', '不要']) {
-    expect(readme.includes(needle), `README 必须提供不夸大发布状态的 npmjs 安装说明：${needle}`)
-  }
-  expect(
-    !readme.includes(`npmjs public | ✅ v${pkg.version} 已发布`),
-    'README 不得仅依据本地 package metadata 宣称 npmjs 版本已发布'
-  )
-}
-
 if (errors.length) {
   console.error('\x1b[31m✗ Release metadata checks failed:\x1b[0m')
   for (const message of errors) {

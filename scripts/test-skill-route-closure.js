@@ -14,6 +14,7 @@ const {
 const {
   getGrokLauncherAdapterDigest
 } = require('./lib/grok-workspace-launcher')
+const { isNarrativeMarkdownPath } = require('./lib/narrative-markdown-policy')
 
 const ROOT = path.resolve(__dirname, '..')
 const REQUIREMENTS_ROOT = process.env.DEVCODEX_SKILL_ROUTE_REQUIREMENTS_ROOT
@@ -92,6 +93,7 @@ for (const [acceptanceId, testIds] of Object.entries(trace.acceptanceLinks)) {
   }
 }
 for (const [testId, evidence] of Object.entries(trace.testCases)) {
+  assert.strictEqual(isNarrativeMarkdownPath(evidence.owner), false, `${testId} must use a machine/control owner`)
   const owner = path.join(ROOT, evidence.owner)
   assert(fs.existsSync(owner), `${testId} owner missing: ${evidence.owner}`)
   assert(

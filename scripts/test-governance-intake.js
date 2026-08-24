@@ -6,10 +6,7 @@ const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const { buildLifecycleGovernanceIntakeUtils } = require('../hooks/_runtime/lifecycle-governance-intake.cjs')
-const {
-  createCanonicalAwareReader,
-  evaluatePublicReadmeContractV2
-} = require('./lib/canonical-consumer-contracts')
+const { createCanonicalAwareReader } = require('./lib/canonical-consumer-contracts')
 
 const ROOT = path.resolve(__dirname, '..')
 const RUNTIME = path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs')
@@ -21,7 +18,6 @@ const read = file => readAbsolute(path.join(ROOT, file))
 
 function mustInclude(file, needle, label = needle) {
   const content = read(file)
-  if (file === 'README.md' && evaluatePublicReadmeContractV2(content, { root: ROOT }).valid) return
   if (!content.includes(needle)) {
     failures.push(`${file} missing "${label}"`)
   }
@@ -566,7 +562,6 @@ const probes = [
   ['data/templates/process-improvements.md', '关联缺口'],
   ['data/README.md', '优化清单（PI）'],
   ['data/README.md', '承载 DevCodex 规范资产的 active-root'],
-  ['README.md', '规范治理 Intake'],
   ['hooks/_runtime/lifecycle-governance-intake.cjs', 'GOVERNANCE_INTAKE_STATE_VERSION'],
   ['hooks/_runtime/lifecycle-governance-intake.cjs', 'registerGovernanceIntakeCandidate'],
   ['hooks/_runtime/lifecycle-governance-intake.cjs', 'buildGovernanceIntakeContextMessage'],
@@ -600,9 +595,6 @@ const forbidden = [
   ['skills/intent/SKILL.md', 'dev 模式下还要执行主动 Improvement Intake', '主动 Intake 已改为全模式'],
   ['instructions/18-spec-radar.instructions.md', '当前 dev 模式消息经合理性评估后命中', '前置判断不再绑定 dev 消息'],
   ['data/templates/process-improvements.md', 'dev 模式需回执', '模板说明已改为全模式'],
-  ['README.md', 'dev 模式下每条用户消息在合理性评估后都会额外检查', 'README 说明已改为全模式'],
-  ['README.md', 'dev 模式下每条用户消息还会执行主动 Improvement Intake', 'README 说明已改为全模式'],
-  ['website/docs/guide/development.md', 'dev 模式下若用户建议经验证更优且可泛化', '用户文档说明已改为全模式'],
   ['changelogs/unreleased.md', 'dev 模式下对可泛化更优策略或规范缺口执行主动记录', '变更记录已改为全模式']
 ]
 

@@ -73,7 +73,7 @@ function sampleMatrix(overrides = {}) {
         ownedArtifacts: ['skills/spec-absorption/SKILL.md'],
         layerChecks: layerChecks(),
         validationRoute: ['npm run test:residual-absorption-controls'],
-        consumerSync: ['README.md', 'website/docs/guide/development.md'],
+        consumerSync: ['changelogs/unreleased.md', 'scripts/validation-manifest.json'],
         sourceExistence: sourceExistence(),
         probeNecessity: probeNecessity(),
         enforcementLevel: 'hard-probe',

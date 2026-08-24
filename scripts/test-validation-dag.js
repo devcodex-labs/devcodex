@@ -10,7 +10,9 @@ const { CheckedCommandError } = require('./lib/checked-command')
 const { buildContentIdentity, stableStringify } = require('../hooks/_runtime/content-identity.cjs')
 const {
   ValidationDagError,
+  NARRATIVE_MARKDOWN_EXCLUSIONS,
   buildCandidateIdentity,
+  buildChangeDescriptors,
   buildValidationImpactGraph,
   cacheDescriptor,
   cacheRelativePath,
@@ -26,6 +28,7 @@ const {
   validateValidationManifest
 } = require('./lib/validation-dag')
 const { createValidationOrchestration } = require('./lib/validation-orchestration')
+const { isNarrativeMarkdownPath, normalizeNarrativePath } = require('./lib/narrative-markdown-policy')
 const { parseArgs } = require('./run-validation')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -61,6 +64,7 @@ function fixtureManifest(nodes) {
     contractVersion: '1',
     description: 'fixture',
     consumerGraphComplete: true,
+    narrativeMarkdownExclusions: [...NARRATIVE_MARKDOWN_EXCLUSIONS],
     verificationBoundaries: {
       fixture: {
         inputs: ['fixture/**'],
@@ -117,6 +121,18 @@ function run() {
     assert.deepStrictEqual(Object.keys(manifest.verificationBoundaries).sort(),
       ['hook-runtime', 'mcp-runtime', 'package', 'profile', 'validation-control-plane'])
     assert.strictEqual(manifest.nodeVerificationPolicies.defaultConsumerEdgeType, 'runtimeConsumer')
+    assert.deepStrictEqual(manifest.narrativeMarkdownExclusions, [
+      'README.md',
+      'public-site/**/*.md',
+      'website/**/*.md'
+    ])
+    assert.strictEqual(normalizeNarrativePath('././README.md'), 'README.md')
+    assert.strictEqual(isNarrativeMarkdownPath('public-site/docs/guide.md'), true)
+    assert.strictEqual(isNarrativeMarkdownPath('public-site/docs/guide.mdx'), false)
+    for (const invalid of ['public-site/../escape.md', 'website//escape.md', 'C:\\repo\\README.md']) {
+      assert.throws(() => normalizeNarrativePath(invalid), error => error.code === 'NARRATIVE_MARKDOWN_PATH_INVALID')
+      assert.throws(() => buildChangeDescriptors([invalid]), error => error.code === 'VALIDATION_PATH_INVALID')
+    }
     assert.deepStrictEqual(manifest.semanticInputs.packageJson.publicMetadataNodes, [
       'public-product-expression',
       'release-metadata'
@@ -377,6 +393,11 @@ function run() {
     delete missingGraphStatus.consumerGraphComplete
     assert.throws(() => validateValidationManifest(missingGraphStatus),
       error => error instanceof ValidationDagError && /consumerGraphComplete/.test(error.message))
+
+    const invalidNarrativePolicy = clone(manifest)
+    invalidNarrativePolicy.narrativeMarkdownExclusions.push('docs/**/*.md')
+    assert.throws(() => validateValidationManifest(invalidNarrativePolicy),
+      error => error instanceof ValidationDagError && /NarrativeMarkdownPolicyV1/.test(error.message))
 
     const invalidDelegatedClosure = clone(manifest)
     invalidDelegatedClosure.nodes.find(node => node.id === 'validate-core').delegatedClosure[0].nodeId = 'Missing_Node'
@@ -645,10 +666,15 @@ function run() {
       candidateStable: true,
       candidateId: 'fixture-high'
     })
-    assert.strictEqual(highRisk.routeResolved, 'boundary')
-    assert.strictEqual(highRisk.verificationLevel, 'V2')
-    assert.strictEqual(highRisk.executionState, 'blocked')
-    assert(highRisk.executionBlockers.some(item => item.code === 'VALIDATION_BOUNDARY_UNRESOLVED'))
+    assert.strictEqual(highRisk.routeResolved, 'changed')
+    assert.strictEqual(highRisk.verificationLevel, 'V1')
+    assert.strictEqual(highRisk.executionState, 'ready')
+    assert.strictEqual(highRisk.selectedNodeCount, 0)
+    assert.strictEqual(highRisk.javascriptCommandCount, 0)
+    assert.strictEqual(highRisk.validationDisposition, 'recognized-no-javascript-inputs')
+    assert.deepStrictEqual(highRisk.recognizedNoJsInputs, ['README.md'])
+    assert.deepStrictEqual(highRisk.executableChangedFiles, [])
+    assert.deepStrictEqual(highRisk.executionBlockers, [])
     assert.strictEqual(highRisk.fullFallback, null)
 
     const unstable = planValidation({
@@ -677,9 +703,62 @@ function run() {
       candidateId: 'fixture-incomplete-graph'
     })
     assert.strictEqual(incompleteGraph.routeResolved, 'changed')
-    assert.strictEqual(incompleteGraph.executionState, 'blocked')
-    assert(incompleteGraph.executionBlockers.some(item => item.code === 'VALIDATION_CONSUMER_GRAPH_INCOMPLETE'))
+    assert.strictEqual(incompleteGraph.executionState, 'ready')
+    assert.strictEqual(incompleteGraph.selectedNodeCount, 0)
+    assert.strictEqual(incompleteGraph.javascriptCommandCount, 0)
+    assert.deepStrictEqual(incompleteGraph.executionBlockers, [])
     assert.strictEqual(incompleteGraph.fullFallback, null)
+
+    const incompleteExecutableGraph = planValidation({
+      manifest: incompleteGraphManifest,
+      route: 'changed',
+      changedFiles: ['scripts/test-client-contracts.js'],
+      changedSource: 'explicit',
+      riskClass: 'normal',
+      candidateStable: true,
+      candidateId: 'fixture-incomplete-executable-graph'
+    })
+    assert.strictEqual(incompleteExecutableGraph.executionState, 'blocked')
+    assert(incompleteExecutableGraph.executionBlockers.some(item => item.code === 'VALIDATION_CONSUMER_GRAPH_INCOMPLETE'))
+
+    const docsOnlyPaths = ['README.md', 'public-site/docs/guide.md', 'website/docs/guide.md']
+    const docsOnly = planValidation({
+      manifest,
+      route: 'delivery',
+      changedFiles: docsOnlyPaths,
+      changedSource: 'explicit',
+      riskClass: 'normal',
+      candidateStable: true,
+      candidateId: 'fixture-docs-only'
+    })
+    assert.strictEqual(docsOnly.executionState, 'ready')
+    assert.strictEqual(docsOnly.routeResolved, 'delivery')
+    assert.strictEqual(docsOnly.selectedNodeCount, 0)
+    assert.strictEqual(docsOnly.javascriptCommandCount, 0)
+    assert.deepStrictEqual(docsOnly.recognizedNoJsInputs, [...docsOnlyPaths].sort())
+    assert.deepStrictEqual(docsOnly.impactGraph.unknownInputs, [])
+    assert.deepStrictEqual(docsOnly.impactGraph.invariantNodeIds, [])
+
+    const mixedNarrativeAndSource = planValidation({
+      manifest,
+      route: 'changed',
+      changedFiles: ['README.md', 'scripts/test-client-contracts.js'],
+      changedSource: 'explicit',
+      riskClass: 'normal',
+      candidateStable: true,
+      candidateId: 'fixture-mixed-narrative-source'
+    })
+    assert.strictEqual(mixedNarrativeAndSource.validationDisposition, 'mixed-inputs')
+    assert.deepStrictEqual(mixedNarrativeAndSource.recognizedNoJsInputs, ['README.md'])
+    assert.deepStrictEqual(mixedNarrativeAndSource.executableChangedFiles, ['scripts/test-client-contracts.js'])
+    assert(mixedNarrativeAndSource.selectedNodeCount > 0)
+
+    const executableMarkdownDescriptors = buildChangeDescriptors([
+      'public-site/docs/skills.mdx',
+      'content/skills/test-router/SKILL.md',
+      '.devcodex/Profile/04-测试规范.md'
+    ])
+    assert(executableMarkdownDescriptors.every(item => item.kind !== 'narrative-markdown-no-js'))
 
     const wideNodes = Array.from({ length: 5 }, (_, index) => fixtureNode('wide-' + index, {
       inputs: index === 0 ? ['src/**'] : ['other-' + index + '/**'],
@@ -807,6 +886,13 @@ function run() {
     const secondCandidate = buildCandidateIdentity({ repoRoot: ROOT })
     assert.strictEqual(firstCandidate.candidateId, secondCandidate.candidateId)
     assert.strictEqual(firstCandidate.stable, true)
+    const narrativeCandidate = buildCandidateIdentity({
+      repoRoot: ROOT,
+      explicitChangedFiles: ['README.md', 'public-site/docs/index.md', 'website/docs/index.md']
+    })
+    assert(narrativeCandidate.scopeIdentities.every(item => item.narrativeMarkdown === true))
+    assert(narrativeCandidate.scopeIdentities.every(item => item.deleted === true || item.contentOmitted === true))
+    assert(narrativeCandidate.scopeIdentities.every(item => item.digest === undefined && item.bytes === undefined))
 
     const cachedNode = fixtureNode('fixture-cache', {
       cachePolicy: 'candidate-bound',
@@ -1340,7 +1426,13 @@ function run() {
     assert.strictEqual(planEnvelope.schemaVersion, 'ValidationCliEnvelopeV1')
     assert.strictEqual(planEnvelope.ok, true)
     assert.strictEqual(planEnvelope.error, null)
-    assert.notStrictEqual(planEnvelope.data.plan.routeResolved, 'full')
+    assert.strictEqual(planEnvelope.data.plan.routeResolved, 'changed')
+    assert.strictEqual(planEnvelope.data.plan.executionState, 'ready')
+    assert.strictEqual(planEnvelope.data.plan.validationDisposition, 'recognized-no-javascript-inputs')
+    assert.deepStrictEqual(planEnvelope.data.plan.recognizedNoJsInputs, ['README.md'])
+    assert.deepStrictEqual(planEnvelope.data.plan.executableChangedFiles, [])
+    assert.strictEqual(planEnvelope.data.plan.selectedNodeCount, 0)
+    assert.strictEqual(planEnvelope.data.plan.javascriptCommandCount, 0)
     assert.strictEqual(planEnvelope.data.plan.fullFallback, null)
 
     const highHookPlan = spawnSync(process.execPath, [

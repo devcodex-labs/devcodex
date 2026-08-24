@@ -12,22 +12,25 @@ const {
   createCanonicalAwareReader,
   hasValidCanonicalContract
 } = require('./lib/canonical-consumer-contracts')
+const { isNarrativeMarkdownPath } = require('./lib/narrative-markdown-policy')
 
 const ROOT = path.resolve(__dirname, '..')
 const failures = []
 const SOURCE_PROJECT_NAME = ['devcodex', 'v1'].join('-')
 
 const readAbsolute = createCanonicalAwareReader(ROOT, file => fs.readFileSync(file, 'utf8'))
-const read = file => readAbsolute(path.join(ROOT, file))
+const read = file => isNarrativeMarkdownPath(file) ? '' : readAbsolute(path.join(ROOT, file))
 
 const skillCount = JSON.parse(read('plugin.json')).skills.length
 
 function mustInclude(file, needle) {
+  if (isNarrativeMarkdownPath(file)) return
   const content = read(file)
   if (!content.includes(needle) && !hasValidCanonicalContract(ROOT, file, content, needle)) failures.push(`${file} missing "${needle}"`)
 }
 
 function mustNotInclude(file, needle, reason) {
+  if (isNarrativeMarkdownPath(file)) return
   if (String(read(file)).includes(needle)) failures.push(`${file} must not include "${needle}" (${reason})`)
 }
 

@@ -1,6 +1,4 @@
 'use strict'
-
-const { evaluatePublicReadmeContractV2 } = require('./canonical-consumer-contracts')
 const {
   DEFAULT_THRESHOLDS,
   classifyTurnLiveness,
@@ -28,7 +26,6 @@ function buildTurnLivenessControlChecks(ctx) {
       return
     }
     const content = read(file)
-    if (relative === 'README.md' && evaluatePublicReadmeContractV2(content, { root: ROOT }).valid) return
     for (const needle of needles) {
       if (!content.includes(needle)) err(`[V98] ${relative} missing: ${needle}`)
     }
@@ -59,9 +56,6 @@ function buildTurnLivenessControlChecks(ctx) {
       ['prompts/report-audit.prompt.md', ['CliDiagnosticContract', 'CheckpointValidation', 'LocalTaskTrace', 'TurnLivenessRecovery']],
       ['scripts/check-turn-liveness.js', ['gray-read-only-one-shot', 'sidecar-observed', 'operationReplay', 'processControl']],
       ['package.json', ['test:local-probe', 'test:checkpoint-validation', 'test:local-task-trace', 'test:execution-attempt-ledger', 'check:turn-liveness', 'scripts/check-turn-liveness.js']],
-      ['README.md', ['TurnLivenessRecoveryGate', 'stalled-recoverable', 'Hook 本身无法主动唤醒任务', 'devcodex probe', 'LocalTaskTraceV1']],
-      ['website/docs/intro/index.md', ['长任务停滞可诊断', 'TurnLivenessRecoveryGate']],
-      ['website/docs/guide/development.md', ['Turn Liveness', 'PostToolUse', '不得自行唤醒宿主', 'devcodex probe', 'CheckpointValidation', 'LocalTaskTrace']],
       ['changelogs/unreleased.md', ['ISSUE-043', 'Turn Liveness', 'V98', 'LocalTaskTraceV1']],
       ['scripts/test-turn-liveness.js', ['active-operation-lease', 'stalled-recoverable']],
       ['scripts/test-checkpoint-validation.js', ['incomplete-timeout', 'host-terminal-event']],

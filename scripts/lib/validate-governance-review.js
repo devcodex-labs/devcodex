@@ -1,6 +1,4 @@
 'use strict'
-
-const { evaluatePublicReadmeContractV2 } = require('./canonical-consumer-contracts')
 const { buildGovernanceHelpers } = require('./validate-governance-helpers')
 
 function collectActiveProfileCorpusIfAvailable(fs, path, activeRoot, readFile) {
@@ -22,13 +20,10 @@ function buildGovernanceReviewChecks(ctx) {
     fs, path, execSync, read, err, mustInclude
   } = ctx
   const { collectChangelogSources, hasChangelogEvidence } = buildGovernanceHelpers(ctx)
-  const skillCount = JSON.parse(read(path.join(ROOT, 'plugin.json'))).skills.length
 
   function checkV75() {
     const probeName = 'PromptLongGateListDriftProbe'
     const consumerFiles = [
-      'README.md',
-      'website/docs/guide/development.md',
       'instructions/10-dev.instructions.md',
       'instructions/11-fix.instructions.md',
       'instructions/12-audit.instructions.md',
@@ -189,15 +184,12 @@ function buildGovernanceReviewChecks(ctx) {
     const probes = [
       { file: 'skills/spec-governance/SKILL.md', needles: [probeName, 'SCV 负向样例', 'GovernanceGateRegistry'] },
       { file: 'skills/source-consumer-sync/SKILL.md', needles: ['gate-registry.json', 'Concept Sync Map', 'legacyAnchors'] },
-      { file: 'README.md', needles: [probeName, 'GovernanceGateRegistry'] },
-      { file: 'website/docs/guide/development.md', needles: [probeName, 'GovernanceGateRegistry'] },
       { file: 'changelogs/releases/v1.11.28.md', needles: ['V75', probeName] },
       { file: 'scripts/lib/test-spec-governance-review.js', needles: ['checkV75', probeName] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
     ]
     for (const probe of probes) {
       const content = read(path.join(ROOT, probe.file))
-      if (probe.file === 'README.md' && evaluatePublicReadmeContractV2(content, { root: ROOT }).valid) continue
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
           err(`[V75] ${probeName} sync drift in ${probe.file}: missing "${needle}"`)
@@ -229,8 +221,6 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: [gate, 'whyMissed', 'rerunEvidence'] },
       { file: 'prompts/report-audit.prompt.md', needles: [gate, 'whyMissed', 'rerunEvidence'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: [gate, 'escapedItem', 'rerunEvidence'] },
-      { file: 'README.md', needles: [gate, 'whyMissed', 'rerunEvidence'] },
-      { file: 'website/docs/guide/development.md', needles: [gate, 'whyMissed', 'rerunEvidence'] },
       { file: 'changelogs/releases/v1.11.28.md', needles: ['V76', gate, 'whyMissed'] },
       { file: 'scripts/lib/test-spec-governance-review.js', needles: ['checkV76', gate] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
@@ -303,8 +293,6 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: [gate, 'command/shell/cwd/exitCode'] },
       { file: 'prompts/report-audit.prompt.md', needles: [gate, 'failed evidence exclusion'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: [gate] },
-      { file: 'README.md', needles: [gate, '真实 command/shell/cwd/exitCode'] },
-      { file: 'website/docs/guide/development.md', needles: [gate, '真实 command/shell/cwd/exitCode'] },
       { file: 'changelogs/releases/v1.11.28.md', needles: ['V77', gate, 'exitCode'] },
       { file: 'scripts/lib/test-spec-governance-review.js', needles: ['checkV77', gate] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
@@ -341,7 +329,6 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'skills/review-checklist/SKILL.md', needles: ['PostConfirmationReviewScopeGate', '高风险', 'skipReason', 'ReviewGradeCard', 'c19Label'] },
       { file: 'skills/analyze-default/SKILL.md', needles: ['ControlPlaneAdviceInventoryGate', 'ExistingCapabilityInventory'] },
       { file: 'skills/expert-output-quality/SKILL.md', needles: ['ControlPlaneAdviceInventoryGate', 'ExistingCapabilityInventory'] },
-      { file: 'README.md', needles: ['ReviewGradeCard', '轻量=R1', '标准=R2'] },
       { file: 'skills/spec-governance/gate-registry.json', needles: ['ReviewGradeCard', 'c19Label', 'reviewClass', 'post-confirmation-review'] },
       { file: 'skills/report/SKILL.md', needles: ['ReviewGradeCard', 'c19Label', 'reviewClass'] },
       { file: 'skills/fix-default/SKILL.md', needles: ['ReviewGradeCard', 'reviewClass'] },
@@ -362,8 +349,6 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: ['AcceptedSuggestionRootCauseGate', 'PostConfirmationReviewScopeGate', 'VerificationPlanMaterializationProbe'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['AcceptedSuggestionRootCauseGate', 'DevelopmentDriftGate', 'SidebarGroupSemanticModelProbe'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['AcceptedSuggestionRootCauseGate', 'DevelopmentDriftGate', 'SidebarGroupSemanticModelProbe'] },
-      { file: 'README.md', needles: ['AcceptedSuggestionRootCauseGate', 'PostConfirmationReviewScopeGate', 'DevelopmentDriftGate', 'ChinesePrimaryExpressionGate'] },
-      { file: 'website/docs/guide/development.md', needles: ['AcceptedSuggestionRootCauseGate', 'PostConfirmationReviewScopeGate', 'DevelopmentDriftGate', 'ChinesePrimaryExpressionGate'] },
       { file: 'changelogs/releases/v1.11.28.md', needles: ['V78'].concat(gates) },
       { file: 'scripts/lib/test-spec-governance-review.js', needles: ['checkV78'].concat(gates) },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
@@ -414,8 +399,6 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'prompts/report-dev.prompt.md', needles: ['CoverageGateDecision / RiskBasedValidationLadder', 'ExternalRuntimePluginLifecycleGate / ExternalRegistryLifecycleMatrixGate'] },
       { file: 'prompts/report-fix.prompt.md', needles: ['CoverageGateDecision / RiskBasedValidationLadder', 'FunctionSourceFingerprintMatrixGate / ClusterEscalationGate'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['CoverageGateDecision / RiskBasedValidationLadder', 'ExternalRuntimePluginLifecycleGate / ExternalRegistryLifecycleMatrixGate'] },
-      { file: 'README.md', needles: ['coverage 与外部 runtime 生命周期验证'].concat(gates) },
-      { file: 'website/docs/guide/development.md', needles: ['存在 coverage 阈值'].concat(gates) },
       { file: 'scripts/lib/test-spec-governance-review.js', needles: ['checkV79'].concat(gates) },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['V79'].concat(gates) }
@@ -472,11 +455,6 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'prompts/report-dev.prompt.md', needles: gates },
       { file: 'prompts/report-fix.prompt.md', needles: gates },
       { file: 'prompts/report-audit.prompt.md', needles: gates.concat(['文档设计', '菜单导航']) },
-      { file: 'README.md', needles: [`${skillCount} 个`, 'audit-user-manual', '用户侧文档 review 聚合'] },
-      { file: 'website/docs/index.md', needles: [`${skillCount} 个 Skills`, '用户侧文档 review 聚合'] },
-      { file: 'website/docs/intro/index.md', needles: [`${skillCount} 个按需触发`, 'audit-user-manual'] },
-      { file: 'website/docs/guide/development.md', needles: ['audit-user-manual', '菜单导航', 'sidebar'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: [`${skillCount} 个`, 'audit-user-manual', '用户侧文档 review'] },
       { file: 'scripts/lib/test-spec-governance-review.js', needles: ['checkV80'].concat(gates) },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['V80'].concat(gates) }
@@ -553,12 +531,6 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: ['spec-absorption', 'AbsorptionCandidateConsumerProofGate', 'targetOwner'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['spec-absorption', 'projectSpecificResidue', 'devcodexConsumerEvidence'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['spec-absorption', 'negativeExamples', 'validationRoute'] },
-      { file: 'README.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'ServiceSpecReadGate', `${skillCount} 个`] },
-      { file: 'website/docs/index.md', needles: [`${skillCount} 个 Skills`, '规范吸纳执行'] },
-      { file: 'website/docs/intro/index.md', needles: [`${skillCount} 个按需触发的工作流技能`, 'spec-absorption'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: [`扁平一级 Skill（${skillCount} 个）`, 'spec-absorption'] },
-      { file: 'website/docs/guide/development.md', needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'ServiceSpecReadGate'] },
-      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['spec-absorption', 'V81'] },
       { file: 'scripts/lib/test-spec-governance-review.js', needles: ['checkV81', 'spec-absorption', 'CommonNormGeneralizationGate'] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['spec-absorption', 'CommonNormGeneralizationGate', 'V81'] }
@@ -639,9 +611,6 @@ function buildGovernanceReviewChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: ['LatestAbsorptionExecutionPack A1~A10', 'V82', 'FeatureInventoryProfileGate'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['LatestAbsorptionExecutionPack A1~A10', 'V82', 'BatchEvidenceLedgerStateGate'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['LatestAbsorptionExecutionPack A1~A10', 'DerivedConsumerFailureInjectionProbe', 'BatchProgressCardGate'] },
-      { file: 'README.md', needles: ['LatestAbsorptionExecutionPack', 'A1~A10', 'V82'] },
-      { file: 'website/docs/guide/development.md', needles: ['LatestAbsorptionExecutionPack', 'A1~A10', 'V82'] },
-      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['A1~A10', 'LatestAbsorptionExecutionPack', 'V82'] },
       { file: 'scripts/lib/test-spec-governance-review.js', needles: ['checkV82', 'LatestAbsorptionExecutionPack', 'ConfigCanonicalNamespaceGate'] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['LatestAbsorptionExecutionPack', 'ConfigCanonicalNamespaceGate', 'V82'] }

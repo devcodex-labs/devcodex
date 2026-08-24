@@ -1,7 +1,5 @@
 'use strict'
 
-const { evaluatePublicReadmeContractV2 } = require('./canonical-consumer-contracts')
-
 const EXPECTED_FEATURE_ROUTES = Object.freeze({
   'task-index-acceleration': 'bounded-direct',
   'context-computation-reuse': 'full-context-read',
@@ -28,7 +26,6 @@ function buildExecutionChainControlChecks(ctx) {
     const full = requireFile(relative)
     if (!logicalExists(full)) return
     const content = read(full)
-    if (relative === 'README.md' && evaluatePublicReadmeContractV2(content, { root: ROOT }).valid) return
     for (const anchor of anchors) {
       if (!content.includes(anchor)) err(`[V101] ${label} ${relative} missing anchor: ${anchor}`)
     }
@@ -163,9 +160,7 @@ function buildExecutionChainControlChecks(ctx) {
       ['skills/incremental-project-analysis/SKILL.md', ['ExecutionOptimizationFeatureDecisionV1', 'full-only', 'full-project-analysis']],
       ['prompts/report-optimization.prompt.md', ['ExecutionChainBenchmarkResultV1', 'ExecutionOptimizationFeatureDecisionV1', 'provisional']],
       ['prompts/implementation-progress.prompt.md', ['ExecutionOptimizationStateV2', 'ExecutionOptimizationFeatureDecisionV1', 'full-only']],
-      ['README.md', ['继续<任务名>任务', 'ExecutionOptimizationFeatureDecisionV1', 'benchmark:execution-chain', 'full-only']],
-      ['changelogs/unreleased.md', ['项目侧执行链性能', 'ExecutionOptimizationFeatureDecisionV1', 'V101']],
-      ['website/docs/versions/v1/1.0.1/requirements/p0/project-execution-chain-performance.md', ['ExecutionOptimizationStateV2', 'ExecutionOptimizationFeatureDecisionV1', 'full-only', 'V101']]
+      ['changelogs/unreleased.md', ['项目侧执行链性能', 'ExecutionOptimizationFeatureDecisionV1', 'V101']]
     ]
     for (const [relative, anchors] of documentationConsumers) assertAnchors(relative, anchors, 'documentation consumer')
 

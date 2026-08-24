@@ -213,8 +213,6 @@ function buildOptimizationControlChecks(ctx) {
       'skills/source-consumer-sync/SKILL.md',
       'prompts/report-audit.prompt.md',
       'prompts/implementation-plan.prompt.md',
-      'README.md',
-      'website/docs/guide/release.md',
       'changelogs/releases/v1.13.0.md'
     ]
     for (const relative of scopedRegistryConsumers) {
@@ -260,10 +258,6 @@ function buildOptimizationControlChecks(ctx) {
       err('[V92] runtime-state index must expose transition and consumer-drift diagnostics')
     }
 
-    const readme = read(path.join(ROOT, 'README.md'))
-    for (const needle of ['5 分钟快速开始', 'npmjs', 'npm install -g devcodex', 'GitHub Packages', '历史包', '1.0.1']) {
-      if (!readme.includes(needle)) err(`[V92] README product path missing: ${needle}`)
-    }
     console.log(`[V92] optimization controls checked: skills=86 gray=3 runtimeAlerts=${runtimeState.summary.alertCount}`)
   }
 

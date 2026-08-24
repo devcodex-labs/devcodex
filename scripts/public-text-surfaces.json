@@ -1,14 +1,7 @@
 {
   "schemaVersion": "PublicTextSurfacesV1",
   "surfaces": [
-    { "path": "README.md", "role": "package-readme" },
-    { "path": "changelogs/unreleased.md", "role": "current-changelog" },
-    { "path": "public-site/docs/index.md", "role": "public-user-home" },
-    { "path": "website/docs/intro/index.md", "role": "website-home" },
-    { "path": "website/docs/guide/index.md", "role": "website-guide-index" },
-    { "path": "website/docs/guide/development.md", "role": "website-current-guide" },
-    { "path": "website/docs/specs/directory-structure.md", "role": "website-current-spec" },
-    { "path": "website/docs/intro/host-parity-grok.md", "role": "website-host-parity-grok" }
+    { "path": "changelogs/unreleased.md", "role": "current-changelog" }
   ],
   "roots": [
     { "path": "content/instructions", "role": "normative-instructions", "extensions": [".md"] },
@@ -19,11 +12,11 @@
     { "path": "codex", "role": "codex-host-contracts", "extensions": [".md"] },
     { "path": "agents", "role": "agent-host-contracts", "extensions": [".md"] },
     { "path": "grok", "role": "grok-host-contracts", "extensions": [".md"] },
-    { "path": "public-site/docs", "role": "public-user-docs", "extensions": [".md", ".mdx"] },
-    { "path": "website/docs/intro", "role": "website-current-intro", "extensions": [".md", ".mdx"] },
-    { "path": "website/docs/guide", "role": "website-current-guide", "extensions": [".md", ".mdx"] },
-    { "path": "website/docs/public", "role": "website-current-public", "extensions": [".md", ".mdx"] },
-    { "path": "website/docs/specs", "role": "website-current-specs", "extensions": [".md", ".mdx"] },
+    { "path": "public-site/docs", "role": "public-user-mdx", "extensions": [".mdx"] },
+    { "path": "website/docs/intro", "role": "website-current-mdx", "extensions": [".mdx"] },
+    { "path": "website/docs/guide", "role": "website-current-mdx", "extensions": [".mdx"] },
+    { "path": "website/docs/public", "role": "website-current-mdx", "extensions": [".mdx"] },
+    { "path": "website/docs/specs", "role": "website-current-mdx", "extensions": [".mdx"] },
     { "path": "changelogs", "role": "current-changelog-files", "fileNames": ["README.md", "TEMPLATE.md", "unreleased.md"] }
   ],
   "contaminationPatterns": [

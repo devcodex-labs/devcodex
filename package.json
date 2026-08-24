@@ -321,6 +321,7 @@
     "scripts/public-text-surfaces.json",
     "scripts/benchmark-execution-chain.js",
     "scripts/lib/validation-dag.js",
+    "scripts/lib/narrative-markdown-policy.js",
     "scripts/lib/validation-orchestration.js",
     "scripts/lib/skill-portfolio-utils.js",
     "scripts/lib/public-skill-taxonomy.js",

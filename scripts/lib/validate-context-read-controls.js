@@ -42,8 +42,6 @@ const CANONICAL_V2_CONSUMER_REQUIREMENTS = Object.freeze([
   ['prompts/technical-design.prompt.md', ['context-acquisition', 'ContextReadPlanV2', 'ContextReadReceiptV2', 'V99']],
   ['prompts/implementation-plan.prompt.md', ['context-acquisition', 'ProfilePlanNoHiddenFullReadProbe', 'V99']],
   ['prompts/report-dev.prompt.md', ['ContextAcquisition', 'ContextReadReceiptV2', 'ContextReadBindingV1', 'V99']],
-  ['README.md', ['profile_context_plan', 'memory_status', 'ContextReadReceiptV2']],
-  ['website/docs/guide/development.md', ['profile_context_plan', 'memory_status', 'ContextReadPlanV2', 'ContextReadReceiptV2']],
   ['instructions/01-common.instructions.md', ['ContextReadBindingV1']],
   ['scripts/lib/validation-dag.js', ['testRouteDigest', 'intentExpansionDigest']]
 ])
@@ -54,9 +52,7 @@ const V1_READER_COMPATIBILITY_REQUIREMENTS = Object.freeze([
   ['skills/ai-agent-system-architecture/SKILL.md', ['V1 兼容']],
   ['skills/host-contract-verification/SKILL.md', ['V1 兼容']],
   ['prompts/technical-design.prompt.md', ['ContextReadPlanV1']],
-  ['prompts/report-dev.prompt.md', ['ContextReadReceiptV1']],
-  ['README.md', ['V1 receipt 只作兼容读取']],
-  ['website/docs/guide/development.md', ['V1 只保留 reader compatibility']]
+  ['prompts/report-dev.prompt.md', ['ContextReadReceiptV1']]
 ])
 
 const PROFILE_CANONICAL_V2_REQUIREMENTS = Object.freeze([

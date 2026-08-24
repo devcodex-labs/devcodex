@@ -34,46 +34,11 @@ const REQUIRED_PROCESS_FILES = Object.freeze([
   'scripts/test-process-enforcement-e2e.js'
 ])
 
-const PUBLIC_SITE_REQUIRED_MD = Object.freeze([
-  'public-site/docs/index.md',
-  'public-site/docs/guide/getting-started.md',
-  'public-site/docs/guide/common-tasks.md',
-  'public-site/docs/guide/troubleshooting.md',
-  'public-site/docs/guide/hosts.md',
-  'public-site/docs/guide/trust-security-data.md',
-  'public-site/docs/tutorials/ambiguous-request.md',
-  'public-site/docs/tutorials/fix-regression.md',
-  'public-site/docs/tutorials/cross-domain-change.md',
-  'public-site/docs/tutorials/evidence-handoff.md',
-  'public-site/docs/reference/workflows.md',
-  'public-site/docs/reference/cli.md',
-  'public-site/docs/reference/diagnostics.md',
-  'public-site/docs/reference/runtime-operations.md',
-  'public-site/docs/reference/glossary.md',
-  'public-site/docs/reference/skills.mdx',
-  'public-site/docs/reference/hosts.md',
-  'public-site/docs/reference/configuration.md',
-  'public-site/docs/reference/limits.md',
-  'public-site/docs/concepts/architecture.md',
-  'public-site/docs/concepts/intent-driven.md',
-  'public-site/docs/concepts/profile-context-memory.md',
-  'public-site/docs/concepts/progressive-skill-routing.md',
-  'public-site/docs/concepts/evidence-and-completion.md',
-  'public-site/docs/concepts/task-resume.md',
-  'public-site/docs/workflows/index.md',
-  'public-site/docs/workflows/change.md',
-  'public-site/docs/workflows/read-only.md',
-  'public-site/docs/workflows/session.md',
-  'public-site/docs/workflows/dev.md',
-  'public-site/docs/workflows/fix.md',
-  'public-site/docs/workflows/analyze.md',
-  'public-site/docs/workflows/audit.md',
-  'public-site/docs/workflows/resume.md',
-  'public-site/docs/workflows/chat.md',
-  'public-site/docs/examples/resume.md'
+const PUBLIC_SITE_REQUIRED_MDX = Object.freeze([
+  'public-site/docs/reference/skills.mdx'
 ])
 
-const PUBLIC_SITE_MD_FLOOR = PUBLIC_SITE_REQUIRED_MD.length
+const PUBLIC_SITE_MDX_FLOOR = PUBLIC_SITE_REQUIRED_MDX.length
 
 function listDirs (root, dir) {
   const full = path.join(root, dir)
@@ -94,14 +59,14 @@ function listFiles (root, dir, re) {
     .sort()
 }
 
-function walkMd (root, relDir, acc = []) {
+function walkMdx (root, relDir, acc = []) {
   const full = path.join(root, relDir)
   if (!fs.existsSync(full)) return acc
   for (const e of fs.readdirSync(full, { withFileTypes: true })) {
     const r = path.join(relDir, e.name).replace(/\\/g, '/')
     const p = path.join(full, e.name)
-    if (e.isDirectory()) walkMd(root, r, acc)
-    else if (/\.mdx?$/i.test(e.name)) acc.push(r)
+    if (e.isDirectory()) walkMdx(root, r, acc)
+    else if (/\.mdx$/i.test(e.name)) acc.push(r)
   }
   return acc
 }
@@ -155,11 +120,11 @@ function scanDocsSurfaceInventory (root) {
   const sourceCheckoutMode = fs.existsSync(path.join(root, '.git'))
   const publicSiteDocsRoot = path.join(root, 'public-site', 'docs')
   const publicSitePresent = fs.existsSync(publicSiteDocsRoot)
-  const publicSiteMd = publicSitePresent ? walkMd(root, 'public-site/docs').sort() : []
+  const publicSiteMdx = publicSitePresent ? walkMdx(root, 'public-site/docs').sort() : []
   // website/ is maintainer-only and may be absent from public clones (not shipped in npm / public git).
   const websiteDocsRoot = path.join(root, 'website', 'docs')
   const websitePresent = fs.existsSync(websiteDocsRoot)
-  const websiteMd = websitePresent ? walkMd(root, 'website/docs').sort() : []
+  const websiteMdx = websitePresent ? walkMdx(root, 'website/docs').sort() : []
 
   const gates = JSON.parse(
     fs.readFileSync(resolveControlAsset(root, 'skills/spec-governance/gate-registry.json'), 'utf8')
@@ -202,10 +167,10 @@ function scanDocsSurfaceInventory (root) {
     npmScripts: npmScripts.length,
     sourceCheckoutMode,
     publicSitePresent,
-    publicSiteMd: publicSiteMd.length,
-    publicSiteMdPaths: publicSiteMd,
+    publicSiteMdx: publicSiteMdx.length,
+    publicSiteMdxPaths: publicSiteMdx,
     websitePresent,
-    websiteMd: websiteMd.length,
+    websiteMdx: websiteMdx.length,
     gateGroups,
     validationNodes: validationNodes.length,
     processFiles,
@@ -257,18 +222,14 @@ function assertDocsSurfaceInventory (inv) {
   if (inv.sourceCheckoutMode && !inv.publicSitePresent) {
     failures.push('public-site docs missing from source checkout')
   }
-  if (inv.publicSitePresent && inv.publicSiteMd < PUBLIC_SITE_MD_FLOOR) {
-    failures.push(`public-site md expected >=${PUBLIC_SITE_MD_FLOOR} got ${inv.publicSiteMd}`)
+  if (inv.publicSitePresent && inv.publicSiteMdx < PUBLIC_SITE_MDX_FLOOR) {
+    failures.push(`public-site mdx expected >=${PUBLIC_SITE_MDX_FLOOR} got ${inv.publicSiteMdx}`)
   }
   if (inv.publicSitePresent) {
-    const present = new Set(inv.publicSiteMdPaths || [])
-    for (const required of PUBLIC_SITE_REQUIRED_MD) {
+    const present = new Set(inv.publicSiteMdxPaths || [])
+    for (const required of PUBLIC_SITE_REQUIRED_MDX) {
       if (!present.has(required)) failures.push(`public-site missing ${required}`)
     }
-  }
-  // Public tree policy: website is optional. When present (maintainer checkout), enforce floor.
-  if (inv.websitePresent && inv.websiteMd < 156) {
-    failures.push(`website md expected >=156 got ${inv.websiteMd}`)
   }
   if (inv.gateGroups !== 51) failures.push(`gate groups expected 51 got ${inv.gateGroups}`)
   if (inv.validationNodes < 83) {
@@ -292,8 +253,8 @@ module.exports = {
   REQUIRED_WORKFLOWS,
   REQUIRED_HOOK_EVENTS,
   REQUIRED_PROCESS_FILES,
-  PUBLIC_SITE_REQUIRED_MD,
-  PUBLIC_SITE_MD_FLOOR,
+  PUBLIC_SITE_REQUIRED_MDX,
+  PUBLIC_SITE_MDX_FLOOR,
   scanDocsSurfaceInventory,
   assertDocsSurfaceInventory
 }

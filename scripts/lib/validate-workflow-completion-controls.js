@@ -2,10 +2,7 @@
 
 const fs = require('fs')
 const path = require('path')
-const {
-  createCanonicalAwareReader,
-  evaluatePublicReadmeContractV2
-} = require('./canonical-consumer-contracts')
+const { createCanonicalAwareReader } = require('./canonical-consumer-contracts')
 
 const REQUIRED_DEFINITIONS = [
   'WorkflowCompletionCandidateV1',
@@ -67,21 +64,10 @@ function inspectWorkflowCompletionControls(root, io = {}) {
     'scripts/critical-coverage.json',
     'package.json',
     'scripts/test-host-adapters.js',
-    'README.md',
     'changelogs/unreleased.md'
   ]
-  const sourceOnlyConsumerFiles = [
-    'website/docs/guide/development.md',
-    'website/docs/specs/compliance-framework.md',
-    'website/docs/specs/completion-compliance-flow.md'
-  ]
   for (const relative of requiredFiles) if (!exists(relative)) issues.push(`missing-file:${relative}`)
-  const sourceCheckoutMode = exists('.git') || sourceOnlyConsumerFiles.some(relative => exists(relative))
-  if (sourceCheckoutMode) {
-    for (const relative of sourceOnlyConsumerFiles) if (!exists(relative)) issues.push(`missing-source-consumer:${relative}`)
-  }
   if (issues.some(issue => issue.startsWith('missing-file:'))) return issues
-  if (issues.some(issue => issue.startsWith('missing-source-consumer:'))) return issues
 
   let schema
   try {
@@ -161,24 +147,10 @@ function inspectWorkflowCompletionControls(root, io = {}) {
     if (!adapter.includes(anchor) && !hostTest.includes(anchor)) issues.push(`host-completion-matrix-anchor-missing:${anchor}`)
   }
   const publicConsumers = [
-    ['README.md', ['devcodex task verify', 'extensions.devcodex.workflowCompletion.mode', 'WorkflowCompletionCandidateV1']],
     ['changelogs/unreleased.md', ['Workflow completion Shadow', 'HostCompletionRouteV1', '20/dev5/fix5']]
   ]
-  if (sourceCheckoutMode) {
-    publicConsumers.push(['website/docs/guide/development.md', ['devcodex task verify', 'workflowCompletion.mode', 'waiting-external']])
-  }
   for (const [relative, anchors] of publicConsumers) {
     const content = read(relative)
-    if (relative === 'README.md') {
-      const contract = evaluatePublicReadmeContractV2(content, { root })
-      if (!contract.valid) {
-        const evidence = contract.violations
-          .map(item => `${item.code}:${item.evidence}`)
-          .join('|')
-        issues.push(`completion-public-consumer-drift:README.md:PublicReadmeContractV2:${evidence}`)
-      }
-      continue
-    }
     for (const anchor of anchors) if (!content.includes(anchor)) issues.push(`completion-public-consumer-drift:${relative}:${anchor}`)
   }
 
@@ -259,9 +231,6 @@ function inspectWorkflowCompletionControls(root, io = {}) {
     'skills/compliance/SKILL.md',
     'scripts/host-instruction-projection.json'
   ]
-  if (sourceCheckoutMode) {
-    aliasConsumers.push('website/docs/specs/compliance-framework.md', 'website/docs/specs/completion-compliance-flow.md')
-  }
   const legacyRange = ['T1', 'T9'].join('~')
   for (const relative of aliasConsumers) {
     if (String(read(relative)).includes(legacyRange)) issues.push(`legacy-completion-range:${relative}`)

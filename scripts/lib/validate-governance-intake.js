@@ -1,6 +1,7 @@
 'use strict'
 
 const { buildGovernanceHelpers } = require('./validate-governance-helpers')
+const { filterExecutableValidationProbes } = require('./narrative-markdown-policy')
 
 function buildGovernanceIntakeChecks(ctx) {
   const {
@@ -100,7 +101,7 @@ function buildGovernanceIntakeChecks(ctx) {
       }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -125,7 +126,7 @@ function buildGovernanceIntakeChecks(ctx) {
       ['changelogs/unreleased.md', 'dev 模式下对可泛化更优策略或规范缺口执行主动记录']
     ]
 
-    for (const [file, needle] of forbidden) {
+    for (const [file, needle] of filterExecutableValidationProbes(forbidden)) {
       const content = read(path.join(ROOT, file))
       if (String(content).includes(needle)) {
         err(`[V39] governance intake drift in ${file}: legacy mode split remains "${needle}"`)
@@ -190,7 +191,7 @@ function buildGovernanceIntakeChecks(ctx) {
       }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -227,7 +228,7 @@ function buildGovernanceIntakeChecks(ctx) {
       { file: 'scripts/test-requirement-artifacts.js', needles: ['simple-fast-path', 'simple-fast-path-bug', '00-需求变更概况.md', '00-问题概况.md'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) err(`[V41] SimpleTaskFastPath drift in ${probe.file}: missing "${needle}"`)
@@ -283,8 +284,6 @@ function buildGovernanceIntakeChecks(ctx) {
     const pkg = JSON.parse(read(path.join(ROOT, 'package.json')))
     const scripts = pkg.scripts || {}
     const releaseSkill = read(path.join(ROOT, 'content', 'skills', 'release-verification', 'SKILL.md'))
-    const releaseGuide = read(path.join(ROOT, 'website', 'docs', 'guide', 'release.md'))
-    const readme = read(path.join(ROOT, 'README.md'))
     const testRouter = read(path.join(ROOT, 'content', 'skills', 'test-router', 'SKILL.md'))
 
     const scriptExpectations = [
@@ -318,17 +317,8 @@ function buildGovernanceIntakeChecks(ctx) {
     for (const needle of ['R3b', 'R3c', 'npm run test:audit', 'package completeness gate', '远端 CI', 'keywords', 'publishConfig', 'prepublishOnly']) {
       if (!releaseSkill.includes(needle)) err(`[V42] release-verification skill missing "${needle}"`)
     }
-    for (const needle of ['R3b', 'R3c', 'npm run test:audit', 'package completeness gate', '远端 CI', 'keywords', 'publishConfig', 'GitHub Packages']) {
-      if (!releaseGuide.includes(needle)) err(`[V42] website release guide missing "${needle}"`)
-    }
     for (const needle of ['release-verification', 'npm run test:audit', 'package completeness gate', '远端 CI', 'publish dry-run']) {
       if (!testRouter.includes(needle)) err(`[V42] test-router missing "${needle}"`)
-    }
-
-    if ((pkg.publishConfig?.registry || '').includes('npm.pkg.github.com') || pkg.publishConfig?.access === 'restricted') {
-      for (const needle of ['GitHub Packages', 'npm.pkg.github.com', 'NODE_AUTH_TOKEN']) {
-        if (!readme.includes(needle)) err(`[V42] README missing GitHub Packages install boundary "${needle}"`)
-      }
     }
 
     console.log('[V42] release gate / package completeness sync checked')
@@ -344,7 +334,7 @@ function buildGovernanceIntakeChecks(ctx) {
       { file: 'website/docs/guide/development.md', needles: ['devcodex doctor', 'DEVCODEX_HOOK_ENFORCEMENT', '.mcp.json'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) err(`[V43] host docs / README audit route drift in ${probe.file}: missing "${needle}"`)
@@ -382,7 +372,7 @@ function buildGovernanceIntakeChecks(ctx) {
       { file: 'website/docs/guide/development.md', needles: ['Context Rehydration Contract', 'ContextHandoffCard', 'dev 模式默认向用户展示完整 Intent Expansion Card', '执行期 CP3 回退'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) err(`[V44] context rehydration / CP3 rollback drift in ${probe.file}: missing "${needle}"`)
@@ -477,7 +467,7 @@ function buildGovernanceIntakeChecks(ctx) {
       { file: 'website/docs/specs/directory-structure.md', needles: ['01a-profile-loading.instructions.md', '01b-record-router.instructions.md', '01c-intent-expansion.instructions.md'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) err(`[V48] split common instruction drift in ${probe.file}: missing "${needle}"`)
@@ -519,7 +509,7 @@ function buildGovernanceIntakeChecks(ctx) {
       { file: 'scripts/lib/test-spec-governance-base.js', needles: ['Backlog Intake 真相复核', '台账状态回写闭环', 'backlogTruthReview'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -559,7 +549,7 @@ function buildGovernanceIntakeChecks(ctx) {
       { file: 'scripts/lib/test-spec-governance-base.js', needles: ['audit-release', 'RL-1~RL-10', 'ReleaseAudit'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -600,7 +590,7 @@ function buildGovernanceIntakeChecks(ctx) {
       { file: 'package.json', needles: ['test:client-contracts', 'node scripts/test-client-contracts.js'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -647,7 +637,7 @@ function buildGovernanceIntakeChecks(ctx) {
       { file: 'website/docs/guide/development.md', needles: ['Codex adapter', 'PreCompact'] },
       { file: 'website/docs/specs/directory-structure.md', needles: ['PreCompact', 'PostCompact'] }
     ]
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -719,7 +709,7 @@ function buildGovernanceIntakeChecks(ctx) {
       { file: 'scripts/lib/test-spec-governance-base.js', needles: ['Profile Freshness Check', 'changelogs/releases/vX.Y.Z.md', '用户 / 项目指定时使用的本地 overlay'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -785,7 +775,7 @@ function buildGovernanceIntakeChecks(ctx) {
       { file: 'scripts/lib/test-spec-governance-base.js', needles: ['OfficialDocsEvidence', 'ProfileImpactCheck', 'checkV54'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {

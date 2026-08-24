@@ -1,5 +1,7 @@
 'use strict'
 
+const { isNarrativeMarkdownPath } = require('./narrative-markdown-policy')
+
 function buildValidateCoreChecks(ctx) {
   const {
     ROOT,
@@ -73,8 +75,8 @@ function buildValidateCoreChecks(ctx) {
   }
 
   function checkV2() {
-    const roots = ['content', 'website/docs', 'changelogs']
-    const topFiles = ['README.md', 'CHANGELOG.md', 'RULES.md']
+    const roots = ['content', 'changelogs']
+    const topFiles = ['CHANGELOG.md', 'RULES.md']
     const files = roots.flatMap(r => walk(path.join(ROOT, r))).filter(f => f.endsWith('.md'))
       .concat(topFiles.map(f => path.join(ROOT, f)).filter(f => fs.existsSync(f)))
     let checked = 0
@@ -93,6 +95,9 @@ function buildValidateCoreChecks(ctx) {
         const abs = path.resolve(base, target)
         const normalizedTarget = target.replace(/\\/g, '/')
         const relativeSource = path.relative(ROOT, f).replace(/\\/g, '/')
+        const relativeTarget = path.relative(ROOT, abs).replace(/\\/g, '/')
+        if (!relativeTarget.startsWith('../') && !path.isAbsolute(relativeTarget) &&
+            isNarrativeMarkdownPath(relativeTarget)) continue
         const isHistoricalRuntimeEvidence = relativeSource.startsWith('changelogs/releases/') &&
           normalizedTarget.split('/').includes('.devcodex')
         if (target.endsWith('.md') && !logicalExists(abs) && isHistoricalRuntimeEvidence) {
@@ -550,11 +555,6 @@ function buildValidateCoreChecks(ctx) {
     const hookRuntimeFiles = walk(path.join(ROOT, 'hooks', '_runtime')).filter(f => f.endsWith('.cjs'))
     const hookRuntimeCount = hookRuntimeFiles.length
     const checks = [
-      { file: 'README.md', needle: `Instructions 约束（${instructionCount} 个，含全部工作流规则）` },
-      { file: 'README.md', needle: `全局 Instructions（${instructionCount} 个，含工作流规则摘要，自动注入）` },
-      { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按需读取` },
-      { file: 'README.md', needle: `Skill 详细检查标准（${skillCount} 个，按 01-common §按需读取表 路由读取）` },
-      { file: 'README.md', needle: `Prompt 模板（${promptCount} 个）` },
       { file: activePath('profile', '01-项目信息.md'), needle: `| **Skill** | ${skillCount} |`, rawPath: false },
       { file: activePath('profile', '01-项目信息.md'), needle: `| **Instruction** | ${instructionCount} |`, rawPath: false },
       { file: activePath('profile', '01-项目信息.md'), needle: `| **Prompt** | ${promptCount} |`, rawPath: false },
@@ -567,10 +567,7 @@ function buildValidateCoreChecks(ctx) {
       { file: activePath('profile', '02-架构约束.md'), needle: 'workspace-layout.cjs', rawPath: false },
       { file: activePath('profile', '01-项目信息.md'), needle: `| **data 模板** | ${dataTemplateCount} |`, rawPath: false },
       { file: activePath('profile', '01-项目信息.md'), needle: `| **CLI 工程脚本** | ${scriptCount} |`, rawPath: false },
-      { file: activePath('profile', '01-项目信息.md'), needle: 'scripts/check-syntax.js', rawPath: false },
-      { file: 'website/docs/index.md', needle: `🛠️ ${skillCount} 个 Skills` },
-      { file: 'website/docs/intro/index.md', needle: `${skillCount} 个按需触发的工作流技能` },
-      { file: 'website/docs/specs/directory-structure.md', needle: `扁平一级 Skill（${skillCount} 个）` }
+      { file: activePath('profile', '01-项目信息.md'), needle: 'scripts/check-syntax.js', rawPath: false }
     ]
     const sourceValidationScope = process.env.DEVCODEX_VALIDATION_SCOPE === 'source'
     const activeProfileDirAvailable = !sourceValidationScope && fs.existsSync(activePath('profile'))
@@ -599,33 +596,13 @@ function buildValidateCoreChecks(ctx) {
       const featureInventoryPath = activePath('profile', '06-功能清单.md')
       if (fs.existsSync(featureInventoryPath)) {
         const featureInventory = read(featureInventoryPath)
-        const sourcePathPattern = /`((?:(?:scripts|skills|instructions|prompts|hooks|mcp|website)\/[^`*<>]+\.(?:js|cjs|md|json|ts))|(?:(?:README|package|plugin|index)\.(?:md|json|js)))`/g
+        const sourcePathPattern = /`((?:(?:scripts|skills|instructions|prompts|hooks|mcp)\/[^`*<>]+\.(?:js|cjs|md|json|ts))|(?:(?:package|plugin|index)\.(?:json|js)))`/g
         for (const match of featureInventory.matchAll(sourcePathPattern)) {
           if (!read.exists(path.join(ROOT, match[1]))) {
             err(`[V19] Profile feature inventory references missing source fact: ${match[1]}`)
           }
         }
       }
-    }
-
-    const activeRequirementsIndexPath = path.join(ROOT, 'website/docs/versions/v1/1.0.1/requirements/index.md')
-    const activeRequirementsChangelogPath = path.join(ROOT, 'website/docs/versions/v1/1.0.1/CHANGELOG.md')
-    if (read.exists(activeRequirementsIndexPath) && read.exists(activeRequirementsChangelogPath)) {
-      const activeRequirementsIndex = read(activeRequirementsIndexPath)
-      const activeRequirementsChangelog = read(activeRequirementsChangelogPath)
-      for (const stale of ['light-api', 'frontend-api', 'Claude MCP/合规漂移修复']) {
-        if (activeRequirementsIndex.includes(stale)) {
-          err(`[V19] active requirements index contains stale unbacked summary text: ${stale}`)
-        }
-      }
-      if (!activeRequirementsIndex.includes('template-flow-alignment')) {
-        err('[V19] active requirements index must link the existing template-flow-alignment requirement detail')
-      }
-      if (!activeRequirementsChangelog.includes('模板边界与开发流程收口')) {
-        err('[V19] active version CHANGELOG must record the existing template-flow-alignment requirement detail')
-      }
-    } else {
-      console.log('[V19] website active version docs not present in source checkout; skipped maintainer-site generated docs checks')
     }
 
     console.log(`[V19] asset counts checked: instructions=${instructionCount}, skills=${skillCount}, prompts=${promptCount}, hook-runtime=${hookRuntimeCount}, data-templates=${dataTemplateCount}, scripts=${scriptCount}; optional active-profile checks skipped=${optionalActiveProfileChecksSkipped}`)

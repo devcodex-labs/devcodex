@@ -112,9 +112,7 @@ function buildConsumerEvolutionControlChecks(ctx) {
       ['prompts/implementation-plan.prompt.md', ['V95 completeness groups', 'consumer-validation']],
       ['prompts/report-dev.prompt.md', ['Agent/Docs/Consumer/ModulePerformance completeness', 'V95']],
       ['prompts/report-fix.prompt.md', ['Agent/Docs/Consumer/ModulePerformance completeness', 'V95']],
-      ['prompts/report-audit.prompt.md', ['Agent/Docs/Consumer/ModulePerformance completeness', 'V95']],
-      ['README.md', ['consumer-validation-engineering', 'V95']],
-      ['website/docs/guide/development.md', ['ConsumerValidationEngineeringGate', 'V95']]
+      ['prompts/report-audit.prompt.md', ['Agent/Docs/Consumer/ModulePerformance completeness', 'V95']]
     ]
     for (const [file, needles] of required) checkFile(file, needles)
 

@@ -85,7 +85,6 @@ assert(publicProjection.skills.categories.every(category =>
 assert.strictEqual(publicProjection.skills.extensionPolicy.extensionSource, 'workspace')
 assert.strictEqual(publicProjection.skills.extensionPolicy.includedInBundledCounts, false)
 assert.strictEqual(publicProjection.sourceIdentities.taxonomy, expectedTaxonomyDigest)
-assert(publicProjection.markers.skills.includes('categories=workflow-routing:20,domain-architecture:21,quality-delivery:28,runtime-governance:17'))
 
 function issuesFor (mutate) {
   const candidate = JSON.parse(JSON.stringify(taxonomy))

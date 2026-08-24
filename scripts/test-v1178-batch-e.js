@@ -12,7 +12,6 @@ const {
   validateDevCodexCurrentTruth
 } = require('./lib/profile-current-truth')
 const { buildCandidateIdentity } = require('./lib/validation-dag')
-const { evaluatePublicReadmeContractV2 } = require('./lib/canonical-consumer-contracts')
 const {
   verifyProfileSourceSnapshots
 } = require('../mcp/profile-server')
@@ -313,15 +312,13 @@ probe('Profile load verifies sources before observation or body delivery', () =>
   assert.match(source, /captureMissingSnapshots:\s*true/)
 })
 
-probe('public consumers use the repaired contracts', () => {
-  const readme = read('README.md')
+probe('machine consumers use the repaired contracts', () => {
   const outputPaths = read('content/instructions/02-output-paths.instructions.md')
   const memoryInstructions = read('content/instructions/15-memory.instructions.md')
   const memorySkill = read('content/skills/memory/SKILL.md')
   const hostProjection = read('content/skills/host-instruction-projection/SKILL.md')
   const unreleased = read('changelogs/unreleased.md')
   const fixture = read('scripts/fixtures/capability-surface-decision/valid-controlled-tool.json')
-  assert.strictEqual(evaluatePublicReadmeContractV2(readme, { root: ROOT }).valid, true)
   assert.match(outputPaths, /WorkspaceTempManifestV2/)
   for (const text of [memoryInstructions, memorySkill]) {
     assert.match(text, /MemoryCursorV1/)

@@ -4,9 +4,12 @@
 const fs = require('fs')
 const path = require('path')
 const {
-  createCanonicalAwareReader,
-  evaluatePublicReadmeContractV2
-} = require('./lib/canonical-consumer-contracts')
+  assertNarrativeMarkdownPolicy,
+  isNarrativeMarkdownPath,
+  partitionNarrativeMarkdownPaths
+} = require('./lib/narrative-markdown-policy')
+const { createCanonicalAwareReader } = require('./lib/canonical-consumer-contracts')
+const { planValidation, readValidationManifest } = require('./lib/validation-dag')
 
 const ROOT = path.resolve(__dirname, '..')
 const failures = []
@@ -18,7 +21,6 @@ function read(file) {
 
 function mustInclude(file, needle) {
   const content = read(file)
-  if (file === 'README.md' && evaluatePublicReadmeContractV2(content, { root: ROOT }).valid) return
   if (!content.includes(needle)) failures.push(`${file} missing "${needle}"`)
 }
 
@@ -44,10 +46,6 @@ function assertOrder(file, headings) {
 }
 
 const plugin = JSON.parse(read('plugin.json'))
-const publicReadmeContract = evaluatePublicReadmeContractV2(read('README.md'), { root: ROOT })
-if (!publicReadmeContract.valid) {
-  failures.push(`README.md public contract missing: ${publicReadmeContract.missing.join(', ')}`)
-}
 for (const [id, file] of [
   ['readme-authoring', 'skills/readme-authoring/SKILL.md'],
   ['audit-readme', 'skills/audit-readme/SKILL.md']
@@ -72,11 +70,7 @@ for (const [file, needle] of [
   ['skills/document-sync/SKILL.md', 'audit-readme'],
   ['skills/audit-document/SKILL.md', 'audit-readme'],
   ['skills/audit-execution-guide/SKILL.md', 'audit-readme'],
-  ['prompts/project-readme.prompt.md', '用户 / 使用者优先'],
-  ['README.md', 'readme-authoring'],
-  ['README.md', 'audit-readme'],
-  ['website/docs/intro/index.md', 'readme-authoring'],
-  ['website/docs/specs/directory-structure.md', 'audit-readme']
+  ['prompts/project-readme.prompt.md', '用户 / 使用者优先']
 ]) {
   mustInclude(file, needle)
 }
@@ -99,6 +93,50 @@ if (pkg.scripts['test:readme-governance'] !== 'node scripts/test-readme-governan
 const testAllScript = pkg.scripts['test:all'] || ''
 const testScript = pkg.scripts.test || ''
 const validationManifest = JSON.parse(read('scripts/validation-manifest.json'))
+try {
+  assertNarrativeMarkdownPolicy(validationManifest.narrativeMarkdownExclusions)
+} catch (error) {
+  failures.push(error.message)
+}
+for (const file of ['README.md', 'public-site/docs/guide.md', 'website/docs/guide.md']) {
+  if (!isNarrativeMarkdownPath(file)) failures.push(`narrative Markdown policy did not recognize ${file}`)
+}
+for (const file of [
+  'public-site/docs/guide.mdx',
+  'website/docs/guide.mdx',
+  'content/skills/test-router/SKILL.md',
+  '.devcodex/Profile/04-测试规范.md',
+  'docs/README.md'
+]) {
+  if (isNarrativeMarkdownPath(file)) failures.push(`narrative Markdown policy overmatched ${file}`)
+}
+const partition = partitionNarrativeMarkdownPaths([
+  'README.md',
+  'public-site/docs/guide.md',
+  'website/docs/guide.md',
+  'public-site/docs/guide.mdx'
+])
+if (partition.recognizedNoJsInputs.length !== 3 || partition.executableInputs.length !== 1) {
+  failures.push(`narrative Markdown partition drift: ${JSON.stringify(partition)}`)
+}
+const manifest = readValidationManifest(path.join(ROOT, 'scripts', 'validation-manifest.json'))
+const docsOnlyPlan = planValidation({
+  manifest,
+  route: 'changed',
+  changedFiles: ['README.md', 'public-site/docs/guide.md', 'website/docs/guide.md'],
+  changedSource: 'explicit',
+  candidateStable: true,
+  candidateId: 'readme-governance-docs-only'
+})
+if (docsOnlyPlan.executionState !== 'ready' || docsOnlyPlan.selectedNodeCount !== 0 ||
+    docsOnlyPlan.javascriptCommandCount !== 0 || docsOnlyPlan.impactGraph.unknownInputs.length !== 0) {
+  failures.push(`docs-only route is not known zero-JS: ${JSON.stringify({
+    executionState: docsOnlyPlan.executionState,
+    selectedNodeCount: docsOnlyPlan.selectedNodeCount,
+    javascriptCommandCount: docsOnlyPlan.javascriptCommandCount,
+    unknownInputs: docsOnlyPlan.impactGraph.unknownInputs
+  })}`)
+}
 const readmeGovernanceNode = validationManifest.nodes.find(node => node.id === 'readme-governance')
 const fullRouteNodes = validationManifest.routes.full && validationManifest.routes.full.nodes
 const readmeGovernanceCovered = Boolean(
@@ -122,4 +160,4 @@ if (failures.length) {
   process.exit(1)
 }
 
-console.log('README governance checks passed')
+console.log('Narrative Markdown policy and README authoring governance checks passed')

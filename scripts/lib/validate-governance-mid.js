@@ -1,3 +1,5 @@
+const { filterExecutableValidationProbes } = require('./narrative-markdown-policy')
+
 function buildGovernanceMidChecks(ctx) {
   const { ROOT, fs, path, read, err } = ctx
   const logicalExists = file => typeof read.exists === 'function' ? read.exists(file) : fs.existsSync(file)
@@ -82,7 +84,7 @@ function buildGovernanceMidChecks(ctx) {
       }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -119,7 +121,7 @@ function buildGovernanceMidChecks(ctx) {
     const required = ['.github/', '.claude/', 'AGENTS.md', '.agents/', '.codex/']
     const forbidden = ['.claude/.github/', '父链 `.claude/.github/`', '无父链 .claude/.github/', 'parent/source-root deployment']
 
-    for (const file of probes) {
+    for (const file of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, file))
       for (const needle of required) {
         if (!content.includes(needle)) {
@@ -172,7 +174,7 @@ function buildGovernanceMidChecks(ctx) {
       }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.required) {
         if (!content.includes(needle)) {
@@ -279,7 +281,7 @@ function buildGovernanceMidChecks(ctx) {
       }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -343,7 +345,7 @@ function buildGovernanceMidChecks(ctx) {
       }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -391,7 +393,7 @@ function buildGovernanceMidChecks(ctx) {
       }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -497,7 +499,7 @@ function buildGovernanceMidChecks(ctx) {
       }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {

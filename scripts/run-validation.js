@@ -153,6 +153,10 @@ function compactPlan(plan, executionOptimization = null) {
     candidateStable: plan.candidateStable,
     changedSource: plan.changedSource,
     changedFiles: plan.changedFiles,
+    recognizedNoJsInputs: plan.recognizedNoJsInputs,
+    executableChangedFiles: plan.executableChangedFiles,
+    validationDisposition: plan.validationDisposition,
+    javascriptCommandCount: plan.javascriptCommandCount,
     changeDescriptors: plan.changeDescriptors,
     impactGraphDigest: plan.impactGraphDigest,
     planDigest: plan.planDigest,
@@ -202,7 +206,8 @@ function main(argv = process.argv.slice(2)) {
     const routeForMode = options.route
     const candidate = buildCandidateIdentity({
       repoRoot: ROOT,
-      explicitChangedFiles: options.changedSpecified ? options.changedFiles : null
+      explicitChangedFiles: options.changedSpecified ? options.changedFiles : null,
+      narrativeMarkdownExclusions: manifest.narrativeMarkdownExclusions
     })
     const plan = planValidation({
       manifest,

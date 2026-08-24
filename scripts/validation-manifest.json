@@ -3,12 +3,18 @@
   "contractVersion": "1",
   "description": "Canonical serial validation graph for DevCodex source, package and deployment consumers.",
   "consumerGraphComplete": true,
+  "narrativeMarkdownExclusions": [
+    "README.md",
+    "public-site/**/*.md",
+    "website/**/*.md"
+  ],
   "iterativeEscalationInputs": [
     "package.json",
     "scripts/validation-manifest.json",
     "scripts/run-validation.js",
     "scripts/lib/validation-dag.js",
     "scripts/lib/validation-orchestration.js",
+    "scripts/lib/narrative-markdown-policy.js",
     "scripts/lib/checked-command.js",
     "hooks/_runtime/content-identity.cjs"
   ],
@@ -51,6 +57,7 @@
         "scripts/validation-manifest.json",
         "scripts/run-validation.js",
         "scripts/lib/validation-dag.js",
+        "scripts/lib/narrative-markdown-policy.js",
         "scripts/test-validation-dag.js",
         "content/skills/test-router/**",
         "hooks/_runtime/workflow-completion-contract.cjs",
@@ -596,10 +603,10 @@
         "mcp/**",
         "scripts/validate.js",
         "scripts/lib/validate-*.js",
+        "scripts/lib/narrative-markdown-policy.js",
         "scripts/lib/probe-registry.js",
         "package.json",
         "plugin.json",
-        "README.md",
         "website/**"
       ],
       "consumers": [],
@@ -1461,6 +1468,7 @@
         "hooks/_runtime/host-skill-route-capabilities.v1.json",
         "hooks/_runtime/evidence/*.json",
         "hooks/_runtime/skill-route-mode.cjs",
+        "scripts/lib/narrative-markdown-policy.js",
         "scripts/fixtures/skill-route-closure-trace.v1.json",
         "scripts/test-skill-route-closure.js"
       ],
@@ -1604,9 +1612,7 @@
         "skills/incremental-project-analysis/SKILL.md",
         "skills/report/SKILL.md",
         "skills/report/report-schema.json",
-        "prompts/implementation-progress.prompt.md",
-        "website/docs/guide/development.md",
-        "website/docs/specs/report-output-flow.md"
+        "prompts/implementation-progress.prompt.md"
       ],
       "consumers": [],
       "invariants": [
@@ -2008,6 +2014,7 @@
       "inputs": [
         "scripts/validation-manifest.json",
         "scripts/lib/validation-dag.js",
+        "scripts/lib/narrative-markdown-policy.js",
         "scripts/lib/validation-orchestration.js",
         "scripts/run-validation.js",
         "scripts/test-validation-dag.js",
@@ -2175,7 +2182,6 @@
         "scripts/test-governance-status-summary.js",
         "instructions/**",
         "host-projections/**",
-        "README.md",
         "changelogs/unreleased.md"
       ],
       "consumers": [
@@ -2939,7 +2945,6 @@
         "instructions/**",
         "skills/**",
         "prompts/**",
-        "README.md",
         "CHANGELOG.md",
         "SECURITY.md",
         "scripts/test-markdown-structure.js"
@@ -3547,7 +3552,6 @@
         "mcp/profile-server.js",
         ".github/workflows/ci.yml",
         "package.json",
-        "README.md",
         "changelogs/unreleased.md",
         "content/instructions/02-output-paths.instructions.md",
         "content/instructions/15-memory.instructions.md",
@@ -3658,8 +3662,7 @@
       ],
       "dependencies": [],
       "inputs": [
-        "README.md",
-        "website/**",
+        "scripts/lib/narrative-markdown-policy.js",
         "skills/readme-authoring/**",
         "skills/user-manual-authoring/**",
         "scripts/test-readme-governance.js"
@@ -4473,9 +4476,8 @@
       ],
       "dependencies": [],
       "inputs": [
-        "README.md",
         "changelogs/**",
-        "website/docs/**",
+        "website/**/*.mdx",
         "scripts/public-text-surfaces.json",
         "scripts/lib/public-text-integrity.js",
         "scripts/test-public-text-integrity.js"
@@ -4589,9 +4591,7 @@
         "scripts/validation-manifest.json",
         "scripts/critical-coverage.json",
         "package.json",
-        "README.md",
-        "changelogs/unreleased.md",
-        "website/docs/guide/development.md"
+        "changelogs/unreleased.md"
       ],
       "consumers": [
         "validate-core",
@@ -4799,12 +4799,7 @@
         "package.json",
         "plugin.json",
         "skills/portfolio.json",
-        "changelogs/unreleased.md",
-        "README.md",
-        "website/docs/guide/development.md",
-        "website/docs/specs/compliance-framework.md",
-        "website/docs/specs/exec-compliance-flow.md",
-        "website/docs/specs/report-output-flow.md"
+        "changelogs/unreleased.md"
       ],
       "consumers": [
         "validate-core",
@@ -5369,7 +5364,6 @@
         "public-site/**",
         "website/**",
         ".github/workflows/pages.yml",
-        "README.md",
         "scripts/test-generated-site-links.js",
         "scripts/check-generated-site-links.js"
       ],
@@ -5411,7 +5405,6 @@
         "public-site/**",
         "website/**",
         ".github/workflows/pages.yml",
-        "README.md",
         "scripts/test-generated-site-links.js",
         "scripts/run-website-build-if-present.js",
         "scripts/check-generated-site-links.js"
@@ -5456,7 +5449,6 @@
         "public-site/**",
         "website/**",
         ".github/workflows/pages.yml",
-        "README.md",
         "scripts/check-generated-site-links-if-present.js",
         "scripts/check-generated-site-links.js"
       ],

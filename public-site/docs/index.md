@@ -41,11 +41,6 @@ DevCodex 是面向 Codex、Claude Code、GitHub Copilot、Gemini CLI、Grok 和 
 
 长任务恢复按正式需求/任务保存，而不是按每次 Hook/工具状态变化创建 UUID 全快照；正式任务数量没有硬上限，磁盘按 256/512 MiB soft/hard 与 8 MiB closeout reserve 保护。查看占用、上限处理、legacy 零删除和 Token 估算，请读[运行态维护](/reference/runtime-operations)与[限制与边界](/reference/limits)。
 
-<!-- devcodex-public:workflows primary=dev,fix,analyze,audit,resume,chat advanced=self-fix,other -->
-<!-- devcodex-public:skills total=86 active=83 gray=3 bucket=80+ categories=workflow-routing:20,domain-architecture:21,quality-delivery:28,runtime-governance:17 -->
-<!-- devcodex-public:hosts ids=copilot,claude,codex,gemini,grok,cursor variants=13 -->
-<!-- devcodex-public:auto canonical=@devcodex-auto default=@rocky profile-replacement=true empty-array-disables=true -->
-<!-- devcodex-public:capabilities ids=turn-ambiguous-request-into-action,fix-with-regression-confidence,evolve-cross-domain-change,deliver-with-evidence-and-handoff -->
 
 它不会改变模型参数、权重、上下文窗口或基础推理上限。它通过项目上下文、专业 Skill、工作流、工具、记忆、验证和证据链提升真实软件工程中的有效智能表现；模型推理、原生 agent loop、认证、sandbox 与主要工具执行仍由所选宿主负责。
 

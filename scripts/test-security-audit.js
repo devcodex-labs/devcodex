@@ -177,9 +177,6 @@ if (fs.existsSync(websitePackage)) {
     `dompurify=${installedVersion('dompurify')} braceExpansion=${installedVersion('brace-expansion')}`
   )
 } else {
-  const websiteReadme = fs.readFileSync(path.join(WEBSITE, 'README.md'), 'utf8')
-  assert.match(websiteReadme, /不进入公开 Git 默认跟踪/)
-  assert.match(websiteReadme, /website 视为 optional/)
   console.log(
     `security audit passed root=0 website=optional-absent ` +
     `policyExceptions=${allowedAdvisories.length ? allowedAdvisories.join(',') : 'none'}`

@@ -88,7 +88,7 @@
     "M04": {"owner": "scripts/test-global-host-config.js", "anchor": "sourceSkillRouteMode"},
     "M05": {"owner": "scripts/probe-skill-route-s15-host.js", "anchor": "authorizationSource"},
     "M06": {"owner": "scripts/test-global-install-smoke.js", "anchor": "real global install"},
-    "M07": {"owner": "README.md", "anchor": "安装生命周期中刷新用户级宿主适配"},
+    "M07": {"owner": "scripts/lib/global-adapter-refresh-guidance.js", "anchor": "devcodex global-adapters apply"},
     "M08": {"owner": "scripts/test-skill-route-state.js", "anchor": "MODE_CAPABILITY_STALE"},
     "M08a": {"owner": "scripts/test-skill-route-lifecycle.js", "anchor": "MODE_CAPABILITY_STALE"},
     "M08b": {"owner": "scripts/lib/test-hooks-runtime-bootstrap-layout.js", "anchor": "pending-project-rebind"},

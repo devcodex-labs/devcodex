@@ -13,10 +13,10 @@
     "publicTaxonomyDigest": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 617,
-    "consumerInventoryDigest": "98e883e82b21e88775e669651de4be406b4fca8b2890b7912f7bc653366045ba",
-    "consumerProjectionDigest": "463c808ec47c43ac43bfe8a240d9605afee56483e2b1f7313480498f29a7ddd1",
-    "portfolioInputDigest": "ba0fdaa5cbf0aa02b3fc7875ab64def30b66b0db41c6aacf20c3e9891e3b283d"
+    "consumerInventoryFileCount": 618,
+    "consumerInventoryDigest": "a10aac525587c32833729c023ea1ca9635bebc3a829bb74b6595b9037b6dcf9a",
+    "consumerProjectionDigest": "ac16e0ff86396022a91e069d680786c1eecfa9b415027bcc846b4f5e24117218",
+    "portfolioInputDigest": "033b88654c9f36afe023535726809d0075edfec1a92e86f8c19113d10e9cda28"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -1509,10 +1509,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -1918,10 +1914,6 @@
         },
         {
           "path": "public-site/data/public-product-projection.json",
-          "role": "current"
-        },
-        {
-          "path": "README.md",
           "role": "current"
         },
         {
@@ -4140,10 +4132,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -5536,10 +5524,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -6063,10 +6047,6 @@
         },
         {
           "path": "public-site/data/public-product-projection.json",
-          "role": "current"
-        },
-        {
-          "path": "README.md",
           "role": "current"
         },
         {
@@ -7389,10 +7369,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-base.js",
           "role": "current"
         },
@@ -7935,10 +7911,6 @@
         },
         {
           "path": "public-site/data/public-product-projection.json",
-          "role": "current"
-        },
-        {
-          "path": "README.md",
           "role": "current"
         },
         {
@@ -8934,10 +8906,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/always-on-governance.js",
           "role": "current"
         },
@@ -9289,10 +9257,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -9593,10 +9557,6 @@
         },
         {
           "path": "public-site/data/public-product-projection.json",
-          "role": "current"
-        },
-        {
-          "path": "README.md",
           "role": "current"
         },
         {
@@ -10648,10 +10608,6 @@
           "role": "current"
         },
         {
-          "path": "scripts/lib/canonical-consumer-contracts.js",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/cli-install-commands.js",
           "role": "current"
         },
@@ -10661,10 +10617,6 @@
         },
         {
           "path": "scripts/lib/control-plane-contracts.js",
-          "role": "current"
-        },
-        {
-          "path": "scripts/lib/docs-surface-inventory.js",
           "role": "current"
         },
         {
@@ -10832,6 +10784,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-host-parity-remaining.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-host-parity-scorecard.js",
           "role": "current"
         },
@@ -10927,6 +10883,7 @@
         "scripts/test-governance-intake.js",
         "scripts/test-host-adapters.js",
         "scripts/test-host-capability-routing.js",
+        "scripts/test-host-parity-remaining.js",
         "scripts/test-host-parity-scorecard.js",
         "scripts/test-intent-consistency.js",
         "scripts/test-mcp-servers.js",
@@ -11027,6 +10984,7 @@
           "scripts/test-governance-intake.js",
           "scripts/test-host-adapters.js",
           "scripts/test-host-capability-routing.js",
+          "scripts/test-host-parity-remaining.js",
           "scripts/test-host-parity-scorecard.js",
           "scripts/test-intent-consistency.js",
           "scripts/test-mcp-servers.js",
@@ -13528,6 +13486,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-readme-governance.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-release-metadata.js",
           "role": "current"
         },
@@ -13676,6 +13638,7 @@
         "scripts/test-project-knowledge-v2.js",
         "scripts/test-public-product-expression.js",
         "scripts/test-r10-control-plane-honesty.js",
+        "scripts/test-readme-governance.js",
         "scripts/test-release-metadata.js",
         "scripts/test-repair-prevention-assessment.js",
         "scripts/test-requirement-artifacts.js",
@@ -13788,6 +13751,7 @@
           "scripts/test-project-knowledge-v2.js",
           "scripts/test-public-product-expression.js",
           "scripts/test-r10-control-plane-honesty.js",
+          "scripts/test-readme-governance.js",
           "scripts/test-release-metadata.js",
           "scripts/test-repair-prevention-assessment.js",
           "scripts/test-requirement-artifacts.js",
@@ -14210,10 +14174,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/test-spec-governance-expert.js",
           "role": "current"
         },
@@ -14360,10 +14320,6 @@
         },
         {
           "path": "public-site/data/public-product-projection.json",
-          "role": "current"
-        },
-        {
-          "path": "README.md",
           "role": "current"
         },
         {
@@ -14721,10 +14677,6 @@
         },
         {
           "path": "public-site/data/public-product-projection.json",
-          "role": "current"
-        },
-        {
-          "path": "README.md",
           "role": "current"
         },
         {
@@ -15107,10 +15059,6 @@
         },
         {
           "path": "public-site/data/public-product-projection.json",
-          "role": "current"
-        },
-        {
-          "path": "README.md",
           "role": "current"
         },
         {
@@ -16613,10 +16561,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/lib/process-enforcement.js",
           "role": "current"
         },
@@ -17155,10 +17099,6 @@
         },
         {
           "path": "public-site/rspress.config.ts",
-          "role": "current"
-        },
-        {
-          "path": "README.md",
           "role": "current"
         },
         {
@@ -17849,10 +17789,6 @@
         },
         {
           "path": "public-site/data/public-product-projection.json",
-          "role": "current"
-        },
-        {
-          "path": "README.md",
           "role": "current"
         },
         {
@@ -18754,10 +18690,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/fixtures/capability-surface-decision/valid-controlled-tool.json",
           "role": "current"
         },
@@ -19145,6 +19077,10 @@
           "role": "current"
         },
         {
+          "path": "README.md",
+          "role": "current"
+        },
+        {
           "path": "scripts/benchmark-runtime-indexes.js",
           "role": "current"
         },
@@ -19250,10 +19186,6 @@
         },
         {
           "path": "scripts/lib/validate-context-read-controls.js",
-          "role": "current"
-        },
-        {
-          "path": "scripts/lib/validate-core-checks.js",
           "role": "current"
         },
         {
@@ -19720,10 +19652,6 @@
           "role": "current"
         },
         {
-          "path": "README.md",
-          "role": "current"
-        },
-        {
           "path": "scripts/fixtures/capability-surface-decision/valid-controlled-tool.json",
           "role": "current"
         },
@@ -19828,6 +19756,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-readme-governance.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-repair-prevention-assessment.js",
           "role": "current"
         },
@@ -19844,6 +19776,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-validation-dag.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-workflow-completion-contract.js",
           "role": "current"
         },
@@ -19855,11 +19791,13 @@
       "validationProfile": [
         "scripts/test-client-contracts.js",
         "scripts/test-completion-report-ecr-check.js",
+        "scripts/test-readme-governance.js",
         "scripts/test-repair-prevention-assessment.js",
         "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-route-contracts.js",
         "scripts/test-skill-route-state.js",
+        "scripts/test-validation-dag.js",
         "scripts/test-workflow-completion-contract.js",
         "scripts/validate.js"
       ],
@@ -19910,11 +19848,13 @@
         "probeSuiteRefs": [
           "scripts/test-client-contracts.js",
           "scripts/test-completion-report-ecr-check.js",
+          "scripts/test-readme-governance.js",
           "scripts/test-repair-prevention-assessment.js",
           "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-route-contracts.js",
           "scripts/test-skill-route-state.js",
+          "scripts/test-validation-dag.js",
           "scripts/test-workflow-completion-contract.js",
           "scripts/validate.js"
         ],
@@ -20696,6 +20636,10 @@
         },
         {
           "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {

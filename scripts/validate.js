@@ -83,7 +83,7 @@
 const fs = require('fs'), os = require('os')
 const path = require('path')
 const { createCanonicalAwareReader, hasValidCanonicalContract } = require('./lib/canonical-consumer-contracts')
-const crypto = require('crypto')
+const crypto = require('crypto'), { isNarrativeMarkdownPath } = require('./lib/narrative-markdown-policy')
 const { execSync, execFileSync } = require('child_process')
 const {
   RECENT_REQUIREMENT_ARTIFACT_DAYS,
@@ -178,12 +178,12 @@ function activePath(...segments) {
 // ── V10: regression probes on audit-state.findings[status=fixed] ────────────
 // ── V11: AskUserQuestion / decision-point format (FC7) ──────────────────────
 // ── V13: template semantic probes ───────────────────────────────────────────
-function mustInclude(file, needle, label) {
+function mustInclude(file, needle, label) { if (isNarrativeMarkdownPath(file)) return
   const content = read(path.join(ROOT, file))
   if (!content.includes(needle) && !hasValidCanonicalContract(ROOT, file, content, needle)) err(`[V13] ${label || file} missing required text: ${needle}`)
 }
 
-function mustNotInclude(file, needle, label) {
+function mustNotInclude(file, needle, label) { if (isNarrativeMarkdownPath(file)) return
   const content = read(path.join(ROOT, file))
   if (String(content).includes(needle)) err(`[V13] ${label || file} contains forbidden legacy text: ${needle}`)
 }

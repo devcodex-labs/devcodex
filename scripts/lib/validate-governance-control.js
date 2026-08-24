@@ -1,8 +1,10 @@
+const { filterExecutableValidationProbes } = require('./narrative-markdown-policy')
+
 function buildGovernanceControlChecks(ctx) {
   const { ROOT, fs, path, read, err, execSync, activePath, isValidationDelegated = () => false } = ctx
 
   function globalOnlyWorkspaceCleanModeEnabled() {
-    return read(path.join(ROOT, 'README.md')).includes('GlobalOnlyWorkspaceCleanModeV1')
+    return read(path.join(ROOT, 'scripts', 'lib', 'cli-maintenance-commands.js')).includes('GlobalOnlyWorkspaceCleanModeV1')
   }
 
   function checkV20() {
@@ -46,7 +48,7 @@ function buildGovernanceControlChecks(ctx) {
       }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -175,7 +177,7 @@ function buildGovernanceControlChecks(ctx) {
       }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -241,7 +243,7 @@ function buildGovernanceControlChecks(ctx) {
       }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -288,7 +290,7 @@ function buildGovernanceControlChecks(ctx) {
       }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -323,11 +325,8 @@ function buildGovernanceControlChecks(ctx) {
     const requiredFiles = [
       'data/templates/pending-issues.md',
       'data/README.md',
-      'README.md',
       'RULES.md',
       'website/rspress.config.ts',
-      'website/docs/index.md',
-      'website/docs/intro/index.md',
       'skills/audit-report/SKILL.md',
       'skills/report/SKILL.md',
       'instructions.md',
@@ -405,7 +404,7 @@ function buildGovernanceControlChecks(ctx) {
       console.log('[V24] active Profile unavailable — repository governance/client/template files remain authoritative')
     }
 
-    for (const probe of musts) {
+    for (const probe of filterExecutableValidationProbes(musts)) {
       const content = probe.rawPath === false ? read(probe.file) : read(path.join(ROOT, probe.file))
       if (!content.includes(probe.needle)) {
         err(`[V24] governance/client drift in ${probe.rawPath === false ? path.relative(ROOT, probe.file) : probe.file}: missing "${probe.needle}"`)
@@ -419,7 +418,7 @@ function buildGovernanceControlChecks(ctx) {
       { file: 'skills/user-visible-output-contract/SKILL.md', needle: '四宿主部署副本' }
     ]
 
-    for (const probe of mustNots) {
+    for (const probe of filterExecutableValidationProbes(mustNots)) {
       const content = read(path.join(ROOT, probe.file))
       if (String(content).includes(probe.needle)) {
         err(`[V24] governance/client drift in ${probe.file}: contains legacy text "${probe.needle}"`)

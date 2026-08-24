@@ -1,7 +1,5 @@
 'use strict'
 
-const { evaluatePublicReadmeContractV2 } = require('./canonical-consumer-contracts')
-
 const REQUIRED_ACCEPTANCE_FIELDS = [
   'masterLineage',
   'themeGeometryParity',
@@ -52,7 +50,6 @@ function buildBrandVisualQualityChecks(ctx) {
       return
     }
     const content = read(file)
-    if (relative === 'README.md' && evaluatePublicReadmeContractV2(content, { root: ROOT }).valid) return
     for (const needle of needles) {
       if (!content.includes(needle)) err(`[V97] ${relative} missing: ${needle}`)
     }
@@ -109,9 +106,6 @@ function buildBrandVisualQualityChecks(ctx) {
       ['prompts/technical-design.prompt.md', ['brand-visual-quality']],
       ['prompts/implementation-plan.prompt.md', ['brand-visual-quality']],
       ['prompts/report-dev.prompt.md', ['BrandVisualQuality']],
-      ['README.md', [`${skillCount} 个`, 'brand-visual-quality']],
-      ['website/docs/index.md', [`${skillCount} 个 Skills`, 'brand-visual-quality']],
-      ['website/docs/intro/index.md', [`${skillCount} 个按需触发`, 'brand-visual-quality']],
       ['changelogs/unreleased.md', ['BrandVisualQualityGate', 'ComponentTransparencyTopologyGate', 'ProfileReleaseTruthAuthorityMatrixGate', 'RuntimeStateTransitionProjectionGate']]
     ]
     for (const [file, needles] of required) checkFile(file, needles)

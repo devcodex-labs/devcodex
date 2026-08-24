@@ -1,10 +1,11 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.18.0 已完成 exact-head CI、npm provenance publish、GitHub Release 与 fresh-consumer R7。发布后 doctor 深审发现 usage ledger 数值漂移时 maintenance dry-run 未披露必需校正动作；v1.18.1 补丁候选已纳入 DR-37，用户已授权 R4、exact-head CI 与 R7 全绿后直接发布。
+> **当前**: v1.18.1 已完成 exact-head CI、npm provenance publish、GitHub Release 与 fresh-consumer R7。当前主线记录发布后的叙事 Markdown 所有权修订；尚未形成新版本、tag、GitHub Release 或 npm 发布。
 
 ## 当前未发布实现候选
 
+- **叙事 Markdown 零 JavaScript 路由（PI-277 / PF-339）**：根 `README.md` 已按用户提供的 `3.md` 逐字节替换；`README.md`、`public-site/**/*.md` 与 `website/**/*.md` 永久退出 JavaScript 正文读取、章节/词句/计数/内部 Gate 合同、生成器写回、动态 marker 与 changed-files JS 路由。ordinary docs-only 计划现在返回已识别的 ready/0 command，候选身份只记录路径/状态而不读取或哈希正文；混合变更只验证可执行部分。`.mdx`、站点代码/配置/主题/组件/脚本/数据、控制面 Markdown 与显式 full/release 工程验证保持不变。
 - **v1.18.1 / DR-37 — V5 用量台账预览契约**：doctor 对 digest 有效但数值漂移的 usage ledger 正确返回 WARN；maintenance dry-run 现在同步列出 `reconcile-usage-ledger`、ledger/scanned bytes 与 `ledgerAdjustmentBytes`，但不写入。普通 apply 只在 V5 固定 manifest 中校正台账；legacy 删除能力保持关闭，runtime generation 仍要求独立 exact plan，策略与容量边界不变。
 - **TaskRecoveryStoreV5 P0（PI-275 / PF-337）**：根因是旧 lifecycle writer 按 Hook/工具状态变化创建 UUID 全量 JSON，而 pointer 数量限制不回收物理孤儿。新 writer 按 formal task 使用稳定 hot A/B、cold resume stub、terminal 退出缓存与 ephemeral A/B；正式任务数无硬上限，默认 256/512 MiB soft/hard，8 MiB closeout reserve。辅助 observation/telemetry/trace/temp 同步有界；现有 legacy 零删除。
 - **TaskRecovery 跨平台身份回归**：recovery key 的路径大小写断言按文件系统语义分栏：Windows 盘符路径大小写不敏感，POSIX 路径大小写敏感；不再把 Windows 专属等价关系错误施加到 Linux CI。Node 18.17/20.20/22.23/24.17/26.0 均通过 10,000 semantic no-op 与 1,000 formal-task 压测。
@@ -34,7 +35,7 @@
 - **工作树交付边界**：仓库根 `.playwright-cli/` 由 repository-owned ignore 与 Git/package 路径集合守卫排除；验证只判断其是否被跟踪或进入 tarball，不读取、枚举、修改、移动或删除目录内容。候选冻结前不改版本、不发布；本轮已获“修复收敛后发布并更新本机”授权，R4～R7 的真实执行与回读完成前不得提前写成 released。
 - **公开站工作流完整分层与语义流程**：公开站从“总览 + 6 个 primary ID”收敛为工作流选择、开发与修复、分析/审查/规划、对话/续接 4 个任务入口；完整解释 8 个 canonical workflow、6 primary + 2 advanced、12 个用户任务 subtype、1 个内部 `dev.plan-review` step 和 7 个 audit target。六个旧 URL 保留，架构与选择流程改为无需图表运行时的语义化响应式列表；控制面仅同步 `other/plan` 与内部步骤术语，runtime/CLI/Hook/MCP 行为和依赖不变。
 - **公开用户文档站任务化重构**：公开站从概念摘要扩展为 Journey / Trust / Reference 三层，新增四个任务教程、宿主与 workspace 设置、信任/安全/数据、CLI、状态错误码、运行态维护和术语表；quick start 收敛为单一只读首次成功路径，README 缩短并把深入说明指向 canonical Pages。四张首页能力卡各自进入独立教程；package 版本与生成时间写入 public projection，host reference 与产品表达由测试对账。旧 URL 全部保留，CLI/runtime/adapter 行为和依赖不变。
-- **公开站点内容与事实生成升级**：在保留已发布 9 个 URL 的前提下增加 concepts / workflows / 一条续接案例；生成器从现有投影器写出 `public-site/data/public-product-projection.json` 并刷新 marker 与 README V2 数字句；页数合同改为必存在路径 + 下限 23。
+- **公开站点内容与事实生成升级（v1.17.10 历史机制）**：在保留已发布 9 个 URL 的前提下增加 concepts / workflows / 一条续接案例；当时生成器会写出 `public-site/data/public-product-projection.json` 并刷新 marker 与 README V2 数字句。2026-08-24 起只保留结构化 JSON 生成，README/站点 `.md` marker、数字句写回与内容合同已退役。
 - **需求状态字段回写**：把 v1.17.10 从「发布候选」改为已归档；需求 `00-需求概况.md` / `01-需求确认.md` 头部改为 `released-v1.17.10`。不改 README、package、plugin、homepage 或运行时。
 
 ## 已归档发布说明

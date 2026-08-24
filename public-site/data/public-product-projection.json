@@ -1183,13 +1183,6 @@
       "variantCount": 5
     }
   ],
-  "markers": {
-    "workflows": "<!-- devcodex-public:workflows primary=dev,fix,analyze,audit,resume,chat advanced=self-fix,other -->",
-    "skills": "<!-- devcodex-public:skills total=86 active=83 gray=3 bucket=80+ categories=workflow-routing:20,domain-architecture:21,quality-delivery:28,runtime-governance:17 -->",
-    "hosts": "<!-- devcodex-public:hosts ids=copilot,claude,codex,gemini,grok,cursor variants=13 -->",
-    "auto": "<!-- devcodex-public:auto canonical=@devcodex-auto default=@rocky profile-replacement=true empty-array-disables=true -->",
-    "capabilities": "<!-- devcodex-public:capabilities ids=turn-ambiguous-request-into-action,fix-with-regression-confidence,evolve-cross-domain-change,deliver-with-evidence-and-handoff -->"
-  },
   "sourceIdentities": {
     "package": "06252b110d38a4782429a5bc857a9fb7dddaedb5f1668f3d3184dfddcb0da4aa",
     "expression": "60e525d34e5531e6b4bbbb77f8b34bb93c9ca9ebee5df4fe2812749232175c3c",

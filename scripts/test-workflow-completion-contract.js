@@ -1252,11 +1252,7 @@ const virtualRelatives = [
   'instructions/17-compliance.instructions.md',
   'skills/compliance/SKILL.md',
   'scripts/host-instruction-projection.json',
-  'website/docs/specs/compliance-framework.md',
-  'website/docs/specs/completion-compliance-flow.md',
-  'README.md',
-  'changelogs/unreleased.md',
-  'website/docs/guide/development.md'
+  'changelogs/unreleased.md'
 ]
 const virtualBaseline = Object.fromEntries(virtualRelatives.map(relative => [relative, readVirtualBaseline(nodePath.join(root, relative))]))
 
@@ -1303,20 +1299,6 @@ inspectMutation(files => { files['hooks/_runtime/lifecycle-workflow-completion.c
 inspectMutation(files => { files['hooks/_runtime/lifecycle-workflow-completion.cjs'] = files['hooks/_runtime/lifecycle-workflow-completion.cjs'].split('recordShadowEvidenceSample').join('recordShadowSample') }, 'lifecycle-adapter-export-missing:recordShadowEvidenceSample')
 inspectMutation(files => { files['hooks/_runtime/lifecycle-workflow-completion.cjs'] += '\nconst workflowComplete = true\n' }, 'lifecycle-adapter-direct-completion-forbidden')
 inspectMutation(files => { files['scripts/test-host-adapters.js'] = files['scripts/test-host-adapters.js'].split('hostCompletionFixtures').join('hostCompletionSamples') }, 'host-completion-matrix-anchor-missing:hostCompletionFixtures')
-inspectMutation(files => { files['README.md'] = files['README.md'].split('npm install -g devcodex').join('') }, 'completion-public-consumer-drift:README.md:PublicReadmeContractV2:README_PHRASE_MISSING:npm install -g devcodex')
-inspectMutation(files => {
-  files['.git'] = 'source-checkout-fixture'
-  delete files['website/docs/guide/development.md']
-}, 'missing-source-consumer:website/docs/guide/development.md')
-{
-  const packagedFixture = virtualContext(files => {
-    delete files['website/docs/guide/development.md']
-    delete files['website/docs/specs/compliance-framework.md']
-    delete files['website/docs/specs/completion-compliance-flow.md']
-  })
-  const packagedIssues = inspectWorkflowCompletionControls('', packagedFixture.io)
-  assert(!packagedIssues.some(issue => issue.includes('website/docs')), `packaged runtime should not require source-only website docs: ${packagedIssues.join(',')}`)
-}
 inspectMutation(files => { files['scripts/test-workflow-completion-contract.js'] = files['scripts/test-workflow-completion-contract.js'].split('negativeProbes.length >= 36').join('negativeProbes.length >= 35') }, 'main-test-anchor-missing')
 inspectMutation(files => {
   const value = JSON.parse(files['package.json'])

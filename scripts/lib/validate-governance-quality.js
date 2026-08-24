@@ -1,6 +1,7 @@
 'use strict'
 
 const { buildGovernanceHelpers } = require('./validate-governance-helpers')
+const { filterExecutableValidationProbes } = require('./narrative-markdown-policy')
 
 function buildGovernanceQualityChecks(ctx) {
   const {
@@ -30,7 +31,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/lib/test-spec-governance-base.js', needles: ['ServiceLifecycleCleanup', 'checkV55'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -81,7 +82,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/lib/test-spec-governance-base.js', needles: ['checkV56', 'PackageBoundarySerialCheck', 'ConsumerDependencyTreeProbe'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -117,7 +118,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/lib/test-spec-governance-base.js', needles: ['checkV57', 'ReviewCoverageDelta'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -133,12 +134,12 @@ function buildGovernanceQualityChecks(ctx) {
     }
 
     const stalePhrase = '每轮 audit 聚焦全量范围（不跳过已通过项'
-    for (const file of [
+    for (const file of filterExecutableValidationProbes([
       'instructions/12-audit.instructions.md',
       'skills/audit-common/SKILL.md',
       'prompts/report-audit.prompt.md',
       'README.md'
-    ]) {
+    ])) {
       if (String(read(path.join(ROOT, file))).includes(stalePhrase)) {
         err(`[V57] review coverage delta stale wording in ${file}: "${stalePhrase}"`)
       }
@@ -173,7 +174,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/lib/test-spec-governance-base.js', needles: ['checkV58', 'ConcurrencyPolicy'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -202,7 +203,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/lib/test-spec-governance-base.js', needles: ['checkV59', '资源生命周期与泄漏风险'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -241,7 +242,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/lib/test-spec-governance-base.js', needles: ['checkV60', 'LeakRiskStabilityPressureTest'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -291,7 +292,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/lib/test-spec-governance-base.js', needles: ['checkV61', 'FrontendExperienceQualityGate', 'CrossProjectLearnedGuards'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -343,7 +344,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/lib/test-spec-governance-base.js', needles: ['checkV62', 'ProductRequirementTraceabilityGate', 'PackageNameAuthorityGate'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -358,7 +359,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'instructions/18-spec-radar.instructions.md', needles: ['01-common 优先级 3 硬约束'] }
     ]
 
-    for (const probe of forbidden) {
+    for (const probe of filterExecutableValidationProbes(forbidden)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (content.includes(needle)) {
@@ -413,7 +414,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/lib/test-spec-governance-base.js', needles: ['checkV63', 'WorkspaceDataAbsorptionScopeGate', 'V2FormalSolutionPackage'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -463,7 +464,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/lib/test-spec-governance-base.js', needles: ['ReviewFindingIntakeGate', 'AuditReportIsSignalNotEvidence'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -514,7 +515,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/lib/test-spec-governance-base.js', needles: ['checkV65', 'FigmaHighFidelityRestorationGate', 'CompatibilityAndContractAuthorityGate'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -565,7 +566,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -613,7 +614,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -686,7 +687,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -741,7 +742,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -804,7 +805,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -887,7 +888,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -944,7 +945,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -1034,7 +1035,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {
@@ -1079,7 +1080,7 @@ function buildGovernanceQualityChecks(ctx) {
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
     ]
 
-    for (const probe of probes) {
+    for (const probe of filterExecutableValidationProbes(probes)) {
       const content = read(path.join(ROOT, probe.file))
       for (const needle of probe.needles) {
         if (!content.includes(needle)) {

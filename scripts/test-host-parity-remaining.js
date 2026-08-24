@@ -82,16 +82,12 @@ function readIfExists(file) {
   return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null
 }
 
-// Compose entry check + HostParity public/source surface.
-// website/ is a maintainer-local optional doc site (see website/README.md);
-// clean GitHub Actions checkouts must validate source-contained semantics rather
-// than requiring untracked generated website docs to exist.
+// Compose entry check + source-contained HostParity surface. Narrative Markdown
+// is intentionally not a JavaScript validation dependency.
 const block = composeEntryCheckBlock({ project: 'demo', status: 'PASS' })
 assert.match(block, /### DevCodex · 入口检查/)
-const sitePage = path.join(__dirname, '../website/docs/intro/host-parity-grok.md')
-const siteText = readIfExists(sitePage)
 const checklistText = formatGrokTurnChecklistMarkdown()
-const hostParitySurface = siteText || checklistText
+const hostParitySurface = checklistText
 assert.match(hostParitySurface, /HostParity|GrokTurnChecklist/)
 assert.match(hostParitySurface, /GrokTurnChecklist/)
 assert.match(hostParitySurface, /scan-hygiene|ttfv-first-delivery/)
@@ -103,18 +99,6 @@ assert.doesNotMatch(
 )
 assert.match(grokS15Source, /runtimeDigest/)
 assert.match(grokS15Source, /hostAdapterDigest/)
-if (siteText) {
-  assert.match(siteText, /devcodex grok/)
-  assert.match(siteText, /repairSteps/)
-  assert.match(siteText, /Skill 强制包|Skill bundle|Intent → Skill/i)
-  assert.match(siteText, /UnalignedLedger|U-A1|未对齐|cannotClaim/i)
-} else {
-  const websiteReadme = readIfExists(path.join(__dirname, '../website/README.md'))
-  if (websiteReadme) {
-    assert.match(websiteReadme, /不进入公开 Git 默认跟踪/)
-    assert.match(websiteReadme, /website 视为 optional/)
-  }
-}
 assert.ok(fs.existsSync(path.join(__dirname, 'fixtures/host-parity/unaligned-ledger.v1.json')))
 
 // Platform request semantic fixture (source-contained for clean checkout / CI)
@@ -218,14 +202,6 @@ if (fs.existsSync(path.join(workspaceRoot, 'AGENTS.md'))) {
   })
   assert.ok(card.schemaVersion === 'HostParityScorecardV1')
   assert.ok(['full-capable', 'partial'].includes(card.tier))
-}
-
-// Optional maintainer website surfaces.
-const philosophy = path.join(__dirname, '../website/docs/intro/philosophy.md')
-const philosophyText = readIfExists(philosophy)
-if (philosophyText) {
-  assert.match(philosophyText, /宿主诚实分列（Auto）/)
-  assert.match(philosophyText, /Grok Build/)
 }
 
 const rspress = readIfExists(path.join(__dirname, '../website/rspress.config.ts'))

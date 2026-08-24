@@ -78,9 +78,6 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'prompts/project-profile.prompt.md', needles: ['ProfileGenerationContractGate', 'FeatureInventorySchemaV2', '事实来源', '发布状态', '生命周期状态', '证据引用'] },
       { file: 'skills/test-router/SKILL.md', needles: ['profileTierValidation', 'allDevCodexProfileValidation'].concat(gates) },
       { file: 'skills/report/SKILL.md', needles: ['ProfileTierValidation', 'AllDevCodexProfileValidation'].concat(gates) },
-      { file: 'README.md', needles: ['profile plan', 'profile-lite', 'profile-standard', 'profile-closed-loop', 'FeatureInventorySchemaV2', '兼容读取 V1', '5 / 8 / 9', 'AllDevCodexProfileValidationGate'].concat(gates) },
-      { file: 'website/docs/guide/profile.md', needles: ['profile plan', '--dry-run', '--allow-downgrade', 'FeatureInventorySchemaV2', '兼容读取 V1', '5 / 8 / 9', 'defaultGeneratedFiles', 'requiredFiles'].concat(gates) },
-      { file: 'website/docs/guide/development.md', needles: ['profile-lite', 'profile-standard', 'profile-closed-loop', 'AllDevCodexProfileValidationGate'].concat(gates) },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['V83'].concat(gates) }
     ]
     appendActiveProfileProbe(probes, profileCorpus, ['profile-closed-loop', '06-功能清单', '07-用户文档与契约规范', 'FeatureInventorySchemaV2', '证据状态', '稳定基线', '活文档'].concat(gates), 'V83')
@@ -193,12 +190,6 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: ['report-schema.json'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['report-schema.json'] },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['ExpertOutputQualityGate'] },
-      { file: 'README.md', needles: [`${skillCount} 个`, 'expert-output-quality', 'V84', 'ExpertOutputQualityGate'] },
-      { file: 'website/docs/index.md', needles: [`${skillCount} 个 Skills`, 'expert-output-quality'] },
-      { file: 'website/docs/intro/index.md', needles: [`${skillCount} 个按需触发`, 'expert-output-quality'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: [`扁平一级 Skill（${skillCount} 个）`, 'expert-output-quality'] },
-      { file: 'website/docs/guide/development.md', needles: ['expert-output-quality', 'ExpertOutputQualityGate', 'V84'] },
-      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V84', 'expert-output-quality', 'ExpertOutputQualityGate'] },
       { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV84', 'classifyExpertOutputSample', 'ExpertOutputQualityGate', 'MeasuredVerificationStandard'] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry', 'createCanonicalAwareReader'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['V84', 'expert-output-quality', 'ExpertOutputQualityGate'] }
@@ -320,12 +311,6 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'prompts/report-fix.prompt.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
       { file: 'prompts/report-audit.prompt.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
       { file: 'prompts/report-scenario-test.prompt.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(gates) },
-      { file: 'README.md', needles: [`${skillCount} 个`, '21 个专家 Owner Skill', 'ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
-      { file: 'website/docs/index.md', needles: [`${skillCount} 个 Skills`, '专家 Owner Skill'] },
-      { file: 'website/docs/intro/index.md', needles: [`${skillCount} 个按需触发`, '专家 Owner Skill'] },
-      { file: 'website/docs/specs/directory-structure.md', needles: [`扁平一级 Skill（${skillCount} 个）`, 'ExpertOwnerSkillGate'].concat(skillNames) },
-      { file: 'website/docs/guide/development.md', needles: ['ExpertOwnerSkillGate', 'V85'].concat(skillNames) },
-      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: ['V85', 'ExpertOwnerSkillGate'].concat(skillNames) },
       { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV85', 'classifyExpertOwnerSample', 'ExpertOwnerSkillGate'] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: ['V85', 'ExpertOwnerSkillGate'].concat(skillNames) }
@@ -378,11 +363,6 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'skills/report/SKILL.md', needles: [gate, 'navigation-hint', 'V86/targeted probe'] },
       { file: 'skills/spec-governance/SKILL.md', needles: ['memory-bootstrap', gate, 'navigation-hint'] },
       { file: 'skills/spec-absorption/SKILL.md', needles: [gate, 'validate V86'] },
-      { file: 'README.md', needles: [gate, 'V86', 'navigation-hint'] },
-      { file: 'website/docs/index.md', needles: [gate, 'navigation-hint'] },
-      { file: 'website/docs/intro/index.md', needles: [gate, 'navigation-hint'] },
-      { file: 'website/docs/guide/development.md', needles: [gate, 'V86'] },
-      { file: 'website/docs/versions/v1/1.0.1/CHANGELOG.md', needles: [gate, 'V86'] },
       { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV86', 'classifyMemoryBootstrapSample', gate] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] },
       { file: 'changelog corpus', content: changelogCorpus, needles: [gate, 'V86'] }
@@ -434,9 +414,6 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'prompts/implementation-progress.prompt.md', needles: ['RepairCollaborationContract', 'contractState'] },
       { file: 'prompts/report-dev.prompt.md', needles: ['RepairCollaborationContract', 'authorizationEvidence'] },
       { file: 'prompts/report-fix.prompt.md', needles: ['RepairCollaborationContract', '模型名称'] },
-      { file: 'README.md', needles: ['模型无关双层修复协作契约', 'lightweight', 'independentReReview'] },
-      { file: 'website/docs/guide/development.md', needles: ['repair-collaboration', 'findingToPatchMap', 'independentReReview'] },
-      { file: 'website/docs/intro/index.md', needles: ['双层修复协作契约', '模型名称'] },
       { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV87', 'classifyRepairContractSample', 'not-repair'] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
     ]
@@ -483,9 +460,6 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'instructions/13-analyze.instructions.md', needles: ['ProfileTruthReconciliationGate', 'targeted', '独立 dev/fix/self-fix'] },
       { file: 'skills/test-router/SKILL.md', needles: ['Profile 真相对账', 'V88/targeted probe'] },
       { file: 'skills/source-consumer-sync/SKILL.md', needles: ['V88~V90', 'ProfileTruthReconciliationGate'] },
-      { file: 'README.md', needles: ['ProfileTruthReconciliationGate', 'V88'] },
-      { file: 'website/docs/guide/development.md', needles: ['ProfileTruthReconciliationGate', 'V88'] },
-      { file: 'website/docs/intro/index.md', needles: ['Profile 真相对账', 'ProfileTruthMatrix'] },
       { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV88', 'classifyProfileTruthSample'] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
     ]
@@ -526,9 +500,6 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'skills/report/SKILL.md', needles: ['AuthorizedLocalSecurityAuditPresentationGate', 'SafetyInterruptionCard', '不得声称'] },
       { file: 'prompts/report-audit.prompt.md', needles: ['AuthorizedLocalSecurityAuditPresentationGate', 'SafetyInterruptionCard', '禁止绕过表述'] },
       { file: 'skills/spec-governance/SKILL.md', needles: ['security-audit-presentation', 'AuthorizedLocalSecurityAuditPresentationGate'] },
-      { file: 'README.md', needles: ['AuthorizedLocalSecurityAuditPresentationGate', 'V89'] },
-      { file: 'website/docs/guide/development.md', needles: ['AuthorizedLocalSecurityAuditPresentationGate', 'V89'] },
-      { file: 'website/docs/intro/index.md', needles: ['授权本地安全审查', 'SafetyInterruptionCard'] },
       { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV89', 'classifySecurityPresentationSample'] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
     ]
@@ -565,9 +536,6 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'prompts/implementation-plan.prompt.md', needles: ['PublisherCredentialTopologyGate', '不含 secret value'] },
       { file: 'prompts/report-dev.prompt.md', needles: ['PublisherCredentialTopologyGate', '不含 secret value'] },
       { file: 'prompts/report-fix.prompt.md', needles: ['PublisherCredentialTopologyGate', '不含 secret value'] },
-      { file: 'README.md', needles: ['PublisherCredentialTopologyGate', 'V90'] },
-      { file: 'website/docs/guide/development.md', needles: ['PublisherCredentialTopologyGate', 'V90'] },
-      { file: 'website/docs/intro/index.md', needles: ['发布凭据拓扑', 'secret value'] },
       { file: 'scripts/lib/test-spec-governance-expert.js', needles: ['checkV90', 'classifyPublisherTopologySample'] },
       { file: 'scripts/validate.js', needles: ['createProbeRegistry', 'expectedProbeIds', 'runProbeRegistry'] }
     ]
@@ -607,9 +575,7 @@ function buildGovernanceExpertChecks(ctx) {
       { file: 'skills/spec-governance/SKILL.md', needles: ['artifact-scale-skill-gap', 'skill-lifecycle'] },
       { file: 'skills/spec-absorption/SKILL.md', needles: ['ProjectArtifactScaleRoutingGate', 'invalid/discarded'] },
       { file: 'skills/test-router/SKILL.md', needles: ['artifactScaleRouting', 'V91'] },
-      { file: 'skills/report/SKILL.md', needles: ['ProjectArtifactScaleRoutingGate', 'V91'] },
-      { file: 'README.md', needles: [`${skillCount} 个`, 'ProjectArtifactScaleRoutingGate', 'skill-gap-analysis'] },
-      { file: 'website/docs/intro/index.md', needles: [`${skillCount} 个按需触发`, 'skill-gap-analysis'] }
+      { file: 'skills/report/SKILL.md', needles: ['ProjectArtifactScaleRoutingGate', 'V91'] }
     ]
     for (const probe of probes) {
       const content = read(path.join(ROOT, probe.file))

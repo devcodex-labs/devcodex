@@ -21,9 +21,181 @@ function buildLifecycleDangerousCommandUtils({
   function stripApprovalMarker(command) {
     return String(command || '')
       .replace(/(?:#\s*)?\bdevcodex-approve:([a-f0-9]{12})\b/ig, '')
-      .replace(/\s+#\s*$/g, '')
-      .replace(/\s+/g, ' ')
+      .replace(/[ \t]+#[ \t]*(?=\r?$)/gm, '')
+      .replace(/[ \t]+/g, ' ')
       .trim()
+  }
+
+  const SAFE_TEXT_OPERATIONS = new Set([
+    'echo', 'findstr', 'grep', 'out-file', 'printf', 'rg', 'select-string',
+    'set-content', 'add-content', 'write-host', 'write-output'
+  ])
+  const DIRECT_DANGEROUS_OPERATIONS = new Set([
+    'del', 'delete', 'drop', 'remove-item', 'rm', 'truncate'
+  ])
+
+  function maskHereDocumentBodies(command) {
+    const raw = String(command || '')
+    const chars = [...raw]
+    const opener = /<<-?\s*(['"]?)([A-Za-z_][A-Za-z0-9_-]*)\1[^\r\n]*(?:\r?\n|$)/g
+    let match
+    while ((match = opener.exec(raw)) !== null) {
+      if (!match[0].endsWith('\n')) continue
+      const marker = match[2]
+      const bodyStart = match.index + match[0].length
+      const terminator = new RegExp(`^\\s*${marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'm')
+      const tail = raw.slice(bodyStart)
+      const end = terminator.exec(tail)
+      if (!end) continue
+      const bodyEnd = bodyStart + end.index
+      for (let index = bodyStart; index < bodyEnd; index++) chars[index] = ' '
+      opener.lastIndex = bodyEnd
+    }
+    return chars.join('')
+  }
+
+  /**
+   * Produce a same-length shell surface with data literals/comments removed.
+   * Command verbs, switches and separators remain visible for operation-level
+   * classification; quoted documentation/search text cannot masquerade as an
+   * executed destructive operation.
+   */
+  function maskShellDataLiterals(command) {
+    const raw = maskHereDocumentBodies(command)
+    const chars = [...raw]
+    let quote = ''
+    let maskQuotedBody = true
+    for (let index = 0; index < chars.length; index++) {
+      const ch = chars[index]
+      if (quote) {
+        if ((ch === '\\' || ch === '`') && quote === '"' && index + 1 < chars.length) {
+          if (maskQuotedBody) {
+            chars[index] = ' '
+            chars[index + 1] = ' '
+          }
+          index += 1
+          continue
+        }
+        if (ch === quote) {
+          if (quote === '\'' && chars[index + 1] === '\'') {
+            chars[index] = ' '
+            chars[index + 1] = ' '
+            index += 1
+            continue
+          }
+          quote = ''
+          maskQuotedBody = true
+          continue
+        }
+        if (maskQuotedBody) chars[index] = ' '
+        continue
+      }
+      if (ch === '\'' || ch === '"') {
+        quote = ch
+        if (ch === '"') {
+          let closing = index + 1
+          while (closing < raw.length) {
+            if ((raw[closing] === '\\' || raw[closing] === '`') && closing + 1 < raw.length) {
+              closing += 2
+              continue
+            }
+            if (raw[closing] === '"') break
+            closing += 1
+          }
+          const body = raw.slice(index + 1, closing)
+          maskQuotedBody = !/\$\(|`/.test(body)
+        }
+        continue
+      }
+      if (ch === '#' && (index === 0 || /\s/.test(chars[index - 1]))) {
+        while (index < chars.length && chars[index] !== '\r' && chars[index] !== '\n') {
+          chars[index] = ' '
+          index += 1
+        }
+        index -= 1
+      }
+    }
+    return chars.join('')
+  }
+
+  function splitCommandSyntax(command, separators, inheritedSurface = null) {
+    const raw = String(command || '')
+    const surface = inheritedSurface === null
+      ? maskShellDataLiterals(raw)
+      : String(inheritedSurface)
+    const parts = []
+    let start = 0
+    for (let index = 0; index < surface.length; index++) {
+      const ch = surface[index]
+      const pair = surface.slice(index, index + 2)
+      const splitPair = separators.has(pair)
+      const splitSingle = separators.has(ch)
+      if (!splitPair && !splitSingle) continue
+      const end = index
+      const rawPart = raw.slice(start, end).trim()
+      const surfacePart = surface.slice(start, end).trim()
+      if (rawPart || surfacePart) parts.push({ raw: rawPart, surface: surfacePart })
+      index += splitPair ? 1 : 0
+      start = index + 1
+    }
+    const rawPart = raw.slice(start).trim()
+    const surfacePart = surface.slice(start).trim()
+    if (rawPart || surfacePart) parts.push({ raw: rawPart, surface: surfacePart })
+    return parts
+  }
+
+  function firstOperation(surface) {
+    let value = String(surface || '').trim()
+    value = value.replace(/^(?:&\s*)?(?:sudo\s+|env\s+)*/i, '')
+    const match = value.match(/^([A-Za-z][A-Za-z0-9_.-]*)\b/)
+    return match ? match[1].toLowerCase() : ''
+  }
+
+  function hasLiteralExecutionSink(surface) {
+    const value = String(surface || '')
+    return /\$\(|`[^`\r\n]+`/.test(value) ||
+      /\b(?:bash|dash|ksh|sh|zsh)\b\s+(?:-[A-Za-z]*c\b|--command\b)/i.test(value) ||
+      /\b(?:powershell|pwsh)(?:\.exe)?\b[\s\S]*?(?:-command|-c)\b/i.test(value) ||
+      /\bcmd(?:\.exe)?\b\s*\/[ck]\b/i.test(value) ||
+      /\b(?:iex|invoke-expression|eval)\b/i.test(value) ||
+      /\|\s*(?:bash|dash|ksh|sh|zsh|iex|invoke-expression)\b/i.test(value) ||
+      /\b(?:mysql|psql)\b[\s\S]*?\s-(?:e|c)\b/i.test(value) ||
+      /\bsqlcmd\b[\s\S]*?\s-Q\b/i.test(value) ||
+      /\bsqlite3\b[\s\S]*?\s+["']/i.test(value)
+  }
+
+  function classifyCommandSyntax(command) {
+    const groups = splitCommandSyntax(command, new Set([';', '\r', '\n', '&&', '||']))
+    return groups.map(group => ({
+      ...group,
+      literalExecutionSink: hasLiteralExecutionSink(group.surface),
+      stages: splitCommandSyntax(group.raw, new Set(['|']), group.surface).map(stage => {
+        const operation = firstOperation(stage.surface)
+        return {
+          ...stage,
+          operation,
+          safeTextCarrier: SAFE_TEXT_OPERATIONS.has(operation),
+          directDangerousOperation: DIRECT_DANGEROUS_OPERATIONS.has(operation) ||
+            (operation === 'git' && /\bgit\s+reset\b/i.test(stage.surface))
+        }
+      })
+    }))
+  }
+
+  function findExecutedDanger(command) {
+    for (const group of classifyCommandSyntax(command)) {
+      if (group.literalExecutionSink) {
+        const danger = DANGEROUS_PATTERNS.find(pattern => pattern.re.test(group.raw))
+        if (danger) return danger
+      }
+      for (const stage of group.stages) {
+        const candidate = stage.directDangerousOperation ? stage.raw : stage.surface
+        if (stage.safeTextCarrier && !stage.directDangerousOperation) continue
+        const danger = DANGEROUS_PATTERNS.find(pattern => pattern.re.test(candidate))
+        if (danger) return danger
+      }
+    }
+    return null
   }
 
   /** Recursive inventory markers (R-02: dir /s must match; avoid \\b before /). */
@@ -196,7 +368,9 @@ function buildLifecycleDangerousCommandUtils({
     if (/list|ls|glob|dir|find|scandir|listdir|skill/.test(tn)) return true
     if (isCommandTool(payload, platform)) {
       const cmd = getCommandText(payload)
-      return /\b(?:Get-ChildItem|gci|dir|ls|find)\b/i.test(cmd)
+      return classifyCommandSyntax(cmd).some(group => group.stages.some(stage =>
+        !stage.safeTextCarrier && /\b(?:Get-ChildItem|gci|dir|ls|find)\b/i.test(stage.surface)
+      ))
     }
     return false
   }
@@ -221,14 +395,9 @@ function buildLifecycleDangerousCommandUtils({
         }
       }
     }
-    if (!isListingStyleTool(payload, platform) && !isCommandTool(payload, platform)) {
-      // still check explicit path fields on any tool
-      const targets = extractListingTargets(payload)
-      if (!targets.length) return null
-      if (!targets.some(isHostSkillInventoryTarget)) return null
-      // only ban when action looks like list/inventory
-      if (!isListingStyleTool(payload, platform)) return null
-    }
+    // Path text alone is not an inventory operation. This early return is also
+    // what keeps source searches for host-path examples from becoming a ban.
+    if (!isListingStyleTool(payload, platform)) return null
     const targets = extractListingTargets(payload)
     for (const t of targets) {
       if (isHostSkillInventoryTarget(t)) {
@@ -244,7 +413,7 @@ function buildLifecycleDangerousCommandUtils({
     if (isCommandTool(payload, platform)) {
       const cmd = String(getCommandText(payload) || '')
       if (/[\\/]\.grok[\\/](?:bundled[\\/])?skills|[\\/]\.agents[\\/]skills(?![\\/]devcodex)|[\\/]\.claude[\\/]skills/i.test(cmd) &&
-          /\b(?:Get-ChildItem|gci|dir|ls|find)\b/i.test(cmd)) {
+          isListingStyleTool(payload, platform)) {
         return {
           reason: 'Blocked: host skill inventory under user profile (privacy); do not list ~/.grok/skills or similar host skill trees.',
           neverApprove: true,
@@ -261,21 +430,24 @@ function buildLifecycleDangerousCommandUtils({
     if (hostSkillBan) return hostSkillBan
     if (!isCommandTool(payload, platform)) return null
     const cmd = getCommandText(payload)
-    const readOnlySearch = /^\s*(?:rg|grep|Select-String)\b/i.test(cmd)
-    if (readOnlySearch && !/[;&|`$()]/.test(cmd.replace(/["'][^"']*["']/g, ''))) return null
     const stripped = stripApprovalMarker(cmd)
     const workspaceRoot = WORKSPACE_ROOT || CONTEXT_ROOT
     const cwd = resolveToolCwd(payload)
-    if (isWorkspaceRootRecursiveInventory(stripped, workspaceRoot, { cwd })) {
-      return {
-        re: null,
-        reason: 'Blocked: workspace-root recursive inventory (C16/TTFV/PI-20260724-01); bind project path (Test-Path / list_dir one level)',
-        neverApprove: true,
-        command: cmd,
-        code: 'workspace-root-scan-ban'
+    for (const group of classifyCommandSyntax(stripped)) {
+      for (const stage of group.stages) {
+        if (stage.safeTextCarrier || !commandHasRecursiveInventory(stage.surface)) continue
+        if (isWorkspaceRootRecursiveInventory(stage.raw, workspaceRoot, { cwd })) {
+          return {
+            re: null,
+            reason: 'Blocked: workspace-root recursive inventory (C16/TTFV/PI-20260724-01); bind project path (Test-Path / list_dir one level)',
+            neverApprove: true,
+            command: cmd,
+            code: 'workspace-root-scan-ban'
+          }
+        }
       }
     }
-    const danger = DANGEROUS_PATTERNS.find(p => p.re.test(stripped))
+    const danger = findExecutedDanger(stripped)
     if (!danger) return null
     return { ...danger, command: cmd, cwd }
   }
@@ -374,6 +546,8 @@ function buildLifecycleDangerousCommandUtils({
     checkDangerousCommand,
     checkHostSkillInventoryListing,
     isHostSkillInventoryTarget,
+    classifyCommandSyntax,
+    findExecutedDanger,
     stripApprovalMarker,
     isWorkspaceRootRecursiveInventory,
     extractApprovalId,

@@ -6,6 +6,11 @@
  */
 
 const path = require('path')
+const {
+  enumerateTaskArtifacts,
+  isAuthoritativeTaskArtifact,
+  readLayeredArtifactSlotRegistry
+} = require('../../hooks/_runtime/artifact-slot-decision.cjs')
 
 const ERROR_CODES = Object.freeze({
   CP2_REQUIRED: 'CP2_REQUIRED',
@@ -13,6 +18,7 @@ const ERROR_CODES = Object.freeze({
   ORPHAN_CONTROL_PLANE: 'ORPHAN_CONTROL_PLANE',
   SIMPLE_TASK_PATH_FORBIDDEN: 'SIMPLE_TASK_PATH_FORBIDDEN',
   ARTIFACT_PATH_INVALID: 'ARTIFACT_PATH_INVALID',
+  ARTIFACT_REGISTRY_INVALID: 'artifact-registry-invalid',
   REVIEW_CHECKLIST_MISSING: 'review-checklist-missing',
   /** Control-plane / multi-batch completion without 05 progress file path evidence */
   PROGRESS_ARTIFACT_MISSING: 'progress-artifact-missing',
@@ -248,8 +254,20 @@ function classifyProcessArtifactCompleteness(input = {}) {
  * @param {{ existsSync?: Function, readdirSync?: Function }} [fsys]
  * @returns {{ hasPlan: boolean, hasProgress: boolean, hasChecklist: boolean, missing: string[] }}
  */
-function probeProcessTriad (taskRoot, fsys = null) {
-  const pathMod = require('path')
+function resolveArtifactInventoryContext (taskRoot, fsImpl, options = {}) {
+  const activeRoot = path.resolve(options.activeRoot || path.dirname(path.dirname(path.resolve(taskRoot))))
+  const project = String(options.project || path.basename(activeRoot)).trim()
+  const registry = options.registry || readLayeredArtifactSlotRegistry({
+    activeRoot,
+    project,
+    registryPath: options.registryPath,
+    overlayPath: options.overlayPath,
+    fs: fsImpl
+  })
+  return { activeRoot, project, registry }
+}
+
+function probeProcessTriad (taskRoot, fsys = null, options = {}) {
   const fsImpl = fsys || require('fs')
   const root = String(taskRoot || '')
   const missing = []
@@ -260,60 +278,56 @@ function probeProcessTriad (taskRoot, fsys = null) {
     return { hasPlan: false, hasProgress: false, hasChecklist: false, missing: ['taskRoot'] }
   }
   try {
-    if (fsImpl.existsSync(pathMod.join(root, '04-实施计划.md'))) hasPlan = true
+    const context = resolveArtifactInventoryContext(root, fsImpl, options)
+    const inventory = enumerateTaskArtifacts({ taskRoot: root, fs: fsImpl, ...context })
+    const authoritative = inventory.artifacts.filter(item => isAuthoritativeTaskArtifact(item))
+    if (authoritative.some(item => item.slot.artifactClass === 'cp3-plan')) hasPlan = true
     else missing.push('04-实施计划')
-    if (fsImpl.existsSync(pathMod.join(root, '05-实施进度.md'))) hasProgress = true
+    if (authoritative.some(item => item.slot.artifactClass === 'progress')) hasProgress = true
     else missing.push('05-实施进度')
     const names = fsImpl.readdirSync ? fsImpl.readdirSync(root) : []
     if (names.some((n) => /复审清单|review-checklist/i.test(String(n)))) hasChecklist = true
     else missing.push('review-checklist')
-  } catch {
+    return {
+      hasPlan,
+      hasProgress,
+      hasChecklist,
+      missing,
+      mergedRegistryDigest: inventory.mergedRegistryDigest,
+      candidatePaths: inventory.artifacts
+        .filter(item => item.matchType === 'versioned-candidate')
+        .map(item => item.relativePath)
+        .sort()
+    }
+  } catch (error) {
     return {
       hasPlan: false,
       hasProgress: false,
       hasChecklist: false,
-      missing: ['taskRoot-unreadable']
+      missing: [error?.code?.startsWith('ARTIFACT_SLOT_REGISTRY_') ? 'layered-artifact-registry' : 'taskRoot-unreadable'],
+      errorCode: error?.code || null
     }
   }
-  return { hasPlan, hasProgress, hasChecklist, missing }
 }
 
-function listDirNames (root, fsImpl) {
-  try {
-    if (!fsImpl || typeof fsImpl.readdirSync !== 'function') return []
-    return fsImpl.readdirSync(root)
-  } catch {
-    return []
-  }
-}
-
-function probeDesignArtifacts (taskRoot, fsImpl) {
-  // Match probeProcessTriad: default to real fs when caller omits fs (tests + lifecycle)
+function probeDesignArtifacts (taskRoot, fsImpl, options = {}) {
   const fsx = fsImpl || require('fs')
-  const names = listDirNames(taskRoot, fsx)
-  const has01 = names.some(n =>
-    /^01-.*需求确认/i.test(n) ||
-    /^01-.*问题确认/i.test(n) ||
-    /^01-.*产品需求/i.test(n) ||
-    n === '01-需求确认.md' ||
-    n === '01-问题确认.md'
-  ) || (fsx.existsSync && (
-    fsx.existsSync(path.join(taskRoot, '01-需求确认.md')) ||
-    fsx.existsSync(path.join(taskRoot, '01-问题确认.md'))
-  ))
-  const has02 = names.some(n =>
-    /^02-.*技术方案/i.test(n) ||
-    n === '02-技术方案.md'
-  ) || (fsx.existsSync && fsx.existsSync(path.join(taskRoot, '02-技术方案.md')))
-  const has00 = names.some(n =>
-    /^00-.*概况/i.test(n) ||
-    n === '00-需求概况.md' ||
-    n === '00-问题概况.md'
-  ) || (fsx.existsSync && (
-    fsx.existsSync(path.join(taskRoot, '00-需求概况.md')) ||
-    fsx.existsSync(path.join(taskRoot, '00-问题概况.md'))
-  ))
-  return { has00, has01, has02 }
+  const context = resolveArtifactInventoryContext(taskRoot, fsx, options)
+  const inventory = enumerateTaskArtifacts({ taskRoot, fs: fsx, ...context })
+  const authoritative = inventory.artifacts.filter(item => isAuthoritativeTaskArtifact(item))
+  return {
+    has00: authoritative.some(item => item.slot.artifactClass === 'overview'),
+    has01: authoritative.some(item => item.slot.artifactClass === 'cp1'),
+    has02: authoritative.some(item => item.slot.artifactClass === 'cp2'),
+    inventoryDigest: inventory.inventoryDigest,
+    mergedRegistryDigest: inventory.mergedRegistryDigest,
+    unknownFormal: inventory.unknownFormal,
+    conflicts: inventory.conflicts,
+    candidatePaths: inventory.artifacts
+      .filter(item => item.matchType === 'versioned-candidate')
+      .map(item => item.relativePath)
+      .sort()
+  }
 }
 
 /**
@@ -325,6 +339,8 @@ function probeDesignArtifacts (taskRoot, fsImpl) {
  *   implementStart?: boolean,
  *   taskRoot?: string|null,
  *   fs?: { existsSync?: Function, readdirSync?: Function },
+ *   activeRoot?: string,
+ *   project?: string,
  *   skip?: boolean,
  *   requireDesignArtifacts?: boolean
  * }} input
@@ -353,7 +369,28 @@ function classifyImplementStartGate (input = {}) {
     }
   }
   const fsImpl = input.fs || null
-  const triad = probeProcessTriad(root, fsImpl)
+  let artifactContext
+  try {
+    artifactContext = resolveArtifactInventoryContext(root, fsImpl || require('fs'), input)
+  } catch (error) {
+    return {
+      ok: false,
+      code: ERROR_CODES.ARTIFACT_REGISTRY_INVALID,
+      missing: ['layered-artifact-registry'],
+      triad: null,
+      registryErrorCode: error?.code || 'ARTIFACT_SLOT_REGISTRY_INVALID'
+    }
+  }
+  const triad = probeProcessTriad(root, fsImpl, artifactContext)
+  if (triad.errorCode?.startsWith('ARTIFACT_SLOT_REGISTRY_')) {
+    return {
+      ok: false,
+      code: ERROR_CODES.ARTIFACT_REGISTRY_INVALID,
+      missing: ['layered-artifact-registry'],
+      triad,
+      registryErrorCode: triad.errorCode
+    }
+  }
   if (triad.missing.length) {
     return {
       ok: false,
@@ -365,7 +402,7 @@ function classifyImplementStartGate (input = {}) {
   // Control-plane / implement-start also need design artifacts (概况/确认/方案 at least 01+02 or 02)
   const requireDesign = input.requireDesignArtifacts !== false
   if (requireDesign && input.controlPlaneMutation === true) {
-    const design = probeDesignArtifacts(root, fsImpl)
+    const design = probeDesignArtifacts(root, fsImpl, artifactContext)
     const missingDesign = []
     if (!design.has02) missingDesign.push('02-技术方案.md')
     if (!design.has01 && !design.has00) missingDesign.push('00-概况-or-01-确认')

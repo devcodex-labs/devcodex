@@ -25,8 +25,26 @@ const {
   deriveTurnBinding,
   loadEnvelope
 } = require('../hooks/_runtime/skill-route-state.cjs')
+const {
+  buildActualInstructionEnvelope,
+  buildWorkItemSet
+} = require('../hooks/_runtime/actual-instruction-envelope.cjs')
+const { buildWorkflowRouteDecision } = require('../hooks/_runtime/workflow-route-decision-v2.cjs')
+const { createWorkspaceSessionRouteIndex } = require('../hooks/_runtime/workspace-session-route-index-v1.cjs')
+const {
+  computeProjectTargetLeaseDigest,
+  executeTaskAdmission,
+  executeTaskWriteOwner,
+  executeWorkflowTaskTerminal
+} = require('../mcp/task-admission-authority.cjs')
+const {
+  readFencedTaskWriteOwner,
+  resolveTaskRecoveryMetaDir
+} = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const { readBoundedTextFileSync } = require('../mcp/bounded-text-reader.cjs')
+const { selectProfileSectionsFromFileSync } = require('../mcp/profile-section-selector.cjs')
 const { createLinkCapabilityDecision } = require('../hooks/_runtime/visible-output-contract.cjs')
+const workflowRouteRegistryV2 = require('../hooks/_runtime/workflow-root-registry.v2.json')
 const {
   createOptimizationState,
   persistOptimizationState
@@ -676,7 +694,7 @@ function setupDevCodexRouteRecipeWorkspace() {
     '03-代码风格.md': ['JavaScript', 'Markdown规范文件', '禁止事项'],
     '04-测试规范.md': ['基本原则', '控制面内容验证', 'Profile专项'],
     '05-发布规范.md': ['发布流程'],
-    '06-功能清单.md': ['近期已发布增量', '公开面维护规则', '全项目Profile校验'],
+    '06-功能清单.md': ['近期发布增量', '公开面维护规则', '全项目Profile校验'],
     '07-用户文档与契约规范.md': ['用户文档主面', '写作与审查原则', '控制面内容契约']
   }
   const catalogRows = Object.keys(routeSections).map(file => `| [\`${file}\`](${file}) | fixture | ✅ |`)
@@ -891,6 +909,772 @@ function testMemoryTaskResolveContract() {
   const missing = resultById(responses, 3)
   assert.strictEqual(missing.isError, true)
   assert.strictEqual(missing.structuredContent.status, 'not-found')
+}
+
+function buildTaskAuthorityIngress({
+  activeRoot,
+  project,
+  suffix,
+  nowMs = Date.now(),
+  physicalRoot = TEMP_ROOT,
+  routeKey = 'fix.default'
+}) {
+  const envelope = buildActualInstructionEnvelope({
+    prompt: `修复 MCP task authority ${suffix}`,
+    session_id: `mcp-task-authority-${suffix}`,
+    event_id: `mcp-task-authority-event-${suffix}`,
+    timestamp: new Date(nowMs).toISOString()
+  }, {
+    hostVariant: 'codex-cli',
+    contextEpoch: `ctx-mcp-task-authority-${suffix}`,
+    trustedHostEvent: true,
+    nowMs
+  })
+  const workItemSet = buildWorkItemSet(envelope, {
+    workItems: [{ taskKind: routeKey.split('.')[0], routeCandidate: routeKey }]
+  })
+  const route = buildWorkflowRouteDecision({
+    actualInstructionEnvelope: envelope,
+    workItemSet,
+    workItemId: workItemSet.items[0].workItemId,
+    environmentMode: 'dev',
+    routeKey
+  })
+  const leaseCore = {
+    schemaVersion: 'ProjectTargetLeaseV2',
+    project,
+    targetDigest: '1'.repeat(64),
+    rootIdentityDigest: '2'.repeat(64),
+    layoutIdentity: '3'.repeat(64),
+    physicalRoot,
+    activeRoot,
+    authorityKind: 'session',
+    authorityDigest: envelope.hostSessionDigest,
+    contextEpoch: envelope.contextEpoch,
+    contextBindingDigest: '5'.repeat(64),
+    routeRevision: route.routeRevision,
+    revocationEpoch: 1,
+    issuedAtMs: nowMs - 1000,
+    expiresAtMs: nowMs + 24 * 60 * 60 * 1000
+  }
+  const projectTargetLease = { ...leaseCore, leaseDigest: computeProjectTargetLeaseDigest(leaseCore) }
+  return {
+    actualInstructionEnvelope: envelope,
+    workItemSet,
+    workflowRouteDecision: route,
+    projectTargetLease,
+    ingressRef: {
+      schemaVersion: 'WorkflowIngressProjectionRefV1',
+      envelopeId: envelope.envelopeId,
+      envelopeDigest: envelope.envelopeDigest,
+      decisionDigest: route.decisionDigest,
+      routeRevision: route.routeRevision
+    }
+  }
+}
+
+function writeTaskAuthorityLifecycleState(activeRoot, project, ingress, extra = {}) {
+  const lifecycleStatePath = path.join(activeRoot, '.memory', 'hooks', 'legacy', 'lifecycle-state.json')
+  fs.mkdirSync(path.dirname(lifecycleStatePath), { recursive: true })
+  fs.writeFileSync(lifecycleStatePath, JSON.stringify({
+    version: 2,
+    activeProject: project,
+    activeScope: 'project',
+    actualInstructionEnvelope: ingress.actualInstructionEnvelope,
+    workItemSet: ingress.workItemSet,
+    workflowRouteDecision: ingress.workflowRouteDecision,
+    stickyProject: ingress.projectTargetLease,
+    ...extra
+  }, null, 2) + '\n')
+  return lifecycleStatePath
+}
+
+function confirmTaskAuthorityCp1(taskRoot) {
+  const content = '# 问题确认\n\nMCP authority confirmed.\n'
+  const artifact = '01-问题确认.md'
+  fs.writeFileSync(path.join(taskRoot, artifact), content)
+  const artifactDigest = crypto.createHash('sha256').update(content).digest('hex')
+  const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
+  const sessions = fs.readFileSync(sessionsPath, 'utf8')
+  fs.writeFileSync(sessionsPath, sessions.replace(
+    /^\|\s*CP1\s*\|.*$/mu,
+    `| CP1 | ✅ | ${artifact} | v1 | ${artifactDigest} | mcp-test | ${new Date().toISOString()} |`
+  ))
+}
+
+function writeTaskTerminalEvidence(activeRoot, taskRootRelative, suffix = 'mcp') {
+  const definitions = [
+    ['ecr', `${taskRootRelative}/07-ECR-${suffix}.md`, `# ECR ${suffix}\n`],
+    ['report', `${taskRootRelative}/reports/codex/${suffix}.md`, `# Report ${suffix}\n`],
+    ['memory', `${taskRootRelative}/.memory/${suffix}.md`, `# Memory ${suffix}\n`],
+    ['completion', `${taskRootRelative}/06-完成清单-${suffix}.md`, `# Completion ${suffix}\n`]
+  ]
+  return definitions.map(([role, relative, content]) => {
+    const filePath = path.join(activeRoot, ...relative.split('/'))
+    fs.mkdirSync(path.dirname(filePath), { recursive: true })
+    fs.writeFileSync(filePath, content)
+    return {
+      role,
+      path: relative,
+      sha256: crypto.createHash('sha256').update(content).digest('hex'),
+      bytes: Buffer.byteLength(content)
+    }
+  })
+}
+
+function testMemoryTaskAdmissionV2Contract() {
+  setupLegacyWorkspace()
+  const nowMs = Date.now()
+  const project = path.basename(TEMP_ROOT)
+  const activeRoot = path.join(TEMP_ROOT, '.devcodex')
+  const envelope = buildActualInstructionEnvelope({
+    prompt: '修复 MCP task admission',
+    session_id: 'mcp-admission-session',
+    event_id: 'mcp-admission-event',
+    timestamp: new Date(nowMs).toISOString()
+  }, {
+    hostVariant: 'codex-cli',
+    contextEpoch: 'ctx-mcp-admission',
+    trustedHostEvent: true,
+    nowMs
+  })
+  const workItemSet = buildWorkItemSet(envelope, {
+    workItems: [{ taskKind: 'fix', routeCandidate: 'fix.default' }]
+  })
+  const route = buildWorkflowRouteDecision({
+    actualInstructionEnvelope: envelope,
+    workItemSet,
+    workItemId: workItemSet.items[0].workItemId,
+    environmentMode: 'dev',
+    routeKey: 'fix.default'
+  })
+  const leaseCore = {
+    schemaVersion: 'ProjectTargetLeaseV2',
+    project,
+    targetDigest: '1'.repeat(64),
+    rootIdentityDigest: '2'.repeat(64),
+    layoutIdentity: '3'.repeat(64),
+    physicalRoot: TEMP_ROOT,
+    activeRoot,
+    authorityKind: 'session',
+    authorityDigest: '4'.repeat(64),
+    contextEpoch: envelope.contextEpoch,
+    contextBindingDigest: '5'.repeat(64),
+    routeRevision: route.routeRevision,
+    revocationEpoch: 1,
+    issuedAtMs: nowMs - 1000,
+    expiresAtMs: nowMs + 60 * 60 * 1000
+  }
+  const projectTargetLease = { ...leaseCore, leaseDigest: computeProjectTargetLeaseDigest(leaseCore) }
+  const lifecycleStatePath = path.join(activeRoot, '.memory', 'hooks', 'legacy', 'lifecycle-state.json')
+  fs.mkdirSync(path.dirname(lifecycleStatePath), { recursive: true })
+  fs.writeFileSync(lifecycleStatePath, JSON.stringify({
+    version: 2,
+    activeProject: project,
+    activeScope: 'project',
+    actualInstructionEnvelope: envelope,
+    workItemSet,
+    workflowRouteDecision: route,
+    stickyProject: projectTargetLease
+  }, null, 2) + '\n')
+  const args = {
+    operation: 'admit',
+    ingressRef: {
+      schemaVersion: 'WorkflowIngressProjectionRefV1',
+      envelopeId: envelope.envelopeId,
+      envelopeDigest: envelope.envelopeDigest,
+      decisionDigest: route.decisionDigest,
+      routeRevision: route.routeRevision
+    },
+    task: {
+      taskKind: 'bugs',
+      entryVariant: 'fix',
+      displayName: 'MCP准入任务',
+      aliases: ['MCP准入别名']
+    },
+    overview: { content: '# 问题概况\n\nMCP task admission\n' }
+  }
+  const rejectedIngress = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/call', {
+      name: 'memory_task_admit_v2',
+      arguments: { ...args, ingressRef: { ...args.ingressRef, decisionDigest: 'f'.repeat(64) } }
+    })
+  ], TEMP_ROOT)
+  assert.strictEqual(resultById(rejectedIngress, 1).isError, true)
+  assert.match(resultById(rejectedIngress, 1).content[0].text, /TASK_ADMISSION_INGRESS_STATE_MISMATCH/)
+  assert.strictEqual(fs.existsSync(path.join(activeRoot, 'bugs')), false)
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/list'),
+    rpcRequest(2, 'tools/call', { name: 'memory_task_admit_v2', arguments: args }),
+    rpcRequest(3, 'tools/call', { name: 'memory_task_admit_v2', arguments: args }),
+    rpcRequest(4, 'tools/call', {
+      name: 'memory_task_admit_v2',
+      arguments: { ...args, overview: { content: '# 不同内容\n' } }
+    }),
+    rpcRequest(5, 'tools/call', {
+      name: 'memory_task_admit_v2',
+      arguments: { ...args, ingressRef: { ...args.ingressRef, decisionDigest: 'f'.repeat(64) } }
+    }),
+    rpcRequest(6, 'tools/call', { name: 'memory_task_resolve', arguments: { name: 'MCP准入别名' } })
+  ], TEMP_ROOT)
+  const toolSchema = findToolSchema(resultById(responses, 1).tools, 'memory_task_admit_v2')
+  assert.deepStrictEqual(toolSchema.required, ['operation', 'ingressRef', 'task', 'overview'])
+  assert.deepStrictEqual(
+    toolSchema.properties.ingressRef.required,
+    ['schemaVersion', 'envelopeId', 'envelopeDigest', 'decisionDigest', 'routeRevision']
+  )
+  const admitted = resultById(responses, 2)
+  assert.strictEqual(admitted.isError, false)
+  assert.strictEqual(admitted.structuredContent.phase, 'cp-state-written')
+  assert.strictEqual(admitted.structuredContent.mutationAuthority, false)
+  const replay = resultById(responses, 3)
+  assert.strictEqual(replay.isError, false)
+  assert.strictEqual(replay.structuredContent.admissionId, admitted.structuredContent.admissionId)
+  assert.strictEqual(replay.structuredContent.replayed, true)
+  assert.strictEqual(resultById(responses, 4).isError, true)
+  assert.match(resultById(responses, 4).content[0].text, /TASK_ADMISSION_IDEMPOTENCY_CONFLICT/)
+  assert.strictEqual(resultById(responses, 5).isError, true)
+  assert.match(resultById(responses, 5).content[0].text, /TASK_ADMISSION_INGRESS_STATE_MISMATCH/)
+  const resolved = resultById(responses, 6)
+  assert.strictEqual(resolved.isError, false)
+  assert.strictEqual(resolved.structuredContent.candidate.taskId, admitted.structuredContent.taskId)
+  const taskRoot = path.join(activeRoot, ...admitted.structuredContent.taskRootRelative.split('/'))
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(taskRoot, '.memory', 'task.json'), 'utf8')).schemaVersion, 'TaskIdentityV2')
+  assert.match(fs.readFileSync(path.join(taskRoot, '.memory', 'sessions.md'), 'utf8'), /\| CP1 \| ⏳ \|/u)
+}
+
+function testMemoryWorkflowOperationalWriteLeaseContract() {
+  setupLegacyWorkspace()
+  const activeRoot = path.join(TEMP_ROOT, '.devcodex')
+  const project = path.basename(TEMP_ROOT)
+  const ingress = buildTaskAuthorityIngress({ activeRoot, project, suffix: 'operational-lease' })
+  writeTaskAuthorityLifecycleState(activeRoot, project, ingress, {
+    contextAcquisition: {
+      contextEpoch: ingress.actualInstructionEnvelope.contextEpoch,
+      activeRoot,
+      project,
+      targetResolved: true,
+      hostSessionId: 'mcp-task-authority-operational-lease'
+    },
+    turnLiveness: {
+      state: 'active-turn',
+      turnKey: 'mcp-operational-turn'
+    }
+  })
+  const reportTarget = 'reports/analysis/codex/20260825/01--operational-lease.md'
+  const args = {
+    ingressRef: ingress.ingressRef,
+    operation: 'create',
+    targets: [reportTarget]
+  }
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/list'),
+    rpcRequest(2, 'tools/call', {
+      name: 'memory_workflow_operational_write_lease',
+      arguments: args
+    }),
+    rpcRequest(3, 'tools/call', {
+      name: 'memory_workflow_operational_write_lease',
+      arguments: { ...args, targets: ['profile/01-项目信息.md'] }
+    }),
+    rpcRequest(4, 'tools/call', {
+      name: 'memory_workflow_operational_write_lease',
+      arguments: { ...args, targets: ['bugs/unbound/01-问题确认.md'] }
+    }),
+    rpcRequest(5, 'tools/call', {
+      name: 'memory_workflow_operational_write_lease',
+      arguments: { ...args, targets: ['../outside.md'] }
+    }),
+    rpcRequest(6, 'tools/call', {
+      name: 'memory_workflow_operational_write_lease',
+      arguments: { ...args, ingressRef: { ...args.ingressRef, routeRevision: 'f'.repeat(64) } }
+    })
+  ], TEMP_ROOT)
+  const listed = resultById(responses, 1)
+  const schema = findToolSchema(listed.tools, 'memory_workflow_operational_write_lease')
+  assert(schema, 'memory_workflow_operational_write_lease must be publicly reachable')
+  assert.deepStrictEqual(schema.required, ['ingressRef', 'operation', 'targets'])
+  assert.strictEqual(schema.additionalProperties, false)
+  assert.strictEqual(schema.properties.targets.maxItems, 4)
+  const issued = resultById(responses, 2)
+  assert.strictEqual(issued.isError, false)
+  const lease = issued.structuredContent.lease
+  assert.strictEqual(lease.schemaVersion, 'WorkflowOperationalWriteLeaseV1')
+  assert.strictEqual(lease.slotId, 'project-report')
+  assert.strictEqual(lease.authorityRole, 'workflow-owner')
+  assert.deepStrictEqual(lease.relativeTargets, [reportTarget])
+  assert.strictEqual(lease.productMutationAuthority, false)
+  assert.strictEqual(lease.formalArtifactAuthority, false)
+  assert.strictEqual(lease.releaseAuthority, false)
+  assert.match(lease.leaseDigest, /^[a-f0-9]{64}$/)
+  for (const id of [3, 4, 5, 6]) assert.strictEqual(resultById(responses, id).isError, true)
+  assert.match(resultById(responses, 3).content[0].text, /WORKFLOW_OPERATIONAL_SLOT_FORBIDDEN/)
+  assert.match(resultById(responses, 4).content[0].text, /WORKFLOW_OPERATIONAL_SLOT_FORBIDDEN/)
+  assert.match(resultById(responses, 5).content[0].text, /WORKFLOW_OPERATIONAL_TARGET_INVALID/)
+  assert.match(resultById(responses, 6).content[0].text, /TASK_ADMISSION_INGRESS_STATE_MISMATCH/)
+}
+
+function testMemorySimpleTaskFastPathLeaseContract() {
+  setupLegacyWorkspace()
+  const activeRoot = path.join(TEMP_ROOT, '.devcodex')
+  const project = path.basename(TEMP_ROOT)
+  const ingress = buildTaskAuthorityIngress({
+    activeRoot,
+    project,
+    suffix: 'simple-fast-path',
+    routeKey: 'dev.docs'
+  })
+  writeTaskAuthorityLifecycleState(activeRoot, project, ingress, {
+    contextAcquisition: {
+      contextEpoch: ingress.actualInstructionEnvelope.contextEpoch,
+      activeRoot,
+      project,
+      targetResolved: true,
+      hostSessionId: 'mcp-task-authority-simple-fast-path'
+    },
+    turnLiveness: {
+      state: 'active-turn',
+      turnKey: 'mcp-simple-fast-path-turn'
+    }
+  })
+  const riskAssessment = {
+    changeClass: 'narrative-markdown',
+    crossModule: false,
+    sharedContract: false,
+    publicApiOrSchema: false,
+    securitySensitive: false,
+    dependencyChange: false,
+    releaseImpact: false
+  }
+  const args = {
+    ingressRef: ingress.ingressRef,
+    operation: 'create-or-update',
+    targets: ['docs/quick-start.md', 'docs/troubleshooting.md'],
+    riskAssessment
+  }
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/list'),
+    rpcRequest(2, 'tools/call', { name: 'memory_task_fast_path_lease', arguments: args }),
+    rpcRequest(3, 'tools/call', {
+      name: 'memory_task_fast_path_lease',
+      arguments: { ...args, targets: [...args.targets, 'docs/third.md'] }
+    }),
+    rpcRequest(4, 'tools/call', {
+      name: 'memory_task_fast_path_lease',
+      arguments: { ...args, riskAssessment: { ...riskAssessment, sharedContract: true } }
+    }),
+    rpcRequest(5, 'tools/call', {
+      name: 'memory_task_fast_path_lease',
+      arguments: { ...args, targets: ['README.md', 'docs/quick-start.md'] }
+    }),
+    rpcRequest(6, 'tools/call', {
+      name: 'memory_task_fast_path_lease',
+      arguments: { ...args, targets: ['CHANGELOG.md'] }
+    }),
+    rpcRequest(7, 'tools/call', {
+      name: 'memory_task_fast_path_lease',
+      arguments: {
+        ...args,
+        targets: ['hooks/runtime.js'],
+        riskAssessment: { ...riskAssessment, changeClass: 'local-implementation' }
+      }
+    }),
+    rpcRequest(8, 'tools/call', {
+      name: 'memory_task_fast_path_lease',
+      arguments: { ...args, ingressRef: { ...args.ingressRef, routeRevision: 'f'.repeat(64) } }
+    })
+  ], TEMP_ROOT)
+  const listed = resultById(responses, 1)
+  const schema = findToolSchema(listed.tools, 'memory_task_fast_path_lease')
+  assert(schema, 'memory_task_fast_path_lease must be publicly reachable')
+  assert.strictEqual(schema.additionalProperties, false)
+  assert.strictEqual(schema.properties.targets.maxItems, 2)
+  assert.deepStrictEqual(schema.properties.riskAssessment.required, [
+    'changeClass',
+    'crossModule',
+    'sharedContract',
+    'publicApiOrSchema',
+    'securitySensitive',
+    'dependencyChange',
+    'releaseImpact'
+  ])
+  const issued = resultById(responses, 2)
+  assert.strictEqual(issued.isError, false)
+  const receipt = issued.structuredContent
+  assert.strictEqual(receipt.schemaVersion, 'SimpleTaskFastPathLeaseReceiptV1')
+  assert.strictEqual(receipt.lease.schemaVersion, 'SimpleTaskFastPathLeaseV1')
+  assert.deepStrictEqual(receipt.lease.relativeTargets, args.targets)
+  assert.strictEqual(receipt.lease.maxTargets, 2)
+  assert.strictEqual(receipt.lease.maxUses, 2)
+  assert.strictEqual(receipt.usage.useCount, 0)
+  assert.strictEqual(receipt.mutationAuthority, true)
+  assert.strictEqual(receipt.productMutationAuthority, true)
+  assert.strictEqual(receipt.formalArtifactAuthority, false)
+  assert.strictEqual(receipt.controlPlaneAuthority, false)
+  assert.strictEqual(receipt.releaseAuthority, false)
+  assert.match(receipt.lease.leaseDigest, /^[a-f0-9]{64}$/)
+  for (const id of [3, 4, 5, 6, 7, 8]) assert.strictEqual(resultById(responses, id).isError, true)
+  assert.match(resultById(responses, 3).content[0].text, /SIMPLE_TASK_TARGET_COUNT_INVALID|Invalid tool arguments/)
+  assert.match(resultById(responses, 4).content[0].text, /SIMPLE_TASK_RISK_UPGRADE_REQUIRED/)
+  assert.match(resultById(responses, 5).content[0].text, /SIMPLE_TASK_CROSS_MODULE_FORBIDDEN/)
+  assert.match(resultById(responses, 6).content[0].text, /SIMPLE_TASK_PUBLIC_CONTRACT_FORBIDDEN/)
+  assert.match(resultById(responses, 7).content[0].text, /SIMPLE_TASK_CONTROL_OR_SHARED_CONTRACT_FORBIDDEN/)
+  assert.match(resultById(responses, 8).content[0].text, /TASK_ADMISSION_INGRESS_STATE_MISMATCH/)
+}
+
+function testMemoryTaskOwnerAndTerminalV1Contract() {
+  setupLegacyWorkspace()
+  const activeRoot = path.join(TEMP_ROOT, '.devcodex')
+  const project = path.basename(TEMP_ROOT)
+  const ingress = buildTaskAuthorityIngress({ activeRoot, project, suffix: 'terminal' })
+  writeTaskAuthorityLifecycleState(activeRoot, project, ingress)
+  const admissionArgs = {
+    operation: 'admit',
+    ingressRef: ingress.ingressRef,
+    task: {
+      taskKind: 'bugs',
+      entryVariant: 'fix',
+      displayName: 'MCP owner terminal task'
+    },
+    overview: { content: '# 问题概况\n\nMCP owner terminal test.\n' }
+  }
+  const admittedResponses = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/list'),
+    rpcRequest(2, 'tools/call', { name: 'memory_task_admit_v2', arguments: admissionArgs })
+  ], TEMP_ROOT)
+  const listedResult = resultById(admittedResponses, 1)
+  const toolsListBytes = Buffer.byteLength(JSON.stringify({ jsonrpc: '2.0', id: 1, result: listedResult }))
+  assert(toolsListBytes <= 24 * 1024, `memory tools/list exceeds 24 KiB budget: ${toolsListBytes} bytes`)
+  for (const toolName of [
+    'memory_task_write_owner',
+    'memory_task_terminal_v1',
+    'memory_task_closeout_reconcile_v1'
+  ]) {
+    assert(listedResult.tools.some(tool => tool.name === toolName), `${toolName} must be publicly reachable`)
+  }
+  const ownerSchema = findToolSchema(listedResult.tools, 'memory_task_write_owner')
+  const terminalSchema = findToolSchema(listedResult.tools, 'memory_task_terminal_v1')
+  assert.strictEqual(ownerSchema.additionalProperties, false)
+  assert.strictEqual(ownerSchema.properties.serverObservation, undefined, 'takeover evidence must remain server-owned')
+  assert.strictEqual(terminalSchema.additionalProperties, false)
+  assert.deepStrictEqual(terminalSchema.properties.evidence.minItems, 4)
+  assert.deepStrictEqual(terminalSchema.properties.evidence.maxItems, 4)
+
+  const admitted = resultById(admittedResponses, 2).structuredContent
+  assert.strictEqual(admitted.routeBindingRequired, false)
+  assert.ok(['persisted', 'semantic-noop'].includes(admitted.routeBinding.status))
+  const metaDir = resolveTaskRecoveryMetaDir({ activeRoot, project })
+  const recoveryIdentity = { activeRoot, project, taskId: admitted.taskId, taskStatus: 'active' }
+  const rejectedResponses = runServer('mcp/memory-server.js', [
+    rpcRequest(3, 'tools/call', {
+      name: 'memory_task_write_owner',
+      arguments: {
+        operation: 'acquire',
+        ingressRef: { ...ingress.ingressRef, decisionDigest: 'f'.repeat(64) },
+        taskId: admitted.taskId,
+        admissionId: admitted.admissionId
+      }
+    }),
+    rpcRequest(4, 'tools/call', {
+      name: 'memory_task_write_owner',
+      arguments: {
+        operation: 'takeover-prepare',
+        ingressRef: ingress.ingressRef,
+        taskId: admitted.taskId,
+        admissionId: admitted.admissionId,
+        serverObservation: {
+          canonicalTaskReadback: true,
+          noLiveTurn: true,
+          reconcileReceiptDigest: '6'.repeat(64)
+        }
+      }
+    }),
+    rpcRequest(5, 'tools/call', {
+      name: 'memory_task_closeout_reconcile_v1',
+      arguments: { ingressRef: ingress.ingressRef, taskId: admitted.taskId }
+    })
+  ], TEMP_ROOT)
+  assert.strictEqual(resultById(rejectedResponses, 3).isError, true)
+  assert.match(resultById(rejectedResponses, 3).content[0].text, /TASK_ADMISSION_INGRESS_STATE_MISMATCH/)
+  assert.strictEqual(resultById(rejectedResponses, 4).isError, true)
+  assert.match(resultById(rejectedResponses, 4).content[0].text, /FENCED_TASK_WRITE_OWNER_MISSING/)
+  assert.strictEqual(resultById(rejectedResponses, 5).isError, true)
+  const beforeOwner = readFencedTaskWriteOwner({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(beforeOwner.status, 'missing', 'invalid compact refs must have zero owner effect')
+  assert.strictEqual(beforeOwner.transaction.phase, 'cp-state-written')
+
+  const taskRoot = path.join(activeRoot, ...admitted.taskRootRelative.split('/'))
+  confirmTaskAuthorityCp1(taskRoot)
+  const ownerResponses = runServer('mcp/memory-server.js', [
+    rpcRequest(6, 'tools/call', {
+      name: 'memory_task_write_owner',
+      arguments: {
+        operation: 'acquire',
+        ingressRef: ingress.ingressRef,
+        taskId: admitted.taskId,
+        admissionId: admitted.admissionId
+      }
+    })
+  ], TEMP_ROOT)
+  const acquired = resultById(ownerResponses, 6)
+  assert.strictEqual(acquired.isError, false)
+  assert.strictEqual(acquired.structuredContent.status, 'active')
+  assert.strictEqual(acquired.structuredContent.finalized, true)
+  assert.strictEqual(acquired.structuredContent.cp1Confirmed, true)
+  assert.strictEqual(acquired.structuredContent.mutationAuthority, true)
+
+  const routeIndex = createWorkspaceSessionRouteIndex({
+    metaDir: path.join(activeRoot, '.memory', 'hooks', 'legacy'),
+    fs,
+    path
+  })
+  const routeBound = routeIndex.read({ sessionDigest: ingress.projectTargetLease.authorityDigest })
+  assert.strictEqual(routeBound.status, 'fresh')
+  assert.strictEqual(routeBound.entry.taskId, admitted.taskId)
+  const evidence = writeTaskTerminalEvidence(activeRoot, admitted.taskRootRelative)
+  const terminalArgs = {
+    ingressRef: ingress.ingressRef,
+    taskId: admitted.taskId,
+    admissionId: admitted.admissionId,
+    terminalStatus: 'completed',
+    expectedOwner: acquired.structuredContent.ownerRef,
+    evidence
+  }
+  const terminalResponses = runServer('mcp/memory-server.js', [
+    rpcRequest(7, 'tools/call', { name: 'memory_task_terminal_v1', arguments: terminalArgs }),
+    rpcRequest(8, 'tools/call', { name: 'memory_task_terminal_v1', arguments: terminalArgs }),
+    rpcRequest(9, 'tools/call', {
+      name: 'memory_task_terminal_v1',
+      arguments: { ...terminalArgs, terminalStatus: 'failed' }
+    })
+  ], TEMP_ROOT)
+  const terminal = resultById(terminalResponses, 7)
+  assert.strictEqual(terminal.isError, false)
+  assert.strictEqual(terminal.structuredContent.status, 'terminal')
+  assert.strictEqual(terminal.structuredContent.receipt.evidence.length, 4)
+  assert.strictEqual(terminal.structuredContent.mutationAuthority, false)
+  assert.strictEqual(terminal.structuredContent.routeReconciliationRequired, false)
+  assert.strictEqual(resultById(terminalResponses, 8).structuredContent.replayed, true)
+  assert.strictEqual(resultById(terminalResponses, 9).isError, true)
+  assert.match(resultById(terminalResponses, 9).content[0].text, /TASK_TERMINAL_REPLAY_MISMATCH/)
+  const routeAfterTerminal = routeIndex.read({ sessionDigest: ingress.projectTargetLease.authorityDigest })
+  assert.strictEqual(routeAfterTerminal.status, 'unbound')
+  assert.strictEqual(routeAfterTerminal.entry.lastTerminalReceiptDigest, terminal.structuredContent.receipt.receiptDigest)
+  const terminalOwnerRead = readFencedTaskWriteOwner({
+    metaDir,
+    identity: { ...recoveryIdentity, taskStatus: 'completed' }
+  })
+  assert.strictEqual(terminalOwnerRead.owner.status, 'terminal')
+}
+
+function testMemoryServerOwnedTakeoverObservation() {
+  setupLegacyWorkspace()
+  const activeRoot = path.join(TEMP_ROOT, '.devcodex')
+  const project = path.basename(TEMP_ROOT)
+  const nowMs = Date.now()
+  const priorIngress = buildTaskAuthorityIngress({
+    activeRoot,
+    project,
+    suffix: 'takeover-prior',
+    nowMs: nowMs - 2 * 60 * 60 * 1000
+  })
+  const admissionInput = {
+    operation: 'admit',
+    activeRoot,
+    project,
+    actualInstructionEnvelope: priorIngress.actualInstructionEnvelope,
+    workItemSet: priorIngress.workItemSet,
+    workflowRouteDecision: priorIngress.workflowRouteDecision,
+    projectTargetLease: priorIngress.projectTargetLease,
+    task: { taskKind: 'bugs', entryVariant: 'fix', displayName: 'MCP native takeover task' },
+    overview: { content: '# 问题概况\n\nNative TaskIdentityV2 takeover.\n' }
+  }
+  const ownerIssuedAt = nowMs - 31 * 60 * 1000
+  const admitted = executeTaskAdmission(admissionInput, { nowMs: ownerIssuedAt })
+  const acquired = executeTaskWriteOwner({
+    operation: 'acquire',
+    activeRoot,
+    project,
+    actualInstructionEnvelope: priorIngress.actualInstructionEnvelope,
+    workItemSet: priorIngress.workItemSet,
+    workflowRouteDecision: priorIngress.workflowRouteDecision,
+    projectTargetLease: priorIngress.projectTargetLease,
+    taskId: admitted.taskId,
+    admissionId: admitted.admissionId
+  }, {
+    nowMs: ownerIssuedAt,
+    nonceFactory: () => `owner-${'a'.repeat(40)}`
+  })
+  const taskRoot = path.join(activeRoot, ...admitted.taskRootRelative.split('/'))
+  assert.strictEqual(fs.existsSync(path.join(taskRoot, '.memory', 'task.json')), true)
+  assert.strictEqual(fs.existsSync(path.join(taskRoot, '.memory', 'task-identity-v2.json')), false)
+
+  const routeIndex = createWorkspaceSessionRouteIndex({
+    metaDir: path.join(activeRoot, '.memory', 'hooks', 'legacy'),
+    fs,
+    path
+  })
+  routeIndex.update({
+    sessionDigest: priorIngress.projectTargetLease.authorityDigest,
+    projectRootIdentityDigest: priorIngress.projectTargetLease.rootIdentityDigest,
+    taskId: admitted.taskId,
+    routeRevision: priorIngress.workflowRouteDecision.routeRevision,
+    trigger: 'task-bind'
+  })
+  routeIndex.update({
+    sessionDigest: priorIngress.projectTargetLease.authorityDigest,
+    projectRootIdentityDigest: priorIngress.projectTargetLease.rootIdentityDigest,
+    taskId: '',
+    routeRevision: priorIngress.workflowRouteDecision.routeRevision,
+    trigger: 'terminal-unbind',
+    lastTerminalReceiptDigest: 'b'.repeat(64)
+  })
+
+  const takeoverIngress = buildTaskAuthorityIngress({ activeRoot, project, suffix: 'takeover-current', nowMs })
+  writeTaskAuthorityLifecycleState(activeRoot, project, takeoverIngress, {
+    turnLiveness: {
+      state: 'running',
+      inFlightOperation: {
+        ownedByAgent: true,
+        leaseExpiresAt: new Date(nowMs + 60 * 1000).toISOString()
+      }
+    }
+  })
+  const takeoverArgs = {
+    operation: 'takeover-prepare',
+    ingressRef: takeoverIngress.ingressRef,
+    taskId: admitted.taskId,
+    admissionId: admitted.admissionId,
+    expectedOwner: acquired.ownerRef,
+    serverObservation: {
+      canonicalTaskReadback: false,
+      noLiveTurn: false,
+      reconcileReceiptDigest: 'f'.repeat(64)
+    }
+  }
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(10, 'tools/call', { name: 'memory_task_write_owner', arguments: takeoverArgs })
+  ], TEMP_ROOT)
+  const prepared = resultById(responses, 10)
+  assert.strictEqual(prepared.isError, false)
+  assert.strictEqual(prepared.structuredContent.status, 'takeover-pending')
+  assert.strictEqual(prepared.structuredContent.takeoverObservation.canonicalTaskReadback, true)
+  assert.strictEqual(prepared.structuredContent.takeoverObservation.noLiveTurn, true)
+  assert.strictEqual(prepared.structuredContent.takeoverObservation.activeOperationLease, true)
+  assert.strictEqual(prepared.structuredContent.takeoverObservation.activeOperationLeaseForPriorOwner, false)
+  assert.match(prepared.structuredContent.takeoverObservation.canonicalTaskSourceDigest, /^[a-f0-9]{64}$/)
+
+  const acceptedResponses = runServer('mcp/memory-server.js', [
+    rpcRequest(11, 'tools/call', {
+      name: 'memory_task_write_owner',
+      arguments: {
+        operation: 'takeover-accept',
+        ingressRef: takeoverIngress.ingressRef,
+        taskId: admitted.taskId,
+        admissionId: admitted.admissionId,
+        expectedOwner: prepared.structuredContent.ownerRef,
+        takeoverRefDigest: prepared.structuredContent.owner.takeoverRef.refDigest
+      }
+    })
+  ], TEMP_ROOT)
+  const accepted = resultById(acceptedResponses, 11)
+  assert.strictEqual(accepted.isError, false)
+  assert.strictEqual(accepted.structuredContent.status, 'active')
+  assert.strictEqual(accepted.structuredContent.owner.sessionDigest, takeoverIngress.projectTargetLease.authorityDigest)
+}
+
+function testMemoryCloseoutReconcileUsesTerminalOwnerRoute() {
+  setupLegacyWorkspace()
+  const activeRoot = path.join(TEMP_ROOT, '.devcodex')
+  const project = path.basename(TEMP_ROOT)
+  const priorIngress = buildTaskAuthorityIngress({ activeRoot, project, suffix: 'reserve-owner' })
+  const admissionInput = {
+    operation: 'admit',
+    activeRoot,
+    project,
+    actualInstructionEnvelope: priorIngress.actualInstructionEnvelope,
+    workItemSet: priorIngress.workItemSet,
+    workflowRouteDecision: priorIngress.workflowRouteDecision,
+    projectTargetLease: priorIngress.projectTargetLease,
+    task: { taskKind: 'bugs', entryVariant: 'fix', displayName: 'MCP reserve reconcile task' },
+    overview: { content: '# 问题概况\n\nReserve route reconcile.\n' }
+  }
+  const admitted = executeTaskAdmission(admissionInput)
+  const taskRoot = path.join(activeRoot, ...admitted.taskRootRelative.split('/'))
+  confirmTaskAuthorityCp1(taskRoot)
+  const acquired = executeTaskWriteOwner({
+    operation: 'acquire',
+    activeRoot,
+    project,
+    actualInstructionEnvelope: priorIngress.actualInstructionEnvelope,
+    workItemSet: priorIngress.workItemSet,
+    workflowRouteDecision: priorIngress.workflowRouteDecision,
+    projectTargetLease: priorIngress.projectTargetLease,
+    taskId: admitted.taskId,
+    admissionId: admitted.admissionId
+  }, { nonceFactory: () => `owner-${'d'.repeat(40)}` })
+  const evidence = writeTaskTerminalEvidence(activeRoot, admitted.taskRootRelative, 'reserve-reconcile')
+  const terminal = executeWorkflowTaskTerminal({
+    activeRoot,
+    project,
+    actualInstructionEnvelope: priorIngress.actualInstructionEnvelope,
+    workItemSet: priorIngress.workItemSet,
+    workflowRouteDecision: priorIngress.workflowRouteDecision,
+    projectTargetLease: priorIngress.projectTargetLease,
+    taskId: admitted.taskId,
+    admissionId: admitted.admissionId,
+    terminalStatus: 'completed',
+    expectedOwner: acquired.ownerRef,
+    evidence
+  }, {
+    storeOptions: {
+      reserveBytes: 8 * 1024 * 1024,
+      softBytes: 1,
+      hardBytes: 1,
+      diskHeadroomBytes: 0,
+      availableDiskBytes: 1024 * 1024 * 1024
+    },
+    nonceFactory: () => `owner-${'e'.repeat(40)}`
+  })
+  assert.strictEqual(terminal.status, 'terminal-closeout-reserved')
+
+  const routeIndex = createWorkspaceSessionRouteIndex({
+    metaDir: path.join(activeRoot, '.memory', 'hooks', 'legacy'),
+    fs,
+    path
+  })
+  routeIndex.update({
+    sessionDigest: priorIngress.projectTargetLease.authorityDigest,
+    projectRootIdentityDigest: priorIngress.projectTargetLease.rootIdentityDigest,
+    taskId: admitted.taskId,
+    routeRevision: priorIngress.workflowRouteDecision.routeRevision,
+    trigger: 'task-bind'
+  })
+  const reconcileIngress = buildTaskAuthorityIngress({ activeRoot, project, suffix: 'reserve-reconciler' })
+  routeIndex.update({
+    sessionDigest: reconcileIngress.projectTargetLease.authorityDigest,
+    projectRootIdentityDigest: reconcileIngress.projectTargetLease.rootIdentityDigest,
+    taskId: 'reconcile-caller-task',
+    routeRevision: reconcileIngress.workflowRouteDecision.routeRevision,
+    trigger: 'task-bind'
+  })
+  writeTaskAuthorityLifecycleState(activeRoot, project, reconcileIngress)
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(12, 'tools/call', {
+      name: 'memory_task_closeout_reconcile_v1',
+      arguments: { ingressRef: reconcileIngress.ingressRef, taskId: admitted.taskId }
+    })
+  ], TEMP_ROOT)
+  const reconciled = resultById(responses, 12)
+  assert.strictEqual(reconciled.isError, false)
+  assert.strictEqual(reconciled.structuredContent.status, 'reconciled')
+  assert.strictEqual(
+    routeIndex.read({ sessionDigest: priorIngress.projectTargetLease.authorityDigest }).status,
+    'unbound'
+  )
+  const callerRoute = routeIndex.read({ sessionDigest: reconcileIngress.projectTargetLease.authorityDigest })
+  assert.strictEqual(callerRoute.status, 'fresh')
+  assert.strictEqual(callerRoute.entry.state, 'live', 'reserve reconciliation must not unbind the caller session')
 }
 
 function testMemoryActualHostEnvAgent() {
@@ -2170,6 +2954,8 @@ function testDevCodexBoundedRouteRecipe() {
   assert(recipe, 'devcodex source-code plan must provide a bounded route recipe')
   assert.strictEqual(recipe.schemaVersion, 'ProfileRouteLoadRecipeV2')
   assert.strictEqual(recipe.strategy, 'bounded-section-selectors')
+  assert(recipe.maxBytes >= 40 * 1024)
+  assert(recipe.entries.every(entry => entry.boundedOnly === true))
   assert(recipe.minimumHeadroomBytes >= 1024)
   assert(recipe.minimumHeadroomBytes < recipe.maxBytes)
   assert.strictEqual(Object.prototype.hasOwnProperty.call(recipe, 'totalSelectedBytes'), false)
@@ -2269,6 +3055,100 @@ function testDevCodexBoundedRouteRecipe() {
   const exceededError = toolJson(resultById(exceeded, 83))
   assert.strictEqual(exceededError.errorCode, 'PROFILE_ROUTE_RECIPE_BUDGET_EXCEEDED')
   assert.doesNotMatch(exceededError.nextStep, /Regenerate profile_context_plan/i)
+  assert.strictEqual(exceededError.sectionReceipt.completion, 'partial')
+  assert.notStrictEqual(exceededError.sectionReceipt.completion, 'fallback-full')
+  assert.strictEqual(exceededError.recoveryRecipe.schemaVersion, 'ProfileSectionRecoveryRecipeV1')
+  assert(exceededError.recoveryRecipe.calls.length >= 2)
+  assert(exceededError.recoveryRecipe.calls.every(call => call.arguments.files.length === 1 &&
+    call.arguments.sectionSelectors[0].headingQueries.length === 1 &&
+    call.arguments.sectionSelectors[0].boundedOnly === true))
+  assert.deepStrictEqual(
+    exceededError.recoveryRecipe.calls.map(call => call.sourceOrder),
+    exceededError.recoveryRecipe.calls.map((_, index) => index),
+    'bounded recovery calls must expose a deterministic source-document order'
+  )
+}
+
+function testProfileMultiHeadingBoundedSelection() {
+  const file = 'multi-heading.md'
+  const filePath = path.join(TEMP_ROOT, file)
+  fs.writeFileSync(filePath, [
+    '# Profile',
+    '',
+    'UNRELATED-PREAMBLE',
+    '',
+    '## Alpha',
+    '',
+    'ALPHA-BODY',
+    '',
+    '### Alpha Child',
+    '',
+    'ALPHA-CHILD-BODY',
+    '',
+    '## Middle',
+    '',
+    'MIDDLE-BODY',
+    '',
+    '## Unrelated',
+    '',
+    'UNRELATED-BODY-' + 'x'.repeat(60 * 1024),
+    '',
+    '## Omega',
+    '',
+    'OMEGA-BODY',
+    ''
+  ].join('\n'))
+  const selector = {
+    headingQueries: ['Omega', 'Alpha Child', 'Alpha', 'Middle', 'Alpha'],
+    requiredQueries: ['Alpha', 'Middle', 'Omega'],
+    includePreamble: false,
+    includeDescendants: true,
+    maxBytes: 4096,
+    boundedOnly: true
+  }
+  const selected = selectProfileSectionsFromFileSync({
+    file,
+    filePath,
+    selector,
+    maxScanBytes: 128 * 1024,
+    maxTotalSourceBytes: 256 * 1024
+  })
+  assert.strictEqual(selected.receipt.completion, 'complete')
+  assert(selected.body.indexOf('ALPHA-BODY') < selected.body.indexOf('MIDDLE-BODY'))
+  assert(selected.body.indexOf('MIDDLE-BODY') < selected.body.indexOf('OMEGA-BODY'))
+  assert.strictEqual((selected.body.match(/ALPHA-CHILD-BODY/g) || []).length, 1,
+    'parent/descendant and repeated queries must be de-duplicated')
+  assert.doesNotMatch(selected.body, /UNRELATED-BODY/)
+  const segmented = ['Alpha', 'Middle', 'Omega'].map(query => selectProfileSectionsFromFileSync({
+    file,
+    filePath,
+    selector: {
+      headingQueries: [query],
+      requiredQueries: [query],
+      includePreamble: false,
+      includeDescendants: true,
+      maxBytes: 4096,
+      boundedOnly: true
+    },
+    maxScanBytes: 128 * 1024,
+    maxTotalSourceBytes: 256 * 1024
+  }).body).join('\n\n')
+  assert.strictEqual(segmented, selected.body,
+    'automatic multi-heading selection must be identity-equivalent to source-ordered segmented reads')
+
+  const bounded = selectProfileSectionsFromFileSync({
+    file,
+    filePath,
+    selector: { ...selector, maxBytes: 32 },
+    maxScanBytes: 128 * 1024,
+    maxTotalSourceBytes: 256 * 1024
+  })
+  assert.strictEqual(bounded.receipt.completion, 'partial')
+  assert.strictEqual(bounded.receipt.boundedOnly, true)
+  assert.notStrictEqual(bounded.receipt.completion, 'fallback-full')
+  assert(bounded.receipt.selectedBytes <= 32)
+  assert.doesNotMatch(bounded.body, /UNRELATED-BODY/)
+  assert(bounded.receipt.deferredSections.some(item => item.required))
 }
 
 function testProfileSectionSelectorsAndSkillPlan() {
@@ -2555,6 +3435,9 @@ function testProfileContextPlanContract() {
   assert.deepStrictEqual(planTool.inputSchema.required, ['intent'])
   assert.deepStrictEqual(planTool.inputSchema.properties.intent.enum, CONTEXT_READ_CONTRACT.intents)
   assert.deepStrictEqual(planTool.inputSchema.properties.explicitSkillId, { type: 'string', minLength: 1 })
+  assert.deepStrictEqual(planTool.inputSchema.properties.routeKey, { type: 'string', minLength: 1, maxLength: 128 })
+  assert.deepStrictEqual(planTool.inputSchema.properties.subtype, { type: 'string', minLength: 1, maxLength: 128 })
+  assert.deepStrictEqual(planTool.inputSchema.properties.stage, { type: 'string', minLength: 1, maxLength: 64 })
   assert(tools.some(tool => tool.name === 'profile_load'))
   assert(tools.some(tool => tool.name === 'profile_skill_plan'))
   assert(tools.some(tool => tool.name === 'profile_get_mode'))
@@ -2668,6 +3551,10 @@ function testProfileContextPlanContract() {
     expectedTurnBinding
   )
   assert.strictEqual(validateContextReadPlan(devPlan).valid, true)
+  assert.strictEqual(devPlan.workflowRoute.routeKey, 'dev.default')
+  assert.strictEqual(devPlan.workflowRoute.topIntent, 'dev')
+  assert.strictEqual(devPlan.workflowRoute.routeRevision, workflowRouteRegistryV2.routeRevision)
+  assert.strictEqual(devPlan.workflowRoute.routeRegistryDigest, workflowRouteRegistryV2.registryDigest)
   assert.deepStrictEqual(devPlan.profile.selectedFiles, ['01-项目信息.md', '02-架构约束.md', '03-代码风格.md'])
   assert.strictEqual(devPlan.planContentId, repeatedDevPlan.planContentId,
     'same content must keep a stable planContentId')
@@ -2676,6 +3563,81 @@ function testProfileContextPlanContract() {
   assert.strictEqual(devPlan.cacheDecision.status, 'miss')
   assert.strictEqual(repeatedDevPlan.cacheDecision.status, 'hit')
   assert.strictEqual(repeatedDevPlan.cacheDecision.bodyDeliverySkipped, false)
+
+  const changeTypesForRoute = route => {
+    if (['chat', 'resume'].includes(route.topIntent)) return []
+    if (['audit', 'analyze', 'other'].includes(route.topIntent)) return ['project-info']
+    return ['source-code']
+  }
+  const routeBaseId = 1000
+  const routeResponses = runServer('mcp/profile-server.js', [
+    ...workflowRouteRegistryV2.routes.map((route, index) => rpcRequest(routeBaseId + index, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: {
+        intent: route.topIntent,
+        changeTypes: changeTypesForRoute(route),
+        project: 'chat',
+        contextEpoch: `epoch-public-route-${index}`,
+        routeKey: route.routeKey,
+        subtype: route.subtype,
+        stage: route.stage
+      }
+    })),
+    rpcRequest(1100, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: {
+        intent: 'dev', changeTypes: ['source-code'], project: 'chat', contextEpoch: 'epoch-partial-route',
+        routeKey: 'dev.default'
+      }
+    }),
+    rpcRequest(1101, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: {
+        intent: 'audit', changeTypes: ['project-info'], project: 'chat', contextEpoch: 'epoch-route-intent-mismatch',
+        routeKey: 'dev.default', subtype: 'default', stage: 'entry'
+      }
+    }),
+    rpcRequest(1102, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: {
+        intent: 'dev', changeTypes: ['source-code'], project: 'chat', contextEpoch: 'epoch-route-subtype-mismatch',
+        routeKey: 'dev.default', subtype: 'docs', stage: 'entry'
+      }
+    }),
+    rpcRequest(1103, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: {
+        intent: 'dev', changeTypes: ['source-code'], project: 'chat', contextEpoch: 'epoch-route-stage-mismatch',
+        routeKey: 'dev.default', subtype: 'default', stage: 'internal-step'
+      }
+    })
+  ], projectRoot)
+  const publicRoutePlans = new Map()
+  for (const [index, route] of workflowRouteRegistryV2.routes.entries()) {
+    const result = resultById(routeResponses, routeBaseId + index)
+    assert.notStrictEqual(result.isError, true, `${route.routeKey} must be reachable through profile_context_plan JSON-RPC`)
+    const plan = toolJson(result)
+    const validation = validateContextReadPlan(plan)
+    assert.strictEqual(validation.valid, true, `${route.routeKey}: ${validation.errors.join(' | ')}`)
+    assert.strictEqual(plan.workflowRoute.routeKey, route.routeKey)
+    assert.strictEqual(plan.workflowRoute.topIntent, route.topIntent)
+    assert.strictEqual(plan.workflowRoute.subtype, route.subtype)
+    assert.strictEqual(plan.workflowRoute.stage, route.stage)
+    assert.strictEqual(plan.workflowRoute.routeRevision, workflowRouteRegistryV2.routeRevision)
+    assert.strictEqual(plan.workflowRoute.routeRegistryDigest, workflowRouteRegistryV2.registryDigest)
+    publicRoutePlans.set(route.routeKey, plan)
+  }
+  assert.strictEqual(publicRoutePlans.size, 24)
+  assert.notStrictEqual(
+    publicRoutePlans.get('dev.default').planContentId,
+    publicRoutePlans.get('dev.refactor').planContentId,
+    'route identity must partition profile_context_plan computation identity'
+  )
+  for (const id of [1100, 1101, 1102, 1103]) {
+    const result = resultById(routeResponses, id)
+    assert.strictEqual(result.isError, true)
+    assert.strictEqual(toolJson(result).errorCode, 'WORKFLOW_ROUTE_UNRESOLVED')
+  }
   const explicitBootstrapResult = resultById(responses, 6)
   const explicitBootstrapText = explicitBootstrapResult.content?.[1]?.text || ''
   assert.match(explicitBootstrapText, /^### DevCodex · SkillRouteBootstrapV1/m)
@@ -3920,6 +4882,12 @@ testProfileModeFallbackAgent()
 testProfileAgentUsesRuntimeBeforeProfileFallback()
 testMemoryDefaultAgent()
 testMemoryTaskResolveContract()
+testMemoryTaskAdmissionV2Contract()
+testMemoryWorkflowOperationalWriteLeaseContract()
+testMemorySimpleTaskFastPathLeaseContract()
+testMemoryTaskOwnerAndTerminalV1Contract()
+testMemoryServerOwnedTakeoverObservation()
+testMemoryCloseoutReconcileUsesTerminalOwnerRoute()
 testMemoryActualHostEnvAgent()
 testMemoryCpConfirmForBugs()
 testMemoryCpConfirmForExtendedTaskKinds()
@@ -3938,6 +4906,7 @@ testProfileLoadWithoutArguments()
 testContextReadBindingContract()
 testContextReadAuthorizationNegativePaths()
 testBoundedGovernedSourceReads()
+testProfileMultiHeadingBoundedSelection()
 testDevCodexBoundedRouteRecipe()
 testProfileSectionSelectorsAndSkillPlan()
 testProfileContextPlanContract()

@@ -1,5 +1,10 @@
 'use strict'
 
+const crypto = require('crypto')
+const fs = require('fs')
+
+const CANDIDATE_CLASSIFIER_VERSION = 'CandidateReviewClassifierV2'
+
 const PHASE_RULES = {
   CP1: {
     requiredFields: [
@@ -18,6 +23,30 @@ const PHASE_RULES = {
       'TDMatrix',
       'BlockerSnapshot',
       'ClaimEvidenceMatrix'
+    ]
+  },
+  CP3: {
+    requiredFields: [
+      'phaseKind',
+      'ImplementationPlanCandidateV1',
+      'TaskBreakdown',
+      'BatchStrategy',
+      'ValidationRoute',
+      'RollbackStrategy',
+      'CompletionDefinition',
+      'AuthorizationBoundary'
+    ]
+  },
+  ECR: {
+    requiredFields: [
+      'ExecutionClosureReviewV1',
+      'ReviewGradeCard',
+      'ReviewExecutionPlanV1',
+      'EvidenceLedger',
+      'ClosureState',
+      'OpenFindingsState',
+      'DirtyBoundary',
+      'ReleaseBoundary'
     ]
   }
 }
@@ -63,7 +92,7 @@ const MATRIX_CONTRACTS = {
 }
 
 const FIELD_PATTERNS = {
-  phaseKind: [/phaseKind\s*[:=]\s*CP[12]/i, /阶段类型\s*[:：]\s*CP[12]/, /phase\s*[:=]\s*CP[12]/i],
+  phaseKind: [/phaseKind\s*[:=]\s*CP[123]/i, /阶段类型\s*[:：]\s*CP[123]/, /phase\s*[:=]\s*CP[123]/i],
   CandidateReviewBundleV1: [/CandidateReviewBundleV1/i, /候选审查包/],
   RQMatrix: [/RQMatrix/i, /RQ-1\s*~\s*RQ-8/i, /需求审查矩阵/, /Requirement\s*Matrix/i],
   DomainRealityMatrix: [
@@ -76,7 +105,33 @@ const FIELD_PATTERNS = {
   ClaimEvidenceMatrix: [/ClaimEvidenceMatrix/i, /Claim\s*Evidence/i, /主张证据矩阵/, /主张-证据矩阵/],
   EscapeAbsorptionQueue: [/EscapeAbsorptionQueue/i, /遗漏吸纳队列/, /逃逸吸纳队列/, /外部发现吸纳队列/],
   TDMatrix: [/TDMatrix/i, /TD-1\s*~\s*TD-13/i, /技术方案审查矩阵/, /Technical\s*Design\s*Matrix/i],
-  BlockerSnapshot: [/BlockerSnapshot/i, /阻断快照/, /阻断项快照/, /Blocker\s*Aggregation/i]
+  BlockerSnapshot: [/BlockerSnapshot/i, /阻断快照/, /阻断项快照/, /Blocker\s*Aggregation/i],
+  ImplementationPlanCandidateV1: [
+    /documentKind\s*:\s*implementation-plan-candidate/i,
+    /ImplementationPlanCandidateV1/i,
+    /实施计划候选/
+  ],
+  TaskBreakdown: [/(?:^|\n)#{1,6}[^\n]*(?:任务分解|Task\s*Breakdown)/i],
+  BatchStrategy: [/(?:^|\n)#{1,6}[^\n]*(?:分批执行|批次策略|Batch\s*(?:Execution|Strategy))/i],
+  ValidationRoute: [/(?:^|\n)#{1,6}[^\n]*(?:验证路线|验证方式|独立验证|Validation\s*(?:Route|Plan|Strategy))/i],
+  RollbackStrategy: [/(?:^|\n)#{1,6}[^\n]*(?:风险[^\n]*回滚|回滚(?:策略|方案|触发)|Rollback)/i],
+  CompletionDefinition: [/(?:^|\n)#{1,6}[^\n]*(?:完成定义|完成条件|里程碑|Definition\s+of\s+Done|Completion)/i],
+  AuthorizationBoundary: [
+    /productImplementationAuthorized\s*:\s*(?:true|false)/i,
+    /(?:^|\n)#{1,6}[^\n]*(?:授权边界|执行边界|不在授权范围)/i
+  ],
+  ExecutionClosureReviewV1: [/(?:^|\n)#\s+[^\n]*(?:\bECR\b|执行闭环复审|Execution\s+Closure\s+Review)/i],
+  ReviewGradeCard: [/(?:^|\n)#{1,6}[^\n]*ReviewGradeCard\b/i, /复审等级卡/],
+  ReviewExecutionPlanV1: [/(?:^|\n)#{1,6}[^\n]*ReviewExecutionPlanV1\b/i],
+  EvidenceLedger: [/(?:^|\n)#{1,6}[^\n]*(?:evidenceLedger|证据台账|证据账本)/i],
+  ClosureState: [/(?:closureState|finalDecision|最终结论|复审结论)[`_*]{0,2}\s*(?:[:：|])/i],
+  OpenFindingsState: [
+    /(?:openBlockers|openFindings|openMaterialFindings)\s*(?:[:=|])/i,
+    /(?:blockers?|阻断项)\s*\/\s*(?:open\s+findings?|未结项)/i,
+    /(?:findings|blockers|missingEvidence)\s*=\s*\[\s*\]/i
+  ],
+  DirtyBoundary: [/dirty(?:\s+boundary|\s+entries|ScopeDigest)/i, /工作树边界/, /变更边界/],
+  ReleaseBoundary: [/(?:release|publish|tag|版本发布)[^\n]*(?:冻结|未执行|不得|none|false|N\/A)/i]
 }
 
 const STALE_PATTERNS = [
@@ -89,9 +144,9 @@ const STALE_PATTERNS = [
 ]
 
 const CONFIRMATION_PATTERNS = [
-  /确认\s*CP[12]/i,
-  /可确认\s*CP[12]/i,
-  /CP[12]\s*(?:confirmed|confirmation-ready)/i,
+  /确认\s*CP[123]/i,
+  /可确认\s*CP[123]/i,
+  /CP[123]\s*(?:confirmed|confirmation-ready)/i,
   /ConfirmBindingGate/i
 ]
 
@@ -122,7 +177,7 @@ function textOf(input) {
 }
 
 function phaseValue(value) {
-  return value && /^CP[12]$/i.test(String(value).trim())
+  return value && /^(?:CP[123]|ECR)$/i.test(String(value).trim())
     ? String(value).trim().toUpperCase()
     : null
 }
@@ -130,10 +185,10 @@ function phaseValue(value) {
 function markdownPhaseSources(text) {
   const sources = []
   const frontMatter = text.match(/^\uFEFF?---\s*\r?\n([\s\S]*?)\r?\n---(?:\s*\r?\n|$)/)
-  const frontMatterPhase = frontMatter?.[1]?.match(/^\s*(?:phaseKind|phase)\s*:\s*(CP[12])\s*$/im)?.[1]
+  const frontMatterPhase = frontMatter?.[1]?.match(/^\s*(?:phaseKind|phase)\s*:\s*(CP[123]|ECR)\s*$/im)?.[1]
   if (frontMatterPhase) sources.push({ source: 'front-matter', phase: frontMatterPhase.toUpperCase(), declared: true })
 
-  const documentPhase = text.match(/^\s*(?:phaseKind|phase)\s*[:=]\s*(CP[12])\s*$/im)?.[1]
+  const documentPhase = text.match(/^\s*(?:phaseKind|phase)\s*[:=]\s*(CP[123]|ECR)\s*$/im)?.[1]
   if (documentPhase && !frontMatterPhase) {
     sources.push({ source: 'document-field', phase: documentPhase.toUpperCase(), declared: true })
   }
@@ -141,14 +196,18 @@ function markdownPhaseSources(text) {
   const primaryHeading = text.match(/^\s*#\s+(.+)$/m)?.[1]
   const fallbackHeading = primaryHeading || text.match(/^\s*#{1,6}\s+(.+)$/m)?.[1]
   if (fallbackHeading) {
-    const explicit = fallbackHeading.match(/\b(CP[12])\b/i)?.[1]
+    const explicit = fallbackHeading.match(/\b(CP[123]|ECR)\b/i)?.[1]
     const inferred = explicit
       ? explicit.toUpperCase()
       : /需求确认|需求候选|requirement/i.test(fallbackHeading)
           ? 'CP1'
           : /技术方案|technical\s+design/i.test(fallbackHeading)
               ? 'CP2'
-              : null
+              : /实施计划|implementation\s+plan/i.test(fallbackHeading)
+                  ? 'CP3'
+                  : /\bECR\b|执行闭环复审|execution\s+closure\s+review/i.test(fallbackHeading)
+                      ? 'ECR'
+                      : null
     if (inferred) sources.push({ source: 'primary-heading', phase: inferred, declared: false })
   }
 
@@ -184,6 +243,10 @@ function phaseEvidence(input, options = {}) {
 
 function normalizePhase(input, options = {}) {
   return phaseEvidence(input, options).phase
+}
+
+function candidateClassifierRuleDigest() {
+  return crypto.createHash('sha256').update(fs.readFileSync(__filename)).digest('hex')
 }
 
 function findDeepEntry(value, key, seen = new WeakSet()) {
@@ -325,6 +388,23 @@ function captureOpenBlockers(value, format, issues, metadata) {
     return
   }
   metadata.openBlockers = Number(value)
+}
+
+function captureDocumentOpenBlockers(text, metadata) {
+  const values = []
+  const patterns = [
+    /(?:openBlockers|openFindings|openMaterialFindings)\s*(?:[:=]|\|)\s*`?([0-9]+)\b/gi,
+    /(?:blockers?|阻断项)\s*\/\s*(?:open\s+findings?|未结项)\s*\|\s*`?([0-9]+)\s*\/\s*([0-9]+)\b/gi
+  ]
+  for (const pattern of patterns) {
+    let match
+    while ((match = pattern.exec(text)) !== null) {
+      for (const value of match.slice(1)) {
+        if (value !== undefined) values.push(Number(value))
+      }
+    }
+  }
+  if (values.length && metadata.openBlockers == null) metadata.openBlockers = Math.max(...values)
 }
 
 function validateMarkdownMatrix(field, section, contract, issues, metadata) {
@@ -485,6 +565,7 @@ function validateCandidateReviewBundle(input, options = {}) {
       validateMarkdownMatrix(field, markdownSection(text, field), contract, issues, metadata)
     }
   }
+  captureDocumentOpenBlockers(text, metadata)
 
   return {
     phase,
@@ -537,6 +618,8 @@ function buildCandidateReviewBundleReceipt(input, options = {}) {
   return {
     schemaVersion: 'CandidateReviewBundleReceiptV1',
     gate: 'RequiredCandidateEvidenceGate',
+    classifierVersion: CANDIDATE_CLASSIFIER_VERSION,
+    classifierRuleDigest: candidateClassifierRuleDigest(),
     phase,
     phaseSources: validation.phaseInfo.sources,
     phaseConflicts: validation.phaseInfo.conflicts,
@@ -553,9 +636,11 @@ function buildCandidateReviewBundleReceipt(input, options = {}) {
 }
 
 module.exports = {
+  CANDIDATE_CLASSIFIER_VERSION,
   FIELD_PATTERNS,
   PHASE_RULES,
   buildCandidateReviewBundleReceipt,
+  candidateClassifierRuleDigest,
   classifyCandidateReviewBundle,
   missingCandidateReviewFields,
   normalizePhase,

@@ -1,5 +1,7 @@
 'use strict'
 
+const { extractMutationFootprint } = require('./mutation-footprint.cjs')
+
 const crypto = require('crypto')
 const {
   createCheckpointValidationSet,
@@ -276,36 +278,10 @@ function getToolCallId(payload) {
   ])
 }
 
-function collectArtifactPaths(value, keyPath = '', output = []) {
-  if (output.length >= 20 || value === null || value === undefined) return output
-  if (typeof value === 'string') {
-    const normalizedKeyPath = keyPath
-      .replace(/\[\d+\]/g, '')
-      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-      .toLowerCase()
-    const leaf = normalizedKeyPath.split('.').pop()
-    const text = value.trim()
-    const allowedLeaf = /^(?:file|files|file_path|file_paths|filepath|filepaths|path|paths|cwd|root|directory|directories|dir|dirs|uri|uris|url|urls)$/i.test(leaf)
-    const allowedValue = text && Buffer.byteLength(text, 'utf8') <= 2048 && !/^data:/i.test(text) && (
-      /^[a-z]:[\\/]/i.test(text) || /^\\\\/.test(text) || /^\//.test(text) || /^\.{0,2}[\\/]/.test(text) ||
-      /^(?:https?|artifact|memory|profile|skill):/i.test(text) || /[\\/]/.test(text)
-    )
-    const currentBytes = output.reduce((sum, item) => sum + Buffer.byteLength(item, 'utf8'), 0)
-    if (allowedLeaf && allowedValue && currentBytes + Buffer.byteLength(text, 'utf8') <= 16 * 1024) {
-      output.push(text)
-    }
-    return output
-  }
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => collectArtifactPaths(item, `${keyPath}[${index}]`, output))
-    return output
-  }
-  if (typeof value === 'object') {
-    for (const [key, item] of Object.entries(value)) {
-      collectArtifactPaths(item, keyPath ? `${keyPath}.${key}` : key, output)
-    }
-  }
-  return output
+function collectArtifactPaths(payload) {
+  const footprint = extractMutationFootprint(payload, { cwd: process.cwd() })
+  const raw = footprint.parseEvidence.map(item => item.raw).filter(Boolean)
+  return [...new Set(raw.length ? raw : footprint.normalizedTargets)].slice(0, 20)
 }
 
 function appendStateTrace(state, input, nowMs) {
@@ -373,6 +349,7 @@ function createTurnLivenessState(options = {}) {
     taskTraceLastError: null,
     executionAttemptLedger: createExecutionAttemptLedger(),
     previousExecutionAttemptLedger: null,
+    workflowTaskTerminal: null,
     thresholds: normalizeThresholds(options.thresholds),
     lastRecoveryCard: null,
     lastRecoveryNoticeKey: '',
@@ -396,7 +373,22 @@ function normalizeTurnLivenessState(raw, options = {}) {
         startedAt: String(raw.inFlightOperation.startedAt || ''),
         leaseExpiresAt: String(raw.inFlightOperation.leaseExpiresAt || ''),
         ownedByAgent: raw.inFlightOperation.ownedByAgent === true,
-        mutating: raw.inFlightOperation.mutating === true
+        mutating: raw.inFlightOperation.mutating === true,
+        targetPaths: Array.isArray(raw.inFlightOperation.targetPaths)
+          ? raw.inFlightOperation.targetPaths.slice(0, 20).map(String)
+          : [],
+        artifactDecision: raw.inFlightOperation.artifactDecision && typeof raw.inFlightOperation.artifactDecision === 'object'
+          ? JSON.parse(JSON.stringify(raw.inFlightOperation.artifactDecision))
+          : null,
+        mutationLease: raw.inFlightOperation.mutationLease && typeof raw.inFlightOperation.mutationLease === 'object'
+          ? JSON.parse(JSON.stringify(raw.inFlightOperation.mutationLease))
+          : null,
+        mutationFootprint: raw.inFlightOperation.mutationFootprint && typeof raw.inFlightOperation.mutationFootprint === 'object'
+          ? JSON.parse(JSON.stringify(raw.inFlightOperation.mutationFootprint))
+          : null,
+        mutationPreObservation: raw.inFlightOperation.mutationPreObservation && typeof raw.inFlightOperation.mutationPreObservation === 'object'
+          ? JSON.parse(JSON.stringify(raw.inFlightOperation.mutationPreObservation))
+          : null
       }
     : null
   return {
@@ -415,6 +407,9 @@ function normalizeTurnLivenessState(raw, options = {}) {
     executionAttemptLedger: normalizeExecutionAttemptLedger(raw.executionAttemptLedger),
     previousExecutionAttemptLedger: raw.previousExecutionAttemptLedger && typeof raw.previousExecutionAttemptLedger === 'object'
       ? normalizeExecutionAttemptLedger(raw.previousExecutionAttemptLedger)
+      : null,
+    workflowTaskTerminal: raw.workflowTaskTerminal && typeof raw.workflowTaskTerminal === 'object'
+      ? { ...raw.workflowTaskTerminal }
       : null,
     thresholds: normalizeThresholds(raw.thresholds),
     lastRecoveryCard: raw.lastRecoveryCard && typeof raw.lastRecoveryCard === 'object'
@@ -587,7 +582,8 @@ function startToolLease(raw, payload = {}, toolName = '', options = {}) {
   const nowMs = nowMsFrom(options)
   const state = normalizeTurnLivenessState(raw, { ...options, nowMs })
   const operationId = getToolCallId(payload) || stableId('tool', [state.turnKey, state.eventSequence, toolName])
-  const artifactPaths = [...new Set([...state.checkpoint.artifactPaths, ...collectArtifactPaths(payload)])].slice(0, 20)
+  const observedPaths = Array.isArray(options.targetPaths) ? options.targetPaths : collectArtifactPaths(payload)
+  const artifactPaths = [...new Set([...state.checkpoint.artifactPaths, ...observedPaths])].slice(0, 20)
   state.state = 'running'
   state.lastToolCallId = operationId
   state.inFlightOperation = {
@@ -596,7 +592,20 @@ function startToolLease(raw, payload = {}, toolName = '', options = {}) {
     startedAt: toIso(nowMs),
     leaseExpiresAt: toIso(nowMs + state.thresholds.operationLeaseMs),
     ownedByAgent: true,
-    mutating: options.mutating === true
+    mutating: options.mutating === true,
+    targetPaths: [...new Set(observedPaths)].slice(0, 20),
+    artifactDecision: options.artifactDecision && typeof options.artifactDecision === 'object'
+      ? JSON.parse(JSON.stringify(options.artifactDecision))
+      : null,
+    mutationLease: options.mutationLease && typeof options.mutationLease === 'object'
+      ? JSON.parse(JSON.stringify(options.mutationLease))
+      : null,
+    mutationFootprint: options.mutationFootprint && typeof options.mutationFootprint === 'object'
+      ? JSON.parse(JSON.stringify(options.mutationFootprint))
+      : null,
+    mutationPreObservation: options.mutationPreObservation && typeof options.mutationPreObservation === 'object'
+      ? JSON.parse(JSON.stringify(options.mutationPreObservation))
+      : null
   }
   state.checkpoint = {
     ...state.checkpoint,
@@ -699,6 +708,23 @@ function markTurnTerminal(raw, terminalState = 'completed', reason = '', options
   return state
 }
 
+/** Record a server-reconciled business-task terminal without changing turn liveness. */
+function applyWorkflowTaskTerminalReceipt(raw, receipt = {}, options = {}) {
+  const nowMs = nowMsFrom(options)
+  const state = normalizeTurnLivenessState(raw, { ...options, nowMs })
+  state.workflowTaskTerminal = {
+    schemaVersion: 'WorkflowTaskTerminalObservationV1',
+    taskId: String(receipt.taskId || '').trim().toLowerCase(),
+    admissionId: String(receipt.admissionId || '').trim(),
+    admissionGeneration: Number(receipt.admissionGeneration) || 0,
+    terminalStatus: String(receipt.terminalStatus || '').trim(),
+    terminalGeneration: Number(receipt.terminalGeneration) || 0,
+    receiptDigest: String(receipt.receiptDigest || '').trim().toLowerCase(),
+    observedAt: toIso(nowMs)
+  }
+  return state
+}
+
 function formatTurnRecoveryMessage(card) {
   if (!card) return ''
   return `[DevCodex TurnRecoveryCard ${card.noticeKey}] priorState=${card.priorState}; reason=${card.reason}; ` +
@@ -712,6 +738,7 @@ module.exports = {
   buildTurnRecoveryCard,
   classifyTurnLiveness,
   completeToolLease,
+  applyWorkflowTaskTerminalReceipt,
   createExecutionAttemptLedger,
   createTurnLivenessState,
   evaluateExecutionAttempt,

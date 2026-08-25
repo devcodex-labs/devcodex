@@ -17,6 +17,8 @@ const {
   classifyPathsForArtifacts,
   classifyReviewChecklistCompletion,
   classifyProcessArtifactCompleteness,
+  classifyImplementStartGate,
+  probeProcessTriad,
   simpleTaskForbidsPath,
   isStrictProtectedPath,
   ERROR_CODES
@@ -89,8 +91,9 @@ const stopSrc = fs.readFileSync(
   assert.strictEqual(simpleTaskForbidsPath('skills/cp-gate/SKILL.md'), true)
   assert.strictEqual(simpleTaskForbidsPath('src/feature.js'), false)
   assert.strictEqual(simpleTaskForbidsPath('.devcodex/devcodex/reports/x.md'), false)
-  assert.match(lifecycleSrc, /simpleTaskForbidsPath/)
-  assert.match(lifecycleSrc, /SIMPLE_TASK_PATH_FORBIDDEN|simpleTaskFastPath/)
+  assert.doesNotMatch(lifecycleSrc, /simpleTaskForbidsPath/)
+  assert.match(lifecycleSrc, /validateSimpleTaskFastPathLease/)
+  assert.match(lifecycleSrc, /simpleTaskFastPathAuthority/)
   console.log('E2E-04 PASS')
 }
 
@@ -265,6 +268,10 @@ const stopSrc = fs.readFileSync(
 // ── Wiring smoke (lifecycle consumes enforcement modules) ───────────────────
 {
   assert.match(lifecycleSrc, /process-enforcement\.js/)
+  assert.match(lifecycleSrc, /artifact-slot-decision\.cjs/)
+  assert.match(lifecycleSrc, /extractMutationFootprint/)
+  assert.match(lifecycleSrc, /decideArtifactMutation/)
+  assert.match(lifecycleSrc, /reason:\s*'mutation-preflight'/)
   assert.match(lifecycleSrc, /shouldHardDenyCpMutation/)
   assert.match(lifecycleSrc, /classifyPathsForArtifacts/)
   assert.match(stopSrc, /classifyReviewChecklistCompletion/)
@@ -300,6 +307,100 @@ const stopSrc = fs.readFileSync(
   })
   assert.strictEqual(complete.ok, true)
   console.log('PROCESS-PKG PASS')
+}
+
+// ── Layered registry consumer negatives: candidates/reports are not process truth ──
+{
+  const os = require('os')
+  const activeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-r3b-consumer-'))
+  const taskRoot = path.join(activeRoot, 'bugs', 'candidate-only')
+  const project = 'fixture-project'
+  try {
+    fs.mkdirSync(path.join(activeRoot, 'profile'), { recursive: true })
+    fs.writeFileSync(path.join(activeRoot, 'profile', 'artifact-slot-registry.overlay.v2.json'), JSON.stringify({
+      schemaVersion: 'ArtifactSlotRegistryOverlayV2',
+      contractVersion: '2',
+      project,
+      baseRegistryId: 'devcodex-shipped-base-v2',
+      constraints: { mayWidenProtected: false, allowedRootClasses: ['active-root', 'project-root', 'logical'] },
+      slotExtensions: [],
+      slots: [{
+        slotId: 'fixture-http-verification',
+        rootClass: 'active-root',
+        scope: 'task',
+        taskKinds: ['bugs'],
+        artifactClass: 'http-verification',
+        stage: 'verification',
+        relativePatterns: ['^verify\\.http$'],
+        alternativeGroup: null,
+        writePolicy: 'bounded-path',
+        owner: 'task-owner',
+        mutability: 'mutable',
+        protected: false,
+        destructivePolicy: 'forbid'
+      }]
+    }, null, 2))
+    fs.mkdirSync(taskRoot, { recursive: true })
+    for (const [name, body] of [
+      ['00-问题概况.md', '# overview\n'],
+      ['01-问题确认.md', '# cp1\n'],
+      ['02-修复方案-v1.5.0.md', '# candidate cp2\n'],
+      ['04-实施计划-v1.5.0.md', '# candidate cp3\n'],
+      ['05-实施进度.md', '# progress\n'],
+      ['03-复审清单.md', '# review\n']
+    ]) fs.writeFileSync(path.join(taskRoot, name), body)
+
+    const candidatePlan = classifyImplementStartGate({
+      controlPlaneMutation: true,
+      taskRoot,
+      fs,
+      activeRoot,
+      project
+    })
+    assert.strictEqual(candidatePlan.ok, false)
+    assert.strictEqual(candidatePlan.code, ERROR_CODES.IMPLEMENT_START_WITHOUT_PROCESS)
+    assert(candidatePlan.triad.candidatePaths.includes('04-实施计划-v1.5.0.md'))
+    assert(candidatePlan.missing.includes('04-实施计划'))
+
+    fs.writeFileSync(path.join(taskRoot, '04-实施计划.md'), '# canonical cp3\n')
+    const candidateDesign = classifyImplementStartGate({
+      controlPlaneMutation: true,
+      taskRoot,
+      fs,
+      activeRoot,
+      project
+    })
+    assert.strictEqual(candidateDesign.ok, false)
+    assert.strictEqual(candidateDesign.code, ERROR_CODES.IMPLEMENT_START_WITHOUT_DESIGN)
+    assert(candidateDesign.design.candidatePaths.includes('02-修复方案-v1.5.0.md'))
+    assert(candidateDesign.missing.includes('02-技术方案.md'))
+
+    fs.writeFileSync(path.join(taskRoot, '02-修复方案.md'), '# canonical cp2\n')
+    const canonical = classifyImplementStartGate({
+      controlPlaneMutation: true,
+      taskRoot,
+      fs,
+      activeRoot,
+      project
+    })
+    assert.strictEqual(canonical.ok, true, JSON.stringify(canonical))
+    assert.match(canonical.triad.mergedRegistryDigest, /^[a-f0-9]{64}$/)
+
+    const wrongProject = probeProcessTriad(taskRoot, fs, { activeRoot, project: 'wrong-project' })
+    assert.strictEqual(wrongProject.errorCode, 'ARTIFACT_SLOT_REGISTRY_OVERLAY_INVALID')
+    const wrongProjectGate = classifyImplementStartGate({
+      controlPlaneMutation: true,
+      taskRoot,
+      fs,
+      activeRoot,
+      project: 'wrong-project'
+    })
+    assert.strictEqual(wrongProjectGate.ok, false)
+    assert.strictEqual(wrongProjectGate.code, ERROR_CODES.ARTIFACT_REGISTRY_INVALID)
+    console.log('R3B-CONSUMER-NEGATIVE PASS')
+  } finally {
+    fs.rmSync(activeRoot, { recursive: true, force: true })
+  }
 }
 
 console.log('test-process-enforcement-e2e: all E2E-01～10 passed')

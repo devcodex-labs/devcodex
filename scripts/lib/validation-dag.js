@@ -2,7 +2,6 @@
 
 const fs = require('fs')
 const path = require('path')
-const crypto = require('crypto')
 const { execFileSync } = require('child_process')
 const { runChecked, CheckedCommandError } = require('./checked-command')
 const {
@@ -21,6 +20,10 @@ const {
   createVerificationIntent
 } = require('../../hooks/_runtime/workflow-completion-contract.cjs')
 const {
+  assertVerificationExecutionLease,
+  leaseBindingFromPlan
+} = require('./validation-execution-authority')
+const {
   NARRATIVE_MARKDOWN_EXCLUSIONS,
   assertNarrativeMarkdownPolicy,
   isNarrativeMarkdownPath,
@@ -30,9 +33,9 @@ const {
 
 const VALIDATION_MANIFEST_SCHEMA = 'ValidationManifestV1'
 const VALIDATION_NODE_SCHEMA = 'ValidationNodeV1'
-const VALIDATION_RECEIPT_SCHEMA = 'ValidationExecutionReceiptV2'
+const VALIDATION_RECEIPT_SCHEMA = 'ValidationExecutionReceiptV3'
 const VALIDATION_CACHE_SCHEMA = 'ValidationEvidenceV2'
-const VALIDATION_CONTRACT_VERSION = '1'
+const VALIDATION_CONTRACT_VERSION = '3'
 const VALIDATION_CACHE_MAX_BYTES = 256 * 1024 * 1024
 const VALIDATION_CACHE_MAX_ENTRIES = 8192
 const REQUIRED_ROUTES = ['fast', 'full', 'changed', 'delivery', 'boundary', 'profile-deploy', 'package-release']
@@ -53,7 +56,7 @@ const ROUTE_INTENT_DEFAULTS = Object.freeze({
   boundary: { level: 'V2', purpose: 'boundary' },
   'profile-deploy': { level: 'V2', purpose: 'boundary', boundaries: ['profile'] },
   'package-release': { level: 'V2', purpose: 'boundary', boundaries: ['package'] },
-  full: { level: 'V3', purpose: 'full-audit', explicitFullAudit: true }
+  full: { level: 'V3', purpose: 'full-audit' }
 })
 const BUDGET_CONFIRMATION_THRESHOLD_MS = 600000
 const HEAVY_NODE_TIMEOUT_MS = 300000
@@ -176,6 +179,38 @@ function planLockAwareSchedule(selectedNodes = []) {
     ...core,
     scheduleDigest: sha256(Buffer.from(stableStringify(core), 'utf8'))
   }
+}
+
+function classifyValidationSideEffects(manifest, selectedNodes = []) {
+  const categories = new Set()
+  const sideEffectNodeIds = []
+  const releaseConsumerNodeIds = []
+  for (const node of selectedNodes) {
+    const override = manifest.nodeVerificationPolicies?.overrides?.[node.id] || {}
+    const scopes = Array.isArray(node.writeScopes) ? node.writeScopes.map(String) : []
+    const descriptor = [node.id, node.owner, node.command, ...(node.args || []), ...scopes]
+      .join(' ')
+      .toLowerCase()
+    const nodeCategories = new Set()
+    if (scopes.length > 0) nodeCategories.add('managed-write')
+    if (override.consumerEdgeType === 'releaseConsumer') {
+      nodeCategories.add('release')
+      releaseConsumerNodeIds.push(node.id)
+    }
+    if (/(?:^|[^a-z])pack(?:age)?(?:[^a-z]|$)/.test(descriptor)) nodeCategories.add('package')
+    if (/(?:^|[^a-z])install(?:ation)?(?:[^a-z]|$)/.test(descriptor)) nodeCategories.add('install')
+    if (/(?:^|[^a-z])deploy(?:ment)?(?:[^a-z]|$)/.test(descriptor)) nodeCategories.add('deploy')
+    if (/global[-_/ ]?host/.test(descriptor)) nodeCategories.add('global-host')
+    if (String(node.command || '').toLowerCase() === 'git') nodeCategories.add('shared-git')
+    if (nodeCategories.size > 0) sideEffectNodeIds.push(node.id)
+    for (const category of nodeCategories) categories.add(category)
+  }
+  return Object.freeze({
+    schemaVersion: 'ValidationSideEffectProjectionV1',
+    sideEffectCategories: [...categories].sort(),
+    sideEffectNodeIds: [...new Set(sideEffectNodeIds)].sort(),
+    releaseConsumerNodeIds: [...new Set(releaseConsumerNodeIds)].sort()
+  })
 }
 
 /**
@@ -638,6 +673,12 @@ function nodeMinimumLevel(manifest, nodeId) {
   return 'V0'
 }
 
+function nodeEligibleForImpact(manifest, nodeId, verificationLevel) {
+  const policy = manifest.nodeVerificationPolicies?.overrides?.[nodeId]
+  if (policy?.consumerEdgeType === 'releaseConsumer' && verificationLevel !== 'V3') return false
+  return LEVEL_RANK[nodeMinimumLevel(manifest, nodeId)] <= LEVEL_RANK[verificationLevel]
+}
+
 function addConsumers(ids, byId, options = {}) {
   const selected = new Set(ids)
   const queue = [...selected]
@@ -717,7 +758,7 @@ function buildValidationImpactGraph({ manifest, changedFiles = [], changeDescrip
   const byId = new Map(manifest.nodes.map(node => [node.id, node]))
   const semanticPackageNodes = new Set(manifest.semanticInputs?.packageJson?.publicMetadataNodes || [])
   const eligibleNodes = manifest.nodes.filter(node =>
-    LEVEL_RANK[nodeMinimumLevel(manifest, node.id)] <= LEVEL_RANK[verificationLevel])
+    nodeEligibleForImpact(manifest, node.id, verificationLevel))
   const eligibleNodeIds = new Set(eligibleNodes.map(node => node.id))
   const matchedNodeIds = eligibleNodes.filter(node =>
     executableInputs.some(file => {
@@ -836,7 +877,9 @@ function toValidationPlanV1(plan) {
 function planValidation({ manifest, route = 'changed', changedFiles = [], changeDescriptors = [], changedSource = 'explicit',
   riskClass = 'normal', candidateStable = true, candidateId = null, purpose = null, level = null,
   affectedBoundaries = [], releaseAuthorized = false, explicitFullAudit = false,
-  authoritySource = null, approvePlanDigest = null }) {
+  authoritySource = null, requesterClass = 'human-cli', requestSourceRef = null,
+  project = 'devcodex', taskRecoveryKey = null, contextEpoch = null,
+  approvePlanDigest = null }) {
   validateValidationManifest(manifest)
   if (!REQUIRED_ROUTES.includes(route)) {
     throw new ValidationDagError('VALIDATION_ROUTE_UNKNOWN', 'unknown route: ' + route)
@@ -861,7 +904,7 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
   const requestedPurpose = purpose || defaults.purpose
   const noJsRouteEligible = narrativeOnly && ['fast', 'changed', 'delivery'].includes(route) &&
     LEVEL_RANK[requestedLevel] <= LEVEL_RANK.V1 && ['edit-loop', 'delivery'].includes(requestedPurpose) &&
-    explicitFullAudit !== true && releaseAuthorized !== true
+    route !== 'full' && requestedPurpose !== 'release'
   const descriptorByPath = new Map(normalizedDescriptors.map(descriptor => [descriptor.path, descriptor]))
   const derivedBoundaries = deriveAffectedBoundaries({
     manifest,
@@ -892,30 +935,16 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
 
   let verificationLevel = level || defaults.level
   let verificationPurpose = purpose || defaults.purpose
-  let fullAuditAuthority = explicitFullAudit === true || defaults.explicitFullAudit === true
   if (verificationPurpose === 'release') verificationLevel = 'V3'
-  if (fullAuditAuthority && purpose === null) verificationPurpose = 'full-audit'
-  if (fullAuditAuthority) verificationLevel = 'V3'
+  if (explicitFullAudit === true && purpose === null) verificationPurpose = 'full-audit'
+  if (explicitFullAudit === true) verificationLevel = 'V3'
   if (LEVEL_RANK[verificationLevel] < LEVEL_RANK[defaults.level]) {
     throw new ValidationDagError('VALIDATION_LEVEL_ROUTE_CONFLICT', `${route} requires at least ${defaults.level}`)
   }
   if (boundaryExpansionRequired && LEVEL_RANK[verificationLevel] < LEVEL_RANK.V2) verificationLevel = 'V2'
-  if (verificationLevel === 'V3' && !fullAuditAuthority && verificationPurpose !== 'release') {
-    throw new ValidationDagError('VALIDATION_V3_AUTHORITY_REQUIRED', 'V3 requires --full-audit or the explicit full route')
+  if (verificationLevel === 'V3' && !['full-audit', 'release'].includes(verificationPurpose)) {
+    throw new ValidationDagError('VALIDATION_V3_PURPOSE_REQUIRED', 'V3 requests must declare full-audit or release purpose')
   }
-  if (verificationPurpose === 'release' && releaseAuthorized !== true) {
-    throw new ValidationDagError('VALIDATION_RELEASE_AUTHORIZATION_REQUIRED', 'release purpose requires explicit release authorization')
-  }
-
-  const verificationIntent = createVerificationIntent({
-    level: verificationLevel,
-    purpose: verificationPurpose,
-    affectedBoundaries: boundaryIds,
-    riskClass,
-    releaseAuthorized: releaseAuthorized === true,
-    explicitFullAudit: fullAuditAuthority,
-    authoritySource: authoritySource || `route:${route}`
-  })
   const iterativeInvariantIds = manifest.iterativeInvariantNodes || manifest.invariantNodes
   const invariantIds = verificationLevel === 'V3'
     ? manifest.invariantNodes
@@ -992,9 +1021,35 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
   const selectedNodes = ordered.filter(node => selected.has(node.id))
   const nestedCommandGraph = buildNestedCommandGraph({ nodes: selectedNodes })
   const executionSchedule = planLockAwareSchedule(selectedNodes)
+  const effectiveCandidateId = candidateId || `validation-candidate-unbound-${sha256(Buffer.from(stableStringify({
+    project,
+    changedFiles: normalizedChanged,
+    changedSource
+  }), 'utf8'))}`
+  const changedScopeDigest = sha256(Buffer.from(stableStringify({
+    project,
+    candidateId: effectiveCandidateId,
+    changedSource,
+    changedFiles: normalizedChanged,
+    changeDescriptors: normalizedDescriptors,
+    affectedBoundaries: boundaryIds
+  }), 'utf8'))
+  const verificationIntent = createVerificationIntent({
+    requesterClass,
+    requestedLevel: verificationLevel,
+    requestedPurpose: verificationPurpose,
+    affectedBoundaries: boundaryIds,
+    riskClass,
+    requestSourceRef: requestSourceRef || authoritySource || `route:${route}`,
+    project,
+    taskRecoveryKey,
+    contextEpoch,
+    candidateId: effectiveCandidateId,
+    changedScopeDigest
+  })
   const skipped = ordered.filter(node => !selected.has(node.id)).map(node => ({
     nodeId: node.id,
-    authority: `VerificationIntentV1:${verificationIntent.intentDigest}`,
+    authority: `VerificationIntentV2:${verificationIntent.requestDigest}`,
     reason: `not selected by ${verificationLevel} ${routeResolved} scope`,
     residualRisk: verificationIntent.claimCeiling,
     upgradeCondition: 'changed input, typed consumer edge, affected boundary, explicit audit, or release authority changes'
@@ -1037,6 +1092,8 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     ? 'high'
     : (explicitEstimateCount > 0 ? 'medium' : 'low')
   const logBudgetBytes = selectedNodes.length * LOG_SUMMARY_BUDGET_BYTES_PER_NODE
+  const sideEffects = classifyValidationSideEffects(manifest, selectedNodes)
+  const selectedNodeIds = selectedNodes.map(node => node.id).sort()
   const javascriptCommandCount = selectedNodes.filter(node =>
     /^(?:node|npm|npx|pnpm|yarn)(?:\.cmd|\.exe)?$/i.test(String(node.command || ''))).length
   const budget = {
@@ -1051,11 +1108,14 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     defaultEstimateCount: selectedNodes.length - explicitEstimateCount,
     hardTimeoutUpperBoundMs,
     logBudgetBytes,
-    heavyNodeIds
+    heavyNodeIds,
+    sideEffectCategories: sideEffects.sideEffectCategories,
+    sideEffectNodeIds: sideEffects.sideEffectNodeIds,
+    releaseConsumerNodeIds: sideEffects.releaseConsumerNodeIds
   }
   const planCore = {
-    schemaVersion: 'ValidationPlanV2',
-    contractVersion: '2',
+    schemaVersion: 'ValidationPlanV3',
+    contractVersion: '3',
     manifestIdentity: manifestIdentity(manifest),
     routeRequested: route,
     routeResolved,
@@ -1064,9 +1124,10 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     verificationLevel,
     verificationPurpose,
     affectedBoundaries: boundaryIds,
-    authorizationDigest: verificationIntent.authorizationDigest,
+    requestDigest: verificationIntent.requestDigest,
+    changedScopeDigest,
     claimCeiling: verificationIntent.claimCeiling,
-    candidateId,
+    candidateId: effectiveCandidateId,
     candidateStable,
     changedSource,
     changedFiles: normalizedChanged,
@@ -1099,9 +1160,10 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     requiredNodeMisses: executionBlockers.length
   }
   const planDigest = sha256(Buffer.from(stableStringify(planCore), 'utf8'))
-  const budgetApprovalRequired = verificationLevel !== 'V3' &&
-    (estimatedDurationMs > BUDGET_CONFIRMATION_THRESHOLD_MS || heavyNodeIds.length > 0)
+  const budgetApprovalRequired = verificationLevel === 'V3' ||
+    estimatedDurationMs > BUDGET_CONFIRMATION_THRESHOLD_MS || heavyNodeIds.length > 0
   const waitReasons = []
+  if (verificationLevel === 'V3') waitReasons.push('v3-qualification-scope')
   if (estimatedDurationMs > BUDGET_CONFIRMATION_THRESHOLD_MS) waitReasons.push('estimated-duration-exceeds-threshold')
   if (heavyNodeIds.length > 0) waitReasons.push('heavy-node-selected')
   const budgetDigest = sha256(Buffer.from(stableStringify({
@@ -1112,6 +1174,11 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     hardTimeoutUpperBoundMs,
     logBudgetBytes,
     heavyNodeIds,
+    sideEffectCategories: sideEffects.sideEffectCategories,
+    sideEffectNodeIds: sideEffects.sideEffectNodeIds,
+    releaseConsumerNodeIds: sideEffects.releaseConsumerNodeIds,
+    selectedNodeIds,
+    affectedBoundaries: boundaryIds,
     waitReasons,
     thresholdMs: BUDGET_CONFIRMATION_THRESHOLD_MS
   }), 'utf8'))
@@ -1127,6 +1194,11 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     logBudgetBytes,
     thresholdMs: BUDGET_CONFIRMATION_THRESHOLD_MS,
     heavyNodeIds,
+    sideEffectCategories: sideEffects.sideEffectCategories,
+    sideEffectNodeIds: sideEffects.sideEffectNodeIds,
+    releaseConsumerNodeIds: sideEffects.releaseConsumerNodeIds,
+    selectedNodeIds,
+    affectedBoundaries: boundaryIds,
     waitReasons,
     confirmationRequired: budgetApprovalRequired,
     status: budgetApprovalRequired
@@ -1138,7 +1210,9 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
   }
   const executionState = executionBlockers.length > 0
     ? 'blocked'
-    : (budgetApproved ? 'ready' : 'awaiting-confirmation')
+    : (budgetApproved
+        ? (selectedNodes.length === 0 ? 'ready' : 'awaiting-authority')
+        : 'awaiting-budget')
   const plan = { ...planCore, planDigest, budgetCard, executionState }
   return { ...plan, compatibilityProjection: toValidationPlanV1(plan) }
 }
@@ -1441,36 +1515,16 @@ function writeNodeCache({ activeRoot, descriptor, nodeEvidence, maxCacheBytes = 
   return store.write(value)
 }
 
-function persistReceipt(activeRoot, receipt, maxCacheBytes = VALIDATION_CACHE_MAX_BYTES) {
-  const evidenceRoot = path.join(resolveRuntimeStateRoot(activeRoot).root, 'validation-evidence', 'v2')
-  const relativePath = path.join('validation-evidence', 'v2', 'receipts', receipt.runId + '.json')
-  const receiptText = stableStringify(receipt)
-  const receiptIdentity = buildContentIdentity({
-    sourceKey: 'validation-receipt/' + receipt.runId,
-    content: receiptText,
-    contractVersion: VALIDATION_CONTRACT_VERSION
-  })
-  const persistedValue = { ...receipt, receiptIdentity }
-  const usage = directoryUsage(evidenceRoot)
-  const pendingBytes = Buffer.byteLength(JSON.stringify(persistedValue, null, 2) + '\n')
-  if (!usage.bounded || usage.bytes + pendingBytes > maxCacheBytes) {
-    return { status: 'bypassed', errorCode: 'VALIDATION_CACHE_CAPACITY_REACHED', usage, pendingBytes }
-  }
-  const store = createRuntimeStateStore({
-    activeRoot,
-    relativePath,
-    maxBytes: 4 * 1024 * 1024,
-    maxWrites: 1,
-    identityField: 'receiptIdentity'
-  })
-  return store.write(persistedValue)
-}
-
 function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot, useCache = true,
+  lease, project = plan?.verificationIntent?.project || 'devcodex',
+  actorType = null,
+  taskRecoveryKey = plan?.verificationIntent?.taskRecoveryKey || null,
+  contextEpoch = plan?.verificationIntent?.contextEpoch || null,
+  revocationEpoch = 0, getCurrentLease = null,
   runCommand = null, onNode = null, maxCacheBytes = VALIDATION_CACHE_MAX_BYTES }) {
   assertExecutablePlanBinding({ manifest, plan, candidate })
-  if (plan.executionState && plan.executionState !== 'ready') {
-    const code = plan.executionState === 'awaiting-confirmation'
+  if (['blocked', 'awaiting-budget'].includes(plan.executionState)) {
+    const code = plan.executionState === 'awaiting-budget'
       ? 'VALIDATION_BUDGET_APPROVAL_REQUIRED'
       : 'VALIDATION_PLAN_BLOCKED'
     const next = plan.budgetCard?.nextStep || plan.executionBlockers?.map(item => item.code).join(',') || 'resolve blockers'
@@ -1481,9 +1535,21 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
       budgetCard: plan.budgetCard || null
     })
   }
+  const leaseBinding = leaseBindingFromPlan({
+    plan,
+    candidate,
+    project,
+    repoRoot,
+    taskRecoveryKey,
+    contextEpoch,
+    revocationEpoch,
+    actorType,
+    lease
+  })
+  assertVerificationExecutionLease(lease, leaseBinding)
   const startedAtMs = Date.now()
   const startedAt = new Date(startedAtMs).toISOString()
-  const runId = 'validation-' + startedAt.replace(/[-:.TZ]/g, '') + '-' + crypto.randomBytes(4).toString('hex')
+  const runId = lease.runId
   const manifestIdentityValue = manifestIdentity(manifest)
   const effectivePlan = plan
   const results = []
@@ -1512,6 +1578,10 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
   const seenCommandSignatures = new Map()
 
   for (let index = 0; index < executionNodes.length; index += 1) {
+    assertVerificationExecutionLease(
+      typeof getCurrentLease === 'function' ? getCurrentLease() : lease,
+      leaseBinding
+    )
     const node = executionNodes[index]
     const declaredDelegates = new Set((node.delegatedClosure || []).map(entry => entry.nodeId))
     const delegatedNodeIds = executionNodes
@@ -1691,6 +1761,8 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     schemaVersion: VALIDATION_RECEIPT_SCHEMA,
     contractVersion: VALIDATION_CONTRACT_VERSION,
     runId,
+    runIdentity: lease.runIdentity,
+    runIdentityDigest: lease.runIdentityDigest,
     candidateId: candidate.candidateId,
     candidateStable: candidate.stable,
     candidateIdentity: {
@@ -1711,9 +1783,13 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     verificationLevel: effectivePlan.verificationLevel || null,
     verificationPurpose: effectivePlan.verificationPurpose || null,
     affectedBoundaries: effectivePlan.affectedBoundaries || [],
-    authorizationDigest: effectivePlan.authorizationDigest || null,
-    claimCeiling: effectivePlan.claimCeiling || null,
-    executionState: effectivePlan.executionState || 'ready',
+    requestDigest: effectivePlan.requestDigest || null,
+    authorityDigest: lease.authorityDigest,
+    authorityActorType: lease.actorType,
+    authorityClass: lease.authorityClass,
+    claimCeiling: failedNode ? 'non-qualifying' : (effectivePlan.claimCeiling || null),
+    terminalStatus: failedNode ? 'failed' : 'completed',
+    executionState: failedNode ? 'failed' : 'completed',
     validationLayer: effectivePlan.validationLayer,
     changedSource: effectivePlan.changedSource,
     changedFiles: effectivePlan.changedFiles,
@@ -1766,7 +1842,7 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
   }
   const receiptId = 'validation-receipt-' + sha256(Buffer.from(stableStringify(semanticReceipt), 'utf8'))
   const receipt = { ...semanticReceipt, receiptId }
-  const persistence = persistReceipt(activeRoot, receipt, maxCacheBytes)
+  const persistence = { status: 'deferred', reasonCode: 'managed-runner-terminal-owner' }
   return { receipt, persistence }
 }
 
@@ -1789,6 +1865,7 @@ module.exports = {
   buildValidationImpactGraph,
   cacheDescriptor,
   cacheRelativePath,
+  classifyValidationSideEffects,
   commandSignature,
   directoryUsage,
   deriveAffectedBoundaries,

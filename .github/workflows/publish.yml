@@ -43,11 +43,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PLAN_DIGEST="$(
-            node scripts/run-validation.js --route package-release --plan --json |
-              node -e 'const fs = require("fs"); const envelope = JSON.parse(fs.readFileSync(0, "utf8")); const plan = envelope?.data?.plan; const digest = plan?.budgetCard?.digest; if (envelope?.ok !== true || plan?.routeResolved !== "package-release" || plan?.candidateStable !== true || !/^[a-f0-9]{64}$/.test(String(digest || ""))) process.exit(1); process.stdout.write(digest)'
+          AUTHORITY_SOURCE="github-actions:${GITHUB_WORKFLOW}:${GITHUB_EVENT_NAME}:${GITHUB_REPOSITORY}:${GITHUB_REF}:${GITHUB_SHA}"
+          POLICY_DIGEST="$(node -e 'const {sha256}=require("./hooks/_runtime/content-identity.cjs"); process.stdout.write(sha256(JSON.stringify({workflow:process.env.GITHUB_WORKFLOW,event:process.env.GITHUB_EVENT_NAME,repository:process.env.GITHUB_REPOSITORY,ref:process.env.GITHUB_REF,commit:process.env.GITHUB_SHA,purpose:"release"})))')"
+          BUDGET_DIGEST="$(
+            node scripts/run-validation.js --route package-release --purpose release --actor release-pipeline --authority-source "${AUTHORITY_SOURCE}" --policy-digest "${POLICY_DIGEST}" --plan --json |
+              node -e 'const fs = require("fs"); const envelope = JSON.parse(fs.readFileSync(0, "utf8")); const plan = envelope?.data?.plan; const digest = plan?.budgetCard?.digest; if (envelope?.ok !== true || plan?.routeResolved !== "full" || plan?.verificationPurpose !== "release" || plan?.candidateStable !== true || !/^[a-f0-9]{64}$/.test(String(digest || ""))) process.exit(1); process.stdout.write(digest)'
           )"
-          node scripts/run-validation.js --route package-release --approve-plan "${PLAN_DIGEST}"
+          node scripts/run-validation.js --route package-release --purpose release --actor release-pipeline --authority-source "${AUTHORITY_SOURCE}" --policy-digest "${POLICY_DIGEST}" --approve-plan "${BUDGET_DIGEST}"
 
       - name: Preview package contents
         run: npm pack --dry-run

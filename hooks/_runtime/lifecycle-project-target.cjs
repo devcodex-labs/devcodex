@@ -1,6 +1,7 @@
 'use strict'
 
 const crypto = require('crypto')
+const { digestSessionRef } = require('./workspace-session-route-index-v1.cjs')
 
 function buildLifecycleProjectTargetUtils({
   fs,
@@ -246,11 +247,15 @@ function buildLifecycleProjectTargetUtils({
     const layoutIdentity = currentLayoutIdentity()
     const physicalRoot = path.resolve(resolved.projectRoot)
     const activeRoot = path.resolve(resolved.runtimeRoot)
-    const targetDigest = digestIdentity({
+    const rootIdentityDigest = digestIdentity({
       project: resolved.namespace,
       physicalRoot: normalizedIdentityPath(physicalRoot),
       activeRoot: normalizedIdentityPath(activeRoot),
       physicalMarker
+    })
+    const targetDigest = digestIdentity({
+      rootIdentityDigest,
+      layoutIdentity
     })
     return {
       project: resolved.namespace,
@@ -258,11 +263,64 @@ function buildLifecycleProjectTargetUtils({
       activeRoot,
       physicalMarker,
       layoutIdentity,
+      rootIdentityDigest,
       targetDigest
     }
   }
 
-  function validateStickyProjectLease(previousState) {
+  function projectLeaseAuthority(previousState, payload = {}) {
+    const sessionRef = getPayloadSessionKey(payload) ||
+      String(previousState?.contextAcquisition?.hostSessionId || '').trim()
+    const turnRef = String(previousState?.turnLiveness?.turnKey || '').trim()
+    const authorityKind = sessionRef ? 'session' : 'turn'
+    const authorityRef = sessionRef || turnRef
+    return {
+      authorityKind,
+      authorityRef,
+      authorityDigest: authorityRef ? digestSessionRef(authorityRef) : ''
+    }
+  }
+
+  function projectLeaseContext(previousState) {
+    const acquisition = previousState?.contextAcquisition || {}
+    const contextEpoch = String(acquisition.contextEpoch || 'pending').trim()
+    const routeRevision = String(
+      previousState?.workflowRouteDecision?.routeRevision ||
+      previousState?.workflowRoutePlanBinding?.routeRevision ||
+      'pending'
+    ).trim()
+    const explicitBindingDigest = String(previousState?.workflowRoutePlanBinding?.bindingDigest || '').trim()
+    const contextBindingDigest = explicitBindingDigest || digestIdentity({
+      contextEpoch,
+      activeRoot: acquisition.activeRoot ? normalizedIdentityPath(acquisition.activeRoot) : '',
+      project: String(acquisition.project || previousState?.activeProject || '').trim(),
+      planId: String(acquisition.plan?.planId || acquisition.handoff?.planId || '').trim(),
+      planContentId: String(acquisition.plan?.planContentId || acquisition.handoff?.planContentId || '').trim()
+    })
+    return { contextEpoch, contextBindingDigest, routeRevision }
+  }
+
+  function projectLeaseDigestCore(lease) {
+    return {
+      schemaVersion: 'ProjectTargetLeaseV2',
+      project: lease.project,
+      targetDigest: lease.targetDigest,
+      rootIdentityDigest: lease.rootIdentityDigest,
+      layoutIdentity: lease.layoutIdentity,
+      physicalRoot: normalizedIdentityPath(lease.physicalRoot),
+      activeRoot: normalizedIdentityPath(lease.activeRoot),
+      authorityKind: lease.authorityKind,
+      authorityDigest: lease.authorityDigest,
+      contextEpoch: lease.contextEpoch,
+      contextBindingDigest: lease.contextBindingDigest,
+      routeRevision: lease.routeRevision,
+      revocationEpoch: lease.revocationEpoch,
+      issuedAtMs: lease.issuedAtMs,
+      expiresAtMs: lease.expiresAtMs
+    }
+  }
+
+  function validateStickyProjectLease(previousState, payload = {}) {
     const sticky = previousState?.stickyProject || {}
     const project = String(sticky.project || '').trim()
     if (!project) return { valid: false, reason: 'missing-project', lease: null }
@@ -278,8 +336,9 @@ function buildLifecycleProjectTargetUtils({
       return { valid: false, reason: error?.code || 'target-unresolved', lease: null }
     }
     if (!identity) return { valid: false, reason: 'physical-marker-missing', lease: null }
-    if (sticky.schemaVersion === 'ProjectTargetLeaseV1') {
+    if (sticky.schemaVersion === 'ProjectTargetLeaseV2') {
       if (sticky.targetDigest !== identity.targetDigest) return { valid: false, reason: 'target-drift', lease: null }
+      if (sticky.rootIdentityDigest !== identity.rootIdentityDigest) return { valid: false, reason: 'root-identity-drift', lease: null }
       if (sticky.layoutIdentity !== identity.layoutIdentity) return { valid: false, reason: 'layout-drift', lease: null }
       if (normalizedIdentityPath(sticky.physicalRoot || '') !== normalizedIdentityPath(identity.physicalRoot)) {
         return { valid: false, reason: 'physical-root-drift', lease: null }
@@ -287,17 +346,41 @@ function buildLifecycleProjectTargetUtils({
       if (normalizedIdentityPath(sticky.activeRoot || '') !== normalizedIdentityPath(identity.activeRoot)) {
         return { valid: false, reason: 'active-root-drift', lease: null }
       }
+      const authority = projectLeaseAuthority(previousState, payload)
+      if (!authority.authorityDigest) return { valid: false, reason: 'authority-unavailable', lease: null }
+      if (sticky.authorityKind !== authority.authorityKind || sticky.authorityDigest !== authority.authorityDigest) {
+        return { valid: false, reason: 'session-or-turn-drift', lease: null }
+      }
+      const context = projectLeaseContext(previousState)
+      if (sticky.contextEpoch !== context.contextEpoch) return { valid: false, reason: 'context-epoch-drift', lease: null }
+      if (sticky.contextBindingDigest !== context.contextBindingDigest) return { valid: false, reason: 'context-binding-drift', lease: null }
+      if (sticky.routeRevision !== context.routeRevision) return { valid: false, reason: 'route-revision-drift', lease: null }
+      const expectedLeaseDigest = digestIdentity(projectLeaseDigestCore({ ...sticky, ...identity }))
+      if (sticky.leaseDigest !== expectedLeaseDigest) return { valid: false, reason: 'lease-digest-mismatch', lease: null }
+    } else if (sticky.schemaVersion === 'ProjectTargetLeaseV1') {
+      if (sticky.targetDigest !== identity.targetDigest && sticky.targetDigest !== identity.rootIdentityDigest) {
+        return { valid: false, reason: 'target-drift', lease: null }
+      }
+      if (sticky.layoutIdentity !== identity.layoutIdentity) return { valid: false, reason: 'layout-drift', lease: null }
+      const currentSession = getPayloadSessionKey(payload) ||
+        String(previousState?.contextAcquisition?.hostSessionId || '').trim()
+      if (!currentSession || !String(sticky.sessionKey || '').trim() || currentSession !== String(sticky.sessionKey).trim()) {
+        return { valid: false, reason: 'legacy-session-unbound', lease: null }
+      }
+    } else {
+      return { valid: false, reason: 'lease-schema-unsupported', lease: null }
     }
     return {
       valid: true,
-      reason: sticky.schemaVersion === 'ProjectTargetLeaseV1' ? '' : 'legacy-revalidated',
+      reason: sticky.schemaVersion === 'ProjectTargetLeaseV2' ? '' : 'legacy-revalidated',
       lease: { ...sticky, ...identity, project: identity.project, expiresAtMs }
     }
   }
 
   function getValidStickyProject(previousState, payload) {
-    const validation = validateStickyProjectLease(previousState)
+    const validation = validateStickyProjectLease(previousState, payload)
     if (!validation.valid) return null
+    if (validation.lease.authorityKind === 'turn' && !getPayloadSessionKey(payload)) return null
     return {
       project: validation.lease.project,
       source: validation.lease.source || 'sticky',
@@ -317,31 +400,62 @@ function buildLifecycleProjectTargetUtils({
     }
     const validatedAtMs = Date.now()
     const expiresAtMs = validatedAtMs + STICKY_PROJECT_TTL_MS
-    const observedSessionRef = getPayloadSessionKey(payload)
+    const authority = projectLeaseAuthority(state, payload)
+    if (!authority.authorityDigest) {
+      clearStickyProject(state, 'authority-unavailable')
+      return
+    }
+    const context = projectLeaseContext(state)
     const originalSource = source === 'sticky'
       ? (state?.stickyProject?.source || 'sticky')
       : (source || 'unknown')
-    state.stickyProject = {
-      schemaVersion: 'ProjectTargetLeaseV1',
-      leaseId: `project-target-lease-${digestIdentity({
-        targetDigest: identity.targetDigest,
-        layoutIdentity: identity.layoutIdentity,
-        validatedAtMs
-      }).slice(0, 24)}`,
+    const previous = state?.stickyProject || {}
+    const sameBinding = previous.schemaVersion === 'ProjectTargetLeaseV2' &&
+      previous.targetDigest === identity.targetDigest &&
+      previous.rootIdentityDigest === identity.rootIdentityDigest &&
+      previous.layoutIdentity === identity.layoutIdentity &&
+      previous.authorityKind === authority.authorityKind &&
+      previous.authorityDigest === authority.authorityDigest &&
+      previous.contextEpoch === context.contextEpoch &&
+      previous.contextBindingDigest === context.contextBindingDigest &&
+      previous.routeRevision === context.routeRevision
+    const issuedAtMs = sameBinding && Number.isFinite(Number(previous.issuedAtMs))
+      ? Number(previous.issuedAtMs)
+      : validatedAtMs
+    const revocationEpoch = sameBinding
+      ? Math.max(0, Number.parseInt(previous.revocationEpoch, 10) || 0)
+      : Math.max(0, Number.parseInt(previous.revocationEpoch, 10) || 0) + 1
+    const core = {
+      schemaVersion: 'ProjectTargetLeaseV2',
       targetDigest: identity.targetDigest,
+      rootIdentityDigest: identity.rootIdentityDigest,
       layoutIdentity: identity.layoutIdentity,
       project: identity.project,
       physicalRoot: identity.physicalRoot,
       activeRoot: identity.activeRoot,
       physicalMarker: identity.physicalMarker,
+      authorityKind: authority.authorityKind,
+      authorityDigest: authority.authorityDigest,
+      contextEpoch: context.contextEpoch,
+      contextBindingDigest: context.contextBindingDigest,
+      routeRevision: context.routeRevision,
+      revocationEpoch,
+      issuedAt: new Date(issuedAtMs).toISOString(),
+      issuedAtMs,
+      expiresAt: new Date(expiresAtMs).toISOString(),
+      expiresAtMs
+    }
+    const leaseDigest = digestIdentity(projectLeaseDigestCore(core))
+    state.stickyProject = {
+      ...core,
+      leaseId: `project-target-lease-${leaseDigest.slice(0, 24)}`,
+      leaseDigest,
       source: originalSource,
       validatedAt: new Date(validatedAtMs).toISOString(),
       validatedAtMs,
-      expiresAt: new Date(expiresAtMs).toISOString(),
-      expiresAtMs,
       invalidationReason: '',
-      observedSessionRef,
-      sessionKey: observedSessionRef,
+      observedSessionRef: '',
+      sessionKey: '',
       updatedAt: new Date(validatedAtMs).toISOString(),
       updatedAtMs: validatedAtMs
     }
@@ -349,13 +463,23 @@ function buildLifecycleProjectTargetUtils({
 
   function clearStickyProject(state, reason) {
     state.stickyProject = {
-      schemaVersion: 'ProjectTargetLeaseV1',
+      schemaVersion: 'ProjectTargetLeaseV2',
       leaseId: '',
+      leaseDigest: '',
       targetDigest: '',
+      rootIdentityDigest: '',
       layoutIdentity: '',
       project: '',
       physicalRoot: '',
       activeRoot: '',
+      authorityKind: '',
+      authorityDigest: '',
+      contextEpoch: '',
+      contextBindingDigest: '',
+      routeRevision: '',
+      revocationEpoch: 0,
+      issuedAt: '',
+      issuedAtMs: 0,
       source: '',
       validatedAt: '',
       validatedAtMs: 0,
@@ -388,7 +512,9 @@ function buildLifecycleProjectTargetUtils({
       return { activeProject: sticky.project, activeScope: 'project', source: 'sticky' }
     }
     if (String(previousState?.stickyProject?.project || '').trim()) {
-      const validation = validateStickyProjectLease(previousState)
+      const validation = previousState?.stickyProject?.authorityKind === 'turn' && !getPayloadSessionKey(payload)
+        ? { valid: false, reason: 'turn-boundary' }
+        : validateStickyProjectLease(previousState, payload)
       return {
         activeProject: '',
         activeScope: LAYOUT.enabled ? 'workspace' : DEFAULT_SCOPE,

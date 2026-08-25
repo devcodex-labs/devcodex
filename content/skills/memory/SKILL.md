@@ -66,9 +66,17 @@ status/current/month/day byte-range 分区。该索引不是记忆真相源：
 | resume 超 14 天 | `memory_summary_query(status: unresolved, since/limit)` 定位 → 提示日期/会话编号 → `memory_session_query` 精确读取 | — |
 | 用户明确要求历史回溯 | 同 resume | — |
 
-`ConcurrencyPolicy`：记忆读取可作为只读通道并发执行；记忆写入、SUMMARY 更新、ContextHandoffCard 和会话状态提交必须按 `memory` 单写者锁串行完成。
+`ConcurrencyPolicy`：记忆读取可作为只读通道并发执行；记忆写入、SUMMARY 更新、ContextHandoffCard、任务准入/owner/terminal 和会话状态提交必须按 `memory` 单写者锁串行完成。
 
 `requirement-parallel-orchestration`：并行子会话只能把 `RequirementIndependenceDecisionV1`、`ParallelLaunchCardV1` 或局部验证证据交回主会话；需求级 sessions、Agent daily、SUMMARY 和 ContextHandoffCard 仍由主会话按 `memory` 单写者锁串行写入。
+
+### TaskRouteAdmissionGate
+
+- `WorkspaceSessionRouteIndexV1` 只保存有界 live route hint，不保存 CP、approval、artifact/validation authority；命中它只能帮助定位。`ProjectTargetLeaseV2` 必须继续复证 session/turn、canonical roots、layout/root identity、context 与 route revision。
+- 新正式任务使用 `memory_task_admit_v2` 进入可恢复 `TaskAdmissionTransactionV1`，由服务端生成/复用 ingress idempotency key，create-if-absent 并回读 `TaskIdentityV2`、canonical overview/问题概况与 CP pending。相同 ingress 重放为同一 task；displayName、目录名、mtime、模型摘要或手工文件不能替代准入。
+- CP confirmation 成功后，通过 `memory_task_write_owner` 对 `FencedTaskWriteOwnerLeaseV2` 做 generation/nonce/CAS。正式 mutation 只有 finalized admission + exact CP + active owner 才可继续；handoff/takeover/reopen 必须形成新 transition receipt，旧 nonce 永不恢复 authority。
+- 简单任务只能调用 `memory_task_fast_path_lease` 取得 `SimpleTaskFastPathLeaseV1`，最多 2 个同一边界 exact 低风险路径、最多 2 次 create-or-update；正式产物、公共契约、控制面、安全、依赖、发布、跨模块或第 3 个路径在写入前升级正式准入。低风险叙述型 Markdown 可走 `dev.docs` 轻路径，但配置/API/schema/security/release 文档属于公共契约，不可借此绕过。
+- 正式任务终态调用 `memory_task_terminal_v1`，以 ECR/report/memory/completion 四个互不复用的证据 identity 写 terminal receipt；成功后 route/owner 立即解绑。Stop/PreCompact 仅 checkpoint，不等价 terminal。
 
 ### MemoryTransactionWriterGate
 
@@ -79,6 +87,21 @@ status/current/month/day byte-range 分区。该索引不是记忆真相源：
 - `memory_session_allocate`、`memory_session_write`、`memory_summary_append` 与 CP 状态写入共用 `MemoryFileTransactionV1` owner，并必须返回 `MemoryFileTransactionReceiptV1`：除 activeRoot/agent/file/beforeDigest/afterDigest/transactionId 外，还包含 final CAS、file/directory flush、readback、bytesRead/bytesWritten/writeAmplificationRatio 与 metadata receipt；新会话写入还必须包含 `MemorySessionWriteReceiptV1`。已有文件的纯 EOF 增长走 append fast path，创建走 atomic temp+rename，中段更新才 rewrite；任何外部编辑都 fail closed。POSIX 保留 mode/uid/gid 且新文件 0600，Windows DACL 未实证时必须保持 `WARN/UNVERIFIED`。报告/记忆可引用 receipt，而不是只写“已追加”。
 - 遇到 `MEMORY_TRANSACTION_LOCKED` 时，当前写入方必须重读 `memory_status` / `memory_summary_query` 后重试或降级为阻塞说明，禁止忽略锁继续手工写同一文件。
 - MCP **能力不可用**时才可使用宿主增量编辑 fallback：必须以高熵唯一 sessionId 在一次增量编辑中追加“新会话标题 + 本次完整正文”，禁止向任何既有会话段追加；写前后核对 daily 与 SUMMARY digest，检测到并发变化则重读后换新 ID 重试一次，仍冲突即阻塞，并在报告/记忆标记 `memoryWriter=fallback`。MCP 已返回 binding/target/layout/lock 错误不属于“能力不可用”，禁止绕过 Tool 改用手工写同一 daily 文件。
+
+### TaskRecoveryStoreV5
+
+| 边界 | 规则 |
+|------|------|
+| 正式任务数量 | 无计数硬上限；不能用 owner/session 数量裁剪需求或 Bug |
+| hot | 每个正式 task 使用稳定 A/B；语义不变返回 `semantic-noop`，普通 Hook/工具状态变化不得新建 UUID generation 文件 |
+| cold | 仅在 canonical truth 可重建且 checkpoint 安全时保留有界 resume stub；不得删除正式 task docs、identity 或用户产物 |
+| terminal | durable closeout 后立即退出 live route/owner；grace 只读，达到安全退休条件后只回收 V5 runtime cache |
+| soft 256 MiB | 先退休 terminal、coldify 非活跃 hot、再回收可重建 runtime stub |
+| hard 512 MiB | bounded safe reclaim 后仍超限则拒绝新 admission/普通 mutation；read/recovery/terminal/abort/reconcile 保持可用 |
+| closeout reserve 8 MiB | 只用于 terminal/abort/reconcile；耗尽明确失败，禁止旁路普通 mutation |
+| legacy generations | 只读兼容；维护不得自动删除或迁移，另有明确用户确认才可处理 |
+
+V5 的 durable 段只保存 admission、fenced owner、mutation preflight/closeout 与 validation terminal 等有界恢复投影，不复制文件正文或大 stdout。容量压力不是任务数量上限，也不能成为删除用户任务产物的理由。
 
 ### ArtifactLinkProjectionGate
 
@@ -98,7 +121,7 @@ status/current/month/day byte-range 分区。该索引不是记忆真相源：
 > ⛔ 禁止默认读取完整 SUMMARY、完整 daily tasks 或昨日以前正文；精确 resume 查询与用户明确要求除外。
 > ⚠️ 旧 `memory_session_read` / `memory_summary_read` 仅作兼容；no-args 全文读取不是生产默认路径，也不能单独把 `ContextReadReceiptV2`（或兼容的 `ContextReadReceiptV1`）推进到 `relevant-complete/completed`。记忆 projection 的 telemetry 不进入内容身份，cache hit 也不等于当前模型已观察正文。
 > ⛔ **禁止静默回退**：resume 意图检测到当前项目无 🔄 任务时，禁止静默选取历史旧任务继续；必须明确告知用户当前状态并询问意图。
-> ⚠️ **跨项目 resume**：无任务名的普通“继续/恢复”仍只使用当前项目的有界记忆，当前项目无 🔄 时须询问；完整 `继续<任务名>任务` 可通过 workspace 派生索引做有界 exact 定位，但同名、规模超限或非 active 状态必须停止消歧，不能猜测。
+> ⚠️ **跨项目 resume**：无任务名的普通“继续/恢复”仍只使用当前项目的 `WorkspaceSessionRouteIndexV1` hint 与有界记忆，当前项目无 live/🔄 时须询问；完整 `继续<任务名>任务` 可通过 workspace 派生索引做有界 exact 定位，但同名、规模超限或非 active 状态必须停止消歧，不能猜测。两者都不产生 mutation authority。
 
 ## ConfirmBindingGate（CP 确认）
 
@@ -130,7 +153,7 @@ mismatch 错误含 nextStep：改完 rehash 再 confirm。Grok 状态条因此�
 | 超 13 轮预警（[C08](../../instructions/01-common.instructions.md)） | 写编码检查点到当前段落 |
 | 报告写入后 | 追加报告路径到 📄 关联报告 |
 | 完成回复前 | 确保 📨 对话记录已追加本轮 |
-| 任务结束 | 状态更新为 ✅ |
+| 正式任务结束 | `memory_task_terminal_v1` 四证据 closeout 与 route/owner unbind 成功后状态更新为 ✅；失败保持 🔄/needs-reconcile |
 
 **约束**：
 - 🔴 **禁止询问用户"是否需要写入记忆"**（[C05/S05](../../instructions/00-safety.instructions.md) 自动写入）

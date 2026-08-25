@@ -8,6 +8,10 @@ const {
   stableStringify,
   validateContentIdentity
 } = require('./content-identity.cjs')
+const STATIC_WORKFLOW_ROUTE_REGISTRY_V2 = require('./workflow-root-registry.v2.json')
+const {
+  resolveWorkflowRouteDescriptor
+} = require('./workflow-route-decision-v2.cjs')
 
 const CONTEXT_READ_CONTRACT = Object.freeze({
   schemas: Object.freeze({
@@ -20,6 +24,7 @@ const CONTEXT_READ_CONTRACT = Object.freeze({
     state: 'ContextReadStateV2',
     stateV1: 'ContextReadStateV1',
     identityInputs: 'ContextPlanIdentityInputsV1',
+    workflowRoutePlanRef: 'WorkflowRoutePlanRefV1',
     executionOptimizationBinding: 'ExecutionOptimizationPlanBindingV1',
     reuseDecision: 'ContextReuseDecisionV1',
     stageTiming: 'StageTimingV1'
@@ -45,6 +50,7 @@ const CONTEXT_READ_CONTRACT = Object.freeze({
     'CONTEXT_BINDING_PLAN_EXPIRED',
     'CONTEXT_BINDING_PLAN_MISMATCH',
     'CONTEXT_ACTION_NOT_AUTHORIZED',
+    'WORKFLOW_ROUTE_UNRESOLVED',
     'CONTEXT_SOURCE_NOT_AUTHORIZED',
     'CONTEXT_SECTION_NOT_AUTHORIZED',
     'SOURCE_TOO_LARGE',
@@ -90,7 +96,12 @@ const PLAN_V1_FIELDS = new Set([
 ])
 const PLAN_FIELDS = new Set([
   ...PLAN_V1_FIELDS,
-  'planContentId', 'contextBinding', 'identityInputs', 'executionOptimization', 'reusePolicy', 'stageTiming', 'cacheDecision'
+  'planContentId', 'contextBinding', 'identityInputs', 'workflowRoute', 'executionOptimization', 'reusePolicy', 'stageTiming', 'cacheDecision'
+])
+const WORKFLOW_ROUTE_REQUEST_FIELDS = new Set(['routeKey', 'subtype', 'stage'])
+const WORKFLOW_ROUTE_PLAN_REF_FIELDS = new Set([
+  'schemaVersion', 'topIntent', 'subtype', 'routeKey', 'stage', 'routeRevision',
+  'routeRegistryDigest', 'disposition', 'routeIdentityDigest'
 ])
 const SEED_FIELDS = new Set([
   'schemaVersion', 'contextEpoch', 'semantic', 'intent', 'targetHint', 'continuationHint',
@@ -123,7 +134,7 @@ const CONTEXT_IDENTITY_VERSIONS = Object.freeze({
 const CONTEXT_RUNTIME_CONTRACT_VERSION = 2
 const PROFILE_ROUTE_LOAD_RECIPE_SCHEMA = 'ProfileRouteLoadRecipeV2'
 const PROFILE_ROUTE_LOAD_RECIPE_STRATEGY = 'bounded-section-selectors'
-const PROFILE_ROUTE_LOAD_RECIPE_MAX_BYTES = 32 * 1024
+const PROFILE_ROUTE_LOAD_RECIPE_MAX_BYTES = 64 * 1024
 const PROFILE_ROUTE_LOAD_RECIPE_FIELDS = new Set([
   'schemaVersion',
   'strategy',
@@ -139,6 +150,7 @@ const PROFILE_ROUTE_LOAD_RECIPE_ENTRY_FIELDS = new Set([
   'requiredQueries',
   'includePreamble',
   'includeDescendants',
+  'boundedOnly',
   'maxBytes'
 ])
 
@@ -165,6 +177,93 @@ function stableDigest(value) {
 
 function deepClone(value) {
   return canonicalize(value)
+}
+
+function workflowRoutePlanRefFromResolved(resolved) {
+  const core = {
+    schemaVersion: CONTEXT_READ_CONTRACT.schemas.workflowRoutePlanRef,
+    topIntent: resolved.topIntent,
+    subtype: resolved.route.subtype,
+    routeKey: resolved.routeKey,
+    stage: resolved.stage,
+    routeRevision: resolved.registry.routeRevision,
+    routeRegistryDigest: resolved.registry.registryDigest,
+    disposition: resolved.route.disposition
+  }
+  return { ...core, routeIdentityDigest: stableDigest(core) }
+}
+
+function buildWorkflowRoutePlanRef(raw, finalIntent, changeTypes) {
+  const supplied = raw !== undefined
+  if (supplied && (!raw || typeof raw !== 'object' || Array.isArray(raw))) {
+    return { valid: false, error: 'workflowRoute must be an object when supplied' }
+  }
+  if (supplied) {
+    const fields = Object.keys(raw)
+    const unknown = fields.filter(field => !WORKFLOW_ROUTE_REQUEST_FIELDS.has(field))
+    const missing = [...WORKFLOW_ROUTE_REQUEST_FIELDS].filter(field => !String(raw[field] || '').trim())
+    const invalid = [
+      ['routeKey', 128],
+      ['subtype', 128],
+      ['stage', 64]
+    ].filter(([field, maxLength]) => typeof raw[field] !== 'string' ||
+      raw[field] !== raw[field].trim() || raw[field].length > maxLength)
+      .map(([field]) => field)
+    if (unknown.length || missing.length || invalid.length || fields.length !== WORKFLOW_ROUTE_REQUEST_FIELDS.size) {
+      return {
+        valid: false,
+        error: `workflowRoute requires exactly canonical routeKey, subtype, and stage${unknown.length ? `; unsupported: ${unknown.join(', ')}` : ''}${missing.length ? `; missing: ${missing.join(', ')}` : ''}${invalid.length ? `; invalid: ${invalid.join(', ')}` : ''}`
+      }
+    }
+  }
+  try {
+    const resolved = resolveWorkflowRouteDescriptor({
+      topIntent: finalIntent,
+      changeTypes,
+      ...(supplied
+        ? {
+            routeKey: String(raw.routeKey).trim(),
+            subtype: String(raw.subtype).trim(),
+            stage: String(raw.stage).trim()
+          }
+        : {})
+    }, { registry: STATIC_WORKFLOW_ROUTE_REGISTRY_V2 })
+    return { valid: true, value: workflowRoutePlanRefFromResolved(resolved) }
+  } catch (error) {
+    return { valid: false, error: String(error?.message || error) }
+  }
+}
+
+function validateWorkflowRoutePlanRef(raw, finalIntent, changeTypes) {
+  const errors = []
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { valid: false, errors: ['workflowRoute must be an object'] }
+  }
+  const fields = Object.keys(raw)
+  const unknown = fields.filter(field => !WORKFLOW_ROUTE_PLAN_REF_FIELDS.has(field))
+  const missing = [...WORKFLOW_ROUTE_PLAN_REF_FIELDS]
+    .filter(field => !Object.prototype.hasOwnProperty.call(raw, field))
+  if (unknown.length) errors.push(`unsupported workflowRoute fields: ${unknown.join(', ')}`)
+  if (missing.length) errors.push(`missing workflowRoute fields: ${missing.join(', ')}`)
+  if (raw.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.workflowRoutePlanRef) {
+    errors.push('workflowRoute schemaVersion mismatch')
+  }
+  try {
+    const resolved = resolveWorkflowRouteDescriptor({
+      topIntent: finalIntent,
+      changeTypes,
+      routeKey: raw.routeKey,
+      subtype: raw.subtype,
+      stage: raw.stage,
+      routeRevision: raw.routeRevision,
+      routeRegistryDigest: raw.routeRegistryDigest
+    }, { registry: STATIC_WORKFLOW_ROUTE_REGISTRY_V2 })
+    const expected = workflowRoutePlanRefFromResolved(resolved)
+    if (stableDigest(expected) !== stableDigest(raw)) errors.push('workflowRoute is non-canonical or stale')
+  } catch (error) {
+    errors.push(String(error?.message || error))
+  }
+  return { valid: errors.length === 0, errors }
 }
 
 function finiteOrNull(value) {
@@ -233,7 +332,7 @@ function normalizeProfileRouteLoadRecipe(raw, selectedFiles) {
         requiredQueries.some(query => !headingQueries.includes(query))) {
       errors.push(`invalid profile route recipe requiredQueries: ${file || '<empty>'}`)
     }
-    if (entry.includePreamble !== false || entry.includeDescendants !== true) {
+    if (entry.includePreamble !== false || entry.includeDescendants !== true || entry.boundedOnly !== true) {
       errors.push(`invalid profile route recipe section flags: ${file || '<empty>'}`)
     }
     if (!Number.isInteger(entry.maxBytes) || entry.maxBytes < 1024 || entry.maxBytes > raw.maxBytes) {
@@ -485,7 +584,10 @@ function buildPlanIdentityInputs(plan) {
       riskHint: plan.identity.intentSeed.riskHint,
       confidenceClass: plan.identity.intentSeed.confidence < 0.6 ? 'low' : 'normal',
       actionEnvelope: deepClone(plan.actionEnvelope),
-      changeTypes: [...plan.changeTypes]
+      changeTypes: [...plan.changeTypes],
+      ...(Object.prototype.hasOwnProperty.call(plan, 'workflowRoute')
+        ? { workflowRoute: deepClone(plan.workflowRoute) }
+        : {})
     },
     baseline: { readmeIdentity, configIdentity, candidateIdentity },
     executionOptimization: deepClone(plan.executionOptimization),
@@ -833,6 +935,14 @@ function buildContextReadPlan(input = {}, options = {}) {
   if (changeTypes.length !== new Set(suppliedChangeTypes).size || suppliedChangeTypes.some(item => !CHANGE_TYPES.has(item))) {
     return buildContextReadError('CONTEXT_PLAN_INVALID', 'changeTypes contains an unsupported or duplicate value.', 'Use stable ContextReadPlanV2 change types.')
   }
+  const workflowRoute = buildWorkflowRoutePlanRef(input.workflowRoute, finalIntent, changeTypes)
+  if (!workflowRoute.valid) {
+    return buildContextReadError(
+      'WORKFLOW_ROUTE_UNRESOLVED',
+      workflowRoute.error,
+      'Provide one registry-owned routeKey/subtype/stage triple that matches the top-level intent.'
+    )
+  }
   const lowConfidence = seed.confidence < 0.6
   if (!changeTypes.length && !['chat', 'resume'].includes(finalIntent) && !input.explicitFull && !lowConfidence) {
     return buildContextReadError('CONTEXT_CHANGE_TYPES_REQUIRED', 'High-confidence non-chat work requires changeTypes or explicitFull.', 'Provide precise changeTypes or an explicit full-read reason.')
@@ -1025,6 +1135,7 @@ function buildContextReadPlan(input = {}, options = {}) {
     baselineContext: baseline,
     actionEnvelope: deriveActionEnvelope(finalIntent, changeTypes, seed.riskHint),
     changeTypes,
+    workflowRoute: workflowRoute.value,
     selectedSources,
     mandatorySourceIds: selectedSources.filter(source => source.mandatory).map(source => source.sourceId).sort(),
     excludedSources: excludedSources.sort((left, right) => compareText(left.sourceId, right.sourceId)),
@@ -1120,6 +1231,12 @@ function validateContextReadPlan(raw) {
   if (!Array.isArray(raw.changeTypes) || stableDigest(changeTypes) !== stableDigest(raw.changeTypes)) errors.push('changeTypes must be sorted, unique, and valid')
   if (identity.intentSeed?.confidence >= 0.6 && !['chat', 'resume'].includes(identity.finalIntent) && !changeTypes.length && raw.fullRead !== true) {
     errors.push('high-confidence non-chat plan lacks changeTypes')
+  }
+  if (isV2 && Object.prototype.hasOwnProperty.call(raw, 'workflowRoute')) {
+    const workflowRouteValidation = validateWorkflowRoutePlanRef(raw.workflowRoute, identity.finalIntent, changeTypes)
+    if (!workflowRouteValidation.valid) {
+      errors.push(`workflowRoute is invalid: ${workflowRouteValidation.errors.join(', ')}`)
+    }
   }
   const envelope = raw.actionEnvelope && typeof raw.actionEnvelope === 'object' ? raw.actionEnvelope : {}
   const allowedActions = uniqueSorted(envelope.allowedActionClasses, ACTION_CLASSES)

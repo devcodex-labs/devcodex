@@ -21,6 +21,7 @@ const {
 } = require('./workspace-layout.cjs')
 
 const TASK_IDENTITY_SCHEMA = 'TaskIdentityV1'
+const TASK_IDENTITY_V2_SCHEMA = 'TaskIdentityV2'
 const TASK_INDEX_SCHEMA = 'TaskContinuationIndexV1'
 const TASK_RESOLUTION_SCHEMA = 'TaskResolutionV1'
 const TASK_KINDS = Object.freeze(['requirements', 'bugs', 'optimizations', 'scenario-tests'])
@@ -44,6 +45,25 @@ function normalizeTaskName(value) {
     .replace(/[A-Z]/g, character => character.toLowerCase())
 }
 
+function canonicalTaskIdentityLabel(value) {
+  return String(value || '').normalize('NFKC').trim().replace(/\s+/gu, ' ')
+}
+
+function isStableTaskId(value) {
+  return UUID_PATTERN.test(String(value || '').trim())
+}
+
+function splitContinuationProjectQualifier(value) {
+  const text = String(value || '').trim()
+  const suffix = text.match(/^(.+?)[,，;；]\s*(?:项目|project)\s*[:=：]\s*(.+)$/iu)
+  if (!suffix) return { displayQuery: text, projectQuery: '', qualifierForm: '' }
+  return {
+    displayQuery: String(suffix[1] || '').trim(),
+    projectQuery: String(suffix[2] || '').trim(),
+    qualifierForm: 'explicit-project-suffix'
+  }
+}
+
 function parseContinuationCommand(prompt) {
   const normalizedPrompt = String(prompt || '').normalize('NFKC').trim().replace(/\s+/gu, ' ')
   if (!normalizedPrompt.startsWith('继续')) return null
@@ -52,14 +72,21 @@ function parseContinuationCommand(prompt) {
   const match = spaced || compact
   const form = spaced ? 'continue-space-name' : 'continue-name-task'
   if (!match) return null
-  const displayQuery = String(match[1] || '').trim()
+  const qualified = splitContinuationProjectQualifier(match[1])
+  const displayQuery = qualified.displayQuery
   const normalizedQuery = normalizeTaskName(displayQuery)
   if (!normalizedQuery) return null
   return Object.freeze({
     schemaVersion: 'TaskContinuationCommandV1',
     form,
     displayQuery,
-    normalizedQuery
+    normalizedQuery,
+    ...(qualified.projectQuery
+      ? {
+          projectQuery: qualified.projectQuery,
+          projectQualifierForm: qualified.qualifierForm
+        }
+      : {})
   })
 }
 
@@ -94,9 +121,47 @@ function createTaskIdentity({ taskId = crypto.randomUUID(), displayName, aliases
 }
 
 function validateTaskIdentity(value) {
+  if (value?.schemaVersion === TASK_IDENTITY_V2_SCHEMA) return validateTaskIdentityV2(value)
   const errors = []
   if (!value || typeof value !== 'object' || Array.isArray(value)) return { valid: false, errors: ['identity must be an object'] }
   if (value.schemaVersion !== TASK_IDENTITY_SCHEMA) errors.push(`schemaVersion must be ${TASK_IDENTITY_SCHEMA}`)
+  if (!UUID_PATTERN.test(String(value.taskId || ''))) errors.push('taskId must be a UUID')
+  const canonicalDisplayName = canonicalTaskIdentityLabel(value.displayName)
+  if (!canonicalDisplayName) errors.push('displayName is required')
+  if (value.displayName !== canonicalDisplayName || Buffer.byteLength(canonicalDisplayName, 'utf8') > 160 ||
+      /[\u0000-\u001f\u007f<>:"/\\|?*]/u.test(canonicalDisplayName) || /[. ]$/u.test(canonicalDisplayName)) {
+    errors.push('displayName must be one canonical filesystem-safe NFKC label')
+  }
+  if (!Array.isArray(value.aliases) || value.aliases.length > 32 ||
+      value.aliases.some(alias => !canonicalTaskIdentityLabel(alias) || alias !== canonicalTaskIdentityLabel(alias) ||
+        Buffer.byteLength(alias, 'utf8') > 300)) {
+    errors.push('aliases must be canonical non-empty strings')
+  }
+  if (Array.isArray(value.aliases)) {
+    const normalized = value.aliases.map(normalizeTaskName)
+    if (new Set(normalized).size !== normalized.length) errors.push('aliases must be unique after normalization')
+    if (normalized.includes(normalizeTaskName(value.displayName))) errors.push('aliases must not repeat displayName')
+  }
+  if (!Number.isInteger(value.identityRevision) || value.identityRevision < 1) errors.push('identityRevision must be a positive integer')
+  if (!Number.isFinite(Date.parse(String(value.createdAt || '')))) errors.push('createdAt must be an ISO-compatible timestamp')
+  return { valid: errors.length === 0, errors }
+}
+
+function validateTaskIdentityV2(value) {
+  const errors = []
+  const allowedFields = [
+    'schemaVersion', 'taskId', 'displayName', 'aliases', 'project',
+    'projectRootIdentityDigest', 'taskKind', 'entryVariant',
+    'taskRootRelative', 'createdAt', 'identityVersion', 'identityDigest'
+  ]
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { valid: false, errors: ['identity must be an object'] }
+  }
+  if (value.schemaVersion !== TASK_IDENTITY_V2_SCHEMA) errors.push(`schemaVersion must be ${TASK_IDENTITY_V2_SCHEMA}`)
+  if (!Object.keys(value).every(field => allowedFields.includes(field)) ||
+      !allowedFields.every(field => Object.prototype.hasOwnProperty.call(value, field))) {
+    errors.push('TaskIdentityV2 fields must exactly match the published immutable core')
+  }
   if (!UUID_PATTERN.test(String(value.taskId || ''))) errors.push('taskId must be a UUID')
   if (!normalizeTaskName(value.displayName)) errors.push('displayName is required')
   if (!Array.isArray(value.aliases) || value.aliases.some(alias => !normalizeTaskName(alias))) errors.push('aliases must be non-empty strings')
@@ -105,8 +170,28 @@ function validateTaskIdentity(value) {
     if (new Set(normalized).size !== normalized.length) errors.push('aliases must be unique after normalization')
     if (normalized.includes(normalizeTaskName(value.displayName))) errors.push('aliases must not repeat displayName')
   }
-  if (!Number.isInteger(value.identityRevision) || value.identityRevision < 1) errors.push('identityRevision must be a positive integer')
+  if (!String(value.project || '').trim()) errors.push('project is required')
+  if (!/^[a-f0-9]{64}$/.test(String(value.projectRootIdentityDigest || ''))) errors.push('projectRootIdentityDigest must be sha256')
+  if (!TASK_KINDS.includes(value.taskKind)) errors.push(`taskKind must be one of: ${TASK_KINDS.join(', ')}`)
+  const variants = {
+    requirements: ['new', 'product-provided', 'change', 'continue', 'reopen'],
+    bugs: ['new', 'fix', 'continue', 'reopen'],
+    optimizations: ['new', 'continue', 'reopen'],
+    'scenario-tests': ['new', 'continue', 'reopen']
+  }
+  if (!variants[value.taskKind]?.includes(value.entryVariant)) errors.push('entryVariant is invalid for taskKind')
+  const taskRootRelative = String(value.taskRootRelative || '').replace(/\\/g, '/')
+  const taskRootSegments = taskRootRelative.split('/')
+  if (!taskRootRelative || path.isAbsolute(taskRootRelative) || taskRootSegments.length !== 2 ||
+      taskRootSegments.some(segment => !segment || segment === '.' || segment === '..') ||
+      taskRootSegments[0] !== value.taskKind || taskRootSegments[1] !== canonicalTaskIdentityLabel(taskRootSegments[1])) {
+    errors.push('taskRootRelative must be an exact two-segment canonical task path')
+  }
   if (!Number.isFinite(Date.parse(String(value.createdAt || '')))) errors.push('createdAt must be an ISO-compatible timestamp')
+  if (value.identityVersion !== 2) errors.push('identityVersion must be 2')
+  const { identityDigest, ...core } = value
+  if (!/^[a-f0-9]{64}$/.test(String(identityDigest || '')) ||
+      identityDigest !== sha256(stableStringify(core))) errors.push('identityDigest mismatch')
   return { valid: errors.length === 0, errors }
 }
 
@@ -373,7 +458,7 @@ function inspectTaskDescriptor(descriptor, budget) {
     normalizedDisplayName: normalizeTaskName(displayName),
     aliases,
     normalizedAliases: aliases.map(normalizeTaskName),
-    identityRevision: parsedIdentity.identity?.identityRevision || null,
+    identityRevision: parsedIdentity.identity?.identityRevision || parsedIdentity.identity?.identityVersion || null,
     identityValid: parsedIdentity.valid,
     identityErrors: parsedIdentity.errors,
     legacy: parsedIdentity.legacy,
@@ -731,17 +816,20 @@ function resolveTaskContinuation({
 
 module.exports = {
   TASK_IDENTITY_SCHEMA,
+  TASK_IDENTITY_V2_SCHEMA,
   TASK_INDEX_SCHEMA,
   TASK_KINDS,
   TASK_RESOLUTION_SCHEMA,
   TaskContinuationError,
   buildSuggestions,
   createTaskIdentity,
+  isStableTaskId,
   materializeTaskIdentity,
   normalizeTaskName,
   parseContinuationCommand,
   resolveUniqueActiveTaskContinuation,
   resolveRootContext,
   resolveTaskContinuation,
-  validateTaskIdentity
+  validateTaskIdentity,
+  validateTaskIdentityV2
 }

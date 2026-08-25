@@ -3,6 +3,13 @@
 const {
   commitLifecycleState
 } = require('../../hooks/_runtime/lifecycle-state-commit.cjs')
+const {
+  createWorkflowOperationalWriteLease
+} = require('../../hooks/_runtime/workflow-operational-write-lease.cjs')
+const {
+  createSimpleTaskFastPathLease,
+  createSimpleTaskFastPathUsage
+} = require('../../hooks/_runtime/simple-task-fast-path-lease.cjs')
 
 function runHooksRuntimeVisibilityScenarios(context) {
   const {
@@ -86,6 +93,135 @@ function runHooksRuntimeVisibilityScenarios(context) {
     return output
   }
 
+  let operationalLeaseCounter = 0
+  function issueWorkflowOperationalCreateLease(targetPath) {
+    operationalLeaseCounter += 1
+    const activeRoot = path.join(TEMP_ROOT, '.devcodex')
+    const relativeTarget = path.relative(activeRoot, targetPath).replace(/\\/g, '/')
+    const toolUseId = `workflow-operational-lease-${operationalLeaseCounter}`
+    const before = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+    const toolInput = {
+      ingressRef: {
+        schemaVersion: 'WorkflowIngressProjectionRefV1',
+        envelopeId: before.actualInstructionEnvelope.envelopeId,
+        envelopeDigest: before.actualInstructionEnvelope.envelopeDigest,
+        decisionDigest: before.workflowRouteDecision.decisionDigest,
+        routeRevision: before.workflowRouteDecision.routeRevision
+      },
+      operation: 'create',
+      targets: [relativeTarget]
+    }
+    run({
+      hookEventName: 'PreToolUse',
+      tool_use_id: toolUseId,
+      tool_name: 'mcp__devcodex_memory__memory_workflow_operational_write_lease',
+      tool_input: toolInput
+    })
+    const current = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+    const lease = createWorkflowOperationalWriteLease({
+      state: current,
+      activeRoot,
+      projectRoot: TEMP_ROOT,
+      project: current.activeProject,
+      relativeTargets: [relativeTarget],
+      operation: 'create'
+    }, {
+      fs,
+      leaseIdFactory: () => `operational-${String(operationalLeaseCounter).padStart(40, '0')}`
+    })
+    const receipt = {
+      schemaVersion: 'WorkflowOperationalWriteLeaseReceiptV1',
+      lease,
+      mutationAuthority: true,
+      productMutationAuthority: false,
+      formalArtifactAuthority: false,
+      releaseAuthority: false
+    }
+    run({
+      hookEventName: 'PostToolUse',
+      tool_use_id: toolUseId,
+      tool_name: 'mcp__devcodex_memory__memory_workflow_operational_write_lease',
+      tool_input: toolInput,
+      tool_result: receipt,
+      success: true
+    })
+    const stored = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+    assert.strictEqual(stored.workflowOperationalWriteLease?.leaseDigest, lease.leaseDigest)
+    return { lease, receipt, toolInput, toolUseId }
+  }
+
+  let simpleLeaseCounter = 0
+  function issueSimpleTaskFastPathLease(targetPaths) {
+    simpleLeaseCounter += 1
+    const activeRoot = path.join(TEMP_ROOT, '.devcodex')
+    const relativeTargets = targetPaths.map(targetPath => path.relative(TEMP_ROOT, targetPath).replace(/\\/g, '/'))
+    const toolUseId = `simple-task-fast-path-lease-${simpleLeaseCounter}`
+    const before = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+    const riskAssessment = {
+      changeClass: 'local-implementation',
+      crossModule: false,
+      sharedContract: false,
+      publicApiOrSchema: false,
+      securitySensitive: false,
+      dependencyChange: false,
+      releaseImpact: false
+    }
+    const toolInput = {
+      ingressRef: {
+        schemaVersion: 'WorkflowIngressProjectionRefV1',
+        envelopeId: before.actualInstructionEnvelope.envelopeId,
+        envelopeDigest: before.actualInstructionEnvelope.envelopeDigest,
+        decisionDigest: before.workflowRouteDecision.decisionDigest,
+        routeRevision: before.workflowRouteDecision.routeRevision
+      },
+      operation: 'create-or-update',
+      targets: relativeTargets,
+      riskAssessment
+    }
+    run({
+      hookEventName: 'PreToolUse',
+      tool_use_id: toolUseId,
+      tool_name: 'mcp__devcodex_memory__memory_task_fast_path_lease',
+      tool_input: toolInput
+    })
+    const current = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+    const lease = createSimpleTaskFastPathLease({
+      state: current,
+      activeRoot,
+      projectRoot: TEMP_ROOT,
+      project: current.activeProject,
+      relativeTargets,
+      operation: 'create-or-update',
+      riskAssessment
+    }, {
+      fs,
+      leaseIdFactory: () => `simple-${simpleLeaseCounter.toString(16).padStart(40, '0')}`
+    })
+    const usage = createSimpleTaskFastPathUsage(lease)
+    const receipt = {
+      schemaVersion: 'SimpleTaskFastPathLeaseReceiptV1',
+      lease,
+      usage,
+      mutationAuthority: true,
+      productMutationAuthority: true,
+      formalArtifactAuthority: false,
+      controlPlaneAuthority: false,
+      releaseAuthority: false
+    }
+    run({
+      hookEventName: 'PostToolUse',
+      tool_use_id: toolUseId,
+      tool_name: 'mcp__devcodex_memory__memory_task_fast_path_lease',
+      tool_input: toolInput,
+      tool_result: receipt,
+      success: true
+    })
+    const stored = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+    assert.strictEqual(stored.simpleTaskFastPathLease?.leaseDigest, lease.leaseDigest)
+    assert.strictEqual(stored.simpleTaskFastPathUsage?.useCount, 0)
+    return { lease, usage, receipt, toolInput, toolUseId }
+  }
+
   cleanState()
   run({
     hookEventName: 'UserPromptSubmit',
@@ -115,15 +251,20 @@ function runHooksRuntimeVisibilityScenarios(context) {
   assert.ok(captureEntries[0].interestingStrings.some(entry => entry.path === 'assistantMessage'))
   assert.strictEqual(fs.existsSync(CAPTURE_FLAG), true)
 
-  const allowedAfterBootstrap = run({
+  const formalMutationWithoutTask = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: {
       input: '*** Begin Patch\n*** Update File: README.md\n*** End Patch'
     }
   })
-  assert.strictEqual(allowedAfterBootstrap.continue, true)
-  assert.ok(!allowedAfterBootstrap.hookSpecificOutput)
+  assert.strictEqual(formalMutationWithoutTask.continue, true)
+  assert.strictEqual(formalMutationWithoutTask.hookSpecificOutput.permissionDecision, 'deny')
+  assert.match(
+    formalMutationWithoutTask.hookSpecificOutput.permissionDecisionReason || '',
+    /Formal artifact mutation denied|Fenced task write owner authority unavailable|TASK_|ARTIFACT_/i,
+    'completed context acquisition alone must not authorize an unbound public README mutation'
+  )
 
   const dangerousCommand = run({
     hookEventName: 'PreToolUse',
@@ -163,12 +304,23 @@ function runHooksRuntimeVisibilityScenarios(context) {
     }
   })
   assert.strictEqual(deleteWithWhere.continue, true)
-  assert.ok(!deleteWithWhere.hookSpecificOutput)
+  assert.strictEqual(deleteWithWhere.hookSpecificOutput.permissionDecision, 'deny')
+  assert.match(
+    deleteWithWhere.hookSpecificOutput.permissionDecisionReason || '',
+    /Fenced task write owner authority unavailable|Mutation target observation unavailable/i
+  )
+  assert.doesNotMatch(
+    deleteWithWhere.hookSpecificOutput.permissionDecisionReason || '',
+    /DELETE FROM.*without WHERE|unscoped DELETE/i,
+    'DELETE with WHERE is not dangerous syntax even though an unbound mutation remains unauthorized'
+  )
 
   const dangerousApprovalId = String(
     dangerousCommand.hookSpecificOutput.additionalContext || ''
   ).match(/devcodex-approve:([a-f0-9]{12})/)?.[1]
   assert.ok(dangerousApprovalId, 'dangerous command should return one-time approval id')
+  let dangerousApprovalState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(dangerousApprovalState.dangerousApprovals[dangerousApprovalId].status, 'pending')
 
   const unconfirmedDangerousCommand = run({
     hookEventName: 'PreToolUse',
@@ -184,7 +336,19 @@ function runHooksRuntimeVisibilityScenarios(context) {
     hookEventName: 'UserPromptSubmit',
     prompt: `确认执行 devcodex-approve:${dangerousApprovalId}`
   })
+  dangerousApprovalState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(
+    dangerousApprovalState.dangerousApprovals[dangerousApprovalId]?.status,
+    'confirmed',
+    'UserPromptSubmit must persist the exact dangerous approval across the turn reset'
+  )
   runBootstrapReads()
+  dangerousApprovalState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(
+    dangerousApprovalState.dangerousApprovals[dangerousApprovalId]?.status,
+    'confirmed',
+    'ContextRead and SkillRoute bootstrap must preserve a pending one-time dangerous approval'
+  )
   const approvedDangerousCommand = run({
     hookEventName: 'PreToolUse',
     tool_name: 'run_in_terminal',
@@ -193,7 +357,12 @@ function runHooksRuntimeVisibilityScenarios(context) {
     }
   })
   assert.strictEqual(approvedDangerousCommand.continue, true)
-  assert.ok(!approvedDangerousCommand.hookSpecificOutput)
+  assert.strictEqual(approvedDangerousCommand.hookSpecificOutput.permissionDecision, 'deny')
+  assert.match(
+    approvedDangerousCommand.hookSpecificOutput.permissionDecisionReason || '',
+    /Fenced task write owner authority unavailable|Mutation target observation unavailable|Formal artifact mutation denied/i,
+    'one-time destructive approval clears only the dangerous-command gate, not mutation authority or observability gates'
+  )
   const reusedDangerousCommand = run({
     hookEventName: 'PreToolUse',
     tool_name: 'run_in_terminal',
@@ -217,8 +386,11 @@ function runHooksRuntimeVisibilityScenarios(context) {
     assistantMessage: 'All work is complete.'
   })
   const duplicateMessage = duplicateMissingPrecheckReminder.systemMessage || ''
-  assert.ok(!/entry check block/i.test(duplicateMessage))
-  assert.match(duplicateMessage, /Stop gate incomplete|incomplete closure/i)
+  assert.strictEqual(
+    duplicateMessage,
+    '',
+    'an identical repeated Stop must reuse the stable terminal decision without injecting another reminder'
+  )
   captureEntries = readCaptureEntries()
   assert.strictEqual(captureEntries.length, 2)
   assert.strictEqual(captureEntries[1].eventName, 'Stop')
@@ -231,7 +403,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     assistantMessage: 'All work is complete.'
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CODEX_HOME: '1' })
   assert.strictEqual(strictStopBlock.decision, 'block')
-  assert.match(strictStopBlock.reason || '', /Stop gate incomplete|incomplete closure|entry-check-missing/i)
+  assert.match(strictStopBlock.reason || '', /Stop gate incomplete|incomplete closure|entry-check-missing|entry check block/i)
   assert.ok(!strictStopBlock.hookSpecificOutput?.decision)
   assert.ok(readInterceptionEntries().some(entry => entry.eventName === 'Stop' && entry.code === 'closure-incomplete' && entry.effective === true))
 
@@ -744,6 +916,100 @@ function runHooksRuntimeVisibilityScenarios(context) {
   assert.strictEqual(visibleState.visible.replyEvidence, 'unverified')
   assert.strictEqual(visibleState.visible.s07OrderStatus || 'unverified', 'unverified')
 
+  // ── SimpleTaskFastPath: server-owned exact lease, bounded usage and replay closeout ──
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: '修复 src 中两个局部实现文件的小问题'
+  })
+  runBootstrapReads(TEST_AGENT, 'fix', ['source-code'])
+  const simpleFirstPath = path.join(TEMP_ROOT, 'src', 'simple-first.js')
+  const simpleSecondPath = path.join(TEMP_ROOT, 'src', 'simple-second.js')
+  const simpleThirdPath = path.join(TEMP_ROOT, 'src', 'simple-third.js')
+  const simpleIssued = issueSimpleTaskFastPathLease([simpleFirstPath, simpleSecondPath])
+  const firstSimpleInput = { file_path: simpleFirstPath, content: 'module.exports = 1\n' }
+  const firstSimplePre = run({
+    hookEventName: 'PreToolUse',
+    tool_use_id: 'simple-write-1',
+    tool_name: 'Write',
+    tool_input: firstSimpleInput
+  })
+  assert.strictEqual(firstSimplePre.continue, true)
+  assert.notStrictEqual(
+    firstSimplePre.hookSpecificOutput?.permissionDecision,
+    'deny',
+    JSON.stringify(firstSimplePre)
+  )
+  let simpleState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(simpleState.turnLiveness?.inFlightOperation?.mutationLease?.ownerKind, 'simple-task-fast-path')
+  fs.mkdirSync(path.dirname(simpleFirstPath), { recursive: true })
+  fs.writeFileSync(simpleFirstPath, firstSimpleInput.content)
+  run({
+    hookEventName: 'PostToolUse',
+    tool_use_id: 'simple-write-1',
+    tool_name: 'Write',
+    tool_input: firstSimpleInput,
+    success: true
+  })
+  simpleState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(simpleState.turnLiveness.lastMutationCloseout?.result, 'success')
+  assert.strictEqual(simpleState.simpleTaskFastPathUsage?.useCount, 1)
+  assert.strictEqual(simpleState.simpleTaskFastPathUsage?.status, 'active')
+  assert.strictEqual(simpleState.simpleTaskFastPathLease?.leaseDigest, simpleIssued.lease.leaseDigest)
+
+  const pathDrift = run({
+    hookEventName: 'PreToolUse',
+    tool_use_id: 'simple-write-drift',
+    tool_name: 'Write',
+    tool_input: { file_path: simpleThirdPath, content: 'module.exports = 3\n' }
+  })
+  assert.strictEqual(pathDrift.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(
+    pathDrift.hookSpecificOutput?.permissionDecisionReason || pathDrift.systemMessage || '',
+    /TASK_WRITE_OWNER_BINDING_REQUIRED|Fenced task write owner authority unavailable/i
+  )
+  simpleState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(simpleState.simpleTaskFastPathUsage?.useCount, 1)
+
+  const secondSimpleInput = { file_path: simpleSecondPath, content: 'module.exports = 2\n' }
+  const secondSimplePre = run({
+    hookEventName: 'PreToolUse',
+    tool_use_id: 'simple-write-2',
+    tool_name: 'Write',
+    tool_input: secondSimpleInput
+  })
+  assert.strictEqual(secondSimplePre.continue, true)
+  assert.notStrictEqual(
+    secondSimplePre.hookSpecificOutput?.permissionDecision,
+    'deny',
+    JSON.stringify(secondSimplePre)
+  )
+  fs.writeFileSync(simpleSecondPath, secondSimpleInput.content)
+  run({
+    hookEventName: 'PostToolUse',
+    tool_use_id: 'simple-write-2',
+    tool_name: 'Write',
+    tool_input: secondSimpleInput,
+    success: true
+  })
+  simpleState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(simpleState.simpleTaskFastPathLease, null)
+  assert.strictEqual(simpleState.simpleTaskFastPathUsage, null)
+  assert.strictEqual(simpleState.simpleTaskFastPathLeaseCloseout?.status, 'consumed')
+  assert.strictEqual(simpleState.simpleTaskFastPathLeaseCloseout?.useCount, 2)
+
+  run({
+    hookEventName: 'PostToolUse',
+    tool_use_id: simpleIssued.toolUseId,
+    tool_name: 'mcp__devcodex_memory__memory_task_fast_path_lease',
+    tool_input: simpleIssued.toolInput,
+    tool_result: simpleIssued.receipt,
+    success: true
+  })
+  simpleState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(simpleState.simpleTaskFastPathLease, null, 'closed simple-task authority must reject result replay')
+  assert.strictEqual(simpleState.simpleTaskFastPathLeaseObservationError, 'SIMPLE_TASK_FAST_PATH_LEASE_ALREADY_CLOSED')
+
   // ── S07 product-artifact order (VL-004 / PI-016) ───────────────────────────
   cleanState()
   run({
@@ -751,11 +1017,14 @@ function runHooksRuntimeVisibilityScenarios(context) {
     prompt: 's07 product write before entry-check safety-only'
   })
   runBootstrapReads(TEST_AGENT)
+  const firstReportPath = path.join(TEMP_ROOT, '.devcodex', 'reports', 'analysis', 'test', '20260824', '01--sample.md')
+  const firstOperationalLease = issueWorkflowOperationalCreateLease(firstReportPath)
   const productWriteWarn = run({
     hookEventName: 'PreToolUse',
+    tool_use_id: 's07-operational-report-1',
     tool_name: 'Write',
     tool_input: {
-      file_path: path.join(TEMP_ROOT, '.devcodex', 'reports', 'analysis', 'test', '01--sample.md'),
+      file_path: firstReportPath,
       content: '# report\n'
     }
   })
@@ -768,16 +1037,53 @@ function runHooksRuntimeVisibilityScenarios(context) {
   let s07State = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(s07State.productMutationBeforePrecheck, true)
   assert.strictEqual(s07State.s07ProductWarnEmitted, true)
+  assert.strictEqual(s07State.turnLiveness?.inFlightOperation?.artifactDecision?.slotId, 'project-report')
+  assert.strictEqual(s07State.turnLiveness?.inFlightOperation?.artifactDecision?.decisionStatus, 'allow')
+  assert.strictEqual(s07State.turnLiveness?.inFlightOperation?.mutationLease?.ownerKind, 'workflow-operational')
+  fs.mkdirSync(path.dirname(firstReportPath), { recursive: true })
+  fs.writeFileSync(firstReportPath, '# report\n')
+  run({
+    hookEventName: 'PostToolUse',
+    tool_use_id: 's07-operational-report-1',
+    tool_name: 'Write',
+    tool_input: { file_path: firstReportPath, content: '# report\n' },
+    success: true
+  })
+  s07State = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(s07State.turnLiveness.lastMutationCloseout?.result, 'success')
+  assert.strictEqual(s07State.workflowOperationalWriteLease, null)
+  run({
+    hookEventName: 'PostToolUse',
+    tool_use_id: firstOperationalLease.toolUseId,
+    tool_name: 'mcp__devcodex_memory__memory_workflow_operational_write_lease',
+    tool_input: firstOperationalLease.toolInput,
+    tool_result: firstOperationalLease.receipt,
+    success: true
+  })
+  s07State = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(s07State.workflowOperationalWriteLease, null, 'a consumed operational lease must not be restored by result replay')
+  assert.strictEqual(s07State.workflowOperationalWriteLeaseObservationError, 'WORKFLOW_OPERATIONAL_LEASE_ALREADY_CONSUMED')
 
+  const secondReportPath = path.join(TEMP_ROOT, '.devcodex', 'reports', 'analysis', 'test', '20260824', '02--sample.md')
+  issueWorkflowOperationalCreateLease(secondReportPath)
   const productWriteSecond = run({
     hookEventName: 'PreToolUse',
+    tool_use_id: 's07-operational-report-2',
     tool_name: 'Write',
     tool_input: {
-      file_path: path.join(TEMP_ROOT, '.devcodex', 'reports', 'analysis', 'test', '02--sample.md'),
+      file_path: secondReportPath,
       content: '# report2\n'
     }
   })
   assert.strictEqual(productWriteSecond.continue, true)
+  fs.writeFileSync(secondReportPath, '# report2\n')
+  run({
+    hookEventName: 'PostToolUse',
+    tool_use_id: 's07-operational-report-2',
+    tool_name: 'Write',
+    tool_input: { file_path: secondReportPath, content: '# report2\n' },
+    success: true
+  })
 
   const lateOrderStop = run({
     hookEventName: 'Stop',
@@ -798,11 +1104,13 @@ function runHooksRuntimeVisibilityScenarios(context) {
     prompt: 's07 product write strict deny'
   })
   runBootstrapReads(TEST_AGENT)
+  const strictReportPath = path.join(TEMP_ROOT, '.devcodex', 'reports', 'analysis', 'test', '20260824', '01--strict.md')
+  issueWorkflowOperationalCreateLease(strictReportPath)
   const productWriteStrict = run({
     hookEventName: 'PreToolUse',
     tool_name: 'Write',
     tool_input: {
-      file_path: path.join(TEMP_ROOT, '.devcodex', 'reports', 'analysis', 'test', '01--strict.md'),
+      file_path: strictReportPath,
       content: '# report\n'
     }
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CLAUDE_HOOK_COMMAND: '1' })
@@ -829,6 +1137,26 @@ function runHooksRuntimeVisibilityScenarios(context) {
   assert.ok(!/s07-product-before-entry-check/i.test(
     readOnlyOk.systemMessage || readOnlyOk.hookSpecificOutput?.permissionDecisionReason || ''
   ))
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    prompt: 'formal artifact unknown slot must fail closed'
+  })
+  runBootstrapReads(TEST_AGENT)
+  const unknownFormalSlot = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'Write',
+    tool_input: {
+      file_path: path.join(TEMP_ROOT, '.devcodex', 'bugs', 'fixture-task', '02-功能清单.md'),
+      content: '# misplaced\n'
+    }
+  })
+  assert.strictEqual(unknownFormalSlot.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(
+    unknownFormalSlot.hookSpecificOutput?.permissionDecisionReason || unknownFormalSlot.systemMessage || '',
+    /Formal artifact mutation denied|artifact-slot-unknown/i
+  )
   s07State = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.notStrictEqual(s07State.productMutationBeforePrecheck, true)
 

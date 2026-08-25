@@ -15,6 +15,7 @@ const {
   hasEntryCheck,
   hasCompletionCheck,
   pr1EvidenceOk,
+  findActiveTaskRoot,
   PR1_MIN_BODY_BYTES
 } = require('../hooks/_runtime/lifecycle-stop-gate.cjs')
 
@@ -294,6 +295,87 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
     assert.ok(!r.gaps.includes('pr1-skipped'), `gaps=${r.gaps.join(',')}`)
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true })
+  }
+}
+
+// R3B3b: Stop/PR-1 must use the exact session-bound task, never latest 02 mtime.
+{
+  const activeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-stop-target-first-'))
+  try {
+    const project = 'fixture-project'
+    const rootIdentityDigest = 'a'.repeat(64)
+    const taskId = '12345678-1234-4123-8123-1234567890ab'
+    const taskRoot = path.join(activeRoot, 'bugs', 'bound-bug')
+    const decoyRoot = path.join(activeRoot, 'requirements', 'newer-decoy')
+    fs.mkdirSync(path.join(taskRoot, '.memory'), { recursive: true })
+    fs.mkdirSync(decoyRoot, { recursive: true })
+    fs.writeFileSync(path.join(taskRoot, '02-修复方案.md'), '# bound bug design\n控制面 lifecycle\n', 'utf8')
+    fs.writeFileSync(path.join(decoyRoot, '02-技术方案.md'), '# decoy design\n控制面 lifecycle\n', 'utf8')
+    fs.writeFileSync(path.join(decoyRoot, '03-方案复审-PR1.md'), makeStrongPr1Body(), 'utf8')
+    fs.writeFileSync(path.join(taskRoot, '.memory', 'task-identity-v2.json'), JSON.stringify({
+      schemaVersion: 'TaskIdentityV2',
+      taskId,
+      project,
+      taskKind: 'bugs',
+      taskRootRelative: 'bugs/bound-bug',
+      projectRootIdentityDigest: rootIdentityDigest
+    }, null, 2), 'utf8')
+    const state = {
+      activeProject: project,
+      stickyProject: {
+        schemaVersion: 'ProjectTargetLeaseV2',
+        project,
+        activeRoot,
+        rootIdentityDigest
+      },
+      taskRecoveryBinding: {
+        schemaVersion: 'TaskRecoveryBindingV1',
+        taskId,
+        displayName: 'bound-bug',
+        project,
+        kind: 'bugs',
+        taskRoot,
+        status: 'active'
+      }
+    }
+    assert.strictEqual(findActiveTaskRoot(state), taskRoot)
+    const boundResult = evaluateStopCompletionGate({
+      mode: 'fix',
+      lastAssistantMessage: '请确认修复方案（确认 CP2）。',
+      state
+    })
+    assert.strictEqual(boundResult.decision, 'block')
+    assert(boundResult.gaps.includes('pr1-skipped'), `gaps=${boundResult.gaps.join(',')}`)
+    assert(!boundResult.gaps.includes('pr1-task-binding-missing'))
+
+    fs.writeFileSync(path.join(taskRoot, '03-方案复审-PR1.md'), makeStrongPr1Body(), 'utf8')
+    const reviewed = evaluateStopCompletionGate({
+      mode: 'fix',
+      lastAssistantMessage: '请确认修复方案（确认 CP2）。',
+      state
+    })
+    assert(!reviewed.gaps.includes('pr1-skipped'), `gaps=${reviewed.gaps.join(',')}`)
+
+    const staleState = JSON.parse(JSON.stringify(state))
+    staleState.taskRecoveryBinding.taskId = '87654321-4321-4321-8321-ba0987654321'
+    assert.strictEqual(findActiveTaskRoot(staleState), null)
+    const missingBinding = evaluateStopCompletionGate({
+      mode: 'fix',
+      lastAssistantMessage: '请确认修复方案（确认 CP2）。',
+      state: staleState
+    })
+    assert(missingBinding.gaps.includes('pr1-task-binding-missing'))
+
+    const explicitlyStale = evaluateStopCompletionGate({
+      mode: 'fix',
+      lastAssistantMessage: '请确认修复方案（确认 CP2）。',
+      taskRoot,
+      taskBindingVerified: false,
+      state
+    })
+    assert(explicitlyStale.gaps.includes('pr1-task-binding-missing'))
+  } finally {
+    fs.rmSync(activeRoot, { recursive: true, force: true })
   }
 }
 

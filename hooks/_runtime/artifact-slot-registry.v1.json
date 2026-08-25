@@ -1,0 +1,175 @@
+{
+  "schemaVersion": "ArtifactSlotRegistryV1",
+  "contractVersion": "1",
+  "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+  "formalRoots": ["requirements", "bugs", "optimizations", "scenario-tests", "reports", ".memory"],
+  "slots": [
+    {
+      "slotId": "requirement-overview",
+      "taskKinds": ["requirements"],
+      "artifactClass": "overview",
+      "stage": "intake",
+      "canonicalNames": ["00-需求概况.md", "00-需求变更概况.md"],
+      "legacyReadPatterns": ["^00-需求概述\\.md$"],
+      "alternativeGroup": "requirement-overview-truth",
+      "writePolicy": "canonical-only"
+    },
+    {
+      "slotId": "requirement-cp1",
+      "taskKinds": ["requirements"],
+      "artifactClass": "cp1",
+      "stage": "CP1",
+      "canonicalNames": ["01-需求确认.md", "01-产品需求.md", "01-需求变更确认.md"],
+      "legacyReadPatterns": ["^01-需求概述\\.md$", "^01-需求确认-v[^/]+\\.md$"],
+      "alternativeGroup": "requirement-cp1-truth",
+      "writePolicy": "canonical-only"
+    },
+    {
+      "slotId": "requirement-cp2",
+      "taskKinds": ["requirements"],
+      "artifactClass": "cp2",
+      "stage": "CP2",
+      "canonicalNames": ["02-技术方案.md"],
+      "legacyReadPatterns": ["^02-技术方案-v[^/]+\\.md$"],
+      "alternativeGroup": "requirement-cp2-truth",
+      "writePolicy": "canonical-only"
+    },
+    {
+      "slotId": "bug-overview",
+      "taskKinds": ["bugs"],
+      "artifactClass": "overview",
+      "stage": "intake",
+      "canonicalNames": ["00-问题概况.md"],
+      "legacyReadPatterns": ["^00-问题概述\\.md$"],
+      "alternativeGroup": "bug-overview-truth",
+      "writePolicy": "canonical-only"
+    },
+    {
+      "slotId": "bug-cp1",
+      "taskKinds": ["bugs"],
+      "artifactClass": "cp1",
+      "stage": "CP1",
+      "canonicalNames": ["01-问题确认.md"],
+      "legacyReadPatterns": ["^01-问题确认-v[^/]+\\.md$"],
+      "reportReadPatterns": ["^01--.*CP1.*\\.md$"],
+      "alternativeGroup": "bug-cp1-truth",
+      "writePolicy": "canonical-only"
+    },
+    {
+      "slotId": "bug-cp2",
+      "taskKinds": ["bugs"],
+      "artifactClass": "cp2",
+      "stage": "CP2",
+      "canonicalNames": ["02-修复方案.md"],
+      "legacyReadPatterns": ["^02-修复方案-v[^/]+\\.md$"],
+      "reportReadPatterns": ["^02--.*CP2.*\\.md$"],
+      "alternativeGroup": "bug-cp2-truth",
+      "writePolicy": "canonical-only"
+    },
+    {
+      "slotId": "extended-task-overview",
+      "taskKinds": ["optimizations", "scenario-tests"],
+      "artifactClass": "overview",
+      "stage": "intake",
+      "canonicalNames": ["00-需求概况.md"],
+      "legacyReadPatterns": ["^00-.*概况\\.md$"],
+      "alternativeGroup": "extended-task-overview-truth",
+      "writePolicy": "canonical-only"
+    },
+    {
+      "slotId": "extended-task-cp1",
+      "taskKinds": ["optimizations", "scenario-tests"],
+      "artifactClass": "cp1",
+      "stage": "CP1",
+      "canonicalNames": ["01-需求确认.md"],
+      "legacyReadPatterns": ["^01-需求概述\\.md$", "^01-需求确认-v[^/]+\\.md$"],
+      "alternativeGroup": "extended-task-cp1-truth",
+      "writePolicy": "canonical-only"
+    },
+    {
+      "slotId": "extended-task-cp2",
+      "taskKinds": ["optimizations", "scenario-tests"],
+      "artifactClass": "cp2",
+      "stage": "CP2",
+      "canonicalNames": ["02-技术方案.md"],
+      "legacyReadPatterns": ["^02-技术方案-v[^/]+\\.md$"],
+      "alternativeGroup": "extended-task-cp2-truth",
+      "writePolicy": "canonical-only"
+    },
+    {
+      "slotId": "implementation-plan",
+      "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+      "artifactClass": "cp3-plan",
+      "stage": "CP3",
+      "canonicalNames": ["04-实施计划.md"],
+      "legacyReadPatterns": [],
+      "alternativeGroup": "implementation-plan-truth",
+      "writePolicy": "canonical-only"
+    },
+    {
+      "slotId": "implementation-progress",
+      "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+      "artifactClass": "progress",
+      "stage": "implementation",
+      "canonicalNames": ["05-实施进度.md"],
+      "legacyReadPatterns": [],
+      "alternativeGroup": "implementation-progress-truth",
+      "writePolicy": "canonical-only"
+    },
+    {
+      "slotId": "task-decision",
+      "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+      "artifactClass": "decision",
+      "stage": "any",
+      "relativePatterns": ["^(?:capability-surface-decisions|decisions)/[^/]+\\.(?:md|json)$"],
+      "alternativeGroup": null,
+      "writePolicy": "bounded-path"
+    },
+    {
+      "slotId": "task-evidence",
+      "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+      "artifactClass": "evidence",
+      "stage": "any",
+      "relativePatterns": ["^evidence/[^/]+(?:/[^/]+)*\\.(?:md|json|txt|log)$"],
+      "alternativeGroup": null,
+      "writePolicy": "bounded-path"
+    },
+    {
+      "slotId": "task-report",
+      "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+      "artifactClass": "report",
+      "stage": "any",
+      "relativePatterns": ["^reports/(?:analysis|audit|dev|fix|self-fix|chat|resume|other)/[^/]+/[0-9]{8}/[0-9]{2}--[^/]+\\.md$"],
+      "alternativeGroup": null,
+      "writePolicy": "bounded-path"
+    },
+    {
+      "slotId": "task-memory",
+      "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+      "artifactClass": "memory",
+      "stage": "any",
+      "relativePatterns": ["^\\.memory/(?:sessions\\.md|[^/]+\\.md)$"],
+      "alternativeGroup": null,
+      "writePolicy": "workflow-owner"
+    },
+    {
+      "slotId": "project-report",
+      "taskKinds": [],
+      "artifactClass": "report",
+      "stage": "any",
+      "projectRelativePatterns": ["^reports/(?:analysis|audit|dev|fix|self-fix|chat|resume|other)/[^/]+/[0-9]{8}/[0-9]{2}--[^/]+\\.md$"],
+      "alternativeGroup": null,
+      "writePolicy": "bounded-path"
+    },
+    {
+      "slotId": "project-memory",
+      "taskKinds": [],
+      "artifactClass": "memory",
+      "stage": "any",
+      "projectRelativePatterns": ["^\\.memory/(?:clients|shared)/.+\\.md$"],
+      "logicalSchemes": ["devcodex-memory"],
+      "alternativeGroup": null,
+      "writePolicy": "workflow-owner"
+    }
+  ]
+}

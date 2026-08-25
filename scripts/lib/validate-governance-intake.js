@@ -287,16 +287,16 @@ function buildGovernanceIntakeChecks(ctx) {
     const testRouter = read(path.join(ROOT, 'content', 'skills', 'test-router', 'SKILL.md'))
 
     const scriptExpectations = [
-      ['test', 'node scripts/run-validation.js --route full'],
+      ['test', 'node scripts/run-validation.js --route changed'],
       ['test:fast', 'node scripts/run-validation.js --route fast'],
       ['test:full', 'node scripts/run-validation.js --route full'],
       ['test:delivery', 'node scripts/run-validation.js --route delivery'],
       ['test:boundary', 'node scripts/run-validation.js --route boundary'],
       ['test:validation-dag', 'node scripts/test-validation-dag.js'],
-      ['test:all', 'npm test'],
+      ['test:all', 'npm run test:full'],
       ['test:all:with-audit', 'npm run test:audit'],
       ['test:release-metadata', 'node scripts/test-release-metadata.js'],
-      ['prepublishOnly', 'npm run test:all:with-audit']
+      ['prepublishOnly', 'node scripts/verify-release-validation-receipt.js']
     ]
     for (const [scriptName, needle] of scriptExpectations) {
       const value = scripts[scriptName] || ''
@@ -314,7 +314,7 @@ function buildGovernanceIntakeChecks(ctx) {
       err('[V42] package.json test:audit must pin npm audit to registry.npmjs.org so GitHub Packages publishConfig does not break publish dry-run/prepublishOnly')
     }
 
-    for (const needle of ['R3b', 'R3c', 'npm run test:audit', 'package completeness gate', '远端 CI', 'keywords', 'publishConfig', 'prepublishOnly']) {
+    for (const needle of ['R3b', 'R3c', 'npm run test:audit', 'package completeness gate', '远端 CI', 'keywords', 'publishConfig', 'prepublishOnly', 'ValidationExecutionTerminalProjectionV3']) {
       if (!releaseSkill.includes(needle)) err(`[V42] release-verification skill missing "${needle}"`)
     }
     for (const needle of ['release-verification', 'npm run test:audit', 'package completeness gate', '远端 CI', 'publish dry-run']) {

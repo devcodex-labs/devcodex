@@ -3,6 +3,8 @@
 const assert = require('assert')
 const {
   WorkflowCompletionError,
+  applyValidationControlIngress,
+  classifyValidationControlInstruction,
   createCommitValidationResult,
   createRiskAcceptanceReceipt,
   createWorkflowCompletionCandidate,
@@ -10,6 +12,7 @@ const {
   createWorkflowCompletionPlan,
   createWorkflowEvidenceReceipt,
   createVerificationIntent,
+  createValidationControlIngressReceipt,
   evaluateReceiptFreshness,
   evaluateShadowEvidenceWindow,
   evaluateWorkflowCompletion,
@@ -21,9 +24,12 @@ const {
   validateWorkflowCompletionPlan,
   validateWorkflowCompletionSnapshot,
   validateWorkflowEvidenceReceipt,
-  validateVerificationIntent
+  validateVerificationIntent,
+  validateValidationControlIngressReceipt,
+  validationProjectRootIdentity
 } = require('../hooks/_runtime/workflow-completion-contract.cjs')
-const { buildContentIdentity, sha256 } = require('../hooks/_runtime/content-identity.cjs')
+const { buildActualInstructionEnvelope } = require('../hooks/_runtime/actual-instruction-envelope.cjs')
+const { buildContentIdentity, sha256, stableStringify } = require('../hooks/_runtime/content-identity.cjs')
 const { projectWorkflowCompletionVisibleState } = require('../hooks/_runtime/lifecycle-visible-reply.cjs')
 const {
   MAX_SOURCE_REFS,
@@ -77,40 +83,131 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value))
 }
 
+function validationControlEnvelope(prompt, suffix) {
+  return buildActualInstructionEnvelope({
+    prompt,
+    sourceEventId: `validation-control-${suffix}`,
+    issuedAt: new Date(NOW).toISOString()
+  }, {
+    actualInstruction: prompt,
+    hostVariant: 'codex',
+    hostSessionId: 'validation-control-session',
+    turnId: `validation-control-turn-${suffix}`,
+    contextEpoch: 'ctx-validation-control',
+    trustedHostEvent: true,
+    nowMs: NOW
+  })
+}
+
+const validationRootIdentity = validationProjectRootIdentity(process.cwd())
+const confirmEnvelope = validationControlEnvelope('确认当前验证卡', 'confirm')
+const confirmControl = createValidationControlIngressReceipt({
+  actualInstructionEnvelope: confirmEnvelope,
+  actualInstruction: '确认当前验证卡',
+  executionMode: 'confirm',
+  taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
+  project: 'devcodex',
+  projectRootIdentity: validationRootIdentity
+}, { ttlMs: 60000 })
+assert.strictEqual(confirmControl.action, 'confirm-current-budget')
+assert.strictEqual(confirmControl.authorityKind, 'user-confirmation')
+assert.strictEqual(validateValidationControlIngressReceipt(confirmControl, null, { now: NOW }).valid, true)
+const autoEnvelope = validationControlEnvelope('@rocky 开始自动推进', 'auto')
+const autoControl = createValidationControlIngressReceipt({
+  actualInstructionEnvelope: autoEnvelope,
+  actualInstruction: '@rocky 开始自动推进',
+  executionMode: 'auto',
+  taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
+  project: 'devcodex',
+  projectRootIdentity: validationRootIdentity
+})
+assert.strictEqual(autoControl.action, 'auto-authorize')
+assert.match(autoControl.autoAuthorityRef, /^validation-auto:[a-f0-9]{64}$/)
+assert.strictEqual(classifyValidationControlInstruction('继续').action, 'none')
+const pauseEnvelope = validationControlEnvelope('先暂停验证', 'pause')
+const pauseControl = createValidationControlIngressReceipt({
+  actualInstructionEnvelope: pauseEnvelope,
+  actualInstruction: '先暂停验证',
+  executionMode: 'auto',
+  taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
+  project: 'devcodex',
+  projectRootIdentity: validationRootIdentity
+})
+const validationControlState = {
+  validationExecution: {
+    schemaVersion: 'ValidationExecutionTaskStateV1',
+    revocationEpoch: 2,
+    pendingBudgetCard: { schemaVersion: 'PendingBudgetCardBindingV1' },
+    currentLease: { schemaVersion: 'VerificationExecutionLeaseV2' },
+    runnerState: { schemaVersion: 'ManagedValidationRunnerStateV2' },
+    continuationAuthorization: { schemaVersion: 'ValidationContinuationAuthorizationV1', status: 'leased' }
+  }
+}
+applyValidationControlIngress(validationControlState, pauseControl)
+assert.strictEqual(validationControlState.validationExecution.revocationEpoch, 3)
+assert.strictEqual(validationControlState.validationExecution.pendingBudgetCard, null)
+assert.strictEqual(validationControlState.validationExecution.currentLease, null)
+assert.strictEqual(validationControlState.validationExecution.runnerState, null)
+assert.strictEqual(validationControlState.validationExecution.continuationAuthorization.status, 'revoked')
+const tamperedAutoControl = clone(autoControl)
+tamperedAutoControl.autoAuthorityRef = 'validation-auto:' + '0'.repeat(64)
+expectNegative('validation-control-auto-ref-digest-bound', () => !validateValidationControlIngressReceipt(tamperedAutoControl).valid)
+
 const deliveryIntent = createVerificationIntent({
+  requesterClass: 'human-cli',
+  requestedLevel: 'V2',
+  requestedPurpose: 'delivery',
+  affectedBoundaries: ['hook-runtime'],
+  riskClass: 'high',
+  requestSourceRef: 'fixture-confirmed-cp3',
+  project: 'devcodex',
+  candidateId: 'validation-candidate-fixture-delivery',
+  changedScopeDigest: sha256('fixture-delivery-scope')
+})
+assert.strictEqual(deliveryIntent.schemaVersion, 'VerificationIntentV2')
+assert.strictEqual(deliveryIntent.claimCeiling, 'boundary-qualified')
+assert.strictEqual(validateVerificationIntent(deliveryIntent).valid, true)
+const tamperedIntent = clone(deliveryIntent)
+tamperedIntent.requestedLevel = 'V3'
+expectNegative('verification-intent-digest-binding', () => !validateVerificationIntent(tamperedIntent).valid)
+const releaseIntent = createVerificationIntent({
+  requesterClass: 'release-pipeline',
+  requestedLevel: 'V3',
+  requestedPurpose: 'release',
+  affectedBoundaries: [],
+  riskClass: 'release',
+  requestSourceRef: 'fixture-release-request',
+  project: 'devcodex',
+  candidateId: 'validation-candidate-fixture-release',
+  changedScopeDigest: sha256('fixture-release-scope')
+})
+assert.strictEqual(releaseIntent.claimCeiling, 'release-candidate')
+assert.strictEqual(Object.hasOwn(releaseIntent, 'releaseAuthorized'), false)
+assert.strictEqual(Object.hasOwn(releaseIntent, 'explicitFullAudit'), false)
+
+const legacySemanticIntent = {
+  schemaVersion: 'VerificationIntentV1',
   level: 'V2',
   purpose: 'delivery',
   affectedBoundaries: ['hook-runtime'],
   riskClass: 'high',
   releaseAuthorized: false,
   explicitFullAudit: false,
-  authoritySource: 'fixture-confirmed-cp3'
-})
-assert.strictEqual(deliveryIntent.schemaVersion, 'VerificationIntentV1')
-assert.strictEqual(deliveryIntent.claimCeiling, 'boundary-qualified')
-assert.strictEqual(validateVerificationIntent(deliveryIntent).valid, true)
-const tamperedIntent = clone(deliveryIntent)
-tamperedIntent.level = 'V3'
-expectNegative('verification-intent-digest-binding', () => !validateVerificationIntent(tamperedIntent).valid)
-assert.throws(() => createVerificationIntent({
-  level: 'V3',
-  purpose: 'release',
-  affectedBoundaries: [],
-  riskClass: 'release',
-  releaseAuthorized: false,
-  explicitFullAudit: false,
-  authoritySource: 'fixture-missing-release-authority'
-}), error => error instanceof WorkflowCompletionError && error.code === 'VERIFICATION_INTENT_INVALID')
-const releaseIntent = createVerificationIntent({
-  level: 'V3',
-  purpose: 'release',
-  affectedBoundaries: [],
-  riskClass: 'release',
-  releaseAuthorized: true,
-  explicitFullAudit: false,
-  authoritySource: 'fixture-user-release-authority'
-})
-assert.strictEqual(releaseIntent.claimCeiling, 'release-candidate')
+  authoritySource: 'fixture-legacy-reader',
+  claimCeiling: 'boundary-qualified'
+}
+const legacyIntent = {
+  ...legacySemanticIntent,
+  authorizationDigest: sha256(stableStringify({
+    level: legacySemanticIntent.level,
+    purpose: legacySemanticIntent.purpose,
+    releaseAuthorized: legacySemanticIntent.releaseAuthorized,
+    explicitFullAudit: legacySemanticIntent.explicitFullAudit,
+    authoritySource: legacySemanticIntent.authoritySource
+  })),
+  intentDigest: sha256(stableStringify(legacySemanticIntent))
+}
+assert.strictEqual(validateVerificationIntent(legacyIntent).valid, true, 'V1 receipts remain read-only compatible')
 
 function taskScope(suffix = 'alpha') {
   const source = JSON.stringify({ project: 'devcodex', task: suffix })

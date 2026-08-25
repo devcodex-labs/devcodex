@@ -111,9 +111,9 @@ GitHub Actions secrets 的 org/repo/environment scope、access policy 与 preced
 - 发布失败时写报告和恢复路径，不静默重试凭据相关动作。
 - 若 `publishConfig` 指向 GitHub Packages / restricted access，README 与安装文档必须显式保留认证步骤，禁止再宣称“匿名直接安装”。
 - 若 `publishConfig` 指向 GitHub Packages，`test:audit` 必须显式使用 `https://registry.npmjs.org` 作为 audit registry，避免 publish dry-run / prepublishOnly 继承 GitHub Packages 的非审计端点；这不等于跳过审计。
-- `prepublishOnly` 必须强制跑完整 release gate（至少 `npm run test:all:with-audit`）。
+- 完整 release gate 必须由绑定 `ValidationRunIdentityV1` 的 `VerificationExecutionLeaseV2` 授权 `ManagedValidationRunnerV2`，在冻结候选上执行一次并持久化 `ValidationExecutionTerminalProjectionV3`；`prepublishOnly` 只校验该稳定终态与当前 candidate/HEAD/dirty scope、plan/budget、release-pipeline 角色、V3/release/full 范围及 hard deadline 完全一致，禁止在 npm lifecycle 中无授权地重复启动全量验证。V1 仅可读，终态缺失、失败、过期或候选漂移一律阻断 publish。
 - 按 `ConcurrencyPolicy`，只读准备和隔离验证可并行；`npm pack --dry-run`、package boundary check、files/exports/bin 检查不得与任何会删除、重建或写入 `dist` 的命令并行；若曾出现并行读写竞争，报告必须以重新单独执行的 pack 结果为准，并记录旧结果作废。
-- ReleaseVerification 完成前必须检查并清理无关 dirty 文件、旧验证残留和本轮生成但不属于交付范围的产物；不得把残留文件留给后续任务。
+- ReleaseVerification 完成前必须盘点无关 dirty、旧验证残留和本轮生成但不属于交付范围的产物。只有具备本任务可回读 ownership receipt 且另有适用删除确认的对象才可清理；无归属、用户或并行任务文件只能报告、冻结在 candidate 外并给出处置建议，禁止自动删除、reset、checkout、stash 或覆盖。残留不能安全隔离时阻断 candidate，而不是以“清理”为由扩大授权。
 - 发布前必须执行 `PublicSurfaceClosureGate`：分类 npm pack 历史公开内容，反查 README 隐藏文档链接、public types 兼容 API 标注、examples/sidebar/nav、搜索索引源文档和 historical pack surface；不得只检查当前源码目录。
 - 发布包若包含 `scripts/*.js`、CLI helper、profile validator、migration tool 或公开验证脚本，必须执行 `PackagedScriptDependencyClosureGate`：用 tarball / 临时安装后的真实路径验证公开脚本可执行，缺少本地 helper、spawn 目标脚本或运行时依赖时阻断发布；不得只因源码目录 `npm test` 通过就认定包消费者可用。
 - 发布、pack、install smoke、CLI replay、curl/git/npm/node 等原生命令必须执行 `NativeCommandExitCodeGate`：PowerShell 下不能只依赖 `$ErrorActionPreference` 或后续 `Write-Host OK`，必须检查 `$LASTEXITCODE` 或使用会向外传播非零退出码的 wrapper；Bash/类 Unix shell 必须避免管道或子命令吞掉失败。证据至少记录 command、shell、cwd、exitCode、auth/config 来源（如 `.npmrc` / `--userconfig`）、`ScopedRegistryResolutionGate` 的 scope override（若适用）以及失败证据是否已排除；命令失败但脚本继续打印成功文案的结果无效。

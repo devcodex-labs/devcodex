@@ -57,7 +57,7 @@ description: 真相源-消费者同步规范 — 为规范源、模板、validat
 1. 锁定本轮 `sourceOfTruth`。
 2. 建立 `currentConsumers` / `historicalMirrors` 清单。
 3. 为当前消费者补齐 `validateProbes` 和必要 targeted tests。
-4. 列出 `deployCopies`：用户级全局 adapter 用 `devcodex global-adapters apply`（或 npm `-g` / pack 路径）；workspace `.devcodex` 用 bare `devcodex update`。
+4. 列出 `deployCopies`：用户级全局 adapter 可建议 `devcodex global-adapters apply`（或 npm `-g` / pack 路径），但必须把全局环境修改作为独立授权动作；workspace `.devcodex` 才使用 bare `devcodex update`。ConceptSyncMap、Auto、Profile 或 stale 状态不授予任一部署 mutation。
 5. 定义 `yellowDeviationBoundary`，把允许纳入的额外消费者写入进度或报告。
 6. 实施后做双向联查：正向 grep 真相源，反向 grep 旧口径残留。
 

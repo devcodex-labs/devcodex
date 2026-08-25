@@ -140,8 +140,8 @@ if (docsOnlyPlan.executionState !== 'ready' || docsOnlyPlan.selectedNodeCount !=
 const readmeGovernanceNode = validationManifest.nodes.find(node => node.id === 'readme-governance')
 const fullRouteNodes = validationManifest.routes.full && validationManifest.routes.full.nodes
 const readmeGovernanceCovered = Boolean(
-  testAllScript.trim() === 'npm test' &&
-  testScript === 'node scripts/run-validation.js --route full' &&
+  testAllScript.trim() === 'npm run test:full' &&
+  testScript === 'node scripts/run-validation.js --route changed' &&
   readmeGovernanceNode &&
   readmeGovernanceNode.command === 'node' &&
   Array.isArray(readmeGovernanceNode.args) &&

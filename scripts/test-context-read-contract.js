@@ -8,6 +8,7 @@ const { spawnSync } = require('child_process')
 const { performance } = require('perf_hooks')
 const contract = require('../hooks/_runtime/context-read-contract.cjs')
 const { buildContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
+const workflowRouteRegistryV2 = require('../hooks/_runtime/workflow-root-registry.v2.json')
 
 const {
   CONTEXT_READ_CONTRACT,
@@ -209,6 +210,12 @@ assert.deepStrictEqual(devPlan.contextBinding, {
   project: devPlan.identity.project
 })
 assert.deepStrictEqual(devPlan.profile.selectedFiles, STANDARD_FILES.slice(0, 3))
+assert.strictEqual(devPlan.workflowRoute.schemaVersion, CONTEXT_READ_CONTRACT.schemas.workflowRoutePlanRef)
+assert.strictEqual(devPlan.workflowRoute.routeKey, 'dev.default')
+assert.strictEqual(devPlan.workflowRoute.topIntent, 'dev')
+assert.strictEqual(devPlan.workflowRoute.subtype, 'default')
+assert.strictEqual(devPlan.workflowRoute.stage, 'entry')
+assert.deepStrictEqual(devPlan.identityInputs.intent.workflowRoute, devPlan.workflowRoute)
 assert(devPlan.selectedSources.some(source => source.sourceId === 'profile:README.md' && source.kind === 'profile-baseline'))
 assert(devPlan.selectedSources.some(source => source.sourceId === 'profile:config.json' && source.kind === 'profile-baseline'))
 assert.deepStrictEqual(devPlan.memory.requiredQueries, ['memory_status'])
@@ -218,6 +225,88 @@ assert.strictEqual(devPlan.catalogCoverage.unclassifiedIds.length, 0)
 const forgedContextBindingPlan = clone(devPlan)
 forgedContextBindingPlan.contextBinding.planId = 'plan-forged'
 assert.strictEqual(validateContextReadPlan(forgedContextBindingPlan).valid, false)
+
+function changeTypesForWorkflowRoute(route) {
+  if (['chat', 'resume'].includes(route.topIntent)) return []
+  if (['audit', 'analyze', 'other'].includes(route.topIntent)) return ['project-info']
+  return ['source-code']
+}
+
+const publicRoutePlans = new Map()
+for (const route of workflowRouteRegistryV2.routes) {
+  const routePlan = assertPlan(buildContextReadPlan(makeInput(
+    route.topIntent,
+    changeTypesForWorkflowRoute(route),
+    {
+      contextEpoch: `epoch-route-${route.routeKey}`,
+      workflowRoute: {
+        routeKey: route.routeKey,
+        subtype: route.subtype,
+        stage: route.stage
+      }
+    }
+  ), { nowMs: BASE_MS }), `route ${route.routeKey} must be ContextRead-reachable`)
+  assert.strictEqual(routePlan.workflowRoute.routeKey, route.routeKey)
+  assert.strictEqual(routePlan.workflowRoute.topIntent, route.topIntent)
+  assert.strictEqual(routePlan.workflowRoute.subtype, route.subtype)
+  assert.strictEqual(routePlan.workflowRoute.stage, route.stage)
+  assert.strictEqual(routePlan.workflowRoute.routeRevision, workflowRouteRegistryV2.routeRevision)
+  assert.strictEqual(routePlan.workflowRoute.routeRegistryDigest, workflowRouteRegistryV2.registryDigest)
+  assert.match(routePlan.workflowRoute.routeIdentityDigest, /^[a-f0-9]{64}$/)
+  publicRoutePlans.set(route.routeKey, routePlan)
+}
+assert.strictEqual(publicRoutePlans.size, 24)
+assert.notStrictEqual(
+  publicRoutePlans.get('dev.default').planContentId,
+  publicRoutePlans.get('dev.refactor').planContentId,
+  'the exact workflow route must participate in planContentId'
+)
+for (const workflowRoute of [
+  { routeKey: 'dev.default' },
+  { routeKey: 'dev.default', subtype: 'default', stage: 'entry', routeRevision: workflowRouteRegistryV2.routeRevision },
+  { routeKey: ' dev.default', subtype: 'default', stage: 'entry' },
+  { routeKey: 'dev.default', subtype: ['default'], stage: 'entry' },
+  { routeKey: 'dev.default', subtype: 'docs', stage: 'entry' },
+  { routeKey: 'dev.default', subtype: 'default', stage: 'internal-step' },
+  { routeKey: 'dev.default', subtype: 'default', stage: 'entry', topIntent: 'audit' }
+]) {
+  assert.strictEqual(
+    buildContextReadPlan(makeInput('dev', ['source-code'], { workflowRoute })).errorCode,
+    'WORKFLOW_ROUTE_UNRESOLVED'
+  )
+}
+assert.strictEqual(buildContextReadPlan(makeInput('audit', ['project-info'], {
+  workflowRoute: { routeKey: 'dev.default', subtype: 'default', stage: 'entry' }
+})).errorCode, 'WORKFLOW_ROUTE_UNRESOLVED')
+
+const legacyV2WithoutWorkflowRoute = clone(devPlan)
+delete legacyV2WithoutWorkflowRoute.workflowRoute
+delete legacyV2WithoutWorkflowRoute.identityInputs.intent.workflowRoute
+legacyV2WithoutWorkflowRoute.planContentId = `plan-content-${stableDigest(legacyV2WithoutWorkflowRoute.identityInputs)}`
+legacyV2WithoutWorkflowRoute.planId = `plan-${stableDigest({
+  planContentId: legacyV2WithoutWorkflowRoute.planContentId,
+  contextEpoch: legacyV2WithoutWorkflowRoute.identity.contextEpoch,
+  invocationNonce: legacyV2WithoutWorkflowRoute.identity.invocationNonce
+}).slice(0, 24)}`
+legacyV2WithoutWorkflowRoute.contextBinding.planId = legacyV2WithoutWorkflowRoute.planId
+legacyV2WithoutWorkflowRoute.contextBinding.planContentId = legacyV2WithoutWorkflowRoute.planContentId
+legacyV2WithoutWorkflowRoute.cacheDecision.cacheKey = legacyV2WithoutWorkflowRoute.planContentId
+let legacyV2ResponseBytes = 0
+for (let attempt = 0; attempt < 4; attempt += 1) {
+  legacyV2WithoutWorkflowRoute.stageTiming.plannerResponseBytes = legacyV2ResponseBytes
+  const next = Buffer.byteLength(JSON.stringify(legacyV2WithoutWorkflowRoute, null, 2), 'utf8')
+  if (next === legacyV2ResponseBytes) break
+  legacyV2ResponseBytes = next
+}
+legacyV2WithoutWorkflowRoute.stageTiming.plannerResponseBytes = Buffer.byteLength(
+  JSON.stringify(legacyV2WithoutWorkflowRoute, null, 2),
+  'utf8'
+)
+assert.strictEqual(
+  validateContextReadPlan(legacyV2WithoutWorkflowRoute).valid,
+  true,
+  'previous ContextReadPlanV2 producers without workflowRoute must remain readable'
+)
 
 function legacyN1PlanFrom (current, extraRemovedAction = null) {
   const legacy = clone(current)
@@ -481,6 +570,9 @@ mutations.push(resignPlan(unknownEscalation))
 const forgedOptimization = clone(devPlan)
 forgedOptimization.executionOptimization.mode = 'full-only'
 mutations.push(forgedOptimization)
+const staleWorkflowRoute = clone(devPlan)
+staleWorkflowRoute.workflowRoute.stage = 'internal-step'
+mutations.push(staleWorkflowRoute)
 for (const mutation of mutations) assert.strictEqual(validateContextReadPlan(mutation).valid, false, 'plan mutation escaped validation')
 
 let receipt = createContextReadReceipt(devPlan, {
@@ -831,7 +923,7 @@ assert.strictEqual(sourceDecision.delivery.reuse, false)
 assert.strictEqual(sourceDecision.delivery.reasonCode, 'source-identity-mismatch')
 
 const legacyPlan = clone(devPlan)
-for (const field of ['planContentId', 'contextBinding', 'identityInputs', 'executionOptimization', 'reusePolicy', 'stageTiming', 'cacheDecision']) delete legacyPlan[field]
+for (const field of ['planContentId', 'contextBinding', 'identityInputs', 'workflowRoute', 'executionOptimization', 'reusePolicy', 'stageTiming', 'cacheDecision']) delete legacyPlan[field]
 legacyPlan.schemaVersion = CONTEXT_READ_CONTRACT.schemas.planV1
 legacyPlan.freshness = {
   strategy: 'size+mtimeMs+metadataDigest',

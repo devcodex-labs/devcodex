@@ -2,6 +2,7 @@
 'use strict'
 
 const assert = require('assert')
+const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -12,15 +13,28 @@ const { runHooksRuntimeVisibilityScenarios } = require('./lib/test-hooks-runtime
 const { runHooksRuntimeGovernanceIntakeScenarios } = require('./lib/test-hooks-runtime-governance-intake')
 const { DEFAULT_THRESHOLDS } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 const { stableDigest } = require('../hooks/_runtime/context-read-contract.cjs')
+const {
+  buildWorkItemSet
+} = require('../hooks/_runtime/actual-instruction-envelope.cjs')
+const { buildWorkflowRouteDecision } = require('../hooks/_runtime/workflow-route-decision-v2.cjs')
 const { resolveLanguageContext } = require('../hooks/_runtime/language-context.cjs')
 const { createRuntimeStateStore } = require('../hooks/_runtime/runtime-state-store.cjs')
 const { resolveRuntimeStateRoots } = require('../hooks/_runtime/workspace-layout.cjs')
 const { buildLifecycleNamespaceStateUtils } = require('../hooks/_runtime/lifecycle-namespace-state.cjs')
 const {
   commitTaskRecoveryState,
+  MUTATION_PREFLIGHT_STATE_MAX_BYTES,
+  readFencedTaskWriteOwner,
   readTaskRecoveryState,
+  resolveTaskRecoveryMetaDir,
   storePaths
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
+const { createWorkspaceSessionRouteIndex } = require('../hooks/_runtime/workspace-session-route-index-v1.cjs')
+const {
+  executeTaskAdmission,
+  executeTaskWriteOwner,
+  executeWorkflowTaskTerminal
+} = require('../mcp/task-admission-authority.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 const RUNTIME = path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs')
@@ -140,6 +154,742 @@ const runtimeScenarioContext = {
   readInterceptionEntries,
   writeTranscript,
   writeTranscriptEntries
+}
+
+function runR2BTaskOwnerLifecycleScenarios() {
+  process.env.CLAUDE_CODE_VERSION = process.env.CLAUDE_CODE_VERSION || 'r2b-test'
+  cleanState({ mode: 'dev', agent: TEST_AGENT })
+  const projectionSessionId = 'r2b-ingress-projection-session'
+  const ingressOutput = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: projectionSessionId,
+    prompt: '修复正式任务 owner 与 terminal 生命周期'
+  })
+  const ingressContext = String(
+    ingressOutput.hookSpecificOutput?.additionalContext || ingressOutput.systemMessage || ''
+  )
+  const projectionLine = ingressContext.split(/\r?\n/u)
+    .find(line => line.includes('"schemaVersion":"WorkflowIngressProjectionV1"'))
+  assert(projectionLine, 'WorkflowIngressProjectionV1 must be visible on ingress')
+  assert.strictEqual(JSON.parse(projectionLine).admissionRef, null)
+  const pendingState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  const planArgs = {
+    intent: 'chat',
+    contextEpoch: pendingState.contextAcquisition.contextEpoch,
+    ...(pendingState.contextAcquisition.project ? { project: pendingState.contextAcquisition.project } : {})
+  }
+  const planToolUseId = `r2b-plan-${pendingState.contextAcquisition.contextEpoch}`
+  run({
+    hookEventName: 'PreToolUse',
+    session_id: projectionSessionId,
+    tool_use_id: planToolUseId,
+    tool_name: 'devcodex-profile/profile_context_plan',
+    tool_input: planArgs
+  })
+  const planResult = callProfileTool(TEMP_ROOT, 'profile_context_plan', planArgs)
+  const planPost = run({
+    hookEventName: 'PostToolUse',
+    session_id: projectionSessionId,
+    tool_use_id: planToolUseId,
+    tool_name: 'devcodex-profile/profile_context_plan',
+    tool_input: planArgs,
+    tool_response: planResult
+  })
+  const boundProjectionLine = String(
+    planPost.hookSpecificOutput?.additionalContext || planPost.systemMessage || ''
+  ).split(/\r?\n/u).find(line => line.includes('"schemaVersion":"WorkflowIngressProjectionV1"'))
+  assert(boundProjectionLine, 'route-bound PostToolUse must emit WorkflowIngressProjectionV1')
+  const ingressProjection = JSON.parse(boundProjectionLine)
+  assert.strictEqual(ingressProjection.admissionRef.schemaVersion, 'WorkflowIngressProjectionRefV1')
+  assert.strictEqual(ingressProjection.admissionRef.envelopeDigest, ingressProjection.envelopeDigest)
+  assert.strictEqual(ingressProjection.admissionRef.decisionDigest, ingressProjection.decisionDigest)
+  const firstRouteBoundState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  const firstPlanBinding = firstRouteBoundState.workflowRoutePlanBinding
+  assert.match(firstPlanBinding.contextSemanticDigest, /^[a-f0-9]{64}$/)
+  const replayPlanToolUseId = `${planToolUseId}-replay`
+  run({
+    hookEventName: 'PreToolUse',
+    session_id: projectionSessionId,
+    tool_use_id: replayPlanToolUseId,
+    tool_name: 'devcodex-profile/profile_context_plan',
+    tool_input: planArgs
+  })
+  run({
+    hookEventName: 'PostToolUse',
+    session_id: projectionSessionId,
+    tool_use_id: replayPlanToolUseId,
+    tool_name: 'devcodex-profile/profile_context_plan',
+    tool_input: planArgs,
+    tool_response: planResult
+  })
+  const replayRouteBoundState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(
+    replayRouteBoundState.workflowRoutePlanBinding.bindingDigest,
+    firstPlanBinding.bindingDigest,
+    're-observing the same plan must not change WorkflowRoutePlanBinding because receipt diagnostics were refreshed'
+  )
+
+  cleanState({ mode: 'dev', agent: TEST_AGENT })
+  const sessionId = 'r2b-task-owner-session'
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: sessionId,
+    prompt: '@rocky 修复正式任务 owner 与 terminal 生命周期'
+  })
+  runBootstrapReads(TEST_AGENT)
+
+  let state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(state.executionMode, 'auto')
+  assert.strictEqual(state.actualInstructionEnvelope.authorityScope, 'trusted-host-workflow-ingress')
+  assert.strictEqual(state.actualInstructionEnvelope.provenanceLevel, 'trusted-host-event')
+  assert.match(state.actualInstructionEnvelope.sourceEventId, /^event-[a-f0-9]{40}$/)
+  const fixWorkItemSet = buildWorkItemSet(state.actualInstructionEnvelope, {
+    workItems: [{ taskKind: 'fix', routeCandidate: 'fix.default' }]
+  })
+  const fixRoute = buildWorkflowRouteDecision({
+    actualInstructionEnvelope: state.actualInstructionEnvelope,
+    workItemSet: fixWorkItemSet,
+    workItemId: fixWorkItemSet.items[0].workItemId,
+    environmentMode: 'dev',
+    routeKey: 'fix.default'
+  })
+  state.workItemSet = fixWorkItemSet
+  state.workflowRouteDecision = fixRoute
+  state.workflowRoutePlanBinding = {
+    ...(state.workflowRoutePlanBinding || {}),
+    routeKey: fixRoute.routeKey,
+    subtype: fixRoute.subtype,
+    stage: fixRoute.stage,
+    decisionDigest: fixRoute.decisionDigest
+  }
+  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
+  const activeRoot = path.join(TEMP_ROOT, '.devcodex')
+  const project = state.stickyProject.project || state.activeProject
+  assert(project)
+  assert.strictEqual(state.workflowRouteDecision.mutationPolicy, 'allowed-after-confirmation')
+  const admissionInput = {
+    operation: 'admit',
+    activeRoot,
+    project,
+    actualInstructionEnvelope: state.actualInstructionEnvelope,
+    workItemSet: state.workItemSet,
+    workflowRouteDecision: state.workflowRouteDecision,
+    projectTargetLease: state.stickyProject,
+    task: {
+      taskKind: 'bugs',
+      entryVariant: 'fix',
+      displayName: 'R2B Hook owner task'
+    },
+    overview: { content: '# 问题概况\n\nR2B Hook owner lifecycle.\n' }
+  }
+  const admission = executeTaskAdmission(admissionInput)
+  const taskRoot = path.join(activeRoot, ...admission.taskRootRelative.split('/'))
+  const recoveryIdentity = { activeRoot, project, taskId: admission.taskId, taskStatus: 'active' }
+  const metaDir = resolveTaskRecoveryMetaDir(recoveryIdentity)
+  state.taskRecoveryBinding = {
+    schemaVersion: 'TaskRecoveryBindingV1',
+    taskId: admission.taskId,
+    displayName: 'R2B Hook owner task',
+    project,
+    kind: 'bugs',
+    taskRoot,
+    status: 'active',
+    identityRevision: 2,
+    boundAt: new Date().toISOString()
+  }
+  const admissionRead = readFencedTaskWriteOwner({ metaDir, identity: recoveryIdentity })
+  state.admissionTransaction = admissionRead.transaction
+  state.fencedWriteOwner = null
+  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir,
+    identity: recoveryIdentity,
+    sessionKey: sessionId,
+    state
+  }, { force: true, reserveBytes: 8 * 1024 * 1024 }).status, 'committed')
+
+  const preResetState = JSON.parse(JSON.stringify(state))
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: sessionId,
+    prompt: '继续复核当前正式任务，不创建新任务'
+  })
+  const postResetState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(postResetState.executionMode, 'auto')
+  assert.strictEqual(postResetState.validationControlIngress?.action, 'auto-authorize')
+  assert.strictEqual(postResetState.validationControlIngress?.authorityKind, 'auto')
+  assert.strictEqual(postResetState.validationControlIngress?.sourceMessageDigest,
+    postResetState.actualInstructionEnvelope.actualInstructionDigest)
+  const postResetAdmission = readFencedTaskWriteOwner({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(postResetAdmission.transaction.phase, 'cp-state-written')
+  assert.strictEqual(postResetAdmission.transaction.admissionId, admission.admissionId)
+  state = preResetState
+  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir,
+    identity: recoveryIdentity,
+    sessionKey: sessionId,
+    state
+  }, { force: true, reserveBytes: 8 * 1024 * 1024 }).status, 'committed')
+
+  const targetFile = path.join(taskRoot, '02-修复方案.md')
+  const blocked = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r2b-owner-missing',
+    tool_name: 'Write',
+    tool_input: { file_path: targetFile, content: '# 修复方案\n' }
+  })
+  assert.match(JSON.stringify(blocked), /FENCED_TASK_WRITE_OWNER_MISSING|TASK_WRITE_OWNER_REQUIRED/)
+  assert.strictEqual(fs.existsSync(targetFile), false)
+
+  const confirmationContent = '# 问题确认\n\nHook owner confirmed.\n'
+  const confirmationName = '01-问题确认.md'
+  fs.writeFileSync(path.join(taskRoot, confirmationName), confirmationContent)
+  const confirmationDigest = crypto.createHash('sha256').update(confirmationContent).digest('hex')
+  const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
+  const sessions = fs.readFileSync(sessionsPath, 'utf8')
+  fs.writeFileSync(sessionsPath, sessions.replace(
+    /^\|\s*CP1\s*\|.*$/mu,
+    `| CP1 | ✅ | ${confirmationName} | v1 | ${confirmationDigest} | hook-test | ${new Date().toISOString()} |`
+  ))
+  let nonceSequence = 0
+  const acquireInput = {
+    operation: 'acquire',
+    activeRoot,
+    project,
+    actualInstructionEnvelope: state.actualInstructionEnvelope,
+    workItemSet: state.workItemSet,
+    workflowRouteDecision: state.workflowRouteDecision,
+    projectTargetLease: state.stickyProject,
+    taskId: admission.taskId,
+    admissionId: admission.admissionId
+  }
+  const acquired = executeTaskWriteOwner(acquireInput, {
+    nonceFactory() {
+      nonceSequence += 1
+      return `owner-${crypto.createHash('sha1').update(String(nonceSequence)).digest('hex')}`
+    }
+  })
+  assert.strictEqual(acquired.mutationAuthority, true)
+
+  const autoBypassProbe = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r2b-auto-control-plane-before-design',
+    tool_name: 'Write',
+    tool_input: {
+      file_path: path.join(TEMP_ROOT, 'hooks', '_runtime', 'lifecycle.cjs'),
+      content: 'module.exports = true\n'
+    }
+  })
+  assert.strictEqual(
+    autoBypassProbe.hookSpecificOutput?.permissionDecision,
+    'deny',
+    JSON.stringify(autoBypassProbe)
+  )
+  assert.match(
+    JSON.stringify(autoBypassProbe),
+    /IMPLEMENT_START_WITHOUT_|cp-gate-CP2|Implement process gate required/i,
+    'auto alias plus a valid CP1 owner must not bypass design/implementation gates'
+  )
+
+  const allowed = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r2b-owner-allowed',
+    tool_name: 'Write',
+    tool_input: { file_path: targetFile, content: '# 修复方案\n' }
+  })
+  assert.doesNotMatch(JSON.stringify(allowed), /TASK_WRITE_OWNER_|FENCED_TASK_WRITE_OWNER_/)
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(
+    state.fencedTaskWriteOwnerAuthority?.mutationAuthority,
+    true,
+    `owner-authorized mutation was not admitted: ${JSON.stringify(allowed)}`
+  )
+  let mutationOperation = state.turnLiveness.inFlightOperation
+  assert.strictEqual(mutationOperation?.artifactDecision?.schemaVersion, 'ArtifactSlotDecisionV2')
+  assert.strictEqual(mutationOperation?.mutationLease?.schemaVersion, 'TaskOwnedMutationLeaseV2')
+  assert.strictEqual(mutationOperation?.mutationFootprint?.schemaVersion, 'MutationFootprintRecoveryProjectionV2')
+  assert.strictEqual(mutationOperation?.mutationPreObservation?.schemaVersion, 'MutationPreObservationV1')
+  assert.strictEqual(mutationOperation.mutationPreObservation.observationCoverage, 'complete')
+  let preflightRead = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(preflightRead.envelope.recordType, 'mutation-preflight')
+  assert.strictEqual(preflightRead.state.turnLiveness.inFlightOperation.mutationLease.schemaVersion, 'TaskOwnedMutationLeaseV2')
+  const preflightStateBytes = Buffer.byteLength(JSON.stringify(preflightRead.envelope.state), 'utf8')
+  assert(
+    preflightStateBytes <= MUTATION_PREFLIGHT_STATE_MAX_BYTES,
+    `R3B2 mutation preflight must remain within the fixed 4 KiB state budget: ${preflightStateBytes}/${MUTATION_PREFLIGHT_STATE_MAX_BYTES}`
+  )
+  const preflightSequence = preflightRead.envelope.sequence
+  const replayAllowed = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r2b-owner-allowed',
+    tool_name: 'Write',
+    tool_input: { file_path: targetFile, content: '# 修复方案\n' }
+  })
+  assert.doesNotMatch(JSON.stringify(replayAllowed), /MUTATION_REPLAY_|MUTATION_OPERATION_ALREADY_/)
+  preflightRead = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(preflightRead.envelope.sequence, preflightSequence, 'exact PreToolUse replay must not consume another V5 generation')
+  fs.writeFileSync(targetFile, '# 修复方案\n')
+  const firstCloseoutOutput = run({
+    hookEventName: 'PostToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r2b-owner-allowed',
+    tool_name: 'Write',
+    tool_input: { file_path: targetFile, content: '# 修复方案\n' },
+    success: true
+  })
+  assert.doesNotMatch(JSON.stringify(firstCloseoutOutput), /ARTIFACT_MUTATION_NEEDS_RECONCILE/)
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(state.turnLiveness.lastMutationCloseout?.observation?.status, 'consumed')
+  const firstReceiptDigest = state.turnLiveness.lastMutationCloseout.observation.receiptDigest
+  run({
+    hookEventName: 'PostToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r2b-owner-allowed',
+    tool_name: 'Write',
+    tool_input: { file_path: targetFile, content: '# 修复方案\n' },
+    success: true
+  })
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(
+    state.turnLiveness.lastMutationCloseout?.observation?.receiptDigest,
+    firstReceiptDigest,
+    'duplicate PostToolUse must preserve the original one-use closeout receipt'
+  )
+
+  const shellAllowed = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r3a-codex-exec-direct-write',
+    tool_name: 'exec_command',
+    tool_input: { cmd: `Set-Content -LiteralPath "${targetFile}" -Value updated` }
+  })
+  assert.doesNotMatch(JSON.stringify(shellAllowed), /host-tool-adapter-unknown|mutation-footprint-coverage-incomplete|mutation-target-set-empty/)
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(
+    state.turnLiveness.inFlightOperation?.artifactDecision?.decisionStatus,
+    'allow',
+    `Codex exec_command mutation was not admitted: ${JSON.stringify(shellAllowed)}`
+  )
+  mutationOperation = state.turnLiveness.inFlightOperation
+  assert.strictEqual(mutationOperation.mutationLease.slotDecisionDigest, mutationOperation.artifactDecision.decisionDigest)
+  assert.strictEqual(mutationOperation.mutationLease.plannedSetDigest, mutationOperation.mutationFootprint.plannedSetDigest)
+  fs.writeFileSync(targetFile, '# 修复方案 updated\n')
+  const shellCloseoutOutput = run({
+    hookEventName: 'PostToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r3a-codex-exec-direct-write',
+    tool_name: 'exec_command',
+    tool_input: { cmd: `Set-Content -LiteralPath "${targetFile}" -Value updated` },
+    success: true,
+    exit_code: 0
+  })
+  assert.doesNotMatch(JSON.stringify(shellCloseoutOutput), /ARTIFACT_MUTATION_NEEDS_RECONCILE/)
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(state.turnLiveness.lastMutationCloseout?.observation?.status, 'consumed')
+  const durableShellCloseout = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(durableShellCloseout.envelope.recordType, undefined)
+  assert.strictEqual(durableShellCloseout.state.turnLiveness.lastMutationCloseout?.observation?.status, 'consumed')
+
+  const cp2Content = fs.readFileSync(targetFile, 'utf8')
+  const cp2Digest = crypto.createHash('sha256').update(cp2Content).digest('hex')
+  const cp2SessionsBefore = fs.readFileSync(sessionsPath, 'utf8')
+  const cp2SessionsAfter = cp2SessionsBefore.replace(
+    /^\|\s*CP2\s*\|.*$/mu,
+    `| CP2 | ✅ | 02-修复方案.md | v1 | ${cp2Digest} | hook-test | ${new Date().toISOString()} |`
+  )
+  assert.notStrictEqual(cp2SessionsAfter, cp2SessionsBefore, 'fixture must confirm the bound bug CP2')
+  fs.writeFileSync(sessionsPath, cp2SessionsAfter)
+
+  const decoyTaskRoot = path.join(activeRoot, 'requirements', 'newer-stop-decoy')
+  fs.mkdirSync(decoyTaskRoot, { recursive: true })
+  fs.writeFileSync(path.join(decoyTaskRoot, '01-需求确认.md'), '# decoy CP1\n')
+  fs.writeFileSync(path.join(decoyTaskRoot, '02-技术方案.md'), '# decoy control-plane design\n')
+  fs.writeFileSync(path.join(decoyTaskRoot, '03-方案复审-PR1.md'), [
+    '# PR-1 decoy',
+    'open blocker = 0',
+    '## 验收映射',
+    '| 需求 | 设计 | 验证 |',
+    '| D1 | decoy | decoy |',
+    '## 契约矩阵 runtimeOwners',
+    '| owner | file |',
+    '| decoy | decoy |',
+    '## CodeTruth',
+    '| repoPath | currentBehavior | negativeProbe |',
+    '| decoy | decoy | decoy |',
+    '## 根因',
+    'decoy must never replace the session-bound bug task.',
+    'PR-1 ✅ 通过',
+    'bounded substance '.repeat(100)
+  ].join('\n'))
+
+  const crossTaskBlocked = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r3b-cross-task-artifact',
+    tool_name: 'Write',
+    tool_input: {
+      file_path: path.join(decoyTaskRoot, '04-实施计划.md'),
+      content: '# must remain blocked\n'
+    }
+  })
+  assert.match(
+    JSON.stringify(crossTaskBlocked),
+    /artifact-task-kind-mismatch|artifact-task-name-mismatch/,
+    'the bound bug owner must not authorize a formal artifact in another task'
+  )
+
+  const implementationPlan = '# 实施计划\n\nSession-bound control-plane implementation.\n'
+  fs.writeFileSync(path.join(taskRoot, '03-复审清单.md'), '# 复审清单\n\n- [ ] independent PR-1 pending\n')
+  fs.writeFileSync(path.join(taskRoot, '04-实施计划.md'), implementationPlan)
+  fs.writeFileSync(path.join(taskRoot, '05-实施进度.md'), '# 实施进度\n\nR3B fixture.\n')
+  const cp3Digest = crypto.createHash('sha256').update(implementationPlan).digest('hex')
+  const cp3SessionsBefore = fs.readFileSync(sessionsPath, 'utf8')
+  const cp3SessionsAfter = cp3SessionsBefore.replace(
+    /^\|\s*CP3\s*\|.*$/mu,
+    `| CP3 | ✅ | 04-实施计划.md | v1 | ${cp3Digest} | hook-test | ${new Date().toISOString()} |`
+  )
+  assert.notStrictEqual(cp3SessionsAfter, cp3SessionsBefore, 'fixture must confirm the bound bug CP3')
+  fs.writeFileSync(sessionsPath, cp3SessionsAfter)
+
+  const protectedTarget = path.join(TEMP_ROOT, 'hooks', '_runtime', 'session-bound-target-first.cjs')
+  fs.mkdirSync(path.dirname(protectedTarget), { recursive: true })
+  const protectedAllowed = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r3b-session-bound-control-plane',
+    tool_name: 'Write',
+    tool_input: { file_path: protectedTarget, content: 'module.exports = true\n' }
+  })
+  assert.doesNotMatch(
+    JSON.stringify(protectedAllowed),
+    /IMPLEMENT_START_WITHOUT_|cp-gate-task-binding-required|newer-stop-decoy/,
+    'confirmed control-plane implementation must inspect only the exact session-bound task'
+  )
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(
+    state.turnLiveness.inFlightOperation?.artifactDecision?.decisionStatus,
+    'allow',
+    `session-bound control-plane mutation was not admitted: ${JSON.stringify(protectedAllowed)}`
+  )
+  fs.writeFileSync(protectedTarget, 'module.exports = true\n')
+  const protectedCloseout = run({
+    hookEventName: 'PostToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r3b-session-bound-control-plane',
+    tool_name: 'Write',
+    tool_input: { file_path: protectedTarget, content: 'module.exports = true\n' },
+    success: true
+  })
+  assert.doesNotMatch(JSON.stringify(protectedCloseout), /ARTIFACT_MUTATION_NEEDS_RECONCILE/)
+
+  const sourceRoot = path.join(TEMP_ROOT, 'src', 'r3b-batch')
+  fs.mkdirSync(sourceRoot, { recursive: true })
+  const batchTargets = Array.from({ length: 9 }, (_, index) => path.join(sourceRoot, `file-${index + 1}.js`))
+  batchTargets.forEach((file, index) => fs.writeFileSync(file, `module.exports = ${index}\n`))
+  const batchPatch = [
+    '*** Begin Patch',
+    ...batchTargets.flatMap((file, index) => [
+      `*** Update File: ${file}`,
+      '@@',
+      `-module.exports = ${index}`,
+      `+module.exports = ${index + 10}`
+    ]),
+    '*** End Patch'
+  ].join('\n')
+  const batchAllowed = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r3b-nine-file-batch',
+    tool_name: 'apply_patch',
+    tool_input: { input: batchPatch }
+  })
+  assert.doesNotMatch(
+    JSON.stringify(batchAllowed),
+    /LIFECYCLE_PREFLIGHT_PAYLOAD_EXCEEDED|MUTATION_PRE_OBSERVATION_INCOMPLETE|ARTIFACT_MUTATION_NEEDS_RECONCILE/
+  )
+  assert.doesNotMatch(
+    JSON.stringify(batchAllowed),
+    /cp-gate-CP2[^]*newer-stop-decoy|newer-stop-decoy[^]*CP2/,
+    'source mutation CP routing must use the session-bound bug, not the newest incomplete task'
+  )
+  const batchPreflight = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(
+    batchPreflight.envelope.recordType,
+    'mutation-preflight',
+    `nine-file batch was not admitted: ${JSON.stringify(batchAllowed)}`
+  )
+  assert.strictEqual(
+    batchPreflight.envelope.state.turnLiveness.inFlightOperation.mutationRecovery?.schemaVersion,
+    'TaskRecoveryMutationPreflightV2'
+  )
+  assert.strictEqual(
+    batchPreflight.envelope.state.turnLiveness.inFlightOperation.mutationRecovery.pathTable.length,
+    batchTargets.length
+  )
+  assert(
+    Buffer.byteLength(JSON.stringify(batchPreflight.envelope.state), 'utf8') <= MUTATION_PREFLIGHT_STATE_MAX_BYTES,
+    'the confirmed nine-file product batch must fit the fixed V5 preflight budget'
+  )
+  batchTargets.forEach((file, index) => fs.writeFileSync(file, `module.exports = ${index + 10}\n`))
+  const batchCloseout = run({
+    hookEventName: 'PostToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r3b-nine-file-batch',
+    tool_name: 'apply_patch',
+    tool_input: { input: batchPatch },
+    success: true
+  })
+  assert.doesNotMatch(JSON.stringify(batchCloseout), /ARTIFACT_MUTATION_NEEDS_RECONCILE/)
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(state.turnLiveness.lastMutationCloseout?.observation?.status, 'consumed')
+  assert.strictEqual(state.turnLiveness.lastMutationCloseout.observation.observedEffects.modified.length, batchTargets.length)
+
+  const unobservableScript = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r3a-unobservable-script',
+    tool_name: 'exec_command',
+    tool_input: { cmd: 'node scripts/custom-writer.js' }
+  })
+  assert.match(JSON.stringify(unobservableScript), /mutation-footprint-coverage-incomplete|mutation-target-set-empty/)
+
+  const readOnlyShell = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r3a-read-only-shell',
+    tool_name: 'exec_command',
+    tool_input: { cmd: 'rg -n "rm -rf|Set-Content" docs' }
+  })
+  assert.doesNotMatch(JSON.stringify(readOnlyShell), /Mutation target observation unavailable/)
+  run({
+    hookEventName: 'PostToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r3a-read-only-shell',
+    tool_name: 'exec_command',
+    tool_input: { cmd: 'rg -n "rm -rf|Set-Content" docs' },
+    success: true,
+    exit_code: 1
+  })
+
+  const tamperedLeasePre = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r3b-tampered-noop',
+    tool_name: 'Write',
+    tool_input: { file_path: targetFile, content: '# tampered no-op\n' }
+  })
+  assert.doesNotMatch(JSON.stringify(tamperedLeasePre), /ARTIFACT_RECONCILIATION_REQUIRED|MUTATION_AUTHORITY_BUNDLE_INVALID/)
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(state.turnLiveness.inFlightOperation?.mutationLease?.status, 'active')
+  state.turnLiveness.inFlightOperation.mutationLease.contextEpoch = 'tampered-context-epoch'
+  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
+  const tamperedCommit = commitTaskRecoveryState({
+    metaDir,
+    identity: recoveryIdentity,
+    sessionKey: sessionId,
+    state
+  }, { force: true, reserveBytes: 8 * 1024 * 1024 })
+  assert.strictEqual(tamperedCommit.status, 'committed')
+  const tamperedCloseout = run({
+    hookEventName: 'PostToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r3b-tampered-noop',
+    tool_name: 'Write',
+    tool_input: { file_path: targetFile, content: '# tampered no-op\n' },
+    success: true
+  })
+  assert.match(JSON.stringify(tamperedCloseout), /ARTIFACT_MUTATION_NEEDS_RECONCILE/)
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(state.turnLiveness.lastMutationCloseout?.result, 'needs-reconcile')
+  assert(
+    state.turnLiveness.lastMutationCloseout.authorizationErrors.some(code => /lease|context/i.test(code)),
+    'tampered one-use lease must be recorded as an authorization reconciliation error'
+  )
+  assert(
+    state.turnLiveness.lastMutationCloseout.observation.drift.some(code => /planned-modify-missing|tool-reported-failure/i.test(code)),
+    'native success without the planned file effect must remain needs-reconcile'
+  )
+  const blockedAfterReconcile = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r3b-blocked-after-reconcile',
+    tool_name: 'Write',
+    tool_input: { file_path: targetFile, content: '# blocked pending reconcile\n' }
+  })
+  assert.match(JSON.stringify(blockedAfterReconcile), /ARTIFACT_RECONCILIATION_REQUIRED/)
+
+  run({ hookEventName: 'PreCompact', session_id: sessionId })
+  let ownerAfterLifecycle = readFencedTaskWriteOwner({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(ownerAfterLifecycle.owner.status, 'active')
+  assert.strictEqual(ownerAfterLifecycle.owner.leaseDigest, acquired.owner.leaseDigest)
+  const newestTaskTime = new Date(Date.now() + 1000)
+  fs.utimesSync(decoyTaskRoot, newestTaskTime, newestTaskTime)
+  const stopOutput = run({
+    hookEventName: 'Stop',
+    session_id: sessionId,
+    success: true,
+    lastAssistantMessage: '请确认修复方案（确认 CP2）。'
+  })
+  assert(stopOutput)
+  const stopState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert(
+    stopState.enforcementHonesty?.processGaps?.includes('pr1-skipped'),
+    `Stop PR-1 must inspect the session-bound bug, not the newest requirements design: ${JSON.stringify(stopState.enforcementHonesty)}`
+  )
+  ownerAfterLifecycle = readFencedTaskWriteOwner({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(ownerAfterLifecycle.owner.status, 'active', 'Stop is turn-terminal, not task-terminal')
+  assert.strictEqual(ownerAfterLifecycle.owner.leaseDigest, acquired.owner.leaseDigest)
+
+  const evidenceDefinitions = [
+    ['ecr', `${admission.taskRootRelative}/07-ECR-hook.md`, '# ECR hook\n'],
+    ['report', `${admission.taskRootRelative}/reports/codex/hook.md`, '# Report hook\n'],
+    ['memory', `${admission.taskRootRelative}/.memory/hook-closeout.md`, '# Memory hook\n'],
+    ['completion', `${admission.taskRootRelative}/06-完成清单-hook.md`, '# Completion hook\n']
+  ]
+  const evidence = evidenceDefinitions.map(([role, relative, content]) => {
+    const filePath = path.join(activeRoot, ...relative.split('/'))
+    fs.mkdirSync(path.dirname(filePath), { recursive: true })
+    fs.writeFileSync(filePath, content)
+    return {
+      role,
+      path: relative,
+      sha256: crypto.createHash('sha256').update(content).digest('hex'),
+      bytes: Buffer.byteLength(content)
+    }
+  })
+  const terminalInput = {
+    activeRoot,
+    project,
+    actualInstructionEnvelope: state.actualInstructionEnvelope,
+    workItemSet: state.workItemSet,
+    workflowRouteDecision: state.workflowRouteDecision,
+    projectTargetLease: state.stickyProject,
+    taskId: admission.taskId,
+    admissionId: admission.admissionId,
+    terminalStatus: 'completed',
+    expectedOwner: acquired.ownerRef,
+    evidence
+  }
+  const terminal = executeWorkflowTaskTerminal(terminalInput, {
+    nonceFactory: () => `owner-${'b'.repeat(40)}`
+  })
+  run({
+    hookEventName: 'PostToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r2b-terminal-tool',
+    tool_name: 'mcp__devcodex_memory__memory_task_terminal_v1',
+    tool_result: terminal,
+    success: true
+  })
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(state.taskRecoveryBinding, null)
+  assert.strictEqual(state.workflowTaskTerminalReceipt.receiptDigest, terminal.receipt.receiptDigest)
+  assert.strictEqual(state.turnLiveness.workflowTaskTerminal.taskId, admission.taskId)
+  const routeIndex = createWorkspaceSessionRouteIndex({ metaDir, fs, path })
+  const terminalRoute = routeIndex.read({ sessionDigest: state.stickyProject.authorityDigest })
+  assert.strictEqual(terminalRoute.status, 'unbound')
+
+  const terminalRecovery = readTaskRecoveryState({
+    metaDir,
+    identity: { ...recoveryIdentity, taskStatus: 'completed' }
+  })
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir,
+    identity: { ...recoveryIdentity, taskStatus: 'completed' },
+    sessionKey: sessionId,
+    state: terminalRecovery.state
+  }, {
+    force: true,
+    nowMs: Date.now() - 8 * 24 * 60 * 60 * 1000,
+    reserveBytes: 8 * 1024 * 1024
+  }).status, 'committed')
+  const agedTerminal = readTaskRecoveryState({
+    metaDir,
+    identity: { ...recoveryIdentity, taskStatus: 'completed' }
+  })
+  assert(Date.parse(agedTerminal.envelope.terminalAt) < Date.now() - 7 * 24 * 60 * 60 * 1000)
+
+  try { fs.unlinkSync(STATE_FILE) } catch { }
+  for (const file of storePaths(metaDir).ephemeral) {
+    try { fs.unlinkSync(file) } catch { }
+  }
+  const terminalContinuation = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'r2b-terminal-continuation',
+    prompt: '修复并继续 R2B Hook owner task'
+  })
+  assert.doesNotMatch(JSON.stringify(terminalContinuation), /TaskRecoveryBindingV1[^]*R2B Hook owner task/)
+  let continuationState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.notStrictEqual(continuationState.taskRecoveryBinding?.taskId, admission.taskId)
+  runBootstrapReads(TEST_AGENT)
+  continuationState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  const reopenWorkItemSet = buildWorkItemSet(continuationState.actualInstructionEnvelope, {
+    workItems: [{ taskKind: 'fix', routeCandidate: 'fix.default' }]
+  })
+  continuationState.workItemSet = reopenWorkItemSet
+  continuationState.workflowRouteDecision = buildWorkflowRouteDecision({
+    actualInstructionEnvelope: continuationState.actualInstructionEnvelope,
+    workItemSet: reopenWorkItemSet,
+    workItemId: reopenWorkItemSet.items[0].workItemId,
+    environmentMode: 'dev',
+    routeKey: 'fix.default'
+  })
+  fs.writeFileSync(STATE_FILE, JSON.stringify(continuationState, null, 2))
+
+  const reopenAdmissionInput = {
+    operation: 'bind',
+    activeRoot,
+    project,
+    actualInstructionEnvelope: continuationState.actualInstructionEnvelope,
+    workItemSet: continuationState.workItemSet,
+    workflowRouteDecision: continuationState.workflowRouteDecision,
+    projectTargetLease: continuationState.stickyProject,
+    task: {
+      taskId: admission.taskId,
+      taskKind: 'bugs',
+      entryVariant: 'reopen',
+      taskRootRelative: admission.taskRootRelative
+    },
+    overview: { content: admissionInput.overview.content }
+  }
+  const reopenedAdmission = executeTaskAdmission(reopenAdmissionInput)
+  const terminalOwner = readFencedTaskWriteOwner({
+    metaDir,
+    identity: { ...recoveryIdentity, taskStatus: 'completed' }
+  }).owner
+  const reopenedOwner = executeTaskWriteOwner({
+    operation: 'reopen',
+    activeRoot,
+    project,
+    actualInstructionEnvelope: continuationState.actualInstructionEnvelope,
+    workItemSet: continuationState.workItemSet,
+    workflowRouteDecision: continuationState.workflowRouteDecision,
+    projectTargetLease: continuationState.stickyProject,
+    taskId: admission.taskId,
+    admissionId: reopenedAdmission.admissionId,
+    expectedOwner: {
+      ownerGeneration: terminalOwner.ownerGeneration,
+      ownerNonce: terminalOwner.ownerNonce,
+      leaseRevision: terminalOwner.leaseRevision,
+      leaseDigest: terminalOwner.leaseDigest
+    }
+  }, { nonceFactory: () => `owner-${'c'.repeat(40)}` })
+  assert.strictEqual(reopenedOwner.status, 'active')
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'r2b-terminal-continuation',
+    prompt: '继续 R2B Hook owner task'
+  })
+  const reboundState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(reboundState.taskRecoveryBinding?.taskId, admission.taskId)
+  assert.strictEqual(reboundState.taskRecoveryBinding?.status, 'active')
+
+  process.stdout.write('hooks runtime R2B owner + R3B mutation scenarios passed\n')
 }
 
 function main() {
@@ -634,55 +1384,71 @@ function main() {
   run({ hookEventName: 'UserPromptSubmit', prompt: '@rocky restore auto mode after codex bootstrap replay' }, layoutChild)
   runLayoutBootstrapReads(TEST_AGENT, layoutChild)
 
-  const autoWhitelistAllowed = run({
+  const autoCrossProjectDenied = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: {
       input: '*** Begin Patch\n*** Update File: README.md\n*** End Patch'
     }
   })
-  assert.strictEqual(autoWhitelistAllowed.continue, true)
-  assert.ok(!autoWhitelistAllowed.hookSpecificOutput)
+  assert.strictEqual(autoCrossProjectDenied.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(
+    JSON.stringify(autoCrossProjectDenied),
+    /ARTIFACT_TARGET_OUTSIDE_ALLOWED_ROOTS|outside.*root/i
+  )
 
-  const autoCodexEntryAllowed = run({
+  const autoSameProjectReadmeDenied = run({
+    hookEventName: 'PreToolUse',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: '*** Begin Patch\n*** Update File: README.md\n*** End Patch'
+    }
+  }, layoutChild)
+  assert.strictEqual(autoSameProjectReadmeDenied.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(
+    JSON.stringify(autoSameProjectReadmeDenied),
+    /TASK_WRITE_OWNER_BINDING_REQUIRED|Fenced task write owner authority unavailable/i
+  )
+
+  const autoCodexEntryDenied = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: {
       input: '*** Begin Patch\n*** Update File: AGENTS.md\n*** End Patch'
     }
-  })
-  assert.strictEqual(autoCodexEntryAllowed.continue, true)
-  assert.ok(!autoCodexEntryAllowed.hookSpecificOutput)
+  }, layoutChild)
+  assert.strictEqual(autoCodexEntryDenied.hookSpecificOutput?.permissionDecision, 'deny')
 
-  const autoCodexSkillAllowed = run({
+  const autoCodexSkillDenied = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: {
       input: '*** Begin Patch\n*** Update File: .agents/skills/compliance/SKILL.md\n*** End Patch'
     }
-  })
-  assert.strictEqual(autoCodexSkillAllowed.continue, true)
-  assert.ok(!autoCodexSkillAllowed.hookSpecificOutput)
+  }, layoutChild)
+  assert.strictEqual(autoCodexSkillDenied.hookSpecificOutput?.permissionDecision, 'deny')
 
-  const autoCodexHookAllowed = run({
+  const autoCodexHookDenied = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: {
       input: '*** Begin Patch\n*** Update File: .codex/hooks.json\n*** End Patch'
     }
-  })
-  assert.strictEqual(autoCodexHookAllowed.continue, true)
-  assert.ok(!autoCodexHookAllowed.hookSpecificOutput)
+  }, layoutChild)
+  assert.strictEqual(autoCodexHookDenied.hookSpecificOutput?.permissionDecision, 'deny')
 
-  const autoNonWhitelistWarning = run({
+  const autoNonWhitelistDenied = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: {
       input: '*** Begin Patch\n*** Update File: src/foo.js\n*** End Patch'
     }
-  })
-  assert.strictEqual(autoNonWhitelistWarning.continue, true)
-  assert.match(autoNonWhitelistWarning.systemMessage || '', /白名单|whitelist/i)
+  }, layoutChild)
+  assert.strictEqual(autoNonWhitelistDenied.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(
+    JSON.stringify(autoNonWhitelistDenied),
+    /TASK_WRITE_OWNER_BINDING_REQUIRED|Fenced task write owner authority unavailable/i
+  )
 
   const autoNonWhitelistBlockedStrict = run({
     hookEventName: 'PreToolUse',
@@ -690,9 +1456,12 @@ function main() {
     tool_input: {
       input: '*** Begin Patch\n*** Update File: src/foo.js\n*** End Patch'
     }
-  }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
+  }, layoutChild, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
   assert.strictEqual(autoNonWhitelistBlockedStrict.hookSpecificOutput.permissionDecision, 'deny')
-  assert.match(autoNonWhitelistBlockedStrict.hookSpecificOutput.additionalContext || '', /白名单|whitelist/i)
+  assert.match(
+    JSON.stringify(autoNonWhitelistBlockedStrict),
+    /TASK_WRITE_OWNER_BINDING_REQUIRED|Fenced task write owner authority unavailable/i
+  )
 
   const autoDangerousCommand = run({
     hookEventName: 'PreToolUse',
@@ -711,8 +1480,7 @@ function main() {
   })
   runBootstrapReads()
 
-  // Archive marker bypass test: in safety-only mode, unfinished requirements warn instead of blocking;
-  // archived requirements should not even warn.
+  // Archive markers affect CP discovery only; they never manufacture a write owner.
   const reqDir = path.join(TEMP_ROOT, '.devcodex', 'requirements', '历史归档需求')
   fs.mkdirSync(path.join(reqDir, '.memory'), { recursive: true })
   fs.writeFileSync(path.join(reqDir, '01-需求概述.md'), '# req\n')
@@ -722,23 +1490,23 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/app.js\n*** End Patch' }
   })
-  assert.strictEqual(warningByOldReq.continue, true)
-  assert.match(warningByOldReq.systemMessage || '', /CP gate/i)
+  assert.strictEqual(warningByOldReq.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(warningByOldReq), /TASK_WRITE_OWNER_|Fenced task write owner/i)
   const blockedByOldReqStrict = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/app.js\n*** End Patch' }
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
   assert.strictEqual(blockedByOldReqStrict.hookSpecificOutput.permissionDecision, 'deny')
-  assert.match(blockedByOldReqStrict.hookSpecificOutput.permissionDecisionReason || '', /CP gate/i)
+  assert.match(JSON.stringify(blockedByOldReqStrict), /TASK_WRITE_OWNER_|Fenced task write owner/i)
   fs.writeFileSync(path.join(reqDir, '.archived'), '')
   const allowedAfterArchive = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/app.js\n*** End Patch' }
   })
-  assert.strictEqual(allowedAfterArchive.continue, true)
-  assert.ok(!allowedAfterArchive.hookSpecificOutput)
+  assert.strictEqual(allowedAfterArchive.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(allowedAfterArchive), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   // v1.9.4+ Cross-requirement bypass test:
   // An unfinished requirement should keep warning on global src/ mutations
@@ -753,14 +1521,14 @@ function main() {
   run({ hookEventName: 'UserPromptSubmit', prompt: 'cross-req test' })
   runBootstrapReads()
 
-  // Without any CP3-done requirement: src/ mutation warns in safety-only mode.
+  // Without an admitted/fenced task owner, CP discovery cannot authorize mutation.
   const warningNoCp3 = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/foo.js\n*** End Patch' }
   })
-  assert.strictEqual(warningNoCp3.continue, true)
-  assert.match(warningNoCp3.systemMessage || '', /CP gate/i)
+  assert.strictEqual(warningNoCp3.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(warningNoCp3), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   // Add a second requirement that has CP3 confirmed → stale unfinished task must still block
   const reqDone = path.join(TEMP_ROOT, '.devcodex', 'requirements', '当前实施需求')
@@ -778,12 +1546,11 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/foo.js\n*** End Patch' }
   })
-  assert.strictEqual(warningCrossReq.continue, true,
-    'global src/ mutation should warn while a newer unfinished task still lacks CP3')
-  assert.match(warningCrossReq.systemMessage || '', /CP gate/i)
+  assert.strictEqual(warningCrossReq.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(warningCrossReq), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   // Path-aware test: writing inside reqIncomplete dir while reqDone has CP3
-  // should remain allowed because task artifact writes are not source mutations.
+  // must also require the exact task owner; another task's CP3 is not authority.
   const allowedInReqDir = run({
     hookEventName: 'PreToolUse',
     tool_name: 'Write',  // Claude Code PascalCase tool
@@ -792,7 +1559,8 @@ function main() {
       content: '# new plan\n'
     }
   })
-  assert.strictEqual(allowedInReqDir.continue, true)
+  assert.strictEqual(allowedInReqDir.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(allowedInReqDir), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   // CP3 N/A exemptions for docs/init should not keep old requirements blocking later source work.
   cleanState()
@@ -811,9 +1579,10 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/exempt.js\n*** End Patch' }
   })
-  assert.strictEqual(allowedAfterCp3Exempt.continue, true)
+  assert.strictEqual(allowedAfterCp3Exempt.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(allowedAfterCp3Exempt), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
-  // bug task support: unfinished bug task should warn on source mutation until CP2 is complete
+  // Bug task discovery also cannot replace formal admission and a fenced owner.
   cleanState()
   const bugDir = path.join(TEMP_ROOT, '.devcodex', 'bugs', 'MCP全链路收口')
   fs.mkdirSync(path.join(bugDir, '.memory'), { recursive: true })
@@ -830,10 +1599,10 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/bug.js\n*** End Patch' }
   })
-  assert.strictEqual(warningBugTask.continue, true)
-  assert.match(warningBugTask.systemMessage || '', /CP gate/i)
+  assert.strictEqual(warningBugTask.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(warningBugTask), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
-  // bug task with CP2 complete but no CP3 should allow source mutation until runtime threshold is hit
+  // CP2/CP3 files alone must not enable writes before admission/owner acquisition.
   fs.writeFileSync(
     path.join(bugDir, 'reports', 'claude-code', getTaskStamp(0), '02--技术方案与CP2.md'),
     '# cp2\n'
@@ -848,22 +1617,21 @@ function main() {
       tool_name: 'apply_patch',
       tool_input: { input: `*** Begin Patch\n*** Update File: src/${fileName}\n*** End Patch` }
     })
-    assert.strictEqual(allowedBugTask.continue, true)
-    assert.ok(!/CP gate/i.test(allowedBugTask.systemMessage || ''), 'runtime threshold should not warn before the 5th unique source file')
+    assert.strictEqual(allowedBugTask.hookSpecificOutput?.permissionDecision, 'deny')
+    assert.match(JSON.stringify(allowedBugTask), /TASK_WRITE_OWNER_|Fenced task write owner/i)
   }
 
   const bugRuntimeState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   const bugRuntimeRecord = Object.values(bugRuntimeState.cp3Runtime || {}).find(entry => entry && entry.name === 'MCP全链路收口')
-  assert.ok(bugRuntimeRecord, 'runtime CP3 tracking record should exist for bug task')
-  assert.strictEqual((bugRuntimeRecord.trackedFiles || []).length, 4)
+  assert.strictEqual(bugRuntimeRecord, undefined, 'denied ownerless writes must not advance CP3 runtime tracking')
 
   const warningBugThreshold = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/bug-5.js\n*** End Patch' }
   })
-  assert.strictEqual(warningBugThreshold.continue, true)
-  assert.match(warningBugThreshold.systemMessage || '', /执行中已触达 5 个源码\/配置文件/)
+  assert.strictEqual(warningBugThreshold.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(warningBugThreshold), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   const blockedBugThresholdStrict = run({
     hookEventName: 'PreToolUse',
@@ -871,13 +1639,13 @@ function main() {
     tool_input: { input: '*** Begin Patch\n*** Update File: src/bug-5.js\n*** End Patch' }
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
   assert.strictEqual(blockedBugThresholdStrict.hookSpecificOutput.permissionDecision, 'deny')
-  assert.match(blockedBugThresholdStrict.hookSpecificOutput.permissionDecisionReason || '', /CP gate/i)
-  assert.ok(readInterceptionEntries().some(entry =>
+  assert.match(JSON.stringify(blockedBugThresholdStrict), /TASK_WRITE_OWNER_|Fenced task write owner/i)
+  assert.ok(!readInterceptionEntries().some(entry =>
     entry.code === 'cp-gate-CP3-runtime-threshold' &&
     entry.effective === true
-  ))
+  ), 'owner denial must not pretend that an unauthorized write reached the CP3 runtime threshold')
 
-  // bug task with CP3 complete should allow source mutation again
+  // CP3 completion still does not replace the fenced owner.
   fs.writeFileSync(path.join(bugDir, '04-实施计划.md'), '# cp3\n')
   fs.writeFileSync(
     path.join(bugDir, '.memory', 'sessions.md'),
@@ -888,7 +1656,8 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/bug-after-cp3.js\n*** End Patch' }
   })
-  assert.strictEqual(allowedAfterBugCp3.continue, true)
+  assert.strictEqual(allowedAfterBugCp3.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(allowedAfterBugCp3), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   // Dual-Track M1: orphan control-plane mutation when no CP1-bound task exists
   cleanState()
@@ -908,8 +1677,8 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: scripts/lib/orphan-probe.js\n*** End Patch' }
   })
-  assert.strictEqual(orphanWarn.continue, true)
-  assert.match(orphanWarn.systemMessage || '', /orphan|控制面|no-bound-task|CP gate/i)
+  assert.strictEqual(orphanWarn.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(orphanWarn), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   // extended task roots: optimizations and scenario-tests must also participate in CP gate.
   cleanState()
@@ -924,8 +1693,8 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/perf.js\n*** End Patch' }
   })
-  assert.strictEqual(warningOptimizationTask.continue, true)
-  assert.match(warningOptimizationTask.systemMessage || '', /CP gate/i)
+  assert.strictEqual(warningOptimizationTask.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(warningOptimizationTask), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   cleanState()
   const scenarioDir = path.join(TEMP_ROOT, '.devcodex', 'scenario-tests', '端到端任务')
@@ -939,8 +1708,8 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/e2e.js\n*** End Patch' }
   })
-  assert.strictEqual(warningScenarioTask.continue, true)
-  assert.match(warningScenarioTask.systemMessage || '', /CP gate/i)
+  assert.strictEqual(warningScenarioTask.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(warningScenarioTask), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   // F-008 (v1.9.5): DEVCODEX_PATH_RE 边缘场景测试
   // Bootstrap a fresh workspace
@@ -948,29 +1717,31 @@ function main() {
   run({ hookEventName: 'UserPromptSubmit', prompt: 'F-008 path-regex tests' })
   runBootstrapReads()
 
-  // F-001: bash 写 .claude/foo.js（非 governance 子路径）应被视为 source mutation → 触发 CP gate
+  // F-001: bash writes remain mutations and require an admitted owner.
   const bashWriteClaude = run({
     hookEventName: 'PreToolUse',
     tool_name: 'Bash',
     tool_input: { command: 'echo "console.log(1)" > .claude/foo.js' }
   })
-  // 无 incomplete requirement → 应该允许（CP gate 不触发，但 isSourceCodeMutation 应返回 true，hooks 仍可放行；此处仅断言非崩溃）
-  assert.ok(bashWriteClaude.continue === true || bashWriteClaude.hookSpecificOutput)
+  assert.strictEqual(bashWriteClaude.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(bashWriteClaude), /TASK_WRITE_OWNER_|Fenced task write owner|artifact-(?:target-mixed-scope|slot-ambiguous|slot-unknown)/i)
 
-  // F-001: bash 写 .claude/instructions/foo.md（governance 子路径）应被放行
+  // Governance paths are not an implicit mutation authority either.
   const bashWriteGovernance = run({
     hookEventName: 'PreToolUse',
     tool_name: 'Bash',
     tool_input: { command: 'echo "# test" > .claude/instructions/foo.md' }
   })
-  assert.strictEqual(bashWriteGovernance.continue, true)
+  assert.strictEqual(bashWriteGovernance.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(bashWriteGovernance), /TASK_WRITE_OWNER_|Fenced task write owner|artifact-(?:target-mixed-scope|slot-ambiguous|slot-unknown)/i)
 
   const bashWriteCodexGovernance = run({
     hookEventName: 'PreToolUse',
     tool_name: 'Bash',
     tool_input: { command: 'echo "# test" > AGENTS.md && echo "# test" > .agents/skills/foo/SKILL.md && echo "{}" > .codex/hooks.json && echo "{}" > codex/hooks.json' }
   })
-  assert.strictEqual(bashWriteCodexGovernance.continue, true)
+  assert.strictEqual(bashWriteCodexGovernance.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(bashWriteCodexGovernance), /TASK_WRITE_OWNER_|Fenced task write owner|artifact-(?:target-mixed-scope|slot-ambiguous|slot-unknown)/i)
 
   // F-006: bash cp src.js dest.js 命令路径提取
   const bashCp = run({
@@ -978,10 +1749,19 @@ function main() {
     tool_name: 'Bash',
     tool_input: { command: 'cp src/a.js src/b.js' }
   })
-  assert.ok(bashCp.continue === true || bashCp.hookSpecificOutput)
+  assert.strictEqual(bashCp.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(bashCp), /TASK_WRITE_OWNER_|Fenced task write owner|artifact-(?:target-mixed-scope|slot-ambiguous|slot-unknown)/i)
 
   cleanState()
   process.stdout.write('hooks runtime smoke test passed\n')
 }
 
-main()
+if (process.argv.includes('--r2b-task-owner') || process.argv.includes('--r3b-mutation')) {
+  try {
+    runR2BTaskOwnerLifecycleScenarios()
+  } finally {
+    fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
+  }
+} else {
+  main()
+}

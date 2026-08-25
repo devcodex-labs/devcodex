@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 记忆规则，覆盖 tasks、SUMMARY、需求记忆的读取顺序、写入时机与格式约束
 priority: P5
-version: 1.18.1
+version: 1.19.0
 ---
 # 记忆写入规则（15-memory）
 
@@ -74,18 +74,40 @@ daily/SUMMARY 仍是唯一真相源：受管 writer 在文件提交后刷新索�
 
 > ⛔ 禁止默认读取完整 SUMMARY、完整 daily tasks 或昨日以前正文（精确 resume 查询和用户明确要求除外）。
 > ⛔ **禁止静默回退**：resume 意图检测到当前项目无 🔄 任务时，禁止静默选取历史旧任务继续执行；必须明确告知用户当前状态并询问意图。
-> ⚠️ **跨项目 resume**：无任务名的普通“继续/恢复”仍只读取当前项目的有界记忆；完整 `继续<任务名>任务` 可通过 workspace 派生索引有界 exact 定位。ambiguous、scale-blocked、completed/rejected 或 stale-confirmation 必须停止并给出最小下一步，禁止猜测或自动重开。
+> ⚠️ **跨项目 resume**：无任务名的普通“继续/恢复”仍只读取当前项目的 `WorkspaceSessionRouteIndexV1` hint 与有界记忆；完整 `继续<任务名>任务` 可通过 workspace 派生索引有界 exact 定位。ambiguous、scale-blocked、completed/rejected 或 stale-confirmation 必须停止并给出最小下一步，禁止猜测、自动重开或恢复 mutation authority。
 
 ### TaskIdentity / TaskResolution 真相边界
 
-新任务在授权创建任务目录时同步创建 `<task-root>/.memory/task.json`（`TaskIdentityV1`：稳定 UUID `taskId`、`displayName`、去重 `aliases`、`createdAt`、递增 `identityRevision`）。`project/kind/path` 从安全目录派生，status/CP 继续只由 sessions 与绑定 artifact digest 决定。legacy 任务可只读唯一解析，但查询不得主动物化 identity；派生 index 损坏、锁竞争或写预算达限时走 bounded rebuild/bypass，不得覆盖 canonical task/session。
+新正式任务只能由 `memory_task_admit_v2` 的 `TaskAdmissionTransactionV1` 在准入事务内同步 create-if-absent `<task-root>/.memory/task.json`（`TaskIdentityV2`：稳定 UUID `taskId`、`displayName`、去重 `aliases`、project/root identity、task kind/entry variant、递增 `identityRevision` 与 digest），并回读 canonical overview/问题概况和 CP pending。`project/kind/path` 从安全目录与 `ProjectTargetLeaseV2` 派生，status/CP 继续只由 sessions 与绑定 artifact digest 决定。legacy `TaskIdentityV1` 仅可读唯一解析；查询不得主动物化 identity，手工目录/mtime/模型摘要不得作为准入。派生 index 损坏、锁竞争或写预算达限时走 bounded rebuild/bypass，不得覆盖 canonical task/session。
 结构化记忆投影必须携带可验证的 `ContentIdentityV1`；telemetry、wall clock 和调用身份不进入内容 digest。旧 `memory_session_read` / `memory_summary_read` 保持兼容，但 no-args 全文结果不是生产默认路径，也不能单独把 `ContextReadReceiptV2`（或兼容的 `ContextReadReceiptV1`）推进到 `relevant-complete/completed`。
+
+### TaskRouteAdmissionRecoveryGate
+
+- `ActualInstructionEnvelopeV1/WorkflowRouteDecisionV2`、`WorkspaceSessionRouteIndexV1` 与 `ProjectTargetLeaseV2` 只建立 instruction/route/project identity；它们本身不授 mutation/release。正式 task 在 CP confirmation 后还须 `memory_task_write_owner` 对 `FencedTaskWriteOwnerLeaseV2` 完成 generation/nonce/CAS，并达到 finalized admission。
+- `SimpleTaskFastPathLeaseV1` 只能由 `memory_task_fast_path_lease` 签发，最多 2 个同一边界 exact 低风险路径、最多 2 次 create-or-update；正式产物、公共契约、控制面、安全、依赖、发布、跨模块或第 3 个路径必须在写入前升级正式准入。低风险叙述型 Markdown 可走 `dev.docs` 轻路径，配置/API/schema/security/release 文档不得借此绕过。
+- 每次实际 mutation 使用一次性 `TaskOwnedMutationLeaseV2` 并在 V5 prewrite 后执行；Post actual effects 为 partial/unknown/越界、required effect 未发生或 tool failure 时写 `needs-reconcile`，禁止把退出码 0 当完成。
+- `memory_task_terminal_v1` 必须回读 ECR/report/memory/completion 四类独立证据，成功后立即 terminal-unbind route/owner；Stop/PreCompact 只 checkpoint。显式 reopen 必须产生新 admission generation 与 owner nonce。
 
 ### MemoryFileTransactionGate
 
 - `memory_session_allocate`、`memory_session_write`、`memory_summary_append` 与 CP 状态写入共用 `MemoryFileTransactionV1` owner；成功提交必须返回 `MemoryFileTransactionReceiptV1`，包含 before/after digest、final CAS、flush/directory durability、readback、bytesRead/bytesWritten/writeAmplificationRatio 与 metadata receipt。
 - 已存在 canonical 文件的纯 EOF 增长走 append fast path；创建走 atomic temp+rename，中段更新保留 rewrite。append/rewrite 都必须在最终写入窗口重新比较 source identity，外部编辑时 fail closed 且不得覆盖。
 - POSIX rewrite 保留 mode/uid/gid，新文件 mode=0600；Windows DACL 未执行真实 before/after probe 时必须明确 `WARN/UNVERIFIED`，不得用 POSIX mode 模拟 PASS。事务只清理由自己创建的临时文件。
+
+### TaskRecoveryStoreV5
+
+| 边界 | 行为 |
+|------|------|
+| 正式任务数量 | 无计数硬上限；不得按 owner/session 数裁剪需求或 Bug |
+| hot A/B | task-keyed 稳定双槽；语义无变化返回 `semantic-noop`，普通 Hook/工具状态变化不新建 UUID generation 文件；容量判定、usage ledger 预充与任务槽实际落盘必须使用同一份紧凑 JSON 字节序列，禁止用格式化开销制造伪超限 |
+| cold stub | 仅在 canonical truth 与安全 checkpoint 可重建时保存有界 resume stub；不删除 task docs、identity 或用户产物 |
+| terminal | durable closeout 后立即解绑 live route/owner；grace 只读，安全到期只退休 V5 runtime cache |
+| soft 256 MiB | terminal retirement → inactive hot coldify → 可重建 runtime stub 回收 |
+| hard 512 MiB | bounded safe reclaim 后仍超限则拒绝新 admission/普通 mutation；read/recovery/terminal/abort/reconcile 继续 |
+| 8 MiB closeout reserve | 仅 terminal/abort/reconcile；耗尽明确失败，不旁路普通 mutation |
+| legacy | 只读保留；maintenance 不自动删除或迁移 |
+
+V5 只保存 admission、fenced owner、mutation preflight/closeout、validation terminal 等有界恢复投影，不复制正文或大 stdout。容量字节预算不是任务数量上限，也不能授权删除正式任务产物。
 
 ### ArtifactLinkProjectionGate
 
@@ -146,8 +168,9 @@ confirm、compact、resume、host/session/task 变化后必须重新核验 instr
 | 报告写入后 | 追加报告路径到 📄 关联报告 |
 | 跨会话 / compact / handoff | 写入 `ContextHandoffCard` 到 daily tasks 或报告 |
 | Host capability decision | 追加 compact `HostCapabilityRoutingRef`；禁止复制原文/catalog |
+| 正式任务准入/owner 变化 | 追加 compact `TaskRouteRecoveryRef`，只记录 digest/ID/status；禁止复制 Envelope、journal 或 V5 正文 |
 | 完成回复前 | 确保 📨 对话记录已追加本轮 |
-| 任务结束 | 更新状态为 ✅ |
+| 正式任务结束 | `memory_task_terminal_v1` 四证据 closeout 与 route/owner unbind 成功后更新状态为 ✅；失败保持 🔄/needs-reconcile |
 
 ## 新会话 🔄 检测
 

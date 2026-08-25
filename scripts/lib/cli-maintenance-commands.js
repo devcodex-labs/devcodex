@@ -1052,7 +1052,7 @@ function buildCliMaintenanceCommands(ctx) {
       status: ['devcodex status [--completion] [--json]', 'Show workspace and user-global adapter readiness.'],
       doctor: ['devcodex doctor [--completion] [--json]', 'Diagnose adapter, native host and workflow readiness.'],
       profile: ['devcodex profile plan|init [--tier <tier>] [--dry-run] [--force] [--prod]', 'Preview or create an advanced project Profile. Ordinary workspaces only need `devcodex init`.'],
-      runtime: ['devcodex runtime status|doctor|maintenance [--dry-run|--apply] [--json]', 'Inspect TaskRecovery V5/legacy usage, diagnose pressure, or preview bounded V5 maintenance; prune remains a compatibility alias.'],
+      runtime: ['devcodex runtime status|doctor|maintenance [--dry-run] [--generation-budget <1..128>] [--resume-cursor <opaque>] [--json] | maintenance --apply [--generation-plan <sha256>]', 'Inspect TaskRecovery V5/legacy usage or run a bounded, resumable runtime-generation preview; dry-run deletes nothing and legacy remains read-only.'],
       tmp: ['devcodex tmp status|maintain [--apply --project=<id> --partition=<name>] [--json]', 'Inspect scoped workspace temp inventory or build a bounded maintenance plan; prune remains a compatibility alias.'],
       uninstall: ['devcodex uninstall [--dry-run|--apply] [--json] [--home <dir>]', 'Preview or explicitly remove receipt-owned user-global host artifacts. After --apply succeeds, run `npm uninstall -g devcodex`.'],
       'global-adapters': ['devcodex global-adapters apply [--dry-run] [--json] | devcodex global-adapters remove [--dry-run|--apply] [--json]', 'Advanced: refresh or safely remove user-global host adapters from the current package root.'],
@@ -1091,7 +1091,7 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('doctor')}            Diagnose installation or workflow problems
       ${c.cyan('runtime status')}    Inspect runtime-state plus TaskRecovery V5/legacy disk usage
       ${c.cyan('runtime doctor')}    Diagnose TaskRecovery slots, reserve, capacity and legacy-writer activity
-      ${c.cyan('runtime maintenance')} Preview/apply bounded V5 maintenance; legacy files stay read-only
+      ${c.cyan('runtime maintenance')} Preview bounded V5/runtime-generation batches; resume by cursor, apply by manifest digest; legacy stays read-only
       ${c.cyan('runtime prune')}     Preview safe stale-temp cleanup; add --apply to remove
       ${c.cyan('tmp status')}        Inspect project/partition temp inventory, completeness and pagination
       ${c.cyan('tmp maintain')}      Build a quota-bound plan; apply requires one explicit complete scope

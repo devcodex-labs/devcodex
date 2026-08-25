@@ -54,7 +54,17 @@ jobs:
       - run: npm ci
       - if: ${{ hashFiles('website/package-lock.json') != '' }}
         run: npm ci --prefix website
-      - run: npm test
+      - name: Run exact-policy full validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          AUTHORITY_SOURCE="github-actions:${GITHUB_WORKFLOW}:${GITHUB_EVENT_NAME}:${GITHUB_REPOSITORY}:${GITHUB_REF}:${GITHUB_SHA}"
+          POLICY_DIGEST="$(node -e 'const {sha256}=require("./hooks/_runtime/content-identity.cjs"); process.stdout.write(sha256(JSON.stringify({workflow:process.env.GITHUB_WORKFLOW,event:process.env.GITHUB_EVENT_NAME,repository:process.env.GITHUB_REPOSITORY,ref:process.env.GITHUB_REF,commit:process.env.GITHUB_SHA,level:"V3"})))')"
+          BUDGET_DIGEST="$(
+            node scripts/run-validation.js --route full --actor trusted-ci --authority-source "${AUTHORITY_SOURCE}" --policy-digest "${POLICY_DIGEST}" --plan --json |
+              node -e 'const fs=require("fs"); const value=JSON.parse(fs.readFileSync(0,"utf8")); const digest=value?.data?.plan?.budgetCard?.digest; if(value?.ok!==true || !/^[a-f0-9]{64}$/.test(String(digest||""))) process.exit(1); process.stdout.write(digest)'
+          )"
+          node scripts/run-validation.js --route full --actor trusted-ci --authority-source "${AUTHORITY_SOURCE}" --policy-digest "${POLICY_DIGEST}" --approve-plan "${BUDGET_DIGEST}"
       - run: npm run test:coverage
       - run: npm run test:audit
 

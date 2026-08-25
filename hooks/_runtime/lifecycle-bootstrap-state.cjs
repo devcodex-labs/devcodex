@@ -93,6 +93,9 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     getCommandText,
     getPayloadSessionKey,
     setStickyProject,
+    validateStickyProjectLease,
+    readWorkspaceSessionRouteHint,
+    resolveProjectTargetIdentity,
     getRecentBootstrapTaskStamps,
     isRecentBootstrapTaskPath,
     buildInterceptionOutput,
@@ -169,7 +172,9 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       getToolName(payload),
       payload?.server_name || payload?.serverName
     )
-    if (!server && (PROFILE_TOOLS.has(tool) || PROFILE_ROUTE_TOOLS.has(tool) || MEMORY_READ_TOOLS.has(tool))) {
+    const recognizedName = PROFILE_TOOLS.has(tool) ||
+      PROFILE_ROUTE_TOOLS.has(tool) || MEMORY_READ_TOOLS.has(tool)
+    if (!server && recognizedName) {
       return { raw, server: '', tool, canonical: '', recognizedName: true }
     }
     const recognized = (server === PROFILE_SERVER && (PROFILE_TOOLS.has(tool) || PROFILE_ROUTE_TOOLS.has(tool))) ||
@@ -179,7 +184,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       server,
       tool,
       canonical: recognized ? `${server}/${tool}` : '',
-      recognizedName: recognized
+      recognizedName
     }
   }
 
@@ -536,13 +541,23 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       productMutationCountThisTurn: 0,
       s07ProductWarnEmitted: false,
       stickyProject: {
-        schemaVersion: 'ProjectTargetLeaseV1',
+        schemaVersion: 'ProjectTargetLeaseV2',
         leaseId: '',
+        leaseDigest: '',
         targetDigest: '',
+        rootIdentityDigest: '',
         layoutIdentity: '',
         project: '',
         physicalRoot: '',
         activeRoot: '',
+        authorityKind: '',
+        authorityDigest: '',
+        contextEpoch: '',
+        contextBindingDigest: '',
+        routeRevision: '',
+        revocationEpoch: 0,
+        issuedAt: '',
+        issuedAtMs: 0,
         source: '',
         validatedAt: '',
         validatedAtMs: 0,
@@ -565,7 +580,15 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         reason: ''
       },
       taskRecoveryBinding: null,
+      workspaceSessionRouteHint: null,
       contextDeliveryReceipts: [],
+      actualInstructionEnvelope: null,
+      workItemSet: null,
+      workflowRouteDecision: null,
+      workflowResumeTargetDecision: null,
+      workflowRoutePlanBinding: null,
+      workflowRoutePending: null,
+      workflowIngressError: null,
       cp3Runtime: {},
       governanceIntake: emptyGovernanceIntakeState(),
       turnLiveness: createTurnLivenessState(),
@@ -676,6 +699,18 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       : String(state?.activeProject || state?.contextAcquisition?.project || CONTEXT_PROJECT || path.basename(CONTEXT_ROOT)).trim()
   }
 
+  function resolveProjectFromSessionRouteHint(routeHint) {
+    const expectedDigest = String(routeHint?.entry?.projectRootIdentityDigest || '').trim()
+    if (!expectedDigest || typeof resolveProjectTargetIdentity !== 'function') return ''
+    for (const project of listWorkspaceProjects()) {
+      try {
+        const identity = resolveProjectTargetIdentity(project)
+        if (identity?.rootIdentityDigest === expectedDigest) return project
+      } catch {}
+    }
+    return ''
+  }
+
   function recoveryIdentityForState(state) {
     const project = recoveryProjectForState(state)
     const activeRoot = normalizePath(getActiveNamespaceRoot(state))
@@ -741,14 +776,34 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     return candidate
   }
 
-  function loadState(modeHint, sessionKey = '', recoveryHint = null) {
+  function loadState(modeHint, sessionKey = '', recoveryHint = null, options = {}) {
     const metaProjection = readJsonFile(META_STATE_PATHS.file)
+    const freshUnboundUserIngress = LAYOUT.enabled && options.userIngress === true &&
+      !String(sessionKey || '').trim() &&
+      !String(recoveryHint?.taskId || '').trim()
+    const sessionRouteHint = sessionKey && typeof readWorkspaceSessionRouteHint === 'function'
+      ? readWorkspaceSessionRouteHint({ sessionRef: sessionKey })
+      : null
+    const routeHintedProject = sessionRouteHint?.status === 'fresh'
+      ? resolveProjectFromSessionRouteHint(sessionRouteHint)
+      : ''
+    let metaTurnProject = ''
+    if (LAYOUT.enabled && options.userIngress !== true && !String(sessionKey || '').trim() &&
+        typeof validateStickyProjectLease === 'function') {
+      const turnLease = validateStickyProjectLease(metaProjection, {})
+      if (turnLease.valid && turnLease.lease?.authorityKind === 'turn') {
+        metaTurnProject = String(turnLease.lease.project || '').trim()
+      }
+    }
     const probe = buildDefaultState(modeHint)
     const hintedProject = String(recoveryHint?.project || '').trim()
     const workspaceHint = hintedProject.toLowerCase() === 'workspace'
     const projectedProject = workspaceHint
       ? ''
-      : String(hintedProject || CONTEXT_PROJECT || metaProjection?.activeProject || '').trim()
+      : String(
+          hintedProject || CONTEXT_PROJECT || routeHintedProject || metaTurnProject ||
+          (LAYOUT.enabled ? '' : metaProjection?.activeProject) || ''
+        ).trim()
     probe.activeProject = projectedProject
     probe.activeScope = workspaceHint ? 'workspace' : (projectedProject ? 'project' : DEFAULT_SCOPE)
     if (String(recoveryHint?.taskId || '').trim()) {
@@ -759,16 +814,31 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         status: String(recoveryHint.taskStatus || 'active').trim().toLowerCase()
       }
     }
+    probe.workspaceSessionRouteHint = sessionRouteHint && typeof sessionRouteHint === 'object'
+      ? {
+          schemaVersion: sessionRouteHint.schemaVersion,
+          status: sessionRouteHint.status,
+          sessionDigest: sessionRouteHint.sessionDigest || '',
+          sequence: sessionRouteHint.sequence || 0,
+          entry: sessionRouteHint.entry || null,
+          authority: false,
+          hintOnly: true
+        }
+      : null
     const expected = recoveryIdentityForState(probe)
     const activePaths = getStatePaths(probe)
-    const activeProjection = compatibleRecoveryState(readJsonFile(activePaths.file), expected, sessionKey, { requireSession: true })
-    const recovered = readTaskRecoveryState({
-      metaDir: activePaths.dir,
-      sessionKey,
-      ...(expected.taskId
-        ? { identity: expected }
-        : { expectedIdentity: expected })
-    }, { fs })
+    const activeProjection = freshUnboundUserIngress
+      ? null
+      : compatibleRecoveryState(readJsonFile(activePaths.file), expected, sessionKey, { requireSession: true })
+    const recovered = freshUnboundUserIngress
+      ? { status: 'missing' }
+      : readTaskRecoveryState({
+          metaDir: activePaths.dir,
+          sessionKey,
+          ...(expected.taskId
+            ? { identity: expected }
+            : { expectedIdentity: expected })
+        }, { fs })
     let sessionState = recovered.status === 'fresh'
       ? recovered.state
       : (recovered.status === 'ephemeral-stub'
@@ -776,7 +846,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
           : null)
     if (!sessionState && activeProjection) sessionState = activeProjection
     let committed = { status: 'missing' }
-    if (!sessionState && recovered.status !== 'identity-mismatch') {
+    if (!freshUnboundUserIngress && !sessionState && recovered.status !== 'identity-mismatch') {
       const legacy = readLifecycleStateCommit({
         metaDir: META_STATE_PATHS.dir,
         sessionKey
@@ -790,9 +860,13 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         sessionState = compatibleLegacy
       }
     }
-    const compatibleMeta = compatibleRecoveryState(metaProjection, expected)
+    const compatibleMeta = freshUnboundUserIngress
+      ? null
+      : compatibleRecoveryState(metaProjection, expected, sessionKey, {
+          requireSession: LAYOUT.enabled && Boolean(sessionKey)
+        })
     const metaState = sessionState || activeProjection || compatibleMeta
-    if (!(sessionState && typeof sessionState === 'object')) {
+    if (!freshUnboundUserIngress && !(sessionState && typeof sessionState === 'object')) {
       const canonicalSessionFile = sessionStateFile(metaState || buildDefaultState(modeHint), sessionKey)
       sessionState = canonicalSessionFile
         ? compatibleRecoveryState(readJsonFile(canonicalSessionFile), expected, sessionKey, { requireSession: true })
@@ -821,7 +895,22 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const sessionBound = !!(sessionState && typeof sessionState === 'object')
     const mode = modeHint || readProfileMode(saved || metaState || null, saved?.activeProject || metaState?.activeProject || '')
     const current = buildDefaultState(mode)
-    if (!saved || typeof saved !== 'object') return current
+    if (!saved || typeof saved !== 'object') {
+      if (LAYOUT.enabled && String(metaProjection?.stickyProject?.project || '').trim()) {
+        let reason
+        if (String(sessionKey || '').trim() && typeof validateStickyProjectLease === 'function') {
+          const diagnostic = validateStickyProjectLease(metaProjection, { session_id: sessionKey })
+          reason = diagnostic.valid ? 'session-or-turn-drift' : diagnostic.reason
+        } else {
+          reason = metaProjection.stickyProject.authorityKind === 'turn'
+            ? 'turn-boundary'
+            : 'unbound-user-ingress'
+        }
+        current.stickyProject.invalidationReason = reason
+        current.stickyProject.reason = reason
+      }
+      return current
+    }
     const state = {
       ...current,
       ...saved,
@@ -850,6 +939,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       },
       dangerousApprovals: { ...current.dangerousApprovals, ...(saved.dangerousApprovals || {}) }
     }
+    state.workspaceSessionRouteHint = probe.workspaceSessionRouteHint || state.workspaceSessionRouteHint || null
     if (state.taskRecoveryBinding && String(state.taskRecoveryBinding.project || '') !== recoveryProjectForState(state)) {
       state.taskRecoveryBinding = null
     }
@@ -884,8 +974,12 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       ...(Number.isInteger(testReserveBytes) && testReserveBytes >= 1024 ? { reserveBytes: testReserveBytes } : {})
     })
     if (['error', 'bypassed'].includes(commit.status)) {
-      const error = new Error(`TaskRecoveryStoreV5 failed: ${commit.errorCode || commit.status}`)
+      const error = new Error(
+        `TaskRecoveryStoreV5 failed: ${commit.errorCode || commit.status}` +
+        (commit.message ? ` — ${commit.message}` : '')
+      )
       error.code = commit.errorCode || 'LIFECYCLE_STATE_COMMIT_FAILED'
+      error.details = commit
       throw error
     }
     if (commit.status === 'closeout-reserved') {
@@ -946,6 +1040,21 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const nextProject = state.activeScope === 'workspace' ? 'workspace' : state.activeProject
     if (previousBinding && String(previousBinding.project || '') === String(nextProject || '')) {
       state.taskRecoveryBinding = { ...previousBinding }
+    }
+    for (const field of [
+      'admissionTransaction',
+      'previousAdmissionTransaction',
+      'fencedWriteOwner',
+      'workflowTaskTerminalReceipt',
+      'validationExecution'
+    ]) {
+      const value = previousState?.[field]
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        state[field] = JSON.parse(JSON.stringify(value))
+      }
+    }
+    if (typeof previousState?.workflowTaskTerminalObservationError === 'string') {
+      state.workflowTaskTerminalObservationError = previousState.workflowTaskTerminalObservationError
     }
     state.cp3Runtime = { ...(previousState?.cp3Runtime || {}) }
     state.governanceIntake = normalizeGovernanceIntakeState(previousState?.governanceIntake)

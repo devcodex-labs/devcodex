@@ -91,7 +91,7 @@ function buildOptimizationControlChecks(ctx) {
     ]) {
       if (!pkg.scripts?.[script]) err(`[V92] missing package script: ${script}`)
     }
-    if (pkg.scripts?.test !== 'node scripts/run-validation.js --route full' ||
+    if (pkg.scripts?.test !== 'node scripts/run-validation.js --route changed' ||
         pkg.scripts?.['test:fast'] !== 'node scripts/run-validation.js --route fast' ||
         pkg.scripts?.['test:full'] !== 'node scripts/run-validation.js --route full' ||
         pkg.scripts?.['test:delivery'] !== 'node scripts/run-validation.js --route delivery' ||

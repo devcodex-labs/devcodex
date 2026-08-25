@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 工作流规则，覆盖子类型路由、CP 流程、计划复审、执行期回退与 ECR
 priority: P4
-version: 1.18.1
+version: 1.19.0
 ---
 # 开发工作流规则（10-dev）
 
@@ -46,7 +46,7 @@ version: 1.18.1
 ## CP 门控（C02 约束，严格按序）
 
 ```text
-CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-review（PR-2~PR-7）→ [impact-review] → CP3（实施计划）→ [execution-contract/test-router] → 执行 → ECR 执行闭环复审 → 完成
+ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransaction（identity + overview + CP pending）或 server-owned SimpleTaskFastPathLease → CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-review（PR-2~PR-7）→ [impact-review] → CP3（实施计划）→ [execution-contract/test-router] → active owner + 单次 mutation lease → 执行 → actual observation → ECR/terminal → 完成
 ```
 
 ### CP 定义
@@ -59,17 +59,19 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 
 ### CP 关注点边界
 
-- **CP1**：先判定入口类型，区分纯新需求、产品完整需求、需求变更和 Bug 问题；纯新需求先保留 `00-需求概况.md`，再由 AI 生成产品需求草稿，产品补充归一化后完成需求方 + 产品双方确认；若公司已有产品角色且产品直接提供完整需求，使用 `01-产品需求.md` 作为产品事实源，产品模板正文只承载产品完整 PRD，AI / 研发只做缺口检查并记录在 CP1 摘要、`02-技术方案.md` 或报告中，不生成或重写产品需求；需求变更先保留 `00-需求变更概况.md`，再生成 `01-需求变更确认.md` 并回写目标需求真相源；Bug 问题转入 fix 工作流，不用产品需求模板承接。CP1 重点确认需求目标、用户交互、业务流程、业务结果与范围边界，并前置平台工程判断：消费者范围、共享契约边界、模块职责、维护成本和非目标；不提前展开实现时序、内部节点设计或接口细节，也不得把“通用性/模块化”扩写成无真实消费者的空心抽象。
+- **CP1**：先判定入口类型，区分纯新需求、产品完整需求、需求变更和 Bug 问题；纯新需求先保留 `00-需求概况.md`，再由 AI 生成产品需求草稿，产品补充归一化后完成需求方 + 产品双方确认；若公司已有产品角色且产品直接提供完整需求，正式准入创建 `00-需求概况.md`（仅来源/映射概况），并以原样 `01-产品需求.md` 作为产品事实源，产品正文只承载产品完整 PRD，AI / 研发只做缺口检查并记录在 00、CP1 摘要、`02-技术方案.md` 或报告中，不改写 01；需求变更先保留 `00-需求变更概况.md`，再生成 `01-需求变更确认.md` 并回写目标需求真相源；Bug 问题转入 fix 工作流，不用产品需求模板承接。CP1 重点确认需求目标、用户交互、业务流程、业务结果与范围边界，并前置平台工程判断：消费者范围、共享契约边界、模块职责、维护成本和非目标；不提前展开实现时序、内部节点设计或接口细节，也不得把“通用性/模块化”扩写成无真实消费者的空心抽象。
 - **CP2**：重点确认实现流程、节点职责、公共契约、兼容性策略、边界问题与测试策略；已有公共接口、Schema、返回结构或错误码变更时，必须给出“现状契约 → 目标契约”差异说明；新增/升级依赖、框架、SDK、平台 API 或外部模块时必须附 `OfficialDocsEvidence`；涉及项目事实变化时必须附 `ProfileImpactCheck`。
 - **CP3**：只确认实施顺序、里程碑、验证方式、风险与回滚；不得重复需求正文、方案论证或兼容性主说明。
 
 ### CP 执行规则
 
+> **执行 authority 不变量**：正式任务必须先由 `memory_task_admit_v2` 完成 `TaskAdmissionTransactionV1` 的 identity/overview/CP pending，再按 CP 顺序推进；源码 mutation 前还须 finalized admission、所需 CP confirmation 与 active `FencedTaskWriteOwnerLeaseV2`。`WorkflowRouteDecisionV2`、`WorkspaceSessionRouteIndexV1`、resolver、“继续”或最新 mtime 均不授写权。
+
 1. **严格按序**：CP1 → CP2 → CP3，不得跳过中间步骤
 2. **禁止合并**：不得将 CP1+CP2 合并为一次输出
 3. **每个 CP 独立确认**：输出后必须等待用户明确响应
 4. **CP3 内容边界**：CP3 只确认实施计划，不重复技术方案中的架构决策、接口论证和兼容性主说明；必须显式覆盖任务拆分、顺序、依赖、验证方式与回滚策略
-5. **产物文件前置创建**：默认 CP1 必须先做入口类型分类；纯新需求 → `00-需求概况.md` + `01-需求确认.md` + `<需求>/.memory/sessions.md`；产品完整需求 → `01-产品需求.md` + `<需求>/.memory/sessions.md`，产品模板正文只给产品填写完整 PRD，AI / 研发缺口检查记录在 CP1 摘要、`02-技术方案.md` 或报告中；需求变更 → `00-需求变更概况.md` + `01-需求变更确认.md` + 回写目标 `01-需求确认.md` / `01-产品需求.md` / 正式需求文件 / website requirement；Bug 问题 → 切换 fix 工作流，使用 `bugs/<问题>/00-问题概况.md` 和问题确认产物。历史 `01-需求概述.md` 仅作兼容；CP2 → `02-技术方案.md`（有架构/接口/设计决策时，否则跳过）；CP3 → `04-实施计划.md`。若命中 `SimpleTaskFastPath`，可用回复内联 CP1 摘要 + 报告/记忆替代需求目录，并将未触发的 00/01/04 产物记为 `N/A + skipReason`；但命中 ExistingRequirementArtifactOverride 时必须先更新已有需求真相源。
+5. **产物文件前置创建**：默认 CP1 必须先做入口类型分类；纯新需求 → `00-需求概况.md` + `01-需求确认.md` + `<需求>/.memory/sessions.md`；产品完整需求 → `00-需求概况.md`（仅来源/映射概况）+ 原样 `01-产品需求.md` + `<需求>/.memory/sessions.md`，AI / 研发缺口检查记录在 00、CP1 摘要、`02-技术方案.md` 或报告中，不改写 01；需求变更 → `00-需求变更概况.md` + `01-需求变更确认.md` + 回写目标 `01-需求确认.md` / `01-产品需求.md` / 正式需求文件 / website requirement；Bug 问题 → 切换 fix 工作流，使用 `bugs/<问题>/00-问题概况.md` 和问题确认产物。历史 `01-需求概述.md` 仅作兼容；CP2 → `02-技术方案.md`（有架构/接口/设计决策时，否则跳过）；CP3 → `04-实施计划.md`。若命中有效 `SimpleTaskFastPathLeaseV1`，可用回复内联 CP1 摘要 + 报告/记忆替代需求目录，并将未触发的 00/01/04 产物记为 `N/A + skipReason`；但命中 ExistingRequirementArtifactOverride 时必须先更新已有需求真相源。
 6. **ArtifactDecisionMatrix / ArtifactLifecycleState**：CP1/CP2/CP3/ECR 必须按任务规模列出关键产物 `create` / `update` / `skip` / `N/A` 状态，至少覆盖入口类型、`00-需求概况.md`、`00-需求变更概况.md`、`01-需求确认.md`、`01-产品需求.md`、`01-需求变更确认.md`、`02-技术方案.md`、`04-实施计划.md`、`05-实施进度.md`、`06-关键决策.md`、目标文档、报告、记忆；每项写明 `reason`、`trigger`、`upgradeTrigger`、`targetArtifact`。判定优先级：已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免。
 7. **进度文档触发**：`05-实施进度.md` 不是小任务默认必产物；但当任务跨 2 轮以上会话、存在明确阻塞、用户要求持续跟踪、CP3 计划拆分为多批次、预计修改 ≥10 文件或命中控制面/模板/validate/部署副本联动时，必须在执行前创建并在每批完成后更新。默认前提是已存在 `04-实施计划.md`；docs/init 等 CP3 豁免场景可使用已确认文档大纲、任务切片或 ContextHandoffCard 作为等价计划锚点。
 8. **无 Hooks 宿主软门禁**（v1.9.6+）：当运行宿主为 `jetbrains-copilot`、`cursor` 或其他 `instruction-fallback` 客户端时，`lifecycle.cjs` CP gate 不可执行。AI 必须在每个 CP 输出末尾显式追加 `⏸ 等待用户确认（CP{N}）— 收到"好/继续/ok"前不得进入下一阶段或写源码`，并在用户未明确回复前禁止 source mutation 工具调用。
@@ -98,12 +100,13 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 - 预计修改 ≤2 个源码/文档文件，且不涉及公共 API、公开类型、Schema、依赖、配置、发布、控制面、模板/validate/部署副本或跨服务边界。
 - 本轮不是从 `data/*.md` open/partial 台账派生，不需要 Backlog Intake 批次治理。
 - 不含 S01/S06 高风险操作，不需要多轮跟踪、压测、长运行服务或正式需求归档。
+- 已通过 `memory_task_fast_path_lease` 取得 server-owned `SimpleTaskFastPathLeaseV1`；目标为同一 module/artifact boundary 内最多 2 个 exact 路径，且操作仅为 create-or-update。
 
 轻路径约束：
 
 - 仍必须执行 PC0~PC7、Profile/记忆/报告、安全底线、必要测试和 ECR；CP1/CP2 以回复内联摘要或报告字段承载，报告写明 `SimpleTaskFastPath: applied`、`skipReason` 与验证证据。
 - **ExistingRequirementArtifactOverride**：若用户是在调整/修改/补充/变更既有需求，或当前任务已存在 `00-需求变更概况.md`、`01-需求变更确认.md`、`00-需求概况.md`、`01-需求确认.md`、`01-产品需求.md`、历史 `01-需求概述.md`、Profile 声明的正式需求文件、website requirement 或其他已确认需求真相源，轻路径只允许不新建完整目录，不允许跳过已有文件回写；必须先增量编辑该文件并在回复中说明更新位置。找不到目标文件时，先按 Profile、当前需求目录、sessions、tasks 和用户提及路径定位；仍无法定位才最小澄清，禁止只输出新需求口径。
-- 一旦执行中新增第 3 个文件、命中公共契约/配置/控制面/台账来源/高风险，立即升级回完整 CP/产物链，补建对应需求产物后再继续。
+- 租约最多消费 2 次；一旦执行中新增第 3 个路径、跨 module/artifact boundary，或命中正式产物、公共契约/配置/控制面/安全/依赖/发布/台账来源/高风险，必须在 mutation 前撤销轻路径并升级回完整 CP/产物链，补建对应需求产物后再继续。禁止先写再升级。
 
 ### 目标文档前置（条件触发）
 
@@ -356,6 +359,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 ## 执行约束
 
 - 逐文件执行，编码后必须运行 lint/typecheck/test
+- 每次 source/artifact 写入前必须得到完整 `MutationFootprintV2`、允许的 `ArtifactSlotDecisionV2` 与一次性 `TaskOwnedMutationLeaseV2`，并完成 V5 prewrite；写后以 `MutationObservationReceiptV1` 对账 actual effects。0-target、unknown、partial、越界或 required effect 未发生进入 `needs-reconcile`，不能继续下一写入或宣称完成。
 - **TypeScript 项目类型校验强制**：当项目存在 `tsconfig.json`、`tsconfig.*.json`、`package.json` 的 `typecheck` 脚本，或明显为 TS/TSX 工程时，执行阶段必须补做 1 次类型校验
 - **类型校验命令选择顺序**：
   1. 优先运行项目现有 `typecheck` 脚本
@@ -365,7 +369,7 @@ CP1（需求确认）→ PR-1 内部自检 → CP2（方案确认）→ plan-rev
 - error 最多 2 次迭代；2 次仍失败 → 停止，输出错误摘要标 ⚠️
 - 涉及 HTTP 接口变更 → 生成双产物（.http + .cjs）
 - 涉及源码/配置文件变更 → 检查文档同步（README 为必查；CHANGELOG 按发布状态区分：未明确发版默认更新 `changelogs/unreleased.md`，仅正式 release 更新根 `CHANGELOG.md` / `changelogs/releases/vX.Y.Z.md`；TASK-INDEX/STATUS 按项目存在或启用时同步）
-- 涉及验证、发布、pack、benchmark、codegen 或生成产物 → 完成前必须检查并清理与本轮无关的新增/残留文件；release / verification close-out 不得把无关 dirty 文件、并行验证残留或旧失败产物留给后续任务。
+- 涉及验证、发布、pack、benchmark、codegen 或生成产物 → 完成前必须盘点残留并区分 owner。只能清理具备本轮 receipt、由本轮 runner/writer 创建且已满足适用破坏性确认的产物；用户既有、无 owner、并行任务或来源不明的 dirty 只能报告、隔离或从候选中排除，禁止 reset/stash/delete/overwrite。
 - 涉及文档阅读顺序、审查顺序、实施顺序或“先看什么”入口 → `document-sync` / ConceptSyncMap 必须把 README、索引页、website sidebar/nav 和目录页列为当前消费者，同批校验呈现顺序；若信息架构故意不同，必须说明差异原因。
 - 涉及依赖/框架/SDK/平台 API 变更 → 验证 `OfficialDocsEvidence` 与实际实现一致；不得只以安装成功替代官方用法验证
 - 涉及项目事实变化 → 执行 `ProfileImpactCheck` 并通过 `document-sync` 更新 Profile 或记录跳过理由

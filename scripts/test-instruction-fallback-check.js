@@ -85,11 +85,40 @@ function main() {
 
   {
     const cwd = setupRepo()
-    const bug = path.join(cwd, '.devcodex', 'bugs', '活跃Bug任务')
+    const bug = path.join(cwd, '.devcodex', 'bugs', '仅报告Bug任务')
     write(path.join(bug, 'reports', 'claude-code', '20260525', '01--问题确认与CP1.md'), '# cp1\n')
     write(path.join(bug, '.memory', 'sessions.md'), '| CP1 | ✅ |\n')
     const result = runCheck(cwd)
-    assert.strictEqual(result.ok, false, 'active bug task should also block fallback gate')
+    assert.strictEqual(result.ok, true, 'analysis/report alternatives must not become CP1 task truth')
+  }
+
+  {
+    const cwd = setupRepo()
+    const bug = path.join(cwd, '.devcodex', 'bugs', '活跃Bug任务')
+    write(path.join(bug, '01-问题确认.md'), '# canonical cp1\n')
+    write(path.join(bug, '.memory', 'sessions.md'), '| CP1 | ✅ |\n')
+    const result = runCheck(cwd)
+    assert.strictEqual(result.ok, false, 'canonical active bug task should block fallback gate')
+    assert.match(result.output, /CP3 unconfirmed/i)
+  }
+
+  {
+    const cwd = setupRepo()
+    const req = path.join(cwd, '.devcodex', 'requirements', '伪CP3完成任务')
+    write(path.join(req, '01-需求确认.md'), '# canonical cp1\n')
+    write(path.join(req, '.memory', 'sessions.md'), '| CP1 | ✅ |\n| CP3 | ✅ |\n')
+    const result = runCheck(cwd)
+    assert.strictEqual(result.ok, false, 'legacy CP3 marker without a plan artifact must not bypass fallback gate')
+  }
+
+  {
+    const cwd = setupRepo()
+    const req = path.join(cwd, '.devcodex', 'requirements', '合法旧版CP3任务')
+    write(path.join(req, '01-需求确认.md'), '# canonical cp1\n')
+    write(path.join(req, '04-实施计划.md'), '# canonical plan\n')
+    write(path.join(req, '.memory', 'sessions.md'), '| CP1 | ✅ |\n| CP3 | ✅ |\n')
+    const result = runCheck(cwd)
+    assert.strictEqual(result.ok, true, 'legacy CP3 marker remains compatible when canonical plan exists')
   }
 
   {
@@ -97,7 +126,7 @@ function main() {
     write(path.join(cwd, 'package.json'), '{"name":"sample"}\n')
     stageFiles(cwd, ['src/app.js', 'package.json'])
     const bug = path.join(cwd, '.devcodex', 'bugs', '配置变更任务')
-    write(path.join(bug, '01-需求概述.md'), '# bug\n')
+    write(path.join(bug, '01-问题确认.md'), '# canonical bug cp1\n')
     write(path.join(bug, '.memory', 'sessions.md'), '| CP1 | ✅ |\n| CP2 | ✅ |\n')
     const result = runCheck(cwd)
     assert.strictEqual(result.ok, false, 'staged package.json should be treated as source/config and block without CP3')
@@ -137,7 +166,7 @@ function main() {
     write(path.join(cwd, 'src', 'app.js'), 'console.log("hello")\n')
     stageFiles(cwd)
     const bug = path.join(workspace, '.devcodex', 'packages', 'app-a', 'bugs', '嵌套命名空间任务')
-    write(path.join(bug, 'reports', 'codex', '20260529', '01--问题确认与CP1.md'), '# cp1\n')
+    write(path.join(bug, '01-问题确认.md'), '# canonical cp1\n')
     write(path.join(bug, '.memory', 'sessions.md'), '| CP1 | ✅ |\n| CP2 | ✅ |\n')
     const result = runCheck(cwd)
     assert.strictEqual(result.ok, false, 'nested workspace-namespace active task should block fallback gate')

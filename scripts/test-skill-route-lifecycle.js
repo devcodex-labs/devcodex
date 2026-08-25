@@ -382,6 +382,8 @@ function readLifecycleState (fixture, sessionId, options = {}) {
   assert.strictEqual(circuit.envelope.status, 'retired')
   assert.strictEqual(circuit.envelope.completionDisposition, 'retired-no-progress')
   assert.strictEqual(circuit.envelope.nextCall, null)
+  const terminalEvidenceDigest = circuit.coordinator.terminalEvidenceDigest
+  assert.match(terminalEvidenceDigest, /^[a-f0-9]{64}$/)
   let saturated = circuit
   for (let index = 4; index <= 100; index += 1) {
     saturated = reconcileProgressiveSkillRoute(state, pending, {
@@ -394,6 +396,11 @@ function readLifecycleState (fixture, sessionId, options = {}) {
   assert.strictEqual(saturated.envelope.noProgressCount, 3)
   assert.strictEqual(saturated.noticeSuppressed, true, 'saturated identical Stop must suppress repeated envelope injection')
   assert.strictEqual(saturated.required, false)
+  assert.strictEqual(
+    saturated.coordinator.terminalEvidenceDigest,
+    terminalEvidenceDigest,
+    'repeated closeout must preserve one stable terminal evidence digest'
+  )
   assert.match(saturated.message, /terminal state already reconciled/)
 
   const progressed = reconcileProgressiveSkillRoute(state, {

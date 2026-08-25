@@ -23,6 +23,27 @@ const TASK_RECOVERY_LOCK_SCHEMA = 'TaskRecoveryWriterLockV5'
 const TASK_RECOVERY_CLOSEOUT_SCHEMA = 'TaskRecoveryEmergencyCloseoutV5'
 const TASK_RECOVERY_KEY_SCHEMA = 'TaskRecoveryKeyV1'
 const TASK_RECOVERY_USAGE_SCHEMA = 'TaskRecoveryUsageLedgerV1'
+const TASK_ADMISSION_TRANSACTION_SCHEMA = 'TaskAdmissionTransactionV1'
+const FENCED_TASK_WRITE_OWNER_SCHEMA = 'FencedTaskWriteOwnerLeaseV2'
+const WORKFLOW_TASK_TERMINAL_RECEIPT_SCHEMA = 'WorkflowTaskTerminalReceiptV1'
+const TASK_ADMISSION_PHASES = Object.freeze([
+  'prepared',
+  'identity-written',
+  'overview-written',
+  'cp-state-written',
+  'owner-fenced',
+  'finalized',
+  'terminal-closeout',
+  'aborted',
+  'needs-reconcile'
+])
+const CLOSEOUT_REASONS = new Set([
+  'mutation-closeout',
+  'admission-abort',
+  'admission-reconcile',
+  'terminal-closeout',
+  'terminal-closeout-reconcile'
+])
 
 const DEFAULT_SOFT_BYTES = 256 * 1024 * 1024
 const DEFAULT_HARD_BYTES = 512 * 1024 * 1024
@@ -395,61 +416,841 @@ function boundedRecoveryString(value, maxLength = 512) {
   return text.length <= maxLength ? text : text.slice(0, maxLength)
 }
 
+function compactDangerousApprovalsForEphemeral(raw) {
+  const approvals = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+  return Object.fromEntries(Object.entries(approvals)
+    .filter(([approvalId, approval]) =>
+      /^[a-f0-9]{12}$/.test(approvalId) &&
+      approval && typeof approval === 'object' && !Array.isArray(approval) &&
+      approval.used !== true && ['pending', 'confirmed'].includes(String(approval.status || '')) &&
+      /^[a-f0-9]{64}$/.test(String(approval.commandHash || '')))
+    .sort((left, right) => Number(right[1].createdAtMs || 0) - Number(left[1].createdAtMs || 0))
+    .slice(0, 8)
+    .map(([approvalId, approval]) => [approvalId, {
+      commandHash: approval.commandHash,
+      cwd: boundedRecoveryString(approval.cwd, 1024),
+      reason: boundedRecoveryString(approval.reason, 512),
+      status: approval.status,
+      createdAt: boundedRecoveryString(approval.createdAt, 64),
+      createdAtMs: Number.isFinite(Number(approval.createdAtMs)) ? Number(approval.createdAtMs) : 0,
+      used: false,
+      ...(approval.status === 'confirmed'
+        ? {
+            confirmedAt: boundedRecoveryString(approval.confirmedAt, 64),
+            confirmedBy: boundedRecoveryString(approval.confirmedBy, 64)
+          }
+        : {})
+    }]))
+}
+
+function buildDangerousApprovalRecoveryProjection(raw) {
+  const approvals = compactDangerousApprovalsForEphemeral(raw)
+  const cwdTable = []
+  const cwdIndexes = new Map()
+  const cwdIndex = value => {
+    const cwd = boundedRecoveryString(value, 1024)
+    if (!cwdIndexes.has(cwd)) {
+      cwdIndexes.set(cwd, cwdTable.length)
+      cwdTable.push(cwd)
+    }
+    return cwdIndexes.get(cwd)
+  }
+  const entries = Object.entries(approvals).map(([approvalId, approval]) => {
+    const confirmedAtMs = Date.parse(String(approval.confirmedAt || ''))
+    return [
+      approvalId,
+      compactRecoveryDigest(approval.commandHash),
+      cwdIndex(approval.cwd),
+      boundedRecoveryString(approval.reason, 160),
+      approval.status === 'confirmed' ? 'c' : 'p',
+      Number.isFinite(Number(approval.createdAtMs)) ? Number(approval.createdAtMs) : 0,
+      Number.isFinite(confirmedAtMs) ? confirmedAtMs : 0,
+      boundedRecoveryString(approval.confirmedBy, 32)
+    ]
+  })
+  return entries.length
+    ? {
+        schemaVersion: 'DangerousApprovalRecoveryProjectionV1',
+        cwdTable,
+        entries
+      }
+    : null
+}
+
+function materializeDangerousApprovalRecoveryProjection(value) {
+  if (value?.schemaVersion !== 'DangerousApprovalRecoveryProjectionV1' ||
+      !Array.isArray(value.cwdTable) || !Array.isArray(value.entries)) return null
+  const approvals = {}
+  for (const entry of value.entries.slice(0, 8)) {
+    if (!Array.isArray(entry) || entry.length < 7) continue
+    const [approvalId, compactHash, rawCwdIndex, reason, statusCode, rawCreatedAtMs, rawConfirmedAtMs, confirmedBy] = entry
+    const commandHash = materializeRecoveryDigest(compactHash)
+    const cwd = value.cwdTable[Number(rawCwdIndex)]
+    const createdAtMs = Number(rawCreatedAtMs)
+    const confirmedAtMs = Number(rawConfirmedAtMs)
+    if (!/^[a-f0-9]{12}$/.test(String(approvalId || '')) ||
+        !/^[a-f0-9]{64}$/.test(String(commandHash || '')) ||
+        typeof cwd !== 'string' || !['c', 'p'].includes(statusCode) ||
+        !Number.isFinite(createdAtMs)) continue
+    const confirmed = statusCode === 'c'
+    approvals[approvalId] = {
+      commandHash,
+      cwd,
+      reason: boundedRecoveryString(reason, 160),
+      status: confirmed ? 'confirmed' : 'pending',
+      createdAt: createdAtMs > 0 ? new Date(createdAtMs).toISOString() : '',
+      createdAtMs,
+      used: false,
+      ...(confirmed
+        ? {
+            confirmedAt: Number.isFinite(confirmedAtMs) && confirmedAtMs > 0
+              ? new Date(confirmedAtMs).toISOString()
+              : '',
+            confirmedBy: boundedRecoveryString(confirmedBy, 32)
+          }
+        : {})
+    }
+  }
+  return approvals
+}
+
+function recoveryComparablePath(value) {
+  const normalized = path.normalize(String(value || ''))
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized
+}
+
+function recoveryPathInside(child, parent) {
+  const candidate = recoveryComparablePath(child)
+  const root = recoveryComparablePath(parent)
+  return candidate === root || candidate.startsWith(`${root}${path.sep}`)
+}
+
+function compactRecoveryDigest(value) {
+  const text = String(value || '')
+  return /^[a-f0-9]{64}$/i.test(text)
+    ? `~${Buffer.from(text, 'hex').toString('base64').replace(/=+$/u, '')}`
+    : (value ?? null)
+}
+
+function materializeRecoveryDigest(value) {
+  const text = String(value || '')
+  if (!/^~[A-Za-z0-9+/]{43}$/u.test(text)) return value ?? null
+  return Buffer.from(`${text.slice(1)}=`, 'base64').toString('hex')
+}
+
+function simpleRiskMask(value = {}) {
+  return [
+    'crossModule',
+    'sharedContract',
+    'publicApiOrSchema',
+    'securitySensitive',
+    'dependencyChange',
+    'releaseImpact'
+  ].reduce((mask, field, index) => value[field] === true ? mask | (1 << index) : mask, 0)
+}
+
+function materializeSimpleRiskAssessment(changeClass, mask) {
+  const value = { changeClass: String(changeClass || '') }
+  for (const [index, field] of [
+    'crossModule',
+    'sharedContract',
+    'publicApiOrSchema',
+    'securitySensitive',
+    'dependencyChange',
+    'releaseImpact'
+  ].entries()) value[field] = (Number(mask) & (1 << index)) !== 0
+  return value
+}
+
+function buildMutationOwnerAuthorityRecovery(state, mutationLease) {
+  if (!['simple-task-fast-path', 'workflow-operational'].includes(mutationLease?.ownerKind)) return null
+  const sticky = state?.stickyProject || {}
+  const context = state?.contextAcquisition || {}
+  const route = state?.workflowRouteDecision || {}
+  const planBinding = state?.workflowRoutePlanBinding || {}
+  const binding = [
+    String(state?.activeProject || ''),
+    String(route.topIntent || ''),
+    String(route.subtype || ''),
+    String(sticky.schemaVersion || ''),
+    compactRecoveryDigest(sticky.targetDigest),
+    compactRecoveryDigest(sticky.rootIdentityDigest),
+    compactRecoveryDigest(sticky.layoutIdentity),
+    String(sticky.authorityKind || ''),
+    compactRecoveryDigest(sticky.authorityDigest),
+    String(sticky.contextEpoch || ''),
+    compactRecoveryDigest(sticky.contextBindingDigest),
+    compactRecoveryDigest(sticky.routeRevision),
+    Number(sticky.revocationEpoch) || 0,
+    Number(sticky.issuedAtMs) || 0,
+    Number(sticky.expiresAtMs) || 0,
+    compactRecoveryDigest(sticky.leaseDigest),
+    String(sticky.source || ''),
+    String(context.hostSessionId || ''),
+    compactRecoveryDigest(planBinding.bindingDigest)
+  ]
+  if (mutationLease.ownerKind === 'simple-task-fast-path') {
+    const lease = state?.simpleTaskFastPathLease
+    const usage = state?.simpleTaskFastPathUsage
+    if (lease?.schemaVersion !== 'SimpleTaskFastPathLeaseV1' || usage?.schemaVersion !== 'SimpleTaskFastPathUsageV1' ||
+        lease.leaseDigest !== mutationLease.ownerLeaseDigest || usage.leaseDigest !== lease.leaseDigest) {
+      throw new TaskRecoveryStoreV5Error(
+        'LIFECYCLE_PREFLIGHT_SIMPLE_AUTHORITY_INCOMPLETE',
+        'simple-task mutation preflight requires the exact active lease and usage state'
+      )
+    }
+    return {
+      v: 1,
+      binding,
+      lease: [
+        's', lease.leaseId, lease.project,
+        compactRecoveryDigest(lease.projectRootIdentityDigest),
+        compactRecoveryDigest(lease.projectTargetLeaseDigest),
+        compactRecoveryDigest(lease.sessionDigest),
+        lease.turnKey, lease.contextEpoch,
+        compactRecoveryDigest(lease.instructionEnvelopeDigest),
+        compactRecoveryDigest(lease.actualInstructionDigest),
+        compactRecoveryDigest(lease.routeDecisionDigest),
+        compactRecoveryDigest(lease.routeRevision),
+        lease.routeKey, lease.operation, lease.relativeTargets,
+        compactRecoveryDigest(lease.targetSetDigest),
+        lease.slotId, lease.moduleBoundary,
+        [lease.riskAssessment?.changeClass || '', simpleRiskMask(lease.riskAssessment)],
+        compactRecoveryDigest(lease.riskEvidenceDigest),
+        // Recovered from the enclosing TaskOwnedMutationLeaseV2 projection.
+        null,
+        lease.issuedAt, lease.expiresAt,
+        // ownerLeaseDigest in the enclosing lease is this exact digest.
+      ],
+      usage: [
+        // Both digests are carried by the enclosing simple-task lease.
+        null,
+        null,
+        usage.maxUses, usage.useCount, usage.operationIds,
+        (usage.observedTargetSetDigests || []).map(compactRecoveryDigest),
+        usage.status, usage.updatedAt
+      ]
+    }
+  }
+  const lease = state?.workflowOperationalWriteLease
+  if (lease?.schemaVersion !== 'WorkflowOperationalWriteLeaseV1' ||
+      lease.leaseDigest !== mutationLease.ownerLeaseDigest) {
+    throw new TaskRecoveryStoreV5Error(
+      'LIFECYCLE_PREFLIGHT_OPERATIONAL_AUTHORITY_INCOMPLETE',
+      'workflow-operational mutation preflight requires the exact active lease'
+    )
+  }
+  return {
+    v: 1,
+    binding,
+    lease: [
+      'o', lease.leaseId, lease.project,
+      compactRecoveryDigest(lease.activeRootIdentityDigest),
+      compactRecoveryDigest(lease.projectRootIdentityDigest),
+      compactRecoveryDigest(lease.projectTargetLeaseDigest),
+      compactRecoveryDigest(lease.sessionDigest),
+      lease.turnKey, lease.contextEpoch,
+      compactRecoveryDigest(lease.instructionEnvelopeDigest),
+      compactRecoveryDigest(lease.routeDecisionDigest),
+      compactRecoveryDigest(lease.routeRevision),
+      lease.taskId, lease.operation, lease.relativeTargets,
+      compactRecoveryDigest(lease.targetSetDigest),
+      lease.slotId, lease.authorityRole,
+      // Recovered from the enclosing TaskOwnedMutationLeaseV2 projection.
+      null,
+      lease.issuedAt, lease.expiresAt,
+      // ownerLeaseDigest in the enclosing lease is this exact digest.
+    ]
+  }
+}
+
+function materializeMutationOwnerAuthorityRecovery(value, roots, mutationLease = null) {
+  if (!((value?.schemaVersion === 'MutationOwnerAuthorityRecoveryV1') || value?.v === 1) ||
+      !Array.isArray(value.binding) || !Array.isArray(value.lease) || !Array.isArray(roots)) return null
+  const binding = value.binding
+  const leaseValues = value.lease
+  const kind = leaseValues[0]
+  if (!['s', 'o'].includes(kind)) return null
+  const stickyProject = {
+    schemaVersion: binding[3],
+    targetDigest: materializeRecoveryDigest(binding[4]),
+    rootIdentityDigest: materializeRecoveryDigest(binding[5]),
+    layoutIdentity: materializeRecoveryDigest(binding[6]),
+    project: binding[0],
+    physicalRoot: roots[1],
+    activeRoot: roots[0],
+    authorityKind: binding[7],
+    authorityDigest: materializeRecoveryDigest(binding[8]),
+    contextEpoch: binding[9],
+    contextBindingDigest: materializeRecoveryDigest(binding[10]),
+    routeRevision: materializeRecoveryDigest(binding[11]),
+    revocationEpoch: binding[12],
+    issuedAtMs: binding[13],
+    expiresAtMs: binding[14],
+    leaseDigest: materializeRecoveryDigest(binding[15]),
+    source: binding[16]
+  }
+  stickyProject.leaseId = `project-target-lease-${String(stickyProject.leaseDigest || '').slice(0, 24)}`
+  const common = {
+    activeProject: binding[0],
+    activeScope: 'project',
+    stickyProject,
+    contextAcquisition: {
+      contextEpoch: stickyProject.contextEpoch,
+      activeRoot: roots[0],
+      project: binding[0],
+      targetResolved: true,
+      hostSessionId: binding[17]
+    },
+    workflowRoutePlanBinding: {
+      bindingDigest: materializeRecoveryDigest(binding[18]),
+      routeRevision: stickyProject.routeRevision
+    }
+  }
+  if (kind === 's') {
+    const riskAssessment = materializeSimpleRiskAssessment(leaseValues[18]?.[0], leaseValues[18]?.[1])
+    const lease = {
+      schemaVersion: 'SimpleTaskFastPathLeaseV1',
+      leaseId: leaseValues[1],
+      project: leaseValues[2],
+      projectRootIdentityDigest: materializeRecoveryDigest(leaseValues[3]),
+      projectTargetLeaseDigest: materializeRecoveryDigest(leaseValues[4]),
+      sessionDigest: materializeRecoveryDigest(leaseValues[5]),
+      turnKey: leaseValues[6],
+      contextEpoch: leaseValues[7],
+      instructionEnvelopeDigest: materializeRecoveryDigest(leaseValues[8]),
+      actualInstructionDigest: materializeRecoveryDigest(leaseValues[9]),
+      routeDecisionDigest: materializeRecoveryDigest(leaseValues[10]),
+      routeRevision: materializeRecoveryDigest(leaseValues[11]),
+      routeKey: leaseValues[12],
+      operation: leaseValues[13],
+      relativeTargets: leaseValues[14],
+      targetSetDigest: materializeRecoveryDigest(leaseValues[15]),
+      slotId: leaseValues[16],
+      moduleBoundary: leaseValues[17],
+      riskAssessment,
+      riskEvidenceDigest: materializeRecoveryDigest(leaseValues[19]),
+      mergedRegistryDigest: leaseValues[20]
+        ? materializeRecoveryDigest(leaseValues[20])
+        : mutationLease?.mergedRegistryDigest,
+      maxTargets: 2,
+      maxUses: 2,
+      issuedAt: leaseValues[21],
+      expiresAt: leaseValues[22],
+      status: 'active',
+      mutationAuthority: true,
+      productMutationAuthority: true,
+      formalArtifactAuthority: false,
+      controlPlaneAuthority: false,
+      releaseAuthority: false,
+      leaseDigest: leaseValues[23]
+        ? materializeRecoveryDigest(leaseValues[23])
+        : mutationLease?.ownerLeaseDigest
+    }
+    const usageValues = value.usage || []
+    const usageSemantic = {
+      schemaVersion: 'SimpleTaskFastPathUsageV1',
+      leaseDigest: usageValues[0] ? materializeRecoveryDigest(usageValues[0]) : lease.leaseDigest,
+      targetSetDigest: usageValues[1] ? materializeRecoveryDigest(usageValues[1]) : lease.targetSetDigest,
+      maxUses: usageValues[2],
+      useCount: usageValues[3],
+      operationIds: usageValues[4] || [],
+      observedTargetSetDigests: (usageValues[5] || []).map(materializeRecoveryDigest),
+      status: usageValues[6],
+      updatedAt: usageValues[7]
+    }
+    const usage = {
+      ...usageSemantic,
+      usageDigest: usageValues[8]
+        ? materializeRecoveryDigest(usageValues[8])
+        : digestValue(usageSemantic)
+    }
+    return {
+      ...common,
+      actualInstructionEnvelope: {
+        contextEpoch: lease.contextEpoch,
+        envelopeDigest: lease.instructionEnvelopeDigest,
+        actualInstructionDigest: lease.actualInstructionDigest,
+        instructionAuthority: true
+      },
+      workflowRouteDecision: {
+        decisionDigest: lease.routeDecisionDigest,
+        routeRevision: lease.routeRevision,
+        routeKey: lease.routeKey,
+        topIntent: binding[1],
+        subtype: binding[2]
+      },
+      turnLiveness: { turnKey: lease.turnKey },
+      simpleTaskFastPathLease: lease,
+      simpleTaskFastPathUsage: usage
+    }
+  }
+  const lease = {
+    schemaVersion: 'WorkflowOperationalWriteLeaseV1',
+    leaseId: leaseValues[1],
+    project: leaseValues[2],
+    activeRootIdentityDigest: materializeRecoveryDigest(leaseValues[3]),
+    projectRootIdentityDigest: materializeRecoveryDigest(leaseValues[4]),
+    projectTargetLeaseDigest: materializeRecoveryDigest(leaseValues[5]),
+    sessionDigest: materializeRecoveryDigest(leaseValues[6]),
+    turnKey: leaseValues[7],
+    contextEpoch: leaseValues[8],
+    instructionEnvelopeDigest: materializeRecoveryDigest(leaseValues[9]),
+    routeDecisionDigest: materializeRecoveryDigest(leaseValues[10]),
+    routeRevision: materializeRecoveryDigest(leaseValues[11]),
+    taskId: leaseValues[12],
+    operation: leaseValues[13],
+    relativeTargets: leaseValues[14],
+    targetSetDigest: materializeRecoveryDigest(leaseValues[15]),
+    slotId: leaseValues[16],
+    authorityRole: leaseValues[17],
+    mergedRegistryDigest: leaseValues[18]
+      ? materializeRecoveryDigest(leaseValues[18])
+      : mutationLease?.mergedRegistryDigest,
+    issuedAt: leaseValues[19],
+    expiresAt: leaseValues[20],
+    singleUse: true,
+    status: 'active',
+    mutationAuthority: true,
+    productMutationAuthority: false,
+    formalArtifactAuthority: false,
+    releaseAuthority: false,
+    leaseDigest: leaseValues[21]
+      ? materializeRecoveryDigest(leaseValues[21])
+      : mutationLease?.ownerLeaseDigest
+  }
+  return {
+    ...common,
+    actualInstructionEnvelope: {
+      contextEpoch: lease.contextEpoch,
+      envelopeDigest: lease.instructionEnvelopeDigest,
+      instructionAuthority: true
+    },
+    workflowRouteDecision: {
+      decisionDigest: lease.routeDecisionDigest,
+      routeRevision: lease.routeRevision,
+      topIntent: binding[1],
+      subtype: binding[2]
+    },
+    turnLiveness: { turnKey: lease.turnKey },
+    workflowOperationalWriteLease: lease
+  }
+}
+
+function buildMutationRecoveryPreflightV2(decision, lease, footprint, preObservation, ownerAuthority = null) {
+  const roots = [
+    boundedRecoveryString(decision.activeRootIdentity?.canonicalPath, 1024),
+    boundedRecoveryString(decision.projectRootIdentity?.canonicalPath, 1024)
+  ]
+  if (roots.some(root => !root)) {
+    throw new TaskRecoveryStoreV5Error(
+      'LIFECYCLE_PREFLIGHT_ROOT_IDENTITY_INCOMPLETE',
+      'mutation preflight requires canonical active and project roots'
+    )
+  }
+  const pathTable = []
+  const pathIndex = new Map()
+  const encodePath = raw => {
+    const target = String(raw || '')
+    const logical = /^[a-z][a-z0-9+.-]*:/i.test(target) && !/^[a-z]:[\/]/i.test(target)
+    let encoded
+    if (logical) {
+      encoded = [-1, boundedRecoveryString(target, 1024)]
+    } else {
+      const absolute = path.resolve(target)
+      const rootIndex = roots.findIndex(root => recoveryPathInside(absolute, root))
+      if (rootIndex < 0) {
+        throw new TaskRecoveryStoreV5Error(
+          'LIFECYCLE_PREFLIGHT_PATH_OUTSIDE_ROOTS',
+          `mutation preflight path is outside the decision roots: ${target}`
+        )
+      }
+      encoded = [rootIndex, boundedRecoveryString(path.relative(roots[rootIndex], absolute).replace(/\\/g, '/'), 1024)]
+    }
+    const key = `${encoded[0]}:${process.platform === 'win32' ? encoded[1].toLowerCase() : encoded[1]}`
+    if (!pathIndex.has(key)) {
+      pathIndex.set(key, pathTable.length)
+      pathTable.push(encoded)
+    }
+    return pathIndex.get(key)
+  }
+  const encodePaths = values => (values || []).map(encodePath)
+  const record = {
+    schemaVersion: 'TaskRecoveryMutationPreflightV2',
+    roots,
+    pathTable,
+    decision: [
+      decision.schemaVersion,
+      compactRecoveryDigest(decision.targetSetDigest),
+      compactRecoveryDigest(decision.footprintDigest),
+      compactRecoveryDigest(decision.baseRegistryDigest),
+      compactRecoveryDigest(decision.overlayDigest),
+      compactRecoveryDigest(decision.activeRootIdentity?.digest),
+      compactRecoveryDigest(decision.projectRootIdentity?.digest),
+      decision.decisionStatus,
+      decision.expiresAt,
+      decision.singleUse === true,
+      decision.status,
+      compactRecoveryDigest(decision.decisionDigest)
+    ],
+    lease: [
+      lease.schemaVersion,
+      lease.operationId,
+      lease.project,
+      lease.taskId,
+      lease.ownerKind,
+      lease.ownerGeneration,
+      compactRecoveryDigest(lease.ownerLeaseDigest),
+      lease.contextEpoch,
+      compactRecoveryDigest(lease.routeRevision),
+      compactRecoveryDigest(lease.adapterDigest),
+      compactRecoveryDigest(lease.mergedRegistryDigest),
+      compactRecoveryDigest(lease.slotDecisionDigest),
+      compactRecoveryDigest(lease.plannedSetDigest),
+      compactRecoveryDigest(lease.nonce),
+      lease.issuedAt,
+      lease.expiresAt,
+      lease.singleUse === true,
+      lease.status,
+      compactRecoveryDigest(lease.leaseDigest)
+    ],
+    footprint: {
+      schemaVersion: footprint.schemaVersion,
+      sourceSchemaVersion: footprint.sourceSchemaVersion || null,
+      operation: footprint.operation,
+      plannedCreates: encodePaths(footprint.plannedCreates),
+      plannedModifies: encodePaths(footprint.plannedModifies),
+      plannedDeletes: encodePaths(footprint.plannedDeletes),
+      plannedMoves: (footprint.plannedMoves || []).map(item => [encodePath(item.source), encodePath(item.target)]),
+      sourceTargets: encodePaths(footprint.sourceTargets),
+      normalizedTargets: footprint.observationPlan?.targetGranularity === 'controlled-root'
+        ? encodePaths(footprint.normalizedTargets)
+        : [],
+      observationPlan: footprint.observationPlan || null,
+      coverage: footprint.coverage || null
+    },
+    preObservation: {
+      schemaVersion: preObservation.schemaVersion,
+      entries: (preObservation.entries || []).map(entry => [
+        encodePath(entry.path),
+        entry.exists === true,
+        entry.kind,
+        compactRecoveryDigest(entry.digest),
+        Number.isFinite(entry.bytes) ? entry.bytes : 0,
+        entry.complete === true,
+        entry.errorCode || null
+      ]),
+      observationCoverage: preObservation.observationCoverage,
+      errorCodes: preObservation.errorCodes || [],
+      snapshotDigest: compactRecoveryDigest(preObservation.snapshotDigest),
+      observedAt: preObservation.observedAt,
+      receiptDigest: compactRecoveryDigest(preObservation.receiptDigest)
+    },
+    ...(ownerAuthority ? { ownerAuthority } : {})
+  }
+  return record
+}
+
+function materializeMutationRecoveryPreflightV2(record) {
+  if (record?.schemaVersion !== 'TaskRecoveryMutationPreflightV2' ||
+      !Array.isArray(record.roots) || !Array.isArray(record.pathTable) ||
+      !Array.isArray(record.decision) || !Array.isArray(record.lease)) return null
+  const decodePath = index => {
+    const encoded = record.pathTable[index]
+    if (!Array.isArray(encoded) || encoded.length !== 2) return ''
+    if (encoded[0] === -1) return String(encoded[1] || '')
+    const root = record.roots[encoded[0]]
+    if (!root) return ''
+    const target = path.resolve(root, ...String(encoded[1] || '').split('/'))
+    return recoveryPathInside(target, root) ? target : ''
+  }
+  const decodePaths = values => (values || []).map(decodePath).filter(Boolean)
+  const decisionValues = record.decision
+  const leaseValues = record.lease
+  const footprintValue = record.footprint || {}
+  const preValue = record.preObservation || {}
+  const plannedCreates = decodePaths(footprintValue.plannedCreates)
+  const plannedModifies = decodePaths(footprintValue.plannedModifies)
+  const plannedDeletes = decodePaths(footprintValue.plannedDeletes)
+  const plannedMoves = (footprintValue.plannedMoves || []).map(item => ({
+    source: decodePath(item?.[0]),
+    target: decodePath(item?.[1])
+  })).filter(item => item.source && item.target)
+  const sourceTargets = decodePaths(footprintValue.sourceTargets)
+  const explicitNormalizedTargets = decodePaths(footprintValue.normalizedTargets)
+  const normalizedTargets = explicitNormalizedTargets.length
+    ? explicitNormalizedTargets
+    : [...new Map([
+        ...plannedCreates,
+        ...plannedModifies,
+        ...plannedDeletes,
+        ...plannedMoves.flatMap(item => [item.source, item.target])
+      ].map(item => [recoveryComparablePath(item), item])).values()]
+  const lease = {
+    schemaVersion: leaseValues[0],
+    operationId: leaseValues[1],
+    project: leaseValues[2],
+    taskId: leaseValues[3],
+    ownerKind: leaseValues[4],
+    ownerGeneration: leaseValues[5],
+    ownerLeaseDigest: materializeRecoveryDigest(leaseValues[6]),
+    contextEpoch: leaseValues[7],
+    routeRevision: materializeRecoveryDigest(leaseValues[8]),
+    adapterDigest: materializeRecoveryDigest(leaseValues[9]),
+    mergedRegistryDigest: materializeRecoveryDigest(leaseValues[10]),
+    slotDecisionDigest: materializeRecoveryDigest(leaseValues[11]),
+    plannedSetDigest: materializeRecoveryDigest(leaseValues[12]),
+    nonce: materializeRecoveryDigest(leaseValues[13]),
+    issuedAt: leaseValues[14],
+    expiresAt: leaseValues[15],
+    singleUse: leaseValues[16] === true,
+    status: leaseValues[17],
+    leaseDigest: materializeRecoveryDigest(leaseValues[18])
+  }
+  const footprint = {
+    schemaVersion: footprintValue.schemaVersion,
+    sourceSchemaVersion: footprintValue.sourceSchemaVersion || null,
+    footprintDigest: materializeRecoveryDigest(decisionValues[2]),
+    adapterDigest: lease.adapterDigest,
+    operation: footprintValue.operation,
+    plannedCreates,
+    plannedModifies,
+    plannedDeletes,
+    plannedMoves,
+    sourceTargets,
+    targetTargets: [],
+    normalizedTargets,
+    plannedSetDigest: lease.plannedSetDigest,
+    observationPlan: footprintValue.observationPlan || null,
+    coverage: footprintValue.coverage || null
+  }
+  const decision = {
+    schemaVersion: decisionValues[0],
+    projectionKind: 'digest-only',
+    project: lease.project,
+    taskRecoveryKey: lease.taskId || null,
+    contextEpoch: lease.contextEpoch,
+    operation: footprint.operation,
+    targetSetDigest: materializeRecoveryDigest(decisionValues[1]),
+    footprintDigest: materializeRecoveryDigest(decisionValues[2]),
+    adapterDigest: lease.adapterDigest,
+    plannedSetDigest: lease.plannedSetDigest,
+    mergedRegistryDigest: lease.mergedRegistryDigest,
+    ...(decisionValues[3] ? { baseRegistryDigest: materializeRecoveryDigest(decisionValues[3]) } : {}),
+    ...(decisionValues[4] !== undefined ? { overlayDigest: materializeRecoveryDigest(decisionValues[4]) } : {}),
+    activeRootIdentity: { canonicalPath: record.roots[0], digest: materializeRecoveryDigest(decisionValues[5]) },
+    projectRootIdentity: { canonicalPath: record.roots[1], digest: materializeRecoveryDigest(decisionValues[6]) },
+    decisionStatus: decisionValues[7],
+    expiresAt: decisionValues[8],
+    singleUse: decisionValues[9] === true,
+    status: decisionValues[10],
+    decisionDigest: materializeRecoveryDigest(decisionValues[11])
+  }
+  const preObservation = {
+    schemaVersion: preValue.schemaVersion,
+    operationId: lease.operationId,
+    footprintDigest: decision.footprintDigest,
+    plannedSetDigest: lease.plannedSetDigest,
+    entries: (preValue.entries || []).map(entry => ({
+      path: decodePath(entry?.[0]),
+      exists: entry?.[1] === true,
+      kind: entry?.[2],
+      digest: materializeRecoveryDigest(entry?.[3]),
+      bytes: Number.isFinite(entry?.[4]) ? entry[4] : 0,
+      complete: entry?.[5] === true,
+      ...(entry?.[6] ? { errorCode: entry[6] } : {})
+    })).filter(entry => entry.path),
+    observationCoverage: preValue.observationCoverage,
+    errorCodes: preValue.errorCodes || [],
+    snapshotDigest: materializeRecoveryDigest(preValue.snapshotDigest),
+    observedAt: preValue.observedAt,
+    receiptDigest: materializeRecoveryDigest(preValue.receiptDigest)
+  }
+  return {
+    decision,
+    lease,
+    footprint,
+    preObservation,
+    ownerState: materializeMutationOwnerAuthorityRecovery(record.ownerAuthority, record.roots, lease)
+  }
+}
+
+function applyMutationOwnerAuthorityRecovery(state, ownerState) {
+  if (!ownerState) return state
+  state.activeProject = ownerState.activeProject
+  state.activeScope = ownerState.activeScope
+  state.stickyProject = ownerState.stickyProject
+  state.actualInstructionEnvelope = ownerState.actualInstructionEnvelope
+  state.workflowRouteDecision = ownerState.workflowRouteDecision
+  state.workflowRoutePlanBinding = ownerState.workflowRoutePlanBinding
+  state.contextAcquisition = {
+    ...(state.contextAcquisition || {}),
+    ...(ownerState.contextAcquisition || {})
+  }
+  state.turnLiveness = {
+    ...(state.turnLiveness || {}),
+    turnKey: ownerState.turnLiveness?.turnKey || state.turnLiveness?.turnKey || ''
+  }
+  if (ownerState.simpleTaskFastPathLease) {
+    state.simpleTaskFastPathLease = ownerState.simpleTaskFastPathLease
+    state.simpleTaskFastPathUsage = ownerState.simpleTaskFastPathUsage
+  }
+  if (ownerState.workflowOperationalWriteLease) {
+    state.workflowOperationalWriteLease = ownerState.workflowOperationalWriteLease
+  }
+  return state
+}
+
+function materializeEphemeralMutationState(raw) {
+  const state = JSON.parse(JSON.stringify(raw || {}))
+  const dangerousApprovals = materializeDangerousApprovalRecoveryProjection(
+    state.dangerousApprovalRecovery
+  )
+  if (dangerousApprovals) {
+    state.dangerousApprovals = dangerousApprovals
+    delete state.dangerousApprovalRecovery
+  }
+  const operation = state.turnLiveness?.inFlightOperation
+  const recovered = materializeMutationRecoveryPreflightV2(operation?.mutationRecovery)
+  if (!recovered) return state
+  applyMutationOwnerAuthorityRecovery(state, recovered.ownerState)
+  operation.operationId = operation.operationId || recovered.lease.operationId
+  operation.startedAt = operation.startedAt || recovered.lease.issuedAt
+  operation.artifactDecision = recovered.decision
+  operation.mutationLease = recovered.lease
+  operation.mutationFootprint = recovered.footprint
+  operation.mutationPreObservation = recovered.preObservation
+  delete operation.mutationRecovery
+  return state
+}
+
 function buildMutationPreflightState(state) {
   const binding = state?.taskRecoveryBinding || {}
   const context = state?.contextAcquisition || {}
   const turn = state?.turnLiveness || {}
   const operation = turn.inFlightOperation || {}
+  const artifactDecision = operation.artifactDecision && typeof operation.artifactDecision === 'object'
+    ? operation.artifactDecision
+    : null
+  const mutationLease = operation.mutationLease && typeof operation.mutationLease === 'object'
+    ? operation.mutationLease
+    : null
+  const mutationFootprint = operation.mutationFootprint && typeof operation.mutationFootprint === 'object'
+    ? operation.mutationFootprint
+    : null
+  const mutationPreObservation = operation.mutationPreObservation && typeof operation.mutationPreObservation === 'object'
+    ? operation.mutationPreObservation
+    : null
+  const v2Parts = [mutationLease, mutationFootprint, mutationPreObservation]
+  const hasAnyV2Authority = v2Parts.some(Boolean)
+  const hasV2Authority = !!artifactDecision && v2Parts.every(Boolean)
+  if (hasAnyV2Authority && !hasV2Authority) {
+    throw new TaskRecoveryStoreV5Error(
+      'LIFECYCLE_PREFLIGHT_AUTHORITY_INCOMPLETE',
+      'mutation preflight requires decision, lease, footprint projection and pre-observation together'
+    )
+  }
+  if (hasV2Authority && (
+    artifactDecision.schemaVersion !== 'ArtifactSlotDecisionV2' ||
+    mutationLease.schemaVersion !== 'TaskOwnedMutationLeaseV2' ||
+    mutationFootprint.schemaVersion !== 'MutationFootprintRecoveryProjectionV2' ||
+    mutationPreObservation.schemaVersion !== 'MutationPreObservationV1'
+  )) {
+    throw new TaskRecoveryStoreV5Error(
+      'LIFECYCLE_PREFLIGHT_AUTHORITY_SCHEMA_INVALID',
+      'mutation preflight V2 authority schemas are invalid'
+    )
+  }
+  const mutationRecovery = hasV2Authority
+    ? buildMutationRecoveryPreflightV2(
+        artifactDecision,
+        mutationLease,
+        mutationFootprint,
+        mutationPreObservation,
+        buildMutationOwnerAuthorityRecovery(state, mutationLease)
+      )
+    : null
   const preflight = {
     version: state?.version,
-    mode: state?.mode,
-    phase: state?.phase,
-    activeProject: state?.activeProject,
-    activeScope: state?.activeScope,
-    taskRecoveryBinding: {
-      taskId: boundedRecoveryString(binding.taskId, 128),
-      project: boundedRecoveryString(binding.project, 128),
-      kind: boundedRecoveryString(binding.kind, 64),
-      taskRoot: boundedRecoveryString(binding.taskRoot, 768),
-      status: boundedRecoveryString(binding.status, 64),
-      identityRevision: binding.identityRevision
-    },
-    contextAcquisition: {
-      schemaVersion: context.schemaVersion,
-      contextEpoch: boundedRecoveryString(context.contextEpoch, 256),
-      activeRoot: boundedRecoveryString(context.activeRoot, 768),
-      project: boundedRecoveryString(context.project, 128),
-      targetResolved: context.targetResolved === true,
-      hostSessionId: boundedRecoveryString(context.hostSessionId, 256)
-    },
+    ...(hasV2Authority ? {} : {
+      mode: state?.mode,
+      phase: state?.phase,
+      activeProject: state?.activeProject,
+      activeScope: state?.activeScope
+    }),
+    ...(hasV2Authority ? {} : {
+      taskRecoveryBinding: {
+          taskId: boundedRecoveryString(binding.taskId, 128),
+          project: boundedRecoveryString(binding.project, 128),
+          kind: boundedRecoveryString(binding.kind, 64),
+          taskRoot: boundedRecoveryString(binding.taskRoot, 768),
+          status: boundedRecoveryString(binding.status, 64),
+          identityRevision: binding.identityRevision
+        },
+      contextAcquisition: {
+          schemaVersion: context.schemaVersion,
+          contextEpoch: boundedRecoveryString(context.contextEpoch, 256),
+          activeRoot: boundedRecoveryString(context.activeRoot, 768),
+          project: boundedRecoveryString(context.project, 128),
+          targetResolved: context.targetResolved === true,
+          hostSessionId: boundedRecoveryString(context.hostSessionId, 256)
+        }
+    }),
     turnLiveness: {
-      schemaVersion: turn.schemaVersion,
+      ...(hasV2Authority ? {} : { schemaVersion: turn.schemaVersion }),
       state: turn.state,
-      turnKey: boundedRecoveryString(turn.turnKey, 256),
+      ...(hasV2Authority ? {} : { turnKey: boundedRecoveryString(turn.turnKey, 256) }),
       inFlightOperation: {
-        operationId: boundedRecoveryString(operation.operationId, 256),
+        ...(hasV2Authority ? {} : { operationId: boundedRecoveryString(operation.operationId, 256) }),
         toolName: boundedRecoveryString(operation.toolName, 128),
-        startedAt: operation.startedAt,
+        ...(hasV2Authority ? {} : { startedAt: operation.startedAt }),
         mutating: operation.mutating === true,
-        targetPaths: Array.isArray(operation.targetPaths)
+        targetPaths: hasV2Authority
+          ? []
+          : Array.isArray(operation.targetPaths)
           ? operation.targetPaths.slice(0, 4).map(item => boundedRecoveryString(item, 512))
-          : []
+          : [],
+        artifactAuthorization: artifactDecision && !hasV2Authority
+          ? {
+              schemaVersion: 'ArtifactMutationPreflightV1',
+              artifactDecisionDigest: boundedRecoveryString(artifactDecision.decisionDigest, 64),
+              footprintDigest: boundedRecoveryString(artifactDecision.footprintDigest, 64),
+              targetSetDigest: boundedRecoveryString(artifactDecision.targetSetDigest, 64),
+              operation: boundedRecoveryString(artifactDecision.operation, 32),
+              slotId: boundedRecoveryString(artifactDecision.slotId, 128),
+              targetCount: Number.isInteger(artifactDecision.targetCount) ? artifactDecision.targetCount : 0,
+              observability: boundedRecoveryString(artifactDecision.observability, 32),
+              authoritySourceRef: boundedRecoveryString(artifactDecision.authoritySourceRef, 512),
+              expiresAt: boundedRecoveryString(artifactDecision.expiresAt, 64),
+              singleUse: artifactDecision.singleUse === true
+            }
+          : null,
+        ...(hasV2Authority
+          ? { mutationRecovery }
+          : {
+              artifactDecision: null,
+              mutationLease: null,
+              mutationFootprint: null,
+              mutationPreObservation: null
+            })
       }
     },
-    recoveryKind: 'mutation-preflight'
+    recoveryKind: hasV2Authority ? 'mutation-preflight-v2' : 'mutation-preflight'
   }
   if (jsonBytes(preflight) > MUTATION_PREFLIGHT_STATE_MAX_BYTES) {
-    preflight.taskRecoveryBinding.taskRoot = ''
-    preflight.contextAcquisition.activeRoot = ''
-    preflight.contextAcquisition.hostSessionId = ''
-    preflight.turnLiveness.turnKey = ''
+    if (!hasV2Authority) {
+      preflight.taskRecoveryBinding.taskRoot = ''
+      preflight.contextAcquisition.activeRoot = ''
+      preflight.contextAcquisition.hostSessionId = ''
+      preflight.turnLiveness.turnKey = ''
+    }
     preflight.turnLiveness.inFlightOperation.targetPaths = []
   }
   const bytes = jsonBytes(preflight)
   if (bytes > MUTATION_PREFLIGHT_STATE_MAX_BYTES) {
     throw new TaskRecoveryStoreV5Error(
       'LIFECYCLE_PREFLIGHT_PAYLOAD_EXCEEDED',
-      'mutation preflight recovery record exceeds 4 KiB',
+      `mutation preflight recovery record exceeds 4 KiB (${bytes}/${MUTATION_PREFLIGHT_STATE_MAX_BYTES} bytes)`,
       { bytes, maxBytes: MUTATION_PREFLIGHT_STATE_MAX_BYTES }
     )
   }
@@ -462,23 +1263,62 @@ function materializeRecoveryState(read) {
   if (current.recordType !== 'mutation-preflight') return current.state
   const previous = read.previous?.envelope
   if (!previous || previous.sequence !== current.baseSequence ||
-      !sameIdentity(previous.identity, current.identity)) return current.state
-  return {
-    ...previous.state,
-    ...current.state,
+      !sameIdentity(previous.identity, current.identity)) {
+    return materializeEphemeralMutationState(current.state)
+  }
+  const previousState = JSON.parse(JSON.stringify(previous.state || {}))
+  const currentState = JSON.parse(JSON.stringify(current.state || {}))
+  const materialized = {
+    ...previousState,
+    ...currentState,
     taskRecoveryBinding: {
-      ...(previous.state?.taskRecoveryBinding || {}),
-      ...(current.state?.taskRecoveryBinding || {})
+      ...(previousState.taskRecoveryBinding || {}),
+      ...(currentState.taskRecoveryBinding || {})
     },
     contextAcquisition: {
-      ...(previous.state?.contextAcquisition || {}),
-      ...(current.state?.contextAcquisition || {})
+      ...(previousState.contextAcquisition || {}),
+      ...(currentState.contextAcquisition || {})
     },
     turnLiveness: {
-      ...(previous.state?.turnLiveness || {}),
-      ...(current.state?.turnLiveness || {})
+      ...(previousState.turnLiveness || {}),
+      ...(currentState.turnLiveness || {})
     }
   }
+  const operation = materialized.turnLiveness?.inFlightOperation
+  const recoveredAuthority = materializeMutationRecoveryPreflightV2(operation?.mutationRecovery)
+  if (recoveredAuthority) {
+    applyMutationOwnerAuthorityRecovery(materialized, recoveredAuthority.ownerState)
+    operation.operationId = operation.operationId || recoveredAuthority.lease.operationId
+    operation.startedAt = operation.startedAt || recoveredAuthority.lease.issuedAt
+    operation.artifactDecision = recoveredAuthority.decision
+    operation.mutationLease = recoveredAuthority.lease
+    operation.mutationFootprint = recoveredAuthority.footprint
+    operation.mutationPreObservation = recoveredAuthority.preObservation
+    delete operation.mutationRecovery
+  }
+  if (operation?.artifactDecision?.schemaVersion === 'ArtifactSlotDecisionV2' &&
+      operation?.mutationLease?.schemaVersion === 'TaskOwnedMutationLeaseV2' &&
+      operation?.mutationFootprint?.schemaVersion === 'MutationFootprintRecoveryProjectionV2' &&
+      operation?.mutationPreObservation?.schemaVersion === 'MutationPreObservationV1') {
+    const lease = operation.mutationLease || {}
+    operation.artifactDecision = {
+      ...(operation.artifactDecision || {}),
+      project: operation.artifactDecision?.project || lease.project || '',
+      taskRecoveryKey: operation.artifactDecision?.taskRecoveryKey || lease.taskId || null,
+      contextEpoch: operation.artifactDecision?.contextEpoch || lease.contextEpoch || '',
+      operation: operation.artifactDecision?.operation || operation.mutationFootprint?.operation || 'unknown',
+      adapterDigest: operation.artifactDecision?.adapterDigest || lease.adapterDigest || null,
+      plannedSetDigest: operation.artifactDecision?.plannedSetDigest || lease.plannedSetDigest || null,
+      mergedRegistryDigest: operation.artifactDecision?.mergedRegistryDigest || lease.mergedRegistryDigest || null
+    }
+    operation.mutationFootprint = {
+      ...(operation.mutationFootprint || {}),
+      footprintDigest: operation.mutationFootprint?.footprintDigest || operation.artifactDecision.footprintDigest || null,
+      adapterDigest: operation.mutationFootprint?.adapterDigest || lease.adapterDigest || null,
+      plannedSetDigest: operation.mutationFootprint?.plannedSetDigest || lease.plannedSetDigest || null
+    }
+  }
+  return materialized
 }
 
 function slotFingerprint(paths, fsImpl = fs) {
@@ -597,8 +1437,14 @@ function releaseLock(lock, fsImpl = fs) {
   } catch { }
 }
 
-function writeFixedJsonSlot(file, tempFile, value, fsImpl = fs) {
-  const serialized = `${JSON.stringify(value, null, 2)}\n`
+function serializeFixedJsonSlot(value, options = {}) {
+  return options.compact === true
+    ? `${JSON.stringify(value)}\n`
+    : `${JSON.stringify(value, null, 2)}\n`
+}
+
+function writeFixedJsonSlot(file, tempFile, value, fsImpl = fs, options = {}) {
+  const serialized = serializeFixedJsonSlot(value, options)
   fsImpl.mkdirSync(path.dirname(file), { recursive: true })
   let descriptor
   let writeError = null
@@ -790,9 +1636,42 @@ function readEphemeralRing(paths, fsImpl = fs) {
     : { status: reads.every(read => read.status === 'missing') ? 'missing' : 'invalid', reads }
 }
 
-function ephemeralOwnerKey(sessionKey) {
+function rawHostSessionDigest(sessionKey) {
+  const key = String(sessionKey || '').trim()
+  return key ? crypto.createHash('sha256').update(key).digest('hex') : ''
+}
+
+function legacyEphemeralOwnerKey(sessionKey) {
   const key = String(sessionKey || '').trim()
   return key ? digestValue({ sessionKey: key }) : ''
+}
+
+function sessionOwnerKeys(input = {}) {
+  const sessionKey = String(input.sessionKey || '').trim()
+  const suppliedDigest = String(input.hostSessionDigest || '').trim().toLowerCase()
+  if (suppliedDigest && !/^[a-f0-9]{64}$/.test(suppliedDigest)) {
+    throw new TaskRecoveryStoreV5Error(
+      'LIFECYCLE_HOST_SESSION_DIGEST_INVALID',
+      'hostSessionDigest must be one lowercase SHA-256 digest'
+    )
+  }
+  const derivedDigest = rawHostSessionDigest(sessionKey)
+  if (suppliedDigest && derivedDigest && suppliedDigest !== derivedDigest) {
+    throw new TaskRecoveryStoreV5Error(
+      'LIFECYCLE_HOST_SESSION_BINDING_MISMATCH',
+      'hostSessionDigest does not match the supplied raw session key'
+    )
+  }
+  const hostSessionDigest = suppliedDigest || derivedDigest
+  if (!hostSessionDigest) return { primary: '', legacy: '' }
+  return {
+    primary: digestValue({ hostSessionDigest }),
+    legacy: sessionKey ? legacyEphemeralOwnerKey(sessionKey) : ''
+  }
+}
+
+function ephemeralOwnerKey(sessionKey) {
+  return sessionOwnerKeys({ sessionKey }).primary
 }
 
 function compactModeReceiptForEphemeral (raw) {
@@ -887,6 +1766,65 @@ function compactRouteStopForEphemeral (raw) {
   }
 }
 
+function compactMutationCloseoutForEphemeral(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  const observation = raw.observation && typeof raw.observation === 'object' ? raw.observation : null
+  const effects = observation?.observedEffects || {}
+  const compactPaths = values => Array.isArray(values)
+    ? values.slice(0, 24).map(item => boundedRecoveryString(item, 512))
+    : []
+  return {
+    schemaVersion: raw.schemaVersion,
+    operationId: boundedRecoveryString(raw.operationId, 256),
+    toolName: boundedRecoveryString(raw.toolName, 128),
+    completedAt: raw.completedAt || null,
+    result: boundedRecoveryString(raw.result, 64),
+    authorizationErrors: Array.isArray(raw.authorizationErrors)
+      ? raw.authorizationErrors.slice(0, 24).map(item => boundedRecoveryString(item, 256))
+      : [],
+    observation: observation ? {
+      schemaVersion: observation.schemaVersion,
+      operationId: boundedRecoveryString(observation.operationId, 256),
+      decisionDigest: boundedRecoveryString(observation.decisionDigest, 64),
+      leaseDigest: boundedRecoveryString(observation.leaseDigest, 64),
+      plannedSetDigest: boundedRecoveryString(observation.plannedSetDigest, 64),
+      observedEffects: {
+        created: compactPaths(effects.created),
+        modified: compactPaths(effects.modified),
+        deleted: compactPaths(effects.deleted),
+        moved: Array.isArray(effects.moved)
+          ? effects.moved.slice(0, 24).map(item => ({
+              source: boundedRecoveryString(item?.source, 512),
+              target: boundedRecoveryString(item?.target, 512)
+            }))
+          : []
+      },
+      observationCoverage: observation.observationCoverage,
+      nativeExitCode: observation.nativeExitCode,
+      drift: Array.isArray(observation.drift)
+        ? observation.drift.slice(0, 24).map(item => boundedRecoveryString(item, 512))
+        : [],
+      reconcileRequired: observation.reconcileRequired === true,
+      status: observation.status,
+      completedAt: observation.completedAt,
+      receiptDigest: boundedRecoveryString(observation.receiptDigest, 64)
+    } : null,
+    artifactCloseout: raw.artifactCloseout && typeof raw.artifactCloseout === 'object'
+      ? {
+          schemaVersion: raw.artifactCloseout.schemaVersion,
+          operationId: boundedRecoveryString(raw.artifactCloseout.operationId, 256),
+          decisionDigest: boundedRecoveryString(raw.artifactCloseout.decisionDigest, 64),
+          leaseDigest: boundedRecoveryString(raw.artifactCloseout.leaseDigest, 64),
+          observationReceiptDigest: boundedRecoveryString(raw.artifactCloseout.observationReceiptDigest, 64),
+          decisionStatus: raw.artifactCloseout.decisionStatus,
+          reconcileRequired: raw.artifactCloseout.reconcileRequired === true,
+          completedAt: raw.artifactCloseout.completedAt,
+          closeoutDigest: boundedRecoveryString(raw.artifactCloseout.closeoutDigest, 64)
+        }
+      : null
+  }
+}
+
 function compactTurnLivenessForEphemeral (raw) {
   if (!raw || typeof raw !== 'object') return null
   const operation = raw.inFlightOperation
@@ -906,13 +1844,224 @@ function compactTurnLivenessForEphemeral (raw) {
       observedAt: raw.checkpoint.observedAt,
       summary: raw.checkpoint.summary
     } : null,
-    lastMutationCloseout: raw.lastMutationCloseout || null
+    lastMutationCloseout: compactMutationCloseoutForEphemeral(raw.lastMutationCloseout)
   }
+}
+
+function compactWorkflowOperationalWriteLeaseCloseout(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  return {
+    schemaVersion: boundedRecoveryString(raw.schemaVersion, 64),
+    leaseDigest: boundedRecoveryString(raw.leaseDigest, 64),
+    operationId: boundedRecoveryString(raw.operationId, 256),
+    status: boundedRecoveryString(raw.status, 32),
+    completedAt: boundedRecoveryString(raw.completedAt, 64),
+    receiptDigest: boundedRecoveryString(raw.receiptDigest, 64)
+  }
+}
+
+function compactSimpleTaskFastPathLeaseCloseout(raw) {
+  if (!raw || typeof raw !== 'object') return null
+  return {
+    schemaVersion: boundedRecoveryString(raw.schemaVersion, 64),
+    leaseDigest: boundedRecoveryString(raw.leaseDigest, 64),
+    operationId: boundedRecoveryString(raw.operationId, 256),
+    useCount: Number(raw.useCount) || 0,
+    status: boundedRecoveryString(raw.status, 32),
+    completedAt: boundedRecoveryString(raw.completedAt, 64),
+    usageDigest: boundedRecoveryString(raw.usageDigest, 64),
+    receiptDigest: boundedRecoveryString(raw.receiptDigest, 64),
+    closeoutDigest: boundedRecoveryString(raw.closeoutDigest, 64)
+  }
+}
+
+function buildTasklessAuthorityEphemeralStub(state) {
+  const hasOperationalAuthority = !!state?.workflowOperationalWriteLease
+  const hasSimpleAuthority = !!state?.simpleTaskFastPathLease
+  if (!hasOperationalAuthority && !hasSimpleAuthority) return null
+  if (hasSimpleAuthority && !state?.simpleTaskFastPathUsage) {
+    throw new TaskRecoveryStoreV5Error(
+      'LIFECYCLE_EPHEMERAL_SIMPLE_USAGE_INCOMPLETE',
+      'active simple-task authority requires its exact usage state in the recovery projection'
+    )
+  }
+  const context = state.contextAcquisition || {}
+  const route = state.progressiveSkillRoute || {}
+  const workflowRoute = state.workflowRouteDecision || {}
+  const envelope = state.actualInstructionEnvelope || {}
+  const sticky = state.stickyProject || {}
+  const bootstrap = route.bootstrap || {}
+  const modeReceipt = route.modeReceipt || {}
+  const stop = state.progressiveSkillRouteStop || {}
+  const turn = state.turnLiveness || {}
+  const stub = {
+    version: state.version,
+    mode: boundedRecoveryString(state.mode, 32),
+    activeProject: boundedRecoveryString(state.activeProject, 128),
+    activeScope: boundedRecoveryString(state.activeScope, 32),
+    activeProjectSource: boundedRecoveryString(state.activeProjectSource, 64),
+    taskRecoveryBinding: null,
+    stickyProject: {
+      schemaVersion: sticky.schemaVersion,
+      leaseId: boundedRecoveryString(sticky.leaseId, 128),
+      targetDigest: boundedRecoveryString(sticky.targetDigest, 64),
+      layoutIdentity: boundedRecoveryString(sticky.layoutIdentity, 64),
+      project: boundedRecoveryString(sticky.project, 128),
+      physicalRoot: boundedRecoveryString(sticky.physicalRoot, 1024),
+      activeRoot: boundedRecoveryString(sticky.activeRoot, 1024),
+      source: boundedRecoveryString(sticky.source, 64),
+      leaseDigest: boundedRecoveryString(sticky.leaseDigest, 64),
+      rootIdentityDigest: boundedRecoveryString(sticky.rootIdentityDigest, 64),
+      authorityKind: boundedRecoveryString(sticky.authorityKind, 32),
+      authorityDigest: boundedRecoveryString(sticky.authorityDigest, 64),
+      contextEpoch: boundedRecoveryString(sticky.contextEpoch, 256),
+      contextBindingDigest: boundedRecoveryString(sticky.contextBindingDigest, 64),
+      routeRevision: boundedRecoveryString(sticky.routeRevision, 64),
+      revocationEpoch: sticky.revocationEpoch,
+      issuedAtMs: sticky.issuedAtMs,
+      expiresAtMs: sticky.expiresAtMs
+    },
+    actualInstructionEnvelope: {
+      schemaVersion: boundedRecoveryString(envelope.schemaVersion, 64),
+      envelopeId: boundedRecoveryString(envelope.envelopeId, 128),
+      envelopeDigest: boundedRecoveryString(envelope.envelopeDigest, 64),
+      actualInstructionDigest: boundedRecoveryString(envelope.actualInstructionDigest, 64),
+      contextEpoch: boundedRecoveryString(envelope.contextEpoch, 256),
+      instructionAuthority: envelope.instructionAuthority === true
+    },
+    workflowRouteDecision: {
+      schemaVersion: boundedRecoveryString(workflowRoute.schemaVersion, 64),
+      decisionDigest: boundedRecoveryString(workflowRoute.decisionDigest, 64),
+      routeRevision: boundedRecoveryString(workflowRoute.routeRevision, 64),
+      routeKey: boundedRecoveryString(workflowRoute.routeKey, 96),
+      topIntent: boundedRecoveryString(workflowRoute.topIntent, 32),
+      subtype: boundedRecoveryString(workflowRoute.subtype, 64)
+    },
+    workflowRoutePlanBinding: {
+      bindingDigest: boundedRecoveryString(state.workflowRoutePlanBinding?.bindingDigest, 64),
+      routeRevision: boundedRecoveryString(state.workflowRoutePlanBinding?.routeRevision, 64)
+    },
+    workflowOperationalWriteLease: hasOperationalAuthority
+      ? JSON.parse(JSON.stringify(state.workflowOperationalWriteLease))
+      : null,
+    workflowOperationalWriteLeaseCloseout: compactWorkflowOperationalWriteLeaseCloseout(
+      state.workflowOperationalWriteLeaseCloseout
+    ),
+    simpleTaskFastPathLease: hasSimpleAuthority
+      ? JSON.parse(JSON.stringify(state.simpleTaskFastPathLease))
+      : null,
+    simpleTaskFastPathUsage: hasSimpleAuthority
+      ? JSON.parse(JSON.stringify(state.simpleTaskFastPathUsage))
+      : null,
+    simpleTaskFastPathLeaseCloseout: compactSimpleTaskFastPathLeaseCloseout(
+      state.simpleTaskFastPathLeaseCloseout
+    ),
+    dangerousApprovalRecovery: buildDangerousApprovalRecoveryProjection(state.dangerousApprovals),
+    progressiveSkillRoute: {
+      schemaVersion: boundedRecoveryString(route.schemaVersion, 64),
+      modeReceipt: route.modeReceipt ? {
+        schemaVersion: boundedRecoveryString(modeReceipt.schemaVersion, 64),
+        effective: typeof modeReceipt.effective === 'boolean'
+          ? modeReceipt.effective
+          : boundedRecoveryString(modeReceipt.effective, 32),
+        hostVariant: boundedRecoveryString(modeReceipt.hostVariant, 64)
+      } : null,
+      bootstrap: route.bootstrap ? {
+        schemaVersion: boundedRecoveryString(bootstrap.schemaVersion, 64),
+        project: boundedRecoveryString(bootstrap.project, 128),
+        turnBinding: boundedRecoveryString(bootstrap.turnBinding, 128),
+        contextEpoch: boundedRecoveryString(bootstrap.contextEpoch, 256),
+        bootstrapDigest: boundedRecoveryString(bootstrap.bootstrapDigest, 128),
+        explicitStatus: boundedRecoveryString(bootstrap.explicitStatus, 32)
+      } : null,
+      active: route.active === true,
+      errorCode: boundedRecoveryString(route.errorCode, 128)
+    },
+    progressiveSkillRouteStop: stop && typeof stop === 'object' ? {
+      schemaVersion: boundedRecoveryString(stop.schemaVersion, 64),
+      present: stop.present === true,
+      complete: stop.complete === true,
+      turnBinding: boundedRecoveryString(stop.turnBinding, 128),
+      contextEpoch: boundedRecoveryString(stop.contextEpoch, 256),
+      planDigest: boundedRecoveryString(stop.planDigest, 128),
+      processComplete: stop.processComplete === true,
+      retired: stop.retired === true,
+      errorCode: boundedRecoveryString(stop.errorCode, 128)
+    } : null,
+    turnLiveness: {
+      schemaVersion: turn.schemaVersion,
+      state: boundedRecoveryString(turn.state, 64),
+      turnKey: boundedRecoveryString(turn.turnKey, 256),
+      inFlightOperation: null,
+      checkpoint: turn.checkpoint ? {
+        phase: boundedRecoveryString(turn.checkpoint.phase, 96)
+      } : null
+    },
+    contextAcquisition: {
+      schemaVersion: boundedRecoveryString(context.schemaVersion, 64),
+      contextEpoch: boundedRecoveryString(context.contextEpoch, 256),
+      activeRoot: boundedRecoveryString(context.activeRoot, 1024),
+      project: boundedRecoveryString(context.project, 128),
+      targetResolved: context.targetResolved === true,
+      hostCapability: boundedRecoveryString(context.hostCapability, 64),
+      hostSessionId: boundedRecoveryString(context.hostSessionId, 256),
+      verificationMode: hasOperationalAuthority && hasSimpleAuthority
+        ? 'ephemeral-taskless-authority'
+        : (hasSimpleAuthority ? 'ephemeral-simple-authority' : 'ephemeral-operational-authority')
+    },
+    productMutationBeforePrecheck: state.productMutationBeforePrecheck === true,
+    productMutationCountThisTurn: Number(state.productMutationCountThisTurn) || 0,
+    s07ProductWarnEmitted: state.s07ProductWarnEmitted === true,
+    mutated: state.mutated === true,
+    reportTouched: state.reportTouched === true,
+    memoryTouched: state.memoryTouched === true,
+    recoveryKind: 'ephemeral-resume-stub',
+    recoveryCompaction: hasOperationalAuthority && hasSimpleAuthority
+      ? 'taskless-authority-budget'
+      : (hasSimpleAuthority ? 'simple-authority-budget' : 'operational-authority-budget')
+  }
+  if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
+    stub.progressiveSkillRouteStop = stop && typeof stop === 'object' ? {
+      schemaVersion: boundedRecoveryString(stop.schemaVersion, 64),
+      present: stop.present === true,
+      complete: stop.complete === true,
+      processComplete: stop.processComplete === true,
+      retired: stop.retired === true,
+      errorCode: boundedRecoveryString(stop.errorCode, 128)
+    } : null
+  }
+  if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES && stub.dangerousApprovalRecovery) {
+    stub.dangerousApprovalRecovery.entries = stub.dangerousApprovalRecovery.entries
+      .map(entry => entry.map((value, index) => index === 3 ? '' : value))
+  }
+  if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
+    stub.progressiveSkillRoute = route && typeof route === 'object' ? {
+      schemaVersion: boundedRecoveryString(route.schemaVersion, 64),
+      modeReceipt: route.modeReceipt ? {
+        hostVariant: boundedRecoveryString(modeReceipt.hostVariant, 64)
+      } : null,
+      bootstrap: route.bootstrap ? {
+        turnBinding: boundedRecoveryString(bootstrap.turnBinding, 128),
+        contextEpoch: boundedRecoveryString(bootstrap.contextEpoch, 256),
+        bootstrapDigest: boundedRecoveryString(bootstrap.bootstrapDigest, 128)
+      } : null,
+      active: route.active === true,
+      errorCode: boundedRecoveryString(route.errorCode, 128)
+    } : null
+  }
+  if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
+    stub.progressiveSkillRoute = null
+    stub.progressiveSkillRouteStop = null
+  }
+  return stub
 }
 
 function buildMinimalEphemeralStub (state) {
   const context = state?.contextAcquisition || {}
   const route = state?.progressiveSkillRoute || {}
+  const workflowRoute = state?.workflowRouteDecision || {}
+  const envelope = state?.actualInstructionEnvelope || {}
+  const sticky = state?.stickyProject || {}
   const bootstrap = route.bootstrap || {}
   const stop = state?.progressiveSkillRouteStop || {}
   const turn = state?.turnLiveness || {}
@@ -927,6 +2076,47 @@ function buildMinimalEphemeralStub (state) {
     activeScope: boundedRecoveryString(state?.activeScope, 32),
     activeProjectSource: boundedRecoveryString(state?.activeProjectSource, 64),
     taskRecoveryBinding: null,
+    stickyProject: state?.workflowOperationalWriteLease ? {
+      schemaVersion: sticky.schemaVersion,
+      leaseId: boundedRecoveryString(sticky.leaseId, 128),
+      targetDigest: boundedRecoveryString(sticky.targetDigest, 64),
+      layoutIdentity: boundedRecoveryString(sticky.layoutIdentity, 64),
+      project: boundedRecoveryString(sticky.project, 128),
+      physicalRoot: boundedRecoveryString(sticky.physicalRoot, 1024),
+      activeRoot: boundedRecoveryString(sticky.activeRoot, 1024),
+      source: boundedRecoveryString(sticky.source, 64),
+      sessionKey: boundedRecoveryString(sticky.sessionKey, 256),
+      leaseDigest: boundedRecoveryString(sticky.leaseDigest, 64),
+      rootIdentityDigest: boundedRecoveryString(sticky.rootIdentityDigest, 64),
+      authorityKind: boundedRecoveryString(sticky.authorityKind, 32),
+      authorityDigest: boundedRecoveryString(sticky.authorityDigest, 64),
+      contextEpoch: boundedRecoveryString(sticky.contextEpoch, 256),
+      contextBindingDigest: boundedRecoveryString(sticky.contextBindingDigest, 64),
+      routeRevision: boundedRecoveryString(sticky.routeRevision, 64),
+      revocationEpoch: sticky.revocationEpoch,
+      issuedAtMs: sticky.issuedAtMs,
+      expiresAtMs: sticky.expiresAtMs
+    } : null,
+    actualInstructionEnvelope: state?.workflowOperationalWriteLease ? {
+      schemaVersion: boundedRecoveryString(envelope.schemaVersion, 64),
+      envelopeId: boundedRecoveryString(envelope.envelopeId, 128),
+      envelopeDigest: boundedRecoveryString(envelope.envelopeDigest, 64),
+      contextEpoch: boundedRecoveryString(envelope.contextEpoch, 256),
+      instructionAuthority: envelope.instructionAuthority === true
+    } : null,
+    workflowRouteDecision: state?.workflowOperationalWriteLease ? {
+      schemaVersion: boundedRecoveryString(workflowRoute.schemaVersion, 64),
+      decisionDigest: boundedRecoveryString(workflowRoute.decisionDigest, 64),
+      routeRevision: boundedRecoveryString(workflowRoute.routeRevision, 64)
+    } : null,
+    workflowRoutePlanBinding: state?.workflowOperationalWriteLease ? {
+      bindingDigest: boundedRecoveryString(state.workflowRoutePlanBinding?.bindingDigest, 64),
+      routeRevision: boundedRecoveryString(state.workflowRoutePlanBinding?.routeRevision, 64)
+    } : null,
+    workflowOperationalWriteLease: state?.workflowOperationalWriteLease
+      ? JSON.parse(JSON.stringify(state.workflowOperationalWriteLease))
+      : null,
+    dangerousApprovals: compactDangerousApprovalsForEphemeral(state?.dangerousApprovals),
     progressiveSkillRoute: route && typeof route === 'object' ? {
       schemaVersion: boundedRecoveryString(route.schemaVersion, 64),
       modeReceipt: route.modeReceipt ? {
@@ -986,7 +2176,8 @@ function buildMinimalEphemeralStub (state) {
         phase: boundedRecoveryString(turn.checkpoint.phase, 96),
         observedAt: boundedRecoveryString(turn.checkpoint.observedAt, 64),
         summary: boundedRecoveryString(turn.checkpoint.summary, 256)
-      } : null
+      } : null,
+      lastMutationCloseout: compactMutationCloseoutForEphemeral(turn.lastMutationCloseout)
     },
     contextAcquisition: {
       schemaVersion: boundedRecoveryString(context.schemaVersion, 64),
@@ -1015,6 +2206,23 @@ function buildMinimalEphemeralStub (state) {
 }
 
 function buildEphemeralStub(state) {
+  if (state?.workflowOperationalWriteLease || state?.simpleTaskFastPathLease) {
+    const tasklessAuthority = buildTasklessAuthorityEphemeralStub(state)
+    if (jsonBytes(tasklessAuthority) <= EPHEMERAL_STUB_TARGET_BYTES) {
+      return JSON.parse(JSON.stringify(tasklessAuthority))
+    }
+    throw new TaskRecoveryStoreV5Error(
+      'LIFECYCLE_EPHEMERAL_ENTRY_EXCEEDED',
+      'taskless authority resume stub exceeds 8 KiB',
+      {
+        bytes: jsonBytes(tasklessAuthority),
+        maxBytes: EPHEMERAL_STUB_TARGET_BYTES,
+        operationalTargetCount: state.workflowOperationalWriteLease?.relativeTargets?.length || 0,
+        simpleTargetCount: state.simpleTaskFastPathLease?.relativeTargets?.length || 0,
+        approvalCount: Object.keys(state.dangerousApprovals || {}).length
+      }
+    )
+  }
   const context = state?.contextAcquisition || {}
   const sticky = state?.stickyProject || {}
   const stub = {
@@ -1034,10 +2242,39 @@ function buildEphemeralStub(state) {
       source: sticky.source,
       expiresAt: sticky.expiresAt,
       expiresAtMs: sticky.expiresAtMs,
-      sessionKey: sticky.sessionKey
+      sessionKey: sticky.sessionKey,
+      leaseDigest: sticky.leaseDigest,
+      rootIdentityDigest: sticky.rootIdentityDigest,
+      authorityKind: sticky.authorityKind,
+      authorityDigest: sticky.authorityDigest,
+      contextEpoch: sticky.contextEpoch,
+      contextBindingDigest: sticky.contextBindingDigest,
+      routeRevision: sticky.routeRevision,
+      revocationEpoch: sticky.revocationEpoch,
+      issuedAtMs: sticky.issuedAtMs
     },
     stickyAuto: state?.stickyAuto,
     taskRecoveryBinding: state?.taskRecoveryBinding || null,
+    workflowOperationalWriteLease: state?.workflowOperationalWriteLease
+      ? JSON.parse(JSON.stringify(state.workflowOperationalWriteLease))
+      : null,
+    actualInstructionEnvelope: state?.workflowOperationalWriteLease ? {
+      schemaVersion: state.actualInstructionEnvelope?.schemaVersion,
+      envelopeId: state.actualInstructionEnvelope?.envelopeId,
+      envelopeDigest: state.actualInstructionEnvelope?.envelopeDigest,
+      contextEpoch: state.actualInstructionEnvelope?.contextEpoch,
+      instructionAuthority: state.actualInstructionEnvelope?.instructionAuthority === true
+    } : null,
+    workflowRouteDecision: state?.workflowOperationalWriteLease ? {
+      schemaVersion: state.workflowRouteDecision?.schemaVersion,
+      decisionDigest: state.workflowRouteDecision?.decisionDigest,
+      routeRevision: state.workflowRouteDecision?.routeRevision
+    } : null,
+    workflowRoutePlanBinding: state?.workflowOperationalWriteLease ? {
+      bindingDigest: state.workflowRoutePlanBinding?.bindingDigest,
+      routeRevision: state.workflowRoutePlanBinding?.routeRevision
+    } : null,
+    dangerousApprovals: compactDangerousApprovalsForEphemeral(state?.dangerousApprovals),
     languageContext: state?.languageContext || null,
     progressiveSkillRoute: state?.progressiveSkillRoute || null,
     progressiveSkillRouteCoordinator: state?.progressiveSkillRouteCoordinator || null,
@@ -1326,6 +2563,46 @@ function writeEmergencyCloseout(paths, value, options = {}) {
     throw new TaskRecoveryStoreV5Error('LIFECYCLE_CLOSEOUT_WRITE_FAILED', 'emergency closeout readback failed')
   }
   return { status: 'closeout-reserved', sequence, file: paths.reserve[targetIndex], reserve }
+}
+
+function readEmergencyCloseouts(metaDir, options = {}) {
+  const fsImpl = options.fs || fs
+  const paths = storePaths(metaDir)
+  const slots = paths.reserve.map((file, index) => {
+    const read = readCloseoutSlot(file, fsImpl)
+    if (!read) return { index, file, status: 'empty-or-invalid', sequence: 0, record: null }
+    return {
+      index,
+      file,
+      status: 'fresh',
+      sequence: read.sequence,
+      record: read.value,
+      recordDigest: digestValue(read.value)
+    }
+  })
+  const records = slots
+    .filter(slot => slot.status === 'fresh')
+    .sort((left, right) => right.sequence - left.sequence)
+  return {
+    schemaVersion: 'TaskRecoveryEmergencyCloseoutReadV1',
+    status: records.length ? 'fresh' : 'missing',
+    records,
+    slots
+  }
+}
+
+function latestEmergencyCloseoutForIdentity(metaDir, identity, options = {}) {
+  let normalized
+  try { normalized = normalizeIdentity(identity) } catch (error) {
+    return { status: 'invalid', errorCode: error.code || 'LIFECYCLE_IDENTITY_INVALID', message: error.message }
+  }
+  const read = readEmergencyCloseouts(metaDir, options)
+  const match = read.records.find(item => {
+    try { return sameIdentity(item.record?.identity, normalized) } catch { return false }
+  })
+  return match
+    ? { status: 'fresh', ...match, identity: normalized }
+    : { status: 'missing', errorCode: 'LIFECYCLE_CLOSEOUT_RECORD_MISSING', identity: normalized }
 }
 
 function inventoryTaskDirectories(paths, options = {}) {
@@ -2100,11 +3377,31 @@ function commitTaskEnvelope(metaDir, identity, state, options = {}) {
     }
     const compact = compactLifecycleStateV5(state)
     const mutationPreflight = options.reason === 'mutation-preflight'
+    const admissionPreflight = options.reason === 'admission-preflight'
+    const durablePreflight = mutationPreflight || admissionPreflight
+    if (mutationPreflight && prior.current?.envelope?.recordType === 'mutation-preflight') {
+      return {
+        status: 'error',
+        errorCode: 'LIFECYCLE_PREFLIGHT_PRIOR_OPERATION_OPEN',
+        message: 'a prior mutation preflight must close or reconcile before a new preflight',
+        identity
+      }
+    }
     if (mutationPreflight && compact.state?.turnLiveness?.inFlightOperation?.mutating !== true) {
       return {
         status: 'error',
         errorCode: 'LIFECYCLE_PREFLIGHT_MUTATION_RECORD_REQUIRED',
         message: 'mutation preflight requires a durable mutating in-flight record',
+        identity
+      }
+    }
+    if (admissionPreflight &&
+        (compact.state?.admissionTransaction?.schemaVersion !== TASK_ADMISSION_TRANSACTION_SCHEMA ||
+         compact.state?.admissionTransaction?.phase !== 'prepared')) {
+      return {
+        status: 'error',
+        errorCode: 'LIFECYCLE_ADMISSION_PREFLIGHT_RECORD_REQUIRED',
+        message: 'admission preflight requires one durable prepared TaskAdmissionTransactionV1 record',
         identity
       }
     }
@@ -2130,7 +3427,8 @@ function commitTaskEnvelope(metaDir, identity, state, options = {}) {
       state: persistedState
     }
     envelope.payloadDigest = envelopeDigest(envelope)
-    const serializedBytes = Buffer.byteLength(`${JSON.stringify(envelope, null, 2)}\n`, 'utf8')
+    const taskSlotSerialization = { compact: true }
+    const serializedBytes = Buffer.byteLength(serializeFixedJsonSlot(envelope, taskSlotSerialization), 'utf8')
     if (serializedBytes > TASK_STATE_SLOT_MAX_BYTES) {
       return { status: 'error', errorCode: 'LIFECYCLE_STATE_PAYLOAD_EXCEEDED', bytes: serializedBytes, identity }
     }
@@ -2164,14 +3462,18 @@ function commitTaskEnvelope(metaDir, identity, state, options = {}) {
     }
     if (projectedBytes > hardBytes) {
       const pressureStatus = inspectTaskRecoveryStore(metaDir, options)
-      if (options.reason === 'mutation-closeout') {
+      if (CLOSEOUT_REASONS.has(options.reason)) {
         try {
           const closeout = writeEmergencyCloseout(paths, {
             observedAt: new Date(nowMs).toISOString(),
             status: options.closeoutStatus || 'needs-reconcile',
             reason: String(options.reason || ''),
             identity,
+            admissionTransaction: compact.state?.admissionTransaction || null,
+            fencedWriteOwner: compact.state?.fencedWriteOwner || null,
+            workflowTaskTerminalReceipt: compact.state?.workflowTaskTerminalReceipt || null,
             inFlightOperation: compact.state?.turnLiveness?.inFlightOperation || null,
+            lastMutationCloseout: compact.state?.turnLiveness?.lastMutationCloseout || null,
             stateDigest: compact.payloadDigest
           }, options)
           return {
@@ -2221,7 +3523,7 @@ function commitTaskEnvelope(metaDir, identity, state, options = {}) {
       serializedBytes + USAGE_LEDGER_MAX_BYTES + (compact.bytes * 2),
       options
     )
-    if (mutationPreflight && disk.status !== 'PASS') {
+    if (durablePreflight && disk.status !== 'PASS') {
       const pressureStatus = inspectTaskRecoveryStore(metaDir, options)
       return {
         schemaVersion: TASK_RECOVERY_COMMIT_SCHEMA,
@@ -2243,7 +3545,7 @@ function commitTaskEnvelope(metaDir, identity, state, options = {}) {
     }
     let reserve
     try { reserve = ensureReserve(paths, options) } catch (error) {
-      if (mutationPreflight) {
+      if (durablePreflight) {
         return {
           schemaVersion: TASK_RECOVERY_COMMIT_SCHEMA,
           status: 'error',
@@ -2264,17 +3566,27 @@ function commitTaskEnvelope(metaDir, identity, state, options = {}) {
     let write
     try {
       writeUsageLedger(paths, projectedTaskSlotBytes, { ...options, usageSource: 'commit-precharge' })
-      write = writeFixedJsonSlot(currentPaths.slots[inactiveIndex], currentPaths.temp, envelope, fsImpl)
+      write = writeFixedJsonSlot(
+        currentPaths.slots[inactiveIndex],
+        currentPaths.temp,
+        envelope,
+        fsImpl,
+        taskSlotSerialization
+      )
     } catch (error) {
       try { writeUsageLedger(paths, usage.taskSlotBytes, { ...options, usageSource: 'commit-rollback' }) } catch { }
-      if (options.reason === 'mutation-closeout') {
+      if (CLOSEOUT_REASONS.has(options.reason)) {
         try {
           const closeout = writeEmergencyCloseout(paths, {
             observedAt: new Date(nowMs).toISOString(),
             status: options.closeoutStatus || 'needs-reconcile',
             reason: String(options.reason || ''),
             identity,
+            admissionTransaction: compact.state?.admissionTransaction || null,
+            fencedWriteOwner: compact.state?.fencedWriteOwner || null,
+            workflowTaskTerminalReceipt: compact.state?.workflowTaskTerminalReceipt || null,
             inFlightOperation: compact.state?.turnLiveness?.inFlightOperation || null,
+            lastMutationCloseout: compact.state?.turnLiveness?.lastMutationCloseout || null,
             stateDigest: compact.payloadDigest,
             primaryErrorCode: error.code || 'LIFECYCLE_STATE_COMMIT_FAILED'
           }, options)
@@ -2338,8 +3650,14 @@ function commitTaskEnvelope(metaDir, identity, state, options = {}) {
 }
 
 function writeSessionMapping(paths, identity, sessionKey, state, options = {}) {
-  const ownerKey = ephemeralOwnerKey(sessionKey)
+  const ownerKey = sessionOwnerKeys({
+    sessionKey,
+    hostSessionDigest: options.hostSessionDigest
+  }).primary
   if (!ownerKey) return { status: 'skipped', reasonCode: 'session-key-missing' }
+  const ephemeralState = identity?.recoveryKey
+    ? null
+    : (options.ephemeralStateOverride || buildEphemeralStub(state))
   const entry = {
     schemaVersion: 'TaskRecoverySessionLeaseV1',
     ownerKey,
@@ -2347,10 +3665,10 @@ function writeSessionMapping(paths, identity, sessionKey, state, options = {}) {
     taskKey: identity?.recoveryKey || null,
     identity: identity || null,
     lastUsedAt: new Date(nowMsFrom(options)).toISOString(),
-    state: identity?.recoveryKey ? null : buildEphemeralStub(state),
+    state: identity?.recoveryKey ? null : ephemeralState,
     semanticDigest: identity?.recoveryKey
       ? digestValue({ recoveryKey: identity.recoveryKey })
-      : digestValue(semanticLifecycleProjection(state))
+      : digestValue(semanticLifecycleProjection(ephemeralState))
   }
   if (jsonBytes(entry) > EPHEMERAL_ENTRY_MAX_BYTES) {
     throw new TaskRecoveryStoreV5Error('LIFECYCLE_EPHEMERAL_ENTRY_EXCEEDED', 'session lease exceeds 8 KiB')
@@ -2372,7 +3690,21 @@ function commitTaskRecoveryState(input = {}, options = {}) {
   if (!identity?.recoveryKey) {
     try {
       const compact = compactLifecycleStateV5(state)
-      const mapping = writeSessionMapping(paths, null, sessionKey, state, options)
+      const mutationPreflight = options.reason === 'mutation-preflight'
+      if (mutationPreflight && compact.state?.turnLiveness?.inFlightOperation?.mutating !== true) {
+        return {
+          status: 'error',
+          errorCode: 'LIFECYCLE_PREFLIGHT_MUTATION_RECORD_REQUIRED',
+          message: 'ephemeral mutation preflight requires one mutating in-flight record',
+          identity
+        }
+      }
+      const preflight = mutationPreflight ? buildMutationPreflightState(compact.state) : null
+      const mapping = writeSessionMapping(paths, null, sessionKey, state, {
+        ...options,
+        hostSessionDigest: input.hostSessionDigest,
+        ...(preflight ? { ephemeralStateOverride: preflight.state } : {})
+      })
       return {
         schemaVersion: TASK_RECOVERY_COMMIT_SCHEMA,
         status: mapping.status === 'persisted'
@@ -2383,7 +3715,10 @@ function commitTaskRecoveryState(input = {}, options = {}) {
         mapping,
         state: compact.state,
         sourceBytes: compact.sourceBytes,
-        compactBytes: compact.bytes
+        compactBytes: compact.bytes,
+        ...(mutationPreflight
+          ? { recordType: 'mutation-preflight', preflightBytes: preflight.bytes }
+          : {})
       }
     } catch (error) {
       return { status: 'error', errorCode: error.code || 'LIFECYCLE_EPHEMERAL_WRITE_FAILED', message: error.message }
@@ -2392,7 +3727,12 @@ function commitTaskRecoveryState(input = {}, options = {}) {
   const commit = commitTaskEnvelope(input.metaDir, identity, state, options)
   if (commit.status === 'committed' ||
       (commit.status === 'semantic-noop' && options.touchSessionMapping === true)) {
-    try { commit.mapping = writeSessionMapping(paths, identity, sessionKey, state, options) } catch (error) {
+    try {
+      commit.mapping = writeSessionMapping(paths, identity, sessionKey, state, {
+        ...options,
+        hostSessionDigest: input.hostSessionDigest
+      })
+    } catch (error) {
       commit.mapping = { status: 'warn', errorCode: error.code || 'LIFECYCLE_SESSION_MAPPING_FAILED', message: error.message }
     }
   } else if (commit.status === 'semantic-noop') {
@@ -2420,11 +3760,19 @@ function readTaskRecoveryState(input = {}, options = {}) {
       identity
     }
   }
-  const ownerKey = ephemeralOwnerKey(input.sessionKey)
-  if (!ownerKey) return { status: 'missing', errorCode: 'LIFECYCLE_SESSION_KEY_REQUIRED' }
+  let ownerKeys
+  try {
+    ownerKeys = sessionOwnerKeys(input)
+  } catch (error) {
+    return { status: 'error', errorCode: error.code, message: error.message }
+  }
+  if (!ownerKeys.primary) return { status: 'missing', errorCode: 'LIFECYCLE_SESSION_KEY_REQUIRED' }
   const ring = readEphemeralRing(paths, fsImpl)
   if (ring.status !== 'fresh') return ring
-  const entry = ring.current.ring.entries.find(item => item.ownerKey === ownerKey)
+  const entry = ring.current.ring.entries.find(item => item.ownerKey === ownerKeys.primary) ||
+    (ownerKeys.legacy
+      ? ring.current.ring.entries.find(item => item.ownerKey === ownerKeys.legacy)
+      : null)
   if (!entry) return { status: 'missing', errorCode: 'LIFECYCLE_SESSION_MAPPING_MISSING' }
   const expected = input.expectedIdentity?.activeRoot && input.expectedIdentity?.project
     ? normalizeIdentity(input.expectedIdentity, { allowEphemeral: true })
@@ -2432,7 +3780,13 @@ function readTaskRecoveryState(input = {}, options = {}) {
   if (entry.identity && expected && !sameIdentity(entry.identity, expected, { allowMissingTask: true })) {
     return { status: 'identity-mismatch', errorCode: 'LIFECYCLE_STATE_IDENTITY_MISMATCH', observedIdentity: entry.identity }
   }
-  if (!entry.taskKey) return { status: 'ephemeral-stub', state: entry.state || {}, identity: entry.identity || null }
+  if (!entry.taskKey) {
+    return {
+      status: 'ephemeral-stub',
+      state: materializeEphemeralMutationState(entry.state),
+      identity: entry.identity || null
+    }
+  }
   const read = readTaskSlots(taskPaths(paths, entry.taskKey), entry.identity, fsImpl)
   if (read.status !== 'fresh') return read
   if (expected && !sameIdentity(read.current.envelope.identity, expected, { allowMissingTask: true })) {
@@ -2466,6 +3820,15 @@ function updateTaskRecoveryState(input, updater, options = {}) {
   if (!storeLock) return { status: 'error', errorCode: 'LIFECYCLE_STORE_LEASE_CONFLICT' }
   try {
     const read = readTaskRecoveryState(input, options)
+    if (!['fresh', 'ephemeral-stub', 'missing'].includes(read.status)) {
+      return {
+        status: 'error',
+        errorCode: read.errorCode || 'LIFECYCLE_STATE_READ_FAILED',
+        message: 'existing task recovery state is not safe to replace',
+        observedStatus: read.status,
+        observedIdentity: read.observedIdentity || read.identity || null
+      }
+    }
     const base = ['fresh', 'ephemeral-stub'].includes(read.status)
       ? read.state
       : (typeof input.readFallback === 'function' ? input.readFallback() : {})
@@ -2478,6 +3841,643 @@ function updateTaskRecoveryState(input, updater, options = {}) {
   } finally {
     releaseLock(storeLock, fsImpl)
   }
+}
+
+function taskAdmissionTransactionDigest(transaction) {
+  const value = JSON.parse(JSON.stringify(transaction || {}))
+  delete value.transactionDigest
+  return digestValue(value)
+}
+
+function fencedTaskWriteOwnerDigest(owner) {
+  const value = JSON.parse(JSON.stringify(owner || {}))
+  delete value.leaseDigest
+  return digestValue(value)
+}
+
+function validateFencedTaskWriteOwner(owner, expectedIdentity = null) {
+  const errors = []
+  if (!owner || typeof owner !== 'object' || Array.isArray(owner)) {
+    return { valid: false, errors: ['owner-object-required'] }
+  }
+  if (owner.schemaVersion !== FENCED_TASK_WRITE_OWNER_SCHEMA) errors.push('schema-version')
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(owner.taskId || ''))) {
+    errors.push('task-id')
+  }
+  for (const field of ['projectRootIdentity', 'sessionDigest', 'routeRevision']) {
+    if (!/^[a-f0-9]{64}$/.test(String(owner[field] || ''))) errors.push(field)
+  }
+  if (!String(owner.contextEpoch || '').trim() || Buffer.byteLength(String(owner.contextEpoch || ''), 'utf8') > 256) {
+    errors.push('context-epoch')
+  }
+  if (!Number.isInteger(owner.ownerGeneration) || owner.ownerGeneration < 1) errors.push('owner-generation')
+  if (!/^owner-[a-f0-9]{40}$/.test(String(owner.ownerNonce || ''))) errors.push('owner-nonce')
+  if (!Number.isInteger(owner.leaseRevision) || owner.leaseRevision < 1) errors.push('lease-revision')
+  if (!Number.isInteger(owner.reopenGeneration) || owner.reopenGeneration < 0) errors.push('reopen-generation')
+  if (!Number.isInteger(owner.revocationEpoch) || owner.revocationEpoch < 0) errors.push('revocation-epoch')
+  if (!['active', 'released', 'handoff-pending', 'takeover-pending', 'terminal'].includes(owner.status)) errors.push('status')
+  const issuedAtMs = Date.parse(String(owner.issuedAt || ''))
+  const expiresAtMs = Date.parse(String(owner.expiresAt || ''))
+  if (!Number.isFinite(issuedAtMs) || !Number.isFinite(expiresAtMs) || expiresAtMs < issuedAtMs) errors.push('lease-time')
+  if (owner.status === 'active' && expiresAtMs <= issuedAtMs) errors.push('active-lease-duration')
+  if (owner.handoffRef !== null && owner.handoffRef !== undefined &&
+      (!owner.handoffRef || typeof owner.handoffRef !== 'object' || Array.isArray(owner.handoffRef))) errors.push('handoff-ref')
+  if (owner.takeoverRef !== null && owner.takeoverRef !== undefined &&
+      (!owner.takeoverRef || typeof owner.takeoverRef !== 'object' || Array.isArray(owner.takeoverRef))) errors.push('takeover-ref')
+  if (owner.transitionRef !== null && owner.transitionRef !== undefined) {
+    const ref = owner.transitionRef
+    if (!ref || typeof ref !== 'object' || Array.isArray(ref) ||
+        !['acquire', 'reacquire', 'renew', 'release', 'handoff-prepare', 'handoff-accept', 'takeover-prepare', 'takeover-accept', 'reopen', 'terminal'].includes(ref.operation) ||
+        (ref.priorLeaseDigest !== null && !/^[a-f0-9]{64}$/.test(String(ref.priorLeaseDigest || ''))) ||
+        !/^[a-f0-9]{64}$/.test(String(ref.requestDigest || '')) ||
+        !Number.isFinite(Date.parse(String(ref.committedAt || ''))) ||
+        !/^[a-f0-9]{64}$/.test(String(ref.refDigest || ''))) {
+      errors.push('transition-ref')
+    } else {
+      const refCore = JSON.parse(JSON.stringify(ref))
+      delete refCore.refDigest
+      if (ref.refDigest !== digestValue(refCore)) errors.push('transition-ref-digest')
+    }
+  }
+  if (expectedIdentity) {
+    let normalized
+    try { normalized = normalizeIdentity(expectedIdentity) } catch { normalized = null }
+    if (!normalized || normalized.taskId !== String(owner.taskId || '').toLowerCase()) errors.push('identity-binding')
+  }
+  if (!/^[a-f0-9]{64}$/.test(String(owner.leaseDigest || '')) || owner.leaseDigest !== fencedTaskWriteOwnerDigest(owner)) {
+    errors.push('lease-digest')
+  }
+  return { valid: errors.length === 0, errors }
+}
+
+function workflowTaskTerminalReceiptDigest(receipt) {
+  const value = JSON.parse(JSON.stringify(receipt || {}))
+  delete value.receiptDigest
+  return digestValue(value)
+}
+
+function validateWorkflowTaskTerminalReceipt(receipt, expectedIdentity = null) {
+  const errors = []
+  if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) {
+    return { valid: false, errors: ['terminal-receipt-object-required'] }
+  }
+  if (receipt.schemaVersion !== WORKFLOW_TASK_TERMINAL_RECEIPT_SCHEMA) errors.push('schema-version')
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(receipt.taskId || ''))) errors.push('task-id')
+  if (!/^admission-[a-f0-9]{40}$/.test(String(receipt.admissionId || ''))) errors.push('admission-id')
+  for (const field of ['projectRootIdentity', 'priorOwnerLeaseDigest', 'terminalOwnerLeaseDigest', 'admissionTransactionDigest']) {
+    if (!/^[a-f0-9]{64}$/.test(String(receipt[field] || ''))) errors.push(field)
+  }
+  if (!Number.isInteger(receipt.admissionGeneration) || receipt.admissionGeneration < 1) errors.push('admission-generation')
+  if (!Number.isInteger(receipt.ownerGeneration) || receipt.ownerGeneration < 1) errors.push('owner-generation')
+  if (!Number.isInteger(receipt.terminalGeneration) || receipt.terminalGeneration < 1) errors.push('terminal-generation')
+  if (!['completed', 'rejected', 'cancelled', 'failed'].includes(receipt.terminalStatus)) errors.push('terminal-status')
+  if (!Number.isFinite(Date.parse(String(receipt.issuedAt || '')))) errors.push('issued-at')
+  const evidence = Array.isArray(receipt.evidence) ? receipt.evidence : []
+  const roles = new Set()
+  for (const item of evidence) {
+    if (!item || typeof item !== 'object' || Array.isArray(item) ||
+        !['ecr', 'report', 'memory', 'completion'].includes(item.role) || roles.has(item.role) ||
+        !String(item.path || '').trim() || !/^[a-f0-9]{64}$/.test(String(item.sha256 || '')) ||
+        !Number.isInteger(item.bytes) || item.bytes < 1) {
+      errors.push('evidence')
+      continue
+    }
+    roles.add(item.role)
+  }
+  if (roles.size !== 4 || !['ecr', 'report', 'memory', 'completion'].every(role => roles.has(role))) errors.push('evidence-roles')
+  if (expectedIdentity) {
+    let normalized
+    try { normalized = normalizeIdentity(expectedIdentity) } catch { normalized = null }
+    if (!normalized || normalized.taskId !== String(receipt.taskId || '').toLowerCase()) errors.push('identity-binding')
+  }
+  if (!/^[a-f0-9]{64}$/.test(String(receipt.receiptDigest || '')) ||
+      receipt.receiptDigest !== workflowTaskTerminalReceiptDigest(receipt)) errors.push('receipt-digest')
+  return { valid: errors.length === 0, errors }
+}
+
+function validateTaskAdmissionTransaction(transaction, expectedIdentity = null) {
+  const errors = []
+  if (!transaction || typeof transaction !== 'object' || Array.isArray(transaction)) {
+    return { valid: false, errors: ['transaction-object-required'] }
+  }
+  const digestFields = [
+    'ingressIdempotencyKey', 'requestDigest', 'projectRootIdentityDigest', 'sessionDigest',
+    'actualInstructionDigest', 'workItemDigest', 'workflowRouteDigest',
+    'projectTargetLeaseDigest', 'taskIdentityDigest', 'directoryDecisionDigest', 'routeRevision'
+  ]
+  if (transaction.schemaVersion !== TASK_ADMISSION_TRANSACTION_SCHEMA) errors.push('schema-version')
+  if (!/^admission-[a-f0-9]{40}$/.test(String(transaction.admissionId || ''))) errors.push('admission-id')
+  for (const field of digestFields) {
+    if (!/^[a-f0-9]{64}$/.test(String(transaction[field] || ''))) errors.push(field)
+  }
+  if (transaction.requestDigestSchema !== undefined) {
+    if (transaction.requestDigestSchema !== 'TaskAdmissionRequestDigestV2') errors.push('request-digest-schema')
+    if (transaction.requestDigestSemantics !== undefined &&
+        transaction.requestDigestSemantics !== 'stable-admission-binding-v1') errors.push('request-digest-semantics')
+    if (!/^[a-f0-9]{64}$/.test(String(transaction.projectTargetLeaseBindingDigest || ''))) {
+      errors.push('project-target-lease-binding-digest')
+    }
+  } else if (transaction.projectTargetLeaseBindingDigest !== undefined || transaction.requestDigestSemantics !== undefined) {
+    errors.push('legacy-request-binding-digest')
+  }
+  if (transaction.admissionId !== `admission-${String(transaction.ingressIdempotencyKey || '').slice(0, 40)}`) {
+    errors.push('admission-idempotency-binding')
+  }
+  if (!TASK_ADMISSION_PHASES.includes(transaction.phase)) errors.push('phase')
+  if (!['admitting', 'finalized', 'terminal', 'aborted', 'needs-reconcile'].includes(transaction.status)) errors.push('status')
+  if (!['admit', 'adopt', 'bind'].includes(transaction.operation)) errors.push('operation')
+  if (!Number.isInteger(transaction.admissionGeneration) || transaction.admissionGeneration < 1) errors.push('admission-generation')
+  if (!String(transaction.admissionPolicyRevision || '').trim()) errors.push('admission-policy-revision')
+  if (!String(transaction.project || '').trim()) errors.push('project')
+  if (!String(transaction.hostVariant || '').trim() || Buffer.byteLength(String(transaction.hostVariant || ''), 'utf8') > 128) {
+    errors.push('host-variant')
+  }
+  if (!/^(?:event|portable)-[a-f0-9]{40}$/.test(String(transaction.sourceEventId || ''))) errors.push('source-event-id')
+  if (!/^work-[a-f0-9]{40}$/.test(String(transaction.workItemId || ''))) errors.push('work-item-id')
+  if (!String(transaction.routeKey || '').trim() || Buffer.byteLength(String(transaction.routeKey || ''), 'utf8') > 128) {
+    errors.push('route-key')
+  }
+  const taskKinds = ['requirements', 'bugs', 'optimizations', 'scenario-tests']
+  if (!taskKinds.includes(transaction.taskKind)) errors.push('task-kind')
+  const entryVariants = {
+    requirements: ['new', 'product-provided', 'change', 'continue', 'reopen'],
+    bugs: ['new', 'fix', 'continue', 'reopen'],
+    optimizations: ['new', 'continue', 'reopen'],
+    'scenario-tests': ['new', 'continue', 'reopen']
+  }
+  if (!entryVariants[transaction.taskKind]?.includes(transaction.entryVariant)) errors.push('entry-variant')
+  if (!String(transaction.displayName || '').trim() || Buffer.byteLength(String(transaction.displayName || ''), 'utf8') > 160) {
+    errors.push('display-name')
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(transaction.taskId || ''))) {
+    errors.push('task-id')
+  }
+  const taskRootRelative = String(transaction.taskRootRelative || '').replace(/\\/g, '/')
+  const taskRootSegments = taskRootRelative.split('/')
+  if (!taskRootRelative || path.isAbsolute(taskRootRelative) || taskRootSegments.length !== 2 ||
+      taskRootSegments[0] !== transaction.taskKind ||
+      taskRootSegments.some(segment => !segment || segment === '.' || segment === '..')) {
+    errors.push('task-root-relative')
+  }
+  const effects = transaction.effects
+  if (!effects || typeof effects !== 'object' || Array.isArray(effects) ||
+      !['identity', 'overview', 'cpState', 'owner'].every(key => effects[key] && typeof effects[key] === 'object' && !Array.isArray(effects[key]))) {
+    errors.push('effects')
+  } else {
+    const phaseOrdinal = ['prepared', 'identity-written', 'overview-written', 'cp-state-written', 'owner-fenced', 'finalized', 'terminal-closeout'].indexOf(transaction.phase)
+    if (phaseOrdinal >= 0) {
+      if ((phaseOrdinal === 0 ? effects.identity.status !== 'pending' : effects.identity.status !== 'written') ||
+          (phaseOrdinal < 2 ? effects.overview.status !== 'pending' : effects.overview.status !== 'written') ||
+          (phaseOrdinal < 3
+            ? effects.cpState.status !== 'pending'
+            : !['pending', 'confirmed'].includes(effects.cpState.status)) ||
+          (phaseOrdinal < 4
+            ? effects.owner.status !== 'pending'
+            : !['fenced', 'terminal'].includes(effects.owner.status))) errors.push('effect-phase')
+    }
+  }
+  if (!Number.isFinite(Date.parse(String(transaction.createdAt || ''))) ||
+      !Number.isFinite(Date.parse(String(transaction.updatedAt || '')))) errors.push('timestamps')
+  if (['aborted', 'needs-reconcile'].includes(transaction.phase)) {
+    if (!transaction.error || typeof transaction.error !== 'object' || Array.isArray(transaction.error)) errors.push('error')
+  } else if (transaction.error !== null) {
+    errors.push('error')
+  }
+  const expectedStatus = transaction.phase === 'finalized'
+    ? 'finalized'
+    : (transaction.phase === 'terminal-closeout'
+        ? 'terminal'
+        : (transaction.phase === 'aborted' ? 'aborted' : (transaction.phase === 'needs-reconcile' ? 'needs-reconcile' : 'admitting')))
+  if (transaction.status !== expectedStatus) errors.push('phase-status')
+  if (expectedIdentity) {
+    let normalized
+    try { normalized = normalizeIdentity(expectedIdentity) } catch { normalized = null }
+    if (!normalized || normalized.taskId !== String(transaction.taskId || '').toLowerCase() ||
+        normalized.project !== normalizedProject(transaction.project)) errors.push('identity-binding')
+  }
+  if (!/^[a-f0-9]{64}$/.test(String(transaction.transactionDigest || '')) ||
+      transaction.transactionDigest !== taskAdmissionTransactionDigest(transaction)) errors.push('transaction-digest')
+  return { valid: errors.length === 0, errors }
+}
+
+function taskAdmissionTransitionAllowed(previousPhase, nextPhase) {
+  if (previousPhase === nextPhase) return true
+  if (['aborted', 'needs-reconcile', 'terminal-closeout'].includes(previousPhase)) return false
+  if (['aborted', 'needs-reconcile'].includes(nextPhase)) return true
+  const ordered = [
+    'prepared', 'identity-written', 'overview-written', 'cp-state-written',
+    'owner-fenced', 'finalized', 'terminal-closeout'
+  ]
+  return ordered.indexOf(nextPhase) === ordered.indexOf(previousPhase) + 1
+}
+
+function readTaskAdmissionTransaction(input = {}, options = {}) {
+  const read = readTaskRecoveryState(input, options)
+  if (read.status !== 'fresh') return read
+  const transaction = read.state?.admissionTransaction
+  if (!transaction) {
+    return { status: 'missing', errorCode: 'TASK_ADMISSION_TRANSACTION_MISSING', identity: read.identity }
+  }
+  const validation = validateTaskAdmissionTransaction(transaction, read.identity)
+  if (!validation.valid) {
+    return {
+      status: 'invalid',
+      errorCode: 'TASK_ADMISSION_TRANSACTION_INVALID',
+      errors: validation.errors,
+      identity: read.identity
+    }
+  }
+  return { status: 'fresh', transaction, state: read.state, envelope: read.envelope, identity: read.identity }
+}
+
+function commitTaskAdmissionTransaction(input = {}, options = {}) {
+  const transaction = JSON.parse(JSON.stringify(input.transaction || {}))
+  const validation = validateTaskAdmissionTransaction(transaction, input.identity)
+  if (!validation.valid) {
+    return {
+      status: 'error',
+      errorCode: 'TASK_ADMISSION_TRANSACTION_INVALID',
+      errors: validation.errors
+    }
+  }
+  const expectedPreviousPhase = String(input.expectedPreviousPhase || '')
+  const fallback = () => input.baseState || {
+    version: 2,
+    mode: 'formal-admission',
+    phase: 'CP1',
+    activeProject: transaction.project,
+    activeScope: 'project',
+    taskRecoveryBinding: {
+      taskId: transaction.taskId,
+      displayName: transaction.displayName || path.basename(transaction.taskRootRelative),
+      project: transaction.project,
+      kind: transaction.taskKind,
+      taskRoot: path.join(path.resolve(input.identity.activeRoot), ...transaction.taskRootRelative.split('/')),
+      status: 'admitting',
+      identityRevision: 2,
+      boundAt: transaction.createdAt
+    }
+  }
+  let result
+  try {
+    result = updateTaskRecoveryState({
+      metaDir: input.metaDir,
+      identity: input.identity,
+      sessionKey: input.sessionKey,
+      hostSessionDigest: input.hostSessionDigest,
+      readFallback: fallback
+    }, state => {
+      const current = state.admissionTransaction
+      if (current) {
+        const currentValidation = validateTaskAdmissionTransaction(current, input.identity)
+        if (!currentValidation.valid) {
+          throw new TaskRecoveryStoreV5Error(
+            'TASK_ADMISSION_TRANSACTION_INVALID',
+            'existing task admission transaction is invalid',
+            { errors: currentValidation.errors }
+          )
+        }
+        const reopening = options.allowReopen === true &&
+          current.phase === 'terminal-closeout' && transaction.phase === 'prepared' &&
+          transaction.entryVariant === 'reopen' && current.taskId === transaction.taskId &&
+          transaction.admissionGeneration === current.admissionGeneration + 1
+        if (reopening) {
+          state.previousAdmissionTransaction = {
+            schemaVersion: 'PreviousTaskAdmissionTransactionRefV1',
+            admissionId: current.admissionId,
+            admissionGeneration: current.admissionGeneration,
+            transactionDigest: current.transactionDigest,
+            terminalAt: current.updatedAt
+          }
+        } else if (current.ingressIdempotencyKey !== transaction.ingressIdempotencyKey ||
+            current.admissionId !== transaction.admissionId ||
+            current.requestDigest !== transaction.requestDigest) {
+          throw new TaskRecoveryStoreV5Error(
+            'TASK_ADMISSION_IDEMPOTENCY_CONFLICT',
+            'an existing admission journal is bound to different ingress or request content'
+          )
+        }
+        if (!reopening && expectedPreviousPhase && current.phase !== expectedPreviousPhase && current.phase !== transaction.phase) {
+          throw new TaskRecoveryStoreV5Error(
+            'TASK_ADMISSION_PHASE_CAS_MISMATCH',
+            `expected admission phase ${expectedPreviousPhase}, observed ${current.phase}`
+          )
+        }
+        if (!reopening && !taskAdmissionTransitionAllowed(current.phase, transaction.phase)) {
+          throw new TaskRecoveryStoreV5Error(
+            'TASK_ADMISSION_PHASE_TRANSITION_INVALID',
+            `cannot transition task admission from ${current.phase} to ${transaction.phase}`
+          )
+        }
+        if (!reopening && current.phase === transaction.phase && current.transactionDigest !== transaction.transactionDigest) {
+          throw new TaskRecoveryStoreV5Error(
+            'TASK_ADMISSION_PHASE_CONTENT_CONFLICT',
+            `admission phase ${current.phase} already has different durable content`
+          )
+        }
+        if (!reopening && current.transactionDigest === transaction.transactionDigest) return state
+      } else if (transaction.phase !== 'prepared') {
+        throw new TaskRecoveryStoreV5Error(
+          'TASK_ADMISSION_PREPARE_REQUIRED',
+          'the first durable admission journal phase must be prepared'
+        )
+      }
+      state.admissionTransaction = transaction
+      state.phase = transaction.phase === 'cp-state-written' ? 'CP1' : (state.phase || 'CP1')
+      state.taskRecoveryBinding = {
+        ...(state.taskRecoveryBinding || {}),
+        taskId: transaction.taskId,
+        displayName: transaction.displayName || state.taskRecoveryBinding?.displayName || '',
+        project: transaction.project,
+        kind: transaction.taskKind,
+        taskRoot: path.join(path.resolve(input.identity.activeRoot), ...transaction.taskRootRelative.split('/')),
+        status: transaction.status === 'admitting' ? 'admitting' : transaction.status,
+        identityRevision: 2,
+        boundAt: state.taskRecoveryBinding?.boundAt || transaction.createdAt
+      }
+      return state
+    }, {
+      ...options,
+      reason: transaction.phase === 'prepared'
+        ? 'admission-preflight'
+        : (transaction.phase === 'aborted'
+            ? 'admission-abort'
+            : (transaction.phase === 'needs-reconcile' ? 'admission-reconcile' : 'admission-transition'))
+    })
+  } catch (error) {
+    return {
+      status: 'error',
+      errorCode: error.code || 'TASK_ADMISSION_TRANSACTION_COMMIT_FAILED',
+      message: error.message,
+      details: error.details
+    }
+  }
+  return { ...result, transaction }
+}
+
+function ownerCasMatches(current, expected) {
+  if (expected === null || expected?.mode === 'absent') return !current
+  if (!current || !expected || typeof expected !== 'object') return false
+  return current.ownerGeneration === expected.ownerGeneration &&
+    current.ownerNonce === expected.ownerNonce &&
+    current.leaseRevision === expected.leaseRevision &&
+    current.leaseDigest === expected.leaseDigest
+}
+
+function ownerTransitionErrors(current, next, transition) {
+  const errors = []
+  if (current?.leaseDigest === next.leaseDigest) return errors
+  if (transition === 'acquire') {
+    if (current) errors.push('acquire-owner-present')
+    if (next.status !== 'active' || next.ownerGeneration !== 1 || next.leaseRevision !== 1) errors.push('acquire-shape')
+  } else if (transition === 'reacquire') {
+    if (!current || current.status !== 'released' || next.status !== 'active' ||
+        next.ownerGeneration !== current.ownerGeneration + 1 || next.ownerNonce === current.ownerNonce ||
+        next.leaseRevision !== current.leaseRevision + 1 || next.revocationEpoch !== current.revocationEpoch ||
+        Date.parse(next.expiresAt) <= Date.parse(next.issuedAt)) errors.push('reacquire-shape')
+  } else if (transition === 'renew') {
+    if (!current || current.status !== 'active' || next.status !== 'active' ||
+        next.ownerGeneration !== current.ownerGeneration || next.ownerNonce !== current.ownerNonce ||
+        next.leaseRevision !== current.leaseRevision + 1 || next.revocationEpoch !== current.revocationEpoch ||
+        Date.parse(next.expiresAt) <= Date.parse(current.expiresAt)) errors.push('renew-shape')
+  } else if (['release', 'handoff-prepare', 'takeover-prepare', 'terminal'].includes(transition)) {
+    const expectedStatus = {
+      release: 'released',
+      'handoff-prepare': 'handoff-pending',
+      'takeover-prepare': 'takeover-pending',
+      terminal: 'terminal'
+    }[transition]
+    const currentStatusAllowed = transition === 'takeover-prepare'
+      ? ['active', 'handoff-pending', 'takeover-pending'].includes(current?.status)
+      : current?.status === 'active'
+    if (!current || !currentStatusAllowed || next.status !== expectedStatus ||
+        next.ownerGeneration !== current.ownerGeneration + 1 || next.ownerNonce === current.ownerNonce ||
+        next.leaseRevision !== current.leaseRevision + 1 || next.revocationEpoch !== current.revocationEpoch + 1) {
+      errors.push(`${transition}-shape`)
+    }
+  } else if (['handoff-accept', 'takeover-accept'].includes(transition)) {
+    const expectedStatus = transition === 'handoff-accept' ? 'handoff-pending' : 'takeover-pending'
+    if (!current || current.status !== expectedStatus || next.status !== 'active' ||
+        next.ownerGeneration !== current.ownerGeneration || next.ownerNonce === current.ownerNonce ||
+        next.leaseRevision !== current.leaseRevision + 1 || next.revocationEpoch !== current.revocationEpoch) {
+      errors.push(`${transition}-shape`)
+    }
+  } else if (transition === 'reopen') {
+    if (!current || current.status !== 'terminal' || next.status !== 'active' ||
+        next.ownerGeneration !== current.ownerGeneration + 1 || next.ownerNonce === current.ownerNonce ||
+        next.leaseRevision !== current.leaseRevision + 1 || next.reopenGeneration !== current.reopenGeneration + 1 ||
+        next.revocationEpoch !== current.revocationEpoch) errors.push('reopen-shape')
+  } else if (transition !== 'replay') {
+    errors.push('transition-unsupported')
+  }
+  return errors
+}
+
+function commitFencedTaskWriteOwnerTransition(input = {}, options = {}) {
+  const nextOwner = JSON.parse(JSON.stringify(input.owner || {}))
+  const ownerValidation = validateFencedTaskWriteOwner(nextOwner, input.identity)
+  if (!ownerValidation.valid) {
+    return { status: 'error', errorCode: 'FENCED_TASK_WRITE_OWNER_INVALID', errors: ownerValidation.errors }
+  }
+  const transaction = input.transaction ? JSON.parse(JSON.stringify(input.transaction)) : null
+  if (transaction) {
+    const transactionValidation = validateTaskAdmissionTransaction(transaction, input.identity)
+    if (!transactionValidation.valid) {
+      return { status: 'error', errorCode: 'TASK_ADMISSION_TRANSACTION_INVALID', errors: transactionValidation.errors }
+    }
+  }
+  const terminalReceipt = input.terminalReceipt
+    ? JSON.parse(JSON.stringify(input.terminalReceipt))
+    : null
+  if (terminalReceipt) {
+    const terminalValidation = validateWorkflowTaskTerminalReceipt(terminalReceipt, input.identity)
+    if (!terminalValidation.valid) {
+      return { status: 'error', errorCode: 'WORKFLOW_TASK_TERMINAL_RECEIPT_INVALID', errors: terminalValidation.errors }
+    }
+  }
+  let result
+  try {
+    result = updateTaskRecoveryState({
+      metaDir: input.metaDir,
+      identity: input.identity,
+      sessionKey: input.sessionKey,
+      hostSessionDigest: input.hostSessionDigest
+    }, state => {
+      const currentOwner = state.fencedWriteOwner || null
+      if (currentOwner) {
+        const currentOwnerValidation = validateFencedTaskWriteOwner(currentOwner, input.identity)
+        if (!currentOwnerValidation.valid) {
+          throw new TaskRecoveryStoreV5Error(
+            'FENCED_TASK_WRITE_OWNER_INVALID',
+            'existing fenced task write owner is invalid',
+            { errors: currentOwnerValidation.errors }
+          )
+        }
+      }
+      if (!ownerCasMatches(currentOwner, input.expectedOwner)) {
+        throw new TaskRecoveryStoreV5Error(
+          'FENCED_TASK_WRITE_OWNER_CAS_MISMATCH',
+          'expected owner generation, nonce, revision and digest do not match the durable owner'
+        )
+      }
+      const transitionErrors = ownerTransitionErrors(currentOwner, nextOwner, String(input.transition || ''))
+      if (transitionErrors.length) {
+        throw new TaskRecoveryStoreV5Error(
+          'FENCED_TASK_WRITE_OWNER_TRANSITION_INVALID',
+          'fenced owner transition is invalid',
+          { errors: transitionErrors }
+        )
+      }
+      const currentTransaction = state.admissionTransaction
+      if (!currentTransaction) {
+        throw new TaskRecoveryStoreV5Error('TASK_ADMISSION_TRANSACTION_MISSING', 'fenced owner requires one durable admission transaction')
+      }
+      const currentTransactionValidation = validateTaskAdmissionTransaction(currentTransaction, input.identity)
+      if (!currentTransactionValidation.valid) {
+        throw new TaskRecoveryStoreV5Error(
+          'TASK_ADMISSION_TRANSACTION_INVALID',
+          'existing admission transaction is invalid',
+          { errors: currentTransactionValidation.errors }
+        )
+      }
+      if (transaction) {
+        if (currentTransaction.admissionId !== transaction.admissionId ||
+            currentTransaction.taskId !== transaction.taskId ||
+            currentTransaction.admissionGeneration !== transaction.admissionGeneration) {
+          throw new TaskRecoveryStoreV5Error('TASK_ADMISSION_OWNER_BINDING_MISMATCH', 'owner transition targets another admission generation')
+        }
+        if (input.expectedAdmissionPhase && currentTransaction.phase !== input.expectedAdmissionPhase &&
+            currentTransaction.transactionDigest !== transaction.transactionDigest) {
+          throw new TaskRecoveryStoreV5Error('TASK_ADMISSION_PHASE_CAS_MISMATCH', `expected admission phase ${input.expectedAdmissionPhase}`)
+        }
+        if (!taskAdmissionTransitionAllowed(currentTransaction.phase, transaction.phase)) {
+          throw new TaskRecoveryStoreV5Error('TASK_ADMISSION_PHASE_TRANSITION_INVALID', `cannot transition admission from ${currentTransaction.phase} to ${transaction.phase}`)
+        }
+        state.admissionTransaction = transaction
+      }
+      if (nextOwner.taskId !== currentTransaction.taskId ||
+          nextOwner.projectRootIdentity !== currentTransaction.projectRootIdentityDigest) {
+        throw new TaskRecoveryStoreV5Error('FENCED_TASK_WRITE_OWNER_BINDING_MISMATCH', 'owner is not bound to the exact task/project identity')
+      }
+      if (terminalReceipt) {
+        const effectiveTransaction = transaction || currentTransaction
+        if (terminalReceipt.terminalOwnerLeaseDigest !== nextOwner.leaseDigest ||
+            terminalReceipt.admissionTransactionDigest !== effectiveTransaction.transactionDigest ||
+            terminalReceipt.admissionId !== effectiveTransaction.admissionId ||
+            terminalReceipt.ownerGeneration !== nextOwner.ownerGeneration) {
+          throw new TaskRecoveryStoreV5Error('WORKFLOW_TASK_TERMINAL_BINDING_MISMATCH', 'terminal receipt does not bind the durable owner/admission state')
+        }
+        state.workflowTaskTerminalReceipt = terminalReceipt
+      }
+      state.fencedWriteOwner = nextOwner
+      state.taskRecoveryBinding = {
+        ...(state.taskRecoveryBinding || {}),
+        taskId: nextOwner.taskId,
+        project: currentTransaction.project,
+        status: nextOwner.status === 'terminal' ? 'terminal' : (transaction?.status || currentTransaction.status),
+        identityRevision: 2
+      }
+      return state
+    }, {
+      ...options,
+      reason: String(input.reason || '')
+    })
+  } catch (error) {
+    return {
+      status: 'error',
+      errorCode: error.code || 'FENCED_TASK_WRITE_OWNER_COMMIT_FAILED',
+      message: error.message,
+      details: error.details
+    }
+  }
+  return { ...result, owner: nextOwner, transaction, terminalReceipt }
+}
+
+function readFencedTaskWriteOwner(input = {}, options = {}) {
+  const primary = readTaskRecoveryState(input, options)
+  const reserve = options.ignoreReserve === true
+    ? { status: 'missing' }
+    : latestEmergencyCloseoutForIdentity(input.metaDir, input.identity, options)
+  if (reserve.status === 'fresh' && reserve.record?.fencedWriteOwner) {
+    const owner = reserve.record.fencedWriteOwner
+    const validation = validateFencedTaskWriteOwner(owner, input.identity)
+    if (validation.valid && (!primary.state?.fencedWriteOwner ||
+        owner.ownerGeneration >= Number(primary.state.fencedWriteOwner.ownerGeneration || 0))) {
+      return {
+        status: 'fresh',
+        source: 'closeout-reserve',
+        owner,
+        transaction: reserve.record.admissionTransaction || null,
+        terminalReceipt: reserve.record.workflowTaskTerminalReceipt || null,
+        reserveSequence: reserve.sequence,
+        identity: reserve.identity
+      }
+    }
+  }
+  if (primary.status !== 'fresh') return primary
+  if (!primary.state?.fencedWriteOwner) {
+    return {
+      status: 'missing',
+      source: 'primary',
+      errorCode: 'FENCED_TASK_WRITE_OWNER_MISSING',
+      transaction: primary.state?.admissionTransaction || null,
+      state: primary.state,
+      envelope: primary.envelope,
+      identity: primary.identity
+    }
+  }
+  const validation = validateFencedTaskWriteOwner(primary.state.fencedWriteOwner, primary.identity)
+  if (!validation.valid) {
+    return { status: 'invalid', errorCode: 'FENCED_TASK_WRITE_OWNER_INVALID', errors: validation.errors, identity: primary.identity }
+  }
+  return {
+    status: 'fresh',
+    source: 'primary',
+    owner: primary.state.fencedWriteOwner,
+    transaction: primary.state.admissionTransaction || null,
+    terminalReceipt: primary.state.workflowTaskTerminalReceipt || null,
+    state: primary.state,
+    envelope: primary.envelope,
+    identity: primary.identity
+  }
+}
+
+function reconcileEmergencyTaskCloseout(input = {}, options = {}) {
+  const reserve = latestEmergencyCloseoutForIdentity(input.metaDir, input.identity, options)
+  if (reserve.status !== 'fresh') return reserve
+  const record = reserve.record
+  if (!record?.fencedWriteOwner || !record?.admissionTransaction || !record?.workflowTaskTerminalReceipt) {
+    return { status: 'invalid', errorCode: 'LIFECYCLE_CLOSEOUT_RECORD_INCOMPLETE', sequence: reserve.sequence }
+  }
+  const primary = readFencedTaskWriteOwner({ ...input }, { ...options, ignoreReserve: true })
+  if (primary.status === 'fresh' && primary.source === 'primary' &&
+      primary.terminalReceipt?.receiptDigest === record.workflowTaskTerminalReceipt.receiptDigest) {
+    return { status: 'semantic-noop', sequence: reserve.sequence, reconciled: true, terminalReceipt: primary.terminalReceipt }
+  }
+  const expected = primary.status === 'fresh' && primary.source === 'primary'
+    ? {
+        ownerGeneration: primary.owner.ownerGeneration,
+        ownerNonce: primary.owner.ownerNonce,
+        leaseRevision: primary.owner.leaseRevision,
+        leaseDigest: primary.owner.leaseDigest
+      }
+    : { mode: 'absent' }
+  if (record.workflowTaskTerminalReceipt.priorOwnerLeaseDigest !== expected.leaseDigest) {
+    return { status: 'blocked', errorCode: 'LIFECYCLE_CLOSEOUT_PRIMARY_OWNER_DRIFT', sequence: reserve.sequence }
+  }
+  return commitFencedTaskWriteOwnerTransition({
+    metaDir: input.metaDir,
+    identity: input.identity,
+    sessionKey: input.sessionKey,
+    hostSessionDigest: input.hostSessionDigest,
+    expectedOwner: expected,
+    owner: record.fencedWriteOwner,
+    transition: 'terminal',
+    transaction: record.admissionTransaction,
+    expectedAdmissionPhase: 'finalized',
+    terminalReceipt: record.workflowTaskTerminalReceipt,
+    reason: 'terminal-closeout-reconcile'
+  }, options)
 }
 
 module.exports = {
@@ -2493,7 +4493,10 @@ module.exports = {
   DEFAULT_SOFT_BYTES,
   DEFAULT_TERMINAL_GRACE_MS,
   EPHEMERAL_ENTRY_MAX_BYTES,
+  FENCED_TASK_WRITE_OWNER_SCHEMA,
   MUTATION_PREFLIGHT_STATE_MAX_BYTES,
+  TASK_ADMISSION_PHASES,
+  TASK_ADMISSION_TRANSACTION_SCHEMA,
   TASK_RECOVERY_CLOSEOUT_SCHEMA,
   TASK_RECOVERY_COMMIT_SCHEMA,
   TASK_RECOVERY_DOCTOR_SCHEMA,
@@ -2501,23 +4504,36 @@ module.exports = {
   TASK_RECOVERY_KEY_SCHEMA,
   TASK_RECOVERY_STATE_SCHEMA,
   TASK_RECOVERY_STATUS_SCHEMA,
+  WORKFLOW_TASK_TERMINAL_RECEIPT_SCHEMA,
   TaskRecoveryStoreV5Error,
   appendTaskRecoveryTelemetry,
+  commitFencedTaskWriteOwnerTransition,
+  commitTaskAdmissionTransaction,
   commitTaskRecoveryState,
   createTaskRecoveryKey,
   diagnoseTaskRecoveryStore,
   ensureReserve,
+  fencedTaskWriteOwnerDigest,
   inspectTaskRecoveryStore,
   inspectDiskHeadroom,
   maintainTaskRecoveryStore,
   normalizeIdentity,
+  readEmergencyCloseouts,
+  readFencedTaskWriteOwner,
+  readTaskAdmissionTransaction,
   readTaskRecoveryState,
   readTaskSlots,
   resolveTaskRecoveryMetaDir,
+  reconcileEmergencyTaskCloseout,
   sameIdentity,
   storePaths,
   taskPaths,
+  taskAdmissionTransactionDigest,
   updateTaskRecoveryState,
+  validateFencedTaskWriteOwner,
+  validateTaskAdmissionTransaction,
+  validateWorkflowTaskTerminalReceipt,
+  workflowTaskTerminalReceiptDigest,
   writeEmergencyCloseout,
   writeStableProjection
 }

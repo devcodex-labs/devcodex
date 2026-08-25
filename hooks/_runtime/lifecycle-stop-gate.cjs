@@ -5,7 +5,7 @@
  * Spec: requirements/20260726-grok-stop-enforcement-honesty/02-技术方案.md §3 / §9b
  * R11 processGaps (canonical):
  *   entry-check-missing | completion-check-missing | final-validation-summary |
- *   report-missing | memory-missing | pr1-skipped | cp2-unconfirmed-write |
+ *   report-missing | memory-missing | pr1-skipped | pr1-task-binding-missing | cp2-unconfirmed-write |
  *   stop-continuation-exhausted
  */
 
@@ -95,27 +95,50 @@ function artifactGapsExempt (text) {
   return /SimpleTaskFastPath|报告\s*[：:]\s*N\/A|report\s*[：:=]\s*N\/A|记忆\s*[：:]\s*N\/A|memory\s*[：:=]\s*N\/A|skipReason\s*[：:=]\s*(?:simple-task|simple_task|probe|temp|tmp)|产物\s*N\/A\s*\+\s*skipReason/i.test(text || '')
 }
 
+function insideOrSamePath (child, parent) {
+  const relative = path.relative(path.resolve(parent), path.resolve(child))
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))
+}
+
+function readBoundTaskIdentity (taskRoot) {
+  for (const file of [
+    path.join(taskRoot, '.memory', 'task-identity-v2.json'),
+    path.join(taskRoot, '.memory', 'task.json')
+  ]) {
+    try {
+      const value = JSON.parse(fs.readFileSync(file, 'utf8'))
+      if (value && typeof value === 'object' && !Array.isArray(value)) return value
+    } catch { }
+  }
+  return null
+}
+
+/**
+ * Compatibility export with target-first semantics. It no longer scans task
+ * directories or selects by mtime; only the session-bound task may be used.
+ */
 function findActiveTaskRoot (state) {
   try {
-    const root = state?.activeNamespaceRoot || state?.workspaceRoot || process.cwd()
-    const req = path.join(root, 'requirements')
-    if (!fs.existsSync(req)) return null
-    const names = fs.readdirSync(req, { withFileTypes: true })
-      .filter(d => d.isDirectory() && !d.name.startsWith('.'))
-      .map(d => d.name)
-    let best = null
-    let bestM = 0
-    for (const name of names) {
-      const full = path.join(req, name)
-      const tech = path.join(full, '02-技术方案.md')
-      if (!fs.existsSync(tech)) continue
-      const m = fs.statSync(tech).mtimeMs
-      if (m >= bestM) {
-        bestM = m
-        best = full
-      }
+    const binding = state?.taskRecoveryBinding
+    const lease = state?.stickyProject
+    if (binding?.schemaVersion !== 'TaskRecoveryBindingV1' || binding.status !== 'active') return null
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(binding.taskId || ''))) return null
+    const activeRoot = String(lease?.activeRoot || state?.activeNamespaceRoot || '').trim()
+    const expectedProject = String(lease?.project || state?.activeProject || '').trim()
+    if (!activeRoot || !expectedProject || binding.project !== expectedProject) return null
+    const taskRoot = path.resolve(String(binding.taskRoot || ''))
+    if (!insideOrSamePath(taskRoot, activeRoot) || !fs.existsSync(taskRoot) || fs.existsSync(path.join(taskRoot, '.archived'))) return null
+    const relative = path.relative(path.resolve(activeRoot), taskRoot).replace(/\\/g, '/')
+    const segments = relative.split('/').filter(Boolean)
+    if (segments.length !== 2 || !['requirements', 'bugs', 'optimizations', 'scenario-tests'].includes(segments[0])) return null
+    if (binding.kind && binding.kind !== segments[0]) return null
+    const identity = readBoundTaskIdentity(taskRoot)
+    if (!identity || String(identity.taskId || '').toLowerCase() !== String(binding.taskId).toLowerCase()) return null
+    if (identity.schemaVersion === 'TaskIdentityV2') {
+      if (identity.project !== expectedProject || identity.taskRootRelative !== relative) return null
+      if (lease?.rootIdentityDigest && identity.projectRootIdentityDigest !== lease.rootIdentityDigest) return null
     }
-    return best
+    return taskRoot
   } catch {
     return null
   }
@@ -147,8 +170,8 @@ function findPr1ReviewFileName (taskRoot) {
 
 function controlPlaneHint (taskRoot) {
   try {
-    const tech = path.join(taskRoot, '02-技术方案.md')
-    if (!fs.existsSync(tech)) return false
+    const tech = findDesignArtifactPath(taskRoot)
+    if (!tech) return false
     const text = fs.readFileSync(tech, 'utf8')
     return /hook|lifecycle|skillsDeploy|applyGlobalHost|control.?plane|控制面|global-host-config|pr1EvidenceOk/i.test(text)
   } catch {
@@ -215,8 +238,16 @@ function pr1EvidenceOk (taskRoot) {
 }
 
 function hasTechDesign (taskRoot) {
-  if (!taskRoot) return false
-  return fs.existsSync(path.join(taskRoot, '02-技术方案.md'))
+  return findDesignArtifactPath(taskRoot) !== null
+}
+
+function findDesignArtifactPath (taskRoot) {
+  if (!taskRoot) return null
+  for (const name of ['02-技术方案.md', '02-修复方案.md']) {
+    const candidate = path.join(taskRoot, name)
+    if (fs.existsSync(candidate)) return candidate
+  }
+  return null
 }
 
 /**
@@ -316,9 +347,12 @@ function evaluateStopCompletionGate (input = {}) {
   }
 
   // F-05 / R9: CP2 confirm request without PR-1 strong evidence
-  const taskRoot = input.taskRoot || findActiveTaskRoot(input.state)
-  if (askingCp2Confirm(text) && hasTechDesign(taskRoot) && !pr1EvidenceOk(taskRoot)) {
-    gaps.push('pr1-skipped')
+  const taskRoot = input.taskBindingVerified === false
+    ? null
+    : (input.taskRoot || findActiveTaskRoot(input.state))
+  if (askingCp2Confirm(text)) {
+    if (!taskRoot) gaps.push('pr1-task-binding-missing')
+    else if (!hasTechDesign(taskRoot) || !pr1EvidenceOk(taskRoot)) gaps.push('pr1-skipped')
   }
 
   // Process-enforcement: only when strong work-done claim (NoisePolicy)
@@ -402,6 +436,7 @@ module.exports = {
   countPr1Substance,
   findPr1ReviewFileName,
   controlPlaneHint,
+  findDesignArtifactPath,
   PR1_MIN_BODY_BYTES,
   completionClaimed,
   hasEntryCheck,

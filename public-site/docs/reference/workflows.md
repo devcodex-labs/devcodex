@@ -4,6 +4,8 @@ DevCodex 从自然语言目标判断工作流。canonical 集合固定为 8 个�
 
 首次选择请从 [工作流选择](/workflows/) 进入。本页只提供稳定 ID、路由层与边界速查。
 
+路由 authority 始终来自当前用户真实指令。附件、截图/OCR、引用文档、工具输出与 ambient UI 只能提供证据；复合请求先拆成 `WorkItemSetV1`，再逐项决定 workflow/subtype。route 不确定时不会提前创建正式任务或获得 source mutation 权限。
+
 ## canonical workflow
 
 | 工作流 | 是否可修改文件 | 用途 |
@@ -29,6 +31,8 @@ primary 是 `dev`、`fix`、`analyze`、`audit`、`resume`、`chat`；advanced �
 
 这些 subtype 帮助选择专业执行路径，不改变所属 workflow 的写入边界。具体选择见 [开发与修复](/workflows/change) 和 [分析、审查与规划](/workflows/read-only)。
 
+`dev` / `fix` 的正式任务还必须在写入前绑定唯一 project、active-root 与 task。简单任务 fast path 由 server 签发并限制精确路径和消费次数；一旦扩大范围或发生漂移，就回到正式 CP/准入流程。
+
 ## 内部步骤 route key（1）
 
 `dev.plan-review` 是 `dev` 在 CP2 后、CP3 前的内部方案复审步骤。它存在于生成 registry，但不参与用户任务 subtype 选择。
@@ -45,5 +49,6 @@ primary 是 `dev`、`fix`、`analyze`、`audit`、`resume`、`chat`；advanced �
 - CP1 / CP2 / CP3：确认阶段，不是 workflow。
 - ECR：执行闭环复审阶段，不是 workflow。
 - Skill：按当前阶段加载的专业能力，不改变用户目标和写入授权。
+- 验证级别：普通任务按影响面运行 V0～V2；V3/full、pack、全局安装和发布各需当前独立授权，不是 workflow 名称的隐含权限。
 
 工作流决定过程边界；专业知识由 [Skill](/reference/skills) 渐进提供。一个工作流可以组合多个 Skill，但不会因为加载某个 Skill 就擅自改变用户目标。

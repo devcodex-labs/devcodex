@@ -577,7 +577,7 @@ for (const invariant of [
   'CP1 / CP2 / CP3 确认**自动通过**',
   'S01',
   'S03~S07',
-  '"继续" ≠ CP3 授权'
+  '"继续" ≠ CP3/写入授权'
 ]) {
   assert(cpGateSource.includes(invariant), `CP/Auto invariant regressed: ${invariant}`)
 }

@@ -39,6 +39,10 @@ const {
   stableDigest,
   validateContextReadPlan
 } = require('../hooks/_runtime/context-read-contract.cjs')
+const STATIC_WORKFLOW_ROUTE_REGISTRY_V2 = require('../hooks/_runtime/workflow-root-registry.v2.json')
+const {
+  resolveWorkflowRouteDescriptor
+} = require('../hooks/_runtime/workflow-route-decision-v2.cjs')
 const { buildContentIdentity, buildJsonContentIdentity, validateContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
 const { createRuntimeStateStore } = require('../hooks/_runtime/runtime-state-store.cjs')
 const {
@@ -239,22 +243,23 @@ const TOOLS = [
   },
   {
     name: 'profile_context_plan',
-    description: '生成持久 ContextReadPlanV2。',
+    description: '生成 ContextReadPlanV2。',
     inputSchema: {
       type: 'object',
       required: ['intent'],
       properties: {
         intent: {
           type: 'string',
-          enum: CONTEXT_READ_CONTRACT.intents,
-          description: 'canonical top-level intent'
+          enum: CONTEXT_READ_CONTRACT.intents
         },
         changeTypes: {
           type: 'array',
           uniqueItems: true,
-          items: { type: 'string', enum: CONTEXT_READ_CONTRACT.changeTypes },
-          description: '高置信非 chat/resume 任务必填；docs/testing/release 等均在此表达。'
+          items: { type: 'string', enum: CONTEXT_READ_CONTRACT.changeTypes }
         },
+        routeKey: { type: 'string', minLength: 1, maxLength: 128 },
+        subtype: { type: 'string', minLength: 1, maxLength: 128 },
+        stage: { type: 'string', minLength: 1, maxLength: 64 },
         contextEpoch: { type: 'string', minLength: 1 },
         project: { type: 'string' },
         scope: { type: 'string', enum: ['project', 'workspace'] },
@@ -829,10 +834,11 @@ function resolveConfigFile(projectName, options = {}) {
 }
 
 const CONTEXT_PLAN_ARG_FIELDS = new Set([
-  'intent', 'changeTypes', 'contextEpoch', 'project', 'scope', 'host', 'explicitSkillId', 'risk', 'confidence',
+  'intent', 'changeTypes', 'routeKey', 'subtype', 'stage', 'contextEpoch', 'project', 'scope', 'host', 'explicitSkillId', 'risk', 'confidence',
   'profileSelectors', 'baselineDigest', 'explicitFull', 'fullReadReason',
   'configLocalRequested', 'crossService'
 ])
+const CONTEXT_PLAN_ROUTE_FIELDS = Object.freeze(['routeKey', 'subtype', 'stage'])
 const CONTEXT_PLAN_EPOCHS = new Map()
 const CONTEXT_CACHE_MAX_BYTES = 32 * 1024 * 1024
 const CONTEXT_CACHE_MAX_ENTRIES = 4096
@@ -1055,12 +1061,12 @@ function getContextPlanEpoch(requestedEpoch) {
   return { contextEpoch, createdAt: CONTEXT_PLAN_EPOCHS.get(contextEpoch) }
 }
 
-const DEV_CODEX_ROUTE_LOAD_MAX_BYTES = 24 * 1024
+const DEV_CODEX_ROUTE_LOAD_MAX_BYTES = 40 * 1024
 const DEV_CODEX_ROUTE_LOAD_MINIMUM_HEADROOM_BYTES = 1024
 const DEV_CODEX_ROUTE_LOAD_ENTRIES = Object.freeze({
   '01-项目信息.md': Object.freeze({
     headingQueries: ['完整开发需求验证链速查', '当前开发重点'],
-    maxBytes: 4096
+    maxBytes: 8192
   }),
   '02-架构约束.md': Object.freeze({
     headingQueries: ['执行链派生状态与回滚边界', '控制面内容物化边界'],
@@ -1075,8 +1081,8 @@ const DEV_CODEX_ROUTE_LOAD_ENTRIES = Object.freeze({
     maxBytes: 4096
   }),
   '06-功能清单.md': Object.freeze({
-    headingQueries: ['全项目Profile校验', '公开面维护规则', '近期已发布增量'],
-    maxBytes: 8192
+    headingQueries: ['全项目Profile校验', '公开面维护规则', '近期发布增量'],
+    maxBytes: 12 * 1024
   }),
   '07-用户文档与契约规范.md': Object.freeze({
     headingQueries: ['写作与审查原则', '控制面内容契约', '用户文档主面'],
@@ -1096,6 +1102,7 @@ function buildDevCodexRouteLoadRecipe(project, selectedFiles, fullRead) {
       requiredQueries: [...template.headingQueries],
       includePreamble: false,
       includeDescendants: true,
+      boundedOnly: true,
       maxBytes: template.maxBytes
     }
   })
@@ -1106,6 +1113,80 @@ function buildDevCodexRouteLoadRecipe(project, selectedFiles, fullRead) {
     maxBytes: DEV_CODEX_ROUTE_LOAD_MAX_BYTES,
     minimumHeadroomBytes: DEV_CODEX_ROUTE_LOAD_MINIMUM_HEADROOM_BYTES,
     entries
+  }
+  return { ...material, recipeDigest: stableDigest(material) }
+}
+
+function buildProfileRouteRecoveryRecipe(file, recipeEntry, sectionReceipt) {
+  const deferredByQuery = new Map((sectionReceipt?.deferredSections || [])
+    .map(item => [String(item?.query || ''), item]))
+  const missing = new Set(sectionReceipt?.missing || [])
+  const ambiguous = new Set((sectionReceipt?.ambiguous || []).map(item => item.query))
+  const sourceLineByQuery = new Map((sectionReceipt?.matchedHeadings || [])
+    .map(item => [String(item?.query || ''), Number(item?.line || Number.MAX_SAFE_INTEGER)]))
+  const sourceOrderedQueries = recipeEntry.headingQueries
+    .map((query, recipeOrder) => ({
+      query,
+      recipeOrder,
+      sourceLine: sourceLineByQuery.get(query) || Number.MAX_SAFE_INTEGER
+    }))
+    .sort((left, right) => left.sourceLine - right.sourceLine || left.recipeOrder - right.recipeOrder)
+  const calls = sourceOrderedQueries.map(({ query, sourceLine }, sourceOrder) => {
+    const deferred = deferredByQuery.get(query)
+    const measuredBytes = Number(deferred?.bytes || 0)
+    const selectorMaxBytes = Math.min(2_000_000, Math.max(
+      1024,
+      measuredBytes > 0 ? measuredBytes + 512 : recipeEntry.maxBytes
+    ))
+    return {
+      tool: 'profile_load',
+      arguments: {
+        files: [file],
+        maxFiles: 1,
+        maxBytes: selectorMaxBytes + 1024,
+        sectionSelectors: [{
+          file,
+          headingQueries: [query],
+          requiredQueries: [query],
+          includePreamble: recipeEntry.includePreamble === true,
+          includeDescendants: recipeEntry.includeDescendants === true,
+          boundedOnly: true,
+          maxBytes: selectorMaxBytes
+        }]
+      },
+      query,
+      sourceOrder,
+      sourceLine: Number.isSafeInteger(sourceLine) ? sourceLine : null,
+      status: missing.has(query) ? 'heading-missing' : (ambiguous.has(query) ? 'heading-ambiguous' : 'replayable')
+    }
+  })
+  const material = {
+    schemaVersion: 'ProfileSectionRecoveryRecipeV1',
+    strategy: 'one-heading-per-call-in-source-document',
+    file,
+    sourceDigest: sectionReceipt?.sourceDigest || null,
+    contextBindingRequired: true,
+    satisfiedQueries: (sectionReceipt?.matchedHeadings || [])
+      .map(item => item.query)
+      .filter(query => !deferredByQuery.has(query)),
+    blockedQueries: calls.filter(call => call.status !== 'replayable').map(call => call.query),
+    calls
+  }
+  return { ...material, recipeDigest: stableDigest(material) }
+}
+
+function buildProfileRouteAggregateRecoveryRecipe(routeLoadRecipe, sectionReceipts = []) {
+  const perFile = routeLoadRecipe.entries.map(entry => buildProfileRouteRecoveryRecipe(
+    entry.file,
+    entry,
+    sectionReceipts.find(receipt => receipt.file === entry.file) || null
+  ))
+  const material = {
+    schemaVersion: 'ProfileRouteRecoveryRecipeV1',
+    strategy: 'one-file-one-heading-per-call',
+    sourceRecipeDigest: routeLoadRecipe.recipeDigest,
+    contextBindingRequired: true,
+    files: perFile
   }
   return { ...material, recipeDigest: stableDigest(material) }
 }
@@ -1550,6 +1631,52 @@ function handleProfileContextPlan(args = {}) {
   if (new Set(changeTypes).size !== changeTypes.length || changeTypes.some(item => !CONTEXT_READ_CONTRACT.changeTypes.includes(item))) {
     return contextPlanResult(buildContextReadError('CONTEXT_PLAN_INVALID', 'changeTypes contains an unsupported or duplicate value.'))
   }
+  const suppliedRouteFields = CONTEXT_PLAN_ROUTE_FIELDS
+    .filter(field => Object.prototype.hasOwnProperty.call(args, field))
+  if (suppliedRouteFields.length !== 0 && suppliedRouteFields.length !== CONTEXT_PLAN_ROUTE_FIELDS.length) {
+    const missing = CONTEXT_PLAN_ROUTE_FIELDS.filter(field => !suppliedRouteFields.includes(field))
+    return contextPlanResult(buildContextReadError(
+      'WORKFLOW_ROUTE_UNRESOLVED',
+      `routeKey, subtype, and stage are an all-or-none route identity; missing: ${missing.join(', ')}.`,
+      'Provide all three registry-owned route fields or omit all three for the compatibility default.'
+    ))
+  }
+  for (const [field, maxLength] of [['routeKey', 128], ['subtype', 128], ['stage', 64]]) {
+    if (!suppliedRouteFields.includes(field)) continue
+    const value = args[field]
+    if (typeof value !== 'string' || !value.trim() || value !== value.trim() || value.length > maxLength) {
+      return contextPlanResult(buildContextReadError(
+        'WORKFLOW_ROUTE_UNRESOLVED',
+        `${field} must be a canonical non-empty string no longer than ${maxLength} characters.`,
+        'Use the exact route identity published by WorkflowRootRegistryV2.'
+      ))
+    }
+  }
+  let workflowRoute
+  try {
+    const resolved = resolveWorkflowRouteDescriptor({
+      topIntent: seed.semantic,
+      changeTypes,
+      ...(suppliedRouteFields.length
+        ? {
+            routeKey: args.routeKey,
+            subtype: args.subtype,
+            stage: args.stage
+          }
+        : {})
+    }, { registry: STATIC_WORKFLOW_ROUTE_REGISTRY_V2 })
+    workflowRoute = {
+      routeKey: resolved.routeKey,
+      subtype: resolved.route.subtype,
+      stage: resolved.stage
+    }
+  } catch (error) {
+    return contextPlanResult(buildContextReadError(
+      'WORKFLOW_ROUTE_UNRESOLVED',
+      String(error?.message || error),
+      'Use one active registry-owned route whose intent, subtype, and stage match exactly.'
+    ))
+  }
   if (seed.confidence >= 0.6 && !['chat', 'resume'].includes(seed.semantic) && !changeTypes.length && args.explicitFull !== true) {
     return contextPlanResult(buildContextReadError(
       'CONTEXT_CHANGE_TYPES_REQUIRED',
@@ -1612,6 +1739,7 @@ function handleProfileContextPlan(args = {}) {
         finalIntent: seed.semantic
       },
       changeTypes,
+      workflowRoute,
       baselineContext: inputs.baselineContext,
       profileSelectors: args.profileSelectors,
       baselineDigest: args.baselineDigest,
@@ -1661,7 +1789,7 @@ function handleProfileContextPlan(args = {}) {
     const message = String(error?.message || '')
     const profileMissing = /Profile README\.md is missing/i.test(message)
     return contextPlanResult(buildContextReadError(
-      'CONTEXT_PLAN_INVALID',
+      error?.code === 'WORKFLOW_ROUTE_UNRESOLVED' ? 'WORKFLOW_ROUTE_UNRESOLVED' : 'CONTEXT_PLAN_INVALID',
       message,
       profileMissing
         ? 'Run devcodex init in the workspace root. After initialization completes, open a new host session and retry.'
@@ -1867,6 +1995,7 @@ function handleProfileLoad(args = {}, internal = {}) {
             requiredQueries: [...entry.requiredQueries],
             includePreamble: entry.includePreamble,
             includeDescendants: entry.includeDescendants,
+            boundedOnly: entry.boundedOnly === true,
             maxBytes: entry.maxBytes
           }))
         : suppliedSelectors)
@@ -2021,6 +2150,9 @@ function handleProfileLoad(args = {}, internal = {}) {
         const recipeEntry = routeLoadRecipe.entries.find(entry => entry.file === name)
         if (!recipeEntry || selection.receipt.completion !== 'complete' ||
             selection.receipt.selectedBytes > recipeEntry.maxBytes) {
+          const recoveryRecipe = recipeEntry
+            ? buildProfileRouteRecoveryRecipe(name, recipeEntry, selection.receipt)
+            : null
           return profileLoadError(
             'PROFILE_ROUTE_RECIPE_BUDGET_EXCEEDED',
             `The bounded route recipe budget is exhausted for ${name}; it will not fall back to a full Profile body.`,
@@ -2029,7 +2161,8 @@ function handleProfileLoad(args = {}, internal = {}) {
               file: name,
               recipeDigest: routeLoadRecipe.recipeDigest,
               entryMaxBytes: recipeEntry?.maxBytes || null,
-              sectionReceipt: selection.receipt
+              sectionReceipt: selection.receipt,
+              recoveryRecipe
             }
           )
         }
@@ -2049,7 +2182,11 @@ function handleProfileLoad(args = {}, internal = {}) {
               usedBytes,
               blockBytes,
               maxBytes,
-              minimumHeadroomBytes: routeLoadRecipe.minimumHeadroomBytes
+              minimumHeadroomBytes: routeLoadRecipe.minimumHeadroomBytes,
+              recoveryRecipe: buildProfileRouteAggregateRecoveryRecipe(routeLoadRecipe, [
+                ...sectionReceipts,
+                ...(selection ? [selection.receipt] : [])
+              ])
             }
           )
         }
@@ -2110,7 +2247,8 @@ function handleProfileLoad(args = {}, internal = {}) {
         usedBytes,
         maxBytes,
         minimumHeadroomBytes: routeLoadRecipe.minimumHeadroomBytes,
-        remainingBytes: maxBytes - usedBytes
+        remainingBytes: maxBytes - usedBytes,
+        recoveryRecipe: buildProfileRouteAggregateRecoveryRecipe(routeLoadRecipe, sectionReceipts)
       }
     )
   }

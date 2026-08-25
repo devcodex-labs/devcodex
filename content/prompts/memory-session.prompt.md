@@ -55,6 +55,14 @@ applyTo: .devcodex/**/.memory/**
 
 > 只记录 compact identity 和 bounded projection；禁止复制完整用户原文、附件正文或 catalog row。compat/none、conversation-visible 或 readback 未验证 authority 不得被摘要升级为跨轮 mutation 授权。
 
+### 🧩 TaskRouteRecoveryRef（正式任务或轻路径命中时）
+
+| envelopeDigest / routeDecisionDigest | projectLeaseDigest | taskId / admissionId | ownerGeneration / leaseDigest | recoveryKey / state | terminalReceiptDigest |
+|---------------------------------------|--------------------|----------------------|--------------------------------|---------------------|-----------------------|
+| | | | | | |
+
+> 只投影 server-owned `ActualInstructionEnvelopeV1`、`WorkflowRouteDecisionV2`、`ProjectTargetLeaseV2`、admission/owner/V5 的 compact identity。`WorkspaceSessionRouteIndexV1`、“继续”、mtime、附件或摘要只能定位，不能在此表中升级为 CP/mutation authority；Stop/PreCompact 只 checkpoint。终态成功后记录 terminal digest 与 unbound，显式 reopen 才写新 generation。
+
 ### ⚠️ 待跟进
 
 | # | 事项 | 优先级 | 状态 |
@@ -124,4 +132,5 @@ applyTo: .devcodex/**/.memory/**
 - 收到首条用户消息时先写入或追加会话段落，禁止只在会话结束时补写
 - 首次写入可用紧凑格式，复杂度超出后升级（追加缺失字段，不重写已有内容）
 - 📨 四列表格为必填格式，禁止省略
-- 状态符号：`🔄` 进行中 · `✅` 已完成
+- 同一任务的 Hook/工具/租约状态变化只更新当前会话与 `TaskRouteRecoveryRef` 的 bounded projection，禁止按事件新建 UUID generation 文件或复制 V5/journal 正文
+- 状态符号：`🔄` 进行中 · `✅` 已完成；正式任务只有 terminal 四证据 closeout 与 route/owner unbind 成功后才能写 `✅`

@@ -20,7 +20,7 @@ function buildGovernanceMidChecks(ctx) {
       },
       {
         file: 'hooks/_runtime/lifecycle-project-target.cjs',
-        needles: ['.devcodex/workspace/profile/', 'ProjectTargetLeaseV1', 'observedSessionRef', 'hasMultiProjectExemption']
+        needles: ['.devcodex/workspace/profile/', 'ProjectTargetLeaseV2', 'authorityDigest', 'hasMultiProjectExemption']
       },
       {
         file: 'scripts/lib/test-hooks-runtime-bootstrap-layout.js',
@@ -369,7 +369,7 @@ function buildGovernanceMidChecks(ctx) {
       },
       {
         file: 'hooks/_runtime/lifecycle-project-target.cjs',
-        needles: ['validateStickyProjectLease', 'layoutIdentity', 'observedSessionRef', 'collectWorkspaceProjectNamespaces']
+        needles: ['validateStickyProjectLease', 'rootIdentityDigest', 'authorityDigest', 'collectWorkspaceProjectNamespaces']
       },
       {
         file: 'index.js',

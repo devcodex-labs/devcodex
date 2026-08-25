@@ -141,7 +141,7 @@ rejectedOutcome(memorySource, { targetMatch: false })
 rejectedOutcome(memorySource, { schemaMatch: false })
 
 const legacyPlan = JSON.parse(JSON.stringify(plan))
-for (const field of ['planContentId', 'contextBinding', 'identityInputs', 'executionOptimization', 'reusePolicy', 'stageTiming', 'cacheDecision']) {
+for (const field of ['planContentId', 'contextBinding', 'identityInputs', 'workflowRoute', 'executionOptimization', 'reusePolicy', 'stageTiming', 'cacheDecision']) {
   delete legacyPlan[field]
 }
 legacyPlan.schemaVersion = CONTEXT_READ_CONTRACT.schemas.planV1

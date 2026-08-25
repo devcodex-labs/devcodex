@@ -19,7 +19,17 @@
 const fs = require('fs')
 const path = require('path')
 const { execSync } = require('child_process')
-const { resolveActiveRuntimeRoot } = require('../hooks/_runtime/workspace-layout.cjs')
+const {
+  resolveActiveRuntimeRoot,
+  resolveHostWorkspaceBinding
+} = require('../hooks/_runtime/workspace-layout.cjs')
+const {
+  hasTaskArtifact: registryHasTaskArtifact
+} = require('../hooks/_runtime/artifact-slot-decision.cjs')
+const {
+  parseCpSessions,
+  verifyArtifactDigest
+} = require('./lib/cp-digest.js')
 
 if (process.env.SKIP_DEVCODEX_FALLBACK === '1') {
   console.log('[devcodex] instruction-fallback-check skipped via SKIP_DEVCODEX_FALLBACK=1')
@@ -46,37 +56,31 @@ function isSourceFile(p) {
   return SOURCE_EXTS.has(path.extname(p))
 }
 
-function directoryContainsFileMatching(dir, matcher, depth = 4) {
-  if (!fs.existsSync(dir) || depth < 0) return false
-  let entries
-  try { entries = fs.readdirSync(dir, { withFileTypes: true }) } catch { return false }
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name)
-    if (entry.isFile() && matcher(entry.name, full)) return true
-    if (entry.isDirectory() && directoryContainsFileMatching(full, matcher, depth - 1)) return true
+function getArtifactContext() {
+  const binding = resolveHostWorkspaceBinding({ cwd })
+  const activeRoot = binding?.activeRoot || getActiveRoot()
+  return {
+    activeRoot,
+    project: binding?.projectNamespace || path.basename(cwd)
   }
-  return false
 }
 
 function hasTaskArtifact(kind, full, phase) {
-  if (phase === 'CP1') {
-    if (fs.existsSync(path.join(full, '01-需求确认.md'))) return true
-    if (fs.existsSync(path.join(full, '01-产品需求.md'))) return true
-    if (fs.existsSync(path.join(full, '01-需求概述.md'))) return true
-    if (kind === 'bugs') {
-      return directoryContainsFileMatching(path.join(full, 'reports'), name => /^01--.*CP1.*\.md$/i.test(name))
-    }
+  const context = getArtifactContext()
+  try {
+    return registryHasTaskArtifact({ kind, fullPath: full }, phase, { fs, ...context })
+  } catch {
     return false
   }
-  if (phase === 'CP2') {
-    if (fs.existsSync(path.join(full, '02-技术方案.md'))) return true
-    if (kind === 'bugs') {
-      return directoryContainsFileMatching(path.join(full, 'reports'), name => /^02--.*CP2.*\.md$/i.test(name))
-    }
-    return false
-  }
-  if (phase === 'CP3') return fs.existsSync(path.join(full, '04-实施计划.md'))
-  return false
+}
+
+function hasConfirmedCp3(kind, full, sessionsText) {
+  const parsed = parseCpSessions(sessionsText)
+  if (parsed.CP3Exempt) return true
+  const row = parsed.CP3
+  if (!row?.confirmed) return false
+  if (row.artifactSha256) return verifyArtifactDigest(full, row).ok === true
+  return hasTaskArtifact(kind, full, 'CP3')
 }
 
 function findActiveTasks() {
@@ -98,7 +102,7 @@ function findActiveTasks() {
       const sessions = path.join(full, '.memory', 'sessions.md')
       if (!hasTaskArtifact(root.kind, full, 'CP1') || !fs.existsSync(sessions)) continue
       const text = fs.readFileSync(sessions, 'utf8')
-      const cp3Done = /CP3[^\n]*✅|CP3[^\n]*已确认|CP3[^\n]*confirmed|CP3[^\n]*N\/A/i.test(text)
+      const cp3Done = hasConfirmedCp3(root.kind, full, text)
       if (!cp3Done) {
         let mtimeMs = 0
         try { mtimeMs = fs.statSync(full).mtimeMs || 0 } catch { }

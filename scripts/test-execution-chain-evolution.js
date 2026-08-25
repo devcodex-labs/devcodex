@@ -226,15 +226,24 @@ const cliResult = JSON.parse(cli.stdout)
 assert.strictEqual(cliResult.schemaVersion, 'ExecutionChainBenchmarkCliV1')
 assert.strictEqual(cliResult.data.status, 'accepted')
 
+const validationEnv = {
+  ...process.env,
+  DEVCODEX_VALIDATION_ACTIVE_ROOT: lifecycleRoot,
+  DEVCODEX_VALIDATION_ACTOR: 'human-cli'
+}
+delete validationEnv.CODEX_THREAD_ID
+delete validationEnv.CODEX_INTERNAL_ORIGINATOR_OVERRIDE
+delete validationEnv.GITHUB_ACTIONS
 const validationCli = spawnSync(process.execPath, [
   path.join(ROOT, 'scripts', 'run-validation.js'),
   '--route', 'changed',
   '--changed', 'README.md',
+  '--actor', 'human-cli',
   '--plan',
   '--json'
 ], {
   cwd: ROOT,
-  env: { ...process.env, DEVCODEX_VALIDATION_ACTIVE_ROOT: lifecycleRoot },
+  env: validationEnv,
   encoding: 'utf8',
   windowsHide: true
 })

@@ -18,9 +18,9 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 
 领域专属证据不得复制进 TestRoute 输入清单；先从 `../spec-governance/gate-registry.json` 解析适用 `gateGroup`，再由目标 Owner Skill 提供证据字段和阈值。
 
-### VerificationIntentV1 与执行层级
+### VerificationIntentV2 请求面与执行层级
 
-必须先判断“本轮要证明什么”，再选择可执行节点。`VerificationIntentV1` 固定包含 `level / purpose / affectedBoundaries / riskClass / releaseAuthorized / explicitFullAudit / authoritySource / claimCeiling / authorizationDigest / intentDigest`：
+必须先判断“本轮要证明什么”，再选择可执行节点。`VerificationIntentV2` 只表达请求，不授予执行权；固定包含 `requesterClass / requestedLevel / requestedPurpose / affectedBoundaries / riskClass / requestSourceRef / project / candidateId / changedScopeDigest / claimCeiling / requestDigest`。执行必须另行取得绑定 `ValidationRunIdentityV1`、候选/HEAD/dirty scope、计划、预算、actor/context 与 hard deadline 的 `VerificationExecutionLeaseV2`；V1 只允许兼容读取，不能产生新 authority：
 
 | level | 默认 purpose | 允许的最大声明 | 典型入口 |
 |---|---|---|---|
@@ -29,11 +29,15 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 | V2 | `boundary` | 已列明边界的资格结论 | `test:boundary -- --boundary <owner>`、profile/package 兼容边界 |
 | V3 | `full-audit` / `release` | 全审计或发布候选 | `npm test` / `test:full`；发布还需显式 release authorization |
 
-`risk=high`、R3/R4、ECR、控制面命中、文件数、cache miss/stale、未知输入或消费者图不完整都不是 V3 授权。V0/V1 命中高风险或控制面时，只能扩张到可证明的 V2 边界；无法安全推导时输出 BLOCK、缺失边界和下一步，不得 silent full。只有明确 `full-audit`，或已有发布授权且 purpose=`release`，才能形成 V3。
+`risk=high`、R3/R4、ECR、控制面命中、文件数、cache miss/stale、未知输入或消费者图不完整都不是 V3 授权。V0/V1 命中高风险或控制面时，只能扩张到可证明的 V2 边界；无法安全推导时输出 BLOCK、缺失边界和下一步，不得 silent full。V3 必须有明确 `full-audit` 请求，或 release-pipeline 在已有发布授权下请求 `release`，并取得匹配 `planDigest + budgetDigest` 的 BudgetCard 确认和 LeaseV2；请求对象本身不能启动执行。
 
 消费者边必须区分 `runtimeConsumer / qualificationConsumer / releaseConsumer`。V1 只沿 runtime 边扩散，V2 可再沿 qualification 边扩散，release consumer 只在 V3 激活。`fast` 必须保持动态 V0；兼容入口 `profile-deploy` 与 `package-release` 分别固定为 profile/package V2 边界，不能因同一工作树还有其他变更而吸收其他边界或 V3 节点。V0～V2 的 `ValidationEvidenceV2` cache 身份绑定 `HEAD + 所有匹配节点声明输入的 dirty digest + node contract + node verification policy + dependency nodeReceiptDigest + runtime`；节点回执摘要向下游级联，不能用未变的 stdout 掩盖上游输入漂移，也不得绑定整个 candidateId 造成无关重跑。执行前必须重新核对 manifest identity、candidate identity 与 plan digest；任一绑定变化只重跑失效前沿。V3 禁止复用节点 cache，必须执行冻结候选的完整节点集合。
 
-非发布计划估算超过 600 秒或包含 heavy 节点时，先输出绑定 `planDigest` 的 `BudgetCardV1`。`estimatedDurationMs` 必须使用 manifest estimate 或有上限的默认估算，并同时公开 `estimateConfidence`、独立的 `hardTimeoutUpperBoundMs`、`logBudgetBytes` 与 `waitReasons`；禁止把所有 timeout 简单相加冒充预计耗时。只有匹配摘要的确认才能执行；确认不得复用于候选或计划摘要已经变化的下一轮。
+V3、非发布计划估算超过 600 秒或包含 heavy 节点时，先输出绑定 `planDigest + budgetDigest` 的 `BudgetCardV1`。`estimatedDurationMs` 必须使用 manifest estimate 或有上限的默认估算，并同时公开 `estimateConfidence`、独立的 `hardTimeoutUpperBoundMs`、`logBudgetBytes` 与 `waitReasons`；禁止把所有 timeout 简单相加冒充预计耗时。只有匹配摘要的确认才能签发 LeaseV2；确认不得复用于候选、计划或预算摘要已经变化的下一轮。执行由 `ManagedValidationRunnerV2` 消费 lease 并持久化 exactly-one terminal receipt，调用方不得用进程退出文字自行补写终态。
+
+AI Hook 在生成 BudgetCard 前必须由当前宿主 session 解析出唯一、fresh、server-owned 的正式任务绑定，并把 `taskRecoveryKey + contextEpoch + authoritySourceRef` 纳入同一计划身份；缺任务、跨 session、任务键冲突或缺当前 ContextRead epoch 时直接 BLOCK，不得先让用户确认一个无法执行的摘要。确认后的执行还必须提交本次确认消息的 digest；TaskRecovery evidence store 必须重新读取同一 session 的任务身份并与 LeaseV2 对账，禁止仅凭 caller 提供的 task key、`sessionKey` 或“最近任务”落盘。
+
+`BudgetCardV1` 永久不可变。confirm 模式把当前 exact card 先写成唯一 `PendingBudgetCardBindingV1`，用户只需确认当前卡，由服务端以 CAS 生成 `BudgetConfirmationReceiptV1`；有效 Sticky Auto 可为 V0～V2 签发同等精确的 server-owned receipt，但不能扩大到 V3/full/release。父运行失败后，`ValidationContinuationAuthorizationV1` 只接受两类证明：完整 `mutation-observation`，或 stable candidate 在同一 HEAD、无新增 dirty 路径、节点/时间/hard/log 预算不增加的 `same-scope-retry`；前者仍须满足 task/project/root/session/purpose/boundary/heavy/side-effect/revocation 一致或收窄、相对 root 新增节点不超过 `min(3,max(1,ceil(root*5%)))`、预计增量不超过 `min(60000ms,ceil(root*5%))`。两类合计最多两次且始终相对 root，第三次或证明失败必须 BLOCK，禁止用新 Auto root 清零重试计数或 child-to-child 复利。plan-only 与 execute 必须复用同一 continuation preflight；plan-only 只返回是否可续，不写入或消费 authorization，scope/purpose/terminal/retry 任一不合格时两者返回同一错误码。长验证中 Auto ingress 即使超过 TTL，也只能在 task/session/context/revocation 精确一致时继续既有 root；创建或替换 root 必须 fresh control。pause/stop/scope reduction 立即递增 revocation epoch 并撤销 pending/child/lease；cold/terminal 状态不得恢复执行 authority。
 
 ## 路由选择
 
@@ -76,33 +80,43 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 
 ### 发布候选验证
 
-`package-release` selector 可在 V2 只表示 package compatibility 边界；它不会执行 tag、publish 或 registry mutation。只有 purpose=`release` 且 `releaseAuthorized=true` 的 V3 才必须调用 `release-verification`，并把 `npm run test:audit`、package completeness gate、publish dry-run 和远端 CI 作为独立证据记录。pack 或本地 install 通过不能替代远端 CI，也不能替代发布前的 package completeness gate；未形成真实发布候选时必须记录 skipReason，不得把普通开发验证写成发布完成。
+`package-release` selector 可在 V2 只表示 package compatibility 边界；它不会执行 tag、publish 或 registry mutation。只有 release-pipeline 在当前发布授权下取得 purpose=`release`、level=`V3` 的 LeaseV2，才必须调用 `release-verification`，并把 `npm run test:audit`、package completeness gate、publish dry-run 和远端 CI 作为独立证据记录。pack 或本地 install 通过不能替代远端 CI，也不能替代发布前的 package completeness gate；未形成真实发布候选时必须记录 skipReason，不得把普通开发验证写成发布完成。
 
 ## TestRoute 输出
 
-输出固定为 `verificationIntent / validationPlan / budgetCard / selectedRoutes / commands / evidence / skipped / residualRisk / coverageClaim`。推荐使用以下最小结构：
+输出固定为 `verificationIntent / validationPlan / budgetCard / verificationExecutionLease / validationExecutionReceipt / selectedRoutes / commands / evidence / skipped / residualRisk / coverageClaim`。推荐使用以下最小结构：
 
 ```yaml
 workflow: fix
 changeTypes: [control-plane, documentation]
 risk: high
 verificationIntent:
-  schemaVersion: VerificationIntentV1
-  level: V2
-  purpose: delivery
+  schemaVersion: VerificationIntentV2
+  requesterClass: ai
+  requestedLevel: V2
+  requestedPurpose: boundary
   affectedBoundaries: [validation-control-plane]
-  releaseAuthorized: false
-  explicitFullAudit: false
-  authoritySource: confirmed-CP3
+  riskClass: high
+  requestSourceRef: confirmed-CP3
+  project: devcodex
+  candidateId: <candidate-id>
+  changedScopeDigest: <sha256>
   claimCeiling: boundary-qualified
-  authorizationDigest: <sha256>
-  intentDigest: <sha256>
+  requestDigest: <sha256>
 validationPlan:
-  schemaVersion: ValidationPlanV2
+  schemaVersion: ValidationPlanV3
   executionState: ready
 budgetCard:
   schemaVersion: BudgetCardV1
   confirmationRequired: false
+verificationExecutionLease:
+  schemaVersion: VerificationExecutionLeaseV2
+  runIdentitySchema: ValidationRunIdentityV1
+  runId: <stable-run-id>
+  hardDeadlineAt: <iso-time>
+validationExecutionReceipt:
+  runnerSchema: ManagedValidationRunnerV2
+  terminalState: passed
 selectedRoutes:
   - selector: static
     commands: [npm run test:control-plane]

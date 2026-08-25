@@ -1,5 +1,7 @@
 'use strict'
 
+const path = require('path')
+
 const {
   buildJsonContentIdentity,
   matchesContentIdentity,
@@ -7,6 +9,11 @@ const {
   stableStringify,
   validateContentIdentity
 } = require('./content-identity.cjs')
+const {
+  digest: actualInstructionDigest,
+  separateEmbeddedEvidence,
+  validateActualInstructionEnvelope
+} = require('./actual-instruction-envelope.cjs')
 
 const SCHEMAS = Object.freeze({
   candidate: 'WorkflowCompletionCandidateV1',
@@ -19,7 +26,9 @@ const SCHEMAS = Object.freeze({
   commitValidation: 'CommitValidationResultV1',
   projection: 'WorkflowCompletionProjectionV1',
   shadow: 'ShadowEvidenceWindowV1',
-  verificationIntent: 'VerificationIntentV1'
+  verificationIntent: 'VerificationIntentV2',
+  verificationIntentV1: 'VerificationIntentV1',
+  validationControlIngress: 'ValidationControlIngressReceiptV1'
 })
 
 const STATUS = new Set(['PASS', 'WARN', 'BLOCK', 'UNVERIFIED', 'N/A'])
@@ -32,6 +41,7 @@ const ROLLOUT_MODES = new Set(['off', 'shadow', 'enforce', 'rolled-back'])
 const VERIFICATION_LEVELS = new Set(['V0', 'V1', 'V2', 'V3'])
 const VERIFICATION_PURPOSES = new Set(['edit-loop', 'delivery', 'boundary', 'full-audit', 'release'])
 const VERIFICATION_RISK_CLASSES = new Set(['normal', 'high', 'release', 'security', 'destructive'])
+const VERIFICATION_REQUESTER_CLASSES = new Set(['ai-hook', 'human-cli', 'trusted-ci', 'release-pipeline'])
 const VERIFICATION_CLAIM_CEILINGS = Object.freeze({
   V0: 'edit-evidence-only',
   V1: 'delivery-scope',
@@ -107,43 +117,201 @@ function requireValid(result, code, message) {
   if (!result.valid) throw new WorkflowCompletionError(code, message, result.errors)
 }
 
-/**
- * Own the semantic verification decision separately from the executable DAG.
- * Risk and review grade may widen V0-V2, but only explicit audit/release
- * authority may create V3.
- */
+function validationProjectRootIdentity(root) {
+  let normalizedRoot = path.resolve(String(root || '')).replace(/\\/g, '/')
+  if (process.platform === 'win32') normalizedRoot = normalizedRoot.toLowerCase()
+  const core = { schemaVersion: 'ProjectRootIdentityV1', normalizedRoot }
+  return Object.freeze({ ...core, digest: digest(core) })
+}
+
+function normalizeValidationControlInstruction(value) {
+  return String(value || '')
+    .normalize('NFKC')
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+function classifyValidationControlInstruction(value) {
+  const normalized = normalizeValidationControlInstruction(value)
+  const compact = normalized.replace(/[。！!]+$/g, '').trim()
+  if (/^(?:先)?(?:暂停|别急|停止|先停一下|pause|stop)(?:\b|下|一下|验证|执行|当前)/i.test(compact) ||
+      /^(?:请)?缩小(?:验证)?范围/i.test(compact)) {
+    return { action: 'revoke', reason: 'user-pause-stop-or-scope-reduction' }
+  }
+  if (/^(?:确认当前验证卡|确认当前\s*budgetcard|确认当前\s*budget\s*card)$/i.test(compact)) {
+    return { action: 'confirm-current-budget', reason: 'exact-current-budget-confirmation' }
+  }
+  return { action: 'none', reason: 'no-validation-control-instruction' }
+}
+
+function validateValidationControlIngressReceipt(receipt, binding = null, options = {}) {
+  const errors = []
+  if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) {
+    return validation(false, ['validation-control-ingress-invalid'])
+  }
+  if (receipt.schemaVersion !== SCHEMAS.validationControlIngress) errors.push('validation-control-ingress-schema-invalid')
+  for (const field of [
+    'envelopeId', 'envelopeDigest', 'sourceMessageDigest', 'hostSessionDigest', 'contextEpoch',
+    'taskRecoveryKey', 'project', 'receiptDigest'
+  ]) {
+    if (!text(receipt[field])) errors.push(`validation-control-ingress-${field}-required`)
+  }
+  for (const field of ['envelopeDigest', 'sourceMessageDigest', 'hostSessionDigest', 'receiptDigest']) {
+    if (!DIGEST.test(String(receipt[field] || ''))) errors.push(`validation-control-ingress-${field}-invalid`)
+  }
+  if (!['confirm', 'auto'].includes(receipt.executionMode)) errors.push('validation-control-ingress-mode-invalid')
+  if (!['none', 'confirm-current-budget', 'auto-authorize', 'revoke'].includes(receipt.action)) errors.push('validation-control-ingress-action-invalid')
+  if (!['none', 'user-confirmation', 'auto'].includes(receipt.authorityKind)) errors.push('validation-control-ingress-authority-kind-invalid')
+  if (receipt.action === 'confirm-current-budget' && receipt.authorityKind !== 'user-confirmation') {
+    errors.push('validation-control-ingress-confirm-authority-invalid')
+  }
+  if (receipt.action === 'auto-authorize') {
+    if (receipt.authorityKind !== 'auto' || !text(receipt.autoAuthorityRef)) errors.push('validation-control-ingress-auto-authority-invalid')
+  } else if (receipt.autoAuthorityRef !== null) errors.push('validation-control-ingress-auto-ref-unexpected')
+  if (receipt.action === 'revoke' && receipt.revocationRequested !== true) errors.push('validation-control-ingress-revocation-invalid')
+  if (receipt.action !== 'revoke' && receipt.revocationRequested !== false) errors.push('validation-control-ingress-revocation-unexpected')
+  if (receipt.authorityCeiling !== 'V2') errors.push('validation-control-ingress-ceiling-invalid')
+  if (!zonedDateTime(receipt.issuedAt) || !zonedDateTime(receipt.expiresAt) ||
+      Date.parse(receipt.expiresAt) <= Date.parse(receipt.issuedAt)) errors.push('validation-control-ingress-time-invalid')
+  const root = receipt.projectRootIdentity
+  if (!root || root.schemaVersion !== 'ProjectRootIdentityV1' || !text(root.normalizedRoot) ||
+      !DIGEST.test(String(root.digest || '')) || root.digest !== digest({ schemaVersion: root.schemaVersion, normalizedRoot: root.normalizedRoot })) {
+    errors.push('validation-control-ingress-project-root-invalid')
+  }
+  const core = without(receipt, ['receiptDigest'])
+  if (DIGEST.test(String(receipt.receiptDigest || '')) && digest(core) !== receipt.receiptDigest) errors.push('validation-control-ingress-digest-mismatch')
+  if (binding) {
+    for (const field of ['hostSessionDigest', 'contextEpoch', 'taskRecoveryKey', 'project']) {
+      if (Object.hasOwn(binding, field) && binding[field] !== receipt[field]) errors.push(`validation-control-ingress-binding-mismatch:${field}`)
+    }
+    if (binding.projectRootIdentity && stableStringify(binding.projectRootIdentity) !== stableStringify(root)) {
+      errors.push('validation-control-ingress-binding-mismatch:projectRootIdentity')
+    }
+  }
+  if (Number.isFinite(options.now) && Date.parse(receipt.expiresAt) <= options.now) errors.push('validation-control-ingress-expired')
+  return validation(errors.length === 0, errors)
+}
+
+function createValidationControlIngressReceipt(input = {}, options = {}) {
+  const envelope = input.actualInstructionEnvelope
+  const envelopeValidation = validateActualInstructionEnvelope(envelope)
+  requireValid(envelopeValidation, 'VALIDATION_CONTROL_ENVELOPE_INVALID', 'validation control requires one valid ActualInstructionEnvelope')
+  if (envelope.authorityScope !== 'trusted-host-workflow-ingress' || envelope.instructionAuthority !== true) {
+    throw new WorkflowCompletionError('VALIDATION_CONTROL_ENVELOPE_UNTRUSTED', 'validation control requires the current trusted host user-instruction event')
+  }
+  const separated = separateEmbeddedEvidence(input.actualInstruction)
+  if (actualInstructionDigest(separated.instruction) !== envelope.actualInstructionDigest) {
+    throw new WorkflowCompletionError('VALIDATION_CONTROL_INSTRUCTION_MISMATCH', 'validation control text does not match the current ActualInstructionEnvelope')
+  }
+  const classified = classifyValidationControlInstruction(separated.instruction)
+  const executionMode = input.executionMode === 'auto' ? 'auto' : 'confirm'
+  const action = classified.action === 'revoke'
+    ? 'revoke'
+    : (classified.action === 'confirm-current-budget'
+        ? 'confirm-current-budget'
+        : (executionMode === 'auto' ? 'auto-authorize' : 'none'))
+  const authorityKind = action === 'confirm-current-budget'
+    ? 'user-confirmation'
+    : (action === 'auto-authorize' ? 'auto' : 'none')
+  const projectRoot = input.projectRootIdentity || validationProjectRootIdentity(input.projectRoot)
+  const issuedAt = input.issuedAt || envelope.issuedAt
+  const requestedTtlMs = Number.isFinite(options.ttlMs) ? Math.max(1000, options.ttlMs) : 15 * 60 * 1000
+  const expiresAtMs = Math.min(Date.parse(envelope.expiresAt), Date.parse(issuedAt) + requestedTtlMs)
+  const autoAuthorityRef = authorityKind === 'auto'
+    ? `validation-auto:${digest({
+        schemaVersion: 'ValidationAutoAuthorityRefV1',
+        envelopeDigest: envelope.envelopeDigest,
+        hostSessionDigest: envelope.hostSessionDigest,
+        contextEpoch: envelope.contextEpoch,
+        taskRecoveryKey: String(input.taskRecoveryKey || ''),
+        project: String(input.project || ''),
+        projectRootIdentity: projectRoot,
+        authorityCeiling: 'V2'
+      })}`
+    : null
+  const core = {
+    schemaVersion: SCHEMAS.validationControlIngress,
+    envelopeId: envelope.envelopeId,
+    envelopeDigest: envelope.envelopeDigest,
+    sourceMessageDigest: envelope.actualInstructionDigest,
+    hostSessionDigest: envelope.hostSessionDigest,
+    contextEpoch: String(envelope.contextEpoch || ''),
+    taskRecoveryKey: String(input.taskRecoveryKey || ''),
+    project: String(input.project || ''),
+    projectRootIdentity: projectRoot,
+    executionMode,
+    action,
+    authorityKind,
+    authorityCeiling: 'V2',
+    autoAuthorityRef,
+    revocationRequested: action === 'revoke',
+    reason: classified.reason,
+    issuedAt,
+    expiresAt: new Date(expiresAtMs).toISOString()
+  }
+  const receipt = Object.freeze({ ...core, receiptDigest: digest(core) })
+  const receiptValidation = validateValidationControlIngressReceipt(receipt)
+  requireValid(receiptValidation, 'VALIDATION_CONTROL_RECEIPT_INVALID', 'validation control ingress receipt is invalid')
+  return receipt
+}
+
+function applyValidationControlIngress(state, receipt) {
+  const receiptValidation = validateValidationControlIngressReceipt(receipt)
+  requireValid(receiptValidation, 'VALIDATION_CONTROL_RECEIPT_INVALID', 'validation control ingress receipt is invalid')
+  state.validationControlIngress = receipt
+  if (receipt.action !== 'revoke') return state
+  const current = state.validationExecution || {}
+  const continuation = current.continuationAuthorization
+  state.validationExecution = {
+    ...current,
+    schemaVersion: current.schemaVersion || 'ValidationExecutionTaskStateV1',
+    revocationEpoch: Number(current.revocationEpoch || 0) + 1,
+    pendingBudgetCard: null,
+    currentLease: null,
+    runnerState: null,
+    continuationAuthorization: continuation?.schemaVersion === 'ValidationContinuationAuthorizationV1' &&
+        ['prepared', 'leased'].includes(continuation.status)
+      ? { ...continuation, status: 'revoked' }
+      : continuation || null,
+    updatedAt: receipt.issuedAt
+  }
+  return state
+}
+
+/** Own the requested evidence boundary without granting execution authority. */
 function createVerificationIntent(input = {}) {
-  const level = String(input.level || '')
-  const purpose = String(input.purpose || '')
+  const requestedLevel = String(input.requestedLevel || input.level || '')
+  const requestedPurpose = String(input.requestedPurpose || input.purpose || '')
   const affectedBoundaries = sortedUnique((input.affectedBoundaries || []).map(String))
-  const releaseAuthorized = input.releaseAuthorized === true
-  const explicitFullAudit = input.explicitFullAudit === true
   const riskClass = String(input.riskClass || 'normal')
-  const authoritySource = String(input.authoritySource || '')
-  const claimCeiling = purpose === 'release'
+  const requesterClass = String(input.requesterClass || 'human-cli')
+  const requestSourceRef = String(input.requestSourceRef || input.authoritySource || '')
+  const project = String(input.project || '')
+  const taskRecoveryKey = input.taskRecoveryKey == null ? null : String(input.taskRecoveryKey)
+  const contextEpoch = input.contextEpoch == null ? null : String(input.contextEpoch)
+  const candidateId = String(input.candidateId || '')
+  const changedScopeDigest = String(input.changedScopeDigest || '')
+  const claimCeiling = requestedPurpose === 'release'
     ? 'release-candidate'
-    : VERIFICATION_CLAIM_CEILINGS[level]
+    : VERIFICATION_CLAIM_CEILINGS[requestedLevel]
   const semanticIntent = {
     schemaVersion: SCHEMAS.verificationIntent,
-    level,
-    purpose,
+    requesterClass,
+    requestedLevel,
+    requestedPurpose,
     affectedBoundaries,
     riskClass,
-    releaseAuthorized,
-    explicitFullAudit,
-    authoritySource,
+    requestSourceRef,
+    project,
+    taskRecoveryKey,
+    contextEpoch,
+    candidateId,
+    changedScopeDigest,
     claimCeiling
   }
   const intent = Object.freeze({
     ...semanticIntent,
-    authorizationDigest: digest({
-      level,
-      purpose,
-      releaseAuthorized,
-      explicitFullAudit,
-      authoritySource
-    }),
-    intentDigest: digest(semanticIntent)
+    requestDigest: digest(semanticIntent)
   })
   requireValid(validateVerificationIntent(intent), 'VERIFICATION_INTENT_INVALID', 'verification intent is invalid')
   return intent
@@ -154,30 +322,57 @@ function validateVerificationIntent(intent) {
   if (!intent || typeof intent !== 'object' || Array.isArray(intent)) {
     return validation(false, ['verification-intent-invalid'])
   }
+  if (intent.schemaVersion === SCHEMAS.verificationIntentV1) return validateVerificationIntentV1(intent)
   if (intent.schemaVersion !== SCHEMAS.verificationIntent) errors.push('verification-intent-schema-invalid')
-  if (!VERIFICATION_LEVELS.has(intent.level)) errors.push('verification-level-invalid')
-  if (!VERIFICATION_PURPOSES.has(intent.purpose)) errors.push('verification-purpose-invalid')
+  if (!VERIFICATION_REQUESTER_CLASSES.has(intent.requesterClass)) errors.push('verification-requester-class-invalid')
+  if (!VERIFICATION_LEVELS.has(intent.requestedLevel)) errors.push('verification-level-invalid')
+  if (!VERIFICATION_PURPOSES.has(intent.requestedPurpose)) errors.push('verification-purpose-invalid')
   if (!uniqueTextList(intent.affectedBoundaries || [], { maxItems: 32 })) errors.push('verification-boundaries-invalid')
   if (!VERIFICATION_RISK_CLASSES.has(intent.riskClass)) errors.push('verification-risk-invalid')
-  if (typeof intent.releaseAuthorized !== 'boolean') errors.push('verification-release-authorization-invalid')
-  if (typeof intent.explicitFullAudit !== 'boolean') errors.push('verification-full-audit-authorization-invalid')
-  if (!text(intent.authoritySource)) errors.push('verification-authority-source-required')
-  if (intent.level === 'V3') {
-    if (!['full-audit', 'release'].includes(intent.purpose)) errors.push('verification-v3-purpose-invalid')
-    if (intent.purpose === 'release' && !intent.releaseAuthorized) errors.push('verification-release-authorization-required')
-    if (intent.purpose === 'full-audit' && !intent.explicitFullAudit) errors.push('verification-full-audit-authorization-required')
-  } else if (intent.purpose === 'release' || intent.explicitFullAudit) {
-    errors.push('verification-v3-authority-without-v3')
+  if (!text(intent.requestSourceRef) || intent.requestSourceRef.length > 1024) errors.push('verification-request-source-required')
+  if (!text(intent.project) || intent.project.length > 255) errors.push('verification-project-required')
+  if (intent.taskRecoveryKey !== null && (!text(intent.taskRecoveryKey) || intent.taskRecoveryKey.length > 256)) errors.push('verification-task-key-invalid')
+  if (intent.contextEpoch !== null && (!text(intent.contextEpoch) || intent.contextEpoch.length > 256)) errors.push('verification-context-epoch-invalid')
+  if (!text(intent.candidateId) || intent.candidateId.length > 256) errors.push('verification-candidate-invalid')
+  if (!DIGEST.test(intent.changedScopeDigest || '')) errors.push('verification-changed-scope-digest-invalid')
+  if (intent.requestedLevel === 'V3' && !['full-audit', 'release'].includes(intent.requestedPurpose)) {
+    errors.push('verification-v3-purpose-invalid')
+  } else if (intent.requestedLevel !== 'V3' && ['full-audit', 'release'].includes(intent.requestedPurpose)) {
+    errors.push('verification-v3-purpose-without-v3')
   }
-  const expectedCeiling = intent.purpose === 'release'
+  const expectedCeiling = intent.requestedPurpose === 'release'
     ? 'release-candidate'
-    : VERIFICATION_CLAIM_CEILINGS[intent.level]
+    : VERIFICATION_CLAIM_CEILINGS[intent.requestedLevel]
   if (intent.claimCeiling !== expectedCeiling) errors.push('verification-claim-ceiling-invalid')
-  if (!DIGEST.test(intent.authorizationDigest || '')) errors.push('verification-authorization-digest-invalid')
-  if (!DIGEST.test(intent.intentDigest || '')) errors.push('verification-intent-digest-invalid')
+  if (!DIGEST.test(intent.requestDigest || '')) errors.push('verification-request-digest-invalid')
   if (errors.length === 0) {
-    const semanticIntent = without(intent, ['authorizationDigest', 'intentDigest'])
-    if (digest(semanticIntent) !== intent.intentDigest) errors.push('verification-intent-digest-mismatch')
+    const semanticIntent = without(intent, ['requestDigest'])
+    if (digest(semanticIntent) !== intent.requestDigest) errors.push('verification-request-digest-mismatch')
+  }
+  return validation(errors.length === 0, errors)
+}
+
+/** Historical receipts remain readable, but their booleans never become execution authority. */
+function validateVerificationIntentV1(intent) {
+  const errors = []
+  if (intent?.schemaVersion !== SCHEMAS.verificationIntentV1) errors.push('verification-intent-schema-invalid')
+  if (!VERIFICATION_LEVELS.has(intent?.level)) errors.push('verification-level-invalid')
+  if (!VERIFICATION_PURPOSES.has(intent?.purpose)) errors.push('verification-purpose-invalid')
+  if (!uniqueTextList(intent?.affectedBoundaries || [], { maxItems: 32 })) errors.push('verification-boundaries-invalid')
+  if (!VERIFICATION_RISK_CLASSES.has(intent?.riskClass)) errors.push('verification-risk-invalid')
+  if (typeof intent?.releaseAuthorized !== 'boolean') errors.push('verification-release-authorization-invalid')
+  if (typeof intent?.explicitFullAudit !== 'boolean') errors.push('verification-full-audit-authorization-invalid')
+  if (!text(intent?.authoritySource)) errors.push('verification-authority-source-required')
+  const expectedCeiling = intent?.purpose === 'release'
+    ? 'release-candidate'
+    : VERIFICATION_CLAIM_CEILINGS[intent?.level]
+  if (intent?.claimCeiling !== expectedCeiling) errors.push('verification-claim-ceiling-invalid')
+  if (!DIGEST.test(intent?.authorizationDigest || '')) errors.push('verification-authorization-digest-invalid')
+  if (!DIGEST.test(intent?.intentDigest || '')) errors.push('verification-intent-digest-invalid')
+  if (errors.length === 0) {
+    if (digest(without(intent, ['authorizationDigest', 'intentDigest'])) !== intent.intentDigest) {
+      errors.push('verification-intent-digest-mismatch')
+    }
     const expectedAuthorization = digest({
       level: intent.level,
       purpose: intent.purpose,
@@ -893,7 +1088,10 @@ module.exports = {
   VERIFICATION_CLAIM_CEILINGS,
   VERIFICATION_LEVELS,
   VERIFICATION_PURPOSES,
+  VERIFICATION_REQUESTER_CLASSES,
   WorkflowCompletionError,
+  applyValidationControlIngress,
+  classifyValidationControlInstruction,
   createCommitValidationResult,
   createRiskAcceptanceReceipt,
   createWorkflowCompletionCandidate,
@@ -901,6 +1099,7 @@ module.exports = {
   createWorkflowCompletionPlan,
   createWorkflowEvidenceReceipt,
   createVerificationIntent,
+  createValidationControlIngressReceipt,
   decisionSort,
   evaluateReceiptFreshness,
   evaluateShadowEvidenceWindow,
@@ -913,5 +1112,8 @@ module.exports = {
   validateWorkflowCompletionPlan,
   validateWorkflowCompletionSnapshot,
   validateWorkflowEvidenceReceipt,
-  validateVerificationIntent
+  validateVerificationIntent,
+  validateVerificationIntentV1,
+  validateValidationControlIngressReceipt,
+  validationProjectRootIdentity
 }

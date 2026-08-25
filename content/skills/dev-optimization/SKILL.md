@@ -20,15 +20,15 @@ description: 性能优化子类型规范 — 基准测试前置 + autocannon 压
 
 ## 工具规范
 
-**默认工具**：`autocannon`（全局安装：`npm i -g autocannon`）
+**默认候选工具**：`autocannon`。解析顺序固定为项目既有压测脚本 → 项目已安装的本地依赖 → 经用户确认的隔离临时工具；缺失时先报告替代方案。`npm i -g autocannon` 或任何全局安装会修改用户环境，必须单独说明目标、影响、恢复方式并取得当前明确授权，不能由 optimization 路由、Auto、Profile 或工具缺失隐式授权。
 
 ```bash
 # 基线测量
-autocannon -c 100 -d 30 -j http://localhost:3000/api/target > baseline.json
+npx --no-install autocannon -c 100 -d 30 -j http://localhost:3000/api/target > baseline.json
 
 # 优化后对比
-autocannon -c 100 -d 30 -j http://localhost:3000/api/target > optimized.json
-npx autocannon-compare baseline.json optimized.json
+npx --no-install autocannon -c 100 -d 30 -j http://localhost:3000/api/target > optimized.json
+npx --no-install autocannon-compare baseline.json optimized.json
 ```
 
 ## CP 流程

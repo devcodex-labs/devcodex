@@ -494,6 +494,34 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.match(duplicateWarningBeforeBootstrap.systemMessage || '', /progressive-skill-route/i)
 
   cleanState()
+  const codexIngressSession = 'codex-workflow-ingress-authority'
+  const codexIngressEnv = { DEVCODEX_HOST_PLATFORM: 'codex' }
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: codexIngressSession,
+    prompt: 'Codex mutation requires a resolved workflow route.'
+  }, TEMP_ROOT, codexIngressEnv)
+  for (const payload of [
+    {
+      tool_name: 'apply_patch',
+      tool_input: { input: '*** Begin Patch\n*** Update File: README.md\n*** End Patch' }
+    },
+    {
+      tool_name: 'shell_command',
+      tool_input: { command: 'Get-Content README.md; sc README.md "fixture"' }
+    }
+  ]) {
+    const blockedCodexMutation = run({
+      hookEventName: 'PreToolUse',
+      session_id: codexIngressSession,
+      ...payload
+    }, TEMP_ROOT, codexIngressEnv)
+    assert.strictEqual(blockedCodexMutation.hookSpecificOutput?.permissionDecision, 'deny')
+    assert.strictEqual(blockedCodexMutation.hookSpecificOutput?.devcodexCode, 'WORKFLOW_ROUTE_UNRESOLVED')
+    assert.match(blockedCodexMutation.systemMessage || '', /Workflow ingress authority unavailable/i)
+  }
+
+  cleanState()
   run({
     hookEventName: 'UserPromptSubmit',
     prompt: 'strict bootstrap gate test'
@@ -784,12 +812,22 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CLAUDE_CODE_VERSION: 'test' })
   assert.strictEqual(blockedMemoryWrite.hookSpecificOutput.permissionDecision, 'deny')
   assert.strictEqual(readLegacyState().contextAcquisition.inFlight.length, 1)
-  const blockedSpoof = run({
-    hookEventName: 'PreToolUse',
-    tool_name: 'mcp__evil__profile_context_plan',
-    tool_input: { contextEpoch: allowlistState.contextAcquisition.contextEpoch }
-  }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CLAUDE_CODE_VERSION: 'test' })
-  assert.strictEqual(blockedSpoof.hookSpecificOutput.permissionDecision, 'deny')
+  for (const spoofedTool of [
+    'mcp__evil__profile_context_plan',
+    'mcp__evil__memory_status',
+    'mcp__evil__skill_route'
+  ]) {
+    const blockedSpoof = run({
+      hookEventName: 'PreToolUse',
+      tool_name: spoofedTool,
+      tool_input: { contextEpoch: allowlistState.contextAcquisition.contextEpoch }
+    }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CLAUDE_CODE_VERSION: 'test' })
+    assert.strictEqual(
+      blockedSpoof.hookSpecificOutput?.permissionDecision,
+      'deny',
+      `${spoofedTool}: ${JSON.stringify(blockedSpoof)}`
+    )
+  }
   const blockedTraversal = run({
     hookEventName: 'PreToolUse',
     tool_name: 'devcodex-profile/profile_load',
@@ -1332,9 +1370,35 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/chat-drift.js\n*** End Patch' }
   })
-  const chatDriftState = readLegacyState()
+  let chatDriftState = readLegacyState()
+  assert.strictEqual(
+    chatDriftState.contextAcquisition.receipt.status,
+    'relevant-complete',
+    'a planned or blocked mutation that has not touched a selected source must not invalidate observed context'
+  )
+  assert.strictEqual(chatDriftState.contextAcquisition.replanCount, 0)
+  const selectedSourcePath = chatDriftState.contextAcquisition.plan.selectedSources
+    .filter(source => source.kind !== 'memory')
+    .flatMap(source => source.sourceRefs || [])
+    .find(ref => ref.exists === true)?.path
+  assert(selectedSourcePath, 'fixture must expose one selected source path for observed mutation drift')
+  const selectedSourceStat = fs.statSync(selectedSourcePath)
+  const selectedSourceContent = fs.readFileSync(selectedSourcePath, 'utf8')
+  fs.writeFileSync(selectedSourcePath, `${selectedSourceContent}\nobserved-context-source-drift\n`, 'utf8')
+  run({
+    hookEventName: 'PostToolUse',
+    tool_use_id: 'chat-selected-source-mutation',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: `*** Begin Patch\n*** Update File: ${selectedSourcePath}\n*** End Patch`
+    },
+    success: true
+  })
+  chatDriftState = readLegacyState()
   assert.strictEqual(chatDriftState.contextAcquisition.receipt.status, 'stale')
   assert.strictEqual(chatDriftState.contextAcquisition.replanCount, 1)
+  fs.writeFileSync(selectedSourcePath, selectedSourceContent, 'utf8')
+  fs.utimesSync(selectedSourcePath, selectedSourceStat.atime, selectedSourceStat.mtime)
 
   cleanState()
   run({ hookEventName: 'UserPromptSubmit', prompt: 'compact invalidates context receipt' })
@@ -1500,11 +1564,19 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.strictEqual(workspaceLayoutState.activeScope, 'project')
   assert.strictEqual(workspaceLayoutState.mode, 'dev')
   assert.strictEqual(workspaceLayoutState.stickyProject.project, 'devcodex')
-  assert.strictEqual(workspaceLayoutState.stickyProject.schemaVersion, 'ProjectTargetLeaseV1')
+  assert.strictEqual(workspaceLayoutState.stickyProject.schemaVersion, 'ProjectTargetLeaseV2')
   assert.match(workspaceLayoutState.stickyProject.leaseId, /^project-target-lease-[a-f0-9]{24}$/)
+  assert.match(workspaceLayoutState.stickyProject.leaseDigest, /^[a-f0-9]{64}$/)
   assert.match(workspaceLayoutState.stickyProject.targetDigest, /^[a-f0-9]{64}$/)
+  assert.match(workspaceLayoutState.stickyProject.rootIdentityDigest, /^[a-f0-9]{64}$/)
   assert.match(workspaceLayoutState.stickyProject.layoutIdentity, /^[a-f0-9]{64}$/)
-  assert.strictEqual(workspaceLayoutState.stickyProject.observedSessionRef, 'sticky-session')
+  assert.strictEqual(workspaceLayoutState.stickyProject.authorityKind, 'session')
+  assert.match(workspaceLayoutState.stickyProject.authorityDigest, /^[a-f0-9]{64}$/)
+  assert.match(workspaceLayoutState.stickyProject.contextEpoch, /^ctx-/)
+  assert.match(workspaceLayoutState.stickyProject.contextBindingDigest, /^[a-f0-9]{64}$/)
+  assert.strictEqual(workspaceLayoutState.stickyProject.routeRevision, 'pending')
+  assert.strictEqual(workspaceLayoutState.stickyProject.observedSessionRef, '')
+  assert.strictEqual(workspaceLayoutState.stickyProject.sessionKey, '')
   assert.ok(workspaceLayoutState.stickyProject.expiresAtMs > workspaceLayoutState.stickyProject.validatedAtMs)
   assert.strictEqual(workspaceLayoutState.activeProjectSource, 'prompt')
   assert.ok(fs.existsSync(getLayoutStateFile('devcodex')))
@@ -1595,11 +1667,10 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     session_id: 'new-session',
     prompt: '继续'
   })
-  assert.ok(!/multi-project-workspace/.test(newSessionFollowup.systemMessage || ''))
+  assert.match(newSessionFollowup.systemMessage || '', /multi-project-workspace/)
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
-  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex')
-  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'sticky')
-  assert.strictEqual(workspaceLayoutState.stickyProject.observedSessionRef, 'new-session')
+  assert.strictEqual(workspaceLayoutState.activeProject, '')
+  assert.match(workspaceLayoutState.stickyProject.invalidationReason, /session-or-turn-drift/)
 
   cleanLayoutMultiProjectState()
   run({
@@ -1630,11 +1701,10 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     hookEventName: 'UserPromptSubmit',
     prompt: '继续'
   })
-  assert.ok(!/multi-project-workspace/.test(noSessionFollowup.systemMessage || ''))
+  assert.match(noSessionFollowup.systemMessage || '', /multi-project-workspace/)
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
-  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex')
-  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'sticky')
-  assert.strictEqual(workspaceLayoutState.stickyProject.observedSessionRef, '')
+  assert.strictEqual(workspaceLayoutState.activeProject, '')
+  assert.match(workspaceLayoutState.stickyProject.invalidationReason, /turn-boundary/)
 
   cleanLayoutMultiProjectState()
   run({
@@ -1732,7 +1802,11 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     }
   }, layoutProjectRoot)
   assert.strictEqual(misplacedTmpWrite.continue, true)
-  assert.match(misplacedTmpWrite.systemMessage || '', /Auto v1\.1/)
+  assert.match(
+    misplacedTmpWrite.systemMessage || '',
+    /Formal artifact mutation denied/,
+    'auto mode must not bypass the layered artifact registry for an unregistered .devcodex/.tmp target'
+  )
 
   cleanNestedLayoutMultiProjectState()
   const nestedLeafProject = run({

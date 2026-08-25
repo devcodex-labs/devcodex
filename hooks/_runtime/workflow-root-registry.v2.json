@@ -1,0 +1,1098 @@
+{
+  "schemaVersion": "WorkflowRootRegistryV2",
+  "environmentModes": [
+    "dev",
+    "prod"
+  ],
+  "workflowPolicies": {
+    "analyze": {
+      "mutationPolicy": "forbidden",
+      "cpPolicy": {
+        "cp1": "not-applicable",
+        "cp2": "not-applicable",
+        "cp3": "not-applicable",
+        "cp3Rule": "read-only convergence workflow; requested mutation requires rerouting"
+      },
+      "artifactPolicy": {
+        "primaryArtifacts": [
+          "analysis-report",
+          "convergence-evidence"
+        ],
+        "writePolicy": "forbidden"
+      },
+      "verificationPolicy": {
+        "mode": "read-only",
+        "executionAuthorityRequired": false
+      },
+      "resumePolicy": {
+        "mode": "persist-round-trip",
+        "terminalAction": "unbind"
+      }
+    },
+    "audit": {
+      "mutationPolicy": "forbidden",
+      "cpPolicy": {
+        "cp1": "not-applicable",
+        "cp2": "not-applicable",
+        "cp3": "not-applicable",
+        "cp3Rule": "read-only review; findings are recorded and handed to an independently authorized repair workflow"
+      },
+      "artifactPolicy": {
+        "primaryArtifacts": [
+          "audit-state",
+          "review-checklist",
+          "audit-report"
+        ],
+        "writePolicy": "forbidden"
+      },
+      "verificationPolicy": {
+        "mode": "read-only",
+        "executionAuthorityRequired": false
+      },
+      "resumePolicy": {
+        "mode": "persist-round-trip",
+        "terminalAction": "unbind"
+      }
+    },
+    "chat": {
+      "mutationPolicy": "forbidden",
+      "cpPolicy": {
+        "cp1": "not-applicable",
+        "cp2": "not-applicable",
+        "cp3": "not-applicable",
+        "cp3Rule": "question-answer fast path"
+      },
+      "artifactPolicy": {
+        "primaryArtifacts": [],
+        "writePolicy": "forbidden"
+      },
+      "verificationPolicy": {
+        "mode": "read-only",
+        "executionAuthorityRequired": false
+      },
+      "resumePolicy": {
+        "mode": "persist-round-trip",
+        "terminalAction": "unbind"
+      }
+    },
+    "dev": {
+      "mutationPolicy": "allowed-after-confirmation",
+      "cpPolicy": {
+        "cp1": "required",
+        "cp2": "required",
+        "cp3": "conditional",
+        "cp3Rule": "required when an implementation plan is material; docs, init, plan-review and low-risk bounded changes may record N/A with subtype evidence"
+      },
+      "artifactPolicy": {
+        "primaryArtifacts": [
+          "requirements",
+          "technical-design",
+          "implementation-plan",
+          "report"
+        ],
+        "writePolicy": "allowed-after-confirmation"
+      },
+      "verificationPolicy": {
+        "mode": "affected-v0-v2",
+        "executionAuthorityRequired": true
+      },
+      "resumePolicy": {
+        "mode": "persist-round-trip",
+        "terminalAction": "unbind"
+      }
+    },
+    "fix": {
+      "mutationPolicy": "allowed-after-confirmation",
+      "cpPolicy": {
+        "cp1": "required",
+        "cp2": "required",
+        "cp3": "conditional",
+        "cp3Rule": "required for multi-file, high-risk or planned repairs; bounded low-risk fixes may record N/A with evidence"
+      },
+      "artifactPolicy": {
+        "primaryArtifacts": [
+          "bug-overview",
+          "problem-analysis",
+          "repair-plan",
+          "report"
+        ],
+        "writePolicy": "allowed-after-confirmation"
+      },
+      "verificationPolicy": {
+        "mode": "affected-v0-v2",
+        "executionAuthorityRequired": true
+      },
+      "resumePolicy": {
+        "mode": "persist-round-trip",
+        "terminalAction": "unbind"
+      }
+    },
+    "other": {
+      "mutationPolicy": "forbidden",
+      "cpPolicy": {
+        "cp1": "not-applicable",
+        "cp2": "not-applicable",
+        "cp3": "not-applicable",
+        "cp3Rule": "planning fallback only; explicit file mutation belongs to dev, fix or self-fix"
+      },
+      "artifactPolicy": {
+        "primaryArtifacts": [
+          "plan"
+        ],
+        "writePolicy": "forbidden"
+      },
+      "verificationPolicy": {
+        "mode": "read-only",
+        "executionAuthorityRequired": false
+      },
+      "resumePolicy": {
+        "mode": "persist-round-trip",
+        "terminalAction": "unbind"
+      }
+    },
+    "resume": {
+      "mutationPolicy": "inherited",
+      "cpPolicy": {
+        "cp1": "inherited",
+        "cp2": "inherited",
+        "cp3": "inherited",
+        "cp3Rule": "rehydrate file truth, then return to the original workflow and stage"
+      },
+      "artifactPolicy": {
+        "primaryArtifacts": [
+          "context-handoff"
+        ],
+        "writePolicy": "inherited"
+      },
+      "verificationPolicy": {
+        "mode": "inherited-after-rehydrate",
+        "executionAuthorityRequired": true
+      },
+      "resumePolicy": {
+        "mode": "rehydrate-return",
+        "terminalAction": "unbind"
+      }
+    },
+    "self-fix": {
+      "mutationPolicy": "allowed-after-confirmation",
+      "cpPolicy": {
+        "cp1": "required",
+        "cp2": "required",
+        "cp3": "conditional",
+        "cp3Rule": "mechanical A1-A5 repairs may simplify; semantic control-plane changes route to the full dev plan"
+      },
+      "artifactPolicy": {
+        "primaryArtifacts": [
+          "problem-confirmation",
+          "technical-design",
+          "report"
+        ],
+        "writePolicy": "allowed-after-confirmation"
+      },
+      "verificationPolicy": {
+        "mode": "affected-v0-v2",
+        "executionAuthorityRequired": true
+      },
+      "resumePolicy": {
+        "mode": "persist-round-trip",
+        "terminalAction": "unbind"
+      }
+    }
+  },
+  "baseBundles": {
+    "chat": [],
+    "resume": [
+      {
+        "skillId": "intent",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "compliance",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "user-visible-output-contract",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "memory",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      }
+    ],
+    "analyze": [
+      {
+        "skillId": "intent",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "compliance",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "user-visible-output-contract",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "report",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      },
+      {
+        "skillId": "memory",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      }
+    ],
+    "audit": [
+      {
+        "skillId": "intent",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "compliance",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "user-visible-output-contract",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "report",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      },
+      {
+        "skillId": "memory",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      }
+    ],
+    "dev": [
+      {
+        "skillId": "intent",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "compliance",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "user-visible-output-contract",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "report",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      },
+      {
+        "skillId": "memory",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      }
+    ],
+    "fix": [
+      {
+        "skillId": "intent",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "compliance",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "user-visible-output-contract",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "report",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      },
+      {
+        "skillId": "memory",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      }
+    ],
+    "self-fix": [
+      {
+        "skillId": "intent",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "compliance",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "user-visible-output-contract",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "report",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      },
+      {
+        "skillId": "memory",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      }
+    ],
+    "other": [
+      {
+        "skillId": "intent",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "compliance",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "user-visible-output-contract",
+        "budgetClass": "hard",
+        "loadStage": "entry"
+      },
+      {
+        "skillId": "report",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      },
+      {
+        "skillId": "memory",
+        "budgetClass": "hard",
+        "loadStage": "closeout"
+      }
+    ]
+  },
+  "routes": [
+    {
+      "routeKey": "dev.default",
+      "topIntent": "dev",
+      "subtype": "default",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "dev-default"
+      },
+      "roots": [
+        {
+          "skillId": "dev-default",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "cp-gate",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "dev-plan-review",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "dev",
+      "migration": null
+    },
+    {
+      "routeKey": "dev.refactor",
+      "topIntent": "dev",
+      "subtype": "refactor",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "dev-refactor"
+      },
+      "roots": [
+        {
+          "skillId": "dev-refactor",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "cp-gate",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "dev-plan-review",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "dev",
+      "migration": null
+    },
+    {
+      "routeKey": "dev.database",
+      "topIntent": "dev",
+      "subtype": "database",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "dev-database"
+      },
+      "roots": [
+        {
+          "skillId": "dev-database",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "cp-gate",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "dev-plan-review",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "dev",
+      "migration": null
+    },
+    {
+      "routeKey": "dev.init",
+      "topIntent": "dev",
+      "subtype": "init",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "dev-init"
+      },
+      "roots": [
+        {
+          "skillId": "dev-init",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "dev",
+      "migration": null
+    },
+    {
+      "routeKey": "dev.optimization",
+      "topIntent": "dev",
+      "subtype": "optimization",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "dev-optimization"
+      },
+      "roots": [
+        {
+          "skillId": "dev-optimization",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "cp-gate",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "dev-plan-review",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "dev",
+      "migration": null
+    },
+    {
+      "routeKey": "dev.scenario-test",
+      "topIntent": "dev",
+      "subtype": "scenario-test",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "dev-scenario-test"
+      },
+      "roots": [
+        {
+          "skillId": "dev-scenario-test",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "cp-gate",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "dev",
+      "migration": null
+    },
+    {
+      "routeKey": "dev.docs",
+      "topIntent": "dev",
+      "subtype": "docs",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "dev-docs"
+      },
+      "roots": [
+        {
+          "skillId": "dev-docs",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "cp-gate",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "dev",
+      "migration": null
+    },
+    {
+      "routeKey": "dev.plan-review",
+      "topIntent": "dev",
+      "subtype": "plan-review",
+      "stage": "internal-step",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "dev-plan-review"
+      },
+      "roots": [
+        {
+          "skillId": "audit-common",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "dev-plan-review",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "dev",
+      "migration": null
+    },
+    {
+      "routeKey": "fix.default",
+      "topIntent": "fix",
+      "subtype": "default",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "fix-default"
+      },
+      "roots": [
+        {
+          "skillId": "fix-default",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "cp-gate",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "fix",
+      "migration": null
+    },
+    {
+      "routeKey": "fix.security",
+      "topIntent": "fix",
+      "subtype": "security",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "fix-security"
+      },
+      "roots": [
+        {
+          "skillId": "fix-security",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "cp-gate",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "fix",
+      "migration": null
+    },
+    {
+      "routeKey": "fix.incident",
+      "topIntent": "fix",
+      "subtype": "incident",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "instruction",
+        "id": "instruction:fix.incident"
+      },
+      "roots": [],
+      "policyRef": "fix",
+      "migration": null
+    },
+    {
+      "routeKey": "audit.规范文件",
+      "topIntent": "audit",
+      "subtype": "规范文件",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "audit-dimensions"
+      },
+      "roots": [
+        {
+          "skillId": "audit-common",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-dimensions",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-execution-guide",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-session",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "audit",
+      "migration": null
+    },
+    {
+      "routeKey": "audit.技术方案",
+      "topIntent": "audit",
+      "subtype": "技术方案",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "audit-tech-design"
+      },
+      "roots": [
+        {
+          "skillId": "audit-common",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-tech-design",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-session",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "audit",
+      "migration": null
+    },
+    {
+      "routeKey": "audit.需求文档",
+      "topIntent": "audit",
+      "subtype": "需求文档",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "audit-requirements"
+      },
+      "roots": [
+        {
+          "skillId": "audit-common",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-requirements",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-session",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "audit",
+      "migration": null
+    },
+    {
+      "routeKey": "audit.项目工程",
+      "topIntent": "audit",
+      "subtype": "项目工程",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "audit-project"
+      },
+      "roots": [
+        {
+          "skillId": "audit-common",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-project",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-session",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "audit",
+      "migration": null
+    },
+    {
+      "routeKey": "audit.报告",
+      "topIntent": "audit",
+      "subtype": "报告",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "audit-report"
+      },
+      "roots": [
+        {
+          "skillId": "audit-common",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-report",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-session",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "audit",
+      "migration": null
+    },
+    {
+      "routeKey": "audit.通用文档",
+      "topIntent": "audit",
+      "subtype": "通用文档",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "audit-document"
+      },
+      "roots": [
+        {
+          "skillId": "audit-common",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-document",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-session",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-user-manual",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-readme",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "audit",
+      "migration": null
+    },
+    {
+      "routeKey": "audit.发布前审查",
+      "topIntent": "audit",
+      "subtype": "发布前审查",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "audit-release"
+      },
+      "roots": [
+        {
+          "skillId": "audit-common",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-release",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        },
+        {
+          "skillId": "audit-session",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "audit",
+      "migration": null
+    },
+    {
+      "routeKey": "analyze.default",
+      "topIntent": "analyze",
+      "subtype": "default",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "instruction",
+        "id": "instruction:analyze.default"
+      },
+      "roots": [],
+      "policyRef": "analyze",
+      "migration": null
+    },
+    {
+      "routeKey": "analyze.research",
+      "topIntent": "analyze",
+      "subtype": "research",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "analyze-research"
+      },
+      "roots": [
+        {
+          "skillId": "analyze-research",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "analyze",
+      "migration": null
+    },
+    {
+      "routeKey": "self-fix",
+      "topIntent": "self-fix",
+      "subtype": "self-fix",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "instruction",
+        "id": "instruction:self-fix"
+      },
+      "roots": [],
+      "policyRef": "self-fix",
+      "migration": null
+    },
+    {
+      "routeKey": "other",
+      "topIntent": "other",
+      "subtype": "other",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "plan"
+      },
+      "roots": [
+        {
+          "skillId": "plan",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "other",
+      "migration": null
+    },
+    {
+      "routeKey": "chat",
+      "topIntent": "chat",
+      "subtype": "chat",
+      "stage": "entry",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "instruction",
+        "id": "instruction:chat"
+      },
+      "roots": [],
+      "policyRef": "chat",
+      "migration": null
+    },
+    {
+      "routeKey": "resume",
+      "topIntent": "resume",
+      "subtype": "resume",
+      "stage": "rehydrate",
+      "disposition": "active",
+      "routeOwner": {
+        "kind": "skill",
+        "id": "memory"
+      },
+      "roots": [
+        {
+          "skillId": "memory",
+          "budgetClass": "hard",
+          "loadStage": "entry"
+        }
+      ],
+      "policyRef": "resume",
+      "migration": null
+    }
+  ],
+  "conditionals": [
+    {
+      "conditionId": "control-plane",
+      "intents": [
+        "dev",
+        "fix",
+        "self-fix"
+      ],
+      "roots": [
+        {
+          "skillId": "spec-governance",
+          "budgetClass": "hard",
+          "loadStage": "execution:control-plane"
+        }
+      ],
+      "activationAuthority": "model",
+      "mutualExclusionGroup": null,
+      "sourceRef": "content:skills/routing/SKILL.md#按需触发-Skills"
+    },
+    {
+      "conditionId": "test-validation",
+      "intents": [
+        "dev",
+        "fix",
+        "self-fix"
+      ],
+      "roots": [
+        {
+          "skillId": "test-router",
+          "budgetClass": "hard",
+          "loadStage": "execution:test-validation"
+        }
+      ],
+      "activationAuthority": "model",
+      "mutualExclusionGroup": null,
+      "sourceRef": "content:skills/routing/SKILL.md#按需触发-Skills"
+    },
+    {
+      "conditionId": "host-contract",
+      "intents": [
+        "dev",
+        "fix",
+        "audit",
+        "analyze"
+      ],
+      "roots": [
+        {
+          "skillId": "host-contract-verification",
+          "budgetClass": "hard",
+          "loadStage": "execution:host-contract"
+        }
+      ],
+      "activationAuthority": "model",
+      "mutualExclusionGroup": null,
+      "sourceRef": "content:skills/routing/SKILL.md#按需触发-Skills"
+    },
+    {
+      "conditionId": "release",
+      "intents": [
+        "dev",
+        "fix",
+        "audit"
+      ],
+      "roots": [
+        {
+          "skillId": "audit-release",
+          "budgetClass": "hard",
+          "loadStage": "execution:release"
+        },
+        {
+          "skillId": "release-verification",
+          "budgetClass": "hard",
+          "loadStage": "execution:release"
+        }
+      ],
+      "activationAuthority": "model",
+      "mutualExclusionGroup": null,
+      "sourceRef": "content:skills/routing/SKILL.md#按需触发-Skills"
+    }
+  ],
+  "sourceEvidence": [
+    {
+      "ref": "content:instructions/01-common.instructions.md",
+      "digest": "1fe02be36b9d922fc37b65417d2a89a31606ac4d848bc0aa5b9c3b324b1d1d4a"
+    },
+    {
+      "ref": "content:skills/routing/SKILL.md",
+      "digest": "73fba2121efb75439fd3326147234693be7dc7c48873de4bc3e207a50a1421f0"
+    },
+    {
+      "ref": "content:skills/routing/workflow-capabilities.json",
+      "digest": "d9eb7086866fe3c3815f673957ed978c1594079261009ac775bf3e1336ad44fd"
+    },
+    {
+      "ref": "scripts/lib/host-parity-scorecard.js",
+      "digest": "4f719c98f0c9116ffdebfae582e1603495adb2649612b2ea18338764267895e4"
+    }
+  ],
+  "sourceDigest": "5b4eba4fc8e9ff7bbcbaf856b924d100f1280ec2e6075987b8a9d281493fbcbf",
+  "routeRevision": "cd86a6045a9fc8cd72b094254bc68bef4210e0bb4639a7c2d755f8368aa3310b",
+  "registryDigest": "27536b11df100ea28cb4487aca4847e066be20acadeb86001f3f241fc353c339"
+}

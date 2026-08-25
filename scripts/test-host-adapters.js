@@ -10,6 +10,7 @@ const grokHooks = require('../grok/hooks/devcodex.json')
 const {
   buildPrompt: buildS15HostPrompt,
   buildHostInvocationEvidence,
+  envelopeMatchesExpected,
   resolveExecutable,
   resolveHostEntrySurface,
   resultSchema: buildS15HostResultSchema,
@@ -24,6 +25,8 @@ const {
 } = require('../hooks/_runtime/compatible-host-adapter-identity.cjs')
 const {
   HOST_VARIANTS,
+  HOST_IDENTITY_SCHEMA,
+  buildHostIdentityV2,
   getLifecycleHostAdapterDigest,
   isCodexDesktopEnvironment,
   normalizeHostVariant
@@ -175,6 +178,74 @@ assert.notStrictEqual(
   getLifecycleHostAdapterDigest('codex', { env: codexCliEnvironment }),
   getLifecycleHostAdapterDigest('codex', { env: codexDesktopEnvironment })
 )
+const codexCliIdentity = buildHostIdentityV2('codex', {
+  env: codexCliEnvironment,
+  eventName: 'UserPromptSubmit',
+  trustedHostEvent: true,
+  policyEnabled: false
+})
+const codexDesktopIdentity = buildHostIdentityV2('codex', {
+  env: codexDesktopCurrentEnvironment,
+  sessionId: 'thread-host-adapter-current',
+  eventName: 'UserPromptSubmit',
+  trustedHostEvent: true,
+  policyEnabled: false
+})
+const nestedCodexCliIdentity = buildHostIdentityV2('codex', {
+  env: codexDesktopCurrentEnvironment,
+  sessionId: 'nested-codex-cli-session',
+  eventName: 'UserPromptSubmit',
+  trustedHostEvent: true,
+  policyEnabled: false
+})
+assert.strictEqual(codexCliIdentity.schemaVersion, HOST_IDENTITY_SCHEMA)
+assert.strictEqual(codexCliIdentity.hostVariant, HOST_VARIANTS.codex)
+assert.strictEqual(codexDesktopIdentity.hostVariant, HOST_VARIANTS.codexdesktop)
+assert.strictEqual(nestedCodexCliIdentity.hostVariant, HOST_VARIANTS.codex)
+assert.strictEqual(codexCliIdentity.claimCeiling, 'event-observed')
+assert.match(codexCliIdentity.identityDigest, /^[a-f0-9]{64}$/)
+const installedOnlyIdentity = buildHostIdentityV2('codex', {
+  installed: true,
+  policyEnabled: true
+})
+assert.strictEqual(installedOnlyIdentity.installed, true)
+assert.strictEqual(installedOnlyIdentity.capability, 'portable-observation')
+assert.strictEqual(installedOnlyIdentity.claimCeiling, 'plan-only')
+const replayIdentity = buildHostIdentityV2('codex', {
+  eventName: 'PreToolUse',
+  trustedHostEvent: true,
+  directReplay: true,
+  policyEnabled: true
+})
+assert.strictEqual(replayIdentity.capability, 'direct-replay-enforcement')
+assert.strictEqual(replayIdentity.claimCeiling, 'hard-enforcement')
+const copilotIdeIdentity = buildHostIdentityV2('copilot', {
+  payload: { devcodexExecutionSurface: 'github-copilot-ide' },
+  eventName: 'PreToolUse',
+  trustedHostEvent: true
+})
+assert.strictEqual(copilotIdeIdentity.hostVariant, HOST_VARIANTS.copilotide)
+assert.strictEqual(copilotIdeIdentity.executionSurface, 'ide')
+const cursorCloudIdentity = buildHostIdentityV2('cursor', {
+  env: { CURSOR_CLOUD_AGENT: '1' },
+  eventName: 'UserPromptSubmit',
+  trustedHostEvent: true,
+  directReplay: true,
+  policyEnabled: true
+})
+assert.strictEqual(cursorCloudIdentity.hostVariant, HOST_VARIANTS.cursorcloud)
+assert.strictEqual(cursorCloudIdentity.capability, 'instruction-only')
+assert.strictEqual(cursorCloudIdentity.claimCeiling, 'instruction-only')
+const grokPassiveIdentity = buildHostIdentityV2('grok', { installed: true })
+const grokTrustedIdentity = buildHostIdentityV2('grok', {
+  eventName: 'PreToolUse',
+  trustedHostEvent: true
+})
+assert.strictEqual(grokPassiveIdentity.hostVariant, HOST_VARIANTS.grokpassive)
+assert.strictEqual(grokPassiveIdentity.claimCeiling, 'instruction-only')
+assert.strictEqual(grokTrustedIdentity.hostVariant, HOST_VARIANTS.grok)
+assert.strictEqual(grokTrustedIdentity.claimCeiling, 'event-observed')
+assert.notStrictEqual(grokPassiveIdentity.identityDigest, grokTrustedIdentity.identityDigest)
 assert.strictEqual(resolveHostEntrySurface('codex'), 'codex-cli-exec')
 const activeCodexPath = 'C:\\Users\\fixture\\OpenAI\\Codex\\bin\\codex.exe'
 assert.deepStrictEqual(resolveExecutable('codex', {
@@ -268,6 +339,22 @@ assert.notStrictEqual(
     hostAdapterDigest: 'a'.repeat(64)
   }).descriptorDigest
 )
+const finalEnvelopeFixture = {
+  state: {
+    decision: { skillId: 'workspace-s15-probe' },
+    plan: { planDigest: 'a'.repeat(64), generation: 1 }
+  }
+}
+assert.strictEqual(envelopeMatchesExpected(finalEnvelopeFixture, {
+  decisionSkillId: 'workspace-s15-probe',
+  planDigest: 'a'.repeat(64),
+  planGeneration: 1
+}), true)
+assert.strictEqual(envelopeMatchesExpected(finalEnvelopeFixture, {
+  decisionSkillId: 'workspace-s15-probe',
+  planDigest: 'b'.repeat(64),
+  planGeneration: 1
+}), false, 'S15 lifecycle fast path must not reuse an initial envelope for a different final plan')
 
 const candidateFixture = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-s15-candidate-'))
 try {
@@ -1877,6 +1964,24 @@ assert.strictEqual(
     enforcementMode: 'safety-only'
   }).detectPlatform({ hook_event_name: 'PreToolUse' }),
   'copilot'
+)
+assert.strictEqual(
+  buildLifecycleHookOutput({
+    env: {
+      CODEX_THREAD_ID: 'desktop-thread-identity',
+      CODEX_INTERNAL_ORIGINATOR_OVERRIDE: 'Codex Desktop',
+      CLAUDE_CODE_VERSION: 'must-not-shadow-current-codex-host'
+    },
+    enforcementMode: 'safety-only'
+  }).detectPlatform({ hook_event_name: 'UserPromptSubmit' }),
+  'codex'
+)
+assert.strictEqual(
+  buildLifecycleHookOutput({
+    env: { CODEX_INTERNAL_ORIGINATOR_OVERRIDE: 'Codex Desktop' },
+    enforcementMode: 'safety-only'
+  }).detectPlatform({ hook_event_name: 'UserPromptSubmit' }),
+  'codex'
 )
 
 console.log('host adapter tests passed six-host mapping, Cursor Beta output contracts, capability ceilings, and completion parity')

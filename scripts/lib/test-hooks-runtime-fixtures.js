@@ -113,6 +113,16 @@ function buildTestHooksRuntimeFixtures({
     // matches fixture paths under clients/claude-code unless a test overrides env.
     const mergedEnv = {
       ...process.env,
+      DEVCODEX_HOST_PLATFORM: '',
+      CODEX_THREAD_ID: '',
+      CODEX_INTERNAL_ORIGINATOR_OVERRIDE: '',
+      CODEX_SANDBOX: '',
+      CODEX_HOME: '',
+      OPENAI_CODEX: '',
+      GEMINI_CLI: '',
+      GEMINI_SESSION_ID: '',
+      CLAUDE_CODE_VERSION: '',
+      CLAUDE_HOOK_COMMAND: '',
       GROK_AGENT: '',
       GROK_HOME: '',
       GROK_SESSION: '',
@@ -120,6 +130,14 @@ function buildTestHooksRuntimeFixtures({
       GROK_BUILD: '',
       XAI_GROK: '',
       XAI_AGENT: '',
+      CURSOR_TRACE_ID: '',
+      CURSOR_USER_ID: '',
+      CURSOR_PROJECT_DIR: '',
+      CURSOR_VERSION: '',
+      IDEA_INITIAL_DIRECTORY: '',
+      JETBRAINS_IDE: '',
+      TERM_PROGRAM: '',
+      VSCODE_PID: '',
       DEVCODEX_TASK_RECOVERY_TEST_MODE: '1',
       DEVCODEX_TASK_RECOVERY_TEST_RESERVE_BYTES: '8192',
       ...env
@@ -174,12 +192,13 @@ function buildTestHooksRuntimeFixtures({
     return getLayoutStateFile(project)
   }
 
-  function runStructuredContext(agent, cwd) {
+  function runStructuredContext(agent, cwd, intent = 'chat', changeTypes = []) {
     const statePath = getRuntimeStatePath(cwd)
     const state = JSON.parse(fs.readFileSync(statePath, 'utf8'))
     const planArgs = {
-      intent: 'chat',
+      intent,
       contextEpoch: state.contextAcquisition.contextEpoch,
+      ...(changeTypes.length ? { changeTypes } : {}),
       ...(state.contextAcquisition.project ? { project: state.contextAcquisition.project } : {})
     }
     const planCallId = `plan-${state.contextAcquisition.contextEpoch}`
@@ -198,7 +217,32 @@ function buildTestHooksRuntimeFixtures({
       tool_response: planResult
     }, cwd)
 
-    const plannedState = JSON.parse(fs.readFileSync(statePath, 'utf8'))
+    let plannedState = JSON.parse(fs.readFileSync(statePath, 'utf8'))
+    const selectedProfileFiles = plannedState.contextAcquisition?.plan?.profile?.selectedFiles || []
+    if (selectedProfileFiles.length) {
+      const profileArgs = {
+        ...(plannedState.contextAcquisition.project ? { project: plannedState.contextAcquisition.project } : {}),
+        files: selectedProfileFiles,
+        maxFiles: selectedProfileFiles.length,
+        maxBytes: 200000
+      }
+      const profileCallId = `profile-${plannedState.contextAcquisition.contextEpoch}`
+      run({
+        hookEventName: 'PreToolUse',
+        tool_use_id: profileCallId,
+        tool_name: 'devcodex-profile/profile_load',
+        tool_input: profileArgs
+      }, cwd)
+      const profileResult = callProfileTool(cwd, 'profile_load', profileArgs)
+      run({
+        hookEventName: 'PostToolUse',
+        tool_use_id: profileCallId,
+        tool_name: 'devcodex-profile/profile_load',
+        tool_input: profileArgs,
+        tool_response: profileResult
+      }, cwd)
+      plannedState = JSON.parse(fs.readFileSync(statePath, 'utf8'))
+    }
     const memoryArgs = {
       agent,
       ...(plannedState.contextAcquisition.project ? { project: plannedState.contextAcquisition.project } : {})
@@ -287,12 +331,12 @@ function buildTestHooksRuntimeFixtures({
     }
   }
 
-  function runBootstrapReads(agent = TEST_AGENT) {
-    runStructuredContext(agent, TEMP_ROOT)
+  function runBootstrapReads(agent = TEST_AGENT, intent = 'chat', changeTypes = []) {
+    runStructuredContext(agent, TEMP_ROOT, intent, changeTypes)
   }
 
-  function runLayoutBootstrapReads(agent = TEST_AGENT, cwd = path.join(TEMP_ROOT, 'chat')) {
-    runStructuredContext(agent, cwd)
+  function runLayoutBootstrapReads(agent = TEST_AGENT, cwd = path.join(TEMP_ROOT, 'chat'), intent = 'chat', changeTypes = []) {
+    runStructuredContext(agent, cwd, intent, changeTypes)
   }
 
   function writeProfileFixture(profileDir) {

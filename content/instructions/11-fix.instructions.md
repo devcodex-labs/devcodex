@@ -2,7 +2,7 @@
 applyTo: "**"
 description: fix 工作流规则，覆盖子类型路由、CP 流程、修复三步扫描、执行期回退与 ECR
 priority: P4
-version: 1.18.1
+version: 1.19.0
 ---
 # 修复工作流规则（11-fix）
 
@@ -37,7 +37,7 @@ version: 1.18.1
 ## CP 流程（C02 约束）
 
 ```text
-CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → [execution-contract/test-router] → 执行 → 三步扫描 → RepairPreventionAssessment → ECR 执行闭环复审 → 完成
+ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransaction（identity + overview + CP pending）或 server-owned SimpleTaskFastPathLease → CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → [execution-contract/test-router] → active owner + 单次 mutation lease → 执行/actual observation → 三步扫描 → RepairPreventionAssessment → ECR/terminal → 完成
 ```
 
 - **CP1**：先确认这是 Bug / 异常 / 已承诺行为与实际不一致，而不是纯新需求或需求变更；报告方输入优先落 `bugs/<问题>/00-问题概况.md`，AI / 研发据此输出 `01-问题确认.md` 或等价问题分析报告（根因 + 影响范围），并前置平台工程判断：消费者范围、共享契约边界、模块职责、维护成本和非目标；模块化只在真实复用者、演进边界或跨模块共享契约存在时成立，用户确认
@@ -47,6 +47,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **backlog 来源前置真相复核**：若本轮 bug、批次或修复范围直接来源于 `data/*.md` 的 open/partial 项，CP1 前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正范围口径，再进入修复。
 - **执行期 CP3 回退**：若执行过程中实际修改范围扩展到 CP3 门槛（文件数从 <5 增至 ≥5，或新增高风险/控制面联动），必须暂停执行，补做 CP3 后再继续。
 - **execution-contract/test-router**：≥5 文件、高风险、控制面或多批次修复时执行，明确允许路径、必需产物和验证路线
+- **执行 authority 不变量**：正式修复先通过 `memory_task_admit_v2` 进入 `TaskAdmissionTransactionV1`，create-if-absent 并回读 `TaskIdentityV2`、canonical 问题概况与 CP pending；源码 mutation 前必须 finalized admission、所需 CP confirmation 与 active `FencedTaskWriteOwnerLeaseV2`。route hint、resolver、“继续”、mtime 或旧 owner 不能替代。
 - **RepairPreventionAssessmentGate**：所有 repair task 在 accepted 前执行 active `repair-prevention-assessment` 的 `RepairPreventionAssessmentV1`；current repair closure 与 prospective prevention evidence 必须分列，repeat escape/high risk 升 full，`no-new-control` 必须有标准 reason/evidence；gray `rework-prevention-engineering` 仅在返工指标或长期效果语义下额外触发
 - **Intent Expansion 可见性**：dev 模式下，CP1 / 问题确认前默认向用户展示完整 Intent Expansion Card；这会覆盖旧的“意图扩展摘要”默认行为，但当命中控制面或宿主能力差异、跨会话 resume、prod、instruction-fallback 宿主或低风险轻任务时，仍允许退化为 3~5 行意图扩展摘要。
 - **OfficialDocsEvidence**：依赖升级、框架/SDK/API 修复、平台行为变更或外部模块替换时，CP2 前必须读取官方使用文档/官方参考资料；缺失证据不得进入执行。
@@ -61,7 +62,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - **CrossProjectLearnedGuards / GovernanceGateRegistry**：修复涉及已吸纳泛化经验、审查清单证据化、用户文档（`user-manual`）、前端运行态、发布/pack、Profile/service、public surface、兼容契约或自我进化控制面时，只在 fix 层记录 `gateGroup / ownerSkill / validationRoute / skipReason`，完整 Gate 正文以 `spec-governance` 的 `GovernanceGateRegistry`、目标 Skill、report 和 validate 探针为准。
 - 所有 repair 先路由 `repair-prevention-assessment`；涉及重复返工、效果评估、兼容/迁移、公开配置或交互对象时，再分别路由 `rework-prevention`、`contract-release-authority`、`configuration-ergonomics`、`interactive-semantics`。不得用当前重跑、历史问题数量、未发布草稿、字段实现用途或截图替代对应证据。
 - **ReviewFindingIntakeGate**：修复范围来自审查报告、AI review finding、audit issue 或代码评审发现时，CP1 前必须逐条分类为 `must-fix` / `user-decision-required` / `docs-implementation-drift` / `test-coverage-gap` / `already-fixed-or-not-reproduced` / `intentional-design-accepted`；命中 `user-decision-required`、兼容风险或文档/实现二选一时，修改源码前必须先取得用户确认。
-- **SimpleTaskFastPath**：非常明确、预计 ≤2 文件、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单修复，可用内联问题概况 / 问题确认 + 报告/记忆替代 bug 目录与完整 CP 产物；报告必须写 `SimpleTaskFastPath: applied`、`00-问题概况.md: N/A + skipReason`、`01-问题确认.md: N/A + skipReason`、验证证据和升级回退判断。执行中任一条件失效时，立即升级回完整 fix CP/产物链。
+- **SimpleTaskFastPath**：非常明确、预计 ≤2 个同一边界 exact 低风险路径、无公共 API/Schema/依赖/配置/发布/控制面/台账来源/高风险、无需多轮跟踪的简单修复，只有取得 server-owned `SimpleTaskFastPathLeaseV1` 后，才可用内联问题概况 / 问题确认 + 报告/记忆替代 bug 目录与完整 CP 产物；租约只允许 create-or-update 且最多消费 2 次。报告必须写 `SimpleTaskFastPath: applied`、`00-问题概况.md: N/A + skipReason`、`01-问题确认.md: N/A + skipReason`、验证证据和升级回退判断。第 3 个路径、正式产物、公共契约、控制面、安全、依赖、发布、跨模块或其他条件失效时，必须在 mutation 前升级完整 fix CP/产物链，禁止先写再升级。
 - **ExistingRequirementArtifactOverride**：当用户是在调整/修改/补充既有 `00-问题概况.md`、`01-问题确认.md`、bug CP 产物或需求文件时，SimpleTaskFastPath 只能跳过新建完整 bug 目录，不能跳过更新已有真相源；必须先增量编辑已有问题/需求产物，回复仅作为摘要。找不到目标产物时先按 Profile、bugs/requirements、sessions、tasks 与用户提及路径定位，仍无法确认才最小澄清。
 - **ArtifactDecisionMatrix / ArtifactLifecycleState**：CP1/CP2/[CP3]/ECR 必须按修复规模列出关键产物 `create` / `update` / `skip` / `N/A` 状态，至少覆盖 `00-问题概况.md`、`01-问题确认.md`、修复方案、实施计划、实施进度、报告和记忆；判定优先级为已有真相源回写 > 修复触发条件 > SimpleTaskFastPath > fix CP3 可选/豁免。若后续三步扫描或 ECR 发现范围扩大，必须更新矩阵并回到对应 CP。
 
@@ -119,6 +120,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 ## 执行约束
 
 - 编码后必须运行 lint/typecheck/test；error 最多 2 次迭代
+- 每次 source/artifact 写入前必须得到完整 `MutationFootprintV2`、允许的 `ArtifactSlotDecisionV2` 与一次性 `TaskOwnedMutationLeaseV2`，并完成 V5 prewrite；写后以 `MutationObservationReceiptV1` 对账 actual effects。0-target、unknown、partial、越界或 required effect 未发生进入 `needs-reconcile`，不得继续或宣称修复完成。
 - **TypeScript 项目类型校验强制**：当项目存在 `tsconfig.json`、`tsconfig.*.json`、`package.json` 的 `typecheck` 脚本，或明显为 TS/TSX 工程时，修复完成后必须补做 1 次类型校验
 - **类型校验命令选择顺序**：
   1. 优先运行项目现有 `typecheck` 脚本
@@ -146,7 +148,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 - 产物路径修复须沿用 `ArtifactLinkSetDedupeGate`；不得把同一物理文件的多种链接形式当成多份主产物输出
 - 最终回复修复须沿用 `ActiveRequirementFinalResponseGate`；不得把相邻需求或 backlog 的下一步写成当前 active 修复的默认结尾
 - 涉及项目事实变化 → 执行 `ProfileImpactCheck` 并通过 `document-sync` 更新 Profile 或记录跳过理由
-- 涉及验证、发布、pack、benchmark、codegen 或生成产物 → 完成前必须检查并清理与本轮无关的新增/残留文件；不得把无关 dirty 文件、并行验证残留或旧失败产物留给后续任务
+- 涉及验证、发布、pack、benchmark、codegen 或生成产物 → 完成前必须盘点残留并区分 owner。只能清理具备本轮 receipt、由本轮 runner/writer 创建且已满足适用破坏性确认的产物；用户既有、无 owner、并行任务或来源不明的 dirty 只能报告、隔离或从候选中排除，禁止 reset/stash/delete/overwrite
 
 ## ECR 执行闭环复审（执行后正式阶段）
 

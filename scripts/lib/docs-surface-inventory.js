@@ -28,6 +28,32 @@ const REQUIRED_HOOK_EVENTS = Object.freeze([
   'Stop'
 ])
 
+const REQUIRED_MCP_TOOLS = Object.freeze([
+  'memory_artifact_link_project',
+  'memory_cp_confirm',
+  'memory_session_allocate',
+  'memory_session_query',
+  'memory_session_read',
+  'memory_session_write',
+  'memory_status',
+  'memory_summary_append',
+  'memory_summary_query',
+  'memory_summary_read',
+  'memory_task_admit_v2',
+  'memory_task_closeout_reconcile_v1',
+  'memory_task_fast_path_lease',
+  'memory_task_resolve',
+  'memory_task_terminal_v1',
+  'memory_task_write_owner',
+  'memory_workflow_operational_write_lease',
+  'profile_compose_entry_check',
+  'profile_context_plan',
+  'profile_get_mode',
+  'profile_load',
+  'profile_skill_plan',
+  'skill_route'
+])
+
 const REQUIRED_PROCESS_FILES = Object.freeze([
   'scripts/lib/process-enforcement.js',
   'scripts/lib/host-enforcement-matrix.js',
@@ -79,7 +105,11 @@ function extractMcpToolNames (root, file) {
   const re = /name:\s*'([a-z][a-z0-9_]*)'/g
   let m
   while ((m = re.exec(text))) {
-    if (m[1].startsWith('memory_') || m[1].startsWith('profile_')) names.add(m[1])
+    if (
+      m[1].startsWith('memory_') ||
+      m[1].startsWith('profile_') ||
+      m[1] === 'skill_route'
+    ) names.add(m[1])
   }
   return [...names].sort()
 }
@@ -206,7 +236,19 @@ function assertDocsSurfaceInventory (inv) {
     failures.push('workflow id "plan" must not exist (use other + plan Skill)')
   }
 
-  if (inv.mcpToolCount !== 16) failures.push(`mcp tools expected 16 got ${inv.mcpToolCount}`)
+  const actualMcpTools = [...inv.mcpTools].sort()
+  const requiredMcpTools = [...REQUIRED_MCP_TOOLS].sort()
+  if (JSON.stringify(actualMcpTools) !== JSON.stringify(requiredMcpTools)) {
+    const actual = new Set(actualMcpTools)
+    const required = new Set(requiredMcpTools)
+    const missing = requiredMcpTools.filter((name) => !actual.has(name))
+    const unexpected = actualMcpTools.filter((name) => !required.has(name))
+    failures.push(
+      `mcp tools mismatch expected ${requiredMcpTools.length} got ${actualMcpTools.length}` +
+      `${missing.length ? `; missing [${missing.join(',')}]` : ''}` +
+      `${unexpected.length ? `; unexpected [${unexpected.join(',')}]` : ''}`
+    )
+  }
 
   for (const ev of REQUIRED_HOOK_EVENTS) {
     if (!inv.hookEvents.includes(ev)) failures.push(`missing hook event ${ev}`)
@@ -252,6 +294,7 @@ function assertDocsSurfaceInventory (inv) {
 module.exports = {
   REQUIRED_WORKFLOWS,
   REQUIRED_HOOK_EVENTS,
+  REQUIRED_MCP_TOOLS,
   REQUIRED_PROCESS_FILES,
   PUBLIC_SITE_REQUIRED_MDX,
   PUBLIC_SITE_MDX_FLOOR,

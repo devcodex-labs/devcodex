@@ -2,6 +2,11 @@
 
 const fs = require('fs')
 const path = require('path')
+const {
+  enumerateTaskArtifacts,
+  readLayeredArtifactSlotRegistry
+} = require('../../hooks/_runtime/artifact-slot-decision.cjs')
+const { verifyActualCandidateEvidenceReceipt } = require('./actual-candidate-evidence')
 
 const RECENT_REQUIREMENT_ARTIFACT_DAYS = 2
 const REQUIREMENT_FILES = [
@@ -11,11 +16,35 @@ const REQUIREMENT_FILES = [
   '01-产品需求.md',
   '01-需求变更确认.md',
   '01-需求概述.md',
+  '02-技术方案.md',
   '04-实施计划.md',
   '05-实施进度.md'
 ]
-const BUG_FILES = ['00-问题概况.md', '01-问题确认.md', '04-实施计划.md', '05-实施进度.md']
+const BUG_FILES = ['00-问题概况.md', '01-问题确认.md', '02-修复方案.md', '04-实施计划.md', '05-实施进度.md']
 const SIMPLE_TASK_FAST_PATH_MARKERS = ['SimpleTaskFastPath', '简单任务轻路径', 'N/A + skipReason']
+
+function resolveConsumerArtifactRegistry(activeRoot, project, registry = null) {
+  const resolvedRoot = path.resolve(activeRoot)
+  const resolvedProject = String(project || path.basename(resolvedRoot)).trim()
+  return {
+    project: resolvedProject,
+    registry: registry || readLayeredArtifactSlotRegistry({
+      activeRoot: resolvedRoot,
+      project: resolvedProject,
+      fs
+    })
+  }
+}
+
+function artifactRegistryFailure(error) {
+  return {
+    checkedDirs: [],
+    issues: [`artifact registry ${error?.code || 'ARTIFACT_SLOT_REGISTRY_INVALID'}`],
+    registryErrorCode: error?.code || 'ARTIFACT_SLOT_REGISTRY_INVALID',
+    mergedRegistryDigest: null,
+    registrySlotCount: 0
+  }
+}
 
 function hasText(filePath, needle) {
   return fs.readFileSync(filePath, 'utf8').includes(needle)
@@ -32,6 +61,31 @@ function hasRecentArtifact(dirPath, nowMs, recentDays, files) {
     .map(name => path.join(dirPath, name))
     .filter(filePath => fs.existsSync(filePath))
     .some(filePath => fs.statSync(filePath).mtimeMs >= cutoff)
+}
+
+function inventoryFiles(inventory) {
+  return [...new Set([
+    ...inventory.artifacts.map(item => item.relativePath),
+    ...inventory.unknownFormal
+  ])]
+}
+
+function hasRecentInventoryArtifact(dirPath, inventory, nowMs, recentDays) {
+  return hasRecentArtifact(dirPath, nowMs, recentDays, inventoryFiles(inventory))
+}
+
+function collectInventoryIssues(inventory, relDir) {
+  const issues = []
+  for (const relative of inventory.unknownFormal) issues.push(`${relDir}/${relative} unknown formal artifact slot`)
+  for (const conflict of inventory.conflicts) {
+    issues.push(`${relDir} conflicting truth sources for ${conflict.alternativeGroup}: ${conflict.paths.join(', ')}`)
+  }
+  if (inventory.overflow) issues.push(`${relDir} artifact inventory exceeded bounded scan; split or reduce derived artifacts`)
+  const classes = new Set(inventory.artifacts.map(item => item.slot.artifactClass))
+  if ((classes.has('cp2') || classes.has('cp3-plan') || classes.has('progress')) && !classes.has('overview') && !classes.has('cp1')) {
+    issues.push(`${relDir} missing intake truth before CP2/CP3 artifacts`)
+  }
+  return issues
 }
 
 function checkPlanAndProgressFiles(dirPath, relDir, issues) {
@@ -119,8 +173,50 @@ function hasSimpleTaskFastPathMarker(dirPath) {
   return hasAnyText(sessionsFile, SIMPLE_TASK_FAST_PATH_MARKERS)
 }
 
+function checkActualCandidateEvidence({
+  candidatePath,
+  requestedPhase,
+  sourceHead,
+  dirtyScopeDigest,
+  receipt,
+  expectedReceiptDigest
+}) {
+  const issues = []
+  if (!receipt || typeof receipt !== 'object') {
+    return {
+      passed: false,
+      issues: [`${candidatePath || 'candidate'} missing ActualCandidateEvidenceReceiptV1`],
+      verification: null
+    }
+  }
+  if (typeof candidatePath !== 'string' || !path.isAbsolute(candidatePath)) {
+    issues.push('actual candidate path must be absolute')
+  }
+  if (!['CP1', 'CP2', 'CP3', 'ECR'].includes(String(requestedPhase || '').toUpperCase())) {
+    issues.push(`${candidatePath || 'candidate'} actual candidate requested phase missing or invalid`)
+  }
+  if (!/^[a-f0-9]{64}$/i.test(String(expectedReceiptDigest || ''))) {
+    issues.push(`${candidatePath || 'candidate'} exact actual candidate receipt digest required`)
+  }
+  if (candidatePath && path.resolve(receipt.candidatePath || '') !== path.resolve(candidatePath)) {
+    issues.push(`${candidatePath} actual candidate receipt path mismatch`)
+  }
+  const verification = verifyActualCandidateEvidenceReceipt(receipt, {
+    requestedPhase,
+    sourceHead,
+    dirtyScopeDigest,
+    expectedReceiptDigest
+  })
+  for (const item of verification.issues) {
+    issues.push(`${candidatePath || receipt.candidatePath || 'candidate'} actual candidate evidence ${item.code}`)
+  }
+  return { passed: issues.length === 0, issues, verification }
+}
+
 function collectRecentRequirementArtifactIssues({
   activeRoot,
+  project,
+  registry,
   recentDays = RECENT_REQUIREMENT_ARTIFACT_DAYS,
   nowMs = Date.now()
 }) {
@@ -132,22 +228,45 @@ function collectRecentRequirementArtifactIssues({
     return { checkedDirs, issues }
   }
 
+  let registryContext
+  try {
+    registryContext = resolveConsumerArtifactRegistry(activeRoot, project, registry)
+  } catch (error) {
+    return artifactRegistryFailure(error)
+  }
+
   for (const entry of fs.readdirSync(requirementsRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
     const dirPath = path.join(requirementsRoot, entry.name)
     if (hasSimpleTaskFastPathMarker(dirPath)) continue
-    const hasTrackedArtifact = REQUIREMENT_FILES.some(name => fs.existsSync(path.join(dirPath, name)))
-    if (!hasTrackedArtifact) continue
-    if (!hasRecentArtifact(dirPath, nowMs, recentDays, REQUIREMENT_FILES)) continue
+    const inventory = enumerateTaskArtifacts({
+      taskRoot: dirPath,
+      taskKind: 'requirements',
+      fs,
+      activeRoot,
+      project: registryContext.project,
+      registry: registryContext.registry
+    })
+    if (!inventory.artifacts.length && !inventory.unknownFormal.length) continue
+    if (!hasRecentInventoryArtifact(dirPath, inventory, nowMs, recentDays)) continue
     checkedDirs.push(entry.name)
+    issues.push(...collectInventoryIssues(inventory, entry.name))
     issues.push(...checkRequirementDir(dirPath))
   }
 
-  return { checkedDirs, issues }
+  return {
+    checkedDirs,
+    issues,
+    registryErrorCode: null,
+    mergedRegistryDigest: registryContext.registry.mergedRegistryDigest,
+    registrySlotCount: registryContext.registry.slots.length
+  }
 }
 
 function collectRecentBugArtifactIssues({
   activeRoot,
+  project,
+  registry,
   recentDays = RECENT_REQUIREMENT_ARTIFACT_DAYS,
   nowMs = Date.now()
 }) {
@@ -159,18 +278,39 @@ function collectRecentBugArtifactIssues({
     return { checkedDirs, issues }
   }
 
+  let registryContext
+  try {
+    registryContext = resolveConsumerArtifactRegistry(activeRoot, project, registry)
+  } catch (error) {
+    return artifactRegistryFailure(error)
+  }
+
   for (const entry of fs.readdirSync(bugsRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
     const dirPath = path.join(bugsRoot, entry.name)
     if (hasSimpleTaskFastPathMarker(dirPath)) continue
-    const hasTrackedArtifact = BUG_FILES.some(name => fs.existsSync(path.join(dirPath, name)))
-    if (!hasTrackedArtifact) continue
-    if (!hasRecentArtifact(dirPath, nowMs, recentDays, BUG_FILES)) continue
+    const inventory = enumerateTaskArtifacts({
+      taskRoot: dirPath,
+      taskKind: 'bugs',
+      fs,
+      activeRoot,
+      project: registryContext.project,
+      registry: registryContext.registry
+    })
+    if (!inventory.artifacts.length && !inventory.unknownFormal.length) continue
+    if (!hasRecentInventoryArtifact(dirPath, inventory, nowMs, recentDays)) continue
     checkedDirs.push(entry.name)
+    issues.push(...collectInventoryIssues(inventory, entry.name))
     issues.push(...checkBugDir(dirPath))
   }
 
-  return { checkedDirs, issues }
+  return {
+    checkedDirs,
+    issues,
+    registryErrorCode: null,
+    mergedRegistryDigest: registryContext.registry.mergedRegistryDigest,
+    registrySlotCount: registryContext.registry.slots.length
+  }
 }
 
 module.exports = {
@@ -180,6 +320,8 @@ module.exports = {
   SIMPLE_TASK_FAST_PATH_MARKERS,
   checkBugDir,
   checkRequirementDir,
+  checkActualCandidateEvidence,
+  collectInventoryIssues,
   hasSimpleTaskFastPathMarker,
   collectRecentBugArtifactIssues,
   collectRecentRequirementArtifactIssues

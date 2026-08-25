@@ -7,7 +7,7 @@ const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const { CheckedCommandError } = require('./lib/checked-command')
-const { buildContentIdentity, stableStringify } = require('../hooks/_runtime/content-identity.cjs')
+const { buildContentIdentity, sha256, stableStringify } = require('../hooks/_runtime/content-identity.cjs')
 const {
   ValidationDagError,
   NARRATIVE_MARKDOWN_EXCLUSIONS,
@@ -20,16 +20,26 @@ const {
   buildNestedCommandGraph,
   planLockAwareSchedule,
   expandSelectedWithNestedLeaves,
-  executeValidationPlan,
+  executeValidationPlan: executeValidationPlanUnbound,
   manifestIdentity,
   planValidation,
   readValidationManifest,
   toValidationPlanV1,
   validateValidationManifest
 } = require('./lib/validation-dag')
+const {
+  ValidationAuthorityError,
+  createVerificationExecutionLease
+} = require('./lib/validation-execution-authority')
 const { createValidationOrchestration } = require('./lib/validation-orchestration')
 const { isNarrativeMarkdownPath, normalizeNarrativePath } = require('./lib/narrative-markdown-policy')
-const { parseArgs } = require('./run-validation')
+const {
+  detectedActorType,
+  expectedCiPolicyDigest,
+  parseArgs,
+  resolveValidationAuthorityContext,
+  resolveActorType
+} = require('./run-validation')
 
 const ROOT = path.resolve(__dirname, '..')
 const MANIFEST_PATH = path.join(__dirname, 'validation-manifest.json')
@@ -61,7 +71,7 @@ function fixtureManifest(nodes) {
   const ids = nodes.map(node => node.id)
   return {
     schemaVersion: 'ValidationManifestV1',
-    contractVersion: '1',
+    contractVersion: '3',
     description: 'fixture',
     consumerGraphComplete: true,
     narrativeMarkdownExclusions: [...NARRATIVE_MARKDOWN_EXCLUSIONS],
@@ -107,6 +117,45 @@ function successEvidence(node) {
   }
 }
 
+function fixtureExecutionLease(plan, candidate) {
+  const actorType = plan.verificationPurpose === 'release' ? 'release-pipeline' : 'human-cli'
+  return createVerificationExecutionLease({
+    actorType,
+    authorityClass: plan.verificationPurpose === 'release'
+      ? 'release'
+      : (plan.verificationLevel === 'V3' ? 'full-audit' : 'scoped'),
+    actorIdentityEvidence: { fixtureActor: actorType },
+    repoRoot: ROOT,
+    plan,
+    candidate,
+    project: plan.verificationIntent.project,
+    taskRecoveryKey: plan.verificationIntent.taskRecoveryKey,
+    contextEpoch: plan.verificationIntent.contextEpoch,
+    authoritySourceRef: `fixture:${actorType}-attestation`,
+    policyDigest: actorType === 'release-pipeline' ? sha256('fixture-release-policy') : null
+  })
+}
+
+function executeValidationPlan(input) {
+  const lease = input.lease || (
+    ['blocked', 'awaiting-budget'].includes(input.plan.executionState)
+      ? null
+      : fixtureExecutionLease(input.plan, input.candidate)
+  )
+  return executeValidationPlanUnbound({
+    ...input,
+    lease,
+    actorType: lease?.actorType || null
+  })
+}
+
+function approvedPlan(input) {
+  const provisional = planValidation(input)
+  return provisional.budgetCard.confirmationRequired
+    ? planValidation({ ...input, approvePlanDigest: provisional.budgetCard.digest })
+    : provisional
+}
+
 function run() {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-validation-dag-'))
   try {
@@ -119,7 +168,71 @@ function run() {
     assert.ok(manifest.iterativeEscalationInputs.includes('scripts/lib/validation-dag.js'))
     assert.ok(!manifest.iterativeEscalationInputs.includes('content/**'))
     assert.deepStrictEqual(Object.keys(manifest.verificationBoundaries).sort(),
-      ['hook-runtime', 'mcp-runtime', 'package', 'profile', 'validation-control-plane'])
+      ['artifact-mutation-control-plane', 'hook-runtime', 'mcp-runtime', 'package', 'profile', 'validation-control-plane', 'workflow-task-authority'])
+    const validationAuthorityNode = manifest.nodes.find(node => node.id === 'validation-authority')
+    const validationDagNode = manifest.nodes.find(node => node.id === 'validation-dag')
+    assert(Number.isInteger(validationAuthorityNode.estimatedDurationMs) && validationAuthorityNode.estimatedDurationMs >= 120000,
+      'validation-authority must publish a realistic estimate for BudgetCard cost transparency')
+    assert(validationAuthorityNode.timeoutMs >= Math.ceil(validationAuthorityNode.estimatedDurationMs * 1.5),
+      'validation-authority timeout must preserve CI variance headroom above its estimate')
+    assert.deepStrictEqual(validationDagNode.dependencies, ['checked-command'],
+      'clean iterative validation-dag must not unconditionally execute the heavy validation-authority suite')
+    assert(validationAuthorityNode.consumers.includes('validation-dag'),
+      'validation-authority changes must still propagate to the validation-dag consumer')
+    for (const requiredNode of [
+      'actual-candidate-evidence',
+      'artifact-mutation-authority',
+      'dangerous-command-context',
+      'session-route-consumers',
+      'task-admission-authority'
+    ]) {
+      assert(manifest.routes.full.nodes.includes(requiredNode), `V3 full route missing current control-plane node: ${requiredNode}`)
+    }
+    const artifactMutationAuthority = manifest.nodes.find(node => node.id === 'artifact-mutation-authority')
+    for (const requiredInput of [
+      'hooks/_runtime/artifact-slot-registry.v2.json',
+      'hooks/_runtime/host-tool-mutation-adapters.cjs',
+      'hooks/_runtime/mutation-observation.cjs',
+      'mcp/task-admission-authority.cjs'
+    ]) {
+      assert(artifactMutationAuthority.inputs.includes(requiredInput), `artifact mutation authority missing V2 input: ${requiredInput}`)
+    }
+    assert.deepStrictEqual(artifactMutationAuthority.evidenceArtifacts, [
+      'ArtifactSlotDecisionV2',
+      'TaskOwnedMutationLeaseV2',
+      'MutationObservationReceiptV1',
+      'ArtifactMutationCloseoutReceiptV2'
+    ])
+    for (const requiredNode of [
+      'workflow-capabilities',
+      'session-route-consumers',
+      'task-admission-authority',
+      'task-recovery',
+      'mcp-servers',
+      'hooks-runtime'
+    ]) {
+      assert(
+        manifest.verificationBoundaries['workflow-task-authority'].nodes.includes(requiredNode),
+        `workflow task authority boundary missing node: ${requiredNode}`
+      )
+    }
+    const mcpRuntimeClosure = manifest.nodes.find(node => node.id === 'mcp-runtime-closure')
+    const mcpRuntimePacklist = manifest.nodes.find(node => node.id === 'mcp-runtime-packlist')
+    assert.deepStrictEqual(mcpRuntimeClosure.args, ['run', 'test:mcp-runtime-closure'])
+    assert.strictEqual(manifest.nodeVerificationPolicies.overrides['mcp-runtime-closure'].minimumLevel, 'V2')
+    assert.strictEqual(manifest.nodeVerificationPolicies.overrides['mcp-runtime-closure'].consumerEdgeType, 'qualificationConsumer')
+    assert(!mcpRuntimeClosure.consumers.includes('pack-clean'), 'runtime-only closure must not implicitly enter package lifecycle')
+    assert(!mcpRuntimeClosure.invariants.includes('package-runtime-closure'))
+    assert.deepStrictEqual(mcpRuntimePacklist.args, ['run', 'test:mcp-runtime-closure:package'])
+    assert.deepStrictEqual(mcpRuntimePacklist.dependencies, ['mcp-runtime-closure'])
+    assert(mcpRuntimePacklist.invariants.includes('explicit-package-qualification-only'))
+    assert.strictEqual(manifest.nodeVerificationPolicies.overrides['mcp-runtime-packlist'].consumerEdgeType, 'releaseConsumer')
+    assert.strictEqual(manifest.nodeVerificationPolicies.overrides['pack-clean'].consumerEdgeType, 'releaseConsumer')
+    assert(!manifest.invariantNodes.includes('pack-clean'), 'real npm pack/install must not be a global changed-route invariant')
+    assert(!manifest.verificationBoundaries.package.nodes.includes('pack-clean'), 'automatic package V2 boundary must not run real npm pack/install')
+    assert(manifest.routes.full.nodes.includes('mcp-runtime-packlist'))
+    assert(!manifest.routes['profile-deploy'].nodes.includes('mcp-runtime-packlist'))
+    assert(!manifest.routes['package-release'].nodes.includes('mcp-runtime-packlist'))
     assert.strictEqual(manifest.nodeVerificationPolicies.defaultConsumerEdgeType, 'runtimeConsumer')
     assert.deepStrictEqual(manifest.narrativeMarkdownExclusions, [
       'README.md',
@@ -192,8 +305,8 @@ function run() {
     )
     assert.deepStrictEqual(
       [...manifest.routes['package-release'].nodes].sort(),
-      [...manifest.verificationBoundaries.package.nodes].sort(),
-      'package-release must stay scoped to the package V2 boundary'
+      [...manifest.verificationBoundaries.package.nodes, 'pack-clean'].sort(),
+      'explicit package-release must add real pack/install to the automatic package contract boundary'
     )
     const fullRouteNodes = new Set(manifest.routes.full.nodes)
     for (const required of [
@@ -252,6 +365,62 @@ function run() {
     assert.strictEqual(parseArgs(['--intent', 'boundary']).purpose, 'boundary')
     assert.strictEqual(parseArgs(['--intent=release']).purpose, 'release')
     assert.strictEqual(parseArgs(['--purpose', 'delivery']).purpose, 'delivery')
+    const aiEnv = {
+      CODEX_THREAD_ID: 'fixture-thread',
+      GITHUB_ACTIONS: 'true',
+      GITHUB_REF_TYPE: 'tag',
+      DEVCODEX_VALIDATION_ACTOR: 'human-cli'
+    }
+    assert.strictEqual(detectedActorType(aiEnv), 'ai-hook', 'AI host identity must outrank caller-controlled actor hints')
+    assert.strictEqual(resolveActorType(null, aiEnv), 'ai-hook')
+    assert.throws(
+      () => resolveActorType('release-pipeline', aiEnv),
+      error => error instanceof ValidationDagError && error.code === 'VALIDATION_ACTOR_SPOOF_REJECTED'
+    )
+    const aiAuthority = resolveValidationAuthorityContext({
+      actorType: 'ai-hook',
+      options: { contextEpoch: 'ctx-fixture-current' },
+      activeRoot: tempRoot,
+      env: { CODEX_THREAD_ID: 'fixture-thread' },
+      readTaskState: () => ({
+        status: 'fresh',
+        identity: {
+          activeRoot: tempRoot,
+          project: 'devcodex',
+          taskId: '00000000-0000-4000-8000-000000000344',
+          taskStatus: 'active'
+        }
+      })
+    })
+    assert.strictEqual(aiAuthority.taskRecoveryKey, '00000000-0000-4000-8000-000000000344')
+    assert.strictEqual(aiAuthority.sessionKey, 'fixture-thread')
+    assert.strictEqual(aiAuthority.contextEpoch, 'ctx-fixture-current')
+    assert.match(aiAuthority.authoritySourceRef, /^ai-hook:codex:fixture-thread:task:/)
+    assert.throws(() => resolveValidationAuthorityContext({
+      actorType: 'ai-hook',
+      options: {},
+      activeRoot: tempRoot,
+      env: { CODEX_THREAD_ID: 'fixture-thread' },
+      readTaskState: () => ({ status: 'fresh', identity: { taskId: aiAuthority.taskRecoveryKey } })
+    }), error => error instanceof ValidationDagError && error.code === 'VALIDATION_AI_CONTEXT_EPOCH_REQUIRED')
+    assert.throws(() => resolveValidationAuthorityContext({
+      actorType: 'ai-hook',
+      options: { contextEpoch: 'ctx-fixture-current', taskRecoveryKey: 'different-task' },
+      activeRoot: tempRoot,
+      env: { CODEX_THREAD_ID: 'fixture-thread' },
+      readTaskState: () => ({ status: 'fresh', identity: { taskId: aiAuthority.taskRecoveryKey } })
+    }), error => error instanceof ValidationDagError && error.code === 'VALIDATION_AI_TASK_BINDING_MISMATCH')
+    const ciEnv = {
+      GITHUB_ACTIONS: 'true',
+      GITHUB_REF_TYPE: 'branch',
+      GITHUB_WORKFLOW: 'CI',
+      GITHUB_EVENT_NAME: 'push',
+      GITHUB_REPOSITORY: 'devcodex-labs/devcodex',
+      GITHUB_REF: 'refs/heads/main',
+      GITHUB_SHA: 'a'.repeat(40)
+    }
+    assert.strictEqual(detectedActorType(ciEnv), 'trusted-ci')
+    assert.match(expectedCiPolicyDigest('trusted-ci', { verificationLevel: 'V3' }, ciEnv), /^[a-f0-9]{64}$/)
     assert.ok(cacheRelativePath('fixture').includes(path.join('validation-evidence', 'v2')))
     const fullPlan = planValidation({
       manifest,
@@ -263,10 +432,11 @@ function run() {
       candidateId: 'fixture-full'
     })
     assert.strictEqual(fullPlan.selectedNodeCount, manifest.routes.full.nodes.length)
-    assert.strictEqual(fullPlan.schemaVersion, 'ValidationPlanV2')
+    assert.strictEqual(fullPlan.schemaVersion, 'ValidationPlanV3')
     assert.strictEqual(fullPlan.verificationLevel, 'V3')
     assert.strictEqual(fullPlan.verificationPurpose, 'full-audit')
-    assert.strictEqual(fullPlan.executionState, 'ready')
+    assert.strictEqual(fullPlan.executionState, 'awaiting-budget')
+    assert.strictEqual(fullPlan.budgetCard.confirmationRequired, true)
     assert.strictEqual(fullPlan.fullFallback, null)
     assert.strictEqual(toValidationPlanV1(fullPlan).schemaVersion, 'ValidationPlanV1')
     assert.strictEqual(toValidationPlanV1(fullPlan).impactGraph.schemaVersion, 'ValidationImpactGraphV1')
@@ -315,6 +485,20 @@ function run() {
     assert.ok(!packageBoundaryIds.includes('global-install-smoke'))
     assert.ok(!packageBoundaryIds.includes('critical-coverage'))
     assert.ok(packageBoundaryPlan.selectedNodeCount < fullPlan.selectedNodeCount)
+    const changedManifestV2Plan = planValidation({
+      manifest,
+      route: 'changed',
+      changedFiles: ['scripts/validation-manifest.json'],
+      changedSource: 'explicit',
+      level: 'V2',
+      candidateStable: true,
+      candidateId: 'fixture-changed-manifest-v2'
+    })
+    const changedManifestV2Ids = changedManifestV2Plan.selectedNodes.map(node => node.id)
+    assert.ok(!changedManifestV2Ids.includes('pack-clean'), 'changed V2 must not enter npm pack/install qualification')
+    assert.ok(!changedManifestV2Ids.includes('mcp-runtime-packlist'), 'changed V2 must not enter npm packlist qualification')
+    assert.ok(!changedManifestV2Ids.includes('global-install-smoke'), 'changed V2 must not enter global installation')
+    assert.ok(!changedManifestV2Ids.includes('host-installation'), 'changed V2 must not enter host installation')
     assert.throws(() => planValidation({
       manifest,
       route: 'profile-deploy',
@@ -815,7 +999,7 @@ function run() {
       candidateId: 'fixture-heavy'
     })
     assert.strictEqual(awaitingBudget.verificationLevel, 'V2')
-    assert.strictEqual(awaitingBudget.executionState, 'awaiting-confirmation')
+    assert.strictEqual(awaitingBudget.executionState, 'awaiting-budget')
     assert.strictEqual(awaitingBudget.budgetCard.schemaVersion, 'BudgetCardV1')
     assert.strictEqual(awaitingBudget.budgetCard.confirmationRequired, true)
     assert.strictEqual(awaitingBudget.budgetCard.estimatedDurationMs, 120000)
@@ -843,21 +1027,32 @@ function run() {
       candidateId: 'fixture-heavy',
       approvePlanDigest: awaitingBudget.budgetCard.digest
     })
-    assert.strictEqual(approvedBudget.executionState, 'ready')
+    assert.strictEqual(approvedBudget.executionState, 'awaiting-authority')
     assert.strictEqual(approvedBudget.planDigest, awaitingBudget.planDigest,
       'budget approval must not change the semantic plan digest')
     assert.strictEqual(approvedBudget.budgetCard.status, 'approved')
+    assert.throws(() => executeValidationPlanUnbound({
+      manifest: heavyManifest,
+      plan: approvedBudget,
+      candidate: { candidateId: 'fixture-heavy', stable: true, changedFiles: ['heavy/a.js'], changedSource: 'explicit' },
+      repoRoot: ROOT,
+      activeRoot: tempRoot,
+      useCache: false,
+      runCommand: successEvidence
+    }), error => error instanceof ValidationAuthorityError && error.code === 'VALIDATION_AUTHORITY_REQUIRED')
 
-    assert.throws(() => planValidation({
+    const unownedV3Request = planValidation({
       manifest,
-      route: 'changed',
+      route: 'full',
       level: 'V3',
       changedFiles: ['README.md'],
       changedSource: 'explicit',
       candidateStable: true,
       candidateId: 'fixture-unowned-v3'
-    }), error => error instanceof ValidationDagError && error.code === 'VALIDATION_V3_AUTHORITY_REQUIRED')
-    assert.throws(() => planValidation({
+    })
+    assert.strictEqual(unownedV3Request.executionState, 'awaiting-budget')
+    assert.strictEqual(Object.hasOwn(unownedV3Request.verificationIntent, 'explicitFullAudit'), false)
+    const releaseRequest = planValidation({
       manifest,
       route: 'full',
       purpose: 'release',
@@ -865,12 +1060,12 @@ function run() {
       changedSource: 'git-clean',
       candidateStable: true,
       candidateId: 'fixture-release-no-authority'
-    }), error => error instanceof ValidationDagError && error.code === 'VALIDATION_RELEASE_AUTHORIZATION_REQUIRED')
+    })
+    assert.strictEqual(releaseRequest.executionState, 'awaiting-budget')
     const releasePlan = planValidation({
       manifest,
       route: 'full',
       purpose: 'release',
-      releaseAuthorized: true,
       changedFiles: [],
       changedSource: 'git-clean',
       candidateStable: true,
@@ -880,6 +1075,7 @@ function run() {
     assert.strictEqual(releasePlan.verificationLevel, 'V3')
     assert.strictEqual(releasePlan.verificationPurpose, 'release')
     assert.strictEqual(releasePlan.claimCeiling, 'release-candidate')
+    assert.strictEqual(Object.hasOwn(releasePlan.verificationIntent, 'releaseAuthorized'), false)
     assert.strictEqual(releasePlan.selectedNodeCount, fullPlan.selectedNodeCount)
 
     const firstCandidate = buildCandidateIdentity({ repoRoot: ROOT })
@@ -931,7 +1127,7 @@ function run() {
       runCommand
     })
     assert.strictEqual(firstRun.receipt.nativeExitCode, 0)
-    assert.strictEqual(firstRun.receipt.schemaVersion, 'ValidationExecutionReceiptV2')
+    assert.strictEqual(firstRun.receipt.schemaVersion, 'ValidationExecutionReceiptV3')
     assert.match(firstRun.receipt.nodeContractDigest, /^[a-f0-9]{64}$/)
     assert.match(firstRun.receipt.delegatedClosureDigest, /^[a-f0-9]{64}$/)
     assert.match(firstRun.receipt.testRouteDigest, /^[a-f0-9]{64}$/)
@@ -981,7 +1177,7 @@ function run() {
     })
     const delegatedHooks = fixtureNode('hooks-runtime', { dependencies: ['generic-validation-owner'] })
     const delegatedManifest = fixtureManifest([delegatedCore, delegatedHooks])
-    const delegatedPlan = planValidation({
+    const delegatedPlan = approvedPlan({
       manifest: delegatedManifest,
       route: 'full',
       changedFiles: [],
@@ -1088,7 +1284,7 @@ function run() {
     assert.strictEqual(candidateTwoRun.receipt.cacheHitCount, 1)
     assert.strictEqual(runCount, 3, 'candidate id drift alone must not invalidate an unchanged node scope')
 
-    const v3Plan = planValidation({
+    const v3Plan = approvedPlan({
       manifest: cachedManifest,
       route: 'full',
       changedFiles: candidateTwo.changedFiles,
@@ -1135,12 +1331,13 @@ function run() {
     })
     assert.strictEqual(capacityRun.receipt.nativeExitCode, 0)
     assert.strictEqual(capacityRun.receipt.results[0].cacheWrite, 'bypassed')
-    assert.strictEqual(capacityRun.persistence.status, 'bypassed')
+    assert.strictEqual(capacityRun.persistence.status, 'deferred')
+    assert.strictEqual(capacityRun.persistence.reasonCode, 'managed-runner-terminal-owner')
     assert.deepStrictEqual(capacityRun.receipt.invalidationFrontier, ['fixture-cache'])
     assert.strictEqual(runCount, 5)
 
     const unstableCacheCandidate = { ...candidate, candidateId: 'candidate-unstable-cache', stable: false }
-    const unstableCachePlan = planValidation({
+    const unstableCachePlan = approvedPlan({
       manifest: cachedManifest,
       route: 'full',
       changedFiles: unstableCacheCandidate.changedFiles,
@@ -1334,7 +1531,7 @@ function run() {
       fixtureNode('serial-c', { dependencies: ['serial-b'] })
     ])
     const serialCandidate = { ...candidate, candidateId: 'candidate-serial' }
-    const serialPlan = planValidation({
+    const serialPlan = approvedPlan({
       manifest: serialManifest,
       route: 'full',
       changedFiles: [],
@@ -1362,7 +1559,7 @@ function run() {
     const failingManifest = fixtureManifest([
       fixtureNode('fixture-failure', { cachePolicy: 'never' })
     ])
-    const failingPlan = planValidation({
+    const failingPlan = approvedPlan({
       manifest: failingManifest,
       route: 'full',
       changedFiles: [],
@@ -1397,11 +1594,17 @@ function run() {
     assert.strictEqual(failingRun.receipt.results[0].exitCode, 7)
 
     const packageJson = require('../package.json')
-    assert.strictEqual(packageJson.scripts.test, 'node scripts/run-validation.js --route full')
+    assert.strictEqual(packageJson.scripts.test, 'node scripts/run-validation.js --route changed')
     assert.strictEqual(packageJson.scripts['test:fast'], 'node scripts/run-validation.js --route fast')
     assert.strictEqual(packageJson.scripts['test:full'], 'node scripts/run-validation.js --route full')
     assert.strictEqual(packageJson.scripts['test:delivery'], 'node scripts/run-validation.js --route delivery')
     assert.strictEqual(packageJson.scripts['test:boundary'], 'node scripts/run-validation.js --route boundary')
+    assert.strictEqual(packageJson.scripts['test:actual-candidate-evidence'], 'node scripts/test-actual-candidate-evidence.js')
+    assert.strictEqual(packageJson.scripts['test:dangerous-command-context'], 'node scripts/test-dangerous-command-context.js')
+    assert.strictEqual(packageJson.scripts['test:session-route-consumers'], 'node scripts/test-session-route-consumers.js')
+    assert.strictEqual(packageJson.scripts['test:task-admission-authority'], 'node scripts/test-task-admission-authority.js')
+    assert.strictEqual(packageJson.scripts['test:validation-authority'], 'node scripts/test-validation-execution-authority.js && node scripts/test-validation-budget-control.js')
+    assert.strictEqual(packageJson.scripts['test:mcp-runtime-closure:package'], 'node scripts/test-mcp-runtime-closure.js --packlist-only')
     for (const file of [
       'scripts/validation-manifest.json',
       'scripts/run-validation.js',
@@ -1410,17 +1613,35 @@ function run() {
       'scripts/project-analysis-state.js',
       'scripts/test-project-knowledge-store.js',
       'scripts/test-execution-attempt-ledger.js',
+      'scripts/test-validation-execution-authority.js',
+      'scripts/test-validation-budget-control.js',
+      'scripts/fixtures/managed-validation-worker-fixture.js',
       'scripts/lib/project-knowledge-store.js',
-      'scripts/lib/validation-dag.js'
+      'scripts/lib/managed-validation-runner.js',
+      'scripts/lib/actual-candidate-evidence.js',
+      'scripts/lib/validation-dag.js',
+      'scripts/lib/validation-evidence-store.js',
+      'scripts/lib/validation-execution-authority.js',
+      'scripts/lib/validation-worker.js',
+      'scripts/test-actual-candidate-evidence.js',
+      'scripts/test-dangerous-command-context.js',
+      'scripts/test-session-route-consumers.js',
+      'scripts/test-task-admission-authority.js'
     ]) assert(packageJson.files.includes(file), 'package files missing ' + file)
 
+    const cliHumanEnv = { ...process.env }
+    delete cliHumanEnv.CODEX_THREAD_ID
+    delete cliHumanEnv.CODEX_INTERNAL_ORIGINATOR_OVERRIDE
+    delete cliHumanEnv.DEVCODEX_VALIDATION_ACTOR
+    delete cliHumanEnv.GITHUB_ACTIONS
+    delete cliHumanEnv.GITHUB_REF_TYPE
     const planJson = spawnSync(process.execPath, [
       'scripts/run-validation.js',
       '--route', 'changed',
       '--changed', 'README.md',
       '--plan',
       '--json'
-    ], { cwd: ROOT, encoding: 'utf8', windowsHide: true })
+    ], { cwd: ROOT, encoding: 'utf8', windowsHide: true, env: cliHumanEnv })
     assert.strictEqual(planJson.status, 0, planJson.stderr)
     const planEnvelope = JSON.parse(planJson.stdout)
     assert.strictEqual(planEnvelope.schemaVersion, 'ValidationCliEnvelopeV1')
@@ -1442,7 +1663,7 @@ function run() {
       '--changed', 'hooks/_runtime/lifecycle-host-adapters.cjs',
       '--plan',
       '--json'
-    ], { cwd: ROOT, encoding: 'utf8', windowsHide: true })
+    ], { cwd: ROOT, encoding: 'utf8', windowsHide: true, env: cliHumanEnv })
     assert.strictEqual(highHookPlan.status, 0, highHookPlan.stderr)
     const highHookEnvelope = JSON.parse(highHookPlan.stdout)
     assert.strictEqual(highHookEnvelope.data.plan.routeResolved, 'boundary')
@@ -1456,15 +1677,17 @@ function run() {
       '--purpose', 'release',
       '--plan',
       '--json'
-    ], { cwd: ROOT, encoding: 'utf8', windowsHide: true })
-    assert.strictEqual(unauthorizedRelease.status, 2)
-    assert.strictEqual(JSON.parse(unauthorizedRelease.stdout).error.code, 'VALIDATION_RELEASE_AUTHORIZATION_REQUIRED')
+    ], { cwd: ROOT, encoding: 'utf8', windowsHide: true, env: cliHumanEnv })
+    assert.strictEqual(unauthorizedRelease.status, 0)
+    const releaseEnvelope = JSON.parse(unauthorizedRelease.stdout)
+    assert.strictEqual(releaseEnvelope.data.plan.executionState, 'awaiting-budget')
+    assert.strictEqual(Object.hasOwn(releaseEnvelope.data.plan.verificationIntent, 'releaseAuthorized'), false)
 
     const invalidRoute = spawnSync(process.execPath, [
       'scripts/run-validation.js',
       '--route', 'not-a-route',
       '--json'
-    ], { cwd: ROOT, encoding: 'utf8', windowsHide: true })
+    ], { cwd: ROOT, encoding: 'utf8', windowsHide: true, env: cliHumanEnv })
     assert.strictEqual(invalidRoute.status, 2)
     const invalidEnvelope = JSON.parse(invalidRoute.stdout)
     assert.strictEqual(invalidEnvelope.ok, false)
@@ -1480,17 +1703,58 @@ function run() {
       })
     ])
     fs.writeFileSync(failingManifestPath, JSON.stringify(cliFailManifest, null, 2) + '\n')
-    const cliFailure = spawnSync(process.execPath, [
+    const cliCiEnv = {
+      ...process.env,
+      DEVCODEX_VALIDATION_ACTIVE_ROOT: tempRoot,
+      GITHUB_ACTIONS: 'true',
+      GITHUB_REF_TYPE: 'branch',
+      GITHUB_WORKFLOW: 'Validation Fixture',
+      GITHUB_EVENT_NAME: 'push',
+      GITHUB_REPOSITORY: 'devcodex-labs/devcodex',
+      GITHUB_REF: 'refs/heads/main',
+      GITHUB_SHA: 'c'.repeat(40)
+    }
+    delete cliCiEnv.CODEX_THREAD_ID
+    delete cliCiEnv.CODEX_INTERNAL_ORIGINATOR_OVERRIDE
+    delete cliCiEnv.DEVCODEX_VALIDATION_ACTOR
+    const cliAuthoritySource = [
+      'github-actions', cliCiEnv.GITHUB_WORKFLOW, cliCiEnv.GITHUB_EVENT_NAME,
+      cliCiEnv.GITHUB_REPOSITORY, cliCiEnv.GITHUB_REF, cliCiEnv.GITHUB_SHA
+    ].join(':')
+    const cliPolicyDigest = expectedCiPolicyDigest('trusted-ci', { verificationLevel: 'V3' }, cliCiEnv)
+    const cliFailurePlan = spawnSync(process.execPath, [
       'scripts/run-validation.js',
       '--manifest', failingManifestPath,
       '--route', 'full',
+      '--actor', 'trusted-ci',
+      '--authority-source', cliAuthoritySource,
+      '--policy-digest', cliPolicyDigest,
+      '--plan',
       '--json',
       '--no-cache'
     ], {
       cwd: ROOT,
       encoding: 'utf8',
       windowsHide: true,
-      env: { ...process.env, DEVCODEX_VALIDATION_ACTIVE_ROOT: tempRoot }
+      env: cliCiEnv
+    })
+    assert.strictEqual(cliFailurePlan.status, 0, cliFailurePlan.stderr)
+    const cliFailureBudgetDigest = JSON.parse(cliFailurePlan.stdout).data.plan.budgetCard.digest
+    const cliFailure = spawnSync(process.execPath, [
+      'scripts/run-validation.js',
+      '--manifest', failingManifestPath,
+      '--route', 'full',
+      '--approve-plan', cliFailureBudgetDigest,
+      '--actor', 'trusted-ci',
+      '--authority-source', cliAuthoritySource,
+      '--policy-digest', cliPolicyDigest,
+      '--json',
+      '--no-cache'
+    ], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      windowsHide: true,
+      env: cliCiEnv
     })
     assert.strictEqual(cliFailure.status, 1, cliFailure.stderr)
     const failureEnvelope = JSON.parse(cliFailure.stdout)

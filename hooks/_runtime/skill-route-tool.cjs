@@ -152,6 +152,70 @@ function readJson (file, fsImpl = fs) {
   }
 }
 
+function trustedContextSourceIdentities (receipt) {
+  const bySource = new Map()
+  for (const item of Array.isArray(receipt?.sourceIdentities) ? receipt.sourceIdentities : []) {
+    const sourceId = String(item?.sourceId || '').trim()
+    if (!sourceId || !item?.contentIdentity || typeof item.contentIdentity !== 'object') continue
+    bySource.set(sourceId, {
+      sourceId,
+      contentIdentity: JSON.parse(JSON.stringify(item.contentIdentity))
+    })
+  }
+  return [...bySource.values()].sort((left, right) => left.sourceId.localeCompare(right.sourceId, 'en'))
+}
+
+/**
+ * Project only durable ContextRead meaning into the SkillRoute binding digest.
+ * Receipt ids, timestamps, recovery provenance, delivery diagnostics, paging and
+ * closeout status are deliberately excluded; source/target/route/consumer drift
+ * remains digest-visible.
+ */
+function buildTrustedContextSemanticCore (input = {}) {
+  const plan = input.plan && typeof input.plan === 'object' ? input.plan : {}
+  const receipt = input.receipt && typeof input.receipt === 'object' ? input.receipt : {}
+  const sourceIdentities = trustedContextSourceIdentities(receipt)
+  const satisfiedSourceIds = uniqueSorted(
+    Array.isArray(receipt.satisfiedSourceIds)
+      ? receipt.satisfiedSourceIds
+      : sourceIdentities.map(item => item.sourceId)
+  )
+  const route = plan.workflowRoute && typeof plan.workflowRoute === 'object'
+    ? JSON.parse(JSON.stringify(plan.workflowRoute))
+    : {
+        finalIntent: String(plan.identity?.finalIntent || plan.finalIntent || ''),
+        changeTypes: uniqueSorted(plan.changeTypes || [])
+      }
+  return {
+    schemaVersion: 'TrustedContextSemanticCoreV1',
+    schema: {
+      plan: String(plan.schemaVersion || ''),
+      receipt: String(receipt.schemaVersion || ''),
+      consumer: String(plan.identityInputs?.versions?.consumers || 'profile-memory-hook@2')
+    },
+    plan: {
+      contextEpoch: String(input.contextEpoch || plan.identity?.contextEpoch || receipt.contextEpoch || ''),
+      planId: String(plan.planId || receipt.planId || ''),
+      planContentId: String(plan.planContentId || receipt.planContentId || ''),
+      target: {
+        activeRoot: portable(input.activeRoot || plan.identity?.activeRoot || receipt.identity?.activeRoot || ''),
+        project: String(input.project || plan.identity?.project || receipt.identity?.project || '')
+      }
+    },
+    sourceIdentity: sourceIdentities,
+    route,
+    consumer: {
+      host: String(plan.identity?.host || receipt.identity?.host || ''),
+      hostSessionId: String(input.hostSessionId || receipt.identity?.hostSessionId || '')
+    },
+    successfulObservation: {
+      sourceIds: satisfiedSourceIds,
+      complete: (Array.isArray(plan.mandatorySourceIds) ? plan.mandatorySourceIds : [])
+        .every(sourceId => satisfiedSourceIds.includes(sourceId))
+    }
+  }
+}
+
 /**
  * When MCP plan observation advanced but Hook PostToolUse never installed the
  * plan into lifecycle-state, skill_route would see MISMATCH/stale against the
@@ -406,7 +470,7 @@ function validateTrustedContextBinding (binding, target, options = {}) {
       { binding, target, acquisition, plan, receipt }
     )
   }
-  const value = {
+  const semanticBinding = {
     schemaVersion: 'TrustedContextBindingV1',
     contextEpoch: binding.contextEpoch,
     planId: binding.planId,
@@ -418,10 +482,36 @@ function validateTrustedContextBinding (binding, target, options = {}) {
     receiptId: receipt.receiptId,
     receiptStatus: receipt.status,
     hostSessionId: String(acquisition.hostSessionId || ''),
-    statePath: portable(statePath),
-    reboundFromObservation: rebound.rebound === true
+    statePath: portable(statePath)
   }
-  value.bindingDigest = sha256(value)
+  const semanticCore = buildTrustedContextSemanticCore({
+    plan,
+    receipt,
+    contextEpoch: binding.contextEpoch,
+    activeRoot: target.activeRoot,
+    project: target.project,
+    hostSessionId: acquisition.hostSessionId
+  })
+  const value = {
+    ...semanticBinding,
+    // Recovery provenance is useful for diagnostics, but it is intentionally
+    // excluded from bindingDigest: the next read of the same durable context
+    // naturally changes this flag from true to false without a semantic drift.
+    reboundFromObservation: rebound.rebound === true,
+    diagnostics: {
+      reboundFromObservation: rebound.rebound === true
+    },
+    observed: {
+      planId: plan.planId || null,
+      planContentId: plan.planContentId || null,
+      receiptStatus: receipt.status || null,
+      missingSourceIds: buildMissingMandatorySourceIds(plan, receipt),
+      satisfiedSourceIds: uniqueSorted(receipt.satisfiedSourceIds || []),
+      mandatorySourceIds: uniqueSorted(plan.mandatorySourceIds || []),
+      lastError: acquisition.lastError || null
+    }
+  }
+  value.bindingDigest = sha256(semanticCore)
   return value
 }
 
@@ -1612,13 +1702,11 @@ function validateRouteContextPrecondition (state, target, options = {}) {
         target
       }),
       observed: {
-        planId: state.contextBinding?.planId || null,
-        planContentId: state.contextBinding?.planContentId || null,
-        receiptStatus: liveContext.receiptStatus || null,
-        missingSourceIds: [],
-        satisfiedSourceIds: [],
-        mandatorySourceIds: [],
-        lastError: null
+        ...liveContext.observed,
+        storedBindingDigest: state.trustedContextBindingDigest || null,
+        planBindingDigest: state.plan?.contextBindingDigest || null,
+        liveBindingDigest: liveContext.bindingDigest,
+        reboundFromObservation: liveContext.reboundFromObservation === true
       }
     }
     throw error
@@ -2590,6 +2678,7 @@ module.exports = {
   ACCEPTED_CONTEXT_RECEIPT_STATUSES,
   resolveProjectTarget,
   lifecycleStatePath,
+  buildTrustedContextSemanticCore,
   validateTrustedContextBinding,
   validateRequestShape,
   finalizeResponse,

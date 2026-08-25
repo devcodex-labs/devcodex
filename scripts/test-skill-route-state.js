@@ -19,8 +19,11 @@ const {
   transactEnvelope
 } = require('../hooks/_runtime/skill-route-state.cjs')
 const {
+  buildTrustedContextSemanticCore,
   evaluateProgressiveSkillRouteStop,
   handleSkillRoute,
+  resolveProjectTarget,
+  validateTrustedContextBinding,
   shouldEnforceProgressiveSkillRouteStop
 } = require('../hooks/_runtime/skill-route-tool.cjs')
 const { buildContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
@@ -444,6 +447,135 @@ try {
   assert.strictEqual(lockedLedgerBridge.ledgerStatus, 'bypassed')
   assert.strictEqual(lockedLedgerBridge.errorCode, 'CONTEXT_SOURCE_OBSERVATION_LOCK_TIMEOUT')
   fs.unlinkSync(`${bridgedSources.ledgerPath}.lock`)
+
+  // PF-342 regression: automatic recovery provenance is transient diagnostic
+  // state, not part of the trusted semantic binding. A recovery followed by a
+  // normal read must therefore keep the same digest, while real trusted
+  // identity drift must still change it.
+  fs.writeFileSync(
+    lifecyclePath,
+    `${JSON.stringify({
+      contextAcquisition: {
+        contextEpoch: mcpObservationEpoch,
+        activeRoot: fixture.activeRoot.replace(/\\/g, '/'),
+        project: fixture.project,
+        hostSessionId: 'session-mcp-source-observation'
+      }
+    }, null, 2)}\n`,
+    'utf8'
+  )
+  const mcpTarget = resolveProjectTarget(fixture.root, fixture.project)
+  const reboundTrustedContext = validateTrustedContextBinding(
+    mcpObservedPlan.contextBinding,
+    mcpTarget,
+    fixture.runtimeOptions
+  )
+  assert.strictEqual(reboundTrustedContext.reboundFromObservation, true)
+  assert.strictEqual(reboundTrustedContext.diagnostics.reboundFromObservation, true)
+  assert.deepStrictEqual(reboundTrustedContext.observed.missingSourceIds, [])
+  assert.deepStrictEqual(
+    reboundTrustedContext.observed.mandatorySourceIds,
+    [...mcpObservedPlan.mandatorySourceIds].sort()
+  )
+  const stableTrustedContext = validateTrustedContextBinding(
+    mcpObservedPlan.contextBinding,
+    mcpTarget,
+    fixture.runtimeOptions
+  )
+  assert.strictEqual(stableTrustedContext.reboundFromObservation, false)
+  assert.strictEqual(stableTrustedContext.diagnostics.reboundFromObservation, false)
+  assert.strictEqual(
+    stableTrustedContext.bindingDigest,
+    reboundTrustedContext.bindingDigest,
+    'transient recovery provenance must not invalidate an unchanged trusted context'
+  )
+  const semanticLifecycle = JSON.parse(fs.readFileSync(lifecyclePath, 'utf8'))
+  const stableSemanticCore = buildTrustedContextSemanticCore({
+    plan: semanticLifecycle.contextAcquisition.plan,
+    receipt: semanticLifecycle.contextAcquisition.receipt,
+    contextEpoch: semanticLifecycle.contextAcquisition.contextEpoch,
+    activeRoot: semanticLifecycle.contextAcquisition.activeRoot,
+    project: semanticLifecycle.contextAcquisition.project,
+    hostSessionId: semanticLifecycle.contextAcquisition.hostSessionId
+  })
+  const transientLifecycle = JSON.parse(JSON.stringify(semanticLifecycle))
+  const transientReceipt = transientLifecycle.contextAcquisition.receipt
+  transientReceipt.receiptId = 'receipt-transient-closeout'
+  transientReceipt.status = 'completed'
+  transientReceipt.completedAt = new Date(BASE_MS + 30).toISOString()
+  transientReceipt.consumedAt = new Date(BASE_MS + 31).toISOString()
+  transientReceipt.replanCount = 7
+  transientReceipt.lastError = { diagnostic: 'must-not-bind' }
+  if (transientReceipt.delivery) {
+    transientReceipt.delivery.reused = true
+    transientReceipt.delivery.reasonCode = 'transient-replay-diagnostic'
+  }
+  transientReceipt.observations = (transientReceipt.observations || []).map((observation, index) => ({
+    ...observation,
+    observationId: `transient-observation-${index}`,
+    toolCallId: `transient-call-${index}`,
+    attemptedAt: new Date(BASE_MS + 32 + index).toISOString(),
+    observedAt: new Date(BASE_MS + 42 + index).toISOString(),
+    latencyMs: 999 + index,
+    tokens: 777 + index,
+    cache: !observation.cache
+  }))
+  const transientSemanticCore = buildTrustedContextSemanticCore({
+    plan: transientLifecycle.contextAcquisition.plan,
+    receipt: transientReceipt,
+    contextEpoch: transientLifecycle.contextAcquisition.contextEpoch,
+    activeRoot: transientLifecycle.contextAcquisition.activeRoot,
+    project: transientLifecycle.contextAcquisition.project,
+    hostSessionId: transientLifecycle.contextAcquisition.hostSessionId
+  })
+  assert.deepStrictEqual(
+    transientSemanticCore,
+    stableSemanticCore,
+    'receipt ids, replay diagnostics, timing, paging progress and closeout status must not enter the semantic core'
+  )
+  const sourceDriftLifecycle = JSON.parse(JSON.stringify(semanticLifecycle))
+  assert(sourceDriftLifecycle.contextAcquisition.receipt.sourceIdentities.length > 0)
+  sourceDriftLifecycle.contextAcquisition.receipt.sourceIdentities[0].contentIdentity.digest = 'f'.repeat(64)
+  const sourceDriftCore = buildTrustedContextSemanticCore({
+    plan: sourceDriftLifecycle.contextAcquisition.plan,
+    receipt: sourceDriftLifecycle.contextAcquisition.receipt,
+    contextEpoch: sourceDriftLifecycle.contextAcquisition.contextEpoch,
+    activeRoot: sourceDriftLifecycle.contextAcquisition.activeRoot,
+    project: sourceDriftLifecycle.contextAcquisition.project,
+    hostSessionId: sourceDriftLifecycle.contextAcquisition.hostSessionId
+  })
+  assert.notStrictEqual(
+    sha256(sourceDriftCore),
+    sha256(stableSemanticCore),
+    'a real successful source identity change must invalidate the semantic core'
+  )
+  fs.writeFileSync(lifecyclePath, `${JSON.stringify(transientLifecycle, null, 2)}\n`, 'utf8')
+  const completedTrustedContext = validateTrustedContextBinding(
+    mcpObservedPlan.contextBinding,
+    mcpTarget,
+    fixture.runtimeOptions
+  )
+  assert.strictEqual(
+    completedTrustedContext.bindingDigest,
+    stableTrustedContext.bindingDigest,
+    'a repeated closeout/replay of the same observed content must preserve the trusted binding digest'
+  )
+  Object.assign(semanticLifecycle, JSON.parse(fs.readFileSync(lifecyclePath, 'utf8')))
+  semanticLifecycle.contextAcquisition.hostSessionId = 'session-semantic-drift'
+  fs.writeFileSync(lifecyclePath, `${JSON.stringify(semanticLifecycle, null, 2)}\n`, 'utf8')
+  const driftedTrustedContext = validateTrustedContextBinding(
+    mcpObservedPlan.contextBinding,
+    mcpTarget,
+    fixture.runtimeOptions
+  )
+  assert.notStrictEqual(
+    driftedTrustedContext.bindingDigest,
+    stableTrustedContext.bindingDigest,
+    'a real host-session identity change must invalidate the trusted context digest'
+  )
+  semanticLifecycle.contextAcquisition.hostSessionId = stableTrustedContext.hostSessionId
+  fs.writeFileSync(lifecyclePath, `${JSON.stringify(semanticLifecycle, null, 2)}\n`, 'utf8')
+
   const mcpRecoveredCommit = handleSkillRoute({
     op: 'commit',
     project: fixture.project,
@@ -470,7 +602,8 @@ try {
 
   // Regression PF-256: a Hook writer may replace the shared lifecycle receipt
   // with a baseline-only snapshot after MCP already delivered every body. Stage
-  // loading must recover from the independent durable source ledger.
+  // loading must recover transparently from the independent durable source
+  // ledger when the reconstructed semantic binding is unchanged.
   const overwrittenAfterCommit = JSON.parse(fs.readFileSync(lifecyclePath, 'utf8'))
   overwrittenAfterCommit.contextAcquisition.receipt = createContextReadReceipt(mcpObservedPlan, {
     verificationMode: 'structured-plan',
@@ -485,21 +618,8 @@ try {
     contextEpoch: mcpObservationEpoch
   }, fixture.runtimeOptions)
   assert.strictEqual(recoveredStatusAfterOverwrite.ok, true, JSON.stringify(recoveredStatusAfterOverwrite))
-  assert.strictEqual(recoveredStatusAfterOverwrite.receipt.nextAction.nextOp, 'rebind')
-  assert.strictEqual(recoveredStatusAfterOverwrite.receipt.nextAction.errorCode, 'CONTEXT_BINDING_STALE')
-  const recoveredRebind = handleSkillRoute({
-    ...recoveredStatusAfterOverwrite.receipt.nextAction.nextCall,
-    contextBinding: mcpObservedPlan.contextBinding
-  }, fixture.runtimeOptions)
-  assert.strictEqual(recoveredRebind.ok, true, JSON.stringify(recoveredRebind))
-  const recoveredStatusAfterRebind = handleSkillRoute({
-    op: 'status',
-    project: fixture.project,
-    turnBinding: mcpBoot.bootstrap.turnBinding,
-    contextEpoch: mcpObservationEpoch
-  }, fixture.runtimeOptions)
-  assert.strictEqual(recoveredStatusAfterRebind.receipt.nextAction.nextOp, 'load_stage')
-  assert.strictEqual(recoveredStatusAfterRebind.receipt.nextAction.nextCall.stageId, 'closeout')
+  assert.strictEqual(recoveredStatusAfterOverwrite.receipt.nextAction.nextOp, 'load_stage')
+  assert.strictEqual(recoveredStatusAfterOverwrite.receipt.nextAction.nextCall.stageId, 'closeout')
 
   const writerStaleLifecycle = JSON.parse(fs.readFileSync(lifecyclePath, 'utf8'))
   writerStaleLifecycle.contextAcquisition.receipt.status = 'stale'
@@ -891,29 +1011,18 @@ try {
   )
 
   const lifecycle = JSON.parse(fs.readFileSync(lifecyclePath, 'utf8'))
-  const digestDriftLifecycle = JSON.parse(JSON.stringify(lifecycle))
-  digestDriftLifecycle.contextAcquisition.receipt.receiptId = 'receipt-live-digest-drift'
-  fs.writeFileSync(lifecyclePath, `${JSON.stringify(digestDriftLifecycle, null, 2)}\n`, 'utf8')
-  const digestDriftStatus = handleSkillRoute({
+  const receiptIdOnlyLifecycle = JSON.parse(JSON.stringify(lifecycle))
+  receiptIdOnlyLifecycle.contextAcquisition.receipt.receiptId = 'receipt-transient-identity'
+  fs.writeFileSync(lifecyclePath, `${JSON.stringify(receiptIdOnlyLifecycle, null, 2)}\n`, 'utf8')
+  const receiptIdOnlyStatus = handleSkillRoute({
     op: 'status',
     project: fixture.project,
     turnBinding: boot.bootstrap.turnBinding,
     contextEpoch
   }, fixture.runtimeOptions)
-  assert.strictEqual(digestDriftStatus.ok, true, JSON.stringify(digestDriftStatus))
-  assert.strictEqual(digestDriftStatus.receipt.nextAction.nextOp, 'rebind')
-  assert.strictEqual(digestDriftStatus.receipt.nextAction.errorCode, 'CONTEXT_BINDING_STALE')
-  const digestDriftLoad = handleSkillRoute({
-    op: 'load_stage',
-    project: fixture.project,
-    turnBinding: boot.bootstrap.turnBinding,
-    contextEpoch,
-    generation: commit.receipt.plan.generation,
-    planDigest: commit.receipt.plan.planDigest,
-    stageId: 'entry'
-  }, fixture.runtimeOptions)
-  assert.strictEqual(digestDriftLoad.ok, false)
-  assert.strictEqual(digestDriftLoad.errorCode, 'CONTEXT_BINDING_STALE', 'status and execution must share the live binding digest precondition')
+  assert.strictEqual(receiptIdOnlyStatus.ok, true, JSON.stringify(receiptIdOnlyStatus))
+  assert.strictEqual(receiptIdOnlyStatus.receipt.nextAction.nextOp, 'load_stage')
+  assert.strictEqual(receiptIdOnlyStatus.receipt.nextAction.errorCode, null)
   fs.writeFileSync(lifecyclePath, `${JSON.stringify(lifecycle, null, 2)}\n`, 'utf8')
 
   lifecycle.contextAcquisition.receipt.status = 'planned'

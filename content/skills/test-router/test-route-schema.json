@@ -4,11 +4,13 @@
   "gateRegistryRef": "skills/spec-governance/gate-registry.json",
   "stableInputs": ["workflow", "changeTypes", "risk", "publicSurface", "runtimeBoundary", "profileConstraints", "candidateState", "capabilitySurfaceDecision", "requestedClaims", "verificationIntent"],
   "verificationIntent": {
-    "schemaVersion": "VerificationIntentV1",
+    "schemaVersion": "VerificationIntentV2",
     "levels": ["V0", "V1", "V2", "V3"],
     "purposes": ["edit-loop", "delivery", "boundary", "full-audit", "release"],
-    "requiredFields": ["level", "purpose", "affectedBoundaries", "riskClass", "releaseAuthorized", "explicitFullAudit", "authoritySource", "claimCeiling", "authorizationDigest", "intentDigest"],
-    "v3Authorities": ["explicitFullAudit", "releaseAuthorized"],
+    "requiredFields": ["requesterClass", "requestedLevel", "requestedPurpose", "affectedBoundaries", "riskClass", "requestSourceRef", "project", "candidateId", "changedScopeDigest", "claimCeiling", "requestDigest"],
+    "executionAuthoritySchema": "VerificationExecutionLeaseV2",
+    "legacyExecutionAuthorityReaderSchemas": ["VerificationExecutionLeaseV1"],
+    "legacyReaderSchemas": ["VerificationIntentV1"],
     "forbiddenImplicitAuthorities": ["risk", "reviewGrade", "controlPlane", "ecr", "cacheMiss", "cacheStale", "consumerGraphIncomplete", "unknownInput"]
   },
   "executionLevels": [
@@ -23,7 +25,8 @@
     "package-release": "package"
   },
   "executionBinding": {
-    "requiredFields": ["manifestIdentity", "candidateId", "candidateStable", "planDigest"],
+    "planSchema": "ValidationPlanV3",
+    "requiredFields": ["manifestIdentity", "projectRootIdentity", "candidateId", "candidateStable", "candidateDigest", "dirtyScopeDigest", "changedScopeDigest", "planDigest", "budgetDigest", "requestDigest", "actorIdentityDigest", "runIdentityDigest", "runId", "hardDeadlineAt", "authorityDigest"],
     "cacheSchema": "ValidationEvidenceV2",
     "cacheNamespace": "validation-evidence/v2",
     "nodeBindingFields": ["HEAD", "matchedDirtyInputs", "nodeContract", "nodeVerificationPolicy", "dependencyReceiptDigests", "runtime"],
@@ -32,11 +35,33 @@
   },
   "budgetPolicy": {
     "schemaVersion": "BudgetCardV1",
+    "pendingBindingSchema": "PendingBudgetCardBindingV1",
+    "confirmationReceiptSchema": "BudgetConfirmationReceiptV1",
+    "continuationAuthorizationSchema": "ValidationContinuationAuthorizationV1",
     "nonReleaseThresholdMs": 600000,
-    "confirmationBinding": "planDigest",
+    "confirmationBinding": "planDigest+budgetDigest",
+    "confirmationRequiredWhen": ["level=V3", "estimatedDurationMs>600000", "heavyNodeIds>0"],
     "durationEstimate": "manifest estimate or capped default; timeout upper bound reported separately",
     "estimateConfidenceValues": ["low", "medium", "high"],
     "requiredCardFields": ["estimatedDurationMs", "estimateConfidence", "hardTimeoutUpperBoundMs", "logBudgetBytes", "heavyNodeIds", "waitReasons"],
+    "formalTaskBindingRequiredForAi": true,
+    "autoMaximumLevel": "V2",
+    "boundedContinuation": {
+      "rootRelative": true,
+      "maximumRetries": 2,
+      "maximumAddedNodes": "min(3,max(1,ceil(rootSelectedNodeCount*0.05)))",
+      "maximumEstimatedDeltaMs": "min(60000,ceil(rootEstimatedDurationMs*0.05))",
+      "hardTimeoutMayIncrease": false,
+      "logBudgetMayIncrease": false,
+      "requiresSamePurposeAndNarrowerBoundaries": true,
+      "repairProofKinds": ["mutation-observation", "same-scope-retry"],
+      "sameScopeRetryRequires": ["stableCandidate", "sameHead", "noNewDirtyPaths", "noAddedNodes", "noBudgetIncrease"],
+      "planOnlyPreflightMatchesExecution": true,
+      "retryExhaustionAction": "block-without-auto-root-rollover",
+      "expiredAutoIngress": "existing-root-continuation-only",
+      "freshControlRequiredFor": ["create-root", "replace-root", "V3", "full-audit", "release"],
+      "revocationEpochBound": true
+    },
     "unknownImpactAction": "block",
     "staleCacheAction": "rerun-precise-node"
   },
@@ -48,6 +73,6 @@
     { "id": "package-release", "when": "package candidate or release claim", "evidence": ["candidateDiff", "pack", "install", "registry"] },
     { "id": "profile-deploy", "when": "Profile, host or distribution changes", "evidence": ["profileValidation", "deploymentParity"] }
   ],
-  "outputs": ["verificationIntent", "validationPlan", "budgetCard", "selectedRoutes", "commands", "evidence", "skipped", "residualRisk", "coverageClaim"],
+  "outputs": ["verificationIntent", "validationPlan", "budgetCard", "pendingBudgetCardBinding", "budgetConfirmationReceipt", "validationContinuationAuthorization", "verificationExecutionLease", "validationExecutionReceipt", "selectedRoutes", "commands", "evidence", "skipped", "residualRisk", "coverageClaim"],
   "skipRequiredFields": ["route", "reason", "authority", "residualRisk", "upgradeCondition"]
 }

@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 模式合规检查规则，覆盖 FC/SC/RC/T、入口检查与完成验证
 priority: P4
-version: 1.18.1
+version: 1.19.0
 ---
 # 合规检查规则（17-compliance）
 
@@ -73,7 +73,7 @@ version: 1.18.1
 > - **legacy 父链表面**（可选诊断）：cwd 是 plugin 源仓库且父链上仍存在 `.github/`、`.claude/`、`AGENTS.md`、`.agents/` 或 `.codex/` 时，可扫描但不作为普通 workspace 安装目标
 >
 > 触发动作：
-> - 用户级 adapter 相对源码候选落后 / STALE → ⚠️ 标记；源码仓优先运行 **`devcodex global-adapters apply`**（或次选 `npm install -g .` / `npm pack` + tarball）；已发布环境用 `npm update -g devcodex`
+> - 用户级 adapter 相对源码候选落后 / STALE → ⚠️ 标记并给出精确同步方案；`devcodex global-adapters apply`、`npm install -g .`、pack+全局安装或 `npm update -g devcodex` 都会修改用户级环境，必须单独说明目标、影响、恢复方式并取得当前明确授权后才可执行。PC5、Auto、Profile 或 stale 诊断本身不授予全局 mutation 权限
 > - bare `devcodex update` **只刷新 workspace `.devcodex`**，不能替代全局 adapter 刷新；`update --claude/--codex/--host` 仍 fail closed（`CLI_HOST_CONFIG_GLOBAL_ONLY`）
 > - 同步 → ✅
 > - 无用户级 receipt 且无 legacy 父链表面 → N/A 或按 doctor 缺失项提示

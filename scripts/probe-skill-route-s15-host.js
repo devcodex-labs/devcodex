@@ -411,6 +411,18 @@ function parseHostResult (hostId, result, outputPath) {
   return parseModelResult(result.stdout).final
 }
 
+function envelopeMatchesExpected (envelope, expected = {}) {
+  const state = envelope?.state
+  if (!state) return false
+  if (expected.planDigest && state.plan?.planDigest !== expected.planDigest) return false
+  if (
+    Number.isInteger(expected.planGeneration) &&
+    state.plan?.generation !== expected.planGeneration
+  ) return false
+  if (expected.decisionSkillId && state.decision?.skillId !== expected.decisionSkillId) return false
+  return true
+}
+
 function findEnvelope (fixture, expected = {}) {
   const root = path.join(
     resolveRuntimeStateRoot(fixture.activeRoot, fixture.project).root,
@@ -429,14 +441,12 @@ function findEnvelope (fixture, expected = {}) {
     const lifecycleState = JSON.parse(fs.readFileSync(lifecycleFile, 'utf8'))
     const turnBinding = lifecycleState.progressiveSkillRoute?.bootstrap?.turnBinding
     if (turnBinding) {
-      return {
+      const envelope = loadEnvelope(
+        fixture.activeRoot,
         turnBinding,
-        envelope: loadEnvelope(
-          fixture.activeRoot,
-          turnBinding,
-          fixture.runtimeOptions
-        ).envelope
-      }
+        fixture.runtimeOptions
+      ).envelope
+      if (envelopeMatchesExpected(envelope, expected)) return { turnBinding, envelope }
     }
   }
   const candidates = fs.readdirSync(root, { withFileTypes: true })
@@ -457,16 +467,7 @@ function findEnvelope (fixture, expected = {}) {
       fixture.runtimeOptions
     ).envelope
   }))
-  const selected = loaded.find(candidate => {
-    const state = candidate.envelope.state
-    if (expected.planDigest && state.plan?.planDigest !== expected.planDigest) return false
-    if (
-      Number.isInteger(expected.planGeneration) &&
-      state.plan?.generation !== expected.planGeneration
-    ) return false
-    if (expected.decisionSkillId && state.decision?.skillId !== expected.decisionSkillId) return false
-    return true
-  })
+  const selected = loaded.find(candidate => envelopeMatchesExpected(candidate.envelope, expected))
   assert(selected, 'S15 authoritative envelope matching final result missing')
   return {
     turnBinding: selected.turnBinding,
@@ -1141,6 +1142,8 @@ module.exports = {
   buildPrompt,
   buildHostInvocationEvidence,
   classifyFailure,
+  envelopeMatchesExpected,
+  findEnvelope,
   hostArgs,
   patchProbeHookCommand,
   resolveExecutable,

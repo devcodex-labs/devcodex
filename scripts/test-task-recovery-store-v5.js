@@ -6,6 +6,7 @@ const os = require('os')
 const path = require('path')
 const {
   appendTaskRecoveryTelemetry,
+  commitTaskAdmissionTransaction,
   commitTaskRecoveryState,
   createTaskRecoveryKey,
   diagnoseTaskRecoveryStore,
@@ -16,13 +17,16 @@ const {
   inspectTaskRecoveryStore,
   maintainTaskRecoveryStore,
   readTaskRecoveryState,
+  readTaskAdmissionTransaction,
   storePaths,
   taskPaths,
+  taskAdmissionTransactionDigest,
   updateTaskRecoveryState,
   writeStableProjection
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const {
   compactLifecycleStateV5,
+  buildColdResumeStub,
   digestValue,
   jsonBytes
 } = require('../hooks/_runtime/lifecycle-state-projection-v5.cjs')
@@ -91,14 +95,265 @@ function state(taskId, phase = 'CP3') {
   }
 }
 
+function admissionTransaction(taskId, phase = 'prepared', overrides = {}) {
+  const key = overrides.ingressIdempotencyKey || 'a'.repeat(64)
+  const phaseOrdinal = ['prepared', 'identity-written', 'overview-written', 'cp-state-written', 'owner-fenced', 'finalized', 'terminal-closeout'].indexOf(phase)
+  const value = {
+    schemaVersion: 'TaskAdmissionTransactionV1',
+    admissionId: `admission-${key.slice(0, 40)}`,
+    ingressIdempotencyKey: key,
+    admissionPolicyRevision: 'TaskAdmissionPolicyV1@1',
+    admissionGeneration: 1,
+    phase,
+    status: 'admitting',
+    operation: 'admit',
+    requestDigest: 'b'.repeat(64),
+    project: 'devcodex',
+    projectRootIdentityDigest: 'c'.repeat(64),
+    sessionDigest: 'd'.repeat(64),
+    hostVariant: 'codex-cli',
+    sourceEventId: `event-${'5'.repeat(40)}`,
+    actualInstructionDigest: 'e'.repeat(64),
+    workItemId: `work-${'6'.repeat(40)}`,
+    workItemDigest: 'f'.repeat(64),
+    workflowRouteDigest: '1'.repeat(64),
+    routeKey: 'fix.default',
+    routeRevision: '7'.repeat(64),
+    projectTargetLeaseDigest: '2'.repeat(64),
+    taskId,
+    displayName: `task-${taskId}`,
+    taskKind: 'bugs',
+    entryVariant: 'fix',
+    taskIdentityDigest: '3'.repeat(64),
+    directoryDecisionDigest: '4'.repeat(64),
+    taskRootRelative: `bugs/${taskId}`,
+    effects: {
+      identity: { status: phaseOrdinal < 1 ? 'pending' : 'written' },
+      overview: { status: phaseOrdinal < 2 ? 'pending' : 'written' },
+      cpState: { status: phaseOrdinal < 3 ? 'pending' : 'confirmed' },
+      owner: { status: phaseOrdinal < 4 ? 'pending' : (phase === 'terminal-closeout' ? 'terminal' : 'fenced') }
+    },
+    error: null,
+    createdAt: '2026-08-22T00:00:00.000Z',
+    updatedAt: '2026-08-22T00:00:00.000Z',
+    ...overrides
+  }
+  value.transactionDigest = taskAdmissionTransactionDigest(value)
+  return value
+}
+
 function mutationState(taskId, phase = 'implementation') {
   const value = state(taskId, phase)
+  const targetPath = path.join(activeRoot, 'bugs', taskId, '02-修复方案.md')
   value.turnLiveness.inFlightOperation = {
     operationId: `operation-${taskId}`,
     toolName: 'apply_patch',
     startedAt: '2026-08-22T00:00:00Z',
     mutating: true,
-    targetPaths: [path.join(activeRoot, 'README.md')]
+    targetPaths: [targetPath],
+    artifactDecision: {
+      schemaVersion: 'ArtifactSlotDecisionV1',
+      decisionDigest: 'a'.repeat(64),
+      footprintDigest: 'b'.repeat(64),
+      targetSetDigest: 'c'.repeat(64),
+      operation: 'update',
+      slotId: 'bug-cp2',
+      targetCount: 1,
+      observability: 'complete',
+      authoritySourceRef: `fixture:${taskId}`,
+      expiresAt: '2026-08-22T00:10:00.000Z',
+      singleUse: true
+    }
+  }
+  return value
+}
+
+function mutationStateV2Ephemeral() {
+  const value = state('00000000-0000-4000-8000-000000000099', 'implementation')
+  value.taskRecoveryBinding = null
+  const operationId = 'ephemeral-mutation-v2'
+  const targetPath = path.join(tempRoot, 'src', 'ephemeral-source.js')
+  const decisionDigest = 'a'.repeat(64)
+  const footprintDigest = 'b'.repeat(64)
+  const plannedSetDigest = 'c'.repeat(64)
+  const adapterDigest = 'd'.repeat(64)
+  const registryDigest = 'e'.repeat(64)
+  value.stickyProject = {
+    schemaVersion: 'ProjectTargetLeaseV2',
+    targetDigest: '0'.repeat(64),
+    rootIdentityDigest: '1'.repeat(64),
+    layoutIdentity: '2'.repeat(64),
+    project: 'devcodex',
+    physicalRoot: tempRoot,
+    activeRoot,
+    authorityKind: 'session',
+    authorityDigest: '3'.repeat(64),
+    contextEpoch: 'ctx-test',
+    contextBindingDigest: '4'.repeat(64),
+    routeRevision: '5'.repeat(64),
+    revocationEpoch: 1,
+    issuedAtMs: baseOptions.nowMs,
+    expiresAtMs: baseOptions.nowMs + 10 * 60 * 1000,
+    leaseDigest: '6'.repeat(64),
+    source: 'test'
+  }
+  value.actualInstructionEnvelope = {
+    schemaVersion: 'ActualInstructionEnvelopeV1',
+    envelopeId: 'aie-0000000000000000000000000000000000000000',
+    envelopeDigest: '7'.repeat(64),
+    actualInstructionDigest: '8'.repeat(64),
+    contextEpoch: 'ctx-test',
+    instructionAuthority: true
+  }
+  value.workflowRouteDecision = {
+    schemaVersion: 'WorkflowRouteDecisionV2',
+    decisionDigest: '9'.repeat(64),
+    routeRevision: '5'.repeat(64),
+    routeKey: 'dev.default',
+    topIntent: 'dev',
+    subtype: 'default'
+  }
+  value.workflowRoutePlanBinding = {
+    bindingDigest: '4'.repeat(64),
+    routeRevision: '5'.repeat(64)
+  }
+  const simpleLeaseSemantic = {
+    schemaVersion: 'SimpleTaskFastPathLeaseV1',
+    leaseId: `simple-${'a'.repeat(40)}`,
+    project: 'devcodex',
+    projectRootIdentityDigest: value.stickyProject.rootIdentityDigest,
+    projectTargetLeaseDigest: value.stickyProject.leaseDigest,
+    sessionDigest: value.stickyProject.authorityDigest,
+    turnKey: value.turnLiveness.turnKey,
+    contextEpoch: 'ctx-test',
+    instructionEnvelopeDigest: value.actualInstructionEnvelope.envelopeDigest,
+    actualInstructionDigest: value.actualInstructionEnvelope.actualInstructionDigest,
+    routeDecisionDigest: value.workflowRouteDecision.decisionDigest,
+    routeRevision: value.workflowRouteDecision.routeRevision,
+    routeKey: value.workflowRouteDecision.routeKey,
+    operation: 'create-or-update',
+    relativeTargets: ['src/ephemeral-source.js'],
+    targetSetDigest: 'b'.repeat(64),
+    slotId: 'project-source',
+    moduleBoundary: 'implementation:src',
+    riskAssessment: {
+      changeClass: 'local-implementation',
+      crossModule: false,
+      sharedContract: false,
+      publicApiOrSchema: false,
+      securitySensitive: false,
+      dependencyChange: false,
+      releaseImpact: false
+    },
+    riskEvidenceDigest: 'c'.repeat(64),
+    mergedRegistryDigest: registryDigest,
+    maxTargets: 2,
+    maxUses: 2,
+    issuedAt: '2026-08-22T00:00:00.000Z',
+    expiresAt: '2026-08-22T00:05:00.000Z',
+    status: 'active',
+    mutationAuthority: true,
+    productMutationAuthority: true,
+    formalArtifactAuthority: false,
+    controlPlaneAuthority: false,
+    releaseAuthority: false
+  }
+  value.simpleTaskFastPathLease = {
+    ...simpleLeaseSemantic,
+    leaseDigest: digestValue(simpleLeaseSemantic)
+  }
+  const simpleUsageSemantic = {
+    schemaVersion: 'SimpleTaskFastPathUsageV1',
+    leaseDigest: value.simpleTaskFastPathLease.leaseDigest,
+    targetSetDigest: value.simpleTaskFastPathLease.targetSetDigest,
+    maxUses: 2,
+    useCount: 0,
+    operationIds: [],
+    observedTargetSetDigests: [],
+    status: 'active',
+    updatedAt: value.simpleTaskFastPathLease.issuedAt
+  }
+  value.simpleTaskFastPathUsage = {
+    ...simpleUsageSemantic,
+    usageDigest: digestValue(simpleUsageSemantic)
+  }
+  value.turnLiveness.inFlightOperation = {
+    operationId,
+    toolName: 'apply_patch',
+    startedAt: '2026-08-22T00:00:00.000Z',
+    mutating: true,
+    targetPaths: [targetPath],
+    artifactDecision: {
+      schemaVersion: 'ArtifactSlotDecisionV2',
+      project: 'devcodex',
+      taskRecoveryKey: null,
+      contextEpoch: 'ctx-test',
+      operation: 'create-or-update',
+      targetSetDigest: 'f'.repeat(64),
+      footprintDigest,
+      adapterDigest,
+      plannedSetDigest,
+      mergedRegistryDigest: registryDigest,
+      baseRegistryDigest: '1'.repeat(64),
+      overlayDigest: null,
+      activeRootIdentity: { canonicalPath: activeRoot, digest: '2'.repeat(64) },
+      projectRootIdentity: { canonicalPath: tempRoot, digest: '3'.repeat(64) },
+      decisionStatus: 'allow',
+      expiresAt: '2026-08-22T00:10:00.000Z',
+      singleUse: true,
+      status: 'active',
+      decisionDigest
+    },
+    mutationLease: {
+      schemaVersion: 'TaskOwnedMutationLeaseV2',
+      operationId,
+      project: 'devcodex',
+      taskId: '',
+      ownerKind: 'simple-task-fast-path',
+      ownerGeneration: null,
+      ownerLeaseDigest: value.simpleTaskFastPathLease.leaseDigest,
+      contextEpoch: 'ctx-test',
+      routeRevision: '5'.repeat(64),
+      adapterDigest,
+      mergedRegistryDigest: registryDigest,
+      slotDecisionDigest: decisionDigest,
+      plannedSetDigest,
+      nonce: '6'.repeat(64),
+      issuedAt: '2026-08-22T00:00:00.000Z',
+      expiresAt: '2026-08-22T00:05:00.000Z',
+      singleUse: true,
+      status: 'active',
+      leaseDigest: '7'.repeat(64)
+    },
+    mutationFootprint: {
+      schemaVersion: 'MutationFootprintRecoveryProjectionV2',
+      sourceSchemaVersion: 'MutationFootprintV2',
+      footprintDigest,
+      adapterDigest,
+      operation: 'create-or-update',
+      plannedCreates: [targetPath],
+      plannedModifies: [],
+      plannedDeletes: [],
+      plannedMoves: [],
+      sourceTargets: [],
+      targetTargets: [targetPath],
+      normalizedTargets: [targetPath],
+      plannedSetDigest,
+      observationPlan: { method: 'pre-post-byte-identity', targetGranularity: 'exact-target' },
+      coverage: 'complete'
+    },
+    mutationPreObservation: {
+      schemaVersion: 'MutationPreObservationV1',
+      operationId,
+      footprintDigest,
+      plannedSetDigest,
+      entries: [{ path: targetPath, exists: false, kind: 'missing', digest: null, bytes: 0, complete: true }],
+      observationCoverage: 'complete',
+      errorCodes: [],
+      snapshotDigest: '8'.repeat(64),
+      observedAt: '2026-08-22T00:00:00.000Z',
+      receiptDigest: '9'.repeat(64)
+    }
   }
   return value
 }
@@ -234,6 +489,31 @@ try {
   assert(!JSON.stringify(compact.state).includes('data:image'))
   assert(compact.state.turnLiveness.checkpoint.artifactPaths.some(item => item.endsWith('README.md')))
 
+  const compactSerializationTaskId = '00000000-0000-4000-8000-0000000000c5'
+  const compactSerializationState = state(compactSerializationTaskId)
+  compactSerializationState.serializationProbe = Array.from(
+    { length: 4000 },
+    (_, index) => ({ index, left: 'x', right: 'y' })
+  )
+  const compactSerializationProjection = compactLifecycleStateV5(compactSerializationState)
+  assert(compactSerializationProjection.bytes < 256 * 1024)
+  assert(Buffer.byteLength(`${JSON.stringify(compactSerializationProjection.state, null, 2)}\n`, 'utf8') > 256 * 1024)
+  const compactSerializationCommit = commitTaskRecoveryState({
+    metaDir,
+    identity: identity(compactSerializationTaskId),
+    sessionKey: 'compact-serialization-session',
+    state: compactSerializationState
+  }, baseOptions)
+  assert.strictEqual(compactSerializationCommit.status, 'committed', JSON.stringify(compactSerializationCommit))
+  const compactSerializationPaths = taskPaths(
+    storePaths(metaDir),
+    createTaskRecoveryKey(identity(compactSerializationTaskId))
+  )
+  const compactSerializationSlot = compactSerializationPaths.slots.find(file => fs.existsSync(file))
+  assert(compactSerializationSlot)
+  assert(fs.statSync(compactSerializationSlot).size <= 256 * 1024)
+  assert.strictEqual(fs.readFileSync(compactSerializationSlot, 'utf8').split('\n').length, 2)
+
   const taskId = '00000000-0000-4000-8000-000000000001'
   const first = commitTaskRecoveryState({
     metaDir,
@@ -243,6 +523,55 @@ try {
   }, baseOptions)
   assert.strictEqual(first.status, 'committed')
   assert.strictEqual(first.fullStateWrite, true)
+
+  const admissionTaskId = '00000000-0000-4000-8000-0000000000a1'
+  const preparedAdmission = admissionTransaction(admissionTaskId)
+  const admissionPrepared = commitTaskAdmissionTransaction({
+    metaDir,
+    identity: identity(admissionTaskId),
+    transaction: preparedAdmission
+  }, baseOptions)
+  assert.strictEqual(admissionPrepared.status, 'committed', JSON.stringify(admissionPrepared))
+  const preparedReadback = readTaskAdmissionTransaction({ metaDir, identity: identity(admissionTaskId) })
+  assert.strictEqual(preparedReadback.status, 'fresh')
+  assert.strictEqual(preparedReadback.transaction.phase, 'prepared')
+  assert.strictEqual(buildColdResumeStub(preparedReadback.state).state.admissionTransaction.phase, 'prepared')
+  const identityWrittenAdmission = admissionTransaction(admissionTaskId, 'identity-written', {
+    effects: {
+      identity: { status: 'written', identityDigest: '3'.repeat(64) },
+      overview: { status: 'pending' },
+      cpState: { status: 'pending' },
+      owner: { status: 'pending' }
+    }
+  })
+  const admissionIdentityWritten = commitTaskAdmissionTransaction({
+    metaDir,
+    identity: identity(admissionTaskId),
+    transaction: identityWrittenAdmission,
+    expectedPreviousPhase: 'prepared'
+  }, baseOptions)
+  assert.strictEqual(admissionIdentityWritten.status, 'committed')
+  assert.strictEqual(commitTaskAdmissionTransaction({
+    metaDir,
+    identity: identity(admissionTaskId),
+    transaction: identityWrittenAdmission,
+    expectedPreviousPhase: 'identity-written'
+  }, baseOptions).status, 'semantic-noop')
+  const skippedAdmission = admissionTransaction(admissionTaskId, 'cp-state-written')
+  assert.strictEqual(commitTaskAdmissionTransaction({
+    metaDir,
+    identity: identity(admissionTaskId),
+    transaction: skippedAdmission,
+    expectedPreviousPhase: 'identity-written'
+  }, baseOptions).errorCode, 'TASK_ADMISSION_PHASE_TRANSITION_INVALID')
+  const invalidAdmission = admissionTransaction('00000000-0000-4000-8000-0000000000a2', 'prepared', {
+    taskRootRelative: 'requirements/wrong-kind'
+  })
+  assert.strictEqual(commitTaskAdmissionTransaction({
+    metaDir,
+    identity: identity('00000000-0000-4000-8000-0000000000a2'),
+    transaction: invalidAdmission
+  }, baseOptions).errorCode, 'TASK_ADMISSION_TRANSACTION_INVALID')
 
   const paths = storePaths(metaDir)
   for (const reserveFile of paths.reserve) {
@@ -344,9 +673,101 @@ try {
   assert.strictEqual(preflightRead.envelope.recordType, 'mutation-preflight')
   assert.strictEqual(preflightRead.state.contextAcquisition.plan.planId, 'plan-test')
   assert.strictEqual(preflightRead.state.turnLiveness.inFlightOperation.mutating, true)
+  assert.deepStrictEqual(preflightRead.state.turnLiveness.inFlightOperation.artifactAuthorization, {
+    schemaVersion: 'ArtifactMutationPreflightV1',
+    artifactDecisionDigest: 'a'.repeat(64),
+    footprintDigest: 'b'.repeat(64),
+    targetSetDigest: 'c'.repeat(64),
+    operation: 'update',
+    slotId: 'bug-cp2',
+    targetCount: 1,
+    observability: 'complete',
+    authoritySourceRef: `fixture:${preflightId}`,
+    expiresAt: '2026-08-22T00:10:00.000Z',
+    singleUse: true
+  })
+
+  const ephemeralPreflightMeta = path.join(tempRoot, 'ephemeral-preflight-hooks')
+  const ephemeralPreflight = commitTaskRecoveryState({
+    metaDir: ephemeralPreflightMeta,
+    identity: { activeRoot, project: 'devcodex' },
+    sessionKey: 'ephemeral-preflight-session',
+    state: mutationStateV2Ephemeral()
+  }, { ...baseOptions, reason: 'mutation-preflight', force: true })
+  assert.strictEqual(ephemeralPreflight.status, 'ephemeral-stub')
+  assert.strictEqual(ephemeralPreflight.recordType, 'mutation-preflight')
+  assert(ephemeralPreflight.preflightBytes <= MUTATION_PREFLIGHT_STATE_MAX_BYTES)
+  const ephemeralPreflightRead = readTaskRecoveryState({
+    metaDir: ephemeralPreflightMeta,
+    sessionKey: 'ephemeral-preflight-session'
+  })
+  assert.strictEqual(ephemeralPreflightRead.status, 'ephemeral-stub')
+  assert.strictEqual(
+    ephemeralPreflightRead.state.turnLiveness.inFlightOperation.artifactDecision.schemaVersion,
+    'ArtifactSlotDecisionV2'
+  )
+  assert.strictEqual(
+    ephemeralPreflightRead.state.turnLiveness.inFlightOperation.mutationLease.ownerKind,
+    'simple-task-fast-path'
+  )
+  assert.strictEqual(
+    ephemeralPreflightRead.state.simpleTaskFastPathLease.leaseDigest,
+    mutationStateV2Ephemeral().simpleTaskFastPathLease.leaseDigest,
+    'standalone mutation preflight must recover the exact simple-task owner lease'
+  )
+  assert.strictEqual(ephemeralPreflightRead.state.simpleTaskFastPathUsage.useCount, 0)
+  assert.deepStrictEqual(
+    ephemeralPreflightRead.state.turnLiveness.inFlightOperation.mutationFootprint.normalizedTargets,
+    [path.join(tempRoot, 'src', 'ephemeral-source.js')],
+    'digest-only preflight must reconstruct the exact normalized target set'
+  )
+  assert.strictEqual(
+    ephemeralPreflightRead.state.turnLiveness.inFlightOperation.mutationPreObservation.observationCoverage,
+    'complete'
+  )
+
+  const secondUseMeta = path.join(tempRoot, 'ephemeral-preflight-second-use-hooks')
+  const secondUseState = mutationStateV2Ephemeral()
+  const priorOperationId = `simple-prior-${'p'.repeat(80)}`
+  const currentOperationId = `simple-current-${'c'.repeat(80)}`
+  const secondUseUsageSemantic = {
+    ...secondUseState.simpleTaskFastPathUsage,
+    useCount: 1,
+    operationIds: [priorOperationId],
+    observedTargetSetDigests: ['d'.repeat(64)],
+    updatedAt: '2026-08-22T00:01:00.000Z'
+  }
+  delete secondUseUsageSemantic.usageDigest
+  secondUseState.simpleTaskFastPathUsage = {
+    ...secondUseUsageSemantic,
+    usageDigest: digestValue(secondUseUsageSemantic)
+  }
+  secondUseState.turnLiveness.inFlightOperation.operationId = currentOperationId
+  secondUseState.turnLiveness.inFlightOperation.mutationLease.operationId = currentOperationId
+  const secondUsePreflight = commitTaskRecoveryState({
+    metaDir: secondUseMeta,
+    identity: { activeRoot, project: 'devcodex' },
+    sessionKey: 'ephemeral-preflight-second-use-session',
+    state: secondUseState
+  }, { ...baseOptions, reason: 'mutation-preflight', force: true })
+  assert.strictEqual(secondUsePreflight.status, 'ephemeral-stub')
+  assert(secondUsePreflight.preflightBytes <= MUTATION_PREFLIGHT_STATE_MAX_BYTES)
+  const secondUseRead = readTaskRecoveryState({
+    metaDir: secondUseMeta,
+    sessionKey: 'ephemeral-preflight-second-use-session'
+  })
+  assert.strictEqual(secondUseRead.state.simpleTaskFastPathUsage.useCount, 1)
+  assert.deepStrictEqual(secondUseRead.state.simpleTaskFastPathUsage.operationIds, [priorOperationId])
+  assert.strictEqual(secondUseRead.state.turnLiveness.inFlightOperation.operationId, currentOperationId)
 
   const lowDiskMeta = path.join(tempRoot, 'low-disk-hooks')
   const lowDiskId = '00000000-0000-4000-8000-000000000005'
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir: lowDiskMeta,
+    identity: identity(lowDiskId),
+    sessionKey: 'low-disk-session',
+    state: state(lowDiskId, 'implementation')
+  }, baseOptions).status, 'committed')
   const lowDisk = commitTaskRecoveryState({
     metaDir: lowDiskMeta,
     identity: identity(lowDiskId),
@@ -360,7 +781,9 @@ try {
     force: true
   })
   assert.strictEqual(lowDisk.errorCode, 'LIFECYCLE_DISK_HEADROOM_INSUFFICIENT')
-  assert.strictEqual(readTaskRecoveryState({ metaDir: lowDiskMeta, identity: identity(lowDiskId) }).status, 'missing')
+  const lowDiskReadback = readTaskRecoveryState({ metaDir: lowDiskMeta, identity: identity(lowDiskId) })
+  assert.strictEqual(lowDiskReadback.status, 'fresh')
+  assert.strictEqual(lowDiskReadback.state.turnLiveness.inFlightOperation, null)
 
   const lockFailureMeta = path.join(tempRoot, 'lock-write-failure-hooks')
   const lockFailureId = '00000000-0000-4000-8000-000000000006'
@@ -577,6 +1000,19 @@ try {
     resumeToken: 'resume-cold-test',
     idempotencyKey: 'cold-test'
   }
+  checkpointed.validationControlIngress = {
+    schemaVersion: 'ValidationControlIngressReceiptV1',
+    receiptDigest: '1'.repeat(64)
+  }
+  checkpointed.validationExecution = {
+    schemaVersion: 'ValidationExecutionTaskStateV1',
+    pendingBudgetCard: { schemaVersion: 'PendingBudgetCardBindingV1', bindingDigest: '2'.repeat(64) },
+    rootBudgetConfirmation: { schemaVersion: 'BudgetConfirmationReceiptV1', receiptDigest: '3'.repeat(64) },
+    rootBudgetProjection: { schemaVersion: 'ValidationBudgetProjectionV1', selectedNodeIds: ['cold-fixture'] },
+    continuationAuthorization: { schemaVersion: 'ValidationContinuationAuthorizationV1', continuationDigest: '4'.repeat(64) },
+    currentLease: { schemaVersion: 'VerificationExecutionLeaseV2', authorityDigest: '5'.repeat(64) },
+    runnerState: { schemaVersion: 'ManagedValidationRunnerStateV1', stateDigest: '6'.repeat(64) }
+  }
   assert.strictEqual(commitTaskRecoveryState({
     metaDir: coldMeta,
     identity: identity(coldId),
@@ -589,6 +1025,12 @@ try {
   })
   assert(coldMaintenance.actions.some(action => action.action === 'coldify'))
   assert.strictEqual(inspectTaskRecoveryStore(coldMeta, baseOptions).counts.cold, 1)
+  const coldRead = readTaskRecoveryState({ metaDir: coldMeta, identity: identity(coldId) }, baseOptions)
+  assert.strictEqual(coldRead.status, 'fresh')
+  assert.strictEqual(coldRead.envelope.kind, 'cold')
+  assert.strictEqual(coldRead.state.validationControlIngress, null)
+  assert.strictEqual(coldRead.state.validationExecution, null,
+    'cold resume stubs must strip every live or replayable validation authority record')
 
   const coldFaultMeta = path.join(tempRoot, 'cold-fault-hooks')
   const coldFaultId = '00000000-0000-4000-8000-000000000012'
@@ -620,15 +1062,208 @@ try {
   assert.strictEqual(recoveredAfterColdFault.envelope.kind, 'hot')
   assert.strictEqual(recoveredAfterColdFault.state.turnLiveness.checkpoint.resumeToken, 'resume-cold-fault')
 
+  const simpleEphemeralMeta = path.join(tempRoot, 'simple-ephemeral-hooks')
+  const simpleEphemeralState = mutationStateV2Ephemeral()
+  simpleEphemeralState.turnLiveness.inFlightOperation = null
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir: simpleEphemeralMeta,
+    identity: { activeRoot, project: 'devcodex' },
+    sessionKey: 'simple-ephemeral-session',
+    state: simpleEphemeralState
+  }, baseOptions).status, 'ephemeral-stub')
+  const simpleEphemeralRead = readTaskRecoveryState({
+    metaDir: simpleEphemeralMeta,
+    sessionKey: 'simple-ephemeral-session'
+  }, baseOptions)
+  assert.strictEqual(simpleEphemeralRead.status, 'ephemeral-stub')
+  assert.strictEqual(simpleEphemeralRead.state.recoveryCompaction, 'simple-authority-budget')
+  assert.deepStrictEqual(
+    simpleEphemeralRead.state.simpleTaskFastPathLease,
+    simpleEphemeralState.simpleTaskFastPathLease,
+    'fixed A/B recovery must preserve the exact simple-task lease'
+  )
+  assert.deepStrictEqual(
+    simpleEphemeralRead.state.simpleTaskFastPathUsage,
+    simpleEphemeralState.simpleTaskFastPathUsage,
+    'fixed A/B recovery must preserve the exact bounded usage ledger'
+  )
+
   const ephemeralMeta = path.join(tempRoot, 'ephemeral-hooks')
   const ephemeralState = state('ephemeral')
   ephemeralState.taskRecoveryBinding = null
+  const operationalLeaseSemantic = {
+    schemaVersion: 'WorkflowOperationalWriteLeaseV1',
+    leaseId: `operational-${'1'.repeat(40)}`,
+    project: 'devcodex',
+    activeRootIdentityDigest: '1'.repeat(64),
+    projectRootIdentityDigest: '2'.repeat(64),
+    projectTargetLeaseDigest: '3'.repeat(64),
+    sessionDigest: '4'.repeat(64),
+    turnKey: 'session-test',
+    contextEpoch: 'ctx-test',
+    instructionEnvelopeDigest: '5'.repeat(64),
+    routeDecisionDigest: '6'.repeat(64),
+    routeRevision: '7'.repeat(64),
+    taskId: null,
+    operation: 'create',
+    relativeTargets: ['reports/analysis/codex/20260825/01--operational.md'],
+    targetSetDigest: '8'.repeat(64),
+    slotId: 'project-report',
+    authorityRole: 'workflow-owner',
+    mergedRegistryDigest: '9'.repeat(64),
+    issuedAt: '2026-08-22T00:00:00.000Z',
+    expiresAt: '2026-08-22T00:05:00.000Z',
+    singleUse: true,
+    status: 'active',
+    mutationAuthority: true,
+    productMutationAuthority: false,
+    formalArtifactAuthority: false,
+    releaseAuthority: false
+  }
+  ephemeralState.workflowOperationalWriteLease = {
+    ...operationalLeaseSemantic,
+    leaseDigest: digestValue(operationalLeaseSemantic)
+  }
+  ephemeralState.stickyProject = {
+    schemaVersion: 'ProjectTargetLeaseV2',
+    leaseId: 'project-target-lease-fixture',
+    targetDigest: 'a'.repeat(64),
+    layoutIdentity: 'b'.repeat(64),
+    project: 'devcodex',
+    physicalRoot: tempRoot,
+    activeRoot,
+    source: 'test',
+    leaseDigest: '3'.repeat(64),
+    rootIdentityDigest: '2'.repeat(64),
+    authorityKind: 'session',
+    authorityDigest: '4'.repeat(64),
+    contextEpoch: 'ctx-test',
+    contextBindingDigest: 'c'.repeat(64),
+    routeRevision: '7'.repeat(64),
+    revocationEpoch: 1,
+    issuedAtMs: baseOptions.nowMs,
+    expiresAtMs: baseOptions.nowMs + 10 * 60 * 1000
+  }
+  ephemeralState.actualInstructionEnvelope = {
+    schemaVersion: 'ActualInstructionEnvelopeV1',
+    envelopeId: 'envelope-operational-fixture',
+    envelopeDigest: '5'.repeat(64),
+    contextEpoch: 'ctx-test',
+    instructionAuthority: true
+  }
+  ephemeralState.workflowRouteDecision = {
+    schemaVersion: 'WorkflowRouteDecisionV2',
+    decisionDigest: '6'.repeat(64),
+    routeRevision: '7'.repeat(64)
+  }
+  ephemeralState.workflowRoutePlanBinding = {
+    bindingDigest: 'c'.repeat(64),
+    routeRevision: '7'.repeat(64)
+  }
+  ephemeralState.progressiveSkillRoute = {
+    schemaVersion: 'LifecycleSkillRouteStateV1',
+    modeReceipt: {
+      schemaVersion: 'SkillRouteModeReceiptV1',
+      effective: 'unified',
+      hostVariant: 'codex-cli',
+      processRuntimeIdentity: { diagnosticBody: 'm'.repeat(12 * 1024) }
+    },
+    bootstrap: {
+      schemaVersion: 'SkillRouteBootstrapV1',
+      project: 'devcodex',
+      turnBinding: 'turn-operational-fixture',
+      contextEpoch: 'ctx-test',
+      bootstrapDigest: 'd'.repeat(64),
+      explicitStatus: 'none',
+      diagnosticBody: 'b'.repeat(12 * 1024)
+    },
+    active: true,
+    errorCode: null
+  }
+  ephemeralState.progressiveSkillRouteStop = {
+    schemaVersion: 'ProgressiveSkillRouteStopV1',
+    present: true,
+    complete: true,
+    turnBinding: 'turn-operational-fixture',
+    contextEpoch: 'ctx-test',
+    planDigest: 'e'.repeat(64),
+    processComplete: true,
+    retired: false,
+    diagnosticBody: 's'.repeat(12 * 1024)
+  }
+  ephemeralState.workflowOperationalWriteLeaseCloseout = {
+    schemaVersion: 'WorkflowOperationalWriteLeaseCloseoutV1',
+    leaseDigest: 'f'.repeat(64),
+    operationId: 'prior-operational-write',
+    status: 'consumed',
+    completedAt: '2026-08-22T00:00:00.000Z',
+    receiptDigest: 'a'.repeat(64)
+  }
+  ephemeralState.turnLiveness.lastMutationCloseout = {
+    schemaVersion: 'LifecycleMutationCloseoutV2',
+    operationId: 'prior-operational-write',
+    result: 'success',
+    observation: { diagnosticBody: 'o'.repeat(16 * 1024) }
+  }
+  ephemeralState.dangerousApprovals = Object.fromEntries(Array.from({ length: 11 }, (_, index) => {
+    const approvalId = index.toString(16).padStart(12, '0')
+    const confirmed = index % 2 === 1
+    return [approvalId, {
+      commandHash: index.toString(16).padStart(64, '0'),
+      cwd: activeRoot,
+      reason: `dangerous fixture ${index}`,
+      status: confirmed ? 'confirmed' : 'pending',
+      createdAt: new Date(baseOptions.nowMs + index).toISOString(),
+      createdAtMs: baseOptions.nowMs + index,
+      used: index === 10,
+      ...(confirmed
+        ? {
+            confirmedAt: new Date(baseOptions.nowMs + index + 1).toISOString(),
+            confirmedBy: 'UserPromptSubmit'
+          }
+        : {})
+    }]
+  }))
   assert.strictEqual(commitTaskRecoveryState({
     metaDir: ephemeralMeta,
     identity: { activeRoot, project: 'devcodex' },
     sessionKey: 'ephemeral-session',
     state: ephemeralState
   }, baseOptions).status, 'ephemeral-stub')
+  const approvalEphemeralRead = readTaskRecoveryState({
+    metaDir: ephemeralMeta,
+    sessionKey: 'ephemeral-session'
+  }, baseOptions)
+  assert.strictEqual(approvalEphemeralRead.status, 'ephemeral-stub')
+  assert.strictEqual(
+    approvalEphemeralRead.state.workflowOperationalWriteLease.leaseDigest,
+    ephemeralState.workflowOperationalWriteLease.leaseDigest,
+    'taskless fixed A/B projection must preserve the exact active operational lease'
+  )
+  assert.strictEqual(
+    approvalEphemeralRead.state.recoveryCompaction,
+    'operational-authority-budget',
+    'active operational authority must use the bounded dedicated recovery projection'
+  )
+  assert.strictEqual(
+    approvalEphemeralRead.state.workflowOperationalWriteLeaseCloseout.leaseDigest,
+    ephemeralState.workflowOperationalWriteLeaseCloseout.leaseDigest,
+    'the prior consumed lease digest must survive to reject result replay'
+  )
+  assert.strictEqual(
+    approvalEphemeralRead.state.turnLiveness.lastMutationCloseout,
+    undefined,
+    'superseded mutation closeout detail must not crowd out active authority'
+  )
+  const projectedApprovalIds = Object.keys(approvalEphemeralRead.state.dangerousApprovals)
+  assert.strictEqual(projectedApprovalIds.length, 8, 'ephemeral approval projection must remain bounded')
+  assert.strictEqual(projectedApprovalIds.includes('000000000000'), false)
+  assert.strictEqual(projectedApprovalIds.includes('000000000001'), false)
+  assert.strictEqual(projectedApprovalIds.includes('00000000000a'), false, 'used approval must not survive projection')
+  assert.strictEqual(
+    approvalEphemeralRead.state.dangerousApprovals['000000000009'].status,
+    'confirmed'
+  )
   const ephemeralMaintenance = maintainTaskRecoveryStore(ephemeralMeta, {
     ...baseOptions,
     nowMs: baseOptions.nowMs + 2 * 24 * 60 * 60 * 1000,

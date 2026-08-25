@@ -34,7 +34,13 @@ function runRuntime(payload, cwd, env = {}) {
     cwd,
     input: JSON.stringify(payload),
     encoding: 'utf8',
-    env: { ...process.env, ...env }
+    env: {
+      ...process.env,
+      DEVCODEX_HOST_PLATFORM: 'claude-code',
+      CODEX_THREAD_ID: '',
+      CODEX_INTERNAL_ORIGINATOR_OVERRIDE: '',
+      ...env
+    }
   })
   if (result.status !== 0) {
     throw new Error((result.stderr || result.stdout || 'runtime exited with failure').trim())

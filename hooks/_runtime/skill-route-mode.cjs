@@ -27,6 +27,11 @@ const PROTOCOL_VERSION = '2024-11-05'
 const CAPABILITY_PATH = path.join(__dirname, 'host-skill-route-capabilities.v1.json')
 const RUNTIME_CONTRACT_FILES = Object.freeze([
   'content-identity.cjs',
+  'actual-instruction-envelope.cjs',
+  'artifact-slot-decision.cjs',
+  'artifact-slot-registry.v1.json',
+  'artifact-slot-registry.v2.json',
+  'context-delivery-ledger-v2.cjs',
   'progressive-skill-route-contract.cjs',
   'progressive-skill-route-enforcement.cjs',
   'progressive-skill-route-enforcement.v1.json',
@@ -43,6 +48,7 @@ const RUNTIME_CONTRACT_FILES = Object.freeze([
   'skill-route-state.cjs',
   'skill-route-tool.cjs',
   'host-adapter-identity.cjs',
+  'host-tool-mutation-adapters.cjs',
   'host-hook-launcher.cjs',
   'global-skill-runtime-root.cjs',
   'context-read-contract.cjs',
@@ -64,6 +70,7 @@ const RUNTIME_CONTRACT_FILES = Object.freeze([
   'lifecycle-namespace-state.cjs',
   'lifecycle-payload-utils.cjs',
   'lifecycle-project-target.cjs',
+  'lifecycle-state-projection-v5.cjs',
   'lifecycle-skill-route-coordinator.cjs',
   'lifecycle-stop-gate.cjs',
   'lifecycle-task-trace.cjs',
@@ -72,9 +79,19 @@ const RUNTIME_CONTRACT_FILES = Object.freeze([
   'lifecycle-workflow-completion.cjs',
   'stdio-bounds.cjs',
   'task-continuation-contract.cjs',
+  'task-continuation-ingress.cjs',
   'visible-output-contract.cjs',
   'workflow-completion-contract.cjs',
-  'lifecycle.cjs'
+  'lifecycle.cjs',
+  'mutation-footprint.cjs',
+  'mutation-observation.cjs',
+  'simple-task-fast-path-lease.cjs',
+  'task-recovery-config-v1.cjs',
+  'task-recovery-store-v5.cjs',
+  'workflow-operational-write-lease.cjs',
+  'workflow-root-registry.v2.json',
+  'workflow-route-decision-v2.cjs',
+  'workspace-session-route-index-v1.cjs'
 ])
 const RUNTIME_CONTRACT_SKILL_SCHEMAS = Object.freeze([
   'skill-intent.v1.schema.json',

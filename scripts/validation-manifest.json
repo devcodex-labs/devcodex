@@ -1,6 +1,6 @@
 {
   "schemaVersion": "ValidationManifestV1",
-  "contractVersion": "1",
+  "contractVersion": "3",
   "description": "Canonical serial validation graph for DevCodex source, package and deployment consumers.",
   "consumerGraphComplete": true,
   "narrativeMarkdownExclusions": [
@@ -63,13 +63,71 @@
         "hooks/_runtime/workflow-completion-contract.cjs",
         "hooks/_runtime/lifecycle-workflow-completion.cjs",
         "scripts/lib/validate-workflow-completion-controls.js",
-        "scripts/test-workflow-completion-contract.js"
+        "scripts/test-workflow-completion-contract.js",
+        "scripts/lib/actual-candidate-evidence.js",
+        "scripts/test-actual-candidate-evidence.js"
       ],
       "nodes": [
         "validation-dag",
         "control-plane-contracts",
         "critical-risk-coverage",
-        "workflow-completion-contract"
+        "workflow-completion-contract",
+        "actual-candidate-evidence"
+      ],
+      "enforceForMatchingInputs": true
+    },
+    "artifact-mutation-control-plane": {
+      "inputs": [
+        "hooks/_runtime/mutation-footprint.cjs",
+        "hooks/_runtime/artifact-slot-registry.v1.json",
+        "hooks/_runtime/artifact-slot-registry.v2.json",
+        "hooks/_runtime/artifact-slot-decision.cjs",
+        "hooks/_runtime/host-tool-mutation-adapters.cjs",
+        "hooks/_runtime/mutation-observation.cjs",
+        "hooks/_runtime/lifecycle.cjs",
+        "hooks/_runtime/lifecycle-turn-liveness.cjs",
+        "hooks/_runtime/task-recovery-store-v5.cjs",
+        "scripts/lib/process-enforcement.js",
+        "scripts/lib/requirement-artifact-check.js",
+        "scripts/test-artifact-mutation-authority.js",
+        "scripts/test-process-enforcement-e2e.js",
+        "scripts/test-requirement-artifacts.js",
+        "scripts/test-task-recovery-store-v5.js"
+      ],
+      "nodes": [
+        "artifact-mutation-authority",
+        "process-enforcement-e2e",
+        "requirement-artifacts",
+        "task-recovery",
+        "turn-liveness"
+      ],
+      "enforceForMatchingInputs": true
+    },
+    "workflow-task-authority": {
+      "inputs": [
+        "hooks/_runtime/actual-instruction-envelope.cjs",
+        "hooks/_runtime/workflow-route-decision-v2.cjs",
+        "hooks/_runtime/workflow-root-registry.v2.json",
+        "hooks/_runtime/workspace-session-route-index-v1.cjs",
+        "hooks/_runtime/lifecycle-project-target.cjs",
+        "hooks/_runtime/task-continuation-ingress.cjs",
+        "hooks/_runtime/simple-task-fast-path-lease.cjs",
+        "hooks/_runtime/workflow-operational-write-lease.cjs",
+        "hooks/_runtime/task-recovery-store-v5.cjs",
+        "mcp/task-admission-authority.cjs",
+        "mcp/memory-server.js",
+        "scripts/test-workflow-capabilities.js",
+        "scripts/test-session-route-consumers.js",
+        "scripts/test-task-admission-authority.js",
+        "scripts/test-task-recovery-store-v5.js"
+      ],
+      "nodes": [
+        "workflow-capabilities",
+        "session-route-consumers",
+        "task-admission-authority",
+        "task-recovery",
+        "mcp-servers",
+        "hooks-runtime"
       ],
       "enforceForMatchingInputs": true
     },
@@ -163,8 +221,7 @@
         "validation-dag",
         "validate-versions",
         "release-metadata",
-        "published-package-scripts-contract",
-        "pack-clean"
+        "published-package-scripts-contract"
       ],
       "enforceForMatchingInputs": true,
       "excludeSemanticClasses": [
@@ -179,6 +236,7 @@
       "validate-workspace": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V2" },
       "critical-risk-coverage": { "consumerEdgeType": "qualificationConsumer" },
       "validation-dag": { "consumerEdgeType": "qualificationConsumer" },
+      "artifact-mutation-authority": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V2" },
       "control-plane-contracts": { "consumerEdgeType": "qualificationConsumer" },
       "workflow-completion-contract": { "consumerEdgeType": "qualificationConsumer" },
       "hooks-runtime": { "consumerEdgeType": "qualificationConsumer", "heavy": true },
@@ -192,11 +250,12 @@
       "release-metadata": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V1" },
       "published-package-scripts-contract": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V2" },
       "critical-coverage": { "consumerEdgeType": "releaseConsumer" },
-      "pack-clean": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V2", "heavy": true },
+      "pack-clean": { "consumerEdgeType": "releaseConsumer", "minimumLevel": "V2", "heavy": true },
       "global-host-config": { "consumerEdgeType": "releaseConsumer", "heavy": true },
       "global-host-removal": { "consumerEdgeType": "releaseConsumer", "heavy": true },
       "global-install-smoke": { "consumerEdgeType": "releaseConsumer", "heavy": true },
-      "mcp-runtime-closure": { "consumerEdgeType": "releaseConsumer" },
+      "mcp-runtime-closure": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V2" },
+      "mcp-runtime-packlist": { "consumerEdgeType": "releaseConsumer" },
       "npm-lifecycle-adapter": { "consumerEdgeType": "releaseConsumer" },
       "host-installation": { "consumerEdgeType": "releaseConsumer" },
       "generated-site-precheck": { "consumerEdgeType": "releaseConsumer" },
@@ -317,6 +376,9 @@
     "hooks/_runtime/context-plan-observation.cjs",
     "hooks/_runtime/lifecycle-state-projection-v5.cjs",
     "hooks/_runtime/task-recovery-store-v5.cjs",
+    "hooks/_runtime/mutation-footprint.cjs",
+    "hooks/_runtime/artifact-slot-registry.v1.json",
+    "hooks/_runtime/artifact-slot-decision.cjs",
     "hooks/_runtime/context-delivery-ledger-v2.cjs",
     "hooks/_runtime/workflow-root-registry.v1.json",
     "skills/_schemas/skill-intent.v1.schema.json",
@@ -343,7 +405,6 @@
     "validation-dag",
     "control-content-source",
     "published-package-scripts-contract",
-    "pack-clean",
     "syntax"
   ],
   "iterativeInvariantNodes": [
@@ -386,7 +447,9 @@
         "memory-index",
         "report-index",
         "task-continuation",
+        "validation-authority",
         "validation-dag",
+        "artifact-mutation-authority",
         "probe-registry",
         "cli-command-registry",
         "cli-json-contract",
@@ -399,6 +462,8 @@
         "context-read-controls",
         "tenant-selection",
         "workflow-capabilities",
+        "session-route-consumers",
+        "task-admission-authority",
         "api-verification-contracts",
         "git-index-isolation",
         "git-execution-context",
@@ -427,10 +492,12 @@
         "requirement-artifacts",
         "control-content-source",
         "candidate-review-bundle",
+        "actual-candidate-evidence",
         "capability-surface-decision",
         "host-capability-routing",
         "requirement-parallel-orchestration",
         "evidence-freshness",
+        "dangerous-command-context",
         "hooks-runtime",
         "instruction-fallback",
         "mcp-servers",
@@ -449,6 +516,7 @@
         "host-instruction-projection",
         "host-adapters",
         "mcp-runtime-closure",
+        "mcp-runtime-packlist",
         "npm-lifecycle-adapter",
         "global-host-config",
         "global-host-removal",
@@ -1998,6 +2066,61 @@
       },
       "evidenceArtifacts": [
         "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "validation-authority",
+      "owner": "validation-execution-authority",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:validation-authority"
+      ],
+      "dependencies": [
+        "checked-command"
+      ],
+      "inputs": [
+        "hooks/_runtime/workflow-completion-contract.cjs",
+        "hooks/_runtime/task-recovery-store-v5.cjs",
+        "scripts/lib/validation-execution-authority.js",
+        "scripts/lib/validation-evidence-store.js",
+        "scripts/lib/managed-validation-runner.js",
+        "scripts/lib/validation-worker.js",
+        "scripts/fixtures/managed-validation-worker-fixture.js",
+        "scripts/test-validation-execution-authority.js",
+        "scripts/test-validation-budget-control.js",
+        "scripts/lib/validation-dag.js",
+        "scripts/run-validation.js",
+        "package.json"
+      ],
+      "consumers": [
+        "validation-dag",
+        "workflow-completion-contract"
+      ],
+      "invariants": [
+        "exact-execution-authority",
+        "managed-cancellation",
+        "stable-terminal-cardinality",
+        "immutable-budget-root",
+        "bounded-continuation-authorization"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 240000,
+      "estimatedDurationMs": 145000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV3"
       ]
     },
     {
@@ -4987,13 +5110,58 @@
       ],
       "consumers": [
         "global-host-config",
-        "host-installation",
-        "pack-clean"
+        "host-installation"
       ],
       "invariants": [
         "runtime-dependency-closure",
-        "allowlist-only-project-layout",
-        "package-runtime-closure"
+        "allowlist-only-project-layout"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 180000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "RuntimeDependencyClosureV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "mcp-runtime-packlist",
+      "owner": "host-contract-verification",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:mcp-runtime-closure:package"
+      ],
+      "dependencies": [
+        "mcp-runtime-closure"
+      ],
+      "inputs": [
+        "package.json",
+        ".npmignore",
+        "content/duplication-inventory.json",
+        "content/duplication-dispositions.json",
+        "scripts/prepack-control-content.js",
+        "scripts/postpack-control-content.js",
+        "scripts/lib/runtime-dependency-closure.js",
+        "scripts/test-mcp-runtime-closure.js"
+      ],
+      "consumers": [
+        "pack-clean"
+      ],
+      "invariants": [
+        "package-runtime-closure",
+        "explicit-package-qualification-only"
       ],
       "riskClass": "release",
       "cachePolicy": "never",
@@ -5561,19 +5729,274 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "artifact-mutation-authority",
+      "owner": "artifact-mutation-authority",
+      "command": "node",
+      "args": [
+        "scripts/test-artifact-mutation-authority.js"
+      ],
+      "dependencies": [
+        "content-identity"
+      ],
+      "inputs": [
+        "hooks/_runtime/mutation-footprint.cjs",
+        "hooks/_runtime/artifact-slot-registry.v1.json",
+        "hooks/_runtime/artifact-slot-registry.v2.json",
+        "hooks/_runtime/artifact-slot-decision.cjs",
+        "hooks/_runtime/host-tool-mutation-adapters.cjs",
+        "hooks/_runtime/mutation-observation.cjs",
+        "hooks/_runtime/simple-task-fast-path-lease.cjs",
+        "hooks/_runtime/workflow-operational-write-lease.cjs",
+        "mcp/task-admission-authority.cjs",
+        "hooks/_runtime/lifecycle.cjs",
+        "hooks/_runtime/lifecycle-turn-liveness.cjs",
+        "hooks/_runtime/task-recovery-store-v5.cjs",
+        "scripts/lib/process-enforcement.js",
+        "scripts/lib/requirement-artifact-check.js",
+        "scripts/test-artifact-mutation-authority.js"
+      ],
+      "consumers": [
+        "process-enforcement-e2e",
+        "requirement-artifacts",
+        "turn-liveness"
+      ],
+      "invariants": [
+        "exact-formal-target-set",
+        "layered-registry-single-owner",
+        "active-root-containment",
+        "one-use-mutation-authority",
+        "actual-effect-observation",
+        "unknown-writer-fail-closed"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ArtifactSlotDecisionV2",
+        "TaskOwnedMutationLeaseV2",
+        "MutationObservationReceiptV1",
+        "ArtifactMutationCloseoutReceiptV2"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "actual-candidate-evidence",
+      "owner": "actual-candidate-evidence",
+      "command": "node",
+      "args": [
+        "scripts/test-actual-candidate-evidence.js"
+      ],
+      "dependencies": [
+        "candidate-review-bundle"
+      ],
+      "inputs": [
+        "scripts/lib/actual-candidate-evidence.js",
+        "scripts/test-actual-candidate-evidence.js",
+        "scripts/lib/candidate-review-bundle.js",
+        "scripts/lib/control-plane-contracts.js",
+        "scripts/lib/requirement-artifact-check.js"
+      ],
+      "consumers": [
+        "control-plane-contracts",
+        "release-metadata"
+      ],
+      "invariants": [
+        "actual-file-not-fixture-only",
+        "phase-digest-head-dirty-rule-binding",
+        "readback-drift-fail-closed"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ActualCandidateEvidenceReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "session-route-consumers",
+      "owner": "workspace-session-route",
+      "command": "node",
+      "args": [
+        "scripts/test-session-route-consumers.js"
+      ],
+      "dependencies": [
+        "workflow-capabilities"
+      ],
+      "inputs": [
+        "hooks/_runtime/actual-instruction-envelope.cjs",
+        "hooks/_runtime/workflow-route-decision-v2.cjs",
+        "hooks/_runtime/workflow-root-registry.v2.json",
+        "hooks/_runtime/workspace-session-route-index-v1.cjs",
+        "hooks/_runtime/lifecycle-project-target.cjs",
+        "hooks/_runtime/task-continuation-contract.cjs",
+        "hooks/_runtime/task-continuation-ingress.cjs",
+        "scripts/test-session-route-consumers.js"
+      ],
+      "consumers": [
+        "task-admission-authority",
+        "task-continuation",
+        "hooks-runtime"
+      ],
+      "invariants": [
+        "session-route-hint-only",
+        "project-target-lease-v2-exact-binding",
+        "root-context-route-drift-revocation"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "WorkspaceSessionRouteIndexV1",
+        "ProjectTargetLeaseV2"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "task-admission-authority",
+      "owner": "task-admission-authority",
+      "command": "node",
+      "args": [
+        "scripts/test-task-admission-authority.js"
+      ],
+      "dependencies": [
+        "session-route-consumers",
+        "task-recovery"
+      ],
+      "inputs": [
+        "mcp/task-admission-authority.cjs",
+        "mcp/memory-file-transaction.cjs",
+        "mcp/memory-server.js",
+        "hooks/_runtime/actual-instruction-envelope.cjs",
+        "hooks/_runtime/workflow-route-decision-v2.cjs",
+        "hooks/_runtime/lifecycle-project-target.cjs",
+        "hooks/_runtime/task-recovery-store-v5.cjs",
+        "hooks/_runtime/simple-task-fast-path-lease.cjs",
+        "hooks/_runtime/workflow-operational-write-lease.cjs",
+        "scripts/test-task-admission-authority.js"
+      ],
+      "consumers": [
+        "artifact-mutation-authority",
+        "mcp-servers",
+        "hooks-runtime"
+      ],
+      "invariants": [
+        "ingress-exactly-once",
+        "task-identity-and-overview-atomic",
+        "fenced-owner-cas",
+        "terminal-four-evidence-unbind",
+        "product-provided-source-immutable"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 180000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "FormalTaskAdmissionReceiptV2",
+        "FencedTaskWriteOwnerLeaseV2",
+        "WorkflowTaskTerminalReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "dangerous-command-context",
+      "owner": "dangerous-command-context",
+      "command": "node",
+      "args": [
+        "scripts/test-dangerous-command-context.js"
+      ],
+      "dependencies": [
+        "content-identity"
+      ],
+      "inputs": [
+        "hooks/_runtime/lifecycle-dangerous-command.cjs",
+        "hooks/_runtime/lifecycle.cjs",
+        "scripts/test-dangerous-command-context.js"
+      ],
+      "consumers": [
+        "hooks-runtime"
+      ],
+      "invariants": [
+        "quoted-search-and-doc-text-safe",
+        "execution-sink-and-command-substitution-fail-closed",
+        "windows-posix-operation-role-parity"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV3"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "process-enforcement-e2e",
       "owner": "process-enforcement",
       "command": "node",
       "args": [
         "scripts/test-process-enforcement-e2e.js"
       ],
-      "dependencies": [],
+      "dependencies": [
+        "artifact-mutation-authority"
+      ],
       "inputs": [
         "scripts/lib/process-enforcement.js",
         "scripts/lib/host-enforcement-matrix.js",
         "scripts/test-process-enforcement-e2e.js",
         "hooks/_runtime/lifecycle.cjs",
-        "hooks/_runtime/lifecycle-stop-gate.cjs"
+        "hooks/_runtime/lifecycle-stop-gate.cjs",
+        "hooks/_runtime/mutation-footprint.cjs",
+        "hooks/_runtime/artifact-slot-registry.v1.json",
+        "hooks/_runtime/artifact-slot-decision.cjs"
       ],
       "consumers": [],
       "invariants": [

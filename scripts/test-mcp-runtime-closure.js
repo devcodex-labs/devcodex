@@ -1,7 +1,8 @@
 'use strict'
 
 /**
- * Runtime dependency closure + allowlist-only layout smoke + packlist guard.
+ * Runtime dependency closure + allowlist-only layout smoke.
+ * Package lifecycle coverage is an explicit, separate mode.
  */
 const assert = require('assert')
 const fs = require('fs')
@@ -11,6 +12,14 @@ const { spawnSync } = require('child_process')
 
 const ROOT = path.resolve(__dirname, '..')
 const TEMP_FIXTURES = []
+const FLAGS = new Set(process.argv.slice(2))
+for (const flag of FLAGS) {
+  if (flag !== '--packlist-only') {
+    console.error(`test-mcp-runtime-closure: unknown option ${flag}`)
+    process.exit(2)
+  }
+}
+const PACKLIST_ONLY = FLAGS.has('--packlist-only')
 
 function tempFixture(prefix) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `devcodex-${prefix}`))
@@ -198,12 +207,15 @@ function packlistContainsRuntimeClosure() {
 }
 
 try {
-  closureCoverage()
-  fakeRuntimeSeed()
-  layoutReplaySmoke()
-  allowlistOnlyMcpSmoke()
-  packlistContainsRuntimeClosure()
-  console.log('test-mcp-runtime-closure: PASS')
+  if (PACKLIST_ONLY) {
+    packlistContainsRuntimeClosure()
+  } else {
+    closureCoverage()
+    fakeRuntimeSeed()
+    layoutReplaySmoke()
+    allowlistOnlyMcpSmoke()
+  }
+  console.log(`test-mcp-runtime-closure: PASS mode=${PACKLIST_ONLY ? 'packlist-only' : 'runtime-only'}`)
 } finally {
   for (const root of TEMP_FIXTURES.reverse()) fs.rmSync(root, { recursive: true, force: true })
 }

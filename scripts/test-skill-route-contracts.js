@@ -898,10 +898,24 @@ try {
   assert.strictEqual(noCapability.hostEligibility, 'UNVERIFIED')
   const currentRuntimeDigest = getRuntimeContractDigest()
   assert.match(currentRuntimeDigest, /^[a-f0-9]{64}$/)
-  for (const runtimeFile of [
-    'lifecycle-skill-route-coordinator.cjs',
-    'lifecycle-namespace-state.cjs'
-  ]) {
+  const lifecycleRuntimeSource = fs.readFileSync(
+    path.join(fixture.packageRoot, 'hooks', '_runtime', 'lifecycle.cjs'),
+    'utf8'
+  )
+  const lifecycleRuntimeDependencies = [
+    ...lifecycleRuntimeSource.matchAll(/require\(['"]\.\/([^'"]+\.cjs)['"]\)/g)
+  ].map(match => match[1])
+  const runtimeContractInputs = [...new Set([
+    'lifecycle.cjs',
+    ...lifecycleRuntimeDependencies,
+    'artifact-slot-registry.v1.json',
+    'artifact-slot-registry.v2.json',
+    'workflow-root-registry.v2.json'
+  ])].sort()
+  assert(runtimeContractInputs.includes('host-tool-mutation-adapters.cjs'))
+  assert(runtimeContractInputs.includes('task-recovery-store-v5.cjs'))
+  assert(runtimeContractInputs.includes('workflow-route-decision-v2.cjs'))
+  for (const runtimeFile of runtimeContractInputs) {
     const mutatedFs = new Proxy(fs, {
       get (target, property) {
         if (property === 'readFileSync') {

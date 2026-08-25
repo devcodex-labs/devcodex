@@ -99,6 +99,33 @@ function matchHeading(headings, query) {
 
 function fallbackFull(file, content, selector, details) {
   const body = String(content || '')
+  if (selector.boundedOnly === true) {
+    const selectedBody = String(details.body || '')
+    return {
+      body: selectedBody,
+      receipt: {
+        schemaVersion: PROFILE_SECTION_RECEIPT_SCHEMA,
+        selectorSchemaVersion: PROFILE_SECTION_SELECTOR_SCHEMA,
+        file,
+        parser: selector.parser || PROFILE_SECTION_PARSER,
+        sourceDigest: sha256(Buffer.from(body, 'utf8')),
+        fullBytes: Buffer.byteLength(body, 'utf8'),
+        selectedBytes: Buffer.byteLength(selectedBody, 'utf8'),
+        matchedHeadings: details.matchedHeadings || [],
+        missing: details.missing || [],
+        ambiguous: details.ambiguous || [],
+        deferredSections: details.deferredSections || [],
+        requiredQueries: selector.requiredQueries || [],
+        completion: 'partial',
+        fallbackReason: details.fallbackReason,
+        requiredSatisfied: false,
+        budgetExceeded: true,
+        boundedOnly: true,
+        includePreamble: selector.includePreamble === true,
+        includeDescendants: selector.includeDescendants === true
+      }
+    }
+  }
   return {
     body,
     receipt: {
@@ -192,25 +219,12 @@ function selectProfileSections({ file, content, selector = {} }) {
     })
   }
 
-  const resolvedRanges = resolved.map(item => ({
+  const orderedResolved = resolved.slice().sort((left, right) =>
+    left.heading.start - right.heading.start || left.query.localeCompare(right.query))
+  const resolvedRanges = orderedResolved.map(item => ({
     start: item.heading.start,
     end: sectionEnd(parsed.headings, item.index, body.length, normalizedSelector.includeDescendants === true)
   }))
-  for (let leftIndex = 0; leftIndex < resolvedRanges.length; leftIndex += 1) {
-    for (let rightIndex = leftIndex + 1; rightIndex < resolvedRanges.length; rightIndex += 1) {
-      const left = resolvedRanges[leftIndex]
-      const right = resolvedRanges[rightIndex]
-      const same = left.start === right.start && left.end === right.end
-      if (!same && left.start < right.end && right.start < left.end) {
-        return fallbackFull(file, body, normalizedSelector, {
-          matchedHeadings,
-          missing,
-          ambiguous,
-          fallbackReason: 'overlapping-section-ranges'
-        })
-      }
-    }
-  }
 
   const pieces = []
   const deferredSections = []
@@ -233,11 +247,19 @@ function selectProfileSections({ file, content, selector = {} }) {
   if (normalizedSelector.includePreamble === true && parsed.headings[0].start > 0) {
     addPiece('$preamble', '$preamble', body.slice(0, parsed.headings[0].start), false)
   }
-  for (let resolvedIndex = 0; resolvedIndex < resolved.length; resolvedIndex += 1) {
-    const item = resolved[resolvedIndex]
+  const deliveredRanges = []
+  for (let resolvedIndex = 0; resolvedIndex < orderedResolved.length; resolvedIndex += 1) {
+    const item = orderedResolved[resolvedIndex]
     const end = resolvedRanges[resolvedIndex].end
     const key = `${item.heading.start}:${end}`
-    addPiece(key, item.query, body.slice(item.heading.start, end).replace(/\s+$/, ''), requiredSet.has(normalizeHeading(item.query)))
+    if (deliveredRanges.some(range => range.start <= item.heading.start && range.end >= end)) {
+      selectedRanges.add(key)
+      continue
+    }
+    if (addPiece(key, item.query, body.slice(item.heading.start, end).replace(/\s+$/, ''),
+      requiredSet.has(normalizeHeading(item.query)))) {
+      deliveredRanges.push({ start: item.heading.start, end })
+    }
   }
 
   if (deferredSections.some(item => item.required)) {
@@ -245,6 +267,8 @@ function selectProfileSections({ file, content, selector = {} }) {
       matchedHeadings,
       missing,
       ambiguous,
+      body: pieces.join('\n\n'),
+      deferredSections,
       fallbackReason: 'required-section-over-budget'
     })
   }
@@ -401,6 +425,7 @@ function selectProfileSectionsFromFileSync({
         fallbackReason: details.fallbackReason || null,
         requiredSatisfied: false,
         budgetExceeded: true,
+        boundedOnly: normalizedSelector.boundedOnly === true,
         includePreamble: normalizedSelector.includePreamble === true,
         includeDescendants: normalizedSelector.includeDescendants === true
       }, scan, sourceBytesRead)
@@ -408,6 +433,26 @@ function selectProfileSectionsFromFileSync({
   }
 
   const fallbackFromFile = (fallbackReason, details = {}) => {
+    if (normalizedSelector.boundedOnly === true) {
+      return partialReceipt({
+        ...details,
+        fallbackReason,
+        deferredSections: details.deferredSections || [
+          ...(details.missing || []).map(query => ({
+            query,
+            bytes: null,
+            required: requiredSet.has(normalizeHeading(query)),
+            reason: 'heading-missing'
+          })),
+          ...(details.ambiguous || []).map(item => ({
+            query: item.query,
+            bytes: null,
+            required: requiredSet.has(normalizeHeading(item.query)),
+            reason: 'heading-ambiguous'
+          }))
+        ]
+      })
+    }
     const remainingSourceBytes = Math.max(0, maxTotalSourceBytes - sourceBytesRead)
     if (!scan.scanComplete || scan.logicalBytes > remainingSourceBytes) {
       return partialReceipt({
@@ -516,7 +561,9 @@ function selectProfileSectionsFromFileSync({
     })
   }
 
-  const resolvedRanges = resolved.map(item => {
+  const orderedResolved = resolved.slice().sort((left, right) =>
+    left.heading.start - right.heading.start || left.query.localeCompare(right.query))
+  const resolvedRanges = orderedResolved.map(item => {
     const end = sectionEndByte(
       headings,
       item.index,
@@ -526,30 +573,6 @@ function selectProfileSectionsFromFileSync({
     )
     return { ...end, start: item.heading.start }
   })
-  for (let leftIndex = 0; leftIndex < resolvedRanges.length; leftIndex += 1) {
-    for (let rightIndex = leftIndex + 1; rightIndex < resolvedRanges.length; rightIndex += 1) {
-      const left = resolvedRanges[leftIndex]
-      const right = resolvedRanges[rightIndex]
-      if (!left.complete || !right.complete) continue
-      const same = left.start === right.start && left.end === right.end
-      if (!same && left.start < right.end && right.start < left.end) {
-        return scan.scanComplete
-          ? fallbackFromFile('overlapping-section-ranges', { matchedHeadings, missing, ambiguous })
-          : partialReceipt({
-              matchedHeadings,
-              missing,
-              ambiguous,
-              deferredSections: resolved.map(item => ({
-                query: item.query,
-                bytes: null,
-                required: requiredSet.has(normalizeHeading(item.query)),
-                reason: 'overlapping-section-ranges'
-              }))
-            })
-      }
-    }
-  }
-
   const pieces = []
   const selectedRanges = new Set()
   let selectedBytes = 0
@@ -593,17 +616,23 @@ function selectProfileSectionsFromFileSync({
   if (normalizedSelector.includePreamble === true && headings[0].start > 0) {
     addRange('$preamble', '$preamble', 0, headings[0].start, false)
   }
-  for (let resolvedIndex = 0; resolvedIndex < resolved.length; resolvedIndex += 1) {
-    const item = resolved[resolvedIndex]
+  const deliveredRanges = []
+  for (let resolvedIndex = 0; resolvedIndex < orderedResolved.length; resolvedIndex += 1) {
+    const item = orderedResolved[resolvedIndex]
     const range = resolvedRanges[resolvedIndex]
     const key = `${range.start}:${range.end}`
-    addRange(
+    if (Number.isInteger(range.end) &&
+        deliveredRanges.some(delivered => delivered.start <= range.start && delivered.end >= range.end)) {
+      selectedRanges.add(key)
+      continue
+    }
+    if (addRange(
       key,
       item.query,
       range.start,
       range.end,
       requiredSet.has(normalizeHeading(item.query))
-    )
+    ) && Number.isInteger(range.end)) deliveredRanges.push({ start: range.start, end: range.end })
   }
 
   if (scan.scanComplete && deferredSections.some(item => item.required)) {
@@ -611,6 +640,7 @@ function selectProfileSectionsFromFileSync({
       matchedHeadings,
       missing,
       ambiguous,
+      body: pieces.join('\n\n'),
       deferredSections
     })
   }

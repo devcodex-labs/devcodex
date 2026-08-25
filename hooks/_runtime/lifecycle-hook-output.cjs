@@ -29,6 +29,7 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
   function detectPlatform(payload) {
     const explicitHost = String(env.DEVCODEX_HOST_PLATFORM || '').trim().toLowerCase()
     if (['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor'].includes(explicitHost)) return explicitHost
+    if (env.CODEX_THREAD_ID || /codex/i.test(String(env.CODEX_INTERNAL_ORIGINATOR_OVERRIDE || ''))) return 'codex'
     if (env.GEMINI_CLI || env.GEMINI_SESSION_ID) return 'gemini'
     if (env.CLAUDE_CODE_VERSION || env.CLAUDE_HOOK_COMMAND) return 'claude'
     if (env.CODEX_SANDBOX || env.CODEX_HOME || env.OPENAI_CODEX) return 'codex'

@@ -13,6 +13,9 @@ const ARTIFACT_REF_MAX_COUNT = 32
 const ARTIFACT_REF_MAX_BYTES = 16 * 1024
 const DELIVERY_RECEIPT_MAX_COUNT = 64
 const DELIVERY_RECEIPT_MAX_BYTES = 32 * 1024
+const ADMISSION_TRANSACTION_MAX_BYTES = 12 * 1024
+const VALIDATION_AUTHORITY_RECORD_MAX_BYTES = 4 * 1024
+const VALIDATION_ROOT_BUDGET_PROJECTION_MAX_BYTES = 16 * 1024
 
 class LifecycleStateProjectionV5Error extends Error {
   constructor(code, message, details = {}) {
@@ -193,10 +196,136 @@ function compactExecutionAttemptLedger(raw) {
   return { ...raw, entries }
 }
 
+function compactMutationDecision(raw) {
+  if (!isPlainObject(raw)) return null
+  return {
+    schemaVersion: raw.schemaVersion,
+    projectionKind: 'digest-only',
+    project: boundedString(raw.project, 256),
+    taskRecoveryKey: raw.taskRecoveryKey || null,
+    contextEpoch: raw.contextEpoch || null,
+    intent: boundedString(raw.intent, 128),
+    stage: boundedString(raw.stage, 128),
+    operation: boundedString(raw.operation, 32),
+    slotId: boundedString(raw.slotId, 128),
+    slotIds: Array.isArray(raw.slotIds) ? raw.slotIds.slice(0, 16).map(item => boundedString(item, 128)) : [],
+    targetCount: Number.isInteger(raw.targetCount) ? raw.targetCount : 0,
+    observability: boundedString(raw.observability, 32),
+    targetSetDigest: boundedString(raw.targetSetDigest, 64),
+    footprintDigest: boundedString(raw.footprintDigest, 64),
+    adapterDigest: boundedString(raw.adapterDigest, 64),
+    plannedSetDigest: boundedString(raw.plannedSetDigest, 64),
+    mergedRegistryDigest: boundedString(raw.mergedRegistryDigest, 64),
+    baseRegistryDigest: boundedString(raw.baseRegistryDigest, 64),
+    overlayDigest: raw.overlayDigest ? boundedString(raw.overlayDigest, 64) : null,
+    activeRootIdentity: isPlainObject(raw.activeRootIdentity)
+      ? {
+          canonicalPath: boundedString(raw.activeRootIdentity.canonicalPath, 1024),
+          digest: boundedString(raw.activeRootIdentity.digest, 64)
+        }
+      : null,
+    projectRootIdentity: isPlainObject(raw.projectRootIdentity)
+      ? {
+          canonicalPath: boundedString(raw.projectRootIdentity.canonicalPath, 1024),
+          digest: boundedString(raw.projectRootIdentity.digest, 64)
+        }
+      : null,
+    authoritySourceRef: boundedString(raw.authoritySourceRef, 512),
+    decisionStatus: raw.decisionStatus,
+    expiresAt: raw.expiresAt || null,
+    singleUse: raw.singleUse === true,
+    status: raw.status,
+    decisionDigest: boundedString(raw.decisionDigest, 64)
+  }
+}
+
+function compactMutationLease(raw) {
+  if (!isPlainObject(raw)) return null
+  return {
+    schemaVersion: raw.schemaVersion,
+    operationId: boundedString(raw.operationId, 512),
+    project: boundedString(raw.project, 256),
+    taskId: boundedString(raw.taskId, 128),
+    ownerKind: boundedString(raw.ownerKind, 64),
+    ownerGeneration: Number.isInteger(raw.ownerGeneration) ? raw.ownerGeneration : null,
+    ownerLeaseDigest: boundedString(raw.ownerLeaseDigest, 64),
+    contextEpoch: boundedString(raw.contextEpoch, 256),
+    routeRevision: boundedString(raw.routeRevision, 128),
+    adapterDigest: boundedString(raw.adapterDigest, 64),
+    mergedRegistryDigest: boundedString(raw.mergedRegistryDigest, 64),
+    slotDecisionDigest: boundedString(raw.slotDecisionDigest, 64),
+    plannedSetDigest: boundedString(raw.plannedSetDigest, 64),
+    nonce: boundedString(raw.nonce, 64),
+    issuedAt: raw.issuedAt || null,
+    expiresAt: raw.expiresAt || null,
+    singleUse: raw.singleUse === true,
+    status: raw.status,
+    leaseDigest: boundedString(raw.leaseDigest, 64)
+  }
+}
+
+function compactMutationFootprint(raw) {
+  if (!isPlainObject(raw)) return null
+  const paths = values => Array.isArray(values)
+    ? values.slice(0, 24).map(item => boundedString(item, 1024))
+    : []
+  return {
+    schemaVersion: raw.schemaVersion,
+    sourceSchemaVersion: raw.sourceSchemaVersion || null,
+    footprintDigest: boundedString(raw.footprintDigest, 64),
+    adapterId: boundedString(raw.adapterId, 128),
+    adapterDigest: boundedString(raw.adapterDigest, 64),
+    operationClass: boundedString(raw.operationClass, 64),
+    operation: boundedString(raw.operation, 32),
+    plannedCreates: paths(raw.plannedCreates),
+    plannedModifies: paths(raw.plannedModifies),
+    plannedDeletes: paths(raw.plannedDeletes),
+    plannedMoves: Array.isArray(raw.plannedMoves)
+      ? raw.plannedMoves.slice(0, 24).map(item => ({
+          source: boundedString(item?.source, 1024),
+          target: boundedString(item?.target, 1024)
+        }))
+      : [],
+    sourceTargets: paths(raw.sourceTargets),
+    targetTargets: paths(raw.targetTargets),
+    normalizedTargets: paths(raw.normalizedTargets),
+    plannedSetDigest: boundedString(raw.plannedSetDigest, 64),
+    observationPlan: isPlainObject(raw.observationPlan) ? clone(raw.observationPlan) : null,
+    coverage: raw.coverage || null,
+    projectionDigest: boundedString(raw.projectionDigest, 64)
+  }
+}
+
+function compactMutationPreObservation(raw) {
+  if (!isPlainObject(raw)) return null
+  return {
+    schemaVersion: raw.schemaVersion,
+    operationId: boundedString(raw.operationId, 512),
+    footprintDigest: boundedString(raw.footprintDigest, 64),
+    plannedSetDigest: boundedString(raw.plannedSetDigest, 64),
+    entries: Array.isArray(raw.entries)
+      ? raw.entries.slice(0, 24).map(entry => ({
+          path: boundedString(entry?.path, 1024),
+          exists: entry?.exists === true,
+          kind: boundedString(entry?.kind, 32),
+          digest: entry?.digest ? boundedString(entry.digest, 64) : null,
+          bytes: Number.isFinite(entry?.bytes) ? entry.bytes : 0,
+          complete: entry?.complete === true,
+          ...(entry?.errorCode ? { errorCode: boundedString(entry.errorCode, 128) } : {})
+        }))
+      : [],
+    observationCoverage: raw.observationCoverage || null,
+    errorCodes: Array.isArray(raw.errorCodes) ? raw.errorCodes.slice(0, 24).map(item => boundedString(item, 256)) : [],
+    snapshotDigest: boundedString(raw.snapshotDigest, 64),
+    observedAt: raw.observedAt || null,
+    receiptDigest: boundedString(raw.receiptDigest, 64)
+  }
+}
+
 function compactInFlightOperation(raw) {
   if (!isPlainObject(raw)) return raw || null
   const value = clone(raw)
-  if (jsonBytes(value) <= IN_FLIGHT_MAX_BYTES) return value
+  if (value.mutating !== true && jsonBytes(value) <= IN_FLIGHT_MAX_BYTES) return value
   return {
     operationId: boundedString(value.operationId, 512),
     toolName: boundedString(value.toolName, 256),
@@ -204,6 +333,11 @@ function compactInFlightOperation(raw) {
     leaseExpiresAt: value.leaseExpiresAt || null,
     ownedByAgent: value.ownedByAgent === true,
     mutating: value.mutating === true,
+    targetPaths: Array.isArray(value.targetPaths) ? value.targetPaths.slice(0, 4).map(item => boundedString(item, 512)) : [],
+    artifactDecision: compactMutationDecision(value.artifactDecision),
+    mutationLease: compactMutationLease(value.mutationLease),
+    mutationFootprint: compactMutationFootprint(value.mutationFootprint),
+    mutationPreObservation: compactMutationPreObservation(value.mutationPreObservation),
     sourceDigest: digestValue(value)
   }
 }
@@ -250,6 +384,49 @@ function compactDeliveryReceipts(receipts) {
     .map(receipt => ({ ...receipt }))
   while (selected.length && jsonBytes(selected) > DELIVERY_RECEIPT_MAX_BYTES) selected.shift()
   return selected
+}
+
+function compactAdmissionTransaction(raw) {
+  if (!isPlainObject(raw)) return raw || null
+  const value = clone(raw)
+  const bytes = jsonBytes(value)
+  if (bytes > ADMISSION_TRANSACTION_MAX_BYTES) {
+    throw new LifecycleStateProjectionV5Error(
+      'LIFECYCLE_ADMISSION_TRANSACTION_EXCEEDED',
+      `task admission journal exceeds ${ADMISSION_TRANSACTION_MAX_BYTES} bytes`,
+      { bytes, maxBytes: ADMISSION_TRANSACTION_MAX_BYTES }
+    )
+  }
+  return value
+}
+
+function compactFencedWriteOwner(raw) {
+  if (!isPlainObject(raw)) return raw || null
+  const value = clone(raw)
+  value.handoffRef = isPlainObject(value.handoffRef) ? clone(value.handoffRef) : null
+  value.takeoverRef = isPlainObject(value.takeoverRef) ? clone(value.takeoverRef) : null
+  if (jsonBytes(value) > 16 * 1024) {
+    throw new LifecycleStateProjectionV5Error(
+      'LIFECYCLE_FENCED_OWNER_EXCEEDED',
+      'fenced task write owner exceeds 16 KiB'
+    )
+  }
+  return value
+}
+
+function compactWorkflowTaskTerminalReceipt(raw) {
+  if (!isPlainObject(raw)) return raw || null
+  const value = clone(raw)
+  value.evidence = Array.isArray(value.evidence)
+    ? value.evidence.slice(0, 8).map(item => isPlainObject(item) ? clone(item) : null).filter(Boolean)
+    : []
+  if (jsonBytes(value) > 32 * 1024) {
+    throw new LifecycleStateProjectionV5Error(
+      'LIFECYCLE_TASK_TERMINAL_RECEIPT_EXCEEDED',
+      'workflow task terminal receipt exceeds 32 KiB'
+    )
+  }
+  return value
 }
 
 function compactContextPlan(plan) {
@@ -299,6 +476,45 @@ function compactContextAcquisition(raw, aggressive = false) {
   return value
 }
 
+function compactValidationExecution(raw) {
+  if (!isPlainObject(raw)) return raw || null
+  const allowedFields = [
+    'schemaVersion',
+    'pendingBudgetCard',
+    'rootBudgetConfirmation',
+    'rootBudgetProjection',
+    'continuationAuthorization',
+    'currentLease',
+    'runnerState',
+    'terminalReceipt',
+    'revocationEpoch',
+    'updatedAt'
+  ]
+  const value = {}
+  for (const field of allowedFields) {
+    if (!Object.prototype.hasOwnProperty.call(raw, field)) continue
+    const item = clone(raw[field])
+    if (['pendingBudgetCard', 'rootBudgetConfirmation', 'continuationAuthorization'].includes(field) &&
+        item !== null && jsonBytes(item) > VALIDATION_AUTHORITY_RECORD_MAX_BYTES) {
+      throw new LifecycleStateProjectionV5Error(
+        'LIFECYCLE_VALIDATION_AUTHORITY_RECORD_EXCEEDED',
+        `${field} exceeds ${VALIDATION_AUTHORITY_RECORD_MAX_BYTES} bytes`,
+        { field, bytes: jsonBytes(item), maxBytes: VALIDATION_AUTHORITY_RECORD_MAX_BYTES }
+      )
+    }
+    if (field === 'rootBudgetProjection' && item !== null &&
+        jsonBytes(item) > VALIDATION_ROOT_BUDGET_PROJECTION_MAX_BYTES) {
+      throw new LifecycleStateProjectionV5Error(
+        'LIFECYCLE_VALIDATION_ROOT_BUDGET_PROJECTION_EXCEEDED',
+        `${field} exceeds ${VALIDATION_ROOT_BUDGET_PROJECTION_MAX_BYTES} bytes`,
+        { field, bytes: jsonBytes(item), maxBytes: VALIDATION_ROOT_BUDGET_PROJECTION_MAX_BYTES }
+      )
+    }
+    value[field] = item
+  }
+  return value
+}
+
 function compactLifecycleStateV5(raw, options = {}) {
   if (!isPlainObject(raw)) {
     throw new LifecycleStateProjectionV5Error('LIFECYCLE_STATE_INVALID', 'lifecycle state must be an object')
@@ -309,6 +525,25 @@ function compactLifecycleStateV5(raw, options = {}) {
   value.contextDeliveryReceipts = compactDeliveryReceipts(value.contextDeliveryReceipts)
   value.governanceIntake = compactGovernanceIntake(value.governanceIntake)
   value.taskRecoveryBinding = compactTaskRecoveryBinding(value.taskRecoveryBinding)
+  if (isPlainObject(value.admissionTransaction)) {
+    value.admissionTransaction = compactAdmissionTransaction(value.admissionTransaction)
+  }
+  if (isPlainObject(value.fencedWriteOwner)) {
+    value.fencedWriteOwner = compactFencedWriteOwner(value.fencedWriteOwner)
+  }
+  if (isPlainObject(value.workflowTaskTerminalReceipt)) {
+    value.workflowTaskTerminalReceipt = compactWorkflowTaskTerminalReceipt(value.workflowTaskTerminalReceipt)
+  }
+  if (isPlainObject(value.validationExecution)) {
+    value.validationExecution = compactValidationExecution(value.validationExecution)
+  }
+  if (isPlainObject(value.validationControlIngress) &&
+      jsonBytes(value.validationControlIngress) > VALIDATION_AUTHORITY_RECORD_MAX_BYTES) {
+    throw new LifecycleStateProjectionV5Error(
+      'LIFECYCLE_VALIDATION_CONTROL_INGRESS_EXCEEDED',
+      `validationControlIngress exceeds ${VALIDATION_AUTHORITY_RECORD_MAX_BYTES} bytes`
+    )
+  }
   let bytes = jsonBytes(value)
   if (bytes > TASK_STATE_SLOT_MAX_BYTES) {
     value.contextAcquisition = compactContextAcquisition(value.contextAcquisition, true)
@@ -381,6 +616,8 @@ function buildColdResumeStub(compactState) {
   const state = isPlainObject(compactState) ? compactState : {}
   const context = isPlainObject(state.contextAcquisition) ? state.contextAcquisition : {}
   const turn = isPlainObject(state.turnLiveness) ? state.turnLiveness : {}
+  const envelope = isPlainObject(state.actualInstructionEnvelope) ? state.actualInstructionEnvelope : null
+  const workItemSet = isPlainObject(state.workItemSet) ? state.workItemSet : null
   const stub = {
     version: state.version,
     mode: state.mode,
@@ -391,6 +628,50 @@ function buildColdResumeStub(compactState) {
     stickyProject: state.stickyProject,
     stickyAuto: state.stickyAuto,
     taskRecoveryBinding: state.taskRecoveryBinding || null,
+    admissionTransaction: isPlainObject(state.admissionTransaction)
+      ? compactAdmissionTransaction(state.admissionTransaction)
+      : null,
+    fencedWriteOwner: isPlainObject(state.fencedWriteOwner)
+      ? compactFencedWriteOwner(state.fencedWriteOwner)
+      : null,
+    workflowTaskTerminalReceipt: isPlainObject(state.workflowTaskTerminalReceipt)
+      ? compactWorkflowTaskTerminalReceipt(state.workflowTaskTerminalReceipt)
+      : null,
+    validationControlIngress: null,
+    validationExecution: null,
+    actualInstructionEnvelope: null,
+    workItemSet: null,
+    workflowRouteDecision: isPlainObject(state.workflowRouteDecision)
+      ? clone(state.workflowRouteDecision)
+      : null,
+    workflowResumeTargetDecision: isPlainObject(state.workflowResumeTargetDecision)
+      ? clone(state.workflowResumeTargetDecision)
+      : null,
+    workflowRoutePlanBinding: isPlainObject(state.workflowRoutePlanBinding)
+      ? clone(state.workflowRoutePlanBinding)
+      : null,
+    workflowRoutePending: isPlainObject(state.workflowRoutePending)
+      ? clone(state.workflowRoutePending)
+      : null,
+    workflowIngressError: isPlainObject(state.workflowIngressError)
+      ? clone(state.workflowIngressError)
+      : null,
+    workflowIngressResume: envelope || workItemSet
+      ? {
+          schemaVersion: 'WorkflowIngressResumeRefV1',
+          envelopeId: envelope?.envelopeId || null,
+          envelopeDigest: envelope?.envelopeDigest || null,
+          actualInstructionDigest: envelope?.actualInstructionDigest || null,
+          workItemSetDigest: workItemSet?.setDigest || null,
+          workItemIds: Array.isArray(workItemSet?.items)
+            ? workItemSet.items.slice(0, 32).map(item => item.workItemId)
+            : [],
+          routeDecisionDigest: state.workflowRouteDecision?.decisionDigest || null,
+          routeRevision: state.workflowRouteDecision?.routeRevision || null,
+          planBindingDigest: state.workflowRoutePlanBinding?.bindingDigest || null,
+          resumeTargetDecisionDigest: state.workflowResumeTargetDecision?.decisionDigest || null
+        }
+      : null,
     cp3Runtime: state.cp3Runtime || {},
     workflowCompletionLifecycle: state.workflowCompletionLifecycle || null,
     contextAcquisition: {
@@ -433,6 +714,7 @@ function buildColdResumeStub(compactState) {
 }
 
 module.exports = {
+  ADMISSION_TRANSACTION_MAX_BYTES,
   ARTIFACT_REF_MAX_BYTES,
   ARTIFACT_REF_MAX_COUNT,
   COLD_STUB_MAX_BYTES,
@@ -445,12 +727,15 @@ module.exports = {
   TASK_STATE_TARGET_BYTES,
   TRACE_MAX_BYTES,
   TRACE_MAX_EVENTS,
+  VALIDATION_AUTHORITY_RECORD_MAX_BYTES,
+  VALIDATION_ROOT_BUDGET_PROJECTION_MAX_BYTES,
   boundedString,
   buildColdResumeStub,
   compactArtifactRefs,
   compactDeliveryReceipts,
   compactLifecycleStateV5,
   compactLocalTaskTrace,
+  compactValidationExecution,
   digestValue,
   jsonBytes,
   semanticLifecycleProjection,

@@ -8,8 +8,35 @@ const {
 } = require('./progressive-skill-route-contract.cjs')
 
 const DEFAULT_REGISTRY_PATH = path.join(__dirname, 'workflow-root-registry.v1.json')
+const DEFAULT_REGISTRY_V2_PATH = path.join(__dirname, 'workflow-root-registry.v2.json')
 const DIGEST_RE = /^[a-f0-9]{64}$/
 const CONDITION_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
+const EXPECTED_V2_ROUTE_KEYS = Object.freeze([
+  'dev.default',
+  'dev.refactor',
+  'dev.database',
+  'dev.init',
+  'dev.optimization',
+  'dev.scenario-test',
+  'dev.docs',
+  'dev.plan-review',
+  'fix.default',
+  'fix.security',
+  'fix.incident',
+  'audit.规范文件',
+  'audit.技术方案',
+  'audit.需求文档',
+  'audit.项目工程',
+  'audit.报告',
+  'audit.通用文档',
+  'audit.发布前审查',
+  'analyze.default',
+  'analyze.research',
+  'self-fix',
+  'other',
+  'chat',
+  'resume'
+])
 
 function hasOnlyKeys (value, allowed) {
   return value && typeof value === 'object' && !Array.isArray(value) &&
@@ -134,6 +161,201 @@ function validateWorkflowRootRegistry (registry) {
   }
 }
 
+function validateSourceEvidence (registry, errors) {
+  if (!Array.isArray(registry.sourceEvidence) ||
+      registry.sourceEvidence.length < 3 ||
+      registry.sourceEvidence.length > 16) {
+    errors.push('source-evidence')
+  } else if (registry.sourceEvidence.some(item =>
+    !hasOnlyKeys(item, ['ref', 'digest']) ||
+    typeof item.ref !== 'string' || !item.ref.trim() ||
+    !DIGEST_RE.test(String(item.digest || ''))
+  )) {
+    errors.push('source-evidence-item')
+  }
+  const expectedSourceDigest = sha256(registry.sourceEvidence || [])
+  if (!DIGEST_RE.test(String(registry.sourceDigest || '')) ||
+      registry.sourceDigest !== expectedSourceDigest) errors.push('source-digest')
+  return expectedSourceDigest
+}
+
+function validateWorkflowPolicyV2 (intent, policy) {
+  if (!hasOnlyKeys(policy, [
+    'mutationPolicy',
+    'cpPolicy',
+    'artifactPolicy',
+    'verificationPolicy',
+    'resumePolicy'
+  ])) return false
+  if (!['allowed-after-confirmation', 'forbidden', 'inherited'].includes(policy.mutationPolicy)) return false
+  if (!hasOnlyKeys(policy.cpPolicy, ['cp1', 'cp2', 'cp3', 'cp3Rule']) ||
+      !['required', 'not-applicable', 'inherited'].includes(policy.cpPolicy.cp1) ||
+      !['required', 'not-applicable', 'inherited'].includes(policy.cpPolicy.cp2) ||
+      !['conditional', 'not-applicable', 'inherited'].includes(policy.cpPolicy.cp3) ||
+      typeof policy.cpPolicy.cp3Rule !== 'string' || !policy.cpPolicy.cp3Rule.trim()) return false
+  if (!hasOnlyKeys(policy.artifactPolicy, ['primaryArtifacts', 'writePolicy']) ||
+      !Array.isArray(policy.artifactPolicy.primaryArtifacts) || policy.artifactPolicy.primaryArtifacts.length > 16 ||
+      policy.artifactPolicy.primaryArtifacts.some(value => typeof value !== 'string' || !value.trim()) ||
+      policy.artifactPolicy.writePolicy !== policy.mutationPolicy) return false
+  if (!hasOnlyKeys(policy.verificationPolicy, ['mode', 'executionAuthorityRequired']) ||
+      !['affected-v0-v2', 'read-only', 'inherited-after-rehydrate'].includes(policy.verificationPolicy.mode) ||
+      typeof policy.verificationPolicy.executionAuthorityRequired !== 'boolean') return false
+  if (!hasOnlyKeys(policy.resumePolicy, ['mode', 'terminalAction']) ||
+      !['persist-round-trip', 'rehydrate-return'].includes(policy.resumePolicy.mode) ||
+      policy.resumePolicy.terminalAction !== 'unbind') return false
+  if (intent === 'resume' && policy.resumePolicy.mode !== 'rehydrate-return') return false
+  if (intent !== 'resume' && policy.resumePolicy.mode !== 'persist-round-trip') return false
+  return true
+}
+
+function intentForRouteKey (routeKey) {
+  if (routeKey === 'self-fix') return 'self-fix'
+  if (['other', 'chat', 'resume'].includes(routeKey)) return routeKey
+  return String(routeKey || '').split('.')[0]
+}
+
+function validateRouteV2 (route, workflowPolicies) {
+  if (!hasOnlyKeys(route, [
+    'routeKey',
+    'topIntent',
+    'subtype',
+    'stage',
+    'disposition',
+    'routeOwner',
+    'roots',
+    'policyRef',
+    'migration'
+  ])) return false
+  if (typeof route.routeKey !== 'string' || !route.routeKey.trim() ||
+      route.topIntent !== intentForRouteKey(route.routeKey) ||
+      typeof route.subtype !== 'string' || !route.subtype.trim() ||
+      !['entry', 'internal-step', 'rehydrate'].includes(route.stage) ||
+      !['active', 'retired'].includes(route.disposition) ||
+      route.policyRef !== route.topIntent || !workflowPolicies[route.policyRef]) return false
+  if (!hasOnlyKeys(route.routeOwner, ['kind', 'id']) ||
+      !['skill', 'instruction'].includes(route.routeOwner.kind) ||
+      typeof route.routeOwner.id !== 'string' || !route.routeOwner.id.trim()) return false
+  if (!Array.isArray(route.roots) || route.roots.length > 16 ||
+      route.roots.some(root => !validateRoot(root))) return false
+  if (route.routeOwner.kind === 'skill' && !route.roots.some(root => root.skillId === route.routeOwner.id)) return false
+  if (route.disposition === 'active' && route.migration !== null) return false
+  if (route.disposition === 'retired' && (
+    !hasOnlyKeys(route.migration, ['routeKey', 'reason']) ||
+    typeof route.migration.routeKey !== 'string' || !route.migration.routeKey.trim() ||
+    typeof route.migration.reason !== 'string' || !route.migration.reason.trim()
+  )) return false
+  return true
+}
+
+/**
+ * Validates the authoritative V2 route registry. V1 remains readable for the
+ * progressive-skill compatibility path but cannot satisfy this contract.
+ */
+function validateWorkflowRootRegistryV2 (registry) {
+  const errors = []
+  if (!registry || typeof registry !== 'object' || Array.isArray(registry)) {
+    return { valid: false, errors: ['registry-object-required'] }
+  }
+  if (!hasOnlyKeys(registry, [
+    'schemaVersion',
+    'sourceEvidence',
+    'sourceDigest',
+    'environmentModes',
+    'workflowPolicies',
+    'baseBundles',
+    'routes',
+    'conditionals',
+    'routeRevision',
+    'registryDigest'
+  ])) errors.push('top-level-fields')
+  if (registry.schemaVersion !== 'WorkflowRootRegistryV2') errors.push('schema-version')
+  const expectedSourceDigest = validateSourceEvidence(registry, errors)
+  if (!Array.isArray(registry.environmentModes) ||
+      registry.environmentModes.join(',') !== 'dev,prod') errors.push('environment-modes')
+  const expectedIntents = ['analyze', 'audit', 'chat', 'dev', 'fix', 'other', 'resume', 'self-fix']
+  const policyIntents = Object.keys(registry.workflowPolicies || {}).sort()
+  if (policyIntents.join(',') !== expectedIntents.join(',')) errors.push('workflow-policies')
+  for (const intent of policyIntents) {
+    if (!validateWorkflowPolicyV2(intent, registry.workflowPolicies[intent])) errors.push(`workflow-policy:${intent}`)
+  }
+  if (!registry.baseBundles || typeof registry.baseBundles !== 'object' || Array.isArray(registry.baseBundles)) {
+    errors.push('base-bundles')
+  }
+  for (const [intent, roots] of Object.entries(registry.baseBundles || {})) {
+    if (!registry.workflowPolicies?.[intent] || !Array.isArray(roots) || roots.length > 16 ||
+        roots.some(root => !validateRoot(root))) errors.push(`base-bundle:${intent}`)
+  }
+  if (!Array.isArray(registry.routes) || registry.routes.length !== EXPECTED_V2_ROUTE_KEYS.length) {
+    errors.push('routes')
+  }
+  const routeKeys = new Set()
+  for (const route of registry.routes || []) {
+    if (!validateRouteV2(route, registry.workflowPolicies || {}) || routeKeys.has(route?.routeKey)) {
+      errors.push(`route:${route?.routeKey || 'invalid'}`)
+    }
+    routeKeys.add(route?.routeKey)
+  }
+  const missingRoutes = EXPECTED_V2_ROUTE_KEYS.filter(routeKey => !routeKeys.has(routeKey))
+  const unknownRoutes = [...routeKeys].filter(routeKey => !EXPECTED_V2_ROUTE_KEYS.includes(routeKey))
+  if (missingRoutes.length) errors.push(`route-missing:${missingRoutes.join('|')}`)
+  if (unknownRoutes.length) errors.push(`route-unknown:${unknownRoutes.join('|')}`)
+  const activeRoutes = (registry.routes || []).filter(route => route.disposition === 'active')
+  for (const route of registry.routes || []) {
+    if (route.disposition === 'retired' && !activeRoutes.some(active => active.routeKey === route.migration?.routeKey)) {
+      errors.push(`route-migration:${route.routeKey}`)
+    }
+  }
+
+  const conditionIds = new Set()
+  if (!Array.isArray(registry.conditionals) || registry.conditionals.length > 16) errors.push('conditionals')
+  for (const condition of registry.conditionals || []) {
+    if (!hasOnlyKeys(condition, [
+      'conditionId',
+      'intents',
+      'roots',
+      'activationAuthority',
+      'mutualExclusionGroup',
+      'sourceRef'
+    ]) || !CONDITION_ID_RE.test(String(condition?.conditionId || '')) ||
+        conditionIds.has(condition.conditionId) ||
+        !Array.isArray(condition.intents) || !condition.intents.length || condition.intents.length > 16 ||
+        condition.intents.some(intent => !registry.workflowPolicies?.[intent]) ||
+        !Array.isArray(condition.roots) || !condition.roots.length || condition.roots.length > 16 ||
+        condition.roots.some(root => !validateRoot(root)) || condition.activationAuthority !== 'model' ||
+        typeof condition.sourceRef !== 'string' || !condition.sourceRef.trim() ||
+        (condition.mutualExclusionGroup !== null && condition.mutualExclusionGroup !== undefined &&
+          (typeof condition.mutualExclusionGroup !== 'string' || !condition.mutualExclusionGroup.trim()))) {
+      errors.push(`conditional:${condition?.conditionId || 'invalid'}`)
+    }
+    conditionIds.add(condition?.conditionId)
+  }
+  const revisionCore = {
+    schemaVersion: registry.schemaVersion,
+    environmentModes: registry.environmentModes,
+    workflowPolicies: registry.workflowPolicies,
+    baseBundles: registry.baseBundles,
+    routes: registry.routes,
+    conditionals: registry.conditionals
+  }
+  const expectedRouteRevision = sha256(revisionCore)
+  if (!DIGEST_RE.test(String(registry.routeRevision || '')) ||
+      registry.routeRevision !== expectedRouteRevision) errors.push('route-revision')
+  const expectedDigest = sha256({
+    ...revisionCore,
+    sourceDigest: registry.sourceDigest,
+    routeRevision: registry.routeRevision
+  })
+  if (!DIGEST_RE.test(String(registry.registryDigest || '')) ||
+      registry.registryDigest !== expectedDigest) errors.push('registry-digest')
+  return {
+    valid: errors.length === 0,
+    errors,
+    expectedDigest,
+    expectedRouteRevision,
+    expectedSourceDigest
+  }
+}
+
 function loadWorkflowRootRegistry (options = {}) {
   const fsImpl = options.fs || fs
   const registryPath = path.resolve(options.registryPath || DEFAULT_REGISTRY_PATH)
@@ -149,6 +371,27 @@ function loadWorkflowRootRegistry (options = {}) {
   if (!validation.valid) {
     const error = new Error(`WORKFLOW_REGISTRY_STALE: ${validation.errors.join(',')}`)
     error.code = 'WORKFLOW_REGISTRY_STALE'
+    error.validation = validation
+    throw error
+  }
+  return { registry, registryPath, validation }
+}
+
+function loadWorkflowRouteRegistryV2 (options = {}) {
+  const fsImpl = options.fs || fs
+  const registryPath = path.resolve(options.registryPath || DEFAULT_REGISTRY_V2_PATH)
+  let registry
+  try {
+    registry = JSON.parse(fsImpl.readFileSync(registryPath, 'utf8'))
+  } catch (error) {
+    const failure = new Error(`WORKFLOW_REGISTRY_V2_READ_FAILED: ${error.message}`)
+    failure.code = 'WORKFLOW_REGISTRY_V2_READ_FAILED'
+    throw failure
+  }
+  const validation = validateWorkflowRootRegistryV2(registry)
+  if (!validation.valid) {
+    const error = new Error(`WORKFLOW_REGISTRY_V2_STALE: ${validation.errors.join(',')}`)
+    error.code = 'WORKFLOW_REGISTRY_V2_STALE'
     error.validation = validation
     throw error
   }
@@ -245,8 +488,12 @@ function resolveWorkflowRoots (context, options = {}) {
 
 module.exports = {
   DEFAULT_REGISTRY_PATH,
+  DEFAULT_REGISTRY_V2_PATH,
+  EXPECTED_V2_ROUTE_KEYS,
   validateWorkflowRootRegistry,
+  validateWorkflowRootRegistryV2,
   loadWorkflowRootRegistry,
+  loadWorkflowRouteRegistryV2,
   routeKeyForContext,
   resolveWorkflowRoots,
   mergeRoots

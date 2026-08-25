@@ -21,7 +21,7 @@ description: 场景测试子类型规范 — 端到端/集成测试 + artillery 
 
 ## 工具规范
 
-**负载测试默认工具**：`artillery`（全局安装：`npm i -g artillery`）
+**负载测试候选工具**：`artillery`。优先复用项目既有场景/负载脚本或已安装的本地依赖；缺失时可选择不修改项目/用户环境的轻量替代探针，或在用户确认后使用隔离临时工具。`npm i -g artillery` 及其他全局安装必须独立说明目标、影响、恢复方式并取得当前明确授权，TestRoute、Auto、Profile 或“工具缺失”本身均不授权全局环境 mutation。
 
 ```yaml
 # artillery.yml 基础模板

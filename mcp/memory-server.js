@@ -11,6 +11,11 @@
  *   memory_session_query  — Read exact bounded daily-memory session sections
  *   memory_summary_query  — Read bounded latest/unresolved SUMMARY rows
  *   memory_session_allocate — Atomically reserve the next daily session section
+ *   memory_task_admit_v2  — Resolve current server-owned ingress and admit/adopt/bind one formal task
+ *   memory_task_write_owner — Acquire/renew/handoff/takeover/release/reopen one fenced task owner
+ *   memory_task_fast_path_lease — Issue one bounded two-path low-risk mutation lease
+ *   memory_workflow_operational_write_lease — Issue one exact, one-use report/memory/audit/checkpoint lease
+ *   memory_task_terminal_v1 — Reconcile terminal evidence, close out V5 and unbind the live route
  *   memory_task_resolve   — Resolve an exact task identity without loading task bodies
  *   memory_session_read   — Read today's/yesterday's session memory file
  *   memory_session_write  — Append a block to one allocation-bound daily session
@@ -28,10 +33,20 @@ const { assertSingleSegment, resolveInside, resolveExistingRegularFileInside } =
 const { createJsonLineServer } = require('./stdio-jsonrpc.cjs')
 const { createMemoryFileTransaction } = require('./memory-file-transaction.cjs')
 const {
+  executeTaskAdmission,
+  executeTaskWriteOwner,
+  executeWorkflowTaskTerminal,
+  reconcileWorkflowTaskTerminal
+} = require('./task-admission-authority.cjs')
+const {
   createArtifactLinkProjectionSet,
   renderArtifactLinkBlock,
   validateMarkdownLocalLinks
 } = require('./artifact-link-projection.cjs')
+const {
+  readFencedTaskWriteOwner,
+  resolveTaskRecoveryMetaDir
+} = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const {
   readBoundedTextFileSync,
   scanBoundedTextLinesSync
@@ -67,6 +82,15 @@ const {
   resolveTaskContinuation
 } = require('../hooks/_runtime/task-continuation-contract.cjs')
 const { createLinkCapabilityDecision } = require('../hooks/_runtime/visible-output-contract.cjs')
+const { createWorkspaceSessionRouteIndex } = require('../hooks/_runtime/workspace-session-route-index-v1.cjs')
+const {
+  createWorkflowOperationalWriteLease
+} = require('../hooks/_runtime/workflow-operational-write-lease.cjs')
+const {
+  createSimpleTaskFastPathLease,
+  createSimpleTaskFastPathUsage,
+  validateSimpleTaskFastPathUsage
+} = require('../hooks/_runtime/simple-task-fast-path-lease.cjs')
 
 function loadCpDigestContract() {
   try {
@@ -209,7 +233,207 @@ const LINK_CAPABILITY_DECISION_SCHEMA = Object.freeze({
   }
 })
 
+const WORKFLOW_INGRESS_REF_SCHEMA = Object.freeze({
+  type: 'object',
+  additionalProperties: false,
+  required: ['schemaVersion', 'envelopeId', 'envelopeDigest', 'decisionDigest', 'routeRevision'],
+  properties: {
+    schemaVersion: { type: 'string', const: 'WorkflowIngressProjectionRefV1' },
+    envelopeId: { type: 'string', pattern: '^aie-[a-f0-9]{40}$' },
+    envelopeDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+    decisionDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+    routeRevision: { type: 'string', pattern: '^[a-f0-9]{64}$' }
+  }
+})
+
+const TASK_WRITE_OWNER_REF_SCHEMA = Object.freeze({
+  type: 'object',
+  additionalProperties: false,
+  required: ['ownerGeneration', 'ownerNonce', 'leaseRevision', 'leaseDigest'],
+  properties: {
+    ownerGeneration: { type: 'integer', minimum: 1 },
+    ownerNonce: { type: 'string', pattern: '^owner-[a-f0-9]{40}$' },
+    leaseRevision: { type: 'integer', minimum: 1 },
+    leaseDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' }
+  }
+})
+
 const TOOLS = [
+  {
+    name: 'memory_task_admit_v2',
+    description: '基于 server-owned ingress 可恢复地准入一个正式任务；不签发源码 mutation authority。',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['operation', 'ingressRef', 'task', 'overview'],
+      properties: {
+        operation: { type: 'string', enum: ['admit', 'adopt', 'bind'] },
+        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: 'workspace-namespace 下的精确项目；legacy project 可省略' },
+        scope: { type: 'string', enum: ['project'], description: '正式任务准入只允许 project scope' },
+        ingressRef: {
+          type: 'object',
+          additionalProperties: false,
+          required: [
+            'schemaVersion', 'envelopeId', 'envelopeDigest', 'decisionDigest', 'routeRevision'
+          ],
+          properties: {
+            schemaVersion: { type: 'string', const: 'WorkflowIngressProjectionRefV1' },
+            envelopeId: { type: 'string', pattern: '^aie-[a-f0-9]{40}$' },
+            envelopeDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+            decisionDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+            routeRevision: { type: 'string', pattern: '^[a-f0-9]{64}$' }
+          }
+        },
+        task: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['taskKind', 'entryVariant'],
+          properties: {
+            taskId: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$', description: 'adopt/bind 必填；admit 禁止传入' },
+            displayName: { type: 'string', minLength: 1, maxLength: 160, description: 'admit 必填；新目录保留合法显示名' },
+            aliases: { type: 'array', maxItems: 32, items: { type: 'string', minLength: 1, maxLength: 300 } },
+            taskKind: { type: 'string', enum: ['requirements', 'bugs', 'optimizations', 'scenario-tests'] },
+            entryVariant: { type: 'string', enum: ['new', 'product-provided', 'change', 'fix', 'continue', 'reopen'] },
+            taskRootRelative: { type: 'string', minLength: 3, maxLength: 320, description: 'adopt/bind 必填；必须为 <taskKind>/<single-segment>' }
+          }
+        },
+        overview: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['content'],
+          properties: {
+            content: { type: 'string', minLength: 1, maxLength: 262144 },
+            productSourceContent: { type: 'string', minLength: 1, maxLength: 262144, description: 'entryVariant=product-provided 时必填' }
+          }
+        }
+      }
+    }
+  },
+  {
+    name: 'memory_task_write_owner',
+    description: '对一个正式任务执行 fenced owner CAS，并返回绑定 V2 owner 的 transition receipt。',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['operation', 'ingressRef', 'taskId', 'admissionId'],
+      properties: {
+        operation: { type: 'string', enum: ['acquire', 'renew', 'release', 'handoff-prepare', 'handoff-accept', 'takeover-prepare', 'takeover-accept', 'reopen'] },
+        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: 'workspace-namespace 下的精确项目' },
+        scope: { type: 'string', enum: ['project'] },
+        ingressRef: WORKFLOW_INGRESS_REF_SCHEMA,
+        taskId: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$' },
+        admissionId: { type: 'string', pattern: '^admission-[a-f0-9]{40}$' },
+        expectedOwner: TASK_WRITE_OWNER_REF_SCHEMA,
+        targetSessionDigest: { type: 'string', pattern: '^[a-f0-9]{64}$', description: 'handoff-prepare 的 exact target session digest' },
+        handoffRefDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+        takeoverRefDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' }
+      }
+    }
+  },
+  {
+    name: 'memory_task_fast_path_lease',
+    description: '为最多两个 exact 低风险路径签发 server-owned 简单任务租约；高风险或范围升级须转正式准入。',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['ingressRef', 'operation', 'targets', 'riskAssessment'],
+      properties: {
+        project: PROJECT_NAMESPACE_INPUT_SCHEMA,
+        ingressRef: WORKFLOW_INGRESS_REF_SCHEMA,
+        operation: { type: 'string', enum: ['create-or-update'] },
+        targets: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 2,
+          uniqueItems: true,
+          items: { type: 'string', minLength: 1, maxLength: 512 }
+        },
+        riskAssessment: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['changeClass', 'crossModule', 'sharedContract', 'publicApiOrSchema', 'securitySensitive', 'dependencyChange', 'releaseImpact'],
+          properties: {
+            changeClass: { type: 'string', enum: ['narrative-markdown', 'local-implementation'] },
+            crossModule: { type: 'boolean' },
+            sharedContract: { type: 'boolean' },
+            publicApiOrSchema: { type: 'boolean' },
+            securitySensitive: { type: 'boolean' },
+            dependencyChange: { type: 'boolean' },
+            releaseImpact: { type: 'boolean' }
+          }
+        }
+      }
+    }
+  },
+  {
+    name: 'memory_workflow_operational_write_lease',
+    description: '签发一次性窄写租约；仅限精确 operational slot，不授权源码、正式 CP、Profile 或 release。',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['ingressRef', 'operation', 'targets'],
+      properties: {
+        project: PROJECT_NAMESPACE_INPUT_SCHEMA,
+        ingressRef: WORKFLOW_INGRESS_REF_SCHEMA,
+        operation: { type: 'string', enum: ['create', 'append', 'update'] },
+        targets: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 4,
+          items: { type: 'string', minLength: 1, maxLength: 512 }
+        }
+      }
+    }
+  },
+  {
+    name: 'memory_task_terminal_v1',
+    description: '稳定回读四类终态证据后写 terminal receipt、撤销 owner 并解绑 live route。',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['ingressRef', 'taskId', 'admissionId', 'terminalStatus', 'expectedOwner', 'evidence'],
+      properties: {
+        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: 'workspace-namespace 下的精确项目' },
+        scope: { type: 'string', enum: ['project'] },
+        ingressRef: WORKFLOW_INGRESS_REF_SCHEMA,
+        taskId: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$' },
+        admissionId: { type: 'string', pattern: '^admission-[a-f0-9]{40}$' },
+        terminalStatus: { type: 'string', enum: ['completed', 'rejected', 'cancelled', 'failed'] },
+        expectedOwner: TASK_WRITE_OWNER_REF_SCHEMA,
+        evidence: {
+          type: 'array',
+          minItems: 4,
+          maxItems: 4,
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['role', 'path', 'sha256', 'bytes'],
+            properties: {
+              role: { type: 'string', enum: ['ecr', 'report', 'memory', 'completion'] },
+              path: { type: 'string', minLength: 1, maxLength: 1024 },
+              sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+              bytes: { type: 'integer', minimum: 1, maximum: 8388608 }
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    name: 'memory_task_closeout_reconcile_v1',
+    description: '从固定 closeout reserve 按 CAS 恢复终态并重试 route unbind；不授予 mutation authority。',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['ingressRef', 'taskId'],
+      properties: {
+        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: 'workspace-namespace 下的精确项目' },
+        scope: { type: 'string', enum: ['project'] },
+        ingressRef: WORKFLOW_INGRESS_REF_SCHEMA,
+        taskId: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$' }
+      }
+    }
+  },
   {
     name: 'memory_task_resolve',
     description: '按稳定 taskId、active displayName 或 alias 精确定位任务。只读取有界 identity/session/CP 元数据，不把任务名或派生索引当作状态真相。',
@@ -306,10 +530,10 @@ const TOOLS = [
       type: 'object',
       required: ['contextBinding'],
       properties: {
-        agent: { type: 'string', description: 'Agent 标识（如 claude-code / codex / copilot / grok），默认当前实际宿主' },
-        date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
-        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定读取域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误读项目记忆。' },
+        agent: { type: 'string' },
+        date: { type: 'string', description: 'YYYYMMDD，默认今日' },
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '读取域' },
+        project: PROJECT_NAMESPACE_INPUT_SCHEMA,
         contextBinding: CONTEXT_READ_BINDING_SCHEMA
       }
     }
@@ -322,14 +546,14 @@ const TOOLS = [
       additionalProperties: false,
       required: [...MEMORY_SESSION_WRITE_REQUIRED_FIELDS],
       properties: {
-        agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
-        date: { type: 'string', description: 'YYYYMMDD 日期，默认今日' },
-        content: { type: 'string', minLength: 1, maxLength: MAX_MEMORY_SESSION_WRITE_CHARS, description: '追加的 Markdown 内容，最多 262144 字符' },
-        artifacts: { type: 'array', minItems: 1, maxItems: 20, items: ARTIFACT_LINK_DESCRIPTOR_SCHEMA, description: '可选关联产物；targetPath 必须相对 active-root 且指向现存普通文件。' },
-        sessionId: { type: 'string', minLength: 1, maxLength: 64, description: 'memory_session_allocate 返回的精确会话编号。每次写入必填。' },
-        sessionBinding: { type: 'string', pattern: '^[a-f0-9]{64}$', description: 'memory_session_allocate 返回的不透明绑定值。每次写入必填且必须原样回传。' },
-        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误写项目记忆。' }
+        agent: { type: 'string' },
+        date: { type: 'string', description: 'YYYYMMDD，默认今日' },
+        content: { type: 'string', minLength: 1, maxLength: MAX_MEMORY_SESSION_WRITE_CHARS },
+        artifacts: { type: 'array', minItems: 1, maxItems: 20, items: ARTIFACT_LINK_DESCRIPTOR_SCHEMA },
+        sessionId: { type: 'string', minLength: 1, maxLength: 64, description: 'allocate 返回的会话编号' },
+        sessionBinding: { type: 'string', pattern: '^[a-f0-9]{64}$', description: 'allocate 返回的绑定值' },
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '写入域' },
+        project: PROJECT_NAMESPACE_INPUT_SCHEMA
       }
     }
   },
@@ -357,16 +581,16 @@ const TOOLS = [
       type: 'object',
       required: ['requirement', 'phase'],
       properties: {
-        requirement: { type: 'string', description: '任务目录名（兼容旧字段名；配合 kind 指向 .devcodex/requirements/<name> 或 .devcodex/bugs/<name>）' },
-        kind: { type: 'string', enum: ['requirements', 'bugs', 'optimizations', 'scenario-tests'], description: '任务根类型，默认 requirements' },
-        phase: { type: 'string', enum: ['CP1', 'CP2', 'CP3'], description: 'CP 阶段' },
-        time: { type: 'string', description: '确认时间（如 10:30），默认当前时间' },
-        artifactPath: { type: 'string', description: 'ConfirmBindingGate：被确认产物相对当前任务目录的规范路径（如 01-需求确认.md）' },
-        artifactVersion: { type: 'string', description: 'ConfirmBindingGate：产物版本号（如 v0.4.0）' },
-        artifactSha256: { type: 'string', description: 'ConfirmBindingGate：确认前对产物全文计算的 SHA-256（hex，大小写不敏感）' },
-        sourceMessage: { type: 'string', description: '用户确认原话摘要' },
-        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误写任务确认。' }
+        requirement: { type: 'string', description: '任务目录名' },
+        kind: { type: 'string', enum: ['requirements', 'bugs', 'optimizations', 'scenario-tests'] },
+        phase: { type: 'string', enum: ['CP1', 'CP2', 'CP3'] },
+        time: { type: 'string' },
+        artifactPath: { type: 'string', description: '确认产物相对路径' },
+        artifactVersion: { type: 'string' },
+        artifactSha256: { type: 'string', description: '产物 SHA-256' },
+        sourceMessage: { type: 'string' },
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '写入域' },
+        project: PROJECT_NAMESPACE_INPUT_SCHEMA
       }
     }
   },
@@ -377,9 +601,9 @@ const TOOLS = [
       type: 'object',
       required: ['contextBinding'],
       properties: {
-        agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
-        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定读取域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误读 SUMMARY。' },
+        agent: { type: 'string' },
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '读取域' },
+        project: PROJECT_NAMESPACE_INPUT_SCHEMA,
         contextBinding: CONTEXT_READ_BINDING_SCHEMA
       }
     }
@@ -392,12 +616,12 @@ const TOOLS = [
       additionalProperties: false,
       required: ['row'],
       properties: {
-        agent: { type: 'string', description: 'Agent 标识，默认当前实际宿主' },
-        row: { type: 'string', description: 'Markdown 表格行（含首尾 |）' },
+        agent: { type: 'string' },
+        row: { type: 'string', description: 'Markdown 表格行' },
         reportArtifact: SUMMARY_ARTIFACT_DESCRIPTOR_SCHEMA,
         memoryArtifact: SUMMARY_ARTIFACT_DESCRIPTOR_SCHEMA,
-        scope: { type: 'string', enum: ['project', 'workspace'], description: '可选。集中布局下指定写入域；默认按当前 cwd 推断。若 cwd 在 workspace 根，必须显式传 project 或 scope:"workspace"。' },
-        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '可选。集中布局下显式指定项目命名空间；旧布局下仅允许当前项目，避免 workspace 根误写 SUMMARY。' }
+        scope: { type: 'string', enum: ['project', 'workspace'], description: '写入域' },
+        project: PROJECT_NAMESPACE_INPUT_SCHEMA
       }
     }
   }
@@ -3154,6 +3378,496 @@ function handleMemoryTaskResolve(args) {
   }
 }
 
+function taskAdmissionIngressError(code, message, details = {}) {
+  return Object.assign(new Error(message), { code, details })
+}
+
+function readServerOwnedAdmissionIngress(target, ingressRef) {
+  const ref = ingressRef && typeof ingressRef === 'object' && !Array.isArray(ingressRef) ? ingressRef : null
+  const digestPattern = /^[a-f0-9]{64}$/
+  if (!ref || ref.schemaVersion !== 'WorkflowIngressProjectionRefV1' ||
+      !/^aie-[a-f0-9]{40}$/.test(String(ref.envelopeId || '')) ||
+      !digestPattern.test(String(ref.envelopeDigest || '')) ||
+      !digestPattern.test(String(ref.decisionDigest || '')) ||
+      !digestPattern.test(String(ref.routeRevision || ''))) {
+    throw taskAdmissionIngressError(
+      'TASK_ADMISSION_INGRESS_REF_INVALID',
+      'ingressRef must be the exact compact WorkflowIngressProjectionRefV1 shown by the current hook projection'
+    )
+  }
+  const scopeKey = LAYOUT.enabled ? assertSingleSegment(target.project, 'project') : 'legacy'
+  const relativeStatePath = path.join('.memory', 'hooks', scopeKey, 'lifecycle-state.json')
+  let statePath
+  try {
+    statePath = resolveExistingRegularFileInside(target.activeRoot, relativeStatePath, {
+      fs,
+      label: 'server-owned lifecycle projection'
+    })
+  } catch (error) {
+    throw taskAdmissionIngressError(
+      'TASK_ADMISSION_INGRESS_STATE_UNAVAILABLE',
+      `current server-owned lifecycle projection is unavailable: ${error.message}`
+    )
+  }
+  let descriptor
+  let raw
+  let before
+  let after
+  try {
+    descriptor = fs.openSync(statePath, 'r')
+    before = fs.fstatSync(descriptor)
+    if (!before.isFile() || before.size <= 0 || before.size > 2 * 1024 * 1024) {
+      throw taskAdmissionIngressError('TASK_ADMISSION_INGRESS_STATE_INVALID', 'lifecycle projection size or type is invalid')
+    }
+    raw = fs.readFileSync(descriptor, 'utf8')
+    after = fs.fstatSync(descriptor)
+  } finally {
+    if (descriptor !== undefined) fs.closeSync(descriptor)
+  }
+  const current = fs.statSync(statePath)
+  if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size ||
+      before.mtimeMs !== after.mtimeMs || after.dev !== current.dev || after.ino !== current.ino ||
+      after.size !== current.size || after.mtimeMs !== current.mtimeMs || Buffer.byteLength(raw, 'utf8') !== after.size) {
+    throw taskAdmissionIngressError('TASK_ADMISSION_INGRESS_STATE_DRIFT', 'lifecycle projection changed during authority readback')
+  }
+  let state
+  try { state = JSON.parse(raw) } catch (error) {
+    throw taskAdmissionIngressError('TASK_ADMISSION_INGRESS_STATE_INVALID', `lifecycle projection JSON is invalid: ${error.message}`)
+  }
+  const envelope = state?.actualInstructionEnvelope
+  const workItemSet = state?.workItemSet
+  const decision = state?.workflowRouteDecision
+  const lease = state?.stickyProject
+  if (state?.activeScope !== 'project' || String(state?.activeProject || '') !== target.project ||
+      envelope?.envelopeId !== ref.envelopeId || envelope?.envelopeDigest !== ref.envelopeDigest ||
+      decision?.decisionDigest !== ref.decisionDigest || decision?.routeRevision !== ref.routeRevision ||
+      decision?.envelopeId !== envelope?.envelopeId || decision?.envelopeDigest !== envelope?.envelopeDigest ||
+      workItemSet?.envelopeId !== envelope?.envelopeId || workItemSet?.envelopeDigest !== envelope?.envelopeDigest ||
+      lease?.schemaVersion !== 'ProjectTargetLeaseV2' || lease?.project !== target.project ||
+      lease?.routeRevision !== decision?.routeRevision || comparableActiveRoot(lease?.activeRoot) !== comparableActiveRoot(target.activeRoot)) {
+    throw taskAdmissionIngressError(
+      'TASK_ADMISSION_INGRESS_STATE_MISMATCH',
+      'ingressRef does not match the current server-owned envelope, work item, route, project or lease'
+    )
+  }
+  return {
+    actualInstructionEnvelope: envelope,
+    workItemSet,
+    workflowRouteDecision: decision,
+    projectTargetLease: lease,
+    lifecycleState: state,
+    authorityReceipt: {
+      schemaVersion: 'ServerOwnedAdmissionIngressReceiptV1',
+      source: path.relative(target.activeRoot, statePath).replace(/\\/g, '/'),
+      sourceDigest: crypto.createHash('sha256').update(raw).digest('hex'),
+      envelopeDigest: envelope.envelopeDigest,
+      decisionDigest: decision.decisionDigest,
+      projectTargetLeaseDigest: lease.leaseDigest
+    }
+  }
+}
+
+function workflowRouteIndexMetaDir(target) {
+  return LAYOUT.enabled
+    ? path.join(LAYOUT.workspaceRoot, '.devcodex', 'workspace', '.memory', 'hooks', 'workspace')
+    : path.join(target.activeRoot, '.memory', 'hooks', 'legacy')
+}
+
+function stableTaskIdentityReadback(target, transaction, ingress, taskId) {
+  const taskRootRelative = String(transaction?.taskRootRelative || '').trim().replace(/\\/g, '/')
+  if (!taskRootRelative || path.isAbsolute(taskRootRelative) || /^[A-Za-z]:/.test(taskRootRelative) ||
+      taskRootRelative.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
+    throw taskAdmissionIngressError(
+      'TASK_WRITE_OWNER_CANONICAL_TASK_INVALID',
+      'durable admission transaction does not contain one canonical task root'
+    )
+  }
+  const taskMemoryRelative = path.join(...taskRootRelative.split('/'), '.memory')
+  const migratedIdentityRelative = path.join(taskMemoryRelative, 'task-identity-v2.json')
+  const nativeIdentityRelative = path.join(taskMemoryRelative, 'task.json')
+  let migratedIdentityPresent = false
+  try {
+    fs.lstatSync(path.join(target.activeRoot, migratedIdentityRelative))
+    migratedIdentityPresent = true
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      throw taskAdmissionIngressError(
+        'TASK_WRITE_OWNER_CANONICAL_TASK_UNAVAILABLE',
+        `canonical TaskIdentityV2 cannot be inspected: ${error.message}`
+      )
+    }
+  }
+  const relativeIdentityPath = migratedIdentityPresent
+    ? migratedIdentityRelative
+    : nativeIdentityRelative
+  let identityPath
+  try {
+    identityPath = resolveExistingRegularFileInside(target.activeRoot, relativeIdentityPath, {
+      fs,
+      label: 'canonical TaskIdentityV2'
+    })
+  } catch (error) {
+    throw taskAdmissionIngressError(
+      'TASK_WRITE_OWNER_CANONICAL_TASK_UNAVAILABLE',
+      `canonical TaskIdentityV2 is unavailable: ${error.message}`
+    )
+  }
+  let descriptor
+  let before
+  let after
+  let raw
+  try {
+    descriptor = fs.openSync(identityPath, 'r')
+    before = fs.fstatSync(descriptor)
+    if (!before.isFile() || before.size < 1 || before.size > 256 * 1024) {
+      throw taskAdmissionIngressError('TASK_WRITE_OWNER_CANONICAL_TASK_INVALID', 'canonical TaskIdentityV2 size or type is invalid')
+    }
+    raw = fs.readFileSync(descriptor, 'utf8')
+    after = fs.fstatSync(descriptor)
+  } finally {
+    if (descriptor !== undefined) fs.closeSync(descriptor)
+  }
+  const current = fs.statSync(identityPath)
+  if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs ||
+      after.dev !== current.dev || after.ino !== current.ino || after.size !== current.size || after.mtimeMs !== current.mtimeMs ||
+      Buffer.byteLength(raw, 'utf8') !== after.size) {
+    throw taskAdmissionIngressError('TASK_WRITE_OWNER_CANONICAL_TASK_DRIFT', 'canonical TaskIdentityV2 changed during readback')
+  }
+  let identity
+  try { identity = JSON.parse(raw) } catch (error) {
+    throw taskAdmissionIngressError('TASK_WRITE_OWNER_CANONICAL_TASK_INVALID', `canonical TaskIdentityV2 JSON is invalid: ${error.message}`)
+  }
+  if (identity?.schemaVersion !== 'TaskIdentityV2' || String(identity.taskId || '').toLowerCase() !== taskId ||
+      identity.project !== target.project || identity.taskRootRelative !== taskRootRelative ||
+      identity.projectRootIdentityDigest !== ingress.projectTargetLease.rootIdentityDigest ||
+      identity.identityDigest !== transaction.taskIdentityDigest) {
+    throw taskAdmissionIngressError(
+      'TASK_WRITE_OWNER_CANONICAL_TASK_MISMATCH',
+      'canonical TaskIdentityV2 does not match the exact admission transaction and project lease'
+    )
+  }
+  return {
+    source: path.relative(target.activeRoot, identityPath).replace(/\\/g, '/'),
+    sourceDigest: crypto.createHash('sha256').update(raw).digest('hex'),
+    identityDigest: identity.identityDigest,
+    taskRootRelative
+  }
+}
+
+function buildServerOwnedTakeoverObservation(target, ingress, taskId) {
+  const identity = {
+    activeRoot: target.activeRoot,
+    project: target.project,
+    taskId,
+    taskStatus: 'active'
+  }
+  const metaDir = resolveTaskRecoveryMetaDir(identity)
+  const ownerRead = readFencedTaskWriteOwner({ metaDir, identity }, { fs })
+  if (ownerRead.status !== 'fresh' || ownerRead.source !== 'primary' || !ownerRead.transaction || !ownerRead.owner) {
+    throw taskAdmissionIngressError(
+      ownerRead.errorCode || 'TASK_WRITE_OWNER_TAKEOVER_STATE_UNAVAILABLE',
+      'takeover requires the current primary owner and admission state'
+    )
+  }
+  const taskReadback = stableTaskIdentityReadback(target, ownerRead.transaction, ingress, taskId)
+  const routeIndex = createWorkspaceSessionRouteIndex({ metaDir: workflowRouteIndexMetaDir(target), fs, path })
+  const priorRoute = routeIndex.read({ sessionDigest: ownerRead.owner.sessionDigest })
+  const turn = ingress.lifecycleState?.turnLiveness || {}
+  const currentSessionDigest = ingress.projectTargetLease.authorityDigest
+  const currentContextEpoch = ingress.actualInstructionEnvelope.contextEpoch
+  const inFlight = turn.inFlightOperation?.ownedByAgent === true &&
+    Date.parse(String(turn.inFlightOperation.leaseExpiresAt || '')) > Date.now()
+  const inFlightForPriorOwner = inFlight && currentSessionDigest === ownerRead.owner.sessionDigest &&
+    currentContextEpoch === ownerRead.owner.contextEpoch
+  const terminalTurnForPriorOwner = currentSessionDigest === ownerRead.owner.sessionDigest &&
+    ['completed', 'error', 'interrupted', 'idle'].includes(String(turn.state || ''))
+  const previousContextTerminal = currentSessionDigest === ownerRead.owner.sessionDigest &&
+    ownerRead.owner.contextEpoch !== currentContextEpoch &&
+    ['completed', 'error', 'interrupted'].includes(String(turn.previousTurn?.terminalState || ''))
+  const routeQuiescent = ['unbound', 'expired'].includes(priorRoute.status)
+  const routeTaskMatches = !priorRoute.entry?.taskId || String(priorRoute.entry.taskId).toLowerCase() === taskId
+  const noLiveTurn = !inFlightForPriorOwner && routeTaskMatches && (routeQuiescent || terminalTurnForPriorOwner || previousContextTerminal)
+  const receiptCore = {
+    schemaVersion: 'ServerOwnedTaskTakeoverObservationV1',
+    taskId,
+    priorOwnerLeaseDigest: ownerRead.owner.leaseDigest,
+    priorOwnerSessionDigest: ownerRead.owner.sessionDigest,
+    canonicalTaskIdentityDigest: taskReadback.identityDigest,
+    canonicalTaskSourceDigest: taskReadback.sourceDigest,
+    priorRouteStatus: priorRoute.status,
+    priorRouteEntryDigest: priorRoute.entry?.entryDigest || null,
+    currentSessionDigest,
+    currentContextEpoch,
+    observedTurnState: String(turn.state || 'missing'),
+    observedPreviousTurnState: String(turn.previousTurn?.terminalState || ''),
+    activeOperationLease: inFlight,
+    activeOperationLeaseForPriorOwner: inFlightForPriorOwner,
+    canonicalTaskReadback: true,
+    noLiveTurn
+  }
+  const reconcileReceiptDigest = crypto.createHash('sha256').update(JSON.stringify(receiptCore)).digest('hex')
+  return {
+    ...receiptCore,
+    reconcileReceiptDigest,
+    canonicalTaskReadback: true,
+    noLiveTurn
+  }
+}
+
+function unbindTerminalWorkflowRoute(target, ingress, terminalReceipt, terminalOwner = null) {
+  const routeIndex = createWorkspaceSessionRouteIndex({ metaDir: workflowRouteIndexMetaDir(target), fs, path })
+  return routeIndex.update({
+    sessionDigest: terminalOwner?.sessionDigest || ingress.projectTargetLease.authorityDigest,
+    projectRootIdentityDigest: terminalOwner?.projectRootIdentity || terminalReceipt.projectRootIdentity ||
+      ingress.projectTargetLease.rootIdentityDigest,
+    taskId: '',
+    routeRevision: terminalOwner?.routeRevision || ingress.projectTargetLease.routeRevision,
+    trigger: 'terminal-unbind',
+    lastTerminalReceiptDigest: terminalReceipt.receiptDigest
+  })
+}
+
+function bindFormalWorkflowRoute(target, ingress, taskId) {
+  const routeIndex = createWorkspaceSessionRouteIndex({ metaDir: workflowRouteIndexMetaDir(target), fs, path })
+  return routeIndex.update({
+    sessionDigest: ingress.projectTargetLease.authorityDigest,
+    projectRootIdentityDigest: ingress.projectTargetLease.rootIdentityDigest,
+    taskId,
+    routeRevision: ingress.workflowRouteDecision.routeRevision,
+    trigger: 'admission-bind'
+  })
+}
+
+function formalWorkflowRouteBound(receipt) {
+  return ['persisted', 'semantic-noop'].includes(String(receipt?.status || '')) &&
+    String(receipt?.entry?.taskId || '') !== ''
+}
+
+function handleMemoryTaskAdmitV2(args) {
+  const target = taskMemoryTransactionTarget(args)
+  if (target.scope !== 'project' || !target.project) {
+    throw Object.assign(new Error('formal task admission requires one exact project scope'), {
+      code: 'TASK_ADMISSION_PROJECT_REQUIRED'
+    })
+  }
+  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef)
+  const admission = executeTaskAdmission({
+    operation: args.operation,
+    task: args.task,
+    overview: args.overview,
+    actualInstructionEnvelope: ingress.actualInstructionEnvelope,
+    workItemSet: ingress.workItemSet,
+    workflowRouteDecision: ingress.workflowRouteDecision,
+    projectTargetLease: ingress.projectTargetLease,
+    activeRoot: target.activeRoot,
+    project: target.project
+  })
+  const routeBinding = bindFormalWorkflowRoute(target, ingress, admission.taskId)
+  admission.routeBinding = routeBinding
+  admission.routeBindingRequired = !formalWorkflowRouteBound(routeBinding)
+  admission.ingressAuthority = ingress.authorityReceipt
+  return {
+    content: [{ type: 'text', text: JSON.stringify(admission, null, 2) }],
+    structuredContent: admission,
+    isError: ['needs-reconcile', 'aborted'].includes(admission.status) || admission.routeBindingRequired
+  }
+}
+
+function handleMemoryTaskWriteOwner(args) {
+  const target = taskMemoryTransactionTarget(args)
+  if (target.scope !== 'project' || !target.project) {
+    throw taskAdmissionIngressError('TASK_WRITE_OWNER_PROJECT_REQUIRED', 'fenced task ownership requires one exact project scope')
+  }
+  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef)
+  const taskId = String(args.taskId || '').trim().toLowerCase()
+  const serverObservation = args.operation === 'takeover-prepare'
+    ? buildServerOwnedTakeoverObservation(target, ingress, taskId)
+    : null
+  const routeBinding = bindFormalWorkflowRoute(target, ingress, taskId)
+  if (!formalWorkflowRouteBound(routeBinding)) {
+    throw taskAdmissionIngressError(
+      routeBinding?.errorCode || 'TASK_WRITE_OWNER_ROUTE_BINDING_FAILED',
+      'fenced task owner requires one durable same-session formal task route binding',
+      { routeBinding }
+    )
+  }
+  const result = executeTaskWriteOwner({
+    operation: args.operation,
+    taskId,
+    admissionId: args.admissionId,
+    expectedOwner: args.expectedOwner,
+    targetSessionDigest: args.targetSessionDigest,
+    handoffRefDigest: args.handoffRefDigest,
+    takeoverRefDigest: args.takeoverRefDigest,
+    ...(serverObservation ? { serverObservation } : {}),
+    actualInstructionEnvelope: ingress.actualInstructionEnvelope,
+    workItemSet: ingress.workItemSet,
+    workflowRouteDecision: ingress.workflowRouteDecision,
+    projectTargetLease: ingress.projectTargetLease,
+    activeRoot: target.activeRoot,
+    project: target.project
+  })
+  result.ingressAuthority = ingress.authorityReceipt
+  result.routeBinding = routeBinding
+  if (serverObservation) result.takeoverObservation = serverObservation
+  return {
+    content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+    structuredContent: result,
+    isError: false
+  }
+}
+
+function handleMemoryWorkflowOperationalWriteLease(args) {
+  const target = taskMemoryTransactionTarget(args)
+  if (target.scope !== 'project' || !target.project) {
+    throw taskAdmissionIngressError(
+      'WORKFLOW_OPERATIONAL_PROJECT_REQUIRED',
+      'workflow operational authority requires one exact project scope'
+    )
+  }
+  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef)
+  const lease = createWorkflowOperationalWriteLease({
+    state: ingress.lifecycleState,
+    activeRoot: target.activeRoot,
+    projectRoot: ingress.projectTargetLease.physicalRoot || INPUT_ROOT,
+    project: target.project,
+    relativeTargets: args.targets,
+    operation: args.operation,
+    taskId: args.taskId
+  }, { fs })
+  const receipt = {
+    schemaVersion: 'WorkflowOperationalWriteLeaseReceiptV1',
+    lease,
+    ingressAuthority: ingress.authorityReceipt,
+    mutationAuthority: true,
+    productMutationAuthority: false,
+    formalArtifactAuthority: false,
+    releaseAuthority: false
+  }
+  return {
+    content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }],
+    structuredContent: receipt,
+    isError: false
+  }
+}
+
+function handleMemoryTaskFastPathLease(args) {
+  const target = taskMemoryTransactionTarget(args)
+  if (target.scope !== 'project' || !target.project) {
+    throw taskAdmissionIngressError(
+      'SIMPLE_TASK_PROJECT_REQUIRED',
+      'simple-task authority requires one exact project scope'
+    )
+  }
+  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef)
+  const lease = createSimpleTaskFastPathLease({
+    state: ingress.lifecycleState,
+    activeRoot: target.activeRoot,
+    projectRoot: ingress.projectTargetLease.physicalRoot || INPUT_ROOT,
+    project: target.project,
+    relativeTargets: args.targets,
+    operation: args.operation,
+    riskAssessment: args.riskAssessment
+  }, { fs })
+  const priorUsage = ingress.lifecycleState.simpleTaskFastPathUsage
+  let usage
+  if (ingress.lifecycleState.simpleTaskFastPathLease?.leaseDigest === lease.leaseDigest) {
+    const validation = validateSimpleTaskFastPathUsage(priorUsage, lease)
+    if (!validation.valid) {
+      throw taskAdmissionIngressError(
+        'SIMPLE_TASK_USAGE_UNAVAILABLE',
+        `existing simple-task lease has no valid usage state: ${validation.errors.join(', ')}`
+      )
+    }
+    usage = priorUsage
+  } else {
+    usage = createSimpleTaskFastPathUsage(lease)
+  }
+  const receipt = {
+    schemaVersion: 'SimpleTaskFastPathLeaseReceiptV1',
+    lease,
+    usage,
+    ingressAuthority: ingress.authorityReceipt,
+    mutationAuthority: true,
+    productMutationAuthority: true,
+    formalArtifactAuthority: false,
+    controlPlaneAuthority: false,
+    releaseAuthority: false
+  }
+  return {
+    content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }],
+    structuredContent: receipt,
+    isError: false
+  }
+}
+
+function handleMemoryTaskTerminalV1(args) {
+  const target = taskMemoryTransactionTarget(args)
+  if (target.scope !== 'project' || !target.project) {
+    throw taskAdmissionIngressError('TASK_TERMINAL_PROJECT_REQUIRED', 'workflow task terminal closeout requires one exact project scope')
+  }
+  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef)
+  const result = executeWorkflowTaskTerminal({
+    taskId: args.taskId,
+    admissionId: args.admissionId,
+    terminalStatus: args.terminalStatus,
+    expectedOwner: args.expectedOwner,
+    evidence: args.evidence,
+    actualInstructionEnvelope: ingress.actualInstructionEnvelope,
+    workItemSet: ingress.workItemSet,
+    workflowRouteDecision: ingress.workflowRouteDecision,
+    projectTargetLease: ingress.projectTargetLease,
+    activeRoot: target.activeRoot,
+    project: target.project
+  })
+  const routeUnbind = unbindTerminalWorkflowRoute(target, ingress, result.receipt, result.owner)
+  const routeUnbound = ['persisted', 'semantic-noop', 'unbound'].includes(routeUnbind.status) || routeUnbind.liveBindingRemoved === true
+  result.ingressAuthority = ingress.authorityReceipt
+  result.routeUnbind = routeUnbind
+  result.routeReconciliationRequired = !routeUnbound
+  if (!routeUnbound) result.status = 'terminal-route-reconcile'
+  return {
+    content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+    structuredContent: result,
+    isError: !routeUnbound
+  }
+}
+
+function handleMemoryTaskCloseoutReconcileV1(args) {
+  const target = taskMemoryTransactionTarget(args)
+  if (target.scope !== 'project' || !target.project) {
+    throw taskAdmissionIngressError('TASK_TERMINAL_PROJECT_REQUIRED', 'workflow task closeout reconciliation requires one exact project scope')
+  }
+  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef)
+  const result = reconcileWorkflowTaskTerminal({
+    activeRoot: target.activeRoot,
+    project: target.project,
+    taskId: args.taskId,
+    sessionKey: ingress.actualInstructionEnvelope.hostSessionDigest
+  }, { fs })
+  const terminalReceipt = result.terminalReceipt || null
+  const promoted = ['committed', 'semantic-noop'].includes(result.status) && terminalReceipt?.receiptDigest
+  const routeUnbind = promoted
+    ? unbindTerminalWorkflowRoute(target, ingress, terminalReceipt, result.owner)
+    : null
+  const routeUnbound = routeUnbind &&
+    (['persisted', 'semantic-noop', 'unbound'].includes(routeUnbind.status) || routeUnbind.liveBindingRemoved === true)
+  const projection = {
+    schemaVersion: 'WorkflowTaskCloseoutReconcileResultV1',
+    status: promoted && routeUnbound ? 'reconciled' : (promoted ? 'terminal-route-reconcile' : result.status),
+    reconciliation: result,
+    routeUnbind,
+    routeReconciliationRequired: Boolean(promoted && !routeUnbound),
+    ingressAuthority: ingress.authorityReceipt,
+    mutationAuthority: false
+  }
+  return {
+    content: [{ type: 'text', text: JSON.stringify(projection, null, 2) }],
+    structuredContent: projection,
+    isError: projection.status !== 'reconciled'
+  }
+}
+
 // ─── MCP JSON-RPC dispatcher ──────────────────────────────────────────────────
 
 function dispatch(method, params) {
@@ -3173,6 +3887,12 @@ function dispatch(method, params) {
       const args = params?.arguments || {}
       try {
         switch (name) {
+          case 'memory_task_admit_v2': return handleMemoryTaskAdmitV2(args)
+          case 'memory_task_write_owner': return handleMemoryTaskWriteOwner(args)
+          case 'memory_task_fast_path_lease': return handleMemoryTaskFastPathLease(args)
+          case 'memory_workflow_operational_write_lease': return handleMemoryWorkflowOperationalWriteLease(args)
+          case 'memory_task_terminal_v1': return handleMemoryTaskTerminalV1(args)
+          case 'memory_task_closeout_reconcile_v1': return handleMemoryTaskCloseoutReconcileV1(args)
           case 'memory_task_resolve': return handleMemoryTaskResolve(args)
           case 'memory_status': return handleMemoryStatus(args)
           case 'memory_session_query': return handleMemorySessionQuery(args)

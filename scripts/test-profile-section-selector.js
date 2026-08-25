@@ -79,7 +79,7 @@ const ordered = select({
   includeDescendants: false,
   maxBytes: 4096
 })
-assert(ordered.body.indexOf('# Testing Strategy') < ordered.body.indexOf('# Project Overview'))
+assert(ordered.body.indexOf('# Project Overview') < ordered.body.indexOf('# Testing Strategy'))
 
 const contains = select({
   headingQueries: ['Operations'],
@@ -142,8 +142,23 @@ const overlapping = selectProfileSections({
     maxBytes: 4096
   }
 })
-assert.strictEqual(overlapping.receipt.completion, 'fallback-full')
-assert.strictEqual(overlapping.receipt.fallbackReason, 'overlapping-section-ranges')
+assert.strictEqual(overlapping.receipt.completion, 'complete')
+assert.strictEqual(overlapping.receipt.fallbackReason, null)
 assert.match(overlapping.body, /child/)
+assert.strictEqual((overlapping.body.match(/child/g) || []).length, 1)
 
-console.log('profile section selector tests passed: exact/contains/order/descendants/fallback/partial/full-oracle mandatoryMiss=0')
+const boundedOnly = select({
+  headingQueries: ['Testing Strategy', 'Large Appendix'],
+  requiredQueries: ['Testing Strategy', 'Large Appendix'],
+  includeDescendants: true,
+  boundedOnly: true,
+  maxBytes: 256
+})
+assert.strictEqual(boundedOnly.receipt.completion, 'partial')
+assert.strictEqual(boundedOnly.receipt.boundedOnly, true)
+assert.notStrictEqual(boundedOnly.body, document)
+assert(boundedOnly.body.includes('Testing facts.'))
+assert(!boundedOnly.body.includes('x'.repeat(128)))
+assert(boundedOnly.receipt.deferredSections.some(item => item.query === 'Large Appendix' && item.required))
+
+console.log('profile section selector tests passed: exact/contains/source-order/descendant-dedupe/bounded-only/fallback/partial/full-oracle mandatoryMiss=0')

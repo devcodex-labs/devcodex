@@ -18,6 +18,9 @@ const {
 const RUNTIME_GENERATION_RETENTION_STATE_SCHEMA = 'RuntimeGenerationRetentionStateV1'
 const RUNTIME_GENERATION_GC_PLAN_SCHEMA = 'RuntimeGenerationGcPlanV1'
 const RUNTIME_GENERATION_GC_APPLY_SCHEMA = 'RuntimeGenerationGcApplyReceiptV1'
+const BOUNDED_MAINTENANCE_PREVIEW_SCHEMA = 'BoundedMaintenancePreviewV2'
+const BOUNDED_MAINTENANCE_CURSOR_SCHEMA = 'BoundedMaintenanceCursorV2'
+const BOUNDED_MAINTENANCE_MANIFEST_SCHEMA = 'BoundedMaintenanceManifestV2'
 const RUNTIME_RETENTION_PROTOCOL_VERSION = 1
 const RETENTION_STATE_FILE = '.runtime-generation-retention.json'
 const DEFAULT_ADOPTION_GRACE_MS = 24 * 60 * 60 * 1000
@@ -28,6 +31,10 @@ const MAX_GENERATION_ENTRIES = 20000
 const MAX_GENERATION_FILE_BYTES = 32 * 1024 * 1024
 const MAX_GENERATION_TREE_BYTES = 512 * 1024 * 1024
 const MAX_RECEIPT_BYTES = 8 * 1024 * 1024
+const DEFAULT_PREVIEW_GENERATION_BUDGET = 16
+const DEFAULT_PREVIEW_TIME_BUDGET_MS = 5000
+const MAX_PREVIEW_GENERATION_BUDGET = 128
+const MAX_PREVIEW_CURSOR_CHARS = 16 * 1024
 const DIGEST_RE = /^[a-f0-9]{64}$/
 const GENERATION_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/
 const ADOPTION_AUTHORITIES = new Set(['protocol-adoption', 'generation-adoption'])
@@ -505,9 +512,8 @@ function classifyGeneration (runtimeBaseRoot, runtimeRoot, stateObservation, cur
   }
 }
 
-function inspectRuntimeGenerationRetention (options = {}) {
+function resolveRuntimeGenerationInventoryContexts (options = {}) {
   const fsImpl = options.fs || fs
-  const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
   let targets = options.targets
   if (!targets) {
     const { resolveGlobalHostTargets } = require('./global-host-target.js')
@@ -526,7 +532,7 @@ function inspectRuntimeGenerationRetention (options = {}) {
     if (!groups.has(key)) groups.set(key, { runtimeBaseRoot: path.resolve(target.runtimeBaseRoot), targets: [] })
     groups.get(key).targets.push(target)
   }
-  const roots = []
+  const contexts = []
   for (const group of groups.values()) {
     const receipts = group.targets.map(target => readHostReceipt(target, fsImpl))
     const currentRefs = [...new Set(receipts.flatMap(item => item.currentRefs))]
@@ -561,48 +567,9 @@ function inspectRuntimeGenerationRetention (options = {}) {
       entries = entries.slice(0, MAX_GENERATIONS)
     }
     const receiptComplete = receipts.every(item => item.status === 'resolved')
-    const generations = entries
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map(entry => {
-        const runtimeRoot = path.join(group.runtimeBaseRoot, entry.name)
-        if (!entry.isDirectory()) {
-          return {
-            runtimeBaseRoot: portable(group.runtimeBaseRoot),
-            runtimeRoot: portable(runtimeRoot),
-            generationId: null,
-            classification: 'blocked-unknown',
-            eligible: false,
-            reasonCode: 'runtime-generation-entry-not-directory',
-            files: 0,
-            directories: 0,
-            bytes: 0,
-            treeComplete: false
-          }
-        }
-        if (!receiptComplete && !rootIsCurrent(runtimeRoot, currentRefs)) {
-          return {
-            runtimeBaseRoot: portable(group.runtimeBaseRoot),
-            runtimeRoot: portable(runtimeRoot),
-            generationId: null,
-            classification: 'blocked-unknown',
-            eligible: false,
-            reasonCode: 'host-receipt-evidence-incomplete',
-            files: 0,
-            directories: 0,
-            bytes: 0,
-            treeComplete: false
-          }
-        }
-        return classifyGeneration(group.runtimeBaseRoot, runtimeRoot, state, currentRefs, {
-          fs: fsImpl,
-          nowMs,
-          hashFiles: options.hashCandidates === true,
-          pidProbe: options.pidProbe,
-          allowedClaims: options.allowedClaims
-        })
-      })
-    roots.push({
+    contexts.push({
       runtimeBaseRoot: portable(group.runtimeBaseRoot),
+      runtimeBaseRootFs: group.runtimeBaseRoot,
       hosts: group.targets.map(target => target.host).sort(),
       stateFile: portable(stateFile),
       stateStatus,
@@ -612,9 +579,94 @@ function inspectRuntimeGenerationRetention (options = {}) {
       currentRefs,
       inventoryComplete,
       inventoryErrorCode,
-      generations
+      receiptComplete,
+      entries: entries.sort((a, b) => a.name.localeCompare(b.name))
     })
   }
+  return contexts.sort((left, right) => left.runtimeBaseRoot.localeCompare(right.runtimeBaseRoot))
+}
+
+function runtimeGenerationInventorySnapshotDigest (contexts) {
+  return sha256({
+    schemaVersion: 'RuntimeGenerationInventorySnapshotV2',
+    roots: contexts.map(context => ({
+      runtimeBaseRoot: context.runtimeBaseRoot,
+      hosts: context.hosts,
+      stateStatus: context.stateStatus,
+      stateDigest: context.stateDigest,
+      inventoryComplete: context.inventoryComplete,
+      inventoryErrorCode: context.inventoryErrorCode,
+      currentRefs: context.currentRefs.slice().sort(),
+      receipts: context.receipts.map(receipt => ({
+        host: receipt.host,
+        receiptFile: receipt.receiptFile,
+        status: receipt.status,
+        digest: receipt.digest
+      })),
+      entries: context.entries.map(entry => ({
+        name: entry.name,
+        type: entry.isDirectory() ? 'directory' : 'other'
+      }))
+    }))
+  })
+}
+
+function classifyRuntimeGenerationInventoryEntry (context, entry, options = {}) {
+  const runtimeRoot = path.join(context.runtimeBaseRootFs, entry.name)
+  if (!entry.isDirectory()) {
+    return {
+      runtimeBaseRoot: context.runtimeBaseRoot,
+      runtimeRoot: portable(runtimeRoot),
+      generationId: null,
+      classification: 'blocked-unknown',
+      eligible: false,
+      reasonCode: 'runtime-generation-entry-not-directory',
+      files: 0,
+      directories: 0,
+      bytes: 0,
+      treeComplete: false
+    }
+  }
+  if (!context.receiptComplete && !rootIsCurrent(runtimeRoot, context.currentRefs)) {
+    return {
+      runtimeBaseRoot: context.runtimeBaseRoot,
+      runtimeRoot: portable(runtimeRoot),
+      generationId: null,
+      classification: 'blocked-unknown',
+      eligible: false,
+      reasonCode: 'host-receipt-evidence-incomplete',
+      files: 0,
+      directories: 0,
+      bytes: 0,
+      treeComplete: false
+    }
+  }
+  return classifyGeneration(context.runtimeBaseRootFs, runtimeRoot, context.state, context.currentRefs, {
+    fs: options.fs || fs,
+    nowMs: options.nowMs,
+    hashFiles: options.hashCandidates === true,
+    pidProbe: options.pidProbe,
+    allowedClaims: options.allowedClaims
+  })
+}
+
+function projectRuntimeGenerationInventoryRoot (context, generations) {
+  return {
+    runtimeBaseRoot: context.runtimeBaseRoot,
+    hosts: context.hosts,
+    stateFile: context.stateFile,
+    stateStatus: context.stateStatus,
+    stateDigest: context.stateDigest,
+    state: context.state,
+    receipts: context.receipts,
+    currentRefs: context.currentRefs,
+    inventoryComplete: context.inventoryComplete,
+    inventoryErrorCode: context.inventoryErrorCode,
+    generations
+  }
+}
+
+function buildRuntimeGenerationRetentionStatus (roots, nowMs, inventoryDigest) {
   const generations = roots.flatMap(item => item.generations)
   const counts = Object.fromEntries([
     'current', 'retained-live', 'retained-grace', 'orphan-gc-candidate', 'blocked-unknown'
@@ -622,6 +674,7 @@ function inspectRuntimeGenerationRetention (options = {}) {
   return {
     schemaVersion: 'RuntimeGenerationRetentionStatusV1',
     observedAt: new Date(nowMs).toISOString(),
+    inventoryDigest,
     roots,
     counts,
     totals: {
@@ -632,6 +685,94 @@ function inspectRuntimeGenerationRetention (options = {}) {
       candidateBytes: generations.filter(item => item.eligible).reduce((sum, item) => sum + Number(item.bytes || 0), 0)
     }
   }
+}
+
+function inspectRuntimeGenerationRetention (options = {}) {
+  const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
+  const contexts = resolveRuntimeGenerationInventoryContexts(options)
+  const roots = contexts.map(context => projectRuntimeGenerationInventoryRoot(
+    context,
+    context.entries.map(entry => classifyRuntimeGenerationInventoryEntry(context, entry, {
+      ...options,
+      nowMs
+    }))
+  ))
+  return buildRuntimeGenerationRetentionStatus(
+    roots,
+    nowMs,
+    runtimeGenerationInventorySnapshotDigest(contexts)
+  )
+}
+
+function projectRuntimeGenerationManifestEntry (generation) {
+  return {
+    runtimeBaseRoot: generation.runtimeBaseRoot,
+    runtimeRoot: generation.runtimeRoot,
+    generationId: generation.generationId,
+    classification: generation.classification,
+    eligible: generation.eligible === true,
+    reasonCode: generation.reasonCode,
+    manifestDigest: generation.manifestDigest || null,
+    treeDigest: generation.treeDigest || null,
+    leaseEvidenceDigest: generation.leaseEvidenceDigest || null,
+    files: Number(generation.files || 0),
+    directories: Number(generation.directories || 0),
+    bytes: Number(generation.bytes || 0)
+  }
+}
+
+function createRuntimeGenerationManifestCounters () {
+  return {
+    scanned: 0,
+    bytesScanned: 0,
+    candidates: 0,
+    candidateFiles: 0,
+    candidateBytes: 0,
+    candidateDigestsReady: true,
+    retained: 0,
+    classifications: {}
+  }
+}
+
+function observeRuntimeGenerationManifestEntry (counters, generation) {
+  counters.scanned += 1
+  counters.bytesScanned += Number(generation.bytes || 0)
+  counters.classifications[generation.classification] =
+    Number(counters.classifications[generation.classification] || 0) + 1
+  if (generation.eligible) {
+    counters.candidates += 1
+    counters.candidateFiles += Number(generation.files || 0)
+    counters.candidateBytes += Number(generation.bytes || 0)
+    if (!DIGEST_RE.test(String(generation.manifestDigest || '')) ||
+        !DIGEST_RE.test(String(generation.treeDigest || ''))) {
+      counters.candidateDigestsReady = false
+    }
+  } else counters.retained += 1
+  return counters
+}
+
+function startRuntimeGenerationManifestChain (inventoryDigest) {
+  return sha256({
+    schemaVersion: 'RuntimeGenerationManifestChainV2',
+    inventoryDigest
+  })
+}
+
+function advanceRuntimeGenerationManifestChain (chainDigest, generation) {
+  return sha256({
+    previousDigest: chainDigest,
+    entry: projectRuntimeGenerationManifestEntry(generation)
+  })
+}
+
+function finalizeRuntimeGenerationManifestDigest (inventoryDigest, chainDigest, counters, evidenceReady) {
+  return sha256({
+    schemaVersion: BOUNDED_MAINTENANCE_MANIFEST_SCHEMA,
+    inventoryDigest,
+    chainDigest,
+    counters,
+    evidenceReady: evidenceReady === true
+  })
 }
 
 function buildRuntimeGenerationGcPlan (options = {}) {
@@ -649,48 +790,33 @@ function buildRuntimeGenerationGcPlan (options = {}) {
       bytes: item.bytes,
       leaseRoot: item.leaseRoot
     })))
-  const material = {
-    schemaVersion: RUNTIME_GENERATION_GC_PLAN_SCHEMA,
-    roots: status.roots.map(root => ({
-      runtimeBaseRoot: root.runtimeBaseRoot,
-      hosts: root.hosts,
-      stateDigest: root.stateDigest,
-      inventoryComplete: root.inventoryComplete,
-      currentRefs: root.currentRefs.slice().sort(),
-      receiptIdentities: root.receipts.map(receipt => ({
-        host: receipt.host,
-        receiptFile: receipt.receiptFile,
-        status: receipt.status,
-        digest: receipt.digest
-      })),
-      generationIdentities: root.generations.map(generation => ({
-        runtimeRoot: generation.runtimeRoot,
-        generationId: generation.generationId,
-        classification: generation.classification,
-        eligible: generation.eligible,
-        manifestDigest: generation.manifestDigest || null,
-        treeDigest: generation.treeDigest || null,
-        leaseEvidenceDigest: generation.leaseEvidenceDigest || null,
-        reasonCode: generation.reasonCode
-      }))
-    })),
-    candidates
+  let chainDigest = startRuntimeGenerationManifestChain(status.inventoryDigest)
+  const counters = createRuntimeGenerationManifestCounters()
+  for (const generation of status.roots.flatMap(root => root.generations)) {
+    chainDigest = advanceRuntimeGenerationManifestChain(chainDigest, generation)
+    observeRuntimeGenerationManifestEntry(counters, generation)
   }
-  const planDigest = sha256(material)
+  const evidenceReady = status.roots.every(root => root.inventoryComplete) &&
+    status.roots.every(root => root.receipts.every(receipt => receipt.status === 'resolved')) &&
+    candidates.every(item =>
+      DIGEST_RE.test(String(item.manifestDigest || '')) &&
+      DIGEST_RE.test(String(item.treeDigest || ''))
+    )
+  const planDigest = finalizeRuntimeGenerationManifestDigest(
+    status.inventoryDigest,
+    chainDigest,
+    counters,
+    evidenceReady
+  )
   return {
     schemaVersion: RUNTIME_GENERATION_GC_PLAN_SCHEMA,
     mode: 'preview',
     generatedAt: status.observedAt,
     planDigest,
-    applyReady: candidates.length > 0 &&
-      status.roots.every(root => root.inventoryComplete) &&
-      status.roots.every(root => root.receipts.every(receipt => receipt.status === 'resolved')) &&
+    applyReady: candidates.length > 0 && evidenceReady &&
       status.roots.filter(root => root.generations.some(item => item.eligible))
         .every(root => root.stateStatus === 'resolved') &&
-      candidates.every(item =>
-        DIGEST_RE.test(String(item.manifestDigest || '')) &&
-        DIGEST_RE.test(String(item.treeDigest || ''))
-      ),
+      candidates.every(item => DIGEST_RE.test(String(item.treeDigest || ''))),
     candidates,
     retained: status.roots.flatMap(root => root.generations.filter(item => !item.eligible)),
     totals: {
@@ -699,6 +825,222 @@ function buildRuntimeGenerationGcPlan (options = {}) {
       candidateBytes: candidates.reduce((sum, item) => sum + item.bytes, 0)
     },
     status
+  }
+}
+
+function encodeBoundedMaintenanceCursor (body) {
+  const envelope = {
+    ...body,
+    cursorDigest: sha256(body)
+  }
+  return Buffer.from(JSON.stringify(envelope), 'utf8').toString('base64url')
+}
+
+function decodeBoundedMaintenanceCursor (value) {
+  const encoded = String(value || '')
+  if (!encoded || encoded.length > MAX_PREVIEW_CURSOR_CHARS || !/^[A-Za-z0-9_-]+$/.test(encoded)) {
+    return { valid: false, errorCode: 'BOUNDED_MAINTENANCE_CURSOR_INVALID' }
+  }
+  try {
+    const envelope = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'))
+    if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
+      return { valid: false, errorCode: 'BOUNDED_MAINTENANCE_CURSOR_INVALID' }
+    }
+    const { cursorDigest, ...body } = envelope
+    if (body.schemaVersion !== BOUNDED_MAINTENANCE_CURSOR_SCHEMA ||
+        !DIGEST_RE.test(String(cursorDigest || '')) ||
+        cursorDigest !== sha256(body) ||
+        !DIGEST_RE.test(String(body.inventoryDigest || '')) ||
+        !DIGEST_RE.test(String(body.chainDigest || '')) ||
+        !Number.isInteger(body.nextIndex) || body.nextIndex < 0 ||
+        !Number.isFinite(body.classificationAtMs) || body.classificationAtMs <= 0 ||
+        !Number.isFinite(body.elapsedMs) || body.elapsedMs < 0 ||
+        !body.counters || typeof body.counters !== 'object' ||
+        !Number.isInteger(body.counters.scanned) || body.counters.scanned !== body.nextIndex) {
+      return { valid: false, errorCode: 'BOUNDED_MAINTENANCE_CURSOR_INVALID' }
+    }
+    return { valid: true, body }
+  } catch {
+    return { valid: false, errorCode: 'BOUNDED_MAINTENANCE_CURSOR_INVALID' }
+  }
+}
+
+function blockedBoundedMaintenancePreview (errorCode, details = {}) {
+  return {
+    schemaVersion: BOUNDED_MAINTENANCE_PREVIEW_SCHEMA,
+    mode: 'dry-run',
+    status: 'blocked',
+    errorCode,
+    phase: 'blocked',
+    progress: {
+      scanned: Number(details.scanned || 0),
+      total: Number(details.total || 0),
+      bytesScanned: Number(details.bytesScanned || 0),
+      elapsedMs: Number(details.elapsedMs || 0),
+      etaMs: null,
+      etaConfidence: 'unavailable'
+    },
+    budget: {
+      maxGenerations: Number(details.maxGenerations || DEFAULT_PREVIEW_GENERATION_BUDGET),
+      maxElapsedMs: Number(details.maxElapsedMs || DEFAULT_PREVIEW_TIME_BUDGET_MS),
+      consumedGenerations: 0,
+      batchElapsedMs: 0,
+      exhausted: false,
+      exhaustedBy: null
+    },
+    resumeCursor: null,
+    manifestDigest: null,
+    manifest: null,
+    deletedFiles: 0,
+    deletedDirectories: 0,
+    reclaimedBytes: 0
+  }
+}
+
+function buildBoundedRuntimeGenerationGcPreview (options = {}) {
+  const fsImpl = options.fs || fs
+  const clock = typeof options.clock === 'function' ? options.clock : Date.now
+  const maxGenerations = Math.min(
+    MAX_PREVIEW_GENERATION_BUDGET,
+    Math.max(1, Number.isInteger(options.maxGenerations)
+      ? options.maxGenerations
+      : DEFAULT_PREVIEW_GENERATION_BUDGET)
+  )
+  const maxElapsedMs = Math.max(1, Number.isFinite(options.maxElapsedMs)
+    ? Math.floor(options.maxElapsedMs)
+    : DEFAULT_PREVIEW_TIME_BUDGET_MS)
+  const contexts = resolveRuntimeGenerationInventoryContexts({ ...options, fs: fsImpl })
+  const inventoryDigest = runtimeGenerationInventorySnapshotDigest(contexts)
+  const work = contexts.flatMap(context => context.entries.map(entry => ({ context, entry })))
+  const total = work.length
+  const decoded = options.resumeCursor
+    ? decodeBoundedMaintenanceCursor(options.resumeCursor)
+    : null
+  if (decoded && !decoded.valid) {
+    return blockedBoundedMaintenancePreview(decoded.errorCode, { total, maxGenerations, maxElapsedMs })
+  }
+  if (decoded && decoded.body.inventoryDigest !== inventoryDigest) {
+    return blockedBoundedMaintenancePreview('BOUNDED_MAINTENANCE_CURSOR_STALE', {
+      scanned: decoded.body.counters.scanned,
+      total,
+      bytesScanned: decoded.body.counters.bytesScanned,
+      elapsedMs: decoded.body.elapsedMs,
+      maxGenerations,
+      maxElapsedMs
+    })
+  }
+  if (decoded && decoded.body.nextIndex > total) {
+    return blockedBoundedMaintenancePreview('BOUNDED_MAINTENANCE_CURSOR_INVALID', {
+      total,
+      maxGenerations,
+      maxElapsedMs
+    })
+  }
+
+  const classificationAtMs = decoded
+    ? decoded.body.classificationAtMs
+    : (Number.isFinite(options.nowMs) ? options.nowMs : Date.now())
+  const counters = decoded
+    ? JSON.parse(JSON.stringify(decoded.body.counters))
+    : createRuntimeGenerationManifestCounters()
+  let chainDigest = decoded
+    ? decoded.body.chainDigest
+    : startRuntimeGenerationManifestChain(inventoryDigest)
+  let nextIndex = decoded ? decoded.body.nextIndex : 0
+  const batchStartIndex = nextIndex
+  const batchEntries = []
+  const startedAtMs = clock()
+  let exhaustedBy = null
+  while (nextIndex < total) {
+    if (batchEntries.length >= maxGenerations) {
+      exhaustedBy = 'generation-budget'
+      break
+    }
+    if (batchEntries.length > 0 && clock() - startedAtMs >= maxElapsedMs) {
+      exhaustedBy = 'time-budget'
+      break
+    }
+    const item = work[nextIndex]
+    const generation = classifyRuntimeGenerationInventoryEntry(item.context, item.entry, {
+      ...options,
+      fs: fsImpl,
+      nowMs: classificationAtMs,
+      hashCandidates: true
+    })
+    chainDigest = advanceRuntimeGenerationManifestChain(chainDigest, generation)
+    observeRuntimeGenerationManifestEntry(counters, generation)
+    batchEntries.push(projectRuntimeGenerationManifestEntry(generation))
+    nextIndex += 1
+  }
+  const batchElapsedMs = Math.max(0, clock() - startedAtMs)
+  const elapsedMs = Number(decoded?.body.elapsedMs || 0) + batchElapsedMs
+  const complete = nextIndex >= total
+  const evidenceReady = complete && contexts.every(context => context.inventoryComplete) &&
+    contexts.every(context => context.receipts.every(receipt => receipt.status === 'resolved')) &&
+    counters.candidateDigestsReady === true
+  const manifestDigest = complete
+    ? finalizeRuntimeGenerationManifestDigest(inventoryDigest, chainDigest, counters, evidenceReady)
+    : null
+  const applyReady = complete && evidenceReady && counters.candidates > 0
+  const remaining = Math.max(0, total - counters.scanned)
+  const etaMs = counters.scanned > 0
+    ? Math.ceil((elapsedMs / counters.scanned) * remaining)
+    : null
+  const etaConfidence = counters.scanned === 0
+    ? 'unavailable'
+    : (counters.scanned === total ? 'high' : (counters.scanned >= Math.max(2, total / 2) ? 'medium' : 'low'))
+  const resumeCursor = complete
+    ? null
+    : encodeBoundedMaintenanceCursor({
+        schemaVersion: BOUNDED_MAINTENANCE_CURSOR_SCHEMA,
+        inventoryDigest,
+        chainDigest,
+        nextIndex,
+        classificationAtMs,
+        elapsedMs,
+        counters
+      })
+  return {
+    schemaVersion: BOUNDED_MAINTENANCE_PREVIEW_SCHEMA,
+    mode: 'dry-run',
+    status: complete ? 'complete' : 'in-progress',
+    errorCode: null,
+    phase: complete ? 'manifest-ready' : 'generation-scan',
+    progress: {
+      scanned: counters.scanned,
+      total,
+      bytesScanned: counters.bytesScanned,
+      elapsedMs,
+      etaMs,
+      etaConfidence
+    },
+    budget: {
+      maxGenerations,
+      maxElapsedMs,
+      consumedGenerations: batchEntries.length,
+      batchElapsedMs,
+      exhausted: !complete,
+      exhaustedBy: complete ? null : (exhaustedBy || 'generation-budget')
+    },
+    resumeCursor,
+    manifestDigest,
+    planDigest: manifestDigest,
+    applyReady,
+    manifest: {
+      schemaVersion: BOUNDED_MAINTENANCE_MANIFEST_SCHEMA,
+      inventoryDigest,
+      chainDigest,
+      complete,
+      batch: {
+        startIndex: batchStartIndex,
+        endIndex: nextIndex,
+        entries: batchEntries
+      },
+      totals: counters
+    },
+    deletedFiles: 0,
+    deletedDirectories: 0,
+    reclaimedBytes: 0
   }
 }
 
@@ -1139,9 +1481,14 @@ function applyRuntimeGenerationGcPlan (options = {}) {
 }
 
 module.exports = {
+  BOUNDED_MAINTENANCE_CURSOR_SCHEMA,
+  BOUNDED_MAINTENANCE_MANIFEST_SCHEMA,
+  BOUNDED_MAINTENANCE_PREVIEW_SCHEMA,
   DEFAULT_ADOPTION_GRACE_MS,
   DEFAULT_GC_CLAIM_STALE_MS,
   DEFAULT_GENERATION_GRACE_MS,
+  DEFAULT_PREVIEW_GENERATION_BUDGET,
+  DEFAULT_PREVIEW_TIME_BUDGET_MS,
   MAX_GENERATION_FILE_BYTES,
   MAX_GENERATION_TREE_BYTES,
   MAX_GENERATIONS,
@@ -1151,6 +1498,7 @@ module.exports = {
   RUNTIME_GENERATION_RETENTION_STATE_SCHEMA,
   RUNTIME_RETENTION_PROTOCOL_VERSION,
   applyRuntimeGenerationGcPlan,
+  buildBoundedRuntimeGenerationGcPreview,
   buildRuntimeGenerationGcPlan,
   createRuntimeGenerationGcClaim,
   inspectGenerationTree,

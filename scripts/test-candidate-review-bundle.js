@@ -43,6 +43,58 @@ const cp2WithCp1 = buildCandidateReviewBundleReceipt(fixture('cp2-with-cp1-bindi
 assert.strictEqual(cp2WithCp1.phase, 'CP2')
 assert.strictEqual(cp2WithCp1.classification, 'review-ready')
 assert.deepStrictEqual(cp2WithCp1.phaseConflicts, [])
+assert.strictEqual(cp2WithCp1.classifierVersion, 'CandidateReviewClassifierV2')
+assert.match(cp2WithCp1.classifierRuleDigest, /^[a-f0-9]{64}$/)
+
+const cp3Candidate = [
+  '---',
+  'phaseKind: CP3',
+  'documentKind: implementation-plan-candidate',
+  'productImplementationAuthorized: false',
+  '---',
+  '# CP3 implementation plan candidate',
+  '## 任务分解',
+  '- task',
+  '## 分批执行策略',
+  '- batch',
+  '## 独立验证方式',
+  '- targeted',
+  '## 风险、回滚与回退条件',
+  '- rollback',
+  '## 里程碑与完成定义',
+  '- done',
+  '## 执行与授权边界',
+  '- release frozen'
+].join('\n')
+const cp3Receipt = buildCandidateReviewBundleReceipt(cp3Candidate)
+assert.strictEqual(cp3Receipt.phase, 'CP3')
+assert.strictEqual(cp3Receipt.classification, 'review-ready')
+assert.deepStrictEqual(cp3Receipt.missingFields, [])
+
+const ecrCandidate = [
+  '# Candidate ECR execution closure review',
+  '> closureState: passed',
+  '## ReviewGradeCard',
+  '| field | value |',
+  '|---|---|',
+  '| reviewClass | R3 |',
+  '## ReviewExecutionPlanV1',
+  '- bounded',
+  '## evidenceLedger',
+  '- passed',
+  'openBlockers: 0',
+  'dirty boundary: exact',
+  'release/publish 未执行，版本发布冻结',
+  '## 复审结论',
+  '- findings=[]; blockers=[]; missingEvidence=[]'
+].join('\n')
+const ecrReceipt = buildCandidateReviewBundleReceipt(ecrCandidate)
+assert.strictEqual(ecrReceipt.phase, 'ECR')
+assert.strictEqual(ecrReceipt.classification, 'review-ready')
+assert.strictEqual(ecrReceipt.openBlockers, 0)
+const blockedEcr = buildCandidateReviewBundleReceipt(ecrCandidate.replace('openBlockers: 0', 'openBlockers: 3'))
+assert.strictEqual(blockedEcr.classification, 'blocked')
+assert.strictEqual(blockedEcr.openBlockers, 3)
 
 const phaseConflict = buildCandidateReviewBundleReceipt(fixture('phase-conflict.md'))
 assert(phaseConflict.validationIssues.some(issue => issue.code === 'phase-conflict'))

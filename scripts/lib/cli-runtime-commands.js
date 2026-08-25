@@ -17,7 +17,7 @@ const {
 } = require('../../hooks/_runtime/task-recovery-store-v5.cjs')
 const {
   applyRuntimeGenerationGcPlan,
-  buildRuntimeGenerationGcPlan,
+  buildBoundedRuntimeGenerationGcPreview,
   inspectRuntimeGenerationRetention
 } = require('./runtime-generation-retention.js')
 const {
@@ -305,6 +305,26 @@ function projectRuntimeGenerationGcPlan (plan) {
       visibleGenerationLimit: MAX_VISIBLE_GENERATIONS_PER_ROOT
     }
   }
+  if (plan.schemaVersion === 'BoundedMaintenancePreviewV2') {
+    const entries = Array.isArray(plan.manifest?.batch?.entries)
+      ? plan.manifest.batch.entries
+      : []
+    return {
+      ...plan,
+      manifest: plan.manifest
+        ? {
+            ...plan.manifest,
+            batch: {
+              ...plan.manifest.batch,
+              entryCount: entries.length,
+              entries: entries.slice(0, MAX_VISIBLE_GENERATIONS_PER_ROOT),
+              entriesTruncated: entries.length > MAX_VISIBLE_GENERATIONS_PER_ROOT
+            }
+          }
+        : null,
+      visibleGenerationLimit: MAX_VISIBLE_GENERATIONS_PER_ROOT
+    }
+  }
   if (plan.schemaVersion !== 'RuntimeGenerationGcPlanV1') return plan
   const candidates = Array.isArray(plan.candidates) ? plan.candidates : []
   return {
@@ -334,15 +354,17 @@ function inspectRuntimeState(cwd, nowMs = Date.now(), options = {}) {
     ...roots.legacyReadRoots.map(root => summarizeRoot(root, 'legacy-read-only', nowMs))
   ]
   const taskRecovery = inspectTaskRecoveryRuntime(cwd, activeRoot, nowMs)
-  const runtimeGenerationInventory = inspectRuntimeGenerationRetention({
-    packageRoot: options.packageRoot || path.resolve(__dirname, '..', '..'),
-    home: options.home,
-    env: options.env || process.env,
-    fs: options.fs || fs,
-    nowMs,
-    targets: options.targets,
-    pidProbe: options.pidProbe
-  })
+  const runtimeGenerationInventory = options.includeRuntimeGenerations === false
+    ? null
+    : inspectRuntimeGenerationRetention({
+        packageRoot: options.packageRoot || path.resolve(__dirname, '..', '..'),
+        home: options.home,
+        env: options.env || process.env,
+        fs: options.fs || fs,
+        nowMs,
+        targets: options.targets,
+        pidProbe: options.pidProbe
+      })
   return {
     schemaVersion: STATUS_SCHEMA,
     cwd: path.resolve(cwd),
@@ -356,8 +378,8 @@ function inspectRuntimeState(cwd, nowMs = Date.now(), options = {}) {
       files: partitions.reduce((total, item) => total + item.files, 0),
       bytes: partitions.reduce((total, item) => total + item.bytes, 0),
       taskRecoveryObservedBytes: taskRecovery.disk.observedBytes,
-      runtimeGenerationBytes: runtimeGenerationInventory.totals.bytes,
-      runtimeGenerationGcCandidateBytes: runtimeGenerationInventory.totals.candidateBytes,
+      runtimeGenerationBytes: Number(runtimeGenerationInventory?.totals?.bytes || 0),
+      runtimeGenerationGcCandidateBytes: Number(runtimeGenerationInventory?.totals?.candidateBytes || 0),
       pruneCandidates: partitions.filter(item => item.role === 'canonical-write').reduce((total, item) => total + item.candidates.length, 0),
       blockedLocks: partitions.reduce((total, item) => total + item.blocked.length, 0)
     }
@@ -370,7 +392,7 @@ function buildCliRuntimeCommands({ process, console, c, cliMetadata = {} }) {
       'runtime',
       'CLI_INVALID_OPTION',
       message,
-      'Use `devcodex runtime status|doctor [--json]`, `devcodex runtime maintenance [--dry-run|--apply] [--generation-plan <sha256>] [--json]`, or the compatibility alias `runtime prune`.',
+      'Use `devcodex runtime status|doctor [--json]`, `devcodex runtime maintenance [--dry-run] [--generation-budget <1..128>] [--resume-cursor <opaque>] [--json]`, or `runtime maintenance --apply [--generation-plan <sha256>]`.',
       cliMetadata
     )
     if (json) printCliJson(console, failure)
@@ -384,12 +406,18 @@ function buildCliRuntimeCommands({ process, console, c, cliMetadata = {} }) {
     const options = argv.slice(1)
     const json = options.includes('--json')
     let generationPlan = null
+    let resumeCursor = null
+    let generationBudget = null
     const recognized = new Set(['--json', '--dry-run', '--apply'])
     for (let index = 0; index < options.length; index++) {
-      if (options[index] !== '--generation-plan') continue
-      generationPlan = options[index + 1] || null
-      recognized.add('--generation-plan')
-      if (generationPlan) recognized.add(generationPlan)
+      const option = options[index]
+      if (!['--generation-plan', '--resume-cursor', '--generation-budget'].includes(option)) continue
+      const value = options[index + 1] || null
+      recognized.add(option)
+      if (value) recognized.add(value)
+      if (option === '--generation-plan') generationPlan = value
+      else if (option === '--resume-cursor') resumeCursor = value
+      else generationBudget = value
       index += 1
     }
     const unknown = options.filter(item => !recognized.has(item))
@@ -412,8 +440,25 @@ function buildCliRuntimeCommands({ process, console, c, cliMetadata = {} }) {
       return fail('--generation-plan requires a lowercase sha256 digest.', json)
     }
 
-    const observedStatus = inspectRuntimeState(process.cwd())
-    const status = projectRuntimeStateStatus(observedStatus)
+    if (resumeCursor && (operation !== 'maintenance' || options.includes('--apply'))) {
+      return fail('--resume-cursor is only valid for `runtime maintenance` dry-run preview.', json)
+    }
+    if (options.includes('--resume-cursor') && !resumeCursor) {
+      return fail('--resume-cursor requires an opaque cursor.', json)
+    }
+    if (generationBudget !== null &&
+        (operation !== 'maintenance' || options.includes('--apply') || !/^\d+$/.test(generationBudget) ||
+         Number(generationBudget) < 1 || Number(generationBudget) > 128)) {
+      return fail('--generation-budget requires an integer from 1 through 128 on maintenance dry-run.', json)
+    }
+    if (options.includes('--generation-budget') && generationBudget === null) {
+      return fail('--generation-budget requires an integer from 1 through 128.', json)
+    }
+
+    const observedStatus = inspectRuntimeState(process.cwd(), Date.now(), {
+      includeRuntimeGenerations: operation !== 'maintenance'
+    })
+    const status = operation === 'maintenance' ? null : projectRuntimeStateStatus(observedStatus)
     if (operation === 'status') {
       if (json) printCliJson(console, createCliSuccess('runtime.status', status, cliMetadata))
       else {
@@ -557,11 +602,7 @@ function buildCliRuntimeCommands({ process, console, c, cliMetadata = {} }) {
       const canonicalCandidates = observedStatus.partitions.find(item => item.role === 'canonical-write')?.candidates || []
       const removedRuntimeTemps = []
       const failedRuntimeTemps = []
-      const generationGcPreview = buildRuntimeGenerationGcPlan({
-        packageRoot: path.resolve(__dirname, '..', '..'),
-        env: process.env,
-        fs
-      })
+      let generationGcPreview = null
       const generationGc = apply && generationPlan
         ? applyRuntimeGenerationGcPlan({
             packageRoot: path.resolve(__dirname, '..', '..'),
@@ -569,7 +610,13 @@ function buildCliRuntimeCommands({ process, console, c, cliMetadata = {} }) {
             fs,
             planDigest: generationPlan
           })
-        : generationGcPreview
+        : (generationGcPreview = buildBoundedRuntimeGenerationGcPreview({
+            packageRoot: path.resolve(__dirname, '..', '..'),
+            env: process.env,
+            fs,
+            resumeCursor,
+            maxGenerations: generationBudget === null ? undefined : Number(generationBudget)
+          }))
       if (apply) {
         const canonical = path.resolve(observedStatus.canonicalRoot)
         for (const candidate of canonicalCandidates) {
@@ -587,6 +634,10 @@ function buildCliRuntimeCommands({ process, console, c, cliMetadata = {} }) {
       const candidateProjection = boundedCollection(canonicalCandidates)
       const removedProjection = boundedCollection(removedRuntimeTemps)
       const failedProjection = boundedCollection(failedRuntimeTemps)
+      const generationPreviewBlocked = generationGc.schemaVersion === 'BoundedMaintenancePreviewV2' &&
+        generationGc.status === 'blocked'
+      const generationPreviewInProgress = generationGc.schemaVersion === 'BoundedMaintenancePreviewV2' &&
+        generationGc.status === 'in-progress'
       const payload = {
         schemaVersion: MAINTENANCE_SCHEMA,
         mode: apply ? 'apply' : 'dry-run',
@@ -614,14 +665,20 @@ function buildCliRuntimeCommands({ process, console, c, cliMetadata = {} }) {
           const candidate = canonicalCandidates.find(item => path.resolve(item.path) === path.resolve(file))
           return sum + Number(candidate?.bytes || 0)
         }, 0),
-        nextStep: failedRuntimeTemps.length || !['complete'].includes(recovery.status) ||
+        nextStep: failedRuntimeTemps.length || !['complete'].includes(recovery.status) || generationPreviewBlocked ||
           (apply && generationPlan && generationGc.status !== 'complete')
           ? {
               code: 'RUNTIME_MAINTENANCE_INCOMPLETE',
               action: 'inspect-failures',
               command: 'devcodex runtime doctor --json'
             }
-          : (generationGcPreview.applyReady && !generationPlan
+          : (generationPreviewInProgress
+              ? {
+                  code: 'RUNTIME_GENERATION_GC_PREVIEW_IN_PROGRESS',
+                  action: 'resume-bounded-preview',
+                  command: `devcodex runtime maintenance --dry-run --resume-cursor ${generationGc.resumeCursor} --json`
+                }
+              : (generationGcPreview?.applyReady && !generationPlan
               ? {
                   code: 'RUNTIME_GENERATION_GC_PREVIEW_READY',
                   action: 'review-generation-plan-before-apply',
@@ -637,17 +694,21 @@ function buildCliRuntimeCommands({ process, console, c, cliMetadata = {} }) {
                         ? 'devcodex global-adapters apply --json'
                         : 'devcodex runtime doctor --json')
                     : 'devcodex runtime maintenance --apply --json'
-                })
+                }))
       }
       if (json) printCliJson(console, createCliSuccess('runtime.maintenance', payload, cliMetadata))
       else {
         console.log(`\n  ${c.bold('DevCodex runtime maintenance')} (${payload.mode})`)
         console.log(`  V5 actions: ${recovery.actions?.length || 0}; runtime temp candidates: ${canonicalCandidates.length}; reclaimed: ${payload.reclaimedBytes} bytes`)
         console.log('  legacy lifecycle files: read-only report; deleted=0')
-        console.log(`  immutable runtime generations: candidates=${generationGcPreview.totals.candidates}; bytes=${generationGcPreview.totals.candidateBytes}; applied=${apply && Boolean(generationPlan)}`)
+        if (generationGc.schemaVersion === 'BoundedMaintenancePreviewV2') {
+          console.log(`  immutable runtime generations: phase=${generationGc.phase}; scanned=${generationGc.progress.scanned}/${generationGc.progress.total}; candidates=${generationGc.manifest?.totals?.candidates || 0}; applied=false`)
+        } else {
+          console.log(`  immutable runtime generations: removed=${generationGc.removed?.length || 0}; reclaimed=${generationGc.reclaimedBytes || 0}; applied=${apply && Boolean(generationPlan)}`)
+        }
         console.log(`  next: ${payload.nextStep.command}`)
       }
-      if (failedRuntimeTemps.length || !['complete'].includes(recovery.status) ||
+      if (failedRuntimeTemps.length || !['complete'].includes(recovery.status) || generationPreviewBlocked ||
           (apply && generationPlan && generationGc.status !== 'complete')) process.exitCode = 2
       return payload
     }

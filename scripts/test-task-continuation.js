@@ -8,6 +8,7 @@ const os = require('os')
 const path = require('path')
 const {
   createTaskIdentity,
+  isStableTaskId,
   materializeTaskIdentity,
   parseContinuationCommand,
   resolveTaskContinuation,
@@ -69,6 +70,10 @@ try {
   assert.strictEqual(parseContinuationCommand(' 继续长期优化任务 ').displayQuery, '长期优化')
   assert.strictEqual(parseContinuationCommand('继续 长期 优化').displayQuery, '长期 优化')
   assert.strictEqual(parseContinuationCommand('继续 Hook续接任务').displayQuery, 'Hook续接任务', 'spaced form must preserve a business name ending in 任务')
+  const qualifiedCommand = parseContinuationCommand('继续 Shared Name，项目=alpha')
+  assert.strictEqual(qualifiedCommand.displayQuery, 'Shared Name')
+  assert.strictEqual(qualifiedCommand.projectQuery, 'alpha')
+  assert.strictEqual(qualifiedCommand.projectQualifierForm, 'explicit-project-suffix')
   assert.strictEqual(parseContinuationCommand('请继续长期优化任务'), null)
   assert.strictEqual(parseContinuationCommand('继续'), null)
 
@@ -77,6 +82,8 @@ try {
     aliases: ['Old Performance Task', '旧性能任务']
   })
   assert.strictEqual(validateTaskIdentity(primary.identity).valid, true)
+  assert.strictEqual(isStableTaskId(primary.identity.taskId), true)
+  assert.strictEqual(isStableTaskId('Current Performance Task'), false)
 
   const unique = resolve('Current Performance Task')
   assert.strictEqual(unique.status, 'resolved-active')
@@ -147,6 +154,15 @@ try {
   const ambiguousActive = resolveUniqueActiveTaskContinuation({ cwd: root, scope: 'workspace' })
   assert.strictEqual(ambiguousActive.status, 'ambiguous')
   assert.strictEqual(ambiguousActive.errorCode, 'TASK_AMBIGUOUS')
+  const projectQualifiedDuplicate = resolveTaskContinuation({
+    cwd: root,
+    name: qualifiedCommand.displayQuery,
+    project: qualifiedCommand.projectQuery,
+    scope: 'project',
+    persistIndex: false
+  })
+  assert.strictEqual(projectQualifiedDuplicate.status, 'resolved-active')
+  assert.strictEqual(projectQualifiedDuplicate.candidate.project, 'alpha')
 
   const notFound = resolve('Current Performance Tas')
   assert.strictEqual(notFound.status, 'not-found')

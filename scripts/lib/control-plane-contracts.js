@@ -3,6 +3,7 @@
 const fs = require('fs')
 const path = require('path')
 const { resolveControlAsset } = require('./control-content-delivery')
+const { ACTUAL_CANDIDATE_EVIDENCE_CONTRACT } = require('./actual-candidate-evidence')
 
 function readJson(root, relativePath) {
   return JSON.parse(fs.readFileSync(resolveControlAsset(root, relativePath), 'utf8'))
@@ -58,7 +59,12 @@ function validateTestRouteSchema(schema) {
   unique((schema.selectors || []).map(item => item.id), 'TestRoute selector', errors)
   unique(schema.outputs || [], 'TestRoute output', errors)
   if (!schema.stableInputs?.includes('verificationIntent')) errors.push('TestRoute missing verificationIntent input')
-  if (schema.verificationIntent?.schemaVersion !== 'VerificationIntentV1') errors.push('TestRoute verification intent schema mismatch')
+  if (schema.verificationIntent?.schemaVersion !== 'VerificationIntentV2' ||
+      schema.verificationIntent?.executionAuthoritySchema !== 'VerificationExecutionLeaseV2' ||
+      !schema.verificationIntent?.legacyExecutionAuthorityReaderSchemas?.includes('VerificationExecutionLeaseV1') ||
+      !schema.verificationIntent?.legacyReaderSchemas?.includes('VerificationIntentV1')) {
+    errors.push('TestRoute verification intent schema mismatch')
+  }
   for (const level of ['V0', 'V1', 'V2', 'V3']) {
     if (!schema.verificationIntent?.levels?.includes(level)) errors.push(`TestRoute verification level missing: ${level}`)
   }
@@ -69,7 +75,11 @@ function validateTestRouteSchema(schema) {
       schema.scopedRouteBoundaries?.['package-release'] !== 'package') {
     errors.push('TestRoute scoped route boundary mismatch')
   }
-  for (const field of ['manifestIdentity', 'candidateId', 'candidateStable', 'planDigest']) {
+  for (const field of [
+    'manifestIdentity', 'projectRootIdentity', 'candidateId', 'candidateStable', 'candidateDigest',
+    'dirtyScopeDigest', 'changedScopeDigest', 'planDigest', 'budgetDigest', 'requestDigest',
+    'actorIdentityDigest', 'runIdentityDigest', 'runId', 'hardDeadlineAt', 'authorityDigest'
+  ]) {
     if (!schema.executionBinding?.requiredFields?.includes(field)) {
       errors.push(`TestRoute execution binding missing: ${field}`)
     }
@@ -81,6 +91,8 @@ function validateTestRouteSchema(schema) {
     errors.push('TestRoute execution/cache binding mismatch')
   }
   if (schema.budgetPolicy?.nonReleaseThresholdMs !== 600000 ||
+      schema.budgetPolicy?.confirmationBinding !== 'planDigest+budgetDigest' ||
+      !schema.budgetPolicy?.confirmationRequiredWhen?.includes('level=V3') ||
       schema.budgetPolicy?.unknownImpactAction !== 'block' ||
       schema.budgetPolicy?.staleCacheAction !== 'rerun-precise-node') {
     errors.push('TestRoute budget/fallback policy mismatch')
@@ -155,6 +167,34 @@ function validateCapabilitySurfaceDecisionSchema(schema) {
   return errors
 }
 
+function validateActualCandidateEvidenceContract(contract) {
+  const errors = []
+  if (
+    contract?.schemaVersion !== 'ActualCandidateEvidenceContractV1' ||
+    contract?.receiptSchema !== 'ActualCandidateEvidenceReceiptV1' ||
+    contract?.classifierReceiptSchema !== 'CandidateReviewBundleReceiptV1'
+  ) {
+    errors.push('invalid ActualCandidateEvidence contract header')
+  }
+  if (!/^CandidateReviewClassifierV\d+$/.test(contract?.classifierVersion || '')) {
+    errors.push('ActualCandidateEvidence classifier version missing')
+  }
+  unique(contract?.supportedPhases || [], 'ActualCandidateEvidence phase', errors)
+  for (const phase of ['CP1', 'CP2', 'CP3', 'ECR']) {
+    if (!contract?.supportedPhases?.includes(phase)) errors.push(`ActualCandidateEvidence phase missing: ${phase}`)
+  }
+  unique(contract?.requiredBindings || [], 'ActualCandidateEvidence binding', errors)
+  for (const binding of ['candidatePath', 'candidateDigest', 'requestedPhase', 'sourceRoot', 'sourceHead', 'dirtyScopeDigest', 'classifierRuleDigest']) {
+    if (!contract?.requiredBindings?.includes(binding)) errors.push(`ActualCandidateEvidence binding missing: ${binding}`)
+  }
+  for (const condition of ['actual-file', 'git-observed-source-identity', 'phase-match', 'review-ready', 'validation-issues-empty', 'binding-drift-empty']) {
+    if (!contract?.passConditions?.includes(condition)) errors.push(`ActualCandidateEvidence pass condition missing: ${condition}`)
+  }
+  if (contract?.fixtureOnlyQualifies !== false) errors.push('ActualCandidateEvidence fixture policy mismatch')
+  if (contract?.releaseAuthority !== false) errors.push('ActualCandidateEvidence release authority mismatch')
+  return errors
+}
+
 function loadControlPlaneContracts(root) {
   const plugin = readJson(root, 'plugin.json')
   const workflow = readJson(root, 'skills/routing/workflow-capabilities.json')
@@ -168,7 +208,8 @@ function loadControlPlaneContracts(root) {
     ...validateGateRegistry(gateRegistry, registeredSkills),
     ...validateReportSchema(reportSchema, workflowIds),
     ...validateTestRouteSchema(testRouteSchema),
-    ...validateCapabilitySurfaceDecisionSchema(capabilitySurfaceDecisionSchema)
+    ...validateCapabilitySurfaceDecisionSchema(capabilitySurfaceDecisionSchema),
+    ...validateActualCandidateEvidenceContract(ACTUAL_CANDIDATE_EVIDENCE_CONTRACT)
   ]
   return {
     plugin,
@@ -177,6 +218,7 @@ function loadControlPlaneContracts(root) {
     reportSchema,
     testRouteSchema,
     capabilitySurfaceDecisionSchema,
+    actualCandidateEvidenceContract: ACTUAL_CANDIDATE_EVIDENCE_CONTRACT,
     errors
   }
 }
@@ -186,5 +228,6 @@ module.exports = {
   validateGateRegistry,
   validateReportSchema,
   validateTestRouteSchema,
-  validateCapabilitySurfaceDecisionSchema
+  validateCapabilitySurfaceDecisionSchema,
+  validateActualCandidateEvidenceContract
 }

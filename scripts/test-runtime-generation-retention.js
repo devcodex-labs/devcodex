@@ -16,6 +16,7 @@ const {
 const {
   RETENTION_STATE_FILE,
   applyRuntimeGenerationGcPlan,
+  buildBoundedRuntimeGenerationGcPreview,
   buildRuntimeGenerationGcPlan,
   createRuntimeGenerationGcClaim,
   inspectGenerationTree,
@@ -232,6 +233,57 @@ try {
   assert.strictEqual(preview.totals.candidates, 2)
   assert.deepStrictEqual(fileSet(runtimeBaseRoot), beforePreview, 'preview must be zero-mutation')
   assert(/^[a-f0-9]{64}$/.test(preview.planDigest))
+  const boundedEntries = []
+  const boundedPages = []
+  let boundedCursor = null
+  do {
+    const page = buildBoundedRuntimeGenerationGcPreview({
+      targets: [target],
+      nowMs: NOW,
+      pidProbe: pidIdentityProbe,
+      maxGenerations: 2,
+      resumeCursor: boundedCursor
+    })
+    boundedPages.push(page)
+    assert.strictEqual(page.deletedFiles, 0)
+    assert.strictEqual(page.deletedDirectories, 0)
+    assert.strictEqual(page.reclaimedBytes, 0)
+    assert(page.budget.consumedGenerations <= 2)
+    boundedEntries.push(...page.manifest.batch.entries.map(item => item.runtimeRoot))
+    boundedCursor = page.resumeCursor
+  } while (boundedCursor)
+  assert.strictEqual(boundedPages.length, 3)
+  assert.deepStrictEqual(boundedPages.map(page => page.progress.scanned), [2, 4, 6])
+  assert.strictEqual(new Set(boundedEntries).size, boundedEntries.length, 'cursor resume must not repeat an acknowledged generation')
+  assert.strictEqual(boundedPages.at(-1).status, 'complete')
+  assert.strictEqual(boundedPages.at(-1).phase, 'manifest-ready')
+  assert.strictEqual(boundedPages.at(-1).manifestDigest, preview.planDigest)
+  assert.deepStrictEqual(fileSet(runtimeBaseRoot), beforePreview, 'all bounded dry-run pages must remain zero-write')
+  let clockTick = 0
+  const timeBounded = buildBoundedRuntimeGenerationGcPreview({
+    targets: [target],
+    nowMs: NOW,
+    pidProbe: pidIdentityProbe,
+    maxGenerations: 128,
+    maxElapsedMs: 5,
+    clock: () => clockTick++ * 10
+  })
+  assert.strictEqual(timeBounded.status, 'in-progress')
+  assert.strictEqual(timeBounded.budget.consumedGenerations, 1)
+  assert.strictEqual(timeBounded.budget.exhaustedBy, 'time-budget')
+  assert.ok(timeBounded.resumeCursor, 'time budget exhaustion must return a safe resume cursor')
+  const firstBoundedCursor = boundedPages[0].resumeCursor
+  const tamperedCursor = `${firstBoundedCursor.slice(0, -1)}${firstBoundedCursor.endsWith('a') ? 'b' : 'a'}`
+  assert.strictEqual(
+    buildBoundedRuntimeGenerationGcPreview({
+      targets: [target],
+      nowMs: NOW,
+      pidProbe: pidIdentityProbe,
+      maxGenerations: 2,
+      resumeCursor: tamperedCursor
+    }).errorCode,
+    'BOUNDED_MAINTENANCE_CURSOR_INVALID'
+  )
   const liveLeaseBody = JSON.parse(fs.readFileSync(liveLease.leaseFile, 'utf8'))
   liveLeaseBody.heartbeatAt = new Date(NOW + 60 * 1000).toISOString()
   liveLeaseBody.expiresAt = new Date(NOW + 3 * 60 * 60 * 1000).toISOString()
@@ -243,6 +295,16 @@ try {
   )
 
   const lateGrace = createGeneration(runtimeBaseRoot, 'late-grace-ggg', '2026-08-22T23:45:00.000Z')
+  assert.strictEqual(
+    buildBoundedRuntimeGenerationGcPreview({
+      targets: [target],
+      nowMs: NOW,
+      pidProbe: pidIdentityProbe,
+      maxGenerations: 2,
+      resumeCursor: firstBoundedCursor
+    }).errorCode,
+    'BOUNDED_MAINTENANCE_CURSOR_STALE'
+  )
   const inventoryStaleApply = applyRuntimeGenerationGcPlan({
     targets: [target],
     nowMs: NOW,
@@ -629,11 +691,38 @@ try {
       result: 'committed'
     })
   }
-  const cliPreview = runCli(['runtime', 'maintenance', '--dry-run', '--json'])
-  const cliPlanDigest = cliPreview.payload.runtimeGenerations.planDigest
-  assert.strictEqual(cliPreview.payload.runtimeGenerations.candidateCount, 1)
+  const cliBatchEntries = []
+  let cliCursor = null
+  let cliPreview = null
+  do {
+    cliPreview = runCli([
+      'runtime', 'maintenance', '--dry-run', '--generation-budget', '1',
+      ...(cliCursor ? ['--resume-cursor', cliCursor] : []),
+      '--json'
+    ])
+    const bounded = cliPreview.payload.runtimeGenerations
+    assert.strictEqual(bounded.schemaVersion, 'BoundedMaintenancePreviewV2')
+    assert.strictEqual(bounded.deletedFiles, 0)
+    assert.strictEqual(bounded.deletedDirectories, 0)
+    assert.strictEqual(bounded.budget.maxGenerations, 1)
+    cliBatchEntries.push(...bounded.manifest.batch.entries.map(item => item.runtimeRoot))
+    if (bounded.resumeCursor) {
+      assert.strictEqual(cliPreview.payload.nextStep.action, 'resume-bounded-preview')
+      assert.match(cliPreview.payload.nextStep.command, /--resume-cursor/)
+    }
+    cliCursor = bounded.resumeCursor
+  } while (cliCursor)
+  const cliGenerationPreview = cliPreview.payload.runtimeGenerations
+  const cliPlanDigest = cliGenerationPreview.planDigest
+  assert.strictEqual(cliGenerationPreview.status, 'complete')
+  assert.strictEqual(cliGenerationPreview.phase, 'manifest-ready')
+  assert.strictEqual(cliGenerationPreview.applyReady, true)
+  assert.strictEqual(cliGenerationPreview.manifest.totals.candidates, 1)
+  assert.strictEqual(cliPreview.payload.nextStep.action, 'review-generation-plan-before-apply')
+  assert.strictEqual(new Set(cliBatchEntries).size, cliBatchEntries.length, 'CLI resume cursor must not repeat acknowledged batches')
   const ordinaryApply = runCli(['runtime', 'maintenance', '--apply', '--json'])
-  assert.strictEqual(ordinaryApply.payload.runtimeGenerations.candidateCount, 1)
+  assert.strictEqual(ordinaryApply.payload.runtimeGenerations.schemaVersion, 'BoundedMaintenancePreviewV2')
+  assert.strictEqual(ordinaryApply.payload.runtimeGenerations.deletedFiles, 0)
   assert.strictEqual(fs.existsSync(cliCandidateRoot), true, 'ordinary maintenance apply must preserve immutable generations')
   const exactApply = runCli(['runtime', 'maintenance', '--apply', '--generation-plan', cliPlanDigest, '--json'])
   assert.strictEqual(exactApply.payload.runtimeGenerations.status, 'complete')

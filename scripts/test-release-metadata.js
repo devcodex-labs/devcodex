@@ -57,17 +57,45 @@ expect(publicCi.includes('route: test:windows-control-plane'), '公共 CI 必须
 expect(publicCi.includes('name: Full quality (Node 24.17)'), '公共 CI 全量质量门必须使用发布 Node 24.17')
 expect(publicCi.includes('name: Package boundary (Node 24.17)'), '公共 CI package job 必须只声明实际执行的 package boundary')
 expect(!publicCi.includes('Website and package'), '公共 CI 不得把条件缺席的网站构建表述为绿色证据')
+expect(publicCi.includes('set -euo pipefail'), '公共 CI 必须让 full plan 管道失败关闭')
+expect(
+  publicCi.includes('node scripts/run-validation.js --route full --actor trusted-ci') &&
+    publicCi.includes('--authority-source "${AUTHORITY_SOURCE}"') &&
+    publicCi.includes('--policy-digest "${POLICY_DIGEST}"') &&
+    publicCi.includes('--plan --json'),
+  '公共 CI 必须由 trusted-ci 先物化 full/V3 精确计划'
+)
+expect(
+  publicCi.includes('--route full --actor trusted-ci') &&
+    publicCi.includes('--approve-plan "${BUDGET_DIGEST}"'),
+  '公共 CI 必须把同一 BudgetCard 摘要与 trusted-ci 角色绑定回执行'
+)
 expect(publishWorkflow.includes('set -euo pipefail'), 'Publish workflow 必须让 package plan 管道失败关闭')
 expect(
-  publishWorkflow.includes('node scripts/run-validation.js --route package-release --plan --json'),
-  'Publish workflow 必须先物化 package-release 精确计划'
+  publishWorkflow.includes('node scripts/run-validation.js --route package-release --purpose release --actor release-pipeline') &&
+    publishWorkflow.includes('--plan --json'),
+  'Publish workflow 必须由 release-pipeline 先物化 release/V3 精确计划'
 )
 expect(publishWorkflow.includes('plan?.budgetCard?.digest'), 'Publish workflow 必须读取 BudgetCard 精确摘要')
 expect(
-  publishWorkflow.includes('--route package-release --approve-plan "${PLAN_DIGEST}"'),
-  'Publish workflow 必须把同一 BudgetCard 摘要绑定回 package-release 执行'
+  publishWorkflow.includes('--route package-release --purpose release --actor release-pipeline') &&
+    publishWorkflow.includes('--approve-plan "${BUDGET_DIGEST}"'),
+  'Publish workflow 必须把同一 BudgetCard 摘要与 release-pipeline 角色绑定回执行'
 )
 expect(!publishWorkflow.includes('run: npm run test:package-release'), 'Publish workflow 不得使用缺少非交互计划批准的旧入口')
+expect(
+  pkg.scripts?.prepublishOnly === 'node scripts/verify-release-validation-receipt.js',
+  'prepublishOnly 必须消费当前候选的稳定 release 终态，禁止再次无授权地执行全量验证'
+)
+for (const [scriptName, command] of Object.entries({
+  'test:actual-candidate-evidence': 'node scripts/test-actual-candidate-evidence.js',
+  'test:dangerous-command-context': 'node scripts/test-dangerous-command-context.js',
+  'test:mcp-runtime-closure:package': 'node scripts/test-mcp-runtime-closure.js --packlist-only',
+  'test:session-route-consumers': 'node scripts/test-session-route-consumers.js',
+  'test:task-admission-authority': 'node scripts/test-task-admission-authority.js'
+})) {
+  expect(pkg.scripts?.[scriptName] === command, `package.json ${scriptName} 必须注册当前控制面回归入口`)
+}
 expect(nonEmptyString(pkg.publishConfig && pkg.publishConfig.registry), 'package.json publishConfig.registry 不能为空')
 expect(nonEmptyString(pkg.publishConfig && pkg.publishConfig.access), 'package.json publishConfig.access 不能为空')
 expect(files.length > 0, 'package.json files 不能为空')

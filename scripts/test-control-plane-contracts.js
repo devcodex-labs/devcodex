@@ -8,7 +8,8 @@ const {
   validateGateRegistry,
   validateReportSchema,
   validateTestRouteSchema,
-  validateCapabilitySurfaceDecisionSchema
+  validateCapabilitySurfaceDecisionSchema,
+  validateActualCandidateEvidenceContract
 } = require('./lib/control-plane-contracts')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -40,6 +41,10 @@ assert.deepStrictEqual(contracts.testRouteSchema.stableInputs, [
   'workflow', 'changeTypes', 'risk', 'publicSurface', 'runtimeBoundary', 'profileConstraints', 'candidateState', 'capabilitySurfaceDecision', 'requestedClaims', 'verificationIntent'
 ])
 assert.deepStrictEqual(contracts.testRouteSchema.verificationIntent.levels, ['V0', 'V1', 'V2', 'V3'])
+assert.strictEqual(contracts.testRouteSchema.verificationIntent.schemaVersion, 'VerificationIntentV2')
+assert.strictEqual(contracts.testRouteSchema.verificationIntent.executionAuthoritySchema, 'VerificationExecutionLeaseV2')
+assert.deepStrictEqual(contracts.testRouteSchema.verificationIntent.legacyExecutionAuthorityReaderSchemas,
+  ['VerificationExecutionLeaseV1'])
 assert.deepStrictEqual(contracts.testRouteSchema.consumerEdgeTypes,
   ['runtimeConsumer', 'qualificationConsumer', 'releaseConsumer'])
 assert.deepStrictEqual(contracts.testRouteSchema.scopedRouteBoundaries,
@@ -48,6 +53,9 @@ assert.strictEqual(contracts.testRouteSchema.executionBinding.cacheSchema, 'Vali
 assert.strictEqual(contracts.testRouteSchema.executionBinding.downstreamBinding, 'nodeReceiptDigest')
 assert.strictEqual(contracts.testRouteSchema.budgetPolicy.nonReleaseThresholdMs, 600000)
 assert.strictEqual(contracts.capabilitySurfaceDecisionSchema.title, 'CapabilitySurfaceDecisionV1')
+assert.deepStrictEqual(contracts.actualCandidateEvidenceContract.supportedPhases, ['CP1', 'CP2', 'CP3', 'ECR'])
+assert.strictEqual(contracts.actualCandidateEvidenceContract.fixtureOnlyQualifies, false)
+assert.strictEqual(contracts.actualCandidateEvidenceContract.releaseAuthority, false)
 
 const owners = new Set(contracts.plugin.skills.map(item => item.id))
 const duplicate = JSON.parse(JSON.stringify(contracts.gateRegistry))
@@ -80,5 +88,15 @@ badCapabilitySchema.properties.decisionOwner.const = 'domain-skill'
 assert.ok(
   validateCapabilitySurfaceDecisionSchema(badCapabilitySchema).some(error => error.includes('decision owner mismatch'))
 )
+const fixtureQualifies = JSON.parse(JSON.stringify(contracts.actualCandidateEvidenceContract))
+fixtureQualifies.fixtureOnlyQualifies = true
+assert.ok(
+  validateActualCandidateEvidenceContract(fixtureQualifies).some(error => error.includes('fixture policy mismatch'))
+)
+const missingActualBinding = JSON.parse(JSON.stringify(contracts.actualCandidateEvidenceContract))
+missingActualBinding.requiredBindings = missingActualBinding.requiredBindings.filter(item => item !== 'dirtyScopeDigest')
+assert.ok(
+  validateActualCandidateEvidenceContract(missingActualBinding).some(error => error.includes('dirtyScopeDigest'))
+)
 
-console.log('✓ governance registry, report, TestRoute and CapabilitySurfaceDecision schema contracts passed')
+console.log('✓ governance registry, report, TestRoute, CapabilitySurfaceDecision and actual-candidate contracts passed')

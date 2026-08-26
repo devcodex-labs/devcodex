@@ -153,6 +153,74 @@ const tamperedAutoControl = clone(autoControl)
 tamperedAutoControl.autoAuthorityRef = 'validation-auto:' + '0'.repeat(64)
 expectNegative('validation-control-auto-ref-digest-bound', () => !validateValidationControlIngressReceipt(tamperedAutoControl).valid)
 
+const neutralEnvelope = validationControlEnvelope('继续当前任务', 'neutral')
+const neutralControl = createValidationControlIngressReceipt({
+  actualInstructionEnvelope: neutralEnvelope,
+  actualInstruction: '继续当前任务',
+  taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
+  project: 'devcodex',
+  projectRoot: process.cwd()
+})
+assert.strictEqual(neutralControl.executionMode, 'confirm')
+assert.strictEqual(neutralControl.action, 'none')
+assert.strictEqual(neutralControl.authorityKind, 'none')
+assert.strictEqual(neutralControl.autoAuthorityRef, null)
+assert.strictEqual(applyValidationControlIngress({}, neutralControl).validationControlIngress, neutralControl)
+assert.strictEqual(classifyValidationControlInstruction('请缩小验证范围！').action, 'revoke')
+assert.strictEqual(classifyValidationControlInstruction(null).action, 'none')
+
+function invalidValidationControl(overrides = {}, binding = null, options = {}) {
+  const receipt = { ...clone(confirmControl), ...overrides }
+  return !validateValidationControlIngressReceipt(receipt, binding, options).valid
+}
+
+expectNegative('validation-control-non-object', () => !validateValidationControlIngressReceipt(null).valid)
+expectNegative('validation-control-schema', () => invalidValidationControl({ schemaVersion: 'ValidationControlIngressReceiptV0' }))
+expectNegative('validation-control-required-field', () => invalidValidationControl({ envelopeId: '' }))
+expectNegative('validation-control-digest-shape', () => invalidValidationControl({ envelopeDigest: 'invalid' }))
+expectNegative('validation-control-mode', () => invalidValidationControl({ executionMode: 'manual' }))
+expectNegative('validation-control-action', () => invalidValidationControl({ action: 'execute' }))
+expectNegative('validation-control-authority-kind', () => invalidValidationControl({ authorityKind: 'model' }))
+expectNegative('validation-control-confirm-authority', () => invalidValidationControl({ authorityKind: 'none' }))
+expectNegative('validation-control-auto-authority', () => invalidValidationControl({
+  action: 'auto-authorize',
+  authorityKind: 'none',
+  autoAuthorityRef: null
+}))
+expectNegative('validation-control-auto-ref-unexpected', () => invalidValidationControl({ autoAuthorityRef: 'unexpected' }))
+expectNegative('validation-control-revoke-flag', () => invalidValidationControl({ action: 'revoke' }))
+expectNegative('validation-control-non-revoke-flag', () => invalidValidationControl({ revocationRequested: true }))
+expectNegative('validation-control-ceiling', () => invalidValidationControl({ authorityCeiling: 'V3' }))
+expectNegative('validation-control-time-order', () => invalidValidationControl({ expiresAt: confirmControl.issuedAt }))
+expectNegative('validation-control-root', () => invalidValidationControl({ projectRootIdentity: null }))
+expectNegative('validation-control-receipt-digest', () => invalidValidationControl({ receiptDigest: '0'.repeat(64) }))
+expectNegative('validation-control-binding', () => invalidValidationControl({}, {
+  hostSessionDigest: '0'.repeat(64),
+  contextEpoch: 'ctx-other',
+  taskRecoveryKey: '00000000-0000-4000-8000-000000000999',
+  project: 'other',
+  projectRootIdentity: { ...validationRootIdentity, digest: '0'.repeat(64) }
+}))
+expectNegative('validation-control-expired', () => invalidValidationControl({}, null, {
+  now: Date.parse(confirmControl.expiresAt) + 1
+}))
+
+assert.throws(() => createValidationControlIngressReceipt(), error =>
+  error instanceof WorkflowCompletionError && error.code === 'VALIDATION_CONTROL_ENVELOPE_INVALID')
+assert.throws(() => createValidationControlIngressReceipt({
+  actualInstructionEnvelope: confirmEnvelope,
+  actualInstruction: '确认当前验证卡之外的文本',
+  taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
+  project: 'devcodex',
+  projectRootIdentity: validationRootIdentity
+}), error => error instanceof WorkflowCompletionError && error.code === 'VALIDATION_CONTROL_INSTRUCTION_MISMATCH')
+
+const emptyRevocationState = {}
+applyValidationControlIngress(emptyRevocationState, pauseControl)
+assert.strictEqual(emptyRevocationState.validationExecution.schemaVersion, 'ValidationExecutionTaskStateV1')
+assert.strictEqual(emptyRevocationState.validationExecution.revocationEpoch, 1)
+assert.strictEqual(emptyRevocationState.validationExecution.continuationAuthorization, null)
+
 const deliveryIntent = createVerificationIntent({
   requesterClass: 'human-cli',
   requestedLevel: 'V2',

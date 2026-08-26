@@ -1709,6 +1709,7 @@ function getTaskCp3RuntimeRecord(state, task) {
       name: task.name,
       reqPath: task.fullPath,
       trackedFiles: [],
+      trackedFileDigests: [],
       triggered: false,
       triggerType: '',
       triggerReason: '',
@@ -1753,11 +1754,34 @@ function assessBugCp3RuntimeEscalation(task, payload, state) {
   if (!targets.length) return null
 
   const record = getTaskCp3RuntimeRecord(state, task)
-  const tracked = new Set(Array.isArray(record.trackedFiles) ? record.trackedFiles : [])
-  const nextTargets = targets.map(toWorkspaceRelativePath).filter(Boolean)
-  for (const rel of nextTargets) tracked.add(rel)
+  if (record.triggered === true) {
+    return {
+      type: record.triggerType || 'file-threshold',
+      reason: record.triggerReason || `执行中已触达 ${record.triggerCount || CP3_RUNTIME_FILE_THRESHOLD} 个源码/配置文件（阈值 ${CP3_RUNTIME_FILE_THRESHOLD}）`,
+      count: record.triggerCount || CP3_RUNTIME_FILE_THRESHOLD,
+      threshold: CP3_RUNTIME_FILE_THRESHOLD,
+      trackedFiles: Array.isArray(record.trackedFiles) ? record.trackedFiles : []
+    }
+  }
 
-  record.trackedFiles = [...tracked].sort()
+  const previousFiles = Array.isArray(record.trackedFiles) ? record.trackedFiles : []
+  const canonicalRuntimeTarget = rel => process.platform === 'win32'
+    ? String(rel).toLowerCase()
+    : String(rel)
+  const tracked = new Set(Array.isArray(record.trackedFileDigests) && record.trackedFileDigests.length
+    ? record.trackedFileDigests
+    : previousFiles.map(rel => crypto.createHash('sha256').update(canonicalRuntimeTarget(rel)).digest('hex')))
+  const nextTargets = targets.map(toWorkspaceRelativePath).filter(Boolean)
+  for (const rel of nextTargets) {
+    tracked.add(crypto.createHash('sha256').update(canonicalRuntimeTarget(rel)).digest('hex'))
+  }
+
+  // CP3 escalation needs only the first five unique identities. Keep bounded
+  // previews and stable digests; after the gate triggers the record remains
+  // immutable until CP3 confirmation clears it.
+  record.trackedFileDigests = [...tracked].sort().slice(0, CP3_RUNTIME_FILE_THRESHOLD)
+  record.trackedFiles = [...new Set([...previousFiles, ...nextTargets])]
+    .slice(0, CP3_RUNTIME_FILE_THRESHOLD)
   record.updatedAt = new Date().toISOString()
 
   const highRiskTarget = targets.find(isHighRiskCp3RuntimeTarget)
@@ -3441,49 +3465,6 @@ async function main() {
       }
     }
 
-    // 2.5. Auto v1.1 whitelist gate — only whitelisted governance/test/docs paths can bypass CP gate
-    const autoWhitelist = formalMutation || simpleTaskFastPathAuthority?.valid === true
-      ? null
-      : checkAutoWhitelist(payload, platform, state)
-    if (autoWhitelist && autoWhitelist.allowed) {
-      state.lastReason = 'auto-whitelist-bypass'
-      markProductMutationOrder(state, payload, platform)
-      updateArtifactTouches(state, payload, platform)
-      const persisted = saveAllowedToolState(state, payload, platform, artifactDecision, artifactFootprint)
-      if (!persisted.ok) {
-        writeStdout(buildInterceptionOutput(
-          state, platform, eventName, INTERCEPTION_ACTION.FORBID,
-          persisted.error.code || 'LIFECYCLE_MUTATION_PREFLIGHT_FAILED',
-          'Mutation preflight persistence failed',
-          persisted.error.message,
-          'Repair TaskRecoveryStoreV5 capacity/state and retry; no host mutation was authorized.'
-        ))
-        return
-      }
-      writeStdout(contextGateOutput || noopOutput())
-      return
-    }
-    if (autoWhitelist && !autoWhitelist.allowed) {
-      state.lastReason = 'auto-non-whitelist-block'
-      saveState(state)
-      if (isStrictEnforcement()) {
-        writeStdout(buildInterceptionOutput(
-          state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'auto-whitelist-boundary',
-          'auto-whitelist-boundary',
-          `${autoWhitelist.reason} — 请切回确认模式，或先把变更范围收敛到白名单路径。`,
-          'Switch back to confirm mode or keep the mutation within the auto whitelist.'
-        ))
-      } else {
-        writeStdout(buildInterceptionOutput(
-          state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'auto-whitelist-boundary',
-          'auto-whitelist-boundary',
-          `${autoWhitelist.reason} Tool allowed in safety-only mode.`,
-          'Switch back to confirm mode or keep the mutation within the auto whitelist.'
-        ))
-      }
-      return
-    }
-
     // 2.5 ArtifactPathGate — requirements/02|04 slot semantics (always hard when invalid)
     if (isSourceCodeMutation(payload, platform, state) || isProductArtifactMutation(payload, platform)) {
       const toolPaths = extractToolPaths(payload)
@@ -3652,6 +3633,42 @@ async function main() {
           return
         }
       }
+    }
+
+    // 4. Auto path policy is a final execution boundary, never a source of
+    // task, owner, CP or mutation authority.  It is evaluated only after the
+    // formal workflow gates above so an allowlisted path cannot skip process.
+    const autoWhitelist = simpleTaskFastPathAuthority?.valid === true
+      ? null
+      : checkAutoWhitelist(payload, platform, state)
+    if (autoWhitelist && !autoWhitelist.allowed) {
+      const autoBoundaryOutput = buildInterceptionOutput(
+        state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'auto-whitelist-boundary',
+        'auto-whitelist-boundary',
+        isStrictEnforcement()
+          ? `${autoWhitelist.reason} — 请切回确认模式，或先把变更范围收敛到白名单路径。`
+          : `${autoWhitelist.reason} Tool allowed in safety-only mode after formal workflow authorization.`,
+        'Switch back to confirm mode or keep the mutation within the auto whitelist.'
+      )
+      state.lastReason = isStrictEnforcement()
+        ? 'auto-non-whitelist-block'
+        : 'auto-non-whitelist-warning'
+      if (isStrictEnforcement()) {
+        saveState(state)
+        writeStdout(autoBoundaryOutput)
+        return
+      }
+      if (contextGateOutput?.systemMessage && autoBoundaryOutput?.systemMessage) {
+        contextGateOutput = {
+          ...contextGateOutput,
+          ...autoBoundaryOutput,
+          systemMessage: `${contextGateOutput.systemMessage}\n${autoBoundaryOutput.systemMessage}`
+        }
+      } else {
+        contextGateOutput = autoBoundaryOutput
+      }
+    } else if (autoWhitelist?.allowed) {
+      state.lastReason = 'auto-whitelist-authorized'
     }
 
     updateArtifactTouches(state, payload, platform)

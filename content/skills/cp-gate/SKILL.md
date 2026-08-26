@@ -24,10 +24,11 @@ CP 门控**不受 ENV_MODE 影响**。dev/prod 均强制保持 CP1→CP2 顺序�
 - **Sticky Auto（v1.2）**：有效入口命中后写入会话级 `stickyAuto`（TTL 与 sticky 项目同量级）；后续同 session 无别名的“确认/继续/补充”**保持** `executionMode=auto`，直到显式退出（`退出 auto` / `关闭自动模式` / `exit auto mode` / `切回确认模式`）或 sticky 过期/换会话
 - **别名匹配**：允许中文/标点贴靠（如 `请@rocky执行`、`（@rocky）`）；拒绝与标识符粘连（如 `ok@rocky`）
 - **模型可见回执**：`UserPromptSubmit` 注入 `ExecutionModeV1: auto|confirm`（含 sticky/source/authorityRef 与 CP auto-pass 提示）；白名单边界**不**因 sticky 扩大
-- `hook-enforced` 宿主下，CP 自动通过对白名单路径形成无提醒通过；非白名单路径在默认 `safety-only` 下提醒放行，在 `strict` 模式下回确认模式并硬拦截
+- **流程/authority 分离**：CP 自动通过只免除人工等待；Agent 仍须建立正式任务、写入 canonical CP 产物、持久化并回读 digest confirmation，随后取得 active fenced owner、单次 mutation lease 与 V5 prewrite。Auto 白名单不是 task、CP 或 mutation authority，也不能绕过 implement-start/CP gate
+- `hook-enforced` 宿主下，完成上述流程后，白名单路径形成无额外 Auto 边界提醒通过；非白名单路径在默认 `safety-only` 下提醒后继续已获正式授权的 mutation，在 `strict` 模式下回确认并硬拦截
 - `instruction-fallback` 宿主（如 JetBrains / Cursor）只同步 auto 规则说明，不承诺 runtime 级 CP 行为；支持 Hook 的宿主由 `DEVCODEX_HOOK_ENFORCEMENT` 决定提醒或硬拦截
 - `auto:` / `/auto` / profile `executionMode` 不属于本轮正式入口
-- CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认）
+- CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认，但必须生成并回读对应产物/receipt）
 - 以下约束**不可豁免**：[S01](../../instructions/00-safety.instructions.md)（不可逆确认）/ S02 用户 / 项目敏感信息策略 / S03~S07 / [C01](../../instructions/01-common.instructions.md) / [C10](../../instructions/01-common.instructions.md) / [C18](../../instructions/00-safety.instructions.md)。S02 不阻断明文、硬编码或真实秘密写入；它只禁止 AI 未经用户 / 项目要求自行加严、改成 env、`secretRef`、secret manager、`config.local.json` 或占位符。
 - 可恢复失败：重试 ≤ 2 次
 - 不可恢复失败：切换回确认模式并通知用户 ⚠️

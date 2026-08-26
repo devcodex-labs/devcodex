@@ -710,6 +710,12 @@ function createValidationEvidenceStore(options = {}) {
             throw evidenceBindingError('VALIDATION_BUDGET_CONFIRMATION_CAS_CONFLICT', 'root BudgetCard confirmation CAS conflicted')
           }
           const rootChanged = Boolean(existing && existing.receiptDigest !== payload.receiptDigest)
+          if (rootChanged && (currentExecution.currentLease || currentExecution.runnerState)) {
+            throw evidenceBindingError(
+              'VALIDATION_BUDGET_CONFIRMATION_CAS_CONFLICT',
+              'a live validation lease or runner must reach a durable terminal state before root replacement'
+            )
+          }
           nextExecution.pendingBudgetCard = null
           nextExecution.rootBudgetConfirmation = payload
           nextExecution.rootBudgetProjection = rootProjection

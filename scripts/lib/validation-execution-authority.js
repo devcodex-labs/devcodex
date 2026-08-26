@@ -357,6 +357,23 @@ function validateBudgetConfirmationReceipt(receipt, binding = null) {
   }
   if (!iso(receipt.confirmedAt) || !iso(receipt.consumedAt)) errors.push('budget-confirmation-time-invalid')
   if (receipt.status !== 'consumed') errors.push('budget-confirmation-status-invalid')
+  const rolloverFields = [
+    receipt.parentRootReceiptDigest,
+    receipt.parentTerminalDigest,
+    receipt.rootRolloverReason
+  ]
+  if (rolloverFields.some(value => value != null)) {
+    if (receipt.authorityKind !== 'auto') errors.push('budget-confirmation-rollover-authority-invalid')
+    if (!DIGEST_RE.test(String(receipt.parentRootReceiptDigest || ''))) {
+      errors.push('budget-confirmation-parent-root-digest-invalid')
+    }
+    if (!DIGEST_RE.test(String(receipt.parentTerminalDigest || ''))) {
+      errors.push('budget-confirmation-parent-terminal-digest-invalid')
+    }
+    if (receipt.rootRolloverReason !== 'strict-descendant-same-scope') {
+      errors.push('budget-confirmation-rollover-reason-invalid')
+    }
+  }
   if (errors.length === 0 && digest(confirmationSemantic(receipt)) !== receipt.receiptDigest) errors.push('budget-confirmation-digest-mismatch')
   if (errors.length === 0 && receipt.confirmationId !== `budget-confirmation-${receipt.receiptDigest}`) errors.push('budget-confirmation-id-mismatch')
   if (recordSizeError(receipt, 'VALIDATION_BUDGET_CONFIRMATION_TOO_LARGE')) errors.push('budget-confirmation-record-too-large')
@@ -419,6 +436,13 @@ function createBudgetConfirmationReceipt(input = {}, options = {}) {
     rootHardTimeoutUpperBoundMs: pending.hardTimeoutUpperBoundMs,
     rootLogBudgetBytes: pending.logBudgetBytes,
     pendingBindingDigest: pending.bindingDigest,
+    ...(input.parentRootReceiptDigest
+      ? {
+          parentRootReceiptDigest: String(input.parentRootReceiptDigest),
+          parentTerminalDigest: String(input.parentTerminalDigest || ''),
+          rootRolloverReason: String(input.rootRolloverReason || '')
+        }
+      : {}),
     revocationEpoch: Number.isInteger(input.revocationEpoch) ? input.revocationEpoch : 0,
     confirmedAt,
     consumedAt: confirmedAt,
@@ -1158,6 +1182,7 @@ module.exports = {
   ValidationAuthorityError,
   approvePlanFromBudgetAuthority,
   assertVerificationExecutionLease,
+  candidateBinding,
   createBudgetConfirmationReceipt,
   createPendingBudgetCardBinding,
   createValidationRunIdentity,

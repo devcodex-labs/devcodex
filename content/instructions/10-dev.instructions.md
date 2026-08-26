@@ -275,7 +275,8 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
 
 - CP1/CP2/CP3 确认**自动通过**
 - 正式入口包括显式 `@devcodex-auto`、全局默认 `@rocky`、Profile `extensions.devcodex.autoAliases` 替换别名与明确自然语言 auto 授权；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；未生效昵称或普通“继续”不算授权
-- 支持 Hook 的宿主仅对白名单路径自动推进；`instruction-fallback` 宿主只同步规则语义
+- 自动通过只免除人工等待；仍须先物化正式任务、概况/确认/方案/条件 CP3、digest confirmation、active owner 与 V5 mutation prewrite。支持 Hook 的宿主仅在这些前提全部满足后对白名单路径无提醒推进；白名单不得跳过标准流程，`instruction-fallback` 宿主只同步规则语义
+- 非白名单正式 mutation 在默认 `safety-only` 下提醒后继续，在 `strict` 下拦截并切回确认；SimpleTaskFastPath 仍必须持有 server-owned 精确租约
 - S01~S07 / C01 / C10 / C18 **不可豁免**
 - 可恢复失败：重试 ≤ 2 次；不可恢复失败：通知用户 ⚠️
 

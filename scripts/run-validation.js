@@ -3,6 +3,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { execFileSync } = require('child_process')
 const {
   REQUIRED_ROUTES,
   RISK_CLASSES,
@@ -15,6 +16,7 @@ const {
 const {
   ACTOR_TYPES,
   approvePlanFromBudgetAuthority,
+  candidateBinding,
   createBudgetConfirmationReceipt,
   createPendingBudgetCardBinding,
   createValidationContinuationAuthorization,
@@ -417,15 +419,108 @@ function exactPendingMatchesPlan(pending, plan, candidate, projectRoot) {
   }
 }
 
-function assertRootReplacementSafe(store, currentRoot, plan) {
+function assertRootReplacementSafe(store, currentRoot, plan, candidate) {
   const root = currentRoot?.rootBudgetConfirmation
-  if (!root || (root.planDigest === plan.planDigest && root.budgetDigest === plan.budgetCard.digest)) return
+  const currentCandidate = candidateBinding(candidate)
+  const exactRoot = root &&
+    root.planDigest === plan.planDigest &&
+    root.budgetDigest === plan.budgetCard.digest &&
+    root.candidateId === candidate.candidateId &&
+    root.candidateDigest === currentCandidate.candidateDigest
+  if (!root || exactRoot) return
   const liveLease = store.readLease()
   if (liveLease.status === 'fresh' && liveLease.lease) {
     throw new ValidationDagError(
       'VALIDATION_BUDGET_CONFIRMATION_CAS_CONFLICT',
       'a different validation root still owns the current task execution lease'
     )
+  }
+}
+
+function isSubset(current = [], allowed = []) {
+  const allowedSet = new Set((allowed || []).map(value => String(value)))
+  return (current || []).every(value => allowedSet.has(String(value)))
+}
+
+function isStrictGitDescendant(repoRoot, ancestor, descendant) {
+  const previous = String(ancestor || '').trim().toLowerCase()
+  const current = String(descendant || '').trim().toLowerCase()
+  if (!/^[a-f0-9]{40,64}$/.test(previous) || !/^[a-f0-9]{40,64}$/.test(current) || previous === current) {
+    return false
+  }
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', previous, current], {
+      cwd: repoRoot,
+      stdio: 'ignore',
+      windowsHide: true
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+function assessAutoRootRollover({ store, currentRoot, plan, candidate, control, authorityContext, repoRoot = ROOT }) {
+  const root = currentRoot?.rootBudgetConfirmation
+  if (!root || control?.action !== 'auto-authorize' || root.authorityKind !== 'auto') {
+    return { eligible: false, reasonCode: 'auto-root-rollover-authority-missing' }
+  }
+  if (root.autoAuthorityRef !== control.autoAuthorityRef ||
+      root.taskRecoveryKey !== authorityContext.taskRecoveryKey ||
+      root.project !== 'devcodex' ||
+      root.hostSessionDigest !== control.hostSessionDigest ||
+      root.contextEpoch !== authorityContext.contextEpoch ||
+      root.revocationEpoch !== currentValidationRevocationEpoch(authorityContext)) {
+    return { eligible: false, reasonCode: 'auto-root-rollover-binding-mismatch' }
+  }
+  const lease = store.readLease()
+  if (lease.status === 'fresh' && lease.lease) {
+    return { eligible: false, reasonCode: 'auto-root-rollover-live-lease' }
+  }
+  const terminalRead = store.readTerminal()
+  const rootProjectionRead = store.readRootBudgetProjection()
+  if (terminalRead.status !== 'fresh' || rootProjectionRead.status !== 'fresh') {
+    return { eligible: false, reasonCode: 'auto-root-rollover-parent-state-missing' }
+  }
+  const terminal = terminalRead.receipt
+  if (!['failed', 'blocked', 'timed-out', 'cancelled'].includes(String(terminal.terminalStatus || ''))) {
+    return { eligible: false, reasonCode: 'auto-root-rollover-parent-not-recoverable' }
+  }
+  const continuationRead = store.readContinuationAuthorization()
+  const continuation = continuationRead.continuationAuthorization || null
+  const directLineage = terminal.authoritySourceRef === `budget-confirmation:${root.receiptDigest}`
+  const continuationLineage = continuation &&
+    terminal.authoritySourceRef === `validation-continuation:${continuation.continuationDigest}` &&
+    continuation.rootConfirmationDigest === root.receiptDigest
+  if (!directLineage && !continuationLineage) {
+    return { eligible: false, reasonCode: 'auto-root-rollover-lineage-mismatch' }
+  }
+  if (!isStrictGitDescendant(repoRoot, terminal.candidateHead, candidate.head)) {
+    return { eligible: false, reasonCode: 'auto-root-rollover-head-not-descendant' }
+  }
+  const projection = rootProjectionRead.rootBudgetProjection
+  const selectedNodeIds = (plan.selectedNodes || []).map(node => String(node.id || '')).filter(Boolean)
+  const budget = plan.budgetCard || {}
+  const sameScope = plan.verificationLevel === root.maxLevel &&
+    plan.verificationPurpose === root.purpose &&
+    isSubset(plan.affectedBoundaries, projection.affectedBoundaries) &&
+    isSubset(selectedNodeIds, projection.selectedNodeIds) &&
+    isSubset(budget.heavyNodeIds, projection.heavyNodeIds) &&
+    isSubset(budget.sideEffectCategories, projection.sideEffectCategories) &&
+    Number(plan.selectedNodeCount || selectedNodeIds.length) <= Number(projection.selectedNodeCount || 0) &&
+    Number(budget.estimatedDurationMs || 0) <= Number(projection.estimatedDurationMs || 0) &&
+    Number(budget.hardTimeoutUpperBoundMs || 0) <= Number(projection.hardTimeoutUpperBoundMs || 0) &&
+    Number(budget.logBudgetBytes || 0) <= Number(projection.logBudgetBytes || 0)
+  if (!sameScope) {
+    return { eligible: false, reasonCode: 'auto-root-rollover-scope-widened' }
+  }
+  return {
+    eligible: true,
+    reasonCode: 'strict-descendant-same-scope',
+    parentRootReceiptDigest: root.receiptDigest,
+    parentTerminalDigest: terminal.terminalDigest,
+    previousCandidateHead: terminal.candidateHead,
+    currentCandidateHead: candidate.head
   }
 }
 
@@ -595,12 +690,20 @@ function resolveAiBudgetAuthority({ options, plan, candidate, authorityContext, 
     project: 'devcodex',
     projectRootIdentity: projectRoot,
     contextEpoch: authorityContext.contextEpoch
-  }, { now: Date.now() })
+  }, { now: Number.isFinite(options.nowMs) ? options.nowMs : Date.now() })
   const expiredRootContinuation = control?.action === 'auto-authorize' &&
     controlValidation.errors.length === 1 &&
     controlValidation.errors[0] === 'validation-control-ingress-expired' &&
     currentRoot.status === 'fresh' &&
     currentRoot.rootBudgetConfirmation?.revocationEpoch === revocationEpoch
+  const rootRollover = assessAutoRootRollover({
+    store,
+    currentRoot,
+    plan,
+    candidate,
+    control,
+    authorityContext
+  })
   if (!controlValidation.valid && !expiredRootContinuation) {
     if (!execute) {
       return {
@@ -625,8 +728,11 @@ function resolveAiBudgetAuthority({ options, plan, candidate, authorityContext, 
       'V3/full/release validation cannot inherit scoped Auto or current-card continuation authority'
     )
   }
+  const currentCandidate = candidateBinding(candidate)
   if (currentRoot.status === 'fresh' && currentRoot.rootBudgetConfirmation?.budgetDigest === plan.budgetCard.digest &&
       currentRoot.rootBudgetConfirmation?.planDigest === plan.planDigest &&
+      currentRoot.rootBudgetConfirmation?.candidateId === candidate.candidateId &&
+      currentRoot.rootBudgetConfirmation?.candidateDigest === currentCandidate.candidateDigest &&
       currentRoot.rootBudgetConfirmation.revocationEpoch === revocationEpoch) {
     if (control.action === 'auto-authorize') {
       const continuation = tryResolveAutoContinuation({
@@ -711,7 +817,7 @@ function resolveAiBudgetAuthority({ options, plan, candidate, authorityContext, 
       currentUserInstruction: true,
       currentSourceMessageDigest: control.sourceMessageDigest
     })
-    assertRootReplacementSafe(store, currentRoot, plan)
+    assertRootReplacementSafe(store, currentRoot, plan, candidate)
     const write = store.writeRootBudgetConfirmation(receipt, {
       expectedRootReceiptDigest: currentRoot.rootBudgetConfirmation?.receiptDigest || null,
       rootBudgetProjection: planBudgetProjection(plan)
@@ -734,19 +840,20 @@ function resolveAiBudgetAuthority({ options, plan, candidate, authorityContext, 
         }
         const rootRevocationEpochChanged = currentRoot.rootBudgetConfirmation &&
           currentRoot.rootBudgetConfirmation.revocationEpoch !== revocationEpoch
-        if (continuation.parentRecoverable && !rootRevocationEpochChanged) {
+        if (continuation.parentRecoverable && !rootRevocationEpochChanged && !rootRollover.eligible) {
           throw new ValidationDagError(
             continuation.fallbackCode || 'VALIDATION_CONTINUATION_UNAVAILABLE',
             'the failed validation root cannot be replaced by a new Auto root'
           )
         }
       }
-      if (expiredRootContinuation) {
+      if (expiredRootContinuation && !rootRollover.eligible) {
         throw new ValidationDagError(
           'VALIDATION_FRESH_CONTROL_REQUIRED',
           'expired Auto ingress can continue its immutable root but cannot create or replace a root'
         )
       }
+      assertRootReplacementSafe(store, currentRoot, plan, candidate)
       const previewPending = currentPendingExact
         ? currentPending.pendingBudgetCard
         : createPendingBudgetCardBinding(pendingInput)
@@ -758,7 +865,14 @@ function resolveAiBudgetAuthority({ options, plan, candidate, authorityContext, 
         throw new ValidationDagError(previewWrite.errorCode || 'VALIDATION_BUDGET_CONFIRMATION_CAS_CONFLICT',
           'failed to persist the exact Auto BudgetCard preview', previewWrite)
       }
-      return { plan, authority: null, store, control, pending: previewPending, decision: 'auto-ready-plan-only' }
+      return {
+        plan,
+        authority: null,
+        store,
+        control,
+        pending: previewPending,
+        decision: rootRollover.eligible ? 'auto-root-rollover-plan-only' : 'auto-ready-plan-only'
+      }
     }
     const continuation = currentRoot.status === 'fresh'
       ? tryResolveAutoContinuation({ plan, candidate, authorityContext, store, currentRoot, control, manifest })
@@ -774,18 +888,19 @@ function resolveAiBudgetAuthority({ options, plan, candidate, authorityContext, 
     }
     const rootRevocationEpochChanged = currentRoot.rootBudgetConfirmation &&
       currentRoot.rootBudgetConfirmation.revocationEpoch !== revocationEpoch
-    if (continuation.parentRecoverable && !rootRevocationEpochChanged) {
+    if (continuation.parentRecoverable && !rootRevocationEpochChanged && !rootRollover.eligible) {
       throw new ValidationDagError(
         continuation.fallbackCode || 'VALIDATION_CONTINUATION_UNAVAILABLE',
         'the failed validation root cannot be replaced by a new Auto root'
       )
     }
-    if (expiredRootContinuation) {
+    if (expiredRootContinuation && !rootRollover.eligible) {
       throw new ValidationDagError(
         'VALIDATION_FRESH_CONTROL_REQUIRED',
         'expired Auto ingress can continue its immutable root but cannot create or replace a root'
       )
     }
+    assertRootReplacementSafe(store, currentRoot, plan, candidate)
     const pending = currentPendingExact
       ? currentPending.pendingBudgetCard
       : createPendingBudgetCardBinding(pendingInput)
@@ -801,9 +916,15 @@ function resolveAiBudgetAuthority({ options, plan, candidate, authorityContext, 
       pendingBudgetCard: pending,
       authorityKind: 'auto',
       autoAuthorityRef: control.autoAuthorityRef,
+      ...(rootRollover.eligible
+        ? {
+            parentRootReceiptDigest: rootRollover.parentRootReceiptDigest,
+            parentTerminalDigest: rootRollover.parentTerminalDigest,
+            rootRolloverReason: rootRollover.reasonCode
+          }
+        : {}),
       revocationEpoch
     }, { serverOwnedAutoAuthorityRef: control.autoAuthorityRef })
-    assertRootReplacementSafe(store, currentRoot, plan)
     const rootWrite = store.writeRootBudgetConfirmation(receipt, {
       expectedRootReceiptDigest: currentRoot.rootBudgetConfirmation?.receiptDigest || null,
       rootBudgetProjection: planBudgetProjection(plan)
@@ -817,7 +938,7 @@ function resolveAiBudgetAuthority({ options, plan, candidate, authorityContext, 
       authority: receipt,
       store,
       control,
-      decision: 'auto-authorized',
+      decision: rootRollover.eligible ? 'auto-root-rollover-authorized' : 'auto-authorized',
       continuationFallbackCode: continuation.fallbackCode
     }
   }

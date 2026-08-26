@@ -4,6 +4,7 @@ const assert = require('assert')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const { execFileSync } = require('child_process')
 
 const { sha256 } = require('../hooks/_runtime/content-identity.cjs')
 const { buildActualInstructionEnvelope } = require('../hooks/_runtime/actual-instruction-envelope.cjs')
@@ -21,6 +22,7 @@ const {
 const { createValidationEvidenceStore } = require('./lib/validation-evidence-store')
 const { ValidationDagError } = require('./lib/validation-dag')
 const {
+  createBudgetConfirmationReceipt,
   createPendingBudgetCardBinding,
   createVerificationExecutionLease,
   planBudgetProjection
@@ -325,6 +327,51 @@ function main() {
       revocationEpoch: 0
     })
     assert(['committed', 'semantic-noop'].includes(autoStore.writeLease(parentLease).status))
+    const liveReplacementPlan = fixturePlan(autoTaskId, contextEpoch, 'live-root-replacement')
+    const liveReplacementCandidate = fixtureCandidate('live-root-replacement')
+    for (const execute of [false, true]) {
+      expectCode(() => resolveAiBudgetAuthority({
+        options: {},
+        plan: liveReplacementPlan,
+        candidate: liveReplacementCandidate,
+        authorityContext: autoContext,
+        activeRoot,
+        execute
+      }), 'VALIDATION_BUDGET_CONFIRMATION_CAS_CONFLICT')
+    }
+    assert.strictEqual(autoStore.readPendingBudgetCard().status, 'missing',
+      'live root replacement rejection must not leave a new pending card')
+    assert.strictEqual(autoStore.readRootBudgetConfirmation().rootBudgetConfirmation.receiptDigest,
+      autoExecution.authority.receiptDigest, 'live root replacement must preserve the original root')
+    assert.strictEqual(autoStore.readLease().lease.runIdentityDigest, parentLease.runIdentityDigest,
+      'live root replacement must preserve the original execution lease')
+    const directReplacementPending = createPendingBudgetCardBinding({
+      plan: liveReplacementPlan,
+      candidate: liveReplacementCandidate,
+      repoRoot: REPO_ROOT,
+      project: 'devcodex',
+      taskRecoveryKey: autoTaskId,
+      hostSessionDigest: autoControl.hostSessionDigest,
+      contextEpoch,
+      stateRevision: 1
+    })
+    assert(['committed', 'semantic-noop'].includes(autoStore.writePendingBudgetCard(directReplacementPending).status))
+    const directReplacementReceipt = createBudgetConfirmationReceipt({
+      pendingBudgetCard: directReplacementPending,
+      authorityKind: 'auto',
+      autoAuthorityRef: autoControl.autoAuthorityRef,
+      revocationEpoch: 0
+    }, { serverOwnedAutoAuthorityRef: autoControl.autoAuthorityRef })
+    const directReplacementWrite = autoStore.writeRootBudgetConfirmation(directReplacementReceipt, {
+      expectedRootReceiptDigest: autoExecution.authority.receiptDigest,
+      rootBudgetProjection: planBudgetProjection(liveReplacementPlan)
+    })
+    assert.strictEqual(directReplacementWrite.status, 'error')
+    assert.strictEqual(directReplacementWrite.errorCode, 'VALIDATION_BUDGET_CONFIRMATION_CAS_CONFLICT')
+    assert.strictEqual(autoStore.readRootBudgetConfirmation().rootBudgetConfirmation.receiptDigest,
+      autoExecution.authority.receiptDigest, 'server-owned store must reject direct live root replacement')
+    assert.strictEqual(autoStore.readLease().lease.runIdentityDigest, parentLease.runIdentityDigest,
+      'server-owned store must not clear the live lease on rejected direct replacement')
     const parentTerminalWrite = autoStore.writeTerminal({
       schemaVersion: 'ValidationExecutionReceiptV3',
       receiptId: `validation-receipt-${parentLease.runIdentityDigest}`,
@@ -532,6 +579,124 @@ function main() {
       activeRoot,
       execute: true
     }), 'VALIDATION_CONTINUATION_RETRY_EXHAUSTED')
+
+    // A terminal failed root remains immutable, but a later committed strict
+    // descendant may start one new same-scope Auto root.  This is the bounded
+    // long-task rollover path: no live lease, no branch rewrite, no V2 scope or
+    // budget widening, and the old root/terminal lineage stays in the receipt.
+    const rolloverTaskId = '00000000-0000-4000-8000-000000000347'
+    const rolloverSession = 'validation-budget-root-rollover-session'
+    const rolloverControl = controlReceipt({
+      prompt: '@rocky 自动推进到当前任务完成',
+      mode: 'auto',
+      sessionKey: rolloverSession,
+      taskId: rolloverTaskId,
+      contextEpoch,
+      suffix: 'root-rollover',
+      nowMs: NOW,
+      ttlMs: 1000
+    })
+    const rolloverSeed = seedTask({
+      activeRoot,
+      taskId: rolloverTaskId,
+      sessionKey: rolloverSession,
+      control: rolloverControl
+    })
+    const currentHead = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      windowsHide: true
+    }).trim()
+    const previousHead = execFileSync('git', ['rev-parse', 'HEAD^'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      windowsHide: true
+    }).trim()
+    const rolloverRootPlan = fixturePlan(rolloverTaskId, contextEpoch, 'root-rollover-parent')
+    const rolloverRootCandidate = { ...fixtureCandidate('root-rollover-parent'), head: previousHead }
+    const rolloverContext = authorityContext({
+      identity: rolloverSeed.identity,
+      sessionKey: rolloverSession,
+      contextEpoch,
+      control: rolloverControl
+    })
+    const rolloverRoot = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 500 },
+      plan: rolloverRootPlan,
+      candidate: rolloverRootCandidate,
+      authorityContext: rolloverContext,
+      activeRoot,
+      execute: true
+    })
+    const rolloverStore = createValidationEvidenceStore({
+      activeRoot,
+      project: 'devcodex',
+      actorType: 'ai-hook',
+      taskIdentity: rolloverSeed.identity,
+      taskRecoveryKey: rolloverTaskId,
+      sessionKey: rolloverSession
+    })
+    persistFailedRun({
+      store: rolloverStore,
+      plan: rolloverRoot.plan,
+      candidate: rolloverRootCandidate,
+      authority: rolloverRoot.authority,
+      control: rolloverControl,
+      taskId: rolloverTaskId,
+      contextEpoch,
+      failedNode: 'validation-authority'
+    })
+    const rolloverState = readTaskRecoveryState({
+      metaDir: rolloverSeed.metaDir,
+      identity: rolloverSeed.identity,
+      sessionKey: rolloverSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' }
+    })
+    const rolloverNextPlan = fixturePlan(rolloverTaskId, contextEpoch, 'root-rollover-child')
+    const rolloverNextCandidate = { ...fixtureCandidate('root-rollover-child'), head: currentHead }
+    const rolloverNextContext = authorityContext({
+      identity: rolloverSeed.identity,
+      sessionKey: rolloverSession,
+      contextEpoch,
+      control: rolloverControl,
+      state: rolloverState.state
+    })
+    const widenedRolloverPlan = fixturePlan(rolloverTaskId, contextEpoch, 'root-rollover-widened', {
+      selectedNodes: [{ id: 'validation-budget-control', writeScopes: [] }]
+    })
+    widenedRolloverPlan.affectedBoundaries = ['validation-budget-control']
+    for (const execute of [false, true]) {
+      expectCode(() => resolveAiBudgetAuthority({
+        options: { nowMs: NOW + 2000 },
+        plan: widenedRolloverPlan,
+        candidate: rolloverNextCandidate,
+        authorityContext: rolloverNextContext,
+        activeRoot,
+        execute
+      }), 'VALIDATION_CONTINUATION_SCOPE_WIDENED')
+    }
+    const rolloverPreview = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 2000 },
+      plan: rolloverNextPlan,
+      candidate: rolloverNextCandidate,
+      authorityContext: rolloverNextContext,
+      activeRoot,
+      execute: false
+    })
+    assert.strictEqual(rolloverPreview.decision, 'auto-root-rollover-plan-only')
+    const rolloverExecution = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 2000 },
+      plan: rolloverNextPlan,
+      candidate: rolloverNextCandidate,
+      authorityContext: rolloverNextContext,
+      activeRoot,
+      execute: true
+    })
+    assert.strictEqual(rolloverExecution.decision, 'auto-root-rollover-authorized')
+    assert.strictEqual(rolloverExecution.authority.parentRootReceiptDigest, rolloverRoot.authority.receiptDigest)
+    assert.match(rolloverExecution.authority.parentTerminalDigest, /^[a-f0-9]{64}$/)
+    assert.strictEqual(rolloverExecution.authority.rootRolloverReason, 'strict-descendant-same-scope')
+    assert.notStrictEqual(rolloverExecution.authority.receiptDigest, rolloverRoot.authority.receiptDigest)
 
     const exactRetryTaskId = '00000000-0000-4000-8000-000000000346'
     const exactRetrySession = 'validation-budget-exact-retry-session'

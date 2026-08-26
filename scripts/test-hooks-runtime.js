@@ -409,7 +409,11 @@ function runR2BTaskOwnerLifecycleScenarios() {
     `owner-authorized mutation was not admitted: ${JSON.stringify(allowed)}`
   )
   let mutationOperation = state.turnLiveness.inFlightOperation
-  assert.strictEqual(mutationOperation?.artifactDecision?.schemaVersion, 'ArtifactSlotDecisionV2')
+  assert.strictEqual(
+    mutationOperation?.artifactDecision?.schemaVersion,
+    'ArtifactSlotDecisionV2',
+    `owner-backed artifact mutation preflight missing: ${JSON.stringify(allowed)}`
+  )
   assert.strictEqual(mutationOperation?.mutationLease?.schemaVersion, 'TaskOwnedMutationLeaseV2')
   assert.strictEqual(mutationOperation?.mutationFootprint?.schemaVersion, 'MutationFootprintRecoveryProjectionV2')
   assert.strictEqual(mutationOperation?.mutationPreObservation?.schemaVersion, 'MutationPreObservationV1')
@@ -505,6 +509,74 @@ function runR2BTaskOwnerLifecycleScenarios() {
   assert.notStrictEqual(cp2SessionsAfter, cp2SessionsBefore, 'fixture must confirm the bound bug CP2')
   fs.writeFileSync(sessionsPath, cp2SessionsAfter)
 
+  // A valid fenced owner restores the original CP3 runtime boundary: four
+  // distinct source files are still inside the CP2 implementation window and
+  // the fifth requires the CP3 checkpoint.  Ownerless attempts are tested
+  // separately below and must never advance this counter.
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  state.executionMode = 'confirm'
+  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir,
+    identity: recoveryIdentity,
+    sessionKey: sessionId,
+    state
+  }, { force: true, reserveBytes: 8 * 1024 * 1024 }).status, 'committed')
+
+  const ownerBackedRuntimeThresholdTargets = Array.from(
+    { length: 5 },
+    (_, index) => path.join(TEMP_ROOT, 'src', 'r2b-runtime-threshold', `bug-${index + 1}.js`)
+  )
+  fs.mkdirSync(path.dirname(ownerBackedRuntimeThresholdTargets[0]), { recursive: true })
+  ownerBackedRuntimeThresholdTargets.forEach((file, index) => {
+    fs.writeFileSync(file, `module.exports = ${index}\n`)
+    const operationId = `r2b-owner-runtime-threshold-${index + 1}`
+    const content = `module.exports = ${index + 10}\n`
+    const output = run({
+      hookEventName: 'PreToolUse',
+      session_id: sessionId,
+      tool_use_id: operationId,
+      tool_name: 'Write',
+      tool_input: { file_path: file, content }
+    })
+    if (index < 4) {
+      assert.doesNotMatch(
+        JSON.stringify(output),
+        /cp-gate-CP3-runtime-threshold|执行中已触达 5 个源码\/配置文件/,
+        'owner-backed runtime threshold should not warn before the 5th unique source file'
+      )
+    } else {
+      assert.match(
+        JSON.stringify(output),
+        /cp-gate-CP3-runtime-threshold|执行中已触达 5 个源码\/配置文件/,
+        'owner-backed runtime threshold must warn on the 5th unique source file'
+      )
+    }
+    const runtimeState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+    const runtimeRecord = Object.values(runtimeState.cp3Runtime || {})
+      .find(entry => entry && entry.name === 'R2B Hook owner task')
+    assert.strictEqual(
+      runtimeRecord?.trackedFiles?.length,
+      index + 1,
+      `owner-backed CP3 runtime tracking must persist unique file ${index + 1}`
+    )
+    fs.writeFileSync(file, content)
+    const closeout = run({
+      hookEventName: 'PostToolUse',
+      session_id: sessionId,
+      tool_use_id: operationId,
+      tool_name: 'Write',
+      tool_input: { file_path: file, content },
+      success: true
+    })
+    assert.doesNotMatch(JSON.stringify(closeout), /ARTIFACT_MUTATION_NEEDS_RECONCILE/)
+  })
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  const ownerBackedRuntimeThreshold = Object.values(state.cp3Runtime || {})
+    .find(entry => entry && entry.name === 'R2B Hook owner task')
+  assert.strictEqual(ownerBackedRuntimeThreshold?.triggered, true)
+  assert.strictEqual(ownerBackedRuntimeThreshold?.triggerCount, 5)
+
   const decoyTaskRoot = path.join(activeRoot, 'requirements', 'newer-stop-decoy')
   fs.mkdirSync(decoyTaskRoot, { recursive: true })
   fs.writeFileSync(path.join(decoyTaskRoot, '01-需求确认.md'), '# decoy CP1\n')
@@ -586,6 +658,107 @@ function runR2BTaskOwnerLifecycleScenarios() {
     success: true
   })
   assert.doesNotMatch(JSON.stringify(protectedCloseout), /ARTIFACT_MUTATION_NEEDS_RECONCILE/)
+
+  // Auto is evaluated only after task/owner/CP authority.  Allowlisted paths
+  // proceed without an Auto boundary warning, while non-allowlisted source
+  // paths retain safety-only warning / strict denial semantics.
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  state.executionMode = 'auto'
+  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir,
+    identity: recoveryIdentity,
+    sessionKey: sessionId,
+    state
+  }, { force: true, reserveBytes: 8 * 1024 * 1024 }).status, 'committed')
+
+  const autoCodexEntryPath = path.join(TEMP_ROOT, 'AGENTS.md')
+  const autoCodexHookPath = path.join(TEMP_ROOT, '.codex', 'hooks.json')
+  fs.mkdirSync(path.dirname(autoCodexHookPath), { recursive: true })
+  fs.writeFileSync(autoCodexEntryPath, '# before\n')
+  fs.writeFileSync(autoCodexHookPath, '{}\n')
+  const ownerBackedAutoCodexEntryAndHookAllowed = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r2b-owner-auto-whitelist',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: [
+        '*** Begin Patch',
+        `*** Update File: ${autoCodexEntryPath}`,
+        '@@',
+        '-# before',
+        '+# after',
+        `*** Update File: ${autoCodexHookPath}`,
+        '@@',
+        '-{}',
+        '+{"enabled":true}',
+        '*** End Patch'
+      ].join('\n')
+    }
+  })
+  assert.doesNotMatch(
+    JSON.stringify(ownerBackedAutoCodexEntryAndHookAllowed),
+    /auto-whitelist-boundary|TASK_WRITE_OWNER_|IMPLEMENT_START_WITHOUT_|cp-gate-/
+  )
+  fs.writeFileSync(autoCodexEntryPath, '# after\n')
+  fs.writeFileSync(autoCodexHookPath, '{"enabled":true}\n')
+  const ownerBackedAutoWhitelistCloseout = run({
+    hookEventName: 'PostToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r2b-owner-auto-whitelist',
+    tool_name: 'apply_patch',
+    tool_input: {
+      input: [
+        '*** Begin Patch',
+        `*** Update File: ${autoCodexEntryPath}`,
+        '@@',
+        '-# before',
+        '+# after',
+        `*** Update File: ${autoCodexHookPath}`,
+        '@@',
+        '-{}',
+        '+{"enabled":true}',
+        '*** End Patch'
+      ].join('\n')
+    },
+    success: true
+  })
+  assert.doesNotMatch(JSON.stringify(ownerBackedAutoWhitelistCloseout), /ARTIFACT_MUTATION_NEEDS_RECONCILE/)
+
+  const autoNonWhitelistPath = path.join(TEMP_ROOT, 'src', 'owner-backed-auto-non-whitelist.js')
+  fs.writeFileSync(autoNonWhitelistPath, 'module.exports = false\n')
+  const ownerBackedAutoNonWhitelistWarning = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r2b-owner-auto-non-whitelist',
+    tool_name: 'Write',
+    tool_input: { file_path: autoNonWhitelistPath, content: 'module.exports = true\n' }
+  })
+  assert.match(JSON.stringify(ownerBackedAutoNonWhitelistWarning), /auto-whitelist-boundary|仅对白名单路径/)
+  assert.strictEqual(ownerBackedAutoNonWhitelistWarning.continue, true)
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(state.turnLiveness.inFlightOperation?.operationId, 'r2b-owner-auto-non-whitelist')
+  fs.writeFileSync(autoNonWhitelistPath, 'module.exports = true\n')
+  const ownerBackedAutoNonWhitelistCloseout = run({
+    hookEventName: 'PostToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r2b-owner-auto-non-whitelist',
+    tool_name: 'Write',
+    tool_input: { file_path: autoNonWhitelistPath, content: 'module.exports = true\n' },
+    success: true
+  })
+  assert.doesNotMatch(JSON.stringify(ownerBackedAutoNonWhitelistCloseout), /ARTIFACT_MUTATION_NEEDS_RECONCILE/)
+
+  const ownerBackedAutoNonWhitelistBlockedStrict = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r2b-owner-auto-non-whitelist-strict',
+    tool_name: 'Write',
+    tool_input: { file_path: autoNonWhitelistPath, content: 'module.exports = false\n' }
+  }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
+  assert.strictEqual(ownerBackedAutoNonWhitelistBlockedStrict.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(JSON.stringify(ownerBackedAutoNonWhitelistBlockedStrict), /auto-whitelist-boundary|仅对白名单路径/)
 
   const sourceRoot = path.join(TEMP_ROOT, 'src', 'r3b-batch')
   fs.mkdirSync(sourceRoot, { recursive: true })

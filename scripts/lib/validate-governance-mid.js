@@ -99,12 +99,19 @@ function buildGovernanceMidChecks(ctx) {
   function checkV30() {
     const file = 'skills/routing/SKILL.md'
     const content = read(path.join(ROOT, file))
-    for (const needle of ['先读今日 tasks/YYYYMMDD.md', '再读 Agent SUMMARY.md']) {
+    for (const needle of [
+      'ActualInstructionEnvelopeV1',
+      'WorkspaceSessionRouteIndexV1（hint only）',
+      'exact task resolver / ProjectTargetLeaseV2',
+      'bounded task artifact + session/checkpoint rehydration',
+      'verify original WorkflowRouteDecisionV2'
+    ]) {
       if (!content.includes(needle)) {
         err(`[V30] resume restore ordering drift in ${file}: missing "${needle}"`)
       }
     }
-    if (content.includes('RESTORE → 先读 Agent SUMMARY.md')) {
+    if (content.includes('RESTORE → 先读 Agent SUMMARY.md') ||
+        content.includes('RESTORE → 先读今日 tasks/YYYYMMDD.md')) {
       err(`[V30] legacy resume restore ordering remains in ${file}`)
     }
     console.log('[V30] resume restore ordering sync checked')

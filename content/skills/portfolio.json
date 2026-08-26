@@ -6,7 +6,7 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "6549367fdb4c6f724025ce139c679fb989306a20314564cc2fb60033c1f58306",
+    "sourceDigest": "4900d34c9ce504215b31e9a47b7e016ae18fc4d1c1f2980c93af7952ea6bc3fb",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "2e734afb79ace75310556e7aabab78b0e221802685541619d8ed639d4f672b48",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
@@ -16,7 +16,7 @@
     "consumerInventoryFileCount": 647,
     "consumerInventoryDigest": "b5c765065ccc1528a1df90b389a64b291771e88035a1343594886e5093c51cfa",
     "consumerProjectionDigest": "90b839e9651d3b071c95303e454b3689c011dceeed5477120a04810dbaebaf4c",
-    "portfolioInputDigest": "80789a886666356bff5070ef1a19817a72dafc9335a01d65169d90fb306971a3"
+    "portfolioInputDigest": "28f495d96946033c221771d66ec37f5b2be5a967d8c9241f2297cc742b8dceb0"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -4699,8 +4699,8 @@
         "content/skills/compliance/SKILL.md"
       ],
       "source": "content/skills/compliance/SKILL.md",
-      "hash": "2d9825e9d27a9ca5755bb3e811ee002ca9e3255905a7afa74f0931cd8d4279da",
-      "sourceBytes": 23457,
+      "hash": "0705c49bf98e3e0c9a0abded03922c2487db77bf86715ae1df60738ab965d5e6",
+      "sourceBytes": 23654,
       "version": "1.19.0",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -5277,8 +5277,8 @@
         "content/skills/cp-gate/SKILL.md"
       ],
       "source": "content/skills/cp-gate/SKILL.md",
-      "hash": "bee3143bc2a2041a450aef079448ec621bbfc32ff93503fe8a3b5777aa7c1c39",
-      "sourceBytes": 29365,
+      "hash": "50434c245cebb89ee427568051bebf5ee6f821a0e856d780f9f37981aaf23589",
+      "sourceBytes": 29808,
       "version": "1.19.0",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -19982,8 +19982,8 @@
         "content/skills/test-router/SKILL.md"
       ],
       "source": "content/skills/test-router/SKILL.md",
-      "hash": "24c14887658d9ef53f258c99183b58c7515b175860da879a32bc63d5ded3add0",
-      "sourceBytes": 18851,
+      "hash": "82a074630a227d6f641af8439f377357ed36149021cd85ace01f4d7739cc9bde",
+      "sourceBytes": 19177,
       "version": "1.19.0",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",

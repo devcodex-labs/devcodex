@@ -139,12 +139,13 @@ version: 1.19.0
 
 - Auto v1.1 正式入口包括显式 `@devcodex-auto`、全局默认 `@rocky`、项目 Profile 配置的 `extensions.devcodex.autoAliases` 替换别名与明确自然语言 auto 授权；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；模糊提及、追问 auto 规则、普通“继续”或未生效昵称不等价于 auto 授权
 - **Sticky Auto**：有效入口命中后会话级保持 `executionMode=auto`（与 sticky 项目同量级 TTL）；后续无别名的确认/继续/补充不掉回 confirm；显式 `退出 auto` / `关闭自动模式` / `exit auto mode` / `切回确认模式` 或 sticky 过期/换会话后回到 confirm
-- **验证预算边界**：Auto 只可为当前 formal task 的 exact V0～V2 `BudgetCardV1` 签发 server-owned 根授权。失败后可凭完整 mutation observation，或 stable candidate 的同 HEAD、无新增 dirty 路径/节点/预算的 same-scope retry，合计签发最多两次 root-relative 有界续权；第三次必须 BLOCK，禁止自动更换根卡清零计数。plan-only 必须调用与真实执行相同的续权范围、终态与次数预检，但不得持久化或消耗 child authority；预览不能显示执行阶段必然拒绝的“可续权”。Auto ingress 超过 TTL 时只可在 task/session/context/revocation 精确一致下继续既有 root，创建/替换 root 仍需 fresh control。V3/full/release、新 heavy/副作用或超出根预算必须取得独立当前授权。confirm 模式只确认服务端唯一 pending card，不要求用户反复复制 digest；pause/stop/缩小范围立即撤销 pending/continuation/lease。
+- **验证预算边界**：Auto 只可为当前 formal task 的 exact V0～V2 `BudgetCardV1` 签发 server-owned 根授权。失败后可凭完整 mutation observation，或 stable candidate 的同 HEAD、无新增 dirty 路径/节点/预算的 same-scope retry，合计签发最多两次 root-relative 有界续权；同一 HEAD 的第三次必须 BLOCK，禁止用新根卡清零。若父运行已终态、无 live lease、父 candidate HEAD 是当前已提交 HEAD 的严格 Git 祖先，且 task/project/root/session/context/AutoRef/revocation 全部一致，当前节点、boundary、heavy、副作用与时间/hard/log 预算均为父根子集，则可用 `strict-descendant-same-scope` 创建一张带父 root/terminal digest 的新不可变根；它不是 child retry，也不得扩到 V3/full/release。plan-only 必须调用与真实执行相同的续权/根滚动预检，但不得持久化或消耗 child authority；预览不能显示执行阶段必然拒绝的“可续权”。Auto ingress 超过 TTL 时只可继续既有 root，或执行上述严格后代同范围根滚动；其他创建/替换 root 仍需 fresh control。confirm 模式只确认服务端唯一 pending card，不要求用户反复复制 digest；pause/stop/缩小范围立即撤销 pending/continuation/lease。
+- **标准流程与写权边界**：Auto 只免除 CP 确认处的人工等待，不免除正式任务准入、问题/需求概况与 canonical CP 产物落盘、digest-bound confirmation、`FencedTaskWriteOwnerLeaseV2`、单次 mutation lease 和 V5 prewrite。白名单只能决定上述前提全部满足后的 Auto 路径提醒/拦截，不能创建 task/owner、伪造 CP 或提前放行 mutation。
 - **别名匹配**：允许中文/标点贴靠（`请@rocky执行`）；`UserPromptSubmit` 注入 `ExecutionModeV1` 供模型消费；**白名单不因 sticky 扩大**
-- 仅在 `hook-enforced` 宿主中，对治理文件 / `.devcodex/` 产物 / README / auto 专属回归脚本等**白名单路径**启用自动推进
-- 非白名单路径默认切回确认模式，不承诺“所有源码任务自动执行”
-- `instruction-fallback` 宿主（如 JetBrains / Cursor）只保留 auto 规则语义，不承诺 runtime 级行为；支持 Hook 的宿主默认采用 `safety-only`：白名单边界输出提醒，`strict` 模式下才形成 runtime 硬拦截
-- CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认），但该自动通过只对白名单路径形成无提醒通过；非白名单路径在默认 `safety-only` 下提醒放行，在 `strict` 模式下拦截
+- 仅在 `hook-enforced` 宿主中，治理文件 / `.devcodex/` 产物 / README / auto 专属回归脚本等**白名单路径**在完成正式流程与写权校验后无额外 Auto 边界提醒；白名单路径不得绕过 implement-start 或 CP gate
+- 非白名单路径在默认 `safety-only` 下提醒后继续已获正式授权的 mutation，在 `strict` 下切回确认并拦截；不承诺“所有源码任务自动执行”
+- `instruction-fallback` 宿主（如 JetBrains / Cursor）只保留 auto 规则语义，不承诺 runtime 级行为；支持 Hook 的宿主默认采用 `safety-only`：非白名单边界输出提醒，`strict` 模式下才形成 runtime 硬拦截
+- CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认），含义是 Agent 仍须生成、持久化并回读对应产物与确认 receipt，只是不再停下来索要人工确认；它本身不授予源码写权
 - 以下约束**不可豁免**：S01（不可逆确认）/ S02 用户 / 项目敏感信息策略 / S03~S07 / C01 / C10 / C18。S02 不阻断明文、硬编码或真实秘密写入；它只禁止 AI 未经用户 / 项目要求自行加严、改成 env、`secretRef`、secret manager、`config.local.json` 或占位符。
 - 可恢复失败：重试 ≤ 2 次；不可恢复失败：切换回确认模式并通知用户 ⚠️
 

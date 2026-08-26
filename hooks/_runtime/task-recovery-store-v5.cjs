@@ -1170,6 +1170,35 @@ function buildMutationPreflightState(state) {
         buildMutationOwnerAuthorityRecovery(state, mutationLease)
       )
     : null
+  const cp3Runtime = {}
+  const boundTaskRootInput = String(binding.taskRoot || '').trim()
+  const boundTaskRoot = boundTaskRootInput ? path.normalize(boundTaskRootInput).toLowerCase() : ''
+  const boundTaskRuntimeKey = boundTaskRoot
+    ? `${String(binding.kind || '').trim()}:${boundTaskRoot}`
+    : ''
+  if (boundTaskRoot && state?.cp3Runtime && typeof state.cp3Runtime === 'object' && !Array.isArray(state.cp3Runtime)) {
+    for (const [key, value] of Object.entries(state.cp3Runtime)) {
+      if (!value || typeof value !== 'object' || Array.isArray(value) ||
+          String(key).toLowerCase() !== boundTaskRuntimeKey) continue
+      cp3Runtime[key] = {
+        kind: boundedRecoveryString(value.kind, 64),
+        name: boundedRecoveryString(value.name, 128),
+        trackedFiles: Array.isArray(value.trackedFiles)
+          ? value.trackedFiles.slice(0, 5).map(item => boundedRecoveryString(item, 256))
+          : [],
+        trackedFileDigests: Array.isArray(value.trackedFileDigests)
+          ? value.trackedFileDigests.slice(0, 5).map(item => boundedRecoveryString(item, 64))
+          : [],
+        triggered: value.triggered === true,
+        triggerType: boundedRecoveryString(value.triggerType, 32),
+        triggerReason: boundedRecoveryString(value.triggerReason, 256),
+        triggerCount: Number.isInteger(value.triggerCount) ? value.triggerCount : 0,
+        triggeredAt: boundedRecoveryString(value.triggeredAt, 64),
+        updatedAt: boundedRecoveryString(value.updatedAt, 64)
+      }
+      break
+    }
+  }
   const preflight = {
     version: state?.version,
     ...(hasV2Authority ? {} : {
@@ -1196,6 +1225,7 @@ function buildMutationPreflightState(state) {
           hostSessionId: boundedRecoveryString(context.hostSessionId, 256)
         }
     }),
+    ...(Object.keys(cp3Runtime).length ? { cp3Runtime } : {}),
     turnLiveness: {
       ...(hasV2Authority ? {} : { schemaVersion: turn.schemaVersion }),
       state: turn.state,
@@ -1271,6 +1301,10 @@ function materializeRecoveryState(read) {
   const materialized = {
     ...previousState,
     ...currentState,
+    cp3Runtime: {
+      ...(previousState.cp3Runtime || {}),
+      ...(currentState.cp3Runtime || {})
+    },
     taskRecoveryBinding: {
       ...(previousState.taskRecoveryBinding || {}),
       ...(currentState.taskRecoveryBinding || {})

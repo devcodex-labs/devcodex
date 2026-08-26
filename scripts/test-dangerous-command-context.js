@@ -81,7 +81,7 @@ expectBlocked("Write-Output 'Remove-Item target -Recurse -Force' | Invoke-Expres
 expectBlocked('mysql -e "DROP TABLE users;"', 'database command-string execution remains blocked')
 expectBlocked('echo "$(rm -rf build)"', 'command substitution inside output text remains executable')
 expectBlocked("rg -n 'rm -rf' hooks; Remove-Item build -Recurse -Force", 'a later destructive command in a compound line remains blocked')
-expectBlocked('Get-ChildItem -Path "E:\\Worker" -Recurse', 'actual workspace-root inventory remains blocked', 'workspace-root-scan-ban')
+expectBlocked(`Get-ChildItem -Path "${ROOT}" -Recurse`, 'actual workspace-root inventory remains blocked', 'workspace-root-scan-ban')
 expectBlocked('Get-ChildItem "C:\\Users\\example\\.grok\\skills"', 'actual host-skill inventory remains blocked', 'host-skill-inventory-ban')
 
 console.log('dangerous command context classification tests passed')

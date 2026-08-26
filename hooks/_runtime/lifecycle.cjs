@@ -95,6 +95,7 @@ const {
 } = require('./workflow-completion-contract.cjs')
 const {
   canonicalArtifactName,
+  createArtifactRootIdentity,
   decideArtifactMutation,
   hasTaskArtifact: registryHasTaskArtifact,
   readLayeredArtifactSlotRegistry,
@@ -2445,11 +2446,6 @@ function sameResolvedPath(left, right) {
   return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b
 }
 
-function artifactRootIdentityDigest(value) {
-  const normalized = path.normalize(path.resolve(String(value || '')))
-  return stableDigest(process.platform === 'win32' ? normalized.toLowerCase() : normalized)
-}
-
 function isSha256(value) {
   return /^[a-f0-9]{64}$/i.test(String(value || ''))
 }
@@ -2582,14 +2578,16 @@ function validateMutationAuthorizationBundle(state, operation, options = {}) {
   }
   const currentActiveRoot = getActiveNamespaceRoot(state)
   const currentProjectRoot = state.stickyProject?.physicalRoot || CONTEXT_ROOT
+  const currentActiveRootIdentity = createArtifactRootIdentity(currentActiveRoot)
+  const currentProjectRootIdentity = createArtifactRootIdentity(currentProjectRoot)
   if ((decision?.activeRootIdentity?.canonicalPath &&
-       !sameResolvedPath(decision.activeRootIdentity.canonicalPath, currentActiveRoot)) ||
-      decision?.activeRootIdentity?.digest !== artifactRootIdentityDigest(currentActiveRoot)) {
+       !sameResolvedPath(decision.activeRootIdentity.canonicalPath, currentActiveRootIdentity.canonicalPath)) ||
+      decision?.activeRootIdentity?.digest !== currentActiveRootIdentity.digest) {
     errors.push('artifact-active-root-drift')
   }
   if ((decision?.projectRootIdentity?.canonicalPath &&
-       !sameResolvedPath(decision.projectRootIdentity.canonicalPath, currentProjectRoot)) ||
-      decision?.projectRootIdentity?.digest !== artifactRootIdentityDigest(currentProjectRoot)) {
+       !sameResolvedPath(decision.projectRootIdentity.canonicalPath, currentProjectRootIdentity.canonicalPath)) ||
+      decision?.projectRootIdentity?.digest !== currentProjectRootIdentity.digest) {
     errors.push('artifact-project-root-drift')
   }
   if (decision?.contextEpoch !== state.contextAcquisition?.contextEpoch ||

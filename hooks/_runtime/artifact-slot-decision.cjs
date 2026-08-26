@@ -219,6 +219,15 @@ function canonicalizeTarget(target, activeRoot, options = {}) {
   }
 }
 
+function createArtifactRootIdentity(value, options = {}) {
+  const resolved = path.resolve(String(value || ''))
+  const canonical = canonicalizeTarget(resolved, resolved, options).activeRoot || resolved
+  return {
+    canonicalPath: canonical,
+    digest: digest(comparable(canonical))
+  }
+}
+
 function normalizeArtifactRoots(value, options = {}) {
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     return {
@@ -459,14 +468,8 @@ function decideArtifactMutation(input = {}, options = {}) {
   const anyFormal = inspected.some(item => item.status === 'logical' || ['unknown-formal', 'ambiguous-slot'].includes(item.classified?.matchType) || item.classified?.slot)
   const formalIntent = input.formalIntent === true || anyFormal
   const errors = []
-  const activeRootIdentity = {
-    canonicalPath: canonicalizeTarget(activeRoot, activeRoot, options).activeRoot || activeRoot,
-    digest: digest(comparable(activeRoot))
-  }
-  const projectRootIdentity = {
-    canonicalPath: canonicalizeTarget(projectRoot, projectRoot, options).activeRoot || projectRoot,
-    digest: digest(comparable(projectRoot))
-  }
+  const activeRootIdentity = createArtifactRootIdentity(activeRoot, options)
+  const projectRootIdentity = createArtifactRootIdentity(projectRoot, options)
 
   if (!formalIntent) {
     const semantic = {
@@ -726,6 +729,7 @@ module.exports = {
   canonicalizeAgainstRoots,
   canonicalizeTarget,
   classifyRelativeTarget,
+  createArtifactRootIdentity,
   decideArtifactMutation,
   enumerateTaskArtifacts,
   hasTaskArtifact,

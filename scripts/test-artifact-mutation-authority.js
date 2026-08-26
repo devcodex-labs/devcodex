@@ -15,6 +15,7 @@ const {
 } = require('../hooks/_runtime/mutation-footprint.cjs')
 const {
   decideArtifactMutation,
+  createArtifactRootIdentity,
   enumerateTaskArtifacts,
   hasTaskArtifact,
   isAuthoritativeTaskArtifact,
@@ -65,6 +66,32 @@ function decisionFor(payload, overrides = {}) {
 }
 
 try {
+  const canonicalIdentityRoot = path.join(tempRoot, 'canonical-root-identity')
+  const aliasIdentityRoot = path.join(tempRoot, 'alias-root-identity')
+  fs.mkdirSync(canonicalIdentityRoot, { recursive: true })
+  const comparablePath = value => process.platform === 'win32'
+    ? path.resolve(value).toLowerCase()
+    : path.resolve(value)
+  const aliasFs = {
+    realpathSync(value) {
+      return comparablePath(value) === comparablePath(aliasIdentityRoot)
+        ? canonicalIdentityRoot
+        : fs.realpathSync(value)
+    }
+  }
+  assert.deepStrictEqual(
+    createArtifactRootIdentity(aliasIdentityRoot, { fs: aliasFs }),
+    createArtifactRootIdentity(canonicalIdentityRoot),
+    'artifact root identity must bind the canonical filesystem root rather than an alias spelling'
+  )
+  const distinctIdentityRoot = path.join(tempRoot, 'distinct-root-identity')
+  fs.mkdirSync(distinctIdentityRoot, { recursive: true })
+  assert.notStrictEqual(
+    createArtifactRootIdentity(distinctIdentityRoot).digest,
+    createArtifactRootIdentity(canonicalIdentityRoot).digest,
+    'different canonical filesystem roots must retain different identities'
+  )
+
   const overview = write('00-问题概况.md')
   const cp1 = write('01-问题确认.md')
   const cp2 = write('02-修复方案.md')
@@ -637,5 +664,9 @@ try {
   assert(fs.existsSync(overview) && fs.existsSync(cp1))
   process.stdout.write('test-artifact-mutation-authority: ok\n')
 } finally {
-  fs.rmSync(tempRoot, { recursive: true, force: true })
+  if (process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1') {
+    process.stdout.write(`[test-artifact-mutation-authority] retained ${tempRoot}\n`)
+  } else {
+    fs.rmSync(tempRoot, { recursive: true, force: true })
+  }
 }

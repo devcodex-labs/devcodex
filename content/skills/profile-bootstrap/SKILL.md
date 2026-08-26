@@ -14,6 +14,7 @@ description: Profile 计划与分档生成 — 先预览目标根、推荐档位
 - 公开包、SDK、CLI、多模块、文档站、public API 或 runtime 配置明显的项目，Profile 初稿/复审必须执行 `FeatureInventoryProfileGate` / `FeatureInventorySchemaGate`：`06-功能清单.md` 是默认唯一规范清单，新生成内容使用 `FeatureInventorySchemaV2`，在 V1 十字段基础上增加生命周期状态、证据状态、证据日期和证据引用；扫描不能证明的字段写 `unverified` / 待人工确认，不得编造成 implemented/validated/released。validator 兼容读取 V1，但 V1 投影证据状态必须保持 `unverified`。
 - 执行 `ProfileGenerationContractGate` / `ProfileTierStandardGate` / `ProfileLifecycleClassificationGate`：生成器、CLI、加载器、validator、Prompt 和公开文档必须消费同一档位契约。首次创建默认仍以 `profile-lite` 为目标，但必须展示基于 package/目录/脚本证据的推荐档位；用户通过 `--tier` 明确选择后才升级。
 - 执行 `ProfileTierMigrationSafetyGate`：默认继承已检测档位；升级只补缺失文件并保留已有正文；未带 `--allow-downgrade` 时拒绝降档；显式降档只改档位声明并保留高档文件；`--dry-run` / `profile plan` 对目录、文件和备份必须零写入。
+- 执行 `ProfilePathPortabilityGate`：新生成 Profile 的直属 README 声明 `portable-v1`；项目内路径写语义根或相对路径，真实本机外部路径用同一行 machine-local marker 标注。只验证本次显式目标 Profile，禁止为了迁移一个项目而枚举或修改同工作区其他项目；未声明该契约的 legacy Profile 保持兼容。
 - 执行 `AllDevCodexProfileValidationGate`：workspace-namespace、规范维护项目或用户要求全项目校验时，生成/复审后运行 `node scripts/validate-all-profiles.js --workspace <workspace-root>` 或记录不可执行原因。
 - 执行 `ProfileGitExecutionPolicyGate`：新 Profile 的 `extensions.devcodex.git` 默认写 `unverified / no-auto-branch / explicit-only / unverified integration / sharedActionsRequireExplicitAuthorization=true`；只有项目事实与证据明确时才把 project overlay 收窄为 `solo/keep-current` 或团队策略，overlay 不得把共享动作授权降为 false。
 - 执行 `ProfileReleaseTruthAuthorityMatrixGate`：DevCodex Profile 草稿或同步不得从历史 changelog/versioned docs 推断当前版本；以 package/plugin 为 release authority，对账 project 01/05/07 与标明 DevCodex 规范版本的 workspace 01。发现 current claim 漂移时生成修订动作并让 validator 非零，历史 release 与 `06` 分能力状态保持原语义。
@@ -157,7 +158,7 @@ description: Profile 计划与分档生成 — 先预览目标根、推荐档位
 |------|------|
 | 1 | 检查目标 Profile 根是否存在 → legacy 为 `.devcodex/profile/`，workspace-namespace 工作区根为 `.devcodex/workspace/profile/`，明确项目为 `.devcodex/<project>/profile/`；不存在则创建 |
 | 2 | 检测现有档位；未显式指定 `--tier` 时继承现有档位，首次创建默认 `profile-lite`，同时输出证据驱动的推荐档位 |
-| 3 | 按统一生成契约逐文件检查：已存在 → 跳过；缺失 → 生成；升级时只更新 README 档位声明并保留正文 |
+| 3 | 按统一生成契约逐文件检查：新 README 写入 `portable-v1` 路径契约；已存在 → 跳过；缺失 → 生成；升级时只更新 README 档位声明并保留正文，不自动替 legacy Profile 启用路径迁移 |
 | 4 | 输出生成/跳过/档位更新/备份计数，并提示人工复核所有 `unverified` 字段 |
 | 5 | 退出码 0（即使全部 skip） |
 
@@ -198,4 +199,5 @@ profile        missing   (files 0/4; semantic 0/1; config missing — run: devco
 - ⛔ `profile plan` / `--dry-run` 禁止写目录、文件或备份；未显式授权禁止降档
 - ⛔ 功能清单禁止用关键词命中或无事实来源的占位行冒充完成；`01-项目信息.md` 不得复制 `06-功能清单.md` 的完整规范表
 - ⛔ 自动扫描默认不主动读取 `.env` / `.env.local` 等文件；用户或项目明确要求读取时可按指定范围读取并写入 Profile 说明
+- ⛔ 禁止在 Profile 长期规范中固化当前工作盘符 / 用户目录；禁止借路径迁移扫描或修改非目标项目
 - ⛔ 生成内容须明确标注"由 `devcodex profile init` 自动生成，需人工复核"

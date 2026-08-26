@@ -7,7 +7,7 @@ applyTo: .devcodex/**/profile/**
 
 > **路径**: `.devcodex/**/profile/README.md`
 > **触发**: `dev-init/SKILL.md` 或用户要求创建 Profile 时
-> **门禁**: `ProfileGenerationContractGate` / `FeatureInventorySchemaGate` / `ProfileTierMigrationSafetyGate`
+> **门禁**: `ProfileGenerationContractGate` / `FeatureInventorySchemaGate` / `ProfileTierMigrationSafetyGate` / `ProfilePathPortabilityGate`
 
 ---
 
@@ -17,6 +17,7 @@ applyTo: .devcodex/**/profile/**
 > **创建时间**: YYYY-MM-DD
 > **最后更新**: YYYY-MM-DD
 > **维护者**: [维护者]
+> **Profile 路径契约**: `portable-v1`
 
 ## 项目概述
 
@@ -27,6 +28,12 @@ applyTo: .devcodex/**/profile/**
 - 当前档位：`profile-lite | profile-standard | profile-closed-loop`
 - 生命周期：稳定基线 / 活文档 / 条件或本地文档
 - 生成前先运行：`devcodex profile plan --tier <tier>`
+
+## 路径可迁移契约
+
+- 项目内路径使用 `<workspace-root>`、`<project-root>`、`<active-root>` 或相对路径。
+- 真实本机外部资源可保留绝对路径，但同一行必须添加 `<!-- devcodex:path-scope=machine-local -->`。
+- validator 只检查本次显式目标 Profile 的顶层 Markdown；不得枚举或修改其他项目，历史报告与 receipt 不改写。
 
 ## Profile 文件索引
 

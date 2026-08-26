@@ -8,6 +8,15 @@ const assert = require('assert')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const KEEP_TEST_ARTIFACTS = process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1'
+
+function cleanupTestRoot (root) {
+  if (KEEP_TEST_ARTIFACTS) {
+    console.log(`[test-artifact-retained] ${root}`)
+    return
+  }
+  fs.rmSync(root, { recursive: true, force: true })
+}
 const {
   evaluateStopCompletionGate,
   extractLastAssistantMessage,
@@ -18,6 +27,7 @@ const {
   findActiveTaskRoot,
   PR1_MIN_BODY_BYTES
 } = require('../hooks/_runtime/lifecycle-stop-gate.cjs')
+const { createTaskIdentityV2 } = require('../mcp/task-admission-authority.cjs')
 
 /** Substantive PR-1 body that meets length + pass + substance ≥2 */
 function makeStrongPr1Body () {
@@ -274,7 +284,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
     assert.strictEqual(r.decision, 'block')
     assert.ok(r.gaps.includes('pr1-skipped'))
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true })
+    cleanupTestRoot(tmp)
   }
 }
 
@@ -294,7 +304,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
     })
     assert.ok(!r.gaps.includes('pr1-skipped'), `gaps=${r.gaps.join(',')}`)
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true })
+    cleanupTestRoot(tmp)
   }
 }
 
@@ -312,14 +322,19 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
     fs.writeFileSync(path.join(taskRoot, '02-修复方案.md'), '# bound bug design\n控制面 lifecycle\n', 'utf8')
     fs.writeFileSync(path.join(decoyRoot, '02-技术方案.md'), '# decoy design\n控制面 lifecycle\n', 'utf8')
     fs.writeFileSync(path.join(decoyRoot, '03-方案复审-PR1.md'), makeStrongPr1Body(), 'utf8')
-    fs.writeFileSync(path.join(taskRoot, '.memory', 'task-identity-v2.json'), JSON.stringify({
-      schemaVersion: 'TaskIdentityV2',
+    const portableIdentity = createTaskIdentityV2({
       taskId,
+      displayName: 'bound-bug',
+      aliases: [],
       project,
+      projectRootIdentityDigest: 'b'.repeat(64),
       taskKind: 'bugs',
+      entryVariant: 'continue',
       taskRootRelative: 'bugs/bound-bug',
-      projectRootIdentityDigest: rootIdentityDigest
-    }, null, 2), 'utf8')
+      createdAt: new Date().toISOString()
+    })
+    const identityPath = path.join(taskRoot, '.memory', 'task-identity-v2.json')
+    fs.writeFileSync(identityPath, JSON.stringify(portableIdentity, null, 2), 'utf8')
     const state = {
       activeProject: project,
       stickyProject: {
@@ -356,6 +371,18 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
     })
     assert(!reviewed.gaps.includes('pr1-skipped'), `gaps=${reviewed.gaps.join(',')}`)
 
+    fs.writeFileSync(identityPath, JSON.stringify({
+      ...portableIdentity,
+      identityDigest: 'c'.repeat(64)
+    }, null, 2), 'utf8')
+    assert.strictEqual(findActiveTaskRoot(state), null, 'tampered TaskIdentityV2 must fail closed')
+    fs.writeFileSync(identityPath, JSON.stringify({
+      ...portableIdentity,
+      schemaVersion: 'UnknownTaskIdentity'
+    }, null, 2), 'utf8')
+    assert.strictEqual(findActiveTaskRoot(state), null, 'unknown task identity schema must fail closed')
+    fs.writeFileSync(identityPath, JSON.stringify(portableIdentity, null, 2), 'utf8')
+
     const staleState = JSON.parse(JSON.stringify(state))
     staleState.taskRecoveryBinding.taskId = '87654321-4321-4321-8321-ba0987654321'
     assert.strictEqual(findActiveTaskRoot(staleState), null)
@@ -375,7 +402,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
     })
     assert(explicitlyStale.gaps.includes('pr1-task-binding-missing'))
   } finally {
-    fs.rmSync(activeRoot, { recursive: true, force: true })
+    cleanupTestRoot(activeRoot)
   }
 }
 
@@ -392,7 +419,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
     )
     assert.strictEqual(pr1EvidenceOk(taskRoot), false)
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true })
+    cleanupTestRoot(tmp)
   }
 }
 
@@ -406,7 +433,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
     fs.writeFileSync(path.join(taskRoot, '03-方案复审-PR1.md'), '# PR-1\nopen blocker = 0\n', 'utf8')
     assert.strictEqual(pr1EvidenceOk(taskRoot), false)
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true })
+    cleanupTestRoot(tmp)
   }
 }
 
@@ -426,7 +453,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
     fs.writeFileSync(path.join(taskRoot, '03-方案复审-PR1.md'), thin, 'utf8')
     assert.strictEqual(pr1EvidenceOk(taskRoot), false)
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true })
+    cleanupTestRoot(tmp)
   }
 }
 
@@ -444,7 +471,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
     )
     assert.strictEqual(pr1EvidenceOk(taskRoot), false)
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true })
+    cleanupTestRoot(tmp)
   }
 }
 

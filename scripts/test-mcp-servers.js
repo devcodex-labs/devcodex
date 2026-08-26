@@ -33,6 +33,7 @@ const { buildWorkflowRouteDecision } = require('../hooks/_runtime/workflow-route
 const { createWorkspaceSessionRouteIndex } = require('../hooks/_runtime/workspace-session-route-index-v1.cjs')
 const {
   computeProjectTargetLeaseDigest,
+  createTaskIdentityV2,
   executeTaskAdmission,
   executeTaskWriteOwner,
   executeWorkflowTaskTerminal
@@ -1478,15 +1479,47 @@ function testMemoryServerOwnedTakeoverObservation() {
     suffix: 'takeover-prior',
     nowMs: nowMs - 2 * 60 * 60 * 1000
   })
+  const taskId = '0da6244f-b4eb-4a6a-83ec-e9e31dc28937'
+  const taskRootRelative = 'bugs/MCP-native-takeover-task'
+  const taskRoot = path.join(activeRoot, ...taskRootRelative.split('/'))
+  fs.mkdirSync(path.join(taskRoot, '.memory'), { recursive: true })
+  const taskIdentity = createTaskIdentityV2({
+    taskId,
+    displayName: 'MCP native takeover task',
+    aliases: [],
+    project,
+    projectRootIdentityDigest: '9'.repeat(64),
+    taskKind: 'bugs',
+    entryVariant: 'continue',
+    taskRootRelative,
+    createdAt: new Date(nowMs - 24 * 60 * 60 * 1000).toISOString()
+  })
+  fs.writeFileSync(path.join(taskRoot, '.memory', 'task.json'), `${JSON.stringify(taskIdentity, null, 2)}\n`)
+  const confirmedArtifact = '01-问题确认.md'
+  const confirmedContent = '# 问题确认\n\nMCP portable takeover confirmed.\n'
+  fs.writeFileSync(path.join(taskRoot, confirmedArtifact), confirmedContent)
+  const confirmedDigest = crypto.createHash('sha256').update(confirmedContent).digest('hex')
+  fs.writeFileSync(path.join(taskRoot, '.memory', 'sessions.md'), [
+    '# MCP native takeover task — 工作流状态',
+    '',
+    '### CP 确认记录',
+    '',
+    '| CP | 状态 | artifactPath | version | sha256 | sourceMessage | confirmedAt |',
+    '|:--:|:----:|--------------|---------|--------|---------------|-------------|',
+    `| CP1 | ✅ | ${confirmedArtifact} | v1 | ${confirmedDigest} | mcp-test | ${new Date(nowMs - 60 * 60 * 1000).toISOString()} |`,
+    '| CP2 | ⏹️ | — | — | — | — | — |',
+    '| CP3 | ⏹️ | — | — | — | — | — |',
+    ''
+  ].join('\n'))
   const admissionInput = {
-    operation: 'admit',
+    operation: 'bind',
     activeRoot,
     project,
     actualInstructionEnvelope: priorIngress.actualInstructionEnvelope,
     workItemSet: priorIngress.workItemSet,
     workflowRouteDecision: priorIngress.workflowRouteDecision,
     projectTargetLease: priorIngress.projectTargetLease,
-    task: { taskKind: 'bugs', entryVariant: 'fix', displayName: 'MCP native takeover task' },
+    task: { taskId, taskKind: 'bugs', entryVariant: 'continue', taskRootRelative },
     overview: { content: '# 问题概况\n\nNative TaskIdentityV2 takeover.\n' }
   }
   const ownerIssuedAt = nowMs - 31 * 60 * 1000
@@ -1505,9 +1538,13 @@ function testMemoryServerOwnedTakeoverObservation() {
     nowMs: ownerIssuedAt,
     nonceFactory: () => `owner-${'a'.repeat(40)}`
   })
-  const taskRoot = path.join(activeRoot, ...admitted.taskRootRelative.split('/'))
   assert.strictEqual(fs.existsSync(path.join(taskRoot, '.memory', 'task.json')), true)
   assert.strictEqual(fs.existsSync(path.join(taskRoot, '.memory', 'task-identity-v2.json')), false)
+  assert.strictEqual(
+    JSON.parse(fs.readFileSync(path.join(taskRoot, '.memory', 'task.json'), 'utf8')).projectRootIdentityDigest,
+    '9'.repeat(64),
+    'MCP takeover must preserve the original physical-root provenance after relocation'
+  )
 
   const routeIndex = createWorkspaceSessionRouteIndex({
     metaDir: path.join(activeRoot, '.memory', 'hooks', 'legacy'),
@@ -4924,5 +4961,9 @@ testMemoryLocalCalendarAndWriterReaderContract()
 testAdjacentMcpPathArgumentsRejected()
 testMcpJsonLaunchContract()
 require('./test-v1178-batch-d.js')
-fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
+if (process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1') {
+  console.log(`MCP test artifacts retained: ${TEMP_ROOT}`)
+} else {
+  fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
+}
 process.stdout.write('mcp servers smoke test passed\n')

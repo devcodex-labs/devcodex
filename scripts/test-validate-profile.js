@@ -14,6 +14,8 @@ const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const VERSION = pkg.version
 const PACKAGE_NAME = pkg.name
 const TEMP_ROOTS = []
+const KEEP_TEST_ARTIFACTS = process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1'
+const PATH_PORTABILITY_ONLY = process.env.DEVCODEX_PROFILE_PATH_PORTABILITY_ONLY === '1'
 
 function writeFile(root, relativePath, content) {
     const filePath = path.join(root, relativePath)
@@ -330,6 +332,69 @@ function currentAssetInventoryDocument(overrides = {}) {
 
 function main() {
     try {
+        const { buildProfileBootstrapUtils } = require('./lib/profile-bootstrap-utils')
+        const generatedReadme = buildProfileBootstrapUtils({
+            fs,
+            path,
+            detectHostPlatform: () => 'test',
+            detectInstalledHostAssets: () => ({}),
+            processEnv: {}
+        }).genProfileReadme()
+        assert.match(generatedReadme, /Profile 路径契约：`portable-v1`/)
+
+        const portableRoot = createWorkspace([
+            currentProjectInfo(),
+            '',
+            '- 项目路径：`<project-root>`',
+            '- 活跃产物：`<active-root>`',
+            '- 站点链接：[/reference/configuration](/reference/configuration)',
+            '- 外部 DevDocs：`E:\\Worker\\DevDocs` <!-- devcodex:path-scope=machine-local -->'
+        ].join('\n'))
+        writeFile(portableRoot, '.devcodex/profile/README.md', [
+            '# README',
+            '',
+            '> Profile 路径契约：`portable-v1`。',
+            '- Profile 档位：profile-lite。',
+            '- 文档：https://example.com/reference'
+        ].join('\n'))
+        const portableResult = runValidate(portableRoot)
+        assert.strictEqual(portableResult.status, 0, `${portableResult.stdout}\n${portableResult.stderr}`)
+
+        const staleWindowsRoot = createWorkspace(currentProjectInfo())
+        writeFile(staleWindowsRoot, '.devcodex/profile/README.md', '# README\n\n> Profile 路径契约：`portable-v1`。\n- Profile 档位：profile-lite。\n')
+        writeFile(staleWindowsRoot, '.devcodex/profile/02-架构约束.md', '# 02\n\n- 源码：`D:\\Worker\\legacy-project`\n')
+        const staleWindowsResult = runValidate(staleWindowsRoot)
+        const staleWindowsOutput = `${staleWindowsResult.stdout}\n${staleWindowsResult.stderr}`
+        assert.strictEqual(staleWindowsResult.status, 1, staleWindowsOutput)
+        assert.match(staleWindowsOutput, /ProfilePathPortabilityGate 02-架构约束\.md:3/)
+
+        const stalePosixRoot = createWorkspace(currentProjectInfo())
+        writeFile(stalePosixRoot, '.devcodex/profile/README.md', '# README\n\n> Profile 路径契约：`portable-v1`。\n- Profile 档位：profile-lite。\n')
+        writeFile(stalePosixRoot, '.devcodex/profile/02-架构约束.md', '# 02\n\n- 源码：`/home/dev/legacy-project`\n')
+        const stalePosixResult = runValidate(stalePosixRoot)
+        const stalePosixOutput = `${stalePosixResult.stdout}\n${stalePosixResult.stderr}`
+        assert.strictEqual(stalePosixResult.status, 1, stalePosixOutput)
+        assert.match(stalePosixOutput, /ProfilePathPortabilityGate 02-架构约束\.md:3/)
+
+        for (const machineRoot of ['/root/work/legacy-project', '/Volumes/Dev/legacy-project', '/private/tmp/legacy-project']) {
+            const additionalPosixRoot = createWorkspace(currentProjectInfo())
+            writeFile(additionalPosixRoot, '.devcodex/profile/README.md', '# README\n\n> Profile 路径契约：`portable-v1`。\n- Profile 档位：profile-lite。\n')
+            writeFile(additionalPosixRoot, '.devcodex/profile/02-架构约束.md', `# 02\n\n- 源码：\`${machineRoot}\`\n`)
+            const additionalPosixResult = runValidate(additionalPosixRoot)
+            const additionalPosixOutput = `${additionalPosixResult.stdout}\n${additionalPosixResult.stderr}`
+            assert.strictEqual(additionalPosixResult.status, 1, `${machineRoot}\n${additionalPosixOutput}`)
+            assert.match(additionalPosixOutput, /ProfilePathPortabilityGate 02-架构约束\.md:3/)
+        }
+
+        const legacyPathRoot = createWorkspace(`${currentProjectInfo()}\n\n- 历史路径：\`D:\\Worker\\legacy-project\``)
+        const legacyPathResult = runValidate(legacyPathRoot)
+        assert.strictEqual(legacyPathResult.status, 0, `${legacyPathResult.stdout}\n${legacyPathResult.stderr}`)
+
+        if (PATH_PORTABILITY_ONLY) {
+            console.log('\x1b[32m✓ ProfilePathPortabilityGate targeted regression tests passed\x1b[0m')
+            return
+        }
+
         const legacyRoot = createWorkspace(legacyProjectInfo())
         const legacyResult = runValidateWithArgs(legacyRoot, ['--source-repo-profile'])
         const legacyOutput = `${legacyResult.stdout}\n${legacyResult.stderr}`
@@ -1086,7 +1151,12 @@ function main() {
         assert.strictEqual(batchEResult.status, 0, `${batchEResult.stdout}\n${batchEResult.stderr}`)
         console.log('\x1b[32m✓ validate-profile regression tests passed\x1b[0m')
     } finally {
-        TEMP_ROOTS.forEach(root => fs.rmSync(root, { recursive: true, force: true }))
+        if (KEEP_TEST_ARTIFACTS) {
+            console.log(`[validate-profile] retained ${TEMP_ROOTS.length} temporary roots`)
+            TEMP_ROOTS.forEach(root => console.log(`  ${root}`))
+        } else {
+            TEMP_ROOTS.forEach(root => fs.rmSync(root, { recursive: true, force: true }))
+        }
     }
 }
 

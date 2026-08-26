@@ -6,7 +6,7 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "4900d34c9ce504215b31e9a47b7e016ae18fc4d1c1f2980c93af7952ea6bc3fb",
+    "sourceDigest": "f0792b43653a2a0e7d9c03f4c6d11f43b97fac5a2b84fa31283d9968bee8c19b",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "2e734afb79ace75310556e7aabab78b0e221802685541619d8ed639d4f672b48",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 647,
     "consumerInventoryDigest": "b5c765065ccc1528a1df90b389a64b291771e88035a1343594886e5093c51cfa",
-    "consumerProjectionDigest": "90b839e9651d3b071c95303e454b3689c011dceeed5477120a04810dbaebaf4c",
-    "portfolioInputDigest": "28f495d96946033c221771d66ec37f5b2be5a967d8c9241f2297cc742b8dceb0"
+    "consumerProjectionDigest": "0720d6af8fa230f25c3d3d68a853e3c6363e97073b9c11035cdf6d604b065c7b",
+    "portfolioInputDigest": "ca34a29b3e20a5418632a3fb50189c318950771574e243148d9fa715a3ea89ea"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -30,7 +30,7 @@
     "conflictReviewedCount": 86,
     "operationalEvidenceCompleteCount": 86,
     "triggerPrecisionMeasuredCount": 3,
-    "instructionBudgetP95Bytes": 28223,
+    "instructionBudgetP95Bytes": 28537,
     "triggerQuality": "mixed",
     "sidecarPresentCount": 0,
     "publicCategoryCounts": {
@@ -11247,8 +11247,8 @@
         "content/skills/load-profile/SKILL.md"
       ],
       "source": "content/skills/load-profile/SKILL.md",
-      "hash": "8f13cb2d061d3e02e5a04a49052b00eb076675523064e535abc4d17f80fd48ec",
-      "sourceBytes": 24180,
+      "hash": "e7f5d3ec4a1aaf2d95d348a548cf59fe211d1168cd29ab7ba4ea433a709a0a69",
+      "sourceBytes": 24992,
       "version": "1.19.0",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -11621,8 +11621,8 @@
         "content/skills/memory/SKILL.md"
       ],
       "source": "content/skills/memory/SKILL.md",
-      "hash": "eb08deadc5e775b20b6550af206c1efe728fccfbe4b832705f9b274399171314",
-      "sourceBytes": 28761,
+      "hash": "e5ec469b2afd6e637592540ba62eef6298157445bb3c94178e007b7a8c78ef69",
+      "sourceBytes": 29075,
       "version": "1.19.0",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -14798,8 +14798,8 @@
         "content/skills/profile-bootstrap/SKILL.md"
       ],
       "source": "content/skills/profile-bootstrap/SKILL.md",
-      "hash": "c8a8949a95d3556bb2d1d444c0f71216426d8a91a50697253973e7671728d126",
-      "sourceBytes": 10943,
+      "hash": "c76717f3f0fd12aa9ea9b6710d41b8f60afc9fcc80ef1d88b5b30f9e0d00a796",
+      "sourceBytes": 11548,
       "version": "1.19.0",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -14892,12 +14892,17 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-validate-profile.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validation-manifest.json",
           "role": "current"
         }
       ],
       "validationProfile": [
         "scripts/test-skill-portfolio.js",
+        "scripts/test-validate-profile.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-24",
@@ -14946,6 +14951,7 @@
         "evolvableUnitRef": "skill:profile-bootstrap",
         "probeSuiteRefs": [
           "scripts/test-skill-portfolio.js",
+          "scripts/test-validate-profile.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",

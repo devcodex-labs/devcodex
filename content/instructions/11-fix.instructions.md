@@ -47,7 +47,7 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
 - **backlog 来源前置真相复核**：若本轮 bug、批次或修复范围直接来源于 `data/*.md` 的 open/partial 项，CP1 前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正范围口径，再进入修复。
 - **执行期 CP3 回退**：若执行过程中实际修改范围扩展到 CP3 门槛（文件数从 <5 增至 ≥5，或新增高风险/控制面联动），必须暂停执行，补做 CP3 后再继续。
 - **execution-contract/test-router**：≥5 文件、高风险、控制面或多批次修复时执行，明确允许路径、必需产物和验证路线
-- **执行 authority 不变量**：正式修复先通过 `memory_task_admit_v2` 进入 `TaskAdmissionTransactionV1`，create-if-absent 并回读 `TaskIdentityV2`、canonical 问题概况与 CP pending；源码 mutation 前必须 finalized admission、所需 CP confirmation 与 active `FencedTaskWriteOwnerLeaseV2`。route hint、resolver、“继续”、mtime 或旧 owner 不能替代。
+- **执行 authority 不变量**：正式修复先通过 `memory_task_admit_v2` 进入 `TaskAdmissionTransactionV1`，create-if-absent 并回读 `TaskIdentityV2`、canonical 问题概况与 CP pending；源码 mutation 前必须 finalized admission、所需 CP confirmation 与 active `FencedTaskWriteOwnerLeaseV2`。route hint、resolver、“继续”、mtime 或旧 owner 不能替代。工作区迁移只允许 portable task identity 在当前根重新准入并取得新 owner，禁止复用旧物理根的 lease / validation authority。
 - **RepairPreventionAssessmentGate**：所有 repair task 在 accepted 前执行 active `repair-prevention-assessment` 的 `RepairPreventionAssessmentV1`；current repair closure 与 prospective prevention evidence 必须分列，repeat escape/high risk 升 full，`no-new-control` 必须有标准 reason/evidence；gray `rework-prevention-engineering` 仅在返工指标或长期效果语义下额外触发
 - **Intent Expansion 可见性**：dev 模式下，CP1 / 问题确认前默认向用户展示完整 Intent Expansion Card；这会覆盖旧的“意图扩展摘要”默认行为，但当命中控制面或宿主能力差异、跨会话 resume、prod、instruction-fallback 宿主或低风险轻任务时，仍允许退化为 3~5 行意图扩展摘要。
 - **OfficialDocsEvidence**：依赖升级、框架/SDK/API 修复、平台行为变更或外部模块替换时，CP2 前必须读取官方使用文档/官方参考资料；缺失证据不得进入执行。

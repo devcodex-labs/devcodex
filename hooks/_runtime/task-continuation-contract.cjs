@@ -195,6 +195,50 @@ function validateTaskIdentityV2(value) {
   return { valid: errors.length === 0, errors }
 }
 
+function evaluatePortableTaskIdentityBinding(value, expected = {}) {
+  const errors = []
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {
+      schemaVersion: 'PortableTaskIdentityBindingDecisionV1',
+      valid: false,
+      errors: ['identity is required'],
+      relocated: false
+    }
+  }
+  if (expected.taskId && String(value.taskId || '').toLowerCase() !== String(expected.taskId).toLowerCase()) {
+    errors.push('taskId mismatch')
+  }
+  if (value.schemaVersion === TASK_IDENTITY_V2_SCHEMA) {
+    const identityValidation = validateTaskIdentityV2(value)
+    if (!identityValidation.valid) {
+      errors.push(...identityValidation.errors.map(error => `identity invalid: ${error}`))
+    }
+    if (expected.project && value.project !== expected.project) errors.push('project mismatch')
+    if (expected.taskKind && value.taskKind !== expected.taskKind) errors.push('taskKind mismatch')
+    if (expected.taskRootRelative && value.taskRootRelative !== String(expected.taskRootRelative).replace(/\\/g, '/')) {
+      errors.push('taskRootRelative mismatch')
+    }
+  } else {
+    errors.push(`schemaVersion must be ${TASK_IDENTITY_V2_SCHEMA}`)
+  }
+  const originProjectRootIdentityDigest = value.schemaVersion === TASK_IDENTITY_V2_SCHEMA
+    ? String(value.projectRootIdentityDigest || '')
+    : ''
+  const currentProjectRootIdentityDigest = String(expected.currentProjectRootIdentityDigest || '')
+  return {
+    schemaVersion: 'PortableTaskIdentityBindingDecisionV1',
+    valid: errors.length === 0,
+    errors,
+    relocated: Boolean(
+      originProjectRootIdentityDigest && currentProjectRootIdentityDigest &&
+      originProjectRootIdentityDigest !== currentProjectRootIdentityDigest
+    ),
+    originProjectRootIdentityDigest: originProjectRootIdentityDigest || null,
+    currentProjectRootIdentityDigest: currentProjectRootIdentityDigest || null,
+    liveAuthority: 'ProjectTargetLeaseV2+active-root-containment'
+  }
+}
+
 function materializeTaskIdentity({ taskRoot, displayName, aliases = [], taskId, createdAt, identityRevision = 1 }) {
   const absoluteTaskRoot = path.resolve(String(taskRoot || ''))
   if (!String(taskRoot || '').trim()) throw new TaskContinuationError('TASK_ROOT_REQUIRED', 'taskRoot is required')
@@ -823,6 +867,7 @@ module.exports = {
   TaskContinuationError,
   buildSuggestions,
   createTaskIdentity,
+  evaluatePortableTaskIdentityBinding,
   isStableTaskId,
   materializeTaskIdentity,
   normalizeTaskName,

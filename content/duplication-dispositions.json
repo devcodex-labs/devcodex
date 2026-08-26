@@ -165,7 +165,7 @@
     },
     {
       "id": "DP-024",
-      "candidateIds": ["exact-ee12e8a45a36"],
+      "candidateIds": ["exact-ee12e8a45a36", "exact-f15eae7cc073"],
       "decision": "extract",
       "fragment": "shared/profile/profile-read-chain.md",
       "reason": "profile instruction 与 Skill 共享同一读取链门禁。"

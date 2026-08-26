@@ -61,6 +61,7 @@ function buildProfileBootstrapUtils(context) {
 
 > 项目规范文件目录。由 \`devcodex profile init\` 于 ${new Date().toISOString().slice(0, 10)} 自动生成。
 > Profile 档位：\`${tier}\`。
+> Profile 路径契约：\`portable-v1\`。项目内路径使用 \`<workspace-root>\`、\`<project-root>\` 或 \`<active-root>\`；真实本机外部路径须在同一行标注 \`<!-- devcodex:path-scope=machine-local -->\`。
 > 生命周期：01~03 为稳定基线；04~07 为活文档；\`config.local.json\` 与 08+ 为条件 / 本地文档。
 
 | 文件 | 说明 |

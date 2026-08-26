@@ -41,6 +41,7 @@ const STORE_OPTIONS = {
   diskHeadroomBytes: 0,
   availableDiskBytes: 1024 * 1024 * 1024
 }
+const KEEP_TEST_ARTIFACTS = process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1'
 
 function setupRoot(name) {
   const physicalRoot = path.join(TEMP_ROOT, name)
@@ -861,7 +862,9 @@ try {
     displayName: '已有V2任务',
     aliases: ['既有任务'],
     project: bindRoot.project,
-    projectRootIdentityDigest: '2'.repeat(64),
+    // The copied task keeps its original physical-root provenance. Binding in
+    // the new root must use the current lease without rewriting task identity.
+    projectRootIdentityDigest: '9'.repeat(64),
     taskKind: 'bugs',
     entryVariant: 'continue',
     taskRootRelative: bindRelative,
@@ -896,6 +899,11 @@ try {
   })
   const bound = run(bindInput)
   assert.strictEqual(bound.phase, 'cp-state-written')
+  assert.strictEqual(
+    JSON.parse(fs.readFileSync(path.join(bindTaskRoot, '.memory', 'task.json'), 'utf8')).projectRootIdentityDigest,
+    '9'.repeat(64),
+    'workspace relocation must not rewrite immutable task-origin provenance'
+  )
   const bindMetaDir = resolveTaskRecoveryMetaDir({ activeRoot: bindRoot.activeRoot, project: bindRoot.project })
   const boundJournal = readTaskAdmissionTransaction({
     metaDir: bindMetaDir,
@@ -936,5 +944,6 @@ try {
     finalPhase: first.phase
   }))
 } finally {
-  fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
+  if (KEEP_TEST_ARTIFACTS) console.log(`[test-artifact-retained] ${TEMP_ROOT}`)
+  else fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
 }

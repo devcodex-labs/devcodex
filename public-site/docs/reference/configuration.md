@@ -4,6 +4,12 @@
 
 workspace-namespace 使用 workspace base + project overlay。配置只对所属 scope 生效；不要把另一个项目的 Profile 当成当前 active-root。术语见[术语表](/reference/glossary)。
 
+## Profile 路径可迁移
+
+DevCodex 新生成的 Profile 在直属 `README.md` 声明 `Profile 路径契约：portable-v1`。项目内路径使用 `<workspace-root>`、`<project-root>`、`<active-root>` 或相对路径，不把当前盘符、用户名或安装目录固化为项目规范。
+
+确属本机外部资源的路径可以保留，但必须在同一行添加 `<!-- devcodex:path-scope=machine-local -->`。`validate-profile` 只检查显式目标 Profile 的顶层 Markdown；不会因为一个项目迁移而扫描或修改同工作区的其他项目。未声明 `portable-v1` 的旧 Profile 保持兼容，历史报告、receipt 和审计证据也不会被迁移过程改写。
+
 ## 自动推进别名
 
 正式入口始终是 `@devcodex-auto`。默认快捷别名为 `@rocky`。

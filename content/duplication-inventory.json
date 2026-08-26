@@ -1,6 +1,6 @@
 {
   "schemaVersion": "ControlContentDuplicationInventoryV1",
-  "sourceBundleDigest": "aa199d8fcaa20407c0c50126e3c2617ed7b41ac6e0aa93f410fc8569d399618f",
+  "sourceBundleDigest": "3be1b188f032d171b3a82f8d82b356a73534e97ba9ad6b67ad8a2a01e282af34",
   "thresholds": {
     "minParagraphChars": 100,
     "sectionThreshold": 0.94,
@@ -8,9 +8,9 @@
     "minSectionLengthRatio": 0.85
   },
   "counts": {
-    "exactParagraph": 28,
+    "exactParagraph": 29,
     "nearSection": 4,
-    "total": 32
+    "total": 33
   },
   "candidates": [
     {
@@ -312,6 +312,17 @@
         "skills/load-profile/SKILL.md"
       ],
       "excerpt": "所有工作流的 Profile 获取都必须执行 `ProfileReadChainGate`；服务 / 框架规范复审、跨服务需求、workspace-namespace 或 Profile 同步任务还必须执行 `ServiceNormCoverageGate`："
+    },
+    {
+      "id": "exact-f15eae7cc073",
+      "kind": "exact-paragraph",
+      "digest": "f15eae7cc07378d624bba165ac4fc002cc4d62370dce70df00539fe174b18978",
+      "similarity": 1,
+      "files": [
+        "instructions/01a-profile-loading.instructions.md",
+        "skills/load-profile/SKILL.md"
+      ],
+      "excerpt": "- `ProfilePathPortabilityGate` 只对显式目标 Profile 生效：其直属 `README.md` 声明 `Profile 路径契约：portable-v1` 后，validator 仅检查该 Profile 顶层 Markdown，不得借此枚举或修改其他项目。\n- 项目内稳定路径必须使用 `<workspace-root>`、"
     },
     {
       "id": "exact-f93be1be0dd5",

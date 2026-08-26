@@ -73,7 +73,7 @@ status/current/month/day byte-range 分区。该索引不是记忆真相源：
 ### TaskRouteAdmissionGate
 
 - `WorkspaceSessionRouteIndexV1` 只保存有界 live route hint，不保存 CP、approval、artifact/validation authority；命中它只能帮助定位。`ProjectTargetLeaseV2` 必须继续复证 session/turn、canonical roots、layout/root identity、context 与 route revision。
-- 新正式任务使用 `memory_task_admit_v2` 进入可恢复 `TaskAdmissionTransactionV1`，由服务端生成/复用 ingress idempotency key，create-if-absent 并回读 `TaskIdentityV2`、canonical overview/问题概况与 CP pending。相同 ingress 重放为同一 task；displayName、目录名、mtime、模型摘要或手工文件不能替代准入。
+- 新正式任务使用 `memory_task_admit_v2` 进入可恢复 `TaskAdmissionTransactionV1`，由服务端生成/复用 ingress idempotency key，create-if-absent 并回读 `TaskIdentityV2`、canonical overview/问题概况与 CP pending。相同 ingress 重放为同一 task；displayName、目录名、mtime、模型摘要或手工文件不能替代准入。`TaskIdentityV2` 的 root digest 仅保留首次准入 provenance；迁移后仍须先通过完整 schema/core/`identityDigest` 校验，只允许相同 `taskId + project + taskRootRelative` 在当前 active-root containment 与新 `ProjectTargetLeaseV2` 下重新准入，旧根热态和 authority 不可继承。
 - CP confirmation 成功后，通过 `memory_task_write_owner` 对 `FencedTaskWriteOwnerLeaseV2` 做 generation/nonce/CAS。正式 mutation 只有 finalized admission + exact CP + active owner 才可继续；handoff/takeover/reopen 必须形成新 transition receipt，旧 nonce 永不恢复 authority。
 - 简单任务只能调用 `memory_task_fast_path_lease` 取得 `SimpleTaskFastPathLeaseV1`，最多 2 个同一边界 exact 低风险路径、最多 2 次 create-or-update；正式产物、公共契约、控制面、安全、依赖、发布、跨模块或第 3 个路径在写入前升级正式准入。低风险叙述型 Markdown 可走 `dev.docs` 轻路径，但配置/API/schema/security/release 文档属于公共契约，不可借此绕过。
 - 正式任务终态调用 `memory_task_terminal_v1`，以 ECR/report/memory/completion 四个互不复用的证据 identity 写 terminal receipt；成功后 route/owner 立即解绑。Stop/PreCompact 仅 checkpoint，不等价 terminal。

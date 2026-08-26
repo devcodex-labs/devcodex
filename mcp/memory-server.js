@@ -79,6 +79,7 @@ const {
 } = require('../scripts/lib/memory-summary-state.js')
 const {
   TaskContinuationError,
+  evaluatePortableTaskIdentityBinding,
   resolveTaskContinuation
 } = require('../hooks/_runtime/task-continuation-contract.cjs')
 const { createLinkCapabilityDecision } = require('../hooks/_runtime/visible-output-contract.cjs')
@@ -3537,20 +3538,26 @@ function stableTaskIdentityReadback(target, transaction, ingress, taskId) {
   try { identity = JSON.parse(raw) } catch (error) {
     throw taskAdmissionIngressError('TASK_WRITE_OWNER_CANONICAL_TASK_INVALID', `canonical TaskIdentityV2 JSON is invalid: ${error.message}`)
   }
-  if (identity?.schemaVersion !== 'TaskIdentityV2' || String(identity.taskId || '').toLowerCase() !== taskId ||
-      identity.project !== target.project || identity.taskRootRelative !== taskRootRelative ||
-      identity.projectRootIdentityDigest !== ingress.projectTargetLease.rootIdentityDigest ||
+  const portableBinding = evaluatePortableTaskIdentityBinding(identity, {
+    taskId,
+    project: target.project,
+    taskKind: String(transaction?.taskKind || ''),
+    taskRootRelative,
+    currentProjectRootIdentityDigest: ingress.projectTargetLease.rootIdentityDigest
+  })
+  if (identity?.schemaVersion !== 'TaskIdentityV2' || !portableBinding.valid ||
       identity.identityDigest !== transaction.taskIdentityDigest) {
     throw taskAdmissionIngressError(
       'TASK_WRITE_OWNER_CANONICAL_TASK_MISMATCH',
-      'canonical TaskIdentityV2 does not match the exact admission transaction and project lease'
+      'canonical TaskIdentityV2 does not match the portable task identity and exact admission transaction'
     )
   }
   return {
     source: path.relative(target.activeRoot, identityPath).replace(/\\/g, '/'),
     sourceDigest: crypto.createHash('sha256').update(raw).digest('hex'),
     identityDigest: identity.identityDigest,
-    taskRootRelative
+    taskRootRelative,
+    portableBinding
   }
 }
 

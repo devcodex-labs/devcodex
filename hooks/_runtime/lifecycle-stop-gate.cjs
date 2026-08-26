@@ -11,6 +11,7 @@
 
 const path = require('path')
 const fs = require('fs')
+const { evaluatePortableTaskIdentityBinding, validateTaskIdentity } = require('./task-continuation-contract.cjs')
 
 let analyzeFinalValidationSummarySample
 try {
@@ -135,9 +136,15 @@ function findActiveTaskRoot (state) {
     const identity = readBoundTaskIdentity(taskRoot)
     if (!identity || String(identity.taskId || '').toLowerCase() !== String(binding.taskId).toLowerCase()) return null
     if (identity.schemaVersion === 'TaskIdentityV2') {
-      if (identity.project !== expectedProject || identity.taskRootRelative !== relative) return null
-      if (lease?.rootIdentityDigest && identity.projectRootIdentityDigest !== lease.rootIdentityDigest) return null
-    }
+      const identityBinding = evaluatePortableTaskIdentityBinding(identity, {
+        taskId: binding.taskId,
+        project: expectedProject,
+        taskKind: segments[0],
+        taskRootRelative: relative,
+        currentProjectRootIdentityDigest: lease?.rootIdentityDigest
+      })
+      if (!identityBinding.valid) return null
+    } else if (!validateTaskIdentity(identity).valid) return null
     return taskRoot
   } catch {
     return null

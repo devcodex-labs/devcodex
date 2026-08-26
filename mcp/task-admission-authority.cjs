@@ -13,6 +13,7 @@ const {
   verifyWorkflowRouteDecision
 } = require('../hooks/_runtime/workflow-route-decision-v2.cjs')
 const {
+  evaluatePortableTaskIdentityBinding,
   validateTaskIdentity
 } = require('../hooks/_runtime/task-continuation-contract.cjs')
 const {
@@ -417,15 +418,36 @@ function existingIdentityPlan(input, options = {}) {
       throw new TaskAdmissionError('TASK_IDENTITY_V2_REQUIRED', validation.errors.join('; '))
     }
     const identity = identityRead.value
-    if (identity.project !== input.project || identity.projectRootIdentityDigest !== input.projectTargetLease.rootIdentityDigest ||
-        identity.taskKind !== input.task.taskKind || identity.taskRootRelative !== taskRootRelative) {
-      throw new TaskAdmissionError('TASK_IDENTITY_V2_BINDING_MISMATCH', 'existing TaskIdentityV2 does not match the current project/kind/root lease')
+    const portableBinding = evaluatePortableTaskIdentityBinding(identity, {
+      taskId: input.task.taskId,
+      project: input.project,
+      taskKind: input.task.taskKind,
+      taskRootRelative,
+      currentProjectRootIdentityDigest: input.projectTargetLease.rootIdentityDigest
+    })
+    if (!portableBinding.valid) {
+      throw new TaskAdmissionError('TASK_IDENTITY_V2_BINDING_MISMATCH', portableBinding.errors.join('; '))
     }
+    // projectRootIdentityDigest records the physical root that first admitted the
+    // task. It is immutable provenance, not a permanent disk-location binding.
+    // Current mutation authority remains fenced by ProjectTargetLeaseV2 and the
+    // active-root-contained task path, so a workspace relocation can rebind the
+    // same stable task without inheriting authority from the old physical root.
     return {
       directoryDecision,
       identity,
       identityPath: identityRead.filePath,
       migration: null,
+      relocation: !portableBinding.relocated
+        ? null
+        : {
+            schemaVersion: 'TaskIdentityRelocationObservationV1',
+            taskId: identity.taskId,
+            originProjectRootIdentityDigest: portableBinding.originProjectRootIdentityDigest,
+            currentProjectRootIdentityDigest: portableBinding.currentProjectRootIdentityDigest,
+            authority: 'current-project-target-lease',
+            mutationAuthority: false
+          },
       legacyCpCompatibility: primary.value.schemaVersion === 'TaskIdentityV1'
     }
   }

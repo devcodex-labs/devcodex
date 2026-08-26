@@ -18,6 +18,8 @@ DevCodex 是跨宿主 AI Coding 工程 Harness，技术上是本地优先、文�
 
 TaskRecoveryStoreV5 不按每次 Hook/工具状态变化创建 UUID 全快照。正式任务数量没有硬上限，但默认总量 soft/hard 为 256/512 MiB，并保留 8 MiB closeout reserve；达到 hard 时普通 mutation 被阻止，不会静默删除活跃任务。现有 legacy 文件仍可能占用较大磁盘，本版本只停止新 writer 继续制造，等待用户未来明确授权后再处理历史清理。
 
+正式任务身份不以盘符作为永久 identity。`TaskIdentityV2` 中的 root digest 仅保留首次准入 provenance；工作区复制或迁移后，完整 identity schema/core/digest 必须先通过验证，再以稳定 `taskId`、项目名和 active-root 相对任务路径复用同一正式任务，并由新位置的 `ProjectTargetLeaseV2`、admission 与 fenced owner 重新授予实时 authority。旧位置的 TaskRecovery 热态、BudgetCard 和 mutation lease 不会被继承，也不会在未确认时自动删除；历史报告中的旧绝对路径可作为当时运行 provenance 保留。
+
 安装 runtime generation 不采用“只留 N 个”的淘汰策略。当前、活动 process/activation lease、本机 adoption 后 24 小时宽限或任何 unknown 证据都保留；只有 DevCodex-owned immutable orphan 会进入只读计划，且必须用该计划的完整 SHA-256 显式应用。GC claim 与安装激活互斥，全部候选预检通过前零删除。普通 maintenance apply、安装或状态查询都不会隐式执行 generation GC，JSON 只投影有界样本而不把完整回执送入模型上下文。
 
 DevCodex 不改变模型参数、权重、上下文窗口或基础推理上限。所谓工程能力提升，来自上下文、Skill、工作流、工具、记忆、验证与证据链的组合，而不是对底层模型做训练或参数修改。

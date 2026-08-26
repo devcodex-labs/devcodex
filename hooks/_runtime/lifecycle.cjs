@@ -116,9 +116,11 @@ const {
   resolveWorkspaceProjectTarget
 } = require('./workspace-layout.cjs')
 const {
+  evaluatePortableTaskIdentityBinding,
   TaskContinuationError,
   parseContinuationCommand,
-  resolveTaskContinuation
+  resolveTaskContinuation,
+  validateTaskIdentity
 } = require('./task-continuation-contract.cjs')
 const {
   decideTaskContinuationTarget
@@ -1477,10 +1479,14 @@ function bindTaskRecoveryState(state, task) {
   const activeRoot = getActiveNamespaceRoot(state)
   const relativeTaskRoot = path.relative(path.resolve(activeRoot), taskRoot)
   if (!relativeTaskRoot || relativeTaskRoot === '..' || relativeTaskRoot.startsWith(`..${path.sep}`) || path.isAbsolute(relativeTaskRoot)) return false
-  if (identity.schemaVersion === 'TaskIdentityV2' && (
-    identity.taskRootRelative !== relativeTaskRoot.replace(/\\/g, '/') ||
-    identity.projectRootIdentityDigest !== state.stickyProject?.rootIdentityDigest
-  )) return false
+  if (identity.schemaVersion === 'TaskIdentityV2' && !evaluatePortableTaskIdentityBinding(identity, {
+    taskId,
+    project,
+    taskKind: String(task?.kind || ''),
+    taskRootRelative: relativeTaskRoot,
+    currentProjectRootIdentityDigest: state.stickyProject?.rootIdentityDigest
+  }).valid) return false
+  if (identity.schemaVersion !== 'TaskIdentityV2' && !validateTaskIdentity(identity).valid) return false
   const ownerRead = readFencedTaskWriteOwner({
     metaDir: resolveTaskRecoveryMetaDir({ activeRoot, project, taskId }),
     identity: { activeRoot, project, taskId, taskStatus: 'active' }

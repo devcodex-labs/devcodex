@@ -78,7 +78,7 @@ daily/SUMMARY 仍是唯一真相源：受管 writer 在文件提交后刷新索�
 
 ### TaskIdentity / TaskResolution 真相边界
 
-新正式任务只能由 `memory_task_admit_v2` 的 `TaskAdmissionTransactionV1` 在准入事务内同步 create-if-absent `<task-root>/.memory/task.json`（`TaskIdentityV2`：稳定 UUID `taskId`、`displayName`、去重 `aliases`、project/root identity、task kind/entry variant、递增 `identityRevision` 与 digest），并回读 canonical overview/问题概况和 CP pending。`project/kind/path` 从安全目录与 `ProjectTargetLeaseV2` 派生，status/CP 继续只由 sessions 与绑定 artifact digest 决定。legacy `TaskIdentityV1` 仅可读唯一解析；查询不得主动物化 identity，手工目录/mtime/模型摘要不得作为准入。派生 index 损坏、锁竞争或写预算达限时走 bounded rebuild/bypass，不得覆盖 canonical task/session。
+新正式任务只能由 `memory_task_admit_v2` 的 `TaskAdmissionTransactionV1` 在准入事务内同步 create-if-absent `<task-root>/.memory/task.json`（`TaskIdentityV2`：稳定 UUID `taskId`、`displayName`、去重 `aliases`、project、首次准入 root provenance、task kind/entry variant、相对任务路径与 digest），并回读 canonical overview/问题概况和 CP pending。`projectRootIdentityDigest` 是首次准入 provenance，不是永久磁盘位置 authority；实时项目 authority 只来自当前 `ProjectTargetLeaseV2`。工作区迁移后，只有完整 schema/core/`identityDigest` 验证通过且 `taskId + project + taskRootRelative` 相同、任务目录受当前 active-root containment 约束时才可重绑定；旧根 TaskRecovery 热态失效，当前根重新水合 hot state、admission 与 owner，禁止沿用旧 lease / BudgetCard / mutation authority，也不自动删除旧槽。status/CP 继续只由 sessions 与绑定 artifact digest 决定。legacy `TaskIdentityV1` 仅可读唯一解析；查询不得主动物化 identity，手工目录/mtime/模型摘要不得作为准入。派生 index 损坏、锁竞争或写预算达限时走 bounded rebuild/bypass，不得覆盖 canonical task/session。
 结构化记忆投影必须携带可验证的 `ContentIdentityV1`；telemetry、wall clock 和调用身份不进入内容 digest。旧 `memory_session_read` / `memory_summary_read` 保持兼容，但 no-args 全文结果不是生产默认路径，也不能单独把 `ContextReadReceiptV2`（或兼容的 `ContextReadReceiptV1`）推进到 `relevant-complete/completed`。
 
 ### TaskRouteAdmissionRecoveryGate

@@ -26,8 +26,13 @@ const { checkHostSkillInventoryListing, isHostSkillInventoryTarget, checkDangero
 assert.strictEqual(isHostSkillInventoryTarget('C:\\Users\\shihu\\.grok\\skills'), true)
 assert.strictEqual(isHostSkillInventoryTarget('C:\\Users\\shihu\\.grok\\bundled\\skills'), true)
 assert.strictEqual(isHostSkillInventoryTarget('C:\\Users\\shihu\\.agents\\skills'), true)
+assert.strictEqual(isHostSkillInventoryTarget('C:\\Users\\shihu\\.codex\\skills'), true)
 assert.strictEqual(
   isHostSkillInventoryTarget('C:\\Users\\shihu\\.agents\\devcodex\\skills\\skill-load-verify\\SKILL.md'),
+  false
+)
+assert.strictEqual(
+  isHostSkillInventoryTarget('C:\\Users\\shihu\\.codex\\skills\\.system\\openai-docs\\SKILL.md'),
   false
 )
 
@@ -60,5 +65,17 @@ const allowGRuntime = checkHostSkillInventoryListing({
   tool_input: { path: 'C:\\Users\\shihu\\.agents\\devcodex\\skills\\skill-load-verify\\SKILL.md' }
 }, 'grok')
 assert.strictEqual(allowGRuntime, null, 'G_RUNTIME single skill read allowed')
+
+const allowCodexSystemSkill = checkHostSkillInventoryListing({
+  tool_name: 'read_file',
+  tool_input: { path: 'C:\\Users\\shihu\\.codex\\skills\\.system\\openai-docs\\SKILL.md' }
+}, 'codex')
+assert.strictEqual(allowCodexSystemSkill, null, 'exact Codex system SKILL.md read allowed')
+
+const blockCodexSkillRoot = checkHostSkillInventoryListing({
+  tool_name: 'list_dir',
+  tool_input: { path: 'C:\\Users\\shihu\\.codex\\skills' }
+}, 'codex')
+assert.ok(blockCodexSkillRoot && blockCodexSkillRoot.code === 'host-skill-inventory-ban', 'Codex skill root inventory remains banned')
 
 console.log('test-host-skill-inventory-ban: ok')

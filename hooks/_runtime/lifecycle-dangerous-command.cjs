@@ -324,10 +324,12 @@ function buildLifecycleDangerousCommandUtils({
   function isHostSkillInventoryTarget (targetPath) {
     const n = normalizePathSlash(targetPath)
     if (!n) return false
-    // Single skill body under DevCodex G_RUNTIME is OK
-    if (/\/\.agents\/devcodex\/skills\/[^/]+\/(?:skill\.md)?$/i.test(n) && !n.endsWith('/skills') && !n.endsWith('/skills/')) {
-      if (/\/skill\.md$/i.test(n) || /\/\.agents\/devcodex\/skills\/[^/]+$/i.test(n)) return false
-    }
+    // A caller that already knows the exact skill body is reading one file,
+    // not enumerating a host catalog. This includes Codex system/plugin skills
+    // as well as the DevCodex G_RUNTIME projection. Directory roots remain
+    // blocked below.
+    if (/\/(?:\.grok\/(?:bundled\/)?skills|\.claude\/skills|\.codex\/skills|\.gemini\/skills|\.copilot\/skills|\.agents\/(?:devcodex\/)?skills)\/.+\/skill\.md$/i.test(n)) return false
+    if (/\/\.agents\/devcodex\/skills\/[^/]+$/i.test(n)) return false
     const bans = [
       /\/\.grok\/skills(?:\/|$)/,
       /\/\.grok\/bundled\/skills(?:\/|$)/,

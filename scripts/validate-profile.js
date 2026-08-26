@@ -84,6 +84,8 @@ const workspaceProfileDir = explicitWorkspaceProfileDir
 
 const errors = []
 const warnings = []
+const PROFILE_PATH_CONTRACT_PATTERN = /Profile\s*路径契约\s*[：:]\s*`?portable-v1`?/i
+const PROFILE_MACHINE_LOCAL_MARKER = '<!-- devcodex:path-scope=machine-local -->'
 const pluginVersion = (() => {
   try {
     return JSON.parse(fs.readFileSync(path.join(PLUGIN_ROOT, 'plugin.json'), 'utf8')).version
@@ -113,6 +115,46 @@ function extractVersion(label, text) {
 
 function readFileIfExists(filePath) {
   return filePath && fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : ''
+}
+
+/**
+ * Return the first machine-bound absolute path on a Profile line.
+ * URLs and site-root links are intentionally outside the local path families.
+ */
+function findMachineBoundProfilePath(line) {
+  const text = String(line || '')
+  const windows = text.match(/(?:^|[\s"'`|([{])((?:[A-Za-z]:[\\/]|\\\\[^\\\s]+\\[^\\\s]+)[^\s"'`<>|)\]}]*)/)
+  if (windows) return windows[1]
+  const posix = text.match(/(?:^|[\s"'`|([{])((?:\/(?:home|Users|root|mnt|workspace|workspaces|tmp|var(?:\/folders)?|private\/(?:tmp|var)|opt|srv|usr|etc|Volumes))(?:\/[^\s"'`<>|)\]}]*)?)/)
+  return posix ? posix[1] : ''
+}
+
+/**
+ * Enforce portable-v1 only for the explicitly targeted project Profile.
+ * Legacy Profiles remain readable until their own README opts into the contract.
+ */
+function validateProfilePathPortability() {
+  const directReadme = readFileIfExists(path.join(profileDir, 'README.md'))
+  if (!PROFILE_PATH_CONTRACT_PATTERN.test(directReadme)) return
+
+  const entries = fs.readdirSync(profileDir, { withFileTypes: true })
+    .filter(entry => entry.isFile() && entry.name.toLowerCase().endsWith('.md'))
+    .sort((left, right) => left.name.localeCompare(right.name))
+
+  for (const entry of entries) {
+    const lines = fs.readFileSync(path.join(profileDir, entry.name), 'utf8').split(/\r?\n/)
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = lines[index]
+      if (line.includes(PROFILE_MACHINE_LOCAL_MARKER)) continue
+      const absolutePath = findMachineBoundProfilePath(line)
+      if (!absolutePath) continue
+      err(
+        `[profile] ProfilePathPortabilityGate ${entry.name}:${index + 1} uses machine-bound absolute path ` +
+        `${JSON.stringify(absolutePath)}; use <workspace-root>/<project-root>/<active-root> or mark a real external path ` +
+        `with ${PROFILE_MACHINE_LOCAL_MARKER}`
+      )
+    }
+  }
 }
 
 function extractCurrentReleaseClaims(fileName, text) {
@@ -925,6 +967,7 @@ const styleText = readProfileFile('03-代码风格.md')
 const projectInfoText = readProfileFile('01-项目信息.md')
 const releaseProfileText = readProfileFile('05-发布规范.md')
 const alternativeReleaseProfileText = readProfileFile('05-交付发布规范.md')
+validateProfilePathPortability()
 let profileCurrentTruthHeadingCount = 0
 for (const [fileName, text] of [
   ['05-发布规范.md', releaseProfileText],

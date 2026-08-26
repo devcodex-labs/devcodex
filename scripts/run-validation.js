@@ -668,7 +668,16 @@ function tryResolveAutoContinuation({ plan, candidate, authorityContext, store, 
   }
 }
 
-function resolveAiBudgetAuthority({ options, plan, candidate, authorityContext, activeRoot, execute, manifest = null }) {
+function resolveAiBudgetAuthority({
+  options,
+  plan,
+  candidate,
+  authorityContext,
+  activeRoot,
+  execute,
+  manifest = null,
+  gitRepoRoot = ROOT
+}) {
   if (!authorityContext.taskIdentity || !authorityContext.sessionKey || !authorityContext.taskRecoveryKey) {
     throw new ValidationDagError('VALIDATION_AI_TASK_BINDING_REQUIRED', 'AI BudgetCard authority requires one current formal task session')
   }
@@ -702,7 +711,8 @@ function resolveAiBudgetAuthority({ options, plan, candidate, authorityContext, 
     plan,
     candidate,
     control,
-    authorityContext
+    authorityContext,
+    repoRoot: gitRepoRoot
   })
   if (!controlValidation.valid && !expiredRootContinuation) {
     if (!execute) {

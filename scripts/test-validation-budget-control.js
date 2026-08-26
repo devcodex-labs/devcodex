@@ -262,6 +262,44 @@ function persistRepairCloseout({ activeRoot, metaDir, identity, sessionKey, repa
   return read.state
 }
 
+function createGitLineageFixture(fixtureRoot) {
+  const repoRoot = path.join(fixtureRoot, 'git-lineage')
+  fs.mkdirSync(repoRoot, { recursive: true })
+  execFileSync('git', ['init', '--quiet'], {
+    cwd: repoRoot,
+    windowsHide: true
+  })
+  const heads = []
+  for (let index = 0; index < 3; index += 1) {
+    const timestamp = `2020-01-01T00:00:0${index}Z`
+    execFileSync('git', [
+      '-c', 'user.name=DevCodex Test',
+      '-c', 'user.email=devcodex-test@example.invalid',
+      '-c', 'commit.gpgSign=false',
+      'commit', '--allow-empty', '--quiet', '--no-gpg-sign', '-m', `lineage-${index}`
+    ], {
+      cwd: repoRoot,
+      windowsHide: true,
+      env: {
+        ...process.env,
+        GIT_AUTHOR_DATE: timestamp,
+        GIT_COMMITTER_DATE: timestamp
+      }
+    })
+    heads.push(execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      windowsHide: true
+    }).trim())
+  }
+  return {
+    repoRoot,
+    ancestorHead: heads[0],
+    previousHead: heads[1],
+    currentHead: heads[2]
+  }
+}
+
 function main() {
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-validation-budget-control-'))
   const activeRoot = path.join(fixtureRoot, '.devcodex', 'devcodex')
@@ -604,21 +642,12 @@ function main() {
       sessionKey: rolloverSession,
       control: rolloverControl
     })
-    const currentHead = execFileSync('git', ['rev-parse', 'HEAD'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-      windowsHide: true
-    }).trim()
-    const previousHead = execFileSync('git', ['rev-parse', 'HEAD^'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-      windowsHide: true
-    }).trim()
-    const ancestorHead = execFileSync('git', ['rev-parse', 'HEAD^^'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-      windowsHide: true
-    }).trim()
+    const {
+      repoRoot: rolloverGitRoot,
+      currentHead,
+      previousHead,
+      ancestorHead
+    } = createGitLineageFixture(fixtureRoot)
     const rolloverRootPlan = fixturePlan(rolloverTaskId, contextEpoch, 'root-rollover-parent')
     const rolloverRootCandidate = { ...fixtureCandidate('root-rollover-parent'), head: ancestorHead }
     const rolloverContext = authorityContext({
@@ -633,7 +662,8 @@ function main() {
       candidate: rolloverRootCandidate,
       authorityContext: rolloverContext,
       activeRoot,
-      execute: true
+      execute: true,
+      gitRepoRoot: rolloverGitRoot
     })
     const rolloverStore = createValidationEvidenceStore({
       activeRoot,
@@ -679,7 +709,8 @@ function main() {
         candidate: rolloverNextCandidate,
         authorityContext: rolloverNextContext,
         activeRoot,
-        execute
+        execute,
+        gitRepoRoot: rolloverGitRoot
       }), 'VALIDATION_CONTINUATION_SCOPE_WIDENED')
     }
     const rolloverPreview = resolveAiBudgetAuthority({
@@ -688,7 +719,8 @@ function main() {
       candidate: rolloverNextCandidate,
       authorityContext: rolloverNextContext,
       activeRoot,
-      execute: false
+      execute: false,
+      gitRepoRoot: rolloverGitRoot
     })
     assert.strictEqual(rolloverPreview.decision, 'auto-root-rollover-plan-only')
     const rolloverExecution = resolveAiBudgetAuthority({
@@ -697,7 +729,8 @@ function main() {
       candidate: rolloverNextCandidate,
       authorityContext: rolloverNextContext,
       activeRoot,
-      execute: true
+      execute: true,
+      gitRepoRoot: rolloverGitRoot
     })
     assert.strictEqual(rolloverExecution.decision, 'auto-root-rollover-authorized')
     assert.strictEqual(rolloverExecution.authority.parentRootReceiptDigest, rolloverRoot.authority.receiptDigest)
@@ -738,7 +771,8 @@ function main() {
       candidate: completedRolloverCandidate,
       authorityContext: completedRolloverContext,
       activeRoot,
-      execute: false
+      execute: false,
+      gitRepoRoot: rolloverGitRoot
     })
     assert.strictEqual(completedRolloverPreview.decision, 'auto-root-rollover-plan-only')
     const completedRolloverExecution = resolveAiBudgetAuthority({
@@ -747,7 +781,8 @@ function main() {
       candidate: completedRolloverCandidate,
       authorityContext: completedRolloverContext,
       activeRoot,
-      execute: true
+      execute: true,
+      gitRepoRoot: rolloverGitRoot
     })
     assert.strictEqual(completedRolloverExecution.decision, 'auto-root-rollover-authorized')
     assert.strictEqual(completedRolloverExecution.authority.parentRootReceiptDigest,
@@ -1054,7 +1089,11 @@ function main() {
       currentPending.bindingDigest, 'failed pending CAS must preserve the unique current binding')
     process.stdout.write('test-validation-budget-control: ok\n')
   } finally {
-    fs.rmSync(fixtureRoot, { recursive: true, force: true })
+    if (process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1') {
+      process.stderr.write(`[test-validation-budget-control] retained ${fixtureRoot}\n`)
+    } else {
+      fs.rmSync(fixtureRoot, { recursive: true, force: true })
+    }
   }
 }
 

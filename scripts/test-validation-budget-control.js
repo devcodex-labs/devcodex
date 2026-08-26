@@ -162,7 +162,9 @@ function expectCode(fn, code) {
   assert.throws(fn, error => error instanceof ValidationDagError && error.code === code, code)
 }
 
-function persistFailedRun({ store, plan, candidate, authority, control, taskId, contextEpoch, failedNode }) {
+function persistRunTerminal({
+  store, plan, candidate, authority, control, taskId, contextEpoch, failedNode = null, terminalStatus = 'failed'
+}) {
   const authoritySourceRef = authority.schemaVersion === 'BudgetConfirmationReceiptV1'
     ? `budget-confirmation:${authority.receiptDigest}`
     : `validation-continuation:${authority.continuationDigest}`
@@ -199,18 +201,18 @@ function persistFailedRun({ store, plan, candidate, authority, control, taskId, 
     authorityClass: 'scoped',
     verificationLevel: 'V2',
     verificationPurpose: 'boundary',
-    terminalStatus: 'failed',
-    claimCeiling: 'non-qualifying',
+    terminalStatus,
+    claimCeiling: terminalStatus === 'completed' ? 'boundary-qualified' : 'non-qualifying',
     selectedNodeCount: plan.selectedNodeCount,
     executionCount: 1,
     cacheHitCount: 0,
-    failedNode,
+    failedNode: terminalStatus === 'completed' ? null : failedNode,
     abortedNodes: [],
     nodeReceiptDigests: {},
     startedAt: new Date(NOW).toISOString(),
     completedAt: new Date(NOW + 1000).toISOString(),
     wallTimeMs: 1000,
-    nativeExitCode: 1
+    nativeExitCode: terminalStatus === 'completed' ? 0 : 1
   })
   assert(['committed', 'semantic-noop'].includes(write.status), JSON.stringify(write))
   return lease
@@ -480,7 +482,7 @@ function main() {
     assert.strictEqual(childExecution.authority.retryOrdinal, 1)
     assert.strictEqual(autoStore.readRootBudgetConfirmation().rootBudgetConfirmation.receiptDigest,
       autoExecution.authority.receiptDigest, 'bounded continuation must preserve the immutable root receipt')
-    persistFailedRun({
+    persistRunTerminal({
       store: autoStore,
       plan: childExecution.plan,
       candidate: childCandidate,
@@ -530,7 +532,7 @@ function main() {
     })
     assert.strictEqual(secondChildExecution.decision, 'auto-continuation-authorized')
     assert.strictEqual(secondChildExecution.authority.retryOrdinal, 2)
-    persistFailedRun({
+    persistRunTerminal({
       store: autoStore,
       plan: secondChildExecution.plan,
       candidate: secondChildCandidate,
@@ -612,8 +614,13 @@ function main() {
       encoding: 'utf8',
       windowsHide: true
     }).trim()
+    const ancestorHead = execFileSync('git', ['rev-parse', 'HEAD^^'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      windowsHide: true
+    }).trim()
     const rolloverRootPlan = fixturePlan(rolloverTaskId, contextEpoch, 'root-rollover-parent')
-    const rolloverRootCandidate = { ...fixtureCandidate('root-rollover-parent'), head: previousHead }
+    const rolloverRootCandidate = { ...fixtureCandidate('root-rollover-parent'), head: ancestorHead }
     const rolloverContext = authorityContext({
       identity: rolloverSeed.identity,
       sessionKey: rolloverSession,
@@ -636,7 +643,7 @@ function main() {
       taskRecoveryKey: rolloverTaskId,
       sessionKey: rolloverSession
     })
-    persistFailedRun({
+    persistRunTerminal({
       store: rolloverStore,
       plan: rolloverRoot.plan,
       candidate: rolloverRootCandidate,
@@ -653,7 +660,7 @@ function main() {
       expectedIdentity: { activeRoot, project: 'devcodex' }
     })
     const rolloverNextPlan = fixturePlan(rolloverTaskId, contextEpoch, 'root-rollover-child')
-    const rolloverNextCandidate = { ...fixtureCandidate('root-rollover-child'), head: currentHead }
+    const rolloverNextCandidate = { ...fixtureCandidate('root-rollover-child'), head: previousHead }
     const rolloverNextContext = authorityContext({
       identity: rolloverSeed.identity,
       sessionKey: rolloverSession,
@@ -697,6 +704,55 @@ function main() {
     assert.match(rolloverExecution.authority.parentTerminalDigest, /^[a-f0-9]{64}$/)
     assert.strictEqual(rolloverExecution.authority.rootRolloverReason, 'strict-descendant-same-scope')
     assert.notStrictEqual(rolloverExecution.authority.receiptDigest, rolloverRoot.authority.receiptDigest)
+    persistRunTerminal({
+      store: rolloverStore,
+      plan: rolloverExecution.plan,
+      candidate: rolloverNextCandidate,
+      authority: rolloverExecution.authority,
+      control: rolloverControl,
+      taskId: rolloverTaskId,
+      contextEpoch,
+      terminalStatus: 'completed'
+    })
+    const completedRolloverState = readTaskRecoveryState({
+      metaDir: rolloverSeed.metaDir,
+      identity: rolloverSeed.identity,
+      sessionKey: rolloverSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' }
+    })
+    const completedRolloverPlan = fixturePlan(rolloverTaskId, contextEpoch, 'root-rollover-completed-child')
+    const completedRolloverCandidate = {
+      ...fixtureCandidate('root-rollover-completed-child'),
+      head: currentHead
+    }
+    const completedRolloverContext = authorityContext({
+      identity: rolloverSeed.identity,
+      sessionKey: rolloverSession,
+      contextEpoch,
+      control: rolloverControl,
+      state: completedRolloverState.state
+    })
+    const completedRolloverPreview = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 3000 },
+      plan: completedRolloverPlan,
+      candidate: completedRolloverCandidate,
+      authorityContext: completedRolloverContext,
+      activeRoot,
+      execute: false
+    })
+    assert.strictEqual(completedRolloverPreview.decision, 'auto-root-rollover-plan-only')
+    const completedRolloverExecution = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 3000 },
+      plan: completedRolloverPlan,
+      candidate: completedRolloverCandidate,
+      authorityContext: completedRolloverContext,
+      activeRoot,
+      execute: true
+    })
+    assert.strictEqual(completedRolloverExecution.decision, 'auto-root-rollover-authorized')
+    assert.strictEqual(completedRolloverExecution.authority.parentRootReceiptDigest,
+      rolloverExecution.authority.receiptDigest)
+    assert.match(completedRolloverExecution.authority.parentTerminalDigest, /^[a-f0-9]{64}$/)
 
     const exactRetryTaskId = '00000000-0000-4000-8000-000000000346'
     const exactRetrySession = 'validation-budget-exact-retry-session'
@@ -734,7 +790,7 @@ function main() {
       taskRecoveryKey: exactRetryTaskId,
       sessionKey: exactRetrySession
     })
-    persistFailedRun({
+    persistRunTerminal({
       store: exactRetryStore,
       plan: exactRetryRoot.plan,
       candidate: exactRetryCandidate,
@@ -796,7 +852,7 @@ function main() {
     assert.strictEqual(exactRetryFirst.decision, 'auto-continuation-authorized')
     assert.strictEqual(exactRetryFirst.authority.repairProofKind, 'same-scope-retry')
     assert.strictEqual(exactRetryFirst.authority.retryOrdinal, 1)
-    persistFailedRun({
+    persistRunTerminal({
       store: exactRetryStore,
       plan: exactRetryFirst.plan,
       candidate: exactRetryCandidate,
@@ -812,7 +868,7 @@ function main() {
     })
     assert.strictEqual(exactRetrySecond.decision, 'auto-continuation-authorized')
     assert.strictEqual(exactRetrySecond.authority.retryOrdinal, 2)
-    persistFailedRun({
+    persistRunTerminal({
       store: exactRetryStore,
       plan: exactRetrySecond.plan,
       candidate: exactRetryCandidate,

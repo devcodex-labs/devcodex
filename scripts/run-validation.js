@@ -483,8 +483,8 @@ function assessAutoRootRollover({ store, currentRoot, plan, candidate, control, 
     return { eligible: false, reasonCode: 'auto-root-rollover-parent-state-missing' }
   }
   const terminal = terminalRead.receipt
-  if (!['failed', 'blocked', 'timed-out', 'cancelled'].includes(String(terminal.terminalStatus || ''))) {
-    return { eligible: false, reasonCode: 'auto-root-rollover-parent-not-recoverable' }
+  if (!['completed', 'failed', 'blocked', 'timed-out', 'cancelled'].includes(String(terminal.terminalStatus || ''))) {
+    return { eligible: false, reasonCode: 'auto-root-rollover-parent-not-terminal' }
   }
   const continuationRead = store.readContinuationAuthorization()
   const continuation = continuationRead.continuationAuthorization || null

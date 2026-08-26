@@ -99,7 +99,7 @@ status/current/month/day byte-range 分区。该索引不是记忆真相源：
 | soft 256 MiB | 先退休 terminal、coldify 非活跃 hot、再回收可重建 runtime stub |
 | hard 512 MiB | bounded safe reclaim 后仍超限则拒绝新 admission/普通 mutation；read/recovery/terminal/abort/reconcile 保持可用 |
 | closeout reserve 8 MiB | 只用于 terminal/abort/reconcile；耗尽明确失败，禁止旁路普通 mutation |
-| legacy generations | 只读兼容；维护不得自动删除或迁移，另有明确用户确认才可处理 |
+| legacy generations | 只读兼容；维护只能处理当前任务明确纳入且有 ownership 证据的对象，实际删除权限由宿主策略决定 |
 
 V5 的 durable 段只保存 admission、fenced owner、mutation preflight/closeout 与 validation terminal 等有界恢复投影，不复制文件正文或大 stdout。容量压力不是任务数量上限，也不能成为删除用户任务产物的理由。
 

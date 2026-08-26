@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 工作流规则，覆盖子类型路由、CP 流程、计划复审、执行期回退与 ECR
 priority: P4
-version: 1.19.0
+version: 1.19.1
 ---
 # 开发工作流规则（10-dev）
 
@@ -299,7 +299,7 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
 
 ### PR-3 约束合规性 🔴
 - 敏感信息、明文连接信息和硬编码处理符合用户 / 项目显式策略（S02）；未指定限制时不得因“安全最佳实践”阻断或改写为 env、`secretRef`、secret manager、`config.local.json` 或占位符
-- 不可逆操作有确认步骤（S01）
+- 不可逆操作已界定精确范围、恢复边界与宿主权限归属（S01）
 - 不违反项目 profile 架构约束
 - 已执行 `ProfileImpactCheck`：需同步 Profile 的变更已列出同步目标；无需同步时已有 `skipReason`
 

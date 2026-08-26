@@ -4466,6 +4466,9 @@
         "CHANGELOG.md",
         "changelogs/**",
         "website/docs/versions/**",
+        ".github/workflows/publish.yml",
+        "scripts/exact-release-artifact.js",
+        "scripts/verify-release-validation-receipt.js",
         "scripts/test-release-metadata.js"
       ],
       "consumers": [],

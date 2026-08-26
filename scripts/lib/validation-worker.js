@@ -50,6 +50,9 @@ process.once('message', message => {
       ...input.execution,
       persistTerminal: false,
       getCurrentLease: () => evidenceStore.readLease().lease,
+      onNodeStart: node => {
+        send('node-start', { node })
+      },
       onNode: result => {
         send('node', { result })
       }

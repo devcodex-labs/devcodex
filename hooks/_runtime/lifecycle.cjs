@@ -277,7 +277,6 @@ const INTERCEPTION_ACTION = {
   WARN_CONTINUE: 'warn_continue',
   LOG_ONLY: 'log_only'
 }
-const APPROVAL_TTL_MS = 10 * 60 * 1000
 
 function formatDateStamp(date) {
   const year = String(date.getFullYear())
@@ -459,6 +458,20 @@ function buildInterceptionOutput(state, platform, eventName, action, code, reaso
     devcodexEffective: effective,
     devcodexNextStep: nextStep
   })
+}
+
+function mergeContinueOutputs(left, right) {
+  if (!left) return right || null
+  if (!right) return left
+  const merged = { ...left, ...right, continue: left.continue !== false && right.continue !== false }
+  const messages = [left.systemMessage, right.systemMessage].filter(Boolean)
+  if (messages.length) merged.systemMessage = [...new Set(messages)].join('\n')
+  if (left.hookSpecificOutput || right.hookSpecificOutput) {
+    merged.hookSpecificOutput = { ...(left.hookSpecificOutput || {}), ...(right.hookSpecificOutput || {}) }
+    const contexts = [left.hookSpecificOutput?.additionalContext, right.hookSpecificOutput?.additionalContext].filter(Boolean)
+    if (contexts.length) merged.hookSpecificOutput.additionalContext = [...new Set(contexts)].join('\n')
+  }
+  return merged
 }
 
 // ─── Multi-project workspace detection (v1.9.8+) ──────────────────────────────
@@ -2159,34 +2172,25 @@ function buildCpWarningOutput(state, platform, eventName, gate, toolName) {
 // ─── Dangerous command detection ──────────────────────────────────────────────
 
 const DANGEROUS_PATTERNS = [
-  { re: /\brm\s+-rf\s+(?:\/|[A-Za-z]:\\?)(?:\s|$)/i, reason: 'Blocked: rm -rf root', neverApprove: true },
-  { re: /\brm\s+-rf\b/i, reason: 'Blocked: rm -rf' },
-  { re: /\bgit\s+reset\s+--hard\b/i, reason: 'Blocked: git reset --hard' },
-  { re: /\bdrop\s+table\b/i, reason: 'Blocked: DROP TABLE', neverApprove: true },
-  { re: /\bdelete\s+from\b(?:(?!\bwhere\b|;)[\s\S])*(?:;|$)/i, reason: 'Blocked: DELETE FROM without WHERE', neverApprove: true },
-  { re: /\btruncate\b/i, reason: 'Blocked: TRUNCATE', neverApprove: true },
-  { re: /\bdel\s+\/f\s+\/q\b/i, reason: 'Blocked: del /f /q' },
-  { re: /Remove-Item[\s\S]*-Recurse[\s\S]*-Force|Remove-Item[\s\S]*-Force[\s\S]*-Recurse/i, reason: 'Blocked: Remove-Item -Recurse -Force' }
+  { re: /\brm\s+-rf\s+(?:\/|[A-Za-z]:\\?)(?:\s|$)/i, reason: 'Advisory: rm -rf root' },
+  { re: /\brm\s+-rf\b/i, reason: 'Advisory: rm -rf' },
+  { re: /\bgit\s+reset\s+--hard\b/i, reason: 'Advisory: git reset --hard' },
+  { re: /\bdrop\s+table\b/i, reason: 'Advisory: DROP TABLE' },
+  { re: /\bdelete\s+from\b(?:(?!\bwhere\b|;)[\s\S])*(?:;|$)/i, reason: 'Advisory: DELETE FROM without WHERE' },
+  { re: /\btruncate\b/i, reason: 'Advisory: TRUNCATE' },
+  { re: /\bdel\s+\/f\s+\/q\b/i, reason: 'Advisory: del /f /q' },
+  { re: /Remove-Item[\s\S]*-Recurse[\s\S]*-Force|Remove-Item[\s\S]*-Force[\s\S]*-Recurse/i, reason: 'Advisory: Remove-Item -Recurse -Force' }
 ]
 
 const {
-  checkDangerousCommand,
-  stripApprovalMarker,
-  pruneDangerousApprovals,
-  createDangerousApproval,
-  confirmDangerousApprovalsFromPrompt,
-  consumeDangerousApproval
+  checkDangerousCommand
 } = buildLifecycleDangerousCommandUtils({
   path,
-  crypto,
   CONTEXT_ROOT,
   WORKSPACE_ROOT,
-  APPROVAL_TTL_MS,
   DANGEROUS_PATTERNS,
   getToolName,
-  getCommandText,
-  INTERCEPTION_ACTION,
-  recordInterception
+  getCommandText
 })
 
 // ─── Artifact touches ────────────────────────────────────────────────────────
@@ -3088,7 +3092,6 @@ async function main() {
     state.governanceIntake = registerGovernanceIntakeCandidate(state.governanceIntake, prompt)
     state.executionMode = detectExecutionMode(payload, state, promptTarget)
     observeValidationControlIngress(state, prompt)
-    confirmDangerousApprovalsFromPrompt(state, prompt, eventName, platform)
     if (continuationResolution && continuationResolution.status !== 'resolved-active') {
       const candidates = continuationResolution.candidates || continuationResolution.suggestions || []
       const candidateText = candidates.slice(0, 5).map(candidate => `${candidate.project}/${candidate.kind}/${candidate.displayName}`).join(', ')
@@ -3247,29 +3250,21 @@ async function main() {
     state.toolUseCount += 1
     maybeBindTaskRecoveryForPayload(state, payload, platform)
 
-    // 1. Dangerous command guard
+    // 1. Host-owned operation permission: DevCodex classifies risk and emits
+    // advisory telemetry only. It never approves, denies, or overrides the host.
+    let riskAdvisoryOutput = null
     const danger = checkDangerousCommand(payload, platform)
     if (danger) {
-      const approval = consumeDangerousApproval(state, danger)
-      if (approval.approved) {
-        recordInterception(
-          state, eventName, platform, INTERCEPTION_ACTION.LOG_ONLY, 'dangerous-command-approved',
-          danger.reason, `One-time approval ${approval.approvalId} consumed.`, true
-        )
-      } else {
-        const approvalId = danger.neverApprove ? '' : createDangerousApproval(state, danger)
-        const detail = danger.neverApprove
-          ? `${danger.reason} — 该命令属于不可放行危险操作，请改用安全替代方案（S06）。`
-          : `${danger.reason} — 请先输出命令预览并等待用户明确确认（S06）。确认后可在同一 cwd、10 分钟内以 devcodex-approve:${approvalId} 重试同一命令。`
-        const output = buildInterceptionOutput(
-          state, platform, eventName, INTERCEPTION_ACTION.FORBID, 'dangerous-command',
-          danger.reason, detail, danger.neverApprove ? 'Use a safe alternative command.' : `Get explicit user approval, then retry with devcodex-approve:${approvalId}.`
-        )
-        saveState(state)
-        writeStdout(output)
-        return
-      }
-      saveState(state)
+      riskAdvisoryOutput = buildInterceptionOutput(
+        state,
+        platform,
+        eventName,
+        INTERCEPTION_ACTION.WARN_CONTINUE,
+        danger.code || 'operation-risk-advisory',
+        danger.reason || 'Operation risk classified',
+        'DevCodex does not own this operation permission. The current host and its user-configured policy decide whether it runs.',
+        'Follow the host permission decision; prefer a narrower target when practical.'
+      )
     }
 
     // Active reconciliation runs before ordinary work. Exact route/context
@@ -3316,7 +3311,7 @@ async function main() {
         }
       : recordContextPreToolUse(state, payload, platform)
     const contextDecision = getContextAcquisitionDecision(state, contextPre)
-    let contextGateOutput = null
+    let contextGateOutput = riskAdvisoryOutput
     if (!['complete', 'allowed-read'].includes(contextDecision.status)) {
       if (contextDecision.hardBlockEligible && isStrictEnforcement()) {
         state.lastReason = 'context-acquisition-incomplete'
@@ -3325,7 +3320,10 @@ async function main() {
         writeStdout(output)
         return
       }
-      contextGateOutput = buildDedupedBootstrapWarningOutput(state, payload, eventName, platform)
+      contextGateOutput = mergeContinueOutputs(
+        contextGateOutput,
+        buildDedupedBootstrapWarningOutput(state, payload, eventName, platform)
+      )
     }
 
     // 2.1 Workflow ingress is a fail-closed prerequisite for every write-like
@@ -3663,11 +3661,7 @@ async function main() {
         return
       }
       if (contextGateOutput?.systemMessage && autoBoundaryOutput?.systemMessage) {
-        contextGateOutput = {
-          ...contextGateOutput,
-          ...autoBoundaryOutput,
-          systemMessage: `${contextGateOutput.systemMessage}\n${autoBoundaryOutput.systemMessage}`
-        }
+        contextGateOutput = mergeContinueOutputs(contextGateOutput, autoBoundaryOutput)
       } else {
         contextGateOutput = autoBoundaryOutput
       }

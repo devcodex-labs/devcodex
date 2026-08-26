@@ -261,7 +261,7 @@ description: D1~D25 规范文件审查维度总览 — 规范库/specs 文件专
 |:-:|---------|
 | 1 | `CLAUDE.md` 与 `index.js` `cmdInitClaude`/`CLAUDE_SOURCES`/`CLAUDE_SETTINGS_HOOKS` 是否描述同一现实（不出现"文档说 A、实现是 B"）|
 | 2 | `CLAUDE.md` 引用的 `.claude/skills/` `.claude/instructions/` 路径是否与 `index.js` 实际写入路径一致 |
-| 3 | `hooks/_runtime/lifecycle.cjs` 对 Copilot 与 Claude 双平台的 Bootstrap / CP gate 提醒策略与危险命令硬拦截是否对称（不出现单边漏判）|
+| 3 | `hooks/_runtime/lifecycle.cjs` 对各宿主的 Bootstrap / CP gate 工作流约束与操作风险 advisory 是否对称，且 advisory 不得投影为权限 deny |
 | 4 | `.mcp.json` 与 `index.js` `CLAUDE_MCP_JSON` 是否一致 |
 | 5 | `CLAUDE.md` 是否包含 SC/RC/T 完整索引或显式跳转（避免 Claude 用户必须额外读 17-compliance）|
 

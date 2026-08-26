@@ -1521,7 +1521,8 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
   taskRecoveryKey = plan?.verificationIntent?.taskRecoveryKey || null,
   contextEpoch = plan?.verificationIntent?.contextEpoch || null,
   revocationEpoch = 0, getCurrentLease = null,
-  runCommand = null, onNode = null, maxCacheBytes = VALIDATION_CACHE_MAX_BYTES }) {
+  runCommand = null, onNodeStart = null, onNode = null, resumeResults = [],
+  maxCacheBytes = VALIDATION_CACHE_MAX_BYTES }) {
   assertExecutablePlanBinding({ manifest, plan, candidate })
   if (['blocked', 'awaiting-budget'].includes(plan.executionState)) {
     const code = plan.executionState === 'awaiting-budget'
@@ -1575,6 +1576,11 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
   }
   // Fallback if schedule empty
   const executionNodes = orderedForExecution.length ? orderedForExecution : effectivePlan.selectedNodes
+  if (!Array.isArray(resumeResults) || resumeResults.length > executionNodes.length ||
+      resumeResults.some((result, index) => result?.nodeId !== executionNodes[index]?.id)) {
+    throw new ValidationDagError('VALIDATION_RUN_CHECKPOINT_INVALID',
+      'run checkpoint does not describe one exact successful execution prefix')
+  }
   const seenCommandSignatures = new Map()
 
   for (let index = 0; index < executionNodes.length; index += 1) {
@@ -1627,6 +1633,53 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
       executionNode,
       dependencyReceiptDigests
     })
+    if (onNodeStart) {
+      onNodeStart({
+        schemaVersion: 'ValidationNodeStartV1',
+        nodeId: node.id,
+        index,
+        ordinal: index + 1,
+        total: executionNodes.length,
+        timeoutMs: Number(node.timeoutMs || 0),
+        nodeContractDigest,
+        inputBindingDigest: descriptor.cacheKey,
+        dependencyReceiptDigests
+      })
+    }
+    if (index < resumeResults.length) {
+      const resumed = resumeResults[index]
+      const checkpointMatches = ['passed', 'cache-hit'].includes(resumed.status) &&
+        resumed.exitCode === 0 &&
+        resumed.nodeContractDigest === nodeContractDigest &&
+        resumed.inputBindingDigest === descriptor.cacheKey &&
+        resumed.nodeVerificationPolicyDigest === descriptor.expectedEvidence.nodeVerificationPolicyDigest &&
+        stableStringify(resumed.dependencyReceiptDigests || []) === stableStringify(dependencyReceiptDigests) &&
+        resumed.delegatedClosureDigest === delegatedClosureDigest &&
+        /^[a-f0-9]{64}$/.test(String(resumed.evidenceDigest || '')) &&
+        resumed.nodeReceiptDigest === buildNodeReceiptDigest(resumed)
+      if (!checkpointMatches) {
+        throw new ValidationDagError('VALIDATION_RUN_CHECKPOINT_INVALID',
+          `run checkpoint evidence no longer matches node ${node.id}`, { nodeId: node.id, index })
+      }
+      const result = {
+        ...resumed,
+        status: 'cache-hit',
+        cacheStatus: 'hit-run-checkpoint',
+        resumedFromRunCheckpoint: true,
+        command: executionNode.command,
+        args: executionNode.args || [],
+        environment: executionNode.environment || {},
+        invariantCoverage: node.invariants || [],
+        signal: null,
+        durationMs: 0,
+        stdout: '',
+        stderr: ''
+      }
+      results.push(result)
+      seenCommandSignatures.set(commandSignature(executionNode), node.id)
+      if (onNode) onNode(result)
+      continue
+    }
     const cacheEligible = useCache && candidate.stable && effectivePlan.verificationLevel !== 'V3' &&
       node.cachePolicy === 'candidate-bound'
     if (cacheEligible) {
@@ -1818,6 +1871,8 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
       hitCount: results.filter(result => result.status === 'cache-hit').length,
       duplicateLeafReuseCount: results.filter(result => result.cacheStatus === 'hit-duplicate-leaf').length
     },
+    resumedNodeIds: results.filter(result => result.cacheStatus === 'hit-run-checkpoint').map(result => result.nodeId),
+    resumedNodeCount: results.filter(result => result.cacheStatus === 'hit-run-checkpoint').length,
     fullFallback: effectivePlan.fullFallback,
     selectedNodes: effectivePlan.selectedNodes.map(node => node.id),
     selectionReasons: effectivePlan.selectionReasons || {},

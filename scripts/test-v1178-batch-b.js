@@ -11,7 +11,8 @@ const {
   readLifecycleStateCommit
 } = require('../hooks/_runtime/lifecycle-state-commit.cjs')
 const {
-  contextSourceLedgerRelativePath
+  contextSourceLedgerRelativePath,
+  selectDurableSourceResultsForFold
 } = require('../hooks/_runtime/context-source-observation.cjs')
 const {
   PROJECT_NAMESPACE_SCHEMA_PATTERN,
@@ -441,6 +442,26 @@ function testObservationBoundedSlotPath() {
   }
 }
 
+function testObservationFoldDeterminism() {
+  const plan = { selectedSources: [{ sourceId: 'profile' }, { sourceId: 'memory' }] }
+  const weakProfile = {
+    sourceId: 'profile', observationId: 'profile-weak', resultDigest: '1'.repeat(64),
+    successful: true, observable: false, transportSuccess: true, sourceRefsMatch: true,
+    schemaMatch: true, targetMatch: true, bodyObserved: false
+  }
+  const strongProfile = {
+    ...weakProfile, observationId: 'profile-strong', resultDigest: '2'.repeat(64),
+    observable: true, bodyObserved: true
+  }
+  const memory = {
+    ...strongProfile, sourceId: 'memory', observationId: 'memory-strong', resultDigest: '3'.repeat(64)
+  }
+  const forward = selectDurableSourceResultsForFold(plan, [weakProfile, memory, strongProfile])
+  const reverse = selectDurableSourceResultsForFold(plan, [strongProfile, memory, weakProfile])
+  assert.deepStrictEqual(forward, reverse, 'arrival order must not change the durable observation fold')
+  assert.deepStrictEqual(forward.map(item => item.observationId), ['profile-strong', 'memory-strong'])
+}
+
 function testGlobalConfigJournalRecovery() {
   const memory = new MemoryFs()
   const root = path.resolve('C:/global-host')
@@ -576,8 +597,9 @@ function testNamespaceAndVscodeContract() {
 testDerivedStateOwnerAndCas()
 testLifecycleGenerationPointer()
 testObservationBoundedSlotPath()
+testObservationFoldDeterminism()
 testGlobalConfigJournalRecovery()
 testBoundedReaderFinalIdentity()
 testNamespaceAndVscodeContract()
 
-console.log('v1.17.8 Batch B: 7/7 issue probes passed')
+console.log('v1.17.8 Batch B: 8/8 issue probes passed')

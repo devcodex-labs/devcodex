@@ -325,6 +325,10 @@ function compactMutationPreObservation(raw) {
 function compactInFlightOperation(raw) {
   if (!isPlainObject(raw)) return raw || null
   const value = clone(raw)
+  // v1.19.1+: DevCodex no longer owns operation permissions. Never carry
+  // legacy approval state into hot/cold/ephemeral recovery projections.
+  delete value.dangerousApprovals
+  delete value.dangerousApprovalRecovery
   if (value.mutating !== true && jsonBytes(value) <= IN_FLIGHT_MAX_BYTES) return value
   return {
     operationId: boundedString(value.operationId, 512),

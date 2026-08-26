@@ -2,7 +2,7 @@
 applyTo: "**"
 description: dev 模式合规检查规则，覆盖 FC/SC/RC/T、入口检查与完成验证
 priority: P4
-version: 1.19.0
+version: 1.19.1
 ---
 # 合规检查规则（17-compliance）
 
@@ -174,7 +174,7 @@ version: 1.19.0
 | SC13 | C15 架构质量自检 | dev/fix 🔴 |
 | SC14 | analyze/audit（及任何宣称探针/测试结果的工作流）中，所有标注 ✅已验证 的运行时结论须满足 **MeasuredVerificationStandard**：本轮执行**生产入口命令**（如 `node scripts/test-spec-governance.js`、`npm run test:core` / `node scripts/validate.js`、需要时 `npm test`）并记录 exitCode；隔离 harness / 未复用 `createCanonicalAwareReader` 的脚本不得写成 V# 成败；SUMMARY/记忆历史数字必须降级为 ⚠️待验证。完整字段见 `skills/compliance/SKILL.md` | analyze/audit 🔴；dev/fix 宣称测试/validate 时同标 |
 | SC15 | dev/fix 关键产物已完成 ECR 执行闭环复审：覆盖 CP1/CP2/CP3、实施进度（触发时）、ExecutionContract/TestRoute/ReleaseAudit/ReleaseVerification（触发时）、报告、daily tasks、SUMMARY、diff/commit、测试/探针、dirty 边界；控制面/规范/路径/模板/部署副本/validate 语义变更必须追加 SCV-0~SCV-7 证据；最后一次阻断性修正后至少再复审 1 轮且无新增阻断性问题；未满足前不得宣告完成 | dev/fix 🔴 |
-| SC16 | C16 TTFV + WorkspaceRootScanBan：非 chat 首轮实质回复具备范围卡/首批结论/阻断之一；无 monorepo/workspace 根无界 Recurse inventory（含绝对根路径、`dir /s`、cwd=workspace 根时的相对 `-Recurse`/`-Depth`）；探针 `classifyTtfvOmissionSample` / `classifyWorkspaceRootScanSample`；完整字段见 `skills/compliance/SKILL.md` | 非 chat 🔴；chat N/A |
+| SC16 | C16 TTFV + WorkspaceRootScanHygiene：非 chat 首轮实质回复具备范围卡/首批结论/阻断之一；默认 inventory 不采用 monorepo/workspace 根无界 Recurse；探针 `classifyTtfvOmissionSample` / `classifyWorkspaceRootScanSample`，Hook 结果为 host-owned advisory；完整字段见 `skills/compliance/SKILL.md` | 非 chat 🔴；chat N/A |
 
 ## RC 恢复性检查（非阻塞）
 

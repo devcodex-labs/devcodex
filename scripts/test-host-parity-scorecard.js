@@ -275,10 +275,10 @@ assert.match(entryCheckAssistSuffix({ project: 'x', intent: 'audit' }), /TTFV|wo
 const deny = adaptHostOutput('grok', 'PreToolUse', {
   hookSpecificOutput: {
     permissionDecision: 'deny',
-    permissionDecisionReason: 'dangerous-command'
+    permissionDecisionReason: 'workflow-invalid'
   }
 })
-assert.deepStrictEqual(deny, { decision: 'deny', reason: 'dangerous-command' })
+assert.deepStrictEqual(deny, { decision: 'deny', reason: 'workflow-invalid' })
 
 // W8: extra field names for assistant text
 const payloadApi = buildLifecyclePayloadUtils({

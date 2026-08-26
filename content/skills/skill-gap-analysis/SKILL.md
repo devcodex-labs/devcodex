@@ -18,7 +18,7 @@ description: Skill 缺口与大语料分析 Owner — 当任务涉及项目/工�
 3. 统计 `relevantFileCount / parseableBytes / largestFileBytes / directoryConcentration / derivedArtifactRatio / consumerFanOut`。
 4. 形成 `ScaleDecisionRecord`，再允许内容读取或递归检索。
 
-## WorkspaceRootScanBan（C16 / PI-20260724-01 · 防复发硬规则）
+## WorkspaceRootScanHygiene（C16 / PI-20260724-01 · 范围与成本规则）
 
 > 🔴 未绑定唯一项目前，**禁止**对 workspace/monorepo 根发起递归 inventory。项目路径已知时，**禁止**再从 workspace 根 `-Recurse` 查找。
 
@@ -29,7 +29,7 @@ description: Skill 缺口与大语料分析 Owner — 当任务涉及项目/工�
 | 为「找项目」扫整个 `E:\Worker` 等 monorepo 根 | 用户 `@path` / 已知子目录名 / Profile inventory |
 | inventory 展开 `node_modules`、文档站 `doc_build`、巨型 `dist` | 显式 `-Exclude` / 工具默认尊重 gitignore 的列表 |
 
-**机器探针**：`scripts/lib/host-parity-scorecard.js` → `classifyWorkspaceRootScanSample`（`workspace-root-recurse` = fail）。Hook 侧对命中 workspace 根 + Recurse 的 shell 可 `neverApprove` 硬拦（见 `lifecycle-dangerous-command`）。
+**机器探针**：`scripts/lib/host-parity-scorecard.js` → `classifyWorkspaceRootScanSample`（`workspace-root-recurse` = 范围/成本缺陷）。Hook 侧对命中 workspace 根 + Recurse 的 shell 只发出 advisory；执行权限由宿主及其用户配置决定（见 `lifecycle-dangerous-command`）。
 
 ## TimeToFirstValueGate（TTFV · 与 compliance/C16 联防）
 

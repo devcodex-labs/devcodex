@@ -77,7 +77,7 @@ DevCodex 引导创建的 worktree 必须记录 `worktreePath / gitCommonDir / he
 - `devcodex-guided` 只有完整 receipt 经字段、派生 `validation`、`gitCommonDir` 与当前 HEAD/ref 重新校验，且 owner、clean、unlocked、无 active job、teardown plan、本次显式清理授权及独立授权证据全部具备时才可能 cleanupEligible；clean 探针必须同时计入 tracked、untracked 与 ignored 内容，避免删除被 `.gitignore` 隐藏的本地数据。HEAD/ref 已变化时保留创建归属，但立即退休旧清理授权并把 active job 降为 `unverified`。部分字段、冲突 receipt 或自报 `validation.valid=true` 一律不能取得清理资格。
 - `host-owned / external-unowned / unverified` 只读诊断；dirty/owner/lock 任一未知时保持 UNVERIFIED，绝不 prune/remove。
 - `status/doctor` 的 `WorktreeDiagnosticsV1` 同时受 1.5 秒单命令上限和 8 秒总预算约束；prunable 路径不进入，外部未归属路径默认不做 dirty 探测，当前 worktree 与有 DevCodex receipt 的对象才进入有界只读探测。发现 dirty、locked、prunable、external-unowned 或未核实状态时聚合为 WARN，并保留逐项 typed issue。
-- 清理、移动或删除 worktree 仍受 S01/C01 独立 yes/no 确认；receipt 不能替代确认。
+- 清理、移动或删除 worktree 必须有明确任务范围与可回读 receipt；实际操作权限由宿主及其用户配置决定，DevCodex 不再签发第二套批准令牌。
 
 ## ExecutionBudgetGate / ExternalWaitAccountingGate / LongTaskAuthorizationGate（PI-118 / PF-137）
 

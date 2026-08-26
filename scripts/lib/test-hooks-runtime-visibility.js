@@ -274,7 +274,12 @@ function runHooksRuntimeVisibilityScenarios(context) {
     }
   })
   assert.strictEqual(dangerousCommand.hookSpecificOutput.permissionDecision, 'deny')
-  assert.match(dangerousCommand.hookSpecificOutput.permissionDecisionReason || '', /git reset --hard/i)
+  assert.doesNotMatch(dangerousCommand.hookSpecificOutput.permissionDecisionReason || '', /git reset --hard/i)
+  assert.match(
+    dangerousCommand.hookSpecificOutput.permissionDecisionReason || '',
+    /Fenced task write owner authority unavailable|Mutation target observation unavailable|Formal artifact mutation denied/i,
+    'workflow validity may deny an unbound mutation, but operation risk itself must remain host-owned'
+  )
 
   const searchDangerousText = run({
     hookEventName: 'PreToolUse',
@@ -294,7 +299,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     }
   })
   assert.strictEqual(deleteWithoutWhere.hookSpecificOutput.permissionDecision, 'deny')
-  assert.match(deleteWithoutWhere.hookSpecificOutput.permissionDecisionReason || '', /DELETE FROM/i)
+  assert.doesNotMatch(deleteWithoutWhere.hookSpecificOutput.permissionDecisionReason || '', /DELETE FROM/i)
 
   const deleteWithWhere = run({
     hookEventName: 'PreToolUse',
@@ -315,66 +320,12 @@ function runHooksRuntimeVisibilityScenarios(context) {
     'DELETE with WHERE is not dangerous syntax even though an unbound mutation remains unauthorized'
   )
 
-  const dangerousApprovalId = String(
-    dangerousCommand.hookSpecificOutput.additionalContext || ''
-  ).match(/devcodex-approve:([a-f0-9]{12})/)?.[1]
-  assert.ok(dangerousApprovalId, 'dangerous command should return one-time approval id')
-  let dangerousApprovalState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
-  assert.strictEqual(dangerousApprovalState.dangerousApprovals[dangerousApprovalId].status, 'pending')
-
-  const unconfirmedDangerousCommand = run({
-    hookEventName: 'PreToolUse',
-    tool_name: 'run_in_terminal',
-    tool_input: {
-      command: `git reset --hard HEAD~1 # devcodex-approve:${dangerousApprovalId}`
-    }
-  })
-  assert.strictEqual(unconfirmedDangerousCommand.hookSpecificOutput.permissionDecision, 'deny')
-  assert.match(unconfirmedDangerousCommand.hookSpecificOutput.permissionDecisionReason || '', /git reset --hard/i)
-
-  run({
-    hookEventName: 'UserPromptSubmit',
-    prompt: `确认执行 devcodex-approve:${dangerousApprovalId}`
-  })
-  dangerousApprovalState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
-  assert.strictEqual(
-    dangerousApprovalState.dangerousApprovals[dangerousApprovalId]?.status,
-    'confirmed',
-    'UserPromptSubmit must persist the exact dangerous approval across the turn reset'
-  )
-  runBootstrapReads()
-  dangerousApprovalState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
-  assert.strictEqual(
-    dangerousApprovalState.dangerousApprovals[dangerousApprovalId]?.status,
-    'confirmed',
-    'ContextRead and SkillRoute bootstrap must preserve a pending one-time dangerous approval'
-  )
-  const approvedDangerousCommand = run({
-    hookEventName: 'PreToolUse',
-    tool_name: 'run_in_terminal',
-    tool_input: {
-      command: `git reset --hard HEAD~1 # devcodex-approve:${dangerousApprovalId}`
-    }
-  })
-  assert.strictEqual(approvedDangerousCommand.continue, true)
-  assert.strictEqual(approvedDangerousCommand.hookSpecificOutput.permissionDecision, 'deny')
-  assert.match(
-    approvedDangerousCommand.hookSpecificOutput.permissionDecisionReason || '',
-    /Fenced task write owner authority unavailable|Mutation target observation unavailable|Formal artifact mutation denied/i,
-    'one-time destructive approval clears only the dangerous-command gate, not mutation authority or observability gates'
-  )
-  const reusedDangerousCommand = run({
-    hookEventName: 'PreToolUse',
-    tool_name: 'run_in_terminal',
-    tool_input: {
-      command: `git reset --hard HEAD~1 # devcodex-approve:${dangerousApprovalId}`
-    }
-  })
-  assert.strictEqual(reusedDangerousCommand.hookSpecificOutput.permissionDecision, 'deny')
+  const dangerousState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(dangerousState.dangerousApprovals, undefined)
   const interceptionEntries = readInterceptionEntries()
-  assert.ok(interceptionEntries.some(entry => entry.code === 'dangerous-command' && entry.action === 'forbid' && entry.effective === true))
-  assert.ok(interceptionEntries.some(entry => entry.code === 'dangerous-command-confirmed' && entry.action === 'log_only'))
-  assert.ok(interceptionEntries.some(entry => entry.code === 'dangerous-command-approved' && entry.action === 'log_only'))
+  assert.ok(interceptionEntries.some(entry =>
+    entry.code === 'operation-risk-advisory' && entry.action === 'warn_continue' && entry.effective === false))
+  assert.ok(!interceptionEntries.some(entry => /dangerous-command-(?:confirmed|approved)/.test(entry.code || '')))
 
   const missingPrecheckReminder = run({
     hookEventName: 'Stop',

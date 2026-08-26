@@ -507,6 +507,51 @@ function contextSourceLedgerErrorCode(write) {
     : (code || 'CONTEXT_SOURCE_LEDGER_NOT_PERSISTED')
 }
 
+function sourceObservationQuality(result) {
+  return [
+    result?.successful,
+    result?.observable,
+    result?.transportSuccess,
+    result?.sourceRefsMatch,
+    result?.schemaMatch,
+    result?.targetMatch,
+    result?.bodyObserved
+  ].reduce((score, value) => (score << 1) + (value === true ? 1 : 0), 0)
+}
+
+/**
+ * Fold at most one deterministic durable observation per selected source.
+ * Arrival order and duplicate tool events therefore cannot change the V5
+ * receipt or its downstream rebind/load-stage identity.
+ */
+function selectDurableSourceResultsForFold(plan, sourceResults) {
+  const bySource = new Map()
+  for (const result of Array.isArray(sourceResults) ? sourceResults : []) {
+    const sourceId = String(result?.sourceId || '')
+    if (!sourceId) continue
+    const prior = bySource.get(sourceId)
+    const candidateRank = [
+      String(sourceObservationQuality(result)).padStart(3, '0'),
+      String(result.resultDigest || ''),
+      String(result.observationId || '')
+    ].join(':')
+    const priorRank = prior
+      ? [
+          String(sourceObservationQuality(prior)).padStart(3, '0'),
+          String(prior.resultDigest || ''),
+          String(prior.observationId || '')
+        ].join(':')
+      : ''
+    if (!prior || candidateRank > priorRank) bySource.set(sourceId, result)
+  }
+  const sourceOrder = new Map((plan?.selectedSources || []).map((source, index) => [source.sourceId, index]))
+  return [...bySource.values()].sort((left, right) => {
+    const order = (sourceOrder.get(left.sourceId) ?? Number.MAX_SAFE_INTEGER) -
+      (sourceOrder.get(right.sourceId) ?? Number.MAX_SAFE_INTEGER)
+    return order || String(left.sourceId).localeCompare(String(right.sourceId))
+  })
+}
+
 function readMcpContextSourceObservations(input = {}, options = {}) {
   const activeRoot = portableRoot(input.activeRoot)
   const project = String(input.project || '').trim()
@@ -626,6 +671,15 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
   if (!sourceResults.length) return { status: 'skipped', reasonCode: 'source-results-empty' }
 
   const ledgerWrite = persistContextSourceLedger(target, binding, sourceResults, options)
+  if (ledgerWrite.status !== 'persisted') {
+    return {
+      status: 'degraded',
+      errorCode: contextSourceLedgerErrorCode(ledgerWrite),
+      ledgerPath: ledgerWrite.filePath,
+      ledgerStatus: ledgerWrite.status,
+      lifecycleStatus: 'not-advanced'
+    }
+  }
 
   const workspaceNamespace = target.workspaceNamespace || looksLikeWorkspaceNamespaceActiveRoot(target.activeRoot, target.project)
   const recoveryMetaDir = resolveTaskRecoveryMetaDir({ ...target, workspaceNamespace })
@@ -638,6 +692,8 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
     activeRoot: target.activeRoot,
     project: target.project
   }
+  let foldFailure = null
+  let foldReceipt = null
   const write = updateTaskRecoveryState({
     metaDir: recoveryMetaDir,
     sessionKey,
@@ -645,14 +701,53 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
     identity: recoveryIdentity,
     readFallback: () => readJson(statePath, options.fs || fs) || {}
   }, lifecycle => {
+    // Read the complete ledger while holding the V5 store CAS lock. An older
+    // writer that arrives after a newer ledger writer therefore folds the same
+    // freshest durable set instead of overwriting V5 with its call-local slice.
+    const durable = readMcpContextSourceObservations({
+      activeRoot: target.activeRoot,
+      project: target.project,
+      contextBinding: binding,
+      plan: observed.plan,
+      hostSessionId: input.hostSessionId
+    }, options)
+    if (durable.status !== 'fresh' || !durable.sourceResults.length) {
+      foldFailure = {
+        status: durable.status,
+        reasonCode: durable.reasonCode || 'durable-ledger-not-fresh'
+      }
+      return lifecycle
+    }
+    const foldResults = selectDurableSourceResultsForFold(observed.plan, durable.sourceResults)
     const acquisition = installObservedPlan(lifecycle, observed.plan, binding, target, input.hostSessionId)
-    for (const result of sourceResults) {
+    for (const result of foldResults) {
       acquisition.receipt = recordContextReadOutcome(acquisition.receipt, observed.plan, result, {
         hostSessionId: acquisition.hostSessionId,
         nowMs: options.nowMs
       })
     }
     lifecycle.contextAcquisition = acquisition
+    const foldSemantic = {
+      schemaVersion: 'ContextObservationFoldReceiptV1',
+      identity: ledgerIdentity(binding, target),
+      sourceResultDigests: foldResults.map(result => ({
+        sourceId: result.sourceId,
+        resultDigest: result.resultDigest,
+        observationId: result.observationId
+      })),
+      receiptStatus: acquisition.receipt?.status || 'unknown',
+      satisfiedSourceIds: Array.isArray(acquisition.receipt?.satisfiedSourceIds)
+        ? [...acquisition.receipt.satisfiedSourceIds].sort()
+        : [],
+      missingSourceIds: Array.isArray(acquisition.receipt?.missingSourceIds)
+        ? [...acquisition.receipt.missingSourceIds].sort()
+        : []
+    }
+    foldReceipt = {
+      ...foldSemantic,
+      foldDigest: stableDigest(foldSemantic)
+    }
+    lifecycle.contextObservationFold = foldReceipt
     lifecycle.updatedAt = new Date(options.nowMs || Date.now()).toISOString()
     return lifecycle
   }, {
@@ -661,6 +756,16 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
     force: true,
     touchSessionMapping: true
   })
+  if (foldFailure) {
+    return {
+      status: 'degraded',
+      errorCode: 'CONTEXT_SOURCE_OBSERVATION_FOLD_NOT_FRESH',
+      ledgerPath: ledgerWrite.filePath,
+      ledgerStatus: ledgerWrite.status,
+      lifecycleStatus: 'not-advanced',
+      foldFailure
+    }
+  }
   if (!['committed', 'ephemeral-stub', 'skipped'].includes(write.status)) return write
 
   const projectionWarnings = []
@@ -682,15 +787,14 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
 
   const refreshed = projectedState
   const receipt = refreshed.contextAcquisition?.receipt || null
-  const durable = ledgerWrite.status === 'persisted'
   return {
-    status: durable ? 'persisted' : 'degraded',
-    ...(durable ? {} : { errorCode: contextSourceLedgerErrorCode(ledgerWrite) }),
+    status: 'persisted',
     statePath,
     ledgerPath: ledgerWrite.filePath,
     ledgerStatus: ledgerWrite.status,
     lifecycleStatus: projectionWarnings.length ? 'committed-with-projection-warnings' : 'committed',
     projectionWarnings,
+    foldReceipt,
     satisfiedSourceIds: Array.isArray(receipt?.satisfiedSourceIds) ? receipt.satisfiedSourceIds : [],
     missingSourceIds: Array.isArray(receipt?.missingSourceIds) ? receipt.missingSourceIds : [],
     receiptStatus: receipt?.status || 'unknown'
@@ -705,5 +809,6 @@ module.exports = {
   lifecycleStatePath,
   readMcpContextSourceObservations,
   replayMcpContextSourceObservations,
-  recordMcpContextSourceObservations
+  recordMcpContextSourceObservations,
+  selectDurableSourceResultsForFold
 }

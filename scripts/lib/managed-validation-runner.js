@@ -13,6 +13,7 @@ const {
   transitionLease,
   validateVerificationExecutionLease
 } = require('./validation-execution-authority')
+const { buildCandidateIdentity, manifestIdentity } = require('./validation-dag')
 const { createValidationEvidenceStore } = require('./validation-evidence-store')
 
 const RUNNER_SCHEMA = 'ManagedValidationRunnerV2'
@@ -20,7 +21,13 @@ const RUNNER_STATE_SCHEMA = 'ManagedValidationRunnerStateV2'
 const PROCESS_OWNERSHIP_SCHEMA = 'ValidationProcessOwnershipReceiptV1'
 const WORKER_MESSAGE_SCHEMA = 'ValidationWorkerMessageV1'
 const RUNNER_COMMAND_SCHEMA = 'ValidationRunnerCommandV1'
+const RUN_CHECKPOINT_SCHEMA = 'ValidationRunCheckpointV1'
+const RUN_HEARTBEAT_SCHEMA = 'ValidationRunHeartbeatV1'
 const WORKER_PATH = path.join(__dirname, 'validation-worker.js')
+// Checkpoints share the 256 KiB TaskRecoveryStoreV5 hot-state slot with the
+// workflow state. Keep a fixed half-slot ceiling and persist only evidence
+// identities; the selected plan reconstructs executable fields on resume.
+const RUN_CHECKPOINT_MAX_BYTES = 128 * 1024
 
 function acceptedActivePersistence(status) {
   return ['committed', 'semantic-noop', 'persisted'].includes(status)
@@ -36,6 +43,100 @@ function acceptedPersistence(status) {
 
 function semanticDigest(value) {
   return sha256(Buffer.from(stableStringify(value), 'utf8'))
+}
+
+function executionNodeIds(plan) {
+  const selected = new Map((plan?.selectedNodes || []).map(node => [node.id, node]))
+  const ordered = []
+  for (const wave of plan?.executionSchedule?.waves || []) {
+    for (const nodeId of wave) if (selected.has(nodeId)) ordered.push(nodeId)
+  }
+  return ordered.length ? ordered : [...selected.keys()]
+}
+
+function compactCheckpointResult(result) {
+  return {
+    nodeId: result.nodeId,
+    nodeContractDigest: result.nodeContractDigest || null,
+    inputBindingDigest: result.inputBindingDigest || null,
+    nodeVerificationPolicyDigest: result.nodeVerificationPolicyDigest || null,
+    dependencyReceiptDigests: result.dependencyReceiptDigests || [],
+    delegatedClosureDigest: result.delegatedClosureDigest || null,
+    status: result.status,
+    cacheStatus: result.cacheStatus || null,
+    exitCode: result.exitCode,
+    evidenceDigest: result.evidenceDigest || null,
+    nodeReceiptDigest: result.nodeReceiptDigest || null
+  }
+}
+
+function buildRunCheckpoint({ lease, plan, candidate, manifest, results, now = new Date().toISOString() }) {
+  const successful = []
+  for (const result of results || []) {
+    if (!['passed', 'cache-hit'].includes(result?.status) || result.exitCode !== 0) break
+    successful.push(compactCheckpointResult(result))
+  }
+  const core = {
+    schemaVersion: RUN_CHECKPOINT_SCHEMA,
+    runId: lease.runId,
+    runIdentityDigest: lease.runIdentityDigest,
+    leaseDigest: lease.authorityDigest,
+    candidateId: candidate.candidateId,
+    planDigest: plan.planDigest,
+    manifestDigest: manifestIdentity(manifest).digest,
+    executionNodeIds: executionNodeIds(plan),
+    completedNodeIds: successful.map(result => result.nodeId),
+    results: successful,
+    updatedAt: now
+  }
+  const checkpoint = Object.freeze({ ...core, checkpointDigest: semanticDigest(core) })
+  if (Buffer.byteLength(stableStringify(checkpoint), 'utf8') > RUN_CHECKPOINT_MAX_BYTES) {
+    const error = new Error('validation run checkpoint exceeds its bounded persistence budget')
+    error.code = 'VALIDATION_RUN_CHECKPOINT_TOO_LARGE'
+    throw error
+  }
+  return checkpoint
+}
+
+function validateRunCheckpoint(checkpoint, { lease, plan, candidate, manifest }) {
+  const errors = []
+  if (!checkpoint || checkpoint.schemaVersion !== RUN_CHECKPOINT_SCHEMA) errors.push('checkpoint-schema-invalid')
+  if (checkpoint?.runId !== lease.runId || checkpoint?.runIdentityDigest !== lease.runIdentityDigest) errors.push('checkpoint-run-mismatch')
+  if (checkpoint?.leaseDigest !== lease.authorityDigest) errors.push('checkpoint-lease-mismatch')
+  if (checkpoint?.candidateId !== candidate.candidateId) errors.push('checkpoint-candidate-mismatch')
+  if (checkpoint?.planDigest !== plan.planDigest) errors.push('checkpoint-plan-mismatch')
+  if (checkpoint?.manifestDigest !== manifestIdentity(manifest).digest) errors.push('checkpoint-manifest-mismatch')
+  const expectedNodeIds = executionNodeIds(plan)
+  if (stableStringify(checkpoint?.executionNodeIds || []) !== stableStringify(expectedNodeIds)) errors.push('checkpoint-execution-order-mismatch')
+  const results = Array.isArray(checkpoint?.results) ? checkpoint.results : []
+  const completedNodeIds = Array.isArray(checkpoint?.completedNodeIds) ? checkpoint.completedNodeIds : []
+  if (results.length !== completedNodeIds.length || results.length > expectedNodeIds.length ||
+      results.some((result, index) => result?.nodeId !== expectedNodeIds[index] || completedNodeIds[index] !== result?.nodeId ||
+        !['passed', 'cache-hit'].includes(result?.status) || result?.exitCode !== 0)) {
+    errors.push('checkpoint-prefix-invalid')
+  }
+  if (Buffer.byteLength(stableStringify(checkpoint || null), 'utf8') > RUN_CHECKPOINT_MAX_BYTES) errors.push('checkpoint-too-large')
+  if (checkpoint?.checkpointDigest) {
+    const { checkpointDigest, ...core } = checkpoint
+    if (semanticDigest(core) !== checkpointDigest) errors.push('checkpoint-digest-invalid')
+  } else errors.push('checkpoint-digest-missing')
+  return { valid: errors.length === 0, errors, results }
+}
+
+function buildRunHeartbeat({ lease, attempt, currentNode, completedNodeCount, totalNodeCount, startedAt,
+  hardDeadlineAt, observedAt = new Date().toISOString() }) {
+  const core = {
+    schemaVersion: RUN_HEARTBEAT_SCHEMA,
+    runIdentityDigest: lease.runIdentityDigest,
+    attempt,
+    currentNode: currentNode || null,
+    completedNodeCount,
+    totalNodeCount,
+    elapsedMs: Math.max(0, Date.parse(observedAt) - Date.parse(startedAt)),
+    hardDeadlineAt,
+    observedAt
+  }
+  return Object.freeze({ ...core, heartbeatDigest: semanticDigest(core) })
 }
 
 function createProcessOwnershipReceipt({ child, lease, workerPath, repoRoot, attempt, startedAt }) {
@@ -79,7 +180,10 @@ function buildRunnerState(input) {
     startedAt: input.startedAt,
     updatedAt: input.updatedAt || new Date().toISOString(),
     terminalDigest: input.terminalDigest || null,
-    lastEvent: input.lastEvent || null
+    lastEvent: input.lastEvent || null,
+    currentNode: input.currentNode || null,
+    heartbeat: input.heartbeat || null,
+    checkpoint: input.checkpoint || null
   }
   return Object.freeze({ ...core, stateDigest: semanticDigest(core) })
 }
@@ -313,14 +417,69 @@ function sanitizeWorkerReceipt(receipt, { lease, plan, candidate, results, runne
   }
 }
 
+function compactCandidateProjection(candidate) {
+  const changedFiles = [...new Set((candidate?.changedFiles || []).map(value => String(value || ''))
+    .filter(Boolean))].sort()
+  return {
+    candidateId: candidate?.candidateId || null,
+    head: candidate?.head || null,
+    stable: candidate?.stable === true,
+    changedSource: candidate?.changedSource || 'unknown',
+    changedFileCount: changedFiles.length,
+    changedFiles: changedFiles.slice(0, 256),
+    changedFilesTruncated: changedFiles.length > 256,
+    changedFilesDigest: sha256(Buffer.from(stableStringify(changedFiles), 'utf8')),
+    statusDigest: candidate?.identityInputs?.statusDigest || null
+  }
+}
+
+function reconcileSuccessfulCandidate(receipt, { candidate, repoRoot, manifest }) {
+  if (receipt?.nativeExitCode !== 0 ||
+      candidate?.identityInputs?.schemaVersion !== 'ValidationCandidateIdentityV1') return receipt
+
+  let observed = null
+  let observationError = null
+  try {
+    observed = buildCandidateIdentity({
+      repoRoot,
+      narrativeMarkdownExclusions: manifest?.narrativeMarkdownExclusions
+    })
+  } catch (error) {
+    observationError = {
+      code: error.code || 'VALIDATION_CANDIDATE_RECONCILIATION_FAILED',
+      message: error.message
+    }
+  }
+  if (!observationError && observed.candidateId === candidate.candidateId && observed.head === candidate.head) {
+    return receipt
+  }
+
+  return {
+    ...receipt,
+    terminalStatus: 'blocked',
+    executionState: 'blocked',
+    claimCeiling: 'non-qualifying',
+    nativeExitCode: 2,
+    terminalReason: {
+      schemaVersion: 'ValidationCandidateDriftV1',
+      code: observationError
+        ? 'VALIDATION_CANDIDATE_RECONCILIATION_FAILED'
+        : 'VALIDATION_CANDIDATE_DRIFT_DURING_EXECUTION',
+      expected: compactCandidateProjection(candidate),
+      observed: observed ? compactCandidateProjection(observed) : null,
+      observationError
+    }
+  }
+}
+
 function validWorkerMessage(message, { lease, attempt, expectedSequence }) {
   return message?.schemaVersion === WORKER_MESSAGE_SCHEMA &&
     message.runIdentityDigest === lease.runIdentityDigest &&
     message.attempt === attempt && message.sequence === expectedSequence &&
-    ['started', 'node', 'result', 'error'].includes(message.type)
+    ['started', 'node-start', 'node', 'result', 'error'].includes(message.type)
 }
 
-function runManagedValidation(input = {}) {
+async function runManagedValidation(input = {}) {
   const {
     manifest,
     plan,
@@ -336,6 +495,8 @@ function runManagedValidation(input = {}) {
     taskIdentity = null,
     sessionKey = '',
     useCache = true,
+    onNodeStart = null,
+    onHeartbeat = null,
     onNode = null
   } = input
   const binding = leaseBindingFromPlan({
@@ -373,6 +534,9 @@ function runManagedValidation(input = {}) {
   const hardDeadlineMs = Math.min(leaseHardDeadlineMs, requestedRunnerDeadlineMs)
   const hardDeadlineAt = new Date(hardDeadlineMs).toISOString()
   const maxAttempts = Math.min(3, Math.max(1, Math.floor(Number(input.maxWorkerAttempts || 2))))
+  const heartbeatIntervalMs = process.env.DEVCODEX_VALIDATION_TEST_FAULTS === '1' && Number.isFinite(input.heartbeatIntervalMs)
+    ? Math.max(25, Number(input.heartbeatIntervalMs))
+    : 30000
   const perNodeLogBytes = Math.max(1024, Math.min(64 * 1024,
     Math.ceil(Number(plan.budgetCard?.logBudgetBytes || 8000) / Math.max(1, plan.selectedNodeCount))))
   const maxIpcBytes = Math.min(16 * 1024 * 1024, Math.max(1024 * 1024,
@@ -383,6 +547,7 @@ function runManagedValidation(input = {}) {
   const stdoutCapture = createStreamCapture(streamLimitBytes)
   const stderrCapture = createStreamCapture(streamLimitBytes)
   const metrics = { ipcMessageCount: 0, ipcBytes: 0, maxIpcMessages, maxIpcBytes }
+  let checkpoint = null
   const runner = {
     schemaVersion: RUNNER_SCHEMA,
     runId: lease.runId,
@@ -393,15 +558,25 @@ function runManagedValidation(input = {}) {
     runnerPid: process.pid,
     processOwnership: 'runner-child-tree',
     pollIntervalMs,
+    heartbeatIntervalMs,
     hardDeadlineAt,
     startedAt,
     attempts: [],
-    restarts: []
+    restarts: [],
+    recoveries: []
   }
 
   function runnerSnapshot(extra = {}) {
     return {
       ...runner,
+      checkpoint: typeof checkpoint === 'undefined' || !checkpoint
+        ? null
+        : {
+            schemaVersion: checkpoint.schemaVersion,
+            checkpointDigest: checkpoint.checkpointDigest,
+            completedNodeIds: checkpoint.completedNodeIds,
+            results: checkpoint.results
+          },
       ipc: { ...metrics },
       stdout: stdoutCapture.snapshot(),
       stderr: stderrCapture.snapshot(),
@@ -477,6 +652,7 @@ function runManagedValidation(input = {}) {
   const priorTerminal = evidenceStore.readTerminal(lease.runIdentityDigest)
   if (priorTerminal.status === 'fresh') return replayTerminal(priorTerminal)
 
+  let recoveredCheckpoint = null
   const priorRunner = evidenceStore.readRunnerState(lease.runIdentityDigest)
   if (priorRunner.status === 'fresh' && ['starting', 'running', 'observing', 'reconciling'].includes(priorRunner.runnerState?.phase)) {
     const state = priorRunner.runnerState
@@ -515,16 +691,41 @@ function runManagedValidation(input = {}) {
         }, pollIntervalMs)
       })
     }
-    return (async () => {
-      let termination = { status: 'missing', pid: state.workerPid || null }
-      if (processAlive(state.workerPid) && state.processOwnership) {
-        termination = await terminateOwnedTree({ pid: state.workerPid }, {
-          ownershipReceipt: state.processOwnership,
-          runIdentityDigest: lease.runIdentityDigest,
-          allowDeadPriorRunner: true,
-          killGraceMs: input.killGraceMs
+    let termination = { status: 'missing', pid: state.workerPid || null }
+    if (processAlive(state.workerPid) && state.processOwnership) {
+      termination = await terminateOwnedTree({ pid: state.workerPid }, {
+        ownershipReceipt: state.processOwnership,
+        runIdentityDigest: lease.runIdentityDigest,
+        allowDeadPriorRunner: true,
+        killGraceMs: input.killGraceMs
+      })
+    }
+    if (state.checkpoint) {
+      const checkpointValidation = validateRunCheckpoint(state.checkpoint, { lease, plan, candidate, manifest })
+      if (!checkpointValidation.valid || !['missing', 'terminated'].includes(termination.status)) {
+        const receipt = controlTerminalReceipt({
+          plan, candidate, lease, startedAt: state.startedAt || startedAt,
+          reason: {
+            code: 'VALIDATION_RUN_CHECKPOINT_INVALID',
+            errors: checkpointValidation.errors,
+            termination
+          },
+          results: [], runner: runnerSnapshot({ priorRunnerState: state.stateDigest, termination }),
+          terminalStatus: 'blocked', nativeExitCode: 2,
+          reconciliation: { state: 'checkpoint-invalid', priorStateDigest: state.stateDigest, termination }
         })
+        return terminalResult(receipt, 'revoked', { reconciled: true })
       }
+      recoveredCheckpoint = state.checkpoint
+      checkpoint = recoveredCheckpoint
+      runner.recoveries.push({
+        kind: 'dead-host-exact-checkpoint',
+        priorStateDigest: state.stateDigest,
+        checkpointDigest: state.checkpoint.checkpointDigest,
+        completedNodeCount: state.checkpoint.results.length,
+        termination
+      })
+    } else {
       const receipt = controlTerminalReceipt({
         plan, candidate, lease, startedAt: state.startedAt || startedAt,
         reason: { code: 'VALIDATION_ABANDONED_RUN_RECONCILED', priorPhase: state.phase }, results: [],
@@ -533,7 +734,7 @@ function runManagedValidation(input = {}) {
         reconciliation: { state: 'abandoned', priorStateDigest: state.stateDigest, termination }
       })
       return terminalResult(receipt, 'revoked', { reconciled: true })
-    })()
+    }
   }
 
   const leasePersistence = evidenceStore.writeLease(lease)
@@ -548,7 +749,8 @@ function runManagedValidation(input = {}) {
 
   const startingState = buildRunnerState({
     lease, phase: 'starting', attempt: 0, maxAttempts, hardDeadlineAt, startedAt,
-    lastEvent: 'authority-prewritten'
+    lastEvent: recoveredCheckpoint ? 'checkpoint-recovered' : 'authority-prewritten',
+    checkpoint: recoveredCheckpoint
   })
   const startingPersistence = evidenceStore.writeRunnerState(startingState)
   if (!acceptedActivePersistence(startingPersistence.status)) {
@@ -565,12 +767,14 @@ function runManagedValidation(input = {}) {
     let poll = null
     let hardTimer = null
     let silenceTimer = null
+    let heartbeatTimer = null
     let activeChild = null
     let activeOwnership = null
     let attempt = 0
     let expectedSequence = 1
     let lastActivityMs = Date.now()
     let results = []
+    let currentNode = null
 
     function clearTimers() {
       if (poll) clearInterval(poll)
@@ -579,6 +783,40 @@ function runManagedValidation(input = {}) {
       hardTimer = null
       if (silenceTimer) clearInterval(silenceTimer)
       silenceTimer = null
+      if (heartbeatTimer) clearInterval(heartbeatTimer)
+      heartbeatTimer = null
+    }
+
+    function progressHeartbeat(observedAt = new Date().toISOString()) {
+      return buildRunHeartbeat({
+        lease,
+        attempt,
+        currentNode,
+        completedNodeCount: checkpoint?.results?.length || 0,
+        totalNodeCount: executionNodeIds(plan).length,
+        startedAt,
+        hardDeadlineAt,
+        observedAt
+      })
+    }
+
+    function persistProgress(lastEvent, phase = 'observing') {
+      const heartbeat = progressHeartbeat()
+      const state = buildRunnerState({
+        lease, phase, attempt, maxAttempts, hardDeadlineAt, startedAt,
+        processOwnership: activeOwnership,
+        lastEvent,
+        currentNode,
+        heartbeat,
+        checkpoint
+      })
+      const persistence = evidenceStore.writeRunnerState(state)
+      if (onHeartbeat) onHeartbeat(heartbeat)
+      if (!acceptedActivePersistence(persistence.status)) {
+        terminateAndFinish({ code: 'VALIDATION_RUNNER_STATE_PERSISTENCE_FAILED', persistence }, 'blocked', 2)
+        return false
+      }
+      return true
     }
 
     function finish(receipt, leaseStatus, extra = {}) {
@@ -660,6 +898,9 @@ function runManagedValidation(input = {}) {
       expectedSequence = 1
       lastActivityMs = Date.now()
       results = []
+      currentNode = null
+      if (heartbeatTimer) clearInterval(heartbeatTimer)
+      heartbeatTimer = null
       let child
       try {
         child = fork(workerPath, [], {
@@ -693,7 +934,7 @@ function runManagedValidation(input = {}) {
       })
       const runningState = buildRunnerState({
         lease, phase: 'running', attempt, maxAttempts, hardDeadlineAt, startedAt,
-        processOwnership: activeOwnership, lastEvent: 'worker-spawned'
+        processOwnership: activeOwnership, lastEvent: 'worker-spawned', checkpoint
       })
       const runningPersistence = evidenceStore.writeRunnerState(runningState)
       if (!acceptedActivePersistence(runningPersistence.status)) {
@@ -702,6 +943,9 @@ function runManagedValidation(input = {}) {
       }
       child.stdout?.on('data', chunk => stdoutCapture.push(chunk))
       child.stderr?.on('data', chunk => stderrCapture.push(chunk))
+      heartbeatTimer = setInterval(() => {
+        if (!terminalClaimed && child === activeChild) persistProgress('heartbeat')
+      }, heartbeatIntervalMs)
 
       child.on('message', message => {
         if (terminalClaimed || child !== activeChild) return
@@ -724,25 +968,42 @@ function runManagedValidation(input = {}) {
         if (message.type === 'started') {
           const observingState = buildRunnerState({
             lease, phase: 'observing', attempt, maxAttempts, hardDeadlineAt, startedAt,
-            processOwnership: activeOwnership, lastEvent: 'worker-started'
+            processOwnership: activeOwnership, lastEvent: 'worker-started',
+            heartbeat: progressHeartbeat(), checkpoint
           })
           const persistence = evidenceStore.writeRunnerState(observingState)
           if (!acceptedActivePersistence(persistence.status)) {
             terminateAndFinish({ code: 'VALIDATION_RUNNER_STATE_PERSISTENCE_FAILED', persistence }, 'blocked', 2)
           }
+        } else if (message.type === 'node-start') {
+          currentNode = message.node || null
+          if (!persistProgress('node-start')) return
+          if (onNodeStart) onNodeStart(currentNode)
         } else if (message.type === 'node') {
           const result = sanitizeNodeResult(message.result, perNodeLogBytes)
           results.push(result)
+          currentNode = null
+          if (['passed', 'cache-hit'].includes(result.status) && result.exitCode === 0) {
+            try {
+              const nextCheckpoint = buildRunCheckpoint({ lease, plan, candidate, manifest, results })
+              if (nextCheckpoint.results.length >= (checkpoint?.results?.length || 0)) checkpoint = nextCheckpoint
+            } catch (error) {
+              terminateAndFinish({ code: error.code || 'VALIDATION_RUN_CHECKPOINT_FAILED', message: error.message }, 'blocked', 2)
+              return
+            }
+          }
+          if (!persistProgress(result.status === 'failed' ? 'node-failed' : 'node-completed')) return
           if (onNode) onNode(result)
         } else if (message.type === 'result') {
           if (terminalClaimed) return
           terminalClaimed = true
-          const receipt = sanitizeWorkerReceipt(message.execution?.receipt, {
+          let receipt = sanitizeWorkerReceipt(message.execution?.receipt, {
             lease, plan, candidate, results,
             runner: runnerSnapshot({ completedAt: new Date().toISOString() }),
             logLimitBytes: perNodeLogBytes
           })
-          receipt.terminalStatus = receipt.nativeExitCode === 0 ? 'completed' : 'failed'
+          receipt = reconcileSuccessfulCandidate(receipt, { candidate, repoRoot, manifest })
+          receipt.terminalStatus = receipt.terminalStatus || (receipt.nativeExitCode === 0 ? 'completed' : 'failed')
           finish(receipt, 'consumed')
         } else if (message.type === 'error') {
           terminateAndFinish({ code: message.error?.code || 'VALIDATION_WORKER_FAILED', error: message.error }, 'failed', 2)
@@ -762,6 +1023,8 @@ function runManagedValidation(input = {}) {
           if (terminalClaimed || child !== activeChild) return
           if (attempt < maxAttempts && Date.now() < hardDeadlineMs) {
             runner.restarts.push({ fromAttempt: attempt, reason: 'worker-exit-without-terminal', exitCode: code, signal })
+            if (heartbeatTimer) clearInterval(heartbeatTimer)
+            heartbeatTimer = null
             activeChild = null
             activeOwnership = null
             startWorker()
@@ -803,7 +1066,8 @@ function runManagedValidation(input = {}) {
             taskRecoveryKey,
             contextEpoch,
             revocationEpoch,
-            useCache
+            useCache,
+            resumeResults: checkpoint?.results || []
           }
         }
       }
@@ -829,6 +1093,8 @@ function runManagedValidation(input = {}) {
 
 module.exports = {
   PROCESS_OWNERSHIP_SCHEMA,
+  RUN_CHECKPOINT_SCHEMA,
+  RUN_HEARTBEAT_SCHEMA,
   RUNNER_COMMAND_SCHEMA,
   RUNNER_SCHEMA,
   RUNNER_STATE_SCHEMA,
@@ -837,11 +1103,15 @@ module.exports = {
   acceptedPersistence,
   acceptedTerminalPersistence,
   buildRunnerState,
+  buildRunCheckpoint,
+  buildRunHeartbeat,
   controlTerminalReceipt,
   createProcessOwnershipReceipt,
   runManagedValidation,
+  reconcileSuccessfulCandidate,
   terminateOwnedTree,
   validationBudgetProjectionForReceipt,
   validateProcessOwnershipReceipt,
+  validateRunCheckpoint,
   validateRunnerState
 }

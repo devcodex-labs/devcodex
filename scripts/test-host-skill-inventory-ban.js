@@ -40,19 +40,19 @@ const listGrok = checkHostSkillInventoryListing({
   tool_name: 'list_dir',
   tool_input: { path: 'C:\\Users\\shihu\\.grok\\skills' }
 }, 'grok')
-assert.ok(listGrok && listGrok.code === 'host-skill-inventory-ban', 'list_dir grok skills banned')
+assert.ok(listGrok && listGrok.code === 'host-skill-inventory-advisory' && listGrok.permissionOwner === 'host', 'list_dir grok skills advisory')
 
 const listBundled = checkDangerousCommand({
   tool_name: 'List',
   tool_input: { target_directory: 'C:\\Users\\shihu\\.grok\\bundled\\skills' }
 }, 'grok')
-assert.ok(listBundled && listBundled.code === 'host-skill-inventory-ban', 'List bundled banned')
+assert.ok(listBundled && listBundled.code === 'host-skill-inventory-advisory' && listBundled.advisory === true, 'List bundled advisory')
 
 const shellList = checkDangerousCommand({
   tool_name: 'run_terminal_command',
   tool_input: { command: 'Get-ChildItem C:\\Users\\shihu\\.grok\\skills' }
 }, 'grok')
-assert.ok(shellList && shellList.code === 'host-skill-inventory-ban', 'shell list banned')
+assert.ok(shellList && shellList.code === 'host-skill-inventory-advisory' && shellList.permissionOwner === 'host', 'shell list advisory')
 
 const allowWorkspaceSkill = checkHostSkillInventoryListing({
   tool_name: 'read_file',
@@ -76,6 +76,6 @@ const blockCodexSkillRoot = checkHostSkillInventoryListing({
   tool_name: 'list_dir',
   tool_input: { path: 'C:\\Users\\shihu\\.codex\\skills' }
 }, 'codex')
-assert.ok(blockCodexSkillRoot && blockCodexSkillRoot.code === 'host-skill-inventory-ban', 'Codex skill root inventory remains banned')
+assert.ok(blockCodexSkillRoot && blockCodexSkillRoot.code === 'host-skill-inventory-advisory' && blockCodexSkillRoot.advisory === true, 'Codex skill root inventory remains advisory')
 
-console.log('test-host-skill-inventory-ban: ok')
+console.log('test-host-skill-inventory advisory: ok')

@@ -3,6 +3,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { RECEIPT_SCHEMA, resolveArtifactPath } = require('./exact-release-artifact')
 
 const ROOT = path.resolve(__dirname, '..')
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
@@ -10,6 +11,7 @@ const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugin.json'), 'utf8'
 const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'))
 const publicCi = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8')
 const publishWorkflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'publish.yml'), 'utf8')
+const exactArtifactSource = fs.readFileSync(path.join(ROOT, 'scripts', 'exact-release-artifact.js'), 'utf8')
 
 const errors = []
 
@@ -87,6 +89,39 @@ expect(
   pkg.scripts?.prepublishOnly === 'node scripts/verify-release-validation-receipt.js',
   'prepublishOnly 必须消费当前候选的稳定 release 终态，禁止再次无授权地执行全量验证'
 )
+expect(
+  publishWorkflow.includes('node scripts/exact-release-artifact.js create --output-dir') &&
+    publishWorkflow.match(/exact-release-artifact\.js create/g)?.length === 1,
+  'Publish workflow 必须且只能打包一次 ExactReleaseArtifactV1'
+)
+expect(
+  publishWorkflow.includes('exact-release-artifact.js verify --output-dir') &&
+    publishWorkflow.includes('npm publish "${RELEASE_ARTIFACT_PATH}" --ignore-scripts --provenance --access public'),
+  'Publish workflow 必须校验并发布同一个已冻结 tgz，且不得再次触发生命周期打包'
+)
+expect(!publishWorkflow.includes('npm pack --dry-run'), 'Publish workflow 不得以另一次 dry-run pack 冒充实际发布对象证据')
+expect(
+  publishWorkflow.includes('exact-release-artifact.js postcheck --output-dir') &&
+    publishWorkflow.includes('Published artifact did not converge to the qualified identity'),
+  'Publish workflow 必须回查 registry integrity、gitHead 与 provenance'
+)
+expect(
+  publishWorkflow.includes('contents: write') && publishWorkflow.includes('gh release create "${GITHUB_REF_NAME}"') &&
+    publishWorkflow.includes('--verify-tag') && publishWorkflow.includes('--notes-file "changelogs/releases/${GITHUB_REF_NAME}.md"'),
+  'Publish workflow 必须在 registry 回查后从既有精确 tag 与同一 tarball 创建 GitHub Release'
+)
+expect(RECEIPT_SCHEMA === 'ExactReleaseArtifactReceiptV1', '发布制品回执必须使用稳定 ExactReleaseArtifactReceiptV1 schema')
+expect(
+  exactArtifactSource.includes("'sha256'") && exactArtifactSource.includes("'sha512'") &&
+    exactArtifactSource.includes('releaseTerminalDigest') && exactArtifactSource.includes('published-provenance-missing'),
+  'Exact release receipt 必须绑定双哈希、release terminal 与 registry provenance'
+)
+try {
+  resolveArtifactPath(path.join(ROOT, '.release-fixture'), path.join('..', 'escape.tgz'))
+  expect(false, 'Exact release artifact 必须拒绝越界 tarball 路径')
+} catch (error) {
+  expect(error.code === 'RELEASE_ARTIFACT_BOUNDARY_INVALID', '越界 tarball 必须返回类型化错误')
+}
 for (const [scriptName, command] of Object.entries({
   'test:actual-candidate-evidence': 'node scripts/test-actual-candidate-evidence.js',
   'test:dangerous-command-context': 'node scripts/test-dangerous-command-context.js',

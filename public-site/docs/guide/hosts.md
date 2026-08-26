@@ -35,7 +35,7 @@ DevCodex 使用 workspace base + project overlay 保存项目 Profile、报告�
 @rocky 按已确认方案完成文档修改并运行相关验证，不要提交或发布。
 ```
 
-auto 只自动通过适用 CP，不会扩大项目、删除、发布或危险操作权限。`extensions.devcodex.autoAliases` 为非空数组时会替换默认别名；空数组会关闭默认别名。
+auto 只自动通过适用 CP，不会扩大项目范围或发布授权；文件、删除与命令权限由宿主及其用户配置决定。`extensions.devcodex.autoAliases` 为非空数组时会替换默认别名；空数组会关闭默认别名。
 
 ## 验证宿主是否真的就绪
 

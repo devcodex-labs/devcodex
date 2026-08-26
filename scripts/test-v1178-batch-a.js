@@ -2,7 +2,6 @@
 
 const assert = require('assert')
 const path = require('path')
-const crypto = require('crypto')
 const { buildLifecycleProjectTargetUtils } = require('../hooks/_runtime/lifecycle-project-target.cjs')
 const { buildLifecycleDangerousCommandUtils } = require('../hooks/_runtime/lifecycle-dangerous-command.cjs')
 const { classifyMemoryCoverage } = require('../hooks/_runtime/lifecycle-bootstrap-state.cjs')
@@ -55,43 +54,22 @@ assert.strictEqual(targets.detectExecutionMode({ prompt: '继续', sessionId: 's
 
 const dangerUtils = buildLifecycleDangerousCommandUtils({
   path,
-  crypto,
   CONTEXT_ROOT: path.resolve('context-root'),
   WORKSPACE_ROOT: path.resolve('workspace-root'),
-  APPROVAL_TTL_MS: 60_000,
   DANGEROUS_PATTERNS: [{ re: /Remove-Item/i, reason: 'test danger' }],
   getToolName: payload => payload.tool_name,
   getCommandText: payload => payload.tool_input.command,
-  INTERCEPTION_ACTION: { LOG_ONLY: 'log' },
-  recordInterception: () => {}
 })
-const approvalState = { dangerousApprovals: {} }
 const toolCwd = path.resolve('actual-tool-cwd')
-const otherCwd = path.resolve('other-tool-cwd')
 const firstDanger = dangerUtils.checkDangerousCommand({
   tool_name: 'shell_command',
   tool_input: { command: 'Remove-Item target', cwd: toolCwd }
 }, 'codex')
 assert.strictEqual(firstDanger.cwd, toolCwd)
-const approvalId = dangerUtils.createDangerousApproval(approvalState, firstDanger)
-dangerUtils.confirmDangerousApprovalsFromPrompt(
-  approvalState,
-  `yes devcodex-approve:${approvalId}`,
-  'UserPromptSubmit',
-  'codex'
-)
-const retryCommand = `Remove-Item target # devcodex-approve:${approvalId}`
-const wrongDanger = dangerUtils.checkDangerousCommand({
-  tool_name: 'shell_command',
-  tool_input: { command: retryCommand, cwd: otherCwd }
-}, 'codex')
-assert.strictEqual(dangerUtils.consumeDangerousApproval(approvalState, wrongDanger).approved, false)
-const exactDanger = dangerUtils.checkDangerousCommand({
-  tool_name: 'shell_command',
-  tool_input: { command: retryCommand, cwd: toolCwd }
-}, 'codex')
-assert.strictEqual(dangerUtils.consumeDangerousApproval(approvalState, exactDanger).approved, true)
-assert.strictEqual(dangerUtils.consumeDangerousApproval(approvalState, exactDanger).approved, false)
+assert.strictEqual(firstDanger.advisory, true)
+assert.strictEqual(firstDanger.permissionOwner, 'host')
+assert.strictEqual(typeof dangerUtils.createDangerousApproval, 'undefined')
+assert.strictEqual(typeof dangerUtils.consumeDangerousApproval, 'undefined')
 
 assert.deepStrictEqual(classifyMemoryCoverage({ coverage: { status: 'complete' } }), {
   status: 'complete',

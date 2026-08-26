@@ -13,7 +13,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
 
     steps:
@@ -51,10 +51,48 @@ jobs:
           )"
           node scripts/run-validation.js --route package-release --purpose release --actor release-pipeline --authority-source "${AUTHORITY_SOURCE}" --policy-digest "${POLICY_DIGEST}" --approve-plan "${BUDGET_DIGEST}"
 
-      - name: Preview package contents
-        run: npm pack --dry-run
+      - name: Create the exact qualified release artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_DIR="${RUNNER_TEMP}/devcodex-release-artifact"
+          mkdir -p "${RELEASE_DIR}"
+          CREATE_RESULT="${RUNNER_TEMP}/devcodex-release-create-result.json"
+          node scripts/exact-release-artifact.js create --output-dir "${RELEASE_DIR}" > "${CREATE_RESULT}"
+          RELEASE_ARTIFACT_PATH="$(node -e 'const fs=require("fs"); const value=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(value.ok!==true||!value.artifactPath) process.exit(1); process.stdout.write(value.artifactPath)' "${CREATE_RESULT}")"
+          echo "RELEASE_DIR=${RELEASE_DIR}" >> "${GITHUB_ENV}"
+          echo "RELEASE_ARTIFACT_PATH=${RELEASE_ARTIFACT_PATH}" >> "${GITHUB_ENV}"
 
-      - name: Publish
-        run: npm publish --provenance --access public
+      - name: Verify the exact release artifact
+        run: node scripts/exact-release-artifact.js verify --output-dir "${RELEASE_DIR}"
+
+      - name: Publish the exact qualified tarball
+        run: npm publish "${RELEASE_ARTIFACT_PATH}" --ignore-scripts --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify registry identity and provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            if node scripts/exact-release-artifact.js postcheck --output-dir "${RELEASE_DIR}"; then
+              exit 0
+            fi
+            if [ "${attempt}" -eq 12 ]; then
+              echo "Published artifact did not converge to the qualified identity"
+              exit 1
+            fi
+            sleep 10
+          done
+
+      - name: Create the GitHub Release from the verified tag and artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "${GITHUB_REF_NAME}" "${RELEASE_ARTIFACT_PATH}" \
+            --verify-tag \
+            --title "DevCodex ${GITHUB_REF_NAME}" \
+            --notes-file "changelogs/releases/${GITHUB_REF_NAME}.md"

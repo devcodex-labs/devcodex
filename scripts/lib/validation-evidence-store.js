@@ -412,6 +412,15 @@ function compactRunnerProjection(runner) {
     completedAt: runner.completedAt || null,
     attempts: (runner.attempts || []).slice(-3),
     restarts: (runner.restarts || []).slice(-3),
+    recoveries: (runner.recoveries || []).slice(-3),
+    checkpoint: runner.checkpoint
+      ? {
+          schemaVersion: runner.checkpoint.schemaVersion || null,
+          checkpointDigest: runner.checkpoint.checkpointDigest || null,
+          completedNodeCount: runner.checkpoint.results?.length || 0,
+          completedNodeIds: runner.checkpoint.completedNodeIds || []
+        }
+      : null,
     ipc: runner.ipc || null,
     stdout: compactStream(runner.stdout),
     stderr: compactStream(runner.stderr),
@@ -488,6 +497,8 @@ function buildTerminalProjection(receipt) {
     selectedNodeCount: receipt.selectedNodeCount,
     executionCount: receipt.executionCount,
     cacheHitCount: receipt.cacheHitCount,
+    resumedNodeCount: Number(receipt.resumedNodeCount || 0),
+    resumedNodeIds: receipt.resumedNodeIds || [],
     failedNode: receipt.failedNode,
     failureSummary,
     abortedNodes: receipt.abortedNodes || [],

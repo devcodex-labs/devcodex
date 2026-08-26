@@ -1,6 +1,7 @@
 'use strict'
 
 const assert = require('assert')
+const { execFileSync } = require('child_process')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -35,7 +36,12 @@ const {
   TASKLESS_RUN_SHARD_COUNT,
   createValidationEvidenceStore
 } = require('./lib/validation-evidence-store')
-const { runManagedValidation, terminateOwnedTree } = require('./lib/managed-validation-runner')
+const {
+  buildRunCheckpoint,
+  runManagedValidation,
+  terminateOwnedTree
+} = require('./lib/managed-validation-runner')
+const { buildCandidateIdentity } = require('./lib/validation-dag')
 const { verifyReleaseValidationReceipt } = require('./verify-release-validation-receipt')
 const {
   commitTaskRecoveryState,
@@ -191,7 +197,9 @@ async function main() {
       sourceMessageDigest: sha256('fixture-message')
     }), error => error instanceof ValidationAuthorityError && error.details.errors.includes('lease-ai-task-evidence-required'))
 
-    const authorityNow = Date.parse('2026-08-25T12:00:00.000Z')
+    // Keep every authority artifact on one deterministic-in-run clock while
+    // avoiding a fixture that expires merely because the calendar advanced.
+    const authorityNow = Date.now()
     const rootPlan = {
       ...plan,
       planDigest: sha256('continuation-root-plan'),
@@ -492,6 +500,8 @@ async function main() {
       nowMs: Date.parse(longLease.hardDeadlineAt)
     }), error => error instanceof ValidationAuthorityError && error.code === 'VALIDATION_LEASE_RENEWAL_DENIED')
 
+    const nodeStarts = []
+    const heartbeats = []
     const completed = await runManagedValidation({
       manifest: {},
       plan,
@@ -502,12 +512,62 @@ async function main() {
       actorType: 'human-cli',
       project: 'devcodex',
       workerPath,
-      pollIntervalMs: 100
+      pollIntervalMs: 100,
+      heartbeatIntervalMs: 25,
+      onNodeStart: node => nodeStarts.push(node),
+      onHeartbeat: heartbeat => heartbeats.push(heartbeat)
     })
     assert.strictEqual(completed.receipt.terminalStatus, 'completed', JSON.stringify(completed))
     assert.strictEqual(completed.receipt.nativeExitCode, 0)
     assert.strictEqual(completed.persistence.status, 'persisted')
     assert.strictEqual(completed.persistence.stateOwner, 'taskless-run-fixed-shard')
+    assert.deepStrictEqual(nodeStarts.map(node => node.nodeId), ['fixture'])
+    assert(heartbeats.some(item => item.schemaVersion === 'ValidationRunHeartbeatV1' && item.totalNodeCount === 1))
+
+    const driftAwareRepo = path.join(fixtureRoot, 'candidate-reconciliation-repo')
+    fs.mkdirSync(driftAwareRepo, { recursive: true })
+    fs.writeFileSync(path.join(driftAwareRepo, 'tracked.js'), 'module.exports = 1\n')
+    for (const args of [
+      ['init', '--quiet'],
+      ['config', 'core.autocrlf', 'false'],
+      ['config', 'user.email', 'devcodex-fixture@example.invalid'],
+      ['config', 'user.name', 'DevCodex Fixture'],
+      ['add', 'tracked.js'],
+      ['commit', '--quiet', '-m', 'fixture']
+    ]) execFileSync('git', args, { cwd: driftAwareRepo, stdio: 'ignore', windowsHide: true })
+    const driftAwareCandidate = buildCandidateIdentity({ repoRoot: driftAwareRepo })
+    const driftAwarePlan = {
+      ...plan,
+      candidateId: driftAwareCandidate.candidateId,
+      planDigest: sha256('drift-aware-plan'),
+      changedScopeDigest: sha256('drift-aware-scope'),
+      requestDigest: sha256('drift-aware-request'),
+      budgetCard: { ...plan.budgetCard, digest: sha256('drift-aware-budget') }
+    }
+    const driftAwareLease = fixtureLease({
+      plan: driftAwarePlan,
+      candidate: driftAwareCandidate,
+      repoRoot: driftAwareRepo
+    })
+    const driftBlocked = await runManagedValidation({
+      manifest: {}, plan: driftAwarePlan, candidate: driftAwareCandidate,
+      repoRoot: driftAwareRepo, activeRoot, lease: driftAwareLease,
+      actorType: 'human-cli', project: 'devcodex', workerPath,
+      pollIntervalMs: 100,
+      onNode: () => fs.writeFileSync(path.join(driftAwareRepo, 'tracked.js'), 'module.exports = 2\n')
+    })
+    assert.strictEqual(driftBlocked.receipt.terminalStatus, 'blocked')
+    assert.strictEqual(driftBlocked.receipt.nativeExitCode, 2)
+    assert.strictEqual(driftBlocked.receipt.claimCeiling, 'non-qualifying')
+    assert.strictEqual(
+      driftBlocked.receipt.terminalReason.code,
+      'VALIDATION_CANDIDATE_DRIFT_DURING_EXECUTION'
+    )
+    assert.strictEqual(driftBlocked.receipt.terminalReason.expected.candidateId, driftAwareCandidate.candidateId)
+    assert.notStrictEqual(
+      driftBlocked.receipt.terminalReason.observed.candidateId,
+      driftAwareCandidate.candidateId
+    )
 
     const cancelCandidate = { ...candidate, candidateId: 'validation-candidate-cancel-fixture', cancelProbe: true }
     const cancelPlan = {
@@ -575,6 +635,11 @@ async function main() {
     const restarted = await runFault('restart', 'restart')
     assert.strictEqual(restarted.receipt.terminalStatus, 'completed', JSON.stringify(restarted))
     assert.strictEqual(restarted.runner.restarts.length, 1)
+    const checkpointRestarted = await runFault('checkpoint-restart', 'checkpoint-restart')
+    assert.strictEqual(checkpointRestarted.receipt.terminalStatus, 'completed', JSON.stringify(checkpointRestarted))
+    assert.strictEqual(checkpointRestarted.receipt.resumedNodeCount, 1)
+    assert.deepStrictEqual(checkpointRestarted.receipt.resumedNodeIds, ['fixture'])
+    assert.strictEqual(checkpointRestarted.runner.restarts.length, 1)
     assert.strictEqual((await runFault('crash', 'crash', { maxWorkerAttempts: 2 })).receipt.terminalStatus, 'abandoned')
     assert.strictEqual((await runFault('ipc-exit', 'ipc-exit', { maxWorkerAttempts: 1 })).receipt.terminalStatus, 'abandoned')
     const missingWorker = await runFault('spawn', null, {
@@ -688,6 +753,51 @@ async function main() {
     })
     assert.strictEqual(reconciled.receipt.terminalStatus, 'abandoned')
     assert.strictEqual(reconciled.reconciled, true)
+
+    const checkpointCandidate = { ...candidate, candidateId: 'validation-candidate-host-checkpoint-resume' }
+    const checkpointPlan = {
+      ...plan,
+      planDigest: sha256('host-checkpoint-plan'),
+      changedScopeDigest: sha256('host-checkpoint-scope'),
+      requestDigest: sha256('host-checkpoint-request'),
+      budgetCard: { ...plan.budgetCard, digest: sha256('host-checkpoint-budget') }
+    }
+    const checkpointLease = fixtureLease({ plan: checkpointPlan, candidate: checkpointCandidate })
+    const checkpointStore = createValidationEvidenceStore({
+      activeRoot, project: 'devcodex', actorType: 'human-cli', runIdentity: checkpointLease.runIdentity
+    })
+    const hostCheckpoint = buildRunCheckpoint({
+      lease: checkpointLease,
+      plan: checkpointPlan,
+      candidate: checkpointCandidate,
+      manifest: {},
+      results: [{ nodeId: 'fixture', status: 'passed', exitCode: 0, nodeReceiptDigest: 'a'.repeat(64) }],
+      now: checkpointLease.issuedAt
+    })
+    const checkpointRunnerCore = {
+      ...staleRunnerCore,
+      runId: checkpointLease.runId,
+      runIdentityDigest: checkpointLease.runIdentityDigest,
+      leaseDigest: checkpointLease.authorityDigest,
+      hardDeadlineAt: checkpointLease.hardDeadlineAt,
+      startedAt: checkpointLease.issuedAt,
+      updatedAt: checkpointLease.issuedAt,
+      lastEvent: 'fixture-host-crash-after-node',
+      checkpoint: hostCheckpoint
+    }
+    const checkpointRunnerState = {
+      ...checkpointRunnerCore,
+      stateDigest: sha256(Buffer.from(stableStringify(checkpointRunnerCore), 'utf8'))
+    }
+    assert.strictEqual(checkpointStore.writeRunnerState(checkpointRunnerState).status, 'persisted')
+    const resumedHostRun = await runManagedValidation({
+      manifest: {}, plan: checkpointPlan, candidate: checkpointCandidate,
+      repoRoot: fixtureRoot, activeRoot, lease: checkpointLease,
+      actorType: 'human-cli', project: 'devcodex', workerPath, pollIntervalMs: 50
+    })
+    assert.strictEqual(resumedHostRun.receipt.terminalStatus, 'completed', JSON.stringify(resumedHostRun))
+    assert.strictEqual(resumedHostRun.receipt.resumedNodeCount, 1)
+    assert.strictEqual(resumedHostRun.runner.recoveries[0].kind, 'dead-host-exact-checkpoint')
 
     function runFixture(index, extra = {}) {
       const runCandidate = {
@@ -849,12 +959,15 @@ async function main() {
       nowMs: Date.parse(completedAt) + 1000
     })
     assert.strictEqual(releaseVerification.valid, true, JSON.stringify(releaseVerification.errors))
-    assert.strictEqual(verifyReleaseValidationReceipt({
+    const driftedReleaseVerification = verifyReleaseValidationReceipt({
       repoRoot: fixtureRoot,
       activeRoot,
       candidate: { ...releaseCandidate, candidateId: 'drifted-candidate' },
       nowMs: Date.parse(completedAt) + 1000
-    }).valid, false)
+    })
+    assert.strictEqual(driftedReleaseVerification.valid, false)
+    assert(driftedReleaseVerification.errors.includes('release-candidate-id-mismatch'))
+    assert(!driftedReleaseVerification.errors.includes('release-candidate-head-mismatch'))
 
     const taskIdentity = {
       activeRoot,

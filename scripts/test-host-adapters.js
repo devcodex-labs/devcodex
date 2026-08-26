@@ -53,6 +53,7 @@ const {
   runCompatibleHostAdapter
 } = require('../hooks/_runtime/lifecycle-cursor-compatible.cjs')
 const { createBoundedTextAccumulator } = require('../hooks/_runtime/stdio-bounds.cjs')
+const { buildLifecycleHookOutput } = require('../hooks/_runtime/lifecycle-hook-output.cjs')
 const {
   bindInstalledProductionRuntime,
   bindInstalledSourceCandidateRuntime,
@@ -1519,6 +1520,23 @@ const grokMcpPost = normalizeHostPayload('grok', {
 assert.deepStrictEqual(grokMcpPost.payload.tool_result, {
   schemaVersion: 'ContextReadPlanV2'
 })
+// PermissionProjectionInvariantV1: operation-risk telemetry is advisory on every
+// supported host projection; only workflow-validity decisions may deny.
+const advisoryOutputBuilder = buildLifecycleHookOutput({ env: {}, enforcementMode: 'strict' })
+const operationRiskAdvisory = advisoryOutputBuilder.decorateHookOutput(
+  advisoryOutputBuilder.warningOutput(
+    'Advisory: destructive operation classified',
+    'The host and its user-configured policy own permission.',
+    'PreToolUse'
+  ),
+  { devcodexAction: 'warn_continue', devcodexCode: 'operation-risk-advisory', devcodexEffective: false }
+)
+for (const host of ['codex', 'claude', 'gemini', 'copilot', 'grok', 'cursor']) {
+  const projected = adaptHostOutput(host, 'PreToolUse', operationRiskAdvisory)
+  assert.doesNotMatch(JSON.stringify(projected), /"(?:decision|permission|permissionDecision)":"(?:deny|block)"/,
+    `${host} must not convert a DevCodex operation advisory into a permission denial`)
+}
+
 // Grok PreToolUse: official decision:allow / decision:deny contract
 assert.deepStrictEqual(adaptHostOutput('grok', 'PreToolUse', { continue: true }), { decision: 'allow' })
 
@@ -1527,12 +1545,12 @@ const grokDenyPermission = adaptHostOutput('grok', 'PreToolUse', {
   hookSpecificOutput: {
     hookEventName: 'PreToolUse',
     permissionDecision: 'deny',
-    permissionDecisionReason: 'dangerous-command',
-    additionalContext: 'dangerous-command detail'
+    permissionDecisionReason: 'workflow-invalid',
+    additionalContext: 'workflow-invalid detail'
   }
 })
 assert.strictEqual(grokDenyPermission.decision, 'deny')
-assert.strictEqual(grokDenyPermission.reason, 'dangerous-command')
+assert.strictEqual(grokDenyPermission.reason, 'workflow-invalid')
 assert.strictEqual(Object.prototype.hasOwnProperty.call(grokDenyPermission, 'hookSpecificOutput'), false)
 
 const grokDenyBlock = adaptHostOutput('grok', 'PreToolUse', {
@@ -1889,7 +1907,6 @@ for (const host of completionHosts) {
 }
 assert.throws(() => completionRouteForHost('unknown'), error => error instanceof WorkflowCompletionLifecycleError && error.code === 'WORKFLOW_HOST_UNSUPPORTED')
 
-const { buildLifecycleHookOutput } = require('../hooks/_runtime/lifecycle-hook-output.cjs')
 const hookOut = buildLifecycleHookOutput({ env: process.env, enforcementMode: 'safety-only' })
 const structuredStopOutput = hookOut.decorateHookOutput(
   hookOut.blockOutput('codex', 'Stop', 'progressive-skill-route', 'compact recovery card'),

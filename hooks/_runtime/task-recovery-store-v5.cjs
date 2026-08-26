@@ -416,104 +416,6 @@ function boundedRecoveryString(value, maxLength = 512) {
   return text.length <= maxLength ? text : text.slice(0, maxLength)
 }
 
-function compactDangerousApprovalsForEphemeral(raw) {
-  const approvals = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
-  return Object.fromEntries(Object.entries(approvals)
-    .filter(([approvalId, approval]) =>
-      /^[a-f0-9]{12}$/.test(approvalId) &&
-      approval && typeof approval === 'object' && !Array.isArray(approval) &&
-      approval.used !== true && ['pending', 'confirmed'].includes(String(approval.status || '')) &&
-      /^[a-f0-9]{64}$/.test(String(approval.commandHash || '')))
-    .sort((left, right) => Number(right[1].createdAtMs || 0) - Number(left[1].createdAtMs || 0))
-    .slice(0, 8)
-    .map(([approvalId, approval]) => [approvalId, {
-      commandHash: approval.commandHash,
-      cwd: boundedRecoveryString(approval.cwd, 1024),
-      reason: boundedRecoveryString(approval.reason, 512),
-      status: approval.status,
-      createdAt: boundedRecoveryString(approval.createdAt, 64),
-      createdAtMs: Number.isFinite(Number(approval.createdAtMs)) ? Number(approval.createdAtMs) : 0,
-      used: false,
-      ...(approval.status === 'confirmed'
-        ? {
-            confirmedAt: boundedRecoveryString(approval.confirmedAt, 64),
-            confirmedBy: boundedRecoveryString(approval.confirmedBy, 64)
-          }
-        : {})
-    }]))
-}
-
-function buildDangerousApprovalRecoveryProjection(raw) {
-  const approvals = compactDangerousApprovalsForEphemeral(raw)
-  const cwdTable = []
-  const cwdIndexes = new Map()
-  const cwdIndex = value => {
-    const cwd = boundedRecoveryString(value, 1024)
-    if (!cwdIndexes.has(cwd)) {
-      cwdIndexes.set(cwd, cwdTable.length)
-      cwdTable.push(cwd)
-    }
-    return cwdIndexes.get(cwd)
-  }
-  const entries = Object.entries(approvals).map(([approvalId, approval]) => {
-    const confirmedAtMs = Date.parse(String(approval.confirmedAt || ''))
-    return [
-      approvalId,
-      compactRecoveryDigest(approval.commandHash),
-      cwdIndex(approval.cwd),
-      boundedRecoveryString(approval.reason, 160),
-      approval.status === 'confirmed' ? 'c' : 'p',
-      Number.isFinite(Number(approval.createdAtMs)) ? Number(approval.createdAtMs) : 0,
-      Number.isFinite(confirmedAtMs) ? confirmedAtMs : 0,
-      boundedRecoveryString(approval.confirmedBy, 32)
-    ]
-  })
-  return entries.length
-    ? {
-        schemaVersion: 'DangerousApprovalRecoveryProjectionV1',
-        cwdTable,
-        entries
-      }
-    : null
-}
-
-function materializeDangerousApprovalRecoveryProjection(value) {
-  if (value?.schemaVersion !== 'DangerousApprovalRecoveryProjectionV1' ||
-      !Array.isArray(value.cwdTable) || !Array.isArray(value.entries)) return null
-  const approvals = {}
-  for (const entry of value.entries.slice(0, 8)) {
-    if (!Array.isArray(entry) || entry.length < 7) continue
-    const [approvalId, compactHash, rawCwdIndex, reason, statusCode, rawCreatedAtMs, rawConfirmedAtMs, confirmedBy] = entry
-    const commandHash = materializeRecoveryDigest(compactHash)
-    const cwd = value.cwdTable[Number(rawCwdIndex)]
-    const createdAtMs = Number(rawCreatedAtMs)
-    const confirmedAtMs = Number(rawConfirmedAtMs)
-    if (!/^[a-f0-9]{12}$/.test(String(approvalId || '')) ||
-        !/^[a-f0-9]{64}$/.test(String(commandHash || '')) ||
-        typeof cwd !== 'string' || !['c', 'p'].includes(statusCode) ||
-        !Number.isFinite(createdAtMs)) continue
-    const confirmed = statusCode === 'c'
-    approvals[approvalId] = {
-      commandHash,
-      cwd,
-      reason: boundedRecoveryString(reason, 160),
-      status: confirmed ? 'confirmed' : 'pending',
-      createdAt: createdAtMs > 0 ? new Date(createdAtMs).toISOString() : '',
-      createdAtMs,
-      used: false,
-      ...(confirmed
-        ? {
-            confirmedAt: Number.isFinite(confirmedAtMs) && confirmedAtMs > 0
-              ? new Date(confirmedAtMs).toISOString()
-              : '',
-            confirmedBy: boundedRecoveryString(confirmedBy, 32)
-          }
-        : {})
-    }
-  }
-  return approvals
-}
-
 function recoveryComparablePath(value) {
   const normalized = path.normalize(String(value || ''))
   return process.platform === 'win32' ? normalized.toLowerCase() : normalized
@@ -1103,13 +1005,8 @@ function applyMutationOwnerAuthorityRecovery(state, ownerState) {
 
 function materializeEphemeralMutationState(raw) {
   const state = JSON.parse(JSON.stringify(raw || {}))
-  const dangerousApprovals = materializeDangerousApprovalRecoveryProjection(
-    state.dangerousApprovalRecovery
-  )
-  if (dangerousApprovals) {
-    state.dangerousApprovals = dangerousApprovals
-    delete state.dangerousApprovalRecovery
-  }
+  delete state.dangerousApprovals
+  delete state.dangerousApprovalRecovery
   const operation = state.turnLiveness?.inFlightOperation
   const recovered = materializeMutationRecoveryPreflightV2(operation?.mutationRecovery)
   if (!recovered) return state
@@ -1990,7 +1887,6 @@ function buildTasklessAuthorityEphemeralStub(state) {
     simpleTaskFastPathLeaseCloseout: compactSimpleTaskFastPathLeaseCloseout(
       state.simpleTaskFastPathLeaseCloseout
     ),
-    dangerousApprovalRecovery: buildDangerousApprovalRecoveryProjection(state.dangerousApprovals),
     progressiveSkillRoute: {
       schemaVersion: boundedRecoveryString(route.schemaVersion, 64),
       modeReceipt: route.modeReceipt ? {
@@ -2063,10 +1959,6 @@ function buildTasklessAuthorityEphemeralStub(state) {
       retired: stop.retired === true,
       errorCode: boundedRecoveryString(stop.errorCode, 128)
     } : null
-  }
-  if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES && stub.dangerousApprovalRecovery) {
-    stub.dangerousApprovalRecovery.entries = stub.dangerousApprovalRecovery.entries
-      .map(entry => entry.map((value, index) => index === 3 ? '' : value))
   }
   if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
     stub.progressiveSkillRoute = route && typeof route === 'object' ? {
@@ -2150,7 +2042,6 @@ function buildMinimalEphemeralStub (state) {
     workflowOperationalWriteLease: state?.workflowOperationalWriteLease
       ? JSON.parse(JSON.stringify(state.workflowOperationalWriteLease))
       : null,
-    dangerousApprovals: compactDangerousApprovalsForEphemeral(state?.dangerousApprovals),
     progressiveSkillRoute: route && typeof route === 'object' ? {
       schemaVersion: boundedRecoveryString(route.schemaVersion, 64),
       modeReceipt: route.modeReceipt ? {
@@ -2252,8 +2143,7 @@ function buildEphemeralStub(state) {
         bytes: jsonBytes(tasklessAuthority),
         maxBytes: EPHEMERAL_STUB_TARGET_BYTES,
         operationalTargetCount: state.workflowOperationalWriteLease?.relativeTargets?.length || 0,
-        simpleTargetCount: state.simpleTaskFastPathLease?.relativeTargets?.length || 0,
-        approvalCount: Object.keys(state.dangerousApprovals || {}).length
+        simpleTargetCount: state.simpleTaskFastPathLease?.relativeTargets?.length || 0
       }
     )
   }
@@ -2308,7 +2198,6 @@ function buildEphemeralStub(state) {
       bindingDigest: state.workflowRoutePlanBinding?.bindingDigest,
       routeRevision: state.workflowRoutePlanBinding?.routeRevision
     } : null,
-    dangerousApprovals: compactDangerousApprovalsForEphemeral(state?.dangerousApprovals),
     languageContext: state?.languageContext || null,
     progressiveSkillRoute: state?.progressiveSkillRoute || null,
     progressiveSkillRouteCoordinator: state?.progressiveSkillRouteCoordinator || null,

@@ -86,6 +86,8 @@ GitHub Actions secrets 的 org/repo/environment scope、access policy 与 preced
 
 冻结后发生 mutation，必须先更新 generation、分类变更并使依赖证据 stale，再选择重跑路线。禁止一边 qualification 一边继续吸纳非阻断治理项。
 
+发布收口若含多个 defect，冻结前还必须执行 ConvergenceFirstValidationV1：先冻结完整 issue set，批量实施所有修复，再统一 affected V2；禁止每修一项就跑 qualification。只有 affected 与 ECR 全绿后才能形成最终 CandidateFreezeRecord，并只执行一次 V3/full。
+
 ### ReleaseCriticalPathBudgetGate
 
 预算必须来自 Profile、最近可比较成功 release 或明确项目约束；字段为 `baselineWindow / qualificationBudget / remoteCiBudget / publishPostcheckBudget / totalBudget / budgetAuthority / budgetMode`。无可比较基线时只能 `measure-only/advisory`，不得把任意统一分钟数伪造成 blocking SLA。报告同时记录真实 elapsed、等待/执行拆分、streak reset 和超预算原因。
@@ -112,8 +114,9 @@ GitHub Actions secrets 的 org/repo/environment scope、access policy 与 preced
 - 若 `publishConfig` 指向 GitHub Packages / restricted access，README 与安装文档必须显式保留认证步骤，禁止再宣称“匿名直接安装”。
 - 若 `publishConfig` 指向 GitHub Packages，`test:audit` 必须显式使用 `https://registry.npmjs.org` 作为 audit registry，避免 publish dry-run / prepublishOnly 继承 GitHub Packages 的非审计端点；这不等于跳过审计。
 - 完整 release gate 必须由绑定 `ValidationRunIdentityV1` 的 `VerificationExecutionLeaseV2` 授权 `ManagedValidationRunnerV2`，在冻结候选上执行一次并持久化 `ValidationExecutionTerminalProjectionV3`；`prepublishOnly` 只校验该稳定终态与当前 candidate/HEAD/dirty scope、plan/budget、release-pipeline 角色、V3/release/full 范围及 hard deadline 完全一致，禁止在 npm lifecycle 中无授权地重复启动全量验证。V1 仅可读，终态缺失、失败、过期或候选漂移一律阻断 publish。
+- V3/full 通过后必须执行 `ExactReleaseArtifactV1`：原生 `npm pack` **只运行一次**生成精确 tarball，包外 `ExactReleaseArtifactReceiptV1` 绑定 source candidate、HEAD、release terminal receipt、npm name/version、tarball path、bytes、entry count、SHA-256 与 SHA-512/integrity。publish 前必须重新校验 receipt 与当前 tarball字节，再执行 `npm publish <exact-tarball> --ignore-scripts --provenance --access public`；禁止 bare directory publish、第二次 pack 或 publish lifecycle 重跑。registry 回读的 integrity/gitHead/provenance 必须与该 receipt 对账。
 - 按 `ConcurrencyPolicy`，只读准备和隔离验证可并行；`npm pack --dry-run`、package boundary check、files/exports/bin 检查不得与任何会删除、重建或写入 `dist` 的命令并行；若曾出现并行读写竞争，报告必须以重新单独执行的 pack 结果为准，并记录旧结果作废。
-- ReleaseVerification 完成前必须盘点无关 dirty、旧验证残留和本轮生成但不属于交付范围的产物。只有具备本任务可回读 ownership receipt 且另有适用删除确认的对象才可清理；无归属、用户或并行任务文件只能报告、冻结在 candidate 外并给出处置建议，禁止自动删除、reset、checkout、stash 或覆盖。残留不能安全隔离时阻断 candidate，而不是以“清理”为由扩大授权。
+- ReleaseVerification 完成前必须盘点无关 dirty、旧验证残留和本轮生成但不属于交付范围的产物。只有具备本任务可回读 ownership receipt 且位于明确任务范围内的对象才可清理；实际操作权限服从宿主策略。无归属、用户或并行任务文件只能报告、冻结在 candidate 外并给出处置建议，禁止以发布为由扩大任务范围。残留不能安全隔离时阻断 candidate。
 - 发布前必须执行 `PublicSurfaceClosureGate`：分类 npm pack 历史公开内容，反查 README 隐藏文档链接、public types 兼容 API 标注、examples/sidebar/nav、搜索索引源文档和 historical pack surface；不得只检查当前源码目录。
 - 发布包若包含 `scripts/*.js`、CLI helper、profile validator、migration tool 或公开验证脚本，必须执行 `PackagedScriptDependencyClosureGate`：用 tarball / 临时安装后的真实路径验证公开脚本可执行，缺少本地 helper、spawn 目标脚本或运行时依赖时阻断发布；不得只因源码目录 `npm test` 通过就认定包消费者可用。
 - 发布、pack、install smoke、CLI replay、curl/git/npm/node 等原生命令必须执行 `NativeCommandExitCodeGate`：PowerShell 下不能只依赖 `$ErrorActionPreference` 或后续 `Write-Host OK`，必须检查 `$LASTEXITCODE` 或使用会向外传播非零退出码的 wrapper；Bash/类 Unix shell 必须避免管道或子命令吞掉失败。证据至少记录 command、shell、cwd、exitCode、auth/config 来源（如 `.npmrc` / `--userconfig`）、`ScopedRegistryResolutionGate` 的 scope override（若适用）以及失败证据是否已排除；命令失败但脚本继续打印成功文案的结果无效。

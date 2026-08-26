@@ -171,9 +171,13 @@ try {
     expiresAt: '2026-08-02T00:00:00.000Z'
   })
   const expiredManifest = JSON.parse(fs.readFileSync(expiredRegistration.manifestPath, 'utf8'))
-  assert.strictEqual(expiredManifest.targetIdentity?.schemaVersion, 'WorkspaceTempTargetIdentityV1')
+  assert.strictEqual(expiredManifest.targetIdentity?.schemaVersion, 'WorkspaceTempTargetIdentityV2')
   assert.ok(expiredManifest.targetIdentity?.device)
   assert.ok(expiredManifest.targetIdentity?.inode)
+  assert.ok(expiredManifest.targetIdentity?.changeTimeNs)
+  assert.ok(expiredManifest.targetIdentity?.modifiedTimeNs)
+  assert.match(expiredManifest.targetIdentity?.shapeDigest, /^[a-f0-9]{64}$/)
+  assert.ok(expiredManifest.targetIdentity?.shapeEntries > 0)
 
   const replacedTarget = path.join(centralRoot, 'runs', 'apps', 'api', 'test-runner', 'replaced-run')
   write(path.join(replacedTarget, 'registered.txt'), 'registered object\n')

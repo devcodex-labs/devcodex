@@ -127,6 +127,12 @@ try {
   assert.strictEqual(layered.schemaVersion, 'LayeredArtifactSlotRegistryV2')
   assert.strictEqual(layered.slots.some(slot => slot.slotId === 'fixture-task-http-verification'), true)
   assert.match(layered.mergedRegistryDigest, /^[a-f0-9]{64}$/)
+  const baseRegistry = JSON.parse(fs.readFileSync(
+    path.join(__dirname, '..', 'hooks', '_runtime', 'artifact-slot-registry.v2.json'),
+    'utf8'
+  ))
+  assert.strictEqual(baseRegistry.projectMutationCoverageContract, 'tracked-product-surfaces-v1')
+  assert(baseRegistry.slots.find(slot => slot.slotId === 'bug-cp2')?.canonicalNames.includes('02-技术方案.md'))
   fs.writeFileSync(overlayPath, JSON.stringify({
     ...safeOverlay,
     slots: [{ ...safeOverlay.slots[0], slotId: 'implementation-plan' }]
@@ -425,10 +431,11 @@ try {
 
   const deleteTarget = write('evidence/delete-fixture.json', '{}\n')
   const deleteAuthorization = decisionFor(
-    { tool_name: 'delete_file', tool_input: { file_path: deleteTarget } },
-    { destructiveConfirmed: true }
+    { tool_name: 'delete_file', tool_input: { file_path: deleteTarget } }
   )
   assert.strictEqual(deleteAuthorization.decision.decisionStatus, 'allow', JSON.stringify(deleteAuthorization.decision.errorCodes))
+  assert.strictEqual(deleteAuthorization.decision.errorCodes.includes('artifact-destructive-confirmation-required'), false,
+    'artifact routing validates task scope; the host owns delete permission')
   const deletePre = createMutationPreObservation({ operationId: 'fixture-delete', footprint: deleteAuthorization.footprint })
   const deleteLease = createTaskOwnedMutationLease({
     operationId: 'fixture-delete',
@@ -465,6 +472,59 @@ try {
   })
   assert.strictEqual(projectDecision.decision.decisionStatus, 'allow', JSON.stringify(projectDecision.decision.errorCodes))
   assert.deepStrictEqual(projectDecision.decision.slotIds.sort(), ['project-package-config', 'project-source'])
+
+  const projectMutationSurfaceTargets = [
+    'content/instructions.md',
+    'content/skills/portfolio.json',
+    'codex/README.md',
+    'cursor/plugins/devcodex-workspace/.cursor-plugin/plugin.json',
+    'gemini/settings.json',
+    'grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md',
+    'host-projections/AGENTS.md',
+    'public-site/components/SkillCatalog.tsx',
+    'public-site/theme/index.css',
+    'public-site/rspress.config.ts',
+    'scripts/fixtures/contract.md',
+    'index.js',
+    '.gitattributes',
+    '.gitignore',
+    '.npmignore',
+    '.npmrc',
+    'plugin.json',
+    'public-product-expression.json',
+    'public-site/package.json',
+    'RULES.md',
+    'LICENSE',
+    'changelogs/releases/v1.19.1.md',
+    'data/templates/pending-fixes.md',
+    'assets/hooks/README.md',
+    'public-site/docs/reference/skills.mdx',
+    'assets/icon-512.png',
+    'public-site/docs/public/favicon.png',
+    '.audit-state/source-candidate.json'
+  ].map(relative => path.join(tempRoot, ...relative.split('/')))
+  const projectMutationSurfaceDecision = decisionFor({
+    tool_name: 'Write',
+    tool_input: { files: projectMutationSurfaceTargets }
+  })
+  assert.strictEqual(
+    projectMutationSurfaceDecision.decision.decisionStatus,
+    'allow',
+    JSON.stringify(projectMutationSurfaceDecision.decision.errorCodes)
+  )
+  assert.deepStrictEqual(projectMutationSurfaceDecision.decision.slotIds.sort(), [
+    'project-assets',
+    'project-audit-evidence',
+    'project-package-config',
+    'project-public-docs',
+    'project-source'
+  ])
+  const deniedUnregisteredProjectSurface = decisionFor({
+    tool_name: 'Write',
+    tool_input: { files: [projectSource, path.join(tempRoot, 'vendor', 'opaque.bin')] }
+  })
+  assert.strictEqual(deniedUnregisteredProjectSurface.decision.decisionStatus, 'forbid')
+  assert(deniedUnregisteredProjectSurface.decision.errorCodes.includes('artifact-target-mixed-scope'))
 
   const hostGovernanceTargets = [
     'AGENTS.md',

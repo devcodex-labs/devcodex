@@ -39,6 +39,12 @@ AI Hook 在生成 BudgetCard 前必须由当前宿主 session 解析出唯一、
 
 `BudgetCardV1` 永久不可变。confirm 模式把当前 exact card 先写成唯一 `PendingBudgetCardBindingV1`，用户只需确认当前卡，由服务端以 CAS 生成 `BudgetConfirmationReceiptV1`；有效 Sticky Auto 可为 V0～V2 签发同等精确的 server-owned receipt，但不能扩大到 V3/full/release。父运行失败后，`ValidationContinuationAuthorizationV1` 只接受两类证明：完整 `mutation-observation`，或 stable candidate 在同一 HEAD、无新增 dirty 路径、节点/时间/hard/log 预算不增加的 `same-scope-retry`；前者仍须满足 task/project/root/session/purpose/boundary/heavy/side-effect/revocation 一致或收窄、相对 root 新增节点不超过 `min(3,max(1,ceil(root*5%)))`、预计增量不超过 `min(60000ms,ceil(root*5%))`。两类 child retry 合计最多两次且始终相对 root；同一 HEAD 的第三次或证明失败必须 BLOCK，禁止用新 Auto root 清零或 child-to-child 复利。只有父运行已终态、无 live lease、父 candidate HEAD 是当前已提交 HEAD 的严格 Git 祖先，而且 task/project/root/session/context/AutoRef/revocation 精确一致、当前节点/boundary/heavy/side-effect/estimated/hard/log 全部不超父根时，`strict-descendant-same-scope` 才能 CAS 创建带 `parentRootReceiptDigest + parentTerminalDigest` 的新不可变根。plan-only 与 execute 必须复用同一 continuation/root-rollover preflight；plan-only 只返回是否可续或滚动，不写入或消费 authority。长验证中 Auto ingress 超过 TTL 后只允许继续既有 root 或执行上述严格后代同范围滚动；其他新根必须 fresh control。pause/stop/scope reduction 立即递增 revocation epoch 并撤销 pending/child/lease；cold/terminal 状态不得恢复执行 authority。
 
+### ConvergenceFirstValidationV1
+
+多 finding / 多批次 / 发布收口必须先冻结完整问题集，再批量实施，最后统一验证。`VerificationIntentV2` 在 repair batch 未完成时只能生成 `executionState=implementation-pending`，不得启动 V1/V2/V3；语法/schema/materialization 检查不产生 ValidationEvidence。批次完成后只允许基于同一 `issueSetDigest + repairGeneration + candidateId + dirtyScopeDigest` 创建一张统一 affected V2 计划。Runner 应继续执行独立节点以收集全部失败，只有依赖失败或安全边界才跳过下游；首个失败不得触发逐项修测。affected 收敛并冻结候选后，发布管线只能创建一次 V3/full root。
+
+机器输出必须记录 `issueSetDigest / repairGeneration / implementationComplete / unifiedAffectedRunId / finalFreezeId`。新增关联 P0/P1 会使 issue-set generation 单调递增，并使已建但未执行的计划 stale；无这些字段的 V1 只读兼容记录不能授权执行。
+
 ## 路由选择
 
 | selector | 触发边界 | 最小证据 |
@@ -80,7 +86,7 @@ AI Hook 在生成 BudgetCard 前必须由当前宿主 session 解析出唯一、
 
 ### 发布候选验证
 
-`package-release` selector 可在 V2 只表示 package compatibility 边界；它不会执行 tag、publish 或 registry mutation。只有 release-pipeline 在当前发布授权下取得 purpose=`release`、level=`V3` 的 LeaseV2，才必须调用 `release-verification`，并把 `npm run test:audit`、package completeness gate、publish dry-run 和远端 CI 作为独立证据记录。pack 或本地 install 通过不能替代远端 CI，也不能替代发布前的 package completeness gate；未形成真实发布候选时必须记录 skipReason，不得把普通开发验证写成发布完成。
+`package-release` selector 可在 V2 只表示 package compatibility 边界；它不会执行 tag、publish 或 registry mutation。只有 release-pipeline 在当前发布授权下取得 purpose=`release`、level=`V3` 的 LeaseV2，才必须调用 `release-verification`，并把 `npm run test:audit`、package completeness gate、ExactReleaseArtifactV1 和远端 CI 作为独立证据记录。pack 或本地 install 通过不能替代远端 CI，也不能替代发布前的 package completeness gate；未形成真实发布候选时必须记录 skipReason，不得把普通开发验证写成发布完成。
 
 ## TestRoute 输出
 

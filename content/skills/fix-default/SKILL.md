@@ -28,6 +28,17 @@ description: 默认修复子类型规范 — Bug 修复三步扫描 + CP 流程
 
 实施前或实施中复现与当前问题/需求相关的新缺陷时，必须先执行 `spec-governance#InFlightIssueRequirementBindingGate`。PI/PF 不能替代当前问题真相源修订；阻断项先写回当前范围并提醒纳入决定，已有“一并处理/必须先处理”授权时直接同步方案、验收和回归路线后优先修复。
 
+### ConvergenceFirstRepairBatchV1
+
+当同一任务含多个 finding、控制面联动或版本发布收口时，执行顺序固定为：
+
+1. 完成有界只读扫描并冻结 `IssueSetDigestV1 + RepairBatchPlanV1`，按共享根因/Owner 分批；发现一个就修一个再验证属于流程缺陷。
+2. 所有 source writer 串行；实施期间只允许语法、schema、JSON parse、生成器 materialization 等编辑期检查，禁止逐项 targeted/affected/full。
+3. 所有批次完成后一次生成统一 affected V2。Runner 必须完整收集失败集合；若失败，递增 repair generation、统一归因、批量修复后再重跑。
+4. affected 与 ECR 收敛后冻结最终候选，再执行唯一发布级 V3/full。冻结后的任何 source/规范/生成消费者 mutation 都使该资格失效。
+
+只有用户明确要求逐项隔离验证，或缺少某个编辑期探针会使后续 mutation 不安全时才能例外；例外必须记录 `skipBatchReason`，且不得形成候选资格声明。
+
 1. 建立 `repair-collaboration` 双层契约：低风险使用 lightweight；P0/P1、安全、控制面、公共契约、≥5 文件、多批次、角色交接或发布风险使用 full，accepted 前必须有独立复证；模型/Agent 名称不参与触发
 2. 执行 active `repair-prevention-assessment#RepairPreventionAssessmentGate`：所有 repair 在 accepted 前必须有有效 `RepairPreventionAssessmentV1`；当前修复重跑只关闭当前事件，不能冒充长期 prevention 有效
 3. 实现修复（最小化变更范围）
@@ -57,7 +68,7 @@ description: 默认修复子类型规范 — Bug 修复三步扫描 + CP 流程
 - 前端修复遵循 `FrontendBrowserVerificationBudgetGate` 与 `UserSelfVerificationOverrideGate`；用户明确自验或禁止浏览器/截图时不得主动启动 Browser/CDP/Playwright/截图，只记录代码级替代验证。
 - 最小实现守门：CP1 问题确认必须给出 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`），默认 `简单够用`；修复只解决已确认根因和影响范围，禁止无计划新增抽象、通用配置、预留扩展点或未确认防御分支；确需超出范围或升级到 `中等` / `企业级` 时回 CP2/CP3 并等待确认
 - 必要注释守门：非显然根因、兼容约束、安全边界、状态转换或反直觉修复取舍必须有短注释；JavaScript / Node.js 中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明必须使用标准 JSDoc；禁止逐行解释、重复代码含义、临时 TODO 或调试注释
-- 依赖升级、兼容修复或批量适配类问题先记录问题清单与归因，再统一确认修复范围；auto 执行仍须回写问题清单、证据和台账状态
+- 依赖升级、兼容修复或批量适配类问题先记录问题清单与归因，再统一确认修复范围；auto 执行仍须回写问题清单、证据和台账状态，并按 ConvergenceFirstRepairBatchV1 批量实施后统一验证
 - 内部共享库、中间件、SDK 或 adapter 抽象层根因优先评估“修共享库 + 消费项目升级”；单项目补丁必须说明理由与风险
 - 简单业务 service 修复只保留业务编排、外部能力调用和必要上游错误映射，不重复 route/model/schema 已承担的校验与归一化
 - 若问题同时满足“模板/示例不可直接执行、规则与示例冲突、自动化校验假绿、且涉及多文件联动的控制面缺陷”，应直接按 `fix.default` 处理，不当作文案微调顺手跳过修复流程

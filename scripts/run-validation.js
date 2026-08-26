@@ -244,6 +244,38 @@ function errorPayload(error, nextStep) {
   }
 }
 
+function validationExecutionError(receipt = {}) {
+  const reasonCode = String(receipt.terminalReason?.code || '')
+  if (receipt.failedNode) {
+    return new ValidationDagError(
+      'VALIDATION_NODE_FAILED',
+      'validation node failed: ' + receipt.failedNode,
+      { failedNode: receipt.failedNode, terminalReason: receipt.terminalReason || null }
+    )
+  }
+  if (reasonCode) {
+    const candidateDrift = ['VALIDATION_CANDIDATE_DRIFT_DURING_EXECUTION', 'VALIDATION_CANDIDATE_RECONCILIATION_FAILED'].includes(reasonCode)
+    return new ValidationDagError(
+      reasonCode,
+      candidateDrift
+        ? 'validation candidate changed while the approved plan was executing'
+        : `validation execution ended without a failing node: ${reasonCode}`,
+      {
+        terminalStatus: receipt.terminalStatus || null,
+        terminalReason: receipt.terminalReason,
+        nextStep: candidateDrift
+          ? 'Restore or intentionally retain the observed source change, then rebuild and approve a fresh exact-candidate plan.'
+          : 'Inspect the terminal reason, repair its control-state cause, and rerun the same route.'
+      }
+    )
+  }
+  return new ValidationDagError(
+    'VALIDATION_EXECUTION_FAILED',
+    'validation execution failed without a node or terminal reason',
+    { terminalStatus: receipt.terminalStatus || null }
+  )
+}
+
 function detectedActorType(env = process.env) {
   if (env.CODEX_THREAD_ID || /codex/i.test(String(env.CODEX_INTERNAL_ORIGINATOR_OVERRIDE || ''))) return 'ai-hook'
   if (env.GITHUB_ACTIONS === 'true') return env.GITHUB_REF_TYPE === 'tag' ? 'release-pipeline' : 'trusted-ci'
@@ -1216,12 +1248,12 @@ async function main(argv = process.argv.slice(2)) {
       onNode
     })
     const failed = execution.receipt.nativeExitCode !== 0
+    const failureError = failed ? validationExecutionError(execution.receipt) : null
     const data = { receipt: execution.receipt, persistence: execution.persistence, executionOptimization: optimizationProjection }
     if (options.json) {
       printJson(envelope(!failed, data, failed
-        ? errorPayload(new ValidationDagError('VALIDATION_NODE_FAILED',
-          'validation node failed: ' + execution.receipt.failedNode),
-        'Fix the failing node and rerun the same route; do not reuse failed evidence.')
+        ? errorPayload(failureError, failureError.details?.nextStep ||
+          'Fix the failing node and rerun the same route; do not reuse failed evidence.')
         : null))
     } else if (!failed) {
       process.stdout.write('Validation passed: route=' + execution.receipt.routeResolved +
@@ -1263,5 +1295,6 @@ module.exports = {
   resolveAiBudgetAuthority,
   resolveValidationBudgetAuthority,
   resolveValidationAuthorityContext,
-  resolveActorType
+  resolveActorType,
+  validationExecutionError
 }

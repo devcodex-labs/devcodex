@@ -38,7 +38,8 @@ const {
   expectedCiPolicyDigest,
   parseArgs,
   resolveValidationAuthorityContext,
-  resolveActorType
+  resolveActorType,
+  validationExecutionError
 } = require('./run-validation')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -160,6 +161,15 @@ function run() {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-validation-dag-'))
   try {
     const manifest = readValidationManifest(MANIFEST_PATH)
+    const nodeFailure = validationExecutionError({ failedNode: 'fixture-node', terminalStatus: 'failed' })
+    assert.strictEqual(nodeFailure.code, 'VALIDATION_NODE_FAILED')
+    const candidateDrift = validationExecutionError({
+      failedNode: null,
+      terminalStatus: 'blocked',
+      terminalReason: { code: 'VALIDATION_CANDIDATE_DRIFT_DURING_EXECUTION' }
+    })
+    assert.strictEqual(candidateDrift.code, 'VALIDATION_CANDIDATE_DRIFT_DURING_EXECUTION')
+    assert.match(candidateDrift.details.nextStep, /fresh exact-candidate plan/)
     assert.ok(manifest.nodes.length >= 56, 'canonical manifest unexpectedly lost validation nodes')
     assert.ok(manifest.criticalInputs.includes('content/**'))
     assert.ok(manifest.criticalInputs.includes('hooks/_runtime/evidence/*.json'))
@@ -1141,6 +1151,35 @@ function run() {
     assert.match(firstRun.receipt.nestedCommandGraphDigest || '', /^[a-f0-9]{64}$|^$/)
     assert.strictEqual(firstRun.receipt.contextBindingTrace.status, 'unverified')
     assert.strictEqual(runCount, 1)
+
+    const resumedNodeStarts = []
+    const resumedRun = executeValidationPlan({
+      manifest: cachedManifest,
+      plan: cachedPlan,
+      candidate,
+      repoRoot: ROOT,
+      activeRoot: tempRoot,
+      useCache: false,
+      resumeResults: firstRun.receipt.results,
+      onNodeStart: node => resumedNodeStarts.push(node),
+      runCommand
+    })
+    assert.strictEqual(resumedRun.receipt.nativeExitCode, 0)
+    assert.strictEqual(resumedRun.receipt.resumedNodeCount, 1)
+    assert.deepStrictEqual(resumedRun.receipt.resumedNodeIds, [cachedNode.id])
+    assert.strictEqual(resumedRun.receipt.results[0].cacheStatus, 'hit-run-checkpoint')
+    assert.deepStrictEqual(resumedNodeStarts.map(node => node.nodeId), [cachedNode.id])
+    assert.strictEqual(runCount, 1, 'an exact same-run checkpoint must not execute a completed node again')
+    assert.throws(() => executeValidationPlan({
+      manifest: cachedManifest,
+      plan: cachedPlan,
+      candidate,
+      repoRoot: ROOT,
+      activeRoot: tempRoot,
+      useCache: false,
+      resumeResults: [{ ...firstRun.receipt.results[0], inputBindingDigest: '0'.repeat(64) }],
+      runCommand
+    }), error => error instanceof ValidationDagError && error.code === 'VALIDATION_RUN_CHECKPOINT_INVALID')
 
     const tamperedExecutablePlan = clone(cachedPlan)
     tamperedExecutablePlan.selectedNodes[0].timeoutMs += 1

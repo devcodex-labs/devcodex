@@ -556,7 +556,9 @@ function decideArtifactMutation(input = {}, options = {}) {
     if (match.classified.matchType === 'versioned-candidate' && match.exists === true) errors.push('artifact-versioned-candidate-immutable')
     if (slot.mutability === 'append-only' && match.exists === true && !isLogicalTarget(match.canonical) && !appendOnlyAuthorized) errors.push('artifact-append-only-existing')
     if (slot.writePolicy === 'create-only' && match.exists === true) errors.push('artifact-create-only-existing')
-    if (footprint.operation === 'delete' && slot.destructivePolicy !== 'allow' && input.destructiveConfirmed !== true) errors.push('artifact-destructive-confirmation-required')
+    if (footprint.operation === 'delete' && slot.destructivePolicy === 'forbid') {
+      errors.push('artifact-destructive-policy-forbid')
+    }
   }
 
   const primary = targets.find(item => item.classified?.slot) || source.find(item => item.classified?.slot) || null

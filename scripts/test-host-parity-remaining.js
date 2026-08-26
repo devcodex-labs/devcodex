@@ -66,10 +66,10 @@ assert.strictEqual(geminiDeny.reason, 'gemini-danger')
 const grokDeny = adaptHostOutput('grok', 'PreToolUse', {
   hookSpecificOutput: {
     permissionDecision: 'deny',
-    permissionDecisionReason: 'dangerous-command'
+    permissionDecisionReason: 'workflow-invalid'
   }
 })
-assert.deepStrictEqual(grokDeny, { decision: 'deny', reason: 'dangerous-command' })
+assert.deepStrictEqual(grokDeny, { decision: 'deny', reason: 'workflow-invalid' })
 
 // Codex path through adaptHostOutput is uncommon; ensure non-grok non-gemini does not strip to only decision
 const codexOut = adaptHostOutput('codex', 'PreToolUse', {

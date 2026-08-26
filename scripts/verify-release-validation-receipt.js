@@ -23,7 +23,8 @@ function verifyReleaseValidationReceipt(options = {}) {
   const errors = []
   if (observed.status !== 'fresh' || !receipt) errors.push('release-terminal-receipt-missing')
   if (receipt?.terminalStatus !== 'completed' || receipt?.nativeExitCode !== 0) errors.push('release-terminal-not-completed')
-  if (receipt?.candidateId !== candidate.candidateId || receipt?.candidateHead !== (candidate.head || null)) errors.push('release-candidate-mismatch')
+  if (receipt?.candidateId !== candidate.candidateId) errors.push('release-candidate-id-mismatch')
+  if (receipt?.candidateHead !== (candidate.head || null)) errors.push('release-candidate-head-mismatch')
   if (receipt?.actorType !== 'release-pipeline' || receipt?.authorityClass !== 'release') errors.push('release-authority-mismatch')
   if (receipt?.verificationLevel !== 'V3' || receipt?.verificationPurpose !== 'release' || receipt?.routeResolved !== 'full') {
     errors.push('release-qualification-scope-mismatch')
@@ -33,13 +34,24 @@ function verifyReleaseValidationReceipt(options = {}) {
   if (!Number.isFinite(completedAtMs) || completedAtMs > nowMs || nowMs - completedAtMs > 2 * 60 * 60 * 1000) {
     errors.push('release-terminal-receipt-stale')
   }
-  return { valid: errors.length === 0, errors, observed, candidate, receipt }
+  const candidateComparison = {
+    receiptCandidateId: receipt?.candidateId || null,
+    currentCandidateId: candidate.candidateId || null,
+    receiptCandidateHead: receipt?.candidateHead || null,
+    currentCandidateHead: candidate.head || null,
+    receiptChangedFiles: receipt?.candidateChangedFiles || [],
+    currentChangedFiles: candidate.changedFiles || []
+  }
+  return { valid: errors.length === 0, errors, observed, candidate, receipt, candidateComparison }
 }
 
 if (require.main === module) {
   const result = verifyReleaseValidationReceipt()
   if (!result.valid) {
     process.stderr.write('Release validation receipt is not current: ' + result.errors.join(', ') + '\n')
+    if (result.errors.some(error => error.startsWith('release-candidate-'))) {
+      process.stderr.write('Release candidate comparison: ' + JSON.stringify(result.candidateComparison) + '\n')
+    }
     process.exitCode = 1
   } else {
     process.stdout.write('Release validation receipt verified for ' + result.candidate.candidateId + '\n')

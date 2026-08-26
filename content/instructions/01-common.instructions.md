@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.19.0
+version: 1.19.1
 ---
 # 通用规范
 
@@ -48,7 +48,7 @@ version: 1.19.0
 
 | # | 约束 | 规则 | P2 |
 |:-:|------|------|:--:|
-| C01 | 删除/破坏性操作需确认 | 同 S01，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S01 |
+| C01 | 宿主权限归属与破坏性意图边界 | 同 S01，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md)；DevCodex 风险分类不得生成 permission deny/allow | 🔒 S01 |
 | C02 | CP 不可跳过合并 | dev/fix 工作流的 CP1→CP2 必须严格按序，禁止合并或跳跃；CP3 触发条件由各工作流规范定义 | — |
 | C03 | 敏感信息与硬编码策略 | 同 S02，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md)；默认允许敏感信息、明文连接信息和硬编码；仅用户 / 项目明确禁止时才限制；未指定 env、`secretRef` 或 `config.local.json` 时不得主动引入 | 🔒 S02 |
 | C04 | 禁止编造规范内容 | 同 S03，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S03 |
@@ -57,7 +57,7 @@ version: 1.19.0
 | C07 | 并发执行策略 | 默认按 `ConcurrencyPolicy` 执行：只读准备和隔离验证可按配置并行；同一 active-root、CP 状态、记忆、报告、台账、audit session、source mutation、package boundary 和危险操作必须串行或单写者。禁止并行启动会写共享状态的子 Agent | — |
 | C08 | Token / 长任务预算防护 | 超 10 轮进入关注区；超 13 轮预警（写编码检查点到记忆）；超 15 轮防护（立即写完整记忆 + 建议开新会话）；≥15 轮+≥5 文件→硬性暂停（立即停止当前工具调用序列，输出 `⛔ PAUSE` 说明原因，写入记忆，等待用户明确继续指令，不再执行新的文件变更）。长任务 / Auto / 多批次还须叠加 `execution-contract` 的 `ExecutionBudgetGate` / `ExternalWaitAccountingGate` / `LongTaskAuthorizationGate`：墙钟执行预算触顶停 mutation；等人/外部等待不计入执行预算；用户「继续」必须关旧 cycle 并开新 cycle+新预算，禁止静默清零 | — |
 | C09 | 文件编码安全 | 禁止终端命令批量修改中文 .md 文件（`Set-Content`/`sed -i` 会破坏 UTF-8 编码），必须使用编辑器工具逐文件修改 | — |
-| C10 | 禁止执行危险命令 | 同 S06，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S06 |
+| C10 | 危险操作分类不得拥有权限 | 同 S06，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md)；只允许 advisory + typed workflow-validity gate | 🔒 S06 |
 | C11 | 关联文件同步 | 修改/新建/重命名文件后检查所有引用处并同步（SC4 🔴 阻塞性检查） | — |
 | C12 | 合理性评估 | **意图识别后、CP1 前**必须评估请求合理性：有更好建议先提出并等待确认再执行。**扩展覆盖**：用户给出判断、目录结构或引用已有设计时，AI 须独立验证其合理性，不得直接顺从论证；若经核验用户方案已是当前最优，可明确说明依据后直接采纳，禁止为了表现“独立”而机械唱反调 | — |
 | C18 | 全模式入口检查不可跳过 | 同 S07，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S07 |
@@ -69,7 +69,7 @@ version: 1.19.0
 | C13 | 规范资产文件过大必须拆分 | AI 新建 DevCodex 规范资产 `.md`（instructions / skills / prompts / templates / 规范源等）超 500 行必须拆分为多个文件（已有文件豁免）；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分，按项目自身规范、可读性和用户要求判断 |
 | C14 | 多任务进度检查点 | 会话包含 ≥2 个独立任务时，每完成一个子任务必须：① 在记忆文件追加该任务进度状态 ② 在对话中输出进度快照（格式严格遵循 `prompts/reply-summary.prompt.md` §6） |
 | C15 | 架构质量视角 | dev/fix 的需求/问题定义、代码设计或架构决策须以**架构师与平台工程师**双重视角评估：消费者范围、共享契约边界、模块职责、可扩展性、可维护性、易上手性。模块化只在真实复用者、演进边界或跨模块共享契约存在时成立；任意维度未达标须说明原因并记录改善方向 |
-| C16 | 规模判断与批量分批 + 扫描卫生 + TTFV | 分析、审查、扫描或批量操作前必须先识别唯一项目/root，并调用 `skill-gap-analysis` 的 `ProjectArtifactScaleRoutingGate` 做 bounded inventory；根据文件数、可解析字节、最大文件、目录集中度、派生产物比例和消费者扩散面决定 `single-pass / batched / sampled+deep-read / blocked`。≥10 文件 mutation 或非 small corpus 必须分批并写 checkpoint；**禁止先无界扫描超时后再补分批**。**WorkspaceRootScanBan（防复发·PI-20260724-01）**：项目名/路径已可知时禁止对 monorepo/workspace 根做 `Get-ChildItem -Recurse` / `dir /s` / 无界 `find`；inventory 必须显式排除 `node_modules`/`dist`/构建缓存；路径直达用 `list_dir` 一层或 `Test-Path <project>`。**TimeToFirstValueGate**：非 chat 在 PC0~PC7 与最小 ContextReadPlan 之后，同一用户可见回复周期内必须交付范围卡 / 首批 finding·结论 / 明确阻断之一，禁止整轮只做全量 Skill 预读或全库扫描 |
+| C16 | 规模判断与批量分批 + 扫描卫生 + TTFV | 分析、审查、扫描或批量操作前必须先识别唯一项目/root，并调用 `skill-gap-analysis` 的 `ProjectArtifactScaleRoutingGate` 做 bounded inventory；根据文件数、可解析字节、最大文件、目录集中度、派生产物比例和消费者扩散面决定 `single-pass / batched / sampled+deep-read / blocked`。≥10 文件 mutation 或非 small corpus 必须分批并写 checkpoint；**禁止先无界扫描超时后再补分批**。**WorkspaceRootScanHygiene（防复发·PI-20260724-01）**：项目名/路径已可知时不得把 monorepo/workspace 根递归 inventory 作为默认方案；inventory 必须显式排除 `node_modules`/`dist`/构建缓存并优先项目直达。Hook 只提示范围/成本，执行权限由宿主决定。**TimeToFirstValueGate**：非 chat 在 PC0~PC7 与最小 ContextReadPlan 之后，同一用户可见回复周期内必须交付范围卡 / 首批 finding·结论 / 明确阻断之一，禁止整轮只做全量 Skill 预读或全库扫描 |
 | C17 | 过程改进记录 | 每条非空用户消息先登记中性治理候选，完成合理性评估和上下文归因后再按语义形成 `GovernanceIntakeDecision`；关键词不得作为权威触发/分类依据。用户建议的执行策略经 AI 确认更优，或揭示规范未定义/不完整且可泛化时，必须立即走 Improvement Intake：写入 `data/process-improvements.md`（优化清单，PI）；若同时暴露规范缺口，再联动 `data/pending-fixes.md`（PF）。复合意图逐项 all-of 验证；不得询问是否记录；所有模式命中后都必须回执 `已记录 PI-xxx / PF-xxx`。PI/PF 记录不能替代当前需求修订：未闭环需求实施前或实施中复现的相关缺陷必须执行 `InFlightIssueRequirementBindingGate`，先绑定当前需求并提醒纳入决定；阻断项优先修复 |
 | C19 | 确认后前置复审 | 每次用户明确确认后、进入下一阶段前，必须执行 `PostConfirmationReviewScopeGate` 并输出 **ReviewGradeCard**：映射 **轻量=R1**（须 `skipReason`）、**标准=R2**（默认）、**全面=R3**（高风险+冻结清单）、**发布安全=R4**；命中控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链必须追加交叉验证；阻断项先修正并重确认，无阻断时必须显式输出结果。ECR 默认 R2，禁止「永远轻量」口径 |
 | C20 | 官方文档证据前置 | 新增/升级依赖、框架、SDK、平台 API 或外部模块前必须形成 `OfficialDocsEvidence`；缺失证据不得进入编码 |
@@ -81,6 +81,16 @@ version: 1.19.0
 <!-- devcodex:include shared/instructions/concurrency-config-contract.md -->
 
 <!-- devcodex:include shared/instructions/single-writer-domains.md -->
+
+### ConvergenceFirstValidationV1（多问题/发布收口）
+
+1. 先在唯一项目/root 下做有界只读发现，冻结 `IssueSetDigestV1 + RepairBatchPlanV1`；不得发现一个就修一个再跑资格验证。
+2. 按共享 runtime、canonical source、validation、release Owner 串行单写批量实施。全部问题修完前只允许语法、schema、JSON parse 与生成器物化等编辑期检查，不运行逐问题 affected/full。
+3. 全部实施完成后，基于同一 candidate/HEAD/dirty scope 生成一次统一 affected V2。Runner 必须收集完整失败集合；若有失败，递增 repair generation、统一归因、批量修复后再重跑。
+4. affected 收敛与 ECR 完成后冻结最终候选；冻结后只运行一次发布级 V3/full。任一源码/规范/生成消费者 mutation 都会使该资格失效。
+5. 只有用户明确要求逐项隔离验证，或某项修改若不先作编辑期探针就无法安全继续时，才允许例外；例外必须记录 `skipBatchReason`，且不能冒充 affected/release 资格。
+
+该合同由 `test-router`、validation manifest、ManagedValidationRunner 和 release workflow 共同执行；Profile/报告中的文字声明不能替代机器探针。
 
 ### GitExecutionContext（共享状态透明度）
 
@@ -146,7 +156,7 @@ version: 1.19.0
 - 非白名单路径在默认 `safety-only` 下提醒后继续已获正式授权的 mutation，在 `strict` 下切回确认并拦截；不承诺“所有源码任务自动执行”
 - `instruction-fallback` 宿主（如 JetBrains / Cursor）只保留 auto 规则语义，不承诺 runtime 级行为；支持 Hook 的宿主默认采用 `safety-only`：非白名单边界输出提醒，`strict` 模式下才形成 runtime 硬拦截
 - CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认），含义是 Agent 仍须生成、持久化并回读对应产物与确认 receipt，只是不再停下来索要人工确认；它本身不授予源码写权
-- 以下约束**不可豁免**：S01（不可逆确认）/ S02 用户 / 项目敏感信息策略 / S03~S07 / C01 / C10 / C18。S02 不阻断明文、硬编码或真实秘密写入；它只禁止 AI 未经用户 / 项目要求自行加严、改成 env、`secretRef`、secret manager、`config.local.json` 或占位符。
+- 以下约束**不可豁免**：S01（宿主权限归属与工作流有效性分离）/ S02 用户 / 项目敏感信息策略 / S03~S07 / C01 / C10 / C18。S02 不阻断明文、硬编码或真实秘密写入；它只禁止 AI 未经用户 / 项目要求自行加严、改成 env、`secretRef`、secret manager、`config.local.json` 或占位符。
 - 可恢复失败：重试 ≤ 2 次；不可恢复失败：切换回确认模式并通知用户 ⚠️
 
 ## 设计原则

@@ -3,26 +3,26 @@
   "status": "PASS",
   "portable": true,
   "hostVariant": "codex-cli/exec-user-global-local-stdio",
-  "testedVersion": "codex-cli 0.145.0",
+  "testedVersion": "codex-cli 0.145.0 / source candidate 1.19.1",
   "protocol": "MCP 2024-11-05",
-  "runtimeContractDigest": "74bb7e731875754835245c147d0df6737b4f20b0d119e215daa1a7914169550a",
-  "hostAdapterDigest": "f7b5072195add6fcbfa22b284ba7c8503ac5985bde203311422afe53738ebf8c",
-  "sourceEvidenceDigest": "7e5b3ed0ee349244d3b57447709c01afb8181f251a1141aac4412fd964c9804f",
+  "runtimeContractDigest": "440a0f82abc1cdc05cb54175cb6d48ed2ded2d3c7871e9046450f701499cb137",
+  "hostAdapterDigest": "653d696e6c1fe1a371387ab629dfde21e8d786c359de2aadb3903dda114c3526",
+  "sourceEvidenceDigest": "2fdbde3cec6c96d81eff3f419f9661057e26ef461bd37e2fc11aff946b9e62c2",
   "sourceProbe": {
     "schemaVersion": "SkillRouteS15EvidenceV1",
-    "probeRunId": "s15-codex-probe-13f73501-8ccb-4ff5-b117-a9921d6f86c3",
+    "probeRunId": "s15-codex-probe-c9ea0558-50a9-4132-8a6f-5ac0e4894140",
     "authorizationSource": "isolated-probe-authority",
     "contextSource": "host-hooks",
     "observationMode": "hook-post-history",
     "receiptStatus": "relevant-complete",
-    "completedAt": "2026-08-26T09:33:36.728Z"
+    "completedAt": "2026-08-26T17:18:58.509Z"
   },
   "runtimeBinding": {
     "source": "isolated-source-candidate",
-    "expectedDigest": "74bb7e731875754835245c147d0df6737b4f20b0d119e215daa1a7914169550a",
-    "generationDigest": "74bb7e731875754835245c147d0df6737b4f20b0d119e215daa1a7914169550a",
-    "modeReceiptDigest": "74bb7e731875754835245c147d0df6737b4f20b0d119e215daa1a7914169550a",
-    "routeEnvelopeDigest": "74bb7e731875754835245c147d0df6737b4f20b0d119e215daa1a7914169550a"
+    "expectedDigest": "440a0f82abc1cdc05cb54175cb6d48ed2ded2d3c7871e9046450f701499cb137",
+    "generationDigest": "440a0f82abc1cdc05cb54175cb6d48ed2ded2d3c7871e9046450f701499cb137",
+    "modeReceiptDigest": "440a0f82abc1cdc05cb54175cb6d48ed2ded2d3c7871e9046450f701499cb137",
+    "routeEnvelopeDigest": "440a0f82abc1cdc05cb54175cb6d48ed2ded2d3c7871e9046450f701499cb137"
   },
   "probe": {
     "schemaVersion": "SkillRouteProbeSummaryV1",

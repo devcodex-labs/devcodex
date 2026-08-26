@@ -87,7 +87,7 @@ IntentSeedV1 → unique project/activeRoot → ContextReadPlanV2（V1 兼容）�
 ## 执行步骤
 
 1. 建立 Agent 行为图：用户输入、`IntentSeedV1`、目标、`ContextReadPlanV2`（V1 兼容）、Skill、工具、回执、确认、报告。
-2. 明确工具权限边界和危险操作拦截；能力面发生变化时向中央 decision 提供控制方、authority、状态与 Task 证据。
+2. 明确工具权限边界：宿主拥有文件、删除和命令权限，DevCodex 只约束工作流有效性并提供风险 advisory；能力面发生变化时向中央 decision 提供控制方、authority、状态与 Task 证据。
 3. 定义上下文、记忆、handoff、summary 和恢复优先级。
 4. 设计状态机和失败恢复：blocked、retry、fallback、handoff。
 5. 用 direct replay、fixture replay、validate 或日志证据验证关键行为。

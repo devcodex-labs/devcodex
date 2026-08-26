@@ -1255,14 +1255,10 @@ try {
     undefined,
     'superseded mutation closeout detail must not crowd out active authority'
   )
-  const projectedApprovalIds = Object.keys(approvalEphemeralRead.state.dangerousApprovals)
-  assert.strictEqual(projectedApprovalIds.length, 8, 'ephemeral approval projection must remain bounded')
-  assert.strictEqual(projectedApprovalIds.includes('000000000000'), false)
-  assert.strictEqual(projectedApprovalIds.includes('000000000001'), false)
-  assert.strictEqual(projectedApprovalIds.includes('00000000000a'), false, 'used approval must not survive projection')
   assert.strictEqual(
-    approvalEphemeralRead.state.dangerousApprovals['000000000009'].status,
-    'confirmed'
+    approvalEphemeralRead.state.dangerousApprovals,
+    undefined,
+    'legacy DevCodex-owned operation approvals must not survive V5 projection; the host owns permission state'
   )
   const ephemeralMaintenance = maintainTaskRecoveryStore(ephemeralMeta, {
     ...baseOptions,

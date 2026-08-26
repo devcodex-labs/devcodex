@@ -30,12 +30,14 @@ function makeUtils(contextRoot = ROOT) {
 
 const utils = makeUtils(ROOT)
 
-function expectBan(cmd, label, payloadExtra = {}) {
+function expectAdvisory(cmd, label, payloadExtra = {}) {
   const d = utils.checkDangerousCommand({
     tool_input: { command: cmd, ...payloadExtra }
   }, 'grok')
-  assert.ok(d, `expected ban: ${label}`)
-  assert.strictEqual(d.code, 'workspace-root-scan-ban', label)
+  assert.ok(d, `expected advisory: ${label}`)
+  assert.strictEqual(d.code, 'workspace-root-scan-advisory', label)
+  assert.strictEqual(d.advisory, true, label)
+  assert.strictEqual(d.permissionOwner, 'host', label)
 }
 
 function expectAllow(cmd, label, payloadExtra = {}) {
@@ -46,7 +48,7 @@ function expectAllow(cmd, label, payloadExtra = {}) {
 }
 
 // R-01 sample / original relapse
-expectBan(
+expectAdvisory(
   `Get-ChildItem -Path "${ROOT}" -Directory -Filter "*queuebit*" -Recurse -Depth 3`,
   'absolute root recurse depth'
 )
@@ -61,13 +63,13 @@ expectAllow(
   'first-level project path'
 )
 // R-02: dir /s
-expectBan(`dir /s "${ROOT}"`, 'dir /s workspace root')
-expectBan('dir /s', 'dir /s relative at workspace cwd')
+expectAdvisory(`dir /s "${ROOT}"`, 'dir /s workspace root')
+expectAdvisory('dir /s', 'dir /s relative at workspace cwd')
 // find at workspace root (C16)
-expectBan(`find "${ROOT}" -type f`, 'find workspace root')
+expectAdvisory(`find "${ROOT}" -type f`, 'find workspace root')
 // R-03: relative recurse at workspace cwd
-expectBan('Get-ChildItem -Recurse -Depth 3', 'relative recurse at workspace cwd')
-expectBan('Get-ChildItem -Recurse', 'relative recurse bare')
+expectAdvisory('Get-ChildItem -Recurse -Depth 3', 'relative recurse at workspace cwd')
+expectAdvisory('Get-ChildItem -Recurse', 'relative recurse bare')
 // relative child at workspace cwd
 expectAllow('Get-ChildItem queuebit -Recurse', 'relative child name')
 expectAllow('Get-ChildItem -Path queuebit -Recurse', 'relative -Path child')
@@ -123,4 +125,4 @@ assert.strictEqual(utils.isWorkspaceRootRecursiveInventory(
   `Get-ChildItem -Path "${PROJECT}" -Recurse`, ROOT, { cwd: ROOT }
 ), false)
 
-console.log('workspace-root-scan-ban unit OK (R-01..R-04 matrix)')
+console.log('workspace-root-scan advisory unit OK (R-01..R-04 matrix)')

@@ -2,15 +2,11 @@
 
 function buildLifecycleDangerousCommandUtils({
   path,
-  crypto,
   CONTEXT_ROOT,
   WORKSPACE_ROOT,
-  APPROVAL_TTL_MS,
   DANGEROUS_PATTERNS,
   getToolName,
-  getCommandText,
-  INTERCEPTION_ACTION,
-  recordInterception
+  getCommandText
 }) {
   function isCommandTool(payload, platform) {
     const tn = getToolName(payload).toLowerCase()
@@ -18,12 +14,8 @@ function buildLifecycleDangerousCommandUtils({
     return /terminal|shell|powershell|bash|^run[_-]?in[_-]?terminal$|^runcommand$|^command$/.test(tn)
   }
 
-  function stripApprovalMarker(command) {
-    return String(command || '')
-      .replace(/(?:#\s*)?\bdevcodex-approve:([a-f0-9]{12})\b/ig, '')
-      .replace(/[ \t]+#[ \t]*(?=\r?$)/gm, '')
-      .replace(/[ \t]+/g, ' ')
-      .trim()
+  function normalizeCommandText(command) {
+    return String(command || '').trim()
   }
 
   const SAFE_TEXT_OPERATIONS = new Set([
@@ -184,8 +176,8 @@ function buildLifecycleDangerousCommandUtils({
 
   function findExecutedDanger(command) {
     for (const group of classifyCommandSyntax(command)) {
-      if (group.literalExecutionSink) {
-        const danger = DANGEROUS_PATTERNS.find(pattern => pattern.re.test(group.raw))
+      for (const executableSurface of collectExecutableSurfaces(group)) {
+        const danger = DANGEROUS_PATTERNS.find(pattern => pattern.re.test(executableSurface))
         if (danger) return danger
       }
       for (const stage of group.stages) {
@@ -196,6 +188,59 @@ function buildLifecycleDangerousCommandUtils({
       }
     }
     return null
+  }
+
+  function unquoteShellPayload(value) {
+    const text = String(value || '').trim()
+    if (text.length >= 2 && ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'")))) {
+      return text.slice(1, -1)
+    }
+    return text
+  }
+
+  function collectFlagPayloads(raw, expression) {
+    const out = []
+    let match
+    const re = new RegExp(expression.source, expression.flags.includes('g') ? expression.flags : `${expression.flags}g`)
+    while ((match = re.exec(String(raw || ''))) !== null) {
+      const payload = match.slice(1).find(value => value !== undefined)
+      if (payload !== undefined) out.push(unquoteShellPayload(payload))
+      if (match[0].length === 0) re.lastIndex += 1
+    }
+    return out
+  }
+
+  /**
+   * Return only bytes that an explicit execution sink will interpret as code.
+   * A sink elsewhere in the same compound command must never upgrade quoted
+   * documentation/search text into an executable destructive operation.
+   */
+  function collectExecutableSurfaces(group) {
+    const raw = String(group?.raw || '')
+    const surfaces = []
+    surfaces.push(...collectFlagPayloads(raw, /\b(?:bash|dash|ksh|sh|zsh)\b\s+(?:-[A-Za-z]*c\b|--command\b)\s*(?:"((?:\\.|[^"\\])*)"|'((?:''|[^'])*)'|([^\s;&|]+))/i))
+    surfaces.push(...collectFlagPayloads(raw, /\b(?:powershell|pwsh)(?:\.exe)?\b[\s\S]*?(?:-command|-c)\b\s*(?:"((?:`.|[^"`])*)"|'((?:''|[^'])*)'|([^\r\n;&|]+))/i))
+    surfaces.push(...collectFlagPayloads(raw, /\bcmd(?:\.exe)?\b\s*\/[ck]\b\s*(?:"((?:""|[^"])*)"|'([^']*)'|([^\r\n;&|]+))/i))
+    surfaces.push(...collectFlagPayloads(raw, /\b(?:mysql|psql)\b[\s\S]*?\s-(?:e|c)\b\s*(?:"((?:\\.|[^"\\])*)"|'((?:''|[^'])*)'|([^\r\n;&|]+))/i))
+    surfaces.push(...collectFlagPayloads(raw, /\bsqlcmd\b[\s\S]*?\s-Q\b\s*(?:"((?:""|[^"])*)"|'((?:''|[^'])*)'|([^\r\n;&|]+))/i))
+    surfaces.push(...collectFlagPayloads(raw, /\bsqlite3\b[^\r\n;&|]*?\s+(?:"((?:\\.|[^"\\])*)"|'((?:''|[^'])*)')/i))
+
+    for (const match of raw.matchAll(/\$\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g)) surfaces.push(match[1])
+    for (const match of raw.matchAll(/`([^`\r\n]+)`/g)) surfaces.push(match[1])
+
+    const stages = Array.isArray(group?.stages) ? group.stages : []
+    for (let index = 0; index < stages.length; index++) {
+      const stage = stages[index]
+      if (/^(?:iex|invoke-expression|eval)$/.test(stage.operation)) {
+        const inline = String(stage.raw || '').replace(/^\s*(?:iex|invoke-expression|eval)\b/i, '').trim()
+        if (inline) surfaces.push(unquoteShellPayload(inline))
+        else if (index > 0) surfaces.push(stages[index - 1].raw)
+      }
+      if (/^(?:bash|dash|ksh|sh|zsh)$/.test(stage.operation) && index > 0) {
+        surfaces.push(stages[index - 1].raw)
+      }
+    }
+    return [...new Set(surfaces.map(value => String(value || '').trim()).filter(Boolean))]
   }
 
   /** Recursive inventory markers (R-02: dir /s must match; avoid \\b before /). */
@@ -283,7 +328,7 @@ function buildLifecycleDangerousCommandUtils({
    * @param {{ cwd?: string }} [options]
    */
   function isWorkspaceRootRecursiveInventory(command, workspaceRoot, options = {}) {
-    const cmd = stripApprovalMarker(command)
+    const cmd = normalizeCommandText(command)
     if (!cmd || !commandHasRecursiveInventory(cmd)) return false
     const rootFs = path.resolve(String(workspaceRoot || CONTEXT_ROOT || '').trim() || '.')
     if (!rootFs || rootFs.length < 2) return false
@@ -378,8 +423,9 @@ function buildLifecycleDangerousCommandUtils({
   }
 
   /**
-   * Block host skill directory inventory so process UI does not leak user-home skill paths.
-   * @returns {null|{reason:string,neverApprove:boolean,code:string,command?:string}}
+   * Classify host skill directory inventory for advisory/telemetry. The host,
+   * not DevCodex, owns the operation permission decision.
+   * @returns {null|{reason:string,advisory:boolean,permissionOwner:string,code:string,command?:string}}
    */
   function checkHostSkillInventoryListing (payload, platform) {
     if (!payload) return null
@@ -391,9 +437,10 @@ function buildLifecycleDangerousCommandUtils({
       if (/[\\/]\.grok[\\/](bundled[\\/])?skills|[\\/]\.agents[\\/]skills|[\\/]\.claude[\\/]skills/.test(hay) ||
           targets.some(isHostSkillInventoryTarget)) {
         return {
-          reason: 'Blocked: host skill inventory under user profile (privacy); do not list ~/.grok/skills or bundled skills. Read a single known SKILL.md under .devcodex/workspace/skills/<id> or ~/.agents/devcodex/skills/<id> only.',
-          neverApprove: true,
-          code: 'host-skill-inventory-ban'
+          reason: 'Advisory: host skill inventory under the user profile may expose private paths; prefer one exact known SKILL.md when practical.',
+          advisory: true,
+          permissionOwner: 'host',
+          code: 'host-skill-inventory-advisory'
         }
       }
     }
@@ -404,9 +451,10 @@ function buildLifecycleDangerousCommandUtils({
     for (const t of targets) {
       if (isHostSkillInventoryTarget(t)) {
         return {
-          reason: 'Blocked: host skill inventory under user profile (privacy); process UI must not list C:\\Users\\… skill roots. Use exact path to one SKILL.md (workspace or ~/.agents/devcodex/skills/<id>/SKILL.md).',
-          neverApprove: true,
-          code: 'host-skill-inventory-ban',
+          reason: 'Advisory: host skill inventory under the user profile may expose private paths; prefer one exact known SKILL.md when practical.',
+          advisory: true,
+          permissionOwner: 'host',
+          code: 'host-skill-inventory-advisory',
           command: getCommandText(payload) || t
         }
       }
@@ -417,9 +465,10 @@ function buildLifecycleDangerousCommandUtils({
       if (/[\\/]\.grok[\\/](?:bundled[\\/])?skills|[\\/]\.agents[\\/]skills(?![\\/]devcodex)|[\\/]\.claude[\\/]skills/i.test(cmd) &&
           isListingStyleTool(payload, platform)) {
         return {
-          reason: 'Blocked: host skill inventory under user profile (privacy); do not list ~/.grok/skills or similar host skill trees.',
-          neverApprove: true,
-          code: 'host-skill-inventory-ban',
+          reason: 'Advisory: host skill inventory under the user profile may expose private paths; host policy decides whether it may run.',
+          advisory: true,
+          permissionOwner: 'host',
+          code: 'host-skill-inventory-advisory',
           command: cmd
         }
       }
@@ -428,11 +477,11 @@ function buildLifecycleDangerousCommandUtils({
   }
 
   function checkDangerousCommand(payload, platform) {
-    const hostSkillBan = checkHostSkillInventoryListing(payload, platform)
-    if (hostSkillBan) return hostSkillBan
+    const hostSkillAdvisory = checkHostSkillInventoryListing(payload, platform)
+    if (hostSkillAdvisory) return hostSkillAdvisory
     if (!isCommandTool(payload, platform)) return null
     const cmd = getCommandText(payload)
-    const stripped = stripApprovalMarker(cmd)
+    const stripped = normalizeCommandText(cmd)
     const workspaceRoot = WORKSPACE_ROOT || CONTEXT_ROOT
     const cwd = resolveToolCwd(payload)
     for (const group of classifyCommandSyntax(stripped)) {
@@ -441,106 +490,25 @@ function buildLifecycleDangerousCommandUtils({
         if (isWorkspaceRootRecursiveInventory(stage.raw, workspaceRoot, { cwd })) {
           return {
             re: null,
-            reason: 'Blocked: workspace-root recursive inventory (C16/TTFV/PI-20260724-01); bind project path (Test-Path / list_dir one level)',
-            neverApprove: true,
+            reason: 'Advisory: workspace-root recursive inventory can be slow and noisy; bind one project path when possible.',
+            advisory: true,
+            permissionOwner: 'host',
             command: cmd,
-            code: 'workspace-root-scan-ban'
+            code: 'workspace-root-scan-advisory'
           }
         }
       }
     }
     const danger = findExecutedDanger(stripped)
     if (!danger) return null
-    return { ...danger, command: cmd, cwd }
-  }
-
-  function extractApprovalId(command) {
-    const m = String(command || '').match(/\bdevcodex-approve:([a-f0-9]{12})\b/i)
-    return m ? m[1].toLowerCase() : ''
-  }
-
-  function hashDangerousCommand(command, cwd) {
-    const canonical = `${path.resolve(cwd || CONTEXT_ROOT)}\n${stripApprovalMarker(command)}`
-    return crypto.createHash('sha256').update(canonical).digest('hex')
-  }
-
-  function pruneDangerousApprovals(state) {
-    const approvals = state.dangerousApprovals || {}
-    const now = Date.now()
-    for (const [id, approval] of Object.entries(approvals)) {
-      if (!approval || approval.used || now - Number(approval.createdAtMs || 0) > APPROVAL_TTL_MS) {
-        delete approvals[id]
-      }
+    return {
+      ...danger,
+      reason: String(danger.reason || '').replace(/^Blocked:/i, 'Advisory:'),
+      advisory: true,
+      permissionOwner: 'host',
+      command: cmd,
+      cwd
     }
-    state.dangerousApprovals = approvals
-  }
-
-  function createDangerousApproval(state, danger) {
-    pruneDangerousApprovals(state)
-    const resolvedCwd = path.resolve(String(danger.cwd || CONTEXT_ROOT))
-    const commandHash = hashDangerousCommand(danger.command, resolvedCwd)
-    const approvalId = commandHash.slice(0, 12)
-    const existing = state.dangerousApprovals?.[approvalId]
-    if (existing && !existing.used && existing.commandHash === commandHash && existing.cwd === resolvedCwd) {
-      return approvalId
-    }
-    state.dangerousApprovals[approvalId] = {
-      commandHash,
-      cwd: resolvedCwd,
-      reason: danger.reason,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-      createdAtMs: Date.now(),
-      used: false
-    }
-    return approvalId
-  }
-
-  function extractApprovalIds(text) {
-    return [...String(text || '').matchAll(/\bdevcodex-approve:([a-f0-9]{12})\b/ig)].map(match => match[1].toLowerCase())
-  }
-
-  function promptConfirmsDangerousApproval(prompt) {
-    const text = String(prompt || '')
-    if (/(?:不(?:确认|同意|批准|允许|执行)|不要|拒绝|deny|do\s+not|don't|not\s+approve)/i.test(text)) return false
-    return /(?:确认|同意|批准|允许|执行|继续|重试|approve|approved|confirm|confirmed|yes|ok|okay|proceed|continue)/i.test(text)
-  }
-
-  function confirmDangerousApprovalsFromPrompt(state, prompt, eventName, platform) {
-    pruneDangerousApprovals(state)
-    const ids = extractApprovalIds(prompt)
-    if (!ids.length || !promptConfirmsDangerousApproval(prompt)) return []
-    const confirmed = []
-    for (const approvalId of ids) {
-      const approval = state.dangerousApprovals?.[approvalId]
-      if (!approval || approval.used || approval.status === 'confirmed') continue
-      approval.status = 'confirmed'
-      approval.confirmedAt = new Date().toISOString()
-      approval.confirmedBy = 'UserPromptSubmit'
-      confirmed.push(approvalId)
-      recordInterception(
-        state, eventName, platform, INTERCEPTION_ACTION.LOG_ONLY, 'dangerous-command-confirmed',
-        approval.reason || 'dangerous command approval confirmed',
-        `Dangerous command approval ${approvalId} confirmed by user prompt.`, true
-      )
-    }
-    return confirmed
-  }
-
-  function consumeDangerousApproval(state, danger) {
-    pruneDangerousApprovals(state)
-    const approvalId = extractApprovalId(danger.command)
-    if (!approvalId) return { approved: false }
-    const approval = state.dangerousApprovals?.[approvalId]
-    const resolvedCwd = path.resolve(String(danger.cwd || CONTEXT_ROOT))
-    const commandHash = hashDangerousCommand(danger.command, resolvedCwd)
-    if (!approval || approval.used || approval.status !== 'confirmed' || approval.commandHash !== commandHash || approval.cwd !== resolvedCwd) {
-      return { approved: false, approvalId }
-    }
-    approval.used = true
-    approval.status = 'used'
-    approval.usedAt = new Date().toISOString()
-    return { approved: true, approvalId }
   }
 
   return {
@@ -549,17 +517,10 @@ function buildLifecycleDangerousCommandUtils({
     checkHostSkillInventoryListing,
     isHostSkillInventoryTarget,
     classifyCommandSyntax,
+    collectExecutableSurfaces,
     findExecutedDanger,
-    stripApprovalMarker,
-    isWorkspaceRootRecursiveInventory,
-    extractApprovalId,
-    hashDangerousCommand,
-    pruneDangerousApprovals,
-    createDangerousApproval,
-    extractApprovalIds,
-    promptConfirmsDangerousApproval,
-    confirmDangerousApprovalsFromPrompt,
-    consumeDangerousApproval
+    normalizeCommandText,
+    isWorkspaceRootRecursiveInventory
   }
 }
 

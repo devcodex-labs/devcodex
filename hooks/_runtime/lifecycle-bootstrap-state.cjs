@@ -607,7 +607,6 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       mutated: false,
       reportTouched: false,
       memoryTouched: false,
-      dangerousApprovals: {},
       lastEvent: '',
       lastReason: ''
     }
@@ -936,9 +935,12 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       progressiveSkillRouteCoordinator: {
         ...current.progressiveSkillRouteCoordinator,
         ...(saved.progressiveSkillRouteCoordinator || {})
-      },
-      dangerousApprovals: { ...current.dangerousApprovals, ...(saved.dangerousApprovals || {}) }
+      }
     }
+    // Legacy DevCodex-owned operation approvals are intentionally retired.
+    // Operation permission is host-owned and must not be rehydrated.
+    delete state.dangerousApprovals
+    delete state.dangerousApprovalRecovery
     state.workspaceSessionRouteHint = probe.workspaceSessionRouteHint || state.workspaceSessionRouteHint || null
     if (state.taskRecoveryBinding && String(state.taskRecoveryBinding.project || '') !== recoveryProjectForState(state)) {
       state.taskRecoveryBinding = null
@@ -1016,8 +1018,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         bootstrap: { ...(committedState.bootstrap || {}) },
         visible: { ...(committedState.visible || {}) },
         stickyProject: { ...(committedState.stickyProject || {}) },
-        stickyAuto: { ...(committedState.stickyAuto || {}) },
-        dangerousApprovals: { ...(committedState.dangerousApprovals || {}) }
+        stickyAuto: { ...(committedState.stickyAuto || {}) }
       }
       const metaProjectionWrite = writeStableProjection(META_STATE_PATHS.file, metaState, { fs })
       if (metaProjectionWrite.status !== 'persisted') {
@@ -1059,7 +1060,6 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     state.cp3Runtime = { ...(previousState?.cp3Runtime || {}) }
     state.governanceIntake = normalizeGovernanceIntakeState(previousState?.governanceIntake)
     state.turnLiveness = normalizeTurnLivenessState(previousState?.turnLiveness)
-    state.dangerousApprovals = { ...(previousState?.dangerousApprovals || {}) }
     // Per-turn only: set after reset on UserPromptSubmit; never inherit prior match/enforceCount
     state.workspaceSkillAutoMatch = null
     const previousAcquisition = previousState ? normalizeContextAcquisition(previousState) : null

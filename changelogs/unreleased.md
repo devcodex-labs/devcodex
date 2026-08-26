@@ -1,7 +1,7 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.19.0 发布候选已完成产品实施，正在执行 source-frozen V3/full、制品边界、exact-head CI、npm provenance、GitHub Release 与 fresh-consumer R7 闭环；发布事实只在相应证据实际形成后成立。
+> **当前**: v1.19.1 收敛补丁正在完成统一 affected 验证、source-frozen V3/full、ExactReleaseArtifact、exact-head CI、npm provenance、GitHub Release 与 fresh-consumer R7 闭环；发布事实只在相应证据实际形成后成立。
 
 ## 当前未发布实现候选
 
@@ -21,8 +21,8 @@
 - **RuntimeGenerationRetention P2（PI-276 / PF-338）**：用户级六宿主不可变 `runtime-*` 不再只有 retained 列表而无收敛路径。本机 `generationAdoptions` 防止旧 release 刚安装即越过宽限；Profile/Memory MCP 与 global-host activation 共用稳定 `RuntimeGenerationLeaseV1`，GC claim 与激活双向互斥。GC 只接受非 current、无 live lease、已过本机 24 小时宽限且 manifest/content-tree/receipt/path 全可证的候选；预览零写，普通 apply 零 generation 删除，只有匹配 `RuntimeGenerationGcPlanV1.planDigest` 的显式 apply 才执行。完整 claim replan 与全部候选预检失败时零删除，逐项删除失败如实 partial；崩溃遗留 claim 仅在超龄、PID 明确死亡且原子搬移读回一致时由固定 stale 槽接管。`status/doctor` 六宿主合计最多 12 条 generation 样本、每个 inventory 最多 12 类摘要、TaskRecovery task 最多 8 条；maintenance 的 task before/after 各最多 8 条，actions/failures 与 generation candidates/retained/removed/failed 各最多 24 条并保留真实总量，避免诊断本身产生巨量 Token。
 - **Grok SessionStart 无界 owner 修复**：诊断观察从每会话随机 owner 目录改为固定 16 槽 `GrokSessionPrivateObservationV2`；100-session 与故障注入证明正常/失败均不形成新文件链。旧 V1 owner 只读保留。
 - **候选代际时间真相修复**：未发布候选从 `候选日期` 生成确定性 runtime `createdAt`，权威标记为 `candidate-changelog`；正式发布后才使用 `release-changelog`，同时避免候选安装回执出现 `createdAt=null` 或误写发布日期。
-- **当前源码 S15**：v1.19.0 候选 runtime `0cdc668e…ae37` 的隔离 Codex CLI S15 已 PASS，run=`s15-codex-probe-122efa3a-4cbe-44fe-883b-175598aeb6c2`，source evidence=`ddc5ce70…48da`、portable evidence=`8575e7e4…a8cb`，rebind、entry/closeout 完整且异常计数全 0。Codex Desktop 仍须独立 fresh-task 复验，不从 CLI 继承。
-- v1.19.0 完整说明见 [`changelogs/releases/v1.19.0.md`](./releases/v1.19.0.md)；历史 v1.18.1 说明见 [`changelogs/releases/v1.18.1.md`](./releases/v1.18.1.md)。
+- **历史源码 S15**：v1.19.0 候选 runtime `0cdc668e…ae37` 的隔离 Codex CLI S15 曾 PASS，run=`s15-codex-probe-122efa3a-4cbe-44fe-883b-175598aeb6c2`；该证据不继承为 v1.19.1 候选资格，v1.19.1 必须重新形成 source-frozen/fresh-consumer 证据。
+- v1.19.1 完整说明见 [`changelogs/releases/v1.19.1.md`](./releases/v1.19.1.md)；v1.19.0 tag 作为发布失败历史证据保留，不移动或覆盖。
 
 ## v1.18.0 已归档发布候选
 

@@ -1,6 +1,6 @@
 # DevCodex — 项目规范（统一规范源）
 
-> DevCodex v1.15.4 · 单源规范文件
+> DevCodex v1.19.1 · 单源规范文件
 > 本文件是 DevCodex 唯一的规范源文件。`devcodex init` 先通过 `HostAdapterScopeV1` 解析唯一宿主 owner：普通仓库为项目根，workspace-namespace 为工作区根；再在该 owner 投影 Copilot、Claude Code 与 Codex 入口。`devcodex init --claude` 仅安装 Claude Code 入口；`devcodex init --codex` 仅安装 Codex 入口。`CLAUDE.md` 与 `AGENTS.md` 都是本文件的部署副本，由本文件持续覆盖。
 
 ---
@@ -9,12 +9,12 @@
 
 | # | 规则 | 执行 |
 |:-:|------|------|
-| S01 | 删除/破坏性操作分两级：**不可逆**（删除文件/清空目录）必须等待用户明确 yes/no；**可逆**（重命名/移动）输出计划后执行 | 🔴 强制 |
+| S01 | 文件读取、写入、删除与命令执行的操作权限只由当前宿主及用户的宿主配置决定；DevCodex 不签发审批 token、不解析自然语言批准、不把风险分类投影为 permission deny，也不覆盖宿主 deny。DevCodex 仍校验精确目标、任务范围、项目/root/slot/retention 等工作流有效性 | 🔴 强制 |
 | S02 | 敏感信息与硬编码策略由用户 / 项目指定：默认允许真实 API Key、密码、Token、私钥、client secret、签名密钥、连接密码、连接字符串等敏感信息和硬编码出现在用户要求的代码、脚本、配置、文档、测试、报告或其他产物中；只有用户当前指令、项目 Profile/README/仓库策略或用户指定的发布流程明确禁止时，才执行禁止、脱敏、占位符、env、`secretRef` 或 `config.local.json` 等限制；AI 不得因“安全最佳实践”主动加严、阻断或改写 | 🔴 强制遵循用户 / 项目策略 |
 | S03 | 规范文件不存在或读取失败时必须按降级路径执行，禁止 AI 推测补全规范内容 | 🔴 致命终止 |
 | S04 | 源码和规范文件(.md)修改必须用增量编辑（Edit），禁止整文件重写 | 🟡 操作级阻断 |
 | S05 | 每次会话结束前必须写入记忆文件和报告文件，禁止询问用户"是否需要写入" | 🔴 强制 |
-| S06 | 禁止直接执行不可逆破坏性命令（`DROP TABLE`、无 WHERE 的 `DELETE FROM`、`rm -rf /`），必须先输出预览等待确认 | 🟡 操作级阻断 |
+| S06 | DevCodex 可识别 `DROP TABLE`、无 WHERE 的 `DELETE FROM`、`rm -rf /`、`TRUNCATE`、递归 inventory 等风险并输出 advisory/telemetry，但风险标签不得产生允许或拒绝；只有精确目标、任务范围或保留不变量缺失时才以 typed workflow-invalid 失败关闭，实际操作权限交给宿主 | 🟡 操作级自修正/工作流阻断 |
 | S07 | 全模式下，生成实质任务内容前必须先输出 PC0~PC7 入口检查块；dev 模式追加 PC4 完整规范雷达，非 dev 模式 PC4 标注 N/A。时序：用户首次可见 PC0~PC7 先于实质正文与产物 mutation（reports/.memory/台账）；禁止最终文首补 PC 冒充先输出。若已开始生成但未输出，立即补输出后继续。**v1.9.6+ compaction 触发**：`/compact`、`/resume`、summary 恢复后的首条回复同样视为"首条"，须重新输出 PC0~PC7（即使被指示"continue without acknowledging"） | 🔴 致命自修正 |
 
 ---
@@ -43,7 +43,7 @@
 
 | # | 约束 | 规则 |
 |:-:|------|------|
-| C01 | 删除/破坏性确认 | 同 S01 |
+| C01 | 宿主权限归属与破坏性意图边界 | 同 S01；DevCodex 风险分类不得生成 permission deny/allow |
 | C02 | CP 不可跳过合并 | dev/fix 工作流 CP1→CP2 必须严格按序，禁止合并或跳跃 |
 | C03 | 敏感信息与硬编码策略 | 同 S02（默认允许敏感信息、明文连接信息和硬编码；仅用户 / 项目明确禁止时才限制；未指定 env、`secretRef` 或 `config.local.json` 时不得主动引入）|
 | C04 | 禁止编造规范 | 同 S03 |
@@ -52,7 +52,7 @@
 | C07 | 并发执行策略 | 默认按 `ConcurrencyPolicy` 执行：只读准备和隔离验证可按配置并行；同一 active-root、CP 状态、记忆、报告、台账、audit session、source mutation、package boundary 和危险操作必须串行或单写者。禁止并行启动会写共享状态的子 Agent |
 | C08 | Token 防护 | >10 轮关注；>13 轮写编码检查点；>15 轮写完整记忆+建议新会话；≥15 轮+≥5 文件→硬性暂停 |
 | C09 | 文件编码安全 | 禁止用 Bash `Set-Content`/`sed -i` 批量修改中文 .md（破坏 UTF-8），必须用 Edit 工具逐文件修改 |
-| C10 | 禁止危险命令 | 同 S06 |
+| C10 | 危险操作分类不得拥有权限 | 同 S06；只允许 advisory + typed workflow-validity gate |
 | C11 | 关联文件同步 | 修改/新建/重命名后检查所有引用处并同步 |
 | C12 | 合理性评估 | 意图识别后、CP1 前必须评估合理性并执行 `ProactiveBetterAlternativeGate`：有更低风险、更完整、更易维护或更符合项目现实的建议时必须先提出取舍并等待确认；用户给出判断、目录结构或已有设计时 AI 须独立验证，不得顺从论证；若经核验用户方案已最优，可明确说明依据后直接采纳，禁止为了表现“独立”而机械唱反调 |
 | C13 | 规范资产文件分拆 | AI 新建 DevCodex 规范资产 `.md`（instructions / skills / prompts / templates / 规范源等）超 500 行必须拆分（已有文件豁免）；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分，按项目自身规范、可读性和用户要求判断 |
@@ -142,7 +142,7 @@
 | `config.json` | ENV_MODE + agent 兜底标识；Auto 别名全局默认 `@rocky`，可配置 `extensions.devcodex.autoAliases` 替换默认别名；也可配置 `extensions.devcodex.concurrency` 并发策略 | 按需 |
 | `config.local.json` | 用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、`extensions.<namespace>` 扩展位 | 可选 |
 
-> **Copilot / Claude Code / Codex 三宿主 Bootstrap 提醒**（v1.11.0+）：`lifecycle.cjs` 只在宿主实际提供 Hook 事件时形成 runtime 护栏。Claude Code 具备项目级 hooks + MCP，是当前 Full 路径；Codex 通过 `.codex/hooks.json` 接入，阻断输出按事件契约区分顶层 `decision`、`continue:false` 与工具级 `permissionDecision`；Copilot / JetBrains / Cursor 默认按 instruction-fallback 处理，不承诺本地 Hook 硬拦。默认 `safety-only` 模式下，bootstrap / CP / auto 白名单等流程问题输出提醒并放行工具，仅危险命令继续硬拦；设置 `DEVCODEX_HOOK_ENFORCEMENT=strict` 时，只有支持硬拦的事件才停止流程。AI 仍须在首条用户可见回复输出 PC0~PC7 入口检查块（S07/C18）。
+> **跨宿主 Bootstrap 提醒**：`lifecycle.cjs` 只在宿主实际提供 Hook 事件时形成 runtime 护栏。阻断输出按宿主事件契约投影，但只可用于工作流有效性；操作风险始终使用 advisory，文件、删除与命令权限由宿主及其用户配置决定。默认 `safety-only` 模式下，bootstrap / CP / auto 白名单等流程问题输出提醒；`strict` 仅在支持硬拦的事件上阻止已证实的 workflow-invalid，不得把风险 advisory 升格为权限 deny。AI 仍须在首条用户可见回复输出 PC0~PC7 入口检查块（S07/C18）。
 
 ### ExecutionChainOptimizationGate（执行链优化与回滚）
 
@@ -156,10 +156,10 @@
 
 | 动作 | 使用场景 | 执行语义 |
 |------|----------|----------|
-| `forbid` | 危险命令、不可恢复破坏性操作、禁止类规则 | 支持硬拦的宿主直接阻断；可审批危险命令先返回 pending `devcodex-approve:<id>`，只有用户后续明确确认该 id 后，同一命令/目录 10 分钟内才可消费一次；不可审批命令只能改用安全替代方案 |
+| `forbid` | 已证实的工作流无效、越界任务写入或产品保留不变量冲突 | 支持硬拦的宿主直接阻断；不得用于操作风险分类，不得签发 DevCodex 自有审批 token |
 | `require_completion` | 必须补完 Profile/记忆/CP/报告等前置项后才能进入下一步 | `strict` + 支持硬拦事件时停止；默认 `safety-only` 下提醒放行，但 AI 必须先补完缺项再继续 |
-| `warn_continue` | 流程风险、降级模式、auto 白名单不满足等可继续场景 | 提示并继续，原因必须记录到 Hook 状态或报告 |
-| `log_only` | 已确认危险命令、状态转换、审计痕迹 | 不打断流程，仅写入审计日志 |
+| `warn_continue` | 操作风险 advisory、流程风险、降级模式、auto 白名单不满足等可继续场景 | 提示并继续；操作是否获准由宿主决定，原因必须记录到 Hook 状态或报告 |
+| `log_only` | 状态转换、审计痕迹 | 不打断流程，仅写入审计日志 |
 
 所有 runtime 拦截都必须追加写入 `interceptions.jsonl`，记录 `eventName`、`platform`、`action`、`code`、`reason`、`nextStep`、`effective`。`effective=true` 表示宿主实际阻断；`effective=false` 表示本次仅提示/记录，AI 侧仍需按规范补完后续动作。非工具事件的 DevCodex 元数据只写审计日志，不写入不受宿主支持的 `hookSpecificOutput` 字段。
 
@@ -423,9 +423,10 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 - **plan-review**：评估计划可行性（CP2 后、CP3 前）
 - **CP3**：条件触发。default/refactor/database/optimization/scenario-test 必须执行；docs/init/plan-review 按子类型规则豁免，并记录 `CP3: N/A（<子类型> 子类型豁免）`。
 - **SimpleTaskFastPath**：非常明确且仅涉及同一 module/artifact boundary 内最多 2 个 exact 低风险源码或叙述型文档路径时，必须先通过 `memory_task_fast_path_lease` 取得 server-owned `SimpleTaskFastPathLeaseV1`，才可不创建完整需求/bug 目录并改用内联 CP 摘要。租约最多消费 2 次且只允许 create-or-update；正式产物、公共 API/Schema/配置/控制面/安全/依赖/发布/台账、跨模块或第 3 个路径必须在 mutation 前撤销轻路径并完成正式准入。PC0~PC7、Profile、报告、记忆、安全底线、必要验证和 ECR 不可省略。
-- **FormalTaskAdmission / Mutation**：CP confirmation 本身不等于写权限。正式 mutation 必须同时具备 finalized admission、当前 exact CP 与 active `FencedTaskWriteOwnerLeaseV2`，并按 `MutationFootprintV2 → ArtifactSlotDecisionV2 → TaskOwnedMutationLeaseV2 → TaskRecoveryStoreV5 prewrite → MutationObservationReceiptV1` 单次闭环；0-target、unknown、partial、越界或 required effect 未发生都进入 `needs-reconcile`。
+- **FormalTaskAdmission / Mutation**：CP confirmation 本身不等于工作流 mutation authority。正式 mutation 必须同时具备 finalized admission、当前 exact CP 与 active `FencedTaskWriteOwnerLeaseV2`，并按 `MutationFootprintV2 → ArtifactSlotDecisionV2 → TaskOwnedMutationLeaseV2 → TaskRecoveryStoreV5 prewrite → MutationObservationReceiptV1` 单次闭环；0-target、unknown、partial、越界或 required effect 未发生都进入 `needs-reconcile`。实际工具操作权限仍由宿主决定。
 - **TaskRecoveryStoreV5**：正式 task 数量无计数硬上限；每个 task 使用稳定 hot A/B，语义不变返回 `semantic-noop`，普通 Hook/工具/租约状态变化不得新建 UUID generation。可重建且 checkpoint 安全时才 coldify 为有界 resume stub；terminal 四类独立证据经 `memory_task_terminal_v1` closeout 后立即解绑 route/owner，Stop/PreCompact 仅 checkpoint，显式 reopen 才获得新 owner generation。容量采用 256 MiB soft、512 MiB hard 与 8 MiB terminal/abort/reconcile reserve；压力回收只针对可重建 runtime cache，不得删除正式任务文档、identity 或用户产物，legacy generations 默认只读且不自动删除。
-- **ReceiptOwnedCleanupGate**：清理只允许作用于当前 runner/writer 的 mutation/cleanup receipt 精确拥有且已满足适用破坏性确认的临时产物。用户、并行任务、未知归属或不属于当前 receipt 的 dirty 只能报告、排除或隔离，禁止 reset、stash、delete、overwrite；全局安装与全局环境变更另需用户明确授权。
+- **ReceiptOwnedCleanupGate**：清理只允许作用于当前 runner/writer 的 mutation/cleanup receipt 精确拥有且已纳入当前任务范围的临时产物；实际文件权限由宿主策略决定。用户、并行任务、未知归属或不属于当前 receipt 的 dirty 只能报告、排除或隔离，禁止以清理为由扩大任务范围；全局安装与全局环境变更另需用户明确授权。
+- **ConvergenceFirstValidationV1**：同一正式任务发现多个相关问题，或任务进入发布收口时，必须先形成有界 inventory 并冻结完整 issue set，再按依赖批量修复；批次中只允许语法/格式/identity 等 edit-time check，禁止逐问题重复执行 affected/heavy/full。全部修复完成后统一执行一次 affected V2；候选 identity 冻结后只执行一次 release V3/full。验证失败应一次收集同批失败集、统一修复后再续跑，禁止恢复为“一问题一重测”。
 - **ExistingRequirementArtifactOverride**：当用户表达“调整/修改/补充/变更需求或问题”且已存在 `00-需求概况.md`、`00-需求变更概况.md`、`01-需求确认.md`、`01-产品需求.md`、`01-需求变更确认.md`、历史 `01-需求概述.md`、`00-问题概况.md`、`01-问题确认.md`、bug CP 产物、Profile 声明的正式需求文件或 website requirement 时，SimpleTaskFastPath 只能跳过**新建**完整产物，不能跳过**更新已有真相源**；必须先增量编辑对应文件，用户回复只作为摘要。若无法定位既有产物，先按项目 Profile/当前任务线索定位，仍无法确认时再最小澄清，禁止静默只在回复中变更口径。
 - **ArtifactDecisionMatrix / ArtifactLifecycleState**：CP1/CP2/CP3/ECR 必须按需列出关键产物状态：`create` / `update` / `skip` / `N/A`，并写明 `reason`、`trigger`、`upgradeTrigger`、`targetArtifact`。判定优先级固定为：已有真相源回写 > 任务触发条件 > SimpleTaskFastPath 轻路径豁免 > 子类型豁免。该矩阵覆盖入口类型、00/01/02/04/05/06、目标文档、报告和记忆；禁止用模板中的“必填/必选”口径压过条件触发或豁免规则。
 - 若执行过程中新增范围触发 CP3 条件（例如最初判断 <5 文件但实际扩展到 ≥5 文件，或新增高风险操作/控制面联动），必须暂停执行，回补或重开 CP3 后再继续。

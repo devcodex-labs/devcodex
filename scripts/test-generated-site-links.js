@@ -10,11 +10,13 @@ const { scanGeneratedSite } = require('./check-generated-site-links')
 const { main: checkGeneratedSiteLinksIfPresent } = require('./check-generated-site-links-if-present')
 const {
   WEBSITE_COMMAND_TIMEOUT_MS,
+  assertSiteInstallIsolation,
   main: runWebsiteBuildIfPresent
 } = require('./run-website-build-if-present')
 
 const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-generated-links-'))
 const cleanRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-generated-links-clean-'))
+const unsafeSiteRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-generated-links-unsafe-'))
 
 try {
   assert.strictEqual(WEBSITE_COMMAND_TIMEOUT_MS, 600000)
@@ -40,8 +42,21 @@ try {
   assert.strictEqual(runWebsiteBuildIfPresent({ root: cleanRoot }), 0)
   assert.strictEqual(checkGeneratedSiteLinksIfPresent({ root: cleanRoot }), 0)
 
+  fs.mkdirSync(path.join(unsafeSiteRoot, 'public-site'), { recursive: true })
+  fs.writeFileSync(path.join(unsafeSiteRoot, 'public-site', 'package.json'), JSON.stringify({
+    name: 'unsafe-site',
+    private: true,
+    dependencies: { devcodex: 'file:..' }
+  }))
+  assert.throws(
+    () => assertSiteInstallIsolation(unsafeSiteRoot, { id: 'public-site' }),
+    error => error?.code === 'WEBSITE_EXTERNAL_LOCAL_LINK_FORBIDDEN'
+  )
+  assert.doesNotThrow(() => assertSiteInstallIsolation(path.resolve(__dirname, '..'), { id: 'public-site' }))
+
   console.log('Generated site link checker tests passed')
 } finally {
   fs.rmSync(rootDir, { recursive: true, force: true })
   fs.rmSync(cleanRoot, { recursive: true, force: true })
+  fs.rmSync(unsafeSiteRoot, { recursive: true, force: true })
 }

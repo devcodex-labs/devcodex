@@ -52,7 +52,7 @@ Platform facts (Grok Build hooks docs): `PreToolUse` and `Stop`/`SubagentStop` c
 | intent-route | Final route before loading workflow Skills |
 | skill-bundle | Non-chat mandatory: `intent` + `compliance` + `user-visible-output-contract` + workflow Skill + `report` + `memory` (minimal-sufficient; no full Skill encyclopedia preload) |
 | context-plan | Bounded plan/receipts only |
-| scan-hygiene | **WorkspaceRootScanBan**: no monorepo/workspace-root `Get-ChildItem -Recurse`; bind project path; exclude `node_modules`/`dist` |
+| scan-hygiene | **WorkspaceRootScanHygiene**: prefer a bound project path and exclude `node_modules`/`dist`; Hook telemetry is advisory and the host owns permission |
 | ttfv-first-delivery | **TimeToFirstValueGate**: same user-visible turn delivers scope card OR first findings/conclusion OR hard block (non-chat) |
 | work-and-gates | CP/ECR as applicable |
 | report-memory | Non-chat write report + memory |

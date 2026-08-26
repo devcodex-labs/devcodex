@@ -28,6 +28,7 @@ function createSender(message) {
 
 function receiptFor(input) {
   const now = new Date().toISOString()
+  const resumedNodeIds = (input.resumeResults || []).map(result => result.nodeId)
   return {
     schemaVersion: 'ValidationExecutionReceiptV3',
     contractVersion: '3',
@@ -51,8 +52,10 @@ function receiptFor(input) {
     authorityClass: input.lease.authorityClass,
     claimCeiling: input.plan.claimCeiling,
     selectedNodeCount: 1,
-    executionCount: 1,
-    cacheHitCount: 0,
+    executionCount: resumedNodeIds.length ? 0 : 1,
+    cacheHitCount: resumedNodeIds.length,
+    resumedNodeIds,
+    resumedNodeCount: resumedNodeIds.length,
     failedNode: null,
     abortedNodes: [],
     nodeReceiptDigests: { fixture: 'a'.repeat(64) },
@@ -85,16 +88,32 @@ process.once('message', message => {
     send('error', { error: { code: 'VALIDATION_FIXTURE_ERROR', message: 'fixture error' } }, true)
     return
   }
+  send('node-start', {
+    node: { nodeId: 'fixture', ordinal: 1, total: 1, timeoutMs: 1000 }
+  })
+  const resumed = (input.resumeResults || [])[0]
   send('node', {
     result: {
+      ...(resumed || {}),
       nodeId: 'fixture',
-      status: 'passed',
+      status: resumed ? 'cache-hit' : 'passed',
+      cacheStatus: resumed ? 'hit-run-checkpoint' : 'disabled',
       nodeReceiptDigest: 'a'.repeat(64),
+      evidenceDigest: 'b'.repeat(64),
+      exitCode: 0,
       durationMs: 1,
       stdout: fault === 'ipc-budget' ? 'x'.repeat(2 * 1024 * 1024) : 'ok',
       stderr: ''
     }
   })
+  if (fault === 'checkpoint-restart' && message.attempt === 1) {
+    setTimeout(() => process.exit(17), 10)
+    return
+  }
+  if (fault === 'checkpoint-restart' && message.attempt > 1 && !resumed) {
+    send('error', { error: { code: 'VALIDATION_FIXTURE_CHECKPOINT_MISSING', message: 'checkpoint was not resumed' } }, true)
+    return
+  }
   if (fault === 'hang') {
     setInterval(() => {}, 1000)
     return

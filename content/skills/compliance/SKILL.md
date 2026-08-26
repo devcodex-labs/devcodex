@@ -85,7 +85,7 @@ Grok：**条件 Stop 硬续**（有 `lastAssistantMessage` 可 `decision:block`�
 
 本项不受 dev/prod 后置合规块开关影响：每条非空用户消息都必须有中性 candidate，并在合理性评估后形成 `GovernanceIntakeDecision`。收尾前检查 candidate ID、评估结论、泛化范围、现有规范状态、复合意图、目标台账、写入要求与证据；required 写入必须满足 `LedgerWriteEvidenceGate`，`record.none` 必须满足 `RecordNoneChallengeGate`，`record.ambiguous` 保持未终结。Hook 证据不可观察时只能标 `unverified`，不能把回复中的自报编号当作落账成功；instruction-fallback 必须在报告/记忆保留相同字段与人工复证路线。
 
-### TimeToFirstValueGate + WorkspaceRootScanBan（C16 / PI-20260724-01 · 全模式防复发）
+### TimeToFirstValueGate + WorkspaceRootScanHygiene（C16 / PI-20260724-01 · 全模式防复发）
 
 > 🔴 与 ENV_MODE 无关：非 chat 任务不得用「准备过重」制造假卡住。Owner 细节见 `skill-gap-analysis`；机器探针见 `classifyTtfvOmissionSample` / `classifyWorkspaceRootScanSample`（`host-parity-scorecard.js`）与 **ProgressReportFastPath** `classifyProgressReportFastPathSample`。
 
@@ -93,7 +93,7 @@ Grok：**条件 Stop 硬续**（有 `lastAssistantMessage` 可 `decision:block`�
 |------|----------|----------|
 | **TTFV** | PC0~PC7 + 最小 ContextReadPlan 之后，**同一用户可见回复**含：范围卡 **或** 首批 finding/结论 **或** 明确阻断+恢复 | 本轮不得宣称「已启动审查/分析完成准备」；下一 tool 轮必须先交付 |
 | **ProgressReportFastPath** | 进度/发版状态查询：绑定项目 → 固定真相源顺序 → 首轮进度卡；禁止根 inventory 抢跑 | 同 TTFV 违约；`progress-fail` |
-| **WorkspaceRootScanBan** | 未绑定唯一项目前不递归 workspace 根；项目可知时用直达路径；inventory 排除 `node_modules`/`dist` | 撤销/不采用该扫描结论；改用有界命令；Hook 可对根路径+Recurse `neverApprove` |
+| **WorkspaceRootScanAdvisory** | 未绑定唯一项目前不递归 workspace 根；项目可知时用直达路径；inventory 排除 `node_modules`/`dist` | 改用有界命令；Hook 只提示成本与范围，是否执行由宿主权限策略决定 |
 | **Skill 最小充分** | 只加载当前意图强制 bundle + 本批所需 Skill，禁止首轮通读全部 audit 子 Skill 百科 | 记 WARN；不作为「已审查」证据 |
 
 chat / 纯确认短答：TTFV 可 `N/A + skipReason=chat-or-ack`。
@@ -191,7 +191,7 @@ chat / 纯确认短答：TTFV 可 `N/A + skipReason=chat-or-ack`。
 | SC14 | analyze/audit（及任何宣称探针/测试结果的工作流）中，所有标注 ✅已验证 的运行时结论须满足 **MeasuredVerificationStandard**：本轮执行**生产入口命令**并记录 exitCode；隔离 harness / 非生产 reader 不得写成 V# 成败；SUMMARY/记忆历史数字必须降级为 ⚠️待验证 | analyze/audit 🔴；dev/fix 宣称测试/validate 时同标 |
 | SC14a | 强主张证据新鲜度：报告、分析、审查、推荐、CP 可确认或完成态声明命中 `evidence-freshness` 时，须有 `StaleEvidenceLintDecisionV1`；summary-only 不得单独支撑 ✅已验证 / 推荐 / 可确认 | analyze/audit/dev/fix/self-fix 🔴 |
 | SC15 | dev/fix 关键产物已完成 ECR 执行闭环复审：覆盖 CP1/CP2/CP3、实施进度（触发时）、ExecutionContract/TestRoute/ReleaseAudit/ReleaseVerification（触发时）、报告、daily tasks、SUMMARY、diff/commit、测试/扫描证据、dirty 边界；最后一次阻断性修正后至少再复审 1 轮且无新增阻断性问题 | dev/fix 🔴 |
-| SC16 | [C16](../../instructions/01-common.instructions.md) TTFV + WorkspaceRootScanBan + ProgressReportFastPath：非 chat 首轮实质回复具备范围卡/首批结论/阻断之一；进度查询走固定真相源；无 workspace 根无界 Recurse inventory；探针 `classifyTtfvOmissionSample` / `classifyWorkspaceRootScanSample` / `classifyProgressReportFastPathSample` | 非 chat 🔴；chat N/A |
+| SC16 | [C16](../../instructions/01-common.instructions.md) TTFV + WorkspaceRootScanHygiene + ProgressReportFastPath：非 chat 首轮实质回复具备范围卡/首批结论/阻断之一；进度查询走固定真相源；默认 inventory 不使用 workspace 根无界 Recurse，Hook 只发 advisory；探针 `classifyTtfvOmissionSample` / `classifyWorkspaceRootScanSample` / `classifyProgressReportFastPathSample` | 非 chat 🔴；chat N/A |
 
 ## §4 恢复性检查（RC）— 非阻塞
 

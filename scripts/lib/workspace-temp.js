@@ -31,6 +31,9 @@ const DEFAULT_TTL_MS = Object.freeze({
   backup: 7 * 24 * 60 * 60 * 1000,
   quarantine: 14 * 24 * 60 * 60 * 1000
 })
+const TARGET_SHAPE_MAX_ENTRIES = 4096
+const TARGET_SHAPE_FILE_SAMPLE_LIMIT = 64
+const TARGET_SHAPE_SAMPLE_BYTES = 2048
 const NAMESPACE_SCAN_SKIP = new Set([
   'workspace', 'profile', '.memory', '.audit-state', '.runtime-state', '.tmp',
   'requirements', 'bugs', 'optimizations', 'scenario-tests', 'reports', 'data',
@@ -109,37 +112,139 @@ function enforceWorkspaceTempTargetPermission(targetPath) {
   return permissionReceipt(targetPath, kind)
 }
 
-function captureTargetIdentity(targetPath) {
+function statNanoseconds(stats, field, fallbackField) {
+  if (stats[field] != null) return String(stats[field])
+  return String(BigInt(Math.trunc(Number(stats[fallbackField] || 0) * 1e6)))
+}
+
+function sampledFileDigest(file, stats) {
+  const size = Number(stats.size)
+  const firstLength = Math.min(TARGET_SHAPE_SAMPLE_BYTES, size)
+  const lastLength = Math.min(TARGET_SHAPE_SAMPLE_BYTES, Math.max(0, size - firstLength))
+  const first = Buffer.alloc(firstLength)
+  const last = Buffer.alloc(lastLength)
+  const descriptor = fs.openSync(file, 'r')
+  try {
+    if (firstLength) fs.readSync(descriptor, first, 0, firstLength, 0)
+    if (lastLength) fs.readSync(descriptor, last, 0, lastLength, Math.max(0, size - lastLength))
+  } finally {
+    fs.closeSync(descriptor)
+  }
+  return crypto.createHash('sha256')
+    .update(String(stats.size))
+    .update('\0')
+    .update(first)
+    .update('\0')
+    .update(last)
+    .digest('hex')
+}
+
+function captureTargetShape(targetPath, targetStats) {
+  if (targetStats.isFile()) {
+    return {
+      shapeDigest: sampledFileDigest(targetPath, targetStats),
+      shapeEntries: 1,
+      shapeTruncated: false
+    }
+  }
+  if (!targetStats.isDirectory()) {
+    return {
+      shapeDigest: crypto.createHash('sha256').update(`other\0${targetStats.size}`).digest('hex'),
+      shapeEntries: 1,
+      shapeTruncated: false
+    }
+  }
+
+  const records = []
+  let sampledFiles = 0
+  let truncated = false
+  function visit(directory, relativeBase = '') {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
+      if (records.length >= TARGET_SHAPE_MAX_ENTRIES) {
+        truncated = true
+        return
+      }
+      const full = path.join(directory, entry.name)
+      const relative = portable(path.join(relativeBase, entry.name))
+      const stats = fs.lstatSync(full, { bigint: true })
+      const kind = stats.isDirectory() ? 'directory'
+        : (stats.isFile() ? 'file' : (stats.isSymbolicLink() ? 'symlink' : 'other'))
+      const record = { relative, kind, size: String(stats.size) }
+      if (kind === 'file' && sampledFiles < TARGET_SHAPE_FILE_SAMPLE_LIMIT) {
+        record.sampleDigest = sampledFileDigest(full, stats)
+        sampledFiles += 1
+      }
+      records.push(record)
+      if (kind === 'directory') visit(full, relative)
+      if (truncated) return
+    }
+  }
+  visit(targetPath)
+  return {
+    shapeDigest: crypto.createHash('sha256').update(JSON.stringify(records)).digest('hex'),
+    shapeEntries: records.length,
+    shapeTruncated: truncated
+  }
+}
+
+function captureTargetIdentity(targetPath, schemaVersion = 'WorkspaceTempTargetIdentityV2') {
   const stats = fs.lstatSync(targetPath, { bigint: true })
   if (stats.isSymbolicLink()) throw new Error(`WORKSPACE_TEMP_TARGET_REPARSE: ${targetPath}`)
   const kind = stats.isDirectory() ? 'directory' : (stats.isFile() ? 'file' : 'other')
-  return {
-    schemaVersion: 'WorkspaceTempTargetIdentityV1',
+  const base = {
+    schemaVersion,
     kind,
     device: String(stats.dev),
     inode: String(stats.ino),
-    birthtimeNs: stats.birthtimeNs != null
-      ? String(stats.birthtimeNs)
-      : String(BigInt(Math.trunc(Number(stats.birthtimeMs || 0) * 1e6)))
+    birthtimeNs: statNanoseconds(stats, 'birthtimeNs', 'birthtimeMs')
+  }
+  if (schemaVersion === 'WorkspaceTempTargetIdentityV1') return base
+  if (schemaVersion !== 'WorkspaceTempTargetIdentityV2') {
+    throw new Error(`WORKSPACE_TEMP_TARGET_IDENTITY_SCHEMA_UNSUPPORTED: ${schemaVersion}`)
+  }
+  return {
+    ...base,
+    changeTimeNs: statNanoseconds(stats, 'ctimeNs', 'ctimeMs'),
+    modifiedTimeNs: statNanoseconds(stats, 'mtimeNs', 'mtimeMs'),
+    size: String(stats.size),
+    linkCount: String(stats.nlink),
+    ...captureTargetShape(targetPath, stats)
   }
 }
 
 function validTargetIdentity(value) {
-  return Boolean(
-    value?.schemaVersion === 'WorkspaceTempTargetIdentityV1' &&
+  const baseValid = Boolean(
+    ['WorkspaceTempTargetIdentityV1', 'WorkspaceTempTargetIdentityV2'].includes(value?.schemaVersion) &&
     ['directory', 'file', 'other'].includes(value.kind) &&
     /^-?\d+$/.test(String(value.device || '')) &&
     /^-?\d+$/.test(String(value.inode || '')) &&
     /^-?\d+$/.test(String(value.birthtimeNs || ''))
   )
+  if (!baseValid || value.schemaVersion === 'WorkspaceTempTargetIdentityV1') return baseValid
+  return ['changeTimeNs', 'modifiedTimeNs', 'size', 'linkCount']
+    .every(field => /^-?\d+$/.test(String(value[field] || ''))) &&
+    /^[a-f0-9]{64}$/.test(String(value.shapeDigest || '')) &&
+    Number.isInteger(value.shapeEntries) && value.shapeEntries >= 0 &&
+    typeof value.shapeTruncated === 'boolean'
 }
 
-function targetIdentityMatches(expected, observed) {
+function targetIdentityMatches(expected, observed, options = {}) {
   return validTargetIdentity(expected) && validTargetIdentity(observed) &&
+    expected.schemaVersion === observed.schemaVersion &&
     expected.kind === observed.kind &&
     String(expected.device) === String(observed.device) &&
     String(expected.inode) === String(observed.inode) &&
-    String(expected.birthtimeNs) === String(observed.birthtimeNs)
+    String(expected.birthtimeNs) === String(observed.birthtimeNs) &&
+    (expected.schemaVersion === 'WorkspaceTempTargetIdentityV1' || (
+      (options.allowRenameMetadataChange === true ||
+        String(expected.changeTimeNs) === String(observed.changeTimeNs)) &&
+      String(expected.modifiedTimeNs) === String(observed.modifiedTimeNs) &&
+      String(expected.size) === String(observed.size) &&
+      String(expected.linkCount) === String(observed.linkCount) &&
+      expected.shapeDigest === observed.shapeDigest &&
+      expected.shapeEntries === observed.shapeEntries &&
+      expected.shapeTruncated === observed.shapeTruncated
+    ))
 }
 
 function inspectPathBoundary(root, candidate) {
@@ -804,7 +909,7 @@ function inspectManifest(root, manifestPath, nowMs, maxTargetEntries = MAX_ENTRI
   let observedTargetIdentity = null
   if (target.exists && validTargetIdentity(manifest?.targetIdentity)) {
     try {
-      observedTargetIdentity = captureTargetIdentity(targetPath)
+      observedTargetIdentity = captureTargetIdentity(targetPath, manifest.targetIdentity.schemaVersion)
       if (!targetIdentityMatches(manifest.targetIdentity, observedTargetIdentity)) {
         reasons.push('target-instance-changed')
       }
@@ -839,7 +944,7 @@ function inspectManifest(root, manifestPath, nowMs, maxTargetEntries = MAX_ENTRI
 
 function removeIdentityBoundTarget(root, targetPath, expectedIdentity, artifactId) {
   if (!fs.existsSync(targetPath)) return { removed: false, stagedPath: null }
-  const observed = captureTargetIdentity(targetPath)
+  const observed = captureTargetIdentity(targetPath, expectedIdentity.schemaVersion)
   if (!targetIdentityMatches(expectedIdentity, observed)) {
     throw Object.assign(new Error('registered target instance was replaced before deletion'), {
       code: 'WORKSPACE_TEMP_TARGET_INSTANCE_CHANGED'
@@ -854,8 +959,8 @@ function removeIdentityBoundTarget(root, targetPath, expectedIdentity, artifactI
   }
   fs.renameSync(targetPath, stagedPath)
   try {
-    const movedIdentity = captureTargetIdentity(stagedPath)
-    if (!targetIdentityMatches(expectedIdentity, movedIdentity)) {
+    const movedIdentity = captureTargetIdentity(stagedPath, expectedIdentity.schemaVersion)
+    if (!targetIdentityMatches(expectedIdentity, movedIdentity, { allowRenameMetadataChange: true })) {
       throw Object.assign(new Error('target instance changed during identity-bound rename'), {
         code: 'WORKSPACE_TEMP_TARGET_INSTANCE_CHANGED'
       })

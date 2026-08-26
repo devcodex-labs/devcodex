@@ -273,15 +273,15 @@ const TASK_WRITE_OWNER_REF_SCHEMA = Object.freeze({
 const TOOLS = [
   {
     name: 'memory_task_admit_v2',
-    description: '基于 server-owned ingress 可恢复地准入一个正式任务；不签发源码 mutation authority。',
+    description: '从已验证 ingress 准入或恢复正式任务；不授予源码写权限。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
       required: ['operation', 'ingressRef', 'task', 'overview'],
       properties: {
         operation: { type: 'string', enum: ['admit', 'adopt', 'bind'] },
-        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: 'workspace-namespace 下的精确项目；legacy project 可省略' },
-        scope: { type: 'string', enum: ['project'], description: '正式任务准入只允许 project scope' },
+        project: PROJECT_NAMESPACE_INPUT_SCHEMA,
+        scope: { type: 'string', enum: ['project'] },
         ingressRef: {
           type: 'object',
           additionalProperties: false,
@@ -323,14 +323,14 @@ const TOOLS = [
   },
   {
     name: 'memory_task_write_owner',
-    description: '对一个正式任务执行 fenced owner CAS，并返回绑定 V2 owner 的 transition receipt。',
+    description: '对正式任务执行 fenced owner CAS。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
       required: ['operation', 'ingressRef', 'taskId', 'admissionId'],
       properties: {
         operation: { type: 'string', enum: ['acquire', 'renew', 'release', 'handoff-prepare', 'handoff-accept', 'takeover-prepare', 'takeover-accept', 'reopen'] },
-        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: 'workspace-namespace 下的精确项目' },
+        project: PROJECT_NAMESPACE_INPUT_SCHEMA,
         scope: { type: 'string', enum: ['project'] },
         ingressRef: WORKFLOW_INGRESS_REF_SCHEMA,
         taskId: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$' },
@@ -344,7 +344,7 @@ const TOOLS = [
   },
   {
     name: 'memory_task_fast_path_lease',
-    description: '为最多两个 exact 低风险路径签发 server-owned 简单任务租约；高风险或范围升级须转正式准入。',
+    description: '为最多两个低风险路径签发简单任务租约。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -379,7 +379,7 @@ const TOOLS = [
   },
   {
     name: 'memory_workflow_operational_write_lease',
-    description: '签发一次性窄写租约；仅限精确 operational slot，不授权源码、正式 CP、Profile 或 release。',
+    description: '为精确 operational slot 签发一次性窄写租约。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -399,13 +399,13 @@ const TOOLS = [
   },
   {
     name: 'memory_task_terminal_v1',
-    description: '稳定回读四类终态证据后写 terminal receipt、撤销 owner 并解绑 live route。',
+    description: '核验终态证据，撤销 owner 并解绑 route。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
       required: ['ingressRef', 'taskId', 'admissionId', 'terminalStatus', 'expectedOwner', 'evidence'],
       properties: {
-        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: 'workspace-namespace 下的精确项目' },
+        project: PROJECT_NAMESPACE_INPUT_SCHEMA,
         scope: { type: 'string', enum: ['project'] },
         ingressRef: WORKFLOW_INGRESS_REF_SCHEMA,
         taskId: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$' },
@@ -433,13 +433,13 @@ const TOOLS = [
   },
   {
     name: 'memory_task_closeout_reconcile_v1',
-    description: '从固定 closeout reserve 按 CAS 恢复终态并重试 route unbind；不授予 mutation authority。',
+    description: '按 CAS 恢复终态并重试 route unbind。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
       required: ['ingressRef', 'taskId'],
       properties: {
-        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: 'workspace-namespace 下的精确项目' },
+        project: PROJECT_NAMESPACE_INPUT_SCHEMA,
         scope: { type: 'string', enum: ['project'] },
         ingressRef: WORKFLOW_INGRESS_REF_SCHEMA,
         taskId: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$' }
@@ -448,16 +448,16 @@ const TOOLS = [
   },
   {
     name: 'memory_artifact_mutation_reconcile_v1',
-    description: '对一个 exact needs-reconcile artifact closeout 复证当前文件系统效果并按 CAS 收口；不执行文件 mutation、不签发权限。',
+    description: '按 CAS 复证并收口 artifact closeout；不改文件。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
       required: ['ingressRef', 'operationId', 'expectedCloseoutDigest', 'resolution'],
       properties: {
-        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: 'workspace-namespace 下的精确项目' },
+        project: PROJECT_NAMESPACE_INPUT_SCHEMA,
         scope: { type: 'string', enum: ['project'] },
         ingressRef: WORKFLOW_INGRESS_REF_SCHEMA,
-        taskId: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$', description: '正式任务必填；简单/operational 临时会话省略' },
+        taskId: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$' },
         operationId: { type: 'string', minLength: 1, maxLength: 256 },
         expectedCloseoutDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
         resolution: { type: 'string', enum: ['accept-observed-effects'] }

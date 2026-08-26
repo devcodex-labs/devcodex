@@ -337,7 +337,7 @@ const stopSrc = fs.readFileSync(
         owner: 'task-owner',
         mutability: 'mutable',
         protected: false,
-        destructivePolicy: 'forbid'
+        destructivePolicy: 'confirm'
       }]
     }, null, 2))
     fs.mkdirSync(taskRoot, { recursive: true })

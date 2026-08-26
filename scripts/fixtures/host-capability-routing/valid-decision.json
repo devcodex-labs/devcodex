@@ -1,6 +1,6 @@
 {
   "schemaVersion": "CapabilityIntentDecisionV1",
-  "decisionId": "sha256:640f7a0e6d12e867d870cb2c8793da845d484c0d5691671739d4b4ed2e2897d1",
+  "decisionId": "sha256:72a818a1c6d72d67e784e0ad7665c812dfa171aa840384d465351d4903d1b458",
   "instructionRefId": "instruction-ref-cp3-a9c3db9f",
   "workflowIntent": "dev",
   "capabilityClass": "portableDecision",

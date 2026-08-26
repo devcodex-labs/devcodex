@@ -29,6 +29,7 @@ const SERVICE_TOOLS = new Set([
 const READ_TOOL_RE = /^(?:read|read_file|view|view_file|open|search|grep|rg|find|glob|list|ls|stat|inspect|query|fetch|get|check|validate|diagnose|screenshot)(?:[_-].*)?$/i
 const WRITE_NAME_HINT_RE = /(?:write|edit|patch|create|delete|remove|move|rename|replace|append|insert|format|generate|codegen|scaffold|install|update|migrate|mutat)/i
 const CONTROLLED_LOGICAL_WRITE_RE = /^(?:memory_(?:session_allocate|session_write|summary_append|cp_confirm)|memory-(?:session-allocate|session-write|summary-append|cp-confirm))$/i
+const SERVER_OWNED_AUTHORITY_CONTROL_RE = /^(?:memory_task_(?:admit_v2|write_owner|fast_path_lease|terminal_v1|closeout_reconcile_v1)|memory_workflow_operational_write_lease|memory_artifact_mutation_reconcile_v1)$/i
 const DEVCODEX_READ_ONLY_MCP_TOOLS = new Set([
   'profile_context_plan',
   'profile_load',
@@ -40,7 +41,22 @@ const DEVCODEX_READ_ONLY_MCP_TOOLS = new Set([
   'memory_session_query',
   'memory_summary_query',
   'memory_session_read',
-  'memory_summary_read'
+  'memory_summary_read',
+  'memory_artifact_link_project'
+])
+const DEVCODEX_RESERVED_MCP_TOOL_LEAVES = new Set([
+  ...DEVCODEX_READ_ONLY_MCP_TOOLS,
+  'memory_session_allocate',
+  'memory_session_write',
+  'memory_summary_append',
+  'memory_cp_confirm',
+  'memory_task_admit_v2',
+  'memory_task_write_owner',
+  'memory_task_fast_path_lease',
+  'memory_workflow_operational_write_lease',
+  'memory_task_terminal_v1',
+  'memory_task_closeout_reconcile_v1',
+  'memory_artifact_mutation_reconcile_v1'
 ])
 
 function devCodexToolIdentity(name) {
@@ -50,14 +66,38 @@ function devCodexToolIdentity(name) {
     return { server: 'direct', leaf: value }
   }
   for (const pattern of [
-    /^mcp__devcodex_(profile|memory)__(.+)$/,
+    /^mcp__devcodex[-_](profile|memory)__(.+)$/,
     /^devcodex[-_](profile|memory)\/(.+)$/,
-    /^devcodex[-_](profile|memory)__(.+)$/
+    /^devcodex[-_](profile|memory)__(.+)$/,
+    /^devcodex[-_](profile|memory)-([a-z0-9_]+)$/
   ]) {
     const match = value.match(pattern)
     if (match) return { server: `devcodex-${match[1]}`, leaf: match[2] }
   }
   return null
+}
+
+function devCodexToolLeaf(name) {
+  const value = String(name || '').trim().toLowerCase()
+  return devCodexToolIdentity(value)?.leaf || value
+}
+
+function hasUnverifiedDevCodexReservedLeaf(name) {
+  const value = String(name || '').trim().toLowerCase()
+  if (!value || devCodexToolIdentity(value)) return false
+  for (const leaf of DEVCODEX_RESERVED_MCP_TOOL_LEAVES) {
+    if (value === leaf) return false
+    if (value.endsWith(`__${leaf}`) || value.endsWith(`/${leaf}`) || value.endsWith(`-${leaf}`)) return true
+  }
+  return false
+}
+
+function isServerOwnedMemoryTransactionToolName(name) {
+  return CONTROLLED_LOGICAL_WRITE_RE.test(devCodexToolLeaf(name))
+}
+
+function isServerOwnedAuthorityControlToolName(name) {
+  return SERVER_OWNED_AUTHORITY_CONTROL_RE.test(devCodexToolLeaf(name))
 }
 
 function digest(value) {
@@ -265,6 +305,12 @@ function classifyHostToolMutation(payload = {}, options = {}) {
     operationClass = 'read'
     mutationCandidate = false
     coverage = 'not-applicable'
+  } else if (hasUnverifiedDevCodexReservedLeaf(normalizedName)) {
+    adapterId = 'host-unverified-devcodex-tool-v1'
+    operationClass = 'unknown'
+    mutationCandidate = true
+    coverage = 'unavailable'
+    ambiguityCodes = ['devcodex-server-identity-unverified']
   } else if (PATCH_TOOLS.has(normalizedName)) {
     adapterId = 'host-apply-patch-v1'
     operationClass = 'direct-write'
@@ -325,7 +371,7 @@ function classifyHostToolMutation(payload = {}, options = {}) {
     readOnly: mutationCandidate !== true,
     executableAuthority: mutationCandidate === true && operationClass !== 'unknown' && coverage === 'complete',
     targetStrategy: operationClass === 'direct-write' || operationClass === 'destructive'
-      ? (CONTROLLED_LOGICAL_WRITE_RE.test(normalizedName) ? 'controlled-logical-target' : (PATCH_TOOLS.has(normalizedName) ? 'patch' : 'exact-fields'))
+      ? (CONTROLLED_LOGICAL_WRITE_RE.test(classificationName) ? 'controlled-logical-target' : (PATCH_TOOLS.has(normalizedName) ? 'patch' : 'exact-fields'))
       : (operationClass === 'shell' ? 'shell-syntax' : (operationClass === 'indirect-writer' ? 'managed-manifest-or-root' : 'none')),
     controlledTargets,
     coverage,
@@ -367,6 +413,9 @@ module.exports = {
   classifyHostToolMutation,
   classifyShell,
   commandText,
+  devCodexToolLeaf,
+  isServerOwnedAuthorityControlToolName,
+  isServerOwnedMemoryTransactionToolName,
   toolInput,
   toolName,
   validateHostToolMutationAdapterDecision

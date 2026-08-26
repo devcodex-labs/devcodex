@@ -370,7 +370,7 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
 - error 最多 2 次迭代；2 次仍失败 → 停止，输出错误摘要标 ⚠️
 - 涉及 HTTP 接口变更 → 生成双产物（.http + .cjs）
 - 涉及源码/配置文件变更 → 检查文档同步（README 为必查；CHANGELOG 按发布状态区分：未明确发版默认更新 `changelogs/unreleased.md`，仅正式 release 更新根 `CHANGELOG.md` / `changelogs/releases/vX.Y.Z.md`；TASK-INDEX/STATUS 按项目存在或启用时同步）
-- 涉及验证、发布、pack、benchmark、codegen 或生成产物 → 完成前必须盘点残留并区分 owner。只能清理具备本轮 receipt、由本轮 runner/writer 创建且已满足适用破坏性确认的产物；用户既有、无 owner、并行任务或来源不明的 dirty 只能报告、隔离或从候选中排除，禁止 reset/stash/delete/overwrite。
+- 涉及验证、发布、pack、benchmark、codegen 或生成产物 → 完成前必须盘点残留并区分 owner。只能清理具备本轮 receipt、由本轮 runner/writer 创建且精确落在当前任务、root、slot 与 retention 边界内的产物；实际删除权限由宿主决定。用户既有、无 owner、并行任务或来源不明的 dirty 只能报告、隔离或从候选中排除，禁止 reset/stash/delete/overwrite。
 - 涉及文档阅读顺序、审查顺序、实施顺序或“先看什么”入口 → `document-sync` / ConceptSyncMap 必须把 README、索引页、website sidebar/nav 和目录页列为当前消费者，同批校验呈现顺序；若信息架构故意不同，必须说明差异原因。
 - 涉及依赖/框架/SDK/平台 API 变更 → 验证 `OfficialDocsEvidence` 与实际实现一致；不得只以安装成功替代官方用法验证
 - 涉及项目事实变化 → 执行 `ProfileImpactCheck` 并通过 `document-sync` 更新 Profile 或记录跳过理由

@@ -852,6 +852,17 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
   assert.strictEqual(activeHook.workspaceRoot, workspace)
   assert.strictEqual(activeHook.reason, 'global-adapter-active')
   assert.strictEqual(activeHook.evidenceMode, 'passive-hook-no-context-injection')
+  const activeDangerAdvisory = globalPluginHook.runWorkspaceBridge(
+    { hookEventName: 'PreToolUse', cwd: workspace, toolInput: { command: 'git reset --hard' } },
+    {
+      cwd: workspace,
+      env,
+      pluginRoot: globalPluginRoot,
+      spawnSync: () => ({ status: 0, stdout: '{"decision":"allow"}', stderr: '' })
+    }
+  )
+  assert.strictEqual(activeDangerAdvisory.output.decision, 'allow')
+  assert.strictEqual(activeDangerAdvisory.reason, 'global-adapter-active')
   const missingAdapterHook = globalPluginHook.runWorkspaceBridge(
     { hookEventName: 'PreToolUse', cwd: workspace, toolInput: { command: 'echo ok' } },
     { cwd: workspace, env, pluginRoot: globalPluginRoot, adapterPath: path.join(home, 'missing-adapter.cjs') }
@@ -864,7 +875,8 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
     { cwd: workspace, env, pluginRoot: globalPluginRoot, adapterPath: path.join(home, 'missing-adapter.cjs') }
   )
   assert.strictEqual(dangerousWithoutAdapter.status, 0)
-  assert.strictEqual(dangerousWithoutAdapter.output.decision, 'deny')
+  assert.strictEqual(dangerousWithoutAdapter.reason, 'global-adapter-missing-degraded')
+  assert.strictEqual(dangerousWithoutAdapter.output.decision, 'allow')
   const invalidAdapterOutput = globalPluginHook.runWorkspaceBridge(
     { hookEventName: 'PreToolUse', cwd: workspace, toolInput: { command: 'echo ok' } },
     {
@@ -887,9 +899,9 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
   )
   assert.strictEqual(
     dangerousWithInvalidAdapterOutput.reason,
-    'global-adapter-invalid-output-local-danger-deny'
+    'global-adapter-invalid-output-degraded'
   )
-  assert.strictEqual(dangerousWithInvalidAdapterOutput.output.decision, 'deny')
+  assert.strictEqual(dangerousWithInvalidAdapterOutput.output.decision, 'allow')
   const outsideHook = globalPluginHook.runWorkspaceBridge(
     { hookEventName: 'UserPromptSubmit', cwd: home },
     { cwd: home, env, pluginRoot: globalPluginRoot }

@@ -40,6 +40,9 @@ const {
   validationProjectRootIdentity
 } = require('../hooks/_runtime/workflow-completion-contract.cjs')
 const { sha256 } = require('../hooks/_runtime/content-identity.cjs')
+const {
+  validateArtifactMutationReconciliationEvidence
+} = require('../hooks/_runtime/artifact-mutation-reconciliation.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 const DEFAULT_MANIFEST = path.join(__dirname, 'validation-manifest.json')
@@ -250,7 +253,14 @@ function validationExecutionError(receipt = {}) {
     return new ValidationDagError(
       'VALIDATION_NODE_FAILED',
       'validation node failed: ' + receipt.failedNode,
-      { failedNode: receipt.failedNode, terminalReason: receipt.terminalReason || null }
+      {
+        failedNode: receipt.failedNode,
+        failedNodes: Array.isArray(receipt.failedNodes) && receipt.failedNodes.length
+          ? receipt.failedNodes
+          : [receipt.failedNode],
+        abortedNodeReasons: receipt.abortedNodeReasons || {},
+        terminalReason: receipt.terminalReason || null
+      }
     )
   }
   if (reasonCode) {
@@ -474,6 +484,10 @@ function isSubset(current = [], allowed = []) {
   return (current || []).every(value => allowedSet.has(String(value)))
 }
 
+function isSameSet(current = [], expected = []) {
+  return isSubset(current, expected) && isSubset(expected, current)
+}
+
 function isStrictGitDescendant(repoRoot, ancestor, descendant) {
   const previous = String(ancestor || '').trim().toLowerCase()
   const current = String(descendant || '').trim().toLowerCase()
@@ -492,17 +506,29 @@ function isStrictGitDescendant(repoRoot, ancestor, descendant) {
   }
 }
 
-function assessAutoRootRollover({ store, currentRoot, plan, candidate, control, authorityContext, repoRoot = ROOT }) {
+function assessAutoRootRollover({
+  store,
+  currentRoot,
+  plan,
+  candidate,
+  control,
+  controlValidation,
+  authorityContext,
+  repoRoot = ROOT
+}) {
   const root = currentRoot?.rootBudgetConfirmation
   if (!root || control?.action !== 'auto-authorize' || root.authorityKind !== 'auto') {
     return { eligible: false, reasonCode: 'auto-root-rollover-authority-missing' }
   }
-  if (root.autoAuthorityRef !== control.autoAuthorityRef ||
-      root.taskRecoveryKey !== authorityContext.taskRecoveryKey ||
+  const sameAutoBinding = root.autoAuthorityRef === control.autoAuthorityRef &&
+    root.contextEpoch === authorityContext.contextEpoch
+  const freshCurrentAutoRebind = controlValidation?.valid === true
+  if (root.taskRecoveryKey !== authorityContext.taskRecoveryKey ||
       root.project !== 'devcodex' ||
       root.hostSessionDigest !== control.hostSessionDigest ||
-      root.contextEpoch !== authorityContext.contextEpoch ||
-      root.revocationEpoch !== currentValidationRevocationEpoch(authorityContext)) {
+      root.projectRootIdentity?.digest !== control.projectRootIdentity?.digest ||
+      root.revocationEpoch !== currentValidationRevocationEpoch(authorityContext) ||
+      (!sameAutoBinding && !freshCurrentAutoRebind)) {
     return { eligible: false, reasonCode: 'auto-root-rollover-binding-mismatch' }
   }
   const lease = store.readLease()
@@ -533,22 +559,37 @@ function assessAutoRootRollover({ store, currentRoot, plan, candidate, control, 
   const projection = rootProjectionRead.rootBudgetProjection
   const selectedNodeIds = (plan.selectedNodes || []).map(node => String(node.id || '')).filter(Boolean)
   const budget = plan.budgetCard || {}
-  const sameScope = plan.verificationLevel === root.maxLevel &&
+  const exactScope = plan.verificationLevel === root.maxLevel &&
     plan.verificationPurpose === root.purpose &&
-    isSubset(plan.affectedBoundaries, projection.affectedBoundaries) &&
-    isSubset(selectedNodeIds, projection.selectedNodeIds) &&
-    isSubset(budget.heavyNodeIds, projection.heavyNodeIds) &&
-    isSubset(budget.sideEffectCategories, projection.sideEffectCategories) &&
-    Number(plan.selectedNodeCount || selectedNodeIds.length) <= Number(projection.selectedNodeCount || 0) &&
-    Number(budget.estimatedDurationMs || 0) <= Number(projection.estimatedDurationMs || 0) &&
-    Number(budget.hardTimeoutUpperBoundMs || 0) <= Number(projection.hardTimeoutUpperBoundMs || 0) &&
-    Number(budget.logBudgetBytes || 0) <= Number(projection.logBudgetBytes || 0)
-  if (!sameScope) {
-    return { eligible: false, reasonCode: 'auto-root-rollover-scope-widened' }
+    isSameSet(plan.affectedBoundaries, projection.affectedBoundaries) &&
+    isSameSet(selectedNodeIds, projection.selectedNodeIds) &&
+    isSameSet(budget.heavyNodeIds, projection.heavyNodeIds) &&
+    isSameSet(budget.sideEffectCategories, projection.sideEffectCategories) &&
+    Number(plan.selectedNodeCount || selectedNodeIds.length) === Number(projection.selectedNodeCount || 0) &&
+    Number(budget.estimatedDurationMs || 0) === Number(projection.estimatedDurationMs || 0) &&
+    Number(budget.hardTimeoutUpperBoundMs || 0) === Number(projection.hardTimeoutUpperBoundMs || 0) &&
+    Number(budget.logBudgetBytes || 0) === Number(projection.logBudgetBytes || 0)
+  const controlIssuedAtMs = Date.parse(String(control.issuedAt || ''))
+  const terminalCompletedAtMs = Date.parse(String(terminal.completedAt || ''))
+  // A distinct user Auto turn after the parent terminal is new exact-card
+  // authority, not a continuation.  It may bind the current V2 impact scope;
+  // same/expired Auto authority remains constrained to the immutable root.
+  const currentAutoRescope = freshCurrentAutoRebind && !sameAutoBinding &&
+    control.autoAuthorityRef !== root.autoAuthorityRef &&
+    control.sourceMessageDigest !== root.sourceMessageDigest &&
+    authorityContext.contextEpoch !== root.contextEpoch &&
+    Number.isFinite(controlIssuedAtMs) && Number.isFinite(terminalCompletedAtMs) &&
+    controlIssuedAtMs > terminalCompletedAtMs
+  if (!exactScope && !currentAutoRescope) {
+    return { eligible: false, reasonCode: 'auto-root-rollover-scope-changed' }
   }
   return {
     eligible: true,
-    reasonCode: 'strict-descendant-same-scope',
+    reasonCode: exactScope
+      ? (sameAutoBinding
+          ? 'strict-descendant-same-scope'
+          : 'strict-descendant-exact-scope-current-auto-rebind')
+      : 'strict-descendant-current-auto-rescope',
     parentRootReceiptDigest: root.receiptDigest,
     parentTerminalDigest: terminal.terminalDigest,
     previousCandidateHead: terminal.candidateHead,
@@ -576,13 +617,28 @@ function mutationRepairProof(authorityContext, candidate, terminal) {
   const closeout = authorityContext.taskState?.turnLiveness?.lastMutationCloseout || null
   const observation = closeout?.observation || null
   const effects = observation?.observedEffects || {}
-  const observedPaths = [
+  const originalObservedPaths = [
     ...(effects.created || []),
     ...(effects.modified || []),
     ...(effects.deleted || []),
     ...(effects.moved || []).flatMap(item => [item?.source, item?.target])
   ].map(normalizeRepoMutationPath).filter(Boolean)
-  const observed = [...new Set(observedPaths)].sort()
+  const originalObserved = [...new Set(originalObservedPaths)].sort()
+  const reconciliation = closeout?.reconciliation || null
+  const reconciliationValidation = validateArtifactMutationReconciliationEvidence(reconciliation, {
+    operationId: closeout?.operationId,
+    priorCloseoutDigest: closeout?.artifactCloseout?.closeoutDigest || observation?.closeout?.closeoutDigest,
+    priorObservationReceiptDigest: observation?.receiptDigest
+  })
+  const recoveredEffects = reconciliation?.recoveredObservedEffects || {}
+  const recoveredObserved = [...new Set([
+    ...(recoveredEffects.created || []),
+    ...(recoveredEffects.modified || []),
+    ...(recoveredEffects.deleted || []),
+    ...(recoveredEffects.moved || []).flatMap(item => [item?.source, item?.target])
+  ].map(normalizeRepoMutationPath).filter(Boolean))].sort()
+  const reconciledSuccess = closeout?.result === 'reconciled' && reconciliationValidation.valid
+  const observed = reconciledSuccess ? recoveredObserved : originalObserved
   const currentChanged = [...new Set((candidate.changedFiles || []).map(normalizeRepoMutationPath).filter(Boolean))].sort()
   const priorChanged = [...new Set((terminal.candidateChangedFiles || []).map(normalizeRepoMutationPath).filter(Boolean))].sort()
   const currentSet = new Set(currentChanged)
@@ -594,10 +650,11 @@ function mutationRepairProof(authorityContext, candidate, terminal) {
   ])].sort()
   const footprintDigest = String(observation?.plannedSetDigest || '')
   const observationDigest = String(observation?.receiptDigest || '')
-  const proven = closeout?.result === 'success' &&
+  const originalSuccess = closeout?.result === 'success' &&
     Array.isArray(closeout.authorizationErrors) && closeout.authorizationErrors.length === 0 &&
     observation?.status === 'consumed' && observation?.observationCoverage === 'complete' &&
-    observation?.reconcileRequired !== true && Array.isArray(observation?.drift) && observation.drift.length === 0 &&
+    observation?.reconcileRequired !== true && Array.isArray(observation?.drift) && observation.drift.length === 0
+  const proven = (originalSuccess || reconciledSuccess) &&
     DIGEST_RE.test(footprintDigest) && DIGEST_RE.test(observationDigest) && observed.length > 0 &&
     terminal.candidateChangedFilesTruncated !== true && unrelatedDirtyFiles.length === 0
   return {
@@ -743,6 +800,7 @@ function resolveAiBudgetAuthority({
     plan,
     candidate,
     control,
+    controlValidation,
     authorityContext,
     repoRoot: gitRepoRoot
   })
@@ -885,14 +943,19 @@ function resolveAiBudgetAuthority({
         if (continuation.parentRecoverable && !rootRevocationEpochChanged && !rootRollover.eligible) {
           throw new ValidationDagError(
             continuation.fallbackCode || 'VALIDATION_CONTINUATION_UNAVAILABLE',
-            'the failed validation root cannot be replaced by a new Auto root'
+            'the failed validation root cannot be replaced by a new Auto root',
+            {
+              continuationFallbackCode: continuation.fallbackCode || null,
+              rootRolloverReason: rootRollover.reasonCode
+            }
           )
         }
       }
       if (expiredRootContinuation && !rootRollover.eligible) {
         throw new ValidationDagError(
           'VALIDATION_FRESH_CONTROL_REQUIRED',
-          'expired Auto ingress can continue its immutable root but cannot create or replace a root'
+          'expired Auto ingress can continue its immutable root but cannot create or replace a root',
+          { controlErrors: controlValidation.errors, rootRolloverReason: rootRollover.reasonCode }
         )
       }
       assertRootReplacementSafe(store, currentRoot, plan, candidate)
@@ -933,13 +996,18 @@ function resolveAiBudgetAuthority({
     if (continuation.parentRecoverable && !rootRevocationEpochChanged && !rootRollover.eligible) {
       throw new ValidationDagError(
         continuation.fallbackCode || 'VALIDATION_CONTINUATION_UNAVAILABLE',
-        'the failed validation root cannot be replaced by a new Auto root'
+        'the failed validation root cannot be replaced by a new Auto root',
+        {
+          continuationFallbackCode: continuation.fallbackCode || null,
+          rootRolloverReason: rootRollover.reasonCode
+        }
       )
     }
     if (expiredRootContinuation && !rootRollover.eligible) {
       throw new ValidationDagError(
         'VALIDATION_FRESH_CONTROL_REQUIRED',
-        'expired Auto ingress can continue its immutable root but cannot create or replace a root'
+        'expired Auto ingress can continue its immutable root but cannot create or replace a root',
+        { controlErrors: controlValidation.errors, rootRolloverReason: rootRollover.reasonCode }
       )
     }
     assertRootReplacementSafe(store, currentRoot, plan, candidate)

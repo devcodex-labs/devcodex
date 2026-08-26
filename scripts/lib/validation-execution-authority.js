@@ -19,6 +19,11 @@ const LEASE_STATUSES = new Set(['active', 'consumed', 'revoked', 'expired'])
 const PENDING_BUDGET_STATUSES = new Set(['pending', 'confirmed', 'stale', 'revoked'])
 const CONTINUATION_STATUSES = new Set(['prepared', 'leased', 'consumed', 'revoked', 'stale'])
 const CONTINUATION_REPAIR_PROOF_KINDS = new Set(['mutation-observation', 'same-scope-retry'])
+const ROOT_ROLLOVER_REASONS = new Set([
+  'strict-descendant-same-scope',
+  'strict-descendant-exact-scope-current-auto-rebind',
+  'strict-descendant-current-auto-rescope'
+])
 const RECOVERABLE_TERMINAL_STATUSES = new Set(['failed', 'blocked', 'timed-out'])
 const LEVEL_RANK = Object.freeze({ V0: 0, V1: 1, V2: 2, V3: 3 })
 const DIGEST_RE = /^[a-f0-9]{64}$/
@@ -341,6 +346,12 @@ function validateBudgetConfirmationReceipt(receipt, binding = null) {
   ]) {
     if (!DIGEST_RE.test(String(receipt[field] || ''))) errors.push(`budget-confirmation-${field}-invalid`)
   }
+  const projectRoot = receipt.projectRootIdentity
+  if (!projectRoot || projectRoot.schemaVersion !== 'ProjectRootIdentityV1' ||
+      !text(projectRoot.normalizedRoot, 4096) || !DIGEST_RE.test(String(projectRoot.digest || '')) ||
+      digest({ schemaVersion: projectRoot.schemaVersion, normalizedRoot: projectRoot.normalizedRoot }) !== projectRoot.digest) {
+    errors.push('budget-confirmation-project-root-invalid')
+  }
   if (receipt.authorityKind === 'user-confirmation') {
     if (!DIGEST_RE.test(String(receipt.sourceMessageDigest || ''))) errors.push('budget-confirmation-source-message-required')
     if (receipt.autoAuthorityRef !== null) errors.push('budget-confirmation-auto-ref-unexpected')
@@ -370,7 +381,7 @@ function validateBudgetConfirmationReceipt(receipt, binding = null) {
     if (!DIGEST_RE.test(String(receipt.parentTerminalDigest || ''))) {
       errors.push('budget-confirmation-parent-terminal-digest-invalid')
     }
-    if (receipt.rootRolloverReason !== 'strict-descendant-same-scope') {
+    if (!ROOT_ROLLOVER_REASONS.has(receipt.rootRolloverReason)) {
       errors.push('budget-confirmation-rollover-reason-invalid')
     }
   }
@@ -383,6 +394,9 @@ function validateBudgetConfirmationReceipt(receipt, binding = null) {
       'budgetDigest', 'planDigest', 'maxLevel', 'purpose', 'revocationEpoch'
     ]) {
       if (Object.hasOwn(binding, field) && binding[field] !== receipt[field]) errors.push(`budget-confirmation-binding-mismatch:${field}`)
+    }
+    if (binding.projectRootIdentity && stableStringify(binding.projectRootIdentity) !== stableStringify(projectRoot)) {
+      errors.push('budget-confirmation-binding-mismatch:projectRootIdentity')
     }
   }
   return { valid: errors.length === 0, errors: [...new Set(errors)], bytes: recordBytes(receipt) }

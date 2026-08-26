@@ -64,7 +64,12 @@ const {
   validateWorkflowTaskTerminalReceipt
 } = require('./task-recovery-store-v5.cjs')
 const { extractMutationFootprint } = require('./mutation-footprint.cjs')
-const { classifyHostToolMutation } = require('./host-tool-mutation-adapters.cjs')
+const {
+  classifyHostToolMutation,
+  devCodexToolLeaf,
+  isServerOwnedAuthorityControlToolName,
+  isServerOwnedMemoryTransactionToolName
+} = require('./host-tool-mutation-adapters.cjs')
 const {
   createMutationPreObservation,
   createTaskOwnedMutationLease,
@@ -73,6 +78,10 @@ const {
   validateMutationObservationReceipt,
   validateTaskOwnedMutationLease
 } = require('./mutation-observation.cjs')
+const {
+  createArtifactMutationReconciliationInput,
+  validateArtifactMutationReconciliationEvidence
+} = require('./artifact-mutation-reconciliation.cjs')
 const { createWorkspaceSessionRouteIndex } = require('./workspace-session-route-index-v1.cjs')
 const {
   buildHostIdentityV2,
@@ -1001,8 +1010,8 @@ function operationalLeaseValidationInput(state, extra = {}) {
 }
 
 function observeWorkflowOperationalWriteLease(state, payload) {
-  const toolName = String(getToolName(payload) || '').trim()
-  if (!/(?:^|__)memory_workflow_operational_write_lease$/i.test(toolName) ||
+  const toolLeaf = devCodexToolLeaf(getToolName(payload))
+  if (toolLeaf !== 'memory_workflow_operational_write_lease' ||
       payload.success === false || payload.is_error === true || payload.isError === true) return null
   const leases = findWorkflowOperationalWriteLeases(payload)
   if (leases.length !== 1) {
@@ -1030,8 +1039,8 @@ function observeWorkflowOperationalWriteLease(state, payload) {
 }
 
 function observeSimpleTaskFastPathLease(state, payload) {
-  const toolName = String(getToolName(payload) || '').trim()
-  if (!/(?:^|__)memory_task_fast_path_lease$/i.test(toolName) ||
+  const toolLeaf = devCodexToolLeaf(getToolName(payload))
+  if (toolLeaf !== 'memory_task_fast_path_lease' ||
       payload.success === false || payload.is_error === true || payload.isError === true) return null
   const receipts = findSimpleTaskFastPathLeaseReceipts(payload)
   if (receipts.length !== 1) {
@@ -1077,8 +1086,8 @@ function observeSimpleTaskFastPathLease(state, payload) {
 }
 
 function observeWorkflowTaskTerminalReceipt(state, payload) {
-  const toolName = String(getToolName(payload) || '').trim()
-  if (!/(?:^|__)memory_task_(?:terminal_v1|closeout_reconcile_v1)$/i.test(toolName) ||
+  const toolLeaf = devCodexToolLeaf(getToolName(payload))
+  if (!['memory_task_terminal_v1', 'memory_task_closeout_reconcile_v1'].includes(toolLeaf) ||
       payload.success === false || payload.is_error === true || payload.isError === true) return null
   const receipts = findWorkflowTaskTerminalReceipts(payload)
   if (receipts.length !== 1) {
@@ -1591,9 +1600,11 @@ function refreshTaskRecoveryBinding(state) {
 }
 
 function isTaskAuthorityControlTool(payload) {
-  return /(?:^|__)memory_task_(?:admit_v2|write_owner|fast_path_lease|terminal_v1|closeout_reconcile_v1)$/i.test(
-    String(getToolName(payload) || '').trim()
-  )
+  return isServerOwnedAuthorityControlToolName(getToolName(payload))
+}
+
+function isServerOwnedMemoryTransactionTool(payload) {
+  return isServerOwnedMemoryTransactionToolName(getToolName(payload))
 }
 
 function evaluateFencedTaskMutationAuthority(state) {
@@ -2202,7 +2213,7 @@ function isMutatingTool(payload, platform) {
 
 function updateArtifactTouches(state, payload, platform) {
   if (touchesPath(payload, '/reports/')) state.reportTouched = true
-  if (touchesPath(payload, '/.memory/', '/sessions.md')) state.memoryTouched = true
+  if (touchesPath(payload, '/.memory/', '/sessions.md') || isServerOwnedMemoryTransactionTool(payload)) state.memoryTouched = true
   if (isMutatingTool(payload, platform)) state.mutated = true
 }
 
@@ -2223,7 +2234,7 @@ function isWriteLikeToolName(toolName) {
   const tn = String(toolName || '').toLowerCase()
   return (
     /^(?:write|edit|search[_-]?replace|str[_-]?replace|apply[_-]?patch|create[_-]?file|multi[_-]?edit|insert[_-]?code|rewrite[_-]?file)$/i.test(tn) ||
-    /memory_(?:session_write|summary_append|cp_confirm)|memory-(?:session-write|summary-append|cp-confirm)/i.test(tn)
+    isServerOwnedMemoryTransactionToolName(tn)
   )
 }
 
@@ -2242,7 +2253,7 @@ function isProductArtifactMutation(payload, platform) {
   ))) return true
   if (touchesPath(payload, ...PRODUCT_ARTIFACT_PATH_NEEDLES)) return true
   // MCP memory writes often omit path strings in tool_input
-  if (/memory_(?:session_write|summary_append|cp_confirm)|memory-(?:session-write|summary-append|cp-confirm)/i.test(tool)) return true
+  if (isServerOwnedMemoryTransactionToolName(tool)) return true
   return false
 }
 
@@ -2257,7 +2268,7 @@ function markProductMutationOrder(state, payload, platform) {
 }
 
 function isRecoveryMutation(payload, platform, state) {
-  if (isTaskAuthorityControlTool(payload)) return false
+  if (isTaskAuthorityControlTool(payload) || isServerOwnedMemoryTransactionTool(payload)) return false
   return isSourceCodeMutation(payload, platform, state) || isProductArtifactMutation(payload, platform)
 }
 
@@ -2312,7 +2323,7 @@ function resolveArtifactAuthorityRole(state, payload, footprint, operationalAuth
   if (operationalAuthority?.valid === true) return operationalAuthority.authorityRole
   const toolName = String(getToolName(payload) || '').trim().toLowerCase()
   if (isTaskAuthorityControlTool(payload)) return 'task-admission'
-  if (/memory_(?:session_write|summary_append|cp_confirm)|memory-(?:session-write|summary-append|cp-confirm)/i.test(toolName)) {
+  if (isServerOwnedMemoryTransactionToolName(toolName)) {
     return 'workflow-owner'
   }
   if (/profile_(?:set|write|update|save)|profile-(?:set|write|update|save)/i.test(toolName)) return 'profile-owner'
@@ -2337,7 +2348,7 @@ function prepareArtifactMutationDecision(state, payload, platform) {
     hostVariant: state?.hostIdentity?.hostVariant,
     platform
   })
-  if (isTaskAuthorityControlTool(payload)) {
+  if (isTaskAuthorityControlTool(payload) || isServerOwnedMemoryTransactionTool(payload)) {
     return {
       adapterDecision,
       footprint: null,
@@ -2603,7 +2614,7 @@ function validateMutationAuthorizationBundle(state, operation, options = {}) {
 
 function startAllowedToolRecovery(state, payload, platform, artifactDecision = null, footprint = null) {
   const formalMutation = artifactDecision?.decisionStatus === 'allow'
-  const mutating = !isTaskAuthorityControlTool(payload) &&
+  const mutating = !isTaskAuthorityControlTool(payload) && !isServerOwnedMemoryTransactionTool(payload) &&
     (isRecoveryMutation(payload, platform, state) || formalMutation)
   const explicitOperationId = lifecycleToolOperationId(payload)
   const existing = state.turnLiveness?.inFlightOperation
@@ -3409,9 +3420,21 @@ async function main() {
       return
     }
     const priorMutationCloseout = state.turnLiveness?.lastMutationCloseout
-    const pendingReconcile = priorMutationCloseout?.result === 'needs-reconcile' ||
+    const reconciliationValidation = validateArtifactMutationReconciliationEvidence(
+      priorMutationCloseout?.reconciliation,
+      {
+        operationId: priorMutationCloseout?.operationId,
+        priorCloseoutDigest: priorMutationCloseout?.artifactCloseout?.closeoutDigest ||
+          priorMutationCloseout?.observation?.closeout?.closeoutDigest,
+        priorObservationReceiptDigest: priorMutationCloseout?.observation?.receiptDigest
+      }
+    )
+    const reconciled = priorMutationCloseout?.result === 'reconciled' && reconciliationValidation.valid
+    const pendingReconcile = !reconciled && (
+      priorMutationCloseout?.result === 'needs-reconcile' ||
       priorMutationCloseout?.observation?.reconcileRequired === true ||
       priorMutationCloseout?.artifactCloseout?.decisionStatus === 'needs-reconcile'
+    )
     if (pendingReconcile && artifactDecision && artifactDecision.decisionStatus !== 'not-applicable') {
       state.lastReason = 'ARTIFACT_RECONCILIATION_REQUIRED'
       saveState(state)
@@ -3420,7 +3443,7 @@ async function main() {
         'ARTIFACT_RECONCILIATION_REQUIRED',
         'Formal artifact mutation requires reconciliation',
         'The prior formal artifact operation did not reach a verified terminal state. New formal mutation is blocked.',
-        'Reconcile the recorded actual effects, then retry with a new ArtifactSlotDecisionV2 and one-use mutation lease.'
+        `Call memory_artifact_mutation_reconcile_v1 with operationId=${priorMutationCloseout?.operationId || 'unknown'} and expectedCloseoutDigest=${priorMutationCloseout?.artifactCloseout?.closeoutDigest || priorMutationCloseout?.observation?.closeout?.closeoutDigest || 'unknown'}; this recovery needs no new user confirmation and grants no mutation authority.`
       ))
       return
     }
@@ -3438,7 +3461,7 @@ async function main() {
       return
     }
 
-    const formalMutation = !isTaskAuthorityControlTool(payload) && (
+    const formalMutation = !isTaskAuthorityControlTool(payload) && !isServerOwnedMemoryTransactionTool(payload) && (
       isRecoveryMutation(payload, platform, state) || artifactDecision?.decisionStatus === 'allow'
     )
     if (formalMutation && workflowOperationalAuthority?.valid !== true && simpleTaskFastPathAuthority?.valid !== true) {
@@ -3468,7 +3491,8 @@ async function main() {
     }
 
     // 2.5 ArtifactPathGate — requirements/02|04 slot semantics (always hard when invalid)
-    if (isSourceCodeMutation(payload, platform, state) || isProductArtifactMutation(payload, platform)) {
+    if (!isServerOwnedMemoryTransactionTool(payload) &&
+        (isSourceCodeMutation(payload, platform, state) || isProductArtifactMutation(payload, platform))) {
       const toolPaths = extractToolPaths(payload)
       const art = classifyPathsForArtifacts(toolPaths)
       if (!art.ok) {
@@ -3611,7 +3635,10 @@ async function main() {
           ))
           return
         }
-        if (!state.s07ProductWarnEmitted) {
+        // Server-owned memory transactions are internal persistence steps. They
+        // record the ordering violation but cannot consume the first warning
+        // that must remain visible on an ordinary product-artifact mutation.
+        if (!state.s07ProductWarnEmitted && !isServerOwnedMemoryTransactionTool(payload)) {
           state.s07ProductWarnEmitted = true
           state.lastReason = `${reason}-warn`
           updateArtifactTouches(state, payload, platform)
@@ -3820,6 +3847,18 @@ async function main() {
       const observationValid = validateMutationObservationReceipt(mutationObservation).valid
       let needsReconcile = mutationObservation.reconcileRequired === true ||
         !observationValid || authorizationErrors.length > 0
+      let reconciliationInput = null
+      if (needsReconcile) {
+        try {
+          reconciliationInput = createArtifactMutationReconciliationInput({
+            operationId: completingMutationOperation.operationId,
+            footprint: completingMutationOperation.mutationFootprint,
+            preObservation: completingMutationOperation.mutationPreObservation
+          })
+        } catch (error) {
+          authorizationErrors.push(error.code || 'artifact-reconciliation-input-unavailable')
+        }
+      }
       if (completingMutationOperation.mutationLease?.ownerKind === 'simple-task-fast-path') {
         let simpleUsage = null
         try {
@@ -3862,7 +3901,8 @@ async function main() {
         result: needsReconcile ? 'needs-reconcile' : 'success',
         authorizationErrors: [...new Set(authorizationErrors)].sort(),
         observation: mutationObservation,
-        artifactCloseout: mutationObservation.closeout
+        artifactCloseout: mutationObservation.closeout,
+        reconciliationInput
       }
       if (needsReconcile) {
         artifactNeedsReconcile = true
@@ -4031,7 +4071,7 @@ async function main() {
             ...(state.turnLiveness.lastMutationCloseout?.authorizationErrors || []),
             ...(state.turnLiveness.lastMutationCloseout?.observation?.drift || [])
           ].join(', ')}`,
-          'Reconcile the exact observed effects and owner/route bindings before any further formal artifact mutation.'
+          `Call memory_artifact_mutation_reconcile_v1 with operationId=${state.turnLiveness.lastMutationCloseout?.operationId || 'unknown'} and expectedCloseoutDigest=${state.turnLiveness.lastMutationCloseout?.artifactCloseout?.closeoutDigest || state.turnLiveness.lastMutationCloseout?.observation?.closeout?.closeoutDigest || 'unknown'}; no new user confirmation is required.`
         )
       : (routeBoundIngressContext
           ? contextMessageOutput('PostToolUse', routeBoundIngressContext)

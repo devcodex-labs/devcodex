@@ -42,6 +42,8 @@ version: 1.19.1
 
 > ℹ️ **违规级别说明**：`🔴 致命终止` 与 `🔴 致命自修正` 的区别——前者立即终止整个请求（适用于数据安全类违规）；后者在检测点立即自动修正后继续请求（适用于流程完整性类违规）。
 
+宿主 adapter 的失败降级也受 S01 约束：missing、failed、invalid、outside-workspace 或 adapter allow 后，本地危险文本分类不得生成 native deny；只能记录 diagnostic advisory。来自已验证 adapter 的 task/project/root/slot/retention 工作流无效结果可以透传，但不得改写成风险权限判断。
+
 | 规则 | 级别 | 处理方式 |
 |------|:----:|---------|
 | S01（DevCodex 自建审批/拒绝） | 🟡 操作级自修正 | 撤销 DevCodex permission deny/token/自然语言批准状态；保留风险 advisory 与工作流有效性检查，并把操作权限交回宿主 |

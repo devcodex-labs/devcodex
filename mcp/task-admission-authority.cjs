@@ -18,6 +18,7 @@ const {
 } = require('../hooks/_runtime/task-continuation-contract.cjs')
 const {
   commitFencedTaskWriteOwnerTransition,
+  commitTaskAdmissionReconciliation,
   commitTaskAdmissionTransaction,
   fencedTaskWriteOwnerDigest,
   readFencedTaskWriteOwner,
@@ -25,8 +26,10 @@ const {
   reconcileEmergencyTaskCloseout,
   resolveTaskRecoveryMetaDir,
   taskAdmissionTransactionDigest,
+  taskAdmissionReconciliationReceiptDigest,
   workflowTaskTerminalReceiptDigest
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
+const { digestValue } = require('../hooks/_runtime/lifecycle-state-projection-v5.cjs')
 const { createMemoryFileTransaction, sha256 } = require('./memory-file-transaction.cjs')
 
 const ADMISSION_POLICY_REVISION = 'TaskAdmissionPolicyV1@1'
@@ -62,6 +65,14 @@ function clone(value) {
 function normalizedPath(value) {
   const resolved = path.resolve(String(value || ''))
   return process.platform === 'win32' ? resolved.toLocaleLowerCase('en-US') : resolved
+}
+
+function sameStableFileStat(left, right) {
+  return String(left?.dev) === String(right?.dev) &&
+    String(left?.ino) === String(right?.ino) &&
+    Number(left?.size) === Number(right?.size) &&
+    Number(left?.mtimeMs) === Number(right?.mtimeMs) &&
+    Number(left?.ctimeMs) === Number(right?.ctimeMs)
 }
 
 function isInside(root, candidate, { allowEqual = false } = {}) {
@@ -215,18 +226,21 @@ function validateProjectTargetLease(lease, binding = {}, options = {}) {
     return { valid: false, errors: ['project-target-lease-required'] }
   }
   if (lease.schemaVersion !== PROJECT_TARGET_LEASE_SCHEMA) errors.push('schema-version')
+  if (!String(lease.physicalRoot || '').trim() || !path.isAbsolute(String(lease.physicalRoot || ''))) errors.push('physical-root')
+  if (!String(lease.activeRoot || '').trim() || !path.isAbsolute(String(lease.activeRoot || ''))) errors.push('active-root-absolute')
   for (const field of ['targetDigest', 'rootIdentityDigest', 'layoutIdentity', 'authorityDigest', 'contextBindingDigest', 'routeRevision']) {
     if (!DIGEST_RE.test(String(lease[field] || ''))) errors.push(field)
   }
   if (!['session', 'turn'].includes(lease.authorityKind)) errors.push('authority-kind')
   if (String(lease.project || '') !== String(binding.project || '')) errors.push('project')
   if (normalizedPath(lease.activeRoot || '.') !== normalizedPath(binding.activeRoot || '.')) errors.push('active-root')
+  if (binding.physicalRoot && normalizedPath(lease.physicalRoot || '.') !== normalizedPath(binding.physicalRoot)) errors.push('physical-root-binding')
   if (binding.contextEpoch && lease.contextEpoch !== binding.contextEpoch) errors.push('context-epoch')
   if (binding.routeRevision && lease.routeRevision !== binding.routeRevision) errors.push('route-revision')
   const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
-  if (!Number.isFinite(Number(lease.issuedAtMs)) || !Number.isFinite(Number(lease.expiresAtMs)) ||
-      Number(lease.expiresAtMs) <= nowMs || Number(lease.issuedAtMs) > nowMs) errors.push('lease-time')
-  if (!Number.isInteger(Number(lease.revocationEpoch)) || Number(lease.revocationEpoch) < 0) errors.push('revocation-epoch')
+  if (!Number.isSafeInteger(lease.issuedAtMs) || !Number.isSafeInteger(lease.expiresAtMs) ||
+      lease.issuedAtMs > nowMs || lease.expiresAtMs <= nowMs || lease.expiresAtMs <= lease.issuedAtMs) errors.push('lease-time')
+  if (!Number.isSafeInteger(lease.revocationEpoch) || lease.revocationEpoch < 0) errors.push('revocation-epoch')
   if (!DIGEST_RE.test(String(lease.leaseDigest || '')) || lease.leaseDigest !== computeProjectTargetLeaseDigest(lease)) {
     errors.push('lease-digest')
   }
@@ -685,10 +699,9 @@ function verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, fsImp
   } finally {
     if (descriptor !== undefined) fsImpl.closeSync(descriptor)
   }
-  const current = fsImpl.statSync(candidate)
-  if (!before.isFile() || before.size > 8 * 1024 * 1024 || bytes.length !== before.size ||
-      before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs ||
-      after.dev !== current.dev || after.ino !== current.ino || after.size !== current.size || after.mtimeMs !== current.mtimeMs ||
+  const current = fsImpl.lstatSync(candidate)
+  if (!before.isFile() || !current.isFile() || current.isSymbolicLink() || before.size > 8 * 1024 * 1024 || bytes.length !== before.size ||
+      !sameStableFileStat(before, after) || !sameStableFileStat(after, current) ||
       sha256(bytes) !== expectedDigest) {
     throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'existing CP1 artifact readback does not match its confirmation digest')
   }
@@ -712,6 +725,23 @@ function ensurePendingCpState(fileTransaction, sessionsPath, transaction, active
       cp1Confirmed: false
     }
   }
+  const observed = observeExistingCpState(snapshot, sessionsPath, transaction, activeRoot, options)
+  if (observed.status === 'complete') return observed.receipt
+  const newline = snapshot.content.includes('\r\n') ? '\r\n' : '\n'
+  const appendText = `${snapshot.content.trimEnd() ? `${newline}${newline}` : ''}${pendingCpBlock().replace(/\n/g, newline)}`
+  return {
+    ...fileTransaction.commit({
+      filePath: sessionsPath,
+      relativeFile: path.relative(activeRoot, sessionsPath).replace(/\\/g, '/'),
+      expectedSnapshot: snapshot,
+      content: snapshot.content + appendText,
+      appendText
+    }),
+    cp1Confirmed: false
+  }
+}
+
+function observeExistingCpState(snapshot, sessionsPath, transaction, activeRoot, options = {}) {
   const text = snapshot.content.replace(/\r\n/g, '\n')
   const cpRows = (text.match(/^\|\s*CP[123]\s*\|/gmu) || []).length
   const hasHeading = /^#{1,6}\s+.*CP\s*确认记录\s*$/imu.test(text)
@@ -727,29 +757,21 @@ function ensurePendingCpState(fileTransaction, sessionsPath, transaction, active
       ? verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, options.fs || fs, options)
       : null
     return {
-      schemaVersion: 'MemoryFileTransactionReceiptV1',
-      file: path.relative(activeRoot, sessionsPath).replace(/\\/g, '/'),
-      route: 'cp-state-match',
-      afterDigest: snapshot.digest,
-      afterBytes: snapshot.byteSize,
-      bytesWritten: 0,
-      cp1Confirmed,
-      cp1Compatibility: cp1Evidence?.compatibility || null,
-      durability: { readback: { status: 'PASS', scope: 'dedicated-cp-table' } }
+      status: 'complete',
+      receipt: {
+        schemaVersion: 'MemoryFileTransactionReceiptV1',
+        file: path.relative(activeRoot, sessionsPath).replace(/\\/g, '/'),
+        route: 'cp-state-match',
+        afterDigest: snapshot.digest,
+        afterBytes: snapshot.byteSize,
+        bytesWritten: 0,
+        cp1Confirmed,
+        cp1Compatibility: cp1Evidence?.compatibility || null,
+        durability: { readback: { status: 'PASS', scope: 'dedicated-cp-table' } }
+      }
     }
   }
-  const newline = snapshot.content.includes('\r\n') ? '\r\n' : '\n'
-  const appendText = `${snapshot.content.trimEnd() ? `${newline}${newline}` : ''}${pendingCpBlock().replace(/\n/g, newline)}`
-  return {
-    ...fileTransaction.commit({
-      filePath: sessionsPath,
-      relativeFile: path.relative(activeRoot, sessionsPath).replace(/\\/g, '/'),
-      expectedSnapshot: snapshot,
-      content: snapshot.content + appendText,
-      appendText
-    }),
-    cp1Confirmed: false
-  }
+  return { status: 'appendable', receipt: null }
 }
 
 function verifyAdmissionReadback(input, plan, transaction, paths, fsImpl = fs, options = {}) {
@@ -828,8 +850,146 @@ function reconcileTransaction(current, error, nowMs) {
       failedFromPhase: current.phase
     }
   }
+  delete next.reconciliation
   next.transactionDigest = taskAdmissionTransactionDigest(next)
   return next
+}
+
+function observedFileReceipt(snapshot, filePath, activeRoot) {
+  return {
+    file: path.relative(activeRoot, filePath).replace(/\\/g, '/'),
+    route: 'reconciled-exact-readback',
+    afterDigest: snapshot.digest,
+    afterBytes: snapshot.byteSize,
+    readback: 'PASS'
+  }
+}
+
+function exactAdmissionSnapshot(fileTransaction, filePath, expectedContent, activeRoot, fsImpl) {
+  assertExistingAncestorsSafe(activeRoot, filePath, fsImpl)
+  const snapshot = fileTransaction.readSnapshot(filePath)
+  if (!snapshot.exists) return null
+  const expectedDigest = sha256(expectedContent)
+  if (snapshot.content !== expectedContent || snapshot.digest !== expectedDigest || snapshot.byteSize !== Buffer.byteLength(expectedContent, 'utf8')) {
+    throw new TaskAdmissionError(
+      'TASK_ADMISSION_RECONCILIATION_DRIFT',
+      'an observed admission artifact does not match the exact stable request',
+      { file: path.relative(activeRoot, filePath).replace(/\\/g, '/') }
+    )
+  }
+  return { snapshot, receipt: observedFileReceipt(snapshot, filePath, activeRoot) }
+}
+
+function recoverTaskAdmissionTransaction(input, plan, transaction, paths, options = {}) {
+  const fsImpl = options.fs || fs
+  const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
+  const fileTransaction = options.fileTransaction || createMemoryFileTransaction({
+    fs: fsImpl,
+    platform: options.platform,
+    now: () => new Date(nowMs)
+  })
+  const expectedIdentityContent = `${JSON.stringify(plan.identity, null, 2)}\n`
+  const expectedMigrationContent = plan.migration ? `${JSON.stringify(plan.migration, null, 2)}\n` : null
+  const identity = exactAdmissionSnapshot(fileTransaction, plan.identityPath, expectedIdentityContent, input.activeRoot, fsImpl)
+  const migrationPath = plan.migration
+    ? path.join(paths.taskRoot, '.memory', 'task-identity-migration-v1.json')
+    : null
+  const migration = migrationPath
+    ? exactAdmissionSnapshot(fileTransaction, migrationPath, expectedMigrationContent, input.activeRoot, fsImpl)
+    : null
+  const overview = exactAdmissionSnapshot(fileTransaction, paths.overviewPath, paths.overviewContent, input.activeRoot, fsImpl)
+  const product = paths.productSourcePath
+    ? exactAdmissionSnapshot(fileTransaction, paths.productSourcePath, paths.productSourceContent, input.activeRoot, fsImpl)
+    : null
+  assertExistingAncestorsSafe(input.activeRoot, paths.sessionsPath, fsImpl)
+  const sessionsSnapshot = fileTransaction.readSnapshot(paths.sessionsPath)
+  const cp = sessionsSnapshot.exists
+    ? observeExistingCpState(sessionsSnapshot, paths.sessionsPath, transaction, input.activeRoot, {
+        fs: fsImpl,
+        allowLegacyRecord: plan.legacyCpCompatibility === true
+      })
+    : { status: 'missing', receipt: null }
+
+  let observedPhase = 'prepared'
+  if (identity && (!migrationPath || migration)) observedPhase = 'identity-written'
+  if (observedPhase === 'identity-written' && overview && (!paths.productSourcePath || product)) {
+    observedPhase = 'overview-written'
+  }
+  if (observedPhase === 'overview-written' && cp.status === 'complete') observedPhase = 'cp-state-written'
+  const phaseOrder = ['prepared', 'identity-written', 'overview-written', 'cp-state-written']
+  const failedFromPhase = String(transaction.error?.failedFromPhase || '')
+  if (!phaseOrder.includes(failedFromPhase) || phaseOrder.indexOf(observedPhase) < phaseOrder.indexOf(failedFromPhase)) {
+    throw new TaskAdmissionError(
+      'TASK_ADMISSION_RECONCILIATION_PHASE_DRIFT',
+      'observed admission phase is behind the durable failed-from phase',
+      { failedFromPhase, observedPhase }
+    )
+  }
+
+  const effects = {
+    identity: { status: 'pending', path: transaction.effects.identity.path },
+    overview: { status: 'pending', path: transaction.effects.overview.path },
+    cpState: { status: 'pending', path: transaction.effects.cpState.path },
+    owner: { status: 'pending' }
+  }
+  if (phaseOrder.indexOf(observedPhase) >= 1) {
+    effects.identity = {
+      status: 'written',
+      identityDigest: plan.identity.identityDigest,
+      file: identity.receipt,
+      migration: migration ? migration.receipt : null
+    }
+  }
+  if (phaseOrder.indexOf(observedPhase) >= 2) {
+    effects.overview = {
+      status: 'written',
+      contentDigest: sha256(paths.overviewContent),
+      file: overview.receipt,
+      productSource: product ? product.receipt : null
+    }
+  }
+  if (phaseOrder.indexOf(observedPhase) >= 3) {
+    effects.cpState = {
+      status: cp.receipt.cp1Confirmed === true ? 'confirmed' : 'pending',
+      cp1Confirmed: cp.receipt.cp1Confirmed === true,
+      compatibility: cp.receipt.cp1Compatibility || null,
+      file: compactFileReceipt(cp.receipt)
+    }
+  }
+  const observedEffectsDigest = digestValue({
+    schemaVersion: 'TaskAdmissionObservedEffectsV1',
+    observedPhase,
+    effects
+  })
+  const receiptSemantic = {
+    schemaVersion: 'TaskAdmissionReconciliationReceiptV1',
+    admissionId: transaction.admissionId,
+    taskId: transaction.taskId,
+    requestDigest: transaction.requestDigest,
+    priorTransactionDigest: transaction.transactionDigest,
+    failedFromPhase,
+    observedPhase,
+    recoveredPhase: observedPhase,
+    observedEffectsDigest,
+    recoveredEffectsDigest: digestValue(effects),
+    mutationAuthority: false,
+    reconciledAt: new Date(nowMs).toISOString()
+  }
+  const receipt = {
+    ...receiptSemantic,
+    receiptDigest: taskAdmissionReconciliationReceiptDigest(receiptSemantic)
+  }
+  const recovered = {
+    ...clone(transaction),
+    phase: observedPhase,
+    status: 'admitting',
+    effects,
+    error: null,
+    reconciliation: receipt,
+    updatedAt: receipt.reconciledAt
+  }
+  recovered.transactionDigest = taskAdmissionTransactionDigest(recovered)
+  return { recovered, receipt }
 }
 
 function admissionReceipt(transaction, replayed = false) {
@@ -1033,8 +1193,46 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
     if (transaction && (transaction.ingressIdempotencyKey !== ingressIdempotencyKey || !requestMatches)) {
       throw new TaskAdmissionError('TASK_ADMISSION_IDEMPOTENCY_CONFLICT', 'same admission identity is already bound to different request content')
     }
-    if (transaction && ['needs-reconcile', 'aborted'].includes(transaction.phase)) {
+    if (transaction?.phase === 'aborted') {
       return { ...admissionReceipt(transaction, true), status: transaction.phase, errorCode: 'TASK_ADMISSION_RECONCILE_REQUIRED' }
+    }
+    if (transaction?.phase === 'needs-reconcile') {
+      let recovery
+      try {
+        recovery = recoverTaskAdmissionTransaction(input, plan, transaction, {
+          taskRoot,
+          overviewPath,
+          overviewContent,
+          productSourcePath,
+          productSourceContent,
+          sessionsPath
+        }, { fs: fsImpl, nowMs, platform: options.platform })
+      } catch (error) {
+        return {
+          ...admissionReceipt(transaction, true),
+          status: 'needs-reconcile',
+          errorCode: error.code || 'TASK_ADMISSION_RECONCILIATION_FAILED',
+          reconciliationErrors: [String(error.message || 'task admission reconciliation failed')]
+        }
+      }
+      const reconciled = commitTaskAdmissionReconciliation({
+        metaDir,
+        identity,
+        hostSessionDigest: input.actualInstructionEnvelope.hostSessionDigest,
+        expectedPriorTransactionDigest: transaction.transactionDigest,
+        transaction: recovery.recovered,
+        receipt: recovery.receipt
+      }, { fs: fsImpl, nowMs, ...options.storeOptions })
+      if (!['committed', 'semantic-noop'].includes(reconciled.status)) {
+        return {
+          ...admissionReceipt(transaction, true),
+          status: 'needs-reconcile',
+          errorCode: reconciled.errorCode || 'TASK_ADMISSION_RECONCILIATION_COMMIT_FAILED',
+          reconciliationErrors: reconciled.errors || [reconciled.message || 'task admission reconciliation commit failed']
+        }
+      }
+      transaction = recovery.recovered
+      replayed = true
     }
     if (transaction && ['cp-state-written', 'owner-fenced', 'finalized', 'terminal-closeout'].includes(transaction.phase)) {
       verifyAdmissionReadback(input, plan, transaction, {
@@ -1688,9 +1886,9 @@ function readStableEvidenceFile(activeRoot, taskRoot, evidence, fsImpl = fs) {
     }
     const bytes = fsImpl.readFileSync(descriptor)
     const after = fsImpl.fstatSync(descriptor)
-    const current = fsImpl.statSync(filePath)
-    if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs ||
-        after.dev !== current.dev || after.ino !== current.ino || after.size !== current.size || after.mtimeMs !== current.mtimeMs || bytes.length !== after.size) {
+    const current = fsImpl.lstatSync(filePath)
+    if (!current.isFile() || current.isSymbolicLink() || !sameStableFileStat(before, after) ||
+        !sameStableFileStat(after, current) || bytes.length !== after.size) {
       throw new TaskAdmissionError('TASK_TERMINAL_EVIDENCE_FILE_DRIFT', `${role} evidence changed during readback`)
     }
     const observedDigest = sha256(bytes)
@@ -1862,6 +2060,7 @@ module.exports = {
   decideTaskDirectory,
   deterministicTaskId,
   executeTaskAdmission,
+  recoverTaskAdmissionTransaction,
   executeTaskWriteOwner,
   executeWorkflowTaskTerminal,
   reconcileWorkflowTaskTerminal,

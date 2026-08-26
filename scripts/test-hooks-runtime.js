@@ -887,6 +887,11 @@ function runR2BTaskOwnerLifecycleScenarios() {
     state.turnLiveness.lastMutationCloseout.observation.drift.some(code => /planned-modify-missing|tool-reported-failure/i.test(code)),
     'native success without the planned file effect must remain needs-reconcile'
   )
+  assert.strictEqual(
+    state.turnLiveness.lastMutationCloseout.reconciliationInput?.schemaVersion,
+    'ArtifactMutationReconciliationInputV1',
+    'a zero-effect or partial closeout must retain bounded preflight evidence for server-owned re-observation'
+  )
   const blockedAfterReconcile = run({
     hookEventName: 'PreToolUse',
     session_id: sessionId,
@@ -895,6 +900,61 @@ function runR2BTaskOwnerLifecycleScenarios() {
     tool_input: { file_path: targetFile, content: '# blocked pending reconcile\n' }
   })
   assert.match(JSON.stringify(blockedAfterReconcile), /ARTIFACT_RECONCILIATION_REQUIRED/)
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  const priorCloseout = state.turnLiveness.lastMutationCloseout
+  const recoveredObservedEffects = { created: [], modified: [], deleted: [], moved: [] }
+  const reconciliationProjectionSemantic = {
+    schemaVersion: 'ArtifactMutationReconciliationProjectionV1',
+    sourceReceiptSchema: 'ArtifactMutationReconciliationReceiptV1',
+    sourceReceiptDigest: '1'.repeat(64),
+    project: 'devcodex',
+    taskId: recoveryIdentity.taskId,
+    operationId: priorCloseout.operationId,
+    priorObservationReceiptDigest: priorCloseout.observation.receiptDigest,
+    priorCloseoutDigest: priorCloseout.artifactCloseout.closeoutDigest,
+    priorPlannedSetDigest: priorCloseout.observation.plannedSetDigest,
+    recoveryMode: 'reobserved-from-preflight',
+    recoveryInputDigest: priorCloseout.reconciliationInput.inputDigest,
+    recoveredObservedEffects,
+    recoveredObservedEffectsDigest: stableDigest(recoveredObservedEffects),
+    currentEffectSnapshotDigest: '2'.repeat(64),
+    mutationAuthority: false,
+    reconciledAt: new Date().toISOString()
+  }
+  state.turnLiveness.lastMutationCloseout = {
+    ...priorCloseout,
+    result: 'reconciled',
+    reconciledAt: reconciliationProjectionSemantic.reconciledAt,
+    reconciliation: {
+      ...reconciliationProjectionSemantic,
+      projectionDigest: stableDigest(reconciliationProjectionSemantic)
+    }
+  }
+  const reconciledCommit = commitTaskRecoveryState({
+    metaDir,
+    identity: recoveryIdentity,
+    sessionKey: sessionId,
+    state
+  }, { force: true, reserveBytes: 8 * 1024 * 1024 })
+  assert.strictEqual(reconciledCommit.status, 'committed')
+  const recoveredMutationPre = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r3b-recovered-write',
+    tool_name: 'Write',
+    tool_input: { file_path: targetFile, content: '# recovered write\n' }
+  })
+  assert.doesNotMatch(JSON.stringify(recoveredMutationPre), /ARTIFACT_RECONCILIATION_REQUIRED/)
+  fs.writeFileSync(targetFile, '# recovered write\n')
+  const recoveredMutationPost = run({
+    hookEventName: 'PostToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r3b-recovered-write',
+    tool_name: 'Write',
+    tool_input: { file_path: targetFile, content: '# recovered write\n' },
+    success: true
+  })
+  assert.doesNotMatch(JSON.stringify(recoveredMutationPost), /ARTIFACT_MUTATION_NEEDS_RECONCILE/)
 
   run({ hookEventName: 'PreCompact', session_id: sessionId })
   let ownerAfterLifecycle = readFencedTaskWriteOwner({ metaDir, identity: recoveryIdentity })
@@ -955,7 +1015,7 @@ function runR2BTaskOwnerLifecycleScenarios() {
     hookEventName: 'PostToolUse',
     session_id: sessionId,
     tool_use_id: 'r2b-terminal-tool',
-    tool_name: 'mcp__devcodex_memory__memory_task_terminal_v1',
+    tool_name: 'devcodex-memory/memory_task_terminal_v1',
     tool_result: terminal,
     success: true
   })
@@ -1644,7 +1704,12 @@ function main() {
     }
   })
   assert.strictEqual(autoDangerousCommand.hookSpecificOutput.permissionDecision, 'deny')
-  assert.match(autoDangerousCommand.hookSpecificOutput.permissionDecisionReason || '', /git reset --hard/i)
+  assert.doesNotMatch(autoDangerousCommand.hookSpecificOutput.permissionDecisionReason || '', /git reset --hard/i)
+  assert.match(
+    autoDangerousCommand.hookSpecificOutput.permissionDecisionReason || '',
+    /TASK_WRITE_OWNER_|Fenced task write owner|Mutation target observation unavailable|Formal artifact mutation denied/i,
+    'operation risk remains host-owned even when an independent workflow invariant rejects the mutation'
+  )
 
   cleanState()
   run({

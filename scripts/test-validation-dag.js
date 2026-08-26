@@ -1632,6 +1632,51 @@ function run() {
     assert.strictEqual(failingRun.receipt.failedNode, 'fixture-failure')
     assert.strictEqual(failingRun.receipt.results[0].exitCode, 7)
 
+    const aggregateManifest = fixtureManifest([
+      fixtureNode('aggregate-failure-a', { cachePolicy: 'never' }),
+      fixtureNode('aggregate-dependent', { dependencies: ['aggregate-failure-a'], cachePolicy: 'never' }),
+      fixtureNode('aggregate-failure-b', { cachePolicy: 'never' }),
+      fixtureNode('aggregate-independent-pass', { cachePolicy: 'never' })
+    ])
+    const aggregateCandidate = { ...candidate, candidateId: 'candidate-failure-aggregation' }
+    const aggregatePlan = approvedPlan({
+      manifest: aggregateManifest,
+      route: 'full',
+      changedFiles: [],
+      changedSource: 'git-clean',
+      riskClass: 'normal',
+      candidateStable: true,
+      candidateId: aggregateCandidate.candidateId
+    })
+    const aggregateInvocations = []
+    const aggregateRun = executeValidationPlan({
+      manifest: aggregateManifest,
+      plan: aggregatePlan,
+      candidate: aggregateCandidate,
+      repoRoot: ROOT,
+      activeRoot: tempRoot,
+      useCache: false,
+      runCommand: node => {
+        aggregateInvocations.push(node.id)
+        if (node.id.startsWith('aggregate-failure-')) {
+          throw new CheckedCommandError(`${node.id} failed`, {
+            code: 'ECOMMAND', command: node.command, args: node.args, cwd: ROOT,
+            exitCode: 9, signal: null, durationMs: 1, stdout: '', stderr: `${node.id} failed`
+          })
+        }
+        return successEvidence(node)
+      }
+    })
+    assert.deepStrictEqual(aggregateRun.receipt.failedNodes, ['aggregate-failure-a', 'aggregate-failure-b'])
+    assert.strictEqual(aggregateRun.receipt.failedNode, 'aggregate-failure-a')
+    assert.deepStrictEqual(aggregateRun.receipt.abortedNodes, ['aggregate-dependent'])
+    assert.strictEqual(
+      aggregateRun.receipt.abortedNodeReasons['aggregate-dependent'].code,
+      'VALIDATION_DEPENDENCY_FAILED'
+    )
+    assert(aggregateInvocations.includes('aggregate-independent-pass'))
+    assert(!aggregateInvocations.includes('aggregate-dependent'))
+
     const packageJson = require('../package.json')
     assert.strictEqual(packageJson.scripts.test, 'node scripts/run-validation.js --route changed')
     assert.strictEqual(packageJson.scripts['test:fast'], 'node scripts/run-validation.js --route fast')

@@ -6,7 +6,8 @@ const os = require('os')
 const path = require('path')
 const { execFileSync } = require('child_process')
 
-const { sha256 } = require('../hooks/_runtime/content-identity.cjs')
+const { sha256, stableStringify } = require('../hooks/_runtime/content-identity.cjs')
+const { projectArtifactMutationReconciliationReceipt } = require('../hooks/_runtime/artifact-mutation-reconciliation.cjs')
 const { buildActualInstructionEnvelope } = require('../hooks/_runtime/actual-instruction-envelope.cjs')
 const {
   applyValidationControlIngress,
@@ -218,7 +219,71 @@ function persistRunTerminal({
   return lease
 }
 
-function persistRepairCloseout({ activeRoot, metaDir, identity, sessionKey, repairPath, suffix, nowMs }) {
+function persistRepairCloseout({ activeRoot, metaDir, identity, sessionKey, repairPath, suffix, nowMs, projection = false }) {
+  const operationId = `repair-operation-${suffix}`
+  const absoluteRepairPath = path.join(REPO_ROOT, ...String(repairPath).replace(/\\/g, '/').split('/'))
+  const priorObservationReceiptDigest = sha256(`repair-observation-${suffix}`)
+  const priorCloseoutDigest = sha256(`repair-closeout-${suffix}`)
+  const priorPlannedSetDigest = sha256(`repair-planned-set-${suffix}`)
+  const repairStat = fs.statSync(absoluteRepairPath)
+  const snapshotSemantic = {
+    schemaVersion: 'ArtifactMutationReconciliationSnapshotV1',
+    entries: [{
+      path: absoluteRepairPath,
+      rootKind: 'project-root',
+      expectedState: 'present',
+      state: 'present',
+      kind: 'file',
+      bytes: repairStat.size,
+      contentDigest: sha256(fs.readFileSync(absoluteRepairPath)),
+      identity: {
+        dev: String(repairStat.dev),
+        ino: String(repairStat.ino),
+        size: repairStat.size,
+        mtimeMs: repairStat.mtimeMs,
+        ctimeMs: repairStat.ctimeMs
+      }
+    }],
+    observedAt: new Date(nowMs).toISOString()
+  }
+  const currentEffectSnapshot = {
+    ...snapshotSemantic,
+    snapshotDigest: sha256(stableStringify(snapshotSemantic))
+  }
+  const reconciliationSemantic = {
+    schemaVersion: 'ArtifactMutationReconciliationReceiptV1',
+    resolution: 'accept-observed-effects',
+    sourceKind: 'primary',
+    reserveSequence: null,
+    reserveRecordDigest: null,
+    project: 'devcodex',
+    taskId: identity.taskId,
+    operationId,
+    priorObservationReceiptDigest,
+    priorCloseoutDigest,
+    priorPlannedSetDigest,
+    recoveryMode: 'prior-complete-observation',
+    recoveryInputDigest: null,
+    recoveredObservedEffects: { created: [], modified: [absoluteRepairPath], deleted: [], moved: [] },
+    recoveredObservedEffectsDigest: sha256(stableStringify({ created: [], modified: [absoluteRepairPath], deleted: [], moved: [] })),
+    activeRootDigest: sha256(activeRoot),
+    projectRootDigest: sha256(REPO_ROOT),
+    ingressEnvelopeDigest: sha256(`repair-envelope-${suffix}`),
+    ingressDecisionDigest: sha256(`repair-decision-${suffix}`),
+    ingressRouteRevision: sha256(`repair-route-${suffix}`),
+    projectTargetLeaseDigest: sha256(`repair-lease-${suffix}`),
+    hostSessionDigest: sha256(sessionKey),
+    currentEffectSnapshot,
+    mutationAuthority: false,
+    reconciledAt: new Date(nowMs).toISOString()
+  }
+  const reconciliation = {
+    ...reconciliationSemantic,
+    receiptDigest: sha256(stableStringify(reconciliationSemantic))
+  }
+  const storedReconciliation = projection
+    ? projectArtifactMutationReconciliationReceipt(reconciliation)
+    : reconciliation
   const result = updateTaskRecoveryState({
     metaDir,
     identity,
@@ -231,23 +296,25 @@ function persistRepairCloseout({ activeRoot, metaDir, identity, sessionKey, repa
       ...(state.turnLiveness || {}),
       lastMutationCloseout: {
         schemaVersion: 'LifecycleMutationCloseoutV2',
-        operationId: `repair-operation-${suffix}`,
+        operationId,
         completedAt: new Date(nowMs).toISOString(),
-        result: 'success',
-        authorizationErrors: [],
+        result: 'reconciled',
+        authorizationErrors: ['mutation-tool-reported-failure'],
         observation: {
           schemaVersion: 'MutationObservationReceiptV1',
-          operationId: `repair-operation-${suffix}`,
-          plannedSetDigest: sha256(`repair-planned-set-${suffix}`),
-          observedEffects: { created: [], modified: [repairPath], deleted: [], moved: [] },
+          operationId,
+          plannedSetDigest: priorPlannedSetDigest,
+          observedEffects: { created: [], modified: [absoluteRepairPath], deleted: [], moved: [] },
           observationCoverage: 'complete',
-          nativeExitCode: 0,
-          drift: [],
-          reconcileRequired: false,
-          status: 'consumed',
+          nativeExitCode: 1,
+          drift: ['mutation-tool-reported-failure'],
+          reconcileRequired: true,
+          status: 'needs-reconcile',
           completedAt: new Date(nowMs).toISOString(),
-          receiptDigest: sha256(`repair-observation-${suffix}`)
-        }
+          receiptDigest: priorObservationReceiptDigest
+        },
+        artifactCloseout: { closeoutDigest: priorCloseoutDigest },
+        reconciliation: storedReconciliation
       }
     }
   }), { force: true, nowMs })
@@ -538,7 +605,8 @@ function main() {
       sessionKey: autoSession,
       repairPath: secondRepairPath,
       suffix: 'second',
-      nowMs: NOW + 3000
+      nowMs: NOW + 3000,
+      projection: true
     })
     const secondChildPlan = fixturePlan(autoTaskId, contextEpoch, 'auto-child-2', {
       selectedNodes: childPlan.selectedNodes
@@ -713,6 +781,24 @@ function main() {
         gitRepoRoot: rolloverGitRoot
       }), 'VALIDATION_CONTINUATION_SCOPE_WIDENED')
     }
+    const narrowedRolloverPlan = fixturePlan(rolloverTaskId, contextEpoch, 'root-rollover-narrowed', {
+      selectedNodes: []
+    })
+    narrowedRolloverPlan.affectedBoundaries = []
+    for (const execute of [false, true]) {
+      assert.throws(() => resolveAiBudgetAuthority({
+        options: { nowMs: NOW + 2000 },
+        plan: narrowedRolloverPlan,
+        candidate: rolloverNextCandidate,
+        authorityContext: rolloverNextContext,
+        activeRoot,
+        execute,
+        gitRepoRoot: rolloverGitRoot
+      }), error => error instanceof ValidationDagError &&
+        error.code === 'VALIDATION_CONTINUATION_FOOTPRINT_UNPROVEN' &&
+        error.details?.rootRolloverReason === 'auto-root-rollover-scope-changed',
+      'a strict descendant cannot replace the immutable root with a narrowed validation scope')
+    }
     const rolloverPreview = resolveAiBudgetAuthority({
       options: { nowMs: NOW + 2000 },
       plan: rolloverNextPlan,
@@ -788,6 +874,285 @@ function main() {
     assert.strictEqual(completedRolloverExecution.authority.parentRootReceiptDigest,
       rolloverExecution.authority.receiptDigest)
     assert.match(completedRolloverExecution.authority.parentTerminalDigest, /^[a-f0-9]{64}$/)
+
+    // A real later Auto turn has a new server-owned control receipt and a new
+    // ContextRead epoch.  Fresh current authority may rebind those two fields,
+    // but only for the same task/project/root/session/revocation and an exact
+    // validation scope on a strict descendant commit.
+    const reboundTaskId = '00000000-0000-4000-8000-000000000348'
+    const reboundSession = 'validation-budget-root-rebind-session'
+    const reboundRootControl = controlReceipt({
+      prompt: '@rocky 自动推进到当前任务完成',
+      mode: 'auto',
+      sessionKey: reboundSession,
+      taskId: reboundTaskId,
+      contextEpoch,
+      suffix: 'root-rebind-parent',
+      nowMs: NOW
+    })
+    const reboundSeed = seedTask({
+      activeRoot,
+      taskId: reboundTaskId,
+      sessionKey: reboundSession,
+      control: reboundRootControl
+    })
+    const reboundRootPlan = fixturePlan(reboundTaskId, contextEpoch, 'root-rebind-parent')
+    const reboundRootCandidate = { ...fixtureCandidate('root-rebind-parent'), head: ancestorHead }
+    const reboundRootContext = authorityContext({
+      identity: reboundSeed.identity,
+      sessionKey: reboundSession,
+      contextEpoch,
+      control: reboundRootControl
+    })
+    const reboundRoot = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 250 },
+      plan: reboundRootPlan,
+      candidate: reboundRootCandidate,
+      authorityContext: reboundRootContext,
+      activeRoot,
+      execute: true,
+      gitRepoRoot: rolloverGitRoot
+    })
+    const reboundStore = createValidationEvidenceStore({
+      activeRoot,
+      project: 'devcodex',
+      actorType: 'ai-hook',
+      taskIdentity: reboundSeed.identity,
+      taskRecoveryKey: reboundTaskId,
+      sessionKey: reboundSession
+    })
+    persistRunTerminal({
+      store: reboundStore,
+      plan: reboundRoot.plan,
+      candidate: reboundRootCandidate,
+      authority: reboundRoot.authority,
+      control: reboundRootControl,
+      taskId: reboundTaskId,
+      contextEpoch,
+      failedNode: 'validation-authority'
+    })
+    const reboundContextEpoch = 'ctx-validation-budget-current-auto-rebind'
+    const reboundCurrentControl = controlReceipt({
+      prompt: '@rocky 继续当前任务并自动完成',
+      mode: 'auto',
+      sessionKey: reboundSession,
+      taskId: reboundTaskId,
+      contextEpoch: reboundContextEpoch,
+      suffix: 'root-rebind-current',
+      nowMs: NOW + 900
+    })
+    updateControl({
+      activeRoot,
+      identity: reboundSeed.identity,
+      metaDir: reboundSeed.metaDir,
+      sessionKey: reboundSession,
+      control: reboundCurrentControl
+    })
+    const reboundState = readTaskRecoveryState({
+      metaDir: reboundSeed.metaDir,
+      identity: reboundSeed.identity,
+      sessionKey: reboundSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' }
+    })
+    const reboundNextPlan = fixturePlan(reboundTaskId, reboundContextEpoch, 'root-rebind-child')
+    const reboundNextCandidate = { ...fixtureCandidate('root-rebind-child'), head: previousHead }
+    const reboundNextContext = authorityContext({
+      identity: reboundSeed.identity,
+      sessionKey: reboundSession,
+      contextEpoch: reboundContextEpoch,
+      control: reboundCurrentControl,
+      state: reboundState.state
+    })
+    const reboundPreview = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 1500 },
+      plan: reboundNextPlan,
+      candidate: reboundNextCandidate,
+      authorityContext: reboundNextContext,
+      activeRoot,
+      execute: false,
+      gitRepoRoot: rolloverGitRoot
+    })
+    assert.strictEqual(reboundPreview.decision, 'auto-root-rollover-plan-only')
+    const reboundExecution = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 1500 },
+      plan: reboundNextPlan,
+      candidate: reboundNextCandidate,
+      authorityContext: reboundNextContext,
+      activeRoot,
+      execute: true,
+      gitRepoRoot: rolloverGitRoot
+    })
+    assert.strictEqual(reboundExecution.decision, 'auto-root-rollover-authorized')
+    assert.strictEqual(
+      reboundExecution.authority.rootRolloverReason,
+      'strict-descendant-exact-scope-current-auto-rebind'
+    )
+    assert.strictEqual(reboundExecution.authority.parentRootReceiptDigest, reboundRoot.authority.receiptDigest)
+    assert.notStrictEqual(reboundExecution.authority.autoAuthorityRef, reboundRoot.authority.autoAuthorityRef)
+    assert.strictEqual(reboundExecution.authority.contextEpoch, reboundContextEpoch)
+
+    // A later, distinct user Auto instruction is new root authority rather than
+    // a child continuation.  It may bind the current exact V2 impact scope even
+    // when batch repairs changed boundaries or nodes, but only after the parent
+    // is terminal and while task/project/root/session/revocation stay exact.
+    const rescopeTaskId = '00000000-0000-4000-8000-000000000349'
+    const rescopeSession = 'validation-budget-root-rescope-session'
+    const rescopeRootControl = controlReceipt({
+      prompt: '@rocky 自动执行当前受影响范围',
+      mode: 'auto',
+      sessionKey: rescopeSession,
+      taskId: rescopeTaskId,
+      contextEpoch,
+      suffix: 'root-rescope-parent',
+      nowMs: NOW
+    })
+    const rescopeSeed = seedTask({
+      activeRoot,
+      taskId: rescopeTaskId,
+      sessionKey: rescopeSession,
+      control: rescopeRootControl
+    })
+    const rescopeRootPlan = fixturePlan(rescopeTaskId, contextEpoch, 'root-rescope-parent')
+    const rescopeRootCandidate = { ...fixtureCandidate('root-rescope-parent'), head: ancestorHead }
+    const rescopeRootContext = authorityContext({
+      identity: rescopeSeed.identity,
+      sessionKey: rescopeSession,
+      contextEpoch,
+      control: rescopeRootControl
+    })
+    const rescopeRoot = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 250 },
+      plan: rescopeRootPlan,
+      candidate: rescopeRootCandidate,
+      authorityContext: rescopeRootContext,
+      activeRoot,
+      execute: true,
+      gitRepoRoot: rolloverGitRoot
+    })
+    const rescopeStore = createValidationEvidenceStore({
+      activeRoot,
+      project: 'devcodex',
+      actorType: 'ai-hook',
+      taskIdentity: rescopeSeed.identity,
+      taskRecoveryKey: rescopeTaskId,
+      sessionKey: rescopeSession
+    })
+    persistRunTerminal({
+      store: rescopeStore,
+      plan: rescopeRoot.plan,
+      candidate: rescopeRootCandidate,
+      authority: rescopeRoot.authority,
+      control: rescopeRootControl,
+      taskId: rescopeTaskId,
+      contextEpoch,
+      failedNode: 'validation-authority'
+    })
+    const prematureContextEpoch = 'ctx-validation-budget-premature-auto-rescope'
+    const prematureRescopeControl = controlReceipt({
+      prompt: '@rocky 提前重建验证范围',
+      mode: 'auto',
+      sessionKey: rescopeSession,
+      taskId: rescopeTaskId,
+      contextEpoch: prematureContextEpoch,
+      suffix: 'root-rescope-premature',
+      nowMs: NOW + 500
+    })
+    updateControl({
+      activeRoot,
+      identity: rescopeSeed.identity,
+      metaDir: rescopeSeed.metaDir,
+      sessionKey: rescopeSession,
+      control: prematureRescopeControl
+    })
+    const prematureRescopeState = readTaskRecoveryState({
+      metaDir: rescopeSeed.metaDir,
+      identity: rescopeSeed.identity,
+      sessionKey: rescopeSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' }
+    })
+    const prematureRescopePlan = fixturePlan(rescopeTaskId, prematureContextEpoch, 'root-rescope-premature', {
+      selectedNodes: [
+        { id: 'validation-authority', writeScopes: [] },
+        { id: 'validation-budget-control', writeScopes: [] }
+      ]
+    })
+    prematureRescopePlan.affectedBoundaries = ['validation-authority', 'validation-budget-control']
+    const rescopeNextCandidate = { ...fixtureCandidate('root-rescope-child'), head: previousHead }
+    for (const execute of [false, true]) {
+      expectCode(() => resolveAiBudgetAuthority({
+        options: { nowMs: NOW + 750 },
+        plan: prematureRescopePlan,
+        candidate: rescopeNextCandidate,
+        authorityContext: authorityContext({
+          identity: rescopeSeed.identity,
+          sessionKey: rescopeSession,
+          contextEpoch: prematureContextEpoch,
+          control: prematureRescopeControl,
+          state: prematureRescopeState.state
+        }),
+        activeRoot,
+        execute,
+        gitRepoRoot: rolloverGitRoot
+      }), 'VALIDATION_CONTINUATION_SCOPE_WIDENED')
+    }
+    const rescopeContextEpoch = 'ctx-validation-budget-current-auto-rescope'
+    const currentRescopeControl = controlReceipt({
+      prompt: '@rocky 按当前完整影响范围自动推进',
+      mode: 'auto',
+      sessionKey: rescopeSession,
+      taskId: rescopeTaskId,
+      contextEpoch: rescopeContextEpoch,
+      suffix: 'root-rescope-current',
+      nowMs: NOW + 1500
+    })
+    updateControl({
+      activeRoot,
+      identity: rescopeSeed.identity,
+      metaDir: rescopeSeed.metaDir,
+      sessionKey: rescopeSession,
+      control: currentRescopeControl
+    })
+    const currentRescopeState = readTaskRecoveryState({
+      metaDir: rescopeSeed.metaDir,
+      identity: rescopeSeed.identity,
+      sessionKey: rescopeSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' }
+    })
+    const currentRescopePlan = fixturePlan(rescopeTaskId, rescopeContextEpoch, 'root-rescope-current', {
+      selectedNodes: prematureRescopePlan.selectedNodes
+    })
+    currentRescopePlan.affectedBoundaries = prematureRescopePlan.affectedBoundaries
+    const currentRescopeContext = authorityContext({
+      identity: rescopeSeed.identity,
+      sessionKey: rescopeSession,
+      contextEpoch: rescopeContextEpoch,
+      control: currentRescopeControl,
+      state: currentRescopeState.state
+    })
+    const rescopePreview = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 2000 },
+      plan: currentRescopePlan,
+      candidate: rescopeNextCandidate,
+      authorityContext: currentRescopeContext,
+      activeRoot,
+      execute: false,
+      gitRepoRoot: rolloverGitRoot
+    })
+    assert.strictEqual(rescopePreview.decision, 'auto-root-rollover-plan-only')
+    const rescopeExecution = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 2000 },
+      plan: currentRescopePlan,
+      candidate: rescopeNextCandidate,
+      authorityContext: currentRescopeContext,
+      activeRoot,
+      execute: true,
+      gitRepoRoot: rolloverGitRoot
+    })
+    assert.strictEqual(rescopeExecution.decision, 'auto-root-rollover-authorized')
+    assert.strictEqual(rescopeExecution.authority.rootRolloverReason, 'strict-descendant-current-auto-rescope')
+    assert.strictEqual(rescopeExecution.authority.parentRootReceiptDigest, rescopeRoot.authority.receiptDigest)
+    assert.notStrictEqual(rescopeExecution.authority.autoAuthorityRef, rescopeRoot.authority.autoAuthorityRef)
+    assert.strictEqual(rescopeExecution.authority.contextEpoch, rescopeContextEpoch)
 
     const exactRetryTaskId = '00000000-0000-4000-8000-000000000346'
     const exactRetrySession = 'validation-budget-exact-retry-session'

@@ -81,22 +81,24 @@ function extractCommand(payload) {
   return ''
 }
 
-/** Belt-and-suspenders: deny known dangerous shells even if lifecycle path fails. */
-function localDangerDeny(payload) {
+/** Classify operation risk for diagnostics without taking permission from Grok. */
+function localRiskAdvisory(payload) {
   if (!isPreTool(payload)) return null
   const cmd = extractCommand(payload)
   if (!cmd) return null
   const patterns = [
-    { re: /\brm\s+-rf\s+(?:\/|[A-Za-z]:\\?)(?:\s|$)/i, reason: 'Blocked: rm -rf root' },
-    { re: /\brm\s+-rf\b/i, reason: 'Blocked: rm -rf' },
-    { re: /\bgit\s+reset\s+--hard\b/i, reason: 'Blocked: git reset --hard' },
-    { re: /\bdrop\s+table\b/i, reason: 'Blocked: DROP TABLE' },
-    { re: /\btruncate\b/i, reason: 'Blocked: TRUNCATE' },
-    { re: /\bdel\s+\/f\s+\/q\b/i, reason: 'Blocked: del /f /q' },
-    { re: /Remove-Item[\s\S]*-Recurse[\s\S]*-Force|Remove-Item[\s\S]*-Force[\s\S]*-Recurse/i, reason: 'Blocked: Remove-Item -Recurse -Force' }
+    { re: /\brm\s+-rf\s+(?:\/|[A-Za-z]:\\?)(?:\s|$)/i, reason: 'Advisory: rm -rf root' },
+    { re: /\brm\s+-rf\b/i, reason: 'Advisory: rm -rf' },
+    { re: /\bgit\s+reset\s+--hard\b/i, reason: 'Advisory: git reset --hard' },
+    { re: /\bdrop\s+table\b/i, reason: 'Advisory: DROP TABLE' },
+    { re: /\btruncate\b/i, reason: 'Advisory: TRUNCATE' },
+    { re: /\bdel\s+\/f\s+\/q\b/i, reason: 'Advisory: del /f /q' },
+    { re: /Remove-Item[\s\S]*-Recurse[\s\S]*-Force|Remove-Item[\s\S]*-Force[\s\S]*-Recurse/i, reason: 'Advisory: Remove-Item -Recurse -Force' }
   ]
   for (const entry of patterns) {
-    if (entry.re.test(cmd)) return deny(entry.reason)
+    if (entry.re.test(cmd)) {
+      return { code: 'operation-risk-advisory', reason: entry.reason }
+    }
   }
   return null
 }
@@ -191,7 +193,7 @@ function runWorkspaceBridge(payload, options = {}) {
   const { discoveredWorkspace, cwd, via } = resolved
 
   if (!discoveredWorkspace) {
-    const local = localDangerDeny(payload)
+    const riskAdvisory = localRiskAdvisory(payload)
     writeDiagnostic(pluginRoot, {
       phase: 'outside-workspace',
       via,
@@ -199,11 +201,8 @@ function runWorkspaceBridge(payload, options = {}) {
       cwd,
       command: extractCommand(payload),
       event: eventName(payload),
-      localDeny: local
+      riskAdvisory
     }, env, options)
-    if (local) {
-      return { status: 0, workspaceRoot: null, output: local, reason: 'outside-workspace-local-danger-deny' }
-    }
     return { status: 0, workspaceRoot: null, output: noop(payload), reason: 'outside-workspace' }
   }
 
@@ -236,22 +235,14 @@ function runWorkspaceBridge(payload, options = {}) {
       output = parsed.decision ? parsed : (parsed.continue === false ? deny(parsed.reason || 'blocked') : noop(payload))
       adapterNote = 'adapter-ok'
     } else if (child.status !== 0) {
-      const local = localDangerDeny(payload)
+      const riskAdvisory = localRiskAdvisory(payload)
       writeDiagnostic(pluginRoot, {
         phase: 'global-adapter-failed',
         status: child.status,
         stderr: String(child.stderr || '').slice(0, 2000),
         stdout: stdout.slice(0, 2000),
-        localDeny: local
+        riskAdvisory
       }, env, options)
-      if (local) {
-        return {
-          status: 0,
-          workspaceRoot: discoveredWorkspace,
-          output: local,
-          reason: 'adapter-failed-local-danger-deny'
-        }
-      }
       return {
         status: 0,
         workspaceRoot: discoveredWorkspace,
@@ -260,7 +251,7 @@ function runWorkspaceBridge(payload, options = {}) {
         diagnostic: String(child.stderr || child.stdout || 'global lifecycle adapter failed').trim()
       }
     } else {
-      const local = localDangerDeny(payload)
+      const riskAdvisory = localRiskAdvisory(payload)
       writeDiagnostic(pluginRoot, {
         phase: 'global-adapter-invalid-output',
         adapter,
@@ -268,16 +259,8 @@ function runWorkspaceBridge(payload, options = {}) {
         cwd,
         event: eventName(payload),
         stdout: stdout.slice(0, 2000),
-        localDeny: local
+        riskAdvisory
       }, env, options)
-      if (local) {
-        return {
-          status: 0,
-          workspaceRoot: discoveredWorkspace,
-          output: local,
-          reason: 'global-adapter-invalid-output-local-danger-deny'
-        }
-      }
       return {
         status: 0,
         workspaceRoot: discoveredWorkspace,
@@ -286,7 +269,7 @@ function runWorkspaceBridge(payload, options = {}) {
       }
     }
   } else {
-    const local = localDangerDeny(payload)
+    const riskAdvisory = localRiskAdvisory(payload)
     writeDiagnostic(pluginRoot, {
       phase: 'global-adapter-missing',
       adapter,
@@ -294,16 +277,8 @@ function runWorkspaceBridge(payload, options = {}) {
       cwd,
       event: eventName(payload),
       command: extractCommand(payload),
-      localDeny: local
+      riskAdvisory
     }, env, options)
-    if (local) {
-      return {
-        status: 0,
-        workspaceRoot: discoveredWorkspace,
-        output: local,
-        reason: 'global-adapter-missing-local-danger-deny'
-      }
-    }
     return {
       status: 0,
       workspaceRoot: discoveredWorkspace,
@@ -312,12 +287,7 @@ function runWorkspaceBridge(payload, options = {}) {
     }
   }
 
-  // Local danger check wins if adapter allowed a known-dangerous shell.
-  const local = localDangerDeny(payload)
-  if (local && (!output || output.decision !== 'deny')) {
-    output = local
-    adapterNote = `${adapterNote}+local-danger-override`
-  }
+  const riskAdvisory = localRiskAdvisory(payload)
 
   writeDiagnostic(pluginRoot, {
     phase: 'complete',
@@ -329,6 +299,7 @@ function runWorkspaceBridge(payload, options = {}) {
     event: eventName(payload),
     toolName: payload?.toolName || payload?.tool_name || '',
     command: extractCommand(payload),
+    riskAdvisory,
     output
   }, env, options)
 
@@ -352,13 +323,8 @@ if (require.main === module) {
     const result = runWorkspaceBridge(payload)
     if (result.status !== 0) {
       process.stderr.write(`DevCodex Grok workspace bridge: ${result.reason}\n`)
-      // Still try local deny so we never fail-open on destructive shells.
-      const local = localDangerDeny(payload)
-      if (local) {
-        process.stdout.write(JSON.stringify(local))
-        process.exit(2)
-      }
-      process.exit(result.status)
+      process.stdout.write(JSON.stringify(noop(payload)))
+      process.exit(0)
       return
     }
     const output = result.output || noop(payload)
@@ -367,7 +333,8 @@ if (require.main === module) {
     process.exit(0)
   }).catch((error) => {
     process.stderr.write(`DevCodex Grok workspace bridge: invalid hook payload: ${error.message}\n`)
-    process.exit(2)
+    process.stdout.write(JSON.stringify({ decision: 'allow' }))
+    process.exit(0)
   })
 }
 
@@ -377,6 +344,6 @@ module.exports = {
   samePath,
   globalAdapterPath,
   probeWorkspaceBridgeContract,
-  localDangerDeny,
+  localRiskAdvisory,
   isUnder
 }

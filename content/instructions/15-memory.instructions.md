@@ -91,6 +91,7 @@ daily/SUMMARY 仍是唯一真相源：受管 writer 在文件提交后刷新索�
 ### MemoryFileTransactionGate
 
 - `memory_session_allocate`、`memory_session_write`、`memory_summary_append` 与 CP 状态写入共用 `MemoryFileTransactionV1` owner；成功提交必须返回 `MemoryFileTransactionReceiptV1`，包含 before/after digest、final CAS、flush/directory durability、readback、bytesRead/bytesWritten/writeAmplificationRatio 与 metadata receipt。
+- 这四类 Memory writer 是 server-owned 单一事务 Owner：Hook 继续校验实际指令、project/session route 与 PC0～PC7 产物时序，但不得再把逻辑 URI 纳入通用 artifact mutation prewrite/closeout/reconcile。`memory_workflow_operational_write_lease` 等 authority-control Tool 只签发或恢复后继工作流权威，不得自消费 artifact mutation authority。六宿主的 direct、下划线/连字符 MCP qualifier、slash 与双下划线名称必须归一到同一 server-owned leaf；第三方同名 Tool 不得豁免。
 - 已存在 canonical 文件的纯 EOF 增长走 append fast path；创建走 atomic temp+rename，中段更新保留 rewrite。append/rewrite 都必须在最终写入窗口重新比较 source identity，外部编辑时 fail closed 且不得覆盖。
 - POSIX rewrite 保留 mode/uid/gid，新文件 mode=0600；Windows DACL 未执行真实 before/after probe 时必须明确 `WARN/UNVERIFIED`，不得用 POSIX mode 模拟 PASS。事务只清理由自己创建的临时文件。
 

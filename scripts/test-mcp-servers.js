@@ -31,6 +31,13 @@ const {
 } = require('../hooks/_runtime/actual-instruction-envelope.cjs')
 const { buildWorkflowRouteDecision } = require('../hooks/_runtime/workflow-route-decision-v2.cjs')
 const { createWorkspaceSessionRouteIndex } = require('../hooks/_runtime/workspace-session-route-index-v1.cjs')
+const { extractMutationFootprint } = require('../hooks/_runtime/mutation-footprint.cjs')
+const { decideArtifactMutation } = require('../hooks/_runtime/artifact-slot-decision.cjs')
+const {
+  createMutationPreObservation,
+  createTaskOwnedMutationLease,
+  observeMutationEffects
+} = require('../hooks/_runtime/mutation-observation.cjs')
 const {
   computeProjectTargetLeaseDigest,
   createTaskIdentityV2,
@@ -40,7 +47,10 @@ const {
 } = require('../mcp/task-admission-authority.cjs')
 const {
   readFencedTaskWriteOwner,
-  resolveTaskRecoveryMetaDir
+  resolveTaskRecoveryMetaDir,
+  storePaths,
+  updateTaskRecoveryState,
+  writeEmergencyCloseout
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const { readBoundedTextFileSync } = require('../mcp/bounded-text-reader.cjs')
 const { selectProfileSectionsFromFileSync } = require('../mcp/profile-section-selector.cjs')
@@ -1069,7 +1079,7 @@ function testMemoryTaskAdmissionV2Contract() {
   const projectTargetLease = { ...leaseCore, leaseDigest: computeProjectTargetLeaseDigest(leaseCore) }
   const lifecycleStatePath = path.join(activeRoot, '.memory', 'hooks', 'legacy', 'lifecycle-state.json')
   fs.mkdirSync(path.dirname(lifecycleStatePath), { recursive: true })
-  fs.writeFileSync(lifecycleStatePath, JSON.stringify({
+  const lifecycleState = {
     version: 2,
     activeProject: project,
     activeScope: 'project',
@@ -1077,7 +1087,8 @@ function testMemoryTaskAdmissionV2Contract() {
     workItemSet,
     workflowRouteDecision: route,
     stickyProject: projectTargetLease
-  }, null, 2) + '\n')
+  }
+  fs.writeFileSync(lifecycleStatePath, JSON.stringify(lifecycleState, null, 2) + '\n')
   const args = {
     operation: 'admit',
     ingressRef: {
@@ -1104,6 +1115,43 @@ function testMemoryTaskAdmissionV2Contract() {
   assert.strictEqual(resultById(rejectedIngress, 1).isError, true)
   assert.match(resultById(rejectedIngress, 1).content[0].text, /TASK_ADMISSION_INGRESS_STATE_MISMATCH/)
   assert.strictEqual(fs.existsSync(path.join(activeRoot, 'bugs')), false)
+  const rejectTamperedProjectLease = (stickyProject, label) => {
+    fs.writeFileSync(lifecycleStatePath, JSON.stringify({ ...lifecycleState, stickyProject }, null, 2) + '\n')
+    const response = runServer('mcp/memory-server.js', [
+      rpcRequest(1, 'tools/call', { name: 'memory_task_admit_v2', arguments: args })
+    ], TEMP_ROOT)
+    assert.strictEqual(resultById(response, 1).isError, true, label)
+    assert.match(resultById(response, 1).content[0].text, /TASK_ADMISSION_PROJECT_LEASE_INVALID/, label)
+    assert.strictEqual(fs.existsSync(path.join(activeRoot, 'bugs')), false, `${label} must be zero-side-effect`)
+  }
+  const wrongPhysicalRootCore = {
+    ...leaseCore,
+    physicalRoot: path.join(TEMP_ROOT, 'wrong-project-root')
+  }
+  rejectTamperedProjectLease({
+    ...wrongPhysicalRootCore,
+    leaseDigest: computeProjectTargetLeaseDigest(wrongPhysicalRootCore)
+  }, 'recomputed lease digest must not authorize a different physical root')
+  const expiredLeaseCore = {
+    ...leaseCore,
+    issuedAtMs: nowMs - 2000,
+    expiresAtMs: nowMs - 1000
+  }
+  rejectTamperedProjectLease({
+    ...expiredLeaseCore,
+    leaseDigest: computeProjectTargetLeaseDigest(expiredLeaseCore)
+  }, 'expired ProjectTargetLeaseV2 must fail closed')
+  const wrongContextLeaseCore = {
+    ...leaseCore,
+    contextEpoch: 'ctx-mcp-admission-tampered'
+  }
+  rejectTamperedProjectLease({
+    ...wrongContextLeaseCore,
+    leaseDigest: computeProjectTargetLeaseDigest(wrongContextLeaseCore)
+  }, 'context-mismatched ProjectTargetLeaseV2 must fail closed')
+  rejectTamperedProjectLease({ ...projectTargetLease, leaseDigest: 'f'.repeat(64) },
+    'digest-mismatched ProjectTargetLeaseV2 must fail closed')
+  fs.writeFileSync(lifecycleStatePath, JSON.stringify(lifecycleState, null, 2) + '\n')
   const responses = runServer('mcp/memory-server.js', [
     rpcRequest(1, 'tools/list'),
     rpcRequest(2, 'tools/call', { name: 'memory_task_admit_v2', arguments: args }),
@@ -1349,7 +1397,8 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
   for (const toolName of [
     'memory_task_write_owner',
     'memory_task_terminal_v1',
-    'memory_task_closeout_reconcile_v1'
+    'memory_task_closeout_reconcile_v1',
+    'memory_artifact_mutation_reconcile_v1'
   ]) {
     assert(listedResult.tools.some(tool => tool.name === toolName), `${toolName} must be publicly reachable`)
   }
@@ -1466,6 +1515,241 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
     identity: { ...recoveryIdentity, taskStatus: 'completed' }
   })
   assert.strictEqual(terminalOwnerRead.owner.status, 'terminal')
+}
+
+function testMemoryArtifactMutationReconciliationContract() {
+  setupLegacyWorkspace()
+  const activeRoot = path.join(TEMP_ROOT, '.devcodex')
+  const project = path.basename(TEMP_ROOT)
+  const ingress = buildTaskAuthorityIngress({ activeRoot, project, suffix: 'artifact-reconciliation' })
+  writeTaskAuthorityLifecycleState(activeRoot, project, ingress)
+  const admissionArgs = {
+    operation: 'admit',
+    ingressRef: ingress.ingressRef,
+    task: {
+      taskKind: 'bugs',
+      entryVariant: 'fix',
+      displayName: 'MCP artifact reconciliation task'
+    },
+    overview: { content: '# 问题概况\n\nMCP artifact reconciliation test.\n' }
+  }
+  const admitted = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/call', { name: 'memory_task_admit_v2', arguments: admissionArgs })
+  ], TEMP_ROOT), 1).structuredContent
+  const taskRoot = path.join(activeRoot, ...admitted.taskRootRelative.split('/'))
+  const metaDir = resolveTaskRecoveryMetaDir({ activeRoot, project })
+  const recoveryIdentity = { activeRoot, project, taskId: admitted.taskId, taskStatus: 'active' }
+
+  function needsReconcileCloseout(operationId, fileName, beforeContent, afterContent) {
+    const target = path.join(taskRoot, 'reports', 'codex', '20260827', fileName)
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.writeFileSync(target, beforeContent)
+    const footprint = extractMutationFootprint({
+      tool_name: 'Write',
+      tool_input: { file_path: target, content: afterContent }
+    }, { cwd: TEMP_ROOT })
+    const decision = decideArtifactMutation({
+      footprint,
+      activeRoot,
+      projectRoot: TEMP_ROOT,
+      cwd: TEMP_ROOT,
+      project,
+      taskRecoveryKey: admitted.taskId,
+      contextEpoch: ingress.actualInstructionEnvelope.contextEpoch,
+      intent: 'fix',
+      taskKind: 'bugs',
+      taskName: path.basename(taskRoot),
+      authoritySourceRef: `fixture:${operationId}`
+    })
+    assert.strictEqual(decision.decisionStatus, 'allow', JSON.stringify(decision.errorCodes))
+    const preObservation = createMutationPreObservation({ operationId, footprint })
+    const lease = createTaskOwnedMutationLease({
+      operationId,
+      project,
+      taskId: admitted.taskId,
+      contextEpoch: ingress.actualInstructionEnvelope.contextEpoch,
+      routeRevision: ingress.workflowRouteDecision.routeRevision,
+      owner: { ownerGeneration: 1, leaseDigest: 'a'.repeat(64) },
+      decision
+    })
+    fs.writeFileSync(target, afterContent)
+    const observation = observeMutationEffects({
+      operationId,
+      decision,
+      lease,
+      footprint,
+      preObservation,
+      payload: { isError: true },
+      success: false
+    })
+    assert.strictEqual(observation.status, 'needs-reconcile')
+    const lifecycleCloseout = {
+      schemaVersion: 'LifecycleMutationCloseoutV2',
+      operationId,
+      toolName: 'Write',
+      completedAt: observation.completedAt,
+      result: 'needs-reconcile',
+      authorizationErrors: ['mutation-tool-reported-failure'],
+      observation,
+      artifactCloseout: observation.closeout
+    }
+    const inFlightOperation = {
+      operationId,
+      toolName: 'Write',
+      startedAt: new Date().toISOString(),
+      mutating: true,
+      targetPaths: [target],
+      artifactDecision: decision,
+      mutationFootprint: footprint,
+      mutationLease: lease,
+      mutationPreObservation: preObservation
+    }
+    return { lifecycleCloseout, inFlightOperation, target }
+  }
+
+  const primary = needsReconcileCloseout(
+    'mcp-primary-artifact-reconciliation',
+    'primary.md',
+    '# primary before\n',
+    '# primary after\n'
+  )
+  const primaryCommit = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
+    ...state,
+    turnLiveness: {
+      ...(state.turnLiveness || {}),
+      inFlightOperation: primary.inFlightOperation,
+      lastMutationCloseout: primary.lifecycleCloseout
+    }
+  }), { force: true, reason: 'mutation-closeout' })
+  assert(['committed', 'semantic-noop'].includes(primaryCommit.status), JSON.stringify(primaryCommit))
+
+  const omittedFormalTaskResult = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(2, 'tools/call', {
+      name: 'memory_artifact_mutation_reconcile_v1',
+      arguments: {
+        ingressRef: ingress.ingressRef,
+        operationId: primary.lifecycleCloseout.operationId,
+        expectedCloseoutDigest: primary.lifecycleCloseout.artifactCloseout.closeoutDigest,
+        resolution: 'accept-observed-effects'
+      }
+    })
+  ], TEMP_ROOT), 2)
+  assert.strictEqual(omittedFormalTaskResult.isError, true)
+  assert.match(JSON.stringify(omittedFormalTaskResult), /ARTIFACT_RECONCILIATION_TASK_REQUIRED/)
+
+  const primaryResponses = runServer('mcp/memory-server.js', [
+    rpcRequest(2, 'tools/list'),
+    rpcRequest(3, 'tools/call', {
+      name: 'memory_artifact_mutation_reconcile_v1',
+      arguments: {
+        ingressRef: ingress.ingressRef,
+        taskId: admitted.taskId,
+        operationId: primary.lifecycleCloseout.operationId,
+        expectedCloseoutDigest: primary.lifecycleCloseout.artifactCloseout.closeoutDigest,
+        resolution: 'accept-observed-effects'
+      }
+    }),
+    rpcRequest(4, 'tools/call', {
+      name: 'memory_artifact_mutation_reconcile_v1',
+      arguments: {
+        ingressRef: ingress.ingressRef,
+        taskId: admitted.taskId,
+        operationId: primary.lifecycleCloseout.operationId,
+        expectedCloseoutDigest: primary.lifecycleCloseout.artifactCloseout.closeoutDigest,
+        resolution: 'accept-observed-effects'
+      }
+    })
+  ], TEMP_ROOT)
+  const reconciliationSchema = findToolSchema(resultById(primaryResponses, 2).tools, 'memory_artifact_mutation_reconcile_v1')
+  assert.deepStrictEqual(reconciliationSchema.required, ['ingressRef', 'operationId', 'expectedCloseoutDigest', 'resolution'])
+  assert.strictEqual(reconciliationSchema.additionalProperties, false)
+  assert.strictEqual(reconciliationSchema.properties.taskId === undefined, false)
+  const primaryResult = resultById(primaryResponses, 3)
+  assert.strictEqual(primaryResult.isError, false)
+  assert.strictEqual(primaryResult.structuredContent.sourceKind, 'primary')
+  assert.strictEqual(primaryResult.structuredContent.mutationAuthority, false)
+  assert.strictEqual(primaryResult.structuredContent.receipt.schemaVersion, 'ArtifactMutationReconciliationReceiptV1')
+  assert.strictEqual(resultById(primaryResponses, 4).structuredContent.replayed, true)
+
+  const reserve = needsReconcileCloseout(
+    'mcp-reserve-artifact-reconciliation',
+    'reserve.md',
+    '# reserve before\n',
+    '# reserve after\n'
+  )
+  const reservePrewrite = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
+    ...state,
+    turnLiveness: {
+      ...(state.turnLiveness || {}),
+      inFlightOperation: reserve.inFlightOperation
+    }
+  }), { force: true, reason: 'mutation-preflight' })
+  assert(['committed', 'semantic-noop'].includes(reservePrewrite.status), JSON.stringify(reservePrewrite))
+  const reserveWrite = writeEmergencyCloseout(storePaths(metaDir), {
+    observedAt: new Date().toISOString(),
+    status: 'needs-reconcile',
+    reason: 'mutation-closeout',
+    identity: recoveryIdentity,
+    admissionTransaction: null,
+    fencedWriteOwner: null,
+    workflowTaskTerminalReceipt: null,
+    inFlightOperation: reserve.inFlightOperation,
+    lastMutationCloseout: reserve.lifecycleCloseout,
+    stateDigest: 'b'.repeat(64)
+  })
+  assert.strictEqual(reserveWrite.status, 'closeout-reserved')
+  const reserveDriftCommit = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
+    ...state,
+    turnLiveness: {
+      ...(state.turnLiveness || {}),
+      inFlightOperation: {
+        ...reserve.inFlightOperation,
+        mutationLease: {
+          ...reserve.inFlightOperation.mutationLease,
+          leaseDigest: 'c'.repeat(64)
+        }
+      }
+    }
+  }), { force: true, reason: 'mutation-preflight-drift-probe' })
+  assert(['committed', 'semantic-noop'].includes(reserveDriftCommit.status), JSON.stringify(reserveDriftCommit))
+  const reserveDriftResult = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(5, 'tools/call', {
+      name: 'memory_artifact_mutation_reconcile_v1',
+      arguments: {
+        ingressRef: ingress.ingressRef,
+        taskId: admitted.taskId,
+        operationId: reserve.lifecycleCloseout.operationId,
+        expectedCloseoutDigest: reserve.lifecycleCloseout.artifactCloseout.closeoutDigest,
+        resolution: 'accept-observed-effects'
+      }
+    })
+  ], TEMP_ROOT), 5)
+  assert.strictEqual(reserveDriftResult.isError, true)
+  assert.match(JSON.stringify(reserveDriftResult), /ARTIFACT_RECONCILIATION_PRIMARY_DRIFT/)
+  const reserveRestore = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
+    ...state,
+    turnLiveness: {
+      ...(state.turnLiveness || {}),
+      inFlightOperation: reserve.inFlightOperation
+    }
+  }), { force: true, reason: 'mutation-preflight-restore' })
+  assert(['committed', 'semantic-noop'].includes(reserveRestore.status), JSON.stringify(reserveRestore))
+  const reserveResult = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(6, 'tools/call', {
+      name: 'memory_artifact_mutation_reconcile_v1',
+      arguments: {
+        ingressRef: ingress.ingressRef,
+        taskId: admitted.taskId,
+        operationId: reserve.lifecycleCloseout.operationId,
+        expectedCloseoutDigest: reserve.lifecycleCloseout.artifactCloseout.closeoutDigest,
+        resolution: 'accept-observed-effects'
+      }
+    })
+  ], TEMP_ROOT), 6)
+  assert.strictEqual(reserveResult.isError, false)
+  assert.strictEqual(reserveResult.structuredContent.sourceKind, 'emergency-reserve')
+  assert.strictEqual(reserveResult.structuredContent.receipt.reserveSequence, reserveWrite.sequence)
+  assert.strictEqual(reserveResult.structuredContent.mutationAuthority, false)
 }
 
 function testMemoryServerOwnedTakeoverObservation() {
@@ -4923,6 +5207,7 @@ testMemoryTaskAdmissionV2Contract()
 testMemoryWorkflowOperationalWriteLeaseContract()
 testMemorySimpleTaskFastPathLeaseContract()
 testMemoryTaskOwnerAndTerminalV1Contract()
+testMemoryArtifactMutationReconciliationContract()
 testMemoryServerOwnedTakeoverObservation()
 testMemoryCloseoutReconcileUsesTerminalOwnerRoute()
 testMemoryActualHostEnvAgent()

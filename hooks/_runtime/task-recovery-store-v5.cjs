@@ -13,6 +13,10 @@ const {
   jsonBytes,
   semanticLifecycleProjection
 } = require('./lifecycle-state-projection-v5.cjs')
+const {
+  projectArtifactMutationReconciliationReceipt,
+  validateArtifactMutationReconciliationInput
+} = require('./artifact-mutation-reconciliation.cjs')
 
 const TASK_RECOVERY_STATE_SCHEMA = 'TaskRecoveryStateV5'
 const TASK_RECOVERY_EPHEMERAL_SCHEMA = 'TaskRecoveryEphemeralRingV5'
@@ -24,6 +28,7 @@ const TASK_RECOVERY_CLOSEOUT_SCHEMA = 'TaskRecoveryEmergencyCloseoutV5'
 const TASK_RECOVERY_KEY_SCHEMA = 'TaskRecoveryKeyV1'
 const TASK_RECOVERY_USAGE_SCHEMA = 'TaskRecoveryUsageLedgerV1'
 const TASK_ADMISSION_TRANSACTION_SCHEMA = 'TaskAdmissionTransactionV1'
+const TASK_ADMISSION_RECONCILIATION_SCHEMA = 'TaskAdmissionReconciliationReceiptV1'
 const FENCED_TASK_WRITE_OWNER_SCHEMA = 'FencedTaskWriteOwnerLeaseV2'
 const WORKFLOW_TASK_TERMINAL_RECEIPT_SCHEMA = 'WorkflowTaskTerminalReceiptV1'
 const TASK_ADMISSION_PHASES = Object.freeze([
@@ -1704,6 +1709,17 @@ function compactMutationCloseoutForEphemeral(raw) {
   const compactPaths = values => Array.isArray(values)
     ? values.slice(0, 24).map(item => boundedRecoveryString(item, 512))
     : []
+  let reconciliation = null
+  if (raw.reconciliation && typeof raw.reconciliation === 'object') {
+    try {
+      reconciliation = raw.reconciliation.schemaVersion === 'ArtifactMutationReconciliationProjectionV1'
+        ? JSON.parse(JSON.stringify(raw.reconciliation))
+        : projectArtifactMutationReconciliationReceipt(raw.reconciliation)
+    } catch { reconciliation = null }
+  }
+  const reconciliationInput = validateArtifactMutationReconciliationInput(raw.reconciliationInput).valid
+    ? JSON.parse(JSON.stringify(raw.reconciliationInput))
+    : null
   return {
     schemaVersion: raw.schemaVersion,
     operationId: boundedRecoveryString(raw.operationId, 256),
@@ -1713,6 +1729,9 @@ function compactMutationCloseoutForEphemeral(raw) {
     authorizationErrors: Array.isArray(raw.authorizationErrors)
       ? raw.authorizationErrors.slice(0, 24).map(item => boundedRecoveryString(item, 256))
       : [],
+    reconciledAt: raw.reconciledAt || null,
+    reconciliation,
+    reconciliationInput,
     observation: observation ? {
       schemaVersion: observation.schemaVersion,
       operationId: boundedRecoveryString(observation.operationId, 256),
@@ -1787,7 +1806,8 @@ function compactWorkflowOperationalWriteLeaseCloseout(raw) {
     operationId: boundedRecoveryString(raw.operationId, 256),
     status: boundedRecoveryString(raw.status, 32),
     completedAt: boundedRecoveryString(raw.completedAt, 64),
-    receiptDigest: boundedRecoveryString(raw.receiptDigest, 64)
+    receiptDigest: boundedRecoveryString(raw.receiptDigest, 64),
+    reconciliationReceiptDigest: boundedRecoveryString(raw.reconciliationReceiptDigest, 64)
   }
 }
 
@@ -1802,7 +1822,8 @@ function compactSimpleTaskFastPathLeaseCloseout(raw) {
     completedAt: boundedRecoveryString(raw.completedAt, 64),
     usageDigest: boundedRecoveryString(raw.usageDigest, 64),
     receiptDigest: boundedRecoveryString(raw.receiptDigest, 64),
-    closeoutDigest: boundedRecoveryString(raw.closeoutDigest, 64)
+    closeoutDigest: boundedRecoveryString(raw.closeoutDigest, 64),
+    reconciliationReceiptDigest: boundedRecoveryString(raw.reconciliationReceiptDigest, 64)
   }
 }
 
@@ -3772,6 +3793,53 @@ function taskAdmissionTransactionDigest(transaction) {
   return digestValue(value)
 }
 
+function taskAdmissionReconciliationReceiptDigest(receipt) {
+  const value = JSON.parse(JSON.stringify(receipt || {}))
+  delete value.receiptDigest
+  return digestValue(value)
+}
+
+function validateTaskAdmissionReconciliationReceipt(receipt, binding = null) {
+  const errors = []
+  if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) {
+    return { valid: false, errors: ['admission-reconciliation-object-required'] }
+  }
+  if (receipt.schemaVersion !== TASK_ADMISSION_RECONCILIATION_SCHEMA) errors.push('admission-reconciliation-schema')
+  if (!/^admission-[a-f0-9]{40}$/.test(String(receipt.admissionId || ''))) errors.push('admission-reconciliation-admission-id')
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(receipt.taskId || ''))) {
+    errors.push('admission-reconciliation-task-id')
+  }
+  for (const field of ['requestDigest', 'priorTransactionDigest', 'observedEffectsDigest', 'recoveredEffectsDigest']) {
+    if (!/^[a-f0-9]{64}$/.test(String(receipt[field] || ''))) errors.push(`admission-reconciliation-${field}`)
+  }
+  if (!['prepared', 'identity-written', 'overview-written', 'cp-state-written'].includes(receipt.failedFromPhase) ||
+      !['prepared', 'identity-written', 'overview-written', 'cp-state-written'].includes(receipt.recoveredPhase) ||
+      !['prepared', 'identity-written', 'overview-written', 'cp-state-written'].includes(receipt.observedPhase)) {
+    errors.push('admission-reconciliation-phase')
+  }
+  const ordinal = ['prepared', 'identity-written', 'overview-written', 'cp-state-written']
+  if (ordinal.indexOf(receipt.recoveredPhase) !== ordinal.indexOf(receipt.observedPhase) ||
+      ordinal.indexOf(receipt.recoveredPhase) < ordinal.indexOf(receipt.failedFromPhase)) {
+    errors.push('admission-reconciliation-phase-contiguity')
+  }
+  if (receipt.mutationAuthority !== false || !Number.isFinite(Date.parse(String(receipt.reconciledAt || '')))) {
+    errors.push('admission-reconciliation-authority-or-time')
+  }
+  const { receiptDigest, ...semantic } = receipt
+  if (!/^[a-f0-9]{64}$/.test(String(receiptDigest || '')) || taskAdmissionReconciliationReceiptDigest(receipt) !== receiptDigest) {
+    errors.push('admission-reconciliation-digest')
+  }
+  if (binding) {
+    for (const field of ['admissionId', 'taskId', 'requestDigest', 'priorTransactionDigest', 'recoveredPhase', 'recoveredEffectsDigest']) {
+      if (Object.prototype.hasOwnProperty.call(binding, field) &&
+          String(receipt[field] || '') !== String(binding[field] || '')) {
+        errors.push(`admission-reconciliation-binding-${field}`)
+      }
+    }
+  }
+  return { valid: errors.length === 0, errors: [...new Set(errors)] }
+}
+
 function fencedTaskWriteOwnerDigest(owner) {
   const value = JSON.parse(JSON.stringify(owner || {}))
   delete value.leaseDigest
@@ -3966,6 +4034,18 @@ function validateTaskAdmissionTransaction(transaction, expectedIdentity = null) 
   } else if (transaction.error !== null) {
     errors.push('error')
   }
+  if (transaction.reconciliation !== undefined && transaction.reconciliation !== null) {
+    const reconciliationValidation = validateTaskAdmissionReconciliationReceipt(transaction.reconciliation, {
+      admissionId: transaction.admissionId,
+      taskId: transaction.taskId,
+      requestDigest: transaction.requestDigest
+    })
+    const progression = ['prepared', 'identity-written', 'overview-written', 'cp-state-written', 'owner-fenced', 'finalized', 'terminal-closeout']
+    if (!reconciliationValidation.valid || ['aborted', 'needs-reconcile'].includes(transaction.phase) ||
+        progression.indexOf(transaction.phase) < progression.indexOf(transaction.reconciliation.recoveredPhase)) {
+      errors.push(...reconciliationValidation.errors, 'admission-reconciliation-phase-binding')
+    }
+  }
   const expectedStatus = transaction.phase === 'finalized'
     ? 'finalized'
     : (transaction.phase === 'terminal-closeout'
@@ -4136,6 +4216,68 @@ function commitTaskAdmissionTransaction(input = {}, options = {}) {
     }
   }
   return { ...result, transaction }
+}
+
+function commitTaskAdmissionReconciliation(input = {}, options = {}) {
+  const transaction = JSON.parse(JSON.stringify(input.transaction || {}))
+  const receipt = JSON.parse(JSON.stringify(input.receipt || transaction.reconciliation || {}))
+  const validation = validateTaskAdmissionTransaction(transaction, input.identity)
+  const receiptValidation = validateTaskAdmissionReconciliationReceipt(receipt, {
+    admissionId: transaction.admissionId,
+    taskId: transaction.taskId,
+    requestDigest: transaction.requestDigest,
+    priorTransactionDigest: String(input.expectedPriorTransactionDigest || ''),
+    recoveredPhase: transaction.phase,
+    recoveredEffectsDigest: digestValue(transaction.effects)
+  })
+  if (!validation.valid || !receiptValidation.valid || transaction.reconciliation?.receiptDigest !== receipt.receiptDigest) {
+    return {
+      status: 'error',
+      errorCode: 'TASK_ADMISSION_RECONCILIATION_INVALID',
+      errors: [...validation.errors, ...receiptValidation.errors, ...(transaction.reconciliation?.receiptDigest === receipt.receiptDigest ? [] : ['transaction-reconciliation-binding'])]
+    }
+  }
+  let result
+  try {
+    result = updateTaskRecoveryState({
+      metaDir: input.metaDir,
+      identity: input.identity,
+      sessionKey: input.sessionKey,
+      hostSessionDigest: input.hostSessionDigest
+    }, state => {
+      const current = state.admissionTransaction
+      const currentValidation = validateTaskAdmissionTransaction(current, input.identity)
+      if (!currentValidation.valid) {
+        throw new TaskRecoveryStoreV5Error('TASK_ADMISSION_TRANSACTION_INVALID', 'existing task admission transaction is invalid', { errors: currentValidation.errors })
+      }
+      if (current.transactionDigest === transaction.transactionDigest) return state
+      if (current.phase !== 'needs-reconcile' || current.transactionDigest !== input.expectedPriorTransactionDigest ||
+          current.admissionId !== transaction.admissionId || current.requestDigest !== transaction.requestDigest ||
+          receipt.priorTransactionDigest !== current.transactionDigest) {
+        throw new TaskRecoveryStoreV5Error(
+          'TASK_ADMISSION_RECONCILIATION_CAS_MISMATCH',
+          'task admission reconciliation does not match the current needs-reconcile transaction'
+        )
+      }
+      state.admissionTransaction = transaction
+      state.phase = transaction.phase === 'cp-state-written' ? 'CP1' : (state.phase || 'CP1')
+      state.taskRecoveryBinding = {
+        ...(state.taskRecoveryBinding || {}),
+        taskId: transaction.taskId,
+        displayName: transaction.displayName || state.taskRecoveryBinding?.displayName || '',
+        project: transaction.project,
+        kind: transaction.taskKind,
+        taskRoot: path.join(path.resolve(input.identity.activeRoot), ...transaction.taskRootRelative.split('/')),
+        status: 'admitting',
+        identityRevision: 2,
+        boundAt: state.taskRecoveryBinding?.boundAt || transaction.createdAt
+      }
+      return state
+    }, { ...options, reason: 'admission-reconciliation' })
+  } catch (error) {
+    return { status: 'error', errorCode: error.code || 'TASK_ADMISSION_RECONCILIATION_COMMIT_FAILED', message: error.message, details: error.details }
+  }
+  return { ...result, transaction, receipt }
 }
 
 function ownerCasMatches(current, expected) {
@@ -4419,6 +4561,7 @@ module.exports = {
   FENCED_TASK_WRITE_OWNER_SCHEMA,
   MUTATION_PREFLIGHT_STATE_MAX_BYTES,
   TASK_ADMISSION_PHASES,
+  TASK_ADMISSION_RECONCILIATION_SCHEMA,
   TASK_ADMISSION_TRANSACTION_SCHEMA,
   TASK_RECOVERY_CLOSEOUT_SCHEMA,
   TASK_RECOVERY_COMMIT_SCHEMA,
@@ -4431,6 +4574,7 @@ module.exports = {
   TaskRecoveryStoreV5Error,
   appendTaskRecoveryTelemetry,
   commitFencedTaskWriteOwnerTransition,
+  commitTaskAdmissionReconciliation,
   commitTaskAdmissionTransaction,
   commitTaskRecoveryState,
   createTaskRecoveryKey,
@@ -4452,9 +4596,11 @@ module.exports = {
   storePaths,
   taskPaths,
   taskAdmissionTransactionDigest,
+  taskAdmissionReconciliationReceiptDigest,
   updateTaskRecoveryState,
   validateFencedTaskWriteOwner,
   validateTaskAdmissionTransaction,
+  validateTaskAdmissionReconciliationReceipt,
   validateWorkflowTaskTerminalReceipt,
   workflowTaskTerminalReceiptDigest,
   writeEmergencyCloseout,

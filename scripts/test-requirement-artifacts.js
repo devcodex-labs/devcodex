@@ -53,7 +53,7 @@ try {
       owner: 'task-owner',
       mutability: 'mutable',
       protected: false,
-      destructivePolicy: 'forbid'
+      destructivePolicy: 'confirm'
     }]
   }, null, 2))
 

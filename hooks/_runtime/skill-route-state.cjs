@@ -18,7 +18,16 @@ const {
 
 const TURN_TTL_MS = 24 * 60 * 60 * 1000
 const MAX_TURNS = 64
+const MAX_RAW_TURN_DIRECTORIES = 256
+const MAX_QUARANTINE_DIRECTORIES = 256
 const MAX_ROUTE_ROOT_BYTES = 32 * 1024 * 1024
+const TURN_PRESSURE_HIGH_WATER = 56
+const TURN_PRESSURE_LOW_WATER = 48
+const ROUTE_BYTES_PRESSURE_HIGH_WATER = 28 * 1024 * 1024
+const ROUTE_BYTES_PRESSURE_LOW_WATER = 24 * 1024 * 1024
+const EMPTY_TURN_GRACE_MS = 60 * 1000
+const PRESSURE_RECLAIM_GRACE_MS = 60 * 1000
+const ORPHAN_WRITER_ARTIFACT_RE = /^(?:route-envelope\.lock(?:\.stale)?|(?:route-envelope|catalog-progress)\.json\.(?:next\.tmp|replace\.[A-Za-z0-9._-]+))$/
 const MAX_RESPONSE_CACHE_BYTES = 512 * 1024
 const TURN_BODY_LIMIT_BYTES = 256 * 1024
 const LOCK_STALE_MS = 30 * 1000
@@ -522,15 +531,71 @@ function directoryBytesBounded (root, fsImpl = fs, limit = MAX_ROUTE_ROOT_BYTES 
   return bytes
 }
 
-function assertCapacity (paths, fsImpl = fs) {
+function inspectTurnCapacity (paths, fsImpl = fs) {
   fsImpl.mkdirSync(paths.turnsRoot, { recursive: true })
-  const turnCount = fsImpl.readdirSync(paths.turnsRoot, { withFileTypes: true })
-    .filter(entry => entry.isDirectory()).length
+  const entries = fsImpl.readdirSync(paths.turnsRoot, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+  let occupiedTurnCount = 0
+  let emptyTurnCount = 0
+  for (const entry of entries) {
+    const turnRoot = path.join(paths.turnsRoot, entry.name)
+    try {
+      if (fsImpl.readdirSync(turnRoot).length === 0) {
+        emptyTurnCount += 1
+        continue
+      }
+    } catch {
+      // An unreadable directory is occupied until a later, verified cleanup.
+    }
+    occupiedTurnCount += 1
+  }
+  return {
+    rawDirectoryCount: entries.length,
+    occupiedTurnCount,
+    emptyTurnCount
+  }
+}
+
+function assertCapacity (paths, fsImpl = fs) {
+  const capacity = inspectTurnCapacity(paths, fsImpl)
+  let targetAlreadyOccupied = false
+  try {
+    targetAlreadyOccupied = fsImpl.existsSync(paths.turnRoot) &&
+      fsImpl.readdirSync(paths.turnRoot).length > 0
+  } catch {
+    targetAlreadyOccupied = true
+  }
+  const projectedTurnCount = capacity.occupiedTurnCount +
+    (targetAlreadyOccupied ? 0 : 1)
+  const targetDirectoryExists = fsImpl.existsSync(paths.turnRoot)
+  const projectedRawDirectoryCount = capacity.rawDirectoryCount +
+    (targetDirectoryExists ? 0 : 1)
+  const quarantineRoot = path.join(paths.routeRoot, 'quarantine')
+  let quarantineDirectoryCount = 0
+  try {
+    quarantineDirectoryCount = fsImpl.readdirSync(quarantineRoot, { withFileTypes: true })
+      .filter(entry => entry.isDirectory()).length
+  } catch {}
   const bytes = directoryBytesBounded(paths.routeRoot, fsImpl)
-  if (turnCount >= MAX_TURNS || bytes >= MAX_ROUTE_ROOT_BYTES) {
+  if (projectedTurnCount > MAX_TURNS ||
+      projectedRawDirectoryCount > MAX_RAW_TURN_DIRECTORIES ||
+      quarantineDirectoryCount >= MAX_QUARANTINE_DIRECTORIES ||
+      bytes >= MAX_ROUTE_ROOT_BYTES) {
     const error = new Error('RUNTIME_STATE_CAPACITY_BLOCKED')
     error.code = 'RUNTIME_STATE_CAPACITY_BLOCKED'
-    error.capacity = { turnCount, bytes, maxTurns: MAX_TURNS, maxBytes: MAX_ROUTE_ROOT_BYTES }
+    error.capacity = {
+      turnCount: capacity.occupiedTurnCount,
+      projectedTurnCount,
+      rawDirectoryCount: capacity.rawDirectoryCount,
+      projectedRawDirectoryCount,
+      ignoredEmptyTurnCount: capacity.emptyTurnCount,
+      quarantineDirectoryCount,
+      bytes,
+      maxTurns: MAX_TURNS,
+      maxRawTurnDirectories: MAX_RAW_TURN_DIRECTORIES,
+      maxQuarantineDirectories: MAX_QUARANTINE_DIRECTORIES,
+      maxBytes: MAX_ROUTE_ROOT_BYTES
+    }
     throw error
   }
 }
@@ -587,15 +652,55 @@ function assertProjectedCatalogProgressCapacity (paths, nextProgress, fsImpl = f
   }
 }
 
+function pressureReclaimReason (envelope, entryName, options, now) {
+  const state = envelope?.state
+  if (!state || state.turnBinding !== entryName) return null
+  const expiresAt = Date.parse(envelope.expiresAt || '')
+  if (!Number.isFinite(expiresAt) || expiresAt <= now) return null
+  const updatedAt = Date.parse(envelope.updatedAt || '')
+  if (!Number.isFinite(updatedAt) ||
+      now - updatedAt < (options.pressureReclaimGraceMs ?? PRESSURE_RECLAIM_GRACE_MS)) {
+    return null
+  }
+  const obligations = state.obligationLedger
+  const businessItems = Array.isArray(obligations?.items) ? obligations.items : null
+  const requiredStageIds = Array.isArray(obligations?.requiredStageIds)
+    ? obligations.requiredStageIds
+    : null
+  const processComplete = state.plan?.status === 'complete' &&
+    businessItems?.length === 0 &&
+    requiredStageIds !== null &&
+    requiredStageIds.every(stageId => state.stageProgress?.[stageId]?.status === 'loaded')
+  if (processComplete) return 'terminal-process-complete'
+  if (state.routeRetirement?.schemaVersion === 'SkillRouteRetirementStateV1' &&
+      state.routeRetirement.terminal === true && businessItems?.length === 0) {
+    return 'terminal-retired'
+  }
+  const currentHostSessionId = String(options.hostSessionId || '').trim()
+  const currentContextEpoch = String(options.contextEpoch || '').trim()
+  if (currentHostSessionId && currentContextEpoch &&
+      state.hostSessionId === currentHostSessionId &&
+      state.contextEpoch !== currentContextEpoch &&
+      !state.plan && !state.decision) {
+    return 'same-session-uncommitted-superseded'
+  }
+  return null
+}
+
 function collectExpiredTurns (activeRoot, options = {}) {
   const fsImpl = options.fs || fs
   const routeRoot = routeRootForActiveRoot(activeRoot)
   const turnsRoot = path.join(routeRoot, 'turns')
   const quarantineRoot = path.join(routeRoot, 'quarantine')
   const result = {
+    schemaVersion: 'SkillRouteRetentionResultV2',
     scanned: 0,
     quarantined: [],
     removed: [],
+    removedEmpty: [],
+    removedOrphans: [],
+    removedExpired: [],
+    removedPressure: [],
     cleanedQuarantine: [],
     skippedLocked: [],
     skippedReferenced: [],
@@ -603,14 +708,24 @@ function collectExpiredTurns (activeRoot, options = {}) {
   }
   if (!fsImpl.existsSync(turnsRoot) && !fsImpl.existsSync(quarantineRoot)) return result
   const releaseGc = acquireGcLock(routeRoot, options)
+  let releaseRoot
   try {
+    releaseRoot = acquireRootMutationLock(
+      routeRoot,
+      'gc',
+      sha256({ activeRoot: portable(activeRoot), now: options.now || null }),
+      options
+    )
     const protectedTurnBindings = new Set(
       (options.protectedTurnBindings || []).map(value => String(value))
     )
+    const pushUnique = (items, value) => {
+      if (!items.includes(value)) items.push(value)
+    }
     if (fsImpl.existsSync(quarantineRoot)) {
       const quarantined = fsImpl.readdirSync(quarantineRoot, { withFileTypes: true })
         .filter(entry => entry.isDirectory())
-        .slice(0, options.maxGcTurns || 256)
+        .slice(0, options.maxGcTurns || MAX_QUARANTINE_DIRECTORIES)
       for (const entry of quarantined) {
         const quarantinedRoot = path.resolve(quarantineRoot, entry.name)
         if (!isInside(quarantineRoot, quarantinedRoot) ||
@@ -640,7 +755,147 @@ function collectExpiredTurns (activeRoot, options = {}) {
       : new Date(options.now).getTime()
     const entries = fsImpl.readdirSync(turnsRoot, { withFileTypes: true })
       .filter(entry => entry.isDirectory())
-      .slice(0, options.maxGcTurns || 256)
+      .slice(0, options.maxGcTurns || MAX_RAW_TURN_DIRECTORIES)
+    const quarantineTurn = (entryName, reason, expectedEnvelope = null) => {
+      const turnRoot = path.resolve(turnsRoot, entryName)
+      const quarantineName = `${entryName}.${Date.now()}.${process.pid}`
+      const quarantinedRoot = path.resolve(quarantineRoot, quarantineName)
+      const writerOrphan = reason === 'writer-orphan'
+      let releaseTurn
+      try {
+        if (expectedEnvelope || writerOrphan) {
+          if (!TURN_BINDING_RE.test(entryName)) {
+            result.failures.push({ turnBinding: entryName, errorCode: 'GC_TURN_BINDING_INVALID' })
+            return false
+          }
+          try {
+            releaseTurn = acquireLock(
+              turnPaths(activeRoot, entryName),
+              'gc',
+              `gc:${entryName}:${reason}`,
+              {
+                ...options,
+                lockTimeoutMs: options.gcTurnLockTimeoutMs || 50
+              }
+            )
+          } catch (error) {
+            if (error.code === 'TURN_LOCK_TIMEOUT') {
+              pushUnique(result.skippedLocked, entryName)
+              return false
+            }
+            result.failures.push({
+              turnBinding: entryName,
+              errorCode: error.code || 'GC_TURN_LOCK_FAILED'
+            })
+            return false
+          }
+          const current = readJson(path.join(turnRoot, 'route-envelope.json'), fsImpl)
+          if (writerOrphan) {
+            const lockName = path.basename(turnPaths(activeRoot, entryName).lock)
+            let currentEntries
+            try {
+              currentEntries = fsImpl.readdirSync(turnRoot, { withFileTypes: true })
+            } catch (error) {
+              result.failures.push({ turnBinding: entryName, errorCode: error.code || 'GC_ORPHAN_REVALIDATION_FAILED' })
+              return false
+            }
+            const residual = currentEntries.filter(item => item.name !== lockName)
+            const latestModifiedAt = residual.reduce((latest, item) => {
+              try { return Math.max(latest, fsImpl.statSync(path.join(turnRoot, item.name)).mtimeMs) } catch { return now }
+            }, 0)
+            if (current || residual.some(item => !item.isFile() || !ORPHAN_WRITER_ARTIFACT_RE.test(item.name)) ||
+                now - latestModifiedAt < (options.emptyTurnGraceMs ?? EMPTY_TURN_GRACE_MS)) {
+              result.failures.push({ turnBinding: entryName, errorCode: 'GC_ORPHAN_REVALIDATION_FAILED' })
+              return false
+            }
+          } else if (!current || current.state?.turnBinding !== entryName) {
+            result.failures.push({ turnBinding: entryName, errorCode: 'GC_REVALIDATION_FAILED' })
+            return false
+          } else if (reason === 'expired') {
+            const currentExpiry = Date.parse(current.expiresAt || '')
+            if (!Number.isFinite(currentExpiry) || currentExpiry > now) {
+              result.failures.push({ turnBinding: entryName, errorCode: 'GC_REVALIDATION_FAILED' })
+              return false
+            }
+          } else {
+            const currentReason = pressureReclaimReason(current, entryName, options, now)
+            if (currentReason !== reason) {
+              result.failures.push({ turnBinding: entryName, errorCode: 'GC_PRESSURE_REVALIDATION_FAILED' })
+              return false
+            }
+          }
+        } else {
+          let currentEntries
+          try {
+            currentEntries = fsImpl.readdirSync(turnRoot)
+          } catch (error) {
+            result.failures.push({ turnBinding: entryName, errorCode: error.code || 'GC_EMPTY_REVALIDATION_FAILED' })
+            return false
+          }
+          if (currentEntries.length !== 0) {
+            result.failures.push({ turnBinding: entryName, errorCode: 'GC_EMPTY_REVALIDATION_FAILED' })
+            return false
+          }
+        }
+        fsImpl.mkdirSync(quarantineRoot, { recursive: true })
+        if (!isInside(quarantineRoot, quarantinedRoot) ||
+            fsImpl.existsSync(quarantinedRoot)) {
+          result.failures.push({ turnBinding: entryName, errorCode: 'GC_QUARANTINE_TARGET_INVALID' })
+          return false
+        }
+        fsImpl.renameSync(turnRoot, quarantinedRoot)
+        if (fsImpl.existsSync(turnRoot)) {
+          throw Object.assign(new Error('GC_QUARANTINE_READBACK_FAILED'), {
+            code: 'GC_QUARANTINE_READBACK_FAILED'
+          })
+        }
+        if (expectedEnvelope) {
+          const moved = readJson(path.join(quarantinedRoot, 'route-envelope.json'), fsImpl)
+          if (moved?.state?.turnBinding !== entryName) {
+            try { fsImpl.renameSync(quarantinedRoot, turnRoot) } catch {}
+            result.failures.push({ turnBinding: entryName, errorCode: 'GC_QUARANTINE_READBACK_FAILED' })
+            return false
+          }
+        } else if (writerOrphan) {
+          const lockName = path.basename(turnPaths(activeRoot, entryName).lock)
+          const movedEntries = fsImpl.readdirSync(quarantinedRoot, { withFileTypes: true })
+            .filter(item => item.name !== lockName)
+          if (readJson(path.join(quarantinedRoot, 'route-envelope.json'), fsImpl) ||
+              movedEntries.some(item => !item.isFile() || !ORPHAN_WRITER_ARTIFACT_RE.test(item.name))) {
+            try { fsImpl.renameSync(quarantinedRoot, turnRoot) } catch {}
+            result.failures.push({ turnBinding: entryName, errorCode: 'GC_ORPHAN_READBACK_FAILED' })
+            return false
+          }
+        } else if (fsImpl.readdirSync(quarantinedRoot).length !== 0) {
+          try { fsImpl.renameSync(quarantinedRoot, turnRoot) } catch {}
+          result.failures.push({ turnBinding: entryName, errorCode: 'GC_EMPTY_READBACK_FAILED' })
+          return false
+        }
+        result.quarantined.push(entryName)
+        try { fsImpl.unlinkSync(path.join(quarantinedRoot, 'route-envelope.lock')) } catch {}
+        fsImpl.rmSync(quarantinedRoot, { recursive: true, force: false })
+        if (fsImpl.existsSync(quarantinedRoot)) {
+          throw Object.assign(new Error('GC_REMOVE_READBACK_FAILED'), {
+            code: 'GC_REMOVE_READBACK_FAILED'
+          })
+        }
+        result.removed.push(entryName)
+        if (reason === 'empty-orphan') result.removedEmpty.push(entryName)
+        else if (reason === 'writer-orphan') result.removedOrphans.push(entryName)
+        else if (reason === 'expired') result.removedExpired.push(entryName)
+        else result.removedPressure.push({ turnBinding: entryName, reason })
+        return true
+      } catch (error) {
+        result.failures.push({
+          turnBinding: entryName,
+          errorCode: error.code || 'GC_REMOVE_FAILED'
+        })
+        return false
+      } finally {
+        if (releaseTurn) releaseTurn()
+      }
+    }
+
     for (const entry of entries) {
       result.scanned += 1
       const turnRoot = path.resolve(turnsRoot, entry.name)
@@ -649,85 +904,101 @@ function collectExpiredTurns (activeRoot, options = {}) {
         continue
       }
       if (protectedTurnBindings.has(entry.name)) {
-        result.skippedReferenced.push(entry.name)
+        pushUnique(result.skippedReferenced, entry.name)
+        continue
+      }
+      let childEntries
+      try {
+        childEntries = fsImpl.readdirSync(turnRoot)
+      } catch (error) {
+        result.failures.push({ turnBinding: entry.name, errorCode: error.code || 'GC_TURN_READ_FAILED' })
+        continue
+      }
+      if (childEntries.length === 0) {
+        let modifiedAt = now
+        try { modifiedAt = fsImpl.statSync(turnRoot).mtimeMs } catch {}
+        if (now - modifiedAt >= (options.emptyTurnGraceMs ?? EMPTY_TURN_GRACE_MS)) {
+          quarantineTurn(entry.name, 'empty-orphan')
+        }
         continue
       }
       const envelope = readJson(path.join(turnRoot, 'route-envelope.json'), fsImpl)
+      if (!envelope) {
+        const orphanEntries = fsImpl.readdirSync(turnRoot, { withFileTypes: true })
+        const latestModifiedAt = orphanEntries.reduce((latest, item) => {
+          try { return Math.max(latest, fsImpl.statSync(path.join(turnRoot, item.name)).mtimeMs) } catch { return now }
+        }, 0)
+        if (orphanEntries.length > 0 &&
+            orphanEntries.every(item => item.isFile() && ORPHAN_WRITER_ARTIFACT_RE.test(item.name)) &&
+            now - latestModifiedAt >= (options.emptyTurnGraceMs ?? EMPTY_TURN_GRACE_MS)) {
+          quarantineTurn(entry.name, 'writer-orphan')
+        } else if (orphanEntries.some(item => !item.isFile() || !ORPHAN_WRITER_ARTIFACT_RE.test(item.name))) {
+          result.failures.push({ turnBinding: entry.name, errorCode: 'GC_TURN_ENVELOPE_MISSING' })
+        }
+        continue
+      }
       const expiresAt = Date.parse(envelope?.expiresAt || '')
       if (!Number.isFinite(expiresAt) || expiresAt > now) continue
       if (envelope?.state?.turnBinding !== entry.name) {
         result.failures.push({ turnBinding: entry.name, errorCode: 'GC_TURN_IDENTITY_MISMATCH' })
         continue
       }
-      let releaseTurn
-      try {
-        releaseTurn = acquireLock(
-          turnPaths(activeRoot, entry.name),
-          'gc',
-          `gc:${entry.name}`,
-          {
-            ...options,
-            lockTimeoutMs: options.gcTurnLockTimeoutMs || 50
+      quarantineTurn(entry.name, 'expired', envelope)
+    }
+
+    const pressurePaths = {
+      routeRoot,
+      turnsRoot,
+      turnRoot: '',
+      envelope: ''
+    }
+    const beforePressure = inspectTurnCapacity(pressurePaths, fsImpl)
+    let pressureBytes = directoryBytesBounded(routeRoot, fsImpl)
+    result.capacityBeforePressure = { ...beforePressure, bytes: pressureBytes }
+    const pressureEnabled = options.pressureReclaim === true
+    const pressureHigh = beforePressure.occupiedTurnCount >= TURN_PRESSURE_HIGH_WATER ||
+      pressureBytes >= ROUTE_BYTES_PRESSURE_HIGH_WATER
+    if (pressureEnabled && pressureHigh) {
+      const candidates = fsImpl.readdirSync(turnsRoot, { withFileTypes: true })
+        .filter(entry => entry.isDirectory() && !protectedTurnBindings.has(entry.name))
+        .map(entry => {
+          const file = path.join(turnsRoot, entry.name, 'route-envelope.json')
+          const envelope = readJson(file, fsImpl)
+          if (envelope && envelope.state?.turnBinding !== entry.name) {
+            result.failures.push({
+              turnBinding: entry.name,
+              errorCode: 'GC_TURN_IDENTITY_MISMATCH'
+            })
           }
-        )
-      } catch (error) {
-        if (error.code === 'TURN_LOCK_TIMEOUT') {
-          result.skippedLocked.push(entry.name)
-          continue
-        }
-        result.failures.push({
-          turnBinding: entry.name,
-          errorCode: error.code || 'GC_TURN_LOCK_FAILED'
-        })
-        continue
-      }
-      const quarantineName = `${entry.name}.${Date.now()}.${process.pid}`
-      const quarantinedRoot = path.resolve(quarantineRoot, quarantineName)
-      try {
-        const current = readJson(path.join(turnRoot, 'route-envelope.json'), fsImpl)
-        const currentExpiry = Date.parse(current?.expiresAt || '')
-        if (!Number.isFinite(currentExpiry) || currentExpiry > now ||
-            current?.state?.turnBinding !== entry.name) {
-          result.failures.push({ turnBinding: entry.name, errorCode: 'GC_REVALIDATION_FAILED' })
-          continue
-        }
-        fsImpl.mkdirSync(quarantineRoot, { recursive: true })
-        if (!isInside(quarantineRoot, quarantinedRoot) ||
-            fsImpl.existsSync(quarantinedRoot)) {
-          result.failures.push({ turnBinding: entry.name, errorCode: 'GC_QUARANTINE_TARGET_INVALID' })
-          continue
-        }
-        fsImpl.renameSync(turnRoot, quarantinedRoot)
-        const moved = readJson(path.join(quarantinedRoot, 'route-envelope.json'), fsImpl)
-        if (fsImpl.existsSync(turnRoot) || moved?.state?.turnBinding !== entry.name) {
-          if (!fsImpl.existsSync(turnRoot) && fsImpl.existsSync(quarantinedRoot)) {
-            try { fsImpl.renameSync(quarantinedRoot, turnRoot) } catch {}
+          return {
+            entryName: entry.name,
+            envelope,
+            reason: pressureReclaimReason(envelope, entry.name, options, now),
+            updatedAt: Date.parse(envelope?.updatedAt || '') || Number.MAX_SAFE_INTEGER,
+            bytes: directoryBytesBounded(path.join(turnsRoot, entry.name), fsImpl)
           }
-          result.failures.push({ turnBinding: entry.name, errorCode: 'GC_QUARANTINE_READBACK_FAILED' })
-          continue
-        }
-        result.quarantined.push(entry.name)
-        try {
-          fsImpl.unlinkSync(path.join(quarantinedRoot, 'route-envelope.lock'))
-        } catch {}
-        fsImpl.rmSync(quarantinedRoot, { recursive: true, force: false })
-        if (fsImpl.existsSync(quarantinedRoot)) {
-          throw Object.assign(new Error('GC_REMOVE_READBACK_FAILED'), {
-            code: 'GC_REMOVE_READBACK_FAILED'
-          })
-        }
-        result.removed.push(entry.name)
-      } catch (error) {
-        result.failures.push({
-          turnBinding: entry.name,
-          errorCode: error.code || 'GC_REMOVE_FAILED'
         })
-      } finally {
-        if (releaseTurn) releaseTurn()
+        .filter(candidate => candidate.reason)
+        .sort((left, right) => left.updatedAt - right.updatedAt ||
+          left.entryName.localeCompare(right.entryName))
+      let occupiedTurnCount = beforePressure.occupiedTurnCount
+      for (const candidate of candidates) {
+        if (occupiedTurnCount <= TURN_PRESSURE_LOW_WATER &&
+            pressureBytes <= ROUTE_BYTES_PRESSURE_LOW_WATER) break
+        if (quarantineTurn(candidate.entryName, candidate.reason, candidate.envelope)) {
+          occupiedTurnCount = Math.max(0, occupiedTurnCount - 1)
+          pressureBytes = Math.max(0, pressureBytes - candidate.bytes)
+        }
       }
+    }
+    const afterPressure = inspectTurnCapacity(pressurePaths, fsImpl)
+    result.capacityAfterPressure = {
+      ...afterPressure,
+      bytes: directoryBytesBounded(routeRoot, fsImpl)
     }
     return result
   } finally {
+    if (releaseRoot) releaseRoot()
     releaseGc()
   }
 }
@@ -761,10 +1032,14 @@ function bootstrapSkillRoute (input, options = {}) {
     error.code = 'CONTEXT_EPOCH_REQUIRED'
     throw error
   }
+  const hostSessionId = String(input.hostSessionId || '').trim()
   const turnBinding = deriveTurnBinding(project, activeRoot, contextEpoch)
   const paths = turnPaths(activeRoot, turnBinding)
-  collectExpiredTurns(activeRoot, {
+  const retention = collectExpiredTurns(activeRoot, {
     ...options,
+    pressureReclaim: true,
+    hostSessionId,
+    contextEpoch,
     protectedTurnBindings: [
       ...(options.protectedTurnBindings || []),
       turnBinding
@@ -846,6 +1121,8 @@ function bootstrapSkillRoute (input, options = {}) {
       const sameIdentity = existing.state?.project === project &&
         existing.state?.activeRoot === portable(activeRoot) &&
         existing.state?.contextEpoch === contextEpoch &&
+        (!hostSessionId || !existing.state?.hostSessionId ||
+          existing.state.hostSessionId === hostSessionId) &&
         existing.state?.catalog?.catalogDigest === catalog.catalogDigest &&
         existing.state?.bootstrap?.bootstrapDigest === bootstrap.bootstrapDigest
       if (!sameIdentity) {
@@ -857,7 +1134,8 @@ function bootstrapSkillRoute (input, options = {}) {
         bootstrap,
         envelope: existing,
         reused: true,
-        paths
+        paths,
+        retention
       }
     }
     const now = options.now == null ? new Date() : new Date(options.now)
@@ -869,6 +1147,7 @@ function bootstrapSkillRoute (input, options = {}) {
         activeRoot: portable(activeRoot),
         turnBinding,
         contextEpoch,
+        hostSessionId,
         mode: input.mode,
         modeReceipt,
         runtimeContractDigest,
@@ -917,7 +1196,7 @@ function bootstrapSkillRoute (input, options = {}) {
       error.code = 'TURN_ENVELOPE_READBACK_FAILED'
       throw error
     }
-    return { bootstrap, envelope: readBack, reused: false, paths }
+    return { bootstrap, envelope: readBack, reused: false, paths, retention }
   } finally {
     if (release) release()
     if (createdTurn && !fsImpl.existsSync(paths.envelope)) {
@@ -1263,7 +1542,13 @@ function recordSkillRouteProbeObservation (activeRoot, turnBinding, evidence, op
 module.exports = {
   TURN_TTL_MS,
   MAX_TURNS,
+  MAX_RAW_TURN_DIRECTORIES,
+  MAX_QUARANTINE_DIRECTORIES,
   MAX_ROUTE_ROOT_BYTES,
+  TURN_PRESSURE_HIGH_WATER,
+  TURN_PRESSURE_LOW_WATER,
+  ROUTE_BYTES_PRESSURE_HIGH_WATER,
+  ROUTE_BYTES_PRESSURE_LOW_WATER,
   MAX_RESPONSE_CACHE_BYTES,
   TURN_BODY_LIMIT_BYTES,
   TURN_BINDING_RE,

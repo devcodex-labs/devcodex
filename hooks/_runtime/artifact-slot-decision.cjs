@@ -84,7 +84,7 @@ function validateOverlay(overlay, base, input = {}) {
     if (!slot?.slotId || baseIds.has(slot.slotId) || addedIds.has(slot.slotId)) errors.push(`overlay-slot-conflict:${slot?.slotId || 'missing'}`)
     addedIds.add(slot?.slotId)
     if (!base.rootClasses.includes(slot.rootClass)) errors.push(`overlay-slot-root:${slot.slotId}`)
-    if (slot.protected !== false || slot.owner !== 'task-owner' || slot.writePolicy !== 'bounded-path' || slot.destructivePolicy !== 'forbid') errors.push(`overlay-slot-policy:${slot.slotId}`)
+    if (slot.protected !== false || slot.owner !== 'task-owner' || slot.writePolicy !== 'bounded-path' || slot.destructivePolicy !== 'confirm') errors.push(`overlay-slot-policy:${slot.slotId}`)
     const patterns = [...(slot.relativePatterns || []), ...(slot.projectRelativePatterns || [])]
     if (!patterns.length || patterns.some(pattern => !safeOverlayPattern(pattern))) errors.push(`overlay-slot-pattern:${slot.slotId}`)
   }

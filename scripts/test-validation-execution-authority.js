@@ -255,6 +255,34 @@ async function main() {
     assert.strictEqual(rootConfirmation.schemaVersion, BUDGET_CONFIRMATION_SCHEMA)
     assert.strictEqual(validateBudgetConfirmationReceipt(rootConfirmation).valid, true)
     assert.strictEqual(rootConfirmation.hostSessionDigest, hostSessionIdentity(FORMAL_SESSION_KEY))
+    const malformedRootConfirmation = {
+      ...rootConfirmation,
+      projectRootIdentity: {
+        schemaVersion: 'ProjectRootIdentityV1',
+        normalizedRoot: '',
+        digest: sha256('forged-project-root')
+      }
+    }
+    const malformedRootSemantic = { ...malformedRootConfirmation }
+    delete malformedRootSemantic.confirmationId
+    delete malformedRootSemantic.receiptDigest
+    malformedRootConfirmation.receiptDigest = sha256(Buffer.from(stableStringify(malformedRootSemantic), 'utf8'))
+    malformedRootConfirmation.confirmationId = `budget-confirmation-${malformedRootConfirmation.receiptDigest}`
+    assert(validateBudgetConfirmationReceipt(malformedRootConfirmation).errors.includes(
+      'budget-confirmation-project-root-invalid'
+    ))
+    const differentProjectRoot = {
+      schemaVersion: 'ProjectRootIdentityV1',
+      normalizedRoot: `${rootConfirmation.projectRootIdentity.normalizedRoot}/different`,
+      digest: null
+    }
+    differentProjectRoot.digest = sha256(Buffer.from(stableStringify({
+      schemaVersion: differentProjectRoot.schemaVersion,
+      normalizedRoot: differentProjectRoot.normalizedRoot
+    }), 'utf8'))
+    assert(validateBudgetConfirmationReceipt(rootConfirmation, {
+      projectRootIdentity: differentProjectRoot
+    }).errors.includes('budget-confirmation-binding-mismatch:projectRootIdentity'))
     assert.throws(() => createBudgetConfirmationReceipt({
       pendingBudgetCard,
       authorityKind: 'auto',
@@ -686,15 +714,31 @@ async function main() {
     }).buildTerminalProjection({
       ...completed.receipt,
       failedNode: 'fixture-failure',
-      results: [{
-        nodeId: 'fixture-failure',
-        status: 'failed',
-        exitCode: 17,
-        errorCode: 'FIXTURE_FAILURE',
-        durationMs: 42,
-        stdout: 'bounded stdout evidence',
-        stderr: 'bounded stderr evidence'
-      }],
+      failedNodes: ['fixture-failure', 'fixture-second-failure'],
+      abortedNodes: ['fixture-dependent'],
+      abortedNodeReasons: {
+        'fixture-dependent': { code: 'VALIDATION_DEPENDENCY_FAILED', failedDependencies: ['fixture-failure'] }
+      },
+      results: [
+        {
+          nodeId: 'fixture-failure',
+          status: 'failed',
+          exitCode: 17,
+          errorCode: 'FIXTURE_FAILURE',
+          durationMs: 42,
+          stdout: 'bounded stdout evidence',
+          stderr: 'bounded stderr evidence'
+        },
+        {
+          nodeId: 'fixture-second-failure',
+          status: 'failed',
+          exitCode: 19,
+          errorCode: 'FIXTURE_SECOND_FAILURE',
+          durationMs: 21,
+          stdout: '',
+          stderr: 'second failure'
+        }
+      ],
       terminalReason: { code: 'LARGE-REASON', detail: 'r'.repeat(200000) },
       runner: {
         ...completed.runner,
@@ -708,6 +752,13 @@ async function main() {
     assert.strictEqual(compactProjection.failureSummary.nodeId, 'fixture-failure')
     assert.strictEqual(compactProjection.failureSummary.exitCode, 17)
     assert.strictEqual(compactProjection.failureSummary.stderr.preview, 'bounded stderr evidence')
+    assert.deepStrictEqual(compactProjection.failedNodes, ['fixture-failure', 'fixture-second-failure'])
+    assert.strictEqual(compactProjection.failedNodeCount, 2)
+    assert.strictEqual(compactProjection.failedNodesTruncated, false)
+    assert.deepStrictEqual(compactProjection.failureSummaries.map(item => item.nodeId),
+      ['fixture-failure', 'fixture-second-failure'])
+    assert.strictEqual(compactProjection.abortedNodeReasons['fixture-dependent'].code,
+      'VALIDATION_DEPENDENCY_FAILED')
     assert.strictEqual((await terminateOwnedTree({ pid: process.pid }, {
       runIdentityDigest: lease.runIdentityDigest
     })).status, 'denied', 'process cleanup without an exact ownership receipt must never signal a process')

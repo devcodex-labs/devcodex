@@ -36,23 +36,60 @@ function insideOrSame(child, parent) {
   return candidate === root || candidate.startsWith(root + path.sep)
 }
 
+function statIdentity(stat) {
+  return {
+    dev: String(stat?.dev),
+    ino: String(stat?.ino),
+    size: Number(stat?.size),
+    mtimeMs: Number(stat?.mtimeMs),
+    ctimeMs: Number(stat?.ctimeMs)
+  }
+}
+
+function sameStatIdentity(left, right) {
+  const a = statIdentity(left)
+  const b = statIdentity(right)
+  return a.dev === b.dev && a.ino === b.ino && a.size === b.size &&
+    a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs
+}
+
+function realpathExisting(fsImpl, target) {
+  const resolved = typeof fsImpl.realpathSync?.native === 'function'
+    ? fsImpl.realpathSync.native(target)
+    : fsImpl.realpathSync(target)
+  return path.resolve(resolved)
+}
+
 function hashFileBounded(file, fsImpl = fs) {
-  const stat = fsImpl.statSync(file)
-  if (!stat.isFile()) return { digest: null, bytes: stat.size, complete: true }
-  if (stat.size > MAX_HASH_BYTES) return { digest: null, bytes: stat.size, complete: false, errorCode: 'mutation-observation-file-too-large' }
+  const initialPath = fsImpl.lstatSync(file)
+  if (initialPath.isSymbolicLink()) {
+    return { digest: null, bytes: initialPath.size, complete: false, errorCode: 'mutation-observation-reparse-target' }
+  }
+  if (!initialPath.isFile()) return { digest: null, bytes: initialPath.size, complete: true }
+  if (initialPath.size > MAX_HASH_BYTES) return { digest: null, bytes: initialPath.size, complete: false, errorCode: 'mutation-observation-file-too-large' }
   const descriptor = fsImpl.openSync(file, 'r')
   const hasher = crypto.createHash('sha256')
   const buffer = Buffer.allocUnsafe(64 * 1024)
   try {
+    const before = fsImpl.fstatSync(descriptor)
+    if (!before.isFile() || !sameStatIdentity(initialPath, before)) {
+      return { digest: null, bytes: Number(before.size || 0), complete: false, errorCode: 'mutation-observation-file-drift' }
+    }
     let offset = 0
-    while (offset < stat.size) {
-      const read = fsImpl.readSync(descriptor, buffer, 0, Math.min(buffer.length, stat.size - offset), offset)
+    while (offset < before.size) {
+      const read = fsImpl.readSync(descriptor, buffer, 0, Math.min(buffer.length, before.size - offset), offset)
       if (!read) break
       hasher.update(buffer.subarray(0, read))
       offset += read
     }
-    if (offset !== stat.size) return { digest: null, bytes: stat.size, complete: false, errorCode: 'mutation-observation-short-read' }
-    return { digest: hasher.digest('hex'), bytes: stat.size, complete: true }
+    const after = fsImpl.fstatSync(descriptor)
+    const currentPath = fsImpl.lstatSync(file)
+    if (!currentPath.isFile() || currentPath.isSymbolicLink() ||
+        !sameStatIdentity(before, after) || !sameStatIdentity(after, currentPath)) {
+      return { digest: null, bytes: Number(after.size || 0), complete: false, errorCode: 'mutation-observation-file-drift' }
+    }
+    if (offset !== before.size) return { digest: null, bytes: before.size, complete: false, errorCode: 'mutation-observation-short-read' }
+    return { digest: hasher.digest('hex'), bytes: before.size, complete: true }
   } finally {
     fsImpl.closeSync(descriptor)
   }
@@ -111,14 +148,44 @@ function snapshotOne(target, options = {}) {
   return { path: target, exists: true, kind: 'other', digest: null, bytes: stat.size, complete: false, errorCode: 'mutation-observation-kind-unsupported' }
 }
 
-function walkControlledRoot(root, options, entries, errors, relative = '') {
+function walkControlledRoot(root, options, entries, errors, relative = '', boundary = null) {
   const fsImpl = options.fs || fs
   if (entries.length >= MAX_OBSERVATION_ENTRIES) {
     errors.add('mutation-observation-entry-limit-exceeded')
     return
   }
+  const logicalRoot = path.resolve(root)
+  const currentRoot = relative
+    ? path.join(logicalRoot, ...relative.split('/'))
+    : logicalRoot
+  if (!insideOrSame(currentRoot, logicalRoot)) {
+    errors.add('mutation-observation-root-escape')
+    return
+  }
   let children
-  try { children = fsImpl.readdirSync(root, { withFileTypes: true }) } catch (error) {
+  let nextBoundary = boundary
+  try {
+    const before = fsImpl.lstatSync(currentRoot)
+    if (!before.isDirectory() || before.isSymbolicLink()) {
+      errors.add('mutation-observation-root-reparse-or-kind-invalid')
+      return
+    }
+    const physicalBefore = realpathExisting(fsImpl, currentRoot)
+    if (!nextBoundary) nextBoundary = { logicalRoot, physicalRoot: physicalBefore }
+    if (!insideOrSame(physicalBefore, nextBoundary.physicalRoot)) {
+      errors.add('mutation-observation-root-physical-escape')
+      return
+    }
+    children = fsImpl.readdirSync(currentRoot, { withFileTypes: true })
+    const after = fsImpl.lstatSync(currentRoot)
+    const physicalAfter = realpathExisting(fsImpl, currentRoot)
+    if (!after.isDirectory() || after.isSymbolicLink() || !sameStatIdentity(before, after) ||
+        comparable(physicalBefore) !== comparable(physicalAfter) ||
+        !insideOrSame(physicalAfter, nextBoundary.physicalRoot)) {
+      errors.add('mutation-observation-root-drift')
+      return
+    }
+  } catch (error) {
     errors.add(error.code || 'mutation-observation-root-read-failed')
     return
   }
@@ -129,11 +196,11 @@ function walkControlledRoot(root, options, entries, errors, relative = '') {
       break
     }
     const childRelative = relative ? `${relative}/${child.name}` : child.name
-    const target = path.join(root, ...childRelative.split('/'))
+    const target = path.join(logicalRoot, ...childRelative.split('/'))
     const entry = snapshotOne(target, options)
     entries.push(entry)
     if (!entry.complete && entry.errorCode) errors.add(entry.errorCode)
-    if (child.isDirectory() && !child.isSymbolicLink()) walkControlledRoot(root, options, entries, errors, childRelative)
+    if (entry.kind === 'directory') walkControlledRoot(logicalRoot, options, entries, errors, childRelative, nextBoundary)
   }
 }
 
@@ -198,6 +265,71 @@ function projectMutationFootprintForRecovery(footprint) {
   return Object.freeze({ ...semantic, projectionDigest: digest(semantic) })
 }
 
+function validateMutationFootprintRecoveryProjection(value) {
+  const errors = []
+  if (value?.schemaVersion !== FOOTPRINT_PROJECTION_SCHEMA) errors.push('mutation-footprint-recovery-schema-invalid')
+  if (!String(value?.sourceSchemaVersion || '').trim() || !String(value?.adapterId || '').trim() ||
+      !['read', 'direct-write', 'shell', 'indirect-writer', 'destructive', 'service-lifecycle', 'unknown'].includes(value?.operationClass) ||
+      !['create-or-update', 'update', 'delete', 'move', 'copy', 'unknown'].includes(value?.operation)) {
+    errors.push('mutation-footprint-recovery-identity-invalid')
+  }
+  for (const field of ['footprintDigest', 'adapterDigest', 'plannedSetDigest']) {
+    if (!DIGEST_RE.test(String(value?.[field] || ''))) errors.push(`mutation-footprint-recovery-${field}-invalid`)
+  }
+  const comparableArray = values => (Array.isArray(values) ? values : []).map(comparable)
+  for (const field of ['plannedCreates', 'plannedModifies', 'plannedDeletes', 'sourceTargets', 'targetTargets', 'normalizedTargets']) {
+    const entries = value?.[field]
+    if (!Array.isArray(entries) || entries.length > MAX_OBSERVATION_ENTRIES || entries.some(item =>
+      !String(item || '').trim() || Buffer.byteLength(String(item), 'utf8') > MAX_PATH_BYTES ||
+      (!isLogical(item) && !path.isAbsolute(String(item)))) ||
+      new Set(comparableArray(entries)).size !== entries.length) {
+      errors.push(`mutation-footprint-recovery-${field}-invalid`)
+    }
+  }
+  if (!Array.isArray(value?.plannedMoves) || value.plannedMoves.length > MAX_OBSERVATION_ENTRIES ||
+      value.plannedMoves.some(item => !item || typeof item !== 'object' ||
+        !String(item.source || '').trim() || !String(item.target || '').trim() ||
+        Buffer.byteLength(String(item.source), 'utf8') > MAX_PATH_BYTES ||
+        Buffer.byteLength(String(item.target), 'utf8') > MAX_PATH_BYTES ||
+        (!isLogical(item.source) && !path.isAbsolute(String(item.source))) ||
+        (!isLogical(item.target) && !path.isAbsolute(String(item.target)))) ||
+      new Set((value?.plannedMoves || []).map(item => `${comparable(item?.source)}\u0000${comparable(item?.target)}`)).size !==
+        (value?.plannedMoves || []).length) {
+    errors.push('mutation-footprint-recovery-plannedMoves-invalid')
+  }
+  const expectedPlannedSetDigest = digest({
+    creates: value?.plannedCreates || [],
+    modifies: value?.plannedModifies || [],
+    deletes: value?.plannedDeletes || [],
+    moves: value?.plannedMoves || []
+  })
+  if (value?.plannedSetDigest !== expectedPlannedSetDigest ||
+      value?.observationPlan?.plannedSetDigest !== expectedPlannedSetDigest) {
+    errors.push('mutation-footprint-recovery-planned-set-digest-invalid')
+  }
+  const normalized = new Set(comparableArray(value?.normalizedTargets))
+  const sourceAndTarget = new Set(comparableArray([...(value?.sourceTargets || []), ...(value?.targetTargets || [])]))
+  const plannedPaths = [
+    ...(value?.plannedCreates || []),
+    ...(value?.plannedModifies || []),
+    ...(value?.plannedDeletes || []),
+    ...(value?.plannedMoves || []).flatMap(item => [item?.source, item?.target])
+  ].map(comparable)
+  if (normalized.size !== sourceAndTarget.size || [...normalized].some(target => !sourceAndTarget.has(target)) ||
+      plannedPaths.some(target => !normalized.has(target))) {
+    errors.push('mutation-footprint-recovery-target-binding-invalid')
+  }
+  if (value?.coverage !== 'complete' || !value?.observationPlan || typeof value.observationPlan !== 'object' ||
+      !['exact-target', 'controlled-root'].includes(value?.observationPlan?.targetGranularity)) {
+    errors.push('mutation-footprint-recovery-coverage-invalid')
+  }
+  const { projectionDigest, ...semantic } = value || {}
+  if (!DIGEST_RE.test(String(projectionDigest || '')) || digest(semantic) !== projectionDigest) {
+    errors.push('mutation-footprint-recovery-digest-invalid')
+  }
+  return { valid: errors.length === 0, errors: [...new Set(errors)] }
+}
+
 function createMutationPreObservation(input = {}, options = {}) {
   const footprint = input.footprint
   const snapshot = snapshotMutationTargets(footprint, { ...options, phase: 'pre' })
@@ -216,6 +348,54 @@ function createMutationPreObservation(input = {}, options = {}) {
     observedAt: new Date(Number.isFinite(options.nowMs) ? options.nowMs : Date.now()).toISOString()
   }
   return Object.freeze({ ...semantic, receiptDigest: digest(semantic) })
+}
+
+function validateMutationPreObservation(value, binding = null) {
+  const errors = []
+  if (value?.schemaVersion !== PRE_OBSERVATION_SCHEMA || !String(value?.operationId || '').trim() ||
+      Buffer.byteLength(String(value?.operationId || ''), 'utf8') > 256) {
+    errors.push('mutation-pre-observation-schema-or-operation-invalid')
+  }
+  for (const field of ['footprintDigest', 'plannedSetDigest', 'snapshotDigest']) {
+    if (!DIGEST_RE.test(String(value?.[field] || ''))) errors.push(`mutation-pre-observation-${field}-invalid`)
+  }
+  if (!Array.isArray(value?.entries) || value.entries.length < 1 || value.entries.length > MAX_OBSERVATION_ENTRIES) {
+    errors.push('mutation-pre-observation-entries-invalid')
+  } else {
+    const seenPaths = new Set()
+    for (const entry of value.entries) {
+      if (!entry || typeof entry !== 'object' || !String(entry.path || '').trim() ||
+          Buffer.byteLength(String(entry.path), 'utf8') > MAX_PATH_BYTES ||
+          typeof entry.exists !== 'boolean' || !['missing', 'file', 'directory', 'logical'].includes(entry.kind) ||
+          !Number.isInteger(entry.bytes) || entry.bytes < 0 || entry.complete !== true ||
+          (entry.exists && !['file', 'directory'].includes(entry.kind)) ||
+          (!entry.exists && entry.kind !== 'missing') ||
+          (entry.exists && entry.kind === 'file' && !DIGEST_RE.test(String(entry.digest || ''))) ||
+          (entry.exists && entry.kind === 'directory' && entry.digest !== null) ||
+          (!entry.exists && entry.digest !== null)) {
+        errors.push('mutation-pre-observation-entry-invalid')
+      }
+      const key = comparable(entry?.path)
+      if (seenPaths.has(key)) errors.push('mutation-pre-observation-entry-duplicate')
+      seenPaths.add(key)
+    }
+  }
+  if (value?.observationCoverage !== 'complete' || !Array.isArray(value?.errorCodes) || value.errorCodes.length !== 0 ||
+      !Number.isFinite(Date.parse(String(value?.observedAt || '')))) {
+    errors.push('mutation-pre-observation-coverage-invalid')
+  }
+  const { receiptDigest, ...semantic } = value || {}
+  const expectedSnapshotDigest = digest({ entries: value?.entries || [], coverage: 'complete', errorCodes: [] })
+  if (value?.snapshotDigest !== expectedSnapshotDigest) errors.push('mutation-pre-observation-snapshot-digest-invalid')
+  if (!DIGEST_RE.test(String(receiptDigest || '')) || digest(semantic) !== receiptDigest) {
+    errors.push('mutation-pre-observation-digest-invalid')
+  }
+  if (binding) {
+    for (const field of ['operationId', 'footprintDigest', 'plannedSetDigest']) {
+      if (String(value?.[field] || '') !== String(binding[field] || '')) errors.push(`mutation-pre-observation-binding-${field}`)
+    }
+  }
+  return { valid: errors.length === 0, errors: [...new Set(errors)] }
 }
 
 function createTaskOwnedMutationLease(input = {}, options = {}) {
@@ -390,13 +570,74 @@ function observeMutationEffects(input = {}, options = {}) {
 function validateMutationObservationReceipt(value) {
   const errors = []
   if (value?.schemaVersion !== OBSERVATION_SCHEMA) errors.push('mutation-observation-schema-invalid')
+  if (!String(value?.operationId || '').trim() || Buffer.byteLength(String(value?.operationId || ''), 'utf8') > 256) {
+    errors.push('mutation-observation-operation-invalid')
+  }
   for (const field of ['decisionDigest', 'leaseDigest', 'plannedSetDigest']) if (!DIGEST_RE.test(String(value?.[field] || ''))) errors.push(`mutation-observation-${field}-invalid`)
   if (!['consumed', 'needs-reconcile'].includes(value?.status)) errors.push('mutation-observation-status-invalid')
   if (!['complete', 'partial', 'unavailable'].includes(value?.observationCoverage)) errors.push('mutation-observation-coverage-invalid')
-  if (!value?.observedEffects || !Array.isArray(value?.drift)) errors.push('mutation-observation-effects-invalid')
+  const effects = value?.observedEffects
+  if (!effects || typeof effects !== 'object' || Array.isArray(effects) ||
+      !['created', 'modified', 'deleted', 'moved'].every(key => Array.isArray(effects[key]))) {
+    errors.push('mutation-observation-effects-invalid')
+  } else {
+    const scalarPaths = [...effects.created, ...effects.modified, ...effects.deleted]
+    const movePaths = []
+    for (const item of effects.moved) {
+      if (!item || typeof item !== 'object' || Array.isArray(item) ||
+          !String(item.source || '').trim() || !String(item.target || '').trim()) {
+        errors.push('mutation-observation-move-invalid')
+        continue
+      }
+      movePaths.push(item.source, item.target)
+    }
+    const allPaths = [...scalarPaths, ...movePaths]
+    if (allPaths.some(item => !String(item || '').trim() || Buffer.byteLength(String(item), 'utf8') > MAX_PATH_BYTES)) {
+      errors.push('mutation-observation-path-invalid')
+    }
+    if (new Set(allPaths.map(comparable)).size > MAX_OBSERVATION_ENTRIES ||
+        [effects.created, effects.modified, effects.deleted, effects.moved].some(items => items.length > MAX_OBSERVATION_ENTRIES)) {
+      errors.push('mutation-observation-effect-limit-exceeded')
+    }
+  }
+  if (!Array.isArray(value?.drift) || value.drift.length > MAX_OBSERVATION_ENTRIES ||
+      value.drift.some(item => !String(item || '').trim() || Buffer.byteLength(String(item), 'utf8') > MAX_PATH_BYTES)) {
+    errors.push('mutation-observation-drift-invalid')
+  }
+  if (value?.reconcileRequired !== (value?.status === 'needs-reconcile')) {
+    errors.push('mutation-observation-reconcile-status-mismatch')
+  }
   const { receiptDigest, decisionStatus, closeout, ...semantic } = value || {}
   if (!DIGEST_RE.test(String(receiptDigest || '')) || digest(semantic) !== receiptDigest) errors.push('mutation-observation-digest-invalid')
   return { valid: errors.length === 0, errors }
+}
+
+function validateArtifactMutationCloseoutReceipt(value, observation = null) {
+  const errors = []
+  if (value?.schemaVersion !== CLOSEOUT_SCHEMA) errors.push('artifact-mutation-closeout-schema-invalid')
+  if (!String(value?.operationId || '').trim() || Buffer.byteLength(String(value?.operationId || ''), 'utf8') > 256) {
+    errors.push('artifact-mutation-closeout-operation-invalid')
+  }
+  for (const field of ['decisionDigest', 'leaseDigest', 'observationReceiptDigest']) {
+    if (!DIGEST_RE.test(String(value?.[field] || ''))) errors.push(`artifact-mutation-closeout-${field}-invalid`)
+  }
+  if (!['consumed', 'needs-reconcile'].includes(value?.decisionStatus)) errors.push('artifact-mutation-closeout-status-invalid')
+  if (value?.reconcileRequired !== (value?.decisionStatus === 'needs-reconcile')) {
+    errors.push('artifact-mutation-closeout-reconcile-status-mismatch')
+  }
+  if (!Number.isFinite(Date.parse(String(value?.completedAt || '')))) errors.push('artifact-mutation-closeout-time-invalid')
+  const { closeoutDigest, ...semantic } = value || {}
+  if (!DIGEST_RE.test(String(closeoutDigest || '')) || digest(semantic) !== closeoutDigest) {
+    errors.push('artifact-mutation-closeout-digest-invalid')
+  }
+  if (observation) {
+    if (value?.operationId !== observation.operationId || value?.decisionDigest !== observation.decisionDigest ||
+        value?.leaseDigest !== observation.leaseDigest || value?.observationReceiptDigest !== observation.receiptDigest ||
+        value?.decisionStatus !== observation.status || value?.reconcileRequired !== observation.reconcileRequired) {
+      errors.push('artifact-mutation-closeout-observation-binding-invalid')
+    }
+  }
+  return { valid: errors.length === 0, errors: [...new Set(errors)] }
 }
 
 module.exports = {
@@ -412,6 +653,9 @@ module.exports = {
   observeMutationEffects,
   projectMutationFootprintForRecovery,
   snapshotMutationTargets,
+  validateArtifactMutationCloseoutReceipt,
+  validateMutationFootprintRecoveryProjection,
   validateMutationObservationReceipt,
+  validateMutationPreObservation,
   validateTaskOwnedMutationLease
 }

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "PublicProductProjectionV2",
-  "generatedAt": "2026-08-26T15:49:20.193Z",
+  "generatedAt": "2026-08-26T23:03:23.877Z",
   "release": {
     "version": "1.19.1"
   },
@@ -1187,7 +1187,7 @@
     "package": "7c92db5344a478ad131f7ca4aa8ec9201a8b65a6e719172230dee7c002283b42",
     "expression": "60e525d34e5531e6b4bbbb77f8b34bb93c9ca9ebee5df4fe2812749232175c3c",
     "workflows": "d9eb7086866fe3c3815f673957ed978c1594079261009ac775bf3e1336ad44fd",
-    "portfolio": "1184ad92e3b4d8b781459b4a884101affa78564f7f301de06547c612a9e94346",
+    "portfolio": "4b5ce635137cae29484f55a864acce5c3a2da5be52c1e49f549131f8a3959822",
     "taxonomy": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030"
   }
 }

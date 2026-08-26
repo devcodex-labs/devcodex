@@ -39,7 +39,7 @@
     "hostId": "codex",
     "hostSurfaceOrVariant": "codex",
     "catalogVersion": "1.0.0",
-    "catalogFileDigest": "sha256:53775d5998c6398e9cd4878bb87da1ec0d5fde840918c909c217a9c60a665d05",
+    "catalogFileDigest": "sha256:f141a3ee2147c6204633b37c9bc99b5187825f4198a6fdda8d4781de667c0038",
     "sourceHead": "ef60b2b593a232747880b86316bec6f888c7cd89",
     "decidedAt": "2026-07-24T00:55:00Z",
     "validationOwner": "host-capability-routing"

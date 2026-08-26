@@ -6,8 +6,11 @@ const path = require('path')
 
 const {
   MAX_RESPONSE_CACHE_BYTES,
+  MAX_QUARANTINE_DIRECTORIES,
+  MAX_RAW_TURN_DIRECTORIES,
   MAX_ROUTE_ROOT_BYTES,
   MAX_TURNS,
+  TURN_PRESSURE_LOW_WATER,
   atomicWriteJson,
   assertProjectedCapacity,
   bootstrapSkillRoute,
@@ -54,6 +57,42 @@ const {
 } = require('./lib/skill-route-test-fixture')
 
 const BASE_MS = Date.parse('2026-07-31T00:00:00.000Z')
+
+function writeCapacityTurn (fixture, index, options = {}) {
+  const turnBinding = options.turnBinding ||
+    `turn-${sha256({ project: fixture.project, index, salt: options.salt || '' }).slice(0, 40)}`
+  const paths = turnPaths(fixture.activeRoot, turnBinding)
+  const requiredStageIds = options.requiredStageIds || []
+  const stageProgress = Object.fromEntries(requiredStageIds.map(stageId => [
+    stageId,
+    { status: options.stageStatus || 'loaded' }
+  ]))
+  atomicWriteJson(paths.envelope, {
+    schemaVersion: 'TurnRouteEnvelopeV1',
+    version: 1,
+    state: {
+      project: fixture.project,
+      activeRoot: fixture.activeRoot.replace(/\\/g, '/'),
+      turnBinding,
+      contextEpoch: options.contextEpoch || `ctx-capacity-${index}`,
+      hostSessionId: options.hostSessionId || '',
+      decision: options.decision || null,
+      plan: options.planStatus ? { status: options.planStatus } : null,
+      stageProgress,
+      obligationLedger: {
+        schemaVersion: 'ObligationLedgerV1',
+        items: options.businessItems || [],
+        selectedBusinessSkillId: null,
+        requiredStageIds,
+        satisfiedStageIds: options.stageStatus === 'pending' ? [] : [...requiredStageIds]
+      }
+    },
+    responseCache: {},
+    updatedAt: options.updatedAt || '2026-07-31T10:00:00.000Z',
+    expiresAt: options.expiresAt || '2026-08-01T10:00:00.000Z'
+  })
+  return { turnBinding, paths }
+}
 
 function fixtureProfileRef (fixture, file, layer = `project:${fixture.project}`) {
   const filePath = path.join(fixture.activeRoot, 'profile', file)
@@ -2361,20 +2400,277 @@ try {
     for (let index = 0; index < MAX_TURNS; index += 1) {
       fs.mkdirSync(path.join(turnsRoot, `turn-capacity-${index}`), { recursive: true })
     }
-    assert.throws(
-      () => bootstrapSkillRoute({
-        project: turnCapacityFixture.project,
-        activeRoot: turnCapacityFixture.activeRoot,
-        contextEpoch: 'ctx-turn-capacity',
-        prompt: 'Run turn capacity probe',
-        mode: 'unified',
-        cwd: turnCapacityFixture.projectRoot
-      }, turnCapacityFixture.runtimeOptions),
-      error => error && error.code === 'RUNTIME_STATE_CAPACITY_BLOCKED' &&
-        error.capacity?.turnCount === MAX_TURNS
-    )
+    const recovered = bootstrapSkillRoute({
+      project: turnCapacityFixture.project,
+      activeRoot: turnCapacityFixture.activeRoot,
+      contextEpoch: 'ctx-turn-capacity',
+      hostSessionId: 'session-turn-capacity',
+      prompt: 'Run turn capacity probe',
+      mode: 'unified',
+      cwd: turnCapacityFixture.projectRoot
+    }, {
+      ...turnCapacityFixture.runtimeOptions,
+      now: '2026-07-31T12:00:00.000Z',
+      emptyTurnGraceMs: 0
+    })
+    assert.strictEqual(recovered.retention.removedEmpty.length, MAX_TURNS)
+    assert.strictEqual(recovered.envelope.state.hostSessionId, 'session-turn-capacity')
+    assert.deepStrictEqual(recovered.retention.failures, [])
   } finally {
     turnCapacityFixture.cleanup()
+  }
+
+  const writerOrphanFixture = createSkillRouteFixture({ project: 'writer-orphan-capacity' })
+  try {
+    const turnsRoot = path.join(
+      routeRootForActiveRoot(writerOrphanFixture.activeRoot),
+      'turns'
+    )
+    const staleLockBinding = `turn-${'a'.repeat(40)}`
+    const tempOnlyBinding = `turn-${'b'.repeat(40)}`
+    const liveLockBinding = `turn-${'c'.repeat(40)}`
+    const unknownBinding = `turn-${'d'.repeat(40)}`
+    for (const binding of [staleLockBinding, tempOnlyBinding, liveLockBinding, unknownBinding]) {
+      fs.mkdirSync(path.join(turnsRoot, binding), { recursive: true })
+    }
+    fs.writeFileSync(path.join(turnsRoot, staleLockBinding, 'route-envelope.lock'), `${JSON.stringify({
+      schemaVersion: 'SkillRouteLockV1',
+      pid: 2147483647,
+      op: 'bootstrap',
+      key: 'crashed-before-envelope',
+      startedAt: new Date(0).toISOString()
+    })}\n`)
+    fs.writeFileSync(path.join(turnsRoot, tempOnlyBinding, 'route-envelope.json.next.tmp'), '{"partial":true}\n')
+    fs.writeFileSync(path.join(turnsRoot, liveLockBinding, 'route-envelope.lock'), `${JSON.stringify({
+      schemaVersion: 'SkillRouteLockV1',
+      pid: process.pid,
+      op: 'bootstrap',
+      key: 'live-before-envelope',
+      startedAt: new Date(0).toISOString()
+    })}\n`)
+    fs.writeFileSync(path.join(turnsRoot, unknownBinding, 'unknown-state.bin'), 'must remain fail-closed\n')
+    const orphanRetention = collectExpiredTurns(writerOrphanFixture.activeRoot, {
+      ...writerOrphanFixture.runtimeOptions,
+      now: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+      emptyTurnGraceMs: 0,
+      lockStaleMs: 0,
+      gcTurnLockTimeoutMs: 10
+    })
+    assert(orphanRetention.removedOrphans.includes(staleLockBinding))
+    assert(orphanRetention.removedOrphans.includes(tempOnlyBinding))
+    assert(orphanRetention.skippedLocked.includes(liveLockBinding))
+    assert(orphanRetention.failures.some(item =>
+      item.turnBinding === unknownBinding && item.errorCode === 'GC_TURN_ENVELOPE_MISSING'
+    ))
+    assert.strictEqual(fs.existsSync(path.join(turnsRoot, staleLockBinding)), false)
+    assert.strictEqual(fs.existsSync(path.join(turnsRoot, tempOnlyBinding)), false)
+    assert.strictEqual(fs.existsSync(path.join(turnsRoot, liveLockBinding)), true)
+    assert.strictEqual(fs.existsSync(path.join(turnsRoot, unknownBinding)), true)
+  } finally {
+    writerOrphanFixture.cleanup()
+  }
+
+  const rawTurnCapacityFixture = createSkillRouteFixture({ project: 'raw-turn-capacity' })
+  try {
+    const turnsRoot = path.join(
+      routeRootForActiveRoot(rawTurnCapacityFixture.activeRoot),
+      'turns'
+    )
+    for (let index = 0; index < MAX_RAW_TURN_DIRECTORIES; index += 1) {
+      fs.mkdirSync(path.join(turnsRoot, `raw-empty-${index}`), { recursive: true })
+    }
+    assert.throws(
+      () => bootstrapSkillRoute({
+        project: rawTurnCapacityFixture.project,
+        activeRoot: rawTurnCapacityFixture.activeRoot,
+        contextEpoch: 'ctx-raw-turn-capacity',
+        hostSessionId: 'session-raw-turn-capacity',
+        prompt: 'Run raw turn capacity probe',
+        mode: 'unified',
+        cwd: rawTurnCapacityFixture.projectRoot
+      }, {
+        ...rawTurnCapacityFixture.runtimeOptions,
+        now: new Date(Date.now() + 1000).toISOString(),
+        emptyTurnGraceMs: 60 * 60 * 1000
+      }),
+      error => error && error.code === 'RUNTIME_STATE_CAPACITY_BLOCKED' &&
+        error.capacity?.rawDirectoryCount === MAX_RAW_TURN_DIRECTORIES &&
+        error.capacity?.projectedRawDirectoryCount === MAX_RAW_TURN_DIRECTORIES + 1
+    )
+  } finally {
+    rawTurnCapacityFixture.cleanup()
+  }
+
+  const quarantineCapacityFixture = createSkillRouteFixture({ project: 'quarantine-capacity' })
+  try {
+    const quarantineRoot = path.join(
+      routeRootForActiveRoot(quarantineCapacityFixture.activeRoot),
+      'quarantine'
+    )
+    for (let index = 0; index < MAX_QUARANTINE_DIRECTORIES; index += 1) {
+      const quarantinedTurn = path.join(quarantineRoot, `live-quarantine-${index}`)
+      fs.mkdirSync(quarantinedTurn, { recursive: true })
+      fs.writeFileSync(path.join(quarantinedTurn, 'route-envelope.lock'), `${JSON.stringify({
+        schemaVersion: 'SkillRouteLockV1',
+        pid: process.pid,
+        op: 'gc',
+        key: `live-quarantine-${index}`,
+        startedAt: new Date().toISOString()
+      })}\n`)
+    }
+    assert.throws(
+      () => bootstrapSkillRoute({
+        project: quarantineCapacityFixture.project,
+        activeRoot: quarantineCapacityFixture.activeRoot,
+        contextEpoch: 'ctx-quarantine-capacity',
+        hostSessionId: 'session-quarantine-capacity',
+        prompt: 'Run quarantine capacity probe',
+        mode: 'unified',
+        cwd: quarantineCapacityFixture.projectRoot
+      }, quarantineCapacityFixture.runtimeOptions),
+      error => error && error.code === 'RUNTIME_STATE_CAPACITY_BLOCKED' &&
+        error.capacity?.quarantineDirectoryCount === MAX_QUARANTINE_DIRECTORIES
+    )
+  } finally {
+    quarantineCapacityFixture.cleanup()
+  }
+
+  const terminalPressureFixture = createSkillRouteFixture({ project: 'terminal-pressure' })
+  try {
+    const turns = []
+    for (let index = 0; index < MAX_TURNS; index += 1) {
+      turns.push(writeCapacityTurn(terminalPressureFixture, index, {
+        planStatus: 'complete',
+        requiredStageIds: ['entry'],
+        updatedAt: new Date(Date.parse('2026-07-31T08:00:00.000Z') + index * 1000).toISOString()
+      }))
+    }
+    const protectedTurn = turns.at(-1).turnBinding
+    const pressure = collectExpiredTurns(terminalPressureFixture.activeRoot, {
+      ...terminalPressureFixture.runtimeOptions,
+      now: '2026-07-31T12:00:00.000Z',
+      pressureReclaim: true,
+      pressureReclaimGraceMs: 0,
+      protectedTurnBindings: [protectedTurn]
+    })
+    assert(pressure.removedPressure.length >= MAX_TURNS - TURN_PRESSURE_LOW_WATER)
+    assert(pressure.removedPressure.every(item => item.reason === 'terminal-process-complete'))
+    assert(pressure.capacityAfterPressure.occupiedTurnCount <= TURN_PRESSURE_LOW_WATER)
+    assert.strictEqual(fs.existsSync(turns.at(-1).paths.envelope), true)
+    assert.deepStrictEqual(pressure.failures, [])
+  } finally {
+    terminalPressureFixture.cleanup()
+  }
+
+  const supersededPressureFixture = createSkillRouteFixture({ project: 'superseded-pressure' })
+  try {
+    for (let index = 0; index < MAX_TURNS; index += 1) {
+      writeCapacityTurn(supersededPressureFixture, index, {
+        hostSessionId: 'session-superseded-pressure',
+        contextEpoch: `ctx-superseded-${index}`,
+        updatedAt: new Date(Date.parse('2026-07-31T08:00:00.000Z') + index * 1000).toISOString()
+      })
+    }
+    const supersededBoot = bootstrapSkillRoute({
+      project: supersededPressureFixture.project,
+      activeRoot: supersededPressureFixture.activeRoot,
+      contextEpoch: 'ctx-superseded-current',
+      hostSessionId: 'session-superseded-pressure',
+      prompt: 'Run same-session supersession probe',
+      mode: 'unified',
+      cwd: supersededPressureFixture.projectRoot
+    }, {
+      ...supersededPressureFixture.runtimeOptions,
+      now: '2026-07-31T12:00:00.000Z',
+      pressureReclaimGraceMs: 0
+    })
+    assert(supersededBoot.retention.removedPressure.some(item =>
+      item.reason === 'same-session-uncommitted-superseded'
+    ))
+    assert.strictEqual(
+      supersededBoot.retention.capacityAfterPressure.occupiedTurnCount <= TURN_PRESSURE_LOW_WATER,
+      true
+    )
+  } finally {
+    supersededPressureFixture.cleanup()
+  }
+
+  const activePressureFixture = createSkillRouteFixture({ project: 'active-pressure' })
+  try {
+    for (let index = 0; index < MAX_TURNS; index += 1) {
+      writeCapacityTurn(activePressureFixture, index, {
+        hostSessionId: `foreign-session-${index}`,
+        contextEpoch: `ctx-active-${index}`
+      })
+    }
+    assert.throws(
+      () => bootstrapSkillRoute({
+        project: activePressureFixture.project,
+        activeRoot: activePressureFixture.activeRoot,
+        contextEpoch: 'ctx-active-current',
+        hostSessionId: 'session-active-current',
+        prompt: 'Run active capacity fail-closed probe',
+        mode: 'unified',
+        cwd: activePressureFixture.projectRoot
+      }, {
+        ...activePressureFixture.runtimeOptions,
+        now: '2026-07-31T12:00:00.000Z',
+        pressureReclaimGraceMs: 0
+      }),
+      error => error && error.code === 'RUNTIME_STATE_CAPACITY_BLOCKED' &&
+        error.capacity?.turnCount === MAX_TURNS &&
+        error.capacity?.projectedTurnCount === MAX_TURNS + 1
+    )
+  } finally {
+    activePressureFixture.cleanup()
+  }
+
+  const guardedPressureFixture = createSkillRouteFixture({ project: 'guarded-pressure' })
+  try {
+    for (let index = 0; index < MAX_TURNS - 2; index += 1) {
+      writeCapacityTurn(guardedPressureFixture, index, {
+        hostSessionId: `guarded-foreign-session-${index}`
+      })
+    }
+    const lockedTerminal = writeCapacityTurn(guardedPressureFixture, MAX_TURNS - 2, {
+      planStatus: 'complete',
+      requiredStageIds: ['entry'],
+      salt: 'locked'
+    })
+    fs.writeFileSync(lockedTerminal.paths.lock, `${JSON.stringify({
+      schemaVersion: 'SkillRouteLockV1',
+      pid: process.pid,
+      op: 'test',
+      key: 'live-pressure-lock',
+      startedAt: new Date().toISOString()
+    })}\n`)
+    const mismatched = writeCapacityTurn(guardedPressureFixture, MAX_TURNS - 1, {
+      planStatus: 'complete',
+      requiredStageIds: ['entry'],
+      salt: 'identity-mismatch'
+    })
+    const mismatchedEnvelope = JSON.parse(fs.readFileSync(mismatched.paths.envelope, 'utf8'))
+    mismatchedEnvelope.state.turnBinding = `turn-${'f'.repeat(40)}`
+    atomicWriteJson(mismatched.paths.envelope, mismatchedEnvelope)
+
+    const guarded = collectExpiredTurns(guardedPressureFixture.activeRoot, {
+      ...guardedPressureFixture.runtimeOptions,
+      now: '2026-07-31T12:00:00.000Z',
+      pressureReclaim: true,
+      pressureReclaimGraceMs: 0,
+      gcTurnLockTimeoutMs: 10
+    })
+    assert.deepStrictEqual(guarded.removedPressure, [])
+    assert(guarded.skippedLocked.includes(lockedTerminal.turnBinding))
+    assert(guarded.failures.some(item =>
+      item.turnBinding === mismatched.turnBinding &&
+      item.errorCode === 'GC_TURN_IDENTITY_MISMATCH'
+    ))
+    assert.strictEqual(fs.existsSync(lockedTerminal.paths.envelope), true)
+    assert.strictEqual(fs.existsSync(mismatched.paths.envelope), true)
+    fs.unlinkSync(lockedTerminal.paths.lock)
+  } finally {
+    guardedPressureFixture.cleanup()
   }
 
   const byteCapacityFixture = createSkillRouteFixture({ project: 'byte-capacity' })

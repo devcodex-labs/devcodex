@@ -21,7 +21,8 @@ const {
   storePaths,
   taskAdmissionTransactionDigest,
   taskPaths,
-  updateTaskRecoveryState
+  updateTaskRecoveryState,
+  validateTaskAdmissionReconciliationReceipt
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const {
   computeProjectTargetLeaseDigest,
@@ -29,7 +30,8 @@ const {
   executeTaskAdmission,
   executeTaskWriteOwner,
   executeWorkflowTaskTerminal,
-  reconcileWorkflowTaskTerminal
+  reconcileWorkflowTaskTerminal,
+  validateProjectTargetLease
 } = require('../mcp/task-admission-authority.cjs')
 
 const TEMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-task-admission-'))
@@ -272,6 +274,30 @@ function taskRootFor(input, receipt) {
 try {
   const baseRoot = setupRoot('base')
   const baseInput = admissionInput(baseRoot)
+  const leaseBinding = {
+    project: baseInput.project,
+    activeRoot: baseInput.activeRoot,
+    physicalRoot: baseRoot.physicalRoot,
+    contextEpoch: baseInput.actualInstructionEnvelope.contextEpoch,
+    routeRevision: baseInput.workflowRouteDecision.routeRevision
+  }
+  assert.strictEqual(validateProjectTargetLease(baseInput.projectTargetLease, leaseBinding, { nowMs: NOW_MS }).valid, true)
+  const stringTimeLeaseCore = { ...baseInput.projectTargetLease, issuedAtMs: String(NOW_MS - 1000) }
+  delete stringTimeLeaseCore.leaseDigest
+  const stringTimeLease = {
+    ...stringTimeLeaseCore,
+    leaseDigest: computeProjectTargetLeaseDigest(stringTimeLeaseCore)
+  }
+  assert(validateProjectTargetLease(stringTimeLease, leaseBinding, { nowMs: NOW_MS }).errors.includes('lease-time'),
+    'ProjectTargetLease times must be real safe integers, not numeric strings')
+  const relativePhysicalLeaseCore = { ...baseInput.projectTargetLease, physicalRoot: '.' }
+  delete relativePhysicalLeaseCore.leaseDigest
+  const relativePhysicalLease = {
+    ...relativePhysicalLeaseCore,
+    leaseDigest: computeProjectTargetLeaseDigest(relativePhysicalLeaseCore)
+  }
+  assert(validateProjectTargetLease(relativePhysicalLease, leaseBinding, { nowMs: NOW_MS }).errors.includes('physical-root'),
+    'ProjectTargetLease physicalRoot must be a non-empty absolute path')
   const first = run(baseInput)
   assert.strictEqual(first.schemaVersion, 'FormalTaskAdmissionReceiptV2')
   assert.strictEqual(first.status, 'awaiting-owner-fence')
@@ -921,6 +947,126 @@ try {
   assert.strictEqual(pressure.status, 'needs-reconcile')
   assert.strictEqual(fs.existsSync(path.join(pressureRoot.activeRoot, 'bugs')), false, 'prepared capacity failure must have zero business-file effects')
 
+  const identityRecoveryRoot = setupRoot('identity-recovery')
+  const identityRecoveryInput = admissionInput(identityRecoveryRoot, 'identity-recovery')
+  let identityFaultInjected = false
+  const identityNeedsReconcile = run(identityRecoveryInput, {
+    faultInjector(stage) {
+      if (stage === 'after-identity-effect' && !identityFaultInjected) {
+        identityFaultInjected = true
+        throw Object.assign(new Error('identity effect reported failure'), { code: 'FIXTURE_IDENTITY_EFFECT_FAILURE' })
+      }
+    }
+  })
+  assert.strictEqual(identityNeedsReconcile.status, 'needs-reconcile')
+  const identityRecovered = run(identityRecoveryInput)
+  assert.strictEqual(identityRecovered.phase, 'cp-state-written')
+  const identityRecoveryMeta = resolveTaskRecoveryMetaDir({
+    activeRoot: identityRecoveryRoot.activeRoot,
+    project: identityRecoveryRoot.project
+  })
+  const identityRecoveryRead = readTaskAdmissionTransaction({
+    metaDir: identityRecoveryMeta,
+    identity: {
+      activeRoot: identityRecoveryRoot.activeRoot,
+      project: identityRecoveryRoot.project,
+      taskId: identityRecovered.taskId
+    }
+  })
+  assert.strictEqual(identityRecoveryRead.transaction.reconciliation.recoveredPhase, 'identity-written')
+  assert.strictEqual(validateTaskAdmissionReconciliationReceipt(identityRecoveryRead.transaction.reconciliation).valid, true)
+  assert.strictEqual(identityRecoveryRead.transaction.reconciliation.mutationAuthority, false)
+  assert.strictEqual(run(identityRecoveryInput).replayed, true, 'recovered admission must remain idempotent after reaching CP state')
+
+  const overviewDriftRoot = setupRoot('overview-reconciliation-drift')
+  const overviewDriftInput = admissionInput(overviewDriftRoot, 'overview-reconciliation-drift')
+  let overviewFaultInjected = false
+  const overviewNeedsReconcile = run(overviewDriftInput, {
+    faultInjector(stage) {
+      if (stage === 'after-overview-effect' && !overviewFaultInjected) {
+        overviewFaultInjected = true
+        throw Object.assign(new Error('overview effect reported failure'), { code: 'FIXTURE_OVERVIEW_EFFECT_FAILURE' })
+      }
+    }
+  })
+  assert.strictEqual(overviewNeedsReconcile.status, 'needs-reconcile')
+  const overviewTaskRoot = taskRootFor(overviewDriftInput, overviewNeedsReconcile)
+  fs.writeFileSync(path.join(overviewTaskRoot, '00-问题概况.md'), '# drifted overview\n')
+  const overviewDriftRetry = run(overviewDriftInput)
+  assert.strictEqual(overviewDriftRetry.status, 'needs-reconcile')
+  assert.strictEqual(overviewDriftRetry.errorCode, 'TASK_ADMISSION_RECONCILIATION_DRIFT')
+
+  const cpRecoveryRoot = setupRoot('cp-recovery')
+  const cpRecoveryInput = admissionInput(cpRecoveryRoot, 'cp-recovery')
+  let cpFaultInjected = false
+  const cpNeedsReconcile = run(cpRecoveryInput, {
+    faultInjector(stage) {
+      if (stage === 'after-cp-state-effect' && !cpFaultInjected) {
+        cpFaultInjected = true
+        throw Object.assign(new Error('cp effect reported failure'), { code: 'FIXTURE_CP_EFFECT_FAILURE' })
+      }
+    }
+  })
+  assert.strictEqual(cpNeedsReconcile.status, 'needs-reconcile')
+  const cpRecovered = run(cpRecoveryInput)
+  assert.strictEqual(cpRecovered.phase, 'cp-state-written')
+  const cpRecoveryRead = readTaskAdmissionTransaction({
+    metaDir: resolveTaskRecoveryMetaDir({ activeRoot: cpRecoveryRoot.activeRoot, project: cpRecoveryRoot.project }),
+    identity: { activeRoot: cpRecoveryRoot.activeRoot, project: cpRecoveryRoot.project, taskId: cpRecovered.taskId }
+  })
+  assert.strictEqual(cpRecoveryRead.transaction.reconciliation.recoveredPhase, 'cp-state-written')
+
+  const partialProductRoot = setupRoot('partial-product-recovery')
+  const partialProductOverview = '# 需求概况\n\n产品来源映射。\n'
+  const partialProductSource = '# 产品需求\n\n用户原始产品真相。\n'
+  const partialProductInput = admissionInput(partialProductRoot, 'partial-product-recovery', {
+    routeTaskKind: 'dev',
+    routeCandidate: 'dev.default',
+    task: {
+      taskKind: 'requirements',
+      entryVariant: 'product-provided',
+      displayName: '部分产品产物恢复'
+    },
+    overview: {
+      content: partialProductOverview,
+      productSourceContent: partialProductSource
+    }
+  })
+  let overviewCreateBlocked = false
+  const partialProductFs = new Proxy(fs, {
+    get(target, property) {
+      if (property === 'linkSync') {
+        return (source, destination) => {
+          if (!overviewCreateBlocked && path.basename(String(destination)) === '00-需求概况.md') {
+            overviewCreateBlocked = true
+            throw Object.assign(new Error('fixture blocks the second logical-phase file'), { code: 'FIXTURE_PARTIAL_PRODUCT_PHASE' })
+          }
+          return target.linkSync(source, destination)
+        }
+      }
+      const value = target[property]
+      return typeof value === 'function' ? value.bind(target) : value
+    }
+  })
+  const partialProductNeedsReconcile = run(partialProductInput, { fs: partialProductFs })
+  assert.strictEqual(partialProductNeedsReconcile.status, 'needs-reconcile')
+  const partialProductTaskRoot = taskRootFor(partialProductInput, partialProductNeedsReconcile)
+  assert.strictEqual(fs.existsSync(path.join(partialProductTaskRoot, '01-产品需求.md')), true)
+  assert.strictEqual(fs.existsSync(path.join(partialProductTaskRoot, '00-需求概况.md')), false)
+  const partialProductRecovered = run(partialProductInput)
+  assert.strictEqual(partialProductRecovered.phase, 'cp-state-written')
+  assert.strictEqual(fs.readFileSync(path.join(partialProductTaskRoot, '01-产品需求.md'), 'utf8'), partialProductSource)
+  assert.strictEqual(fs.readFileSync(path.join(partialProductTaskRoot, '00-需求概况.md'), 'utf8'), partialProductOverview)
+  const partialProductRecoveryRead = readTaskAdmissionTransaction({
+    metaDir: resolveTaskRecoveryMetaDir({ activeRoot: partialProductRoot.activeRoot, project: partialProductRoot.project }),
+    identity: {
+      activeRoot: partialProductRoot.activeRoot,
+      project: partialProductRoot.project,
+      taskId: partialProductRecovered.taskId
+    }
+  })
+  assert.strictEqual(partialProductRecoveryRead.transaction.reconciliation.recoveredPhase, 'identity-written')
+
   const reservedRoot = setupRoot('reserved')
   const reservedInput = admissionInput(reservedRoot, 'reserved')
   reservedInput.task = { ...reservedInput.task, displayName: 'CON' }
@@ -935,6 +1081,9 @@ try {
   const reparseInput = admissionInput(reparseRoot, 'reparse')
   assert.strictEqual(run(reparseInput).status, 'needs-reconcile')
   assert.strictEqual(fs.readdirSync(outside).length, 0)
+  fs.rmSync(path.join(reparseRoot.activeRoot, 'bugs', '任务-reparse'), { recursive: true, force: true })
+  const reparseRecovered = run(reparseInput)
+  assert.strictEqual(reparseRecovered.phase, 'cp-state-written', 'zero-effect precondition failure must recover after the unsafe path is removed')
 
   console.log(JSON.stringify({
     schemaVersion: 'TaskAdmissionAuthorityTestReceiptV1',

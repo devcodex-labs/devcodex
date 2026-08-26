@@ -16,6 +16,7 @@
  *   memory_task_fast_path_lease — Issue one bounded two-path low-risk mutation lease
  *   memory_workflow_operational_write_lease — Issue one exact, one-use report/memory/audit/checkpoint lease
  *   memory_task_terminal_v1 — Reconcile terminal evidence, close out V5 and unbind the live route
+ *   memory_artifact_mutation_reconcile_v1 — Re-observe one exact failed-closeout effect set without mutation authority
  *   memory_task_resolve   — Resolve an exact task identity without loading task bodies
  *   memory_session_read   — Read today's/yesterday's session memory file
  *   memory_session_write  — Append a block to one allocation-bound daily session
@@ -36,7 +37,8 @@ const {
   executeTaskAdmission,
   executeTaskWriteOwner,
   executeWorkflowTaskTerminal,
-  reconcileWorkflowTaskTerminal
+  reconcileWorkflowTaskTerminal,
+  validateProjectTargetLease
 } = require('./task-admission-authority.cjs')
 const {
   createArtifactLinkProjectionSet,
@@ -45,8 +47,17 @@ const {
 } = require('./artifact-link-projection.cjs')
 const {
   readFencedTaskWriteOwner,
-  resolveTaskRecoveryMetaDir
+  readEmergencyCloseouts,
+  readTaskRecoveryState,
+  resolveTaskRecoveryMetaDir,
+  sameIdentity,
+  updateTaskRecoveryState
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
+const {
+  applyArtifactMutationReconciliation,
+  createArtifactMutationReconciliationReceipt,
+  validateArtifactMutationReconciliationEvidence
+} = require('../hooks/_runtime/artifact-mutation-reconciliation.cjs')
 const {
   readBoundedTextFileSync,
   scanBoundedTextLinesSync
@@ -432,6 +443,24 @@ const TOOLS = [
         scope: { type: 'string', enum: ['project'] },
         ingressRef: WORKFLOW_INGRESS_REF_SCHEMA,
         taskId: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$' }
+      }
+    }
+  },
+  {
+    name: 'memory_artifact_mutation_reconcile_v1',
+    description: '对一个 exact needs-reconcile artifact closeout 复证当前文件系统效果并按 CAS 收口；不执行文件 mutation、不签发权限。',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['ingressRef', 'operationId', 'expectedCloseoutDigest', 'resolution'],
+      properties: {
+        project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: 'workspace-namespace 下的精确项目' },
+        scope: { type: 'string', enum: ['project'] },
+        ingressRef: WORKFLOW_INGRESS_REF_SCHEMA,
+        taskId: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$', description: '正式任务必填；简单/operational 临时会话省略' },
+        operationId: { type: 'string', minLength: 1, maxLength: 256 },
+        expectedCloseoutDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+        resolution: { type: 'string', enum: ['accept-observed-effects'] }
       }
     }
   },
@@ -3383,6 +3412,26 @@ function taskAdmissionIngressError(code, message, details = {}) {
   return Object.assign(new Error(message), { code, details })
 }
 
+function sameStableFileStat(left, right) {
+  return String(left?.dev) === String(right?.dev) &&
+    String(left?.ino) === String(right?.ino) &&
+    Number(left?.size) === Number(right?.size) &&
+    Number(left?.mtimeMs) === Number(right?.mtimeMs) &&
+    Number(left?.ctimeMs) === Number(right?.ctimeMs)
+}
+
+function currentPhysicalProjectRoot(target) {
+  if (!LAYOUT.enabled) return path.resolve(INPUT_ROOT)
+  const binding = resolveProjectBinding(target.project, { requireProfile: false })
+  if (!binding?.physicalRoot || !path.isAbsolute(binding.physicalRoot)) {
+    throw taskAdmissionIngressError(
+      'TASK_ADMISSION_PROJECT_ROOT_UNAVAILABLE',
+      'the current physical project root cannot be resolved from the workspace layout'
+    )
+  }
+  return path.resolve(binding.physicalRoot)
+}
+
 function readServerOwnedAdmissionIngress(target, ingressRef) {
   const ref = ingressRef && typeof ingressRef === 'object' && !Array.isArray(ingressRef) ? ingressRef : null
   const digestPattern = /^[a-f0-9]{64}$/
@@ -3425,10 +3474,9 @@ function readServerOwnedAdmissionIngress(target, ingressRef) {
   } finally {
     if (descriptor !== undefined) fs.closeSync(descriptor)
   }
-  const current = fs.statSync(statePath)
-  if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size ||
-      before.mtimeMs !== after.mtimeMs || after.dev !== current.dev || after.ino !== current.ino ||
-      after.size !== current.size || after.mtimeMs !== current.mtimeMs || Buffer.byteLength(raw, 'utf8') !== after.size) {
+  const current = fs.lstatSync(statePath)
+  if (!current.isFile() || current.isSymbolicLink() || !sameStableFileStat(before, after) ||
+      !sameStableFileStat(after, current) || Buffer.byteLength(raw, 'utf8') !== after.size) {
     throw taskAdmissionIngressError('TASK_ADMISSION_INGRESS_STATE_DRIFT', 'lifecycle projection changed during authority readback')
   }
   let state
@@ -3451,11 +3499,27 @@ function readServerOwnedAdmissionIngress(target, ingressRef) {
       'ingressRef does not match the current server-owned envelope, work item, route, project or lease'
     )
   }
+  const projectRoot = currentPhysicalProjectRoot(target)
+  const leaseValidation = validateProjectTargetLease(lease, {
+    project: target.project,
+    activeRoot: target.activeRoot,
+    physicalRoot: projectRoot,
+    contextEpoch: envelope.contextEpoch,
+    routeRevision: decision.routeRevision
+  }, { nowMs: Date.now() })
+  if (!leaseValidation.valid) {
+    throw taskAdmissionIngressError(
+      'TASK_ADMISSION_PROJECT_LEASE_INVALID',
+      'the current server-owned ProjectTargetLeaseV2 is stale, tampered or bound to a different project root',
+      { errors: leaseValidation.errors }
+    )
+  }
   return {
     actualInstructionEnvelope: envelope,
     workItemSet,
     workflowRouteDecision: decision,
     projectTargetLease: lease,
+    projectRoot,
     lifecycleState: state,
     authorityReceipt: {
       schemaVersion: 'ServerOwnedAdmissionIngressReceiptV1',
@@ -3528,9 +3592,9 @@ function stableTaskIdentityReadback(target, transaction, ingress, taskId) {
   } finally {
     if (descriptor !== undefined) fs.closeSync(descriptor)
   }
-  const current = fs.statSync(identityPath)
-  if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs ||
-      after.dev !== current.dev || after.ino !== current.ino || after.size !== current.size || after.mtimeMs !== current.mtimeMs ||
+  const current = fs.lstatSync(identityPath)
+  if (!current.isFile() || current.isSymbolicLink() || !sameStableFileStat(before, after) ||
+      !sameStableFileStat(after, current) ||
       Buffer.byteLength(raw, 'utf8') !== after.size) {
     throw taskAdmissionIngressError('TASK_WRITE_OWNER_CANONICAL_TASK_DRIFT', 'canonical TaskIdentityV2 changed during readback')
   }
@@ -3650,6 +3714,20 @@ function formalWorkflowRouteBound(receipt) {
     String(receipt?.entry?.taskId || '') !== ''
 }
 
+function readFormalWorkflowRouteBinding(target, ingress, taskId) {
+  const routeIndex = createWorkspaceSessionRouteIndex({ metaDir: workflowRouteIndexMetaDir(target), fs, path })
+  const route = routeIndex.read({ sessionDigest: ingress.projectTargetLease.authorityDigest })
+  if (route.status !== 'fresh' || route.entry?.taskId !== taskId ||
+      route.entry?.projectRootIdentityDigest !== ingress.projectTargetLease.rootIdentityDigest ||
+      route.entry?.routeRevision !== ingress.workflowRouteDecision.routeRevision) {
+    throw taskAdmissionIngressError(
+      'ARTIFACT_RECONCILIATION_ROUTE_MISMATCH',
+      'artifact reconciliation requires the current exact same-session formal task route binding'
+    )
+  }
+  return route
+}
+
 function handleMemoryTaskAdmitV2(args) {
   const target = taskMemoryTransactionTarget(args)
   if (target.scope !== 'project' || !target.project) {
@@ -3678,6 +3756,200 @@ function handleMemoryTaskAdmitV2(args) {
     structuredContent: admission,
     isError: ['needs-reconcile', 'aborted'].includes(admission.status) || admission.routeBindingRequired
   }
+}
+
+function mutationCloseoutDigest(closeout) {
+  return String(closeout?.artifactCloseout?.closeoutDigest || closeout?.observation?.closeout?.closeoutDigest || '')
+}
+
+function artifactReconciliationSource({ primary, reserves, identity, operationId, expectedCloseoutDigest }) {
+  const primaryCloseout = primary.state?.turnLiveness?.lastMutationCloseout || null
+  if (primaryCloseout?.operationId === operationId && mutationCloseoutDigest(primaryCloseout) === expectedCloseoutDigest) {
+    if (primaryCloseout.result === 'reconciled') {
+      const evidenceValidation = validateArtifactMutationReconciliationEvidence(primaryCloseout.reconciliation, {
+        operationId,
+        priorCloseoutDigest: expectedCloseoutDigest,
+        priorObservationReceiptDigest: primaryCloseout.observation?.receiptDigest
+      })
+      if (evidenceValidation.valid) return { sourceKind: 'primary', lifecycleCloseout: primaryCloseout, replayed: true }
+    }
+    if (primaryCloseout.result === 'needs-reconcile') {
+      return { sourceKind: 'primary', lifecycleCloseout: primaryCloseout, replayed: false }
+    }
+  }
+  if (identity) {
+    const reserve = (reserves.records || []).find(item => {
+      try {
+        const closeout = item.record?.lastMutationCloseout
+        return sameIdentity(item.record?.identity, identity) && item.record?.reason === 'mutation-closeout' &&
+          closeout?.result === 'needs-reconcile' && closeout.operationId === operationId &&
+          mutationCloseoutDigest(closeout) === expectedCloseoutDigest
+      } catch { return false }
+    })
+    if (reserve) {
+      return {
+        sourceKind: 'emergency-reserve',
+        lifecycleCloseout: reserve.record.lastMutationCloseout,
+        reserveSequence: reserve.sequence,
+        reserveRecordDigest: reserve.recordDigest,
+        replayed: false
+      }
+    }
+  }
+  throw taskAdmissionIngressError(
+    'ARTIFACT_RECONCILIATION_CLOSEOUT_NOT_FOUND',
+    'the exact pending artifact closeout is missing, stale or already replaced'
+  )
+}
+
+function handleMemoryArtifactMutationReconcileV1(args) {
+  const target = taskMemoryTransactionTarget(args)
+  if (target.scope !== 'project' || !target.project) {
+    throw taskAdmissionIngressError('ARTIFACT_RECONCILIATION_PROJECT_REQUIRED', 'artifact reconciliation requires one exact project scope')
+  }
+  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef)
+  const taskId = String(args.taskId || '').trim().toLowerCase()
+  if (taskId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(taskId)) {
+    throw taskAdmissionIngressError('ARTIFACT_RECONCILIATION_TASK_INVALID', 'taskId is invalid')
+  }
+  const hostSessionDigest = String(ingress.actualInstructionEnvelope.hostSessionDigest || '').toLowerCase()
+  const identity = taskId
+    ? { activeRoot: target.activeRoot, project: target.project, taskId, taskStatus: 'active' }
+    : null
+  const metaDir = resolveTaskRecoveryMetaDir({ activeRoot: target.activeRoot, project: target.project })
+  const recoveryInput = identity
+    ? { metaDir, identity, hostSessionDigest }
+    : {
+        metaDir,
+        hostSessionDigest,
+        expectedIdentity: { activeRoot: target.activeRoot, project: target.project, taskStatus: 'active' }
+      }
+  const primary = readTaskRecoveryState(recoveryInput, { fs })
+  if (!['fresh', 'ephemeral-stub'].includes(primary.status)) {
+    throw taskAdmissionIngressError(
+      primary.errorCode || 'ARTIFACT_RECONCILIATION_STATE_UNAVAILABLE',
+      'canonical TaskRecoveryStoreV5 state is unavailable for artifact reconciliation'
+    )
+  }
+  const recoveredTaskIds = [...new Set([
+    primary.state?.taskRecoveryBinding?.taskId,
+    primary.state?.admissionTransaction?.taskId
+  ].map(value => String(value || '').trim().toLowerCase()).filter(Boolean))]
+  if (recoveredTaskIds.length > 1) {
+    throw taskAdmissionIngressError(
+      'ARTIFACT_RECONCILIATION_TASK_MISMATCH',
+      'canonical TaskRecoveryStoreV5 state contains conflicting formal task identities'
+    )
+  }
+  if (!taskId && recoveredTaskIds.length === 1) {
+    throw taskAdmissionIngressError(
+      'ARTIFACT_RECONCILIATION_TASK_REQUIRED',
+      'taskId is required when the canonical recovery state belongs to a formal task'
+    )
+  }
+  if (identity) {
+    if (primary.state?.taskRecoveryBinding?.taskId !== taskId || primary.state?.admissionTransaction?.taskId !== taskId) {
+      throw taskAdmissionIngressError('ARTIFACT_RECONCILIATION_TASK_MISMATCH', 'current ingress and canonical state do not bind the exact task')
+    }
+    if (primary.state.admissionTransaction.projectRootIdentityDigest !== ingress.projectTargetLease.rootIdentityDigest) {
+      throw taskAdmissionIngressError('ARTIFACT_RECONCILIATION_PROJECT_ROOT_MISMATCH', 'current project root does not match the task admission generation')
+    }
+    readFormalWorkflowRouteBinding(target, ingress, taskId)
+  }
+  const reserves = identity ? readEmergencyCloseouts(metaDir, { fs }) : { records: [] }
+  const source = artifactReconciliationSource({
+    primary,
+    reserves,
+    identity,
+    operationId: String(args.operationId || ''),
+    expectedCloseoutDigest: String(args.expectedCloseoutDigest || '')
+  })
+  if (source.replayed) {
+    const result = {
+      schemaVersion: 'ArtifactMutationReconciliationResultV1',
+      status: 'reconciled',
+      sourceKind: source.sourceKind,
+      operationId: args.operationId,
+      receipt: source.lifecycleCloseout.reconciliation,
+      replayed: true,
+      mutationAuthority: false
+    }
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result, isError: false }
+  }
+  const receipt = createArtifactMutationReconciliationReceipt({
+    lifecycleCloseout: source.lifecycleCloseout,
+    operationId: args.operationId,
+    expectedCloseoutDigest: args.expectedCloseoutDigest,
+    resolution: args.resolution,
+    sourceKind: source.sourceKind,
+    reserveSequence: source.reserveSequence,
+    reserveRecordDigest: source.reserveRecordDigest,
+    activeRoot: target.activeRoot,
+    projectRoot: ingress.projectRoot,
+    project: target.project,
+    taskId,
+    ingress: {
+      envelopeDigest: ingress.actualInstructionEnvelope.envelopeDigest,
+      decisionDigest: ingress.workflowRouteDecision.decisionDigest,
+      routeRevision: ingress.workflowRouteDecision.routeRevision,
+      projectTargetLeaseDigest: ingress.projectTargetLease.leaseDigest,
+      hostSessionDigest
+    }
+  }, { fs })
+  const commit = updateTaskRecoveryState(recoveryInput, state => {
+    if (source.sourceKind === 'primary') {
+      const current = state.turnLiveness?.lastMutationCloseout
+      if (current?.result === 'reconciled') {
+        const validation = validateArtifactMutationReconciliationEvidence(current.reconciliation, {
+          operationId: args.operationId,
+          priorCloseoutDigest: args.expectedCloseoutDigest,
+          priorObservationReceiptDigest: source.lifecycleCloseout.observation.receiptDigest
+        })
+        if (validation.valid) return state
+      }
+      if (current?.result !== 'needs-reconcile' || current.operationId !== args.operationId ||
+          mutationCloseoutDigest(current) !== args.expectedCloseoutDigest) {
+        throw taskAdmissionIngressError('ARTIFACT_RECONCILIATION_CAS_MISMATCH', 'primary artifact closeout changed before reconciliation commit')
+      }
+    } else {
+      const freshReserve = readEmergencyCloseouts(metaDir, { fs }).records.find(item =>
+        item.sequence === source.reserveSequence && item.recordDigest === source.reserveRecordDigest)
+      if (!freshReserve) {
+        throw taskAdmissionIngressError('ARTIFACT_RECONCILIATION_RESERVE_CAS_MISMATCH', 'emergency closeout reserve changed before reconciliation commit')
+      }
+      const inFlight = state.turnLiveness?.inFlightOperation
+      const sourceObservation = source.lifecycleCloseout.observation || {}
+      const activeLease = inFlight?.mutationLease || inFlight?.taskOwnedMutationLease
+      if (inFlight?.operationId !== args.operationId || inFlight?.mutating !== true ||
+          source.lifecycleCloseout.operationId !== args.operationId ||
+          inFlight?.mutationFootprint?.plannedSetDigest !== sourceObservation.plannedSetDigest ||
+          activeLease?.leaseDigest !== sourceObservation.leaseDigest ||
+          inFlight?.artifactDecision?.decisionDigest !== sourceObservation.decisionDigest) {
+        throw taskAdmissionIngressError(
+          'ARTIFACT_RECONCILIATION_PRIMARY_DRIFT',
+          'emergency reserve reconciliation requires the exact still-pending primary operation, decision, lease and footprint'
+        )
+      }
+    }
+    return applyArtifactMutationReconciliation(state, source.lifecycleCloseout, receipt)
+  }, { fs, reason: 'artifact-mutation-reconciliation', touchSessionMapping: true })
+  if (!['committed', 'semantic-noop', 'ephemeral-stub'].includes(commit.status)) {
+    throw taskAdmissionIngressError(
+      commit.errorCode || 'ARTIFACT_RECONCILIATION_COMMIT_FAILED',
+      commit.message || 'artifact reconciliation could not commit canonical state',
+      commit
+    )
+  }
+  const result = {
+    schemaVersion: 'ArtifactMutationReconciliationResultV1',
+    status: 'reconciled',
+    sourceKind: source.sourceKind,
+    operationId: args.operationId,
+    receipt,
+    replayed: false,
+    mutationAuthority: false
+  }
+  return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result, isError: false }
 }
 
 function handleMemoryTaskWriteOwner(args) {
@@ -3736,7 +4008,7 @@ function handleMemoryWorkflowOperationalWriteLease(args) {
   const lease = createWorkflowOperationalWriteLease({
     state: ingress.lifecycleState,
     activeRoot: target.activeRoot,
-    projectRoot: ingress.projectTargetLease.physicalRoot || INPUT_ROOT,
+    projectRoot: ingress.projectRoot,
     project: target.project,
     relativeTargets: args.targets,
     operation: args.operation,
@@ -3770,7 +4042,7 @@ function handleMemoryTaskFastPathLease(args) {
   const lease = createSimpleTaskFastPathLease({
     state: ingress.lifecycleState,
     activeRoot: target.activeRoot,
-    projectRoot: ingress.projectTargetLease.physicalRoot || INPUT_ROOT,
+    projectRoot: ingress.projectRoot,
     project: target.project,
     relativeTargets: args.targets,
     operation: args.operation,
@@ -3900,6 +4172,7 @@ function dispatch(method, params) {
           case 'memory_workflow_operational_write_lease': return handleMemoryWorkflowOperationalWriteLease(args)
           case 'memory_task_terminal_v1': return handleMemoryTaskTerminalV1(args)
           case 'memory_task_closeout_reconcile_v1': return handleMemoryTaskCloseoutReconcileV1(args)
+          case 'memory_artifact_mutation_reconcile_v1': return handleMemoryArtifactMutationReconcileV1(args)
           case 'memory_task_resolve': return handleMemoryTaskResolve(args)
           case 'memory_status': return handleMemoryStatus(args)
           case 'memory_session_query': return handleMemorySessionQuery(args)

@@ -1330,7 +1330,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
 
   function workflowCloseoutPaths(payload, state) {
     const rawTool = getToolName(payload).toLowerCase()
-    if (/memory_(?:session_write|summary_append|cp_confirm)|memory-(?:session-write|summary-append|cp-confirm)/.test(rawTool)) {
+    if (/memory_(?:session_allocate|session_write|summary_append|cp_confirm)|memory-(?:session-allocate|session-write|summary-append|cp-confirm)/.test(rawTool)) {
       return true
     }
     const paths = [...new Set(extractToolPaths(payload) || [])]
@@ -1360,7 +1360,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       return 'release'
     }
     const mutationTool = MUTATION_TOOL_RE.test(tool) || isSourceCodeMutation(payload, platform, state)
-    if (workflowCloseoutPaths(payload, state) && (mutationTool || /memory_(?:session_write|summary_append|cp_confirm)/.test(tool))) {
+    if (workflowCloseoutPaths(payload, state) && (mutationTool || /memory_(?:session_allocate|session_write|summary_append|cp_confirm)/.test(tool))) {
       return 'workflow-closeout'
     }
     if (mutationTool) return docsOnlyPaths(payload) ? 'docs-mutation' : 'source-mutation'
@@ -1466,7 +1466,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     return { acquisition: state.contextAcquisition, classified, actionClass }
   }
 
-  /** Return only context-gate strength; Auto, CP, permission, and danger remain downstream owners. */
+  /** Return only context-gate strength; Auto/CP/workflow validity and host-owned risk advisory remain downstream owners. */
   function getContextAcquisitionDecision(state, preResult) {
     const acquisition = syncContextProjection(state)
     if (acquisition.bootstrap.bootstrapComplete) return { status: 'complete', hardBlockEligible: false }

@@ -440,8 +440,22 @@ function buildTerminalProjection(receipt) {
     candidateChangedFiles.push(file)
     candidateChangedFileBytes += nextBytes
   }
-  const failedResult = (receipt.results || []).find(result =>
-    result?.status === 'failed' || (receipt.failedNode && result?.nodeId === receipt.failedNode)) || null
+  const failedResults = (receipt.results || []).filter(result => result?.status === 'failed' ||
+    (receipt.failedNode && result?.nodeId === receipt.failedNode))
+  const failedResult = failedResults[0] || null
+  const allFailedNodes = [...new Set([
+    ...(Array.isArray(receipt.failedNodes) ? receipt.failedNodes : []),
+    ...failedResults.map(result => result?.nodeId),
+    receipt.failedNode
+  ].map(value => String(value || '').trim()).filter(Boolean))]
+  const failedNodes = []
+  let failedNodeBytes = 0
+  for (const nodeId of allFailedNodes) {
+    const nextBytes = Buffer.byteLength(nodeId, 'utf8') + 4
+    if (failedNodes.length >= 256 || failedNodeBytes + nextBytes > 8 * 1024) break
+    failedNodes.push(nodeId)
+    failedNodeBytes += nextBytes
+  }
   const failureStream = (field) => {
     if (!failedResult) return null
     const value = String(failedResult[field] || '')
@@ -468,6 +482,21 @@ function buildTerminalProjection(receipt) {
         stderr: failureStream('stderr')
       }
     : null
+  const allFailureSummaries = failedResults.map(result => ({
+    nodeId: result.nodeId || null,
+    errorCode: result.errorCode || null,
+    exitCode: Number.isInteger(result.exitCode) ? result.exitCode : null,
+    signal: result.signal || null,
+    durationMs: Number(result.durationMs || 0)
+  }))
+  const failureSummaries = []
+  let failureSummaryBytes = 0
+  for (const summary of allFailureSummaries) {
+    const nextBytes = Buffer.byteLength(stableStringify(summary), 'utf8') + 4
+    if (failureSummaries.length >= 64 || failureSummaryBytes + nextBytes > 8 * 1024) break
+    failureSummaries.push(summary)
+    failureSummaryBytes += nextBytes
+  }
   const core = {
     schemaVersion: TERMINAL_PROJECTION_SCHEMA,
     receiptId: receipt.receiptId,
@@ -499,9 +528,15 @@ function buildTerminalProjection(receipt) {
     cacheHitCount: receipt.cacheHitCount,
     resumedNodeCount: Number(receipt.resumedNodeCount || 0),
     resumedNodeIds: receipt.resumedNodeIds || [],
-    failedNode: receipt.failedNode,
+    failedNode: receipt.failedNode || failedNodes[0] || null,
+    failedNodeCount: allFailedNodes.length,
+    failedNodes,
+    failedNodesTruncated: failedNodes.length !== allFailedNodes.length,
     failureSummary,
+    failureSummaries,
+    failureSummariesTruncated: failureSummaries.length !== allFailureSummaries.length,
     abortedNodes: receipt.abortedNodes || [],
+    abortedNodeReasons: compactTerminalValue(receipt.abortedNodeReasons || {}, 8 * 1024),
     nodeReceiptDigests: receipt.nodeReceiptDigests || {},
     startedAt: receipt.startedAt,
     completedAt: receipt.completedAt,

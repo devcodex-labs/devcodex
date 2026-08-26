@@ -76,7 +76,7 @@ devcodex global-adapters apply
 
 租户 Instructions **不可覆盖**：
 - S01~S07 安全底线（P2 级，不受 P3/P1 影响）
-- C10 危险命令禁止执行
+- C01/C10 的宿主权限归属、风险 advisory 与工作流有效性边界
 
 ## 优先级说明
 

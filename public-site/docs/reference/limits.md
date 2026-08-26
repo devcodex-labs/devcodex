@@ -50,6 +50,10 @@ HTTP 200 不足以证明某个产品页面正确；配置存在不足以证明�
 | `NextActionEnvelopeV1` | 结构化记录当前唯一恢复动作；界面通常只显示压缩后的自然语言动作 |
 | `MemoryCursorV1` | 绑定工具、项目、ContextRead、查询与来源身份的分页游标，下一页必须原样回传 |
 | `MemoryFileTransactionReceiptV1` | 记录 memory 文件事务的提交前后摘要、CAS、flush/readback 与字节证据 |
+| `TaskAdmissionReconciliationReceiptV1` | 绑定同一准入请求的精确 readback 与幂等阶段恢复，不授予源码写权限 |
+| `ArtifactMutationReconciliationInputV1` | V5 预写保存的有界 footprint + 完整 pre-observation；只用于 partial/零效果重观察 |
+| `ArtifactMutationReconciliationReceiptV1` | 绑定 exact operation/closeout、primary/reserve 来源和实际效果快照；只关闭既有 pending 状态 |
+| `ArtifactMutationReconciliationProjectionV1` | 压缩保留 receipt identity、recovery mode 与 recovered effect 集合，供 Hook/验证续跑复证 |
 | `WorkspaceTempManifestV2` | 临时对象的 owner、目标、生命周期、TTL 与 lease 权威；V1 只读兼容 |
 
 这些协议都采用失败关闭：绑定、来源或 scope 变化时不会静默回到第一页、猜测另一项目或自动重放修改性动作。
@@ -69,8 +73,11 @@ HTTP 200 不足以证明某个产品页面正确；配置存在不足以证明�
 | store soft / hard | 256 / 512 MiB | soft 安全冷化与退出缓存；hard 阻止普通 mutation |
 | closeout reserve | 8 MiB A/B | 只用于 hard pressure 后的最小收口，不承担普通写入 |
 | context source observations | 128 个固定槽 | 槽身份不匹配时全文 fail-safe，不新建无限文件 |
+| SkillRoute turn cache | 56/48 个 high/low water；64 个语义活跃 hard；256 个原始目录 hard；28/24 MiB high/low；32 MiB hard | 空 orphan 经 grace 安全退出；压力下只回收无业务义务终态或同会话已被后继 context 取代的未提交 route；锁、身份或会话不明时不删除并在 hard limit 失败关闭 |
 
 可通过 Profile 把 `hardLimitMiB` 提高到不小于 512 的 safe integer；soft limit 与对象级上限不会随之放大。现有项目内 legacy lifecycle generation/temp/log 只读报告，`runtime maintenance --apply` 也不会删除。
+
+SkillRoute 的 turn cache 与正式任务数是两套边界：前者保存单轮渐进路由执行证据并允许安全终态退出；后者按 taskId 使用 V5 A/B/cold stub，正式任务数量没有硬上限。空目录不再占用 turn 名额，unknown 非空目录仍计入 hard capacity，防止损坏状态被静默忽略。
 
 用户 HOME 下的不可变 `devcodex/runtime-*` 使用另一套租约回收合同：正式数量没有固定上限；当前、live、24 小时宽限与 unknown 证据均保留。只有完整预览计划中的 orphan candidate 可由匹配摘要显式应用。单 generation 超过 20,000 个条目、单文件 32 MiB 或整棵树 512 MiB 时停止深扫并标记 unknown，避免诊断自身造成无界内存或 I/O。
 

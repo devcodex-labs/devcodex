@@ -148,7 +148,7 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
 - 产物路径修复须沿用 `ArtifactLinkSetDedupeGate`；不得把同一物理文件的多种链接形式当成多份主产物输出
 - 最终回复修复须沿用 `ActiveRequirementFinalResponseGate`；不得把相邻需求或 backlog 的下一步写成当前 active 修复的默认结尾
 - 涉及项目事实变化 → 执行 `ProfileImpactCheck` 并通过 `document-sync` 更新 Profile 或记录跳过理由
-- 涉及验证、发布、pack、benchmark、codegen 或生成产物 → 完成前必须盘点残留并区分 owner。只能清理具备本轮 receipt、由本轮 runner/writer 创建且已满足适用破坏性确认的产物；用户既有、无 owner、并行任务或来源不明的 dirty 只能报告、隔离或从候选中排除，禁止 reset/stash/delete/overwrite
+- 涉及验证、发布、pack、benchmark、codegen 或生成产物 → 完成前必须盘点残留并区分 owner。只能清理具备本轮 receipt、由本轮 runner/writer 创建且精确落在当前任务、root、slot 与 retention 边界内的产物；实际删除权限由宿主决定。用户既有、无 owner、并行任务或来源不明的 dirty 只能报告、隔离或从候选中排除，禁止 reset/stash/delete/overwrite
 
 ## ECR 执行闭环复审（执行后正式阶段）
 

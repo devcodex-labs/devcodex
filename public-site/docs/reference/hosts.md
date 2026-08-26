@@ -44,6 +44,8 @@ devcodex grok
 
 当前目标拓扑是 `devcodex-workspace` plugin 独占六个 DevCodex lifecycle 事件；用户级 Grok Hook 文件只保留委派说明和用户自己的 Hook。Grok 会精确去重完全相同的 handler，但“双声明碰巧相同”仍不是稳定所有权。无需在 `~/.grok/config.toml` 中关闭整个 Claude 兼容层，也不要把关闭 Hooks 当作产品修复。
 
+Grok bridge 在 adapter 缺失、失败、输出无效或 workspace 外时采用 allow/degraded，并只把命令风险写入本地诊断；它不会用本地正则覆盖 Grok 的权限设置。正常 adapter 返回的 task、project、root、slot 或 retention 工作流阻断仍会透传，这与宿主操作权限是两个独立层次。
+
 ## Cursor：本地形态、Cloud 与命令身份
 
 Cursor 本地 IDE、交互 CLI、Headless CLI 和 Cloud Agent 必须分开判断。用户级受管 Hook 位于 `~/.cursor/hooks.json`，Plugin 位于 `~/.cursor/devcodex/plugins/devcodex-workspace`；业务项目侧只应保存 `.devcodex/`，不应复制第二套 `.cursor` 配置。

@@ -6,17 +6,17 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "6405d67ce0e7a85d7b7c3ba0965e9b5411220711ecf1d51c05b831c330175879",
+    "sourceDigest": "1d82645f2deef3a82cb90d8e5c86d3d7efc68a6ebd1be6c1a6f46f9825c81b3f",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "871b841f7ac11dd8b0ce6d0d3dd3bf4563eab48ef7ea458bce68755c85cd6bfb",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
     "publicTaxonomyDigest": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 649,
-    "consumerInventoryDigest": "31bfa79dc7e9138c2f63a7c2c60e6ef41770a46f737ede529db19b887e83ef73",
-    "consumerProjectionDigest": "6a4d28fbecf5dcb341f23b201939293a77ac6f84a9974581998fe536967c1f58",
-    "portfolioInputDigest": "5c52d99b345d7d21ac8fd4050382c9062beb47c18865480303d23c10fae7d28e"
+    "consumerInventoryFileCount": 650,
+    "consumerInventoryDigest": "705b522582d16f3368063f9939181d1b47e4c7cd741ba282c0eec4b9c2f177ee",
+    "consumerProjectionDigest": "955391c5e8111cf1af5f5ffd1981574b27c96294390d0a8a13789fd9ff59a188",
+    "portfolioInputDigest": "0b3ae2d57554d25927f13756bf5c74ae5d7371c857c354c9e968007060121d6d"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -30,7 +30,7 @@
     "conflictReviewedCount": 86,
     "operationalEvidenceCompleteCount": 86,
     "triggerPrecisionMeasuredCount": 3,
-    "instructionBudgetP95Bytes": 28581,
+    "instructionBudgetP95Bytes": 28698,
     "triggerQuality": "mixed",
     "sidecarPresentCount": 0,
     "publicCategoryCounts": {
@@ -798,8 +798,8 @@
         "content/skills/ai-agent-system-architecture/SKILL.md"
       ],
       "source": "content/skills/ai-agent-system-architecture/SKILL.md",
-      "hash": "e6442bad8d3f161ccdb922e54fe3e4fe52b45144018ff5f6aaff244c55515fd0",
-      "sourceBytes": 11585,
+      "hash": "a615d29515fbd1a9b4b7f869b305a846b378d0a26bdee9b873c0a1a93de3f847",
+      "sourceBytes": 12228,
       "version": "1.19.1",
       "lifecycleState": "active",
       "publicCategory": "domain-architecture",
@@ -8388,8 +8388,8 @@
         "content/skills/execution-contract/SKILL.md"
       ],
       "source": "content/skills/execution-contract/SKILL.md",
-      "hash": "179085f1fe2a619a04de7b184dded10d3dfe09212a3e15ffa017d46225be54a9",
-      "sourceBytes": 24312,
+      "hash": "8f3c862af73dd1b036153ff81b315e725f46765132d75c9f9b17b33bc1976dad",
+      "sourceBytes": 24488,
       "version": "1.19.1",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -8467,6 +8467,10 @@
         },
         {
           "path": "scripts/lib/validate-governance-mid.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-governance-prompts.js",
           "role": "current"
         },
         {
@@ -9712,6 +9716,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-governance-prompts.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-host-capability-routing.js",
           "role": "current"
         },
@@ -10832,6 +10840,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/test-hooks-runtime-visibility.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/test-spec-governance-base.js",
           "role": "current"
         },
@@ -11621,8 +11633,8 @@
         "content/skills/memory/SKILL.md"
       ],
       "source": "content/skills/memory/SKILL.md",
-      "hash": "3877d8d443931b94e922c55308231949032e208023f712d457028f0a191a7837",
-      "sourceBytes": 29119,
+      "hash": "d9238daece22e4897e21dcb4ec4f9fc591b774efb5008e89b616115d96231e5a",
+      "sourceBytes": 30870,
       "version": "1.19.1",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -11730,6 +11742,10 @@
         },
         {
           "path": "changelogs/releases/v1.18.0.md",
+          "role": "historical"
+        },
+        {
+          "path": "changelogs/releases/v1.19.1.md",
           "role": "historical"
         },
         {
@@ -13037,6 +13053,10 @@
         },
         {
           "path": "hooks/_runtime/actual-instruction-envelope.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/artifact-mutation-reconciliation.cjs",
           "role": "current"
         },
         {
@@ -16549,6 +16569,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-validation-budget-control.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-validation-dag.js",
           "role": "current"
         },
@@ -16620,6 +16644,7 @@
         "scripts/test-task-admission-authority.js",
         "scripts/test-task-recovery-store-v5.js",
         "scripts/test-validate-profile.js",
+        "scripts/test-validation-budget-control.js",
         "scripts/test-validation-dag.js",
         "scripts/test-visible-output-contract.js",
         "scripts/test-workflow-completion-contract.js",
@@ -16716,6 +16741,7 @@
           "scripts/test-task-admission-authority.js",
           "scripts/test-task-recovery-store-v5.js",
           "scripts/test-validate-profile.js",
+          "scripts/test-validation-budget-control.js",
           "scripts/test-validation-dag.js",
           "scripts/test-visible-output-contract.js",
           "scripts/test-workflow-completion-contract.js",
@@ -17627,6 +17653,10 @@
         },
         {
           "path": "scripts/lib/validate-governance-package-deployment.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-governance-prompts.js",
           "role": "current"
         },
         {
@@ -19485,10 +19515,6 @@
           "role": "current"
         },
         {
-          "path": "hooks/_runtime/lifecycle.cjs",
-          "role": "current"
-        },
-        {
           "path": "hooks/_runtime/mutation-footprint.cjs",
           "role": "current"
         },
@@ -19685,6 +19711,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validation-evidence-store.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/workspace-provisioning.js",
           "role": "current"
         },
@@ -19722,6 +19752,10 @@
         },
         {
           "path": "scripts/test-artifact-link-projection.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-artifact-mutation-authority.js",
           "role": "current"
         },
         {
@@ -19844,6 +19878,7 @@
       "validationProfile": [
         "scripts/test-always-on-governance.js",
         "scripts/test-artifact-link-projection.js",
+        "scripts/test-artifact-mutation-authority.js",
         "scripts/test-cli-behavior.js",
         "scripts/test-context-read-contract.js",
         "scripts/test-delivery-honesty.js",
@@ -19920,6 +19955,7 @@
         "probeSuiteRefs": [
           "scripts/test-always-on-governance.js",
           "scripts/test-artifact-link-projection.js",
+          "scripts/test-artifact-mutation-authority.js",
           "scripts/test-cli-behavior.js",
           "scripts/test-context-read-contract.js",
           "scripts/test-delivery-honesty.js",
@@ -20008,8 +20044,8 @@
         "content/skills/test-router/SKILL.md"
       ],
       "source": "content/skills/test-router/SKILL.md",
-      "hash": "da188a91de7cd9c35c39c385c1dd864a64d5d865c7a700f3962b578a5107ee1d",
-      "sourceBytes": 20198,
+      "hash": "dcfc46e3a149e8e145e68cd7fdb520a740194659b723345fe802399da8fa4b83",
+      "sourceBytes": 21339,
       "version": "1.19.1",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",
@@ -20728,8 +20764,8 @@
         "content/skills/user-visible-output-contract/SKILL.md"
       ],
       "source": "content/skills/user-visible-output-contract/SKILL.md",
-      "hash": "325a133322252a097bd22811f55795834fe56e705b2c79f1b0640c76a68d3b2d",
-      "sourceBytes": 22698,
+      "hash": "36e66ea207d3ce179b0765d4795422ffdcbe7f1da2387ea9c38afff884bc5b3b",
+      "sourceBytes": 22812,
       "version": "1.19.1",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -20803,6 +20839,10 @@
         },
         {
           "path": "scripts/lib/validate-governance-control.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/validate-governance-prompts.js",
           "role": "current"
         },
         {

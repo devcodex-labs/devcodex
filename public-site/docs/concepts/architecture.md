@@ -60,11 +60,17 @@
 
 每次正式写入按 `MutationFootprintV2 → ArtifactSlotDecisionV2 → TaskOwnedMutationLeaseV2 → V5 prewrite → MutationObservationReceiptV1` 闭环。也就是说，系统先知道哪个工具可能改哪些路径、这些路径属于哪个正式槽位，再签发一次性写授权；工具结束后还要观察 create/modify/delete/move/no-op 的真实效果。unknown writer、越过 active-root、错误 task/slot、重复消费或无法观察结果都会停止，而不是靠工具名称猜测。
 
+失败关闭也必须可恢复。任务准入在阶段文件已经精确落盘但返回失败时，会用同一请求确定最大完整阶段前缀，再幂等补齐阶段内缺失文件；artifact closeout 则由 server-owned `memory_artifact_mutation_reconcile_v1` 绑定当前 ingress、同会话正式任务、operation/CAS 与实际文件系统快照。完整效果直接复证，partial/零效果从 V5 预写的完整 pre-observation 对同一 footprint 重观察。它只关闭既有 pending 状态，不修改文件、不替代宿主权限；emergency reserve 也只能接管主状态中 operation、decision、lease 与 footprint 全部一致的未结束写入。
+
+Memory 会话分配、会话写入、SUMMARY 与 CP 写入本身已经由 `MemoryFileTransactionV1` 持有 CAS、锁、持久化和读回，因此 Hook 只保留实际指令、项目/session route 与入口时序检查，不再把它们的逻辑 URI 二次包装成普通文件 mutation closeout。签发 task/operational lease 或执行 reconciliation 的控制 Tool 同样不会自消费它正在签发或恢复的权限。不同宿主暴露的下划线、连字符、slash、双下划线与 flat MCP 名称先归一到同一 canonical Tool；第三方同名 Tool 不会被信任。每次 server-owned authority 调用还会重新验证 ProjectTargetLease 的摘要、时效、context/route、active-root 与工作区当前物理项目根，不能用陈旧 projection 扩大文件根。
+
+Artifact reconciliation 的恢复观察完全由原 mutation footprint 决定：exact target 不接受额外路径，controlled root 只接受声明根内的绝对后代。目录遍历会逐层验证逻辑/物理 containment 和对象身份，文件摘要在 descriptor 与当前路径的读前读后状态一致时才成立。正式任务恢复必须同时绑定 exact taskId；纯链接投影不会进入写入 closeout。
+
 ## 验证为何不会默认越跑越大
 
 `VerificationIntentV2` 把当前任务、用户范围、candidate、HEAD、dirty scope、影响面和预算绑定成计划；执行前再由独立 lease 绑定 actor、plan digest、deadline 和撤销状态。普通 edit/fix 只运行受影响的 V0～V2，V3/full 只能由当前明确的发布前全面审查或 release policy 授权。运行态依赖检查与 npm packlist 也是两个入口，避免一个看似普通的专项测试暗中触发 pack、全局安装或宿主部署。
 
-当 confirm 模式的非发布计划预计超过 600 秒或包含 heavy 节点时，系统保存唯一的当前预算卡并展示精确摘要；用户确认“当前验证卡”即可，不需要复制长 digest。有效 `@rocky` / Auto 可以直接授权当前正式任务的 V0～V2，但不能继承到 V3/full 或发布。验证失败后，系统可凭完整 mutation observation，或同一 HEAD 且没有新增 dirty 路径、节点和预算的稳定候选，最多自动续跑两次；范围、副作用、hard timeout 或日志预算扩大时必须重新授权，第三次失败会停止而不是暗换新根卡。plan-only 预览会执行与真实运行相同的续权资格检查，但不会写入或消耗续权；因此预览不会把 purpose 或范围已经变化的计划显示成“可继续”。长验证超过入口 TTL 时仍可继续既有根预算，但不能用过期入口创建或替换根。暂停、停止或缩小范围会立即撤销待执行卡、续权与运行 lease。
+当 confirm 模式的非发布计划预计超过 600 秒或包含 heavy 节点时，系统保存唯一的当前预算卡并展示精确摘要；用户确认“当前验证卡”即可，不需要复制长 digest。有效 `@rocky` / Auto 可以直接授权当前正式任务的 V0～V2，但不能继承到 V3/full 或发布。验证失败后，系统可凭完整 mutation observation，或同一 HEAD 且没有新增 dirty 路径、节点和预算的稳定候选，最多自动续跑两次；范围、副作用、hard timeout 或日志预算扩大时必须重新授权，第三次失败会停止而不是暗换新根卡。plan-only 预览会执行与真实运行相同的续权资格检查，但不会写入或消耗续权。严格后继候选只有在 level、purpose、边界、节点、heavy、副作用和全部预算逐项完全相等时才能换根；当前 fresh server-owned Auto 可以在同 task/project/root/session/revocation 下重绑 context/AutoRef 并保留父 lineage，过期入口只可沿用原绑定。已提交修复必须显式绑定冻结 changed files，不能因工作树已 clean 而缩小验证范围。暂停、停止或缩小范围会立即撤销待执行卡、续权与运行 lease。
 
 长验证由 managed runner 持有自己的进程和单一终态；取消、超时、崩溃或重启都必须留下可回读结果，并且只能清理由本 runner receipt 精确拥有的进程/临时产物。
 
@@ -73,8 +79,8 @@
 | DevCodex owns | Host owns |
 |---|---|
 | 意图与项目路由、Profile / context / memory、渐进 Skill | 模型推理与原生 agent loop |
-| 确认与授权边界、验证、报告、证据与续接 | 主要工具执行、会话传输与生命周期 |
-| 六宿主适配与共享工程契约 | 认证、sandbox 与运行环境 |
+| CP、任务写权、验证/发布工作流授权、报告、证据与续接 | 主要工具执行、会话传输与生命周期 |
+| 六宿主适配与共享工程契约 | 文件/命令操作权限、认证、sandbox 与运行环境 |
 
 DevCodex 不改变模型参数、权重、上下文窗口或基础推理上限。它提升的是模型在明确上下文、专业流程、工具、记忆和验证证据支持下完成工程任务的有效表现。
 

@@ -1555,6 +1555,9 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
   const effectivePlan = plan
   const results = []
   const abortedNodes = []
+  const abortedNodeReasons = {}
+  const failedNodes = []
+  const dependencyBlockedNodes = new Set()
   const cacheInvalidations = [...(effectivePlan.cacheInvalidations || [])]
   const invalidatedNodeIds = new Set(cacheInvalidations.map(item => item.nodeId))
   let failedNode = null
@@ -1589,6 +1592,18 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
       leaseBinding
     )
     const node = executionNodes[index]
+    const failedDependencies = (node.dependencies || []).filter(dependency => failedNodes.includes(dependency))
+    const blockedDependencies = (node.dependencies || []).filter(dependency => dependencyBlockedNodes.has(dependency))
+    if (failedDependencies.length || blockedDependencies.length) {
+      abortedNodes.push(node.id)
+      dependencyBlockedNodes.add(node.id)
+      abortedNodeReasons[node.id] = {
+        code: failedDependencies.length ? 'VALIDATION_DEPENDENCY_FAILED' : 'VALIDATION_DEPENDENCY_BLOCKED',
+        failedDependencies,
+        blockedDependencies
+      }
+      continue
+    }
     const declaredDelegates = new Set((node.delegatedClosure || []).map(entry => entry.nodeId))
     const delegatedNodeIds = executionNodes
       .filter(item => item.id !== node.id && declaredDelegates.has(item.id))
@@ -1776,7 +1791,9 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
       if (onNode) onNode(nodeEvidence)
     } catch (error) {
       const evidence = error instanceof CheckedCommandError ? error.evidence : (error.evidence || {})
-      failedNode = node.id
+      if (!failedNode) failedNode = node.id
+      if (!failedNodes.includes(node.id)) failedNodes.push(node.id)
+      dependencyBlockedNodes.add(node.id)
       const result = {
         nodeId: node.id,
         nodeContractDigest,
@@ -1797,8 +1814,6 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
       }
       results.push(result)
       if (onNode) onNode(result)
-      for (const pending of executionNodes.slice(index + 1)) abortedNodes.push(pending.id)
-      break
     }
   }
 
@@ -1840,9 +1855,9 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     authorityDigest: lease.authorityDigest,
     authorityActorType: lease.actorType,
     authorityClass: lease.authorityClass,
-    claimCeiling: failedNode ? 'non-qualifying' : (effectivePlan.claimCeiling || null),
-    terminalStatus: failedNode ? 'failed' : 'completed',
-    executionState: failedNode ? 'failed' : 'completed',
+    claimCeiling: failedNodes.length ? 'non-qualifying' : (effectivePlan.claimCeiling || null),
+    terminalStatus: failedNodes.length ? 'failed' : 'completed',
+    executionState: failedNodes.length ? 'failed' : 'completed',
     validationLayer: effectivePlan.validationLayer,
     changedSource: effectivePlan.changedSource,
     changedFiles: effectivePlan.changedFiles,
@@ -1882,7 +1897,9 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     skipped: effectivePlan.skipped,
     results,
     abortedNodes,
+    abortedNodeReasons,
     failedNode,
+    failedNodes,
     selectedNodeCount: effectivePlan.selectedNodeCount,
     executionCount: results.filter(result => result.status !== 'cache-hit').length,
     cacheHitCount: results.filter(result => result.status === 'cache-hit').length,
@@ -1893,7 +1910,7 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     wallTimeMs: completedAtMs - startedAtMs,
     stdoutBytes,
     stderrBytes,
-    nativeExitCode: failedNode ? 1 : 0
+    nativeExitCode: failedNodes.length ? 1 : 0
   }
   const receiptId = 'validation-receipt-' + sha256(Buffer.from(stableStringify(semanticReceipt), 'utf8'))
   const receipt = { ...semanticReceipt, receiptId }

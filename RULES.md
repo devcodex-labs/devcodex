@@ -24,7 +24,7 @@ DevCodex 同时支持六宿主的用户级加载路径，规则语义保持一�
 
 ## 宿主模式
 
-- **Hook-First**：VS Code / Claude Code / Codex Hooks 可用时，通过对应宿主 hooks 承载 bootstrap、危险操作护栏和结束前兜底
+- **Hook-First**：VS Code / Claude Code / Codex Hooks 可用时，通过对应宿主 hooks 承载 bootstrap、操作风险 advisory、工作流有效性检查和结束前兜底；文件与命令的实际权限始终由宿主决定
 - **Instruction-Fallback**：Hooks 不可用时，继续依赖 instructions / skills 承载软约束
 - **当前实现**：npm 全局安装/升级通过 `postinstall` 更新用户级稳定 runtime、共享 full fallback 与 active Skills；共享 `.agents` 由单一事务 Owner 写入。bare `init/update` 只管理 workspace `.devcodex`，fresh workspace 会建立 `workspace-namespace` marker
 - **全局唯一写入口**：`devcodex init --claude`、`devcodex init --codex` 及其他宿主 selector/alias 均返回 `CLI_HOST_CONFIG_GLOBAL_ONLY`。用户级宿主 adapter：源码仓优先 `devcodex global-adapters apply`（或 `npm install -g .` / pack+tarball）；已发布环境 `npm install -g devcodex` / `npm update -g devcodex`（postinstall）
@@ -58,8 +58,8 @@ DevCodex 同时支持六宿主的用户级加载路径，规则语义保持一�
 ## 安全底线
 
 `00-safety.instructions.md` 全局自动注入，包含 S01~S07 七条不可覆盖的安全规则：
-- **S01** 破坏性操作需确认 · **S02** 默认允许敏感信息与硬编码，按用户 / 项目显式策略处理 · **S03** 禁止编造规范
-- **S04** 禁止整文件覆写 · **S05** 记忆+报告自动写入 · **S06** 禁止危险命令 · **S07** 全模式入口检查强制输出 PC0~PC7（dev 模式追加 PC4 完整诊断）
+- **S01** 操作权限归宿主，DevCodex 只核对任务、目标与保留不变量 · **S02** 默认允许敏感信息与硬编码，按用户 / 项目显式策略处理 · **S03** 禁止编造规范
+- **S04** 禁止整文件覆写 · **S05** 记忆+报告自动写入 · **S06** 风险分类仅作 advisory，工作流无效才失败关闭 · **S07** 全模式入口检查强制输出 PC0~PC7（dev 模式追加 PC4 完整诊断）
 
 ## 控制面 Markdown 维护
 

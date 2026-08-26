@@ -146,7 +146,7 @@ permission-core 等业务任务级 baseline 只能作样板，不得替代 DevCo
 
 进入每个实施批次前必须反向比较 `phaseTotalScope / allowedFirstBatch / actualTargetSet / blockedScope / dirtyBoundary`。`allowedFirstBatch` 只允许当前批次，不得因总路线图已确认而一次放开后续模块。
 
-当计划或实现新增 root package script、CI job、validator、fixture runner、部署副本或外部 consumer 时，执行 `ValidationConsumerRebindMatrix`，同步 `allowedPaths / consumerScope / TestRoute / regressionMatrix / rollbackAuthorization / deployCopies`。合同禁止修改某消费者但验收又依赖该消费者时必须在编码前阻断；回滚包含删除、清空或其他未授权动作时不得通过。
+当计划或实现新增 root package script、CI job、validator、fixture runner、部署副本或外部 consumer 时，执行 `ValidationConsumerRebindMatrix`，同步 `allowedPaths / consumerScope / TestRoute / regressionMatrix / rollbackAuthorization / deployCopies`。合同禁止修改某消费者但验收又依赖该消费者时必须在编码前阻断；回滚包含未纳入当前任务与精确目标集的删除、清空或其他动作时不得通过，实际操作权限仍由宿主决定。
 
 ## Auto 消费规则
 
@@ -177,7 +177,7 @@ permission-core 等业务任务级 baseline 只能作样板，不得替代 DevCo
 |------|------|
 | `repairClass` | `lightweight` / `full` |
 | `contractState` | `draft / approved / executing / verification-pending / accepted / rejected / blocked` |
-| `authorizationEvidence` | CP、合法 Auto、危险操作独立确认或其他可审计授权；Auto 使用 `mode=auto`，不得伪造人工确认 |
+| `authorizationEvidence` | CP、合法 Auto、验证预算、发布或其他可审计的工作流授权；Auto 使用 `mode=auto`，不得伪造人工确认。文件/命令的操作级 permission 由宿主决定，不得记录成 DevCodex 自有授权 |
 | `roleAssignments` | 显式记录决策/验收与执行/验证逻辑角色；允许同一主体，但高风险通过结论不能只有补丁产出者自证 |
 
 允许状态转换为 `draft→approved/blocked`、`approved→executing/blocked`、`executing→verification-pending/blocked`、`verification-pending→accepted/rejected/blocked`、`rejected→executing/blocked`。禁止 `executing→accepted`；单个测试通过、代码写完或开始验证不能替代 accepted。

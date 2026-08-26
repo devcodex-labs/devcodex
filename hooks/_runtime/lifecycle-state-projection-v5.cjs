@@ -1,6 +1,7 @@
 'use strict'
 
 const crypto = require('crypto')
+const { projectArtifactMutationReconciliationReceipt } = require('./artifact-mutation-reconciliation.cjs')
 
 const TASK_STATE_TARGET_BYTES = 64 * 1024
 const TASK_STATE_SLOT_MAX_BYTES = 256 * 1024
@@ -381,6 +382,33 @@ function compactTurnLiveness(raw) {
   return value
 }
 
+function compactColdMutationCloseout(raw) {
+  if (!isPlainObject(raw) || !['needs-reconcile', 'reconciled'].includes(raw.result)) return null
+  if (raw.result === 'needs-reconcile') return clone(raw)
+  let reconciliation = null
+  if (isPlainObject(raw.reconciliation)) {
+    reconciliation = raw.reconciliation.schemaVersion === 'ArtifactMutationReconciliationProjectionV1'
+      ? clone(raw.reconciliation)
+      : projectArtifactMutationReconciliationReceipt(raw.reconciliation)
+  }
+  return {
+    schemaVersion: raw.schemaVersion,
+    operationId: boundedString(raw.operationId, 256),
+    toolName: boundedString(raw.toolName, 128),
+    completedAt: raw.completedAt || null,
+    result: 'reconciled',
+    reconciledAt: raw.reconciledAt || reconciliation?.reconciledAt || null,
+    reconciliation,
+    observation: isPlainObject(raw.observation) ? {
+      plannedSetDigest: boundedString(raw.observation.plannedSetDigest, 64),
+      receiptDigest: boundedString(raw.observation.receiptDigest, 64)
+    } : null,
+    artifactCloseout: isPlainObject(raw.artifactCloseout) ? {
+      closeoutDigest: boundedString(raw.artifactCloseout.closeoutDigest, 64)
+    } : null
+  }
+}
+
 function compactDeliveryReceipts(receipts) {
   let selected = (Array.isArray(receipts) ? receipts : [])
     .filter(isPlainObject)
@@ -702,7 +730,8 @@ function buildColdResumeStub(compactState) {
       turnKey: '',
       checkpoint: compactCheckpoint(turn.checkpoint),
       previousTurn: turn.previousTurn || null,
-      lastRecoveryCard: compactRecoveryCard(turn.lastRecoveryCard)
+      lastRecoveryCard: compactRecoveryCard(turn.lastRecoveryCard),
+      lastMutationCloseout: compactColdMutationCloseout(turn.lastMutationCloseout)
     },
     recoveryKind: 'cold-resume-stub'
   }

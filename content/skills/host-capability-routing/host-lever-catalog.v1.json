@@ -473,7 +473,7 @@
       },
       "permission": {
         "permissionDelta": "elevated",
-        "writeBoundary": "Edit gates do not prove bash or subagent safety; DevCodex CP and destructive confirmation remain independent."
+        "writeBoundary": "Edit gates do not prove bash or subagent availability. File and command permissions remain host-owned; DevCodex CP, task, root, slot and retention invariants remain independent workflow checks."
       },
       "lifecycle": {
         "enter": {

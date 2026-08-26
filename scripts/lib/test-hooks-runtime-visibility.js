@@ -111,13 +111,15 @@ function runHooksRuntimeVisibilityScenarios(context) {
       operation: 'create',
       targets: [relativeTarget]
     }
-    run({
+    const operationalPre = run({
       hookEventName: 'PreToolUse',
       tool_use_id: toolUseId,
       tool_name: 'mcp__devcodex_memory__memory_workflow_operational_write_lease',
       tool_input: toolInput
     })
+    assert.notStrictEqual(operationalPre.hookSpecificOutput?.permissionDecision, 'deny', JSON.stringify(operationalPre))
     const current = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+    assert.notStrictEqual(current.turnLiveness?.inFlightOperation?.mutating, true, 'authority controls must not consume artifact mutation authority')
     const lease = createWorkflowOperationalWriteLease({
       state: current,
       activeRoot,
@@ -968,6 +970,36 @@ function runHooksRuntimeVisibilityScenarios(context) {
     prompt: 's07 product write before entry-check safety-only'
   })
   runBootstrapReads(TEST_AGENT)
+  const memoryCloseoutBefore = JSON.stringify(JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')).turnLiveness?.lastMutationCloseout || null)
+  const memoryAllocateInput = { date: '20260824', title: 's07-memory-allocation', intent: 'fix' }
+  const memoryAllocatePre = run({
+    hookEventName: 'PreToolUse',
+    tool_use_id: 's07-memory-allocate-1',
+    tool_name: 'mcp__devcodex-memory__memory_session_allocate',
+    tool_input: memoryAllocateInput
+  })
+  assert.strictEqual(memoryAllocatePre.continue, true)
+  assert.notStrictEqual(memoryAllocatePre.hookSpecificOutput?.permissionDecision, 'deny', JSON.stringify(memoryAllocatePre))
+  let memoryAllocateState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(memoryAllocateState.productMutationBeforePrecheck, true, 'session allocation is a product-memory mutation for S07 ordering')
+  assert.strictEqual(memoryAllocateState.s07ProductWarnEmitted, false, 'internal memory persistence must not consume the first user-visible S07 warning')
+  assert.notStrictEqual(memoryAllocateState.turnLiveness?.inFlightOperation?.mutating, true, 'server-owned MemoryFileTransaction must not enter generic artifact recovery')
+  run({
+    hookEventName: 'PostToolUse',
+    tool_use_id: 's07-memory-allocate-1',
+    tool_name: 'mcp__devcodex-memory__memory_session_allocate',
+    tool_input: memoryAllocateInput,
+    tool_result: {
+      schemaVersion: 'MemorySessionAllocationReceiptV1',
+      sessionId: '01',
+      sessionBinding: 'a'.repeat(64),
+      transaction: { schemaVersion: 'MemoryFileTransactionReceiptV1', afterDigest: 'b'.repeat(64) }
+    },
+    success: true
+  })
+  memoryAllocateState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(memoryAllocateState.memoryTouched, true)
+  assert.strictEqual(JSON.stringify(memoryAllocateState.turnLiveness?.lastMutationCloseout || null), memoryCloseoutBefore)
   const firstReportPath = path.join(TEMP_ROOT, '.devcodex', 'reports', 'analysis', 'test', '20260824', '01--sample.md')
   const firstOperationalLease = issueWorkflowOperationalCreateLease(firstReportPath)
   const productWriteWarn = run({

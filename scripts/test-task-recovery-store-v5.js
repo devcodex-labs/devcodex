@@ -33,6 +33,9 @@ const {
 const {
   resolveTaskRecoveryConfigForCwd
 } = require('../hooks/_runtime/task-recovery-config-v1.cjs')
+const {
+  validateArtifactMutationReconciliationEvidence
+} = require('../hooks/_runtime/artifact-mutation-reconciliation.cjs')
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-task-recovery-v5-'))
 const metaDir = path.join(tempRoot, 'hooks', 'devcodex')
@@ -1013,6 +1016,46 @@ try {
     currentLease: { schemaVersion: 'VerificationExecutionLeaseV2', authorityDigest: '5'.repeat(64) },
     runnerState: { schemaVersion: 'ManagedValidationRunnerStateV1', stateDigest: '6'.repeat(64) }
   }
+  const coldRecoveredEffects = {
+    created: [],
+    modified: [path.join(activeRoot, 'bugs', coldId, '05-实施进度.md')],
+    deleted: [],
+    moved: []
+  }
+  const coldReconciliationSemantic = {
+    schemaVersion: 'ArtifactMutationReconciliationProjectionV1',
+    sourceReceiptSchema: 'ArtifactMutationReconciliationReceiptV1',
+    sourceReceiptDigest: '7'.repeat(64),
+    project: 'devcodex',
+    taskId: coldId,
+    operationId: 'cold-reconciled-operation',
+    priorObservationReceiptDigest: '8'.repeat(64),
+    priorCloseoutDigest: '9'.repeat(64),
+    priorPlannedSetDigest: 'a'.repeat(64),
+    recoveryMode: 'prior-complete-observation',
+    recoveryInputDigest: null,
+    recoveredObservedEffects: coldRecoveredEffects,
+    recoveredObservedEffectsDigest: digestValue(coldRecoveredEffects),
+    currentEffectSnapshotDigest: 'b'.repeat(64),
+    mutationAuthority: false,
+    reconciledAt: '2026-08-22T00:00:00.000Z'
+  }
+  checkpointed.turnLiveness.lastMutationCloseout = {
+    schemaVersion: 'LifecycleMutationCloseoutV2',
+    operationId: 'cold-reconciled-operation',
+    completedAt: '2026-08-22T00:00:00.000Z',
+    result: 'reconciled',
+    reconciledAt: '2026-08-22T00:00:00.000Z',
+    observation: {
+      plannedSetDigest: 'a'.repeat(64),
+      receiptDigest: '8'.repeat(64)
+    },
+    artifactCloseout: { closeoutDigest: '9'.repeat(64) },
+    reconciliation: {
+      ...coldReconciliationSemantic,
+      projectionDigest: digestValue(coldReconciliationSemantic)
+    }
+  }
   assert.strictEqual(commitTaskRecoveryState({
     metaDir: coldMeta,
     identity: identity(coldId),
@@ -1031,6 +1074,15 @@ try {
   assert.strictEqual(coldRead.state.validationControlIngress, null)
   assert.strictEqual(coldRead.state.validationExecution, null,
     'cold resume stubs must strip every live or replayable validation authority record')
+  assert.strictEqual(coldRead.state.turnLiveness.lastMutationCloseout.result, 'reconciled')
+  assert.strictEqual(validateArtifactMutationReconciliationEvidence(
+    coldRead.state.turnLiveness.lastMutationCloseout.reconciliation,
+    {
+      operationId: 'cold-reconciled-operation',
+      priorCloseoutDigest: '9'.repeat(64),
+      priorObservationReceiptDigest: '8'.repeat(64)
+    }
+  ).valid, true, 'cold projection must preserve the reconciled effect set for downstream consumers')
 
   const coldFaultMeta = path.join(tempRoot, 'cold-fault-hooks')
   const coldFaultId = '00000000-0000-4000-8000-000000000012'
@@ -1260,6 +1312,61 @@ try {
     undefined,
     'legacy DevCodex-owned operation approvals must not survive V5 projection; the host owns permission state'
   )
+  const reconciledEphemeralMeta = path.join(tempRoot, 'reconciled-ephemeral-hooks')
+  const reconciledEphemeralState = state('reconciled-ephemeral')
+  reconciledEphemeralState.taskRecoveryBinding = null
+  const recoveredObservedEffects = { created: [], modified: [], deleted: [], moved: [] }
+  const reconciliationProjectionSemantic = {
+    schemaVersion: 'ArtifactMutationReconciliationProjectionV1',
+    sourceReceiptSchema: 'ArtifactMutationReconciliationReceiptV1',
+    sourceReceiptDigest: '1'.repeat(64),
+    project: 'devcodex',
+    taskId: null,
+    operationId: 'ephemeral-reconciled-operation',
+    priorObservationReceiptDigest: '2'.repeat(64),
+    priorCloseoutDigest: '3'.repeat(64),
+    priorPlannedSetDigest: '4'.repeat(64),
+    recoveryMode: 'prior-complete-observation',
+    recoveryInputDigest: null,
+    recoveredObservedEffects,
+    recoveredObservedEffectsDigest: digestValue(recoveredObservedEffects),
+    currentEffectSnapshotDigest: '5'.repeat(64),
+    mutationAuthority: false,
+    reconciledAt: '2026-08-22T00:00:00.000Z'
+  }
+  const reconciliationProjection = {
+    ...reconciliationProjectionSemantic,
+    projectionDigest: digestValue(reconciliationProjectionSemantic)
+  }
+  reconciledEphemeralState.turnLiveness.lastMutationCloseout = {
+    schemaVersion: 'LifecycleMutationCloseoutV2',
+    operationId: 'ephemeral-reconciled-operation',
+    result: 'reconciled',
+    reconciledAt: '2026-08-22T00:00:00.000Z',
+    reconciliation: reconciliationProjection,
+    observation: {
+      schemaVersion: 'MutationObservationReceiptV1',
+      operationId: 'ephemeral-reconciled-operation',
+      receiptDigest: '2'.repeat(64)
+    },
+    artifactCloseout: { closeoutDigest: '3'.repeat(64) }
+  }
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir: reconciledEphemeralMeta,
+    identity: { activeRoot, project: 'devcodex' },
+    sessionKey: 'reconciled-ephemeral-session',
+    state: reconciledEphemeralState
+  }, baseOptions).status, 'ephemeral-stub')
+  const reconciledEphemeralRead = readTaskRecoveryState({
+    metaDir: reconciledEphemeralMeta,
+    sessionKey: 'reconciled-ephemeral-session'
+  }, baseOptions)
+  const compactedReconciliation = reconciledEphemeralRead.state.turnLiveness.lastMutationCloseout.reconciliation
+  assert.strictEqual(validateArtifactMutationReconciliationEvidence(compactedReconciliation, {
+    operationId: 'ephemeral-reconciled-operation',
+    priorCloseoutDigest: '3'.repeat(64),
+    priorObservationReceiptDigest: '2'.repeat(64)
+  }).valid, true, 'ephemeral recovery projection must preserve the exact reconciled terminal binding')
   const ephemeralMaintenance = maintainTaskRecoveryStore(ephemeralMeta, {
     ...baseOptions,
     nowMs: baseOptions.nowMs + 2 * 24 * 60 * 60 * 1000,

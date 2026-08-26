@@ -30,6 +30,7 @@ const REQUIRED_HOOK_EVENTS = Object.freeze([
 
 const REQUIRED_MCP_TOOLS = Object.freeze([
   'memory_artifact_link_project',
+  'memory_artifact_mutation_reconcile_v1',
   'memory_cp_confirm',
   'memory_session_allocate',
   'memory_session_query',

@@ -85,6 +85,7 @@ const RUNTIME_CONTRACT_FILES = Object.freeze([
   'lifecycle.cjs',
   'mutation-footprint.cjs',
   'mutation-observation.cjs',
+  'artifact-mutation-reconciliation.cjs',
   'simple-task-fast-path-lease.cjs',
   'task-recovery-config-v1.cjs',
   'task-recovery-store-v5.cjs',

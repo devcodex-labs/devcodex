@@ -5,7 +5,9 @@ const RUNNER_COMMAND_SCHEMA = 'ValidationRunnerCommandV1'
 
 if (process.env.DEVCODEX_VALIDATION_WORKER_FAULT === 'disconnect-before-command') {
   if (process.connected) process.disconnect()
-  setTimeout(() => process.exit(19), 10)
+  // Keep the disconnected process alive past the runner's delayed dispatch so
+  // the fixture deterministically exercises the send-error closeout branch.
+  setTimeout(() => process.exit(19), 1000)
 }
 
 function createSender(message) {

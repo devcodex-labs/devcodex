@@ -759,6 +759,17 @@ async function main() {
       ['fixture-failure', 'fixture-second-failure'])
     assert.strictEqual(compactProjection.abortedNodeReasons['fixture-dependent'].code,
       'VALIDATION_DEPENDENCY_FAILED')
+    const undefinedSafeProjection = createValidationEvidenceStore({
+      activeRoot, project: 'devcodex', actorType: 'human-cli', runIdentity: lease.runIdentity
+    }).buildTerminalProjection({
+      ...completed.receipt,
+      terminalReason: {
+        code: 'VALIDATION_RUNNER_STATE_PERSISTENCE_FAILED',
+        persistence: { status: 'error', optionalDiagnostic: undefined }
+      }
+    })
+    assert.match(undefinedSafeProjection.terminalDigest, /^[a-f0-9]{64}$/)
+    assert.strictEqual(undefinedSafeProjection.terminalReason.persistence.optionalDiagnostic, null)
     assert.strictEqual((await terminateOwnedTree({ pid: process.pid }, {
       runIdentityDigest: lease.runIdentityDigest
     })).status, 'denied', 'process cleanup without an exact ownership receipt must never signal a process')
@@ -841,14 +852,23 @@ async function main() {
       stateDigest: sha256(Buffer.from(stableStringify(checkpointRunnerCore), 'utf8'))
     }
     assert.strictEqual(checkpointStore.writeRunnerState(checkpointRunnerState).status, 'persisted')
+    const reboundCheckpointLease = createVerificationExecutionLease({
+      runIdentity: checkpointLease.runIdentity,
+      actorIdentityEvidence: checkpointLease.actorIdentityEvidence,
+      authoritySourceRef: checkpointLease.authoritySourceRef,
+      issuedAt: new Date(Date.parse(checkpointLease.issuedAt) + 1000).toISOString()
+    })
+    assert.notStrictEqual(reboundCheckpointLease.authorityDigest, checkpointLease.authorityDigest)
     const resumedHostRun = await runManagedValidation({
       manifest: {}, plan: checkpointPlan, candidate: checkpointCandidate,
-      repoRoot: fixtureRoot, activeRoot, lease: checkpointLease,
+      repoRoot: fixtureRoot, activeRoot, lease: reboundCheckpointLease,
       actorType: 'human-cli', project: 'devcodex', workerPath, pollIntervalMs: 50
     })
     assert.strictEqual(resumedHostRun.receipt.terminalStatus, 'completed', JSON.stringify(resumedHostRun))
     assert.strictEqual(resumedHostRun.receipt.resumedNodeCount, 1)
-    assert.strictEqual(resumedHostRun.runner.recoveries[0].kind, 'dead-host-exact-checkpoint')
+    assert.strictEqual(resumedHostRun.runner.recoveries[0].kind, 'dead-host-exact-checkpoint-rebound')
+    assert.strictEqual(resumedHostRun.runner.recoveries[0].sourceLeaseDigest, checkpointLease.authorityDigest)
+    assert.strictEqual(resumedHostRun.runner.recoveries[0].activeLeaseDigest, reboundCheckpointLease.authorityDigest)
 
     function runFixture(index, extra = {}) {
       const runCandidate = {

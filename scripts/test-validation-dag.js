@@ -37,6 +37,7 @@ const {
   detectedActorType,
   expectedCiPolicyDigest,
   parseArgs,
+  projectValidationExecutionForCli,
   resolveValidationAuthorityContext,
   resolveActorType,
   validationExecutionError
@@ -1845,6 +1846,22 @@ function run() {
     assert.strictEqual(failureEnvelope.ok, false)
     assert.strictEqual(failureEnvelope.error.code, 'VALIDATION_NODE_FAILED')
     assert.strictEqual(failureEnvelope.data.receipt.results[0].exitCode, 7)
+    assert.strictEqual(failureEnvelope.data.receipt.projectionSchemaVersion, 'ValidationCliExecutionProjectionV1')
+    assert.strictEqual(failureEnvelope.data.persistence.schemaVersion, 'ValidationCliPersistenceProjectionV1')
+    assert(Buffer.byteLength(cliFailure.stdout, 'utf8') < 64 * 1024)
+    const boundedExecutionProjection = projectValidationExecutionForCli({
+      receipt: {
+        ...failureEnvelope.data.receipt,
+        results: [{ nodeId: 'cli-failure', status: 'failed', exitCode: 7 }]
+      },
+      persistence: {
+        status: 'persisted',
+        stateOwner: 'task-recovery-v5',
+        mapping: { state: { unrelatedHistory: 'x'.repeat(200000) } }
+      }
+    })
+    assert(Buffer.byteLength(JSON.stringify(boundedExecutionProjection), 'utf8') < 64 * 1024)
+    assert.strictEqual(Object.hasOwn(boundedExecutionProjection.persistence, 'mapping'), false)
 
     console.log(`validation DAG tests passed: manifestNodes=${manifest.nodes.length} fullNodes=${fullPlan.selectedNodeCount} duplicateLeaf=0 requiredMiss=0 graphFallback=closed cacheTamper/invariant/unstable=closed nativeExit=0/1/2`)
   } finally {

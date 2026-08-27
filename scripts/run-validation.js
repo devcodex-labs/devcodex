@@ -23,7 +23,10 @@ const {
   planBudgetProjection,
   createVerificationExecutionLease
 } = require('./lib/validation-execution-authority')
-const { createValidationEvidenceStore } = require('./lib/validation-evidence-store')
+const {
+  buildTerminalProjection,
+  createValidationEvidenceStore
+} = require('./lib/validation-evidence-store')
 const { runManagedValidation } = require('./lib/managed-validation-runner')
 const {
   resolveActiveRuntimeRoot
@@ -47,6 +50,9 @@ const {
 const ROOT = path.resolve(__dirname, '..')
 const DEFAULT_MANIFEST = path.join(__dirname, 'validation-manifest.json')
 const CLI_SCHEMA = 'ValidationCliEnvelopeV1'
+const CLI_EXECUTION_PROJECTION_SCHEMA = 'ValidationCliExecutionProjectionV1'
+const CLI_PERSISTENCE_PROJECTION_SCHEMA = 'ValidationCliPersistenceProjectionV1'
+const CLI_EXECUTION_MAX_BYTES = 64 * 1024
 const DIGEST_RE = /^[a-f0-9]{64}$/
 
 function parseArgs(argv) {
@@ -159,7 +165,7 @@ function envelope(ok, data = null, error = null) {
 }
 
 function printJson(value) {
-  process.stdout.write(JSON.stringify(value, null, 2) + '\n')
+  process.stdout.write(JSON.stringify(value) + '\n')
 }
 
 function printHelp() {
@@ -236,6 +242,89 @@ function compactPlan(plan, executionOptimization = null) {
     requiredNodeMisses: plan.requiredNodeMisses,
     executionOptimization
   }
+}
+
+function compactValidationResultForCli(result = {}) {
+  return {
+    nodeId: result.nodeId || null,
+    status: result.status || null,
+    exitCode: Number.isInteger(result.exitCode) ? result.exitCode : null,
+    errorCode: result.errorCode || null,
+    signal: result.signal || null,
+    durationMs: Number(result.durationMs || 0),
+    evidenceDigest: result.evidenceDigest || null,
+    nodeReceiptDigest: result.nodeReceiptDigest || null,
+    stdoutSummary: result.stdoutSummary || null,
+    stderrSummary: result.stderrSummary || null
+  }
+}
+
+function compactValidationPersistenceForCli(persistence = {}) {
+  const projection = {
+    schemaVersion: CLI_PERSISTENCE_PROJECTION_SCHEMA,
+    status: persistence.status || null,
+    errorCode: persistence.errorCode || null,
+    stateOwner: persistence.stateOwner || null,
+    kind: persistence.kind || null,
+    sequence: Number.isInteger(persistence.sequence) ? persistence.sequence : null,
+    bytes: Number.isInteger(persistence.bytes) ? persistence.bytes : null,
+    digest: persistence.digest || persistence.payloadDigest || null,
+    terminalDigest: persistence.terminalDigest || null,
+    reconciliation: typeof persistence.reconciliation === 'string' ? persistence.reconciliation : null
+  }
+  return projection
+}
+
+function minimalValidationReceiptForCli(receipt, results, resultCount) {
+  return {
+    schemaVersion: receipt.schemaVersion,
+    projectionSchemaVersion: CLI_EXECUTION_PROJECTION_SCHEMA,
+    receiptId: receipt.receiptId || null,
+    runId: receipt.runId || null,
+    runIdentityDigest: receipt.runIdentityDigest || null,
+    candidateId: receipt.candidateId || null,
+    candidateHead: receipt.candidateHead || null,
+    planDigest: receipt.planDigest || null,
+    budgetDigest: receipt.budgetDigest || null,
+    authorityDigest: receipt.authorityDigest || null,
+    terminalStatus: receipt.terminalStatus || null,
+    claimCeiling: receipt.claimCeiling || null,
+    nativeExitCode: Number.isInteger(receipt.nativeExitCode) ? receipt.nativeExitCode : null,
+    failedNode: receipt.failedNode || null,
+    failedNodeCount: Number(receipt.failedNodeCount || 0),
+    failedNodes: receipt.failedNodes || [],
+    failureSummary: receipt.failureSummary || null,
+    terminalReason: receipt.terminalReason || null,
+    terminalDigest: receipt.terminalDigest || null,
+    resultCount,
+    results,
+    resultsTruncated: results.length !== resultCount,
+    projectionTruncated: true
+  }
+}
+
+function projectValidationExecutionForCli(execution = {}) {
+  const rawReceipt = execution.receipt || {}
+  const terminal = buildTerminalProjection(rawReceipt)
+  const allResults = Array.isArray(rawReceipt.results) ? rawReceipt.results : []
+  const failedResults = allResults.filter(result => result?.status === 'failed' || Number(result?.exitCode) !== 0)
+  const results = failedResults.slice(0, 64).map(compactValidationResultForCli)
+  let receipt = {
+    ...terminal,
+    projectionSchemaVersion: CLI_EXECUTION_PROJECTION_SCHEMA,
+    sourceReceiptSchemaVersion: rawReceipt.schemaVersion || null,
+    resultCount: allResults.length,
+    results,
+    resultsTruncated: results.length !== allResults.length,
+    projectionTruncated: false
+  }
+  const persistence = compactValidationPersistenceForCli(execution.persistence || {})
+  let projection = { receipt, persistence }
+  if (Buffer.byteLength(JSON.stringify(projection), 'utf8') > CLI_EXECUTION_MAX_BYTES - (8 * 1024)) {
+    receipt = minimalValidationReceiptForCli(terminal, results, allResults.length)
+    projection = { receipt, persistence }
+  }
+  return projection
 }
 
 function errorPayload(error, nextStep) {
@@ -1317,7 +1406,10 @@ async function main(argv = process.argv.slice(2)) {
     })
     const failed = execution.receipt.nativeExitCode !== 0
     const failureError = failed ? validationExecutionError(execution.receipt) : null
-    const data = { receipt: execution.receipt, persistence: execution.persistence, executionOptimization: optimizationProjection }
+    const data = {
+      ...projectValidationExecutionForCli(execution),
+      executionOptimization: optimizationProjection
+    }
     if (options.json) {
       printJson(envelope(!failed, data, failed
         ? errorPayload(failureError, failureError.details?.nextStep ||
@@ -1352,6 +1444,8 @@ if (require.main === module) {
 
 module.exports = {
   CLI_SCHEMA,
+  CLI_EXECUTION_MAX_BYTES,
+  CLI_EXECUTION_PROJECTION_SCHEMA,
   compactPlan,
   createCliLease,
   directActorIdentityEvidence,
@@ -1360,6 +1454,7 @@ module.exports = {
   expectedCiPolicyDigest,
   main,
   parseArgs,
+  projectValidationExecutionForCli,
   resolveAiBudgetAuthority,
   resolveValidationBudgetAuthority,
   resolveValidationAuthorityContext,

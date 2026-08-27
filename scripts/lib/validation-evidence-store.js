@@ -32,6 +32,7 @@ const RUN_SHARD_SLOT_SCHEMA = 'ValidationRunShardSlotV1'
 const RUN_SHARD_WRITER_SCHEMA = 'ValidationRunShardWriterV1'
 const TASK_STATE_SCHEMA = 'ValidationExecutionTaskStateV1'
 const TERMINAL_PROJECTION_SCHEMA = 'ValidationExecutionTerminalProjectionV3'
+const TERMINAL_UNSUPPORTED_VALUE_SCHEMA = 'ValidationTerminalUnsupportedValueV1'
 const TERMINAL_LINEAGE_SCHEMA = 'ValidationContinuationTerminalLineageV1'
 const RECEIPT_RING_SIZE = 16
 const TASKLESS_RUN_SHARD_COUNT = 32
@@ -372,14 +373,75 @@ function readLatestTasklessTerminal({ activeRoot, project, actorType = null }) {
     : { status: 'missing', receipt: null, stateOwner: 'taskless-run-fixed-shard' }
 }
 
+function normalizeTerminalEvidenceValue(value, seen = new Set()) {
+  if (value === undefined || value === null) return null
+  if (typeof value === 'string' || typeof value === 'boolean') return value
+  if (typeof value === 'number') {
+    return Number.isFinite(value)
+      ? (Object.is(value, -0) ? 0 : value)
+      : { schemaVersion: TERMINAL_UNSUPPORTED_VALUE_SCHEMA, type: 'non-finite-number', value: String(value) }
+  }
+  if (typeof value === 'bigint') {
+    return { schemaVersion: TERMINAL_UNSUPPORTED_VALUE_SCHEMA, type: 'bigint', value: String(value) }
+  }
+  if (typeof value === 'function' || typeof value === 'symbol') {
+    return { schemaVersion: TERMINAL_UNSUPPORTED_VALUE_SCHEMA, type: typeof value }
+  }
+  if (seen.has(value)) return { schemaVersion: TERMINAL_UNSUPPORTED_VALUE_SCHEMA, type: 'cycle' }
+  if (Buffer.isBuffer(value) || value instanceof Uint8Array) {
+    const bytes = Buffer.from(value)
+    return {
+      schemaVersion: TERMINAL_UNSUPPORTED_VALUE_SCHEMA,
+      type: 'bytes',
+      bytes: bytes.length,
+      digest: sha256(bytes)
+    }
+  }
+  if (value instanceof Date) return value.toISOString()
+  seen.add(value)
+  try {
+    if (value instanceof Error) {
+      return {
+        name: value.name || 'Error',
+        code: value.code || null,
+        message: value.message || String(value),
+        details: normalizeTerminalEvidenceValue(value.details, seen),
+        stack: value.stack || null
+      }
+    }
+    if (Array.isArray(value)) return value.map(item => normalizeTerminalEvidenceValue(item, seen))
+    const output = {}
+    const prototype = Object.getPrototypeOf(value)
+    if (prototype !== Object.prototype && prototype !== null) {
+      output.valueType = value.constructor?.name || 'object'
+    }
+    for (const key of Object.keys(value).sort()) {
+      try {
+        output[key] = normalizeTerminalEvidenceValue(value[key], seen)
+      } catch (error) {
+        output[key] = {
+          schemaVersion: TERMINAL_UNSUPPORTED_VALUE_SCHEMA,
+          type: 'property-read-error',
+          code: error.code || null,
+          message: error.message || String(error)
+        }
+      }
+    }
+    return output
+  } finally {
+    seen.delete(value)
+  }
+}
+
 function compactTerminalValue(value, maxBytes = 8192) {
   if (value == null) return null
-  const serialized = stableStringify(value)
+  const normalized = normalizeTerminalEvidenceValue(value)
+  const serialized = stableStringify(normalized)
   const bytes = Buffer.byteLength(serialized, 'utf8')
-  if (bytes <= maxBytes) return value
+  if (bytes <= maxBytes) return normalized
   return {
     schemaVersion: 'ValidationTerminalCompactValueV1',
-    code: typeof value?.code === 'string' ? value.code : null,
+    code: typeof normalized?.code === 'string' ? normalized.code : null,
     bytes,
     digest: sha256(Buffer.from(serialized, 'utf8')),
     truncated: true
@@ -546,7 +608,8 @@ function buildTerminalProjection(receipt) {
     runner: compactRunnerProjection(receipt.runner),
     reconciliation: compactTerminalValue(receipt.reconciliation || null)
   }
-  return { ...core, terminalDigest: digest(core) }
+  const canonicalCore = normalizeTerminalEvidenceValue(core)
+  return { ...canonicalCore, terminalDigest: digest(canonicalCore) }
 }
 
 function createValidationEvidenceStore(options = {}) {
@@ -920,7 +983,8 @@ function createValidationEvidenceStore(options = {}) {
     if (taskBound) return readTaskField('currentLease', runIdentityDigest, 'lease')
     if (DIGEST_RE.test(runIdentityDigest)) {
       const read = readRunShardPayload({ activeRoot, project, runIdentityDigest, kind: 'authority' })
-      return { ...read, lease: read.payload, payload: undefined }
+      const { payload, ...projection } = read
+      return { ...projection, lease: payload }
     }
     const slots = readFixedSlots(activeRoot, project, owner, 'authority')
     return slots.length
@@ -934,7 +998,8 @@ function createValidationEvidenceStore(options = {}) {
     }
     if (taskBound) return readTaskField('runnerState', runIdentityDigest, 'runnerState')
     const read = readRunShardPayload({ activeRoot, project, runIdentityDigest, kind: 'runner' })
-    return { ...read, runnerState: read.payload, payload: undefined }
+    const { payload, ...projection } = read
+    return { ...projection, runnerState: payload }
   }
 
   function readTerminalInternal(runIdentityDigest = configuredRunIdentityDigest) {
@@ -943,7 +1008,8 @@ function createValidationEvidenceStore(options = {}) {
       if (taskBound) primary = readTaskField('terminalReceipt', runIdentityDigest, 'receipt')
       else {
         const read = readRunShardPayload({ activeRoot, project, runIdentityDigest, kind: 'terminal' })
-        primary = { ...read, receipt: read.payload, payload: undefined }
+        const { payload, ...projection } = read
+        primary = { ...projection, receipt: payload }
       }
       const reserved = readReservedTerminal(runIdentityDigest)
       if (primary.status === 'fresh' && reserved.status === 'fresh' &&
@@ -1073,12 +1139,14 @@ module.exports = {
   TASK_STATE_SCHEMA,
   TERMINAL_LINEAGE_SCHEMA,
   TERMINAL_PROJECTION_SCHEMA,
+  TERMINAL_UNSUPPORTED_VALUE_SCHEMA,
   buildTerminalProjection,
   createValidationEvidenceStore,
   readFixedSlots,
   readLatestTasklessTerminal,
   readRunShardPayload,
   readRunShardSlots,
+  normalizeTerminalEvidenceValue,
   runShardIndex,
   writeRunShardPayload,
   writeFixedSlot

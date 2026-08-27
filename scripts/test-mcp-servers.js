@@ -1540,14 +1540,16 @@ function testMemoryArtifactMutationReconciliationContract() {
   const metaDir = resolveTaskRecoveryMetaDir({ activeRoot, project })
   const recoveryIdentity = { activeRoot, project, taskId: admitted.taskId, taskStatus: 'active' }
 
-  function needsReconcileCloseout(operationId, fileName, beforeContent, afterContent) {
+  function needsReconcileCloseout(operationId, fileName, afterContent) {
     const target = path.join(taskRoot, 'reports', 'codex', '20260827', fileName)
     fs.mkdirSync(path.dirname(target), { recursive: true })
-    fs.writeFileSync(target, beforeContent)
+    assert.strictEqual(fs.existsSync(target), false)
     const footprint = extractMutationFootprint({
       tool_name: 'Write',
       tool_input: { file_path: target, content: afterContent }
     }, { cwd: TEMP_ROOT })
+    assert(footprint.plannedCreates.includes(target))
+    assert.deepStrictEqual(footprint.plannedModifies, [])
     const decision = decideArtifactMutation({
       footprint,
       activeRoot,
@@ -1562,6 +1564,7 @@ function testMemoryArtifactMutationReconciliationContract() {
       authoritySourceRef: `fixture:${operationId}`
     })
     assert.strictEqual(decision.decisionStatus, 'allow', JSON.stringify(decision.errorCodes))
+    assert.strictEqual(decision.operation, 'create-or-update')
     const preObservation = createMutationPreObservation({ operationId, footprint })
     const lease = createTaskOwnedMutationLease({
       operationId,
@@ -1610,7 +1613,6 @@ function testMemoryArtifactMutationReconciliationContract() {
   const primary = needsReconcileCloseout(
     'mcp-primary-artifact-reconciliation',
     '01--primary.md',
-    '# primary before\n',
     '# primary after\n'
   )
   const primaryCommit = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
@@ -1674,7 +1676,6 @@ function testMemoryArtifactMutationReconciliationContract() {
   const reserve = needsReconcileCloseout(
     'mcp-reserve-artifact-reconciliation',
     '02--reserve.md',
-    '# reserve before\n',
     '# reserve after\n'
   )
   const reservePrewrite = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({

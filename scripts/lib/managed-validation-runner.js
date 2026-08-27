@@ -98,11 +98,12 @@ function buildRunCheckpoint({ lease, plan, candidate, manifest, results, now = n
   return checkpoint
 }
 
-function validateRunCheckpoint(checkpoint, { lease, plan, candidate, manifest }) {
+function validateRunCheckpoint(checkpoint, { lease, plan, candidate, manifest, runnerLeaseDigest = null }) {
   const errors = []
   if (!checkpoint || checkpoint.schemaVersion !== RUN_CHECKPOINT_SCHEMA) errors.push('checkpoint-schema-invalid')
   if (checkpoint?.runId !== lease.runId || checkpoint?.runIdentityDigest !== lease.runIdentityDigest) errors.push('checkpoint-run-mismatch')
-  if (checkpoint?.leaseDigest !== lease.authorityDigest) errors.push('checkpoint-lease-mismatch')
+  if (!/^[a-f0-9]{64}$/.test(String(checkpoint?.leaseDigest || ''))) errors.push('checkpoint-lease-digest-invalid')
+  if (runnerLeaseDigest !== null && checkpoint?.leaseDigest !== runnerLeaseDigest) errors.push('checkpoint-runner-lease-mismatch')
   if (checkpoint?.candidateId !== candidate.candidateId) errors.push('checkpoint-candidate-mismatch')
   if (checkpoint?.planDigest !== plan.planDigest) errors.push('checkpoint-plan-mismatch')
   if (checkpoint?.manifestDigest !== manifestIdentity(manifest).digest) errors.push('checkpoint-manifest-mismatch')
@@ -120,7 +121,14 @@ function validateRunCheckpoint(checkpoint, { lease, plan, candidate, manifest })
     const { checkpointDigest, ...core } = checkpoint
     if (semanticDigest(core) !== checkpointDigest) errors.push('checkpoint-digest-invalid')
   } else errors.push('checkpoint-digest-missing')
-  return { valid: errors.length === 0, errors, results }
+  return {
+    valid: errors.length === 0,
+    errors,
+    results,
+    leaseRebound: checkpoint?.leaseDigest !== lease.authorityDigest,
+    sourceLeaseDigest: checkpoint?.leaseDigest || null,
+    activeLeaseDigest: lease.authorityDigest
+  }
 }
 
 function buildRunHeartbeat({ lease, attempt, currentNode, completedNodeCount, totalNodeCount, startedAt,
@@ -701,7 +709,13 @@ async function runManagedValidation(input = {}) {
       })
     }
     if (state.checkpoint) {
-      const checkpointValidation = validateRunCheckpoint(state.checkpoint, { lease, plan, candidate, manifest })
+      const checkpointValidation = validateRunCheckpoint(state.checkpoint, {
+        lease,
+        plan,
+        candidate,
+        manifest,
+        runnerLeaseDigest: state.leaseDigest || null
+      })
       if (!checkpointValidation.valid || !['missing', 'terminated'].includes(termination.status)) {
         const receipt = controlTerminalReceipt({
           plan, candidate, lease, startedAt: state.startedAt || startedAt,
@@ -712,17 +726,27 @@ async function runManagedValidation(input = {}) {
           },
           results: [], runner: runnerSnapshot({ priorRunnerState: state.stateDigest, termination }),
           terminalStatus: 'blocked', nativeExitCode: 2,
-          reconciliation: { state: 'checkpoint-invalid', priorStateDigest: state.stateDigest, termination }
+          reconciliation: {
+            state: 'checkpoint-invalid',
+            priorStateDigest: state.stateDigest,
+            checkpointDigest: state.checkpoint.checkpointDigest || null,
+            completedNodeCount: state.checkpoint.results?.length || 0,
+            termination
+          }
         })
         return terminalResult(receipt, 'revoked', { reconciled: true })
       }
       recoveredCheckpoint = state.checkpoint
       checkpoint = recoveredCheckpoint
       runner.recoveries.push({
-        kind: 'dead-host-exact-checkpoint',
+        kind: checkpointValidation.leaseRebound
+          ? 'dead-host-exact-checkpoint-rebound'
+          : 'dead-host-exact-checkpoint',
         priorStateDigest: state.stateDigest,
         checkpointDigest: state.checkpoint.checkpointDigest,
         completedNodeCount: state.checkpoint.results.length,
+        sourceLeaseDigest: checkpointValidation.sourceLeaseDigest,
+        activeLeaseDigest: checkpointValidation.activeLeaseDigest,
         termination
       })
     } else {

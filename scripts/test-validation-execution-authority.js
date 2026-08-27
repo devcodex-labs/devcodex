@@ -688,6 +688,11 @@ async function main() {
     })
     assert.strictEqual(sendFailure.receipt.terminalStatus, 'blocked')
     assert.strictEqual(sendFailure.receipt.terminalReason.code, 'VALIDATION_WORKER_SEND_FAILED')
+    assert.deepStrictEqual(sendFailure.receipt.abortedNodes, ['fixture'])
+    assert.deepStrictEqual(sendFailure.receipt.abortedNodeReasons.fixture, {
+      code: 'VALIDATION_CONTROL_ABORTED',
+      controlCode: 'VALIDATION_WORKER_SEND_FAILED'
+    })
     const terminalRecovery = await runFault('terminal-persistence', null, {
       maxWorkerAttempts: 1,
       __testEvidenceFaults: { primaryTerminalWrites: 1 }

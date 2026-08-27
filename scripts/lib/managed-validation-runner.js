@@ -328,6 +328,13 @@ function validationBudgetProjectionForReceipt(plan = {}) {
 function controlTerminalReceipt({ plan, candidate, lease, startedAt, reason, results, runner,
   terminalStatus = 'cancelled', nativeExitCode = 130, reconciliation = null }) {
   const completedAt = new Date().toISOString()
+  const completedNodeIds = new Set(results.map(result => result.nodeId))
+  const abortedNodes = plan.selectedNodes.map(node => node.id).filter(id => !completedNodeIds.has(id))
+  const controlCode = String(reason?.code || 'VALIDATION_CONTROL_ABORTED')
+  const abortedNodeReasons = Object.fromEntries(abortedNodes.map(nodeId => [nodeId, {
+    code: 'VALIDATION_CONTROL_ABORTED',
+    controlCode
+  }]))
   return {
     schemaVersion: 'ValidationExecutionReceiptV3',
     contractVersion: '3',
@@ -369,7 +376,8 @@ function controlTerminalReceipt({ plan, candidate, lease, startedAt, reason, res
     executionCount: results.filter(result => result.status !== 'cache-hit').length,
     cacheHitCount: results.filter(result => result.status === 'cache-hit').length,
     failedNode: null,
-    abortedNodes: plan.selectedNodes.map(node => node.id).filter(id => !results.some(result => result.nodeId === id)),
+    abortedNodes,
+    abortedNodeReasons,
     startedAt,
     completedAt,
     wallTimeMs: Math.max(0, Date.parse(completedAt) - Date.parse(startedAt)),

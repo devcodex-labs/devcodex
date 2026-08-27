@@ -13,10 +13,10 @@
       "status": "PASS",
       "testedVersion": "codex-cli 0.145.0 / source candidate 1.19.1",
       "protocol": "MCP 2024-11-05",
-      "runtimeContractDigest": "f21d06d58f4b1b6854697c9806b5f3cdd700aaf8dbd195e74eb9a85692631f4a",
+      "runtimeContractDigest": "ee930299f0cfa7cce55db2eb877a8c808a831d5910840bca4877388c3c59fa9d",
       "hostAdapterDigest": "d620c1e32db06e4c044401fc4abcf203d5370a697e3e3b0bdc9dc47344ef6136",
       "evidenceRef": "hooks/_runtime/evidence/codex-skill-route-pass.v1.json",
-      "evidenceDigest": "457043eb0982e9b8749a484cf2c8672f9a4f2a958ec20459afa092720d83ad86",
+      "evidenceDigest": "23cb187852a5c6f0ba2cf769df33b13e62d3298eeb2500769512235b09659337",
       "entrySurface": "codex exec --ephemeral",
       "bootstrapDelivery": "stable user-global Hook launcher UserPromptSubmit or profile_context_plan fallback",
       "defaultEligible": true

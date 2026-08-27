@@ -64,6 +64,8 @@ const DEFAULT_LOCK_LEASE_MS = 30 * 1000
 const DEFAULT_LOCK_WAIT_MS = 2000
 const DEFAULT_TASK_INVENTORY_MAX = 100000
 const DEFAULT_MAINTENANCE_THROTTLE_MS = 60 * 1000
+const DEFAULT_FIXED_SLOT_REPLACE_RETRY_DELAYS_MS = Object.freeze([5, 15, 35, 75, 150, 300, 600])
+const TRANSIENT_FIXED_SLOT_REPLACE_CODES = new Set(['EACCES', 'EBUSY', 'EPERM'])
 const CLOSEOUT_MAGIC = 'TRV5CL01'
 const CLOSEOUT_HEADER_BYTES = 80
 const RESERVE_ALLOCATION_MAGIC = Buffer.from('TRV5RS01', 'ascii')
@@ -1379,8 +1381,38 @@ function serializeFixedJsonSlot(value, options = {}) {
     : `${JSON.stringify(value, null, 2)}\n`
 }
 
+function fixedSlotReplaceRetryDelays(options = {}) {
+  const configured = options.replaceRetryDelaysMs
+  if (!Array.isArray(configured)) return DEFAULT_FIXED_SLOT_REPLACE_RETRY_DELAYS_MS
+  return configured
+    .filter(delay => Number.isFinite(delay) && delay >= 0)
+    .slice(0, 16)
+    .map(delay => Math.trunc(delay))
+}
+
+function isTransientFixedSlotReplaceError(error) {
+  return TRANSIENT_FIXED_SLOT_REPLACE_CODES.has(String(error?.code || '').toUpperCase())
+}
+
+function runFixedSlotReplaceOperation(operation, retryDelays) {
+  let attempts = 0
+  while (true) {
+    attempts += 1
+    try {
+      return { value: operation(), attempts }
+    } catch (error) {
+      const retryDelay = retryDelays[attempts - 1]
+      if (!isTransientFixedSlotReplaceError(error) || retryDelay === undefined) {
+        return { error, attempts }
+      }
+      waitSync(retryDelay)
+    }
+  }
+}
+
 function writeFixedJsonSlot(file, tempFile, value, fsImpl = fs, options = {}) {
   const serialized = serializeFixedJsonSlot(value, options)
+  const retryDelays = fixedSlotReplaceRetryDelays(options)
   fsImpl.mkdirSync(path.dirname(file), { recursive: true })
   let descriptor
   let writeError = null
@@ -1399,24 +1431,51 @@ function writeFixedJsonSlot(file, tempFile, value, fsImpl = fs, options = {}) {
     try { fsImpl.unlinkSync(tempFile) } catch { }
     throw writeError
   }
-  try { fsImpl.unlinkSync(file) } catch (error) {
-    if (error?.code !== 'ENOENT') {
-      try { fsImpl.unlinkSync(tempFile) } catch { }
-      throw error
-    }
-  }
-  try {
-    fsImpl.renameSync(tempFile, file)
-  } catch (error) {
+  const removal = runFixedSlotReplaceOperation(() => fsImpl.unlinkSync(file), retryDelays)
+  const targetMissing = removal.error?.code === 'ENOENT'
+  const copyAfterRemovalFailure = Boolean(
+    removal.error &&
+    !targetMissing &&
+    options.allowVerifiedCopyFallback === true &&
+    isTransientFixedSlotReplaceError(removal.error)
+  )
+  if (removal.error && !targetMissing && !copyAfterRemovalFailure) {
     try { fsImpl.unlinkSync(tempFile) } catch { }
-    throw error
+    throw removal.error
+  }
+  const replacement = copyAfterRemovalFailure
+    ? { error: removal.error, attempts: 0 }
+    : runFixedSlotReplaceOperation(() => fsImpl.renameSync(tempFile, file), retryDelays)
+  let replaceMode = 'rename'
+  let copyAttempts = 0
+  if (replacement.error) {
+    if (options.allowVerifiedCopyFallback !== true || !isTransientFixedSlotReplaceError(replacement.error)) {
+      try { fsImpl.unlinkSync(tempFile) } catch { }
+      throw replacement.error
+    }
+    const copied = runFixedSlotReplaceOperation(() => fsImpl.copyFileSync(tempFile, file), retryDelays)
+    copyAttempts = copied.attempts
+    if (copied.error) {
+      try { fsImpl.unlinkSync(tempFile) } catch { }
+      throw copied.error
+    }
+    replaceMode = 'verified-copy'
+    try { fsImpl.unlinkSync(tempFile) } catch { }
   }
   const readback = readJson(file, fsImpl, Math.max(TASK_STATE_SLOT_MAX_BYTES + 64 * 1024, Buffer.byteLength(serialized) + 1))
   if (readback.status !== 'fresh' || digestValue(readback.value) !== digestValue(value)) {
     try { fsImpl.unlinkSync(file) } catch { }
     throw new TaskRecoveryStoreV5Error('LIFECYCLE_STATE_READBACK_MISMATCH', `state readback mismatch: ${file}`)
   }
-  return { file, bytes: Buffer.byteLength(serialized), digest: digestValue(value) }
+  return {
+    file,
+    bytes: Buffer.byteLength(serialized),
+    digest: digestValue(value),
+    replaceMode,
+    unlinkAttempts: removal.attempts,
+    renameAttempts: replacement.attempts,
+    copyAttempts
+  }
 }
 
 function writeStableProjection(file, state, options = {}) {
@@ -2669,7 +2728,13 @@ function writeUsageLedger(paths, taskSlotBytes, options = {}) {
   if (jsonBytes(value) > USAGE_LEDGER_MAX_BYTES) {
     throw new TaskRecoveryStoreV5Error('LIFECYCLE_USAGE_LEDGER_EXCEEDED', 'usage ledger exceeds its fixed budget')
   }
-  return { value, ...writeFixedJsonSlot(paths.manifest, paths.manifestTemp, value, fsImpl) }
+  return {
+    value,
+    ...writeFixedJsonSlot(paths.manifest, paths.manifestTemp, value, fsImpl, {
+      allowVerifiedCopyFallback: true,
+      replaceRetryDelaysMs: options.usageLedgerRenameRetryDelaysMs
+    })
+  }
 }
 
 function inspectTaskRecoveryStore(metaDir, options = {}) {

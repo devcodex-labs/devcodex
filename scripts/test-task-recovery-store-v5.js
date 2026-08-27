@@ -421,6 +421,31 @@ function faultInjectingFs(kind) {
   })
 }
 
+function usageLedgerRenameFaultFs({ failures = 1, code = 'EPERM' } = {}) {
+  const counters = { renameAttempts: 0, copyAttempts: 0 }
+  const proxy = new Proxy(fs, {
+    get(target, property) {
+      if (property === 'renameSync') return (source, destination) => {
+        if (/manifest-next\.tmp$/i.test(String(source))) {
+          counters.renameAttempts += 1
+          if (counters.renameAttempts <= failures) {
+            const error = new Error(`injected usage-ledger ${code} failure`)
+            error.code = code
+            throw error
+          }
+        }
+        return target.renameSync(source, destination)
+      }
+      if (property === 'copyFileSync') return (source, destination, ...rest) => {
+        if (/manifest-next\.tmp$/i.test(String(source))) counters.copyAttempts += 1
+        return target.copyFileSync(source, destination, ...rest)
+      }
+      return target[property]
+    }
+  })
+  return { fs: proxy, counters }
+}
+
 function lockWriteFailureFs() {
   const descriptors = new Map()
   let tripped = false
@@ -892,6 +917,72 @@ try {
     diagnoseTaskRecoveryStore(usageDriftMeta, baseOptions).checks.find(check => check.id === 'usage-ledger').status,
     'PASS'
   )
+
+  const usageRetryMeta = path.join(tempRoot, 'usage-ledger-retry-hooks')
+  const usageRetryId = '00000000-0000-4000-8000-000000000041'
+  const transientUsageFault = usageLedgerRenameFaultFs({ failures: 1 })
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir: usageRetryMeta,
+    identity: identity(usageRetryId),
+    state: state(usageRetryId)
+  }, {
+    ...baseOptions,
+    fs: transientUsageFault.fs,
+    force: true,
+    usageLedgerRenameRetryDelaysMs: [0, 0]
+  }).status, 'committed')
+  assert.strictEqual(transientUsageFault.counters.renameAttempts, 2)
+  assert.strictEqual(transientUsageFault.counters.copyAttempts, 0,
+    'one transient usage-ledger sharing violation must recover through rename retry')
+  assert.strictEqual(
+    diagnoseTaskRecoveryStore(usageRetryMeta, baseOptions).checks.find(check => check.id === 'usage-ledger').status,
+    'PASS'
+  )
+  assert.strictEqual(fs.existsSync(storePaths(usageRetryMeta).manifestTemp), false)
+
+  const usageFallbackMeta = path.join(tempRoot, 'usage-ledger-copy-fallback-hooks')
+  const usageFallbackId = '00000000-0000-4000-8000-000000000042'
+  const persistentUsageFault = usageLedgerRenameFaultFs({ failures: Number.POSITIVE_INFINITY })
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir: usageFallbackMeta,
+    identity: identity(usageFallbackId),
+    state: state(usageFallbackId)
+  }, {
+    ...baseOptions,
+    fs: persistentUsageFault.fs,
+    force: true,
+    usageLedgerRenameRetryDelaysMs: [0, 0]
+  }).status, 'committed')
+  assert.strictEqual(persistentUsageFault.counters.renameAttempts, 3)
+  assert.strictEqual(persistentUsageFault.counters.copyAttempts, 1,
+    'derived usage ledger must use one verified copy fallback after bounded transient retries')
+  assert.strictEqual(
+    diagnoseTaskRecoveryStore(usageFallbackMeta, baseOptions).checks.find(check => check.id === 'usage-ledger').status,
+    'PASS'
+  )
+  assert.strictEqual(fs.existsSync(storePaths(usageFallbackMeta).manifestTemp), false)
+
+  const usageFailClosedMeta = path.join(tempRoot, 'usage-ledger-nontransient-hooks')
+  const usageFailClosedId = '00000000-0000-4000-8000-000000000043'
+  const nontransientUsageFault = usageLedgerRenameFaultFs({ failures: Number.POSITIVE_INFINITY, code: 'EIO' })
+  const usageFailClosed = commitTaskRecoveryState({
+    metaDir: usageFailClosedMeta,
+    identity: identity(usageFailClosedId),
+    state: state(usageFailClosedId)
+  }, {
+    ...baseOptions,
+    fs: nontransientUsageFault.fs,
+    force: true,
+    usageLedgerRenameRetryDelaysMs: [0, 0]
+  })
+  assert.strictEqual(usageFailClosed.status, 'error')
+  assert.strictEqual(usageFailClosed.errorCode, 'EIO')
+  assert.strictEqual(nontransientUsageFault.counters.copyAttempts, 0,
+    'non-sharing I/O failures must fail closed without the derived-ledger fallback')
+  assert.strictEqual(readTaskRecoveryState({
+    metaDir: usageFailClosedMeta,
+    identity: identity(usageFailClosedId)
+  }).status, 'missing')
 
   const telemetryMeta = path.join(tempRoot, 'telemetry-hooks')
   fs.mkdirSync(telemetryMeta, { recursive: true })

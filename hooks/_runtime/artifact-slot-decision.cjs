@@ -317,6 +317,11 @@ function classifyRelativeTarget(relative, registry, rootClass = 'active-root') {
   const unique = matches.filter((item, index, all) => all.findIndex(other => other.slot.slotId === item.slot.slotId && other.matchType === item.matchType) === index)
   if (unique.length === 1) return unique[0]
   if (unique.length > 1) {
+    const reportAlternatives = unique.filter(item => item.matchType === 'report-alternative')
+    const genericReports = unique.filter(item => item.slot.slotId === 'task-report' && item.matchType === 'bounded')
+    if (reportAlternatives.length === 1 && reportAlternatives.length + genericReports.length === unique.length) {
+      return reportAlternatives[0]
+    }
     return {
       slot: null,
       matchType: 'ambiguous-slot',

@@ -16,6 +16,7 @@ const {
   validateMutationFootprint
 } = require('../hooks/_runtime/mutation-footprint.cjs')
 const {
+  classifyRelativeTarget,
   decideArtifactMutation,
   createArtifactRootIdentity,
   enumerateTaskArtifacts,
@@ -149,6 +150,12 @@ try {
     'unprotected overlay slots must delegate operation permission to the host'
   )
   assert.match(layered.mergedRegistryDigest, /^[a-f0-9]{64}$/)
+  const cp1Report = classifyRelativeTarget(
+    `bugs/${taskName}/reports/codex/20260827/01--CP1根因与推荐方案.md`,
+    layered
+  )
+  assert.strictEqual(cp1Report.slot?.slotId, 'bug-cp1')
+  assert.strictEqual(cp1Report.matchType, 'report-alternative')
   const baseRegistry = JSON.parse(fs.readFileSync(
     path.join(__dirname, '..', 'hooks', '_runtime', 'artifact-slot-registry.v2.json'),
     'utf8'

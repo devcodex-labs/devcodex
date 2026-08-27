@@ -36,7 +36,8 @@ const { decideArtifactMutation } = require('../hooks/_runtime/artifact-slot-deci
 const {
   createMutationPreObservation,
   createTaskOwnedMutationLease,
-  observeMutationEffects
+  observeMutationEffects,
+  projectMutationFootprintForRecovery
 } = require('../hooks/_runtime/mutation-observation.cjs')
 const {
   computeProjectTargetLeaseDigest,
@@ -1566,6 +1567,11 @@ function testMemoryArtifactMutationReconciliationContract() {
     assert.strictEqual(decision.decisionStatus, 'allow', JSON.stringify(decision.errorCodes))
     assert.strictEqual(decision.operation, 'create-or-update')
     const preObservation = createMutationPreObservation({ operationId, footprint })
+    const recoveryFootprint = projectMutationFootprintForRecovery(footprint)
+    assert.strictEqual(recoveryFootprint.schemaVersion, 'MutationFootprintRecoveryProjectionV2')
+    assert.strictEqual(recoveryFootprint.sourceSchemaVersion, footprint.schemaVersion)
+    assert.strictEqual(recoveryFootprint.footprintDigest, footprint.footprintDigest)
+    assert.deepStrictEqual(recoveryFootprint.normalizedTargets, footprint.normalizedTargets)
     const lease = createTaskOwnedMutationLease({
       operationId,
       project,
@@ -1603,7 +1609,7 @@ function testMemoryArtifactMutationReconciliationContract() {
       mutating: true,
       targetPaths: [target],
       artifactDecision: decision,
-      mutationFootprint: footprint,
+      mutationFootprint: recoveryFootprint,
       mutationLease: lease,
       mutationPreObservation: preObservation
     }

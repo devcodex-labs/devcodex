@@ -86,7 +86,7 @@ AI Hook 在生成 BudgetCard 前必须由当前宿主 session 解析出唯一、
 
 ### 发布候选验证
 
-`package-release` selector 可在 V2 只表示 package compatibility 边界；它不会执行 tag、publish 或 registry mutation。只有 release-pipeline 在当前发布授权下取得 purpose=`release`、level=`V3` 的 LeaseV2，才必须调用 `release-verification`，并把 `npm run test:audit`、package completeness gate、ExactReleaseArtifactV1 和远端 CI 作为独立证据记录。pack 或本地 install 通过不能替代远端 CI，也不能替代发布前的 package completeness gate；未形成真实发布候选时必须记录 skipReason，不得把普通开发验证写成发布完成。
+`package-release` selector 可在 V2 只表示 package compatibility 边界；它不会执行 tag、publish 或 registry mutation。只有 release-pipeline 在当前发布授权下取得 purpose=`release`、level=`V3` 的 LeaseV2，才必须调用 `release-verification`，并把 `npm run test:audit`、package completeness gate、publish dry-run、ExactReleaseArtifactV1 和远端 CI 作为独立证据记录。publish dry-run 只验证发布通道、registry 与候选元数据，不等价于真实 publish，也不能替代 exact artifact、远端 CI 或发布后 registry 对账。pack 或本地 install 通过不能替代远端 CI，也不能替代发布前的 package completeness gate；未形成真实发布候选时必须记录 skipReason，不得把普通开发验证写成发布完成。
 
 ## TestRoute 输出
 

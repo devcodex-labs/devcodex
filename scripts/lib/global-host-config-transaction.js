@@ -513,7 +513,10 @@ function executeGlobalHostTransaction(operations, options = {}) {
       pid: options.pid,
       processKill: options.processKill,
       ownerToken: options.ownerToken,
-      nowMs: options.nowMs
+      nowMs: options.nowMs,
+      platform: options.platform,
+      windowsFsRetryMaxAttempts: options.windowsFsRetryMaxAttempts,
+      windowsFsRetryDelayMs: options.windowsFsRetryDelayMs
     })
     try {
       recoveredTransactions = recoverIndexedTransactions(transactionRoot, {

@@ -1552,6 +1552,28 @@ assert.strictEqual(transientTransactionOpenAttempts, 3)
 assert.strictEqual(transientTransactionUnlinkAttempts, 2)
 assert.strictEqual(fs.readFileSync(transientTransactionFile, 'utf8'), 'transient lock recovered\n')
 
+const nonWindowsTransactionRoot = path.join(tmp, 'non-windows-transaction-lock')
+fs.mkdirSync(nonWindowsTransactionRoot, { recursive: true })
+let nonWindowsTransactionOpenAttempts = 0
+const nonWindowsTransactionFs = Object.create(fs)
+nonWindowsTransactionFs.openSync = (file, flags, ...rest) => {
+  if (flags === 'wx' && path.basename(String(file)) === 'owner.lock') {
+    nonWindowsTransactionOpenAttempts += 1
+    throw Object.assign(new Error('injected non-Windows transaction lock EPERM'), { code: 'EPERM' })
+  }
+  return fs.openSync(file, flags, ...rest)
+}
+assert.throws(() => executeGlobalHostTransaction([
+  { path: path.join(nonWindowsTransactionRoot, 'target.txt'), content: 'must not be written\n' }
+], {
+  allowedRoots: [nonWindowsTransactionRoot],
+  fs: nonWindowsTransactionFs,
+  platform: 'linux',
+  windowsFsRetryMaxAttempts: 3,
+  windowsFsRetryDelayMs: 0
+}), error => error?.code === 'EPERM')
+assert.strictEqual(nonWindowsTransactionOpenAttempts, 1)
+
 const metadataRoot = path.join(tmp, 'replacement-metadata')
 fs.mkdirSync(metadataRoot, { recursive: true })
 const metadataFile = path.join(metadataRoot, 'restricted.txt')

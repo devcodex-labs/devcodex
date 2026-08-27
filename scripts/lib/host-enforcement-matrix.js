@@ -2,7 +2,7 @@
 
 /**
  * HostEnforcementMatrixV1 — canonical hosts, process-enforcement truth source.
- * hard-deny | stop-block | honesty-only | N/A+platform-limit
+ * host-owned-advisory | stop-block | honesty-only | N/A+platform-limit
  */
 
 const HOST_ENFORCEMENT_MATRIX_V1 = Object.freeze({
@@ -11,8 +11,8 @@ const HOST_ENFORCEMENT_MATRIX_V1 = Object.freeze({
     copilot: Object.freeze({
       id: 'copilot',
       label: 'GitHub Copilot',
-      preToolMutationNoCp2: 'hard-deny',
-      preToolNotes: 'CLI hooks when configured; IDE may be instruction-fallback → honesty-only for some surfaces',
+      preToolMutationNoCp2: 'host-owned-advisory',
+      preToolNotes: 'Operation permission belongs to the active host; DevCodex may emit advisory context only',
       stopCompletion: 'stop-block',
       upsInject: 'N/A+platform-limit',
       upsNotes: 'CLI vs IDE ceilings differ; never claim full IDE hook parity'
@@ -20,7 +20,8 @@ const HOST_ENFORCEMENT_MATRIX_V1 = Object.freeze({
     claude: Object.freeze({
       id: 'claude',
       label: 'Claude Code',
-      preToolMutationNoCp2: 'hard-deny',
+      preToolMutationNoCp2: 'host-owned-advisory',
+      preToolNotes: 'Operation permission belongs to Claude Code; DevCodex does not emit allow/deny/ask',
       stopCompletion: 'stop-block',
       upsInject: 'hard-deny',
       upsNotes: 'additionalContext / inject when hook-enforced'
@@ -28,7 +29,8 @@ const HOST_ENFORCEMENT_MATRIX_V1 = Object.freeze({
     codex: Object.freeze({
       id: 'codex',
       label: 'Codex',
-      preToolMutationNoCp2: 'hard-deny',
+      preToolMutationNoCp2: 'host-owned-advisory',
+      preToolNotes: 'Operation permission belongs to Codex; DevCodex does not emit allow/deny/ask',
       stopCompletion: 'stop-block',
       upsInject: 'hard-deny',
       upsNotes: 'systemMessage + additionalContext when configured'
@@ -36,8 +38,8 @@ const HOST_ENFORCEMENT_MATRIX_V1 = Object.freeze({
     gemini: Object.freeze({
       id: 'gemini',
       label: 'Gemini CLI',
-      preToolMutationNoCp2: 'hard-deny',
-      preToolNotes: 'When Gemini hooks/settings support PreTool deny; otherwise document honesty-only in runtime probe',
+      preToolMutationNoCp2: 'host-owned-advisory',
+      preToolNotes: 'Operation permission belongs to Gemini; DevCodex does not emit allow/deny/ask',
       stopCompletion: 'stop-block',
       upsInject: 'N/A+platform-limit',
       upsNotes: 'Do not claim UPS inject without host evidence'
@@ -45,8 +47,8 @@ const HOST_ENFORCEMENT_MATRIX_V1 = Object.freeze({
     grok: Object.freeze({
       id: 'grok',
       label: 'Grok Build',
-      preToolMutationNoCp2: 'hard-deny',
-      preToolNotes: 'decision:deny supported on PreToolUse',
+      preToolMutationNoCp2: 'host-owned-advisory',
+      preToolNotes: 'Operation permission belongs to Grok; DevCodex returns no PreTool decision',
       stopCompletion: 'stop-block',
       stopNotes: 'conditional decision:block when lastAssistantMessage present',
       upsInject: 'N/A+platform-limit',
@@ -55,8 +57,8 @@ const HOST_ENFORCEMENT_MATRIX_V1 = Object.freeze({
     cursor: Object.freeze({
       id: 'cursor',
       label: 'Cursor Beta',
-      preToolMutationNoCp2: 'hard-deny',
-      preToolNotes: 'Local IDE/CLI/Headless user hooks support preToolUse allow/deny with failClosed; Cloud user hooks are unavailable',
+      preToolMutationNoCp2: 'host-owned-advisory',
+      preToolNotes: 'Operation permission belongs to Cursor; Cloud user hooks are unavailable',
       stopCompletion: 'stop-followup',
       stopNotes: 'Local stop uses bounded followup_message with loop_limit=5; not a Cloud claim',
       upsInject: 'session-start-only',

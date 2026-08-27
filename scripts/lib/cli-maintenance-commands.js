@@ -1006,7 +1006,7 @@ function buildCliMaintenanceCommands(ctx) {
       console.log(c.dim('  GrokTurnChecklist: PC0~PC7 → Skill bundle → work → report+memory (see host-parity-grok.md)'))
       console.log()
     } else if (hostParity && hostParity.hardReady) {
-      console.log(c.dim('  Grok HostParity: PreTool deny + path-observable ready. Still cannot claim UserPromptSubmit inject or Stop hard-block.'))
+      console.log(c.dim('  Grok HostParity: host-owned PreTool operations + path-observable ready. Still cannot claim UserPromptSubmit inject or Stop hard-block.'))
       console.log(c.dim('  Prefer `devcodex grok` in child Git projects for Full kernel evidence.'))
       console.log(c.dim('  GrokTurnChecklist + Intent→Skill bundle still required (passive host has no inject).'))
       console.log()

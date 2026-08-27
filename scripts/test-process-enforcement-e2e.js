@@ -222,20 +222,12 @@ const stopSrc = fs.readFileSync(
     const h = getHostEnforcement(id)
     assert.ok(h, `host ${id}`)
     assert.ok(
-      ['hard-deny', 'stop-block', 'honesty-only', 'N/A+platform-limit'].some(
+      ['host-owned-advisory', 'hard-deny', 'stop-block', 'honesty-only', 'N/A+platform-limit'].some(
         (v) => h.preToolMutationNoCp2 === v || h.stopCompletion === v || h.upsInject === v
-      ) || h.preToolMutationNoCp2 === 'hard-deny',
+      ) || h.preToolMutationNoCp2 === 'host-owned-advisory',
       `host ${id} fields`
     )
-    // Declared hard-deny hosts must stay hard-deny for PreTool mutation
-    if (h.preToolMutationNoCp2 === 'hard-deny') {
-      const deny = shouldHardDenyCpMutation(
-        { phase: 'CP2' },
-        ['hooks/_runtime/lifecycle.cjs'],
-        { strictEnv: false }
-      )
-      assert.strictEqual(deny.hardDeny, true, `${id} hard-deny policy`)
-    }
+    assert.strictEqual(h.preToolMutationNoCp2, 'host-owned-advisory', `${id} operation authority`)
   }
   const summary = summarizeMatrix()
   assert.strictEqual(summary.length, 6)
@@ -248,7 +240,7 @@ const stopSrc = fs.readFileSync(
   const grok = getHostEnforcement('grok')
   assert.strictEqual(grok.upsInject, 'N/A+platform-limit')
   assert.ok(/UPS|inject|N\/A/i.test(grok.upsNotes || ''), 'Grok ups notes')
-  assert.strictEqual(grok.preToolMutationNoCp2, 'hard-deny')
+  assert.strictEqual(grok.preToolMutationNoCp2, 'host-owned-advisory')
   assert.strictEqual(grok.stopCompletion, 'stop-block')
   // Must not claim UPS inject as hard-deny success path
   assert.notStrictEqual(grok.upsInject, 'hard-deny')
@@ -258,7 +250,7 @@ const stopSrc = fs.readFileSync(
 // ── E2E-10B: Cursor local Beta is hard at PreTool and bounded at Stop ────────
 {
   const cursor = getHostEnforcement('cursor')
-  assert.strictEqual(cursor.preToolMutationNoCp2, 'hard-deny')
+  assert.strictEqual(cursor.preToolMutationNoCp2, 'host-owned-advisory')
   assert.strictEqual(cursor.stopCompletion, 'stop-followup')
   assert.strictEqual(cursor.upsInject, 'session-start-only')
   assert.match(cursor.preToolNotes, /Cloud user hooks are unavailable/)

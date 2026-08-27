@@ -2,7 +2,7 @@
 
 /**
  * HostParityScorecardV1 — Grok vs Codex capability honesty for doctor/status.
- * Full ≠ Codex API isomorphism; Full = launcher rules bind + PreTool deny path + path-observable.
+ * Full ≠ Codex API isomorphism; Full = launcher rules bind + host-owned operation path + path-observable.
  * PF-165: GrokTurnChecklist + Intent→Skill bundle + doctor repairSteps (no parallel system).
  */
 
@@ -80,10 +80,10 @@ function buildCheckRepairCatalog(guidance) {
       command,
       detail: 'Reconcile stale receipts or managed configuration drift without reporting present runtime files as missing.'
     },
-    denyAdapterContract: {
-      check: 'denyAdapterContract',
+    operationAdvisoryContract: {
+      check: 'operationAdvisoryContract',
       command,
-      detail: 'lifecycle-host-adapters must export adaptGrokOutput and decision:deny mapping.'
+      detail: 'lifecycle-host-adapters must export adaptGrokOutput and leave operation decisions to the host.'
     },
     pathObservableCapability: {
       check: 'pathObservableCapability',
@@ -327,19 +327,19 @@ function fileExists(filePath) {
   }
 }
 
-function readAdapterDenyContract(adapterPath) {
+function readAdapterOperationContract(adapterPath) {
   if (!fileExists(adapterPath)) {
-    return { present: false, hasAdaptGrok: false, hasDenyDecision: false }
+    return { present: false, hasAdaptGrok: false, operationPermissionHostOwned: false }
   }
   try {
     const text = fs.readFileSync(adapterPath, 'utf8')
     return {
       present: true,
       hasAdaptGrok: /function adaptGrokOutput|adaptGrokOutput\s*\(/.test(text),
-      hasDenyDecision: /decision:\s*['"]deny['"]/.test(text)
+      operationPermissionHostOwned: /isOperationPermissionEvent\(originalEvent\)\)\s*return\s*\{\s*\}/.test(text)
     }
   } catch {
-    return { present: false, hasAdaptGrok: false, hasDenyDecision: false }
+    return { present: false, hasAdaptGrok: false, operationPermissionHostOwned: false }
   }
 }
 
@@ -408,7 +408,7 @@ function evaluateGrokHostParity(input = {}) {
   const pluginRoot = grokTarget.files.plugin
   const codexAdapter = path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
   const codexBootstrap = path.join(codexRuntime, 'hooks', '_runtime', 'lifecycle-bootstrap-state.cjs')
-  const deny = readAdapterDenyContract(codexAdapter)
+  const operationAdapter = readAdapterOperationContract(codexAdapter)
   const bootstrap = readBootstrapCapability(codexBootstrap)
 
   const hasGlobalKernel = input.hasGlobalKernel !== undefined
@@ -440,7 +440,11 @@ function evaluateGrokHostParity(input = {}) {
     codexAdapterContractReady,
     grokAdapterContractReady,
     managedConfigCurrent,
-    denyAdapterContract: Boolean(deny.present && deny.hasAdaptGrok && deny.hasDenyDecision),
+    operationAdvisoryContract: Boolean(
+      operationAdapter.present &&
+      operationAdapter.hasAdaptGrok &&
+      operationAdapter.operationPermissionHostOwned
+    ),
     pathObservableCapability: Boolean(bootstrap.present && bootstrap.grokPathObservable),
     globalGrokPluginInstalled: hasGlobalGrokPlugin,
     globalGrokPluginConfigured: hasGlobalGrokConfig
@@ -451,7 +455,7 @@ function evaluateGrokHostParity(input = {}) {
     && checks.codexAdapterContractReady
     && checks.grokAdapterContractReady
     && checks.managedConfigCurrent
-    && checks.denyAdapterContract
+    && checks.operationAdvisoryContract
     && checks.pathObservableCapability
     && checks.globalGrokPluginInstalled
     && checks.globalGrokPluginConfigured
@@ -500,7 +504,7 @@ function evaluateGrokHostParity(input = {}) {
       codexBootstrap: fileExists(codexBootstrap) ? codexBootstrap : null,
       pluginRoot: hasGlobalGrokPlugin ? pluginRoot : null,
       scope: 'user-global',
-      deny,
+      operationAdapter,
       bootstrap,
       physicalPresence: {
         globalKernelFilesPresent: hasGlobalKernel,
@@ -519,7 +523,7 @@ function evaluateGrokHostParity(input = {}) {
     recommendedEntry,
     cannotClaim,
     userVisibleSummary: hardReady
-      ? 'Grok HostParity: full-capable (PreTool deny + path-observable + kernel). Use `devcodex grok` for Full session evidence. Inject/Stop still Partial. Follow GrokTurnChecklist + Intent→Skill bundle.'
+      ? 'Grok HostParity: full-capable (host-owned PreTool operations + path-observable + kernel). Use `devcodex grok` for Full session evidence. Inject/Stop still Partial. Follow GrokTurnChecklist + Intent→Skill bundle.'
       : `Grok HostParity: partial — failed: ${failedChecks.join(', ') || 'unknown'}. Fix: ${repairPreview || fallbackFix}. Then doctor --json hostParity.repairSteps.`
   }
 
@@ -596,7 +600,7 @@ module.exports = {
   classifyGrokTurnOmissionSample,
   classifyWorkspaceRootScanSample,
   classifyTtfvOmissionSample,
-  readAdapterDenyContract,
+  readAdapterOperationContract,
   readBootstrapCapability
 }
 

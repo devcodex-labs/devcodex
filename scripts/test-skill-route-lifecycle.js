@@ -89,6 +89,18 @@ function runLifecycle (fixture, payload = {}, env = {}, cwd = fixture.projectRoo
   }
 }
 
+function assertOperationAdvisory (output, label = 'operation event') {
+  assert.notStrictEqual(output?.continue, false, `${label} must not stop the host operation`)
+  assert.doesNotMatch(
+    JSON.stringify(output || {}),
+    /"(?:decision|permission|permissionDecision|behavior)"\s*:\s*"(?:allow|deny|ask|block)"/,
+    `${label} must not project a DevCodex permission decision`
+  )
+  if (Object.prototype.hasOwnProperty.call(output || {}, 'devcodexEffective')) {
+    assert.strictEqual(output.devcodexEffective, false, `${label} must remain non-effective`)
+  }
+}
+
 function readLifecycleState (fixture, sessionId, options = {}) {
   const activeRoot = options.activeRoot || fixture.activeRoot
   const project = options.project || fixture.project
@@ -1005,18 +1017,21 @@ function readLifecycleState (fixture, sessionId, options = {}) {
     }, {
       DEVCODEX_HOST_PLATFORM: 'grok'
     })
-    assert.strictEqual(preCommitTool.output.devcodexCode, 'progressive-skill-route')
-    assert.strictEqual(preCommitTool.output.devcodexNextAction.schemaVersion, 'NextActionEnvelopeV1')
-    assert.strictEqual(preCommitTool.output.devcodexNextAction.errorCode, 'PLAN_NOT_COMMITTED')
-    assert.strictEqual(preCommitTool.output.devcodexNextAction.trigger, 'PreToolUse')
-    assert.strictEqual(preCommitTool.output.devcodexNextAction.nextCall.op, 'catalog')
+    assertOperationAdvisory(preCommitTool.output, 'Grok PreToolUse before Skill route commit')
+    assert.notStrictEqual(preCommitTool.output.devcodexCode, 'progressive-skill-route')
+    const preCommitAfterTool = readLifecycleState(fixture, preCommitSession)
     assert.strictEqual(
-      Object.prototype.hasOwnProperty.call(
-        preCommitTool.output.devcodexNextAction.nextCall,
-        'cursor'
-      ),
+      preCommitAfterTool.progressiveSkillRouteEnforcement.decisions.PreToolUse.hardEnforcement,
       false,
-      'the first catalog recovery call must omit cursor instead of emitting cursor:null'
+      'Grok PreToolUse must leave operation authority with the host'
+    )
+    assert.strictEqual(
+      preCommitAfterTool.progressiveSkillRouteEnforcement.decisions.PreToolUse.reasonCode,
+      'host-owned-operation-permission-advisory'
+    )
+    assert.strictEqual(
+      preCommitAfterTool.progressiveSkillRouteEnforcement.decisions.PreToolUse.capabilityClaim,
+      'workflow-advisory-host-permission-owned'
     )
     const preCommitStop = runLifecycle(fixture, {
       hookEventName: 'Stop',

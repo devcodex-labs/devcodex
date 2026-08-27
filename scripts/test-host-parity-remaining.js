@@ -3,11 +3,11 @@
 
 /**
  * Remaining HostParity deliverables smoke:
- * - cross-host hard-block matrix not weakened
- * - gemini/grok deny shapes
+ * - cross-host operation authority remains host-owned
+ * - operation outputs carry no DevCodex permission decision
  * - SessionStart stamp
  * - entry check compose
- * - lifecycle PreToolUse deny path via host adapter (fixture)
+ * - lifecycle PreToolUse advisory path via host adapter (fixture)
  */
 
 const assert = require('assert')
@@ -37,46 +37,45 @@ process.once('exit', cleanupTempFixtures)
 
 const hookOut = buildLifecycleHookOutput({ env: {}, enforcementMode: 'safety-only' })
 
-// Cross-host: Codex/Claude not weakened
+// Cross-host: operation permission always belongs to the host.
 assert.strictEqual(hookOut.eventSupportsHardBlock('codex', 'UserPromptSubmit'), true)
-assert.strictEqual(hookOut.eventSupportsHardBlock('codex', 'PreToolUse'), true)
+assert.strictEqual(hookOut.eventSupportsHardBlock('codex', 'PreToolUse'), false)
 assert.strictEqual(hookOut.eventSupportsHardBlock('codex', 'Stop'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('claude', 'UserPromptSubmit'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('claude', 'Stop'), true)
-assert.strictEqual(hookOut.eventSupportsHardBlock('claude', 'PreToolUse'), true)
-// Grok: PreTool + conditional Stop; UPS remains non-hard
-assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'PreToolUse'), true)
+assert.strictEqual(hookOut.eventSupportsHardBlock('claude', 'PreToolUse'), false)
+// Grok: PreTool is host-owned; conditional Stop remains a workflow-validity surface.
+assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'PreToolUse'), false)
 assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'UserPromptSubmit'), false)
 assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'Stop'), true)
 // Copilot / instruction-fallback
-assert.strictEqual(hookOut.eventSupportsHardBlock('copilot', 'PreToolUse'), true)
+assert.strictEqual(hookOut.eventSupportsHardBlock('copilot', 'PreToolUse'), false)
 assert.strictEqual(hookOut.eventSupportsHardBlock('jetbrains-copilot', 'PreToolUse'), false)
 
-// Gemini adapter still converts Claude permission shape
+// Operation adapters strip legacy permission shapes for every host.
 const geminiDeny = adaptHostOutput('gemini', 'BeforeTool', {
   hookSpecificOutput: {
     permissionDecision: 'deny',
     permissionDecisionReason: 'gemini-danger'
   }
 })
-assert.strictEqual(geminiDeny.decision, 'deny')
-assert.strictEqual(geminiDeny.reason, 'gemini-danger')
+assert.deepStrictEqual(geminiDeny, {})
 
-// Grok deny official shape
+// Grok operation output is also empty.
 const grokDeny = adaptHostOutput('grok', 'PreToolUse', {
   hookSpecificOutput: {
     permissionDecision: 'deny',
     permissionDecisionReason: 'workflow-invalid'
   }
 })
-assert.deepStrictEqual(grokDeny, { decision: 'deny', reason: 'workflow-invalid' })
+assert.deepStrictEqual(grokDeny, {})
 
-// Codex path through adaptHostOutput is uncommon; ensure non-grok non-gemini does not strip to only decision
+// Codex may carry advisory context, but never a permission decision.
 const codexOut = adaptHostOutput('codex', 'PreToolUse', {
   continue: true,
   hookSpecificOutput: { permissionDecision: 'deny', permissionDecisionReason: 'c' }
 })
-assert.strictEqual(codexOut.hookSpecificOutput.permissionDecision, 'deny')
+assert.ok(!codexOut.hookSpecificOutput?.permissionDecision)
 
 function readIfExists(file) {
   return fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null

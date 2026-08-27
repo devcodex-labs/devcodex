@@ -89,7 +89,7 @@ assert.strictEqual(ready.hardReady, true)
 assert.strictEqual(ready.tier, 'full-capable')
 assert.strictEqual(ready.failedChecks.length, 0)
 assert.ok(!ready.repairSteps.some((step) => step.status === 'failed'))
-assert.ok(ready.checks.denyAdapterContract)
+assert.ok(ready.checks.operationAdvisoryContract)
 assert.ok(ready.checks.pathObservableCapability)
 assert.ok(Array.isArray(ready.cannotClaim) && ready.cannotClaim.length >= 3)
 assert.strictEqual(MIN_CANNOT_CLAIM.length, 4)
@@ -172,7 +172,7 @@ assert.match(formatGrokTurnChecklistMarkdown(), /scan-hygiene|ttfv-first-deliver
 const regOnly = buildGrokRepairSteps({
   globalKernelAgentsMd: true,
   globalCodexLifecycleReachable: true,
-  denyAdapterContract: true,
+  operationAdvisoryContract: true,
   pathObservableCapability: true,
   globalGrokPluginInstalled: true,
   globalGrokPluginConfigured: false
@@ -271,14 +271,14 @@ assert.match(entryCheckAssistSuffix({ project: 'x', intent: 'fix' }), /Intent→
 assert.match(entryCheckAssistSuffix({ project: 'x', intent: 'fix' }), /fix-default/)
 assert.match(entryCheckAssistSuffix({ project: 'x', intent: 'audit' }), /TTFV|workspace-root|scan-hygiene/i)
 
-// Smoke: deny path used by PreToolUse
-const deny = adaptHostOutput('grok', 'PreToolUse', {
+// Smoke: PreToolUse never carries a DevCodex permission decision.
+const operationOutput = adaptHostOutput('grok', 'PreToolUse', {
   hookSpecificOutput: {
     permissionDecision: 'deny',
     permissionDecisionReason: 'workflow-invalid'
   }
 })
-assert.deepStrictEqual(deny, { decision: 'deny', reason: 'workflow-invalid' })
+assert.deepStrictEqual(operationOutput, {})
 
 // W8: extra field names for assistant text
 const payloadApi = buildLifecyclePayloadUtils({

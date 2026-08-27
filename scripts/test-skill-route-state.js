@@ -2397,8 +2397,11 @@ try {
       routeRootForActiveRoot(turnCapacityFixture.activeRoot),
       'turns'
     )
+    const staleEmptyTime = new Date('2026-07-31T11:59:00.000Z')
     for (let index = 0; index < MAX_TURNS; index += 1) {
-      fs.mkdirSync(path.join(turnsRoot, `turn-capacity-${index}`), { recursive: true })
+      const emptyTurnRoot = path.join(turnsRoot, `turn-capacity-${index}`)
+      fs.mkdirSync(emptyTurnRoot, { recursive: true })
+      fs.utimesSync(emptyTurnRoot, staleEmptyTime, staleEmptyTime)
     }
     const recovered = bootstrapSkillRoute({
       project: turnCapacityFixture.project,

@@ -1609,7 +1609,7 @@ function testMemoryArtifactMutationReconciliationContract() {
 
   const primary = needsReconcileCloseout(
     'mcp-primary-artifact-reconciliation',
-    'primary.md',
+    '01--primary.md',
     '# primary before\n',
     '# primary after\n'
   )
@@ -1673,7 +1673,7 @@ function testMemoryArtifactMutationReconciliationContract() {
 
   const reserve = needsReconcileCloseout(
     'mcp-reserve-artifact-reconciliation',
-    'reserve.md',
+    '02--reserve.md',
     '# reserve before\n',
     '# reserve after\n'
   )

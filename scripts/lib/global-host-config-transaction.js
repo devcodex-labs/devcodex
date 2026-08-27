@@ -9,6 +9,7 @@ const {
   samePath,
   unsafePathComponent
 } = require('./global-host-target.js')
+const { retryTransientWindowsFs } = require('../../hooks/_runtime/windows-fs-retry.cjs')
 
 const GLOBAL_HOST_TRANSACTION_SCHEMA = 'GlobalHostConfigTransactionV1'
 const GLOBAL_HOST_JOURNAL_SCHEMA = 'GlobalHostConfigJournalV1'
@@ -79,10 +80,15 @@ function acquireJournalLock(transactionRoot, options = {}) {
   const lockFile = path.join(transactionRoot, 'owner.lock')
   const leaseMs = 30 * 1000
   const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
+  const retryOptions = {
+    platform: options.platform,
+    maxAttempts: options.windowsFsRetryMaxAttempts,
+    delayMs: options.windowsFsRetryDelayMs
+  }
   fsImpl.mkdirSync(transactionRoot, { recursive: true })
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const descriptor = fsImpl.openSync(lockFile, 'wx')
+      const descriptor = retryTransientWindowsFs(() => fsImpl.openSync(lockFile, 'wx'), retryOptions).value
       const record = {
         schemaVersion: GLOBAL_HOST_JOURNAL_LOCK_SCHEMA,
         ownerToken,
@@ -96,10 +102,10 @@ function acquireJournalLock(transactionRoot, options = {}) {
         if (typeof fsImpl.fsyncSync === 'function') fsImpl.fsyncSync(descriptor)
       } catch (error) {
         try { fsImpl.closeSync(descriptor) } catch { }
-        try { fsImpl.unlinkSync(lockFile) } catch { }
+        try { retryTransientWindowsFs(() => fsImpl.unlinkSync(lockFile), retryOptions) } catch { }
         throw error
       }
-      return { descriptor, file: lockFile, ownerToken }
+      return { descriptor, file: lockFile, ownerToken, retryOptions }
     } catch (error) {
       if (error?.code !== 'EEXIST') throw error
       const observed = jsonObject(lockFile, fsImpl)
@@ -120,7 +126,7 @@ function acquireJournalLock(transactionRoot, options = {}) {
       }
       const quarantine = `${lockFile}.quarantine`
       if (fsImpl.existsSync(quarantine)) fsImpl.unlinkSync(quarantine)
-      fsImpl.renameSync(lockFile, quarantine)
+      retryTransientWindowsFs(() => fsImpl.renameSync(lockFile, quarantine), retryOptions)
     }
   }
   const error = new Error(`GLOBAL_HOST_TRANSACTION_LOCKED: ${lockFile}`)
@@ -133,7 +139,7 @@ function releaseJournalLock(lock, fsImpl = fs) {
   const observed = jsonObject(lock.file, fsImpl)
   if (!observed || observed.ownerToken !== lock.ownerToken) return false
   try {
-    fsImpl.unlinkSync(lock.file)
+    retryTransientWindowsFs(() => fsImpl.unlinkSync(lock.file), lock.retryOptions)
     if (typeof fsImpl.rmdirSync === 'function') {
       try { fsImpl.rmdirSync(path.join(path.dirname(lock.file), 'journals')) } catch { }
       try { fsImpl.rmdirSync(path.dirname(lock.file)) } catch { }

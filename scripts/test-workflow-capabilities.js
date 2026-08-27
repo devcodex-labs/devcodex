@@ -32,7 +32,8 @@ const {
   ROUTE_INDEX_STRIPE_COUNT,
   ROUTE_INDEX_TTL_MS,
   createWorkspaceSessionRouteIndex,
-  digestSessionRef
+  digestSessionRef,
+  stripeNumberForDigest
 } = require('../hooks/_runtime/workspace-session-route-index-v1.cjs')
 const { buildRegistry, buildRegistryV2 } = require('./generate-workflow-root-registry')
 
@@ -51,6 +52,64 @@ const registryV2 = JSON.parse(fs.readFileSync(
   path.join(ROOT, 'hooks', '_runtime', 'workflow-root-registry.v2.json'),
   'utf8'
 ))
+
+function transientRouteIndexLockFs() {
+  const openFailures = new Set()
+  const unlinkFailures = new Set()
+  const counters = { openRetries: 0, unlinkRetries: 0 }
+  const proxy = new Proxy(fs, {
+    get(target, property) {
+      if (property === 'openSync') return (file, flags, ...rest) => {
+        const key = path.resolve(String(file))
+        if (flags === 'wx' && key.endsWith('.lock') && !openFailures.has(key)) {
+          openFailures.add(key)
+          counters.openRetries += 1
+          throw Object.assign(new Error('injected transient route-index lock open'), { code: 'EACCES' })
+        }
+        return target.openSync(file, flags, ...rest)
+      }
+      if (property === 'unlinkSync') return file => {
+        const key = path.resolve(String(file))
+        if (key.endsWith('.lock') && !unlinkFailures.has(key)) {
+          unlinkFailures.add(key)
+          counters.unlinkRetries += 1
+          throw Object.assign(new Error('injected transient route-index lock release'), { code: 'EPERM' })
+        }
+        return target.unlinkSync(file)
+      }
+      return target[property]
+    }
+  })
+  return { fs: proxy, counters }
+}
+
+function routeIndexLockRecordWriteFailureFs() {
+  const descriptors = new Map()
+  let failedLockPath = ''
+  const proxy = new Proxy(fs, {
+    get(target, property) {
+      if (property === 'openSync') return (file, flags, ...rest) => {
+        const descriptor = target.openSync(file, flags, ...rest)
+        descriptors.set(descriptor, path.resolve(String(file)))
+        return descriptor
+      }
+      if (property === 'writeFileSync') return (file, ...rest) => {
+        const ownedPath = Number.isInteger(file) ? descriptors.get(file) : ''
+        if (!failedLockPath && ownedPath?.endsWith('.lock')) {
+          failedLockPath = ownedPath
+          throw Object.assign(new Error('injected route-index lock record write failure'), { code: 'EIO' })
+        }
+        return target.writeFileSync(file, ...rest)
+      }
+      if (property === 'closeSync') return descriptor => {
+        descriptors.delete(descriptor)
+        return target.closeSync(descriptor)
+      }
+      return target[property]
+    }
+  })
+  return { fs: proxy, failedLockPath: () => failedLockPath }
+}
 
 assert.strictEqual(matrix.schemaVersion, 1)
 assert.strictEqual(matrix.ownerSkill, 'routing')
@@ -409,6 +468,64 @@ try {
   })
   assert.strictEqual(postExpiry.status, 'persisted')
   assert.strictEqual(routeIndex.read({ sessionRef: 'session-a' }).status, 'expired')
+
+  const transientLockFault = transientRouteIndexLockFs()
+  const transientIndex = createWorkspaceSessionRouteIndex({
+    metaDir: path.join(routeIndexTemp, 'transient-locks'),
+    fs: transientLockFault.fs,
+    now: () => routeNow,
+    platform: 'win32',
+    lockWaitMs: 100,
+    windowsFsRetryDelayMs: 0
+  })
+  const transientRoute = transientIndex.update({
+    sessionRef: 'transient-session',
+    projectRootIdentityDigest: projectIdentityA,
+    taskId: 'transient-task',
+    routeRevision: registryV2.routeRevision,
+    trigger: 'admission-bind'
+  })
+  assert.strictEqual(transientRoute.status, 'persisted')
+  assert.strictEqual(transientLockFault.counters.openRetries, 2, 'stripe and global locks must both retry')
+  assert.strictEqual(transientLockFault.counters.unlinkRetries, 2, 'stripe and global lock release must both retry')
+
+  const partialLockFault = routeIndexLockRecordWriteFailureFs()
+  const partialIndex = createWorkspaceSessionRouteIndex({
+    metaDir: path.join(routeIndexTemp, 'partial-lock-record'),
+    fs: partialLockFault.fs,
+    now: () => routeNow
+  })
+  assert.throws(() => partialIndex.update({
+    sessionRef: 'partial-lock-session',
+    projectRootIdentityDigest: projectIdentityA,
+    taskId: 'partial-lock-task',
+    routeRevision: registryV2.routeRevision,
+    trigger: 'admission-bind'
+  }), error => error?.code === 'EIO')
+  assert.ok(partialLockFault.failedLockPath())
+  assert.strictEqual(fs.existsSync(partialLockFault.failedLockPath()), false, 'failed route lock record write must clean its own partial lock')
+
+  const unreadableIndex = createWorkspaceSessionRouteIndex({
+    metaDir: path.join(routeIndexTemp, 'unreadable-lock'),
+    now: () => routeNow,
+    lockWaitMs: 0
+  })
+  const unreadableSessionDigest = digestSessionRef('unreadable-lock-session')
+  const unreadableStripe = stripeNumberForDigest(unreadableSessionDigest)
+  const unreadableLock = path.join(unreadableIndex.paths.stripeRoot, `${String(unreadableStripe).padStart(2, '0')}.lock`)
+  fs.mkdirSync(path.dirname(unreadableLock), { recursive: true })
+  fs.writeFileSync(unreadableLock, '{unreadable-lock-record', 'utf8')
+  const unreadableResult = unreadableIndex.update({
+    sessionDigest: unreadableSessionDigest,
+    projectRootIdentityDigest: projectIdentityA,
+    taskId: 'unreadable-lock-task',
+    routeRevision: registryV2.routeRevision,
+    trigger: 'admission-bind'
+  })
+  assert.strictEqual(unreadableResult.status, 'blocked')
+  assert.strictEqual(unreadableResult.errorCode, 'WORKSPACE_SESSION_ROUTE_STRIPE_LOCK_TIMEOUT')
+  assert.strictEqual(fs.existsSync(unreadableLock), true, 'an unreadable lock record must fail closed instead of being deleted')
+  fs.unlinkSync(unreadableLock)
 
   const boundedRoot = path.join(routeIndexTemp, 'bounded')
   const boundedIndex = createWorkspaceSessionRouteIndex({

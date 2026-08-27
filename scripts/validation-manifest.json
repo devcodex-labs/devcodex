@@ -1381,6 +1381,7 @@
         "hooks/_runtime/skill-route-budget.cjs",
         "hooks/_runtime/skill-route-state.cjs",
         "hooks/_runtime/skill-route-tool.cjs",
+        "hooks/_runtime/windows-fs-retry.cjs",
         "hooks/_runtime/context-read-contract.cjs",
         "hooks/_runtime/workflow-root-registry.v1.json",
         "scripts/lib/skill-route-test-fixture.js",
@@ -1808,6 +1809,7 @@
       "inputs": [
         "hooks/_runtime/content-identity.cjs",
         "hooks/_runtime/derived-state-store.cjs",
+        "hooks/_runtime/windows-fs-retry.cjs",
         "scripts/test-content-identity.js"
       ],
       "consumers": [
@@ -1849,6 +1851,7 @@
       ],
       "inputs": [
         "hooks/_runtime/derived-state-store.cjs",
+        "hooks/_runtime/windows-fs-retry.cjs",
         "scripts/test-derived-state-lock-concurrency.js"
       ],
       "consumers": [
@@ -1894,6 +1897,7 @@
       "inputs": [
         "hooks/_runtime/content-identity.cjs",
         "hooks/_runtime/derived-state-store.cjs",
+        "hooks/_runtime/windows-fs-retry.cjs",
         "scripts/lib/derived-index-contract.js",
         "scripts/test-derived-index-contract.js"
       ],
@@ -2433,6 +2437,7 @@
         "hooks/_runtime/lifecycle-state-projection-v5.cjs",
         "hooks/_runtime/task-recovery-config-v1.cjs",
         "hooks/_runtime/task-recovery-store-v5.cjs",
+        "hooks/_runtime/windows-fs-retry.cjs",
         "hooks/_runtime/lifecycle.cjs",
         "hooks/_runtime/lifecycle-bootstrap-state.cjs",
         "hooks/_runtime/lifecycle-turn-liveness.cjs",
@@ -2488,6 +2493,7 @@
         "hooks/_runtime/runtime-generation-identity.cjs",
         "hooks/_runtime/runtime-generation-lease.cjs",
         "hooks/_runtime/skill-route-mode.cjs",
+        "hooks/_runtime/windows-fs-retry.cjs",
         "mcp/memory-server.js",
         "mcp/profile-server.js",
         "scripts/lib/cli-runtime-commands.js",
@@ -2712,6 +2718,8 @@
       "dependencies": [],
       "inputs": [
         "routing/**",
+        "hooks/_runtime/workspace-session-route-index-v1.cjs",
+        "hooks/_runtime/windows-fs-retry.cjs",
         "scripts/test-workflow-capabilities.js",
         "skills/**",
         "instructions/**"
@@ -4703,6 +4711,7 @@
         "hooks/_runtime/content-identity.cjs",
         "hooks/_runtime/workflow-completion-contract.cjs",
         "hooks/_runtime/lifecycle-workflow-completion.cjs",
+        "hooks/_runtime/windows-fs-retry.cjs",
         "hooks/_runtime/lifecycle.cjs",
         "hooks/_runtime/lifecycle-visible-reply.cjs",
         "skills/compliance/workflow-completion.schema.json",

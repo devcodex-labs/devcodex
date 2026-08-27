@@ -1,5 +1,6 @@
 'use strict'
 
+const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { resolveRuntimeStateRoot } = require('./workspace-layout.cjs')
@@ -15,6 +16,10 @@ const {
   portable,
   sha256
 } = require('./progressive-skill-route-contract.cjs')
+const {
+  isTransientWindowsFsError,
+  retryTransientWindowsFs
+} = require('./windows-fs-retry.cjs')
 
 const TURN_TTL_MS = 24 * 60 * 60 * 1000
 const MAX_TURNS = 64
@@ -385,11 +390,38 @@ function hydrateCatalogProgress(envelope, paths, options = {}) {
   return result
 }
 
-function lockOwnerAlive (lockRecord) {
+function lockOwnerAlive (lockRecord, options = {}) {
   const pid = Number(lockRecord?.pid)
   if (!Number.isInteger(pid) || pid <= 0) return false
   try {
-    process.kill(pid, 0)
+    const processKill = options.processKill || process.kill.bind(process)
+    processKill(pid, 0)
+    return true
+  } catch (error) {
+    return error?.code === 'EPERM'
+  }
+}
+
+function lockRetryOptions (options = {}) {
+  return {
+    platform: options.platform,
+    maxAttempts: options.windowsFsRetryMaxAttempts,
+    delayMs: options.windowsFsRetryDelayMs
+  }
+}
+
+function cleanupCreatedLock (file, descriptor, fsImpl, options) {
+  if (descriptor !== undefined) {
+    try { fsImpl.closeSync(descriptor) } catch {}
+  }
+  try { retryTransientWindowsFs(() => fsImpl.unlinkSync(file), lockRetryOptions(options)) } catch {}
+}
+
+function releaseOwnedLock (file, ownerToken, fsImpl, options) {
+  const current = readJson(file, fsImpl)
+  if (current?.ownerToken !== ownerToken) return false
+  try {
+    retryTransientWindowsFs(() => fsImpl.unlinkSync(file), lockRetryOptions(options))
     return true
   } catch {
     return false
@@ -401,10 +433,15 @@ function acquireLock (paths, op, key, options = {}) {
   fsImpl.mkdirSync(paths.turnRoot, { recursive: true })
   const started = Date.now()
   while (true) {
+    let fd
+    let created = false
     try {
-      const fd = fsImpl.openSync(paths.lock, 'wx')
+      fd = fsImpl.openSync(paths.lock, 'wx')
+      created = true
+      const ownerToken = (options.randomUUID || crypto.randomUUID)()
       const record = {
         schemaVersion: 'SkillRouteLockV1',
+        ownerToken,
         pid: process.pid,
         op,
         key,
@@ -412,14 +449,16 @@ function acquireLock (paths, op, key, options = {}) {
       }
       fsImpl.writeFileSync(fd, `${JSON.stringify(record)}\n`, 'utf8')
       fsImpl.closeSync(fd)
+      fd = undefined
       return () => {
-        try { fsImpl.unlinkSync(paths.lock) } catch {}
+        releaseOwnedLock(paths.lock, ownerToken, fsImpl, options)
       }
     } catch (error) {
-      if (error.code !== 'EEXIST') throw error
+      if (created) cleanupCreatedLock(paths.lock, fd, fsImpl, options)
+      if (error.code !== 'EEXIST' && !isTransientWindowsFsError(error, options)) throw error
       const current = readJson(paths.lock, fsImpl)
       const age = Date.now() - Date.parse(current?.startedAt || 0)
-      if (age > (options.lockStaleMs || LOCK_STALE_MS) && !lockOwnerAlive(current)) {
+      if (age > (options.lockStaleMs || LOCK_STALE_MS) && !lockOwnerAlive(current, options)) {
         if (quarantineStaleLock(paths.lock, fsImpl)) continue
       }
       if (Date.now() - started > (options.lockTimeoutMs || 5000)) {
@@ -439,23 +478,30 @@ function acquireGcLock (routeRoot, options = {}) {
   fsImpl.mkdirSync(routeRoot, { recursive: true })
   const started = Date.now()
   while (true) {
+    let fd
+    let created = false
     try {
-      const fd = fsImpl.openSync(lockFile, 'wx')
+      fd = fsImpl.openSync(lockFile, 'wx')
+      created = true
+      const ownerToken = (options.randomUUID || crypto.randomUUID)()
       const record = {
         schemaVersion: 'SkillRouteGcLockV1',
+        ownerToken,
         pid: process.pid,
         startedAt: new Date().toISOString()
       }
       fsImpl.writeFileSync(fd, `${JSON.stringify(record)}\n`, 'utf8')
       fsImpl.closeSync(fd)
+      fd = undefined
       return () => {
-        try { fsImpl.unlinkSync(lockFile) } catch {}
+        releaseOwnedLock(lockFile, ownerToken, fsImpl, options)
       }
     } catch (error) {
-      if (error.code !== 'EEXIST') throw error
+      if (created) cleanupCreatedLock(lockFile, fd, fsImpl, options)
+      if (error.code !== 'EEXIST' && !isTransientWindowsFsError(error, options)) throw error
       const current = readJson(lockFile, fsImpl)
       const age = Date.now() - Date.parse(current?.startedAt || 0)
-      if (age > (options.lockStaleMs || LOCK_STALE_MS) && !lockOwnerAlive(current)) {
+      if (age > (options.lockStaleMs || LOCK_STALE_MS) && !lockOwnerAlive(current, options)) {
         if (quarantineStaleLock(lockFile, fsImpl)) continue
       }
       if (Date.now() - started > (options.gcLockTimeoutMs || 5000)) {
@@ -475,10 +521,15 @@ function acquireRootMutationLock (routeRoot, op, key, options = {}) {
   fsImpl.mkdirSync(routeRoot, { recursive: true })
   const started = Date.now()
   while (true) {
+    let fd
+    let created = false
     try {
-      const fd = fsImpl.openSync(lockFile, 'wx')
+      fd = fsImpl.openSync(lockFile, 'wx')
+      created = true
+      const ownerToken = (options.randomUUID || crypto.randomUUID)()
       const record = {
         schemaVersion: 'SkillRouteRootMutationLockV1',
+        ownerToken,
         pid: process.pid,
         op,
         key,
@@ -486,14 +537,16 @@ function acquireRootMutationLock (routeRoot, op, key, options = {}) {
       }
       fsImpl.writeFileSync(fd, `${JSON.stringify(record)}\n`, 'utf8')
       fsImpl.closeSync(fd)
+      fd = undefined
       return () => {
-        try { fsImpl.unlinkSync(lockFile) } catch {}
+        releaseOwnedLock(lockFile, ownerToken, fsImpl, options)
       }
     } catch (error) {
-      if (error.code !== 'EEXIST') throw error
+      if (created) cleanupCreatedLock(lockFile, fd, fsImpl, options)
+      if (error.code !== 'EEXIST' && !isTransientWindowsFsError(error, options)) throw error
       const current = readJson(lockFile, fsImpl)
       const age = Date.now() - Date.parse(current?.startedAt || 0)
-      if (age > (options.lockStaleMs || LOCK_STALE_MS) && !lockOwnerAlive(current)) {
+      if (age > (options.lockStaleMs || LOCK_STALE_MS) && !lockOwnerAlive(current, options)) {
         if (quarantineStaleLock(lockFile, fsImpl)) continue
       }
       if (Date.now() - started > (options.rootLockTimeoutMs || 5000)) {

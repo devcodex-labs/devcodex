@@ -177,7 +177,43 @@ assert(formatWorkflowCompletionMemoryRef({
   memoryKind: 'task', contentIdentity: memoryIdentity
 }).includes('DEVCODEX-WORKFLOW-COMPLETION-MEMORY-REF'))
 
-const lockedReport = path.join(repDir, '07--locked-sidecar.md')
+const transientReport = path.join(repDir, '07--transient-sidecar.md')
+fs.writeFileSync(transientReport, `# transient\n${formatWorkflowCompletionReportRef(createWorkflowCompletionReportRef(snapshot, transientReport))}\n`)
+const transientSidecar = `${transientReport}.completion.json`
+let transientSidecarOpenAttempts = 0
+let transientSidecarUnlinkAttempts = 0
+const transientSidecarFs = Object.create(fs)
+transientSidecarFs.openSync = (file, flags, ...rest) => {
+  if (flags === 'wx' && path.resolve(String(file)) === path.resolve(`${transientSidecar}.lock`)) {
+    transientSidecarOpenAttempts += 1
+    if (transientSidecarOpenAttempts <= 2) throw Object.assign(new Error('injected sidecar lock EACCES'), { code: 'EACCES' })
+  }
+  return fs.openSync(file, flags, ...rest)
+}
+transientSidecarFs.unlinkSync = file => {
+  if (path.resolve(String(file)) === path.resolve(`${transientSidecar}.lock`)) {
+    transientSidecarUnlinkAttempts += 1
+    if (transientSidecarUnlinkAttempts === 1) throw Object.assign(new Error('injected sidecar unlock EBUSY'), { code: 'EBUSY' })
+  }
+  return fs.unlinkSync(file)
+}
+const transientDelivery = commitWorkflowCompletionDelivery({
+  activeRoot: tmp,
+  reportPath: transientReport,
+  memoryPaths: [memory],
+  artifactManifestEntries: [transientReport, memory],
+  snapshot,
+  createdAt: '2026-07-22T08:02:00Z',
+  fs: transientSidecarFs,
+  platform: 'win32',
+  windowsFsRetryMaxAttempts: 3,
+  windowsFsRetryDelayMs: 0
+})
+assert.strictEqual(transientDelivery.projection.workflowComplete, true)
+assert.strictEqual(transientSidecarOpenAttempts, 3)
+assert.strictEqual(transientSidecarUnlinkAttempts, 2)
+
+const lockedReport = path.join(repDir, '08--locked-sidecar.md')
 fs.writeFileSync(lockedReport, `# locked\n${formatWorkflowCompletionReportRef(createWorkflowCompletionReportRef(snapshot, lockedReport))}\n`)
 const lockedSidecar = `${lockedReport}.completion.json`
 fs.writeFileSync(`${lockedSidecar}.lock`, '{"fixture":true}\n', 'utf8')

@@ -1518,6 +1518,40 @@ assert.throws(() => executeGlobalHostTransaction([
 assert.strictEqual(fs.readFileSync(first, 'utf8'), 'before\n')
 assert.strictEqual(fs.existsSync(secondFile), false)
 
+const transientTransactionRoot = path.join(tmp, 'transient-transaction-lock')
+fs.mkdirSync(transientTransactionRoot, { recursive: true })
+const transientTransactionFile = path.join(transientTransactionRoot, 'target.txt')
+let transientTransactionOpenAttempts = 0
+let transientTransactionUnlinkAttempts = 0
+const transientTransactionFs = Object.create(fs)
+transientTransactionFs.openSync = (file, flags, ...rest) => {
+  if (flags === 'wx' && path.basename(String(file)) === 'owner.lock') {
+    transientTransactionOpenAttempts += 1
+    if (transientTransactionOpenAttempts <= 2) throw Object.assign(new Error('injected transaction lock EPERM'), { code: 'EPERM' })
+  }
+  return fs.openSync(file, flags, ...rest)
+}
+transientTransactionFs.unlinkSync = file => {
+  if (path.basename(String(file)) === 'owner.lock') {
+    transientTransactionUnlinkAttempts += 1
+    if (transientTransactionUnlinkAttempts === 1) throw Object.assign(new Error('injected transaction unlock EBUSY'), { code: 'EBUSY' })
+  }
+  return fs.unlinkSync(file)
+}
+const transientTransactionReceipt = executeGlobalHostTransaction([
+  { path: transientTransactionFile, content: 'transient lock recovered\n' }
+], {
+  allowedRoots: [transientTransactionRoot],
+  fs: transientTransactionFs,
+  platform: 'win32',
+  windowsFsRetryMaxAttempts: 3,
+  windowsFsRetryDelayMs: 0
+})
+assert.strictEqual(transientTransactionReceipt.status, 'committed')
+assert.strictEqual(transientTransactionOpenAttempts, 3)
+assert.strictEqual(transientTransactionUnlinkAttempts, 2)
+assert.strictEqual(fs.readFileSync(transientTransactionFile, 'utf8'), 'transient lock recovered\n')
+
 const metadataRoot = path.join(tmp, 'replacement-metadata')
 fs.mkdirSync(metadataRoot, { recursive: true })
 const metadataFile = path.join(metadataRoot, 'restricted.txt')

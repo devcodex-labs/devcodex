@@ -5,6 +5,7 @@ const path = require('path')
 const { buildJsonContentIdentity, sha256, stableStringify } = require('./content-identity.cjs')
 const { createDerivedStateStore } = require('./derived-state-store.cjs')
 const { createRuntimeStateStore } = require('./runtime-state-store.cjs')
+const { retryTransientWindowsFs } = require('./windows-fs-retry.cjs')
 const {
   createCommitValidationResult,
   createRiskAcceptanceReceipt,
@@ -527,6 +528,12 @@ function readRiskAcceptanceLedger(taskRoot, { now = Date.now() } = {}) {
 }
 
 function appendRiskAcceptanceDecision(input) {
+  const lockFs = input?.fs || fs
+  const lockRetryOptions = {
+    platform: input?.platform,
+    maxAttempts: input?.windowsFsRetryMaxAttempts,
+    delayMs: input?.windowsFsRetryDelayMs
+  }
   const loaded = readWorkflowCompletionInput(input?.taskRoot)
   if (loaded.status !== 'fresh') throw new WorkflowCompletionLifecycleError('WORKFLOW_INPUT_REQUIRED', 'fresh workflow completion input is required', loaded.errors)
   const { candidate, plan } = loaded.value
@@ -563,18 +570,18 @@ function appendRiskAcceptanceDecision(input) {
   })
   const filePath = ledger.filePath
   const lockPath = `${filePath}.lock`
-  fs.mkdirSync(path.dirname(filePath), { recursive: true })
+  lockFs.mkdirSync(path.dirname(filePath), { recursive: true })
   let descriptor
   try {
-    descriptor = fs.openSync(lockPath, 'wx')
-    fs.appendFileSync(filePath, `${JSON.stringify(receipt)}\n`, 'utf8')
+    descriptor = retryTransientWindowsFs(() => lockFs.openSync(lockPath, 'wx'), lockRetryOptions).value
+    lockFs.appendFileSync(filePath, `${JSON.stringify(receipt)}\n`, 'utf8')
   } catch (error) {
     if (error?.code === 'EEXIST') throw new WorkflowCompletionLifecycleError('RISK_LEDGER_LOCKED', 'risk ledger is locked by another writer')
     throw error
   } finally {
     if (descriptor !== undefined) {
-      try { fs.closeSync(descriptor) } catch { }
-      try { fs.unlinkSync(lockPath) } catch { }
+      try { lockFs.closeSync(descriptor) } catch { }
+      try { retryTransientWindowsFs(() => lockFs.unlinkSync(lockPath), lockRetryOptions) } catch { }
     }
   }
   const readBack = readRiskAcceptanceLedger(input.taskRoot, { now: input.nowMs })

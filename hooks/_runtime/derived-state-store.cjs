@@ -5,6 +5,11 @@ const path = require('path')
 const os = require('os')
 const crypto = require('crypto')
 const { stableStringify, validateContentIdentity } = require('./content-identity.cjs')
+const {
+  isTransientWindowsFsError,
+  retryTransientWindowsFs,
+  waitSync
+} = require('./windows-fs-retry.cjs')
 
 const DERIVED_STATE_RECEIPT_SCHEMA = 'DerivedStateStoreReceiptV1'
 const DERIVED_STATE_LOCK_SCHEMA = 'DerivedStateLockV2'
@@ -36,29 +41,6 @@ function sameIdentity(left, right) {
 
 function stateDigest(value) {
   return crypto.createHash('sha256').update(stableStringify(value)).digest('hex')
-}
-
-function waitSync(milliseconds) {
-  if (milliseconds <= 0) return
-  const signal = new Int32Array(new SharedArrayBuffer(4))
-  Atomics.wait(signal, 0, 0, milliseconds)
-}
-
-function isTransientWindowsFsError(error) {
-  return process.platform === 'win32' && ['EACCES', 'EBUSY', 'EPERM'].includes(error?.code)
-}
-
-function retryTransientWindowsFs(operation, { maxAttempts = 40, delayMs = 5 } = {}) {
-  let retries = 0
-  while (true) {
-    try {
-      return { value: operation(), retries }
-    } catch (error) {
-      if (!isTransientWindowsFsError(error) || retries >= maxAttempts - 1) throw error
-      retries += 1
-      waitSync(delayMs)
-    }
-  }
 }
 
 function createDerivedStateStore({

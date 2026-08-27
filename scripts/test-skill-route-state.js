@@ -58,6 +58,64 @@ const {
 
 const BASE_MS = Date.parse('2026-07-31T00:00:00.000Z')
 
+function transientSkillRouteLockFs() {
+  const openFailures = new Set()
+  const unlinkFailures = new Set()
+  const counters = { openRetries: 0, unlinkRetries: 0 }
+  const proxy = new Proxy(fs, {
+    get(target, property) {
+      if (property === 'openSync') return (file, flags, ...rest) => {
+        const key = path.resolve(String(file))
+        if (flags === 'wx' && key.endsWith('.lock') && !openFailures.has(key)) {
+          openFailures.add(key)
+          counters.openRetries += 1
+          throw Object.assign(new Error('injected transient SkillRoute lock open'), { code: 'EPERM' })
+        }
+        return target.openSync(file, flags, ...rest)
+      }
+      if (property === 'unlinkSync') return file => {
+        const key = path.resolve(String(file))
+        if (key.endsWith('.lock') && !unlinkFailures.has(key)) {
+          unlinkFailures.add(key)
+          counters.unlinkRetries += 1
+          throw Object.assign(new Error('injected transient SkillRoute lock release'), { code: 'EBUSY' })
+        }
+        return target.unlinkSync(file)
+      }
+      return target[property]
+    }
+  })
+  return { fs: proxy, counters }
+}
+
+function skillRouteLockRecordWriteFailureFs() {
+  const descriptors = new Map()
+  let tripped = false
+  const proxy = new Proxy(fs, {
+    get(target, property) {
+      if (property === 'openSync') return (file, flags, ...rest) => {
+        const descriptor = target.openSync(file, flags, ...rest)
+        descriptors.set(descriptor, path.resolve(String(file)))
+        return descriptor
+      }
+      if (property === 'writeFileSync') return (file, ...rest) => {
+        const ownedPath = Number.isInteger(file) ? descriptors.get(file) : ''
+        if (!tripped && ownedPath?.endsWith('.lock')) {
+          tripped = true
+          throw Object.assign(new Error('injected SkillRoute lock record write failure'), { code: 'EIO' })
+        }
+        return target.writeFileSync(file, ...rest)
+      }
+      if (property === 'closeSync') return descriptor => {
+        descriptors.delete(descriptor)
+        return target.closeSync(descriptor)
+      }
+      return target[property]
+    }
+  })
+  return { fs: proxy, tripped: () => tripped }
+}
+
 function writeCapacityTurn (fixture, index, options = {}) {
   const turnBinding = options.turnBinding ||
     `turn-${sha256({ project: fixture.project, index, salt: options.salt || '' }).slice(0, 40)}`
@@ -233,6 +291,65 @@ function loadStageAll (fixture, plan, stageId, options = fixture.runtimeOptions)
     cursor = response.receipt.nextCursor
   } while (cursor)
   return responses
+}
+
+const transientLockFixture = createSkillRouteFixture({ project: 'transient-locks' })
+try {
+  const transientLockFault = transientSkillRouteLockFs()
+  fs.mkdirSync(path.join(routeRootForActiveRoot(transientLockFixture.activeRoot), 'turns'), { recursive: true })
+  const transientBoot = bootstrapSkillRoute({
+    project: transientLockFixture.project,
+    activeRoot: transientLockFixture.activeRoot,
+    contextEpoch: 'ctx-transient-locks',
+    prompt: 'Exercise bounded Windows lock recovery',
+    mode: 'unified',
+    cwd: transientLockFixture.projectRoot
+  }, {
+    ...transientLockFixture.runtimeOptions,
+    fs: transientLockFault.fs,
+    platform: 'win32',
+    lockTimeoutMs: 100,
+    gcLockTimeoutMs: 100,
+    rootLockTimeoutMs: 100,
+    windowsFsRetryDelayMs: 0
+  })
+  assert.strictEqual(transientBoot.reused, false)
+  assert(transientLockFault.counters.openRetries >= 3, 'turn, GC and root mutation locks must all retry transient opens')
+  assert(transientLockFault.counters.unlinkRetries >= 3, 'turn, GC and root mutation locks must all retry transient releases')
+} finally {
+  transientLockFixture.cleanup()
+}
+
+const partialLockFixture = createSkillRouteFixture({ project: 'partial-lock-record' })
+try {
+  const partialLockFault = skillRouteLockRecordWriteFailureFs()
+  assert.throws(() => bootstrapSkillRoute({
+    project: partialLockFixture.project,
+    activeRoot: partialLockFixture.activeRoot,
+    contextEpoch: 'ctx-partial-lock-record',
+    prompt: 'Exercise partial lock cleanup',
+    mode: 'unified',
+    cwd: partialLockFixture.projectRoot
+  }, {
+    ...partialLockFixture.runtimeOptions,
+    fs: partialLockFault.fs
+  }), error => error?.code === 'EIO')
+  assert.strictEqual(partialLockFault.tripped(), true)
+  const partialRouteRoot = routeRootForActiveRoot(partialLockFixture.activeRoot)
+  const residualLocks = []
+  const pending = [partialRouteRoot]
+  while (pending.length) {
+    const current = pending.pop()
+    if (!fs.existsSync(current)) continue
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const absolute = path.join(current, entry.name)
+      if (entry.isDirectory()) pending.push(absolute)
+      else if (entry.name.endsWith('.lock')) residualLocks.push(absolute)
+    }
+  }
+  assert.deepStrictEqual(residualLocks, [], 'a failed lock-record write must not strand a partial SkillRoute lock')
+} finally {
+  partialLockFixture.cleanup()
 }
 
 const fixture = createSkillRouteFixture()
@@ -2257,6 +2374,36 @@ try {
       fs.readFileSync(replayBoot.paths.envelope, 'utf8'),
       beforeRootLockProbe
     )
+    fs.unlinkSync(rootMutationLock)
+
+    fs.writeFileSync(rootMutationLock, `${JSON.stringify({
+      schemaVersion: 'SkillRouteRootMutationLockV1',
+      pid: 424242,
+      op: 'protected-owner',
+      key: 'protected-owner',
+      startedAt: '2000-01-01T00:00:00.000Z'
+    })}\n`, 'utf8')
+    assert.throws(
+      () => transactEnvelope(
+        replayBudgetFixture.activeRoot,
+        replayBoot.bootstrap.turnBinding,
+        {
+          op: 'eperm-owner-probe',
+          project: replayBudgetFixture.project,
+          contextEpoch: 'ctx-replay-budget'
+        },
+        () => {
+          throw new Error('an EPERM-protected owner must prevent mutation')
+        },
+        {
+          ...replayBudgetFixture.runtimeOptions,
+          rootLockTimeoutMs: 20,
+          processKill: () => { throw Object.assign(new Error('owner access denied'), { code: 'EPERM' }) }
+        }
+      ),
+      error => error && error.code === 'ROOT_MUTATION_LOCK_TIMEOUT'
+    )
+    assert.strictEqual(fs.existsSync(rootMutationLock), true, 'Windows EPERM must be treated as a live lock owner')
     fs.unlinkSync(rootMutationLock)
 
     fs.writeFileSync(replayBoot.paths.lock, `${JSON.stringify({

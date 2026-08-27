@@ -397,6 +397,39 @@ try {
   )
   releaseRuntimeGenerationGcClaim(recoveredClaim)
 
+  const transientGcClaimFs = Object.create(fs)
+  let transientGcClaimOpenAttempts = 0
+  let transientGcClaimUnlinkAttempts = 0
+  transientGcClaimFs.openSync = (file, flags, ...rest) => {
+    if (flags === 'wx' && path.basename(String(file)) === '.gc-claim.json') {
+      transientGcClaimOpenAttempts += 1
+      if (transientGcClaimOpenAttempts <= 2) throw Object.assign(new Error('injected GC claim EPERM'), { code: 'EPERM' })
+    }
+    return fs.openSync(file, flags, ...rest)
+  }
+  transientGcClaimFs.unlinkSync = file => {
+    if (path.basename(String(file)) === '.gc-claim.json') {
+      transientGcClaimUnlinkAttempts += 1
+      if (transientGcClaimUnlinkAttempts === 1) throw Object.assign(new Error('injected GC claim EBUSY'), { code: 'EBUSY' })
+    }
+    return fs.unlinkSync(file)
+  }
+  const transientGcClaim = createRuntimeGenerationGcClaim(
+    inventoryBoundPreview.candidates.find(item => item.runtimeRoot === candidate.replace(/\\/g, '/')),
+    inventoryBoundPreview.planDigest,
+    {
+      nowMs: NOW,
+      fs: transientGcClaimFs,
+      platform: 'win32',
+      windowsFsRetryMaxAttempts: 3,
+      windowsFsRetryDelayMs: 0
+    }
+  )
+  assert.strictEqual(transientGcClaimOpenAttempts, 3)
+  releaseRuntimeGenerationGcClaim(transientGcClaim, transientGcClaimFs)
+  assert.strictEqual(transientGcClaimUnlinkAttempts, 2)
+  assert.strictEqual(fs.existsSync(transientGcClaim.claimFile), false)
+
   const strandedClaim = createRuntimeGenerationGcClaim(
     inventoryBoundPreview.candidates.find(item => item.runtimeRoot === candidate.replace(/\\/g, '/')),
     inventoryBoundPreview.planDigest,

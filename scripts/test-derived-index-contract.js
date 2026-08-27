@@ -47,6 +47,51 @@ const nowValues = [
   Date.parse('2026-07-23T00:00:02Z'),
   Date.parse('2026-07-23T00:00:03Z')
 ]
+
+function derivedIndexLockFaultFs({ failures, code = 'EPERM' }) {
+  let attempts = 0
+  const proxy = new Proxy(fs, {
+    get(target, property) {
+      if (property === 'openSync') return (file, flags, ...rest) => {
+        if (flags === 'wx' && path.basename(String(file)) === 'write.lock') {
+          attempts += 1
+          if (attempts <= failures) throw Object.assign(new Error(`injected derived-index ${code}`), { code })
+        }
+        return target.openSync(file, flags, ...rest)
+      }
+      return target[property]
+    }
+  })
+  return { fs: proxy, attempts: () => attempts }
+}
+
+function derivedIndexLockRecordWriteFailureFs() {
+  const descriptors = new Map()
+  let lockPath = ''
+  const proxy = new Proxy(fs, {
+    get(target, property) {
+      if (property === 'openSync') return (file, flags, ...rest) => {
+        const descriptor = target.openSync(file, flags, ...rest)
+        descriptors.set(descriptor, path.resolve(String(file)))
+        return descriptor
+      }
+      if (property === 'writeFileSync') return (file, ...rest) => {
+        const ownedPath = Number.isInteger(file) ? descriptors.get(file) : ''
+        if (!lockPath && path.basename(ownedPath || '') === 'write.lock') {
+          lockPath = ownedPath
+          throw Object.assign(new Error('injected derived-index lock record write failure'), { code: 'EIO' })
+        }
+        return target.writeFileSync(file, ...rest)
+      }
+      if (property === 'closeSync') return descriptor => {
+        descriptors.delete(descriptor)
+        return target.closeSync(descriptor)
+      }
+      return target[property]
+    }
+  })
+  return { fs: proxy, lockPath: () => lockPath }
+}
 const store = createDerivedIndexStore({
   activeRoot: tempRoot,
   domain: 'fixture',
@@ -162,6 +207,61 @@ const locked = lockedStore.commit({
 assert.equal(locked.status, 'bypassed')
 assert.equal(locked.errorCode, 'DERIVED_INDEX_LOCK_TIMEOUT')
 fs.unlinkSync(store.lockPath)
+
+const transientLockFault = derivedIndexLockFaultFs({ failures: 2 })
+const transientStore = createDerivedIndexStore({
+  activeRoot: tempRoot,
+  domain: 'transient-lock',
+  scopeIdentity: { project: 'alpha', agent: 'codex' },
+  lockFs: transientLockFault.fs,
+  platform: 'win32',
+  windowsFsRetryMaxAttempts: 3,
+  windowsFsRetryDelayMs: 0,
+  now: () => nowValues[2]
+})
+const transientCommit = transientStore.commit({
+  sourceIdentity: sourceIdentity('transient-lock-source'),
+  partitions: [{ key: 'current', payload: { recovered: true } }]
+})
+assert.equal(transientCommit.status, 'persisted')
+assert.equal(transientLockFault.attempts(), 3)
+assert.strictEqual(fs.existsSync(transientStore.lockPath), false)
+
+const nonSharingLockFault = derivedIndexLockFaultFs({ failures: 1, code: 'EIO' })
+const nonSharingStore = createDerivedIndexStore({
+  activeRoot: tempRoot,
+  domain: 'nonsharing-lock',
+  scopeIdentity: { project: 'alpha', agent: 'codex' },
+  lockFs: nonSharingLockFault.fs,
+  platform: 'win32',
+  windowsFsRetryMaxAttempts: 3,
+  windowsFsRetryDelayMs: 0,
+  now: () => nowValues[2]
+})
+const nonSharingCommit = nonSharingStore.commit({
+  sourceIdentity: sourceIdentity('nonsharing-lock-source'),
+  partitions: [{ key: 'current', payload: {} }]
+})
+assert.equal(nonSharingCommit.status, 'error')
+assert.equal(nonSharingCommit.errorCode, 'DERIVED_INDEX_LOCK_FAILED')
+assert.equal(nonSharingLockFault.attempts(), 1)
+
+const partialLockFault = derivedIndexLockRecordWriteFailureFs()
+const partialLockStore = createDerivedIndexStore({
+  activeRoot: tempRoot,
+  domain: 'partial-lock-record',
+  scopeIdentity: { project: 'alpha', agent: 'codex' },
+  lockFs: partialLockFault.fs,
+  now: () => nowValues[2]
+})
+const partialLockCommit = partialLockStore.commit({
+  sourceIdentity: sourceIdentity('partial-lock-source'),
+  partitions: [{ key: 'current', payload: {} }]
+})
+assert.equal(partialLockCommit.status, 'error')
+assert.equal(partialLockCommit.errorCode, 'DERIVED_INDEX_LOCK_FAILED')
+assert.ok(partialLockFault.lockPath())
+assert.strictEqual(fs.existsSync(partialLockFault.lockPath()), false, 'failed derived-index lock record write must not strand the lock')
 
 const pointerBytes = fs.readFileSync(store.pointerPath)
 fs.writeFileSync(store.pointerPath, '{broken')

@@ -446,6 +446,36 @@ function usageLedgerRenameFaultFs({ failures = 1, code = 'EPERM' } = {}) {
   return { fs: proxy, counters }
 }
 
+function exclusiveLockFaultFs({ pattern, openFailures = 0, unlinkFailures = 0, code = 'EPERM' }) {
+  const counters = { openAttempts: 0, unlinkAttempts: 0 }
+  const matches = file => pattern.test(String(file))
+  const fault = operation => {
+    const error = new Error(`injected exclusive lock ${operation} ${code}`)
+    error.code = code
+    throw error
+  }
+  const proxy = new Proxy(fs, {
+    get(target, property) {
+      if (property === 'openSync') return (file, flags, ...rest) => {
+        if (flags === 'wx' && matches(file)) {
+          counters.openAttempts += 1
+          if (counters.openAttempts <= openFailures) fault('open')
+        }
+        return target.openSync(file, flags, ...rest)
+      }
+      if (property === 'unlinkSync') return file => {
+        if (matches(file)) {
+          counters.unlinkAttempts += 1
+          if (counters.unlinkAttempts <= unlinkFailures) fault('unlink')
+        }
+        return target.unlinkSync(file)
+      }
+      return target[property]
+    }
+  })
+  return { fs: proxy, counters }
+}
+
 function lockWriteFailureFs() {
   const descriptors = new Map()
   let tripped = false
@@ -812,6 +842,70 @@ try {
   const lowDiskReadback = readTaskRecoveryState({ metaDir: lowDiskMeta, identity: identity(lowDiskId) })
   assert.strictEqual(lowDiskReadback.status, 'fresh')
   assert.strictEqual(lowDiskReadback.state.turnLiveness.inFlightOperation, null)
+
+  const transientLockMeta = path.join(tempRoot, 'transient-lock-open-hooks')
+  const transientLockId = '00000000-0000-4000-8000-000000000060'
+  const transientLockFault = exclusiveLockFaultFs({
+    pattern: /store\.lock$/i,
+    openFailures: 2,
+    unlinkFailures: 1
+  })
+  const transientLockWrite = commitTaskRecoveryState({
+    metaDir: transientLockMeta,
+    identity: identity(transientLockId),
+    state: state(transientLockId)
+  }, {
+    ...baseOptions,
+    fs: transientLockFault.fs,
+    platform: 'win32',
+    lockWaitMs: 100,
+    windowsFsRetryDelayMs: 0
+  })
+  assert.strictEqual(transientLockWrite.status, 'committed', JSON.stringify(transientLockWrite))
+  assert.strictEqual(transientLockFault.counters.openAttempts, 3)
+  assert.strictEqual(transientLockFault.counters.unlinkAttempts, 2)
+  assert.strictEqual(fs.existsSync(storePaths(transientLockMeta).storeLock), false)
+
+  const persistentLockMeta = path.join(tempRoot, 'persistent-lock-open-hooks')
+  const persistentLockId = '00000000-0000-4000-8000-000000000061'
+  const persistentLockFault = exclusiveLockFaultFs({
+    pattern: /store\.lock$/i,
+    openFailures: Number.POSITIVE_INFINITY
+  })
+  const persistentLockWrite = commitTaskRecoveryState({
+    metaDir: persistentLockMeta,
+    identity: identity(persistentLockId),
+    state: state(persistentLockId)
+  }, {
+    ...baseOptions,
+    fs: persistentLockFault.fs,
+    platform: 'win32',
+    lockWaitMs: 0
+  })
+  assert.strictEqual(persistentLockWrite.status, 'error')
+  assert.strictEqual(persistentLockWrite.errorCode, 'LIFECYCLE_STORE_LEASE_CONFLICT')
+  assert.strictEqual(fs.existsSync(storePaths(persistentLockMeta).storeLock), false)
+
+  const nonSharingLockMeta = path.join(tempRoot, 'nonsharing-lock-open-hooks')
+  const nonSharingLockId = '00000000-0000-4000-8000-000000000062'
+  const nonSharingLockFault = exclusiveLockFaultFs({
+    pattern: /store\.lock$/i,
+    openFailures: 1,
+    code: 'EIO'
+  })
+  const nonSharingLockWrite = commitTaskRecoveryState({
+    metaDir: nonSharingLockMeta,
+    identity: identity(nonSharingLockId),
+    state: state(nonSharingLockId)
+  }, {
+    ...baseOptions,
+    fs: nonSharingLockFault.fs,
+    platform: 'win32',
+    lockWaitMs: 100
+  })
+  assert.strictEqual(nonSharingLockWrite.status, 'error')
+  assert.strictEqual(nonSharingLockWrite.errorCode, 'EIO')
+  assert.strictEqual(nonSharingLockFault.counters.openAttempts, 1)
 
   const lockFailureMeta = path.join(tempRoot, 'lock-write-failure-hooks')
   const lockFailureId = '00000000-0000-4000-8000-000000000006'

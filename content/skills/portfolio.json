@@ -6,7 +6,7 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "1d82645f2deef3a82cb90d8e5c86d3d7efc68a6ebd1be6c1a6f46f9825c81b3f",
+    "sourceDigest": "3b8f4df61987743ccd2f79c67a2bd038fbf2072faf2b76bd46dc3d21a6c40100",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "871b841f7ac11dd8b0ce6d0d3dd3bf4563eab48ef7ea458bce68755c85cd6bfb",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 650,
     "consumerInventoryDigest": "705b522582d16f3368063f9939181d1b47e4c7cd741ba282c0eec4b9c2f177ee",
-    "consumerProjectionDigest": "955391c5e8111cf1af5f5ffd1981574b27c96294390d0a8a13789fd9ff59a188",
-    "portfolioInputDigest": "0b3ae2d57554d25927f13756bf5c74ae5d7371c857c354c9e968007060121d6d"
+    "consumerProjectionDigest": "46972641efcf51ee43c6dfd9762271af2da8e2d0ad0f00b12388a409dd70d5ee",
+    "portfolioInputDigest": "9418b388adbeed0652cd4365a698c5a6e72829e72d9451025d3b6fe66c4f39b1"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -15390,8 +15390,8 @@
         "content/skills/release-verification/SKILL.md"
       ],
       "source": "content/skills/release-verification/SKILL.md",
-      "hash": "50e468554fa6a653427a9671f25d11def6d5b880937cf422cd3b19fa0883d2d8",
-      "sourceBytes": 19211,
+      "hash": "a801fdfc133d6784408d9b13eb36f04810be2761fa97bd8d5e1d2a51ed6923ee",
+      "sourceBytes": 19338,
       "version": "1.19.1",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",
@@ -15433,6 +15433,10 @@
         },
         {
           "path": "changelogs/releases/v1.15.2.md",
+          "role": "historical"
+        },
+        {
+          "path": "changelogs/releases/v1.19.1.md",
           "role": "historical"
         },
         {
@@ -20044,8 +20048,8 @@
         "content/skills/test-router/SKILL.md"
       ],
       "source": "content/skills/test-router/SKILL.md",
-      "hash": "dcfc46e3a149e8e145e68cd7fdb520a740194659b723345fe802399da8fa4b83",
-      "sourceBytes": 21339,
+      "hash": "bebdaeb50eebe48ebb6941cfb674266098fdf05169890521e1daa435ecb4d0d0",
+      "sourceBytes": 21530,
       "version": "1.19.1",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",
@@ -20133,6 +20137,10 @@
         },
         {
           "path": "changelogs/releases/v1.15.3.md",
+          "role": "historical"
+        },
+        {
+          "path": "changelogs/releases/v1.19.1.md",
           "role": "historical"
         },
         {

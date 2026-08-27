@@ -14,6 +14,7 @@ const {
   resolveLeasePaths,
   validateGcClaim
 } = require('../../hooks/_runtime/runtime-generation-lease.cjs')
+const { retryTransientWindowsFs } = require('../../hooks/_runtime/windows-fs-retry.cjs')
 
 const RUNTIME_GENERATION_RETENTION_STATE_SCHEMA = 'RuntimeGenerationRetentionStateV1'
 const RUNTIME_GENERATION_GC_PLAN_SCHEMA = 'RuntimeGenerationGcPlanV1'
@@ -1059,6 +1060,11 @@ function ensurePlainDirectory (directory, fsImpl = fs) {
 
 function recoverStaleRuntimeGenerationGcClaim (paths, candidate, options = {}) {
   const fsImpl = options.fs || fs
+  const retryOptions = {
+    platform: options.platform,
+    maxAttempts: options.windowsFsRetryMaxAttempts,
+    delayMs: options.windowsFsRetryDelayMs
+  }
   const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
   const staleMs = Number.isInteger(options.gcClaimStaleMs) && options.gcClaimStaleMs >= 60 * 1000
     ? options.gcClaimStaleMs
@@ -1077,7 +1083,7 @@ function recoverStaleRuntimeGenerationGcClaim (paths, candidate, options = {}) {
     if (ageMs < staleMs || probe.status !== 'dead') {
       return { status: 'blocked', reasonCode: 'gc-stale-claim-owner-not-dead' }
     }
-    try { fsImpl.unlinkSync(paths.staleClaimFile) } catch (error) {
+    try { retryTransientWindowsFs(() => fsImpl.unlinkSync(paths.staleClaimFile), retryOptions) } catch (error) {
       return { status: 'blocked', reasonCode: error.code || 'gc-stale-claim-cleanup-failed' }
     }
     return { status: 'cleaned' }
@@ -1093,7 +1099,7 @@ function recoverStaleRuntimeGenerationGcClaim (paths, candidate, options = {}) {
     return { status: 'blocked', reasonCode: 'gc-claim-owner-not-dead' }
   }
   try {
-    fsImpl.renameSync(paths.claimFile, paths.staleClaimFile)
+    retryTransientWindowsFs(() => fsImpl.renameSync(paths.claimFile, paths.staleClaimFile), retryOptions)
   } catch (error) {
     if (error.code === 'ENOENT') return { status: 'retry' }
     return { status: 'blocked', reasonCode: error.code || 'gc-claim-stale-rename-failed' }
@@ -1102,7 +1108,7 @@ function recoverStaleRuntimeGenerationGcClaim (paths, candidate, options = {}) {
   if (moved.status !== 'resolved' || moved.claim.claimId !== observed.claim.claimId) {
     return { status: 'blocked', reasonCode: 'gc-claim-stale-readback-failed' }
   }
-  try { fsImpl.unlinkSync(paths.staleClaimFile) } catch (error) {
+  try { retryTransientWindowsFs(() => fsImpl.unlinkSync(paths.staleClaimFile), retryOptions) } catch (error) {
     return { status: 'blocked', reasonCode: error.code || 'gc-claim-stale-cleanup-failed' }
   }
   return { status: 'recovered', claimId: observed.claim.claimId }
@@ -1110,6 +1116,11 @@ function recoverStaleRuntimeGenerationGcClaim (paths, candidate, options = {}) {
 
 function createRuntimeGenerationGcClaim (candidate, planDigest, options = {}) {
   const fsImpl = options.fs || fs
+  const retryOptions = {
+    platform: options.platform,
+    maxAttempts: options.windowsFsRetryMaxAttempts,
+    delayMs: options.windowsFsRetryDelayMs
+  }
   const pid = Number.isInteger(options.pid) ? options.pid : process.pid
   const paths = resolveLeasePaths(candidate.runtimeRoot, 'generation-gc', pid, fsImpl)
   if (paths.status !== 'resolved' ||
@@ -1147,7 +1158,7 @@ function createRuntimeGenerationGcClaim (candidate, planDigest, options = {}) {
   try {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        descriptor = fsImpl.openSync(paths.claimFile, 'wx')
+        descriptor = retryTransientWindowsFs(() => fsImpl.openSync(paths.claimFile, 'wx'), retryOptions).value
         break
       } catch (error) {
         if (error.code !== 'EEXIST' || attempt > 0) throw error
@@ -1186,13 +1197,13 @@ function createRuntimeGenerationGcClaim (candidate, planDigest, options = {}) {
       error.code = 'RUNTIME_GENERATION_GC_CLAIM_READBACK_FAILED'
       throw error
     }
-    return { claim, claimFile: paths.claimFile, generationLeaseRoot: paths.generationLeaseRoot, leaseRoot: paths.leaseRoot }
+    return { claim, claimFile: paths.claimFile, generationLeaseRoot: paths.generationLeaseRoot, leaseRoot: paths.leaseRoot, retryOptions }
   } catch (error) {
     if (descriptor !== undefined) {
       try { fsImpl.closeSync(descriptor) } catch {}
     }
     if (claimOwned) {
-      try { fsImpl.unlinkSync(paths.claimFile) } catch {}
+      try { retryTransientWindowsFs(() => fsImpl.unlinkSync(paths.claimFile), retryOptions) } catch {}
     }
     throw error
   }
@@ -1205,7 +1216,7 @@ function releaseRuntimeGenerationGcClaim (record, fsImpl = fs) {
     runtimeRoot: record.claim.runtimeRoot
   }, fsImpl)
   if (observed.status === 'resolved' && observed.claim.claimId === record.claim.claimId) {
-    try { fsImpl.unlinkSync(record.claimFile) } catch {}
+    try { retryTransientWindowsFs(() => fsImpl.unlinkSync(record.claimFile), record.retryOptions) } catch {}
   }
   for (const directory of [record.generationLeaseRoot, record.leaseRoot]) {
     try { fsImpl.rmdirSync(directory) } catch {}

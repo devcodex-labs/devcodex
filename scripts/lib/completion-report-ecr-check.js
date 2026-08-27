@@ -16,6 +16,7 @@ const {
   validateWorkflowCompletionSnapshot
 } = require('../../hooks/_runtime/workflow-completion-contract.cjs')
 const { buildContentIdentity, sha256, stableStringify } = require('../../hooks/_runtime/content-identity.cjs')
+const { retryTransientWindowsFs } = require('../../hooks/_runtime/windows-fs-retry.cjs')
 
 const RECENT_COMPLETION_REPORT_DAYS = 2
 const REPORT_NAME_RE = /\.md$/i
@@ -224,7 +225,23 @@ function createWorkflowCompletionReportRef(snapshot, reportPath) {
   })
 }
 
-function commitWorkflowCompletionDelivery({ reportPath, memoryPaths, artifactManifestEntries, snapshot, createdAt, activeRoot }) {
+function commitWorkflowCompletionDelivery({
+  reportPath,
+  memoryPaths,
+  artifactManifestEntries,
+  snapshot,
+  createdAt,
+  activeRoot,
+  fs: lockFs = fs,
+  platform,
+  windowsFsRetryMaxAttempts,
+  windowsFsRetryDelayMs
+}) {
+  const lockRetryOptions = {
+    platform,
+    maxAttempts: windowsFsRetryMaxAttempts,
+    delayMs: windowsFsRetryDelayMs
+  }
   const reportContent = fs.readFileSync(reportPath, 'utf8')
   const parsed = parseWorkflowCompletionReportRef(reportContent)
   if (parsed.status !== 'present' || parsed.value.candidateId !== snapshot.candidateId || parsed.value.coreSnapshotDigest !== snapshot.coreSnapshotDigest) {
@@ -263,7 +280,7 @@ function commitWorkflowCompletionDelivery({ reportPath, memoryPaths, artifactMan
   const lockPath = `${sidecarPath}.lock`
   let lockDescriptor
   try {
-    lockDescriptor = fs.openSync(lockPath, 'wx')
+    lockDescriptor = retryTransientWindowsFs(() => lockFs.openSync(lockPath, 'wx'), lockRetryOptions).value
     if (fs.existsSync(sidecarPath)) {
       const existing = fs.readFileSync(sidecarPath, 'utf8')
       if (existing !== serialized) throw Object.assign(new Error('immutable completion sidecar already exists with different content'), { code: 'WORKFLOW_SIDECAR_CONFLICT' })
@@ -282,8 +299,8 @@ function commitWorkflowCompletionDelivery({ reportPath, memoryPaths, artifactMan
     throw error
   } finally {
     if (lockDescriptor !== undefined) {
-      try { fs.closeSync(lockDescriptor) } catch { }
-      try { fs.unlinkSync(lockPath) } catch { }
+      try { lockFs.closeSync(lockDescriptor) } catch { }
+      try { retryTransientWindowsFs(() => lockFs.unlinkSync(lockPath), lockRetryOptions) } catch { }
     }
   }
   const resolved = resolveWorkflowCompletionReport({ activeRoot, reportPath, snapshot, nowMs: Date.parse(createdAt) })

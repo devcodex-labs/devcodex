@@ -17,6 +17,10 @@ const {
   projectArtifactMutationReconciliationReceipt,
   validateArtifactMutationReconciliationInput
 } = require('./artifact-mutation-reconciliation.cjs')
+const {
+  isTransientWindowsFsError,
+  retryTransientWindowsFs
+} = require('./windows-fs-retry.cjs')
 
 const TASK_RECOVERY_STATE_SCHEMA = 'TaskRecoveryStateV5'
 const TASK_RECOVERY_EPHEMERAL_SCHEMA = 'TaskRecoveryEphemeralRingV5'
@@ -1347,15 +1351,31 @@ function acquireLock(lockPath, options = {}) {
       }
       fsImpl.writeFileSync(descriptor, `${JSON.stringify(record)}\n`, 'utf8')
       if (typeof fsImpl.fsyncSync === 'function') fsImpl.fsyncSync(descriptor)
-      return { descriptor, lockPath, ownerToken, waitedMs: Math.max(0, now() - started) }
+      return {
+        descriptor,
+        lockPath,
+        ownerToken,
+        waitedMs: Math.max(0, now() - started),
+        retryOptions: {
+          platform: options.platform,
+          maxAttempts: options.windowsFsRetryMaxAttempts,
+          delayMs: options.windowsFsRetryDelayMs
+        }
+      }
     } catch (error) {
       if (descriptor !== undefined) {
         try { fsImpl.closeSync(descriptor) } catch { }
       }
       if (created) {
-        try { fsImpl.unlinkSync(lockPath) } catch { }
+        try {
+          retryTransientWindowsFs(() => fsImpl.unlinkSync(lockPath), {
+            platform: options.platform,
+            maxAttempts: options.windowsFsRetryMaxAttempts,
+            delayMs: options.windowsFsRetryDelayMs
+          })
+        } catch { }
       }
-      if (error?.code !== 'EEXIST') throw error
+      if (error?.code !== 'EEXIST' && !isTransientWindowsFsError(error, options)) throw error
       const existing = lockRecord(lockPath, fsImpl)
       if (recoverableExpiredLock(lockPath, existing, now(), leaseMs, fsImpl, options)) {
         try { fsImpl.unlinkSync(lockPath); continue } catch { }
@@ -1371,7 +1391,9 @@ function releaseLock(lock, fsImpl = fs) {
   try { fsImpl.closeSync(lock.descriptor) } catch { }
   try {
     const existing = lockRecord(lock.lockPath, fsImpl)
-    if (existing?.ownerToken === lock.ownerToken) fsImpl.unlinkSync(lock.lockPath)
+    if (existing?.ownerToken === lock.ownerToken) {
+      retryTransientWindowsFs(() => fsImpl.unlinkSync(lock.lockPath), lock.retryOptions)
+    }
   } catch { }
 }
 

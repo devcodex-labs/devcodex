@@ -1224,6 +1224,40 @@ assert.strictEqual(invalidDerivedState.errorCode, 'WORKFLOW_DERIVED_STATE_SCOPE_
     })
     assert.strictEqual(revoked.receipt.action, 'revoke')
     assert.strictEqual(readRiskAcceptanceLedger(taskRoot, { now: NOW }).receipts.length, 2)
+    let transientRiskOpenAttempts = 0
+    let transientRiskUnlinkAttempts = 0
+    const transientRiskFs = Object.create(fs)
+    transientRiskFs.openSync = (file, flags, ...rest) => {
+      if (flags === 'wx' && path.resolve(String(file)) === path.resolve(`${ledgerFile}.lock`)) {
+        transientRiskOpenAttempts += 1
+        if (transientRiskOpenAttempts <= 2) throw Object.assign(new Error('injected risk lock EPERM'), { code: 'EPERM' })
+      }
+      return fs.openSync(file, flags, ...rest)
+    }
+    transientRiskFs.unlinkSync = file => {
+      if (path.resolve(String(file)) === path.resolve(`${ledgerFile}.lock`)) {
+        transientRiskUnlinkAttempts += 1
+        if (transientRiskUnlinkAttempts === 1) throw Object.assign(new Error('injected risk unlock EBUSY'), { code: 'EBUSY' })
+      }
+      return fs.unlinkSync(file)
+    }
+    const transientRisk = appendRiskAcceptanceDecision({
+      taskRoot,
+      action: 'accept',
+      requirementId: 'requirements.coverage',
+      actor: 'explicit-user',
+      reason: 'transient lock recovery fixture',
+      createdAt: '2026-07-22T08:02:00Z',
+      expiresAt: '2026-07-23T08:00:00Z',
+      nowMs: NOW,
+      fs: transientRiskFs,
+      platform: 'win32',
+      windowsFsRetryMaxAttempts: 3,
+      windowsFsRetryDelayMs: 0
+    })
+    assert.strictEqual(transientRisk.receipt.action, 'accept')
+    assert.strictEqual(transientRiskOpenAttempts, 3)
+    assert.strictEqual(transientRiskUnlinkAttempts, 2)
     fs.writeFileSync(`${ledgerFile}.lock`, '{"fixture":true}\n', 'utf8')
     try {
       assert.throws(() => appendRiskAcceptanceDecision({

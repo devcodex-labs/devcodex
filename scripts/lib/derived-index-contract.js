@@ -1,5 +1,6 @@
 'use strict'
 
+const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const {
@@ -13,6 +14,7 @@ const {
   sameIdentity
 } = require('../../hooks/_runtime/derived-state-store.cjs')
 const { resolveRuntimeStateRoot } = require('../../hooks/_runtime/workspace-layout.cjs')
+const { retryTransientWindowsFs } = require('../../hooks/_runtime/windows-fs-retry.cjs')
 
 const DERIVED_INDEX_ROOT = 'derived-indexes/v1'
 const POINTER_SCHEMA = 'DerivedIndexPointerV1'
@@ -173,6 +175,12 @@ function createDerivedIndexStore(options = {}) {
   const lockWaitMs = options.lockWaitMs === undefined ? 2000 : options.lockWaitMs
   const now = typeof options.now === 'function' ? options.now : () => Date.now()
   const faultInjector = typeof options.faultInjector === 'function' ? options.faultInjector : null
+  const lockFs = options.lockFs || fs
+  const lockRetryOptions = {
+    platform: options.platform,
+    maxAttempts: options.windowsFsRetryMaxAttempts,
+    delayMs: options.windowsFsRetryDelayMs
+  }
 
   if (!Number.isInteger(maxPartitionBytes) || maxPartitionBytes <= 0) {
     throw new DerivedIndexError('DERIVED_INDEX_INVALID_BUDGET', 'maxPartitionBytes must be a positive integer')
@@ -434,17 +442,28 @@ function createDerivedIndexStore(options = {}) {
   function acquireDomainLock() {
     const startedAt = now()
     while (true) {
+      let descriptor
+      let created = false
       try {
         fs.mkdirSync(path.dirname(lockPath), { recursive: true })
-        const descriptor = fs.openSync(lockPath, 'wx')
-        fs.writeFileSync(descriptor, JSON.stringify({
+        descriptor = retryTransientWindowsFs(() => lockFs.openSync(lockPath, 'wx'), lockRetryOptions).value
+        created = true
+        const ownerToken = (options.randomUUID || crypto.randomUUID)()
+        lockFs.writeFileSync(descriptor, JSON.stringify({
+          ownerToken,
           pid: process.pid,
           domain,
           scopeDigest,
           acquiredAt: new Date(now()).toISOString()
         }) + '\n', 'utf8')
-        return { descriptor, waitedMs: Math.max(0, now() - startedAt) }
+        return { descriptor, ownerToken, waitedMs: Math.max(0, now() - startedAt) }
       } catch (error) {
+        if (descriptor !== undefined) {
+          try { lockFs.closeSync(descriptor) } catch { }
+        }
+        if (created) {
+          try { retryTransientWindowsFs(() => lockFs.unlinkSync(lockPath), lockRetryOptions) } catch { }
+        }
         if (error?.code !== 'EEXIST') throw error
         const elapsed = now() - startedAt
         if (elapsed >= lockWaitMs) return null
@@ -664,8 +683,13 @@ function createDerivedIndexStore(options = {}) {
         pointerAdvanced: ['pointer-advanced', 'readback'].includes(stage)
       }
     } finally {
-      try { fs.closeSync(lock.descriptor) } catch { }
-      try { fs.unlinkSync(lockPath) } catch { }
+      try { lockFs.closeSync(lock.descriptor) } catch { }
+      try {
+        const current = JSON.parse(lockFs.readFileSync(lockPath, 'utf8'))
+        if (current?.ownerToken === lock.ownerToken) {
+          retryTransientWindowsFs(() => lockFs.unlinkSync(lockPath), lockRetryOptions)
+        }
+      } catch { }
     }
   }
 

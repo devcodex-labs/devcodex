@@ -4,6 +4,10 @@ const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const {
+  isTransientWindowsFsError,
+  retryTransientWindowsFs
+} = require('./windows-fs-retry.cjs')
 
 const WORKSPACE_SESSION_ROUTE_INDEX_SCHEMA = 'WorkspaceSessionRouteIndexV1'
 const WORKSPACE_SESSION_ROUTE_ENTRY_SCHEMA = 'WorkspaceSessionRouteEntryV1'
@@ -296,9 +300,11 @@ function acquireLock (file, role, options = {}) {
   const startedAt = now()
   while (true) {
     let descriptor
+    let created = false
     try {
       fsImpl.mkdirSync(path.dirname(file), { recursive: true })
       descriptor = fsImpl.openSync(file, 'wx')
+      created = true
       const acquiredAtMs = now()
       const record = {
         schemaVersion: WORKSPACE_SESSION_ROUTE_LOCK_SCHEMA,
@@ -311,14 +317,34 @@ function acquireLock (file, role, options = {}) {
       }
       fsImpl.writeFileSync(descriptor, `${JSON.stringify(record)}\n`, 'utf8')
       if (typeof fsImpl.fsyncSync === 'function') fsImpl.fsyncSync(descriptor)
-      return { descriptor, file, record, waitedMs: Math.max(0, now() - startedAt) }
+      return {
+        descriptor,
+        file,
+        record,
+        waitedMs: Math.max(0, now() - startedAt),
+        retryOptions: {
+          platform: options.platform,
+          maxAttempts: options.windowsFsRetryMaxAttempts,
+          delayMs: options.windowsFsRetryDelayMs
+        }
+      }
     } catch (error) {
       if (descriptor !== undefined) {
         try { fsImpl.closeSync(descriptor) } catch {}
       }
-      if (error?.code !== 'EEXIST') throw error
+      if (created) {
+        try {
+          retryTransientWindowsFs(() => fsImpl.unlinkSync(file), {
+            platform: options.platform,
+            maxAttempts: options.windowsFsRetryMaxAttempts,
+            delayMs: options.windowsFsRetryDelayMs
+          })
+        } catch {}
+      }
+      if (error?.code !== 'EEXIST' && !isTransientWindowsFsError(error, options)) throw error
       const record = readLockRecord(file, fsImpl)
-      const expired = Number(record?.leaseExpiresAtMs || 0) < now()
+      const expiresAtMs = Number(record?.leaseExpiresAtMs)
+      const expired = Number.isFinite(expiresAtMs) && expiresAtMs < now()
       const localOwner = record?.hostname === (options.hostname || os.hostname())
       if (expired && (!localOwner || !localPidAlive(Number(record?.pid), options))) {
         try { fsImpl.unlinkSync(file); continue } catch {}
@@ -334,7 +360,9 @@ function releaseLock (lock, fsImpl = fs) {
   try { fsImpl.closeSync(lock.descriptor) } catch {}
   try {
     const current = readLockRecord(lock.file, fsImpl)
-    if (current?.ownerToken === lock.record.ownerToken) fsImpl.unlinkSync(lock.file)
+    if (current?.ownerToken === lock.record.ownerToken) {
+      retryTransientWindowsFs(() => fsImpl.unlinkSync(lock.file), lock.retryOptions)
+    }
   } catch {}
 }
 

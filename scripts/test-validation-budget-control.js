@@ -337,8 +337,15 @@ function createGitLineageFixture(fixtureRoot) {
     windowsHide: true
   })
   const heads = []
+  const commitFiles = []
   for (let index = 0; index < 3; index += 1) {
     const timestamp = `2020-01-01T00:00:0${index}Z`
+    const relativeFile = `lineage-${index}.txt`
+    fs.writeFileSync(path.join(repoRoot, relativeFile), `lineage-${index}\n`, 'utf8')
+    execFileSync('git', ['add', '--', relativeFile], {
+      cwd: repoRoot,
+      windowsHide: true
+    })
     execFileSync('git', [
       '-c', 'user.name=DevCodex Test',
       '-c', 'user.email=devcodex-test@example.invalid',
@@ -358,12 +365,14 @@ function createGitLineageFixture(fixtureRoot) {
       encoding: 'utf8',
       windowsHide: true
     }).trim())
+    commitFiles.push(relativeFile)
   }
   return {
     repoRoot,
     ancestorHead: heads[0],
     previousHead: heads[1],
-    currentHead: heads[2]
+    currentHead: heads[2],
+    commitFiles
   }
 }
 
@@ -714,7 +723,8 @@ function main() {
       repoRoot: rolloverGitRoot,
       currentHead,
       previousHead,
-      ancestorHead
+      ancestorHead,
+      commitFiles
     } = createGitLineageFixture(fixtureRoot)
     const rolloverRootPlan = fixturePlan(rolloverTaskId, contextEpoch, 'root-rollover-parent')
     const rolloverRootCandidate = { ...fixtureCandidate('root-rollover-parent'), head: ancestorHead }
@@ -1153,6 +1163,154 @@ function main() {
     assert.strictEqual(rescopeExecution.authority.parentRootReceiptDigest, rescopeRoot.authority.receiptDigest)
     assert.notStrictEqual(rescopeExecution.authority.autoAuthorityRef, rescopeRoot.authority.autoAuthorityRef)
     assert.strictEqual(rescopeExecution.authority.contextEpoch, rescopeContextEpoch)
+
+    // A clean strict-descendant repair commit is an immutable server-observed
+    // footprint when the host could not supply a mutation closeout.  It may use
+    // the same Auto root for one bounded child continuation; it must not create
+    // a replacement root or accept paths outside the commit diff.
+    const committedRepairTaskId = '00000000-0000-4000-8000-000000000350'
+    const committedRepairSession = 'validation-budget-committed-repair-session'
+    const committedRepairControl = controlReceipt({
+      prompt: '@rocky 自动完成当前任务的批量修复与统一验证',
+      mode: 'auto',
+      sessionKey: committedRepairSession,
+      taskId: committedRepairTaskId,
+      contextEpoch,
+      suffix: 'committed-repair-root',
+      nowMs: NOW
+    })
+    const committedRepairSeed = seedTask({
+      activeRoot,
+      taskId: committedRepairTaskId,
+      sessionKey: committedRepairSession,
+      control: committedRepairControl
+    })
+    const committedRepairRootPlan = fixturePlan(committedRepairTaskId, contextEpoch, 'committed-repair-root')
+    const committedRepairRootCandidate = {
+      ...fixtureCandidate('committed-repair-root'),
+      stable: true,
+      head: ancestorHead,
+      changedFiles: [commitFiles[0]],
+      dirtyIdentities: []
+    }
+    const committedRepairRootContext = authorityContext({
+      identity: committedRepairSeed.identity,
+      sessionKey: committedRepairSession,
+      contextEpoch,
+      control: committedRepairControl
+    })
+    const committedRepairRoot = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 100 },
+      plan: committedRepairRootPlan,
+      candidate: committedRepairRootCandidate,
+      authorityContext: committedRepairRootContext,
+      activeRoot,
+      execute: true,
+      gitRepoRoot: rolloverGitRoot
+    })
+    const committedRepairStore = createValidationEvidenceStore({
+      activeRoot,
+      project: 'devcodex',
+      actorType: 'ai-hook',
+      taskIdentity: committedRepairSeed.identity,
+      taskRecoveryKey: committedRepairTaskId,
+      sessionKey: committedRepairSession
+    })
+    persistRunTerminal({
+      store: committedRepairStore,
+      plan: committedRepairRoot.plan,
+      candidate: committedRepairRootCandidate,
+      authority: committedRepairRoot.authority,
+      control: committedRepairControl,
+      taskId: committedRepairTaskId,
+      contextEpoch,
+      failedNode: 'validation-authority'
+    })
+    const committedRepairState = readTaskRecoveryState({
+      metaDir: committedRepairSeed.metaDir,
+      identity: committedRepairSeed.identity,
+      sessionKey: committedRepairSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' }
+    })
+    const committedRepairPlan = fixturePlan(committedRepairTaskId, contextEpoch, 'committed-repair-child', {
+      selectedNodes: [
+        { id: 'validation-authority', writeScopes: [] },
+        { id: 'validation-budget-control', writeScopes: [] }
+      ]
+    })
+    committedRepairPlan.budgetCard = {
+      ...committedRepairPlan.budgetCard,
+      estimatedDurationMs: committedRepairRootPlan.budgetCard.estimatedDurationMs + 20000,
+      hardTimeoutUpperBoundMs: committedRepairRootPlan.budgetCard.hardTimeoutUpperBoundMs + 40000,
+      logBudgetBytes: committedRepairRootPlan.budgetCard.logBudgetBytes + 128
+    }
+    const committedRepairCandidate = {
+      ...fixtureCandidate('committed-repair-child'),
+      stable: true,
+      head: previousHead,
+      changedFiles: [commitFiles[0], commitFiles[1]],
+      dirtyIdentities: []
+    }
+    const committedRepairContext = authorityContext({
+      identity: committedRepairSeed.identity,
+      sessionKey: committedRepairSession,
+      contextEpoch,
+      control: committedRepairControl,
+      state: committedRepairState.state
+    })
+    expectCode(() => resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 2000 },
+      plan: committedRepairPlan,
+      candidate: {
+        ...committedRepairCandidate,
+        changedFiles: [...committedRepairCandidate.changedFiles, 'not-in-commit.txt']
+      },
+      authorityContext: committedRepairContext,
+      activeRoot,
+      execute: false,
+      gitRepoRoot: rolloverGitRoot
+    }), 'VALIDATION_CONTINUATION_FOOTPRINT_UNPROVEN')
+    const committedRepairOverBudgetPlan = {
+      ...committedRepairPlan,
+      budgetCard: {
+        ...committedRepairPlan.budgetCard,
+        digest: sha256('committed-repair-over-budget'),
+        hardTimeoutUpperBoundMs: committedRepairRootPlan.budgetCard.hardTimeoutUpperBoundMs + 70000
+      }
+    }
+    expectCode(() => resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 2000 },
+      plan: committedRepairOverBudgetPlan,
+      candidate: committedRepairCandidate,
+      authorityContext: committedRepairContext,
+      activeRoot,
+      execute: false,
+      gitRepoRoot: rolloverGitRoot
+    }), 'VALIDATION_CONTINUATION_BUDGET_EXCEEDED')
+    const committedRepairPreview = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 2000 },
+      plan: committedRepairPlan,
+      candidate: committedRepairCandidate,
+      authorityContext: committedRepairContext,
+      activeRoot,
+      execute: false,
+      gitRepoRoot: rolloverGitRoot
+    })
+    assert.strictEqual(committedRepairPreview.decision, 'root-continuation-plan-only')
+    const committedRepairExecution = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 2000 },
+      plan: committedRepairPlan,
+      candidate: committedRepairCandidate,
+      authorityContext: committedRepairContext,
+      activeRoot,
+      execute: true,
+      gitRepoRoot: rolloverGitRoot
+    })
+    assert.strictEqual(committedRepairExecution.decision, 'auto-continuation-authorized')
+    assert.strictEqual(committedRepairExecution.authority.repairProofKind, 'committed-repair-diff')
+    assert.strictEqual(committedRepairExecution.authority.retryOrdinal, 1)
+    assert.strictEqual(committedRepairStore.readRootBudgetConfirmation().rootBudgetConfirmation.receiptDigest,
+      committedRepairRoot.authority.receiptDigest, 'committed repair must preserve the immutable root')
 
     const exactRetryTaskId = '00000000-0000-4000-8000-000000000346'
     const exactRetrySession = 'validation-budget-exact-retry-session'

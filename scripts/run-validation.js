@@ -42,7 +42,7 @@ const {
   validateValidationControlIngressReceipt,
   validationProjectRootIdentity
 } = require('../hooks/_runtime/workflow-completion-contract.cjs')
-const { sha256 } = require('../hooks/_runtime/content-identity.cjs')
+const { sha256, stableStringify } = require('../hooks/_runtime/content-identity.cjs')
 const {
   validateArtifactMutationReconciliationEvidence
 } = require('../hooks/_runtime/artifact-mutation-reconciliation.cjs')
@@ -54,6 +54,7 @@ const CLI_EXECUTION_PROJECTION_SCHEMA = 'ValidationCliExecutionProjectionV1'
 const CLI_PERSISTENCE_PROJECTION_SCHEMA = 'ValidationCliPersistenceProjectionV1'
 const CLI_EXECUTION_MAX_BYTES = 64 * 1024
 const DIGEST_RE = /^[a-f0-9]{64}$/
+const MAX_COMMITTED_REPAIR_PATHS = 512
 
 function parseArgs(argv) {
   const options = {
@@ -755,6 +756,82 @@ function mutationRepairProof(authorityContext, candidate, terminal) {
   }
 }
 
+function normalizeCommittedRepairPath(value) {
+  const normalized = String(value || '').trim().replace(/\\/g, '/')
+  if (!normalized || normalized.startsWith('/') || /^[a-z]:\//i.test(normalized) ||
+      normalized === '..' || normalized.startsWith('../') || normalized.includes('/../')) {
+    return null
+  }
+  return normalized.replace(/^\.\//, '') || null
+}
+
+function canonicalCommittedRepairPaths(values) {
+  if (!Array.isArray(values)) return null
+  const normalized = values.map(normalizeCommittedRepairPath)
+  if (normalized.some(value => !value)) return null
+  return [...new Set(normalized)].sort()
+}
+
+function committedRepairProof(repoRoot, candidate, terminal) {
+  const unavailable = { proven: false, footprintDigest: '', observationDigest: '', unrelatedDirtyFiles: [], observedPaths: [] }
+  const parentHead = String(terminal.candidateHead || terminal.runIdentity?.candidateHead || '').trim()
+  const currentHead = String(candidate.head || '').trim()
+  if (candidate.stable !== true || (Array.isArray(candidate.dirtyIdentities) && candidate.dirtyIdentities.length > 0) ||
+      terminal.candidateChangedFilesTruncated === true || !isStrictGitDescendant(repoRoot, parentHead, currentHead)) {
+    return unavailable
+  }
+  const priorChanged = canonicalCommittedRepairPaths(terminal.candidateChangedFiles)
+  const currentChanged = canonicalCommittedRepairPaths(candidate.changedFiles)
+  if (!priorChanged || !currentChanged || currentChanged.length > MAX_COMMITTED_REPAIR_PATHS ||
+      !isSubset(priorChanged, currentChanged)) {
+    return unavailable
+  }
+  let committedFiles
+  try {
+    const output = execFileSync('git', [
+      'diff', '--name-only', '--diff-filter=ACDMRTUXB', '-z', `${parentHead}..${currentHead}`
+    ], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      maxBuffer: 1024 * 1024,
+      windowsHide: true
+    })
+    committedFiles = canonicalCommittedRepairPaths(output.split('\0').filter(Boolean))
+  } catch {
+    return unavailable
+  }
+  if (!committedFiles || committedFiles.length === 0 || committedFiles.length > MAX_COMMITTED_REPAIR_PATHS ||
+      !isSubset(committedFiles, currentChanged)) {
+    return unavailable
+  }
+  const priorSet = new Set(priorChanged)
+  const committedSet = new Set(committedFiles)
+  const addedChangedFiles = currentChanged.filter(file => !priorSet.has(file))
+  if (!isSubset(addedChangedFiles, committedFiles)) return unavailable
+  const footprintDigest = sha256(stableStringify({
+    schemaVersion: 'ValidationCommittedRepairFootprintV1',
+    parentHead,
+    currentHead,
+    priorChanged,
+    currentChanged,
+    committedFiles,
+    addedChangedFiles
+  }))
+  const observationDigest = sha256(stableStringify({
+    schemaVersion: 'ValidationCommittedRepairReceiptV1',
+    parentTerminalDigest: terminal.terminalDigest,
+    footprintDigest,
+    committedFileCount: committedSet.size
+  }))
+  return {
+    proven: true,
+    footprintDigest,
+    observationDigest,
+    unrelatedDirtyFiles: [],
+    observedPaths: committedFiles
+  }
+}
+
 function continuationRetryOrdinal(continuationState, rootConfirmationDigest) {
   const value = continuationState?.continuationAuthorization || null
   if (!value || value.rootConfirmationDigest !== rootConfirmationDigest) return 1
@@ -774,7 +851,7 @@ function continuationConsumerEdgeTypes(plan, rootProjection, manifest) {
 }
 
 function tryResolveAutoContinuation({ plan, candidate, authorityContext, store, currentRoot, control, manifest,
-  persist = true }) {
+  repoRoot = ROOT, persist = true }) {
   const root = currentRoot.rootBudgetConfirmation
   if (!root) return { authority: null, fallbackCode: 'root-missing' }
   const rootProjectionRead = store.readRootBudgetProjection()
@@ -793,7 +870,14 @@ function tryResolveAutoContinuation({ plan, candidate, authorityContext, store, 
   if (terminalRootDigest !== root.receiptDigest) {
     return { authority: null, fallbackCode: 'continuation-parent-root-mismatch', parentRecoverable }
   }
-  const proof = mutationRepairProof(authorityContext, candidate, terminal)
+  const mutationProof = mutationRepairProof(authorityContext, candidate, terminal)
+  const committedProof = mutationProof.proven
+    ? null
+    : committedRepairProof(repoRoot, candidate, terminal)
+  const proof = mutationProof.proven ? mutationProof : (committedProof?.proven ? committedProof : mutationProof)
+  const repairProofKind = mutationProof.proven
+    ? 'mutation-observation'
+    : (committedProof?.proven ? 'committed-repair-diff' : 'same-scope-retry')
   try {
     const rootNodeIds = new Set(rootProjection.selectedNodeIds || [])
     const allowedAddedNodeIds = (plan.selectedNodes || [])
@@ -817,7 +901,7 @@ function tryResolveAutoContinuation({ plan, candidate, authorityContext, store, 
       repairMutationFootprintDigest: proof.footprintDigest,
       repairObservationReceiptDigest: proof.observationDigest,
       repairFootprintProven: proof.proven,
-      repairProofKind: proof.proven ? 'mutation-observation' : 'same-scope-retry',
+      repairProofKind,
       newCandidate: candidate,
       allowedAddedNodeIds,
       addedConsumerEdgeTypes: continuationConsumerEdgeTypes(plan, rootProjection, manifest),
@@ -825,7 +909,10 @@ function tryResolveAutoContinuation({ plan, candidate, authorityContext, store, 
       retryOrdinal: continuationRetryOrdinal(continuationRead, root.receiptDigest),
       revocationEpoch: currentValidationRevocationEpoch(authorityContext)
     }, {
-      serverOwnedContextContinuationReceiptDigest: control.receiptDigest
+      serverOwnedContextContinuationReceiptDigest: control.receiptDigest,
+      serverOwnedCommittedRepairReceiptDigest: committedProof?.proven
+        ? committedProof.observationDigest
+        : null
     })
     if (persist) {
       const write = store.writeContinuationAuthorization(authorization, {
@@ -925,7 +1012,8 @@ function resolveAiBudgetAuthority({
       currentRoot.rootBudgetConfirmation.revocationEpoch === revocationEpoch) {
     if (control.action === 'auto-authorize') {
       const continuation = tryResolveAutoContinuation({
-        plan, candidate, authorityContext, store, currentRoot, control, manifest, persist: execute
+        plan, candidate, authorityContext, store, currentRoot, control, manifest,
+        repoRoot: gitRepoRoot, persist: execute
       })
       if (continuation.authority) {
         if (!execute) {
@@ -1022,7 +1110,8 @@ function resolveAiBudgetAuthority({
     if (!execute) {
       if (currentRoot.status === 'fresh') {
         const continuation = tryResolveAutoContinuation({
-          plan, candidate, authorityContext, store, currentRoot, control, manifest, persist: false
+          plan, candidate, authorityContext, store, currentRoot, control, manifest,
+          repoRoot: gitRepoRoot, persist: false
         })
         if (continuation.authority) {
           return { plan, authority: null, store, control, decision: 'root-continuation-plan-only' }
@@ -1069,7 +1158,9 @@ function resolveAiBudgetAuthority({
       }
     }
     const continuation = currentRoot.status === 'fresh'
-      ? tryResolveAutoContinuation({ plan, candidate, authorityContext, store, currentRoot, control, manifest })
+      ? tryResolveAutoContinuation({
+          plan, candidate, authorityContext, store, currentRoot, control, manifest, repoRoot: gitRepoRoot
+        })
       : { authority: null, fallbackCode: 'root-missing' }
     if (continuation.authority) {
       return {

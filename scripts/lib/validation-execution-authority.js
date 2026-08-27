@@ -18,7 +18,11 @@ const AUTHORITY_CLASSES = new Set(['scoped', 'full-audit', 'release'])
 const LEASE_STATUSES = new Set(['active', 'consumed', 'revoked', 'expired'])
 const PENDING_BUDGET_STATUSES = new Set(['pending', 'confirmed', 'stale', 'revoked'])
 const CONTINUATION_STATUSES = new Set(['prepared', 'leased', 'consumed', 'revoked', 'stale'])
-const CONTINUATION_REPAIR_PROOF_KINDS = new Set(['mutation-observation', 'same-scope-retry'])
+const CONTINUATION_REPAIR_PROOF_KINDS = new Set([
+  'mutation-observation',
+  'committed-repair-diff',
+  'same-scope-retry'
+])
 const ROOT_ROLLOVER_REASONS = new Set([
   'strict-descendant-same-scope',
   'strict-descendant-exact-scope-current-auto-rebind',
@@ -623,6 +627,17 @@ function createValidationContinuationAuthorization(input = {}, options = {}) {
       continuationReceiptDigest: input.continuationReceiptDigest,
       retryOrdinal: Number(input.retryOrdinal)
     })
+  } else if (repairProofKind === 'committed-repair-diff') {
+    const currentCandidate = input.newCandidate || {}
+    const priorChangedFiles = canonicalStrings(terminal.candidateChangedFiles)
+    const currentChangedFiles = canonicalStrings(currentCandidate.changedFiles)
+    const stableCommittedSuccessor = terminal.candidateChangedFilesTruncated !== true &&
+      currentCandidate.stable === true &&
+      (!Array.isArray(currentCandidate.dirtyIdentities) || currentCandidate.dirtyIdentities.length === 0) &&
+      String(currentCandidate.head || '') !== String(parentRun.candidateHead || '') &&
+      setSubset(priorChangedFiles, currentChangedFiles)
+    repairProofValid = repairProofValid && stableCommittedSuccessor &&
+      options.serverOwnedCommittedRepairReceiptDigest === repairObservationReceiptDigest
   }
   if (!repairProofValid ||
       !setSubset(addedNodeIds, allowedAddedNodeIds) || addedConsumerEdgeTypes.includes('releaseConsumer') ||
@@ -634,9 +649,17 @@ function createValidationContinuationAuthorization(input = {}, options = {}) {
   const hardTimeoutDeltaMs = nextBudget.hardTimeoutUpperBoundMs - root.rootHardTimeoutUpperBoundMs
   const logBudgetDeltaBytes = nextBudget.logBudgetBytes - root.rootLogBudgetBytes
   const maxEstimatedDeltaMs = Math.min(60000, Math.ceil(root.rootEstimatedDurationMs * 0.05))
+  const boundedRepairGrowth = repairProofKind !== 'same-scope-retry'
+  const maxHardTimeoutDeltaMs = boundedRepairGrowth
+    ? Math.min(600000, Math.ceil(root.rootHardTimeoutUpperBoundMs * 0.05))
+    : 0
+  const maxLogBudgetDeltaBytes = boundedRepairGrowth
+    ? Math.min(64 * 1024, Math.ceil(root.rootLogBudgetBytes * 0.05))
+    : 0
   if (addedNodeIds.length > maxAddedNodes || estimatedDeltaMs > maxEstimatedDeltaMs ||
-      hardTimeoutDeltaMs > 0 || logBudgetDeltaBytes > 0) {
-    throw new ValidationAuthorityError('VALIDATION_CONTINUATION_BUDGET_EXCEEDED', 'continuation exceeds the immutable root node, estimate, hard-timeout or log budget')
+      hardTimeoutDeltaMs > maxHardTimeoutDeltaMs || logBudgetDeltaBytes > maxLogBudgetDeltaBytes) {
+    throw new ValidationAuthorityError('VALIDATION_CONTINUATION_BUDGET_EXCEEDED',
+      'continuation exceeds the immutable root node or bounded estimate/hard-timeout/log repair budget')
   }
   const retryOrdinal = Number(input.retryOrdinal)
   if (!Number.isInteger(retryOrdinal) || retryOrdinal < 1 || retryOrdinal > MAX_CONTINUATION_RETRIES) {

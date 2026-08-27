@@ -6,17 +6,17 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "3b8f4df61987743ccd2f79c67a2bd038fbf2072faf2b76bd46dc3d21a6c40100",
+    "sourceDigest": "538025779a4c89ac4c8ff69a8856fdbf604b8419a6f8623a7fcd923f1d08a333",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "871b841f7ac11dd8b0ce6d0d3dd3bf4563eab48ef7ea458bce68755c85cd6bfb",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
     "publicTaxonomyDigest": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 650,
-    "consumerInventoryDigest": "705b522582d16f3368063f9939181d1b47e4c7cd741ba282c0eec4b9c2f177ee",
+    "consumerInventoryFileCount": 651,
+    "consumerInventoryDigest": "be50a1f1bd47f203e8aa337d3cc30b44765bf4de097ca1f2254f7d7763c7232c",
     "consumerProjectionDigest": "46972641efcf51ee43c6dfd9762271af2da8e2d0ad0f00b12388a409dd70d5ee",
-    "portfolioInputDigest": "9418b388adbeed0652cd4365a698c5a6e72829e72d9451025d3b6fe66c4f39b1"
+    "portfolioInputDigest": "30ee63d6a98585095f8c121555beeea83e925f01b8dee70c7d362af3e359c53f"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -20048,8 +20048,8 @@
         "content/skills/test-router/SKILL.md"
       ],
       "source": "content/skills/test-router/SKILL.md",
-      "hash": "bebdaeb50eebe48ebb6941cfb674266098fdf05169890521e1daa435ecb4d0d0",
-      "sourceBytes": 21530,
+      "hash": "81d57f284a344501c8a237d8cb8935a1bb586970a273936e602ba60f48f6dd3a",
+      "sourceBytes": 21818,
       "version": "1.19.1",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",

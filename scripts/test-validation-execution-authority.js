@@ -427,6 +427,84 @@ async function main() {
     assert.strictEqual(continuation.repairProofKind, 'mutation-observation')
     assert.strictEqual(validateValidationContinuationAuthorization(continuation).valid, true)
     assert.strictEqual(transitionValidationContinuation(continuation, 'leased').continuationDigest, continuation.continuationDigest)
+    const committedRepairReceiptDigest = sha256('committed-repair-receipt')
+    const committedRepairCandidate = {
+      ...candidate,
+      head: 'c'.repeat(40),
+      changedFiles: [...candidate.changedFiles, 'scripts/derived-consumer.js'],
+      dirtyIdentities: []
+    }
+    const committedRepairPlan = {
+      ...childPlan,
+      planDigest: sha256('committed-repair-plan'),
+      changedScopeDigest: sha256('committed-repair-scope'),
+      requestDigest: sha256('committed-repair-request'),
+      budgetCard: {
+        ...childPlan.budgetCard,
+        digest: sha256('committed-repair-budget'),
+        estimatedDurationMs: 31000,
+        hardTimeoutUpperBoundMs: 125000,
+        logBudgetBytes: 1076
+      }
+    }
+    const committedRepair = createValidationContinuationAuthorization({
+      rootConfirmation,
+      rootPlan,
+      newPlan: committedRepairPlan,
+      newCandidate: committedRepairCandidate,
+      parentRunIdentity: parentLease.runIdentity,
+      parentTerminal,
+      originalAuthorityRef: parentLease.authoritySourceRef,
+      taskRecoveryKey: FORMAL_TASK_ID,
+      project: 'devcodex',
+      projectRootIdentity: rootConfirmation.projectRootIdentity,
+      hostSessionDigest: rootConfirmation.hostSessionDigest,
+      oldContextEpoch: 'context-root',
+      newContextEpoch: 'context-root',
+      continuationReceiptDigest: contextContinuationReceiptDigest,
+      repairMutationFootprintDigest: sha256('committed-repair-footprint'),
+      repairObservationReceiptDigest: committedRepairReceiptDigest,
+      repairFootprintProven: true,
+      repairProofKind: 'committed-repair-diff',
+      allowedAddedNodeIds: ['derived-consumer'],
+      addedConsumerEdgeTypes: ['qualificationConsumer'],
+      unrelatedDirtyFiles: [],
+      retryOrdinal: 1,
+      revocationEpoch: 0
+    }, {
+      nowMs: authorityNow + 1000,
+      serverOwnedCommittedRepairReceiptDigest: committedRepairReceiptDigest
+    })
+    assert.strictEqual(committedRepair.repairProofKind, 'committed-repair-diff')
+    assert.strictEqual(committedRepair.hardTimeoutDeltaMs, 5000)
+    assert.strictEqual(committedRepair.logBudgetDeltaBytes, 52)
+    assert.strictEqual(validateValidationContinuationAuthorization(committedRepair).valid, true)
+    assert.throws(() => createValidationContinuationAuthorization({
+      rootConfirmation,
+      rootPlan,
+      newPlan: committedRepairPlan,
+      newCandidate: committedRepairCandidate,
+      parentRunIdentity: parentLease.runIdentity,
+      parentTerminal,
+      originalAuthorityRef: parentLease.authoritySourceRef,
+      taskRecoveryKey: FORMAL_TASK_ID,
+      project: 'devcodex',
+      projectRootIdentity: rootConfirmation.projectRootIdentity,
+      hostSessionDigest: rootConfirmation.hostSessionDigest,
+      continuationReceiptDigest: contextContinuationReceiptDigest,
+      repairMutationFootprintDigest: sha256('committed-repair-footprint'),
+      repairObservationReceiptDigest: committedRepairReceiptDigest,
+      repairFootprintProven: true,
+      repairProofKind: 'committed-repair-diff',
+      allowedAddedNodeIds: ['derived-consumer'],
+      addedConsumerEdgeTypes: ['qualificationConsumer'],
+      unrelatedDirtyFiles: [],
+      retryOrdinal: 1,
+      revocationEpoch: 0
+    }, {
+      nowMs: authorityNow + 1000,
+      serverOwnedCommittedRepairReceiptDigest: sha256('forged-committed-repair-receipt')
+    }), error => error.code === 'VALIDATION_CONTINUATION_FOOTPRINT_UNPROVEN')
     const approvedChildPlan = approvePlanFromBudgetAuthority(childPlan, continuation)
     const childLease = createVerificationExecutionLease({
       actorType: 'ai-hook',

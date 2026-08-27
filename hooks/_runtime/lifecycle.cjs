@@ -353,7 +353,8 @@ const {
   contextMessageOutput,
   formatProgressiveSkillRouteRecoveryCard,
   warningOutput,
-  eventSupportsHardBlock
+  eventSupportsHardBlock,
+  isOperationPermissionEvent
 } = buildLifecycleHookOutput({
   env: process.env,
   enforcementMode: ENFORCEMENT_MODE
@@ -455,8 +456,11 @@ function recordInterception(state, eventName, platform, action, code, reason, ne
 
 function buildInterceptionOutput(state, platform, eventName, action, code, reason, detail, nextStep) {
   const strict = isStrictEnforcement()
-  const effective = action === INTERCEPTION_ACTION.FORBID ||
+  const operationPermissionEvent = isOperationPermissionEvent(eventName)
+  const effective = !operationPermissionEvent && (
+    action === INTERCEPTION_ACTION.FORBID ||
     (action === INTERCEPTION_ACTION.REQUIRE_COMPLETION && strict && eventSupportsHardBlock(platform, eventName))
+  )
   const output = effective
     ? blockOutput(platform, eventName, reason, detail)
     : warningOutput(reason, detail, eventName)
@@ -2816,10 +2820,18 @@ function evaluateCurrentProgressiveSkillRoute (state, payload, platform, trigger
 }
 
 function observeProgressiveSkillRouteEnforcement (state, platform, eventName) {
-  const decision = resolveProgressiveSkillRouteEnforcement({
+  const resolvedDecision = resolveProgressiveSkillRouteEnforcement({
     hostVariant: state.progressiveSkillRoute?.modeReceipt?.hostVariant || platform,
     eventName
   })
+  const decision = isOperationPermissionEvent(eventName)
+    ? {
+        ...resolvedDecision,
+        hardEnforcement: false,
+        reasonCode: 'host-owned-operation-permission-advisory',
+        capabilityClaim: 'workflow-advisory-host-permission-owned'
+      }
+    : resolvedDecision
   const prior = state.progressiveSkillRouteEnforcement &&
     typeof state.progressiveSkillRouteEnforcement === 'object'
     ? state.progressiveSkillRouteEnforcement

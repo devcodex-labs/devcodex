@@ -4972,7 +4972,8 @@
         "DevCodexVisibleEnvelopeV1",
         "DevCodexVisibleEnvelopeV2",
         "PostCompletionActionSetV1",
-        "LinkCapabilityDecisionV1"
+        "LinkCapabilityDecisionV1",
+        "HostLinkCapabilityDecisionV2"
       ]
     },
     {
@@ -5082,7 +5083,8 @@
       "invariants": [
         "event-mapping",
         "capability-ceiling",
-        "portable-hook-output"
+        "portable-hook-output",
+        "operation-permission-host-owned-no-devcodex-control"
       ],
       "riskClass": "normal",
       "cachePolicy": "candidate-bound",

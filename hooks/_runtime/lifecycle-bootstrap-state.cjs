@@ -2022,6 +2022,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const scopes = getBootstrapScopes(state, payload)
     const inputStrings = getToolInputStrings(payload)
     const acquisition = normalizeContextAcquisition(state)
+    // Raw path touches are observation-only. They may update legacy telemetry,
+    // but bootstrap completion still requires the structured ContextRead contract.
     if (touchesPath(payload, ...scopes.profileNeedles)) acquisition.legacyObserved.profileRead = true
     if ((scopes.summaryNeedles.length && touchesPath(payload, ...scopes.summaryNeedles)) ||
       (!scopes.summaryNeedles.length &&
@@ -2094,7 +2096,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       eventName,
       INTERCEPTION_ACTION.REQUIRE_COMPLETION,
       'context-acquisition-incomplete',
-      `Blocked ${toolName} until the current context plan has verifiable evidence`,
+      `Workflow advisory for ${toolName}: the current context plan lacks verifiable evidence`,
       detail,
       'Complete the exact plan/query evidence or replan once after scope drift, then retry the tool.'
     )

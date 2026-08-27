@@ -12,6 +12,9 @@ const VISIBILITIES = new Set(['decision-required', 'result', 'evidence', 'option
 const DELIVERY_REQUIREMENTS = new Set(['required', 'supporting', 'internal'])
 const PRESENTATION_TIERS = new Set(['rich-markdown', 'portable-markdown', 'plain-text'])
 const LINK_MODES = new Set(['clickable', 'portable', 'plain', 'failed'])
+const HOST_LINK_OPEN_MODES = new Set([
+  'native-action', 'markdown-link', 'terminal-command', 'portable-path', 'absolute-copy', 'unavailable'
+])
 const EVIDENCE_STATES = new Set(['verified', 'unverified', 'failed'])
 const POST_COMPLETION_ACTION_KINDS = new Set([
   'api-docs', 'http-verification', 'commit', 'switch-target', 'cherry-pick', 'push', 'other'
@@ -431,6 +434,86 @@ function createLinkCapabilityDecision(input) {
   return { ...core, decisionId: `link-capability-${digest(core)}`, validation: { valid: errors.length === 0, errors } }
 }
 
+const HOST_LINK_RENDERERS = Object.freeze({
+  'codex-desktop': Object.freeze({ rendererId: 'codex-native-file-panel', openMode: 'native-action' }),
+  'codex-app': Object.freeze({ rendererId: 'codex-native-file-panel', openMode: 'native-action' }),
+  'vscode-codex': Object.freeze({ rendererId: 'vscode-cli-goto', openMode: 'terminal-command' }),
+  vscode: Object.freeze({ rendererId: 'vscode-cli-goto', openMode: 'terminal-command' }),
+  zed: Object.freeze({ rendererId: 'zed-cli-open', openMode: 'terminal-command' }),
+  webstorm: Object.freeze({ rendererId: 'webstorm-cli-open', openMode: 'terminal-command' }),
+  jetbrains: Object.freeze({ rendererId: 'webstorm-cli-open', openMode: 'terminal-command' }),
+  'codex-cli': Object.freeze({ rendererId: 'absolute-path-copy', openMode: 'absolute-copy' }),
+  claude: Object.freeze({ rendererId: 'absolute-path-copy', openMode: 'absolute-copy' }),
+  'claude-code': Object.freeze({ rendererId: 'absolute-path-copy', openMode: 'absolute-copy' })
+})
+
+function createHostLinkCapabilityDecisionV2(input) {
+  const errors = []
+  const hostSurface = input?.hostSurface || ''
+  const presentationSurface = input?.presentationSurface || ''
+  if (!text(hostSurface)) errors.push('hostSurface-required')
+  if (!text(presentationSurface)) errors.push('presentationSurface-required')
+  if (!EVIDENCE_STATES.has(input?.evidenceState)) errors.push('evidenceState-invalid')
+  if (!['workspace', 'external', 'ambiguous'].includes(input?.targetRelation)) errors.push('targetRelation-invalid')
+  const evidenceRefs = Array.isArray(input?.evidenceRefs) ? input.evidenceRefs.slice().sort() : []
+  if (!textList(evidenceRefs)) errors.push('evidenceRefs-invalid')
+  if (input?.evidenceState === 'verified' && evidenceRefs.length === 0) errors.push('verified-evidenceRefs-required')
+
+  const renderer = HOST_LINK_RENDERERS[String(hostSurface).toLowerCase()] || {
+    rendererId: 'unavailable-renderer',
+    openMode: 'unavailable'
+  }
+  let rendererId = renderer.rendererId
+  let openMode = renderer.openMode
+  let fallbackReason = 'none'
+  if (input?.linkFailed || input?.cannotLocate || input?.evidenceState === 'failed') {
+    rendererId = 'unavailable-renderer'
+    openMode = 'unavailable'
+    fallbackReason = input?.cannotLocate ? 'cannot-locate' : 'link-failed'
+  } else if (input?.evidenceState !== 'verified') {
+    rendererId = 'absolute-path-copy'
+    openMode = 'absolute-copy'
+    fallbackReason = 'renderer-unverified'
+  } else if (input?.supportsMarkdownLink === true) {
+    rendererId = 'markdown-local-file'
+    openMode = 'markdown-link'
+  }
+  if (input?.userRequestedAbsolute) {
+    rendererId = 'absolute-path-copy'
+    openMode = 'absolute-copy'
+    fallbackReason = 'user-requested'
+  } else if (input?.targetRelation === 'external') {
+    rendererId = 'absolute-path-copy'
+    openMode = 'absolute-copy'
+    fallbackReason = 'workspace-external'
+  } else if (input?.targetRelation === 'ambiguous') {
+    rendererId = 'absolute-path-copy'
+    openMode = 'absolute-copy'
+    fallbackReason = 'path-ambiguous'
+  }
+  const mode = openMode === 'markdown-link'
+    ? 'clickable'
+    : (openMode === 'unavailable' ? 'failed' : (openMode === 'absolute-copy' ? 'plain' : 'portable'))
+  const absolutePathFallback = ['absolute-copy', 'unavailable'].includes(openMode)
+  const core = {
+    schemaVersion: 'HostLinkCapabilityDecisionV2',
+    hostSurface,
+    presentationSurface,
+    rendererId,
+    evidenceState: input?.evidenceState || 'failed',
+    mode,
+    openMode,
+    workspaceRoot: input?.workspaceRoot || null,
+    targetRelation: input?.targetRelation || 'ambiguous',
+    absolutePathFallback,
+    fallbackReason,
+    evidenceRefs
+  }
+  if (!LINK_MODES.has(mode)) errors.push('mode-invalid')
+  if (!HOST_LINK_OPEN_MODES.has(openMode)) errors.push('openMode-invalid')
+  return { ...core, decisionId: `host-link-capability-${digest(core)}`, validation: { valid: errors.length === 0, errors } }
+}
+
 function artifactManifestIntegrityErrors(manifest) {
   if (!manifest || manifest.schemaVersion !== 'ArtifactDeliveryManifestV1' || !Array.isArray(manifest.entries)) {
     return ['artifactManifest-shape-invalid']
@@ -480,6 +563,45 @@ function userFacingSetIntegrityErrors(set, manifest, messageKind) {
 }
 
 function linkCapabilityIntegrityErrors(capability) {
+  if (capability?.schemaVersion === 'HostLinkCapabilityDecisionV2') {
+    const errors = []
+    if (!hasExactKeys(capability, [
+      'schemaVersion', 'hostSurface', 'presentationSurface', 'rendererId', 'evidenceState', 'mode', 'openMode',
+      'workspaceRoot', 'targetRelation', 'absolutePathFallback', 'fallbackReason', 'evidenceRefs', 'decisionId', 'validation'
+    ])) errors.push('linkCapability-sibling-fields-invalid')
+    if (!capability.validation?.valid || !hasExactKeys(capability.validation, ['valid', 'errors']) ||
+        capability.validation.errors?.length !== 0) errors.push('linkCapability-invalid')
+    if (!text(capability.hostSurface) || !text(capability.presentationSurface) || !text(capability.rendererId) ||
+        !EVIDENCE_STATES.has(capability.evidenceState) || !LINK_MODES.has(capability.mode) ||
+        !HOST_LINK_OPEN_MODES.has(capability.openMode) ||
+        !['workspace', 'external', 'ambiguous'].includes(capability.targetRelation) ||
+        typeof capability.absolutePathFallback !== 'boolean' || !text(capability.fallbackReason) ||
+        !textList(capability.evidenceRefs)) errors.push('linkCapability-fields-invalid')
+    if (capability.evidenceState === 'verified' && capability.evidenceRefs?.length === 0) {
+      errors.push('linkCapability-verified-evidence-missing')
+    }
+    if (['native-action', 'markdown-link', 'terminal-command'].includes(capability.openMode) &&
+        capability.evidenceState !== 'verified') errors.push('linkCapability-renderer-unverified')
+    if (capability.absolutePathFallback !== ['absolute-copy', 'unavailable'].includes(capability.openMode)) {
+      errors.push('linkCapability-fallback-conflict')
+    }
+    const core = {
+      schemaVersion: capability.schemaVersion,
+      hostSurface: capability.hostSurface,
+      presentationSurface: capability.presentationSurface,
+      rendererId: capability.rendererId,
+      evidenceState: capability.evidenceState,
+      mode: capability.mode,
+      openMode: capability.openMode,
+      workspaceRoot: capability.workspaceRoot ?? null,
+      targetRelation: capability.targetRelation,
+      absolutePathFallback: capability.absolutePathFallback,
+      fallbackReason: capability.fallbackReason,
+      evidenceRefs: capability.evidenceRefs
+    }
+    if (capability.decisionId !== `host-link-capability-${digest(core)}`) errors.push('linkCapability-integrity-mismatch')
+    return errors
+  }
   if (!capability || capability.schemaVersion !== 'LinkCapabilityDecisionV1') return ['linkCapability-shape-invalid']
   const errors = []
   if (!hasExactKeys(capability, [
@@ -521,6 +643,12 @@ function linkCapabilityIntegrityErrors(capability) {
 function validateLinkCapabilityDecision(capability) {
   const errors = linkCapabilityIntegrityErrors(capability)
   return { valid: errors.length === 0, errors }
+}
+
+function linkCapabilityHostSurface(capability) {
+  return capability?.schemaVersion === 'HostLinkCapabilityDecisionV2'
+    ? capability.hostSurface
+    : capability?.surface
 }
 
 function deriveStatus(checks) {
@@ -690,7 +818,7 @@ function createLegacyVisibleEnvelopeV1(input) {
   if (!hasVisibleSet && input?.linkCapability) errors.push('linkCapability-without-visible-set')
   if (input?.linkCapability) {
     errors.push(...linkCapabilityIntegrityErrors(input.linkCapability))
-    if (text(input?.context?.hostSurface) && input.linkCapability.surface !== input.context.hostSurface) {
+    if (text(input?.context?.hostSurface) && linkCapabilityHostSurface(input.linkCapability) !== input.context.hostSurface) {
       errors.push('linkCapability-surface-mismatch')
     }
     if (input?.context?.hostSurface === null && input.linkCapability.evidenceState === 'verified') {
@@ -858,6 +986,20 @@ function serializedVisibleSet (value) {
 
 function semanticLinkCapability (value) {
   if (!value) return null
+  if (value.schemaVersion === 'HostLinkCapabilityDecisionV2') {
+    return {
+      hostSurface: value.hostSurface,
+      presentationSurface: value.presentationSurface,
+      rendererId: value.rendererId,
+      openMode: value.openMode,
+      evidenceState: value.evidenceState,
+      workspaceRoot: value.workspaceRoot ?? null,
+      targetRelation: value.targetRelation,
+      absolutePathFallback: value.absolutePathFallback,
+      fallbackReason: value.absolutePathFallback ? value.fallbackReason : null,
+      evidenceRefs: value.evidenceRefs
+    }
+  }
   return {
     surface: value.surface,
     evidenceState: value.evidenceState,
@@ -1006,7 +1148,7 @@ function validateSerializedEnvelopeBase (envelope, expectedKeys) {
   if (!hasVisibleSet && envelope?.linkCapability) errors.push('linkCapability-without-visible-set')
   if (envelope?.linkCapability) errors.push(...linkCapabilityIntegrityErrors(envelope.linkCapability))
   if (envelope?.linkCapability && text(envelope?.context?.hostSurface) &&
-      envelope.linkCapability.surface !== envelope.context.hostSurface) errors.push('linkCapability-surface-mismatch')
+      linkCapabilityHostSurface(envelope.linkCapability) !== envelope.context.hostSurface) errors.push('linkCapability-surface-mismatch')
   if (envelope?.linkCapability && envelope?.context?.hostSurface === null &&
       envelope.linkCapability.evidenceState === 'verified') errors.push('linkCapability-verified-with-unknown-surface')
   const presentation = envelope?.presentation
@@ -1216,6 +1358,26 @@ function renderArtifactItem(item, capability, tier) {
   const action = text(item.userAction) || '查看'
   // Path column always present (PF-175); not the same as legacy bare absolute-only lists.
   const pathSuffix = `；路径：\`${pathCell}\`；操作：${action}`
+  if (capability?.schemaVersion === 'HostLinkCapabilityDecisionV2') {
+    const quoted = `"${absolute.replace(/"/g, '\\"')}"`
+    const rendererAction = {
+      'codex-native-file-panel': '使用 Codex 文件面板打开',
+      'vscode-cli-goto': `\`code --goto ${quoted}\``,
+      'zed-cli-open': `\`zed ${quoted}\``,
+      'webstorm-cli-open': `\`webstorm ${quoted}\``
+    }[capability.rendererId]
+    if (capability.openMode === 'markdown-link' && tier === 'rich-markdown') {
+      const escapedTarget = /\s/.test(absolute) ? `<${absolute}>` : absolute
+      return `- [${item.displayName}](${escapedTarget}) — ${purpose}${pathSuffix}`
+    }
+    if (rendererAction && ['native-action', 'terminal-command'].includes(capability.openMode)) {
+      return `- ${item.displayName} — ${purpose}${pathSuffix}；打开：${rendererAction}`
+    }
+    const fallback = capability.absolutePathFallback
+      ? `；绝对路径：\`${absolute}\`；fallback：${capability.fallbackReason}`
+      : ''
+    return `- ${item.displayName} — ${purpose}${pathSuffix}${fallback}`
+  }
   if (tier === 'plain-text' || capability?.mode === 'plain' || capability?.mode === 'failed') {
     const fallback = capability?.absolutePathFallback && capability?.fallbackReason
       ? `；fallback：${capability.fallbackReason}`
@@ -1545,6 +1707,7 @@ module.exports = {
   INTERNAL_ARTIFACT_CLASSES,
   LIFECYCLE_OPERATIONS,
   LINK_MODES,
+  HOST_LINK_OPEN_MODES,
   MESSAGE_KINDS,
   PRESENTATION_TIERS,
   STATUSES,
@@ -1555,6 +1718,7 @@ module.exports = {
   createArtifactAnchor,
   createArtifactDeliveryManifest,
   createLinkCapabilityDecision,
+  createHostLinkCapabilityDecisionV2,
   validateLinkCapabilityDecision,
   createPostCompletionActionSet,
   createLegacyVisibleEnvelopeV1,

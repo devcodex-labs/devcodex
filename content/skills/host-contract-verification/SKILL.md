@@ -18,7 +18,7 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible e
 | Stop / PreCompact 可见回复验证语义变更 | 🔴 必须 |
 | sticky `activeProject` / `mode` / workspace guard 变更 | 🔴 必须 |
 | Bootstrap、部署副本、父链同步口径变更 | 🔴 必须 |
-| `DevCodexVisibleEnvelopeV2` / V1 只读兼容 / `PostCompletionActionSetV1` / `UserFacingArtifactSetV1` / `LinkCapabilityDecisionV1` 变更 | 🔴 必须 |
+| `DevCodexVisibleEnvelopeV2` / V1 只读兼容 / `PostCompletionActionSetV1` / `UserFacingArtifactSetV1` / `LinkCapabilityDecisionV1` / `HostLinkCapabilityDecisionV2` 变更 | 🔴 必须 |
 | Copilot / Codex MCP bridge 报错、`profile_load` fallback、`invoke undefined` 恢复链变更 | 🔴 必须 |
 | `ContextReadPlanV2` / `ContextReadReceiptV2`（含 V1 兼容）、Pre/Post 相关性、内容身份/复用、上下文读取 allowlist 或 fallback 语义变更 | 🔴 必须 |
 | 公开本地 probe、checkpoint 证据语义或 trace show/replay 变更 | 🔴 必须 |
@@ -35,7 +35,7 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible e
 | `visibleReplyEvidence` | 条件 | `verified-present` / `verified-missing` / `unverified`，以及证据来源 |
 | `workspaceGuard` | 条件 | 多项目 workspace、sticky project、workspace profile 提示等边界验证 |
 | `bootstrapScope` | 条件 | 父链部署体、入口检查块、adapter 初始化或 update 部署验证 |
-| `artifactLinkMatrix` | 条件 | 当前 surface 的 capability evidence、clickable/portable/plain/failed、fallbackReason 与 renderer parity；不得按宿主名推测 |
+| `artifactLinkMatrix` | 条件 | `hostSurface + presentationSurface + rendererId + evidenceState + openMode`、fallbackReason 与 renderer parity；不得按宿主名推测 |
 | `mcpFallback` | 条件 | MCP bridge 失败时是否降级到同计划有界文件读取 / instruction-fallback；记录错误文本、fallback 路线和是否停止重试 |
 | `contextAcquisition` | 条件 | plan/epoch/target/source 相关性、Pre attempted、Post success receipt、fallback 与完成状态 |
 | `turnLiveness` | 条件 | 长任务/无续接场景的 host-native、Hook-event、sidecar 能力边界，以及 lease、ACK、terminal、checkpoint 证据 |
@@ -54,7 +54,7 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible e
 | bootstrap / 部署副本 | `node scripts/validate.js` + 部署同步后的落点复核 |
 | managed deployment manifest | legacy 多 owner + workspace-namespace fixture、规范化 destination 单一 current owner、project current host=0、workspace missing/mismatch/stale/duplicate=0、V8 direct replay |
 | workspace 宿主作用域 | `HostAdapterScopeV1` owner/activation 一致 + 子项目五类 generated host artifact=0 + Grok workspace plugin/用户登记正向 + uninstall/repeat/reinstall 配置保真 + status/doctor 同 owner + root native kernel + child plain partial + `devcodex grok --rules` full 路线 + `--cwd`/nested workspace/Windows path identity + outside-workspace no-op 负向 |
-| visible set / 产物点击 | manifest/projection property test + 三 renderer fixture；若声称当前 surface 可点，需 direct replay 或用户实测证据 |
+| visible set / 产物打开 | manifest/projection property test + Codex Desktop、VS Code、Zed、WebStorm、Codex CLI、Claude/unknown renderer fixture；若声称当前 presentationSurface 可打开，需 direct replay 或用户实测证据 |
 | MCP bridge fallback | MCP server no-args direct replay + 非 Full 宿主 fallback 文案探针；若错误来自宿主桥接层，只能声明 fallback 已覆盖，不能声明宿主 bug 已修复 |
 | 意图驱动上下文获取 | `ContextAcquisitionToolAllowlistProbe` + plan/receipt direct replay + Pre/Post fixture + hidden-full-read 负例 + fallback no-deadlock |
 | Turn Liveness / orphaned turn | state-machine fault matrix + Hook direct replay + restart rehydrate；事件停止后的 proactive 检测只能由 host-native watchdog 或 gray read-only sidecar 证明 |
@@ -70,6 +70,10 @@ Stop/PreCompact 对最终回复证据必须使用 `verified-present / verified-m
 
 legacy “主要产物 + 绝对路径”最多为 `unverified-legacy`。能力未 direct 验证时保持 portable/plain；Rich clickable 只显示单个语义链接。session、daily、SUMMARY、task/checkpoint 和 raw ledger 默认 internal-only，但宿主验证仍要核对它们已进入 internal manifest 和 ECR。
 
+### HostPermissionAuthorityInvariant
+
+`PreToolUse` 与 `PermissionRequest` 的文件、命令、删除及工具调用权限完全归当前宿主和用户宿主配置。DevCodex 只能记录风险 advisory、telemetry 或 typed workflow-invalid；runtime、输出 builder 和每个宿主 adapter 均不得发出或转译 `allow / deny / ask / block / continue:false` 操作权限载荷。Stop、PreCompact 等非操作生命周期完成门禁不受此条影响。验证必须向 Codex、Claude、Gemini、Copilot、Grok、Cursor 注入遗留允许/拒绝载荷，并证明最终操作事件投影不含任何 permission carrier。
+
 ### ContextAcquisitionHostEvidenceGate
 
 - `ContextAcquisitionToolAllowlistProbe` 只允许已注册的只读 Profile / memory 查询工具推进 source state；普通文件搜索、写工具、legacy no-args 全文读取或未知工具不得伪造完成。
@@ -77,7 +81,7 @@ legacy “主要产物 + 绝对路径”最多为 `unverified-legacy`。能力�
 - `ContextDeliveryReuseHostProbe` 必须分别证明 computation reuse 与 delivery reuse：跨进程只允许复用内容身份绑定的计算元数据；正文省略还必须同 host session、同 epoch、同 source identity 且当前模型已有成功 body observation。宿主无法提供稳定 session 或 Post body 证据时 delivery reuse 必须降级为 false。
 - 需覆盖结构化 MCP、path-observable 与 instruction-only 三种宿主能力；后两者缺少可验证结果时必须保持 `unverified`，不能由提示文案升级为 `relevant-complete/completed`。
 - MCP bridge 失败只允许一次同计划 bounded fallback 并停止重试；fallback 失败或证据不可观察时输出 warnings / missing sources，但不得形成死循环或跳过后续安全与 CP 门禁。
-- Progressive SkillRoute enforcement policy 缺失、损坏或字段非法时必须使用受控 fail-safe：Codex 的 `PreToolUse/Stop` 继续 advisory-only，其他宿主/事件恢复 hard default；bootstrap 与 observe 均保持，禁止因读取异常静默解除其他宿主强制。
+- Progressive SkillRoute enforcement policy 缺失、损坏或字段非法时必须使用受控 fail-safe：所有宿主的 `PreToolUse/PermissionRequest` 保持 advisory-only；Stop 等非操作生命周期事件可按宿主能力恢复 hard default。bootstrap 与 observe 均保持。
 - direct/fixture replay 至少覆盖 success、tool error、mismatched epoch/target/source、duplicate/stale Post、legacy projection 和 hidden full-read mutation；报告区分 server direct success 与 host bridge verified。
 
 1. 报告必须说明证据来自 direct replay、fixture replay、现有 targeted test，还是 validate probe 推断。

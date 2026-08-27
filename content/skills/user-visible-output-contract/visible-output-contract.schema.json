@@ -9,6 +9,7 @@
     { "$ref": "#/$defs/ArtifactAnchorProjectionV1" },
     { "$ref": "#/$defs/UserFacingArtifactSetV1" },
     { "$ref": "#/$defs/LinkCapabilityDecisionV1" },
+    { "$ref": "#/$defs/HostLinkCapabilityDecisionV2" },
     { "$ref": "#/$defs/FinalValidationSummaryV1" },
     { "$ref": "#/$defs/PostCompletionActionSetV1" },
     { "$ref": "#/$defs/DevCodexVisibleEnvelopeV1" },
@@ -232,6 +233,30 @@
         "validation": { "$ref": "#/$defs/validation" }
       }
     },
+    "HostLinkCapabilityDecisionV2": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "hostSurface", "presentationSurface", "rendererId", "evidenceState", "mode", "openMode",
+        "workspaceRoot", "targetRelation", "absolutePathFallback", "fallbackReason", "evidenceRefs", "decisionId", "validation"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "HostLinkCapabilityDecisionV2" },
+        "hostSurface": { "type": "string", "minLength": 1 },
+        "presentationSurface": { "type": "string", "minLength": 1 },
+        "rendererId": { "type": "string", "minLength": 1 },
+        "evidenceState": { "enum": ["verified", "unverified", "failed"] },
+        "mode": { "enum": ["clickable", "portable", "plain", "failed"] },
+        "openMode": { "enum": ["native-action", "markdown-link", "terminal-command", "portable-path", "absolute-copy", "unavailable"] },
+        "workspaceRoot": { "type": ["string", "null"] },
+        "targetRelation": { "enum": ["workspace", "external", "ambiguous"] },
+        "absolutePathFallback": { "type": "boolean" },
+        "fallbackReason": { "type": "string" },
+        "evidenceRefs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "decisionId": { "type": "string", "pattern": "^host-link-capability-[a-f0-9]{64}$" },
+        "validation": { "$ref": "#/$defs/validation" }
+      }
+    },
     "visibleCheck": {
       "type": "object",
       "additionalProperties": false,
@@ -338,7 +363,7 @@
         "artifactManifest": { "type": ["object", "null"] },
         "userFacingArtifactSet": { "oneOf": [{ "$ref": "#/$defs/UserFacingArtifactSetV1" }, { "type": "null" }] },
         "artifactLinks": { "type": "array", "items": { "type": "object" } },
-        "linkCapability": { "oneOf": [{ "$ref": "#/$defs/LinkCapabilityDecisionV1" }, { "type": "null" }] },
+        "linkCapability": { "oneOf": [{ "$ref": "#/$defs/LinkCapabilityDecisionV1" }, { "$ref": "#/$defs/HostLinkCapabilityDecisionV2" }, { "type": "null" }] },
         "presentation": { "type": "object" },
         "semanticDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "validation": { "$ref": "#/$defs/validation" }
@@ -363,7 +388,7 @@
         "artifactManifest": { "type": ["object", "null"] },
         "userFacingArtifactSet": { "oneOf": [{ "$ref": "#/$defs/UserFacingArtifactSetV1" }, { "type": "null" }] },
         "artifactLinks": { "type": "array", "items": { "type": "object" } },
-        "linkCapability": { "oneOf": [{ "$ref": "#/$defs/LinkCapabilityDecisionV1" }, { "type": "null" }] },
+        "linkCapability": { "oneOf": [{ "$ref": "#/$defs/LinkCapabilityDecisionV1" }, { "$ref": "#/$defs/HostLinkCapabilityDecisionV2" }, { "type": "null" }] },
         "presentation": { "type": "object" },
         "semanticDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "validation": { "$ref": "#/$defs/validation" }

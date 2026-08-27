@@ -115,7 +115,18 @@ Owner：本 Skill + `hooks/_runtime/visible-output-contract.cjs` + `lifecycle-vi
 
 ## LinkCapabilityDecisionGate
 
-`LinkCapabilityDecisionV1` 必须基于当前 surface 的证据，而不是按客户端名称硬编码：
+`LinkCapabilityDecisionV1` 保留为持久化记忆/产物相对链接投影契约。用户可见最终回复使用 `HostLinkCapabilityDecisionV2`，必须把 `hostSurface` 与 `presentationSurface` 分开，并以 `rendererId + evidenceState` 选择打开方式，不能按客户端名称推定可点击：
+
+| openMode | 使用条件 |
+|---|---|
+| `native-action` | 当前宿主面原生打开动作已验证（如 Codex Desktop 文件面板） |
+| `markdown-link` | 当前呈现器的本地文件 Markdown 点击已验证 |
+| `terminal-command` | IDE/编辑器 CLI 命令已验证（VS Code、Zed、WebStorm） |
+| `portable-path` | 仅保证工作区相对定位 |
+| `absolute-copy` | CLI/Claude/未知或未验证 renderer 的可复制绝对路径降级 |
+| `unavailable` | 无法定位或打开失败，必须附 reason |
+
+V1 的 mode 兼容语义仍为：
 
 | mode | 使用条件 |
 |---|---|
@@ -126,7 +137,7 @@ Owner：本 Skill + `hooks/_runtime/visible-output-contract.cjs` + `lifecycle-vi
 
 Rich clickable 只显示一个语义 Markdown 链接作为名称主表示，**不得**在路径列之外再重复明文绝对路径行。Portable/Plain 优先工作区相对或短路径。路径列规则见 `ArtifactPathColumnGate`。只有用户要求、链接失败、目标在工作区外、路径歧义或宿主无法定位时才强制路径列/ fallback 使用绝对路径，并记录 fallbackReason。
 
-`evidenceState=verified` 必须携带非空 `evidenceRefs`；surface 与 Envelope context 必须一致。mode、fallback、reason、target relation 或 decisionId 任一 sibling mutation 都必须 fail closed。`failed` renderer 必须给出可复制的绝对定位与 fallbackReason，不能再次输出已知失败的相对链接。
+`evidenceState=verified` 必须携带非空 `evidenceRefs`；V2 `hostSurface` 与 Envelope context 必须一致，且 `presentationSurface / rendererId / openMode` 必须进入完整性与 semantic digest。mode、fallback、reason、target relation 或 decisionId 任一 sibling mutation 都必须 fail closed。`failed/unavailable` renderer 必须给出可复制的绝对定位与 fallbackReason，不能再次输出已知失败的相对链接。
 
 ## VisibleEnvelopeGate
 

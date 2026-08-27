@@ -115,7 +115,7 @@ description: 文档同步规范 — 代码变更后同步必查与条件文档
 - 历史 Vxx、CrossProject 与 A1~A10 名称只通过 registry `legacyAnchors` 检索；找不到等强度承接方时标记 `legacy-index-retained`，不得直接删除或继续扩展长清单。
 - 文档定义阅读/审查/实施顺序时，Concept Sync Map 必须对账正文、导航/sidebar 与 README/索引顺序；故意不同须说明理由。
 - 宿主契约和多批次任务分别保留 HostContractRoute 证据与最新 `05-实施进度.md`。
-- 用户可见输出契约变化时，把 `ArtifactDeliveryManifestV1 → UserFacingArtifactSetV1 → PostCompletionActionSetV1 → DevCodexVisibleEnvelopeV2 → LinkCapabilityDecisionV1` 同步到 instructions、report/memory/compliance/TestRoute、precheck/progress/delivery/report prompts、visible Hook、README、website、Profile、plugin/portfolio、package 与 validate probes；V1 只保留兼容读取，历史归档可保留旧表述，但当前消费者不得继续写 V1、按宿主名强制绝对路径或把 internal-only 文件默认列给用户。
+- 用户可见输出契约变化时，把 `ArtifactDeliveryManifestV1 → UserFacingArtifactSetV1 → PostCompletionActionSetV1 → DevCodexVisibleEnvelopeV2 → HostLinkCapabilityDecisionV2` 同步到 instructions、report/memory/compliance/TestRoute、precheck/progress/delivery/report prompts、visible Hook、README、website、Profile、plugin/portfolio、package 与 validate probes；`LinkCapabilityDecisionV1` 保留给持久化相对链接投影和兼容读取。历史归档可保留旧表述，但当前消费者不得按宿主名推定可点击、强制单一路径表示或把 internal-only 文件默认列给用户。
 
 ### ProfileImpactCheck
 

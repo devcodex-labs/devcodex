@@ -988,8 +988,6 @@ assert.deepStrictEqual(adaptHostOutput('codex', 'PreToolUse', {
   systemMessage: 'DevCodex denied the tool.',
   hookSpecificOutput: {
     hookEventName: 'PreToolUse',
-    permissionDecision: 'deny',
-    permissionDecisionReason: 'context incomplete',
     additionalContext: 'load ContextRead first'
   }
 })
@@ -1000,14 +998,7 @@ assert.deepStrictEqual(adaptHostOutput('codex', 'PreToolUse', {
     updatedInput: { command: 'Get-Date' },
     unknown: true
   }
-}), {
-  hookSpecificOutput: {
-    hookEventName: 'PreToolUse',
-    permissionDecision: 'allow',
-    permissionDecisionReason: 'normalized input',
-    updatedInput: { command: 'Get-Date' }
-  }
-})
+}), {})
 assert.deepStrictEqual(adaptHostOutput('codex', 'PreToolUse', {
   hookSpecificOutput: {
     permissionDecision: 'allow',
@@ -1022,30 +1013,15 @@ assert.deepStrictEqual(adaptHostOutput('codex', 'PreToolUse', {
 })
 assert.deepStrictEqual(adaptHostOutput('codex', 'PreToolUse', {
   hookSpecificOutput: { permissionDecision: 'deny' }
-}), {
-  hookSpecificOutput: {
-    hookEventName: 'PreToolUse',
-    permissionDecision: 'deny',
-    permissionDecisionReason: 'DevCodex denied this tool call.'
-  }
-})
+}), {})
 assert.deepStrictEqual(adaptHostOutput('codex', 'PreToolUse', {
   decision: 'block',
   reason: 'legacy block'
-}), {
-  decision: 'block',
-  reason: 'legacy block'
-})
+}), {})
 assert.deepStrictEqual(adaptHostOutput('codex', 'PreToolUse', {
   continue: false,
   stopReason: 'fail closed without a portable continue field'
-}), {
-  hookSpecificOutput: {
-    hookEventName: 'PreToolUse',
-    permissionDecision: 'deny',
-    permissionDecisionReason: 'fail closed without a portable continue field'
-  }
-})
+}), {})
 assert.deepStrictEqual(adaptCodexOutput('PermissionRequest', {
   continue: true,
   hookSpecificOutput: {
@@ -1053,15 +1029,7 @@ assert.deepStrictEqual(adaptCodexOutput('PermissionRequest', {
     permissionDecisionReason: 'permission denied',
     updatedInput: { forbidden: true }
   }
-}), {
-  hookSpecificOutput: {
-    hookEventName: 'PermissionRequest',
-    decision: {
-      behavior: 'deny',
-      message: 'permission denied'
-    }
-  }
-})
+}), {})
 assert.deepStrictEqual(adaptCodexOutput('PermissionRequest', {
   systemMessage: 'permission normalized',
   hookSpecificOutput: {
@@ -1069,13 +1037,7 @@ assert.deepStrictEqual(adaptCodexOutput('PermissionRequest', {
     updatedPermissions: ['forbidden'],
     interrupt: true
   }
-}), {
-  systemMessage: 'permission normalized',
-  hookSpecificOutput: {
-    hookEventName: 'PermissionRequest',
-    decision: { behavior: 'allow', message: 'approved' }
-  }
-})
+}), { systemMessage: 'permission normalized' })
 assert.deepStrictEqual(adaptHostOutput('codex', 'PostToolUse', {
   continue: true,
   systemMessage: 'post tool notice',
@@ -1311,11 +1273,7 @@ const copilotDeny = adaptHostOutput('copilot', 'preToolUse', {
   },
   modifiedArgs: { command: 'Write-Output safe' }
 })
-assert.deepStrictEqual(copilotDeny, {
-  permissionDecision: 'deny',
-  permissionDecisionReason: 'policy denied',
-  modifiedArgs: { command: 'Write-Output safe' }
-})
+assert.deepStrictEqual(copilotDeny, {})
 const copilotPost = adaptHostOutput('copilot', 'PostToolUse', {
   hookSpecificOutput: { additionalContext: 'remember this' },
   modifiedResult: { resultType: 'success', textResultForLlm: 'safe result' }
@@ -1414,7 +1372,7 @@ const cursorImportedClaudeBase = {
 }
 const cursorImportedExpectedOutputs = {
   beforeSubmitPrompt: { continue: true },
-  preToolUse: { permission: 'allow' },
+  preToolUse: {},
   postToolUse: {},
   stop: {}
 }
@@ -1468,10 +1426,7 @@ const deny = adaptHostOutput('gemini', 'BeforeTool', {
     additionalContext: 'blocked'
   }
 })
-assert.strictEqual(deny.decision, 'deny')
-assert.strictEqual(deny.reason, 'blocked')
-assert.strictEqual(deny.hookSpecificOutput.hookEventName, 'BeforeTool')
-assert.strictEqual(Object.prototype.hasOwnProperty.call(deny.hookSpecificOutput, 'permissionDecision'), false)
+assert.deepStrictEqual(deny, {})
 
 const retry = adaptHostOutput('gemini', 'AfterAgent', { decision: 'block', reason: 'retry' })
 assert.strictEqual(retry.decision, 'deny')
@@ -1520,8 +1475,8 @@ const grokMcpPost = normalizeHostPayload('grok', {
 assert.deepStrictEqual(grokMcpPost.payload.tool_result, {
   schemaVersion: 'ContextReadPlanV2'
 })
-// PermissionProjectionInvariantV1: operation-risk telemetry is advisory on every
-// supported host projection; only workflow-validity decisions may deny.
+// HostPermissionAuthorityInvariantV2: every operation event is advisory-only on
+// every supported host projection, including legacy workflow-validity outputs.
 const advisoryOutputBuilder = buildLifecycleHookOutput({ env: {}, enforcementMode: 'strict' })
 const operationRiskAdvisory = advisoryOutputBuilder.decorateHookOutput(
   advisoryOutputBuilder.warningOutput(
@@ -1533,12 +1488,31 @@ const operationRiskAdvisory = advisoryOutputBuilder.decorateHookOutput(
 )
 for (const host of ['codex', 'claude', 'gemini', 'copilot', 'grok', 'cursor']) {
   const projected = adaptHostOutput(host, 'PreToolUse', operationRiskAdvisory)
-  assert.doesNotMatch(JSON.stringify(projected), /"(?:decision|permission|permissionDecision)":"(?:deny|block)"/,
-    `${host} must not convert a DevCodex operation advisory into a permission denial`)
+  assert.doesNotMatch(JSON.stringify(projected), /"(?:decision|permission|permissionDecision)":"(?:allow|deny|ask|block)"/,
+    `${host} must not project a DevCodex operation permission decision`)
+}
+for (const [host, event] of [
+  ['codex', 'PermissionRequest'], ['codex', 'PreToolUse'], ['claude', 'PreToolUse'],
+  ['gemini', 'BeforeTool'], ['copilot', 'preToolUse'], ['grok', 'pre_tool_use'], ['cursor', 'preToolUse']
+]) {
+  const projected = adaptHostOutput(host, event, {
+    continue: false,
+    decision: 'block',
+    permissionDecision: 'allow',
+    hookSpecificOutput: {
+      permissionDecision: 'deny',
+      permissionDecisionReason: 'legacy workflow gate',
+      decision: { behavior: 'deny' },
+      additionalContext: 'workflow-invalid advisory'
+    }
+  })
+  assert.doesNotMatch(JSON.stringify(projected), /"(?:decision|permission|permissionDecision|behavior)"/,
+    `${host}/${event} must strip every legacy operation permission carrier`)
+  assert.notStrictEqual(projected.continue, false, `${host}/${event} must not stop the host operation`)
 }
 
-// Grok PreToolUse: official decision:allow / decision:deny contract
-assert.deepStrictEqual(adaptHostOutput('grok', 'PreToolUse', { continue: true }), { decision: 'allow' })
+// Grok PreToolUse: host owns the decision; DevCodex emits no allow/deny payload.
+assert.deepStrictEqual(adaptHostOutput('grok', 'PreToolUse', { continue: true }), {})
 
 const grokDenyPermission = adaptHostOutput('grok', 'PreToolUse', {
   continue: true,
@@ -1549,21 +1523,18 @@ const grokDenyPermission = adaptHostOutput('grok', 'PreToolUse', {
     additionalContext: 'workflow-invalid detail'
   }
 })
-assert.strictEqual(grokDenyPermission.decision, 'deny')
-assert.strictEqual(grokDenyPermission.reason, 'workflow-invalid')
-assert.strictEqual(Object.prototype.hasOwnProperty.call(grokDenyPermission, 'hookSpecificOutput'), false)
+assert.deepStrictEqual(grokDenyPermission, {})
 
 const grokDenyBlock = adaptHostOutput('grok', 'PreToolUse', {
   decision: 'block',
   reason: 'context-acquisition-incomplete'
 })
-assert.strictEqual(grokDenyBlock.decision, 'deny')
-assert.strictEqual(grokDenyBlock.reason, 'context-acquisition-incomplete')
+assert.deepStrictEqual(grokDenyBlock, {})
 
 const grokAllowPermission = adaptHostOutput('grok', 'PreToolUse', {
   hookSpecificOutput: { permissionDecision: 'allow' }
 })
-assert.deepStrictEqual(grokAllowPermission, { decision: 'allow' })
+assert.deepStrictEqual(grokAllowPermission, {})
 
 // PassivePassive events must not emit hard deny (platform: stdout ignored / non-blocking)
 const grokPassive = adaptHostOutput('grok', 'UserPromptSubmit', {
@@ -1656,11 +1627,7 @@ const cursorDeny = adaptHostOutput('cursor', 'preToolUse', {
   decision: 'block',
   reason: 'context acquisition incomplete'
 })
-assert.deepStrictEqual(cursorDeny, {
-  permission: 'deny',
-  user_message: 'context acquisition incomplete',
-  agent_message: 'context acquisition incomplete'
-})
+assert.deepStrictEqual(cursorDeny, {})
 const cursorExactRouteRecovery = [
   'Progressive Skill route requires catalog before unrelated work.',
   'Next call (exact): {"op":"catalog","project":"sample","turnBinding":"turn-cursor","contextEpoch":"ctx-cursor"}'
@@ -1687,11 +1654,7 @@ const cursorRouteDeny = runCompatibleHostAdapter('cursor', {
   })
 })
 assert.strictEqual(cursorRouteDeny.status, 0)
-assert.deepStrictEqual(cursorRouteDeny.output, {
-  permission: 'deny',
-  user_message: 'progressive-skill-route',
-  agent_message: cursorExactRouteRecovery
-})
+assert.deepStrictEqual(cursorRouteDeny.output, {})
 assert.strictEqual(normalizeCursorMcpToolName('MCP:skill_route'), 'skill_route')
 assert.strictEqual(
   normalizeCursorMcpToolName('MCP:devcodex-profile/skill_route'),
@@ -1713,7 +1676,7 @@ assert.deepStrictEqual(adaptHostOutput('cursor', 'postToolUse', {
 }), {
   additional_context: '### DevCodex · SkillRouteBootstrapV1\n{"project":"sample"}'
 })
-assert.deepStrictEqual(adaptHostOutput('cursor', 'preToolUse', { continue: true }), { permission: 'allow' })
+assert.deepStrictEqual(adaptHostOutput('cursor', 'preToolUse', { continue: true }), {})
 assert.deepStrictEqual(adaptHostOutput('cursor', 'beforeSubmitPrompt', {
   continue: true,
   systemMessage: 'hidden dynamic bootstrap must not be projected on allow'
@@ -1922,8 +1885,8 @@ const structuredToolOutput = hookOut.decorateHookOutput(
   hookOut.blockOutput('codex', 'PreToolUse', 'progressive-skill-route', 'compact recovery card'),
   { devcodexCode: 'progressive-skill-route' }
 )
-assert.strictEqual(structuredToolOutput.hookSpecificOutput.devcodexCode, 'progressive-skill-route')
-assert.strictEqual(structuredToolOutput.devcodexCode, undefined)
+assert.strictEqual(structuredToolOutput.hookSpecificOutput.permissionDecision, undefined)
+assert.strictEqual(structuredToolOutput.devcodexCode, 'progressive-skill-route')
 const structuredContextOutput = hookOut.contextMessageOutput(
   'PostToolUse',
   'compact recovery card',
@@ -1964,15 +1927,15 @@ const duplicateRecoveryCard = hookOut.formatProgressiveSkillRouteRecoveryCard({
 })
 assert.strictEqual(duplicateRecoveryCard.split(/\r?\n/).length, 1)
 assert.doesNotMatch(duplicateRecoveryCard, /NextActionEnvelopeV1/)
-assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'PreToolUse'), true)
+assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'PreToolUse'), false)
 assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'UserPromptSubmit'), false)
 // Grok official Stop Decision Control: Stop/SubagentStop hard block is supported
 assert.strictEqual(hookOut.eventSupportsHardBlock('grok', 'Stop'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('codex', 'UserPromptSubmit'), true)
-assert.strictEqual(hookOut.eventSupportsHardBlock('copilot', 'PreToolUse'), true)
+assert.strictEqual(hookOut.eventSupportsHardBlock('copilot', 'PreToolUse'), false)
 assert.strictEqual(hookOut.eventSupportsHardBlock('copilot', 'Stop'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('copilot', 'UserPromptSubmit'), false)
-assert.strictEqual(hookOut.eventSupportsHardBlock('cursor', 'PreToolUse'), true)
+assert.strictEqual(hookOut.eventSupportsHardBlock('cursor', 'PreToolUse'), false)
 assert.strictEqual(hookOut.eventSupportsHardBlock('cursor', 'UserPromptSubmit'), true)
 assert.strictEqual(hookOut.eventSupportsHardBlock('cursor', 'Stop'), true)
 assert.strictEqual(

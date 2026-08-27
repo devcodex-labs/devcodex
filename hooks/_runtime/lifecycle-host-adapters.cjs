@@ -503,6 +503,30 @@ function normalizeEventToken(eventName) {
   return String(eventName || '').trim().toLowerCase().replace(/[^a-z]/g, '')
 }
 
+function isOperationPermissionEvent(originalEvent) {
+  return ['pretooluse', 'permissionrequest', 'beforetool'].includes(normalizeEventToken(originalEvent))
+}
+
+function adaptOperationAdvisoryOutput(host, originalEvent, output) {
+  if (!isOperationPermissionEvent(originalEvent)) return null
+  const value = output && typeof output === 'object' && !Array.isArray(output) ? output : {}
+  if (!['codex', 'claude'].includes(host)) return {}
+  const specific = value.hookSpecificOutput && typeof value.hookSpecificOutput === 'object'
+    ? value.hookSpecificOutput
+    : {}
+  const systemMessage = nonEmptyString(value.systemMessage)
+  const additionalContext = nonEmptyString(specific.additionalContext || value.additionalContext)
+  const next = host === 'codex' ? {} : { continue: true }
+  if (systemMessage) next.systemMessage = systemMessage
+  if (additionalContext) {
+    next.hookSpecificOutput = {
+      hookEventName: originalEvent,
+      additionalContext
+    }
+  }
+  return next
+}
+
 /**
  * Detect a DevCodex Claude hook invoked through Grok's Claude compatibility scanner.
  * The dedicated Grok plugin owns lifecycle execution, so this imported copy must no-op.
@@ -521,12 +545,12 @@ function isGrokImportedClaudePayload(host, payload, originalEvent) {
 }
 
 /**
- * Grok Build official contracts (see ~/.grok/docs/user-guide/10-hooks.md):
- *   PreToolUse allow/deny → { "decision": "allow"|"deny", "reason"? }
- *   Stop/SubagentStop block → { "decision": "block", "reason": "..." } (fed back to model)
- * UserPromptSubmit / other non-tool events: do not claim context inject; strip hard deny there.
+ * Grok operation events are host-owned and return no DevCodex decision output.
+ * Stop/SubagentStop lifecycle completion can still request another model turn.
+ * UserPromptSubmit / other non-tool events do not claim context injection parity.
  */
 function adaptGrokOutput(originalEvent, output) {
+  if (isOperationPermissionEvent(originalEvent)) return {}
   const value = output && typeof output === 'object' && !Array.isArray(output) ? { ...output } : { continue: true }
   if (value.hookSpecificOutput && typeof value.hookSpecificOutput === 'object') {
     value.hookSpecificOutput = { ...value.hookSpecificOutput, hookEventName: originalEvent }
@@ -534,29 +558,10 @@ function adaptGrokOutput(originalEvent, output) {
 
   const event = normalizeEventToken(originalEvent)
   const metadata = collectDevcodexMetadata(value, value.hookSpecificOutput)
-  const isPreTool = event === 'pretooluse'
   const isStop = event === 'stop' || event === 'subagentstop' || event === 'agentstop'
-  const permission = value.hookSpecificOutput?.permissionDecision
   const reason = value.reason
-    || value.hookSpecificOutput?.permissionDecisionReason
     || (typeof value.hookSpecificOutput?.additionalContext === 'string' ? value.hookSpecificOutput.additionalContext : '')
-    || 'DevCodex denied this tool call.'
-  const wantsDeny = permission === 'deny' || value.decision === 'deny' || value.decision === 'block'
-  const wantsAllow = permission === 'allow' || value.decision === 'allow'
-
-  if (isPreTool) {
-    if (wantsDeny) {
-      return Object.freeze({ decision: 'deny', reason: String(reason), ...metadata })
-    }
-    if (wantsAllow) {
-      return Object.freeze({ decision: 'allow', ...metadata })
-    }
-    // noop / continue-only: Grok treats exit 0 as allow; keep minimal shape.
-    if (value.continue === true || value.continue === undefined) {
-      return Object.freeze({ decision: 'allow' })
-    }
-    return value
-  }
+    || 'DevCodex requires another agent turn.'
 
   // Stop Decision Control: preserve block so incomplete closure can force another turn.
   if (isStop) {
@@ -596,34 +601,13 @@ function adaptGrokOutput(originalEvent, output) {
 }
 
 function adaptCopilotOutput(originalEvent, output, input = {}) {
+  if (isOperationPermissionEvent(originalEvent)) return {}
   const value = output && typeof output === 'object' && !Array.isArray(output) ? { ...output } : {}
   const event = normalizeEventToken(originalEvent)
   const specific = value.hookSpecificOutput && typeof value.hookSpecificOutput === 'object'
     ? value.hookSpecificOutput
     : {}
   const metadata = collectDevcodexMetadata(value, specific)
-
-  if (event === 'pretooluse') {
-    const permission = specific.permissionDecision || value.permissionDecision
-    if (!['allow', 'deny', 'ask'].includes(permission)) return {}
-    return {
-      permissionDecision: permission,
-      ...(permission === 'deny'
-        ? {
-            permissionDecisionReason: String(
-              specific.permissionDecisionReason ||
-              value.permissionDecisionReason ||
-              value.reason ||
-              'DevCodex denied this tool call.'
-            )
-          }
-        : {}),
-      ...(value.modifiedArgs && typeof value.modifiedArgs === 'object'
-        ? { modifiedArgs: value.modifiedArgs }
-        : {}),
-      ...metadata
-    }
-  }
 
   if (event === 'posttooluse') {
     const additionalContext = specific.additionalContext || value.additionalContext
@@ -684,6 +668,7 @@ function cursorKernelContext(options = {}) {
 }
 
 function adaptCursorOutput(originalEvent, output, input = {}, options = {}) {
+  if (isOperationPermissionEvent(originalEvent)) return {}
   const value = output && typeof output === 'object' && !Array.isArray(output) ? { ...output } : {}
   const event = normalizeEventToken(originalEvent)
   const specific = value.hookSpecificOutput && typeof value.hookSpecificOutput === 'object'
@@ -691,7 +676,6 @@ function adaptCursorOutput(originalEvent, output, input = {}, options = {}) {
     : {}
   const reason = String(
     value.reason ||
-    specific.permissionDecisionReason ||
     specific.additionalContext ||
     value.systemMessage ||
     'DevCodex requires another action.'
@@ -725,22 +709,10 @@ function adaptCursorOutput(originalEvent, output, input = {}, options = {}) {
   if (event === 'beforesubmitprompt') {
     const denied = value.continue === false ||
       value.decision === 'block' ||
-      value.decision === 'deny' ||
-      specific.permissionDecision === 'deny'
+      value.decision === 'deny'
     return denied
       ? { continue: false, user_message: reason }
       : { continue: true }
-  }
-
-  if (event === 'pretooluse') {
-    const permission = specific.permissionDecision || value.permissionDecision || value.decision
-    const denied = permission === 'deny' || permission === 'block' || value.continue === false
-    const updatedInput = value.updated_input || value.modifiedInput || value.modifiedArgs
-    return {
-      permission: denied ? 'deny' : 'allow',
-      ...(denied ? { user_message: reason, agent_message: reason } : {}),
-      ...(updatedInput && typeof updatedInput === 'object' ? { updated_input: updatedInput } : {})
-    }
   }
 
   if (event === 'posttooluse') {
@@ -766,7 +738,6 @@ function adaptCursorOutput(originalEvent, output, input = {}, options = {}) {
   if (event === 'stop') {
     const blocked = value.decision === 'block' ||
       value.decision === 'deny' ||
-      specific.permissionDecision === 'deny' ||
       value.continue === false
     return blocked ? { followup_message: reason } : {}
   }
@@ -798,13 +769,13 @@ function addCodexExplicitStop(next, value) {
 
 function adaptCodexOutput(originalEvent, output) {
   const value = output && typeof output === 'object' && !Array.isArray(output) ? output : {}
+  const operationAdvisory = adaptOperationAdvisoryOutput('codex', originalEvent, value)
+  if (operationAdvisory) return operationAdvisory
   const specific = value.hookSpecificOutput && typeof value.hookSpecificOutput === 'object' && !Array.isArray(value.hookSpecificOutput)
     ? value.hookSpecificOutput
     : {}
   const event = normalizeEventToken(originalEvent)
   const canonicalEvent = {
-    pretooluse: 'PreToolUse',
-    permissionrequest: 'PermissionRequest',
     posttooluse: 'PostToolUse',
     userpromptsubmit: 'UserPromptSubmit',
     precompact: 'PreCompact',
@@ -818,59 +789,6 @@ function adaptCodexOutput(originalEvent, output) {
 
   const next = {}
   addCodexSystemMessage(next, value)
-
-  if (event === 'pretooluse') {
-    let permission = ['allow', 'deny'].includes(specific.permissionDecision)
-      ? specific.permissionDecision
-      : (['allow', 'deny'].includes(value.permissionDecision) ? value.permissionDecision : '')
-    if (!permission && value.continue === false) permission = 'deny'
-    const updatedInput = specific.updatedInput || value.updatedInput || value.modifiedInput || value.modifiedArgs
-    if (permission === 'allow' && (!updatedInput || typeof updatedInput !== 'object' || Array.isArray(updatedInput))) {
-      permission = ''
-    }
-    const hookSpecificOutput = {}
-    if (permission) {
-      hookSpecificOutput.permissionDecision = permission
-      const permissionReason = nonEmptyString(
-        specific.permissionDecisionReason || value.permissionDecisionReason || value.reason || value.stopReason
-      ) || (permission === 'deny' ? 'DevCodex denied this tool call.' : '')
-      if (permissionReason) hookSpecificOutput.permissionDecisionReason = permissionReason
-      if (permission === 'allow' && updatedInput && typeof updatedInput === 'object' && !Array.isArray(updatedInput)) {
-        hookSpecificOutput.updatedInput = updatedInput
-      }
-    } else {
-      addCodexBlock(next, value)
-    }
-    const additionalContext = nonEmptyString(specific.additionalContext || value.additionalContext)
-    if (additionalContext) hookSpecificOutput.additionalContext = additionalContext
-    if (Object.keys(hookSpecificOutput).length) {
-      next.hookSpecificOutput = { hookEventName: canonicalEvent, ...hookSpecificOutput }
-    }
-    return next
-  }
-
-  if (event === 'permissionrequest') {
-    const requestedBehavior = specific.decision?.behavior
-    let behavior = ['allow', 'deny'].includes(requestedBehavior) ? requestedBehavior : ''
-    if (!behavior && ['allow', 'deny'].includes(specific.permissionDecision)) behavior = specific.permissionDecision
-    if (!behavior && ['allow', 'deny'].includes(value.permissionDecision)) behavior = value.permissionDecision
-    if (!behavior && value.decision === 'allow') behavior = 'allow'
-    if (!behavior && ['block', 'deny'].includes(value.decision)) behavior = 'deny'
-    if (!behavior && value.continue === false) behavior = 'deny'
-    if (behavior) {
-      const decision = { behavior }
-      const message = nonEmptyString(
-        specific.decision?.message ||
-        specific.permissionDecisionReason ||
-        value.permissionDecisionReason ||
-        value.reason ||
-        value.stopReason
-      )
-      if (message) decision.message = message
-      next.hookSpecificOutput = { hookEventName: canonicalEvent, decision }
-    }
-    return next
-  }
 
   if (event === 'posttooluse') {
     addCodexBlock(next, value)
@@ -920,6 +838,8 @@ function adaptHostOutput(host, originalEvent, output, input = {}, options = {}) 
   if (value.hookSpecificOutput && typeof value.hookSpecificOutput === 'object') {
     value.hookSpecificOutput = { ...value.hookSpecificOutput, hookEventName: originalEvent }
   }
+  const operationAdvisory = adaptOperationAdvisoryOutput(host, originalEvent, value)
+  if (operationAdvisory) return operationAdvisory
   if (host === 'grok') {
     return adaptGrokOutput(originalEvent, value)
   }
@@ -935,17 +855,6 @@ function adaptHostOutput(host, originalEvent, output, input = {}, options = {}) 
   if (host !== 'gemini') return value
 
   if (value.decision === 'block') value.decision = 'deny'
-  const permission = value.hookSpecificOutput?.permissionDecision
-  if (permission) {
-    value.decision = permission === 'deny' ? 'deny' : 'allow'
-    if (value.hookSpecificOutput.permissionDecisionReason && !value.reason) {
-      value.reason = value.hookSpecificOutput.permissionDecisionReason
-    }
-    const nextSpecific = { ...value.hookSpecificOutput }
-    delete nextSpecific.permissionDecision
-    delete nextSpecific.permissionDecisionReason
-    value.hookSpecificOutput = nextSpecific
-  }
   if (originalEvent === 'PreCompress') {
     delete value.decision
     delete value.reason

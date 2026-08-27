@@ -48,6 +48,18 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   }
 
+  function assertOperationAdvisory(output, label = 'operation event') {
+    assert.notStrictEqual(output?.continue, false, `${label} must not stop the host operation`)
+    assert.doesNotMatch(
+      JSON.stringify(output || {}),
+      /"(?:decision|permission|permissionDecision|behavior)"\s*:\s*"(?:allow|deny|ask|block)"/,
+      `${label} must not project a DevCodex permission decision`
+    )
+    if (Object.prototype.hasOwnProperty.call(output || {}, 'devcodexEffective')) {
+      assert.strictEqual(output.devcodexEffective, false, `${label} telemetry must remain non-effective`)
+    }
+  }
+
   function persistWorkspaceLayoutState(state) {
     const workspaceStateFile = getWorkspaceLayoutStateFile()
     const project = String(state.activeProject || '').trim()
@@ -482,16 +494,22 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
       input: '*** Begin Patch\n*** Update File: README.md\n*** End Patch'
     }
   })
-  assert.strictEqual(warningBeforeBootstrap.continue, true)
-  assert.match(warningBeforeBootstrap.systemMessage || '', /progressive-skill-route/i)
+  assertOperationAdvisory(warningBeforeBootstrap, 'pre-bootstrap mutation')
+  assert.match(
+    warningBeforeBootstrap.systemMessage || '',
+    /Progressive Skill route|progressive-skill-route|Workflow ingress authority unavailable/i
+  )
 
   const duplicateWarningBeforeBootstrap = run({
     hookEventName: 'PreToolUse',
     tool_name: 'run_in_terminal',
     tool_input: { command: 'npm test' }
   })
-  assert.strictEqual(duplicateWarningBeforeBootstrap.continue, true)
-  assert.match(duplicateWarningBeforeBootstrap.systemMessage || '', /progressive-skill-route/i)
+  assertOperationAdvisory(duplicateWarningBeforeBootstrap, 'duplicate pre-bootstrap mutation')
+  assert.match(
+    duplicateWarningBeforeBootstrap.systemMessage || '',
+    /Progressive Skill route|progressive-skill-route|Workflow ingress authority unavailable/i
+  )
 
   cleanState()
   const codexIngressSession = 'codex-workflow-ingress-authority'
@@ -516,8 +534,8 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
       session_id: codexIngressSession,
       ...payload
     }, TEMP_ROOT, codexIngressEnv)
-    assert.strictEqual(blockedCodexMutation.hookSpecificOutput?.permissionDecision, 'deny')
-    assert.strictEqual(blockedCodexMutation.hookSpecificOutput?.devcodexCode, 'WORKFLOW_ROUTE_UNRESOLVED')
+    assertOperationAdvisory(blockedCodexMutation, 'Codex unresolved workflow route')
+    assert.strictEqual(blockedCodexMutation.devcodexCode, 'WORKFLOW_ROUTE_UNRESOLVED')
     assert.match(blockedCodexMutation.systemMessage || '', /Workflow ingress authority unavailable/i)
   }
 
@@ -534,12 +552,15 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     }
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
   assert.strictEqual(blockedBeforeBootstrap.continue, true)
-  assert.strictEqual(blockedBeforeBootstrap.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(blockedBeforeBootstrap, 'strict bootstrap gate')
   assert.match(
-    blockedBeforeBootstrap.hookSpecificOutput?.additionalContext || '',
-    /Next call \(exact\):/
+    blockedBeforeBootstrap.systemMessage || '',
+    /Next call \(exact\):|context-plan-required/i
   )
-  assert.match(blockedBeforeBootstrap.systemMessage || '', /progressive-skill-route/i)
+  assert.match(
+    blockedBeforeBootstrap.systemMessage || '',
+    /Progressive Skill route|progressive-skill-route|Workflow ingress authority unavailable/i
+  )
 
   cleanState()
   run({
@@ -553,10 +574,10 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
       input: '*** Begin Patch\n*** Update File: README.md\n*** End Patch'
     }
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CLAUDE_CODE_VERSION: 'test' })
-  assert.strictEqual(structuredBlockedBeforePlan.hookSpecificOutput.permissionDecision, 'deny')
+  assertOperationAdvisory(structuredBlockedBeforePlan, 'Claude structured context gate')
   assert.match(
-    structuredBlockedBeforePlan.hookSpecificOutput.permissionDecisionReason || '',
-    /progressive-skill-route/i
+    structuredBlockedBeforePlan.systemMessage || '',
+    /Progressive Skill route|progressive-skill-route|context plan lacks verifiable evidence/i
   )
 
   cleanState()
@@ -606,8 +627,11 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
       input: '*** Begin Patch\n*** Update File: README.md\n*** End Patch'
     }
   })
-  assert.strictEqual(prodWriteWarningBeforeBootstrap.continue, true)
-  assert.match(prodWriteWarningBeforeBootstrap.systemMessage || '', /progressive-skill-route/i)
+  assertOperationAdvisory(prodWriteWarningBeforeBootstrap, 'prod pre-bootstrap mutation')
+  assert.match(
+    prodWriteWarningBeforeBootstrap.systemMessage || '',
+    /Progressive Skill route|progressive-skill-route|Workflow ingress authority unavailable/i
+  )
 
   cleanState()
   run({
@@ -622,8 +646,11 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
       command: 'Set-Content .devcodex/profile/config.json "{}"'
     }
   })
-  assert.strictEqual(shellWriteWarningDuringBootstrap.continue, true)
-  assert.match(shellWriteWarningDuringBootstrap.systemMessage || '', /progressive-skill-route/i)
+  assertOperationAdvisory(shellWriteWarningDuringBootstrap, 'shell mutation during bootstrap')
+  assert.match(
+    shellWriteWarningDuringBootstrap.systemMessage || '',
+    /Progressive Skill route|progressive-skill-route|Workflow ingress authority unavailable/i
+  )
 
   const shellAliasWriteWarningDuringBootstrap = run({
     hookEventName: 'PreToolUse',
@@ -632,10 +659,10 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
       command: 'Get-Content .devcodex/profile/config.json; sc .devcodex/profile/config.json "{}"'
     }
   })
-  assert.strictEqual(shellAliasWriteWarningDuringBootstrap.continue, true)
+  assertOperationAdvisory(shellAliasWriteWarningDuringBootstrap, 'shell alias mutation during bootstrap')
   assert.match(
     shellAliasWriteWarningDuringBootstrap.systemMessage || '',
-    /progressive-skill-route/i
+    /Progressive Skill route|progressive-skill-route|Workflow ingress authority unavailable/i
   )
 
   run({
@@ -683,11 +710,11 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   const state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(state.bootstrapComplete, false, 'legacy PreToolUse path touches must never form completion')
   assert.deepStrictEqual(state.contextAcquisition.legacyObserved, {
-    profileRead: false,
-    summaryRead: false,
-    tasksRead: false,
+    profileRead: true,
+    summaryRead: true,
+    tasksRead: true,
     bootstrapComplete: false
-  }, 'unbound raw-file reads must not be credited as ContextRead progress')
+  }, 'unbound raw-file reads may be observed but must not form ContextRead completion')
 
   cleanState()
   fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true })
@@ -723,7 +750,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     tool_name: 'devcodex-profile/profile_load',
     tool_input: {}
   })
-  assert.match(legacyProfilePre.systemMessage || '', /progressive-skill-route/i)
+  assertOperationAdvisory(legacyProfilePre, 'legacy Profile pre-tool event')
   const legacyProfileResult = callProfileTool(TEMP_ROOT, 'profile_load', {
     explicitFull: true,
     fullReadReason: 'hooks bootstrap legacy full-read fixture',
@@ -738,7 +765,11 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   })
   const legacyProfileState = readLegacyState()
   assert.strictEqual(legacyProfileState.contextAcquisition.plan, null)
-  assert.strictEqual(legacyProfileState.contextAcquisition.fallbackAttempts, 0)
+  assert.strictEqual(
+    legacyProfileState.contextAcquisition.fallbackAttempts,
+    1,
+    'host-owned operation remains observable as an uncredited fallback attempt'
+  )
   assert.strictEqual(legacyProfileState.bootstrapComplete, false)
 
   cleanState({ mode: 'dev' })
@@ -810,7 +841,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     tool_name: 'mcp__devcodex-memory__memory_summary_append',
     tool_input: { row: '| unsafe acquisition bypass |' }
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CLAUDE_CODE_VERSION: 'test' })
-  assert.strictEqual(blockedMemoryWrite.hookSpecificOutput.permissionDecision, 'deny')
+  assertOperationAdvisory(blockedMemoryWrite, 'memory write before context plan')
   assert.strictEqual(readLegacyState().contextAcquisition.inFlight.length, 1)
   for (const spoofedTool of [
     'mcp__evil__profile_context_plan',
@@ -822,18 +853,14 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
       tool_name: spoofedTool,
       tool_input: { contextEpoch: allowlistState.contextAcquisition.contextEpoch }
     }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CLAUDE_CODE_VERSION: 'test' })
-    assert.strictEqual(
-      blockedSpoof.hookSpecificOutput?.permissionDecision,
-      'deny',
-      `${spoofedTool}: ${JSON.stringify(blockedSpoof)}`
-    )
+    assertOperationAdvisory(blockedSpoof, spoofedTool)
   }
   const blockedTraversal = run({
     hookEventName: 'PreToolUse',
     tool_name: 'devcodex-profile/profile_load',
     tool_input: { project: allowlistState.contextAcquisition.project, files: ['../01-项目信息.md'] }
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CLAUDE_CODE_VERSION: 'test' })
-  assert.strictEqual(blockedTraversal.hookSpecificOutput.permissionDecision, 'deny')
+  assertOperationAdvisory(blockedTraversal, 'profile traversal')
 
   // Grok can truncate a successful MCP result before PostToolUse. Recover only
   // from the exact, current workspace observation written by the planner.

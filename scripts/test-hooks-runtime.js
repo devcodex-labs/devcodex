@@ -40,6 +40,18 @@ const ROOT = path.resolve(__dirname, '..')
 const RUNTIME = path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs')
 const PROFILE_SERVER = path.join(ROOT, 'mcp', 'profile-server.js')
 
+function assertOperationAdvisory(output, label = 'operation event') {
+  assert.notStrictEqual(output?.continue, false, `${label} must not stop the host operation`)
+  assert.doesNotMatch(
+    JSON.stringify(output || {}),
+    /"(?:decision|permission|permissionDecision|behavior)"\s*:\s*"(?:allow|deny|ask|block)"/,
+    `${label} must not project a DevCodex permission decision`
+  )
+  if (Object.prototype.hasOwnProperty.call(output || {}, 'devcodexEffective')) {
+    assert.strictEqual(output.devcodexEffective, false, `${label} telemetry must remain non-effective`)
+  }
+}
+
 // Use a temp directory as the workspace root to isolate from real requirements
 const TEMP_ROOT = path.join(os.tmpdir(), `devcodex-hooks-test-${process.pid}`)
 const STATE_DIR = path.join(TEMP_ROOT, '.devcodex', '.memory', 'hooks', 'legacy')
@@ -383,11 +395,7 @@ function runR2BTaskOwnerLifecycleScenarios() {
       content: 'module.exports = true\n'
     }
   })
-  assert.strictEqual(
-    autoBypassProbe.hookSpecificOutput?.permissionDecision,
-    'deny',
-    JSON.stringify(autoBypassProbe)
-  )
+  assertOperationAdvisory(autoBypassProbe, 'control-plane write before design')
   assert.match(
     JSON.stringify(autoBypassProbe),
     /IMPLEMENT_START_WITHOUT_|cp-gate-CP2|Implement process gate required/i,
@@ -757,7 +765,7 @@ function runR2BTaskOwnerLifecycleScenarios() {
     tool_name: 'Write',
     tool_input: { file_path: autoNonWhitelistPath, content: 'module.exports = false\n' }
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
-  assert.strictEqual(ownerBackedAutoNonWhitelistBlockedStrict.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(ownerBackedAutoNonWhitelistBlockedStrict, 'strict auto whitelist boundary')
   assert.match(JSON.stringify(ownerBackedAutoNonWhitelistBlockedStrict), /auto-whitelist-boundary|仅对白名单路径/)
 
   const sourceRoot = path.join(TEMP_ROOT, 'src', 'r3b-batch')
@@ -1624,7 +1632,7 @@ function main() {
       input: '*** Begin Patch\n*** Update File: README.md\n*** End Patch'
     }
   })
-  assert.strictEqual(autoCrossProjectDenied.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(autoCrossProjectDenied, 'cross-project mutation')
   assert.match(
     JSON.stringify(autoCrossProjectDenied),
     /ARTIFACT_TARGET_OUTSIDE_ALLOWED_ROOTS|outside.*root/i
@@ -1637,7 +1645,7 @@ function main() {
       input: '*** Begin Patch\n*** Update File: README.md\n*** End Patch'
     }
   }, layoutChild)
-  assert.strictEqual(autoSameProjectReadmeDenied.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(autoSameProjectReadmeDenied, 'ownerless README mutation')
   assert.match(
     JSON.stringify(autoSameProjectReadmeDenied),
     /TASK_WRITE_OWNER_BINDING_REQUIRED|Fenced task write owner authority unavailable/i
@@ -1650,7 +1658,7 @@ function main() {
       input: '*** Begin Patch\n*** Update File: AGENTS.md\n*** End Patch'
     }
   }, layoutChild)
-  assert.strictEqual(autoCodexEntryDenied.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(autoCodexEntryDenied, 'ownerless AGENTS mutation')
 
   const autoCodexSkillDenied = run({
     hookEventName: 'PreToolUse',
@@ -1659,7 +1667,7 @@ function main() {
       input: '*** Begin Patch\n*** Update File: .agents/skills/compliance/SKILL.md\n*** End Patch'
     }
   }, layoutChild)
-  assert.strictEqual(autoCodexSkillDenied.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(autoCodexSkillDenied, 'ownerless skill mutation')
 
   const autoCodexHookDenied = run({
     hookEventName: 'PreToolUse',
@@ -1668,7 +1676,7 @@ function main() {
       input: '*** Begin Patch\n*** Update File: .codex/hooks.json\n*** End Patch'
     }
   }, layoutChild)
-  assert.strictEqual(autoCodexHookDenied.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(autoCodexHookDenied, 'ownerless hook mutation')
 
   const autoNonWhitelistDenied = run({
     hookEventName: 'PreToolUse',
@@ -1677,7 +1685,7 @@ function main() {
       input: '*** Begin Patch\n*** Update File: src/foo.js\n*** End Patch'
     }
   }, layoutChild)
-  assert.strictEqual(autoNonWhitelistDenied.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(autoNonWhitelistDenied, 'ownerless source mutation')
   assert.match(
     JSON.stringify(autoNonWhitelistDenied),
     /TASK_WRITE_OWNER_BINDING_REQUIRED|Fenced task write owner authority unavailable/i
@@ -1690,7 +1698,7 @@ function main() {
       input: '*** Begin Patch\n*** Update File: src/foo.js\n*** End Patch'
     }
   }, layoutChild, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
-  assert.strictEqual(autoNonWhitelistBlockedStrict.hookSpecificOutput.permissionDecision, 'deny')
+  assertOperationAdvisory(autoNonWhitelistBlockedStrict, 'strict ownerless source mutation')
   assert.match(
     JSON.stringify(autoNonWhitelistBlockedStrict),
     /TASK_WRITE_OWNER_BINDING_REQUIRED|Fenced task write owner authority unavailable/i
@@ -1703,10 +1711,10 @@ function main() {
       command: 'git reset --hard HEAD~1'
     }
   })
-  assert.strictEqual(autoDangerousCommand.hookSpecificOutput.permissionDecision, 'deny')
-  assert.doesNotMatch(autoDangerousCommand.hookSpecificOutput.permissionDecisionReason || '', /git reset --hard/i)
+  assertOperationAdvisory(autoDangerousCommand, 'dangerous command classification')
+  assert.doesNotMatch(autoDangerousCommand.systemMessage || '', /permission denied by DevCodex/i)
   assert.match(
-    autoDangerousCommand.hookSpecificOutput.permissionDecisionReason || '',
+    JSON.stringify(autoDangerousCommand),
     /TASK_WRITE_OWNER_|Fenced task write owner|Mutation target observation unavailable|Formal artifact mutation denied/i,
     'operation risk remains host-owned even when an independent workflow invariant rejects the mutation'
   )
@@ -1728,14 +1736,14 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/app.js\n*** End Patch' }
   })
-  assert.strictEqual(warningByOldReq.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(warningByOldReq, 'archived requirement owner advisory')
   assert.match(JSON.stringify(warningByOldReq), /TASK_WRITE_OWNER_|Fenced task write owner/i)
   const blockedByOldReqStrict = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/app.js\n*** End Patch' }
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
-  assert.strictEqual(blockedByOldReqStrict.hookSpecificOutput.permissionDecision, 'deny')
+  assertOperationAdvisory(blockedByOldReqStrict, 'strict archived requirement owner advisory')
   assert.match(JSON.stringify(blockedByOldReqStrict), /TASK_WRITE_OWNER_|Fenced task write owner/i)
   fs.writeFileSync(path.join(reqDir, '.archived'), '')
   const allowedAfterArchive = run({
@@ -1743,7 +1751,7 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/app.js\n*** End Patch' }
   })
-  assert.strictEqual(allowedAfterArchive.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(allowedAfterArchive, 'post-archive owner advisory')
   assert.match(JSON.stringify(allowedAfterArchive), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   // v1.9.4+ Cross-requirement bypass test:
@@ -1765,7 +1773,7 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/foo.js\n*** End Patch' }
   })
-  assert.strictEqual(warningNoCp3.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(warningNoCp3, 'missing CP3 owner advisory')
   assert.match(JSON.stringify(warningNoCp3), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   // Add a second requirement that has CP3 confirmed → stale unfinished task must still block
@@ -1784,7 +1792,7 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/foo.js\n*** End Patch' }
   })
-  assert.strictEqual(warningCrossReq.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(warningCrossReq, 'cross-requirement owner advisory')
   assert.match(JSON.stringify(warningCrossReq), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   // Path-aware test: writing inside reqIncomplete dir while reqDone has CP3
@@ -1797,7 +1805,7 @@ function main() {
       content: '# new plan\n'
     }
   })
-  assert.strictEqual(allowedInReqDir.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(allowedInReqDir, 'requirement directory owner advisory')
   assert.match(JSON.stringify(allowedInReqDir), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   // CP3 N/A exemptions for docs/init should not keep old requirements blocking later source work.
@@ -1817,7 +1825,7 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/exempt.js\n*** End Patch' }
   })
-  assert.strictEqual(allowedAfterCp3Exempt.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(allowedAfterCp3Exempt, 'CP3 exemption owner advisory')
   assert.match(JSON.stringify(allowedAfterCp3Exempt), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   // Bug task discovery also cannot replace formal admission and a fenced owner.
@@ -1837,7 +1845,7 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/bug.js\n*** End Patch' }
   })
-  assert.strictEqual(warningBugTask.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(warningBugTask, 'bug task owner advisory')
   assert.match(JSON.stringify(warningBugTask), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   // CP2/CP3 files alone must not enable writes before admission/owner acquisition.
@@ -1855,7 +1863,7 @@ function main() {
       tool_name: 'apply_patch',
       tool_input: { input: `*** Begin Patch\n*** Update File: src/${fileName}\n*** End Patch` }
     })
-    assert.strictEqual(allowedBugTask.hookSpecificOutput?.permissionDecision, 'deny')
+    assertOperationAdvisory(allowedBugTask, `bug task owner advisory ${fileName}`)
     assert.match(JSON.stringify(allowedBugTask), /TASK_WRITE_OWNER_|Fenced task write owner/i)
   }
 
@@ -1868,7 +1876,7 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/bug-5.js\n*** End Patch' }
   })
-  assert.strictEqual(warningBugThreshold.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(warningBugThreshold, 'bug threshold owner advisory')
   assert.match(JSON.stringify(warningBugThreshold), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   const blockedBugThresholdStrict = run({
@@ -1876,7 +1884,7 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/bug-5.js\n*** End Patch' }
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
-  assert.strictEqual(blockedBugThresholdStrict.hookSpecificOutput.permissionDecision, 'deny')
+  assertOperationAdvisory(blockedBugThresholdStrict, 'strict bug threshold owner advisory')
   assert.match(JSON.stringify(blockedBugThresholdStrict), /TASK_WRITE_OWNER_|Fenced task write owner/i)
   assert.ok(!readInterceptionEntries().some(entry =>
     entry.code === 'cp-gate-CP3-runtime-threshold' &&
@@ -1894,7 +1902,7 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/bug-after-cp3.js\n*** End Patch' }
   })
-  assert.strictEqual(allowedAfterBugCp3.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(allowedAfterBugCp3, 'post-CP3 owner advisory')
   assert.match(JSON.stringify(allowedAfterBugCp3), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   // Dual-Track M1: orphan control-plane mutation when no CP1-bound task exists
@@ -1915,7 +1923,7 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: scripts/lib/orphan-probe.js\n*** End Patch' }
   })
-  assert.strictEqual(orphanWarn.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(orphanWarn, 'orphan control-plane advisory')
   assert.match(JSON.stringify(orphanWarn), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   // extended task roots: optimizations and scenario-tests must also participate in CP gate.
@@ -1931,7 +1939,7 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/perf.js\n*** End Patch' }
   })
-  assert.strictEqual(warningOptimizationTask.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(warningOptimizationTask, 'optimization owner advisory')
   assert.match(JSON.stringify(warningOptimizationTask), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   cleanState()
@@ -1946,7 +1954,7 @@ function main() {
     tool_name: 'apply_patch',
     tool_input: { input: '*** Begin Patch\n*** Update File: src/e2e.js\n*** End Patch' }
   })
-  assert.strictEqual(warningScenarioTask.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(warningScenarioTask, 'scenario owner advisory')
   assert.match(JSON.stringify(warningScenarioTask), /TASK_WRITE_OWNER_|Fenced task write owner/i)
 
   // F-008 (v1.9.5): DEVCODEX_PATH_RE 边缘场景测试
@@ -1961,7 +1969,7 @@ function main() {
     tool_name: 'Bash',
     tool_input: { command: 'echo "console.log(1)" > .claude/foo.js' }
   })
-  assert.strictEqual(bashWriteClaude.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(bashWriteClaude, 'Claude path mutation advisory')
   assert.match(JSON.stringify(bashWriteClaude), /TASK_WRITE_OWNER_|Fenced task write owner|artifact-(?:target-mixed-scope|slot-ambiguous|slot-unknown)/i)
 
   // Governance paths are not an implicit mutation authority either.
@@ -1970,7 +1978,7 @@ function main() {
     tool_name: 'Bash',
     tool_input: { command: 'echo "# test" > .claude/instructions/foo.md' }
   })
-  assert.strictEqual(bashWriteGovernance.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(bashWriteGovernance, 'governance path mutation advisory')
   assert.match(JSON.stringify(bashWriteGovernance), /TASK_WRITE_OWNER_|Fenced task write owner|artifact-(?:target-mixed-scope|slot-ambiguous|slot-unknown)/i)
 
   const bashWriteCodexGovernance = run({
@@ -1978,7 +1986,7 @@ function main() {
     tool_name: 'Bash',
     tool_input: { command: 'echo "# test" > AGENTS.md && echo "# test" > .agents/skills/foo/SKILL.md && echo "{}" > .codex/hooks.json && echo "{}" > codex/hooks.json' }
   })
-  assert.strictEqual(bashWriteCodexGovernance.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(bashWriteCodexGovernance, 'Codex governance path mutation advisory')
   assert.match(JSON.stringify(bashWriteCodexGovernance), /TASK_WRITE_OWNER_|Fenced task write owner|artifact-(?:target-mixed-scope|slot-ambiguous|slot-unknown)/i)
 
   // F-006: bash cp src.js dest.js 命令路径提取
@@ -1987,7 +1995,7 @@ function main() {
     tool_name: 'Bash',
     tool_input: { command: 'cp src/a.js src/b.js' }
   })
-  assert.strictEqual(bashCp.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(bashCp, 'copy mutation advisory')
   assert.match(JSON.stringify(bashCp), /TASK_WRITE_OWNER_|Fenced task write owner|artifact-(?:target-mixed-scope|slot-ambiguous|slot-unknown)/i)
 
   cleanState()

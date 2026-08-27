@@ -659,7 +659,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 | FC2 | 报告文件已写入（chat 豁免）|
 | FC3 | CP 按序执行（dev/fix；其他 N/A）|
 | FC4 | 文件名/路径合规（`NN--` 双横杠开头；本轮无报告产物时 N/A）|
-| FC5 | `ArtifactDeliveryManifestV1` 已完整对账，`UserFacingArtifactSetV1` required hidden=0、计数守恒，并按已验证 `LinkCapabilityDecisionV1` 输出 |
+| FC5 | `ArtifactDeliveryManifestV1` 已完整对账，`UserFacingArtifactSetV1` required hidden=0、计数守恒；持久化 `LinkCapabilityDecisionV1` 与用户面 `HostLinkCapabilityDecisionV2` renderer 均有证据 |
 | FC6 | 新增 DevCodex 规范资产 `.md` 超 500 行须按 C13 拆分（业务产物不强制）|
 | FC7 | 用户决策选项与报告决策点必带推荐 + 理由 |
 

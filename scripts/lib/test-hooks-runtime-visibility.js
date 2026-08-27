@@ -32,6 +32,18 @@ function runHooksRuntimeVisibilityScenarios(context) {
     writeTranscriptEntries
   } = context
 
+  function assertOperationAdvisory(output, label = 'operation event') {
+    assert.notStrictEqual(output?.continue, false, `${label} must not stop the host operation`)
+    assert.doesNotMatch(
+      JSON.stringify(output || {}),
+      /"(?:decision|permission|permissionDecision|behavior)"\s*:\s*"(?:allow|deny|ask|block)"/,
+      `${label} must not project a DevCodex permission decision`
+    )
+    if (Object.prototype.hasOwnProperty.call(output || {}, 'devcodexEffective')) {
+      assert.strictEqual(output.devcodexEffective, false, `${label} telemetry must remain non-effective`)
+    }
+  }
+
   function readCaptureEntries() {
     const telemetryRoot = path.dirname(CAPTURE_LOG)
     return [0, 1, 2, 3]
@@ -261,9 +273,9 @@ function runHooksRuntimeVisibilityScenarios(context) {
     }
   })
   assert.strictEqual(formalMutationWithoutTask.continue, true)
-  assert.strictEqual(formalMutationWithoutTask.hookSpecificOutput.permissionDecision, 'deny')
+  assertOperationAdvisory(formalMutationWithoutTask, 'formal mutation without task')
   assert.match(
-    formalMutationWithoutTask.hookSpecificOutput.permissionDecisionReason || '',
+    JSON.stringify(formalMutationWithoutTask),
     /Formal artifact mutation denied|Fenced task write owner authority unavailable|TASK_|ARTIFACT_/i,
     'completed context acquisition alone must not authorize an unbound public README mutation'
   )
@@ -275,10 +287,10 @@ function runHooksRuntimeVisibilityScenarios(context) {
       command: 'git reset --hard HEAD~1'
     }
   })
-  assert.strictEqual(dangerousCommand.hookSpecificOutput.permissionDecision, 'deny')
-  assert.doesNotMatch(dangerousCommand.hookSpecificOutput.permissionDecisionReason || '', /git reset --hard/i)
+  assertOperationAdvisory(dangerousCommand, 'dangerous command')
+  assert.doesNotMatch(dangerousCommand.systemMessage || '', /permission denied by DevCodex/i)
   assert.match(
-    dangerousCommand.hookSpecificOutput.permissionDecisionReason || '',
+    JSON.stringify(dangerousCommand),
     /Fenced task write owner authority unavailable|Mutation target observation unavailable|Formal artifact mutation denied/i,
     'workflow validity may deny an unbound mutation, but operation risk itself must remain host-owned'
   )
@@ -300,8 +312,8 @@ function runHooksRuntimeVisibilityScenarios(context) {
       command: 'node -e "db.exec(`DELETE FROM users`)"'
     }
   })
-  assert.strictEqual(deleteWithoutWhere.hookSpecificOutput.permissionDecision, 'deny')
-  assert.doesNotMatch(deleteWithoutWhere.hookSpecificOutput.permissionDecisionReason || '', /DELETE FROM/i)
+  assertOperationAdvisory(deleteWithoutWhere, 'DELETE without WHERE')
+  assert.doesNotMatch(deleteWithoutWhere.systemMessage || '', /permission denied by DevCodex/i)
 
   const deleteWithWhere = run({
     hookEventName: 'PreToolUse',
@@ -311,13 +323,13 @@ function runHooksRuntimeVisibilityScenarios(context) {
     }
   })
   assert.strictEqual(deleteWithWhere.continue, true)
-  assert.strictEqual(deleteWithWhere.hookSpecificOutput.permissionDecision, 'deny')
+  assertOperationAdvisory(deleteWithWhere, 'DELETE with WHERE')
   assert.match(
-    deleteWithWhere.hookSpecificOutput.permissionDecisionReason || '',
+    JSON.stringify(deleteWithWhere),
     /Fenced task write owner authority unavailable|Mutation target observation unavailable/i
   )
   assert.doesNotMatch(
-    deleteWithWhere.hookSpecificOutput.permissionDecisionReason || '',
+    JSON.stringify(deleteWithWhere),
     /DELETE FROM.*without WHERE|unscoped DELETE/i,
     'DELETE with WHERE is not dangerous syntax even though an unbound mutation remains unauthorized'
   )
@@ -916,9 +928,9 @@ function runHooksRuntimeVisibilityScenarios(context) {
     tool_name: 'Write',
     tool_input: { file_path: simpleThirdPath, content: 'module.exports = 3\n' }
   })
-  assert.strictEqual(pathDrift.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(pathDrift, 'simple task path drift')
   assert.match(
-    pathDrift.hookSpecificOutput?.permissionDecisionReason || pathDrift.systemMessage || '',
+    JSON.stringify(pathDrift),
     /TASK_WRITE_OWNER_BINDING_REQUIRED|Fenced task write owner authority unavailable/i
   )
   simpleState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
@@ -1097,9 +1109,9 @@ function runHooksRuntimeVisibilityScenarios(context) {
       content: '# report\n'
     }
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CLAUDE_HOOK_COMMAND: '1' })
-  assert.strictEqual(productWriteStrict.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(productWriteStrict, 'strict S07 product write')
   assert.match(
-    productWriteStrict.hookSpecificOutput?.permissionDecisionReason || productWriteStrict.systemMessage || '',
+    JSON.stringify(productWriteStrict),
     /s07-product-before-entry-check|S07/i
   )
 
@@ -1135,9 +1147,9 @@ function runHooksRuntimeVisibilityScenarios(context) {
       content: '# misplaced\n'
     }
   })
-  assert.strictEqual(unknownFormalSlot.hookSpecificOutput?.permissionDecision, 'deny')
+  assertOperationAdvisory(unknownFormalSlot, 'unknown formal artifact slot')
   assert.match(
-    unknownFormalSlot.hookSpecificOutput?.permissionDecisionReason || unknownFormalSlot.systemMessage || '',
+    JSON.stringify(unknownFormalSlot),
     /Formal artifact mutation denied|artifact-slot-unknown/i
   )
   s07State = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))

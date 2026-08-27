@@ -7,7 +7,10 @@ const {
   createCanonicalAwareReader,
   hasValidCanonicalContract
 } = require('./lib/canonical-consumer-contracts')
-const { createLinkCapabilityDecision } = require('../hooks/_runtime/visible-output-contract.cjs')
+const {
+  createHostLinkCapabilityDecisionV2,
+  createLinkCapabilityDecision
+} = require('../hooks/_runtime/visible-output-contract.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 const failures = []
@@ -27,10 +30,12 @@ function mustMatch(file, pattern, label) {
 const clientContractProbes = [
   ['instructions.md', 'ArtifactDeliveryManifestV1'],
   ['instructions.md', 'LinkCapabilityDecisionV1'],
+  ['instructions.md', 'HostLinkCapabilityDecisionV2'],
   ['instructions.md', 'mcpFallback=used'],
   ['instructions/01-common.instructions.md', 'UserFacingArtifactSetV1'],
   ['instructions/01-common.instructions.md', 'mcpFallback=used'],
   ['instructions/02-output-paths.instructions.md', 'LinkCapabilityDecision 客户端兼容矩阵'],
+  ['instructions/02-output-paths.instructions.md', 'HostLinkCapabilityDecisionV2'],
   ['instructions/02-output-paths.instructions.md', 'capability mode'],
   ['instructions/02-output-paths.instructions.md', '`clickable`'],
   ['instructions/02-output-paths.instructions.md', '`portable`'],
@@ -41,11 +46,13 @@ const clientContractProbes = [
   ['instructions/17-compliance.instructions.md', 'UserFacingArtifactSetV1'],
   ['skills/host-contract-verification/SKILL.md', 'artifactLinkMatrix'],
   ['skills/host-contract-verification/SKILL.md', 'VisibleOutputHostEvidenceGate'],
+  ['skills/host-contract-verification/SKILL.md', 'presentationSurface'],
   ['skills/host-contract-verification/SKILL.md', 'mcpFallback'],
   ['skills/test-router/SKILL.md', 'visibleOutputContract'],
   ['skills/execution-contract/SKILL.md', 'MCP fallback'],
   ['skills/report/SKILL.md', 'ArtifactDeliveryManifestV1'],
   ['skills/compliance/SKILL.md', 'LinkCapabilityDecisionV1'],
+  ['skills/compliance/SKILL.md', 'HostLinkCapabilityDecisionV2'],
   ['skills/audit-common/SKILL.md', 'UserFacingArtifactSetV1'],
   ['prompts/implementation-plan.prompt.md', 'VisibleOutputContract'],
   ['prompts/implementation-progress.prompt.md', 'mcpFallback'],
@@ -99,6 +106,33 @@ const failedLink = createLinkCapabilityDecision({
 })
 if (failedLink.mode !== 'failed' || !failedLink.absolutePathFallback || failedLink.fallbackReason !== 'link-failed') {
   failures.push('failed link did not produce reason-bound absolute fallback')
+}
+
+for (const [hostSurface, presentationSurface, rendererId, openMode] of [
+  ['codex-desktop', 'codex-desktop-panel', 'codex-native-file-panel', 'native-action'],
+  ['vscode-codex', 'vscode-terminal', 'vscode-cli-goto', 'terminal-command'],
+  ['zed', 'zed-terminal', 'zed-cli-open', 'terminal-command'],
+  ['webstorm', 'jetbrains-terminal', 'webstorm-cli-open', 'terminal-command'],
+  ['claude-code', 'claude-terminal', 'absolute-path-copy', 'absolute-copy'],
+  ['codex-cli', 'terminal', 'absolute-path-copy', 'absolute-copy']
+]) {
+  const decision = createHostLinkCapabilityDecisionV2({
+    hostSurface,
+    presentationSurface,
+    evidenceState: 'verified',
+    targetRelation: 'workspace',
+    evidenceRefs: [`host-contract:${hostSurface}`]
+  })
+  if (!decision.validation.valid || decision.rendererId !== rendererId || decision.openMode !== openMode) {
+    failures.push(`${hostSurface}/${presentationSurface} renderer mismatch: ${JSON.stringify(decision)}`)
+  }
+}
+
+const unknownHostLink = createHostLinkCapabilityDecisionV2({
+  hostSurface: 'unknown', presentationSurface: 'unknown', evidenceState: 'unverified', targetRelation: 'workspace'
+})
+if (unknownHostLink.openMode !== 'absolute-copy' || !unknownHostLink.absolutePathFallback) {
+  failures.push(`unknown host did not degrade to absolute copy: ${JSON.stringify(unknownHostLink)}`)
 }
 
 if (failures.length) {

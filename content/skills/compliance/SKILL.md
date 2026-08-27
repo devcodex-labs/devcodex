@@ -48,7 +48,8 @@ dev 模式 PC4 至少输出：
 > ⛔ 宣称完成却只有“全绿/详见报告” → `DevModeCompletionCheckDetailGate` 未通过。
 > ⛔ 未宣称完成时 **不得** 为过 Stop 而硬贴长完成检查（Stop 以 `workDoneClaimed` 为准）。
 > ℹ️ 六宿主同源：`user-visible-output-contract` · UserVisibleReplyLayoutV1 + UserVisibleNoisePolicyV1。
-> ⚠️ **FC5 填写规则**：触发 `user-visible-output-contract`。`ArtifactDeliveryManifestV1` 必须 planned=observed=internalDelivered，`UserFacingArtifactSetV1` 必须 required hidden=0 且 `listed+remaining=total`；session/daily/SUMMARY/task/checkpoint/raw ledger 默认 internal-only 但仍参与 ECR。链接按 `LinkCapabilityDecisionV1` 输出；Rich clickable 不重复绝对路径。Hook 未观察 payload 时只能 `unverified`，legacy 格式最多 `unverified-legacy`。
+> ⚠️ **FC5 填写规则**：触发 `user-visible-output-contract`。`ArtifactDeliveryManifestV1` 必须 planned=observed=internalDelivered，`UserFacingArtifactSetV1` 必须 required hidden=0 且 `listed+remaining=total`；session/daily/SUMMARY/task/checkpoint/raw ledger 默认 internal-only 但仍参与 ECR。持久化投影使用 `LinkCapabilityDecisionV1`，用户面使用 `HostLinkCapabilityDecisionV2`；Rich clickable 不重复绝对路径。Hook 未观察 payload 时只能 `unverified`，legacy 格式最多 `unverified-legacy`。
+> ⚠️ **HostPermissionAuthorityInvariant**：`PreToolUse/PermissionRequest` 的文件、命令、删除和工具操作权限仅由宿主决定。DevCodex 可以记录 advisory/workflow-invalid，但输出及宿主 adapter 不得含 `allow/deny/ask/block/continue:false` 操作权限载荷；负向测试必须覆盖六宿主遗留载荷剥离。
 > ℹ️ prod 模式不执行合规检查，不输出状态块。
 > ℹ️ chat 工作流豁免此输出。
 
@@ -167,7 +168,7 @@ chat / 纯确认短答：TTFV 可 `N/A + skipReason=chat-or-ack`。
 | FC2 | 报告文件已写入（chat 豁免） |
 | FC3 | CP 按序执行（dev/fix；其他 N/A） |
 | FC4 | 文件名/路径合规（`NN--` 双横杠开头） |
-| FC5 | `ArtifactDeliveryManifestV1` 完整对账；`UserFacingArtifactSetV1` required hidden=0、计数守恒；semantic name/action/order 与 `LinkCapabilityDecisionV1` capability renderer 有效 |
+| FC5 | `ArtifactDeliveryManifestV1` 完整对账；`UserFacingArtifactSetV1` required hidden=0、计数守恒；semantic name/action/order、`LinkCapabilityDecisionV1` 持久化投影与 `HostLinkCapabilityDecisionV2` 用户面 renderer 有效 |
 | FC6 | 新增 DevCodex 规范资产 `.md` 行数检查（instructions / skills / prompts / templates / 规范源等超 500 行须按 [C13](../../instructions/01-common.instructions.md) 拆分；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分） |
 | FC7 | 用户决策选项与报告决策点必带推荐 + 理由：所有 AskUserQuestion / 多选项呈现 / CP 选项 / 方案对比 / analyze-audit 报告决策点必须有且仅有 1 个推荐项，推荐项置首且说明推荐理由；**完成态「下一步/后续建议」适用 UniqueNextStepRecommendationGate**（禁止「或」并列双主动作）；无后续动作时写明 `推荐：无后续动作` |
 

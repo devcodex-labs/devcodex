@@ -64,15 +64,9 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
   function decorateHookOutput(output, meta = {}) {
     if (!meta || !Object.keys(meta).length) return output
     const next = { ...output }
-    const hasPermissionCarrier = next?.hookSpecificOutput &&
-      Object.prototype.hasOwnProperty.call(next.hookSpecificOutput, 'permissionDecision')
-    const target = hasPermissionCarrier
-      ? { ...next.hookSpecificOutput }
-      : next
     for (const [key, value] of Object.entries(meta)) {
-      if (value !== undefined && value !== null && value !== '') target[key] = value
+      if (value !== undefined && value !== null && value !== '') next[key] = value
     }
-    if (hasPermissionCarrier) next.hookSpecificOutput = target
     return next
   }
 
@@ -80,36 +74,44 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
     return String(eventName || '').trim().toLowerCase().replace(/[^a-z]/g, '')
   }
 
-  function toolBlockOutput(eventName, reason, detail) {
+  function isOperationPermissionEvent(eventName) {
+    return ['pretooluse', 'permissionrequest'].includes(normalizeHookEvent(eventName))
+  }
+
+  function operationAdvisoryOutput(eventName, reason, detail) {
+    const message = `DevCodex advisory: ${reason}${detail ? ` — ${detail}` : ''}`
     return {
       continue: true,
-      systemMessage: `DevCodex hook: ${reason}`,
+      systemMessage: message,
       hookSpecificOutput: {
         hookEventName: eventName || 'PreToolUse',
-        permissionDecision: 'deny',
-        permissionDecisionReason: reason,
         additionalContext: detail || reason
       }
     }
   }
 
+  function toolAdvisoryOutput(eventName, reason, detail) {
+    return operationAdvisoryOutput(eventName, reason, detail)
+  }
+
   function blockOutput(platform, eventName, reason, detail) {
     const event = normalizeHookEvent(eventName)
     const message = detail || reason
+    // Operation permission is exclusively owned by the active host. DevCodex may
+    // report workflow-invalid or risk advisory state, but never allow/deny a tool.
+    if (isOperationPermissionEvent(eventName)) {
+      return operationAdvisoryOutput(eventName, reason, detail)
+    }
     if (platform === 'codex') {
-      if (['pretooluse', 'permissionrequest'].includes(event)) {
-        return toolBlockOutput(eventName, reason, detail)
-      }
       if (['precompact', 'postcompact'].includes(event)) {
         return { continue: false, suppressOutput: false, stopReason: message }
       }
       if (['userpromptsubmit', 'stop', 'subagentstop', 'agentstop'].includes(event)) {
         return { decision: 'block', reason: message }
       }
-      return toolBlockOutput(eventName, reason, detail)
+      return toolAdvisoryOutput(eventName, reason, detail)
     }
     if (platform === 'claude') {
-      if (event === 'pretooluse') return toolBlockOutput(eventName, reason, detail)
       return { decision: 'block', reason: message }
     }
     if (platform === 'gemini') {
@@ -117,14 +119,10 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
       return { decision: 'deny', reason: message }
     }
     if (platform === 'copilot') {
-      if (event === 'pretooluse') return toolBlockOutput(eventName, reason, detail)
       if (['stop', 'agentstop', 'subagentstop'].includes(event)) return { decision: 'block', reason: message }
       return { continue: true, systemMessage: message }
     }
     if (platform === 'grok') {
-      if (event === 'pretooluse' || event === 'permissionrequest') {
-        return { decision: 'deny', reason: message }
-      }
       // Official Grok Stop Decision Control: decision:block + reason fed back to the model.
       if (['stop', 'subagentstop', 'agentstop'].includes(event)) {
         return { decision: 'block', reason: message }
@@ -132,9 +130,6 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
       return { continue: true, systemMessage: message }
     }
     if (platform === 'cursor') {
-      if (event === 'pretooluse' || event === 'permissionrequest') {
-        return toolBlockOutput(eventName, reason, detail)
-      }
       if (event === 'userpromptsubmit') {
         return { decision: 'block', reason: message }
       }
@@ -143,7 +138,7 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
       }
       return { continue: true, systemMessage: message }
     }
-    return toolBlockOutput(eventName, reason, detail)
+    return toolAdvisoryOutput(eventName, reason, detail)
   }
 
   function systemMessageOutput(message) {
@@ -173,6 +168,7 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
 
   function eventSupportsHardBlock(platform, eventName) {
     const event = normalizeHookEvent(eventName)
+    if (isOperationPermissionEvent(eventName)) return false
     if (platform === 'jetbrains-copilot' || platform === 'vscode-copilot') return false
     if (platform === 'claude') {
       return ['pretooluse', 'userpromptsubmit', 'posttooluse', 'stop', 'subagentstop', 'agentstop', 'precompact', 'configchange'].includes(event)
@@ -184,7 +180,8 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
     if (platform === 'copilot') {
       return ['pretooluse', 'stop', 'agentstop', 'subagentstop'].includes(event)
     }
-    // Grok Build: PreToolUse deny + Stop/SubagentStop block (official Stop Decision Control).
+    // Grok Build: operation permission stays host-owned; Stop/SubagentStop may
+    // still use official Stop Decision Control for lifecycle completion.
     // UserPromptSubmit remains non-hard for inject; UPS inject still not claimed.
     if (platform === 'grok') {
       return ['pretooluse', 'permissionrequest', 'stop', 'subagentstop', 'agentstop'].includes(event)
@@ -206,6 +203,7 @@ function buildLifecycleHookOutput({ env, enforcementMode }) {
     formatProgressiveSkillRouteRecoveryCard,
     warningOutput,
     eventSupportsHardBlock,
+    isOperationPermissionEvent,
     normalizeHookEvent
   }
 }

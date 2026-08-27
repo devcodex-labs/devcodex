@@ -148,7 +148,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 用户可见文件交付统一由 `skills/user-visible-output-contract/SKILL.md` 管理。执行链固定为：
 
-`ArtifactDeliveryManifestV1（内部完整）→ UserFacingArtifactSetV1（用户最小必要）→ FinalValidationSummaryV1（dev/fix/self-fix 完成态验证摘要）→ PostCompletionActionSetV1（真实且有授权边界的后续动作）→ DevCodexVisibleEnvelopeV2 → LinkCapabilityDecisionV1 renderer`。V1 仅允许一个兼容窗口的只读解析，新生产者不得写入。
+`ArtifactDeliveryManifestV1（内部完整）→ UserFacingArtifactSetV1（用户最小必要）→ FinalValidationSummaryV1（dev/fix/self-fix 完成态验证摘要）→ PostCompletionActionSetV1（真实且有授权边界的后续动作）→ DevCodexVisibleEnvelopeV2 → HostLinkCapabilityDecisionV2 renderer`。`LinkCapabilityDecisionV1` 继续供持久化记忆/产物相对链接投影和兼容读取使用，不得被宿主展示面的 V2 反向替换。
 
 ### 内部完整与用户可见分层
 
@@ -175,7 +175,16 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 ### LinkCapabilityDecision 客户端兼容矩阵
 
-能力必须按当前 surface 的可验证证据选择，禁止只按宿主名称硬编码：
+能力必须按 `hostSurface + presentationSurface + rendererId + evidenceState` 的可验证证据选择，禁止只按宿主名称推定可点击。`HostLinkCapabilityDecisionV2` 用于用户可见最终回复；同一逻辑宿主的 Desktop、CLI、IDE 面必须分别判定：
+
+| hostSurface / presentationSurface | 首选 renderer | 未验证或失败时 |
+|---|---|---|
+| Codex Desktop / desktop panel | `codex-native-file-panel`（native action） | 绝对路径 copy |
+| VS Code + Codex / terminal | `vscode-cli-goto`（`code --goto`） | 绝对路径 copy |
+| Zed / terminal | `zed-cli-open` | 绝对路径 copy |
+| WebStorm / JetBrains terminal | `webstorm-cli-open` | 绝对路径 copy |
+| Codex CLI、Claude Code / terminal | `absolute-path-copy` | 绝对路径 copy |
+| unknown / unknown | `unavailable-renderer` | 绝对路径 copy 或 unavailable + reason |
 
 | capability mode | 主表示 | 路径列（强制） | 绝对路径 fallback | 证据边界 |
 |---|---|---|---|---|
@@ -213,7 +222,7 @@ Portable 示例保持同一语义项，链接 target 与路径列均为工作区
 - [最终执行与验证报告](.devcodex/devcodex/reports/requirements/codex/20260719/12--最终执行报告.md) — 汇总完成范围、验证结果和残余风险；路径：`.devcodex/devcodex/reports/requirements/codex/20260719/12--最终执行报告.md`；操作：查看结论
 ```
 
-Portable/Plain 在同一 semanticDigest 下只改变链接形式，不改变文件集合、顺序、状态、动作或路径列语义。legacy “主要产物 + 绝对路径”文本最多识别为 `unverified-legacy`，不能作为 verified delivery receipt。当且仅当 fallback 激活时，可追加 `绝对路径：E:/...` 并记录 reason。
+Portable/Plain 在同一 semanticDigest 下只改变链接形式，不改变文件集合、顺序、状态、动作或路径列语义。V2 的 `hostSurface / presentationSurface / rendererId / openMode` 属于宿主展示语义并进入 V2 semantic core。legacy “主要产物 + 绝对路径”文本最多识别为 `unverified-legacy`，不能作为 verified delivery receipt。当且仅当 fallback 激活时，可追加 `绝对路径：E:/...` 并记录 reason。
 ### MCP profile fallback
 
 若 Copilot / Codex 等非 Claude Code 宿主调用 `profile_load`、`profile_get_mode` 或其他 DevCodex MCP 工具时出现 `TypeError: Cannot read properties of undefined (reading 'invoke')`、工具桥接不可用、MCP server 未连接等错误，视为**宿主 MCP bridge 失败**，不得反复重试同一 MCP 调用。AI 必须立即降级：

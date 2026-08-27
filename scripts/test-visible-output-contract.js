@@ -14,6 +14,7 @@ const {
   buildSimpleGovernanceFastPathDecision,
   classifyArtifactPathColumnSample,
   createLinkCapabilityDecision,
+  createHostLinkCapabilityDecisionV2,
   createLegacyVisibleEnvelopeV1,
   createPostCompletionActionSet,
   createVisibleEnvelope,
@@ -232,6 +233,39 @@ assert.strictEqual(createLinkCapabilityDecision({
   supportsMarkdown: true, workspaceRoot: WORKSPACE, targetRelation: 'workspace'
 }).validation.valid, false)
 
+const hostLinkMatrix = [
+  ['codex-desktop', 'codex-desktop-panel', 'codex-native-file-panel', 'native-action'],
+  ['vscode-codex', 'vscode-terminal', 'vscode-cli-goto', 'terminal-command'],
+  ['zed', 'zed-terminal', 'zed-cli-open', 'terminal-command'],
+  ['webstorm', 'jetbrains-terminal', 'webstorm-cli-open', 'terminal-command'],
+  ['claude-code', 'claude-terminal', 'absolute-path-copy', 'absolute-copy'],
+  ['codex-cli', 'terminal', 'absolute-path-copy', 'absolute-copy']
+]
+for (const [hostSurface, presentationSurface, rendererId, openMode] of hostLinkMatrix) {
+  const decision = createHostLinkCapabilityDecisionV2({
+    hostSurface,
+    presentationSurface,
+    evidenceState: 'verified',
+    workspaceRoot: WORKSPACE,
+    targetRelation: 'workspace',
+    evidenceRefs: [`direct-renderer-probe:${hostSurface}`]
+  })
+  assert.strictEqual(decision.validation.valid, true, JSON.stringify(decision))
+  assert.strictEqual(decision.rendererId, rendererId)
+  assert.strictEqual(decision.openMode, openMode)
+}
+const unknownHostLink = createHostLinkCapabilityDecisionV2({
+  hostSurface: 'unknown', presentationSurface: 'unknown', evidenceState: 'unverified',
+  workspaceRoot: WORKSPACE, targetRelation: 'workspace'
+})
+assert.strictEqual(unknownHostLink.openMode, 'absolute-copy')
+assert.strictEqual(unknownHostLink.absolutePathFallback, true)
+assert.strictEqual(unknownHostLink.fallbackReason, 'renderer-unverified')
+assert.strictEqual(createHostLinkCapabilityDecisionV2({
+  hostSurface: 'codex-desktop', presentationSurface: 'codex-desktop-panel', evidenceState: 'verified',
+  workspaceRoot: WORKSPACE, targetRelation: 'workspace'
+}).validation.valid, false)
+
 const entrySet = projectUserFacingArtifactSet(deliveryManifest, { messageKind: 'entry-check' })
 
 const postCompletionActions = createPostCompletionActionSet({
@@ -273,6 +307,30 @@ assert.strictEqual(envelope.validation.valid, true)
 assert.strictEqual(envelope.schemaVersion, 'DevCodexVisibleEnvelopeV2')
 assert.strictEqual(envelope.status, 'WARN')
 assert.match(envelope.semanticDigest, /^[a-f0-9]{64}$/)
+const codexDesktopLink = createHostLinkCapabilityDecisionV2({
+  hostSurface: 'codex-app', presentationSurface: 'codex-desktop-panel', evidenceState: 'verified',
+  workspaceRoot: WORKSPACE, targetRelation: 'workspace', evidenceRefs: ['direct-native-action-probe']
+})
+const codexDesktopEnvelope = createVisibleEnvelope({
+  ...baseInput,
+  context: { ...baseInput.context, hostSurface: 'codex-app' },
+  linkCapability: codexDesktopLink
+})
+assert.strictEqual(codexDesktopEnvelope.validation.valid, true)
+assert.match(renderVisibleEnvelope(codexDesktopEnvelope, { tier: 'rich-markdown' }), /Codex 文件面板打开/)
+const vscodeLink = createHostLinkCapabilityDecisionV2({
+  hostSurface: 'vscode-codex', presentationSurface: 'vscode-terminal', evidenceState: 'verified',
+  workspaceRoot: WORKSPACE, targetRelation: 'workspace', evidenceRefs: ['direct-vscode-cli-probe']
+})
+const vscodeEnvelope = createVisibleEnvelope({
+  ...baseInput,
+  context: { ...baseInput.context, hostSurface: 'vscode-codex' },
+  linkCapability: vscodeLink
+})
+assert.strictEqual(vscodeEnvelope.validation.valid, true)
+assert.match(renderVisibleEnvelope(vscodeEnvelope, { tier: 'rich-markdown' }), /code --goto/)
+const tamperedHostLink = { ...codexDesktopLink, unexpectedSibling: true }
+assert.strictEqual(createVisibleEnvelope({ ...baseInput, linkCapability: tamperedHostLink }).validation.valid, false)
 const localizedEnvelope = createVisibleEnvelope({ ...baseInput, checks: checks('（另一种本地化）') })
 assert.strictEqual(localizedEnvelope.semanticDigest, envelope.semanticDigest)
 const portablePresentation = createVisibleEnvelope({
@@ -730,6 +788,7 @@ for (const definition of [
   'ArtifactAnchorProjectionV1',
   'UserFacingArtifactSetV1',
   'LinkCapabilityDecisionV1',
+  'HostLinkCapabilityDecisionV2',
   'FinalValidationSummaryV1',
   'PostCompletionActionSetV1',
   'DevCodexVisibleEnvelopeV1',
@@ -739,6 +798,7 @@ for (const definition of [
   assert.strictEqual(schema.$defs[definition].additionalProperties, false, `${definition} must reject sibling fields`)
 }
 assert.ok(schema.$defs.LinkCapabilityDecisionV1.required.includes('evidenceRefs'))
+assert.ok(schema.$defs.HostLinkCapabilityDecisionV2.required.includes('presentationSurface'))
 assert.strictEqual(schema.$defs.ArtifactDeliveryManifestV1.properties.generatedAt.format, 'date-time')
 assert.strictEqual(schema.$defs.ArtifactAnchorV1.properties.generatedAt.format, 'date-time')
 assert.match(schema.$defs.ArtifactAnchorProjectionV1.properties.projectionDigest.pattern, /artifact-anchor-projection/)

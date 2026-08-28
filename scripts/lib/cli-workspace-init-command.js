@@ -38,7 +38,9 @@ function buildWorkspaceInitCommand(ctx) {
       try {
         const existingLayout = typeof findLayoutInfo === 'function' ? findLayoutInfo(cwd) : null
         const workspaceRoot = existingLayout?.enabled ? existingLayout.workspaceRoot : cwd
-        profileTarget = resolveWorkspaceProjectTarget(workspaceRoot, parsed.profileTarget)
+        profileTarget = resolveWorkspaceProjectTarget(workspaceRoot, parsed.profileTarget, {
+          allowExistingDirectory: true
+        })
       } catch (error) {
         return initArgumentFailure(
           refresh ? 'update' : 'init',

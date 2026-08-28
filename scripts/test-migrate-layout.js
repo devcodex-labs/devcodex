@@ -68,8 +68,8 @@ function main() {
   assert.ok(fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'workspace', '.memory', 'SUMMARY.md')))
   assert.ok(!fs.existsSync(path.join(TEMP_ROOT, 'chat', '.devcodex')))
   assert.ok(!fs.existsSync(path.join(TEMP_ROOT, 'admin', '.devcodex')))
-  assert.strictEqual(inferProjectFromCwd(path.join(TEMP_ROOT, 'chat')), '')
-  assert.strictEqual(resolveActiveRuntimeRoot(path.join(TEMP_ROOT, 'chat')), path.join(TEMP_ROOT, '.devcodex', 'workspace'))
+  assert.strictEqual(inferProjectFromCwd(path.join(TEMP_ROOT, 'chat')), 'chat')
+  assert.strictEqual(resolveActiveRuntimeRoot(path.join(TEMP_ROOT, 'chat')), path.join(TEMP_ROOT, '.devcodex', 'chat'))
   assert.strictEqual(resolveActiveRuntimeRoot(TEMP_ROOT), path.join(TEMP_ROOT, '.devcodex', 'workspace'))
   assert.strictEqual(resolveGitignoreRoot(path.join(TEMP_ROOT, 'chat')), TEMP_ROOT)
 

@@ -195,12 +195,16 @@ function buildLifecycleProjectTargetUtils({
     return process.platform === 'win32' ? resolved.toLocaleLowerCase('en-US') : resolved
   }
 
-  function readPhysicalMarkerIdentity(projectRoot) {
-    const markerName = (PROJECT_ROOT_MARKERS || []).find(name => fs.existsSync(path.join(projectRoot, name)))
-    if (!markerName) return null
-    const markerPath = path.join(projectRoot, markerName)
+  function readPhysicalMarkerIdentity(projectRoot, runtimeRoot) {
+    let markerName = (PROJECT_ROOT_MARKERS || []).find(name => fs.existsSync(path.join(projectRoot, name)))
+    let markerPath = markerName ? path.join(projectRoot, markerName) : ''
+    if (!markerName) {
+      markerName = 'canonical-profile'
+      markerPath = path.join(runtimeRoot, 'profile')
+    }
     let stat
     try { stat = fs.statSync(markerPath) } catch { return null }
+    if (markerName === 'canonical-profile' && !stat.isDirectory()) return null
     return {
       markerName,
       markerPath: normalizedIdentityPath(markerPath),
@@ -242,7 +246,7 @@ function buildLifecycleProjectTargetUtils({
         runtimeRoot: path.join(physicalRoot, '.devcodex')
       }
     }
-    const physicalMarker = readPhysicalMarkerIdentity(resolved.projectRoot)
+    const physicalMarker = readPhysicalMarkerIdentity(resolved.projectRoot, resolved.runtimeRoot)
     if (!physicalMarker) return null
     const layoutIdentity = currentLayoutIdentity()
     const physicalRoot = path.resolve(resolved.projectRoot)

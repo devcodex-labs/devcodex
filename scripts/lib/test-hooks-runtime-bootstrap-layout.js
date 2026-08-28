@@ -1565,6 +1565,34 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.strictEqual(missingProfileBinding.status, 'profile-missing')
   assert.strictEqual(missingProfileBinding.error.code, 'PROFILE_MISSING')
 
+  const profileBackedRoot = path.join(TEMP_ROOT, 'blank')
+  fs.mkdirSync(profileBackedRoot, { recursive: true })
+  fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'blank', 'profile'), { recursive: true })
+  fs.writeFileSync(
+    path.join(TEMP_ROOT, '.devcodex', 'blank', 'profile', 'config.json'),
+    JSON.stringify({ mode: 'dev', agent: TEST_AGENT })
+  )
+  const profileBackedBinding = resolveHostWorkspaceBinding({
+    cwd: profileBackedRoot,
+    layout: bindingLayout,
+    requireProfile: true,
+    allowUniqueProject: false
+  })
+  assert.strictEqual(profileBackedBinding.status, 'resolved')
+  assert.strictEqual(profileBackedBinding.projectNamespace, 'blank')
+  assert.strictEqual(profileBackedBinding.source, 'bridge-cwd')
+
+  const profileBackedLifecycle = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'profile-backed-empty-session',
+    prompt: '检查 blank 项目'
+  })
+  assert.strictEqual(profileBackedLifecycle.continue, true)
+  const profileBackedState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(profileBackedState.activeProject, 'blank')
+  assert.strictEqual(profileBackedState.stickyProject.physicalMarker.markerName, 'canonical-profile')
+  assert.strictEqual(profileBackedState.stickyProject.physicalMarker.kind, 'directory')
+
   fs.mkdirSync(path.join(TEMP_ROOT, 'apps', 'app-a'), { recursive: true })
   fs.mkdirSync(path.join(TEMP_ROOT, 'services', 'app-a'), { recursive: true })
   fs.writeFileSync(path.join(TEMP_ROOT, 'apps', 'app-a', 'package.json'), '{}')

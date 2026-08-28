@@ -225,8 +225,21 @@ function hasProjectRootMarker(dir) {
   return PROJECT_ROOT_MARKERS.some(marker => fs.existsSync(path.join(dir, marker)))
 }
 
+function isDirectoryPath(targetPath) {
+  try { return fs.statSync(targetPath).isDirectory() } catch { return false }
+}
+
+function hasProvisionedProjectProfile(workspaceRoot, namespaceValue) {
+  return isDirectoryPath(path.join(namespaceRootPath(workspaceRoot, namespaceValue), 'profile'))
+}
+
+function hasWorkspaceProjectEvidence(workspaceRoot, namespaceValue, projectRoot) {
+  return hasProjectRootMarker(projectRoot) || hasProvisionedProjectProfile(workspaceRoot, namespaceValue)
+}
+
 /** Discover physical projects only; runtime history is a separate concern. */
-function collectActiveWorkspaceProjectNamespaces(workspaceRoot, { maxDepth = 4 } = {}) {
+function collectActiveWorkspaceProjectNamespaces(workspaceRoot, { maxDepth = 4, runtimeMaxDepth = 8 } = {}) {
+  const root = path.resolve(workspaceRoot)
   const namespaces = new Set()
 
   function scanWorkspaceDirs(root, relativeSegments = [], depth = maxDepth) {
@@ -256,7 +269,16 @@ function collectActiveWorkspaceProjectNamespaces(workspaceRoot, { maxDepth = 4 }
     }
   }
 
-  scanWorkspaceDirs(workspaceRoot)
+  scanWorkspaceDirs(root)
+  // A manually provisioned directory may intentionally have no conventional
+  // project marker. Rehydrate only canonical Profile namespaces whose physical
+  // directory still exists; do not broaden automatic discovery to every folder.
+  for (const namespace of collectWorkspaceRuntimeNamespaces(root, { maxDepth: runtimeMaxDepth })) {
+    const physical = resolvePhysicalNamespace(root, namespace)
+    if (physical && hasProvisionedProjectProfile(root, physical.namespace)) {
+      namespaces.add(physical.namespace)
+    }
+  }
   return [...namespaces].sort((left, right) => left.localeCompare(right))
 }
 
@@ -322,12 +344,25 @@ function resolveWorkspaceProjectTarget(workspaceRoot, requestedTarget, options =
   const layout = { enabled: true, workspaceRoot: root }
   const requested = normalizeProjectNamespace(requestedTarget, { layout, allowEmpty: false })
   const physical = resolvePhysicalNamespace(root, requested)
-  if (physical && hasProjectRootMarker(physical.projectRoot)) {
+  const allowExistingDirectory = options.allowExistingDirectory === true
+  if (physical && (
+    allowExistingDirectory ||
+    hasWorkspaceProjectEvidence(root, physical.namespace, physical.projectRoot)
+  )) {
     return {
       namespace: physical.namespace,
       projectRoot: physical.projectRoot,
       runtimeRoot: namespaceRootPath(root, physical.namespace),
       candidates: [physical.namespace]
+    }
+  }
+  if (allowExistingDirectory) {
+    const requestedPath = path.join(root, ...splitNamespace(requested))
+    if (fs.existsSync(requestedPath)) {
+      const error = new Error(`project target is not a supported workspace directory: ${requested}`)
+      error.code = 'PROFILE_TARGET_DIRECTORY_MISSING'
+      error.candidates = []
+      throw error
     }
   }
 
@@ -361,8 +396,8 @@ function resolveWorkspaceProjectTarget(workspaceRoot, requestedTarget, options =
     error.candidates = matches
     throw error
   }
-  if (!hasProjectRootMarker(projectRoot)) {
-    const error = new Error(`project target has no project marker: ${namespace}`)
+  if (!hasWorkspaceProjectEvidence(root, namespace, projectRoot)) {
+    const error = new Error(`project target has no project marker or canonical Profile: ${namespace}`)
     error.code = 'PROFILE_TARGET_NOT_FOUND'
     error.candidates = candidates
     throw error

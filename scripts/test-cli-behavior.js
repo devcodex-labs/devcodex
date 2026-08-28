@@ -21,6 +21,10 @@ const {
 const {
   commitTaskRecoveryState
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
+const {
+  collectActiveWorkspaceProjectNamespaces,
+  resolveWorkspaceProjectTarget
+} = require('../hooks/_runtime/workspace-layout.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 const CLI = path.join(ROOT, 'index.js')
@@ -596,6 +600,10 @@ function testInitBootstrapsWorkspaceProfileAndOneNamedProject() {
   const ambiguous = JSON.parse(runCliFailure(['init', '--profile', 'api', '--json'], ambiguousRoot))
   assert.strictEqual(ambiguous.errorCode, 'PROFILE_TARGET_AMBIGUOUS')
   assert.ok(!fs.existsSync(path.join(ambiguousRoot, '.devcodex')), 'ambiguous project target must not write runtime or Profile files')
+  fs.mkdirSync(path.join(ambiguousRoot, 'api'), { recursive: true })
+  const exact = JSON.parse(runCli(['init', '--profile', 'api', '--json'], ambiguousRoot))
+  assert.strictEqual(exact.payload.projectProfile.namespace, 'api', 'an exact existing directory must win over leaf aliases')
+  assert.deepStrictEqual(fs.readdirSync(path.join(ambiguousRoot, 'api')), [], 'init must not write inside the selected empty directory')
   fs.rmSync(ambiguousRoot, { recursive: true, force: true })
 }
 
@@ -604,6 +612,8 @@ function testExplicitProfileTargetsAndDryRunStayPhysicalAndZeroWrite() {
   writeFile(dryRunRoot, 'docs/package.json', '{ "name": "docs" }\n')
   writeFile(dryRunRoot, 'clients/acme/api/package.json', '{ "name": "deep-api" }\n')
   writeFile(dryRunRoot, 'dist/fake/package.json', '{ "name": "derived-fake" }\n')
+  fs.mkdirSync(path.join(dryRunRoot, 'empty'), { recursive: true })
+  writeFile(dryRunRoot, 'notes/context.txt', 'manual target without a project marker\n')
   const before = walk(dryRunRoot).map(file => path.relative(dryRunRoot, file)).sort()
   const dry = JSON.parse(runCli(['init', '--profile', 'docs', '--dry-run', '--json'], dryRunRoot))
   const after = walk(dryRunRoot).map(file => path.relative(dryRunRoot, file)).sort()
@@ -613,6 +623,18 @@ function testExplicitProfileTargetsAndDryRunStayPhysicalAndZeroWrite() {
   assert.ok(dry.payload.projectProfile.actions.every(item =>
     path.resolve(item.dest).startsWith(path.join(dryRunRoot, '.devcodex', 'docs', 'profile') + path.sep)
   ), 'targeted dry-run actions must use the future workspace namespace path')
+
+  const empty = JSON.parse(runCli(['init', '--profile', 'empty', '--json'], dryRunRoot))
+  assert.strictEqual(empty.payload.projectProfile.namespace, 'empty')
+  assert.deepStrictEqual(fs.readdirSync(path.join(dryRunRoot, 'empty')), [], 'empty project directory must remain untouched')
+  assert.ok(fs.existsSync(path.join(dryRunRoot, '.devcodex', 'empty', 'profile', 'README.md')))
+  assert.ok(collectActiveWorkspaceProjectNamespaces(dryRunRoot).includes('empty'), 'canonical Profile must keep an empty physical project discoverable')
+  assert.strictEqual(resolveWorkspaceProjectTarget(dryRunRoot, 'empty').namespace, 'empty')
+
+  const unmarked = JSON.parse(runCli(['init', '--profile', 'notes', '--json'], dryRunRoot))
+  assert.strictEqual(unmarked.payload.projectProfile.namespace, 'notes')
+  assert.strictEqual(fs.readFileSync(path.join(dryRunRoot, 'notes', 'context.txt'), 'utf8'), 'manual target without a project marker\n')
+  assert.ok(!fs.existsSync(path.join(dryRunRoot, 'notes', '.devcodex')), 'unmarked project directory must not receive legacy runtime files')
 
   const deep = JSON.parse(runCli(['init', '--profile', 'clients/acme/api', '--json'], dryRunRoot))
   assert.strictEqual(deep.payload.projectProfile.namespace, 'clients/acme/api')
@@ -633,7 +655,18 @@ function testExplicitProfileTargetsAndDryRunStayPhysicalAndZeroWrite() {
   assert.strictEqual(derived.errorCode, 'PROFILE_TARGET_NOT_FOUND')
   assert.deepStrictEqual(derived.details.candidates, [])
   assert.ok(!fs.existsSync(path.join(derivedRoot, '.devcodex')))
+  const exactDerived = JSON.parse(runCli(['init', '--profile', 'dist/fake', '--json'], derivedRoot))
+  assert.strictEqual(exactDerived.payload.projectProfile.namespace, 'dist/fake')
+  assert.ok(fs.existsSync(path.join(derivedRoot, '.devcodex', 'dist', 'fake', 'profile', 'README.md')))
+  assert.ok(collectActiveWorkspaceProjectNamespaces(derivedRoot).includes('dist/fake'), 'explicit derived namespace must remain discoverable after provisioning')
   fs.rmSync(derivedRoot, { recursive: true, force: true })
+
+  const nonDirectoryRoot = createTempRoot('devcodex-cli-non-directory-target-')
+  writeFile(nonDirectoryRoot, 'not-a-directory', 'file target\n')
+  const nonDirectory = JSON.parse(runCliFailure(['init', '--profile', 'not-a-directory', '--json'], nonDirectoryRoot))
+  assert.strictEqual(nonDirectory.errorCode, 'PROFILE_TARGET_DIRECTORY_MISSING')
+  assert.ok(!fs.existsSync(path.join(nonDirectoryRoot, '.devcodex')), 'a file target must fail without runtime writes')
+  fs.rmSync(nonDirectoryRoot, { recursive: true, force: true })
 
   const runtimeOnlyRoot = createTempRoot('devcodex-cli-runtime-only-target-')
   writeFile(runtimeOnlyRoot, '.devcodex/history/profile/README.md', '# historical runtime only\n')

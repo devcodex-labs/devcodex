@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 653,
     "consumerInventoryDigest": "f272deaebefea7478c5c7608985a03df6f2d4bb1b7f6072288a8714a9313bc6e",
-    "consumerProjectionDigest": "4206d07600a53eac14897a0ec66af0a63bd0a1e213e81428739fbd5f0a539607",
-    "portfolioInputDigest": "679bfee50df1f836505bb43f75e7df3adc80fc405d549f624539e77f0eeb472d"
+    "consumerProjectionDigest": "b62e01b248f1efda6aa51dfa1bf614d31bea16b7cc23ee6485c52e9f5b324aa9",
+    "portfolioInputDigest": "b9054e15cd2dc3bdcbd35456dc24da1ec81ada269149bb0339f884f876f0e59b"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -10701,6 +10701,10 @@
         },
         {
           "path": "hooks/_runtime/workflow-route-decision-v2.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workspace-layout.cjs",
           "role": "current"
         },
         {

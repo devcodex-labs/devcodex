@@ -168,7 +168,7 @@ const runtimeScenarioContext = {
   writeTranscriptEntries
 }
 
-function runR2BTaskOwnerLifecycleScenarios() {
+function runConfirmationPersistenceScenario() {
   process.env.CLAUDE_CODE_VERSION = process.env.CLAUDE_CODE_VERSION || 'r2b-test'
   cleanState({ mode: 'dev', agent: TEST_AGENT })
   const projectionSessionId = 'r2b-ingress-projection-session'
@@ -240,6 +240,51 @@ function runR2BTaskOwnerLifecycleScenarios() {
     firstPlanBinding.bindingDigest,
     're-observing the same plan must not change WorkflowRoutePlanBinding because receipt diagnostics were refreshed'
   )
+
+  fs.unlinkSync(STATE_FILE)
+  const recoveredReadToolUseId = 'r2b-confirmation-recovery-read'
+  run({
+    hookEventName: 'PreToolUse',
+    session_id: projectionSessionId,
+    tool_use_id: recoveredReadToolUseId,
+    tool_name: 'Read',
+    tool_input: { file_path: path.join(TEMP_ROOT, 'CLAUDE.md') }
+  })
+  const recoveredIngressState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(
+    recoveredIngressState.actualInstructionEnvelope.envelopeDigest,
+    replayRouteBoundState.actualInstructionEnvelope.envelopeDigest,
+    'a read-only event after projection loss must recover the confirmed instruction envelope without another user message'
+  )
+  assert.strictEqual(
+    recoveredIngressState.workItemSet.setDigest,
+    replayRouteBoundState.workItemSet.setDigest,
+    'a read-only event after projection loss must recover the exact work-item set'
+  )
+  assert.strictEqual(
+    recoveredIngressState.workflowRouteDecision.decisionDigest,
+    replayRouteBoundState.workflowRouteDecision.decisionDigest,
+    'a read-only event after projection loss must recover the selected route instead of asking for confirmation again'
+  )
+  assert.strictEqual(recoveredIngressState.workflowIngressRecovery?.authorityMode, 'exact')
+  run({
+    hookEventName: 'PostToolUse',
+    session_id: projectionSessionId,
+    tool_use_id: recoveredReadToolUseId,
+    tool_name: 'Read',
+    tool_input: { file_path: path.join(TEMP_ROOT, 'CLAUDE.md') },
+    tool_response: { content: [{ type: 'text', text: '# CLAUDE.md' }] },
+    success: true
+  })
+
+  return {
+    envelopeDigest: recoveredIngressState.actualInstructionEnvelope.envelopeDigest,
+    decisionDigest: recoveredIngressState.workflowRouteDecision.decisionDigest
+  }
+}
+
+function runR2BTaskOwnerLifecycleScenarios() {
+  runConfirmationPersistenceScenario()
 
   cleanState({ mode: 'dev', agent: TEST_AGENT })
   const sessionId = 'r2b-task-owner-session'
@@ -2002,7 +2047,20 @@ function main() {
   process.stdout.write('hooks runtime smoke test passed\n')
 }
 
-if (process.argv.includes('--r2b-task-owner') || process.argv.includes('--r3b-mutation')) {
+if (process.argv.includes('--confirmation-persistence')) {
+  const startedAt = Date.now()
+  try {
+    const receipt = runConfirmationPersistenceScenario()
+    const durationMs = Date.now() - startedAt
+    assert(
+      durationMs <= 30000,
+      `confirmation persistence fast path exceeded 30000 ms: ${durationMs} ms`
+    )
+    process.stdout.write(`confirmation persistence fast path passed in ${durationMs} ms (${receipt.decisionDigest})\n`)
+  } finally {
+    fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
+  }
+} else if (process.argv.includes('--r2b-task-owner') || process.argv.includes('--r3b-mutation')) {
   try {
     runR2BTaskOwnerLifecycleScenarios()
   } finally {

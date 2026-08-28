@@ -854,6 +854,8 @@ function buildWorkflowIngressContextMessage(state) {
   const planBinding = state.workflowRoutePlanBinding
   const resumeTarget = state.workflowResumeTargetDecision
   const error = state.workflowIngressError
+  const recovery = state.workflowIngressRecovery
+  const recoveryAuthority = recovery?.authorityMode !== 'identity-only'
   if (!envelope && !error) return ''
   return [
     '### DevCodex · WorkflowIngressV2',
@@ -862,19 +864,20 @@ function buildWorkflowIngressContextMessage(state) {
       envelopeId: envelope?.envelopeId || null,
       envelopeDigest: envelope?.envelopeDigest || null,
       provenanceLevel: envelope?.provenanceLevel || null,
-      instructionAuthority: envelope?.instructionAuthority === true,
+      instructionAuthority: envelope?.instructionAuthority === true && recoveryAuthority,
       nonInstructionSegments: envelope ? {
-        attachments: envelope.attachments.length,
-        quotedDocuments: envelope.quotedDocuments.length,
-        ambientState: envelope.ambientState.length,
-        evidenceSegments: envelope.evidenceSegments.length
+        attachments: Array.isArray(envelope.attachments) ? envelope.attachments.length : 0,
+        quotedDocuments: Array.isArray(envelope.quotedDocuments) ? envelope.quotedDocuments.length : 0,
+        ambientState: Array.isArray(envelope.ambientState) ? envelope.ambientState.length : 0,
+        evidenceSegments: Array.isArray(envelope.evidenceSegments) ? envelope.evidenceSegments.length : 0
       } : null,
       routeStatus: decision?.decisionStatus || (pending ? 'pending' : 'failed'),
       routeKey: decision?.routeKey || null,
       topIntent: decision?.topIntent || null,
       routeRevision: decision?.routeRevision || null,
       decisionDigest: decision?.decisionDigest || null,
-      admissionRef: envelope?.envelopeId && envelope?.envelopeDigest && decision?.decisionDigest && decision?.routeRevision
+      admissionRef: recoveryAuthority && envelope?.envelopeId && envelope?.envelopeDigest &&
+          decision?.decisionDigest && decision?.routeRevision
         ? {
             schemaVersion: 'WorkflowIngressProjectionRefV1',
             envelopeId: envelope.envelopeId,
@@ -889,7 +892,9 @@ function buildWorkflowIngressContextMessage(state) {
       resumeTargetDecisionDigest: resumeTarget?.decisionDigest || null,
       mutationAuthority: false,
       releaseAuthority: false,
-      errorCode: error?.errorCode || null
+      errorCode: recovery?.authorityMode === 'identity-only'
+        ? 'TASKLESS_INGRESS_RECOVERY_IDENTITY_ONLY'
+        : (error?.errorCode || null)
     }),
     decision
       ? 'Use the selected route identity; environmentMode is not a workflow and this receipt grants no mutation, validation or release authority.'

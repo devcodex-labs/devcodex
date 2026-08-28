@@ -2,7 +2,7 @@
   "_format": "DevCodex internal metadata — NOT a GitHub Copilot official format. Copilot reads .github/agents|skills|instructions|prompts directly.",
   "_note_skills": "Adding a new sub-type Skill (e.g. dev-<name> / fix-<name>) requires L1~L3 sync per audit-dimensions D5: (L1) routing/SKILL.md 路由表 (L2) 02-output-paths.instructions.md 产物目录 (L3) 对应 report 模板子类型字段. Skill name field must match directory name. See audit-dimensions D5 关键检查 for full rules.",
   "id": "devcodex",
-  "version": "1.19.2",
+  "version": "1.19.3",
   "name": "DevCodex",
   "publisher": "Rocky",
   "displayName": "DevCodex — Cross-host AI Coding Engineering Harness",

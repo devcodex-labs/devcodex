@@ -2,7 +2,7 @@
 applyTo: "**"
 description: self-fix 工作流规则，覆盖规范资产修复边界、自动级/Pending 级分流与文件数量限制
 priority: P4
-version: 1.19.2
+version: 1.19.3
 ---
 # 规范自修复规则（14-self-fix）
 

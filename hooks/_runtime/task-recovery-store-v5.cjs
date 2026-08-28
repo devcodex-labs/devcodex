@@ -21,6 +21,14 @@ const {
   isTransientWindowsFsError,
   retryTransientWindowsFs
 } = require('./windows-fs-retry.cjs')
+const {
+  validateActualInstructionEnvelope,
+  validateWorkItemSet
+} = require('./actual-instruction-envelope.cjs')
+const {
+  buildWorkflowRouteDecision,
+  verifyWorkflowRouteDecision
+} = require('./workflow-route-decision-v2.cjs')
 
 const TASK_RECOVERY_STATE_SCHEMA = 'TaskRecoveryStateV5'
 const TASK_RECOVERY_EPHEMERAL_SCHEMA = 'TaskRecoveryEphemeralRingV5'
@@ -35,6 +43,7 @@ const TASK_ADMISSION_TRANSACTION_SCHEMA = 'TaskAdmissionTransactionV1'
 const TASK_ADMISSION_RECONCILIATION_SCHEMA = 'TaskAdmissionReconciliationReceiptV1'
 const FENCED_TASK_WRITE_OWNER_SCHEMA = 'FencedTaskWriteOwnerLeaseV2'
 const WORKFLOW_TASK_TERMINAL_RECEIPT_SCHEMA = 'WorkflowTaskTerminalReceiptV1'
+const TASKLESS_WORKFLOW_INGRESS_RECOVERY_SCHEMA = 'TasklessWorkflowIngressRecoveryV1'
 const TASK_ADMISSION_PHASES = Object.freeze([
   'prepared',
   'identity-written',
@@ -60,7 +69,7 @@ const DEFAULT_RESERVE_BYTES = 8 * 1024 * 1024
 const DEFAULT_DISK_HEADROOM_BYTES = 8 * 1024 * 1024
 const DEFAULT_EPHEMERAL_BYTES = 1024 * 1024
 const EPHEMERAL_ENTRY_MAX_BYTES = 8 * 1024
-const EPHEMERAL_STUB_TARGET_BYTES = EPHEMERAL_ENTRY_MAX_BYTES - (2 * 1024)
+const EPHEMERAL_STUB_TARGET_BYTES = EPHEMERAL_ENTRY_MAX_BYTES - 1024
 const DEFAULT_COLD_AFTER_MS = 7 * 24 * 60 * 60 * 1000
 const DEFAULT_TERMINAL_GRACE_MS = 7 * 24 * 60 * 60 * 1000
 const DEFAULT_EPHEMERAL_TTL_MS = 24 * 60 * 60 * 1000
@@ -425,6 +434,221 @@ function readTaskSlots(paths, identity = null, fsImpl = fs) {
 function boundedRecoveryString(value, maxLength = 512) {
   const text = String(value || '')
   return text.length <= maxLength ? text : text.slice(0, maxLength)
+}
+
+function cloneRecoveryValue(value) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? JSON.parse(JSON.stringify(value))
+    : null
+}
+
+function tasklessWorkflowIngressRecoveryCore(state, authorityMode = 'exact') {
+  const envelope = state?.actualInstructionEnvelope
+  const workItemSet = state?.workItemSet
+  const decision = state?.workflowRouteDecision
+  const planBinding = state?.workflowRoutePlanBinding
+  const sticky = state?.stickyProject
+  if (!envelope?.envelopeId || !envelope?.envelopeDigest || !workItemSet?.setDigest ||
+      !decision?.decisionDigest || !decision?.routeRevision || !planBinding?.bindingDigest ||
+      !sticky?.leaseDigest) return null
+  return {
+    schemaVersion: TASKLESS_WORKFLOW_INGRESS_RECOVERY_SCHEMA,
+    authorityMode,
+    envelopeId: boundedRecoveryString(envelope.envelopeId, 128),
+    envelopeDigest: boundedRecoveryString(envelope.envelopeDigest, 64),
+    workItemSetDigest: boundedRecoveryString(workItemSet.setDigest, 64),
+    decisionDigest: boundedRecoveryString(decision.decisionDigest, 64),
+    planBindingDigest: boundedRecoveryString(planBinding.bindingDigest, 64),
+    projectLeaseDigest: boundedRecoveryString(sticky.leaseDigest, 64),
+    contextEpoch: boundedRecoveryString(envelope.contextEpoch, 256),
+    routeRevision: boundedRecoveryString(decision.routeRevision, 64),
+    expiresAt: boundedRecoveryString(envelope.expiresAt, 64)
+  }
+}
+
+function buildTasklessWorkflowIngressRecovery(state, authorityMode = 'exact') {
+  const core = tasklessWorkflowIngressRecoveryCore(state, authorityMode)
+  return core ? { ...core, recoveryDigest: digestValue(core) } : null
+}
+
+function compactInstructionEnvelopeIdentity(envelope) {
+  if (!envelope || typeof envelope !== 'object') return null
+  return {
+    schemaVersion: boundedRecoveryString(envelope.schemaVersion, 64),
+    envelopeId: boundedRecoveryString(envelope.envelopeId, 128),
+    envelopeDigest: boundedRecoveryString(envelope.envelopeDigest, 64),
+    actualInstructionDigest: boundedRecoveryString(envelope.actualInstructionDigest, 64),
+    contextEpoch: boundedRecoveryString(envelope.contextEpoch, 256),
+    provenanceLevel: boundedRecoveryString(envelope.provenanceLevel, 64),
+    instructionAuthority: envelope.instructionAuthority === true,
+    expiresAt: boundedRecoveryString(envelope.expiresAt, 64)
+  }
+}
+
+function compactWorkItemSetIdentity(workItemSet) {
+  if (!workItemSet || typeof workItemSet !== 'object') return null
+  return {
+    schemaVersion: boundedRecoveryString(workItemSet.schemaVersion, 64),
+    envelopeId: boundedRecoveryString(workItemSet.envelopeId, 128),
+    envelopeDigest: boundedRecoveryString(workItemSet.envelopeDigest, 64),
+    setDigest: boundedRecoveryString(workItemSet.setDigest, 64),
+    items: Array.isArray(workItemSet.items)
+      ? workItemSet.items.slice(0, 32).map(item => ({
+          workItemId: boundedRecoveryString(item?.workItemId, 128),
+          workItemDigest: boundedRecoveryString(item?.workItemDigest, 64),
+          taskKind: boundedRecoveryString(item?.taskKind, 64),
+          routeCandidate: item?.routeCandidate == null ? null : boundedRecoveryString(item.routeCandidate, 128)
+        }))
+      : []
+  }
+}
+
+function compactWorkflowRouteIdentity(decision) {
+  if (!decision || typeof decision !== 'object') return null
+  return {
+    projectionKind: 'taskless-recovery-identity',
+    schemaVersion: boundedRecoveryString(decision.schemaVersion, 64),
+    decisionStatus: boundedRecoveryString(decision.decisionStatus, 32),
+    environmentMode: boundedRecoveryString(decision.environmentMode, 32),
+    topIntent: boundedRecoveryString(decision.topIntent, 32),
+    subtype: boundedRecoveryString(decision.subtype, 64),
+    routeKey: boundedRecoveryString(decision.routeKey, 96),
+    stage: boundedRecoveryString(decision.stage, 96),
+    routeRevision: boundedRecoveryString(decision.routeRevision, 64),
+    routeRegistryDigest: boundedRecoveryString(decision.routeRegistryDigest, 64),
+    envelopeId: boundedRecoveryString(decision.envelopeId, 128),
+    envelopeDigest: boundedRecoveryString(decision.envelopeDigest, 64),
+    workItemId: boundedRecoveryString(decision.workItemId, 128) || null,
+    workItemDigest: boundedRecoveryString(decision.workItemDigest, 64) || null,
+    provenanceLevel: boundedRecoveryString(decision.provenanceLevel, 64),
+    authorityScope: boundedRecoveryString(decision.authorityScope, 64),
+    decisionDigest: boundedRecoveryString(decision.decisionDigest, 64),
+    mutationAuthority: false,
+    releaseAuthority: false
+  }
+}
+
+function compactWorkflowRoutePlanBindingIdentity(binding) {
+  if (!binding || typeof binding !== 'object') return null
+  return {
+    projectionKind: 'taskless-recovery-identity',
+    schemaVersion: boundedRecoveryString(binding.schemaVersion, 64),
+    contextEpoch: boundedRecoveryString(binding.contextEpoch, 256),
+    planId: boundedRecoveryString(binding.planId, 256),
+    planContentId: boundedRecoveryString(binding.planContentId, 256),
+    routeKey: boundedRecoveryString(binding.routeKey, 96),
+    routeRevision: boundedRecoveryString(binding.routeRevision, 64),
+    decisionDigest: boundedRecoveryString(binding.decisionDigest, 64),
+    bindingDigest: boundedRecoveryString(binding.bindingDigest, 64)
+  }
+}
+
+function validateTasklessWorkflowIngressRecovery(state, options = {}) {
+  const recovery = state?.workflowIngressRecovery
+  if (!recovery) return { valid: true, status: 'legacy-unverified' }
+  if (recovery.schemaVersion !== TASKLESS_WORKFLOW_INGRESS_RECOVERY_SCHEMA ||
+      !['exact', 'identity-only'].includes(recovery.authorityMode)) {
+    return { valid: false, errorCode: 'TASKLESS_INGRESS_RECOVERY_SCHEMA_INVALID' }
+  }
+  const { recoveryDigest, ...core } = recovery
+  if (!/^[a-f0-9]{64}$/.test(String(recoveryDigest || '')) || recoveryDigest !== digestValue(core)) {
+    return { valid: false, errorCode: 'TASKLESS_INGRESS_RECOVERY_DIGEST_MISMATCH' }
+  }
+  const envelope = state.actualInstructionEnvelope || {}
+  const workItemSet = state.workItemSet || {}
+  let decision = state.workflowRouteDecision || {}
+  const planBinding = state.workflowRoutePlanBinding || {}
+  const sticky = state.stickyProject || {}
+  const exactBindings = [
+    [recovery.envelopeId, envelope.envelopeId],
+    [recovery.envelopeDigest, envelope.envelopeDigest],
+    [recovery.workItemSetDigest, workItemSet.setDigest],
+    [recovery.decisionDigest, decision.decisionDigest],
+    [recovery.planBindingDigest, planBinding.bindingDigest],
+    [recovery.projectLeaseDigest, sticky.leaseDigest],
+    [recovery.contextEpoch, envelope.contextEpoch],
+    [recovery.routeRevision, decision.routeRevision]
+  ]
+  if (exactBindings.some(([expected, observed]) => !expected || expected !== observed) ||
+      workItemSet.envelopeId !== envelope.envelopeId || workItemSet.envelopeDigest !== envelope.envelopeDigest ||
+      decision.envelopeId !== envelope.envelopeId || decision.envelopeDigest !== envelope.envelopeDigest ||
+      planBinding.contextEpoch !== envelope.contextEpoch || planBinding.routeRevision !== decision.routeRevision ||
+      planBinding.decisionDigest !== decision.decisionDigest || sticky.contextEpoch !== envelope.contextEpoch ||
+      sticky.routeRevision !== decision.routeRevision || sticky.project !== state.activeProject) {
+    return { valid: false, errorCode: 'TASKLESS_INGRESS_RECOVERY_BINDING_MISMATCH' }
+  }
+  const nowMs = nowMsFrom(options)
+  const expiresAtMs = Date.parse(String(recovery.expiresAt || envelope.expiresAt || ''))
+  const projectExpiresAtMs = Number(sticky.expiresAtMs) || Date.parse(String(sticky.expiresAt || ''))
+  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= nowMs ||
+      !Number.isFinite(projectExpiresAtMs) || projectExpiresAtMs <= nowMs) {
+    return { valid: false, errorCode: 'TASKLESS_INGRESS_RECOVERY_EXPIRED' }
+  }
+  if (recovery.authorityMode === 'identity-only') {
+    return { valid: true, status: 'identity-only', authority: false }
+  }
+  const envelopeValidation = validateActualInstructionEnvelope(envelope)
+  const workItemValidation = validateWorkItemSet(workItemSet, envelope)
+  if (decision.projectionKind === 'taskless-recovery-identity' &&
+      envelopeValidation.valid && workItemValidation.valid) {
+    try {
+      const rebuilt = buildWorkflowRouteDecision({
+        actualInstructionEnvelope: envelope,
+        workItemSet,
+        workItemId: decision.workItemId,
+        environmentMode: decision.environmentMode,
+        topIntent: decision.topIntent,
+        subtype: decision.subtype,
+        routeKey: decision.routeKey,
+        stage: decision.stage,
+        routeRevision: decision.routeRevision,
+        routeRegistryDigest: decision.routeRegistryDigest
+      })
+      if (rebuilt.decisionDigest !== decision.decisionDigest || rebuilt.envelopeId !== decision.envelopeId ||
+          rebuilt.envelopeDigest !== decision.envelopeDigest || rebuilt.workItemId !== decision.workItemId ||
+          rebuilt.workItemDigest !== decision.workItemDigest) {
+        return { valid: false, errorCode: 'TASKLESS_INGRESS_RECOVERY_ROUTE_REBUILD_MISMATCH' }
+      }
+      state.workflowRouteDecision = rebuilt
+      decision = rebuilt
+    } catch (error) {
+      return {
+        valid: false,
+        errorCode: error.code || 'TASKLESS_INGRESS_RECOVERY_ROUTE_REBUILD_FAILED',
+        errors: [error.message]
+      }
+    }
+  }
+  const routeValidation = verifyWorkflowRouteDecision(decision, {
+    environmentMode: decision.environmentMode,
+    envelopeDigest: envelope.envelopeDigest,
+    workItemDigest: decision.workItemDigest,
+    routeKey: decision.routeKey,
+    topIntent: decision.topIntent,
+    subtype: decision.subtype,
+    stage: decision.stage,
+    routeRevision: decision.routeRevision,
+    routeRegistryDigest: decision.routeRegistryDigest,
+    actualInstructionEnvelope: envelope,
+    workItemSet
+  })
+  const { bindingDigest, projectionKind, ...bindingCore } = planBinding
+  const bindingValid = projectionKind === 'taskless-recovery-identity'
+    ? bindingDigest === recovery.planBindingDigest
+    : bindingDigest === digestValue(bindingCore)
+  if (!envelopeValidation.valid || !workItemValidation.valid || !routeValidation.fresh || !bindingValid) {
+    return {
+      valid: false,
+      errorCode: 'TASKLESS_INGRESS_RECOVERY_AUTHORITY_INVALID',
+      errors: [
+        ...envelopeValidation.errors,
+        ...workItemValidation.errors,
+        ...routeValidation.errors,
+        ...(bindingValid ? [] : ['plan-binding-digest'])
+      ]
+    }
+  }
+  return { valid: true, status: 'exact', authority: true }
 }
 
 function recoveryComparablePath(value) {
@@ -2097,14 +2321,15 @@ function buildMinimalEphemeralStub (state) {
     ? turn.inFlightOperation
     : null
   const handoff = context.plan || context.handoff || {}
-  return {
+  const ingressRecovery = buildTasklessWorkflowIngressRecovery(state, 'exact')
+  const stub = {
     version: state?.version,
     mode: boundedRecoveryString(state?.mode, 32),
     activeProject: boundedRecoveryString(state?.activeProject, 128),
     activeScope: boundedRecoveryString(state?.activeScope, 32),
     activeProjectSource: boundedRecoveryString(state?.activeProjectSource, 64),
     taskRecoveryBinding: null,
-    stickyProject: state?.workflowOperationalWriteLease ? {
+    stickyProject: (state?.workflowOperationalWriteLease || ingressRecovery) ? {
       schemaVersion: sticky.schemaVersion,
       leaseId: boundedRecoveryString(sticky.leaseId, 128),
       targetDigest: boundedRecoveryString(sticky.targetDigest, 64),
@@ -2125,26 +2350,23 @@ function buildMinimalEphemeralStub (state) {
       issuedAtMs: sticky.issuedAtMs,
       expiresAtMs: sticky.expiresAtMs
     } : null,
-    actualInstructionEnvelope: state?.workflowOperationalWriteLease ? {
-      schemaVersion: boundedRecoveryString(envelope.schemaVersion, 64),
-      envelopeId: boundedRecoveryString(envelope.envelopeId, 128),
-      envelopeDigest: boundedRecoveryString(envelope.envelopeDigest, 64),
-      contextEpoch: boundedRecoveryString(envelope.contextEpoch, 256),
-      instructionAuthority: envelope.instructionAuthority === true
-    } : null,
-    workflowRouteDecision: state?.workflowOperationalWriteLease ? {
-      schemaVersion: boundedRecoveryString(workflowRoute.schemaVersion, 64),
-      decisionDigest: boundedRecoveryString(workflowRoute.decisionDigest, 64),
-      routeRevision: boundedRecoveryString(workflowRoute.routeRevision, 64)
-    } : null,
-    workflowRoutePlanBinding: state?.workflowOperationalWriteLease ? {
-      bindingDigest: boundedRecoveryString(state.workflowRoutePlanBinding?.bindingDigest, 64),
-      routeRevision: boundedRecoveryString(state.workflowRoutePlanBinding?.routeRevision, 64)
-    } : null,
+    actualInstructionEnvelope: ingressRecovery
+      ? cloneRecoveryValue(state.actualInstructionEnvelope)
+      : (state?.workflowOperationalWriteLease ? compactInstructionEnvelopeIdentity(envelope) : null),
+    workItemSet: ingressRecovery ? cloneRecoveryValue(state.workItemSet) : null,
+    workflowRouteDecision: ingressRecovery
+      ? compactWorkflowRouteIdentity(state.workflowRouteDecision)
+      : (state?.workflowOperationalWriteLease ? compactWorkflowRouteIdentity(workflowRoute) : null),
+    workflowRoutePlanBinding: ingressRecovery
+      ? compactWorkflowRoutePlanBindingIdentity(state.workflowRoutePlanBinding)
+      : (state?.workflowOperationalWriteLease
+          ? compactWorkflowRoutePlanBindingIdentity(state.workflowRoutePlanBinding)
+          : null),
+    workflowIngressRecovery: ingressRecovery,
     workflowOperationalWriteLease: state?.workflowOperationalWriteLease
       ? JSON.parse(JSON.stringify(state.workflowOperationalWriteLease))
       : null,
-    progressiveSkillRoute: route && typeof route === 'object' ? {
+    progressiveSkillRoute: !ingressRecovery && route && typeof route === 'object' ? {
       schemaVersion: boundedRecoveryString(route.schemaVersion, 64),
       modeReceipt: route.modeReceipt ? {
       schemaVersion: boundedRecoveryString(route.modeReceipt.schemaVersion, 64),
@@ -2171,7 +2393,7 @@ function buildMinimalEphemeralStub (state) {
       active: route.active === true,
       errorCode: boundedRecoveryString(route.errorCode, 128)
     } : null,
-    progressiveSkillRouteStop: stop && typeof stop === 'object' ? {
+    progressiveSkillRouteStop: !ingressRecovery && stop && typeof stop === 'object' ? {
       schemaVersion: boundedRecoveryString(stop.schemaVersion, 64),
       present: stop.present === true,
       complete: stop.complete === true,
@@ -2215,7 +2437,7 @@ function buildMinimalEphemeralStub (state) {
       hostCapability: boundedRecoveryString(context.hostCapability, 64),
       hostSessionId: boundedRecoveryString(context.hostSessionId, 256),
       verificationMode: 'ephemeral-resume-rehydrate',
-      handoff: handoff && typeof handoff === 'object' ? {
+      handoff: !ingressRecovery && handoff && typeof handoff === 'object' ? {
         contextEpoch: boundedRecoveryString(context.contextEpoch || handoff.contextEpoch, 256),
         planId: boundedRecoveryString(handoff.planId, 256),
         planContentId: boundedRecoveryString(handoff.planContentId, 256),
@@ -2230,6 +2452,15 @@ function buildMinimalEphemeralStub (state) {
     recoveryKind: 'ephemeral-resume-stub',
     recoveryCompaction: 'minimal-budget'
   }
+  if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES && ingressRecovery) {
+    stub.actualInstructionEnvelope = compactInstructionEnvelopeIdentity(state.actualInstructionEnvelope)
+    stub.workItemSet = compactWorkItemSetIdentity(state.workItemSet)
+    stub.workflowRouteDecision = compactWorkflowRouteIdentity(state.workflowRouteDecision)
+    stub.workflowRoutePlanBinding = compactWorkflowRoutePlanBindingIdentity(state.workflowRoutePlanBinding)
+    stub.workflowIngressRecovery = buildTasklessWorkflowIngressRecovery(state, 'identity-only')
+    stub.recoveryCompaction = 'minimal-identity-only'
+  }
+  return stub
 }
 
 function buildEphemeralStub(state) {
@@ -2251,6 +2482,7 @@ function buildEphemeralStub(state) {
   }
   const context = state?.contextAcquisition || {}
   const sticky = state?.stickyProject || {}
+  const ingressRecovery = buildTasklessWorkflowIngressRecovery(state, 'exact')
   const stub = {
     version: state?.version,
     mode: state?.mode,
@@ -2284,22 +2516,19 @@ function buildEphemeralStub(state) {
     workflowOperationalWriteLease: state?.workflowOperationalWriteLease
       ? JSON.parse(JSON.stringify(state.workflowOperationalWriteLease))
       : null,
-    actualInstructionEnvelope: state?.workflowOperationalWriteLease ? {
-      schemaVersion: state.actualInstructionEnvelope?.schemaVersion,
-      envelopeId: state.actualInstructionEnvelope?.envelopeId,
-      envelopeDigest: state.actualInstructionEnvelope?.envelopeDigest,
-      contextEpoch: state.actualInstructionEnvelope?.contextEpoch,
-      instructionAuthority: state.actualInstructionEnvelope?.instructionAuthority === true
-    } : null,
-    workflowRouteDecision: state?.workflowOperationalWriteLease ? {
-      schemaVersion: state.workflowRouteDecision?.schemaVersion,
-      decisionDigest: state.workflowRouteDecision?.decisionDigest,
-      routeRevision: state.workflowRouteDecision?.routeRevision
-    } : null,
-    workflowRoutePlanBinding: state?.workflowOperationalWriteLease ? {
-      bindingDigest: state.workflowRoutePlanBinding?.bindingDigest,
-      routeRevision: state.workflowRoutePlanBinding?.routeRevision
-    } : null,
+    actualInstructionEnvelope: ingressRecovery
+      ? cloneRecoveryValue(state.actualInstructionEnvelope)
+      : (state?.workflowOperationalWriteLease ? compactInstructionEnvelopeIdentity(state.actualInstructionEnvelope) : null),
+    workItemSet: ingressRecovery ? cloneRecoveryValue(state.workItemSet) : null,
+    workflowRouteDecision: ingressRecovery
+      ? cloneRecoveryValue(state.workflowRouteDecision)
+      : (state?.workflowOperationalWriteLease ? compactWorkflowRouteIdentity(state.workflowRouteDecision) : null),
+    workflowRoutePlanBinding: ingressRecovery
+      ? cloneRecoveryValue(state.workflowRoutePlanBinding)
+      : (state?.workflowOperationalWriteLease
+          ? compactWorkflowRoutePlanBindingIdentity(state.workflowRoutePlanBinding)
+          : null),
+    workflowIngressRecovery: ingressRecovery,
     languageContext: state?.languageContext || null,
     progressiveSkillRoute: state?.progressiveSkillRoute || null,
     progressiveSkillRouteCoordinator: state?.progressiveSkillRouteCoordinator || null,
@@ -2356,7 +2585,16 @@ function buildEphemeralStub(state) {
     stub.progressiveSkillRouteStop = compactRouteStopForEphemeral(state?.progressiveSkillRouteStop)
   }
   if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
-    stub.stickyProject = null
+    if (ingressRecovery) {
+      stub.languageContext = null
+      stub.progressiveSkillRoute = null
+      stub.progressiveSkillRouteCoordinator = null
+      stub.progressiveSkillRouteCoordinatorError = null
+      stub.progressiveSkillRouteEnforcement = null
+      stub.progressiveSkillRouteStop = null
+    } else {
+      stub.stickyProject = null
+    }
     stub.stickyAuto = null
     stub.visible = null
     stub.workflowCompletionLifecycle = null
@@ -3812,9 +4050,20 @@ function readTaskRecoveryState(input = {}, options = {}) {
     return { status: 'identity-mismatch', errorCode: 'LIFECYCLE_STATE_IDENTITY_MISMATCH', observedIdentity: entry.identity }
   }
   if (!entry.taskKey) {
+    const state = materializeEphemeralMutationState(entry.state)
+    const ingressRecovery = validateTasklessWorkflowIngressRecovery(state, options)
+    if (!ingressRecovery.valid) {
+      return {
+        status: 'invalid',
+        errorCode: ingressRecovery.errorCode,
+        errors: ingressRecovery.errors || [],
+        identity: entry.identity || null
+      }
+    }
     return {
       status: 'ephemeral-stub',
-      state: materializeEphemeralMutationState(entry.state),
+      state,
+      ingressRecovery,
       identity: entry.identity || null
     }
   }
@@ -4657,6 +4906,7 @@ module.exports = {
   TASK_RECOVERY_KEY_SCHEMA,
   TASK_RECOVERY_STATE_SCHEMA,
   TASK_RECOVERY_STATUS_SCHEMA,
+  TASKLESS_WORKFLOW_INGRESS_RECOVERY_SCHEMA,
   WORKFLOW_TASK_TERMINAL_RECEIPT_SCHEMA,
   TaskRecoveryStoreV5Error,
   appendTaskRecoveryTelemetry,
@@ -4686,6 +4936,7 @@ module.exports = {
   taskAdmissionReconciliationReceiptDigest,
   updateTaskRecoveryState,
   validateFencedTaskWriteOwner,
+  validateTasklessWorkflowIngressRecovery,
   validateTaskAdmissionTransaction,
   validateTaskAdmissionReconciliationReceipt,
   validateWorkflowTaskTerminalReceipt,

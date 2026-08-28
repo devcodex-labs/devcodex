@@ -1,9 +1,9 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要；历史版本见对应详细变更文件。
-> **最新版本详细变更文档**: [`changelogs/releases/v1.19.2.md`](./changelogs/releases/v1.19.2.md)
-> **最后更新**: 2026-08-27
-> **当前版本**: v1.19.2 彻底移除 DevCodex 对文件、命令、删除和工具操作的权限裁决，把实际允许或拒绝完整交回当前宿主及用户宿主配置；同时按宿主与呈现面生成文件打开动作，为 Codex Desktop、VS Code、Zed、WebStorm、CLI 与 Claude/未知宿主提供可验证的原生入口或绝对路径降级。版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
+> **最新版本详细变更文档**: [`changelogs/releases/v1.19.3.md`](./changelogs/releases/v1.19.3.md)
+> **最后更新**: 2026-08-28
+> **当前版本**: v1.19.3 修复确认后的 taskless ingress 在工具事件或生命周期状态投影后丢失，以及 CP writer 与正式任务 owner 对 artifactPath 格式理解不一致的问题；用户对同一候选的有效确认可以继续驱动任务准入与执行，不再因内部恢复链断裂被重复索取。版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
 
 ---
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.19.3](./changelogs/releases/v1.19.3.md) | 2026-08-28 | 🚑 **确认持久化与任务 owner P0 修复**：有界恢复 taskless instruction/work-item/route/plan/project 绑定；超限降级为无 authority identity-only；CP writer 的安全链接投影可被 owner 精确复核，并提供 30 秒内专项快测 | [查看](./changelogs/releases/v1.19.3.md) |
 | [v1.19.2](./changelogs/releases/v1.19.2.md) | 2026-08-27 | 🔧 **宿主权限与文件交付修复**：DevCodex 对所有操作权限事件保持中立，不再产生 allow/deny/ask/block；文件入口按 hostSurface 与 presentationSurface 选择原生打开、IDE CLI 或绝对路径 fallback | [查看](./changelogs/releases/v1.19.2.md) |
 | [v1.19.1](./changelogs/releases/v1.19.1.md) | 2026-08-27 | 🧩 **发布收敛补丁**：移除 DevCodex 影子权限层及 Grok fallback shadow deny；为 artifact/admission durable fail-closed 增加 exact server-owned 恢复；修复 SkillRoute 容量锁死、Windows V5 用量账本瞬时占用与控制中止原因缺失；严格后继验证根支持 fresh Auto 续接；只发布经验证的唯一 tgz | [查看](./changelogs/releases/v1.19.1.md) |
 | [v1.19.0](./changelogs/releases/v1.19.0.md) | 2026-08-26 | 🧭 **任务所有权与验证授权闭环**：正式需求原子准入并绑定 session/project/task；正式产物和宿主工具写入统一鉴权；V5 按任务 A/B 恢复并精确计量；验证预览、执行、续权和稳定终态使用同一候选证据，普通改动不再误跑全量 | [查看](./changelogs/releases/v1.19.0.md) |

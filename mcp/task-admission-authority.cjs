@@ -666,13 +666,17 @@ function verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, fsImp
   if (markdownLink) {
     const target = markdownLink[1].trim().replace(/\\/g, '/')
     const segments = target.split('/')
-    if (!allowLegacyRecord || !target || path.isAbsolute(target) || path.posix.isAbsolute(target) ||
+    // memory_cp_confirm owns the CP projection and emits a safe Markdown link
+    // relative to .memory/sessions.md. Treat that projection as canonical for
+    // both new and legacy tasks; legacy compatibility is only needed for the
+    // historical time-only confirmedAt format.
+    if (!target || path.isAbsolute(target) || path.posix.isAbsolute(target) ||
         /^[A-Za-z]:/.test(target) || /[%?#]/.test(target) || segments[0] !== '..' ||
         segments.slice(1).some(segment => !segment || segment === '.' || segment === '..')) {
       throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'legacy CP1 artifact link is ambiguous or unsafe')
     }
     candidate = path.resolve(path.dirname(sessionsPath), ...segments)
-    artifactPathKind = 'legacy-markdown-relative'
+    artifactPathKind = 'memory-projected-markdown-relative'
   } else {
     const artifactPath = artifactReference.replace(/\\/g, '/')
     if (path.isAbsolute(artifactPath) || path.posix.isAbsolute(artifactPath) ||
@@ -705,15 +709,15 @@ function verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, fsImp
       sha256(bytes) !== expectedDigest) {
     throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'existing CP1 artifact readback does not match its confirmation digest')
   }
-  const compatibility = artifactPathKind === 'task-root-relative' && !legacyTimeOnly
-    ? null
-    : {
+  const compatibility = legacyTimeOnly
+    ? {
         schemaVersion: 'LegacyCpConfirmationCompatibilityV1',
         sourceIdentitySchema: 'TaskIdentityV1',
         artifactPathKind,
-        confirmedAtKind: legacyTimeOnly ? 'legacy-time-only' : 'absolute-timestamp',
+        confirmedAtKind: 'legacy-time-only',
         artifactDigest: expectedDigest
       }
+    : null
   return { candidate, compatibility }
 }
 

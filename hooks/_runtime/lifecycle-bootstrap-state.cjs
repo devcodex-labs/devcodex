@@ -1001,7 +1001,11 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       error.details = commit
       throw error
     }
-    const shouldProject = ['committed', 'ephemeral-stub', 'skipped'].includes(commit.status)
+    // A TaskRecoveryStore semantic no-op only means its bounded durable
+    // projection did not change. Live lifecycle fields intentionally omitted
+    // from that projection (for example ContextRead freshness and ingress
+    // progress) may still have changed and must never be left stale.
+    const shouldProject = ['committed', 'ephemeral-stub', 'semantic-noop', 'skipped'].includes(commit.status)
     if (!shouldProject) {
       return { ...commit, projectionStatus: 'semantic-noop', projectionWarnings: [] }
     }

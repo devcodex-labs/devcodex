@@ -908,7 +908,7 @@ try {
     '',
     '| CP | 状态 | artifactPath | version | sha256 | sourceMessage | confirmedAt |',
     '|:--:|:----:|--------------|---------|--------|---------------|-------------|',
-    `| CP1 | ✅ | ${confirmedArtifact} | v1 | ${confirmedDigest} | user-confirmed | 2026-08-24T00:00:00.000Z |`,
+    `| CP1 | ✅ | [${confirmedArtifact}](../${confirmedArtifact}) | v1 | ${confirmedDigest} | user-confirmed | 2026-08-24T00:00:00.000Z |`,
     '| CP2 | ⏹️ | — | — | — | — | — |',
     '| CP3 | ⏹️ | — | — | — | — | — |',
     ''
@@ -937,6 +937,13 @@ try {
   })
   assert.strictEqual(boundJournal.transaction.effects.cpState.cp1Confirmed, true)
   assert.strictEqual(boundJournal.transaction.effects.cpState.status, 'confirmed')
+  assert.strictEqual(boundJournal.transaction.effects.cpState.compatibility, null)
+  const boundOwner = runOwner(ownerInput(bindInput, bound, 'acquire', {
+    expectedOwner: { mode: 'absent' }
+  }))
+  assert.strictEqual(boundOwner.status, 'active')
+  assert.strictEqual(boundOwner.finalized, true)
+  assert.strictEqual(boundOwner.mutationAuthority, true)
 
   const pressureRoot = setupRoot('pressure')
   const pressureInput = admissionInput(pressureRoot, 'pressure')

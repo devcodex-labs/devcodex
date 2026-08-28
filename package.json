@@ -1,6 +1,6 @@
 {
   "name": "devcodex",
-  "version": "1.19.2",
+  "version": "1.19.3",
   "description": "DevCodex — cross-host AI coding engineering harness for Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok, and Cursor",
   "main": "index.js",
   "bin": {
@@ -27,6 +27,7 @@
     "test:workspace-temp": "node scripts/test-workspace-temp.js",
     "test:init": "node index.js init --dry-run",
     "test:hooks-runtime": "node scripts/test-hooks-runtime.js",
+    "test:confirmation-persistence": "node scripts/test-task-recovery-store-v5.js --confirmation-persistence && node scripts/test-hooks-runtime.js --confirmation-persistence",
     "test:dangerous-command-context": "node scripts/test-dangerous-command-context.js",
     "test:migrate-layout": "node scripts/test-migrate-layout.js",
     "test:client-contracts": "node scripts/test-client-contracts.js",

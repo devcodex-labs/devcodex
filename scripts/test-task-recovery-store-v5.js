@@ -22,6 +22,7 @@ const {
   taskPaths,
   taskAdmissionTransactionDigest,
   updateTaskRecoveryState,
+  validateTasklessWorkflowIngressRecovery,
   writeStableProjection
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const {
@@ -36,6 +37,19 @@ const {
 const {
   validateArtifactMutationReconciliationEvidence
 } = require('../hooks/_runtime/artifact-mutation-reconciliation.cjs')
+const {
+  buildActualInstructionEnvelope,
+  buildWorkItemSet,
+  validateActualInstructionEnvelope,
+  validateWorkItemSet
+} = require('../hooks/_runtime/actual-instruction-envelope.cjs')
+const {
+  buildWorkflowRouteDecision,
+  verifyWorkflowRouteDecision
+} = require('../hooks/_runtime/workflow-route-decision-v2.cjs')
+const {
+  createWorkflowOperationalWriteLease
+} = require('../hooks/_runtime/workflow-operational-write-lease.cjs')
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-task-recovery-v5-'))
 const metaDir = path.join(tempRoot, 'hooks', 'devcodex')
@@ -167,6 +181,80 @@ function mutationState(taskId, phase = 'implementation') {
       expiresAt: '2026-08-22T00:10:00.000Z',
       singleUse: true
     }
+  }
+  return value
+}
+
+function tasklessIngressState() {
+  const value = state('taskless-ingress', 'CP1-confirmed')
+  value.taskRecoveryBinding = null
+  value.turnLiveness.turnKey = 'taskless-ingress-session'
+  value.contextAcquisition.hostSessionId = 'taskless-ingress-session'
+  const envelope = buildActualInstructionEnvelope({ sourceEventId: 'taskless-ingress-confirmation' }, {
+    actualInstruction: '确认 CP1',
+    hostVariant: 'codex',
+    hostSessionId: 'taskless-ingress-session',
+    turnId: 'taskless-ingress-turn',
+    contextEpoch: 'ctx-test',
+    trustedHostEvent: true,
+    nowMs: baseOptions.nowMs,
+    ttlMs: 60 * 60 * 1000
+  })
+  const workItemSet = buildWorkItemSet(envelope, {
+    workItems: [{ taskKind: 'fix', routeCandidate: 'fix.default' }]
+  })
+  const decision = buildWorkflowRouteDecision({
+    actualInstructionEnvelope: envelope,
+    workItemSet,
+    environmentMode: 'dev',
+    topIntent: 'fix',
+    routeKey: 'fix.default'
+  })
+  const planBindingCore = {
+    schemaVersion: 'WorkflowRoutePlanBindingV1',
+    contextEpoch: envelope.contextEpoch,
+    planId: 'plan-taskless-ingress',
+    planContentId: `plan-content-${'1'.repeat(64)}`,
+    routeKey: decision.routeKey,
+    subtype: decision.subtype,
+    stage: decision.stage,
+    routeRevision: decision.routeRevision,
+    routeRegistryDigest: decision.routeRegistryDigest,
+    decisionDigest: decision.decisionDigest,
+    contextSemanticDigest: '2'.repeat(64)
+  }
+  value.actualInstructionEnvelope = envelope
+  value.workItemSet = workItemSet
+  value.workflowRouteDecision = decision
+  value.workflowRoutePlanBinding = {
+    ...planBindingCore,
+    bindingDigest: digestValue(planBindingCore)
+  }
+  value.stickyProject = {
+    schemaVersion: 'ProjectTargetLeaseV2',
+    leaseId: 'project-target-lease-taskless-ingress',
+    targetDigest: '3'.repeat(64),
+    layoutIdentity: '4'.repeat(64),
+    project: 'devcodex',
+    physicalRoot: tempRoot,
+    activeRoot,
+    source: 'test',
+    sessionKey: 'taskless-ingress-session',
+    leaseDigest: '5'.repeat(64),
+    rootIdentityDigest: '6'.repeat(64),
+    authorityKind: 'session',
+    authorityDigest: '7'.repeat(64),
+    contextEpoch: envelope.contextEpoch,
+    contextBindingDigest: '8'.repeat(64),
+    routeRevision: decision.routeRevision,
+    revocationEpoch: 1,
+    issuedAtMs: baseOptions.nowMs,
+    expiresAtMs: baseOptions.nowMs + 60 * 60 * 1000
+  }
+  value.progressiveSkillRoute = {
+    schemaVersion: 'LifecycleSkillRouteStateV1',
+    active: true,
+    pending: { diagnosticBody: 'p'.repeat(24 * 1024) }
   }
   return value
 }
@@ -524,6 +612,136 @@ function taskReadLockTrackingFs(metaDir) {
   return { fs: proxy, unlockedTaskSlotReads: () => unlockedTaskSlotReads }
 }
 
+function runTasklessIngressRecoveryScenario() {
+  const tasklessIngressMeta = path.join(tempRoot, 'taskless-ingress-hooks')
+  const tasklessIngress = tasklessIngressState()
+  const tasklessIngressCommit = commitTaskRecoveryState({
+    metaDir: tasklessIngressMeta,
+    identity: { activeRoot, project: 'devcodex' },
+    sessionKey: 'taskless-ingress-session',
+    state: tasklessIngress
+  }, baseOptions)
+  assert.strictEqual(tasklessIngressCommit.status, 'ephemeral-stub')
+  const tasklessIngressRead = readTaskRecoveryState({
+    metaDir: tasklessIngressMeta,
+    sessionKey: 'taskless-ingress-session',
+    expectedIdentity: { activeRoot, project: 'devcodex' }
+  }, baseOptions)
+  assert.strictEqual(tasklessIngressRead.status, 'ephemeral-stub')
+  assert.strictEqual(tasklessIngressRead.ingressRecovery.status, 'exact')
+  assert.strictEqual(tasklessIngressRead.ingressRecovery.authority, true)
+  assert.strictEqual(tasklessIngressRead.state.workflowOperationalWriteLease, null)
+  assert.strictEqual(
+    tasklessIngressRead.state.actualInstructionEnvelope.envelopeDigest,
+    tasklessIngress.actualInstructionEnvelope.envelopeDigest,
+    'no-lease taskless recovery must retain the exact instruction envelope'
+  )
+  assert.strictEqual(
+    tasklessIngressRead.state.workItemSet.setDigest,
+    tasklessIngress.workItemSet.setDigest,
+    'no-lease taskless recovery must retain the exact work-item set'
+  )
+  assert.strictEqual(
+    tasklessIngressRead.state.workflowRouteDecision.decisionDigest,
+    tasklessIngress.workflowRouteDecision.decisionDigest,
+    'no-lease taskless recovery must retain the exact route decision'
+  )
+  assert.strictEqual(
+    tasklessIngressRead.state.workflowRoutePlanBinding.bindingDigest,
+    tasklessIngress.workflowRoutePlanBinding.bindingDigest,
+    'no-lease taskless recovery must retain the exact plan binding'
+  )
+  assert.strictEqual(validateActualInstructionEnvelope(
+    tasklessIngressRead.state.actualInstructionEnvelope
+  ).valid, true)
+  assert.strictEqual(validateWorkItemSet(
+    tasklessIngressRead.state.workItemSet,
+    tasklessIngressRead.state.actualInstructionEnvelope
+  ).valid, true)
+  assert.strictEqual(verifyWorkflowRouteDecision(
+    tasklessIngressRead.state.workflowRouteDecision,
+    {
+      actualInstructionEnvelope: tasklessIngressRead.state.actualInstructionEnvelope,
+      workItemSet: tasklessIngressRead.state.workItemSet
+    }
+  ).fresh, true)
+  fs.mkdirSync(activeRoot, { recursive: true })
+  const recoveredOperationalLease = createWorkflowOperationalWriteLease({
+    state: tasklessIngressRead.state,
+    activeRoot,
+    projectRoot: tempRoot,
+    project: 'devcodex',
+    relativeTargets: ['reports/analysis/codex/20260822/01--taskless-recovery.md'],
+    operation: 'create'
+  }, {
+    nowMs: baseOptions.nowMs,
+    leaseIdFactory: () => `operational-${'e'.repeat(40)}`
+  })
+  assert.strictEqual(recoveredOperationalLease.mutationAuthority, true)
+  assert.strictEqual(
+    recoveredOperationalLease.instructionEnvelopeDigest,
+    tasklessIngress.actualInstructionEnvelope.envelopeDigest,
+    'the production operational lease must remain reachable from recovered no-lease ingress'
+  )
+
+  const tamperedTasklessIngress = JSON.parse(JSON.stringify(tasklessIngressRead.state))
+  tamperedTasklessIngress.workflowRouteDecision.decisionDigest = 'f'.repeat(64)
+  assert.strictEqual(
+    validateTasklessWorkflowIngressRecovery(tamperedTasklessIngress, baseOptions).errorCode,
+    'TASKLESS_INGRESS_RECOVERY_BINDING_MISMATCH'
+  )
+  assert.strictEqual(
+    validateTasklessWorkflowIngressRecovery(tasklessIngressRead.state, {
+      ...baseOptions,
+      nowMs: baseOptions.nowMs + 2 * 60 * 60 * 1000
+    }).errorCode,
+    'TASKLESS_INGRESS_RECOVERY_EXPIRED'
+  )
+  const tasklessIngressRing = storePaths(tasklessIngressMeta).ephemeral
+    .filter(file => fs.existsSync(file))
+    .map(file => JSON.parse(fs.readFileSync(file, 'utf8')))
+    .sort((left, right) => right.sequence - left.sequence)[0]
+  const tasklessIngressEntry = tasklessIngressRing.entries.find(entry => entry.sessionKeyDigest)
+  assert(jsonBytes(tasklessIngressEntry) <= EPHEMERAL_ENTRY_MAX_BYTES)
+  const oversizedIngress = tasklessIngressState()
+  oversizedIngress.actualInstructionEnvelope.recoveryPadding = 'x'.repeat(16 * 1024)
+  const oversizedSession = 'taskless-ingress-oversized-session'
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir: tasklessIngressMeta,
+    identity: { activeRoot, project: 'devcodex' },
+    sessionKey: oversizedSession,
+    state: oversizedIngress
+  }, baseOptions).status, 'ephemeral-stub')
+  const oversizedRead = readTaskRecoveryState({
+    metaDir: tasklessIngressMeta,
+    sessionKey: oversizedSession,
+    expectedIdentity: { activeRoot, project: 'devcodex' }
+  }, baseOptions)
+  assert.strictEqual(oversizedRead.ingressRecovery.status, 'identity-only')
+  assert.strictEqual(oversizedRead.ingressRecovery.authority, false)
+  return {
+    authorityMode: tasklessIngressRead.ingressRecovery.status,
+    entryBytes: jsonBytes(tasklessIngressEntry),
+    decisionDigest: tasklessIngressRead.state.workflowRouteDecision.decisionDigest
+  }
+}
+
+if (process.argv.includes('--confirmation-persistence')) {
+  const startedAt = Date.now()
+  try {
+    const receipt = runTasklessIngressRecoveryScenario()
+    const durationMs = Date.now() - startedAt
+    assert(durationMs <= 30000, `taskless ingress recovery fast path exceeded 30000 ms: ${durationMs} ms`)
+    console.log(JSON.stringify({
+      schemaVersion: 'ConfirmationPersistenceUnitReceiptV1',
+      passed: true,
+      durationMs,
+      ...receipt
+    }))
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true })
+  }
+} else {
 try {
   const stableKey = createTaskRecoveryKey(identity('00000000-0000-4000-8000-000000000001'))
   const caseVariantKey = createTaskRecoveryKey({
@@ -1325,6 +1543,8 @@ try {
     'fixed A/B recovery must preserve the exact bounded usage ledger'
   )
 
+  runTasklessIngressRecoveryScenario()
+
   const ephemeralMeta = path.join(tempRoot, 'ephemeral-hooks')
   const ephemeralState = state('ephemeral')
   ephemeralState.taskRecoveryBinding = null
@@ -1718,4 +1938,5 @@ try {
   }))
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true })
+}
 }

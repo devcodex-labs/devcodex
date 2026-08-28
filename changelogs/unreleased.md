@@ -1,10 +1,11 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.19.2 已进入确认后的发布候选资格链；宿主权限归属与多呈现面文件打开修复已归档到 `changelogs/releases/v1.19.2.md`，正式发布事实只在 tag、registry、GitHub Release 与本机 R7 证据实际形成后成立。
+> **当前**: v1.19.3 已进入确认后的发布候选资格链；确认持久化与正式任务 owner 契约修复已归档到 `changelogs/releases/v1.19.3.md`，正式发布事实只在 tag、registry、GitHub Release 与本机 R7 证据实际形成后成立。
 
 ## 当前未发布实现候选
 
+- **v1.19.3 归档候选 — 确认持久化与正式任务 owner P0 修复**：TaskRecoveryStoreV5 在无 formal task、无 operational lease 时仍以有界、摘要绑定和 TTL 校验的恢复记录保留 actual instruction、work-item、route、plan 与 project lease；状态超限时仅保留 identity-only 且明确撤销 authority，避免假恢复。生命周期 semantic no-op 仍刷新 live projection，确认后的读取/工具事件不再清空 ingress。`memory_cp_confirm` 生成的安全 Markdown artifactPath 投影现与 task owner reader 共用同一任务根、路径防穿越、稳定文件身份和 SHA-256 复核契约。新增 `npm run test:confirmation-persistence` 作为 30 秒内 P0 专项快测。完整说明见 [`changelogs/releases/v1.19.3.md`](./releases/v1.19.3.md)。
 - **v1.19.2 归档候选 — 宿主权限归属与多呈现面文件打开修复**：`PreToolUse/PermissionRequest` 在 lifecycle、输出 builder 与 Codex/Claude/Gemini/Copilot/Grok/Cursor adapter 三层统一为 advisory-only，剥离遗留 `allow/deny/ask/block/continue:false`，DevCodex 继续记录风险与 typed workflow-invalid，但不再形成任何操作权限判断。新增 `HostLinkCapabilityDecisionV2`，把 `hostSurface` 与 `presentationSurface` 分开，为 Codex Desktop、VS Code、Zed、WebStorm、Codex CLI、Claude/unknown 选择经证据绑定的 native action、终端命令或绝对路径 copy fallback；持久化记忆链接继续保留 `LinkCapabilityDecisionV1`。完整说明见 [`changelogs/releases/v1.19.2.md`](./releases/v1.19.2.md)。
 - **正式任务跨根续接与 Skill 精确读取（PI-306～PI-308 / PF-373～PF-375 / GR-096～GR-098）**：TaskIdentity 首次 root digest 仅作 provenance，Admission/Lifecycle/Stop/MCP takeover 共用 portable binding decision；共享决定先验证不可变 V2 identity/digest，损坏身份失败关闭。新根重新取得 live authority，旧 root 热槽和 BudgetCard/owner/lease 不迁移且不删除。宿主 Skill 隐私规则只放行精确 `SKILL.md` 文件，skills 根目录 list/glob/recurse 仍阻断。跨根 admission/Stop/MCP、tampered identity、真实 D 盘 session remap、Codex system Skill 与危险命令分类定向回归均 PASS。
 - **ProfilePathPortabilityGate（PI-305 / PF-372 / GR-095）**：新生成 Profile 采用 opt-in `portable-v1`，项目内长期路径使用 `<workspace-root>` / `<project-root>` / `<active-root>` 或相对路径，真实本机外部路径用同一行 machine-local marker 标注。validator 仅检查显式目标 Profile 顶层 Markdown，不枚举其他项目；legacy 未声明契约时兼容读取，历史报告/receipt 不改写。D 盘迁移已把 DevCodex 自身 12 处旧工作盘符改为语义根并保留 2 处真实 E 盘 DevDocs 例外；隔离 Windows/Unix/URL/legacy 回归、active Profile 残留探针、control-content、duplication、CSD 与治理台账均 PASS。

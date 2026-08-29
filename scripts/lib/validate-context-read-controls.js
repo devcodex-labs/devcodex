@@ -330,7 +330,7 @@ function buildContextReadControlChecks(ctx) {
     ])
     checkFile('scripts/test-context-read-contract.js', [
       'mandatoryMisses', 'falseComplete=0', 'siblingPlan.observations = []',
-      'equivalent plan content must be stable across independent processes', 'context-epoch-mismatch',
+      'equivalent plan content must be stable across independent processes', 'same-session-snapshot-observation-lease-rebound',
       'source-identity-mismatch'
     ])
     checkFile('scripts/test-mcp-servers.js', [

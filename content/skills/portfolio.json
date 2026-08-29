@@ -6,17 +6,17 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "5e222445ede520ae1bad5797d69c65d4220d3993b70e07ce78279b6b4ae4f6cd",
+    "sourceDigest": "40b5d0891d9f7321f7b8c15ca7762a06adf259f87fd48fadf5a511a04f5cccfd",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "155a9469cfa228bc0e07de3bfecf7959b9e3667e637c2715b9435bd6adeca79d",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
     "publicTaxonomyDigest": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 653,
-    "consumerInventoryDigest": "f272deaebefea7478c5c7608985a03df6f2d4bb1b7f6072288a8714a9313bc6e",
-    "consumerProjectionDigest": "e3cebe82f1a2448bf29f707d7a1de11c9c36f3862b2cad5edb3b0948c0aa838e",
-    "portfolioInputDigest": "0be8b5cc8ae2f628c837eac9a0ae5a230f1e8765a7effadfdc4b28b399bf3df0"
+    "consumerInventoryFileCount": 665,
+    "consumerInventoryDigest": "433496dfc7a1ac1e1e9b9024ae0f760155b497642945ae0d30f990accda07627",
+    "consumerProjectionDigest": "a2ebeffdb085a768d27edf31bf3d160932ef7965d75c91ab96f0c825fd22e73d",
+    "portfolioInputDigest": "04eb44d3673b33a92ea7fe1fe358e69dce323723c5a6903f0140072c95fd71c4"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -5463,6 +5463,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-workflow-plan-decision.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validate.js",
           "role": "current"
         },
@@ -5480,6 +5484,7 @@
         "scripts/test-r10-control-plane-honesty.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-workflow-capabilities.js",
+        "scripts/test-workflow-plan-decision.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-24",
@@ -5535,6 +5540,7 @@
           "scripts/test-r10-control-plane-honesty.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-workflow-capabilities.js",
+          "scripts/test-workflow-plan-decision.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -10688,6 +10694,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/workflow-plan-decision-v1.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/workflow-root-registry.cjs",
           "role": "current"
         },
@@ -11801,6 +11811,10 @@
           "role": "current"
         },
         {
+          "path": "data/README.md",
+          "role": "current"
+        },
+        {
           "path": "grok/mcp/workspace-bridge.cjs",
           "role": "current"
         },
@@ -11922,6 +11936,10 @@
         },
         {
           "path": "hooks/_runtime/workflow-operational-write-lease.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workflow-plan-decision-v1.cjs",
           "role": "current"
         },
         {
@@ -12130,6 +12148,10 @@
         },
         {
           "path": "scripts/lib/global-host-runtime-verifier.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/governance-ledger-resolver.js",
           "role": "current"
         },
         {
@@ -13060,6 +13082,10 @@
           "role": "current"
         },
         {
+          "path": "data/README.md",
+          "role": "current"
+        },
+        {
           "path": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
           "role": "current"
         },
@@ -13085,6 +13111,10 @@
         },
         {
           "path": "hooks/_runtime/artifact-slot-registry.v2.json",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/context-continuity-contract.cjs",
           "role": "current"
         },
         {
@@ -13221,6 +13251,10 @@
         },
         {
           "path": "hooks/_runtime/workflow-completion-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workflow-plan-decision-v1.cjs",
           "role": "current"
         },
         {
@@ -13392,6 +13426,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/cli-governance-commands.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/cli-install-commands.js",
           "role": "current"
         },
@@ -13461,6 +13499,10 @@
         },
         {
           "path": "scripts/lib/global-host-removal.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/governance-ledger-migration.js",
           "role": "current"
         },
         {
@@ -13660,6 +13702,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/plan-ci-validation.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/postinstall.js",
           "role": "current"
         },
@@ -13705,6 +13751,10 @@
         },
         {
           "path": "scripts/test-candidate-review-bundle.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-ci-validation-plan.js",
           "role": "current"
         },
         {
@@ -13785,6 +13835,10 @@
         },
         {
           "path": "scripts/test-governance-intake.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-governance-ledger-resolver.js",
           "role": "current"
         },
         {
@@ -13968,6 +14022,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-workflow-plan-decision.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-workspace-provisioning.js",
           "role": "current"
         },
@@ -13993,6 +14051,7 @@
         "scripts/test-always-on-governance.js",
         "scripts/test-artifact-mutation-authority.js",
         "scripts/test-candidate-review-bundle.js",
+        "scripts/test-ci-validation-plan.js",
         "scripts/test-cli-behavior.js",
         "scripts/test-cli-command-registry.js",
         "scripts/test-client-contracts.js",
@@ -14013,6 +14072,7 @@
         "scripts/test-global-host-removal.js",
         "scripts/test-global-install-smoke.js",
         "scripts/test-governance-intake.js",
+        "scripts/test-governance-ledger-resolver.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-adapters.js",
@@ -14059,6 +14119,7 @@
         "scripts/test-visible-output-contract.js",
         "scripts/test-workflow-capabilities.js",
         "scripts/test-workflow-completion-contract.js",
+        "scripts/test-workflow-plan-decision.js",
         "scripts/test-workspace-provisioning.js",
         "scripts/test-workspace-temp.js",
         "scripts/validate-profile.js",
@@ -14113,6 +14174,7 @@
           "scripts/test-always-on-governance.js",
           "scripts/test-artifact-mutation-authority.js",
           "scripts/test-candidate-review-bundle.js",
+          "scripts/test-ci-validation-plan.js",
           "scripts/test-cli-behavior.js",
           "scripts/test-cli-command-registry.js",
           "scripts/test-client-contracts.js",
@@ -14133,6 +14195,7 @@
           "scripts/test-global-host-removal.js",
           "scripts/test-global-install-smoke.js",
           "scripts/test-governance-intake.js",
+          "scripts/test-governance-ledger-resolver.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-adapters.js",
@@ -14179,6 +14242,7 @@
           "scripts/test-visible-output-contract.js",
           "scripts/test-workflow-capabilities.js",
           "scripts/test-workflow-completion-contract.js",
+          "scripts/test-workflow-plan-decision.js",
           "scripts/test-workspace-provisioning.js",
           "scripts/test-workspace-temp.js",
           "scripts/validate-profile.js",
@@ -16133,6 +16197,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/workflow-plan-decision-v1.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/workflow-root-registry.v1.json",
           "role": "current"
         },
@@ -16222,6 +16290,10 @@
         },
         {
           "path": "scripts/lib/canonical-consumer-contracts.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/cli-governance-commands.js",
           "role": "current"
         },
         {
@@ -19016,8 +19088,8 @@
         "content/skills/spec-governance/SKILL.md"
       ],
       "source": "content/skills/spec-governance/SKILL.md",
-      "hash": "e89b7b991da58e4afbb9883870f6e8b686e5d532197b5e107e82dd01b9feab09",
-      "sourceBytes": 35305,
+      "hash": "6f2bb7053d7e33372b46d7ed5ff49f50816d947033e1e0206b29ea38b847972c",
+      "sourceBytes": 36678,
       "version": "1.19.3",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -19627,7 +19699,15 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/cli-governance-commands.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/cli-maintenance-commands.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/cli-maintenance-diagnostics.js",
           "role": "current"
         },
         {

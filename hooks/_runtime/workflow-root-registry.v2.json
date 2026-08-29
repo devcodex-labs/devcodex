@@ -1077,11 +1077,11 @@
   "sourceEvidence": [
     {
       "ref": "content:instructions/01-common.instructions.md",
-      "digest": "5511686f26dddfef164158642df022eb821b984eb5a2b4816fb6d32fd828501a"
+      "digest": "702fc3f36c6b0af057b96931d588f735c64c32aedd385c6d7a2f9ad7b4a99932"
     },
     {
       "ref": "content:skills/routing/SKILL.md",
-      "digest": "73fba2121efb75439fd3326147234693be7dc7c48873de4bc3e207a50a1421f0"
+      "digest": "9519f99b6cb3c033aa62121afbc984afa2091a3169ca87cc20d6b1e204231085"
     },
     {
       "ref": "content:skills/routing/workflow-capabilities.json",
@@ -1089,10 +1089,10 @@
     },
     {
       "ref": "scripts/lib/host-parity-scorecard.js",
-      "digest": "369ddd5e734a0da918406ddaeb30f97ff77d5dfe5eb67fe9125099d6cdf160af"
+      "digest": "86c9460c1e4c89c103038066b5a9b7d273985c59063af16ddf6ccf55c349ec90"
     }
   ],
-  "sourceDigest": "8073ca5fbb7f72a8cc213c7af58a29c250a34faba88dc91747b98f38fdea2eb2",
+  "sourceDigest": "8516aaee9bf8d06da8c8afd489951d0547511bc014c5f2aeb8cd942266b09eaa",
   "routeRevision": "cd86a6045a9fc8cd72b094254bc68bef4210e0bb4639a7c2d755f8368aa3310b",
-  "registryDigest": "7b2991ccb78124b844df02ccf6edab9b2dea748b16e0fa772810cd03645af510"
+  "registryDigest": "be9554adf22f8cfd426ef1dc873a4b778b066417d7c1bb01032a7957afd2e823"
 }

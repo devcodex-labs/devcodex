@@ -190,9 +190,17 @@ function inspectGovernanceLedgerManifest (activeRoot, manifest, options = {}) {
         expectedPrefix: definition.prefix,
         exactHeadingLevel: document.role === 'archive' ? 2 : undefined
       })
+      // The active ledger is a queue and may legitimately contain zero records
+      // on a fresh workspace or after every record has moved to immutable shards.
+      const effectiveIntegrityIssues = integrity.issues.filter(issue =>
+        !(document.role === 'active' && issue === 'primary-records-missing')
+      )
+      const effectiveIntegrity = effectiveIntegrityIssues.length === integrity.issues.length
+        ? integrity
+        : { ...integrity, valid: effectiveIntegrityIssues.length === 0, issues: effectiveIntegrityIssues }
       const digest = sha256(bytes)
-      if (!integrity.valid) {
-        for (const issue of integrity.issues) issues.push(`ledger-integrity:${definition.kind}:${document.relativePath}:${issue}`)
+      if (!effectiveIntegrity.valid) {
+        for (const issue of effectiveIntegrity.issues) issues.push(`ledger-integrity:${definition.kind}:${document.relativePath}:${issue}`)
       }
       if (document.expectedDigest && verifyDigests && digest !== document.expectedDigest) {
         issues.push(`ledger-shard-digest-mismatch:${definition.kind}:${document.relativePath}`)
@@ -204,13 +212,13 @@ function inspectGovernanceLedgerManifest (activeRoot, manifest, options = {}) {
           issues.push(`ledger-shard-id-drift:${definition.kind}:${document.relativePath}`)
         }
       }
-      for (const id of integrity.primaryIds) {
+      for (const id of effectiveIntegrity.primaryIds) {
         const sequence = Number(id.match(/\d+$/)?.[0] || 0)
         familyMaxSequence = Math.max(familyMaxSequence, sequence)
         if (!recordsById.has(id)) recordsById.set(id, [])
         recordsById.get(id).push({ kind: definition.kind, role: document.role, relativePath: document.relativePath })
       }
-      documents.push({ ...document, file, digest, integrity })
+      documents.push({ ...document, file, digest, integrity: effectiveIntegrity })
     }
 
     if (Number.isInteger(family.nextSequence) && family.nextSequence <= familyMaxSequence) {

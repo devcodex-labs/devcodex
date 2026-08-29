@@ -13,6 +13,7 @@ const {
   formatGlobalHostRuntimeState,
   formatNodeRuntimeReadiness
 } = require('./cli-runtime-diagnostics.js')
+const { createMaintenanceDiagnosticHelpers } = require('./cli-maintenance-diagnostics.js')
 
 function buildCliMaintenanceCommands(ctx) {
   const {
@@ -26,6 +27,12 @@ function buildCliMaintenanceCommands(ctx) {
     genConfigJson, detectAgent, detectHostPlatform, detectInstalledHostAssets, inspectHostInstructionSurfaces,
     recommendProfileTier, compareProfileTiers, updateProfileTierDeclaration
   } = ctx
+  const { formatGovernanceSummary, readCodexHookCommands } = createMaintenanceDiagnosticHelpers({
+    fs,
+    path,
+    c,
+    codexHookCommand: CODEX_HOOK_COMMAND
+  })
 
   const cliMetadata = { packageName: PACKAGE_JSON.name, packageVersion: PACKAGE_JSON.version }
   const workspaceCleanMode = 'GlobalOnlyWorkspaceCleanModeV1'
@@ -1134,59 +1141,6 @@ function buildCliMaintenanceCommands(ctx) {
     Every command supports ${c.cyan('<command> --help')} and ${c.cyan('help <command>')} without writing files.
     User guide: https://devcodex-labs.github.io/devcodex/
   `)
-  }
-
-  function collectHookCommands(config) {
-    const commands = []
-    function visit(value) {
-      if (Array.isArray(value)) {
-        for (const item of value) visit(item)
-        return
-      }
-      if (!value || typeof value !== 'object') return
-      if (typeof value.command === 'string') commands.push(value.command)
-      for (const [key, child] of Object.entries(value)) {
-        if (key !== 'command') visit(child)
-      }
-    }
-    visit(config?.hooks || config)
-    return commands
-  }
-
-  function readCodexHookCommands(cwd) {
-    const file = path.join(cwd, '.codex', 'hooks.json')
-    const result = {
-      file,
-      exists: fs.existsSync(file),
-      commands: [],
-      invalidCommands: [],
-      error: null,
-    }
-    if (!result.exists) return result
-
-    try {
-      const config = JSON.parse(fs.readFileSync(file, 'utf8'))
-      result.commands = collectHookCommands(config)
-      result.invalidCommands = result.commands.filter(command => command !== CODEX_HOOK_COMMAND)
-    } catch (err) {
-      result.error = String(err && err.message ? err.message : err)
-    }
-    return result
-  }
-
-  function formatGovernanceSummary(summary) {
-    if (!summary || summary.schemaVersion !== 'GovernanceStatusSummaryV1') return c.dim('unavailable')
-    const status = summary.status === 'pass' ? c.green('pass') : c.yellow(summary.status || 'warn')
-    const runtime = summary.runtimeState || {}
-    const skills = summary.skills || {}
-    const gates = summary.gateLifecycle || {}
-    const alwaysOn = summary.alwaysOn || {}
-    const dirty = summary.dirtyBoundary || {}
-    return `${status} ` +
-      c.dim(`runtime ${runtime.recordCount || 0} records/${runtime.alertCount || 0} alerts; `) +
-      c.dim(`skills ${skills.skillCount || 0} (${skills.activeSkillCount || 0} active/${skills.graySkillCount || 0} gray); `) +
-      c.dim(`always-on ${alwaysOn.shadow?.sampleCount || 0}/${alwaysOn.shadow?.p0MissedCount || 0} shadow; `) +
-      c.dim(`gates ${gates.groupCount || 0}; fast-path ${summary.fastPathPolicy?.visibleMode || 'full'}; git ${dirty.status || 'unknown'}`)
   }
 
   return { cmdStatus, cmdProfileInit, cmdDoctor, cmdHelp }

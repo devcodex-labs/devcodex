@@ -427,6 +427,7 @@
     "scripts/lib/cli-install-commands.js",
     "scripts/lib/cli-workspace-init-args.js",
     "scripts/lib/cli-workspace-init-command.js",
+    "scripts/lib/cli-maintenance-diagnostics.js",
     "scripts/lib/cli-maintenance-commands.js",
     "scripts/lib/cli-host-diagnostic-scope.js",
     "scripts/lib/global-adapter-refresh-guidance.js",

@@ -33,6 +33,7 @@ function buildModularityControlChecks(ctx) {
       'scripts/lib/validate-consumer-evolution-controls.js',
       'scripts/test-consumer-evolution-controls.js',
       'scripts/lib/cli-install-commands.js',
+      'scripts/lib/cli-maintenance-diagnostics.js',
       'scripts/lib/cli-maintenance-commands.js',
       'scripts/lib/cli-command-registry.js',
       'scripts/lib/global-host-removal.js'
@@ -51,6 +52,7 @@ function buildModularityControlChecks(ctx) {
     const packageJson = JSON.parse(read(path.join(ROOT, 'package.json')))
     for (const file of [
       'scripts/lib/cli-install-commands.js',
+      'scripts/lib/cli-maintenance-diagnostics.js',
       'scripts/lib/cli-maintenance-commands.js',
       'scripts/lib/cli-worktree-diagnostics.js',
       'scripts/lib/worktree-lifecycle.js',

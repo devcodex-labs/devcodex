@@ -10,6 +10,7 @@ const {
   buildGovernanceLedgerIndex,
   initializeGovernanceLedgerManifest,
   inspectGovernanceLedgerManifest,
+  LEDGER_DEFINITIONS,
   loadGovernanceLedgerManifest,
   rebuildGovernanceLedgerIndex,
   resolveAllGovernanceLedgerFamilies,
@@ -40,6 +41,15 @@ function expectCode (fn, code) {
 }
 
 try {
+  const freshRoot = path.join(root, 'fresh-empty')
+  for (const definition of Object.values(LEDGER_DEFINITIONS)) {
+    write(`fresh-empty/${definition.activePath}`, `# ${definition.kind} ledger\n\n## 登记表\n`)
+  }
+  const freshInitialized = initializeGovernanceLedgerManifest(freshRoot)
+  assert.strictEqual(freshInitialized.status, 'initialized')
+  assert.strictEqual(loadGovernanceLedgerManifest(freshRoot).inspection.recordCount, 0)
+  assert.deepStrictEqual(buildGovernanceLedgerIndex(freshRoot).records, [])
+
   write('data/process-improvements.md', '| PI-001 | 2026-08-01 | open |\n')
   write('data/pending-fixes.md', '| PF-001 | 2026-08-01 | open |\n')
   write('data/violations.md', '| VL-001 | 2026-08-01 | closed |\n')

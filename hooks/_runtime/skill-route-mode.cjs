@@ -56,6 +56,7 @@ const RUNTIME_CONTRACT_FILES = Object.freeze([
   'context-source-observation.cjs',
   'derived-state-store.cjs',
   'execution-optimization-routing.cjs',
+  'fenced-task-write-owner.cjs',
   'governance-ledger-integrity.cjs',
   'skill-resolution.cjs',
   'workspace-layout.cjs',

@@ -43,6 +43,8 @@ const TASK_ADMISSION_TRANSACTION_SCHEMA = 'TaskAdmissionTransactionV1'
 const TASK_ADMISSION_RECONCILIATION_SCHEMA = 'TaskAdmissionReconciliationReceiptV1'
 const ADMISSION_INGRESS_SNAPSHOT_SCHEMA = 'AdmissionIngressSnapshotV1'
 const ADMISSION_INGRESS_SNAPSHOT_REF_SCHEMA = 'AdmissionIngressSnapshotRefV1'
+const BOUNDED_RESUME_INGRESS_CAPABILITY_SCHEMA = 'BoundedResumeIngressCapabilityV1'
+const FINALIZED_TASK_RESUME_RECOVERY_SCHEMA = 'FinalizedTaskResumeRecoveryReceiptV3'
 const ADMISSION_CONTINUATION_LEASE_SCHEMA = 'AdmissionContinuationLeaseV1'
 const FENCED_TASK_WRITE_OWNER_SCHEMA = 'FencedTaskWriteOwnerLeaseV2'
 const WORKFLOW_TASK_TERMINAL_RECEIPT_SCHEMA = 'WorkflowTaskTerminalReceiptV1'
@@ -72,6 +74,10 @@ const DEFAULT_RESERVE_BYTES = 8 * 1024 * 1024
 const DEFAULT_DISK_HEADROOM_BYTES = 8 * 1024 * 1024
 const DEFAULT_EPHEMERAL_BYTES = 1024 * 1024
 const ADMISSION_INGRESS_SNAPSHOT_MAX_BYTES = 512 * 1024
+const BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_BYTES = 512 * 1024
+const BOUNDED_RESUME_INGRESS_CAPABILITY_TTL_MS = 10 * 60 * 1000
+const BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_FILES = 128
+const BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_SCAN = 256
 const EPHEMERAL_ENTRY_MAX_BYTES = 8 * 1024
 const EPHEMERAL_STUB_TARGET_BYTES = EPHEMERAL_ENTRY_MAX_BYTES - 1024
 const DEFAULT_COLD_AFTER_MS = 7 * 24 * 60 * 60 * 1000
@@ -869,6 +875,366 @@ function readAdmissionIngressSnapshot(input = {}, options = {}) {
     },
     state
   }
+}
+
+function boundedResumeIngressCapabilityPaths(metaDir, ingressRef) {
+  const snapshotKey = admissionIngressSnapshotKey(ingressRef)
+  const root = path.join(path.resolve(metaDir), 'resume-ingress')
+  return {
+    root,
+    snapshotKey,
+    capability: path.join(root, `${snapshotKey}.json`),
+    lock: path.join(root, '.writer.lock')
+  }
+}
+
+function boundedResumeIngressCapabilityDigest(capability = {}) {
+  const value = cloneRecoveryValue(capability || {})
+  delete value.candidateDigest
+  return digestValue(value)
+}
+
+function finalizedTaskResumeLivenessDigest(liveness = {}) {
+  const value = cloneRecoveryValue(liveness || {})
+  delete value.livenessDigest
+  delete value.observedAt
+  return digestValue(value)
+}
+
+function pruneBoundedResumeIngressCapabilities(root, options = {}) {
+  const fsImpl = options.fs || fs
+  const nowMs = nowMsFrom(options)
+  const names = []
+  let scannedEntries = 0
+  let directory
+  try {
+    directory = fsImpl.opendirSync(root)
+    while (scannedEntries <= BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_SCAN) {
+      const entry = directory.readSync()
+      if (!entry) break
+      scannedEntries += 1
+      if (entry.isFile() && /^[a-f0-9]{64}\.json$/.test(entry.name)) names.push(entry.name)
+    }
+  } catch (error) {
+    if (error?.code === 'ENOENT') return { status: 'ready', activeFiles: 0, removed: 0 }
+    return { status: 'error', errorCode: 'BOUNDED_RESUME_INGRESS_INVENTORY_FAILED', message: error.message }
+  } finally {
+    try { directory?.closeSync() } catch { }
+  }
+  if (scannedEntries > BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_SCAN) {
+    return {
+      status: 'error',
+      errorCode: 'BOUNDED_RESUME_INGRESS_DIRECTORY_UNBOUNDED',
+      maxScan: BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_SCAN
+    }
+  }
+  let removed = 0
+  let activeFiles = 0
+  for (const name of names) {
+    const file = path.join(root, name)
+    const read = readJson(file, fsImpl, BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_BYTES)
+    const value = read.status === 'fresh' ? read.value : null
+    const digestValid = value?.schemaVersion === BOUNDED_RESUME_INGRESS_CAPABILITY_SCHEMA &&
+      /^[a-f0-9]{64}$/.test(String(value.candidateDigest || '')) &&
+      value.candidateDigest === boundedResumeIngressCapabilityDigest(value)
+    const expired = digestValid && Number.isFinite(Date.parse(String(value.expiresAt || ''))) &&
+      Date.parse(value.expiresAt) <= nowMs
+    if (expired) {
+      try {
+        const stat = fsImpl.lstatSync(file)
+        if (stat.isFile() && !stat.isSymbolicLink()) {
+          fsImpl.unlinkSync(file)
+          removed += 1
+          continue
+        }
+      } catch { }
+    }
+    activeFiles += 1
+  }
+  return { status: 'ready', activeFiles, removed }
+}
+
+function validateBoundedResumeIngressCapability(capability, options = {}) {
+  const errors = []
+  const value = capability && typeof capability === 'object' && !Array.isArray(capability)
+    ? capability
+    : null
+  if (!value) return { valid: false, errors: ['candidate-object-required'] }
+  if (value.schemaVersion !== BOUNDED_RESUME_INGRESS_CAPABILITY_SCHEMA) errors.push('candidate-schema-version')
+  if (!/^resume-ingress-[a-f0-9]{40}$/.test(String(value.candidateId || ''))) errors.push('candidate-id')
+  for (const field of ['attemptDigest', 'candidateDigest']) {
+    if (!/^[a-f0-9]{64}$/.test(String(value[field] || ''))) errors.push(field)
+  }
+  if (!value.contextBinding || value.contextBinding.schemaVersion !== 'ContextReadBindingV1' ||
+      !String(value.contextBinding.contextEpoch || '').trim() || !String(value.contextBinding.planId || '').trim() ||
+      !String(value.contextBinding.planContentId || '').trim()) errors.push('context-binding')
+  if (!String(value.project || '').trim() || !String(value.activeRoot || '').trim() ||
+      !path.isAbsolute(String(value.activeRoot || ''))) errors.push('candidate-target')
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value.taskId || ''))) {
+    errors.push('candidate-task-id')
+  }
+  const taskRootRelative = String(value.taskRootRelative || '').replace(/\\/g, '/')
+  if (!taskRootRelative || path.isAbsolute(taskRootRelative) || /^[A-Za-z]:/.test(taskRootRelative) ||
+      taskRootRelative.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
+    errors.push('candidate-task-root')
+  }
+  for (const field of ['projectRootIdentityDigest', 'taskIdentityDigest', 'canonicalOverviewDigest', 'cpArtifactDigest']) {
+    if (!/^[a-f0-9]{64}$/.test(String(value[field] || ''))) errors.push(field)
+  }
+  const prior = value.prior || {}
+  if (!/^admission-[a-f0-9]{40}$/.test(String(prior.admissionId || '')) ||
+      !Number.isInteger(prior.admissionGeneration) || prior.admissionGeneration < 1 ||
+      !/^[a-f0-9]{64}$/.test(String(prior.transactionDigest || '')) ||
+      !Number.isInteger(prior.ownerGeneration) || prior.ownerGeneration < 1 ||
+      !Number.isInteger(prior.leaseRevision) || prior.leaseRevision < 1 ||
+      !/^[a-f0-9]{64}$/.test(String(prior.ownerLeaseDigest || ''))) errors.push('candidate-prior-binding')
+  const runtime = value.runtime || {}
+  if (!String(runtime.activeVersion || '').trim() || !String(runtime.generationId || '').trim() ||
+      !/^[a-f0-9]{64}$/.test(String(runtime.runtimeDigest || ''))) errors.push('candidate-runtime')
+  const liveness = value.liveness || {}
+  if (liveness.schemaVersion !== 'FinalizedTaskResumeLivenessV1' ||
+      typeof liveness.noLiveTurn !== 'boolean' || typeof liveness.noLiveOperation !== 'boolean' ||
+      typeof liveness.sideEffectUnknown !== 'boolean' ||
+      !/^[a-f0-9]{64}$/.test(String(liveness.livenessDigest || ''))) errors.push('candidate-liveness')
+  else {
+    if (liveness.livenessDigest !== finalizedTaskResumeLivenessDigest(liveness)) errors.push('candidate-liveness-digest')
+  }
+  const ingress = value.ingress || {}
+  const ingressValidation = validateAdmissionIngressState(ingress, options)
+  if (!ingressValidation.valid) errors.push(...ingressValidation.errors.map(error => `candidate-ingress:${error}`))
+  const ingressRef = ingressValidation.ingressRef
+  if (!ingressRef || value.ingressRef?.schemaVersion !== 'WorkflowIngressProjectionRefV1' ||
+      ingressRef.envelopeId !== value.ingressRef?.envelopeId ||
+      ingressRef.envelopeDigest !== value.ingressRef?.envelopeDigest ||
+      ingressRef.decisionDigest !== value.ingressRef?.decisionDigest ||
+      ingressRef.routeRevision !== value.ingressRef?.routeRevision) errors.push('candidate-ingress-ref')
+  if (ingress.actualInstructionEnvelope?.contextEpoch !== value.contextBinding?.contextEpoch ||
+      ingress.workflowRouteDecision?.topIntent !== 'resume' ||
+      ingress.workflowRouteDecision?.routeKey !== 'resume' ||
+      ingress.workflowRouteDecision?.stage !== 'rehydrate' ||
+      ingress.stickyProject?.project !== value.project ||
+      recoveryComparablePath(ingress.stickyProject?.activeRoot) !== recoveryComparablePath(value.activeRoot) ||
+      ingress.stickyProject?.rootIdentityDigest !== value.projectRootIdentityDigest) errors.push('candidate-ingress-binding')
+  const issuedAtMs = Date.parse(String(value.issuedAt || ''))
+  const expiresAtMs = Date.parse(String(value.expiresAt || ''))
+  if (!Number.isFinite(issuedAtMs) || !Number.isFinite(expiresAtMs) || expiresAtMs <= issuedAtMs ||
+      expiresAtMs > issuedAtMs + BOUNDED_RESUME_INGRESS_CAPABILITY_TTL_MS) errors.push('candidate-lifetime')
+  if (value.mutationAuthority !== false) errors.push('candidate-authority')
+  if (!/^[a-f0-9]{64}$/.test(String(value.candidateDigest || '')) ||
+      value.candidateDigest !== boundedResumeIngressCapabilityDigest(value)) errors.push('candidate-digest')
+  const nowMs = nowMsFrom(options)
+  if (options.allowExpired !== true && Number.isFinite(expiresAtMs) && expiresAtMs <= nowMs) errors.push('candidate-expired')
+  return { valid: errors.length === 0, errors: [...new Set(errors)], ingressRef }
+}
+
+function writeBoundedResumeIngressCapability(input = {}, options = {}) {
+  const fsImpl = options.fs || fs
+  const nowMs = nowMsFrom(options)
+  const ingress = cloneRecoveryValue(input.ingress || {})
+  const ingressValidation = validateAdmissionIngressState(ingress, { ...options, nowMs })
+  if (!ingressValidation.valid) {
+    return { status: 'error', errorCode: 'BOUNDED_RESUME_INGRESS_INVALID', errors: ingressValidation.errors }
+  }
+  const attemptDigest = String(input.attemptDigest || '')
+  if (!/^[a-f0-9]{64}$/.test(attemptDigest)) {
+    return { status: 'error', errorCode: 'BOUNDED_RESUME_ATTEMPT_INVALID' }
+  }
+  const issuedAt = new Date(nowMs).toISOString()
+  const envelopeExpiresAtMs = Date.parse(ingress.actualInstructionEnvelope.expiresAt)
+  const expiresAtMs = Math.min(envelopeExpiresAtMs, nowMs + BOUNDED_RESUME_INGRESS_CAPABILITY_TTL_MS)
+  const core = {
+    schemaVersion: BOUNDED_RESUME_INGRESS_CAPABILITY_SCHEMA,
+    candidateId: `resume-ingress-${attemptDigest.slice(0, 40)}`,
+    attemptDigest,
+    ingressRef: ingressValidation.ingressRef,
+    project: String(input.project || ''),
+    activeRoot: path.resolve(String(input.activeRoot || '')),
+    projectRootIdentityDigest: String(input.projectRootIdentityDigest || ''),
+    taskId: String(input.taskId || '').toLowerCase(),
+    taskRootRelative: String(input.taskRootRelative || '').replace(/\\/g, '/'),
+    taskIdentityDigest: String(input.taskIdentityDigest || ''),
+    canonicalOverviewDigest: String(input.canonicalOverviewDigest || ''),
+    cpArtifactDigest: String(input.cpArtifactDigest || ''),
+    contextBinding: cloneRecoveryValue(input.contextBinding || {}),
+    prior: cloneRecoveryValue(input.prior || {}),
+    runtime: cloneRecoveryValue(input.runtime || {}),
+    liveness: cloneRecoveryValue(input.liveness || {}),
+    ingress,
+    issuedAt,
+    expiresAt: new Date(expiresAtMs).toISOString(),
+    mutationAuthority: false
+  }
+  const candidate = { ...core, candidateDigest: boundedResumeIngressCapabilityDigest(core) }
+  const validation = validateBoundedResumeIngressCapability(candidate, { ...options, nowMs })
+  if (!validation.valid) {
+    return { status: 'error', errorCode: 'BOUNDED_RESUME_INGRESS_INVALID', errors: validation.errors }
+  }
+  const bytes = jsonBytes(candidate)
+  if (bytes > BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_BYTES) {
+    return { status: 'error', errorCode: 'BOUNDED_RESUME_INGRESS_TOO_LARGE', bytes, maxBytes: BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_BYTES }
+  }
+  const paths = boundedResumeIngressCapabilityPaths(input.metaDir, candidate.ingressRef)
+  fsImpl.mkdirSync(paths.root, { recursive: true })
+  const lock = acquireLock(paths.lock, { ...options, fs: fsImpl })
+  if (!lock) return { status: 'error', errorCode: 'BOUNDED_RESUME_INGRESS_LOCK_BUSY' }
+  try {
+    const inventory = pruneBoundedResumeIngressCapabilities(paths.root, { ...options, fs: fsImpl, nowMs })
+    if (inventory.status !== 'ready') return inventory
+    const existing = readJson(paths.capability, fsImpl, BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_BYTES)
+    if (existing.status === 'fresh') {
+      const existingValidation = validateBoundedResumeIngressCapability(existing.value, { ...options, nowMs })
+      const sameAttempt = existingValidation.valid && existing.value.attemptDigest === candidate.attemptDigest &&
+        existing.value.ingressRef?.envelopeDigest === candidate.ingressRef.envelopeDigest &&
+        existing.value.ingressRef?.decisionDigest === candidate.ingressRef.decisionDigest
+      if (!sameAttempt) {
+        return { status: 'error', errorCode: 'BOUNDED_RESUME_INGRESS_CONFLICT', errors: existingValidation.errors || [] }
+      }
+      return {
+        status: 'semantic-noop',
+        candidate: existing.value,
+        ref: existing.value.ingressRef,
+        bytes: jsonBytes(existing.value),
+        removedExpired: inventory.removed
+      }
+    }
+    if (existing.status !== 'missing') {
+      return { status: 'error', errorCode: 'BOUNDED_RESUME_INGRESS_EXISTING_INVALID' }
+    }
+    if (inventory.activeFiles >= BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_FILES) {
+      return {
+        status: 'error',
+        errorCode: 'BOUNDED_RESUME_INGRESS_CAPACITY_EXCEEDED',
+        activeFiles: inventory.activeFiles,
+        maxFiles: BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_FILES
+      }
+    }
+    try {
+      writeFixedJsonSlot(paths.capability, `${paths.capability}.${process.pid}.tmp`, candidate, fsImpl)
+    } catch (error) {
+      return { status: 'error', errorCode: error.code || 'BOUNDED_RESUME_INGRESS_WRITE_FAILED', message: error.message }
+    }
+    const readback = readJson(paths.capability, fsImpl, BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_BYTES)
+    if (readback.status !== 'fresh' || readback.value?.candidateDigest !== candidate.candidateDigest) {
+      return { status: 'error', errorCode: 'BOUNDED_RESUME_INGRESS_READBACK_FAILED' }
+    }
+    return { status: 'persisted', candidate: readback.value, ref: candidate.ingressRef, bytes, removedExpired: inventory.removed }
+  } finally {
+    releaseLock(lock, fsImpl)
+  }
+}
+
+function readBoundedResumeIngressCapability(input = {}, options = {}) {
+  const fsImpl = options.fs || fs
+  const paths = boundedResumeIngressCapabilityPaths(input.metaDir, input.ingressRef || {})
+  const read = readJson(paths.capability, fsImpl, BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_BYTES)
+  if (read.status !== 'fresh') {
+    return { status: read.status, errorCode: read.status === 'missing' ? 'BOUNDED_RESUME_INGRESS_MISSING' : 'BOUNDED_RESUME_INGRESS_INVALID' }
+  }
+  const candidate = read.value
+  const validation = validateBoundedResumeIngressCapability(candidate, options)
+  if (!validation.valid) {
+    return {
+      status: validation.errors.includes('candidate-expired') ? 'expired' : 'invalid',
+      errorCode: validation.errors.includes('candidate-expired') ? 'BOUNDED_RESUME_INGRESS_EXPIRED' : 'BOUNDED_RESUME_INGRESS_INVALID',
+      errors: validation.errors
+    }
+  }
+  if (input.project && candidate.project !== input.project) {
+    return { status: 'identity-mismatch', errorCode: 'BOUNDED_RESUME_INGRESS_PROJECT_MISMATCH' }
+  }
+  if (input.activeRoot && recoveryComparablePath(candidate.activeRoot) !== recoveryComparablePath(input.activeRoot)) {
+    return { status: 'identity-mismatch', errorCode: 'BOUNDED_RESUME_INGRESS_ROOT_MISMATCH' }
+  }
+  if (input.taskId && candidate.taskId !== String(input.taskId).toLowerCase()) {
+    return { status: 'identity-mismatch', errorCode: 'BOUNDED_RESUME_INGRESS_TASK_MISMATCH' }
+  }
+  if (options.requireAuthority !== true) return { status: 'fresh', candidate, ref: candidate.ingressRef, authority: false }
+  const identity = {
+    activeRoot: candidate.activeRoot,
+    project: candidate.project,
+    taskId: candidate.taskId,
+    taskStatus: 'active'
+  }
+  const recovery = readTaskRecoveryState({ metaDir: input.metaDir, identity }, options)
+  if (recovery.status !== 'fresh') {
+    return { status: 'blocked', errorCode: recovery.errorCode || 'BOUNDED_RESUME_AUTHORITY_STATE_UNAVAILABLE' }
+  }
+  const transaction = recovery.state?.admissionTransaction
+  const owner = recovery.state?.fencedWriteOwner
+  const capabilityRef = recovery.state?.resumeIngressCapabilityRef
+  const exactAuthority = transaction?.phase === 'finalized' && transaction?.status === 'finalized' &&
+    transaction?.recovery?.schemaVersion === FINALIZED_TASK_RESUME_RECOVERY_SCHEMA &&
+    transaction.recovery.candidateDigest === candidate.candidateDigest &&
+    transaction.admissionGeneration === candidate.prior.admissionGeneration + 1 &&
+    transaction.taskId === candidate.taskId && transaction.project === candidate.project &&
+    transaction.projectRootIdentityDigest === candidate.projectRootIdentityDigest &&
+    transaction.workflowRouteDigest === candidate.ingress.workflowRouteDecision.decisionDigest &&
+    transaction.routeRevision === candidate.ingress.workflowRouteDecision.routeRevision &&
+    transaction.sessionDigest === candidate.ingress.stickyProject.authorityDigest &&
+    owner?.status === 'active' && Date.parse(String(owner.expiresAt || '')) > nowMsFrom(options) &&
+    owner.taskId === candidate.taskId && owner.projectRootIdentity === candidate.projectRootIdentityDigest &&
+    owner.sessionDigest === candidate.ingress.stickyProject.authorityDigest &&
+    owner.contextEpoch === candidate.contextBinding.contextEpoch &&
+    owner.routeRevision === candidate.ingress.workflowRouteDecision.routeRevision &&
+    capabilityRef?.candidateDigest === candidate.candidateDigest &&
+    capabilityRef?.ingressRef?.envelopeDigest === candidate.ingressRef.envelopeDigest
+  if (!exactAuthority) {
+    return {
+      status: 'blocked',
+      errorCode: 'BOUNDED_RESUME_INGRESS_NOT_AUTHORIZED',
+      candidate,
+      authority: false
+    }
+  }
+  return {
+    status: 'fresh',
+    candidate,
+    ref: candidate.ingressRef,
+    authority: true,
+    state: recovery.state,
+    transaction,
+    owner
+  }
+}
+
+function observeFinalizedTaskResumeLiveness(state = {}, owner = null, options = {}) {
+  const nowMs = nowMsFrom(options)
+  const turn = state.turnLiveness || {}
+  const operation = turn.inFlightOperation || null
+  const operationLeaseLive = operation?.ownedByAgent === true &&
+    Date.parse(String(operation.leaseExpiresAt || '')) > nowMs
+  const closeout = turn.lastMutationCloseout || null
+  const mutationClosed = operation?.operationId && closeout?.operationId === operation.operationId &&
+    ['observed', 'reconciled'].includes(String(closeout.result || ''))
+  const sideEffectUnknown = operation?.ownedByAgent === true && operation?.mutating === true &&
+    !operationLeaseLive && !mutationClosed
+  const turnState = String(turn.state || '').toLowerCase()
+  const terminalTurn = ['completed', 'error', 'interrupted', 'idle'].includes(turnState)
+  const previousTerminal = ['completed', 'error', 'interrupted'].includes(String(turn.previousTurn?.terminalState || '').toLowerCase())
+  const currentContextEpoch = String(state.contextAcquisition?.contextEpoch || '')
+  const ownerContextEpoch = String(owner?.contextEpoch || '')
+  const contextAdvanced = !!currentContextEpoch && !!ownerContextEpoch && currentContextEpoch !== ownerContextEpoch
+  const lastEventAtMs = Date.parse(String(turn.lastEventAt || ''))
+  const stalledAfterMs = Math.max(60 * 1000, Number(turn.thresholds?.stalledAfterMs || 0) || 5 * 60 * 1000)
+  const staleRunningTurn = ['running', 'suspect', 'stalled'].includes(turnState) &&
+    Number.isFinite(lastEventAtMs) && nowMs - lastEventAtMs > stalledAfterMs &&
+    Date.parse(String(owner?.expiresAt || '')) <= nowMs
+  const noLiveTurn = terminalTurn || (contextAdvanced && previousTerminal) ||
+    (!operationLeaseLive && staleRunningTurn)
+  const core = {
+    schemaVersion: 'FinalizedTaskResumeLivenessV1',
+    priorOwnerLeaseDigest: owner?.leaseDigest || null,
+    observedTurnState: turnState || 'missing',
+    observedPreviousTurnState: String(turn.previousTurn?.terminalState || ''),
+    activeOperationId: operation?.operationId || null,
+    activeOperationKind: operation?.mutating === true ? 'mutation' : (operation ? 'read-only' : 'none'),
+    activeOperationLease: operationLeaseLive,
+    sideEffectUnknown,
+    noLiveOperation: !operationLeaseLive && !sideEffectUnknown,
+    noLiveTurn,
+    observedAt: new Date(nowMs).toISOString()
+  }
+  return { ...core, livenessDigest: finalizedTaskResumeLivenessDigest(core) }
 }
 
 function admissionContinuationLeaseDigest(lease = {}) {
@@ -4478,7 +4844,7 @@ function validateFencedTaskWriteOwner(owner, expectedIdentity = null) {
   if (owner.transitionRef !== null && owner.transitionRef !== undefined) {
     const ref = owner.transitionRef
     if (!ref || typeof ref !== 'object' || Array.isArray(ref) ||
-        !['acquire', 'reacquire', 'renew', 'release', 'handoff-prepare', 'handoff-accept', 'takeover-prepare', 'takeover-accept', 'reopen', 'terminal'].includes(ref.operation) ||
+        !['acquire', 'reacquire', 'renew', 'release', 'handoff-prepare', 'handoff-accept', 'takeover-prepare', 'takeover-accept', 'resume', 'reopen', 'terminal'].includes(ref.operation) ||
         (ref.priorLeaseDigest !== null && !/^[a-f0-9]{64}$/.test(String(ref.priorLeaseDigest || ''))) ||
         !/^[a-f0-9]{64}$/.test(String(ref.requestDigest || '')) ||
         !Number.isFinite(Date.parse(String(ref.committedAt || ''))) ||
@@ -4650,7 +5016,7 @@ function validateTaskAdmissionTransaction(transaction, expectedIdentity = null) 
     const recovery = transaction.recovery
     if (!recovery || typeof recovery !== 'object' || Array.isArray(recovery)) {
       errors.push('recovery-object')
-    } else {
+    } else if (recovery.schemaVersion === 'TaskAdmissionRecoveryV1') {
       if (recovery.schemaVersion !== 'TaskAdmissionRecoveryV1') errors.push('recovery-schema-version')
       if (recovery.mode !== 'awaiting-owner-rebind') errors.push('recovery-mode')
       if (!/^admission-[a-f0-9]{40}$/.test(String(recovery.priorAdmissionId || ''))) {
@@ -4671,6 +5037,31 @@ function validateTaskAdmissionTransaction(transaction, expectedIdentity = null) 
         errors.push('recovery-timestamp')
       }
       if (transaction.entryVariant !== 'continue') errors.push('recovery-entry-variant')
+    } else if (recovery.schemaVersion === FINALIZED_TASK_RESUME_RECOVERY_SCHEMA) {
+      if (recovery.mode !== 'finalized-owner-resume') errors.push('recovery-mode')
+      if (!/^admission-[a-f0-9]{40}$/.test(String(recovery.priorAdmissionId || ''))) errors.push('recovery-prior-admission-id')
+      if (!Number.isInteger(recovery.priorAdmissionGeneration) || recovery.priorAdmissionGeneration < 1 ||
+          recovery.priorAdmissionGeneration >= transaction.admissionGeneration) errors.push('recovery-prior-admission-generation')
+      if (!Number.isInteger(recovery.priorOwnerGeneration) || recovery.priorOwnerGeneration < 1 ||
+          !Number.isInteger(recovery.priorLeaseRevision) || recovery.priorLeaseRevision < 1) {
+        errors.push('recovery-prior-owner-generation')
+      }
+      for (const field of [
+        'priorTransactionDigest', 'priorOwnerLeaseDigest', 'candidateDigest', 'attemptDigest',
+        'canonicalOverviewDigest', 'taskIdentityDigest', 'cpArtifactDigest', 'livenessDigest', 'runtimeDigest'
+      ]) {
+        if (!/^[a-f0-9]{64}$/.test(String(recovery[field] || ''))) errors.push(`recovery-${field}`)
+      }
+      if (!String(recovery.runtimeGeneration || '').trim()) errors.push('recovery-runtime-generation')
+      if (!Number.isFinite(Date.parse(String(recovery.recoveredAt || ''))) ||
+          recovery.recoveredAt !== transaction.createdAt) errors.push('recovery-timestamp')
+      if (transaction.entryVariant !== 'continue' || transaction.phase !== 'finalized') errors.push('recovery-entry-variant')
+      const { recoveryDigest, ...recoveryCore } = recovery
+      if (!/^[a-f0-9]{64}$/.test(String(recoveryDigest || '')) || recoveryDigest !== digestValue(recoveryCore)) {
+        errors.push('recovery-digest')
+      }
+    } else {
+      errors.push('recovery-schema-version')
     }
   }
   if (transaction.continuationLease !== undefined && transaction.continuationLease !== null) {
@@ -4856,7 +5247,11 @@ function commitTaskAdmissionTransaction(input = {}, options = {}) {
         project: transaction.project,
         kind: transaction.taskKind,
         taskRoot: path.join(path.resolve(input.identity.activeRoot), ...transaction.taskRootRelative.split('/')),
-        status: transaction.status === 'admitting' ? 'admitting' : transaction.status,
+        status: transaction.status === 'terminal' || state.fencedWriteOwner?.status === 'terminal'
+          ? 'terminal'
+          : (['active', 'released', 'handoff-pending', 'takeover-pending'].includes(state.fencedWriteOwner?.status)
+              ? 'active'
+              : 'admitting'),
         identityRevision: 2,
         boundAt: state.taskRecoveryBinding?.boundAt || transaction.createdAt
       }
@@ -5101,7 +5496,11 @@ function commitFencedTaskWriteOwnerTransition(input = {}, options = {}) {
         ...(state.taskRecoveryBinding || {}),
         taskId: nextOwner.taskId,
         project: currentTransaction.project,
-        status: nextOwner.status === 'terminal' ? 'terminal' : (transaction?.status || currentTransaction.status),
+        // Fenced owner state and admission journal state are not task lifecycle
+        // states. Every non-terminal owner keeps the formal task active; writing
+        // admission "finalized" here makes later recovery select a bogus V5
+        // task-status partition.
+        status: nextOwner.status === 'terminal' ? 'terminal' : 'active',
         identityRevision: 2
       }
       return state
@@ -5118,6 +5517,174 @@ function commitFencedTaskWriteOwnerTransition(input = {}, options = {}) {
     }
   }
   return { ...result, owner: nextOwner, transaction, terminalReceipt }
+}
+
+function commitFinalizedTaskResumeV3(input = {}, options = {}) {
+  const transaction = cloneRecoveryValue(input.transaction || {})
+  const owner = cloneRecoveryValue(input.owner || {})
+  const candidate = cloneRecoveryValue(input.candidate || {})
+  const transactionValidation = validateTaskAdmissionTransaction(transaction, input.identity)
+  const ownerValidation = validateFencedTaskWriteOwner(owner, input.identity)
+  const candidateValidation = validateBoundedResumeIngressCapability(candidate, options)
+  if (!transactionValidation.valid || !ownerValidation.valid || !candidateValidation.valid) {
+    return {
+      status: 'error',
+      errorCode: 'FINALIZED_TASK_RESUME_INPUT_INVALID',
+      errors: [
+        ...transactionValidation.errors.map(error => `transaction:${error}`),
+        ...ownerValidation.errors.map(error => `owner:${error}`),
+        ...candidateValidation.errors.map(error => `candidate:${error}`)
+      ]
+    }
+  }
+  const recoveryReceipt = transaction.recovery || {}
+  if (transaction.phase !== 'finalized' || transaction.status !== 'finalized' ||
+      recoveryReceipt.schemaVersion !== FINALIZED_TASK_RESUME_RECOVERY_SCHEMA ||
+      recoveryReceipt.candidateDigest !== candidate.candidateDigest ||
+      transaction.admissionGeneration !== candidate.prior.admissionGeneration + 1 ||
+      owner.ownerGeneration !== candidate.prior.ownerGeneration + 1 ||
+      owner.leaseRevision !== candidate.prior.leaseRevision + 1) {
+    return { status: 'error', errorCode: 'FINALIZED_TASK_RESUME_BINDING_INVALID' }
+  }
+  const nowMs = nowMsFrom(options)
+  let result
+  try {
+    result = updateTaskRecoveryState({
+      metaDir: input.metaDir,
+      identity: input.identity,
+      sessionKey: input.sessionKey,
+      hostSessionDigest: input.hostSessionDigest
+    }, state => {
+      const currentTransaction = state.admissionTransaction
+      const currentOwner = state.fencedWriteOwner
+      const currentTransactionValidation = validateTaskAdmissionTransaction(currentTransaction, input.identity)
+      const currentOwnerValidation = validateFencedTaskWriteOwner(currentOwner, input.identity)
+      if (!currentTransactionValidation.valid || !currentOwnerValidation.valid) {
+        throw new TaskRecoveryStoreV5Error(
+          'FINALIZED_TASK_RESUME_STATE_INVALID',
+          'current finalized admission or fenced owner is invalid',
+          { errors: [...currentTransactionValidation.errors, ...currentOwnerValidation.errors] }
+        )
+      }
+      if (currentTransaction.transactionDigest === transaction.transactionDigest &&
+          currentOwner.leaseDigest === owner.leaseDigest &&
+          state.resumeIngressCapabilityRef?.candidateDigest === candidate.candidateDigest) return state
+      if (state.workflowTaskTerminalReceipt || currentTransaction.phase === 'terminal-closeout' || currentOwner.status === 'terminal') {
+        throw new TaskRecoveryStoreV5Error('FINALIZED_TASK_RESUME_TERMINAL', 'terminal tasks require an explicit reopen')
+      }
+      if (currentTransaction.phase !== 'finalized' || currentTransaction.status !== 'finalized') {
+        throw new TaskRecoveryStoreV5Error('FINALIZED_TASK_RESUME_ADMISSION_PHASE_INVALID', 'resume requires one non-terminal finalized admission')
+      }
+      if (currentTransaction.transactionDigest !== candidate.prior.transactionDigest ||
+          currentTransaction.admissionId !== candidate.prior.admissionId ||
+          currentTransaction.admissionGeneration !== candidate.prior.admissionGeneration ||
+          currentOwner.leaseDigest !== candidate.prior.ownerLeaseDigest ||
+          currentOwner.ownerGeneration !== candidate.prior.ownerGeneration ||
+          currentOwner.leaseRevision !== candidate.prior.leaseRevision) {
+        throw new TaskRecoveryStoreV5Error('FINALIZED_TASK_RESUME_CAS_LOST', 'another actor changed the admission or owner before resume commit')
+      }
+      if (!['released', 'active', 'handoff-pending', 'takeover-pending'].includes(currentOwner.status)) {
+        throw new TaskRecoveryStoreV5Error('FINALIZED_TASK_RESUME_OWNER_STATE_INVALID', 'current owner state is not resumable')
+      }
+      if (currentOwner.status !== 'released' && Date.parse(String(currentOwner.expiresAt || '')) > nowMs) {
+        throw new TaskRecoveryStoreV5Error('FINALIZED_TASK_RESUME_OWNER_BUSY', 'the current owner lease is still active')
+      }
+      const liveness = observeFinalizedTaskResumeLiveness(state, currentOwner, { ...options, nowMs })
+      if (liveness.livenessDigest !== candidate.liveness.livenessDigest) {
+        throw new TaskRecoveryStoreV5Error('FINALIZED_TASK_RESUME_LIVENESS_DRIFT', 'turn or operation liveness changed before resume commit')
+      }
+      if (!liveness.noLiveTurn) {
+        throw new TaskRecoveryStoreV5Error('FINALIZED_TASK_RESUME_OLD_TURN_LIVE', 'the prior owner turn is still live')
+      }
+      if (!liveness.noLiveOperation) {
+        throw new TaskRecoveryStoreV5Error(
+          liveness.sideEffectUnknown ? 'FINALIZED_TASK_RESUME_SIDE_EFFECT_UNKNOWN' : 'FINALIZED_TASK_RESUME_OPERATION_LIVE',
+          liveness.sideEffectUnknown
+            ? 'the prior mutation may have unresolved side effects'
+            : 'the prior operation lease is still live'
+        )
+      }
+      if (typeof input.verifyCanonical !== 'function') {
+        throw new TaskRecoveryStoreV5Error('FINALIZED_TASK_RESUME_CANONICAL_REQUIRED', 'canonical resume verification is required inside the V5 CAS')
+      }
+      const canonical = input.verifyCanonical(currentTransaction, currentOwner, state) || {}
+      const canonicalMatches = canonical.taskIdentityDigest === candidate.taskIdentityDigest &&
+        canonical.canonicalOverviewDigest === candidate.canonicalOverviewDigest &&
+        canonical.cpArtifactDigest === candidate.cpArtifactDigest && canonical.cpConfirmed === true &&
+        currentTransaction.taskIdentityDigest === candidate.taskIdentityDigest &&
+        currentTransaction.effects?.overview?.contentDigest === candidate.canonicalOverviewDigest &&
+        currentTransaction.projectRootIdentityDigest === candidate.projectRootIdentityDigest &&
+        currentTransaction.taskRootRelative === candidate.taskRootRelative
+      if (!canonicalMatches) {
+        throw new TaskRecoveryStoreV5Error('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', 'TaskIdentity, overview, CP or project binding drifted before resume commit')
+      }
+      if (recoveryReceipt.runtimeDigest !== candidate.runtime.runtimeDigest ||
+          recoveryReceipt.runtimeGeneration !== candidate.runtime.generationId) {
+        throw new TaskRecoveryStoreV5Error('FINALIZED_TASK_RESUME_RUNTIME_STALE', 'resume candidate belongs to another runtime generation')
+      }
+      state.previousAdmissionTransaction = {
+        schemaVersion: 'PreviousTaskAdmissionTransactionRefV3',
+        admissionId: currentTransaction.admissionId,
+        admissionGeneration: currentTransaction.admissionGeneration,
+        transactionDigest: currentTransaction.transactionDigest,
+        disposition: 'finalized-owner-resume',
+        replacedAt: transaction.createdAt
+      }
+      state.previousFencedWriteOwner = {
+        schemaVersion: 'PreviousFencedTaskWriteOwnerRefV1',
+        ownerGeneration: currentOwner.ownerGeneration,
+        leaseRevision: currentOwner.leaseRevision,
+        leaseDigest: currentOwner.leaseDigest,
+        status: currentOwner.status,
+        revokedAt: transaction.createdAt
+      }
+      const audit = Array.isArray(state.taskResumeAudit) ? state.taskResumeAudit : []
+      state.taskResumeAudit = [...audit, {
+        schemaVersion: 'FinalizedTaskResumeAuditRefV1',
+        candidateDigest: candidate.candidateDigest,
+        priorAdmissionId: currentTransaction.admissionId,
+        priorAdmissionGeneration: currentTransaction.admissionGeneration,
+        priorTransactionDigest: currentTransaction.transactionDigest,
+        priorOwnerLeaseDigest: currentOwner.leaseDigest,
+        admissionId: transaction.admissionId,
+        admissionGeneration: transaction.admissionGeneration,
+        transactionDigest: transaction.transactionDigest,
+        ownerLeaseDigest: owner.leaseDigest,
+        recoveredAt: transaction.createdAt
+      }].slice(-8)
+      state.admissionTransaction = transaction
+      state.fencedWriteOwner = owner
+      state.resumeIngressCapabilityRef = {
+        schemaVersion: 'BoundedResumeIngressCapabilityRefV1',
+        candidateId: candidate.candidateId,
+        candidateDigest: candidate.candidateDigest,
+        ingressRef: cloneRecoveryValue(candidate.ingressRef),
+        admissionGeneration: transaction.admissionGeneration,
+        ownerGeneration: owner.ownerGeneration,
+        expiresAt: candidate.expiresAt
+      }
+      state.taskRecoveryBinding = {
+        ...(state.taskRecoveryBinding || {}),
+        taskId: transaction.taskId,
+        displayName: transaction.displayName,
+        project: transaction.project,
+        kind: transaction.taskKind,
+        taskRoot: path.join(path.resolve(input.identity.activeRoot), ...transaction.taskRootRelative.split('/')),
+        status: 'active',
+        identityRevision: 2,
+        boundAt: state.taskRecoveryBinding?.boundAt || transaction.createdAt
+      }
+      return state
+    }, { ...options, nowMs, reason: 'finalized-task-resume-v3', force: true, touchSessionMapping: true })
+  } catch (error) {
+    return {
+      status: 'error',
+      errorCode: error.code || 'FINALIZED_TASK_RESUME_COMMIT_FAILED',
+      message: error.message,
+      details: error.details
+    }
+  }
+  return { ...result, transaction, owner, candidate, recovery: recoveryReceipt }
 }
 
 function readFencedTaskWriteOwner(input = {}, options = {}) {
@@ -5211,6 +5778,10 @@ module.exports = {
   ADMISSION_CONTINUATION_LEASE_SCHEMA,
   ADMISSION_INGRESS_SNAPSHOT_REF_SCHEMA,
   ADMISSION_INGRESS_SNAPSHOT_SCHEMA,
+  BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_FILES,
+  BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_SCAN,
+  BOUNDED_RESUME_INGRESS_CAPABILITY_SCHEMA,
+  FINALIZED_TASK_RESUME_RECOVERY_SCHEMA,
   TELEMETRY_RECORD_MAX_BYTES,
   TELEMETRY_SEGMENT_MAX_BYTES,
   TELEMETRY_TOTAL_MAX_BYTES,
@@ -5240,7 +5811,9 @@ module.exports = {
   TaskRecoveryStoreV5Error,
   admissionContinuationLeaseDigest,
   appendTaskRecoveryTelemetry,
+  boundedResumeIngressCapabilityDigest,
   commitFencedTaskWriteOwnerTransition,
+  commitFinalizedTaskResumeV3,
   commitTaskAdmissionReconciliation,
   commitTaskAdmissionTransaction,
   commitTaskRecoveryState,
@@ -5252,8 +5825,10 @@ module.exports = {
   inspectDiskHeadroom,
   maintainTaskRecoveryStore,
   normalizeIdentity,
+  observeFinalizedTaskResumeLiveness,
   readEmergencyCloseouts,
   readAdmissionIngressSnapshot,
+  readBoundedResumeIngressCapability,
   readFencedTaskWriteOwner,
   readTaskAdmissionTransaction,
   readTaskRecoveryState,
@@ -5268,12 +5843,14 @@ module.exports = {
   updateTaskRecoveryState,
   validateFencedTaskWriteOwner,
   validateAdmissionContinuationLease,
+  validateBoundedResumeIngressCapability,
   validateTasklessWorkflowIngressRecovery,
   validateTaskAdmissionTransaction,
   validateTaskAdmissionReconciliationReceipt,
   validateWorkflowTaskTerminalReceipt,
   workflowTaskTerminalReceiptDigest,
   writeAdmissionIngressSnapshot,
+  writeBoundedResumeIngressCapability,
   writeEmergencyCloseout,
   writeStableProjection
 }

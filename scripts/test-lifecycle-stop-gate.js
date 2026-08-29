@@ -94,6 +94,38 @@ assert.strictEqual(eventSupportsHardBlock('grok', 'UserPromptSubmit'), false)
 assert.strictEqual(extractLastAssistantMessage({ lastAssistantMessage: 'hello' }), 'hello')
 assert.strictEqual(extractLastAssistantMessage({ last_assistant_message: 'snake' }), 'snake')
 
+// Task continuity contract: only an accepted Stop is release-eligible. A hard
+// completion block must retain the live turn/owner; lifecycle integration tests
+// verify the corresponding durable owner transition.
+{
+  const blocked = evaluateStopCompletionGate({
+    mode: 'fix',
+    mutated: true,
+    lastAssistantMessage: '修复已全部完成。'
+  })
+  const accepted = evaluateStopCompletionGate({
+    mode: 'fix',
+    mutated: true,
+    reportTouched: true,
+    memoryTouched: true,
+    lastAssistantMessage: [
+      '### DevCodex · 入口检查',
+      '- PC0 [PASS] Context plan',
+      '- PC1 [PASS] Intent',
+      '- PC2 [PASS] Session',
+      '- PC3 [PASS] Project',
+      '- PC4 [PASS] Full spec radar',
+      '- PC5 [PASS] Host',
+      '- PC6 [PASS] Git',
+      '- PC7 [PASS] Next',
+      '',
+      '当前回合暂停，后续继续。'
+    ].join('\n')
+  })
+  assert.strictEqual(blocked.decision, 'block')
+  assert.strictEqual(accepted.decision, 'allow')
+}
+
 // T5: chat no mutation
 {
   const r = evaluateStopCompletionGate({

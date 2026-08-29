@@ -20,7 +20,10 @@ const {
   buildJsonContentIdentity,
   validateContentIdentity
 } = require('../hooks/_runtime/content-identity.cjs')
-const { authorizeContextRead } = require('../hooks/_runtime/context-source-observation.cjs')
+const {
+  authorizeContextRead,
+  recordMcpContextSourceObservations
+} = require('../hooks/_runtime/context-source-observation.cjs')
 const {
   deriveTurnBinding,
   loadEnvelope
@@ -1165,10 +1168,32 @@ function testMemoryTaskAdmissionV2Contract() {
       name: 'memory_task_admit_v2',
       arguments: { ...args, ingressRef: { ...args.ingressRef, decisionDigest: 'f'.repeat(64) } }
     }),
-    rpcRequest(6, 'tools/call', { name: 'memory_task_resolve', arguments: { name: 'MCP准入别名' } })
+    rpcRequest(6, 'tools/call', { name: 'memory_task_resolve', arguments: { name: 'MCP准入别名' } }),
+    rpcRequest(7, 'tools/call', {
+      name: 'memory_task_admit_v2',
+      arguments: { operation: args.operation, task: args.task, overview: args.overview }
+    }),
+    rpcRequest(8, 'tools/call', {
+      name: 'memory_task_admit_v2',
+      arguments: {
+        ...args,
+        resumeContextBinding: {
+          schemaVersion: 'ContextReadBindingV1',
+          contextEpoch: 'ctx-ambiguous',
+          planId: 'plan-ambiguous',
+          planContentId: 'plan-content-ambiguous',
+          activeRoot,
+          project
+        }
+      }
+    })
   ], TEMP_ROOT)
   const toolSchema = findToolSchema(resultById(responses, 1).tools, 'memory_task_admit_v2')
-  assert.deepStrictEqual(toolSchema.required, ['operation', 'ingressRef', 'task', 'overview'])
+  assert.deepStrictEqual(toolSchema.required, ['operation', 'task', 'overview'])
+  assert.deepStrictEqual(toolSchema.oneOf, [
+    { required: ['ingressRef'], not: { required: ['resumeContextBinding'] } },
+    { required: ['resumeContextBinding'], not: { required: ['ingressRef'] } }
+  ])
   assert.deepStrictEqual(
     toolSchema.properties.ingressRef.required,
     ['schemaVersion', 'envelopeId', 'envelopeDigest', 'decisionDigest', 'routeRevision']
@@ -1194,9 +1219,209 @@ function testMemoryTaskAdmissionV2Contract() {
   const resolved = resultById(responses, 6)
   assert.strictEqual(resolved.isError, false)
   assert.strictEqual(resolved.structuredContent.candidate.taskId, admitted.structuredContent.taskId)
+  assert.strictEqual(resultById(responses, 7).isError, true)
+  assert.match(resultById(responses, 7).content[0].text, /TASK_ADMISSION_INGRESS_REQUIRED|Invalid tool arguments/)
+  assert.strictEqual(resultById(responses, 8).isError, true)
+  assert.match(resultById(responses, 8).content[0].text, /TASK_ADMISSION_INGRESS_INPUT_AMBIGUOUS|Invalid tool arguments/)
+  assert.strictEqual(admitted.structuredContent.ingressSource, 'host-hook')
+  assert.strictEqual(admitted.structuredContent.activeVersion, require('../package.json').version)
+  assert.match(admitted.structuredContent.runtimeGeneration, /.+/)
   const taskRoot = path.join(activeRoot, ...admitted.structuredContent.taskRootRelative.split('/'))
   assert.strictEqual(JSON.parse(fs.readFileSync(path.join(taskRoot, '.memory', 'task.json'), 'utf8')).schemaVersion, 'TaskIdentityV2')
   assert.match(fs.readFileSync(path.join(taskRoot, '.memory', 'sessions.md'), 'utf8'), /\| CP1 \| ⏳ \|/u)
+}
+
+function testMemoryFinalizedFreshResumeV3Contract() {
+  setupLegacyWorkspace()
+  const activeRoot = path.join(TEMP_ROOT, '.devcodex')
+  const project = path.basename(TEMP_ROOT)
+  const nowMs = Date.now()
+  const ownerIssuedAt = nowMs - 6 * 60 * 1000
+  const priorIngress = buildTaskAuthorityIngress({
+    activeRoot,
+    project,
+    suffix: 'fresh-resume-prior',
+    nowMs: ownerIssuedAt
+  })
+  const overviewContent = '# 问题概况\n\nMCP finalized fresh resume V3.\n'
+  const priorAdmission = executeTaskAdmission({
+    operation: 'admit',
+    activeRoot,
+    project,
+    actualInstructionEnvelope: priorIngress.actualInstructionEnvelope,
+    workItemSet: priorIngress.workItemSet,
+    workflowRouteDecision: priorIngress.workflowRouteDecision,
+    projectTargetLease: priorIngress.projectTargetLease,
+    task: {
+      taskKind: 'bugs',
+      entryVariant: 'fix',
+      displayName: 'MCP finalized fresh resume V3'
+    },
+    overview: { content: overviewContent }
+  }, { nowMs: ownerIssuedAt })
+  const taskRoot = path.join(activeRoot, ...priorAdmission.taskRootRelative.split('/'))
+  confirmTaskAuthorityCp1(taskRoot)
+  const priorOwner = executeTaskWriteOwner({
+    operation: 'acquire',
+    activeRoot,
+    project,
+    actualInstructionEnvelope: priorIngress.actualInstructionEnvelope,
+    workItemSet: priorIngress.workItemSet,
+    workflowRouteDecision: priorIngress.workflowRouteDecision,
+    projectTargetLease: priorIngress.projectTargetLease,
+    taskId: priorAdmission.taskId,
+    admissionId: priorAdmission.admissionId
+  }, {
+    nowMs: ownerIssuedAt,
+    nonceFactory: () => `owner-${'1'.repeat(40)}`
+  })
+  assert(Date.parse(priorOwner.owner.expiresAt) <= nowMs, 'fixture owner must be expired')
+  const metaDir = resolveTaskRecoveryMetaDir({ activeRoot, project })
+  const recoveryIdentity = { activeRoot, project, taskId: priorAdmission.taskId, taskStatus: 'active' }
+  const terminalTurnWrite = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
+    ...state,
+    turnLiveness: {
+      schemaVersion: 'TurnLivenessStateV1',
+      state: 'completed',
+      turnKey: 'fresh-resume-prior-turn',
+      lastEventAt: new Date(nowMs - 1000).toISOString(),
+      inFlightOperation: null,
+      previousTurn: { terminalState: 'completed' }
+    }
+  }), { nowMs, force: true, reason: 'mcp-fresh-resume-terminal-turn' })
+  assert(['committed', 'semantic-noop'].includes(terminalTurnWrite.status), JSON.stringify(terminalTurnWrite))
+
+  const resumeIngress = buildTaskAuthorityIngress({
+    activeRoot,
+    project,
+    suffix: 'fresh-resume-current',
+    nowMs,
+    routeKey: 'resume'
+  })
+  writeTaskAuthorityLifecycleState(activeRoot, project, resumeIngress, {
+    taskRecoveryBinding: {
+      taskId: priorAdmission.taskId,
+      displayName: 'MCP finalized fresh resume V3',
+      project,
+      kind: 'bugs',
+      taskRoot,
+      status: 'active'
+    }
+  })
+  const resumeArgs = {
+    operation: 'bind',
+    ingressRef: resumeIngress.ingressRef,
+    task: {
+      taskId: priorAdmission.taskId,
+      taskKind: 'bugs',
+      entryVariant: 'continue',
+      taskRootRelative: priorAdmission.taskRootRelative
+    },
+    overview: { content: overviewContent }
+  }
+  const resumeResponses = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/call', { name: 'memory_task_admit_v2', arguments: resumeArgs }),
+    rpcRequest(2, 'tools/call', { name: 'memory_task_admit_v2', arguments: resumeArgs })
+  ], TEMP_ROOT)
+  const resumed = resultById(resumeResponses, 1)
+  assert.strictEqual(resumed.isError, false, resumed.content?.[0]?.text || '')
+  assert.strictEqual(resumed.structuredContent.recovery.schemaVersion, 'FinalizedTaskResumeRecoveryReceiptV3')
+  assert.strictEqual(resumed.structuredContent.recoveryStage, 'readback-complete')
+  assert.strictEqual(resumed.structuredContent.ingressSource, 'host-hook')
+  assert.strictEqual(resumed.structuredContent.mutationAuthority, true)
+  assert.strictEqual(resumed.structuredContent.admissionGeneration, priorAdmission.admissionGeneration + 1)
+  assert.strictEqual(resumed.structuredContent.ownerGeneration, priorOwner.owner.ownerGeneration + 1)
+  assert.deepStrictEqual(resumed.structuredContent.ingressRef, resumeIngress.ingressRef)
+  const resumedReplay = resultById(resumeResponses, 2)
+  assert.strictEqual(resumedReplay.isError, false, resumedReplay.content?.[0]?.text || '')
+  assert.strictEqual(resumedReplay.structuredContent.replayed, true)
+  assert.strictEqual(resumedReplay.structuredContent.admissionId, resumed.structuredContent.admissionId)
+  assert.strictEqual(
+    resumedReplay.structuredContent.ownerAcquisition.owner.leaseDigest,
+    resumed.structuredContent.ownerAcquisition.owner.leaseDigest
+  )
+
+  const renew = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(3, 'tools/call', {
+      name: 'memory_task_write_owner',
+      arguments: {
+        operation: 'renew',
+        ingressRef: resumed.structuredContent.ingressRef,
+        taskId: priorAdmission.taskId,
+        admissionId: resumed.structuredContent.admissionId,
+        expectedOwner: resumed.structuredContent.ownerAcquisition.ownerRef
+      }
+    })
+  ], TEMP_ROOT), 3)
+  assert.strictEqual(renew.isError, false, renew.content?.[0]?.text || '')
+  assert.strictEqual(renew.structuredContent.mutationAuthority, true)
+  assert(renew.structuredContent.owner.leaseRevision > resumed.structuredContent.leaseRevision)
+  const release = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(4, 'tools/call', {
+      name: 'memory_task_write_owner',
+      arguments: {
+        operation: 'release',
+        ingressRef: resumed.structuredContent.ingressRef,
+        taskId: priorAdmission.taskId,
+        admissionId: resumed.structuredContent.admissionId,
+        expectedOwner: renew.structuredContent.ownerRef
+      }
+    })
+  ], TEMP_ROOT), 4)
+  assert.strictEqual(release.isError, false, release.content?.[0]?.text || '')
+  assert.strictEqual(release.structuredContent.status, 'released')
+
+  const resumeContextBinding = createTestContextBinding(TEMP_ROOT, { intent: 'resume' })
+  const contextAuthorization = authorizeContextRead({
+    activeRoot,
+    project,
+    contextBinding: resumeContextBinding,
+    requestedSources: []
+  })
+  assert.strictEqual(contextAuthorization.status, 'authorized')
+  assert.strictEqual(contextAuthorization.plan.workflowRoute.routeKey, 'resume')
+  const contextObservation = recordMcpContextSourceObservations({
+    activeRoot,
+    project,
+    contextBinding: resumeContextBinding,
+    hostSessionId: 'mcp-fresh-resume-fallback-session',
+    sourceResults: contextAuthorization.plan.selectedSources.map(source => ({
+      sourceId: source.sourceId,
+      bodyObserved: true,
+      successful: true,
+      observable: true,
+      transportSuccess: true,
+      sourceRefsMatch: true,
+      schemaMatch: true,
+      targetMatch: true,
+      contentIdentity: buildJsonContentIdentity({
+        sourceKey: `test://${source.sourceId}`,
+        value: { sourceId: source.sourceId, observed: true },
+        contractVersion: 'McpFreshResumeContextSourceV1'
+      }).identity,
+      bytes: 1,
+      chars: 1
+    }))
+  })
+  assert.strictEqual(contextObservation.status, 'persisted', JSON.stringify(contextObservation))
+  assert.deepStrictEqual(contextObservation.missingSourceIds, [])
+  const fallbackArgs = {
+    operation: 'bind',
+    resumeContextBinding,
+    task: resumeArgs.task,
+    overview: resumeArgs.overview
+  }
+  const fallbackResponses = runServer('mcp/memory-server.js', [
+    rpcRequest(5, 'tools/call', { name: 'memory_task_admit_v2', arguments: fallbackArgs }),
+    rpcRequest(6, 'tools/call', { name: 'memory_task_admit_v2', arguments: fallbackArgs })
+  ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: 'mcp-fresh-resume-fallback-session' })
+  const fallback = resultById(fallbackResponses, 5)
+  assert.strictEqual(fallback.isError, false, fallback.content?.[0]?.text || '')
+  assert.strictEqual(fallback.structuredContent.ingressSource, 'bounded-resume-fallback')
+  assert.strictEqual(fallback.structuredContent.mutationAuthority, true)
+  assert.strictEqual(fallback.structuredContent.admissionGeneration, resumed.structuredContent.admissionGeneration + 1)
+  assert.strictEqual(fallback.structuredContent.recoveryStage, 'readback-complete')
+  assert.strictEqual(resultById(fallbackResponses, 6).structuredContent.replayed, true)
 }
 
 function testMemoryWorkflowOperationalWriteLeaseContract() {
@@ -5243,6 +5468,7 @@ testProfileAgentUsesRuntimeBeforeProfileFallback()
 testMemoryDefaultAgent()
 testMemoryTaskResolveContract()
 testMemoryTaskAdmissionV2Contract()
+testMemoryFinalizedFreshResumeV3Contract()
 testMemoryWorkflowOperationalWriteLeaseContract()
 testMemorySimpleTaskFastPathLeaseContract()
 testMemoryTaskOwnerAndTerminalV1Contract()

@@ -1020,7 +1020,7 @@ function runR2BTaskOwnerLifecycleScenarios() {
     session_id: sessionId,
     success: true,
     lastAssistantMessage: '请确认修复方案（确认 CP2）。'
-  })
+  }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
   assert(stopOutput)
   const stopState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert(
@@ -1028,8 +1028,37 @@ function runR2BTaskOwnerLifecycleScenarios() {
     `Stop PR-1 must inspect the session-bound bug, not the newest requirements design: ${JSON.stringify(stopState.enforcementHonesty)}`
   )
   ownerAfterLifecycle = readFencedTaskWriteOwner({ metaDir, identity: recoveryIdentity })
-  assert.strictEqual(ownerAfterLifecycle.owner.status, 'active', 'Stop is turn-terminal, not task-terminal')
+  assert.strictEqual(ownerAfterLifecycle.owner.status, 'active', 'a hard-blocked Stop must not release the owner')
   assert.strictEqual(ownerAfterLifecycle.owner.leaseDigest, acquired.owner.leaseDigest)
+  assert(!['completed', 'error'].includes(String(stopState.turnLiveness?.state || '')),
+    'a hard-blocked Stop must not mark the turn terminal')
+
+  const acceptedStop = run({
+    hookEventName: 'Stop',
+    session_id: sessionId,
+    success: true,
+    lastAssistantMessage: '当前回合暂停，后续继续。'
+  })
+  assert.notStrictEqual(acceptedStop?.continue, false)
+  ownerAfterLifecycle = readFencedTaskWriteOwner({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(ownerAfterLifecycle.owner.status, 'released', 'an accepted Stop must park the task immediately')
+  const releasedGeneration = ownerAfterLifecycle.owner.ownerGeneration
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: sessionId,
+    prompt: '继续 R2B Hook owner task'
+  })
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  ownerAfterLifecycle = readFencedTaskWriteOwner({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(ownerAfterLifecycle.owner.status, 'active', JSON.stringify(state.lastUserPromptOwnerReacquire || {}))
+  assert(ownerAfterLifecycle.owner.ownerGeneration > releasedGeneration, 'same-session next prompt must reacquire with a new fence generation')
+  assert.strictEqual(state.lastUserPromptOwnerReacquire?.status, 'committed')
+  const activeOwnerRef = {
+    ownerGeneration: ownerAfterLifecycle.owner.ownerGeneration,
+    ownerNonce: ownerAfterLifecycle.owner.ownerNonce,
+    leaseRevision: ownerAfterLifecycle.owner.leaseRevision,
+    leaseDigest: ownerAfterLifecycle.owner.leaseDigest
+  }
 
   const evidenceDefinitions = [
     ['ecr', `${admission.taskRootRelative}/07-ECR-hook.md`, '# ECR hook\n'],
@@ -1058,7 +1087,7 @@ function runR2BTaskOwnerLifecycleScenarios() {
     taskId: admission.taskId,
     admissionId: admission.admissionId,
     terminalStatus: 'completed',
-    expectedOwner: acquired.ownerRef,
+    expectedOwner: activeOwnerRef,
     evidence
   }
   const terminal = executeWorkflowTaskTerminal(terminalInput, {
@@ -1173,7 +1202,13 @@ function runR2BTaskOwnerLifecycleScenarios() {
   })
   const reboundState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(reboundState.taskRecoveryBinding?.taskId, admission.taskId)
-  assert.strictEqual(reboundState.taskRecoveryBinding?.status, 'active')
+  assert.strictEqual(reboundState.taskRecoveryBinding?.status, 'active', JSON.stringify({
+    binding: reboundState.taskRecoveryBinding,
+    owner: reboundState.fencedWriteOwner,
+    admission: reboundState.admissionTransaction,
+    continuation: reboundState.taskContinuation,
+    ownerReadError: reboundState.lifecycleOwnerTransitionError
+  }))
 
   process.stdout.write('hooks runtime R2B owner + R3B mutation scenarios passed\n')
 }

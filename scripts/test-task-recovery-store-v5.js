@@ -6,6 +6,9 @@ const os = require('os')
 const path = require('path')
 const {
   appendTaskRecoveryTelemetry,
+  boundedResumeIngressCapabilityDigest,
+  BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_FILES,
+  BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_SCAN,
   commitTaskAdmissionTransaction,
   commitTaskRecoveryState,
   createTaskRecoveryKey,
@@ -16,13 +19,17 @@ const {
   MUTATION_PREFLIGHT_STATE_MAX_BYTES,
   inspectTaskRecoveryStore,
   maintainTaskRecoveryStore,
+  observeFinalizedTaskResumeLiveness,
+  readBoundedResumeIngressCapability,
   readTaskRecoveryState,
   readTaskAdmissionTransaction,
   storePaths,
   taskPaths,
   taskAdmissionTransactionDigest,
   updateTaskRecoveryState,
+  validateBoundedResumeIngressCapability,
   validateTasklessWorkflowIngressRecovery,
+  writeBoundedResumeIngressCapability,
   writeStableProjection
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const {
@@ -1875,6 +1882,196 @@ try {
     metaDir: closeoutFaultMeta,
     identity: identity(closeoutFaultId)
   }).envelope.recordType, 'mutation-preflight')
+
+  const resumeCapabilityMeta = path.join(tempRoot, 'resume-capability-hooks')
+  const resumeNowMs = baseOptions.nowMs + 60 * 1000
+  const resumeEnvelope = buildActualInstructionEnvelope({
+    prompt: '继续执行已确认任务',
+    session_id: 'resume-capability-session',
+    event_id: 'resume-capability-event',
+    timestamp: new Date(resumeNowMs).toISOString()
+  }, {
+    hostVariant: 'codex-cli',
+    contextEpoch: 'ctx-resume-capability',
+    trustedHostEvent: true,
+    nowMs: resumeNowMs
+  })
+  const resumeWorkItems = buildWorkItemSet(resumeEnvelope, {
+    workItems: [{ taskKind: 'resume', routeCandidate: 'resume' }]
+  })
+  const resumeRoute = buildWorkflowRouteDecision({
+    actualInstructionEnvelope: resumeEnvelope,
+    workItemSet: resumeWorkItems,
+    workItemId: resumeWorkItems.items[0].workItemId,
+    environmentMode: 'dev',
+    routeKey: 'resume'
+  })
+  const resumeProjectLease = {
+    schemaVersion: 'ProjectTargetLeaseV2',
+    project: 'devcodex',
+    targetDigest: '1'.repeat(64),
+    rootIdentityDigest: 'c'.repeat(64),
+    layoutIdentity: '2'.repeat(64),
+    physicalRoot: tempRoot,
+    activeRoot,
+    authorityKind: 'session',
+    authorityDigest: resumeEnvelope.hostSessionDigest,
+    contextEpoch: resumeEnvelope.contextEpoch,
+    contextBindingDigest: '3'.repeat(64),
+    routeRevision: resumeRoute.routeRevision,
+    revocationEpoch: 1,
+    issuedAtMs: resumeNowMs,
+    expiresAtMs: resumeNowMs + 60 * 60 * 1000,
+    leaseDigest: '4'.repeat(64)
+  }
+  const resumeIngress = {
+    activeProject: 'devcodex',
+    activeScope: 'project',
+    actualInstructionEnvelope: resumeEnvelope,
+    workItemSet: resumeWorkItems,
+    workflowRouteDecision: resumeRoute,
+    stickyProject: resumeProjectLease
+  }
+  const resumeLiveness = observeFinalizedTaskResumeLiveness({
+    turnLiveness: {
+      state: 'completed',
+      turnKey: 'prior-turn',
+      inFlightOperation: null,
+      previousTurn: { terminalState: 'completed' }
+    }
+  }, {
+    contextEpoch: 'ctx-prior',
+    expiresAt: new Date(resumeNowMs - 1).toISOString(),
+    leaseDigest: '5'.repeat(64)
+  }, { nowMs: resumeNowMs })
+  const resumeCapabilityWrite = writeBoundedResumeIngressCapability({
+    metaDir: resumeCapabilityMeta,
+    attemptDigest: '6'.repeat(64),
+    ingress: resumeIngress,
+    project: 'devcodex',
+    activeRoot,
+    projectRootIdentityDigest: resumeProjectLease.rootIdentityDigest,
+    taskId: '00000000-0000-4000-8000-000000000095',
+    taskRootRelative: 'bugs/resume-capability',
+    taskIdentityDigest: '7'.repeat(64),
+    canonicalOverviewDigest: '8'.repeat(64),
+    cpArtifactDigest: '9'.repeat(64),
+    contextBinding: {
+      schemaVersion: 'ContextReadBindingV1',
+      contextEpoch: resumeEnvelope.contextEpoch,
+      planId: 'plan-resume-capability',
+      planContentId: 'plan-content-resume-capability'
+    },
+    prior: {
+      admissionId: `admission-${'a'.repeat(40)}`,
+      admissionGeneration: 1,
+      transactionDigest: 'b'.repeat(64),
+      ownerGeneration: 1,
+      leaseRevision: 1,
+      ownerLeaseDigest: '5'.repeat(64)
+    },
+    runtime: {
+      activeVersion: '1.19.5',
+      generationId: 'resume-capability-test-generation',
+      runtimeDigest: 'd'.repeat(64)
+    },
+    liveness: resumeLiveness
+  }, { nowMs: resumeNowMs })
+  assert.strictEqual(resumeCapabilityWrite.status, 'persisted')
+  assert.strictEqual(resumeCapabilityWrite.candidate.mutationAuthority, false)
+  assert.strictEqual(validateBoundedResumeIngressCapability(resumeCapabilityWrite.candidate, { nowMs: resumeNowMs }).valid, true)
+  assert.strictEqual(validateBoundedResumeIngressCapability({
+    ...resumeCapabilityWrite.candidate,
+    mutationAuthority: true
+  }, { nowMs: resumeNowMs }).valid, false, 'a persisted candidate can never self-assert authority')
+  const resumeCapabilityRead = readBoundedResumeIngressCapability({
+    metaDir: resumeCapabilityMeta,
+    ingressRef: resumeCapabilityWrite.ref,
+    activeRoot,
+    project: 'devcodex',
+    taskId: '00000000-0000-4000-8000-000000000095'
+  }, { nowMs: resumeNowMs })
+  assert.strictEqual(resumeCapabilityRead.status, 'fresh')
+  assert.strictEqual(resumeCapabilityRead.authority, false)
+  const unauthorizedResumeCapability = readBoundedResumeIngressCapability({
+    metaDir: resumeCapabilityMeta,
+    ingressRef: resumeCapabilityWrite.ref,
+    activeRoot,
+    project: 'devcodex',
+    taskId: '00000000-0000-4000-8000-000000000095'
+  }, { nowMs: resumeNowMs, requireAuthority: true })
+  assert.strictEqual(unauthorizedResumeCapability.status, 'blocked')
+  assert.strictEqual(unauthorizedResumeCapability.authority, undefined)
+
+  const resumeCapabilityRoot = path.join(resumeCapabilityMeta, 'resume-ingress')
+  const resumeCapabilityFile = fs.readdirSync(resumeCapabilityRoot)
+    .find(name => /^[a-f0-9]{64}\.json$/.test(name))
+  assert(resumeCapabilityFile)
+  const writerLock = path.join(resumeCapabilityRoot, '.writer.lock')
+  fs.writeFileSync(writerLock, `${JSON.stringify({
+    schemaVersion: 'TaskRecoveryWriterLockV5',
+    ownerToken: 'resume-capability-lock-holder',
+    hostname: os.hostname(),
+    pid: process.pid,
+    acquiredAtMs: Date.now(),
+    leaseExpiresAtMs: Date.now() + 60 * 1000
+  })}\n`)
+  const resumeCapabilityInput = {
+    metaDir: resumeCapabilityMeta,
+    attemptDigest: '6'.repeat(64),
+    ingress: resumeIngress,
+    project: 'devcodex',
+    activeRoot,
+    projectRootIdentityDigest: resumeProjectLease.rootIdentityDigest,
+    taskId: '00000000-0000-4000-8000-000000000095',
+    taskRootRelative: 'bugs/resume-capability',
+    taskIdentityDigest: '7'.repeat(64),
+    canonicalOverviewDigest: '8'.repeat(64),
+    cpArtifactDigest: '9'.repeat(64),
+    contextBinding: resumeCapabilityWrite.candidate.contextBinding,
+    prior: resumeCapabilityWrite.candidate.prior,
+    runtime: resumeCapabilityWrite.candidate.runtime,
+    liveness: resumeLiveness
+  }
+  const lockBlockedResumeCapability = writeBoundedResumeIngressCapability(
+    resumeCapabilityInput,
+    { nowMs: resumeNowMs, lockWaitMs: 0 }
+  )
+  assert.strictEqual(lockBlockedResumeCapability.errorCode, 'BOUNDED_RESUME_INGRESS_LOCK_BUSY')
+  fs.unlinkSync(writerLock)
+
+  const expiredCandidate = {
+    ...JSON.parse(JSON.stringify(resumeCapabilityWrite.candidate)),
+    issuedAt: new Date(resumeNowMs - 20 * 60 * 1000).toISOString(),
+    expiresAt: new Date(resumeNowMs - 10 * 60 * 1000).toISOString()
+  }
+  expiredCandidate.candidateDigest = boundedResumeIngressCapabilityDigest(expiredCandidate)
+  const expiredCandidateFile = path.join(resumeCapabilityRoot, `${'e'.repeat(64)}.json`)
+  fs.writeFileSync(expiredCandidateFile, `${JSON.stringify(expiredCandidate, null, 2)}\n`)
+  const prunedReplay = writeBoundedResumeIngressCapability(resumeCapabilityInput, { nowMs: resumeNowMs })
+  assert.strictEqual(prunedReplay.status, 'semantic-noop')
+  assert.strictEqual(prunedReplay.removedExpired, 1)
+  assert.strictEqual(fs.existsSync(expiredCandidateFile), false)
+
+  fs.unlinkSync(path.join(resumeCapabilityRoot, resumeCapabilityFile))
+  for (let index = 1; index <= BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_FILES; index += 1) {
+    const file = `${index.toString(16).padStart(64, '0')}.json`
+    fs.writeFileSync(path.join(resumeCapabilityRoot, file), `${JSON.stringify(resumeCapabilityWrite.candidate)}\n`)
+  }
+  const capacityBlocked = writeBoundedResumeIngressCapability(resumeCapabilityInput, { nowMs: resumeNowMs })
+  assert.strictEqual(capacityBlocked.errorCode, 'BOUNDED_RESUME_INGRESS_CAPACITY_EXCEEDED')
+  assert.strictEqual(capacityBlocked.activeFiles, BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_FILES)
+
+  for (let index = 1; index <= BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_FILES; index += 1) {
+    const file = `${index.toString(16).padStart(64, '0')}.json`
+    fs.unlinkSync(path.join(resumeCapabilityRoot, file))
+  }
+  for (let index = 0; index <= BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_SCAN; index += 1) {
+    fs.writeFileSync(path.join(resumeCapabilityRoot, `unexpected-${index}.entry`), 'not-a-capability\n')
+  }
+  const unboundedInventory = writeBoundedResumeIngressCapability(resumeCapabilityInput, { nowMs: resumeNowMs })
+  assert.strictEqual(unboundedInventory.errorCode, 'BOUNDED_RESUME_INGRESS_DIRECTORY_UNBOUNDED')
+  assert.strictEqual(unboundedInventory.maxScan, BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_SCAN)
 
   const scaleMeta = path.join(tempRoot, 'scale-hooks')
   for (let index = 0; index < 1000; index += 1) {

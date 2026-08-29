@@ -1,9 +1,9 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要；历史版本见对应详细变更文件。
-> **最新版本详细变更文档**: [`changelogs/releases/v1.19.4.md`](./changelogs/releases/v1.19.4.md)
-> **最后更新**: 2026-08-29
-> **当前版本**: v1.19.4 汇总发布自适应流程与入口增强、显式空目录 Profile 目标、按影响选择 CI、发布与 finalize 解耦，并修复 Codex Desktop 中 awaiting-owner admission 无法由可信新会话接管的 P0 死锁。版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
+> **最新版本详细变更文档**: [`changelogs/releases/v1.19.5.md`](./changelogs/releases/v1.19.5.md)
+> **最后更新**: 2026-08-30
+> **当前版本**: v1.19.5 修复正式任务在 finalized admission、过期/释放 owner 与 fresh resume 组合下无法恢复的 P0 死锁，并补齐 Stop/reacquire、单赢家 CAS、候选容量与滚动升级边界。版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
 
 ---
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.19.5](./changelogs/releases/v1.19.5.md) | 2026-08-30 | 🚑 **正式任务连续性恢复**：finalized + expired/released owner 可由 fresh resume 原子换代；任务永久、owner 短租约；accepted Stop 停放、同会话重取、跨会话单赢家接管；旧 owner/nonce、活跃 turn/operation、漂移与终态继续失败关闭 | [查看](./changelogs/releases/v1.19.5.md) |
 | [v1.19.4](./changelogs/releases/v1.19.4.md) | 2026-08-29 | 🚑 **自适应流程与跨会话 owner 恢复**：PC0～PC10 与流程/方案/验证四轴决策落地；显式 `init --profile` 接受现存空目录；CI 按影响范围执行；publish/finalize 可恢复；awaiting-owner admission 可在严格身份与真相回读边界内安全换代接管 | [查看](./changelogs/releases/v1.19.4.md) |
 | [v1.19.3](./changelogs/releases/v1.19.3.md) | 2026-08-28 | 🚑 **确认持久化与任务 owner P0 修复**：有界恢复 taskless instruction/work-item/route/plan/project 绑定；超限降级为无 authority identity-only；CP writer 的安全链接投影可被 owner 精确复核，并提供 30 秒内专项快测 | [查看](./changelogs/releases/v1.19.3.md) |
 | [v1.19.2](./changelogs/releases/v1.19.2.md) | 2026-08-27 | 🔧 **宿主权限与文件交付修复**：DevCodex 对所有操作权限事件保持中立，不再产生 allow/deny/ask/block；文件入口按 hostSurface 与 presentationSurface 选择原生打开、IDE CLI 或绝对路径 fallback | [查看](./changelogs/releases/v1.19.2.md) |

@@ -22,6 +22,13 @@ const {
   contextPlanObservationRelativePath
 } = require('../hooks/_runtime/context-plan-observation.cjs')
 const { resolveRuntimeStateRoot } = require('../hooks/_runtime/workspace-layout.cjs')
+const {
+  commitFencedTaskWriteOwnerTransition,
+  commitTaskRecoveryState,
+  fencedTaskWriteOwnerDigest,
+  readTaskRecoveryState,
+  resolveTaskRecoveryMetaDir
+} = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 
 const PACKAGE_ROOT = path.resolve(__dirname, '..')
 const REGISTRY_MODE = process.argv.includes('--registry')
@@ -200,6 +207,94 @@ function writeLegacyReceipt (target, serverFile) {
   }, null, 2)}\n`, 'utf8')
 }
 
+function runFormalTaskContinuityUpgradeProbe (tempRoot) {
+  const currentVersion = require('../package.json').version
+  assert.strictEqual(currentVersion, '1.19.5')
+  const activeRoot = path.join(tempRoot, 'v1.19.4-active-root')
+  const project = 'rolling-upgrade-fixture'
+  const taskId = '00000000-0000-4000-8000-000000001194'
+  const taskRoot = path.join(activeRoot, 'bugs', 'v1.19.4-formal-task')
+  fs.mkdirSync(taskRoot, { recursive: true })
+  const identity = { activeRoot, project, taskId, taskStatus: 'active' }
+  const metaDir = resolveTaskRecoveryMetaDir(identity)
+  const issuedAtMs = Date.parse('2026-08-29T00:00:00.000Z')
+  const ownerCore = {
+    schemaVersion: 'FencedTaskWriteOwnerLeaseV2',
+    taskId,
+    projectRootIdentity: '1'.repeat(64),
+    sessionDigest: '2'.repeat(64),
+    contextEpoch: 'ctx-v1.19.4-formal-task',
+    routeRevision: '3'.repeat(64),
+    ownerGeneration: 4,
+    ownerNonce: `owner-${'4'.repeat(40)}`,
+    leaseRevision: 7,
+    issuedAt: new Date(issuedAtMs).toISOString(),
+    expiresAt: new Date(issuedAtMs + 5 * 60 * 1000).toISOString(),
+    handoffRef: null,
+    takeoverRef: null,
+    transitionRef: null,
+    reopenGeneration: 0,
+    revocationEpoch: 0,
+    status: 'active'
+  }
+  const owner = { ...ownerCore, leaseDigest: fencedTaskWriteOwnerDigest(ownerCore) }
+  const legacyState = {
+    version: 2,
+    mode: 'fix',
+    phase: 'CP2',
+    activeProject: project,
+    activeScope: 'project',
+    runtimeUpgradeFixture: { writerVersion: '1.19.4' },
+    taskRecoveryBinding: {
+      schemaVersion: 'TaskRecoveryBindingV1',
+      taskId,
+      displayName: 'v1.19.4 formal task',
+      project,
+      kind: 'bugs',
+      taskRoot,
+      status: 'active',
+      identityRevision: 2,
+      boundAt: new Date(issuedAtMs).toISOString()
+    },
+    fencedWriteOwner: owner
+  }
+  const committed = commitTaskRecoveryState({ metaDir, identity, state: legacyState }, { force: true })
+  assert.strictEqual(committed.status, 'committed')
+  const read = readTaskRecoveryState({ metaDir, identity })
+  assert.strictEqual(read.status, 'fresh')
+  assert.strictEqual(read.state.fencedWriteOwner.ownerNonce, owner.ownerNonce)
+  assert.strictEqual(read.state.resumeIngressCapabilityRef, undefined)
+
+  const renewedCore = {
+    ...owner,
+    leaseRevision: owner.leaseRevision + 1,
+    issuedAt: new Date(issuedAtMs + 1000).toISOString(),
+    expiresAt: new Date(issuedAtMs + 5 * 60 * 1000 + 1000).toISOString()
+  }
+  delete renewedCore.leaseDigest
+  const renewedOwner = { ...renewedCore, leaseDigest: fencedTaskWriteOwnerDigest(renewedCore) }
+  const staleNonce = commitFencedTaskWriteOwnerTransition({
+    metaDir,
+    identity,
+    expectedOwner: {
+      ownerGeneration: owner.ownerGeneration,
+      ownerNonce: `owner-${'5'.repeat(40)}`,
+      leaseRevision: owner.leaseRevision,
+      leaseDigest: owner.leaseDigest
+    },
+    owner: renewedOwner,
+    transition: 'renew',
+    reason: 'v1.19.4-stale-nonce-probe'
+  })
+  assert.strictEqual(staleNonce.errorCode, 'FENCED_TASK_WRITE_OWNER_CAS_MISMATCH')
+  return {
+    fromVersion: '1.19.4',
+    toVersion: currentVersion,
+    legacyReader: 'PASS',
+    staleNonceRejected: true
+  }
+}
+
 async function main () {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-runtime-rolling-upgrade-'))
   const home = path.join(tempRoot, 'home')
@@ -210,6 +305,7 @@ async function main () {
   let newProcess = null
   try {
     fs.mkdirSync(projectRoot, { recursive: true })
+    const taskContinuityUpgrade = runFormalTaskContinuityUpgradeProbe(tempRoot)
     fs.writeFileSync(path.join(workspace, 'package.json'), '{"name":"rolling-upgrade-workspace","private":true,"workspaces":["rolling-upgrade-fixture"]}\n')
     fs.writeFileSync(path.join(projectRoot, 'package.json'), '{"name":"rolling-upgrade-fixture","private":true}\n')
     const init = spawnSync(process.execPath, [
@@ -413,6 +509,7 @@ async function main () {
       compatibilityStatus: extracted.compatibilityReceipt.status,
       hookCompatibilityStatus: lifecycleState.state.contextAcquisition.runtimeCompatibility.status,
       hookLifecycleState: lifecycleState.file.replace(/\\/g, '/'),
+      taskContinuityUpgrade,
       processStayedAlive: true,
       result: 'PASS'
     }))

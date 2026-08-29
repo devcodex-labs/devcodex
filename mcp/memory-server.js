@@ -34,10 +34,12 @@ const { assertSingleSegment, resolveInside, resolveExistingRegularFileInside } =
 const { createJsonLineServer } = require('./stdio-jsonrpc.cjs')
 const { createMemoryFileTransaction } = require('./memory-file-transaction.cjs')
 const {
+  computeProjectTargetLeaseDigest,
   executeTaskAdmission,
   executeTaskWriteOwner,
   executeWorkflowTaskTerminal,
   reconcileWorkflowTaskTerminal,
+  readFinalizedResumeCanonicalEvidence,
   validateProjectTargetLease
 } = require('./task-admission-authority.cjs')
 const {
@@ -46,6 +48,8 @@ const {
   validateMarkdownLocalLinks
 } = require('./artifact-link-projection.cjs')
 const {
+  observeFinalizedTaskResumeLiveness,
+  readBoundedResumeIngressCapability,
   readFencedTaskWriteOwner,
   readAdmissionIngressSnapshot,
   readEmergencyCloseouts,
@@ -53,8 +57,14 @@ const {
   resolveTaskRecoveryMetaDir,
   sameIdentity,
   updateTaskRecoveryState,
-  writeAdmissionIngressSnapshot
+  writeAdmissionIngressSnapshot,
+  writeBoundedResumeIngressCapability
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
+const {
+  buildActualInstructionEnvelope,
+  buildWorkItemSet
+} = require('../hooks/_runtime/actual-instruction-envelope.cjs')
+const { buildWorkflowRouteDecision } = require('../hooks/_runtime/workflow-route-decision-v2.cjs')
 const {
   applyArtifactMutationReconciliation,
   createArtifactMutationReconciliationReceipt,
@@ -75,13 +85,17 @@ const {
 } = require('../hooks/_runtime/workspace-layout.cjs')
 const {
   CONTEXT_READ_CONTRACT,
-  buildContextReadError
+  buildContextReadError,
+  createContextReadReceipt,
+  recordContextReadOutcome
 } = require('../hooks/_runtime/context-read-contract.cjs')
 const { buildJsonContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
 const {
   authorizeContextRead,
+  readMcpContextSourceObservations,
   recordMcpContextSourceObservations
 } = require('../hooks/_runtime/context-source-observation.cjs')
+const { readRuntimeGenerationManifest } = require('../hooks/_runtime/runtime-generation-identity.cjs')
 const {
   acquireRuntimeGenerationLease
 } = require('../hooks/_runtime/runtime-generation-lease.cjs')
@@ -152,6 +166,26 @@ if (!['active', 'not-installed-generation'].includes(MEMORY_RUNTIME_GENERATION_L
   error.code = 'RUNTIME_GENERATION_LEASE_REQUIRED'
   throw error
 }
+
+function activeMemoryRuntimeIdentity() {
+  const runtimeRoot = path.resolve(__dirname, '..')
+  const generation = readRuntimeGenerationManifest(runtimeRoot, fs)
+  let packageVersion = 'unknown'
+  try { packageVersion = String(JSON.parse(fs.readFileSync(path.join(runtimeRoot, 'package.json'), 'utf8')).version || 'unknown') } catch {}
+  const core = {
+    schemaVersion: 'MemoryRuntimeGenerationRefV1',
+    activeVersion: generation.manifest?.packageVersion || packageVersion,
+    generationId: generation.manifest?.generationId || `source-${packageVersion}`,
+    runtimeContractVersion: Number(generation.manifest?.runtimeContractVersion || 0),
+    manifestStatus: generation.status
+  }
+  return {
+    ...core,
+    runtimeDigest: crypto.createHash('sha256').update(JSON.stringify(core)).digest('hex')
+  }
+}
+
+const MEMORY_RUNTIME_IDENTITY = activeMemoryRuntimeIdentity()
 
 // ─── Server metadata ──────────────────────────────────────────────────────────
 
@@ -275,11 +309,15 @@ const TASK_WRITE_OWNER_REF_SCHEMA = Object.freeze({
 const TOOLS = [
   {
     name: 'memory_task_admit_v2',
-    description: '从已验证 ingress 准入或恢复正式任务，并在同一调用内原子获取 fenced owner；源码写权限仍取决于精确 CP 状态。',
+    description: '正式任务准入/恢复并原子获取 fenced owner；写权限取决于 CP。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
-      required: ['operation', 'ingressRef', 'task', 'overview'],
+      required: ['operation', 'task', 'overview'],
+      oneOf: [
+        { required: ['ingressRef'], not: { required: ['resumeContextBinding'] } },
+        { required: ['resumeContextBinding'], not: { required: ['ingressRef'] } }
+      ],
       properties: {
         operation: { type: 'string', enum: ['admit', 'adopt', 'bind'] },
         project: PROJECT_NAMESPACE_INPUT_SCHEMA,
@@ -298,6 +336,7 @@ const TOOLS = [
             routeRevision: { type: 'string', pattern: '^[a-f0-9]{64}$' }
           }
         },
+        resumeContextBinding: CONTEXT_READ_BINDING_SCHEMA,
         task: {
           type: 'object',
           additionalProperties: false,
@@ -3573,6 +3612,59 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
       { snapshot: snapshotRead }
     )
   }
+  const resumeRead = readBoundedResumeIngressCapability({
+    metaDir: ingressMetaDir,
+    ingressRef: ref,
+    project: target.project,
+    activeRoot: target.activeRoot
+  }, { fs, nowMs: Date.now(), requireAuthority: true })
+  if (resumeRead.status === 'fresh' && resumeRead.authority === true) {
+    const candidate = resumeRead.candidate
+    const state = candidate.ingress
+    const projectRoot = currentPhysicalProjectRoot(target)
+    const leaseValidation = validateProjectTargetLease(state.stickyProject, {
+      project: target.project,
+      activeRoot: target.activeRoot,
+      physicalRoot: projectRoot,
+      contextEpoch: state.actualInstructionEnvelope.contextEpoch,
+      routeRevision: state.workflowRouteDecision.routeRevision
+    }, { nowMs: Date.now() })
+    if (!leaseValidation.valid) {
+      throw taskAdmissionIngressError(
+        'BOUNDED_RESUME_PROJECT_LEASE_INVALID',
+        'the bounded resume ingress is bound to a stale or different project target lease',
+        { errors: leaseValidation.errors }
+      )
+    }
+    return {
+      actualInstructionEnvelope: state.actualInstructionEnvelope,
+      workItemSet: state.workItemSet,
+      workflowRouteDecision: state.workflowRouteDecision,
+      projectTargetLease: state.stickyProject,
+      projectRoot,
+      lifecycleState: resumeRead.state,
+      ingressSnapshotRef: null,
+      resumeCandidate: candidate,
+      authorityReceipt: {
+        schemaVersion: 'ServerOwnedAdmissionIngressReceiptV1',
+        source: 'bounded-resume-fallback',
+        sourceDigest: candidate.candidateDigest,
+        envelopeDigest: state.actualInstructionEnvelope.envelopeDigest,
+        decisionDigest: state.workflowRouteDecision.decisionDigest,
+        projectTargetLeaseDigest: state.stickyProject.leaseDigest,
+        candidateId: candidate.candidateId,
+        admissionGeneration: resumeRead.transaction.admissionGeneration,
+        ownerGeneration: resumeRead.owner.ownerGeneration
+      }
+    }
+  }
+  if (!['missing'].includes(resumeRead.status)) {
+    throw taskAdmissionIngressError(
+      resumeRead.errorCode || 'BOUNDED_RESUME_INGRESS_UNAVAILABLE',
+      'the bounded resume ingress exists but is not authorized by the current V5 admission and owner',
+      { resume: resumeRead }
+    )
+  }
   const relativeStatePath = path.join('.memory', 'hooks', scopeKey, 'lifecycle-state.json')
   let statePath
   try {
@@ -3865,6 +3957,376 @@ function readFormalWorkflowRouteBinding(target, ingress, taskId) {
   return route
 }
 
+function stableRuntimeDigest(value) {
+  return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex')
+}
+
+function exactResumeTaskState(target, taskId) {
+  const identity = {
+    activeRoot: target.activeRoot,
+    project: target.project,
+    taskId: String(taskId || '').trim().toLowerCase(),
+    taskStatus: 'active'
+  }
+  const metaDir = resolveTaskRecoveryMetaDir(identity)
+  const ownerRead = readFencedTaskWriteOwner({ metaDir, identity }, { fs })
+  if (ownerRead.status !== 'fresh' || ownerRead.source !== 'primary' || !ownerRead.owner || !ownerRead.transaction) {
+    throw taskAdmissionIngressError(
+      ownerRead.errorCode || 'FINALIZED_TASK_RESUME_STATE_UNAVAILABLE',
+      'finalized resume requires the exact current primary admission and fenced owner'
+    )
+  }
+  if (ownerRead.transaction.phase !== 'finalized' || ownerRead.transaction.status !== 'finalized') {
+    throw taskAdmissionIngressError(
+      ownerRead.transaction.phase === 'terminal-closeout'
+        ? 'FINALIZED_TASK_RESUME_TERMINAL'
+        : 'FINALIZED_TASK_RESUME_ADMISSION_PHASE_INVALID',
+      ownerRead.transaction.phase === 'terminal-closeout'
+        ? 'terminal tasks require an explicit reopen'
+        : 'resume requires one non-terminal finalized admission'
+    )
+  }
+  return { identity, metaDir, ownerRead }
+}
+
+function compactContextBinding(value) {
+  return {
+    schemaVersion: 'ContextReadBindingV1',
+    contextEpoch: String(value?.contextEpoch || ''),
+    planId: String(value?.planId || ''),
+    planContentId: String(value?.planContentId || ''),
+    activeRoot: String(value?.activeRoot || ''),
+    project: String(value?.project || '')
+  }
+}
+
+function resolveResumeContextAuthorization(target, contextBinding) {
+  const verifiedBinding = resolveContextReadBinding(contextBinding, target, null)
+  const authorization = authorizeContextRead({
+    activeRoot: target.activeRoot,
+    project: target.project,
+    contextBinding: verifiedBinding,
+    requestedSources: []
+  })
+  if (authorization.status !== 'authorized') {
+    throw taskAdmissionIngressError(
+      authorization.errorCode || 'FINALIZED_TASK_RESUME_CONTEXT_INVALID',
+      authorization.message || 'resume ContextReadBinding is not authorized'
+    )
+  }
+  const route = authorization.plan?.workflowRoute || {}
+  if (authorization.plan?.identity?.finalIntent !== 'resume' || route.topIntent !== 'resume' ||
+      route.routeKey !== 'resume' || route.stage !== 'rehydrate') {
+    throw taskAdmissionIngressError(
+      'FINALIZED_TASK_RESUME_ROUTE_INVALID',
+      'resumeContextBinding must belong to an exact resume/rehydrate ContextReadPlanV2'
+    )
+  }
+  const rawObservations = readMcpContextSourceObservations({
+    activeRoot: target.activeRoot,
+    project: target.project,
+    contextBinding: verifiedBinding,
+    plan: authorization.plan
+  }, { fs })
+  const observedSessions = [...new Set((rawObservations.sourceResults || [])
+    .map(item => String(item.hostSessionId || '').trim()).filter(Boolean))]
+  if (observedSessions.length > 1) {
+    throw taskAdmissionIngressError(
+      'FINALIZED_TASK_RESUME_SESSION_AMBIGUOUS',
+      'durable context observations belong to more than one host session'
+    )
+  }
+  const hostSessionId = observedSessions[0] || String(process.env.DEVCODEX_HOST_SESSION_ID || '').trim() ||
+    `resume-context:${verifiedBinding.contextEpoch}:${verifiedBinding.planId}`
+  const durable = readMcpContextSourceObservations({
+    activeRoot: target.activeRoot,
+    project: target.project,
+    contextBinding: verifiedBinding,
+    plan: authorization.plan,
+    hostSessionId
+  }, { fs })
+  let receipt = createContextReadReceipt(authorization.plan, {
+    verificationMode: 'structured-plan',
+    planObserved: true,
+    hostSessionId
+  })
+  for (const result of durable.sourceResults || []) {
+    receipt = recordContextReadOutcome(receipt, authorization.plan, result, { hostSessionId })
+  }
+  if (!['relevant-complete', 'completed'].includes(String(receipt?.status || '')) ||
+      (receipt.missingSourceIds || []).length) {
+    throw taskAdmissionIngressError(
+      'FINALIZED_TASK_RESUME_CONTEXT_INCOMPLETE',
+      'resume ContextReadPlan sources are not relevant-complete',
+      { missingSourceIds: receipt?.missingSourceIds || [], observationStatus: durable.status }
+    )
+  }
+  return {
+    authorization,
+    binding: compactContextBinding(verifiedBinding),
+    hostSessionId,
+    receipt
+  }
+}
+
+function boundedResumeProjectLease(target, transaction, envelope, routeDecision, contextBinding, nowMs) {
+  const physicalRoot = currentPhysicalProjectRoot(target)
+  const issuedAtMs = nowMs
+  const expiresAtMs = Math.min(Date.parse(envelope.expiresAt), nowMs + 10 * 60 * 1000)
+  const core = {
+    schemaVersion: 'ProjectTargetLeaseV2',
+    targetDigest: stableRuntimeDigest({
+      projectRootIdentityDigest: transaction.projectRootIdentityDigest,
+      physicalRoot: comparableActiveRoot(physicalRoot),
+      activeRoot: comparableActiveRoot(target.activeRoot)
+    }),
+    rootIdentityDigest: transaction.projectRootIdentityDigest,
+    layoutIdentity: stableRuntimeDigest({
+      mode: LAYOUT.enabled ? 'workspace-namespace' : 'legacy',
+      workspaceRoot: comparableActiveRoot(LAYOUT.workspaceRoot || INPUT_ROOT)
+    }),
+    project: target.project,
+    physicalRoot,
+    activeRoot: target.activeRoot,
+    authorityKind: 'session',
+    authorityDigest: envelope.hostSessionDigest,
+    contextEpoch: envelope.contextEpoch,
+    contextBindingDigest: stableRuntimeDigest(contextBinding),
+    routeRevision: routeDecision.routeRevision,
+    revocationEpoch: 0,
+    issuedAt: new Date(issuedAtMs).toISOString(),
+    issuedAtMs,
+    expiresAt: new Date(expiresAtMs).toISOString(),
+    expiresAtMs
+  }
+  const leaseDigest = computeProjectTargetLeaseDigest(core)
+  return {
+    ...core,
+    leaseId: `project-target-lease-${leaseDigest.slice(0, 24)}`,
+    leaseDigest,
+    source: 'bounded-resume-fallback',
+    validatedAt: new Date(nowMs).toISOString(),
+    validatedAtMs: nowMs,
+    invalidationReason: '',
+    observedSessionRef: '',
+    sessionKey: '',
+    updatedAt: new Date(nowMs).toISOString(),
+    updatedAtMs: nowMs
+  }
+}
+
+function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) {
+  const taskId = String(args.task?.taskId || '').trim().toLowerCase()
+  const { metaDir, ownerRead } = exactResumeTaskState(target, taskId)
+  const transaction = ownerRead.transaction
+  if (!['bind', 'adopt'].includes(String(args.operation || '')) || args.task?.entryVariant !== 'continue' ||
+      args.task?.taskKind !== transaction.taskKind ||
+      String(args.task?.taskRootRelative || '').replace(/\\/g, '/') !== transaction.taskRootRelative) {
+    throw taskAdmissionIngressError(
+      'FINALIZED_TASK_RESUME_REQUEST_INVALID',
+      'bounded resume only supports bind/adopt + continue for the exact existing formal task'
+    )
+  }
+  if (ingress.workflowRouteDecision.topIntent !== 'resume' || ingress.workflowRouteDecision.routeKey !== 'resume' ||
+      ingress.workflowRouteDecision.stage !== 'rehydrate') {
+    throw taskAdmissionIngressError('FINALIZED_TASK_RESUME_ROUTE_INVALID', 'finalized resume requires the selected resume/rehydrate route')
+  }
+  const canonical = readFinalizedResumeCanonicalEvidence(transaction, target.activeRoot, fs)
+  if (String(args.overview?.content || '') !== canonical.canonicalOverviewContent) {
+    throw taskAdmissionIngressError('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', 'overview must exactly match the canonical task overview')
+  }
+  const existingAuthorized = readBoundedResumeIngressCapability({
+    metaDir,
+    ingressRef: {
+      schemaVersion: 'WorkflowIngressProjectionRefV1',
+      envelopeId: ingress.actualInstructionEnvelope.envelopeId,
+      envelopeDigest: ingress.actualInstructionEnvelope.envelopeDigest,
+      decisionDigest: ingress.workflowRouteDecision.decisionDigest,
+      routeRevision: ingress.workflowRouteDecision.routeRevision
+    },
+    project: target.project,
+    activeRoot: target.activeRoot,
+    taskId
+  }, { fs, nowMs: Date.now(), requireAuthority: true })
+  if (existingAuthorized.status === 'fresh' && existingAuthorized.authority === true) {
+    const candidate = existingAuthorized.candidate
+    return {
+      candidate,
+      canonical,
+      ingress: {
+        actualInstructionEnvelope: candidate.ingress.actualInstructionEnvelope,
+        workItemSet: candidate.ingress.workItemSet,
+        workflowRouteDecision: candidate.ingress.workflowRouteDecision,
+        projectTargetLease: candidate.ingress.stickyProject,
+        projectRoot: currentPhysicalProjectRoot(target),
+        lifecycleState: existingAuthorized.state,
+        ingressSnapshotRef: null,
+        resumeCandidate: candidate,
+        authorityReceipt: {
+          schemaVersion: 'ServerOwnedAdmissionIngressReceiptV1',
+          source: 'bounded-resume-candidate-replay',
+          sourceDigest: candidate.candidateDigest,
+          envelopeDigest: candidate.ingressRef.envelopeDigest,
+          decisionDigest: candidate.ingressRef.decisionDigest,
+          projectTargetLeaseDigest: candidate.ingress.stickyProject.leaseDigest,
+          candidateId: candidate.candidateId,
+          mutationAuthority: true
+        }
+      }
+    }
+  }
+  const liveness = observeFinalizedTaskResumeLiveness(ownerRead.state || {}, ownerRead.owner, { nowMs: Date.now() })
+  const binding = compactContextBinding(contextBinding || {
+    contextEpoch: ingress.actualInstructionEnvelope.contextEpoch,
+    planId: `host-ingress-${ingress.actualInstructionEnvelope.envelopeId.slice(4)}`,
+    planContentId: ingress.workflowRouteDecision.decisionDigest,
+    activeRoot: target.activeRoot,
+    project: target.project
+  })
+  const attemptDigest = stableRuntimeDigest({
+    schemaVersion: 'FinalizedTaskResumeAttemptV1',
+    taskId,
+    contextEpoch: binding.contextEpoch,
+    planId: binding.planId,
+    planContentId: binding.planContentId,
+    envelopeDigest: ingress.actualInstructionEnvelope.envelopeDigest,
+    decisionDigest: ingress.workflowRouteDecision.decisionDigest,
+    priorTransactionDigest: transaction.transactionDigest,
+    priorOwnerLeaseDigest: ownerRead.owner.leaseDigest,
+    runtimeDigest: MEMORY_RUNTIME_IDENTITY.runtimeDigest
+  })
+  const write = writeBoundedResumeIngressCapability({
+    metaDir,
+    attemptDigest,
+    ingress: {
+      activeProject: target.project,
+      activeScope: 'project',
+      actualInstructionEnvelope: ingress.actualInstructionEnvelope,
+      workItemSet: ingress.workItemSet,
+      workflowRouteDecision: ingress.workflowRouteDecision,
+      workflowRoutePlanBinding: null,
+      workflowIngressRecovery: null,
+      stickyProject: ingress.projectTargetLease
+    },
+    project: target.project,
+    activeRoot: target.activeRoot,
+    projectRootIdentityDigest: transaction.projectRootIdentityDigest,
+    taskId,
+    taskRootRelative: transaction.taskRootRelative,
+    taskIdentityDigest: canonical.taskIdentityDigest,
+    canonicalOverviewDigest: canonical.canonicalOverviewDigest,
+    cpArtifactDigest: canonical.cpArtifactDigest,
+    contextBinding: binding,
+    prior: {
+      admissionId: transaction.admissionId,
+      admissionGeneration: transaction.admissionGeneration,
+      transactionDigest: transaction.transactionDigest,
+      ownerGeneration: ownerRead.owner.ownerGeneration,
+      leaseRevision: ownerRead.owner.leaseRevision,
+      ownerLeaseDigest: ownerRead.owner.leaseDigest,
+      ownerStatus: ownerRead.owner.status,
+      ownerExpiresAt: ownerRead.owner.expiresAt
+    },
+    runtime: MEMORY_RUNTIME_IDENTITY,
+    liveness
+  }, { fs, nowMs: Date.now() })
+  if (!['persisted', 'semantic-noop'].includes(write.status)) {
+    throw taskAdmissionIngressError(
+      write.errorCode || 'FINALIZED_TASK_RESUME_CANDIDATE_PERSIST_FAILED',
+      'bounded resume candidate could not be persisted and read back',
+      { reasonCode: 'candidate-persist-failed', retryability: 'safe-retry', nextStep: 'Retry the same resume attempt after the filesystem condition is resolved.', write }
+    )
+  }
+  const candidate = write.candidate
+  return {
+    candidate,
+    canonical,
+    ingress: {
+      actualInstructionEnvelope: candidate.ingress.actualInstructionEnvelope,
+      workItemSet: candidate.ingress.workItemSet,
+      workflowRouteDecision: candidate.ingress.workflowRouteDecision,
+      projectTargetLease: candidate.ingress.stickyProject,
+      projectRoot: currentPhysicalProjectRoot(target),
+      lifecycleState: ownerRead.state,
+      ingressSnapshotRef: null,
+      resumeCandidate: candidate,
+      authorityReceipt: {
+        schemaVersion: 'ServerOwnedAdmissionIngressReceiptV1',
+        source: 'bounded-resume-candidate',
+        sourceDigest: candidate.candidateDigest,
+        envelopeDigest: candidate.ingressRef.envelopeDigest,
+        decisionDigest: candidate.ingressRef.decisionDigest,
+        projectTargetLeaseDigest: candidate.ingress.stickyProject.leaseDigest,
+        candidateId: candidate.candidateId,
+        mutationAuthority: false
+      }
+    }
+  }
+}
+
+function buildBoundedResumeFallbackIngress(target, args) {
+  const context = resolveResumeContextAuthorization(target, args.resumeContextBinding)
+  const taskId = String(args.task?.taskId || '').trim().toLowerCase()
+  const { ownerRead } = exactResumeTaskState(target, taskId)
+  const transaction = ownerRead.transaction
+  const nowMs = Date.now()
+  const bucket = Math.floor(nowMs / (10 * 60 * 1000))
+  const bucketStartedAtMs = bucket * 10 * 60 * 1000
+  const sourceEventId = stableRuntimeDigest({
+    contextEpoch: context.binding.contextEpoch,
+    planId: context.binding.planId,
+    taskId,
+    bucket
+  })
+  const envelope = buildActualInstructionEnvelope({
+    sourceEventId,
+    issuedAt: new Date(bucketStartedAtMs).toISOString()
+  }, {
+    actualInstruction: `Resume existing formal task ${taskId}`,
+    hostVariant: `devcodex-memory/${DEFAULT_AGENT}/bounded-resume`,
+    hostSessionId: context.hostSessionId,
+    turnId: `resume-${context.binding.contextEpoch}-${bucket}`,
+    contextEpoch: context.binding.contextEpoch,
+    trustedHostEvent: false,
+    ttlMs: 20 * 60 * 1000,
+    nowMs
+  })
+  const workItemSet = buildWorkItemSet(envelope, {
+    workItems: [{ taskKind: 'resume', routeCandidate: 'resume' }]
+  })
+  const workItem = workItemSet.items[0]
+  const routeDecision = buildWorkflowRouteDecision({
+    actualInstructionEnvelope: envelope,
+    workItemSet,
+    workItemId: workItem.workItemId,
+    environmentMode: 'dev',
+    topIntent: 'resume',
+    subtype: context.authorization.plan.workflowRoute.subtype,
+    routeKey: 'resume',
+    stage: 'rehydrate'
+  })
+  const projectTargetLease = boundedResumeProjectLease(
+    target,
+    transaction,
+    envelope,
+    routeDecision,
+    context.binding,
+    nowMs
+  )
+  const prepared = prepareFinalizedResumeCandidate(target, args, {
+    actualInstructionEnvelope: envelope,
+    workItemSet,
+    workflowRouteDecision: routeDecision,
+    projectTargetLease,
+    projectRoot: currentPhysicalProjectRoot(target),
+    lifecycleState: ownerRead.state,
+    ingressSnapshotRef: null,
+    authorityReceipt: null
+  }, context.binding)
+  prepared.ingress.contextReceipt = context.receipt
+  return prepared
+}
+
 function handleMemoryTaskAdmitV2(args) {
   const target = taskMemoryTransactionTarget(args)
   if (target.scope !== 'project' || !target.project) {
@@ -3872,7 +4334,34 @@ function handleMemoryTaskAdmitV2(args) {
       code: 'TASK_ADMISSION_PROJECT_REQUIRED'
     })
   }
-  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef, { allowSnapshot: true })
+  const hasIngressRef = args.ingressRef !== undefined && args.ingressRef !== null
+  const hasResumeContext = args.resumeContextBinding !== undefined && args.resumeContextBinding !== null
+  if (hasIngressRef === hasResumeContext) {
+    throw taskAdmissionIngressError(
+      hasIngressRef ? 'TASK_ADMISSION_INGRESS_INPUT_AMBIGUOUS' : 'TASK_ADMISSION_INGRESS_REQUIRED',
+      hasIngressRef
+        ? 'pass exactly one of ingressRef or resumeContextBinding'
+        : 'one of ingressRef or resumeContextBinding is required'
+    )
+  }
+  let ingress
+  let ingressSource = 'host-hook'
+  let preparedResume = null
+  if (hasResumeContext) {
+    preparedResume = buildBoundedResumeFallbackIngress(target, args)
+    ingress = preparedResume.ingress
+    ingressSource = 'bounded-resume-fallback'
+  } else {
+    ingress = readServerOwnedAdmissionIngress(target, args.ingressRef, { allowSnapshot: true })
+    const isFinalizedResume = ['bind', 'adopt'].includes(String(args.operation || '')) &&
+      args.task?.entryVariant === 'continue' && ingress.workflowRouteDecision?.topIntent === 'resume' &&
+      ingress.workflowRouteDecision?.routeKey === 'resume'
+    if (isFinalizedResume) {
+      const contextBinding = ingress.lifecycleState?.contextAcquisition?.plan?.contextBinding || null
+      preparedResume = prepareFinalizedResumeCandidate(target, args, ingress, contextBinding)
+      ingress = preparedResume.ingress
+    }
+  }
   const admission = executeTaskAdmission({
     operation: args.operation,
     task: args.task,
@@ -3882,23 +4371,41 @@ function handleMemoryTaskAdmitV2(args) {
     workflowRouteDecision: ingress.workflowRouteDecision,
     projectTargetLease: ingress.projectTargetLease,
     ingressSnapshotRef: ingress.ingressSnapshotRef,
+    ...(preparedResume ? { resumeCandidate: preparedResume.candidate } : {}),
+    serverRuntime: MEMORY_RUNTIME_IDENTITY,
     activeRoot: target.activeRoot,
     project: target.project
   })
-  const routeBinding = bindFormalWorkflowRoute(target, ingress, admission.taskId)
+  let verifiedIngress = ingress
+  if (admission.atomicOwnerAcquired === true) {
+    verifiedIngress = readServerOwnedAdmissionIngress(target, preparedResume.candidate.ingressRef, { allowSnapshot: true })
+    admission.recoveryStage = 'readback-complete'
+    admission.ingressRef = preparedResume.candidate.ingressRef
+    admission.ingressAuthority = verifiedIngress.authorityReceipt
+  }
+  const routeBinding = bindFormalWorkflowRoute(target, verifiedIngress, admission.taskId)
   admission.routeBinding = routeBinding
-  admission.routeBindingRequired = !formalWorkflowRouteBound(routeBinding)
-  admission.ingressAuthority = ingress.authorityReceipt
-  if (!admission.routeBindingRequired && !['needs-reconcile', 'aborted'].includes(admission.status)) {
+  admission.routeBindingRequired = admission.atomicOwnerAcquired === true
+    ? false
+    : !formalWorkflowRouteBound(routeBinding)
+  admission.routeBindingWarning = admission.atomicOwnerAcquired === true && !formalWorkflowRouteBound(routeBinding)
+    ? (routeBinding?.errorCode || 'WORKSPACE_SESSION_ROUTE_DERIVATION_DEFERRED')
+    : null
+  admission.ingressAuthority = admission.ingressAuthority || ingress.authorityReceipt
+  admission.ingressSource = ingressSource
+  admission.ingressRef = admission.ingressRef || args.ingressRef
+  admission.activeVersion = MEMORY_RUNTIME_IDENTITY.activeVersion
+  admission.runtimeGeneration = MEMORY_RUNTIME_IDENTITY.generationId
+  if (!admission.atomicOwnerAcquired && !admission.routeBindingRequired && !['needs-reconcile', 'aborted'].includes(admission.status)) {
     const owner = executeTaskWriteOwner({
       operation: 'acquire',
       taskId: admission.taskId,
       admissionId: admission.admissionId,
-      actualInstructionEnvelope: ingress.actualInstructionEnvelope,
-      workItemSet: ingress.workItemSet,
-      workflowRouteDecision: ingress.workflowRouteDecision,
-      projectTargetLease: ingress.projectTargetLease,
-      ingressSnapshotRef: ingress.ingressSnapshotRef,
+      actualInstructionEnvelope: verifiedIngress.actualInstructionEnvelope,
+      workItemSet: verifiedIngress.workItemSet,
+      workflowRouteDecision: verifiedIngress.workflowRouteDecision,
+      projectTargetLease: verifiedIngress.projectTargetLease,
+      ingressSnapshotRef: verifiedIngress.ingressSnapshotRef,
       activeRoot: target.activeRoot,
       project: target.project
     })
@@ -3910,6 +4417,8 @@ function handleMemoryTaskAdmitV2(args) {
     admission.mutationAuthority = owner.mutationAuthority
     admission.nextRequiredPhase = owner.finalized ? null : admission.nextRequiredPhase
   }
+  admission.ownerGeneration = admission.ownerAcquisition?.owner?.ownerGeneration || null
+  admission.leaseRevision = admission.ownerAcquisition?.owner?.leaseRevision || null
   return {
     content: [{ type: 'text', text: JSON.stringify(admission, null, 2) }],
     structuredContent: admission,

@@ -14,6 +14,8 @@ const { buildWorkflowRouteDecision } = require('../hooks/_runtime/workflow-route
 const { validateTaskIdentity } = require('../hooks/_runtime/task-continuation-contract.cjs')
 const {
   normalizeIdentity,
+  observeFinalizedTaskResumeLiveness,
+  readBoundedResumeIngressCapability,
   readFencedTaskWriteOwner,
   readTaskAdmissionTransaction,
   readTaskRecoveryState,
@@ -24,7 +26,8 @@ const {
   updateTaskRecoveryState,
   validateAdmissionContinuationLease,
   validateTaskAdmissionTransaction,
-  validateTaskAdmissionReconciliationReceipt
+  validateTaskAdmissionReconciliationReceipt,
+  writeBoundedResumeIngressCapability
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const {
   computeProjectTargetLeaseDigest,
@@ -32,6 +35,7 @@ const {
   executeTaskAdmission,
   executeTaskWriteOwner,
   executeWorkflowTaskTerminal,
+  readFinalizedResumeCanonicalEvidence,
   reconcileWorkflowTaskTerminal,
   validateProjectTargetLease
 } = require('../mcp/task-admission-authority.cjs')
@@ -46,6 +50,14 @@ const STORE_OPTIONS = {
   availableDiskBytes: 1024 * 1024 * 1024
 }
 const KEEP_TEST_ARTIFACTS = process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1'
+const TEST_RUNTIME = {
+  schemaVersion: 'MemoryRuntimeGenerationRefV1',
+  activeVersion: '1.19.5',
+  generationId: 'test-runtime-generation-v1',
+  contractVersion: 'formal-task-continuity-v3',
+  manifestStatus: 'verified',
+  runtimeDigest: 'a'.repeat(64)
+}
 
 function setupRoot(name) {
   const physicalRoot = path.join(TEMP_ROOT, name)
@@ -286,6 +298,111 @@ function evidenceSet(input, admission, suffix = 'terminal') {
 
 function taskRootFor(input, receipt) {
   return path.join(input.activeRoot, ...receipt.taskRootRelative.split('/'))
+}
+
+function setFinalizedResumeLiveness(root, admission, turnLiveness, nowMs) {
+  const metaDir = resolveTaskRecoveryMetaDir({ activeRoot: root.activeRoot, project: root.project })
+  const identity = { activeRoot: root.activeRoot, project: root.project, taskId: admission.taskId, taskStatus: 'active' }
+  const result = updateTaskRecoveryState({ metaDir, identity }, state => {
+    state.turnLiveness = {
+      schemaVersion: 'TurnLivenessStateV1',
+      state: 'completed',
+      turnKey: `turn-${admission.taskId}`,
+      lastEventAt: new Date(nowMs - 1000).toISOString(),
+      inFlightOperation: null,
+      previousTurn: { terminalState: 'completed' },
+      ...turnLiveness
+    }
+    return state
+  }, { nowMs, force: true, reason: 'test-finalized-resume-liveness', ...STORE_OPTIONS })
+  assert(['committed', 'persisted', 'semantic-noop'].includes(result.status), result.errorCode || result.status)
+}
+
+function buildFinalizedResumeAttempt(root, admission, suffix, nowMs, options = {}) {
+  const metaDir = resolveTaskRecoveryMetaDir({ activeRoot: root.activeRoot, project: root.project })
+  const identity = { activeRoot: root.activeRoot, project: root.project, taskId: admission.taskId, taskStatus: 'active' }
+  const recovery = readTaskRecoveryState({ metaDir, identity }, { nowMs })
+  assert.strictEqual(recovery.status, 'fresh')
+  const transaction = recovery.state.admissionTransaction
+  const owner = recovery.state.fencedWriteOwner
+  const canonical = readFinalizedResumeCanonicalEvidence(transaction, root.activeRoot)
+  const resumeInput = admissionInput(root, suffix, {
+    operation: 'bind',
+    routeTaskKind: 'resume',
+    routeCandidate: 'resume',
+    task: {
+      taskId: admission.taskId,
+      taskKind: transaction.taskKind,
+      entryVariant: 'continue',
+      taskRootRelative: transaction.taskRootRelative
+    },
+    overview: { content: canonical.canonicalOverviewContent },
+    serverRuntime: options.runtime || TEST_RUNTIME
+  })
+  const ingress = {
+    activeProject: root.project,
+    activeScope: 'project',
+    actualInstructionEnvelope: resumeInput.actualInstructionEnvelope,
+    workItemSet: resumeInput.workItemSet,
+    workflowRouteDecision: resumeInput.workflowRouteDecision,
+    stickyProject: resumeInput.projectTargetLease
+  }
+  const liveness = observeFinalizedTaskResumeLiveness(recovery.state, owner, { nowMs })
+  const attemptDigest = digest({
+    schemaVersion: 'TestFinalizedResumeAttemptV1',
+    suffix,
+    transactionDigest: transaction.transactionDigest,
+    ownerLeaseDigest: owner.leaseDigest,
+    envelopeDigest: resumeInput.actualInstructionEnvelope.envelopeDigest
+  })
+  const candidateWrite = writeBoundedResumeIngressCapability({
+    metaDir,
+    attemptDigest,
+    ingress,
+    project: root.project,
+    activeRoot: root.activeRoot,
+    projectRootIdentityDigest: transaction.projectRootIdentityDigest,
+    taskId: admission.taskId,
+    taskRootRelative: transaction.taskRootRelative,
+    taskIdentityDigest: canonical.taskIdentityDigest,
+    canonicalOverviewDigest: canonical.canonicalOverviewDigest,
+    cpArtifactDigest: canonical.cpArtifactDigest,
+    contextBinding: {
+      schemaVersion: 'ContextReadBindingV1',
+      contextEpoch: resumeInput.actualInstructionEnvelope.contextEpoch,
+      planId: `resume-plan-${suffix}`,
+      planContentId: `resume-plan-content-${suffix}`
+    },
+    prior: {
+      admissionId: transaction.admissionId,
+      admissionGeneration: transaction.admissionGeneration,
+      transactionDigest: transaction.transactionDigest,
+      ownerGeneration: owner.ownerGeneration,
+      leaseRevision: owner.leaseRevision,
+      ownerLeaseDigest: owner.leaseDigest
+    },
+    runtime: options.runtime || TEST_RUNTIME,
+    liveness
+  }, { nowMs })
+  assert(['persisted', 'semantic-noop'].includes(candidateWrite.status), JSON.stringify(candidateWrite))
+  return {
+    input: { ...resumeInput, resumeCandidate: candidateWrite.candidate },
+    candidate: candidateWrite.candidate,
+    prior: { transaction, owner },
+    metaDir,
+    identity
+  }
+}
+
+function createFinalizedResumeFixture(name) {
+  const root = setupRoot(name)
+  const input = admissionInput(root, name)
+  const admission = run(input)
+  confirmCp1(taskRootFor(input, admission))
+  const owner = runOwner(ownerInput(input, admission, 'acquire', { expectedOwner: { mode: 'absent' } }))
+  assert.strictEqual(owner.finalized, true)
+  assert.strictEqual(owner.mutationAuthority, true)
+  return { root, input, admission, owner }
 }
 
 try {
@@ -1270,6 +1387,167 @@ try {
     }
   })
   assert.strictEqual(partialProductRecoveryRead.transaction.reconciliation.recoveredPhase, 'identity-written')
+
+  const resumeAt = NOW_MS + 6 * 60 * 1000
+  const expiredResume = createFinalizedResumeFixture('finalized-expired-resume')
+  setFinalizedResumeLiveness(expiredResume.root, expiredResume.admission, {}, resumeAt)
+  const expiredAttempt = buildFinalizedResumeAttempt(
+    expiredResume.root,
+    expiredResume.admission,
+    'finalized-expired-resume-next',
+    resumeAt
+  )
+  assert.strictEqual(expiredAttempt.candidate.mutationAuthority, false)
+  const resumed = run(expiredAttempt.input, { nowMs: resumeAt })
+  assert.strictEqual(resumed.atomicOwnerAcquired, true)
+  assert.strictEqual(resumed.mutationAuthority, true)
+  assert.strictEqual(resumed.admissionGeneration, expiredAttempt.prior.transaction.admissionGeneration + 1)
+  assert.strictEqual(resumed.ownerAcquisition.owner.ownerGeneration, expiredAttempt.prior.owner.ownerGeneration + 1)
+  assert.strictEqual(resumed.recovery.schemaVersion, 'FinalizedTaskResumeRecoveryReceiptV3')
+  const resumedReplay = run(expiredAttempt.input, { nowMs: resumeAt })
+  assert.strictEqual(resumedReplay.replayed, true, 'response-loss replay must return the same resumed admission and owner')
+  assert.strictEqual(resumedReplay.admissionId, resumed.admissionId)
+  assert.strictEqual(resumedReplay.ownerAcquisition.owner.leaseDigest, resumed.ownerAcquisition.owner.leaseDigest)
+  const authorizedCandidate = readBoundedResumeIngressCapability({
+    metaDir: expiredAttempt.metaDir,
+    ingressRef: expiredAttempt.candidate.ingressRef,
+    activeRoot: expiredResume.root.activeRoot,
+    project: expiredResume.root.project,
+    taskId: expiredResume.admission.taskId
+  }, { nowMs: resumeAt, requireAuthority: true })
+  assert.strictEqual(authorizedCandidate.status, 'fresh')
+  assert.strictEqual(authorizedCandidate.authority, true)
+  const downstreamRenew = runOwner(ownerInput(expiredAttempt.input, resumed, 'renew', {
+    expectedOwner: ownerRef(resumed.ownerAcquisition)
+  }), resumeAt)
+  assert.strictEqual(downstreamRenew.mutationAuthority, true, 'returned resume ingress must renew the new owner')
+  assert.throws(
+    () => runOwner(ownerInput(expiredResume.input, expiredResume.admission, 'renew', {
+      expectedOwner: ownerRef(expiredResume.owner)
+    }), resumeAt),
+    error => ['TASK_ADMISSION_TRANSACTION_MISSING', 'TASK_WRITE_OWNER_CAS_MISMATCH'].includes(error.code),
+    'the old admission and owner must never regain authority'
+  )
+
+  const releasedResumeAt = NOW_MS + 60 * 1000
+  const releasedResume = createFinalizedResumeFixture('finalized-released-resume')
+  const releasedOwner = runOwner(ownerInput(releasedResume.input, releasedResume.admission, 'release', {
+    expectedOwner: ownerRef(releasedResume.owner)
+  }), releasedResumeAt)
+  assert.strictEqual(releasedOwner.status, 'released')
+  setFinalizedResumeLiveness(releasedResume.root, releasedResume.admission, {}, releasedResumeAt)
+  const releasedAttempt = buildFinalizedResumeAttempt(
+    releasedResume.root,
+    releasedResume.admission,
+    'finalized-released-resume-next',
+    releasedResumeAt
+  )
+  const releasedResumed = run(releasedAttempt.input, { nowMs: releasedResumeAt })
+  assert.strictEqual(releasedResumed.mutationAuthority, true, 'released owner must resume without waiting for idle TTL')
+
+  const busyResumeAt = NOW_MS + 60 * 1000
+  const busyResume = createFinalizedResumeFixture('finalized-owner-busy')
+  setFinalizedResumeLiveness(busyResume.root, busyResume.admission, {}, busyResumeAt)
+  const busyAttempt = buildFinalizedResumeAttempt(busyResume.root, busyResume.admission, 'finalized-owner-busy-next', busyResumeAt)
+  assert.throws(
+    () => run(busyAttempt.input, { nowMs: busyResumeAt }),
+    error => error.code === 'FINALIZED_TASK_RESUME_OWNER_BUSY' && error.details?.reasonCode === 'owner-busy'
+  )
+
+  const liveTurnResume = createFinalizedResumeFixture('finalized-live-turn')
+  setFinalizedResumeLiveness(liveTurnResume.root, liveTurnResume.admission, {
+    state: 'running',
+    lastEventAt: new Date(resumeAt - 30 * 1000).toISOString(),
+    previousTurn: null
+  }, resumeAt)
+  const liveTurnAttempt = buildFinalizedResumeAttempt(liveTurnResume.root, liveTurnResume.admission, 'finalized-live-turn-next', resumeAt)
+  assert.throws(
+    () => run(liveTurnAttempt.input, { nowMs: resumeAt }),
+    error => error.code === 'FINALIZED_TASK_RESUME_OLD_TURN_LIVE' && error.details?.reasonCode === 'old-turn-live'
+  )
+
+  const unknownSideEffect = createFinalizedResumeFixture('finalized-side-effect-unknown')
+  setFinalizedResumeLiveness(unknownSideEffect.root, unknownSideEffect.admission, {
+    inFlightOperation: {
+      operationId: 'mutation-without-closeout',
+      ownedByAgent: true,
+      mutating: true,
+      leaseExpiresAt: new Date(resumeAt - 1000).toISOString()
+    },
+    lastMutationCloseout: null
+  }, resumeAt)
+  const unknownAttempt = buildFinalizedResumeAttempt(
+    unknownSideEffect.root,
+    unknownSideEffect.admission,
+    'finalized-side-effect-unknown-next',
+    resumeAt
+  )
+  assert.throws(
+    () => run(unknownAttempt.input, { nowMs: resumeAt }),
+    error => error.code === 'FINALIZED_TASK_RESUME_SIDE_EFFECT_UNKNOWN' && error.details?.reasonCode === 'side-effect-unknown'
+  )
+
+  const concurrentResume = createFinalizedResumeFixture('finalized-concurrent-resume')
+  setFinalizedResumeLiveness(concurrentResume.root, concurrentResume.admission, {}, resumeAt)
+  const concurrentAttemptA = buildFinalizedResumeAttempt(
+    concurrentResume.root,
+    concurrentResume.admission,
+    'finalized-concurrent-resume-a',
+    resumeAt
+  )
+  const concurrentAttemptB = buildFinalizedResumeAttempt(
+    concurrentResume.root,
+    concurrentResume.admission,
+    'finalized-concurrent-resume-b',
+    resumeAt
+  )
+  const concurrentWinner = run(concurrentAttemptA.input, { nowMs: resumeAt })
+  assert.strictEqual(concurrentWinner.mutationAuthority, true)
+  assert.throws(
+    () => run(concurrentAttemptB.input, { nowMs: resumeAt }),
+    error => error.code === 'FINALIZED_TASK_RESUME_CAS_LOST' && error.details?.reasonCode === 'cas-lost',
+    'two fresh sessions must have exactly one CAS winner'
+  )
+
+  const driftResume = createFinalizedResumeFixture('finalized-resume-drift')
+  setFinalizedResumeLiveness(driftResume.root, driftResume.admission, {}, resumeAt)
+  const driftAttempt = buildFinalizedResumeAttempt(driftResume.root, driftResume.admission, 'finalized-resume-drift-next', resumeAt)
+  const driftTaskRoot = taskRootFor(driftResume.input, driftResume.admission)
+  const overviewPath = path.join(driftTaskRoot, '00-问题概况.md')
+  const canonicalOverview = fs.readFileSync(overviewPath, 'utf8')
+  fs.writeFileSync(overviewPath, `${canonicalOverview}\n漂移\n`)
+  assert.throws(() => run(driftAttempt.input, { nowMs: resumeAt }), error => error.code === 'FINALIZED_TASK_RESUME_CANONICAL_DRIFT')
+  fs.writeFileSync(overviewPath, canonicalOverview)
+  const identityPathForDrift = path.join(driftTaskRoot, '.memory', 'task.json')
+  const canonicalIdentity = fs.readFileSync(identityPathForDrift, 'utf8')
+  const changedIdentity = JSON.parse(canonicalIdentity)
+  changedIdentity.displayName = `${changedIdentity.displayName}-漂移`
+  fs.writeFileSync(identityPathForDrift, `${JSON.stringify(changedIdentity, null, 2)}\n`)
+  assert.throws(() => run(driftAttempt.input, { nowMs: resumeAt }), error => error.code === 'FINALIZED_TASK_RESUME_CANONICAL_DRIFT')
+  fs.writeFileSync(identityPathForDrift, canonicalIdentity)
+  const cpPathForDrift = path.join(driftTaskRoot, '01-问题确认.md')
+  const canonicalCp = fs.readFileSync(cpPathForDrift, 'utf8')
+  fs.writeFileSync(cpPathForDrift, `${canonicalCp}\n漂移\n`)
+  assert.throws(
+    () => run(driftAttempt.input, { nowMs: resumeAt }),
+    error => error.code === 'FINALIZED_TASK_RESUME_CP_DRIFT' && error.details?.reasonCode === 'cp-drift'
+  )
+  fs.writeFileSync(cpPathForDrift, canonicalCp)
+  const wrongRootLeaseCore = { ...driftAttempt.input.projectTargetLease, rootIdentityDigest: 'b'.repeat(64) }
+  delete wrongRootLeaseCore.leaseDigest
+  const wrongRootInput = {
+    ...driftAttempt.input,
+    projectTargetLease: { ...wrongRootLeaseCore, leaseDigest: computeProjectTargetLeaseDigest(wrongRootLeaseCore) }
+  }
+  assert.throws(() => run(wrongRootInput, { nowMs: resumeAt }), error => error.code === 'FINALIZED_TASK_RESUME_CANDIDATE_MISMATCH')
+  assert.throws(
+    () => run({
+      ...driftAttempt.input,
+      serverRuntime: { ...TEST_RUNTIME, generationId: 'stale-runtime-generation', runtimeDigest: 'b'.repeat(64) }
+    }, { nowMs: resumeAt }),
+    error => error.code === 'FINALIZED_TASK_RESUME_RUNTIME_STALE' && error.details?.reasonCode === 'runtime-generation-stale'
+  )
+  assert.strictEqual(run(driftAttempt.input, { nowMs: resumeAt }).mutationAuthority, true)
 
   const reservedRoot = setupRoot('reserved')
   const reservedInput = admissionInput(reservedRoot, 'reserved')

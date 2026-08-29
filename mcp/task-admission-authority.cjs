@@ -18,6 +18,7 @@ const {
 } = require('../hooks/_runtime/task-continuation-contract.cjs')
 const {
   commitFencedTaskWriteOwnerTransition,
+  commitFinalizedTaskResumeV3,
   commitTaskAdmissionReconciliation,
   commitTaskAdmissionTransaction,
   admissionContinuationLeaseDigest,
@@ -28,6 +29,7 @@ const {
   resolveTaskRecoveryMetaDir,
   taskAdmissionTransactionDigest,
   taskAdmissionReconciliationReceiptDigest,
+  validateBoundedResumeIngressCapability,
   validateAdmissionContinuationLease,
   workflowTaskTerminalReceiptDigest
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
@@ -43,7 +45,7 @@ const FENCED_TASK_WRITE_OWNER_SCHEMA = 'FencedTaskWriteOwnerLeaseV2'
 const TASK_WRITE_OWNER_RECEIPT_SCHEMA = 'TaskWriteOwnerTransitionReceiptV1'
 const WORKFLOW_TASK_TERMINAL_RECEIPT_SCHEMA = 'WorkflowTaskTerminalReceiptV1'
 const TASK_ADMISSION_REQUEST_DIGEST_SCHEMA = 'TaskAdmissionRequestDigestV2'
-const WRITE_OWNER_LEASE_MS = 30 * 60 * 1000
+const WRITE_OWNER_LEASE_MS = 5 * 60 * 1000
 const ADMISSION_CONTINUATION_LEASE_MS = 30 * 60 * 1000
 const DIGEST_RE = /^[a-f0-9]{64}$/
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -662,9 +664,14 @@ function createAdmissionContinuationLease(transaction, input, snapshotRef, nowMs
   return lease
 }
 
-function validateOwnerContinuation(transaction, input, operation, nowMs) {
+function validateOwnerContinuation(transaction, input, operation, nowMs, options = {}) {
   const lease = transaction.continuationLease
   if (!lease || !['acquire', 'reopen'].includes(operation)) return
+  // AdmissionContinuationLeaseV1 authorizes only the first owner fence.  Once
+  // that lease has been consumed and the finalized owner was explicitly
+  // released, a later exact-CAS reacquire is authorized by the released owner
+  // ref instead of the original (now stale) ingress snapshot.
+  if (operation === 'acquire' && options.releasedReacquire === true && lease.status === 'consumed') return
   const validation = validateAdmissionContinuationLease(lease, transaction)
   if (!validation.valid) {
     throw new TaskAdmissionError('TASK_ADMISSION_CONTINUATION_INVALID', validation.errors.join(','))
@@ -821,7 +828,14 @@ function verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, fsImp
         artifactDigest: expectedDigest
       }
     : null
-  return { candidate, compatibility }
+  return {
+    candidate,
+    artifactDigest: expectedDigest,
+    artifactPath: path.relative(taskRoot, candidate).replace(/\\/g, '/'),
+    sourceMessage: String(cp1Cells[5] || '').trim(),
+    confirmedAt,
+    compatibility
+  }
 }
 
 function ensurePendingCpState(fileTransaction, sessionsPath, transaction, activeRoot, options = {}) {
@@ -1178,6 +1192,10 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
   let transaction = existing.status === 'fresh' ? existing.transaction : null
   let priorTerminalTransaction = null
   let priorAwaitingOwnerTransaction = null
+  const finalizedResumeIntent = !!transaction && transaction.phase === 'finalized' &&
+    transaction.status === 'finalized' && ['adopt', 'bind'].includes(input.operation) &&
+    input.task.entryVariant === 'continue' && input.workflowRouteDecision.topIntent === 'resume' &&
+    input.workflowRouteDecision.routeKey === 'resume'
 
   let plan
   if (input.operation === 'admit' && transaction) {
@@ -1208,7 +1226,16 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
       migration: null
     }
   } else {
-    plan = existingIdentityPlan(input, { fs: fsImpl })
+    try {
+      plan = existingIdentityPlan(input, { fs: fsImpl })
+    } catch (error) {
+      if (!finalizedResumeIntent) throw error
+      throw new TaskAdmissionError(
+        'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
+        'TaskIdentityV2, project root or task root no longer matches the finalized admission',
+        { ...finalizedResumeFailureDetails('FINALIZED_TASK_RESUME_CANONICAL_DRIFT'), cause: error.code || error.message }
+      )
+    }
   }
 
   const taskRootRelative = plan.directoryDecision.taskRootRelative
@@ -1220,6 +1247,29 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
     : null
   let overviewContent = String(input.overview.content)
   let productSourceContent = productSourcePath ? String(input.overview.productSourceContent) : ''
+  const resumeCandidate = rawInput.resumeCandidate && typeof rawInput.resumeCandidate === 'object'
+    ? clone(rawInput.resumeCandidate)
+    : null
+  const finalizedResumeRequested = finalizedResumeIntent
+  let finalizedResumeCanonical = null
+  if (finalizedResumeRequested) {
+    const candidateValidation = validateBoundedResumeIngressCapability(resumeCandidate, { fs: fsImpl, nowMs })
+    if (!candidateValidation.valid) {
+      throw new TaskAdmissionError(
+        'FINALIZED_TASK_RESUME_CANDIDATE_INVALID',
+        'finalized resume requires one fresh server-owned bounded ingress candidate',
+        { errors: candidateValidation.errors }
+      )
+    }
+    finalizedResumeCanonical = readFinalizedResumeCanonicalEvidence(transaction, input.activeRoot, fsImpl)
+    if (String(input.overview.content) !== finalizedResumeCanonical.canonicalOverviewContent) {
+      throw new TaskAdmissionError(
+        'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
+        'resume overview must exactly reproduce the canonical overview read from disk'
+      )
+    }
+    overviewContent = finalizedResumeCanonical.canonicalOverviewContent
+  }
   const priorContinuationLease = transaction?.continuationLease || null
   const priorContinuationExpired = priorContinuationLease?.status === 'active' &&
     Date.parse(priorContinuationLease.expiresAt) <= nowMs
@@ -1340,6 +1390,24 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
         : !transaction.requestDigestSchema && !transaction.projectTargetLeaseBindingDigest &&
           (transaction.requestDigest === legacyRequestDigest || boundedLegacyResumeReplay))
     : true
+  if (finalizedResumeRequested) {
+    return executeFinalizedTaskResumeV3({
+      input,
+      transaction,
+      candidate: resumeCandidate,
+      canonical: finalizedResumeCanonical,
+      identity,
+      metaDir,
+      ingressIdempotencyKey,
+      ingressSnapshotRef,
+      requestDigest,
+      projectTargetLeaseBindingDigest,
+      plan,
+      nowMs,
+      fsImpl,
+      options
+    })
+  }
   if (transaction && transaction.phase === 'terminal-closeout' &&
       transaction.ingressIdempotencyKey !== ingressIdempotencyKey &&
       input.task.entryVariant === 'reopen' && ['adopt', 'bind'].includes(input.operation)) {
@@ -1666,12 +1734,99 @@ function observedCpState(transaction, activeRoot, fsImpl = fs) {
   if (cpRows !== 3 || (!cp1Confirmed && !cp1Pending)) {
     throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'workflow CP table is missing or ambiguous before owner fencing')
   }
-  if (cp1Confirmed) {
-    verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, fsImpl, {
+  const cpEvidence = cp1Confirmed
+    ? verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, fsImpl, {
       allowLegacyRecord: transaction.effects?.cpState?.compatibility?.schemaVersion === 'LegacyCpConfirmationCompatibilityV1'
     })
+    : null
+  return { cp1Confirmed, sessionsPath, cpArtifactDigest: cpEvidence?.artifactDigest || null, cpEvidence }
+}
+
+function readStableCanonicalFile(activeRoot, taskRoot, relative, label, fsImpl = fs) {
+  const portable = String(relative || '').trim().replace(/\\/g, '/')
+  if (!portable || path.isAbsolute(portable) || /^[A-Za-z]:/.test(portable) ||
+      portable.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
+    throw new TaskAdmissionError('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', `${label} path is invalid`)
   }
-  return { cp1Confirmed, sessionsPath }
+  const candidate = path.resolve(activeRoot, ...portable.split('/'))
+  if (!isInside(taskRoot, candidate) || !isInside(activeRoot, candidate)) {
+    throw new TaskAdmissionError('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', `${label} escapes the canonical task root`)
+  }
+  assertExistingAncestorsSafe(activeRoot, candidate, fsImpl)
+  let descriptor
+  try {
+    descriptor = fsImpl.openSync(candidate, 'r')
+    const before = fsImpl.fstatSync(descriptor)
+    if (!before.isFile() || before.size < 1 || before.size > 8 * 1024 * 1024) {
+      throw new TaskAdmissionError('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', `${label} is not a bounded regular file`)
+    }
+    const bytes = fsImpl.readFileSync(descriptor)
+    const after = fsImpl.fstatSync(descriptor)
+    const current = fsImpl.lstatSync(candidate)
+    if (!current.isFile() || current.isSymbolicLink() || bytes.length !== after.size ||
+        !sameStableFileStat(before, after) || !sameStableFileStat(after, current)) {
+      throw new TaskAdmissionError('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', `${label} changed during readback`)
+    }
+    return { path: candidate, relative: portable, bytes, digest: sha256(bytes) }
+  } finally {
+    if (descriptor !== undefined) fsImpl.closeSync(descriptor)
+  }
+}
+
+function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = fs) {
+  if (!transaction || transaction.phase !== 'finalized' || transaction.status !== 'finalized') {
+    throw new TaskAdmissionError('FINALIZED_TASK_RESUME_ADMISSION_PHASE_INVALID', 'canonical resume readback requires one finalized admission')
+  }
+  const root = path.resolve(String(activeRoot || ''))
+  const taskRoot = path.resolve(root, ...String(transaction.taskRootRelative || '').split('/'))
+  if (!isInside(root, taskRoot)) {
+    throw new TaskAdmissionError('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', 'canonical task root escapes activeRoot')
+  }
+  const identityRelative = transaction.effects?.identity?.file?.file ||
+    path.posix.join(transaction.taskRootRelative, '.memory', 'task.json')
+  const overviewRelative = transaction.effects?.overview?.file?.file ||
+    path.posix.join(transaction.taskRootRelative, overviewName(transaction.taskKind, transaction.entryVariant))
+  const identityFile = readStableCanonicalFile(root, taskRoot, identityRelative, 'TaskIdentityV2', fsImpl)
+  let identity
+  try { identity = JSON.parse(identityFile.bytes.toString('utf8')) } catch (error) {
+    throw new TaskAdmissionError('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', `TaskIdentityV2 JSON is invalid: ${error.message}`)
+  }
+  const identityValidation = validateTaskIdentity(identity)
+  if (!identityValidation.valid || identity.identityDigest !== transaction.taskIdentityDigest ||
+      String(identity.taskId || '').toLowerCase() !== transaction.taskId ||
+      identity.project !== transaction.project) {
+    throw new TaskAdmissionError('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', 'TaskIdentityV2 no longer matches the finalized admission')
+  }
+  const overviewFile = readStableCanonicalFile(root, taskRoot, overviewRelative, 'canonical overview', fsImpl)
+  if (overviewFile.digest !== transaction.effects?.overview?.contentDigest) {
+    throw new TaskAdmissionError('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', 'canonical overview no longer matches the finalized admission')
+  }
+  let cp
+  try {
+    cp = observedCpState(transaction, root, fsImpl)
+  } catch (error) {
+    throw new TaskAdmissionError(
+      'FINALIZED_TASK_RESUME_CP_DRIFT',
+      'digest-bound CP confirmation no longer matches the finalized admission',
+      { ...finalizedResumeFailureDetails('FINALIZED_TASK_RESUME_CP_DRIFT'), cause: error.code || error.message }
+    )
+  }
+  if (!cp.cp1Confirmed || !DIGEST_RE.test(String(cp.cpArtifactDigest || ''))) {
+    throw new TaskAdmissionError('FINALIZED_TASK_RESUME_CP_DRIFT', 'resume requires one digest-bound confirmed CP1 artifact')
+  }
+  return {
+    schemaVersion: 'FinalizedTaskResumeCanonicalEvidenceV1',
+    taskId: transaction.taskId,
+    taskRootRelative: transaction.taskRootRelative,
+    taskIdentityDigest: identity.identityDigest,
+    taskIdentitySourceDigest: identityFile.digest,
+    canonicalOverviewDigest: overviewFile.digest,
+    canonicalOverviewContent: overviewFile.bytes.toString('utf8'),
+    cpConfirmed: true,
+    cpArtifactDigest: cp.cpArtifactDigest,
+    cpArtifactPath: cp.cpEvidence?.artifactPath || null,
+    cpSourceMessage: cp.cpEvidence?.sourceMessage || null
+  }
 }
 
 function refreshFinalizedCpObservation(transaction, activeRoot, nowMs, fsImpl = fs) {
@@ -1784,6 +1939,223 @@ function taskWriteOwnerReceipt(operation, transaction, owner, replayed = false, 
   }
 }
 
+function finalizedResumeFailureDetails(errorCode) {
+  const code = String(errorCode || '')
+  if (code.includes('OWNER_BUSY')) return { reasonCode: 'owner-busy', retryability: 'retry-after-expiry', nextStep: 'Wait for the current owner lease to expire or release, then replay the same resume request.' }
+  if (code.includes('OLD_TURN_LIVE') || code.includes('LIVENESS_DRIFT')) return { reasonCode: 'old-turn-live', retryability: 'retry-after-turn-terminal', nextStep: 'Let the prior turn finish or persist a terminal checkpoint, then replay the same resume request.' }
+  if (code.includes('OPERATION_LIVE')) return { reasonCode: 'operation-live', retryability: 'retry-after-operation-closeout', nextStep: 'Wait for the current operation lease and closeout before retrying resume.' }
+  if (code.includes('SIDE_EFFECT_UNKNOWN')) return { reasonCode: 'side-effect-unknown', retryability: 'reconcile-required', nextStep: 'Reconcile the exact prior mutation or external side effect before retrying resume.' }
+  if (code.includes('CP_DRIFT')) return { reasonCode: 'cp-drift', retryability: 'confirmation-required', nextStep: 'Repair and re-confirm the canonical CP artifact, then retry resume.' }
+  if (code.includes('CANONICAL')) return { reasonCode: 'canonical-drift', retryability: 'repair-required', nextStep: 'Repair the canonical TaskIdentity/overview binding before retrying resume.' }
+  if (code.includes('TERMINAL')) return { reasonCode: 'terminal-task', retryability: 'reopen-required', nextStep: 'Use the explicit reopen workflow for a terminal task.' }
+  if (code.includes('RUNTIME')) return { reasonCode: 'runtime-generation-stale', retryability: 'new-session-required', nextStep: 'Restart the host on the current DevCodex runtime generation and retry.' }
+  if (code.includes('CAS_LOST')) return { reasonCode: 'cas-lost', retryability: 'read-winner', nextStep: 'Read back the winning admission/owner; this caller has no mutation authority.' }
+  if (code.includes('LOCK') || code.includes('DISK') || code.includes('CAPACITY') || code.includes('WRITE')) {
+    return { reasonCode: 'capacity-or-filesystem-blocked', retryability: 'safe-retry', nextStep: 'Resolve the reported lock/capacity/filesystem condition and replay the same attempt.' }
+  }
+  return { reasonCode: 'needs-reconcile', retryability: 'inspect-state', nextStep: 'Inspect the typed recovery state and retry only after its required condition is satisfied.' }
+}
+
+function executeFinalizedTaskResumeV3({
+  input,
+  transaction,
+  candidate,
+  canonical,
+  identity,
+  metaDir,
+  ingressIdempotencyKey,
+  requestDigest,
+  projectTargetLeaseBindingDigest,
+  plan,
+  nowMs,
+  fsImpl,
+  options
+}) {
+  if (candidate.runtime?.runtimeDigest !== input.serverRuntime?.runtimeDigest ||
+      candidate.runtime?.generationId !== input.serverRuntime?.generationId) {
+    throw new TaskAdmissionError(
+      'FINALIZED_TASK_RESUME_RUNTIME_STALE',
+      'bounded resume candidate belongs to another runtime generation',
+      finalizedResumeFailureDetails('FINALIZED_TASK_RESUME_RUNTIME_STALE')
+    )
+  }
+  const exactCandidateIngress = candidate.ingressRef?.envelopeId === input.actualInstructionEnvelope.envelopeId &&
+    candidate.ingressRef?.envelopeDigest === input.actualInstructionEnvelope.envelopeDigest &&
+    candidate.ingressRef?.decisionDigest === input.workflowRouteDecision.decisionDigest &&
+    candidate.ingressRef?.routeRevision === input.workflowRouteDecision.routeRevision &&
+    candidate.ingress?.stickyProject?.leaseDigest === input.projectTargetLease.leaseDigest &&
+    candidate.ingress?.stickyProject?.authorityDigest === input.projectTargetLease.authorityDigest &&
+    candidate.ingress?.stickyProject?.contextBindingDigest === input.projectTargetLease.contextBindingDigest &&
+    candidate.projectRootIdentityDigest === input.projectTargetLease.rootIdentityDigest &&
+    candidate.project === input.project && normalizedPath(candidate.activeRoot) === normalizedPath(input.activeRoot) &&
+    candidate.taskId === transaction.taskId && candidate.taskRootRelative === transaction.taskRootRelative &&
+    candidate.projectRootIdentityDigest === transaction.projectRootIdentityDigest &&
+    candidate.taskIdentityDigest === canonical.taskIdentityDigest &&
+    candidate.canonicalOverviewDigest === canonical.canonicalOverviewDigest &&
+    candidate.cpArtifactDigest === canonical.cpArtifactDigest
+  if (!exactCandidateIngress) {
+    throw new TaskAdmissionError(
+      'FINALIZED_TASK_RESUME_CANDIDATE_MISMATCH',
+      'bounded resume candidate does not match the exact task, canonical state, ingress or runtime generation',
+      finalizedResumeFailureDetails('FINALIZED_TASK_RESUME_CANONICAL_DRIFT')
+    )
+  }
+  const ownerRead = readFencedTaskWriteOwner({ metaDir, identity }, { fs: fsImpl })
+  if (ownerRead.status !== 'fresh' || ownerRead.source !== 'primary' || !ownerRead.owner) {
+    throw new TaskAdmissionError(
+      ownerRead.errorCode || 'FINALIZED_TASK_RESUME_OWNER_UNAVAILABLE',
+      'current fenced owner is unavailable for finalized resume',
+      finalizedResumeFailureDetails(ownerRead.errorCode)
+    )
+  }
+  const currentOwner = ownerRead.owner
+  const replayed = transaction.recovery?.schemaVersion === 'FinalizedTaskResumeRecoveryReceiptV3' &&
+    transaction.recovery.candidateDigest === candidate.candidateDigest &&
+    transaction.ingressIdempotencyKey === ingressIdempotencyKey &&
+    currentOwner.status === 'active' && currentOwner.sessionDigest === input.projectTargetLease.authorityDigest &&
+    currentOwner.contextEpoch === input.actualInstructionEnvelope.contextEpoch &&
+    currentOwner.routeRevision === input.workflowRouteDecision.routeRevision
+  if (replayed) {
+    const ownerReceipt = taskWriteOwnerReceipt('resume', transaction, currentOwner, true, nowMs)
+    return {
+      ...admissionReceipt(transaction, true),
+      ownerAcquisition: ownerReceipt,
+      atomicOwnerAcquired: true,
+      continuationLease: null,
+      finalized: true,
+      mutationAuthority: ownerReceipt.mutationAuthority,
+      recovery: clone(transaction.recovery),
+      recoveryStage: 'authority-committed'
+    }
+  }
+  const exactPrior = candidate.prior.admissionId === transaction.admissionId &&
+    candidate.prior.admissionGeneration === transaction.admissionGeneration &&
+    candidate.prior.transactionDigest === transaction.transactionDigest &&
+    candidate.prior.ownerGeneration === currentOwner.ownerGeneration &&
+    candidate.prior.leaseRevision === currentOwner.leaseRevision &&
+    candidate.prior.ownerLeaseDigest === currentOwner.leaseDigest
+  if (!exactPrior) {
+    throw new TaskAdmissionError(
+      'FINALIZED_TASK_RESUME_CAS_LOST',
+      'another session changed the admission or owner before this resume attempt',
+      finalizedResumeFailureDetails('FINALIZED_TASK_RESUME_CAS_LOST')
+    )
+  }
+  const issuedAt = new Date(nowMs).toISOString()
+  const transitionInput = { ...input, expectedOwner: ownerRef(currentOwner) }
+  const nextOwner = sealOwner({
+    ...currentOwner,
+    projectRootIdentity: input.projectTargetLease.rootIdentityDigest,
+    sessionDigest: input.projectTargetLease.authorityDigest,
+    contextEpoch: input.actualInstructionEnvelope.contextEpoch,
+    routeRevision: input.workflowRouteDecision.routeRevision,
+    ownerGeneration: currentOwner.ownerGeneration + 1,
+    ownerNonce: ownerNonce(options),
+    leaseRevision: currentOwner.leaseRevision + 1,
+    issuedAt,
+    expiresAt: new Date(nowMs + WRITE_OWNER_LEASE_MS).toISOString(),
+    handoffRef: null,
+    takeoverRef: null,
+    transitionRef: buildOwnerTransitionRef('resume', currentOwner, transitionInput, issuedAt),
+    reopenGeneration: currentOwner.reopenGeneration,
+    revocationEpoch: currentOwner.revocationEpoch + 1,
+    status: 'active'
+  })
+  const recoveryCore = {
+    schemaVersion: 'FinalizedTaskResumeRecoveryReceiptV3',
+    mode: 'finalized-owner-resume',
+    priorAdmissionId: transaction.admissionId,
+    priorAdmissionGeneration: transaction.admissionGeneration,
+    priorTransactionDigest: transaction.transactionDigest,
+    priorOwnerGeneration: currentOwner.ownerGeneration,
+    priorLeaseRevision: currentOwner.leaseRevision,
+    priorOwnerLeaseDigest: currentOwner.leaseDigest,
+    candidateDigest: candidate.candidateDigest,
+    attemptDigest: candidate.attemptDigest,
+    canonicalOverviewDigest: canonical.canonicalOverviewDigest,
+    taskIdentityDigest: canonical.taskIdentityDigest,
+    cpArtifactDigest: canonical.cpArtifactDigest,
+    livenessDigest: candidate.liveness.livenessDigest,
+    runtimeGeneration: candidate.runtime.generationId,
+    runtimeDigest: candidate.runtime.runtimeDigest,
+    recoveredAt: issuedAt
+  }
+  const recovery = { ...recoveryCore, recoveryDigest: digestValue(recoveryCore) }
+  const nextTransactionValue = {
+    ...clone(transaction),
+    admissionId: `admission-${ingressIdempotencyKey.slice(0, 40)}`,
+    ingressIdempotencyKey,
+    admissionGeneration: transaction.admissionGeneration + 1,
+    phase: 'finalized',
+    status: 'finalized',
+    operation: input.operation,
+    requestDigest,
+    requestDigestSchema: TASK_ADMISSION_REQUEST_DIGEST_SCHEMA,
+    requestDigestSemantics: 'stable-admission-binding-v1',
+    projectRootIdentityDigest: input.projectTargetLease.rootIdentityDigest,
+    hostVariant: input.actualInstructionEnvelope.hostVariant,
+    sessionDigest: input.projectTargetLease.authorityDigest,
+    sourceEventId: input.actualInstructionEnvelope.sourceEventId,
+    actualInstructionDigest: input.actualInstructionEnvelope.actualInstructionDigest,
+    workItemId: input.workflowRouteDecision.workItemId,
+    workItemDigest: input.workflowRouteDecision.workItemDigest,
+    workflowRouteDigest: input.workflowRouteDecision.decisionDigest,
+    routeKey: input.workflowRouteDecision.routeKey,
+    routeRevision: input.workflowRouteDecision.routeRevision,
+    projectTargetLeaseDigest: input.projectTargetLease.leaseDigest,
+    projectTargetLeaseBindingDigest,
+    entryVariant: 'continue',
+    directoryDecisionDigest: plan.directoryDecision.decisionDigest,
+    effects: {
+      ...clone(transaction.effects),
+      cpState: {
+        ...clone(transaction.effects.cpState),
+        status: 'confirmed',
+        cp1Confirmed: true
+      },
+      owner: {
+        status: 'fenced',
+        ownerGeneration: nextOwner.ownerGeneration,
+        leaseDigest: nextOwner.leaseDigest
+      }
+    },
+    recovery,
+    reconciliation: null,
+    continuationLease: null,
+    error: null,
+    createdAt: issuedAt,
+    updatedAt: issuedAt
+  }
+  nextTransactionValue.transactionDigest = taskAdmissionTransactionDigest(nextTransactionValue)
+  const commit = commitFinalizedTaskResumeV3({
+    metaDir,
+    identity,
+    hostSessionDigest: input.actualInstructionEnvelope.hostSessionDigest,
+    candidate,
+    transaction: nextTransactionValue,
+    owner: nextOwner,
+    verifyCanonical: () => readFinalizedResumeCanonicalEvidence(transaction, input.activeRoot, fsImpl)
+  }, { fs: fsImpl, nowMs, ...options.storeOptions })
+  if (!['committed', 'semantic-noop'].includes(commit.status)) {
+    throw new TaskAdmissionError(
+      commit.errorCode || 'FINALIZED_TASK_RESUME_COMMIT_FAILED',
+      commit.message || 'finalized task resume could not atomically replace admission and owner',
+      { ...finalizedResumeFailureDetails(commit.errorCode), commit }
+    )
+  }
+  const ownerReceipt = taskWriteOwnerReceipt('resume', nextTransactionValue, nextOwner, false, nowMs)
+  return {
+    ...admissionReceipt(nextTransactionValue, false),
+    ownerAcquisition: ownerReceipt,
+    atomicOwnerAcquired: true,
+    continuationLease: null,
+    finalized: true,
+    mutationAuthority: ownerReceipt.mutationAuthority,
+    recovery,
+    recoveryStage: 'authority-committed'
+  }
+}
+
 function executeTaskWriteOwner(rawInput = {}, options = {}) {
   const fsImpl = options.fs || fs
   const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
@@ -1816,9 +2188,11 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
     )
   }
   let transaction = admissionRead.transaction
-  validateOwnerContinuation(transaction, input, operation, nowMs)
   const ownerRead = readFencedTaskWriteOwner({ metaDir, identity }, { fs: fsImpl })
   let currentOwner = ownerRead.status === 'fresh' ? ownerRead.owner : null
+  validateOwnerContinuation(transaction, input, operation, nowMs, {
+    releasedReacquire: currentOwner?.status === 'released'
+  })
   const sessionDigest = input.projectTargetLease.authorityDigest
   const contextEpoch = input.actualInstructionEnvelope.contextEpoch
   const routeRevision = input.workflowRouteDecision.routeRevision
@@ -2242,6 +2616,7 @@ module.exports = {
   recoverTaskAdmissionTransaction,
   executeTaskWriteOwner,
   executeWorkflowTaskTerminal,
+  readFinalizedResumeCanonicalEvidence,
   reconcileWorkflowTaskTerminal,
   validateProjectTargetLease
 }

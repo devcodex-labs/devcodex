@@ -63,10 +63,12 @@ const { observeContextDeliveryFromPayload } = require('./context-delivery-ledger
 const { resolveTaskRecoveryConfigForCwd } = require('./task-recovery-config-v1.cjs')
 const {
   appendTaskRecoveryTelemetry,
+  readBoundedResumeIngressCapability,
   readFencedTaskWriteOwner,
   resolveTaskRecoveryMetaDir,
   validateWorkflowTaskTerminalReceipt
 } = require('./task-recovery-store-v5.cjs')
+const { executeTaskWriteOwner } = require('../../mcp/task-admission-authority.cjs')
 const { extractMutationFootprint } = require('./mutation-footprint.cjs')
 const {
   classifyHostToolMutation,
@@ -1315,7 +1317,10 @@ function resolveContinuationAtIngress(command, state, payload, promptTarget, pro
       ? {
           taskId: candidate.taskId,
           project: candidate.project,
-          taskStatus: candidate.status || 'active'
+          // TaskResolutionV1 already proved this candidate is an active task.
+          // Admission phases such as "finalized" are audit state, not task
+          // lifecycle status and must never select a different V5 partition.
+          taskStatus: 'active'
         }
       : null
   }
@@ -1654,6 +1659,154 @@ function refreshTaskRecoveryBinding(state) {
     fullPath: binding.taskRoot,
     name: binding.displayName
   })
+}
+
+function rehydrateBoundedResumeIngress(state, payload) {
+  const binding = state?.taskRecoveryBinding
+  if (!binding?.taskId || !binding?.project) return { status: 'skipped', reasonCode: 'task-binding-missing' }
+  const activeRoot = getActiveNamespaceRoot(state)
+  const identity = {
+    activeRoot,
+    project: binding.project,
+    taskId: binding.taskId,
+    taskStatus: 'active'
+  }
+  const metaDir = resolveTaskRecoveryMetaDir(identity)
+  const ownerRead = readFencedTaskWriteOwner({ metaDir, identity }, { fs })
+  const capabilityRef = ownerRead.state?.resumeIngressCapabilityRef
+  if (ownerRead.status !== 'fresh' || !capabilityRef?.ingressRef) {
+    return { status: 'skipped', reasonCode: ownerRead.errorCode || 'resume-capability-missing' }
+  }
+  const read = readBoundedResumeIngressCapability({
+    metaDir,
+    ingressRef: capabilityRef.ingressRef,
+    activeRoot,
+    project: binding.project,
+    taskId: binding.taskId
+  }, { fs, nowMs: Date.now(), requireAuthority: true })
+  if (read.status !== 'fresh' || read.authority !== true) {
+    state.resumeIngressRehydrateError = read.errorCode || 'BOUNDED_RESUME_INGRESS_NOT_AUTHORIZED'
+    return { status: 'blocked', reasonCode: state.resumeIngressRehydrateError }
+  }
+  const sessionRef = getPayloadSessionKey(payload) || String(state.contextAcquisition?.hostSessionId || '').trim()
+  const sessionDigest = sessionRef
+    ? crypto.createHash('sha256').update(sessionRef).digest('hex')
+    : ''
+  if (!sessionDigest || sessionDigest !== read.candidate.ingress.actualInstructionEnvelope.hostSessionDigest) {
+    state.resumeIngressRehydrateError = 'BOUNDED_RESUME_HOST_SESSION_MISMATCH'
+    return { status: 'blocked', reasonCode: state.resumeIngressRehydrateError }
+  }
+  const ingress = read.candidate.ingress
+  state.activeProject = read.candidate.project
+  state.activeScope = 'project'
+  state.actualInstructionEnvelope = ingress.actualInstructionEnvelope
+  state.workItemSet = ingress.workItemSet
+  state.workflowRouteDecision = ingress.workflowRouteDecision
+  state.stickyProject = ingress.stickyProject
+  state.workflowRoutePlanBinding = {
+    schemaVersion: 'WorkflowRoutePlanBindingV1',
+    bindingDigest: ingress.stickyProject.contextBindingDigest,
+    routeRevision: ingress.workflowRouteDecision.routeRevision,
+    contextEpoch: ingress.actualInstructionEnvelope.contextEpoch,
+    source: 'bounded-resume-v5'
+  }
+  state.contextAcquisition = {
+    ...(state.contextAcquisition || {}),
+    contextEpoch: ingress.actualInstructionEnvelope.contextEpoch,
+    activeRoot,
+    project: read.candidate.project,
+    hostSessionId: sessionRef,
+    targetResolved: true
+  }
+  state.admissionTransaction = read.transaction
+  state.fencedWriteOwner = read.owner
+  state.resumeIngressCapabilityRef = capabilityRef
+  state.resumeIngressRehydrateError = null
+  writeWorkspaceSessionRouteHint(state, payload, 'bounded-resume-rehydrate', { taskId: binding.taskId })
+  return {
+    status: 'rehydrated',
+    candidateDigest: read.candidate.candidateDigest,
+    admissionGeneration: read.transaction.admissionGeneration,
+    ownerGeneration: read.owner.ownerGeneration
+  }
+}
+
+function transitionLifecycleOwner(state, operation, options = {}) {
+  const binding = state?.taskRecoveryBinding
+  const owner = state?.fencedWriteOwner
+  const transaction = state?.admissionTransaction
+  const envelope = state?.actualInstructionEnvelope
+  const workItemSet = state?.workItemSet
+  const decision = state?.workflowRouteDecision
+  const lease = state?.stickyProject
+  const missing = [
+    [!binding?.taskId, 'task-binding'],
+    [!owner, 'owner'],
+    [!transaction, 'admission'],
+    [!envelope, 'instruction-envelope'],
+    [!workItemSet, 'work-item-set'],
+    [!decision, 'route-decision'],
+    [!lease, 'project-lease']
+  ].filter(([absent]) => absent).map(([, field]) => field)
+  if (missing.length) {
+    return { status: 'skipped', reasonCode: 'owner-ingress-incomplete', missing }
+  }
+  const releasedReacquire = operation === 'acquire' && owner.status === 'released'
+  if (releasedReacquire) {
+    const priorHostSessionDigest = String(options.priorHostSessionDigest || '')
+    if (!priorHostSessionDigest || priorHostSessionDigest !== envelope.hostSessionDigest) {
+      return { status: 'skipped', reasonCode: 'released-owner-session-mismatch' }
+    }
+  } else if (owner.status !== 'active' || owner.sessionDigest !== lease.authorityDigest ||
+      owner.contextEpoch !== envelope.contextEpoch || owner.routeRevision !== decision.routeRevision) {
+    return { status: 'skipped', reasonCode: 'owner-ingress-mismatch' }
+  }
+  if (operation === 'release') {
+    const inFlight = state.turnLiveness?.inFlightOperation
+    if (inFlight?.ownedByAgent === true && Date.parse(String(inFlight.leaseExpiresAt || '')) > Date.now()) {
+      return { status: 'skipped', reasonCode: 'operation-live' }
+    }
+  }
+  if (operation === 'renew' && Date.parse(String(owner.expiresAt || '')) - Date.now() > 2 * 60 * 1000) {
+    return { status: 'skipped', reasonCode: 'owner-lease-sufficient' }
+  }
+  try {
+    const result = executeTaskWriteOwner({
+      operation,
+      taskId: binding.taskId,
+      admissionId: transaction.admissionId,
+      expectedOwner: {
+        ownerGeneration: owner.ownerGeneration,
+        ownerNonce: owner.ownerNonce,
+        leaseRevision: owner.leaseRevision,
+        leaseDigest: owner.leaseDigest
+      },
+      actualInstructionEnvelope: envelope,
+      workItemSet,
+      workflowRouteDecision: decision,
+      projectTargetLease: lease,
+      activeRoot: getActiveNamespaceRoot(state),
+      project: binding.project
+    })
+    const refreshed = readFencedTaskWriteOwner({
+      metaDir: resolveTaskRecoveryMetaDir({ activeRoot: getActiveNamespaceRoot(state), project: binding.project }),
+      identity: {
+        activeRoot: getActiveNamespaceRoot(state),
+        project: binding.project,
+        taskId: binding.taskId,
+        taskStatus: 'active'
+      }
+    }, { fs })
+    if (refreshed.status === 'fresh') {
+      state.fencedWriteOwner = refreshed.owner
+      state.admissionTransaction = refreshed.transaction
+    }
+    state.lifecycleOwnerTransitionError = null
+    return { status: 'committed', result }
+  } catch (error) {
+    state.lifecycleOwnerTransitionError = String(error.code || error.message || 'TASK_WRITE_OWNER_TRANSITION_FAILED')
+    return { status: 'error', reasonCode: state.lifecycleOwnerTransitionError }
+  }
 }
 
 function isTaskAuthorityControlTool(payload) {
@@ -3171,6 +3324,25 @@ async function main() {
       priorWorkflowRouteDecision
     )
     renewProjectTargetLeaseForCurrentRoute(state, payload, state.activeProjectSource || 'user-message')
+    if (state.taskRecoveryBinding?.taskId && state.fencedWriteOwner?.status === 'released') {
+      const priorHostSessionDigest = String(priorActualInstructionEnvelope?.hostSessionDigest || '')
+      const currentHostSessionDigest = String(state.actualInstructionEnvelope?.hostSessionDigest || '')
+      state.pendingReleasedOwnerReacquire = priorHostSessionDigest &&
+        priorHostSessionDigest === currentHostSessionDigest
+        ? {
+            schemaVersion: 'ReleasedOwnerReacquireIntentV1',
+            taskId: state.taskRecoveryBinding.taskId,
+            hostSessionDigest: priorHostSessionDigest,
+            requestedAt: new Date().toISOString()
+          }
+        : null
+      state.lastUserPromptOwnerReacquire = transitionLifecycleOwner(state, 'acquire', {
+        priorHostSessionDigest
+      })
+      if (state.lastUserPromptOwnerReacquire.status === 'committed') {
+        state.pendingReleasedOwnerReacquire = null
+      }
+    }
     const routeWriteTrigger = continuationResolution?.status === 'resolved-active'
       ? 'task-bind'
       : (state.activeProject && priorActiveProject && priorActiveProject !== state.activeProject
@@ -3338,6 +3510,7 @@ async function main() {
   if (isToolUse) {
     state.toolUseCount += 1
     maybeBindTaskRecoveryForPayload(state, payload, platform)
+    state.lastResumeIngressRehydrate = rehydrateBoundedResumeIngress(state, payload)
 
     // 1. Host-owned operation permission: DevCodex classifies risk and emits
     // advisory telemetry only. It never approves, denies, or overrides the host.
@@ -4031,6 +4204,18 @@ async function main() {
       if (['blocked', 'invalid'].includes(routeReceipt.status)) {
         state.lastReason = routeReceipt.errorCode || 'WORKSPACE_SESSION_ROUTE_BIND_FAILED'
       }
+      const pendingReacquire = state.pendingReleasedOwnerReacquire
+      if (projectLease?.valid &&
+          !['blocked', 'invalid'].includes(routeReceipt.status) &&
+          state.fencedWriteOwner?.status === 'released' &&
+          pendingReacquire?.taskId === state.taskRecoveryBinding?.taskId) {
+        state.lastUserPromptOwnerReacquire = transitionLifecycleOwner(state, 'acquire', {
+          priorHostSessionDigest: pendingReacquire.hostSessionDigest
+        })
+        if (state.lastUserPromptOwnerReacquire.status === 'committed') {
+          state.pendingReleasedOwnerReacquire = null
+        }
+      }
     }
     if (contextPost?.targetRebound) {
       try {
@@ -4160,6 +4345,9 @@ async function main() {
   // ── PreCompact / Stop ──────────────────────────────────────────────────────
   if (eventName === 'PreCompact' || eventName === 'Stop') {
     const taskRecoveryBindingFresh = refreshTaskRecoveryBinding(state)
+    if (eventName === 'PreCompact' && taskRecoveryBindingFresh) {
+      state.lastPreCompactOwnerRenewal = transitionLifecycleOwner(state, 'renew')
+    }
     if (eventName === 'PreCompact') state.contextDeliveryReceipts = []
     const terminalSaveOptions = {
       reason: eventName === 'Stop' ? 'terminal-stop' : 'pre-compact',
@@ -4201,6 +4389,8 @@ async function main() {
 
     const reminder = buildDedupedClosureReminder(state, eventName)
     let output = reminder ? systemMessageOutput(reminder) : noopOutput()
+    let stopHardBlocked = eventName === 'Stop' && !!reminder && isStrictEnforcement() &&
+      eventSupportsHardBlock(platform, eventName)
     if (reminder) {
       output = buildInterceptionOutput(
         state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'closure-incomplete',
@@ -4253,6 +4443,7 @@ async function main() {
       if (gateResult.decision === 'block') {
         const forceHard = platform === 'grok' || isStrictEnforcement()
         if (forceHard && eventSupportsHardBlock(platform, eventName)) {
+          stopHardBlocked = true
           state.stopContinuationCount = continuationCount + 1
           output = decorateHookOutput(
             blockOutput(platform, eventName, gateResult.reason, gateResult.reason),
@@ -4289,6 +4480,7 @@ async function main() {
       }
 
       if (stopRouteCoordination?.required && stopRouteEnforcement?.hardEnforcement) {
+        stopHardBlocked = true
         output = buildProgressiveSkillRouteBlockOutput(
           state,
           platform,
@@ -4298,12 +4490,17 @@ async function main() {
         )
       }
 
-      const failed = payload.success === false || payload.is_error === true || payload.isError === true || !!payload.error
-      state.turnLiveness = markTurnTerminal(
-        state.turnLiveness,
-        failed ? 'error' : 'completed',
-        failed ? 'stop-event-error' : 'stop-event-completed'
-      )
+      if (!stopHardBlocked) {
+        if (taskRecoveryBindingFresh) state.lastStopOwnerRelease = transitionLifecycleOwner(state, 'release')
+        const failed = payload.success === false || payload.is_error === true || payload.isError === true || !!payload.error
+        state.turnLiveness = markTurnTerminal(
+          state.turnLiveness,
+          failed ? 'error' : 'completed',
+          failed ? 'stop-event-error' : 'stop-event-completed'
+        )
+      } else {
+        state.lastStopOwnerRelease = { status: 'skipped', reasonCode: 'stop-hard-blocked' }
+      }
     }
     saveState(state, terminalSaveOptions)
     writeStdout(output)

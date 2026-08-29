@@ -338,6 +338,7 @@
     "scripts/test-visible-output-contract.js",
     "scripts/check-critical-coverage.js",
     "scripts/critical-coverage.json",
+    "scripts/plan-ci-validation.js",
     "scripts/check-critical-risk-coverage.js",
     "scripts/critical-risk-coverage.json",
     "scripts/test-mcp-stdio-transport.js",

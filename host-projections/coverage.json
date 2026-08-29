@@ -1,12 +1,12 @@
 {
   "schemaVersion": "HostInstructionCoverageReceiptV1",
   "sourceFile": "content/instructions.md",
-  "sourceDigest": "0b39e67521c7cbc06f9fc56b7cd9915483350f132e5ea58cc189e25d33b675f6",
-  "configDigest": "e2e2a4dde233366df758fb5fa1e9ac299a5f1dbd1b223390c4849e7d8ab9df3b",
+  "sourceDigest": "ec18d4cfba0c4a9f31e036cbac8ab1f0fa624a59e73aaabbccf4f281502b2b9a",
+  "configDigest": "2e0942dff1261d7d67093d3af00a9d754a2d66c0bd9648f4246fefbf7aee632d",
   "mode": "kernel",
   "fallback": {
     "destination": "user://agents/devcodex/instructions.full.md",
-    "sourceDigest": "0b39e67521c7cbc06f9fc56b7cd9915483350f132e5ea58cc189e25d33b675f6",
+    "sourceDigest": "ec18d4cfba0c4a9f31e036cbac8ab1f0fa624a59e73aaabbccf4f281502b2b9a",
     "available": true
   },
   "budgets": {
@@ -243,7 +243,7 @@
       "sourceAnchors": [
         "user-visible-output-contract",
         "UserVisibleReplyLayoutV1",
-        "PC0~PC7",
+        "PC0~PC10",
         "PASS / WARN / BLOCK / UNVERIFIED / N/A",
         "ArtifactDeliveryManifestV1",
         "FinalValidationSummaryV1"
@@ -251,7 +251,7 @@
       "projectionAnchors": [
         "user-visible-output-contract",
         "UserVisibleReplyLayoutV1",
-        "PC0~PC7",
+        "PC0~PC10",
         "PASS",
         "WARN",
         "BLOCK",
@@ -283,7 +283,7 @@
       "id": "passive-host",
       "sourceAnchors": [
         "user-visible-output-contract",
-        "PC0~PC7",
+        "PC0~PC10",
         "S07",
         "Cursor Cloud Agent"
       ],
@@ -305,14 +305,14 @@
   },
   "outputs": {
     "host-projections/AGENTS.md": {
-      "bytes": 11804,
+      "bytes": 11811,
       "lines": 91,
-      "digest": "5af735ba611be6bfd6f5e64516cadf754a0146268908b98cf78e29f15db321c5"
+      "digest": "8a62941220f9155c64003e4d394f1ecf42a739c53e6105d489a90973a51f7939"
     },
     "host-projections/copilot-instructions.md": {
-      "bytes": 11829,
+      "bytes": 11836,
       "lines": 91,
-      "digest": "ec707ccde2db5784bf64e507f20a24ebb8654b6732455a4b4efdf774896b317e"
+      "digest": "445201213742adb4468f5db046bed62be0286926154b82b1e724309cccdbd10a"
     },
     "host-projections/CLAUDE.md": {
       "bytes": 510,
@@ -330,5 +330,5 @@
     "valid": true,
     "errors": []
   },
-  "receiptId": "host-instruction-coverage-799ed0f182b024d60a0e2d944bf82d66b4185be8b0df4dd4f620db04ad7c2757"
+  "receiptId": "host-instruction-coverage-c078bd820c3183b22847154d651c04675e957d39b6c65e348afdb3cb885b596b"
 }

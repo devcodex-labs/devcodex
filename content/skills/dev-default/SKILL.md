@@ -33,7 +33,7 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 
 **统一联查矩阵（F-25）**：命中控制面规则、模板、接口契约/验证产物、工作区真相源/部署副本、发布口径等高联动场景时，默认升为 L2 标准联查；若同时涉及多真相源同步或模板-示例-校验链，升级为 L3 强联查并追加交叉验证。
 
-**最小实现守门（F-27）**：执行阶段必须按 CP1/CP2/CP3 的 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）与复杂度预算落地；用户未要求复杂化或需求不详细时默认 `简单够用`，只做满足已确认产品事实源和技术验证项的局部最小实现；`中等` / `企业级` 只能由用户确认后升级；禁止无计划新增抽象、通用配置、预留扩展点或未确认防御分支。若确需超出预算，先暂停并回 CP2/CP3。
+**最小实现守门（F-27）**：执行阶段必须按 CP1/CP2/CP3 的 `WorkflowPlanDecisionV1.designDepth` 与复杂度预算落地；`minimal` 只做满足已确认产品事实源和技术验证项的局部最小实现，`standard` 必须有真实消费者、公共契约、迁移/恢复或演进边界证据。`ceremonyTier` 与 `assuranceLevel` 不得反向扩大实现；禁止无计划新增抽象、通用配置、预留扩展点或未确认防御分支。若确需超出预算，先暂停并回 CP2/CP3。旧复杂度字段只读兼容，不得新写入。
 
 **开发偏移守门（F-28A / `DevelopmentDriftGate`）**：进入编码前必须对照 CP1/CP2/CP3、ExecutionContract、TestRoute、消费者同步和当前 dirty 边界做一次偏移检查。至少列出 `allowedFirstBatch`、`blockedScope`、`noGoItems`、`driftTriggers`、`validationRoute` 和 `consumerSync`；若实施中触达排除范围、扩大 package/API/配置/文档消费者、引入新依赖、改变验证路线或污染工作区，先暂停并回 CP2/CP3 重新确认，不能把后续阶段能力直接并入当前批次。
 

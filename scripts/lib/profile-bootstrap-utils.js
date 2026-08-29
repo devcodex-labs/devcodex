@@ -272,6 +272,10 @@ ${tree || '(empty)'}
       agent,
       extensions: {
         devcodex: {
+          workflowRouting: {
+            mode: 'adaptive',
+            showPlan: true
+          },
           git: {
             collaborationMode: 'unverified',
             branchPolicy: 'no-auto-branch',

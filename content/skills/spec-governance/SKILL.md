@@ -336,6 +336,16 @@ A1~A10 最新吸纳执行包默认复用上述 `docs-semantics-examples`、`deri
 
 - `data/*.md` 是运行时逻辑台账路径，实际写入必须先解析 active-root。
 - 旧布局写 `<项目根>/.devcodex/data/`；workspace-namespace 单项目写 `<工作区根>/.devcodex/<project>/data/`；全工作区写 `<工作区根>/.devcodex/workspace/data/`。
+
+### GovernanceLedgerResolverGate
+
+- PI/PF/VL/GR/ISSUE 的 reader、validator、runtime index 与 Governance Intake 必须通过共享 resolver 读取 manifest 声明的 active + immutable shards；active 文件始终是唯一普通写入目标。
+- `GovernanceLedgerManifestV1` 是 ledger family、文档摘要、reopened overlay 与 `nextSequence` 的 canonical 真相源；`.memory/indexes/governance-ledgers.json` 仅为可重建派生索引，不得反向写回台账。
+- manifest 缺失时只允许 legacy 单文件读取兼容；首次分配新编号或写入前必须先执行零搬迁初始化。新 ID 必须在 manifest 锁内原子递增 `nextSequence`，禁止扫描 `max(existing)+1`。
+- manifest 一旦存在，缺失或摘要漂移的 shard、重复 primary ID、无合法 active overlay 的重复历史记录、序列回退或 migration transaction 残留都必须 fail closed，禁止静默回退 legacy 路径。
+- archive shard 创建后 immutable；记录重新打开时在 active 文件写当前 overlay，并由 manifest 精确引用其 historical shard。普通 writer 不得追加或改写 archive。
+- 分片迁移必须逐 family、bounded、默认 dry-run；apply/rollback 绑定精确 plan digest、source digest 与 manifest digest。GR 试点只迁移日期与 terminal status 明确且不包含其他 primary ID 的自包含 H2 记录。
+
 - `WorkspaceDataAbsorptionScopeGate`：当用户要求“检查 data 目录、最新可吸纳问题、仍需吸纳清单、开始吸纳”时，候选扫描范围必须是工作区 `.devcodex/*/data/` 全部命名空间；不能只扫描源码项目、当前 sticky activeProject 或某一个 runtime active-root。输出至少包含命名空间、台账文件、候选编号、归属判断、跳过原因与最终纳入范围。
 - DevCodex 规范自身、Hook、Skill、模板、validate 或宿主适配链路问题归属当前 DevCodex 源仓或规范维护项目的 active-root；在 `workspace-namespace` 下应解析为承载 DevCodex 源码或规范资产的项目命名空间，不得因当时正在处理业务项目而写入业务项目台账。
 - `data/process-improvements.md` 在本 Skill 中也可称“优化清单（PI）”；当建议针对 DevCodex 规范自身时，PI/PF 的 active-root 归属同样遵循上条，不得写入业务项目台账。

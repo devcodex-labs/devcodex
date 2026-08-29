@@ -15,6 +15,9 @@ const LINK_MODES = new Set(['clickable', 'portable', 'plain', 'failed'])
 const HOST_LINK_OPEN_MODES = new Set([
   'native-action', 'markdown-link', 'terminal-command', 'portable-path', 'absolute-copy', 'unavailable'
 ])
+const ARTIFACT_DELIVERY_ACTION_STATUSES = new Set(['not-attempted', 'succeeded', 'failed'])
+const ARTIFACT_DELIVERY_READBACK_STATUSES = new Set(['not-attempted', 'succeeded', 'failed', 'unavailable'])
+const ARTIFACT_DELIVERY_STATUSES = new Set(['ready', 'opened', 'fallback'])
 const EVIDENCE_STATES = new Set(['verified', 'unverified', 'failed'])
 const POST_COMPLETION_ACTION_KINDS = new Set([
   'api-docs', 'http-verification', 'commit', 'switch-target', 'cherry-pick', 'push', 'other'
@@ -31,6 +34,13 @@ const VISIBLE_ENVELOPE_V2_KEYS = Object.freeze([
   'artifactManifest', 'userFacingArtifactSet', 'artifactLinks', 'linkCapability', 'presentation',
   'semanticDigest', 'validation'
 ])
+const VISIBLE_ENVELOPE_V3_KEYS = Object.freeze([
+  'schemaVersion', 'messageKind', 'status', 'context', 'checks', 'decision', 'postCompletionActions',
+  'entryCheckModel', 'artifactManifest', 'userFacingArtifactSet', 'artifactLinks', 'linkCapability',
+  'artifactDeliveryAttempts', 'presentation', 'semanticDigest', 'validation'
+])
+const VERSION_ALIGNMENTS = new Set(['aligned', 'version-only', 'source-ahead', 'runtime-mismatch', 'unverified'])
+const ASSURANCE_LEVELS = new Set(['targeted', 'affected', 'full'])
 const VISIBILITY_ORDER = new Map([
   ['decision-required', 0], ['result', 1], ['evidence', 2], ['optional-detail', 3], ['internal-only', 4]
 ])
@@ -82,6 +92,118 @@ function text(value) {
 
 function textList(value) {
   return Array.isArray(value) && value.every(text)
+}
+
+function normalizeWorkflowAxisProjection(decision) {
+  if (!decision || decision.schemaVersion !== 'WorkflowPlanDecisionV1') return null
+  return {
+    decisionId: String(decision.decisionId || ''),
+    phase: String(decision.phase || ''),
+    ceremonyTier: String(decision.axes?.ceremonyTier?.value || ''),
+    designDepth: String(decision.axes?.designDepth?.value || ''),
+    assuranceLevel: String(decision.axes?.assuranceLevel?.value || '')
+  }
+}
+
+function createEntryCheckModelV3(input = {}) {
+  const errors = []
+  const versionInput = input.versionFacts && typeof input.versionFacts === 'object' && !Array.isArray(input.versionFacts)
+    ? input.versionFacts
+    : {}
+  const sourceInput = versionInput.sourceCandidate && typeof versionInput.sourceCandidate === 'object' && !Array.isArray(versionInput.sourceCandidate)
+    ? versionInput.sourceCandidate
+    : null
+  const runtimeInput = versionInput.activeRuntimeGeneration && typeof versionInput.activeRuntimeGeneration === 'object' && !Array.isArray(versionInput.activeRuntimeGeneration)
+    ? versionInput.activeRuntimeGeneration
+    : null
+  const alignment = VERSION_ALIGNMENTS.has(versionInput.alignment) ? versionInput.alignment : 'unverified'
+  const versionFacts = {
+    installedPackageVersion: String(versionInput.installedPackageVersion || 'unverified'),
+    activeRuntimeGeneration: runtimeInput ? {
+      generationId: String(runtimeInput.generationId || 'unverified'),
+      packageVersion: String(runtimeInput.packageVersion || 'unverified'),
+      manifestStatus: String(runtimeInput.manifestStatus || 'unverified')
+    } : null,
+    sourceCandidate: sourceInput ? {
+      root: String(sourceInput.root || ''),
+      packageVersion: String(sourceInput.packageVersion || 'unverified'),
+      shortHead: String(sourceInput.shortHead || 'unverified'),
+      dirty: sourceInput.dirty === true
+    } : null,
+    alignment
+  }
+  const workflowInput = input.workflowPlan && typeof input.workflowPlan === 'object' && !Array.isArray(input.workflowPlan)
+    ? input.workflowPlan
+    : {}
+  const precheck = normalizeWorkflowAxisProjection(input.precheckDecision) || workflowInput.precheck || null
+  const postContext = normalizeWorkflowAxisProjection(input.postContextDecision) || workflowInput.postContext || null
+  const differences = Array.isArray(workflowInput.differences)
+    ? [...new Set(workflowInput.differences.map(String))].sort()
+    : [...new Set(input.postContextDecision?.change?.changedAxes || [])].sort()
+  const workflowPlan = { precheck, postContext, differences }
+  const planInput = input.validationPlan && typeof input.validationPlan === 'object' && !Array.isArray(input.validationPlan)
+    ? input.validationPlan
+    : {}
+  const nonNegativeInteger = value => Number.isInteger(value) && value >= 0 ? value : 0
+  const validationPlan = {
+    assuranceLevel: ASSURANCE_LEVELS.has(planInput.assuranceLevel)
+      ? planInput.assuranceLevel
+      : String(postContext?.assuranceLevel || precheck?.assuranceLevel || 'affected'),
+    targetedCount: nonNegativeInteger(planInput.targetedCount),
+    affectedCount: nonNegativeInteger(planInput.affectedCount),
+    fullCount: nonNegativeInteger(planInput.fullCount),
+    ciRequired: planInput.ciRequired === true,
+    packageRequired: planInput.packageRequired === true,
+    installRequired: planInput.installRequired === true,
+    releaseRequired: planInput.releaseRequired === true,
+    estimatedDuration: String(planInput.estimatedDuration || 'unverified')
+  }
+  const continuationInput = input.continuation && typeof input.continuation === 'object' && !Array.isArray(input.continuation)
+    ? input.continuation
+    : {}
+  const continuation = {
+    nextStage: String(continuationInput.nextStage || 'context-and-route'),
+    automatic: continuationInput.automatic === true,
+    userAction: String(continuationInput.userAction || 'none'),
+    correctionHint: String(continuationInput.correctionHint || '直接说明要调整的流程、方案深度或验证范围')
+  }
+  if (!text(versionFacts.installedPackageVersion)) errors.push('versionFacts.installedPackageVersion-required')
+  if (!VERSION_ALIGNMENTS.has(versionFacts.alignment)) errors.push('versionFacts.alignment-invalid')
+  if (!precheck || !text(precheck.ceremonyTier) || !text(precheck.designDepth) || !text(precheck.assuranceLevel)) {
+    errors.push('workflowPlan.precheck-required')
+  }
+  if (!ASSURANCE_LEVELS.has(validationPlan.assuranceLevel)) errors.push('validationPlan.assuranceLevel-invalid')
+  for (const field of ['nextStage', 'userAction', 'correctionHint']) {
+    if (!text(continuation[field])) errors.push(`continuation.${field}-required`)
+  }
+  return {
+    schemaVersion: 'EntryCheckModelV3',
+    versionFacts,
+    workflowPlan,
+    validationPlan,
+    continuation,
+    showPlan: input.showPlan !== false,
+    validation: { valid: errors.length === 0, errors }
+  }
+}
+
+function entryCheckModelIntegrityErrors(value) {
+  const errors = []
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return ['entryCheckModel-required']
+  if (!hasExactKeys(value, [
+    'schemaVersion', 'versionFacts', 'workflowPlan', 'validationPlan', 'continuation', 'showPlan', 'validation'
+  ])) errors.push('entryCheckModel-fields-invalid')
+  if (value.schemaVersion !== 'EntryCheckModelV3') errors.push('entryCheckModel-schema-invalid')
+  if (!VERSION_ALIGNMENTS.has(value.versionFacts?.alignment)) errors.push('entryCheckModel-alignment-invalid')
+  if (!value.workflowPlan?.precheck || !text(value.workflowPlan.precheck.ceremonyTier) ||
+      !text(value.workflowPlan.precheck.designDepth) || !text(value.workflowPlan.precheck.assuranceLevel)) {
+    errors.push('entryCheckModel-workflow-precheck-invalid')
+  }
+  if (!ASSURANCE_LEVELS.has(value.validationPlan?.assuranceLevel)) errors.push('entryCheckModel-assurance-invalid')
+  if (!hasExactKeys(value.validation, ['valid', 'errors']) || value.validation.valid !== true || value.validation.errors?.length) {
+    errors.push('entryCheckModel-validation-invalid')
+  }
+  return errors
 }
 
 function hasDuplicates(value) {
@@ -434,18 +556,51 @@ function createLinkCapabilityDecision(input) {
   return { ...core, decisionId: `link-capability-${digest(core)}`, validation: { valid: errors.length === 0, errors } }
 }
 
-const HOST_LINK_RENDERERS = Object.freeze({
-  'codex-desktop': Object.freeze({ rendererId: 'codex-native-file-panel', openMode: 'native-action' }),
-  'codex-app': Object.freeze({ rendererId: 'codex-native-file-panel', openMode: 'native-action' }),
-  'vscode-codex': Object.freeze({ rendererId: 'vscode-cli-goto', openMode: 'terminal-command' }),
-  vscode: Object.freeze({ rendererId: 'vscode-cli-goto', openMode: 'terminal-command' }),
-  zed: Object.freeze({ rendererId: 'zed-cli-open', openMode: 'terminal-command' }),
-  webstorm: Object.freeze({ rendererId: 'webstorm-cli-open', openMode: 'terminal-command' }),
-  jetbrains: Object.freeze({ rendererId: 'webstorm-cli-open', openMode: 'terminal-command' }),
-  'codex-cli': Object.freeze({ rendererId: 'absolute-path-copy', openMode: 'absolute-copy' }),
-  claude: Object.freeze({ rendererId: 'absolute-path-copy', openMode: 'absolute-copy' }),
-  'claude-code': Object.freeze({ rendererId: 'absolute-path-copy', openMode: 'absolute-copy' })
+const PRESENTATION_LINK_RENDERERS = Object.freeze({
+  'codex-desktop-panel': Object.freeze({
+    hostSurfaces: Object.freeze(['codex-desktop', 'codex-app']),
+    rendererId: 'codex-native-file-link',
+    openMode: 'markdown-link'
+  }),
+  'vscode-terminal': Object.freeze({
+    hostSurfaces: Object.freeze(['vscode-codex', 'vscode']),
+    rendererId: 'vscode-cli-goto',
+    openMode: 'terminal-command'
+  }),
+  'zed-terminal': Object.freeze({
+    hostSurfaces: Object.freeze(['zed']),
+    rendererId: 'zed-cli-open',
+    openMode: 'terminal-command'
+  }),
+  'jetbrains-terminal': Object.freeze({
+    hostSurfaces: Object.freeze(['webstorm', 'jetbrains']),
+    rendererId: 'webstorm-cli-open',
+    openMode: 'terminal-command'
+  }),
+  'claude-terminal': Object.freeze({
+    hostSurfaces: Object.freeze(['claude', 'claude-code']),
+    rendererId: 'absolute-path-copy',
+    openMode: 'absolute-copy'
+  }),
+  terminal: Object.freeze({
+    hostSurfaces: Object.freeze(['codex-cli', 'gemini', 'grok', 'copilot']),
+    rendererId: 'absolute-path-copy',
+    openMode: 'absolute-copy'
+  })
 })
+
+function resolvePresentationRenderer(hostSurface, presentationSurface) {
+  const host = String(hostSurface || '').toLowerCase()
+  const surface = String(presentationSurface || '').toLowerCase()
+  const renderer = PRESENTATION_LINK_RENDERERS[surface]
+  if (!renderer) {
+    return { rendererId: 'absolute-path-copy', openMode: 'absolute-copy', fallbackReason: 'presentation-surface-unsupported' }
+  }
+  if (!renderer.hostSurfaces.includes(host)) {
+    return { rendererId: 'absolute-path-copy', openMode: 'absolute-copy', fallbackReason: 'presentation-host-mismatch' }
+  }
+  return { rendererId: renderer.rendererId, openMode: renderer.openMode, fallbackReason: 'none' }
+}
 
 function createHostLinkCapabilityDecisionV2(input) {
   const errors = []
@@ -459,13 +614,10 @@ function createHostLinkCapabilityDecisionV2(input) {
   if (!textList(evidenceRefs)) errors.push('evidenceRefs-invalid')
   if (input?.evidenceState === 'verified' && evidenceRefs.length === 0) errors.push('verified-evidenceRefs-required')
 
-  const renderer = HOST_LINK_RENDERERS[String(hostSurface).toLowerCase()] || {
-    rendererId: 'unavailable-renderer',
-    openMode: 'unavailable'
-  }
+  const renderer = resolvePresentationRenderer(hostSurface, presentationSurface)
   let rendererId = renderer.rendererId
   let openMode = renderer.openMode
-  let fallbackReason = 'none'
+  let fallbackReason = renderer.fallbackReason
   if (input?.linkFailed || input?.cannotLocate || input?.evidenceState === 'failed') {
     rendererId = 'unavailable-renderer'
     openMode = 'unavailable'
@@ -474,7 +626,10 @@ function createHostLinkCapabilityDecisionV2(input) {
     rendererId = 'absolute-path-copy'
     openMode = 'absolute-copy'
     fallbackReason = 'renderer-unverified'
-  } else if (input?.supportsMarkdownLink === true) {
+  } else if (fallbackReason === 'none' && input?.supportsNativeAction === true && text(input?.nativeRendererId)) {
+    rendererId = input.nativeRendererId
+    openMode = 'native-action'
+  } else if (fallbackReason === 'none' && input?.supportsMarkdownLink === true) {
     rendererId = 'markdown-local-file'
     openMode = 'markdown-link'
   }
@@ -512,6 +667,190 @@ function createHostLinkCapabilityDecisionV2(input) {
   if (!LINK_MODES.has(mode)) errors.push('mode-invalid')
   if (!HOST_LINK_OPEN_MODES.has(openMode)) errors.push('openMode-invalid')
   return { ...core, decisionId: `host-link-capability-${digest(core)}`, validation: { valid: errors.length === 0, errors } }
+}
+
+function createArtifactDeliveryAttemptV1(input) {
+  const errors = []
+  const artifactId = input?.artifactId || ''
+  const rendererId = input?.rendererId || ''
+  const openMode = input?.openMode || 'unavailable'
+  const target = input?.target || ''
+  const attempted = input?.attempted === true
+  const actionStatus = input?.actionStatus || (attempted ? 'failed' : 'not-attempted')
+  const readback = input?.readback || (attempted ? 'unavailable' : 'not-attempted')
+  const evidenceState = input?.evidenceState || 'unverified'
+  const evidenceRefs = Array.isArray(input?.evidenceRefs) ? input.evidenceRefs.slice().sort() : []
+  let actionId = text(input?.actionId) ? input.actionId : null
+
+  if (!text(artifactId)) errors.push('artifactId-required')
+  if (!text(rendererId)) errors.push('rendererId-required')
+  if (!HOST_LINK_OPEN_MODES.has(openMode)) errors.push('openMode-invalid')
+  if (!text(target) || !path.isAbsolute(target)) errors.push('target-absolute-required')
+  if (!ARTIFACT_DELIVERY_ACTION_STATUSES.has(actionStatus)) errors.push('actionStatus-invalid')
+  if (!ARTIFACT_DELIVERY_READBACK_STATUSES.has(readback)) errors.push('readback-invalid')
+  if (!EVIDENCE_STATES.has(evidenceState)) errors.push('evidenceState-invalid')
+  if (!textList(evidenceRefs)) errors.push('evidenceRefs-invalid')
+  if (!attempted && actionStatus !== 'not-attempted') errors.push('actionStatus-without-attempt')
+  if (!attempted && !['not-attempted', 'unavailable'].includes(readback)) errors.push('readback-without-attempt')
+  if (attempted && actionStatus === 'not-attempted') errors.push('attempted-actionStatus-conflict')
+  if (['succeeded', 'failed'].includes(readback) && actionStatus !== 'succeeded') errors.push('readback-before-action-success')
+
+  const opened = attempted && actionStatus === 'succeeded' && readback === 'succeeded'
+  const readyWithoutExecution = evidenceState === 'verified' && (
+    ['markdown-link', 'terminal-command', 'portable-path'].includes(openMode) ||
+    (openMode === 'native-action' && text(actionId))
+  )
+  const status = opened ? 'opened' : (readyWithoutExecution && !attempted ? 'ready' : 'fallback')
+  if (!ARTIFACT_DELIVERY_STATUSES.has(status)) errors.push('status-invalid')
+  if (['ready', 'opened'].includes(status) && evidenceRefs.length === 0) errors.push('delivery-evidence-required')
+  if (opened && evidenceState !== 'verified') errors.push('opened-evidence-unverified')
+  if (['markdown-link', 'terminal-command', 'portable-path'].includes(openMode) && !actionId) actionId = rendererId
+
+  let fallbackReason = 'none'
+  if (status === 'fallback') {
+    if (text(input?.fallbackReason) && input.fallbackReason !== 'none') fallbackReason = input.fallbackReason
+    else if (attempted && actionStatus === 'failed') fallbackReason = 'action-failed'
+    else if (attempted && readback === 'failed') fallbackReason = 'readback-failed'
+    else if (attempted && readback === 'unavailable') fallbackReason = 'readback-unavailable'
+    else if (openMode === 'native-action' && !actionId) fallbackReason = 'native-action-not-attached'
+    else if (['absolute-copy', 'unavailable'].includes(openMode)) fallbackReason = 'absolute-path-fallback'
+    else fallbackReason = 'action-not-attempted'
+  }
+
+  const core = {
+    schemaVersion: 'ArtifactDeliveryAttemptV1',
+    artifactId,
+    rendererId,
+    openMode,
+    actionId,
+    target,
+    attempted,
+    actionStatus,
+    readback,
+    status,
+    fallbackReason,
+    evidenceState,
+    evidenceRefs
+  }
+  return {
+    ...core,
+    attemptId: `artifact-delivery-attempt-${digest(core)}`,
+    validation: { valid: errors.length === 0, errors }
+  }
+}
+
+function artifactDeliveryAttemptIntegrityErrors(attempt) {
+  if (!attempt || attempt.schemaVersion !== 'ArtifactDeliveryAttemptV1') return ['artifactDeliveryAttempt-shape-invalid']
+  const errors = []
+  if (!hasExactKeys(attempt, [
+    'schemaVersion', 'artifactId', 'rendererId', 'openMode', 'actionId', 'target', 'attempted', 'actionStatus',
+    'readback', 'status', 'fallbackReason', 'evidenceState', 'evidenceRefs', 'attemptId', 'validation'
+  ])) errors.push('artifactDeliveryAttempt-sibling-fields-invalid')
+  const expected = createArtifactDeliveryAttemptV1(attempt)
+  if (!attempt.validation?.valid || !hasExactKeys(attempt.validation, ['valid', 'errors']) || attempt.validation.errors?.length) {
+    errors.push('artifactDeliveryAttempt-invalid')
+  }
+  if (!expected.validation.valid) errors.push(...expected.validation.errors.map(error => `artifactDeliveryAttempt.${error}`))
+  if (attempt.attemptId !== expected.attemptId || digest(attempt) !== digest(expected)) {
+    errors.push('artifactDeliveryAttempt-integrity-mismatch')
+  }
+  return errors
+}
+
+function resolveArtifactDelivery(input) {
+  const linkCapability = input?.linkCapability || createHostLinkCapabilityDecisionV2(input)
+  const targetReadback = input?.targetReadback || 'present'
+  const targetUnavailable = !['present', 'missing', 'unavailable'].includes(targetReadback)
+  const targetEvidenceState = targetReadback === 'missing'
+    ? 'failed'
+    : (targetReadback === 'unavailable' || targetUnavailable ? 'unverified' : (linkCapability?.evidenceState || 'unverified'))
+  const targetFallbackReason = targetReadback === 'missing'
+    ? 'target-missing'
+    : (targetReadback === 'unavailable' || targetUnavailable ? 'target-readback-unavailable' : null)
+  const attempt = createArtifactDeliveryAttemptV1({
+    artifactId: input?.artifactId,
+    rendererId: linkCapability?.rendererId || (linkCapability?.mode === 'clickable' ? 'legacy-markdown-link' : 'absolute-path-copy'),
+    openMode: linkCapability?.openMode || (linkCapability?.mode === 'clickable' ? 'markdown-link' : (linkCapability?.mode === 'portable' ? 'portable-path' : 'absolute-copy')),
+    actionId: input?.actionId,
+    target: input?.target,
+    attempted: input?.attempted,
+    actionStatus: input?.actionStatus,
+    readback: input?.readback,
+    evidenceState: targetEvidenceState,
+    evidenceRefs: [...new Set([...(linkCapability?.evidenceRefs || []), ...(input?.attemptEvidenceRefs || [])])],
+    fallbackReason: targetFallbackReason || (linkCapability?.absolutePathFallback ? linkCapability.fallbackReason : input?.fallbackReason)
+  })
+  const errors = [
+    ...(linkCapability?.validation?.valid ? [] : ['linkCapability-invalid']),
+    ...artifactDeliveryAttemptIntegrityErrors(attempt)
+  ]
+  const core = {
+    schemaVersion: 'ArtifactDeliveryResolutionV1',
+    linkCapability,
+    attempt
+  }
+  return {
+    ...core,
+    resolutionId: `artifact-delivery-resolution-${digest(core)}`,
+    validation: { valid: errors.length === 0, errors: [...new Set(errors)] }
+  }
+}
+
+function deriveArtifactDeliveryAttempts(visibleSet, linkCapability, suppliedAttempts) {
+  const items = visibleSet?.items || []
+  if (!items.length) {
+    return {
+      attempts: [],
+      errors: Array.isArray(suppliedAttempts) && suppliedAttempts.length ? ['artifactDeliveryAttempts-without-visible-items'] : []
+    }
+  }
+  const attempts = Array.isArray(suppliedAttempts)
+    ? suppliedAttempts
+    : items.map(item => resolveArtifactDelivery({
+        linkCapability,
+        artifactId: item.artifactId,
+        target: item.canonicalPath
+      }).attempt)
+  const errors = []
+  if (!Array.isArray(attempts) || attempts.length !== items.length) {
+    errors.push('artifactDeliveryAttempts-count-mismatch')
+    return { attempts: Array.isArray(attempts) ? attempts : [], errors }
+  }
+  const attemptIds = new Set()
+  for (let index = 0; index < attempts.length; index++) {
+    const attempt = attempts[index]
+    const item = items[index]
+    errors.push(...artifactDeliveryAttemptIntegrityErrors(attempt).map(error => `${error}:${index}`))
+    if (attempt?.artifactId !== item?.artifactId || canonicalPathIdentity(attempt?.target) !== canonicalPathIdentity(item?.canonicalPath)) {
+      errors.push(`artifactDeliveryAttempt-target-mismatch:${index}`)
+    }
+    if (attemptIds.has(attempt?.attemptId)) errors.push(`artifactDeliveryAttempt-duplicate:${index}`)
+    attemptIds.add(attempt?.attemptId)
+    if (linkCapability?.schemaVersion === 'HostLinkCapabilityDecisionV2' && attempt?.rendererId !== linkCapability.rendererId) {
+      errors.push(`artifactDeliveryAttempt-renderer-mismatch:${index}`)
+    }
+  }
+  return { attempts, errors }
+}
+
+function semanticArtifactDeliveryAttempts(attempts, linkCapability) {
+  if (linkCapability?.schemaVersion !== 'HostLinkCapabilityDecisionV2') return []
+  return (attempts || []).map(attempt => ({
+    schemaVersion: attempt.schemaVersion,
+    artifactId: attempt.artifactId,
+    rendererId: attempt.rendererId,
+    openMode: attempt.openMode,
+    actionId: attempt.actionId,
+    target: attempt.target,
+    attempted: attempt.attempted,
+    actionStatus: attempt.actionStatus,
+    readback: attempt.readback,
+    status: attempt.status,
+    fallbackReason: attempt.fallbackReason,
+    evidenceState: attempt.evidenceState,
+    evidenceRefs: attempt.evidenceRefs,
+    attemptId: attempt.attemptId
+  }))
 }
 
 function artifactManifestIntegrityErrors(manifest) {
@@ -754,7 +1093,7 @@ function invalidLegacyEnvelopeV1(errors, input = {}) {
   return { ...core, semanticDigest: digest({ ...core, presentation: undefined, validation: undefined }) }
 }
 
-function createLegacyVisibleEnvelopeV1(input) {
+function createLegacyVisibleEnvelopeV1(input, options = {}) {
   const errors = []
   if (!MESSAGE_KINDS.has(input?.messageKind)) errors.push('messageKind-invalid')
   if (!input?.context || typeof input.context !== 'object' || Array.isArray(input.context)) errors.push('context-required')
@@ -788,9 +1127,10 @@ function createLegacyVisibleEnvelopeV1(input) {
     ordinals.add(check.ordinal)
   }
   if (input?.messageKind === 'entry-check') {
-    const expected = Array.from({ length: 8 }, (_, index) => `PC${index}`)
-    if (checks.length !== 8 || expected.some((id, index) => checks[index]?.id !== id || checks[index]?.ordinal !== index)) {
-      errors.push('entry-check-PC0-PC7-required-in-order')
+    const lastOrdinal = options.entryCheckLastOrdinal === 10 ? 10 : 7
+    const expected = Array.from({ length: lastOrdinal + 1 }, (_, index) => `PC${index}`)
+    if (checks.length !== expected.length || expected.some((id, index) => checks[index]?.id !== id || checks[index]?.ordinal !== index)) {
+      errors.push(`entry-check-PC0-PC${lastOrdinal}-required-in-order`)
     }
   }
   checks.sort((left, right) => left.ordinal - right.ordinal || String(left.id).localeCompare(String(right.id)))
@@ -882,7 +1222,7 @@ function createLegacyVisibleEnvelopeV1(input) {
   }
 }
 
-function invalidEnvelope(errors, input = {}) {
+function invalidEnvelopeV2(errors, input = {}) {
   const postCompletionActions = createPostCompletionActionSet({
     requiredNow: [{
       kind: 'other',
@@ -917,7 +1257,7 @@ function invalidEnvelope(errors, input = {}) {
   return { ...core, semanticDigest: digest({ ...core, presentation: undefined, validation: undefined }) }
 }
 
-function createVisibleEnvelope(input) {
+function createVisibleEnvelopeV2(input) {
   const errors = []
   if (Object.prototype.hasOwnProperty.call(input || {}, 'recommendedAction')) {
     errors.push('recommendedAction-v1-write-forbidden')
@@ -929,7 +1269,7 @@ function createVisibleEnvelope(input) {
   }
   const legacy = createLegacyVisibleEnvelopeV1({ ...input, recommendedAction: null })
   if (!legacy.validation.valid) errors.push(...legacy.validation.errors)
-  if (errors.length) return invalidEnvelope([...new Set(errors)], input)
+  if (errors.length) return invalidEnvelopeV2([...new Set(errors)], input)
 
   const semanticCore = {
     schemaVersion: 'DevCodexVisibleEnvelopeV2',
@@ -967,6 +1307,104 @@ function createVisibleEnvelope(input) {
     userFacingArtifactSet: legacy.userFacingArtifactSet,
     artifactLinks: legacy.artifactLinks,
     linkCapability: legacy.linkCapability,
+    presentation: legacy.presentation,
+    semanticDigest: digest(semanticCore),
+    validation: { valid: true, errors: [] }
+  }
+}
+
+function invalidEnvelope(errors, input = {}) {
+  const postCompletionActions = createPostCompletionActionSet({
+    requiredNow: [{
+      kind: 'other',
+      label: '修正可见输出契约',
+      reason: '当前 envelope 未通过确定性校验，不能继续作强完成声明',
+      evidenceRefs: ['VISIBLE_ENVELOPE_INVALID'],
+      applicability: 'required-now',
+      authorization: 'not-required'
+    }],
+    primaryAction: null,
+    conditionalActions: []
+  })
+  const core = {
+    schemaVersion: 'DevCodexVisibleEnvelopeV3',
+    messageKind: 'error-block',
+    status: 'BLOCK',
+    context: input.context || null,
+    checks: [{
+      id: 'VISIBLE_ENVELOPE_INVALID', ordinal: 0, status: 'BLOCK',
+      summaryKey: 'visible-envelope-invalid', summary: '可见输出契约无效', evidenceState: 'verified',
+      evidenceRefs: [], requiredAction: '回退到 expanded portable 输出并修正契约'
+    }],
+    decision: null,
+    postCompletionActions,
+    entryCheckModel: null,
+    artifactManifest: null,
+    userFacingArtifactSet: null,
+    artifactLinks: [],
+    linkCapability: null,
+    artifactDeliveryAttempts: [],
+    presentation: { requestedTier: 'portable-markdown', effectiveTier: 'portable-markdown', degradationReason: 'contract-invalid' },
+    validation: { valid: false, errors }
+  }
+  return { ...core, semanticDigest: digest({ ...core, presentation: undefined, validation: undefined }) }
+}
+
+function createVisibleEnvelope(input) {
+  const errors = []
+  if (Object.prototype.hasOwnProperty.call(input || {}, 'recommendedAction')) {
+    errors.push('recommendedAction-v1-write-forbidden')
+  }
+  const postCompletionActions = createPostCompletionActionSet(input?.postCompletionActions || {})
+  errors.push(...postCompletionActions.validation.errors.map(error => `postCompletionActions.${error}`))
+  if (['completion-check', 'final-result'].includes(input?.messageKind) && postCompletionActions.requiredNow.length > 0) {
+    errors.push('completion-claim-requiredNow-must-be-empty')
+  }
+  const legacy = createLegacyVisibleEnvelopeV1({ ...input, recommendedAction: null }, { entryCheckLastOrdinal: 10 })
+  if (!legacy.validation.valid) errors.push(...legacy.validation.errors)
+  const entryCheckModel = input?.messageKind === 'entry-check' ? input.entryCheckModel : null
+  if (input?.messageKind === 'entry-check') errors.push(...entryCheckModelIntegrityErrors(entryCheckModel))
+  const delivery = deriveArtifactDeliveryAttempts(
+    legacy.userFacingArtifactSet,
+    legacy.linkCapability,
+    input?.artifactDeliveryAttempts
+  )
+  errors.push(...delivery.errors)
+  if (errors.length) return invalidEnvelope([...new Set(errors)], input)
+
+  const semanticCore = {
+    schemaVersion: 'DevCodexVisibleEnvelopeV3',
+    messageKind: legacy.messageKind,
+    status: legacy.status,
+    context: legacy.context,
+    checks: legacy.checks.map(({ summary, ...check }) => check),
+    decision: legacy.decision,
+    entryCheckModel,
+    artifactManifest: legacy.artifactManifest,
+    userFacingArtifactSet: serializedVisibleSet(legacy.userFacingArtifactSet),
+    linkCapability: semanticLinkCapability(legacy.linkCapability),
+    artifactDeliveryAttempts: semanticArtifactDeliveryAttempts(delivery.attempts, legacy.linkCapability),
+    postCompletionActions: {
+      schemaVersion: postCompletionActions.schemaVersion,
+      requiredNow: postCompletionActions.requiredNow,
+      primaryAction: postCompletionActions.primaryAction,
+      conditionalActions: postCompletionActions.conditionalActions
+    }
+  }
+  return {
+    schemaVersion: 'DevCodexVisibleEnvelopeV3',
+    messageKind: legacy.messageKind,
+    status: legacy.status,
+    context: legacy.context,
+    checks: legacy.checks,
+    decision: legacy.decision,
+    postCompletionActions,
+    entryCheckModel,
+    artifactManifest: legacy.artifactManifest,
+    userFacingArtifactSet: legacy.userFacingArtifactSet,
+    artifactLinks: legacy.artifactLinks,
+    linkCapability: legacy.linkCapability,
+    artifactDeliveryAttempts: delivery.attempts,
     presentation: legacy.presentation,
     semanticDigest: digest(semanticCore),
     validation: { valid: true, errors: [] }
@@ -1044,9 +1482,10 @@ function validateSerializedEnvelopeBase (envelope, expectedKeys) {
     ordinals.add(check?.ordinal)
   }
   if (envelope?.messageKind === 'entry-check') {
-    const expected = Array.from({ length: 8 }, (_, index) => `PC${index}`)
-    if (checks.length !== 8 || expected.some((id, index) => checks[index]?.id !== id || checks[index]?.ordinal !== index)) {
-      errors.push('entry-check-PC0-PC7-required-in-order')
+    const lastOrdinal = envelope?.schemaVersion === 'DevCodexVisibleEnvelopeV3' ? 10 : 7
+    const expected = Array.from({ length: lastOrdinal + 1 }, (_, index) => `PC${index}`)
+    if (checks.length !== expected.length || expected.some((id, index) => checks[index]?.id !== id || checks[index]?.ordinal !== index)) {
+      errors.push(`entry-check-PC0-PC${lastOrdinal}-required-in-order`)
     }
   }
   if (STATUSES.has(envelope?.status) && deriveStatus(checks) !== envelope.status) {
@@ -1151,6 +1590,14 @@ function validateSerializedEnvelopeBase (envelope, expectedKeys) {
       linkCapabilityHostSurface(envelope.linkCapability) !== envelope.context.hostSurface) errors.push('linkCapability-surface-mismatch')
   if (envelope?.linkCapability && envelope?.context?.hostSurface === null &&
       envelope.linkCapability.evidenceState === 'verified') errors.push('linkCapability-verified-with-unknown-surface')
+  if (envelope?.schemaVersion === 'DevCodexVisibleEnvelopeV3') {
+    const delivery = deriveArtifactDeliveryAttempts(
+      envelope.userFacingArtifactSet,
+      envelope.linkCapability,
+      envelope.artifactDeliveryAttempts
+    )
+    errors.push(...delivery.errors)
+  }
   const presentation = envelope?.presentation
   if (!hasExactKeys(presentation, ['requestedTier', 'effectiveTier', 'degradationReason']) ||
       !PRESENTATION_TIERS.has(presentation.requestedTier) || !PRESENTATION_TIERS.has(presentation.effectiveTier) ||
@@ -1165,6 +1612,52 @@ function validateSerializedEnvelopeBase (envelope, expectedKeys) {
 }
 
 function normalizeCompatibleVisibleEnvelope(envelope) {
+  if (envelope?.schemaVersion === 'DevCodexVisibleEnvelopeV3') {
+    const postCompletionActions = createPostCompletionActionSet(envelope.postCompletionActions || {})
+    const errors = validateSerializedEnvelopeBase(envelope, VISIBLE_ENVELOPE_V3_KEYS)
+    if (!hasExactKeys(envelope.postCompletionActions, [
+      'schemaVersion', 'requiredNow', 'primaryAction', 'conditionalActions', 'validation'
+    ]) || envelope.postCompletionActions?.schemaVersion !== 'PostCompletionActionSetV1' ||
+      !hasExactKeys(envelope.postCompletionActions?.validation, ['valid', 'errors']) ||
+      envelope.postCompletionActions?.validation?.valid !== true ||
+      (envelope.postCompletionActions?.validation?.errors || []).length !== 0) {
+      errors.push('postCompletionActions-serialized-shape-invalid')
+    }
+    errors.push(...postCompletionActions.validation.errors.map(error => `postCompletionActions.${error}`))
+    if (['completion-check', 'final-result'].includes(envelope.messageKind) && postCompletionActions.requiredNow.length > 0) {
+      errors.push('completion-claim-requiredNow-must-be-empty')
+    }
+    if (envelope.messageKind === 'entry-check') errors.push(...entryCheckModelIntegrityErrors(envelope.entryCheckModel))
+    else if (envelope.entryCheckModel !== null) errors.push('entryCheckModel-non-entry-must-be-null')
+    const semanticCore = {
+      schemaVersion: 'DevCodexVisibleEnvelopeV3',
+      messageKind: envelope.messageKind,
+      status: envelope.status,
+      context: envelope.context,
+      checks: (envelope.checks || []).map(({ summary, ...check }) => check),
+      decision: envelope.decision,
+      entryCheckModel: envelope.entryCheckModel,
+      artifactManifest: envelope.artifactManifest,
+      userFacingArtifactSet: serializedVisibleSet(envelope.userFacingArtifactSet),
+      linkCapability: semanticLinkCapability(envelope.linkCapability),
+      artifactDeliveryAttempts: semanticArtifactDeliveryAttempts(envelope.artifactDeliveryAttempts, envelope.linkCapability),
+      postCompletionActions: {
+        schemaVersion: postCompletionActions.schemaVersion,
+        requiredNow: postCompletionActions.requiredNow,
+        primaryAction: postCompletionActions.primaryAction,
+        conditionalActions: postCompletionActions.conditionalActions
+      }
+    }
+    if (digest(semanticCore) !== envelope.semanticDigest) errors.push('semanticDigest-mismatch')
+    return {
+      schemaVersion: 'CompatibleVisibleEnvelopeViewV1',
+      sourceSchemaVersion: 'DevCodexVisibleEnvelopeV3',
+      migrationStatus: 'current-v3',
+      envelope,
+      postCompletionActions,
+      validation: { valid: errors.length === 0, errors: [...new Set(errors)] }
+    }
+  }
   if (envelope?.schemaVersion === 'DevCodexVisibleEnvelopeV2') {
     const postCompletionActions = createPostCompletionActionSet(envelope.postCompletionActions || {})
     const errors = validateSerializedEnvelopeBase(envelope, VISIBLE_ENVELOPE_V2_KEYS)
@@ -1201,7 +1694,7 @@ function normalizeCompatibleVisibleEnvelope(envelope) {
     return {
       schemaVersion: 'CompatibleVisibleEnvelopeViewV1',
       sourceSchemaVersion: 'DevCodexVisibleEnvelopeV2',
-      migrationStatus: 'current-v2',
+      migrationStatus: 'legacy-v2-read-only',
       envelope,
       postCompletionActions,
       validation: { valid: errors.length === 0, errors: [...new Set(errors)] }
@@ -1349,8 +1842,13 @@ function resolveArtifactPathCell(item, capability) {
   }
 }
 
-function renderArtifactItem(item, capability, tier) {
-  const { portable, absolute, pathCell, forceAbsolute } = resolveArtifactPathCell(item, capability)
+function renderArtifactItem(item, capability, tier, deliveryAttempt = null) {
+  const hostDecision = capability?.schemaVersion === 'HostLinkCapabilityDecisionV2'
+  const attemptFallback = hostDecision && (!deliveryAttempt || deliveryAttempt.status === 'fallback')
+  const pathCapability = attemptFallback
+    ? { ...capability, absolutePathFallback: true, mode: 'failed' }
+    : capability
+  const { portable, absolute, pathCell, forceAbsolute } = resolveArtifactPathCell(item, pathCapability)
   const linkTarget = tier === 'rich-markdown' && capability?.mode === 'clickable'
     ? absolute
     : portable
@@ -1358,20 +1856,28 @@ function renderArtifactItem(item, capability, tier) {
   const action = text(item.userAction) || '查看'
   // Path column always present (PF-175); not the same as legacy bare absolute-only lists.
   const pathSuffix = `；路径：\`${pathCell}\`；操作：${action}`
-  if (capability?.schemaVersion === 'HostLinkCapabilityDecisionV2') {
+  if (hostDecision) {
     const quoted = `"${absolute.replace(/"/g, '\\"')}"`
     const rendererAction = {
-      'codex-native-file-panel': '使用 Codex 文件面板打开',
       'vscode-cli-goto': `\`code --goto ${quoted}\``,
       'zed-cli-open': `\`zed ${quoted}\``,
       'webstorm-cli-open': `\`webstorm ${quoted}\``
     }[capability.rendererId]
+    const attemptStatus = deliveryAttempt?.status || 'fallback'
+    if (attemptStatus === 'fallback') {
+      const reason = deliveryAttempt?.fallbackReason || 'attempt-missing'
+      return `- ${item.displayName} — ${purpose}${pathSuffix}；绝对路径：\`${absolute}\`；fallback：${reason}`
+    }
+    const openedSuffix = attemptStatus === 'opened' ? '；状态：已打开（动作与回读均成功）' : ''
     if (capability.openMode === 'markdown-link' && tier === 'rich-markdown') {
       const escapedTarget = /\s/.test(absolute) ? `<${absolute}>` : absolute
-      return `- [${item.displayName}](${escapedTarget}) — ${purpose}${pathSuffix}`
+      return `- [${item.displayName}](${escapedTarget}) — ${purpose}${pathSuffix}${openedSuffix}`
     }
-    if (rendererAction && ['native-action', 'terminal-command'].includes(capability.openMode)) {
-      return `- ${item.displayName} — ${purpose}${pathSuffix}；打开：${rendererAction}`
+    if (capability.openMode === 'native-action' && deliveryAttempt?.actionId) {
+      return `- ${item.displayName} — ${purpose}${pathSuffix}；原生动作：${deliveryAttempt.actionId}${openedSuffix}`
+    }
+    if (rendererAction && capability.openMode === 'terminal-command') {
+      return `- ${item.displayName} — ${purpose}${pathSuffix}；打开命令：${rendererAction}${openedSuffix}`
     }
     const fallback = capability.absolutePathFallback
       ? `；绝对路径：\`${absolute}\`；fallback：${capability.fallbackReason}`
@@ -1671,9 +2177,15 @@ function renderVisibleEnvelope(envelope, { tier = null, compact = false } = {}) 
     `建议：${envelope.decision.recommendedOption || primaryLabel || 'N/A'}`
   ] : []
   const artifactSet = envelope.userFacingArtifactSet
+  const deliveryAttemptByArtifact = new Map((envelope.artifactDeliveryAttempts || []).map(attempt => [attempt.artifactId, attempt]))
   const artifactLines = artifactSet ? [
     '', effectiveTier === 'plain-text' ? artifactSet.heading : `#### ${artifactSet.heading}`,
-    ...artifactSet.items.map(item => renderArtifactItem(item, envelope.linkCapability, effectiveTier)),
+    ...artifactSet.items.map(item => renderArtifactItem(
+      item,
+      envelope.linkCapability,
+      effectiveTier,
+      deliveryAttemptByArtifact.get(item.artifactId) || null
+    )),
     `已列 ${artifactSet.counts.listed} / 总计 ${artifactSet.counts.total}；默认隐藏 ${artifactSet.counts.remaining}`
   ] : []
   const actionLines = []
@@ -1708,6 +2220,9 @@ module.exports = {
   LIFECYCLE_OPERATIONS,
   LINK_MODES,
   HOST_LINK_OPEN_MODES,
+  ARTIFACT_DELIVERY_ACTION_STATUSES,
+  ARTIFACT_DELIVERY_READBACK_STATUSES,
+  ARTIFACT_DELIVERY_STATUSES,
   MESSAGE_KINDS,
   PRESENTATION_TIERS,
   STATUSES,
@@ -1719,9 +2234,13 @@ module.exports = {
   createArtifactDeliveryManifest,
   createLinkCapabilityDecision,
   createHostLinkCapabilityDecisionV2,
+  createArtifactDeliveryAttemptV1,
+  resolveArtifactDelivery,
   validateLinkCapabilityDecision,
   createPostCompletionActionSet,
+  createEntryCheckModelV3,
   createLegacyVisibleEnvelopeV1,
+  createVisibleEnvelopeV2,
   createVisibleEnvelope,
   normalizeCompatibleVisibleEnvelope,
   analyzeFinalValidationSummarySample,

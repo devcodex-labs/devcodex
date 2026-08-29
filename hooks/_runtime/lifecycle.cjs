@@ -49,6 +49,10 @@ const {
 const { buildLifecycleVisibleReplyUtils } = require('./lifecycle-visible-reply.cjs')
 const { formatLanguageContextInstruction, resolveLanguageContext } = require('./language-context.cjs')
 const {
+  buildWorkflowPlanDecision,
+  formatWorkflowPlanInstruction
+} = require('./workflow-plan-decision-v1.cjs')
+const {
   reconcileProgressiveSkillRoute
 } = require('./lifecycle-skill-route-coordinator.cjs')
 const {
@@ -760,6 +764,42 @@ function initializeWorkflowIngress(
   }
 }
 
+function deriveWorkflowPlanFacts(state, prompt = '', plan = null) {
+  const value = String(prompt || '')
+  const changeTypes = Array.isArray(plan?.changeTypes) ? plan.changeTypes.map(item => String(item).toLowerCase()) : []
+  const combined = `${value}\n${changeTypes.join(' ')}`
+  const publicContract = /公共|公开|public|api|cli|契约|contract/i.test(combined)
+  const schemaChange = /schema|规范|配置项|config/i.test(combined)
+  const sharedState = /共享状态|shared[- ]state|owner|lease|上下文|context/i.test(combined)
+  const migration = /迁移|兼容|migration|compatib/i.test(combined)
+  const recovery = /恢复|续接|recovery|resume/i.test(combined)
+  const securitySensitive = /安全|权限|凭据|security|permission|secret/i.test(combined)
+  const packageBoundary = /安装包|打包|package|npm/i.test(combined)
+  const releaseRequested = /发布|release|publish/i.test(combined)
+  const externalSideEffect = /推送|提交|部署|发送|push|commit|deploy/i.test(combined)
+  const targetKnown = Boolean(plan?.identity?.project || state?.activeProject || state?.activeScope === 'workspace')
+  const crossModule = changeTypes.length > 1 || /多模块|跨模块|cross[- ]module/i.test(combined)
+  return {
+    targetKnown,
+    changedFileCount: null,
+    consumerCount: null,
+    publicContract,
+    schemaChange,
+    sharedState,
+    migration,
+    recovery,
+    securitySensitive,
+    packageBoundary,
+    releaseRequested,
+    externalSideEffect,
+    fullAuditRequested: /全量验证|全面审计|full\s+(?:validation|audit)/i.test(value),
+    crossModule,
+    multipleConsumers: /多消费者|多个消费者|multiple consumers/i.test(combined),
+    scopeExpanded: Boolean(plan && (crossModule || publicContract || schemaChange || packageBoundary)),
+    unknownScope: !targetKnown
+  }
+}
+
 function bindWorkflowRouteFromObservedPlan(state) {
   const plan = state.contextAcquisition?.plan
   const envelope = state.actualInstructionEnvelope
@@ -835,6 +875,13 @@ function bindWorkflowRouteFromObservedPlan(state) {
     state.workflowRouteDecision = decision
     state.workflowResumeTargetDecision = null
     state.workflowRoutePlanBinding = buildWorkflowRoutePlanBinding(state, plan, decision)
+    state.workflowPlanDecision = buildWorkflowPlanDecision({
+      phase: 'post-context',
+      userIntent: state.workflowPlanDecision?.userIntent,
+      config: plan.baselineContext?.effectiveConfig?.extensions?.devcodex?.workflowRouting,
+      facts: deriveWorkflowPlanFacts(state, '', plan),
+      previousDecision: state.workflowPlanDecision
+    })
     state.workflowRoutePending = null
     state.workflowIngressError = null
     return { ok: true, decision }
@@ -876,6 +923,7 @@ function buildWorkflowIngressContextMessage(state) {
       topIntent: decision?.topIntent || null,
       routeRevision: decision?.routeRevision || null,
       decisionDigest: decision?.decisionDigest || null,
+      workflowPlanDecision: state.workflowPlanDecision || null,
       admissionRef: recoveryAuthority && envelope?.envelopeId && envelope?.envelopeDigest &&
           decision?.decisionDigest && decision?.routeRevision
         ? {
@@ -3041,6 +3089,7 @@ async function main() {
     }
     const workflowCompletionLifecycle = state.workflowCompletionLifecycle
     const priorLanguageContext = state.languageContext
+    const priorWorkflowPlanDecision = state.workflowPlanDecision
     state = resetState(mode, state)
     state.hostIdentity = currentHostIdentity
     state.workflowCompletionLifecycle = workflowCompletionLifecycle
@@ -3052,6 +3101,17 @@ async function main() {
     livenessObservation = observeTurnEvent(state.turnLiveness, eventName, payload)
     state.turnLiveness = livenessObservation.state
     applyPromptTarget(state, promptTarget, payload)
+    let workflowRoutingConfig = null
+    try {
+      workflowRoutingConfig = readResolvedProfileConfig(state)?.extensions?.devcodex?.workflowRouting || null
+    } catch {}
+    state.workflowPlanDecision = buildWorkflowPlanDecision({
+      phase: 'precheck',
+      prompt,
+      userIntent: priorWorkflowPlanDecision?.userIntent,
+      config: workflowRoutingConfig,
+      facts: deriveWorkflowPlanFacts(state, prompt)
+    })
     if (continuationCommand) {
       const resolvedProject = continuationResolution?.candidate?.project || ''
       if (resolvedProject) {
@@ -3259,6 +3319,7 @@ async function main() {
         buildBootstrapMessage(state),
         buildExecutionModeContextMessage(state),
         formatLanguageContextInstruction(state.languageContext),
+        formatWorkflowPlanInstruction(state.workflowPlanDecision),
         continuationResolution
           ? `TaskResolutionV1 resolved-active: ${continuationResolution.candidate.project}/${continuationResolution.candidate.kind}/${continuationResolution.candidate.displayName}. The name only locates the task; rehydrate identity, sessions, and current bound artifacts before continuing.`
           : '',
@@ -3641,8 +3702,8 @@ async function main() {
       const precheckStatus = getPrecheckEvidenceStatus(state)
       if (precheckStatus !== 'verified-present') {
         const reason = 's07-product-before-entry-check'
-        const detailZh = 'S07 时序：产物 mutation（reports/.memory/台账）须在用户首次可见 PC0~PC7 之后；禁止最终文首补 PC 冒充先输出。'
-        const detailEn = 'S07 order: product artifact writes require first user-visible PC0-PC7 before reports/memory/ledger mutations.'
+        const detailZh = 'S07 时序：产物 mutation（reports/.memory/台账）须在用户首次可见 PC0~PC10 之后；禁止最终文首补 PC 冒充先输出。'
+        const detailEn = 'S07 order: product artifact writes require first user-visible PC0-PC10 before reports/memory/ledger mutations.'
         if (isStrictEnforcement()) {
           state.lastReason = reason
           saveState(state)

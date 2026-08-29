@@ -6,9 +6,9 @@ description: 用户可见输出契约 Owner — 统一入口检查、完成检�
 
 ## 职责
 
-当任务需要输出 PC0~PC7、FC/SC/RC/T、CP/危险动作确认、长任务进度、最终结果、阻断原因或文件交付列表时，本 Skill 是用户可见语义与渲染的唯一 Owner。
+当任务需要输出 PC0~PC10、FC/SC/RC/T、CP/危险动作确认、长任务进度、最终结果、阻断原因或文件交付列表时，本 Skill 是用户可见语义与渲染的唯一 Owner。
 
-本 Skill 只负责 `ArtifactDeliveryManifestV1 → ArtifactAnchorProjectionV1 / UserFacingArtifactSetV1 → PostCompletionActionSetV1 → DevCodexVisibleEnvelopeV2 → renderer`。它不替代 `compliance` 的检查含义、`cp-gate` 的确认状态、`report`/`memory` 的写入职责、`host-contract-verification` 的宿主 direct replay，也不判断专业内容质量。`DevCodexVisibleEnvelopeV1` 只保留一个兼容窗口的读取能力，禁止新生产者继续写入。
+本 Skill 只负责 `ArtifactDeliveryManifestV1 → ArtifactAnchorProjectionV1 / UserFacingArtifactSetV1 → PostCompletionActionSetV1 → EntryCheckModelV3 → DevCodexVisibleEnvelopeV3 → renderer`。它不替代 `compliance` 的检查含义、`cp-gate` 的确认状态、`report`/`memory` 的写入职责、`host-contract-verification` 的宿主 direct replay，也不判断专业内容质量。`DevCodexVisibleEnvelopeV1/V2` 只保留读取兼容，禁止新生产者继续写入。
 
 确定性实现位于 `hooks/_runtime/visible-output-contract.cjs`，结构约束位于 `visible-output-contract.schema.json`。
 
@@ -16,7 +16,7 @@ description: 用户可见输出契约 Owner — 统一入口检查、完成检�
 
 | 场景 | 是否触发 |
 |---|:---:|
-| PC0~PC7 入口检查 | 必须；且须作为用户**首次可见**块先于实质正文与产物 mutation（S07 时序；文首补 PC ≠ 先输出） |
+| PC0~PC10 入口检查 | 必须；且须作为用户**首次可见**块先于实质正文与产物 mutation（S07 时序；文首补 PC ≠ 先输出） |
 | FC/SC/RC/T 完成检查 | 必须 |
 | CP1/CP2/CP3、验证预算、发布或其他 DevCodex 工作流确认 | 必须；文件/命令操作权限提示由宿主自身呈现，不由 DevCodex 复制审批 |
 | 多批次进度、等待、阻断、恢复 | 必须 |
@@ -41,8 +41,9 @@ description: 用户可见输出契约 Owner — 统一入口检查、完成检�
 2. `ArtifactAnchorProjectionV1`：可选上下文锚点投影，只携带 canonical path、contentDigest、projectionDigest、truthSourceKind、stalePolicy 与 evidenceRefs，不复制正文。
 3. `UserFacingArtifactSetV1`：只能由 manifest 纯函数投影，禁止模型临场挑“主要产物”。
 4. `PostCompletionActionSetV1`：从已验证缺口、Profile 和用户授权边界投影“当前必做 / 唯一主动作 / 最多两个条件动作”；不得把产物文件当动作。
-5. `DevCodexVisibleEnvelopeV2`：承载 message kind、稳定状态、checks、decision、visible set、action set、capability 和 semantic digest。
-6. renderer：按已验证能力生成 `rich-markdown / portable-markdown / plain-text`；不得改变语义集合、顺序、状态或动作。
+5. `EntryCheckModelV3`：入口语义的唯一机器模型，固定承载 PC0 版本身份、PC1~PC7 既有事实、PC8 流程/方案决策、PC9 验证计划和 PC10 后续动作。
+6. `DevCodexVisibleEnvelopeV3`：承载 message kind、稳定状态、checks、entry check model、decision、visible set、action set、capability 和 semantic digest。
+7. renderer：按已验证能力生成 `rich-markdown / portable-markdown / plain-text`；不得改变语义集合、顺序、状态或动作。
 
 禁止 renderer、Prompt、Hook parser 或最终回复反向补写 manifest 状态。
 
@@ -115,11 +116,11 @@ Owner：本 Skill + `hooks/_runtime/visible-output-contract.cjs` + `lifecycle-vi
 
 ## LinkCapabilityDecisionGate
 
-`LinkCapabilityDecisionV1` 保留为持久化记忆/产物相对链接投影契约。用户可见最终回复使用 `HostLinkCapabilityDecisionV2`，必须把 `hostSurface` 与 `presentationSurface` 分开，并以 `rendererId + evidenceState` 选择打开方式，不能按客户端名称推定可点击：
+`LinkCapabilityDecisionV1` 保留为持久化记忆/产物相对链接投影契约。用户可见最终回复使用 `ArtifactDeliveryResolver → HostLinkCapabilityDecisionV2 + ArtifactDeliveryAttemptV1`：必须以 `presentationSurface + capability evidence` 选择 renderer，`hostSurface` 只验证 adapter 是否匹配，不能按客户端名称推定可点击：
 
 | openMode | 使用条件 |
 |---|---|
-| `native-action` | 当前宿主面原生打开动作已验证（如 Codex Desktop 文件面板） |
+| `native-action` | 当前呈现面原生动作已附加且存在 actionId；仅选择 renderer 不算动作 |
 | `markdown-link` | 当前呈现器的本地文件 Markdown 点击已验证 |
 | `terminal-command` | IDE/编辑器 CLI 命令已验证（VS Code、Zed、WebStorm） |
 | `portable-path` | 仅保证工作区相对定位 |
@@ -139,15 +140,17 @@ Rich clickable 只显示一个语义 Markdown 链接作为名称主表示，**�
 
 `evidenceState=verified` 必须携带非空 `evidenceRefs`；V2 `hostSurface` 与 Envelope context 必须一致，且 `presentationSurface / rendererId / openMode` 必须进入完整性与 semantic digest。mode、fallback、reason、target relation 或 decisionId 任一 sibling mutation 都必须 fail closed。`failed/unavailable` renderer 必须给出可复制的绝对定位与 fallbackReason，不能再次输出已知失败的相对链接。
 
+`ArtifactDeliveryAttemptV1` 必须逐个绑定 artifactId、绝对 target、renderer/openMode、actionId、attempted、actionStatus、readback 和 evidence。只有 action 成功且 readback 成功可写 `opened`；已验证 Markdown/terminal action 尚未执行时最多为 `ready`；native action 未附加、attempt 缺失、动作或 readback 失败时必须为 `fallback` 并显示绝对路径。报告/记忆的相对 Markdown readback 只证明持久化内链，不能冒充最终对话 surface 的打开回执。
+
 ## VisibleEnvelopeGate
 
 `messageKind` 固定为：
 
 `entry-check / completion-check / confirmation / progress / final-result / error-block`。
 
-状态固定为 `PASS / WARN / BLOCK / UNVERIFIED / N/A`，整体状态由 checks 严重度推导，禁止调用方覆盖；`PASS` 的 evidenceState 必须为 verified。`entry-check` 必须完整保留 PC0~PC7 及 ordinal 0~7。schema 无效、未知状态、缺必要 check、task/manifest/visible set/capability identity 不一致或 presentation 非法时，必须生成 `VISIBLE_ENVELOPE_INVALID` 的 BLOCK envelope，并强制 expanded portable 降级。
+状态固定为 `PASS / WARN / BLOCK / UNVERIFIED / N/A`，整体状态由 checks 严重度推导，禁止调用方覆盖；`PASS` 的 evidenceState 必须为 verified。当前生产者的 `entry-check` 必须完整保留 PC0~PC10、ordinal 0~10 与 `EntryCheckModelV3`。PC0 必须区分 installed package、活动 runtime generation、可选源码候选和 alignment；PC8~PC10 分别绑定 `WorkflowPlanDecisionV1`、验证计划和后续阶段/用户动作。schema 无效、未知状态、缺必要 check、task/manifest/visible set/capability identity 不一致或 presentation 非法时，必须生成 `VISIBLE_ENVELOPE_INVALID` 的 BLOCK envelope，并强制 expanded portable 降级。
 
-`semanticDigest` 对去展示后的 canonical semantic core 计算；presentation tier、图标、换行、点击形式和本地化 summary 不得改变 digest。
+`semanticDigest` 对去展示后的 canonical semantic core 计算；presentation tier、图标、换行和本地化 summary 不得改变 digest。HostLink V2 的 renderer 选择及其 `ArtifactDeliveryAttemptV1` 状态属于交付事实，必须进入 V3 digest；V1 只读链接的纯显示差异保持历史兼容。
 
 ### PostCompletionActionSetGate（V2）
 
@@ -163,7 +166,7 @@ Rich clickable 只显示一个语义 Markdown 链接作为名称主表示，**�
 
 `kind` 至少覆盖 `api-docs / http-verification / commit / switch-target / cherry-pick / push / other`。同一个已知 kind 在一份 action set 中最多出现一次，避免用不同文案重复推荐同一动作；`other` 仍可表达两个真正不同的条件动作。如果接口文档或 `.http` 已被用户请求、Profile 或验收标准规定为本次必交付，它们属于 `requiredNow` 并须在完成前实施，不能挪到“下一步建议”。已完成、不适用或缺证据的动作不得推荐；用户交付文件只来自 `UserFacingArtifactSetV1`。
 
-V1 兼容规则：parser/renderer 可读取 `DevCodexVisibleEnvelopeV1.recommendedAction`，但只能映射为 `legacy-v1-read-only + unverified + suggest-only` 的内存视图，不得据此推断 Git、文档类型、适用性或授权，也不得回写 V1。
+V1/V2 兼容规则：parser/renderer 可读取旧 envelope；V1 `recommendedAction` 只能映射为 `legacy-v1-read-only + unverified + suggest-only` 的内存视图，V2 入口只能映射为 `legacy-v2-read-only`。两者都不得据此推断 PC8~PC10、Git、文档类型、适用性或授权，也不得回写旧版本。
 
 ## Dialogue-Primary Closeout（对话内可读收口 / DPC）
 
@@ -199,7 +202,7 @@ V1 兼容规则：parser/renderer 可读取 `DevCodexVisibleEnvelopeV1.recommend
 
 推荐顺序：
 
-1. `### DevCodex · 入口检查`（表格 PC0~PC7 人话；禁止进度缩写 / 折叠行）— **始终必出**
+1. `### DevCodex · 入口检查`（表格 PC0~PC10 人话；禁止进度缩写 / 折叠行）— **始终必出**
 2. 正文结论（Dialogue-Primary）
 3. 仅在需要时：`### 复审验证（白话）` / 完成检查 / FVS / 产物表（见 NoisePolicy）
 
@@ -209,7 +212,7 @@ V1 兼容规则：parser/renderer 可读取 `DevCodexVisibleEnvelopeV1.recommend
 
 | 原则 | 规则 |
 |------|------|
-| P1 入口常显 | 非 chat 实质轮次必须 PC0~PC7 |
+| P1 入口常显 | 非 chat 实质轮次必须 PC0~PC10；chat 同样不得省略入口，只豁免完成合规块 |
 | P2 结果优先 | 正文结论是主阅读路径 |
 | P3 静默通过 | **未**宣称工作完成 → 用户面不贴完成检查/FVS/FC 全表/产物表/EnforcementHonesty |
 | P4 失败展开 | BLOCK/WARN/验证失败/流程 gap/用户要详情 → 展开相关块 |
@@ -257,12 +260,13 @@ dev / fix / self-fix 的 `completion-check` 或 dev 模式合规块宣告完成�
 
 | 规则 | 说明 |
 |------|------|
-| 分列必齐 | 须能识别 **PC0…PC7 各自独立** 行/单元格（表格 `| PC0 | … |` 或列表 `- PC0 …`）；缺任一 → incomplete |
-| 禁止折叠 | `PC2–PC7` / `PC2-7` / `PC2~PC7` 等合并范围 → `pc-folded-range`，precheck=`verified-missing` |
+| 分列必齐 | 须能识别 **PC0…PC10 各自独立** 行/单元格（表格 `| PC0 | … |` 或列表 `- PC0 …`）；缺任一 → incomplete |
+| 禁止折叠 | `PC2–PC10` / `PC2-10` / `PC2~PC10` 等合并范围 → `pc-folded-range`，precheck=`verified-missing` |
 | 禁止施工日志 | PC3/PC6 等单元格禁止「写报告 02 / 见下清单 / 只读+复现」等进度缩写冒充语义 |
-| PC0 上下文 | PC0 行须含上下文/计划/项目等实质内容，不得空壳；禁止仅「Profile 已加载」 |
+| PC0 版本 | PC0 行须区分 installed package、活动 runtime generation、可选源码候选与 alignment；仅版本号相同不得写 `aligned` |
 | PC4 | **dev** 下 `N/A` 必须带 skipReason/跳过理由；不得无理由伪 N/A |
-| 六宿主 | 模板同源；Grok 无 inject、Cursor Cloud 无用户级 Hook 时，仍须模型输出完整 PC0~PC7 |
+| PC8~PC10 | 分别写流程/方案二次判断、验证范围与耗时、后续阶段/自动继续/用户动作；`showPlan=false` 也不得删除这些检查 |
+| 六宿主 | 模板同源；Grok 无 inject、Cursor Cloud 无用户级 Hook 时，仍须模型输出完整 PC0~PC10 |
 | Owner | 本 Skill + `hooks/_runtime/lifecycle-visible-reply.cjs`（`analyzeEntryCheckCompleteness`）；**禁止**平行新 Gate 命名体系 |
 
 机器分类：`complete` / `incomplete` / `not-claimed`。负向 fixture：折叠行、缺 PC、dev PC4 无 skipReason。
@@ -283,7 +287,7 @@ compact 仍显示所有 check IDs、状态、整体状态、项目和“状态�
 - legacy “主要产物 + 绝对路径”文本最多识别为 `unverified-legacy`，不能升级 verified。
 - direct replay 缺失时使用 portable/plain fallback，能力强度保持 unverified。
 - Rich、portable、plain 的 check IDs、visible artifacts、顺序、状态、动作和 semanticDigest 必须一致。
-- **Grok / passive-hook（PF-165）**：无 UserPromptSubmit 注入时仍必须输出完整 PC0~PC7；完成声明须满足 `GrokTurnChecklist`（见 `host-parity-scorecard` / `host-parity-grok.md`），不得把「无 inject」写成可省略入口或报告的理由；`full-capable` ≠ 已注入 PC0。
+- **Grok / passive-hook（PF-165）**：无 UserPromptSubmit 注入时仍必须输出完整 PC0~PC10；完成声明须满足 `GrokTurnChecklist`（见 `host-parity-scorecard` / `host-parity-grok.md`），不得把「无 inject」写成可省略入口或报告的理由；`full-capable` ≠ 已注入 PC0。
 
 ## 消费者同步
 
@@ -301,7 +305,7 @@ compact 仍显示所有 check IDs、状态、整体状态、项目和“状态�
 - default/all-deliverable/internal-audit 的集合与计数守恒。
 - internal-only 默认 visible=0，required hidden=0。
 - 三 renderer parity：语义集合/顺序/状态/动作/digest 一致；Rich 无冗余 `绝对路径：` 行（无 fallback 时）；**三档均含 `路径：` portable 列**（PF-175）。
-- 六 message kinds、PC0~PC7、compact↔expanded、unknown/invalid fail-closed 全通过。
+- 六 message kinds、PC0~PC10、`EntryCheckModelV3`、V1/V2 read compatibility、compact↔expanded、unknown/invalid fail-closed 全通过。
 - completion-check 正负向：`FinalValidationSummaryV1` 或等价短矩阵必须包含命令/exitCode、runId 或关键计数、workspace sync、dirty boundary、release action boundary；commit 声明必须包含 post-commit replay。
 - evidence-freshness 互操作：artifact anchor / projection digest、final validation summary digest、summary-only 降级和缺命令证据负例由 `npm run test:evidence-freshness` 覆盖，并与 `npm run test:visible-output` 一起验证。
 - Hook parser 对新 envelope 为 verified-present，对 legacy 为 unverified，对未观察 payload 为 unverified。

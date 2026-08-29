@@ -481,10 +481,10 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     prompt: 'Need a root cure for dev mode drift.'
   })
   assert.strictEqual(promptOutput.continue, true)
-  assert.match(promptOutput.systemMessage || '', /PC0-PC7/)
+  assert.match(promptOutput.systemMessage || '', /PC0-PC10/)
   assert.match(promptOutput.systemMessage || '', /entry check/)
   assert.strictEqual(promptOutput.hookSpecificOutput?.hookEventName, 'UserPromptSubmit')
-  assert.match(promptOutput.hookSpecificOutput?.additionalContext || '', /PC0-PC7/)
+  assert.match(promptOutput.hookSpecificOutput?.additionalContext || '', /PC0-PC10/)
   assert.match(promptOutput.hookSpecificOutput?.additionalContext || '', /entry check/)
 
   const warningBeforeBootstrap = run({
@@ -619,7 +619,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     prompt: 'Explain current workflow.'
   })
   assert.strictEqual(prodPromptOutput.continue, true)
-  assert.match(prodPromptOutput.systemMessage || '', /entry check PC0-PC7/)
+  assert.match(prodPromptOutput.systemMessage || '', /entry check PC0-PC10/)
   const prodWriteWarningBeforeBootstrap = run({
     hookEventName: 'PreToolUse',
     tool_name: 'apply_patch',
@@ -1472,7 +1472,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     prompt: '继续'
   })
   assert.ok(!/multi-project-workspace/.test(dedupedWorkspaceAmbiguity.systemMessage || ''))
-  assert.match(dedupedWorkspaceAmbiguity.systemMessage || '', /PC0-PC7/)
+  assert.match(dedupedWorkspaceAmbiguity.systemMessage || '', /PC0-PC10/)
 
   cleanLayoutMultiProjectState()
   const prefixProjectPayload = run({

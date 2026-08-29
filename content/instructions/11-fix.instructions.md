@@ -47,7 +47,7 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
 - **backlog 来源前置真相复核**：若本轮 bug、批次或修复范围直接来源于 `data/*.md` 的 open/partial 项，CP1 前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正范围口径，再进入修复。
 - **执行期 CP3 回退**：若执行过程中实际修改范围扩展到 CP3 门槛（文件数从 <5 增至 ≥5，或新增高风险/控制面联动），必须暂停执行，补做 CP3 后再继续。
 - **execution-contract/test-router**：≥5 文件、高风险、控制面或多批次修复时执行，明确允许路径、必需产物和验证路线
-- **执行 authority 不变量**：正式修复先通过 `memory_task_admit_v2` 进入 `TaskAdmissionTransactionV1`，create-if-absent 并回读 `TaskIdentityV2`、canonical 问题概况与 CP pending；源码 mutation 前必须 finalized admission、所需 CP confirmation 与 active `FencedTaskWriteOwnerLeaseV2`。route hint、resolver、“继续”、mtime 或旧 owner 不能替代。工作区迁移只允许 portable task identity 在当前根重新准入并取得新 owner，禁止复用旧物理根的 lease / validation authority。
+- **执行 authority 不变量**：正式修复先通过 `memory_task_admit_v2` 读取不可变 ingress snapshot、进入 `TaskAdmissionTransactionV1`，create-if-absent 并回读 `TaskIdentityV2`、canonical 问题概况与 CP pending，同时在同一 MCP 调用内取得 fenced owner、finalize admission；CP pending owner 不授 mutation authority，确认后必要时以 owner renew 复证。源码 mutation 前必须 finalized admission、所需 CP confirmation 与 active `FencedTaskWriteOwnerLeaseV2`。route hint、resolver、“继续”、mtime 或旧 owner 不能替代。工作区迁移只允许 portable task identity 在当前根重新准入并取得新 owner，禁止复用旧物理根的 lease / validation authority。
 - **RepairPreventionAssessmentGate**：所有 repair task 在 accepted 前执行 active `repair-prevention-assessment` 的 `RepairPreventionAssessmentV1`；current repair closure 与 prospective prevention evidence 必须分列，repeat escape/high risk 升 full，`no-new-control` 必须有标准 reason/evidence；gray `rework-prevention-engineering` 仅在返工指标或长期效果语义下额外触发
 - **Intent Expansion 可见性**：dev 模式下，CP1 / 问题确认前默认向用户展示完整 Intent Expansion Card；这会覆盖旧的“意图扩展摘要”默认行为，但当命中控制面或宿主能力差异、跨会话 resume、prod、instruction-fallback 宿主或低风险轻任务时，仍允许退化为 3~5 行意图扩展摘要。
 - **OfficialDocsEvidence**：依赖升级、框架/SDK/API 修复、平台行为变更或外部模块替换时，CP2 前必须读取官方使用文档/官方参考资料；缺失证据不得进入执行。
@@ -240,7 +240,7 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
 - 所有 fix 在 accepted 前均须由 `RepairPreventionAssessmentGate` 判定 `existing-control-restored / new-control-provisional / no-new-control / emergency-active`；当前事件测试只证明 immediate closure，长期有效性必须来自后续可比较样本
 - 修复必须附带回归测试，禁止无测试的 hotfix（emergency 除外）
 - 修复范围不得超出问题边界（禁止顺手重构）
-- CP1 问题确认必须给出 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`），默认 `简单够用`：只修确认根因和影响范围；若 AI 判断需要升级到 `中等` / `企业级`，先列备选、开发周期、难度、维护成本和取舍并等待用户确认
+- CP1 问题确认必须给出 `WorkflowPlanDecisionV1` 的三个独立轴和强制义务；修复默认 `designDepth=minimal`，只修确认根因和影响范围。用户当前明确意图优先于 Profile 配置与智能识别；若 AI 判断任一轴需要升级，先列证据、开发周期、难度、维护成本和取舍并等待用户确认。旧 `ImplementationComplexityLevel` / `ImplementationComplexityPreference` 只读兼容并只映射到 `designDepth`
 - 修复默认采用最小实现，禁止无计划新增抽象、通用配置、预留扩展点或未确认防御分支
 - 修复涉及字段/配置/接口文档/验证产物/数据脚本/跨环境写入/启动性能时，必须沿用 dev 的 `ExistingDomainContractAudit`、`ConfigOwnershipMatrix`、`ApiDocVerificationSync`、`DataMutationPlan`、`StartupPhaseTrace` 等通用工程吸纳守门；无关时写 `N/A + skipReason`
 - 必要注释必须覆盖非显然根因、兼容约束、安全边界、状态转换或反直觉修复取舍；禁止逐行解释、重复代码含义或保留临时 TODO

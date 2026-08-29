@@ -72,14 +72,14 @@ function askingCp2Confirm (text) {
 }
 
 function hasEntryCheck (text) {
-  return /###\s*DevCodex\s*·\s*入口检查|PC0\s*[|：:]|PC0~PC7|入口检查块|DevCodexVisibleEnvelopeV(?:1|2)\s*·\s*entry-check/i.test(text || '')
+  return /###\s*DevCodex\s*·\s*入口检查|PC0\s*[|：:]|PC0~PC(?:7|10)|入口检查块|DevCodexVisibleEnvelopeV(?:1|2|3)\s*·\s*entry-check/i.test(text || '')
 }
 
 /** F-14/F-16: completion-check OR short FinalValidationSummary scaffold */
 function hasCompletionCheck (text) {
   return (
     /###\s*DevCodex\s*·\s*完成检查/i.test(text || '') ||
-    /DevCodexVisibleEnvelopeV(?:1|2)\s*·\s*completion-check/i.test(text || '') ||
+    /DevCodexVisibleEnvelopeV(?:1|2|3)\s*·\s*completion-check/i.test(text || '') ||
     /🛡️\s*DEV\s*模式\s*\|\s*合规检查/i.test(text || '') ||
     /###\s*FinalValidationSummaryV1/i.test(text || '')
   )
@@ -424,7 +424,7 @@ function evaluateStopCompletionGate (input = {}) {
   if (uniqueGaps.length) {
     honesty.stopDecision = 'block'
     const reason = `DevCodex Stop gate: incomplete closure — missing: ${uniqueGaps.join(', ')}. `
-      + 'Add 完成检查/PC0~PC7 / PR-1 as required, then finish. (platform may stop after continuation limit)'
+      + 'Add 完成检查/PC0~PC10 / PR-1 as required, then finish. (platform may stop after continuation limit)'
     return { decision: 'block', gaps: uniqueGaps, reason, honesty }
   }
 

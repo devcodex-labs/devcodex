@@ -6,7 +6,7 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "db8ff03e793f2e6c07dd06087d3d4da3f70259918383e52605c6db19a899234f",
+    "sourceDigest": "5e222445ede520ae1bad5797d69c65d4220d3993b70e07ce78279b6b4ae4f6cd",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "155a9469cfa228bc0e07de3bfecf7959b9e3667e637c2715b9435bd6adeca79d",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 653,
     "consumerInventoryDigest": "f272deaebefea7478c5c7608985a03df6f2d4bb1b7f6072288a8714a9313bc6e",
-    "consumerProjectionDigest": "b62e01b248f1efda6aa51dfa1bf614d31bea16b7cc23ee6485c52e9f5b324aa9",
-    "portfolioInputDigest": "b9054e15cd2dc3bdcbd35456dc24da1ec81ada269149bb0339f884f876f0e59b"
+    "consumerProjectionDigest": "e3cebe82f1a2448bf29f707d7a1de11c9c36f3862b2cad5edb3b0948c0aa838e",
+    "portfolioInputDigest": "0be8b5cc8ae2f628c837eac9a0ae5a230f1e8765a7effadfdc4b28b399bf3df0"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -2093,8 +2093,8 @@
         "content/skills/audit-dimensions/SKILL.md"
       ],
       "source": "content/skills/audit-dimensions/SKILL.md",
-      "hash": "007a04510069cf6d07d2d4761f7628fbef46ffd0539a1bc306638f68b4e1f302",
-      "sourceBytes": 12881,
+      "hash": "a9ba03d5d3e88ddb544128745fae66660b0b281958e94be925a9734d0971669d",
+      "sourceBytes": 12882,
       "version": "1.19.3",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",
@@ -4662,13 +4662,13 @@
     {
       "id": "compliance",
       "name": "compliance",
-      "description": "执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC7 入口检查所有模式启用；仅 dev 模式执行全量合规校验，prod 模式不执行（规范已验证）。chat 豁免合规块。",
+      "description": "执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC10 入口检查所有模式启用；仅 dev 模式执行全量合规校验，prod 模式不执行（规范已验证）。chat 豁免合规块。",
       "owner": "compliance",
       "triggers": {
         "terms": [
           "FC",
           "PC0",
-          "PC7",
+          "PC10",
           "SC",
           "chat",
           "compliance",
@@ -4699,8 +4699,8 @@
         "content/skills/compliance/SKILL.md"
       ],
       "source": "content/skills/compliance/SKILL.md",
-      "hash": "a1ef06427f891e14ce1cddc7aca8e080aaaa5cc8b8f234db18af3e36e1952ac2",
-      "sourceBytes": 24147,
+      "hash": "fc1f9f135729b1968d60a568957bd92a2ced8f91bdf30456b505cd4af9f886c8",
+      "sourceBytes": 24300,
       "version": "1.19.3",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -4966,7 +4966,7 @@
           "terms": [
             "FC",
             "PC0",
-            "PC7",
+            "PC10",
             "SC",
             "chat",
             "compliance",
@@ -5277,8 +5277,8 @@
         "content/skills/cp-gate/SKILL.md"
       ],
       "source": "content/skills/cp-gate/SKILL.md",
-      "hash": "10b31a293a464aca043f95e023302128c3c1e9427f19f3907444e20036f1ba7c",
-      "sourceBytes": 29856,
+      "hash": "85f07d3ce1617109a4991def302d26c4eb809794836d4e236201b05e1957d128",
+      "sourceBytes": 31744,
       "version": "1.19.3",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -6062,8 +6062,8 @@
         "content/skills/dev-default/SKILL.md"
       ],
       "source": "content/skills/dev-default/SKILL.md",
-      "hash": "cc2357f5fe4d21a893b90848511e0eb72ff649649323f677e9ebdf5a79d62723",
-      "sourceBytes": 15506,
+      "hash": "e63705136b34a9984f37ac35c3a02d8864679bc0a3591b637df0d6b47a8cdd62",
+      "sourceBytes": 15543,
       "version": "1.19.3",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -6856,8 +6856,8 @@
         "content/skills/dev-plan-review/SKILL.md"
       ],
       "source": "content/skills/dev-plan-review/SKILL.md",
-      "hash": "ce9fcd3522ac0f3330da4c8242054d62b17615eb61e3c343b7ce4834852f9707",
-      "sourceBytes": 22435,
+      "hash": "0e9513412e4cfc0b582d281c199b7d129d34585c3537a6ff43bd033a85fee8a8",
+      "sourceBytes": 22445,
       "version": "1.19.3",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -7970,8 +7970,8 @@
         "content/skills/document-sync/SKILL.md"
       ],
       "source": "content/skills/document-sync/SKILL.md",
-      "hash": "3bb57469a39d4b921a00a098b6c42ec0eca11c9141d6a16f8bb8d4503f4d279d",
-      "sourceBytes": 9562,
+      "hash": "a16088bcb860ce686179512aacb438b27a8ffc01d7cbe32ec4dcd7c4666afef7",
+      "sourceBytes": 9674,
       "version": "1.19.3",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",
@@ -8985,8 +8985,8 @@
         "content/skills/fix-default/SKILL.md"
       ],
       "source": "content/skills/fix-default/SKILL.md",
-      "hash": "15177e32bbf759749e7ab78aac594128d7794360ee108127c8653f0c7e915006",
-      "sourceBytes": 8604,
+      "hash": "fdc1bf59aaa6364d5d94cf47a94cd84ad8c1c8f050f1e0007ef5cce56d5deaae",
+      "sourceBytes": 8663,
       "version": "1.19.3",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -9853,8 +9853,8 @@
         "content/skills/host-contract-verification/SKILL.md"
       ],
       "source": "content/skills/host-contract-verification/SKILL.md",
-      "hash": "1450f3f316c3f5371dada049143f5be6754a501e6f977aab00e4961981e91f73",
-      "sourceBytes": 14167,
+      "hash": "d54d49e1c7c78cb19fcc315fcb115f799e6581be3ae581be97e51d336e351699",
+      "sourceBytes": 14395,
       "version": "1.19.3",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",
@@ -11637,8 +11637,8 @@
         "content/skills/memory/SKILL.md"
       ],
       "source": "content/skills/memory/SKILL.md",
-      "hash": "d9238daece22e4897e21dcb4ec4f9fc591b774efb5008e89b616115d96231e5a",
-      "sourceBytes": 30870,
+      "hash": "cd091d6defd446dc097da2514e18f8c7a98f9d4900ce03e8e90f9d382229528c",
+      "sourceBytes": 32042,
       "version": "1.19.3",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -13240,6 +13240,10 @@
           "role": "current"
         },
         {
+          "path": "mcp/memory-file-transaction.cjs",
+          "role": "current"
+        },
+        {
           "path": "mcp/memory-server.js",
           "role": "current"
         },
@@ -13533,10 +13537,6 @@
         },
         {
           "path": "scripts/lib/test-hooks-runtime-governance-intake.js",
-          "role": "current"
-        },
-        {
-          "path": "scripts/lib/test-hooks-runtime-visibility.js",
           "role": "current"
         },
         {
@@ -15406,8 +15406,8 @@
         "content/skills/release-verification/SKILL.md"
       ],
       "source": "content/skills/release-verification/SKILL.md",
-      "hash": "a801fdfc133d6784408d9b13eb36f04810be2761fa97bd8d5e1d2a51ed6923ee",
-      "sourceBytes": 19338,
+      "hash": "aa9035217b33de1648df99e29d211681ed380c407fb23dc060ec141dbcb3943e",
+      "sourceBytes": 19959,
       "version": "1.19.3",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",
@@ -17415,8 +17415,8 @@
         "content/skills/routing/SKILL.md"
       ],
       "source": "content/skills/routing/SKILL.md",
-      "hash": "73fba2121efb75439fd3326147234693be7dc7c48873de4bc3e207a50a1421f0",
-      "sourceBytes": 19167,
+      "hash": "9519f99b6cb3c033aa62121afbc984afa2091a3169ca87cc20d6b1e204231085",
+      "sourceBytes": 19192,
       "version": "1.19.3",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -20068,8 +20068,8 @@
         "content/skills/test-router/SKILL.md"
       ],
       "source": "content/skills/test-router/SKILL.md",
-      "hash": "81d57f284a344501c8a237d8cb8935a1bb586970a273936e602ba60f48f6dd3a",
-      "sourceBytes": 21818,
+      "hash": "9da7a38286e122d1ab8e0439c494bbab5ded6717ea07272d7d590712ecb46535",
+      "sourceBytes": 22981,
       "version": "1.19.3",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",
@@ -20792,8 +20792,8 @@
         "content/skills/user-visible-output-contract/SKILL.md"
       ],
       "source": "content/skills/user-visible-output-contract/SKILL.md",
-      "hash": "590fe544603f51224ea501b625c410b887c792a1d96b9566b70ef6f56a8d08cc",
-      "sourceBytes": 23682,
+      "hash": "775fc5f43c43744a842a5996e93e388a204df391c829485468dc65e4ace54eca",
+      "sourceBytes": 25249,
       "version": "1.19.3",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",

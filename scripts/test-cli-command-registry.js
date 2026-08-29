@@ -8,7 +8,7 @@ const calls = []
 const handlers = Object.fromEntries([
   'cmdGrok', 'cmdStatus',
   'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdSkill', 'cmdTask',
-  'cmdGlobalAdapters', 'cmdRuntime', 'cmdTemp', 'cmdHelp'
+  'cmdGlobalAdapters', 'cmdRuntime', 'cmdTemp', 'cmdGovernance', 'cmdHelp'
 ].map(name => [name, argv => calls.push([name, argv])]))
 handlers.cmdInitWorkspaceRuntime = (argv, opts) => calls.push(['cmdInitWorkspaceRuntime', argv, opts])
 handlers.cmdInitHost = (host, argv) => calls.push(['cmdInitHost', host, argv])
@@ -65,6 +65,8 @@ assert.strictEqual(runCliCommand({ cmd: 'runtime', argv: ['status', '--json'], r
 assert.deepStrictEqual(calls.pop(), ['cmdRuntime', ['status', '--json']])
 assert.strictEqual(runCliCommand({ cmd: 'tmp', argv: ['status', '--json'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'tmp')
 assert.deepStrictEqual(calls.pop(), ['cmdTemp', ['status', '--json']])
+assert.strictEqual(runCliCommand({ cmd: 'governance', argv: ['ledger', 'plan', '--kind', 'GR', '--json'], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'governance')
+assert.deepStrictEqual(calls.pop(), ['cmdGovernance', ['ledger', 'plan', '--kind', 'GR', '--json']])
 fakeProcess.exitCode = 0
 assert.strictEqual(runCliCommand({ cmd: undefined, argv: [], registry, runMigrateLayout: migrate, process: fakeProcess, c, console: logger }), 'help')
 assert.strictEqual(fakeProcess.exitCode, 0)

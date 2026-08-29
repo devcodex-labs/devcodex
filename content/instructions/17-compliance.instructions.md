@@ -23,12 +23,12 @@ version: 1.19.3
 >
 > **入口流程操作性定义（按宿主模式分叉）**：
 > 1. `hook-enforced`：当宿主支持并加载 DevCodex Hooks 时，由宿主事件优先完成 bootstrap（Profile / Memory / 待续任务 / 执行准备），并在进入实质任务前向用户暴露预检查状态。
-> 2. `instruction-fallback`：当宿主不支持 Hooks 或 Hooks 未启用时，AI 必须在进入实质任务前完成 Profile + 记忆读取，并输出入口检查块 PC0~PC7。
+> 2. `instruction-fallback`：当宿主不支持 Hooks 或 Hooks 未启用时，AI 必须在进入实质任务前完成 Profile + 记忆读取，并输出入口检查块 PC0~PC10。
 > 3. 两种模式都必须满足同一条结果契约：**预检查状态必须早于实质任务内容对用户可见**。
 
-> 🔴 **所有模式下无任何豁免**：无论 ENV_MODE、工作流类型（含 chat）、上下文来源（含会话摘要/checkpoint），入口检查必须执行。dev 模式输出完整 PC4 规范雷达；非 dev 模式输出 PC0~PC7 基础状态，并将 PC4 标注为 N/A（dev 扩展诊断未启用）。
+> 🔴 **所有模式下无任何豁免**：无论 ENV_MODE、工作流类型（含 chat）、上下文来源（含会话摘要/checkpoint），入口检查必须执行。dev 模式输出完整 PC4 规范雷达；非 dev 模式输出 PC0~PC10 基础状态，并将 PC4 标注为 N/A（dev 扩展诊断未启用）。
 
-> 🔴 **跨会话恢复硬约束**：当上下文来自会话摘要（summary/checkpoint）时，**不免除预检查**。摘要内容不构成 Profile 已加载的证明，也不构成记忆已读取的证明。每条新用户消息到达后，必须重新执行完整 PC0~PC7；若宿主 Hooks 已完成 bootstrap，可复用宿主结果并补齐可见状态；若处于 fallback 模式，则必须在进入任务前重新读取 Profile + 记忆，不得直接进入任务执行。
+> 🔴 **跨会话恢复硬约束**：当上下文来自会话摘要（summary/checkpoint）时，**不免除预检查**。摘要内容不构成 Profile 已加载的证明，也不构成记忆已读取的证明。每条新用户消息到达后，必须重新执行完整 PC0~PC10；若宿主 Hooks 已完成 bootstrap，可复用宿主结果并补齐可见状态；若处于 fallback 模式，则必须在进入任务前重新读取 Profile + 记忆，不得直接进入任务执行。
 
 ```markdown
 ### DevCodex · 入口检查
@@ -50,17 +50,17 @@ version: 1.19.3
 
 > ⚠️ PC0 检查失败时（ContextReadPlan 未形成或必要来源回执 missing）不得跳过 — 必须立即形成计划并取得可验证回执后才能继续；ENV_MODE 由 Profile 的 `config.json` 决定（未加载时默认 prod）。**禁止**仅用「Profile ✅ 已加载」替代 ContextReadPlan + 回执语义。
 >
-> 🔴 **项目未识别处理**（v1.9.8+ / FIX-39）：与 S07「实质内容前须 PC0~PC7」协调为：
-> 1. **先输出不完整入口块**：至少 PC0 写 `项目 [未识别]`，PC1~PC7 可写 `⏸ 待项目明确`（满足可见入口块，不宣称完整）。
+> 🔴 **项目未识别处理**（v1.9.8+ / FIX-39）：与 S07「实质内容前须 PC0~PC10」协调为：
+> 1. **先输出不完整入口块**：PC0 写可验证的版本事实；PC1~PC10 对无法判定的项目字段写 `⏸ 待项目明确`（满足可见入口块，不宣称完整）。
 > 2. **暂停工作流与扫描**：不得启动 dev/fix/analyze/audit 实质变更或无界工作区扫描。
-> 3. 用户明确项目后，再输出**完整** PC0~PC7 并继续。
+> 3. 用户明确项目后，再输出**完整** PC0~PC10 并继续。
 > 豁免词（同步 `lifecycle.cjs` `isMultiProjectWorkspace`）：`workspace` / `monorepo` / `全工作区` / `all projects` / `所有项目`。
 >
 > ⚠️ `hook-enforced` 模式下，入口检查状态可以由宿主事件驱动后显示为**首个结构化状态块**；`instruction-fallback` 模式下，入口检查块仍应尽量位于回复开头，但不再机械要求“第一批 tool call”“第一行输出”。
 >
-> ⚠️ **S07 自修正触发**（见 [`00-safety.instructions.md`](./00-safety.instructions.md) §S07）：AI 自检发现已开始生成实质内容但尚未输出入口检查块时，立即触发 S07 — 在当前位置补输出 PC0~PC7，重新评估意图与项目现实扩展后继续，**不等待用户重新发送消息，不终止当前请求**。
+> ⚠️ **S07 自修正触发**（见 [`00-safety.instructions.md`](./00-safety.instructions.md) §S07）：AI 自检发现已开始生成实质内容但尚未输出入口检查块时，立即触发 S07 — 在当前位置补输出 PC0~PC10，重新评估意图与项目现实扩展后继续，**不等待用户重新发送消息，不终止当前请求**。
 >
-> 🔴 **S07 时序（VL-004 / PI-016）**：用户**首次可见** PC0~PC7 必须先于实质正文与产物 mutation（`reports/`、`.memory/`、台账 `data/*` 写入）。**「最终回复文首补 PC」≠ 已先输出入口检查**。只读准备 tool 可在首次可见入口检查之后执行。Hook 可对产物路径 safety-only 提醒或 strict 拦截，并在 Stop 记录 `s07OrderStatus=late|missing|ok|unverified`；tool-loop 宿主不保证 UI 先于任意 tool。
+> 🔴 **S07 时序（VL-004 / PI-016）**：用户**首次可见** PC0~PC10 必须先于实质正文与产物 mutation（`reports/`、`.memory/`、台账 `data/*` 写入）。**「最终回复文首补 PC」≠ 已先输出入口检查**。只读准备 tool 可在首次可见入口检查之后执行。Hook 可对产物路径 safety-only 提醒或 strict 拦截，并在 Stop 记录 `s07OrderStatus=late|missing|ok|unverified`；tool-loop 宿主不保证 UI 先于任意 tool。
 
 ### PC4 规范雷达（dev 模式专属）
 
@@ -106,12 +106,12 @@ version: 1.19.3
 
 ## 触发时机
 
-- **所有模式**：进入实质任务前必须输出入口检查 PC0~PC7；chat 也不豁免入口检查。
+- **所有模式**：进入实质任务前必须输出入口检查 PC0~PC10；chat 也不豁免入口检查。
 
 - **dev 模式**：所有工作流节点执行完毕后、回复发送前必须执行合规检查
 - **prod 模式**：不执行合规检查（Instructions 直接指导 AI 行为，无需事后验证）
 - 检查不通过时修正后重检（FC+SC 累计修正 ≥5 次仍未全通过 → 停止循环，输出剩余失败项摘要标 ⚠️）
-- **chat 豁免** — 不执行合规检查（FC/SC/RC/T）；⚠️ PC0~PC7 入口检查对 chat 仍强制，见 §入口检查
+- **chat 豁免** — 不执行合规检查（FC/SC/RC/T）；⚠️ PC0~PC10 入口检查对 chat 仍强制，见 §入口检查
 
 ### GovernanceIntakeClosureGate（全模式，不依赖 FC/SC 开关）
 
@@ -120,10 +120,10 @@ version: 1.19.3
 ## 执行顺序
 
 ```text
-[Hook/Fallback 入口检查 PC0~PC7] → dev 模式继续 FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ 报告二次验证（V1~V6）→ 任务完成验证（T1~T13）
+[Hook/Fallback 入口检查 PC0~PC10] → dev 模式继续 FC（形式合规）→ SC（实质合规）→ RC（恢复性检查）→ 报告二次验证（V1~V6）→ 任务完成验证（T1~T13）
 ```
 
-> ⚠️ **chat 快速路径**：chat 意图在所有模式下仅执行入口检查（PC0~PC7），跳过 FC/SC/RC/T（§触发时机 §合规检查状态块 chat 豁免）。`hook-enforced` 模式下可由宿主先完成 bootstrap；`instruction-fallback` 模式下仍需在实质回答前输出入口检查状态。
+> ⚠️ **chat 快速路径**：chat 意图在所有模式下仅执行入口检查（PC0~PC10），跳过 FC/SC/RC/T（§触发时机 §合规检查状态块 chat 豁免）。`hook-enforced` 模式下可由宿主先完成 bootstrap；`instruction-fallback` 模式下仍需在实质回答前输出入口检查状态。
 
 > PC4 标记的 PF/VL 追加动作在此阶段开始前（即 FC 执行前）自动执行。
 
@@ -149,7 +149,7 @@ version: 1.19.3
 | FC2 | 报告文件已写入（chat 豁免） |
 | FC3 | CP 按序执行（dev/fix；其他 N/A） |
 | FC4 | 文件名/路径合规（`NN--` 双横杠开头；本轮无报告产物时标 N/A） |
-| FC5 | `ArtifactDeliveryManifestV1` 完整对账；`UserFacingArtifactSetV1` required hidden=0、计数守恒；持久化投影 `LinkCapabilityDecisionV1` 与用户面 `HostLinkCapabilityDecisionV2`（host/presentation/renderer/evidence/fallback）各自有效 |
+| FC5 | `ArtifactDeliveryManifestV1` 完整对账；`UserFacingArtifactSetV1` required hidden=0、计数守恒；持久化投影 `LinkCapabilityDecisionV1`、用户面 `HostLinkCapabilityDecisionV2` 与逐目标 `ArtifactDeliveryAttemptV1`（action/readback/status/fallback）各自有效 |
 | FC6 | 新增 DevCodex 规范资产 `.md` 行数检查（instructions / skills / prompts / templates / 规范源等超 500 行须按 C13 拆分；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分） |
 | FC7 | 用户决策选项与报告决策点必带推荐 + 理由：所有 AskUserQuestion / 多选项呈现 / CP 范围选择 / 方案对比 / analyze-audit 报告决策点必须有且仅有 1 个 🟢 推荐项（首位置 + 标签含"(推荐)"或表格标 ⭐），并附一句话推荐理由；**完成态「下一步/后续建议」适用 UniqueNextStepRecommendationGate**（禁止用「或/或者」并列 ≥2 条可执行路径；探针 `classifyNextStepOrForkSample`）；没有可推荐动作时必须显式写 `推荐：无后续动作` 与原因 |
 
@@ -230,7 +230,7 @@ version: 1.19.3
 
 ## 合规检查状态块输出（仅 dev 模式，chat 豁免）
 
-> ⚠️ chat 豁免的是**合规检查状态块**（FC/SC/RC/T），不豁免**入口检查块**（PC0~PC7）。chat 在所有模式下仍需在实质回答前输出入口检查结果，但回复末尾无需输出合规状态块。
+> ⚠️ chat 豁免的是**合规检查状态块**（FC/SC/RC/T），不豁免**入口检查块**（PC0~PC10）。chat 在所有模式下仍需在实质回答前输出入口检查结果，但回复末尾无需输出合规状态块。
 
 **dev 模式完成态**（UserVisibleNoisePolicyV1 · 六宿主同源）：
 

@@ -89,7 +89,7 @@ description: D1~D25 规范文件审查维度总览 — 规范库/specs 文件专
 |:-:|---------|
 | 1 | L1~L3 联动检查（见上方关键检查）|
 | 2 | `02-output-paths.instructions.md` 与各工作流 report 模板的产物路径是否一致 |
-| 3 | `17-compliance.instructions.md` 的 PC0~PC7 预检查、`15-memory.instructions.md` 的读取顺序与 `01-common.instructions.md` 的路由 / Profile 规则是否对齐 |
+| 3 | `17-compliance.instructions.md` 的 PC0~PC10 预检查、`15-memory.instructions.md` 的读取顺序与 `01-common.instructions.md` 的路由 / Profile 规则是否对齐 |
 
 **D6 示例可执行性 🟡**
 

@@ -668,6 +668,25 @@ function validateExecutionOptimizationConfig(executionOptimization, sourceName) 
   }
 }
 
+function validateWorkflowRoutingConfig(workflowRouting, sourceName) {
+  if (workflowRouting === undefined) return
+  if (!isPlainObject(workflowRouting)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.workflowRouting must be an object`)
+    return
+  }
+  for (const key of Object.keys(workflowRouting)) {
+    if (!['mode', 'showPlan'].includes(key)) {
+      err(`[profile] ${sourceName}.extensions.devcodex.workflowRouting contains unsupported key: ${key}`)
+    }
+  }
+  if (workflowRouting.mode !== undefined && !['adaptive', 'simple', 'standard'].includes(workflowRouting.mode)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.workflowRouting.mode must be one of: adaptive, simple, standard`)
+  }
+  if (workflowRouting.showPlan !== undefined && typeof workflowRouting.showPlan !== 'boolean') {
+    err(`[profile] ${sourceName}.extensions.devcodex.workflowRouting.showPlan must be a boolean`)
+  }
+}
+
 function validateTaskRecoveryConfig(taskRecovery, sourceName) {
   if (taskRecovery === undefined) return
   if (!isPlainObject(taskRecovery)) {
@@ -733,7 +752,7 @@ function validateProfileConfigExtensions(cfg, sourceName, projectInfoText, readm
     return
   }
   for (const key of Object.keys(devcodex)) {
-    if (!['autoAliases', 'concurrency', 'workflowCompletion', 'executionOptimization', 'taskRecovery', 'git'].includes(key)) {
+    if (!['autoAliases', 'concurrency', 'workflowCompletion', 'executionOptimization', 'workflowRouting', 'taskRecovery', 'git'].includes(key)) {
       err(`[profile] ${sourceName}.extensions.devcodex contains unsupported key: ${key}`)
     }
   }
@@ -741,6 +760,7 @@ function validateProfileConfigExtensions(cfg, sourceName, projectInfoText, readm
   validateConcurrencyPolicy(devcodex.concurrency, sourceName)
   validateWorkflowCompletionConfig(devcodex.workflowCompletion, sourceName)
   validateExecutionOptimizationConfig(devcodex.executionOptimization, sourceName)
+  validateWorkflowRoutingConfig(devcodex.workflowRouting, sourceName)
   validateTaskRecoveryConfig(devcodex.taskRecovery, sourceName)
   validateGitConfig(devcodex.git, sourceName)
   if (Array.isArray(devcodex.autoAliases) && devcodex.autoAliases.length > 0) {
@@ -765,6 +785,12 @@ function validateProfileConfigExtensions(cfg, sourceName, projectInfoText, readm
     const combined = `${projectInfoText}\n${readmeText}`
     if (!/extensions\.devcodex\.executionOptimization|ExecutionOptimization|执行优化/i.test(combined)) {
       warn(`[profile] ${sourceName}.extensions.devcodex.executionOptimization is configured but Profile README / 01-项目信息.md does not document it`)
+    }
+  }
+  if (devcodex.workflowRouting !== undefined) {
+    const combined = `${projectInfoText}\n${readmeText}`
+    if (!/extensions\.devcodex\.workflowRouting|WorkflowPlanDecision|流程路由/i.test(combined)) {
+      warn(`[profile] ${sourceName}.extensions.devcodex.workflowRouting is configured but Profile README / 01-项目信息.md does not document it`)
     }
   }
   if (devcodex.taskRecovery !== undefined) {
@@ -991,7 +1017,8 @@ if (isActiveDevCodexProfileTarget()) {
     gitHead: currentSourceGitHead(),
     candidateId: currentSourceCandidateId(),
     requireSourceCandidate: true,
-    workflowText: readFileIfExists(path.join(PLUGIN_ROOT, '.github', 'workflows', 'ci.yml'))
+    workflowText: readFileIfExists(path.join(PLUGIN_ROOT, '.github', 'workflows', 'ci.yml')),
+    validationManifest: JSON.parse(readFileIfExists(path.join(PLUGIN_ROOT, 'scripts', 'validation-manifest.json')) || '{}')
   })
   for (const message of truth.errors) err(`[profile] ProfileCurrentTruthGate ${message}`)
 }

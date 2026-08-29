@@ -7,6 +7,7 @@ const path = require('path')
 const RECEIPT_SCHEMA = 'MemoryFileTransactionReceiptV1'
 const SNAPSHOT_SCHEMA = 'MemoryFileSnapshotV1'
 const METADATA_RECEIPT_SCHEMA = 'MemoryFileMetadataReceiptV1'
+const CONFLICT_RECEIPT_SCHEMA = 'MemoryTransactionConflictReceiptV2'
 const CAS_ERROR_CODE = 'MEMORY_FILE_CAS_MISMATCH'
 const READBACK_ERROR_CODE = 'MEMORY_FILE_READBACK_MISMATCH'
 const CREATE_CONFLICT_ERROR_CODE = 'MEMORY_FILE_CREATE_CONFLICT'
@@ -49,6 +50,51 @@ function publicSnapshot(snapshot) {
     digest: snapshot.digest,
     identity: snapshot.identity,
     metadata: snapshot.metadata
+  }
+}
+
+function conflictSnapshot(value) {
+  if (!value || typeof value !== 'object') return null
+  return {
+    schemaVersion: SNAPSHOT_SCHEMA,
+    exists: value.exists === true,
+    byteSize: Number(value.byteSize || 0),
+    digest: String(value.digest || ''),
+    identity: value.identity || null,
+    metadata: value.metadata || null
+  }
+}
+
+function buildConflictReceipt(input = {}) {
+  const pre = publicSnapshot(input.preSnapshot)
+  const opened = conflictSnapshot(input.error?.details?.observed) || null
+  const current = publicSnapshot(input.currentSnapshot)
+  const core = {
+    schemaVersion: CONFLICT_RECEIPT_SCHEMA,
+    status: String(input.status || 'blocked'),
+    file: String(input.relativeFile || input.filePath || ''),
+    operationFingerprint: String(input.operationFingerprint || ''),
+    attempt: Number(input.attempt || 1),
+    maxReconcileAttempts: 1,
+    preIdentity: pre,
+    openIdentity: opened,
+    currentIdentity: current,
+    writerFingerprint: {
+      status: 'UNVERIFIED',
+      reason: 'filesystem-cas-does-not-expose-external-writer-identity',
+      observedStateDigest: sha256(Buffer.from(JSON.stringify({ opened, current }), 'utf8'))
+    }
+  }
+  const handleCore = {
+    schemaVersion: 'MemoryTransactionReconcileHandleV1',
+    file: core.file,
+    operationFingerprint: core.operationFingerprint,
+    currentDigest: current.digest,
+    attempt: core.attempt
+  }
+  return {
+    ...core,
+    reconcileHandle: { ...handleCore, handleDigest: sha256(Buffer.from(JSON.stringify(handleCore), 'utf8')) }
   }
 }
 
@@ -589,6 +635,105 @@ function createMemoryFileTransaction(options = {}) {
     }
   }
 
+  function commitPureOperation(input = {}) {
+    const filePath = path.resolve(String(input.filePath || ''))
+    const operation = typeof input.operation === 'function' ? input.operation : null
+    if (!operation) {
+      throw new MemoryFileTransactionError(
+        'MEMORY_TRANSACTION_PLAN_INVALID',
+        'A pure Memory transaction operation is required.'
+      )
+    }
+    const operationFingerprint = String(input.operationFingerprint || '')
+    const planFrom = snapshot => {
+      const planned = operation(snapshot.content)
+      const content = typeof planned === 'string' ? planned : planned?.content
+      const appendText = typeof planned === 'object' && typeof planned?.appendText === 'string'
+        ? planned.appendText
+        : null
+      const reconcileIdentity = typeof planned === 'object'
+        ? String(planned?.reconcileIdentity || '')
+        : ''
+      if (typeof content !== 'string') {
+        throw new MemoryFileTransactionError(
+          'MEMORY_TRANSACTION_PLAN_INVALID',
+          'Memory transaction operation must return a string or { content, appendText, reconcileIdentity }.'
+        )
+      }
+      return { content, appendText, reconcileIdentity }
+    }
+    const commitPlan = (snapshot, planned) => commit({
+      ...input,
+      operation: undefined,
+      expectedSnapshot: snapshot,
+      content: planned.content,
+      appendText: planned.appendText
+    })
+
+    const preSnapshot = readSnapshot(filePath)
+    const firstPlan = planFrom(preSnapshot)
+    try {
+      return commitPlan(preSnapshot, firstPlan)
+    } catch (error) {
+      if (error?.code !== CAS_ERROR_CODE) throw error
+      const currentSnapshot = readSnapshot(filePath)
+      const retryAllowed = input.reconcileOnce === true && operationFingerprint && firstPlan.reconcileIdentity
+      let conflictReceipt = buildConflictReceipt({
+        filePath,
+        relativeFile: input.relativeFile,
+        operationFingerprint,
+        preSnapshot,
+        currentSnapshot,
+        error,
+        status: retryAllowed ? 'retrying' : 'blocked',
+        attempt: 1
+      })
+      if (!retryAllowed) {
+        throw new MemoryFileTransactionError(CAS_ERROR_CODE, error.message, {
+          ...(error.details || {}),
+          conflictReceipt
+        })
+      }
+      const retryPlan = planFrom(currentSnapshot)
+      if (retryPlan.reconcileIdentity !== firstPlan.reconcileIdentity) {
+        conflictReceipt = { ...conflictReceipt, status: 'blocked-semantic-precondition-changed' }
+        throw new MemoryFileTransactionError(
+          'MEMORY_TRANSACTION_RECONCILE_PRECONDITION_CHANGED',
+          `Memory transaction semantic precondition changed before bounded reconcile: ${filePath}`,
+          { conflictReceipt }
+        )
+      }
+      try {
+        const receipt = commitPlan(currentSnapshot, retryPlan)
+        return {
+          ...receipt,
+          conflictReceipt: {
+            ...conflictReceipt,
+            status: 'reconciled',
+            reconciledAfterDigest: receipt.afterDigest
+          }
+        }
+      } catch (retryError) {
+        if (retryError?.code !== CAS_ERROR_CODE) throw retryError
+        const finalSnapshot = readSnapshot(filePath)
+        const finalConflict = buildConflictReceipt({
+          filePath,
+          relativeFile: input.relativeFile,
+          operationFingerprint,
+          preSnapshot: currentSnapshot,
+          currentSnapshot: finalSnapshot,
+          error: retryError,
+          status: 'blocked-reconcile-exhausted',
+          attempt: 2
+        })
+        throw new MemoryFileTransactionError(CAS_ERROR_CODE, retryError.message, {
+          ...(retryError.details || {}),
+          conflictReceipt: finalConflict
+        })
+      }
+    }
+  }
+
   function createIfAbsent(input = {}) {
     const filePath = path.resolve(String(input.filePath || ''))
     const content = String(input.content ?? '')
@@ -654,16 +799,18 @@ function createMemoryFileTransaction(options = {}) {
     }
   }
 
-  return { readSnapshot, commit, createIfAbsent }
+  return { readSnapshot, commit, commitPureOperation, createIfAbsent }
 }
 
 module.exports = {
   CAS_ERROR_CODE,
+  CONFLICT_RECEIPT_SCHEMA,
   CREATE_CONFLICT_ERROR_CODE,
   MemoryFileTransactionError,
   RECEIPT_SCHEMA,
   SNAPSHOT_SCHEMA,
   assertExpectedSnapshot,
+  buildConflictReceipt,
   createMemoryFileTransaction,
   createNodeMemoryFileAdapter,
   metadataReceipt,

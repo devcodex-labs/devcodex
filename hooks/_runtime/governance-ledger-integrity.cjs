@@ -31,7 +31,11 @@ function inspectGovernanceLedgerBuffer (buffer, options = {}) {
     ? escapeRegExp(expectedPrefix.slice(0, -1))
     : '(?:PI|PF|VL|GR|ISSUE)'
   const tablePattern = new RegExp(`^\\|\\s*(${prefixPattern}-\\d{3,})\\s*\\|\\s*\\d{4}-\\d{2}-\\d{2}(?:\\s+\\d{2}:\\d{2})?\\s*\\|`, 'i')
-  const headingPattern = new RegExp(`^#{2,}\\s+(${prefixPattern}-\\d{3,})(?:\\s|$)`, 'i')
+  const exactHeadingLevel = Number.isInteger(options.exactHeadingLevel) && options.exactHeadingLevel >= 1 && options.exactHeadingLevel <= 6
+    ? options.exactHeadingLevel
+    : null
+  const headingMarker = exactHeadingLevel ? `#{${exactHeadingLevel}}` : '#{2,}'
+  const headingPattern = new RegExp(`^${headingMarker}\\s+(${prefixPattern}-\\d{3,})(?:\\s|$)`, 'i')
   const tableIds = []
   const headingIds = []
   const lines = text.split(/\r?\n/)

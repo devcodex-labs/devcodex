@@ -32,7 +32,7 @@ function buildVisibleOutputControlChecks(ctx) {
     requireAnchors('skills/report/SKILL.md', ['ArtifactDeliveryManifestV1', 'UserFacingArtifactSetV1', 'FinalValidationSummaryV1'])
     requireAnchors('skills/compliance/SKILL.md', ['FinalValidationSummaryV1', 'DevModeCompletionCheckDetailGate'])
     requireAnchors('skills/user-visible-output-contract/SKILL.md', ['ArtifactAnchorProjectionV1', 'ArtifactAnchorProjectionGate', 'FinalValidationSummaryGate', 'classifyFinalValidationSummarySample', 'classifyDialogueNarrativeSample', 'Dialogue-Primary'])
-    requireAnchors('prompts/precheck-status.prompt.md', ['DevCodexVisibleEnvelopeV2', 'PostCompletionActionSetV1', 'PC0~PC7'])
+    requireAnchors('prompts/precheck-status.prompt.md', ['EntryCheckModelV3', 'DevCodexVisibleEnvelopeV3', 'PostCompletionActionSetV1', 'PC0~PC10'])
     requireAnchors('hooks/_runtime/visible-output-contract.cjs', ['ArtifactAnchorV1', 'projectArtifactAnchorsFromManifest', 'analyzeFinalValidationSummarySample', 'classifyFinalValidationSummarySample', 'classifyDialogueNarrativeSample', 'hasReadableNarrativeSnippet'])
     requireAnchors('hooks/_runtime/lifecycle-visible-reply.cjs', [
       'finalValidationSummaryStatus',

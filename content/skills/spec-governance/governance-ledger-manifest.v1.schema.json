@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devcodex.dev/schemas/governance-ledger-manifest.v1.schema.json",
+  "title": "GovernanceLedgerManifestV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "manifestRevision", "ledgerFamilies"],
+  "properties": {
+    "schemaVersion": { "const": "GovernanceLedgerManifestV1" },
+    "manifestRevision": { "type": "integer", "minimum": 1 },
+    "ledgerFamilies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["PI", "PF", "VL", "GR", "ISSUE"],
+      "properties": {
+        "PI": { "$ref": "#/$defs/family" },
+        "PF": { "$ref": "#/$defs/family" },
+        "VL": { "$ref": "#/$defs/family" },
+        "GR": { "$ref": "#/$defs/family" },
+        "ISSUE": { "$ref": "#/$defs/family" }
+      }
+    }
+  },
+  "$defs": {
+    "family": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "prefix", "activePath", "nextSequence", "shards", "reopenedOverlays"],
+      "properties": {
+        "kind": { "enum": ["PI", "PF", "VL", "GR", "ISSUE"] },
+        "prefix": { "enum": ["PI-", "PF-", "VL-", "GR-", "ISSUE-"] },
+        "activePath": { "type": "string", "pattern": "^data/[A-Za-z0-9._/-]+\\.md$" },
+        "nextSequence": { "type": "integer", "minimum": 1 },
+        "shards": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/shard" }
+        },
+        "reopenedOverlays": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/overlay" }
+        },
+        "rollback": { "$ref": "#/$defs/rollback" }
+      }
+    },
+    "shard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "year", "firstId", "lastId", "ids", "digest", "immutable"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^data/archive/[A-Za-z0-9._/-]+\\.md$" },
+        "year": { "type": "integer", "minimum": 2000, "maximum": 9999 },
+        "firstId": { "type": "string", "pattern": "^(PI|PF|VL|GR|ISSUE)-[0-9]{3,}$" },
+        "lastId": { "type": "string", "pattern": "^(PI|PF|VL|GR|ISSUE)-[0-9]{3,}$" },
+        "ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^(PI|PF|VL|GR|ISSUE)-[0-9]{3,}$" }
+        },
+        "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "immutable": { "const": true }
+      }
+    },
+    "overlay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "historicalShard"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^(PI|PF|VL|GR|ISSUE)-[0-9]{3,}$" },
+        "historicalShard": { "type": "string", "pattern": "^data/archive/[A-Za-z0-9._/-]+\\.md$" }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["planDigest", "sourcePath", "sourceDigest", "previousShards"],
+      "properties": {
+        "planDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "sourcePath": { "type": "string", "pattern": "^data/archive/[A-Za-z0-9._/-]+\\.md$" },
+        "sourceDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "previousShards": { "type": "array", "items": { "$ref": "#/$defs/shard" } }
+      }
+    }
+  }
+}

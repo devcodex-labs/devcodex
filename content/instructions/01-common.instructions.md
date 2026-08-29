@@ -29,7 +29,7 @@ version: 1.19.3
 >
 > 上述"最小化展开"主要约束**面向用户的默认输出场景**；项目内 `dev` 模式下的规范优化、规则提升与实现讨论不受此条新增限制。
 >
-> ⚠️ **用户可见交付契约**：涉及入口/完成检查、确认、进度、结果、阻断或文件交付时，触发 `user-visible-output-contract`（**UserVisibleReplyLayoutV1**：人话优先、六宿主同源）。所有持久化产物先进入 `ArtifactDeliveryManifestV1`，用户面只由 `UserFacingArtifactSetV1` 确定性投影；入口检查用 PC0~PC7 表格/分列人话（禁止进度缩写）；dev/fix/self-fix 完成检查须 **白话复审 + FinalValidationSummaryV1（白话在上、命令+exitCode 在下）**，含关键计数、WorkspaceSyncStatus、dirty boundary、release action boundary，声明 commit 时追加 post-commit replay。session、daily、SUMMARY、task/checkpoint 与 raw receipt/manifest/ledger 默认 internal-only。链接按已验证能力选择 clickable/portable/plain/failed。每项交付必须满足 **ArtifactPathColumnGate（PF-175）**：语义名称 + 用途 + **路径列**（默认 workspace-relative portable）+ 操作；自由文本表默认列=`语义名称|用途|路径|操作`。Rich clickable 允许语义链接与 portable 路径列并存，且不得在路径列外再重复 `绝对路径：` 行；只有用户要求、链接失败、工作区外、歧义或无法定位时路径列/fallback 才使用绝对路径。
+> ⚠️ **用户可见交付契约**：涉及入口/完成检查、确认、进度、结果、阻断或文件交付时，触发 `user-visible-output-contract`（**UserVisibleReplyLayoutV1**：人话优先、六宿主同源）。所有持久化产物先进入 `ArtifactDeliveryManifestV1`，用户面只由 `UserFacingArtifactSetV1` 确定性投影；入口检查用 PC0~PC10 表格/分列人话（禁止进度缩写）；dev/fix/self-fix 完成检查须 **白话复审 + FinalValidationSummaryV1（白话在上、命令+exitCode 在下）**，含关键计数、WorkspaceSyncStatus、dirty boundary、release action boundary，声明 commit 时追加 post-commit replay。session、daily、SUMMARY、task/checkpoint 与 raw receipt/manifest/ledger 默认 internal-only。链接按已验证能力选择 clickable/portable/plain/failed。每项交付必须满足 **ArtifactPathColumnGate（PF-175）**：语义名称 + 用途 + **路径列**（默认 workspace-relative portable）+ 操作；自由文本表默认列=`语义名称|用途|路径|操作`。Rich clickable 允许语义链接与 portable 路径列并存，且不得在路径列外再重复 `绝对路径：` 行；只有用户要求、链接失败、工作区外、歧义或无法定位时路径列/fallback 才使用绝对路径。
 >
 > ⚠️ **MCP fallback**：Copilot / Codex 等非 Claude Code 宿主调用 DevCodex MCP 出现 `invoke` undefined、工具桥接不可用或 server 未连接时，视为宿主 MCP bridge 失败；停止重试同一 MCP，降级读取 Profile / SUMMARY / tasks 文件，并在报告或记忆中记录 `mcpFallback=used`。
 
@@ -69,7 +69,7 @@ version: 1.19.3
 | C13 | 规范资产文件过大必须拆分 | AI 新建 DevCodex 规范资产 `.md`（instructions / skills / prompts / templates / 规范源等）超 500 行必须拆分为多个文件（已有文件豁免）；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分，按项目自身规范、可读性和用户要求判断 |
 | C14 | 多任务进度检查点 | 会话包含 ≥2 个独立任务时，每完成一个子任务必须：① 在记忆文件追加该任务进度状态 ② 在对话中输出进度快照（格式严格遵循 `prompts/reply-summary.prompt.md` §6） |
 | C15 | 架构质量视角 | dev/fix 的需求/问题定义、代码设计或架构决策须以**架构师与平台工程师**双重视角评估：消费者范围、共享契约边界、模块职责、可扩展性、可维护性、易上手性。模块化只在真实复用者、演进边界或跨模块共享契约存在时成立；任意维度未达标须说明原因并记录改善方向 |
-| C16 | 规模判断与批量分批 + 扫描卫生 + TTFV | 分析、审查、扫描或批量操作前必须先识别唯一项目/root，并调用 `skill-gap-analysis` 的 `ProjectArtifactScaleRoutingGate` 做 bounded inventory；根据文件数、可解析字节、最大文件、目录集中度、派生产物比例和消费者扩散面决定 `single-pass / batched / sampled+deep-read / blocked`。≥10 文件 mutation 或非 small corpus 必须分批并写 checkpoint；**禁止先无界扫描超时后再补分批**。**WorkspaceRootScanHygiene（防复发·PI-20260724-01）**：项目名/路径已可知时不得把 monorepo/workspace 根递归 inventory 作为默认方案；inventory 必须显式排除 `node_modules`/`dist`/构建缓存并优先项目直达。Hook 只提示范围/成本，执行权限由宿主决定。**TimeToFirstValueGate**：非 chat 在 PC0~PC7 与最小 ContextReadPlan 之后，同一用户可见回复周期内必须交付范围卡 / 首批 finding·结论 / 明确阻断之一，禁止整轮只做全量 Skill 预读或全库扫描 |
+| C16 | 规模判断与批量分批 + 扫描卫生 + TTFV | 分析、审查、扫描或批量操作前必须先识别唯一项目/root，并调用 `skill-gap-analysis` 的 `ProjectArtifactScaleRoutingGate` 做 bounded inventory；根据文件数、可解析字节、最大文件、目录集中度、派生产物比例和消费者扩散面决定 `single-pass / batched / sampled+deep-read / blocked`。≥10 文件 mutation 或非 small corpus 必须分批并写 checkpoint；**禁止先无界扫描超时后再补分批**。**WorkspaceRootScanHygiene（防复发·PI-20260724-01）**：项目名/路径已可知时不得把 monorepo/workspace 根递归 inventory 作为默认方案；inventory 必须显式排除 `node_modules`/`dist`/构建缓存并优先项目直达。Hook 只提示范围/成本，执行权限由宿主决定。**TimeToFirstValueGate**：非 chat 在 PC0~PC10 与最小 ContextReadPlan 之后，同一用户可见回复周期内必须交付范围卡 / 首批 finding·结论 / 明确阻断之一，禁止整轮只做全量 Skill 预读或全库扫描 |
 | C17 | 过程改进记录 | 每条非空用户消息先登记中性治理候选，完成合理性评估和上下文归因后再按语义形成 `GovernanceIntakeDecision`；关键词不得作为权威触发/分类依据。用户建议的执行策略经 AI 确认更优，或揭示规范未定义/不完整且可泛化时，必须立即走 Improvement Intake：写入 `data/process-improvements.md`（优化清单，PI）；若同时暴露规范缺口，再联动 `data/pending-fixes.md`（PF）。复合意图逐项 all-of 验证；不得询问是否记录；所有模式命中后都必须回执 `已记录 PI-xxx / PF-xxx`。PI/PF 记录不能替代当前需求修订：未闭环需求实施前或实施中复现的相关缺陷必须执行 `InFlightIssueRequirementBindingGate`，先绑定当前需求并提醒纳入决定；阻断项优先修复 |
 | C19 | 确认后前置复审 | 每次用户明确确认后、进入下一阶段前，必须执行 `PostConfirmationReviewScopeGate` 并输出 **ReviewGradeCard**：映射 **轻量=R1**（须 `skipReason`）、**标准=R2**（默认）、**全面=R3**（高风险+冻结清单）、**发布安全=R4**；命中控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链必须追加交叉验证；阻断项先修正并重确认，无阻断时必须显式输出结果。ECR 默认 R2，禁止「永远轻量」口径 |
 | C20 | 官方文档证据前置 | 新增/升级依赖、框架、SDK、平台 API 或外部模块前必须形成 `OfficialDocsEvidence`；缺失证据不得进入编码 |
@@ -244,10 +244,10 @@ version: 1.19.3
 |--------|:------------:|:-----:|
 | CP 门控 | 🔴 强制等待用户确认 | 🔴 强制等待用户确认 |
 | 合规检查 | 不执行（规范已验证） | 全量 FC1~FC7 + SC1~SC16 + RC1~RC4 + T1~T13 |
-| 入口检查输出 | 输出 PC0~PC7 基础状态；PC4 标注 N/A（dev 扩展诊断未启用）| 输出 PC0~PC7；PC4 执行完整三轴诊断：Axis A 认知锚点 / Axis B 对话轨迹 / Axis C 用户满足度；PC5~PC7 见 `17-compliance.instructions.md` |
+| 入口检查输出 | 输出 PC0~PC10 基础状态；PC4 标注 N/A（dev 扩展诊断未启用）| 输出 PC0~PC10；PC4 执行完整三轴诊断：Axis A 认知锚点 / Axis B 对话轨迹 / Axis C 用户满足度；PC5~PC10 见 `17-compliance.instructions.md` |
 | 合规状态块 | 不输出 | 输出全量状态块（chat 豁免此块；但 chat 仍须输出入口检查块）|
 | 安全底线 S01~S06 | 🔴 强制（不受 ENV_MODE 影响）| 🔴 强制（不受 ENV_MODE 影响）|
-| S07（入口检查强制）| 🔴 致命自修正（`instruction-fallback` 模式自检触发，自动补输出 PC0~PC7 基础状态）| 🔴 致命自修正（`instruction-fallback` 模式自检触发，自动补输出 PC0~PC7 + dev 扩展诊断）|
+| S07（入口检查强制）| 🔴 致命自修正（`instruction-fallback` 模式自检触发，自动补输出 PC0~PC10 基础状态）| 🔴 致命自修正（`instruction-fallback` 模式自检触发，自动补输出 PC0~PC10 + dev 扩展诊断）|
 
 > **CP 跳过路径**：显式 `@devcodex-auto`、全局默认 `@rocky`、Profile `extensions.devcodex.autoAliases` 替换别名、明确自然语言 auto 授权，或会话 **Sticky Auto** 仍有效；这是 Agent 级行为，与 ENV_MODE 无关。
 

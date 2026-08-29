@@ -1003,7 +1003,7 @@ function buildCliMaintenanceCommands(ctx) {
       }
       console.log(c.dim('  Re-verify: devcodex doctor --json  →  payload.hostParity.repairSteps / failedChecks'))
       console.log(c.dim('  Cannot claim: ' + (hostParity.cannotClaim || []).slice(0, 2).join('; ')))
-      console.log(c.dim('  GrokTurnChecklist: PC0~PC7 → Skill bundle → work → report+memory (see host-parity-grok.md)'))
+      console.log(c.dim('  GrokTurnChecklist: PC0~PC10 → Skill bundle → work → report+memory (see host-parity-grok.md)'))
       console.log()
     } else if (hostParity && hostParity.hardReady) {
       console.log(c.dim('  Grok HostParity: host-owned PreTool operations + path-observable ready. Still cannot claim UserPromptSubmit inject or Stop hard-block.'))
@@ -1053,6 +1053,7 @@ function buildCliMaintenanceCommands(ctx) {
       doctor: ['devcodex doctor [--completion] [--json]', 'Diagnose adapter, native host and workflow readiness.'],
       profile: ['devcodex profile plan|init [--tier <tier>] [--dry-run] [--force] [--prod]', 'Preview or create an advanced project Profile. Ordinary workspaces only need `devcodex init`.'],
       runtime: ['devcodex runtime status|doctor|maintenance [--dry-run] [--generation-budget <1..128>] [--resume-cursor <opaque>] [--json] | maintenance --apply [--generation-plan <sha256>]', 'Inspect TaskRecovery V5/legacy usage or run a bounded, resumable runtime-generation preview; dry-run deletes nothing and legacy remains read-only.'],
+      governance: ['devcodex governance ledger init|plan|apply|rollback|index [options]', 'Initialize the canonical ledger manifest, preview/apply the bounded GR pilot with an exact plan digest, roll it back, or rebuild the derived index.'],
       tmp: ['devcodex tmp status|maintain [--apply --project=<id> --partition=<name>] [--json]', 'Inspect scoped workspace temp inventory or build a bounded maintenance plan; prune remains a compatibility alias.'],
       uninstall: ['devcodex uninstall [--dry-run|--apply] [--json] [--home <dir>]', 'Preview or explicitly remove receipt-owned user-global host artifacts. After --apply succeeds, run `npm uninstall -g devcodex`.'],
       'global-adapters': ['devcodex global-adapters apply [--dry-run] [--json] | devcodex global-adapters remove [--dry-run|--apply] [--json]', 'Advanced: refresh or safely remove user-global host adapters from the current package root.'],
@@ -1095,6 +1096,7 @@ function buildCliMaintenanceCommands(ctx) {
       ${c.cyan('runtime prune')}     Preview safe stale-temp cleanup; add --apply to remove
       ${c.cyan('tmp status')}        Inspect project/partition temp inventory, completeness and pagination
       ${c.cyan('tmp maintain')}      Build a quota-bound plan; apply requires one explicit complete scope
+      ${c.cyan('governance ledger')} Initialize/inspect ledger storage; migration apply requires an exact dry-run plan digest
       ${c.cyan('uninstall')}         Preview managed six-host cleanup; add --apply before npm uninstall
       ${c.cyan('profile init|plan')} Generate tiered Profile drafts or preview actions without writing
       ${c.cyan('help <command>')}    Show read-only help for one command

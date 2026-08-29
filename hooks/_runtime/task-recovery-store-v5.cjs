@@ -41,6 +41,9 @@ const TASK_RECOVERY_KEY_SCHEMA = 'TaskRecoveryKeyV1'
 const TASK_RECOVERY_USAGE_SCHEMA = 'TaskRecoveryUsageLedgerV1'
 const TASK_ADMISSION_TRANSACTION_SCHEMA = 'TaskAdmissionTransactionV1'
 const TASK_ADMISSION_RECONCILIATION_SCHEMA = 'TaskAdmissionReconciliationReceiptV1'
+const ADMISSION_INGRESS_SNAPSHOT_SCHEMA = 'AdmissionIngressSnapshotV1'
+const ADMISSION_INGRESS_SNAPSHOT_REF_SCHEMA = 'AdmissionIngressSnapshotRefV1'
+const ADMISSION_CONTINUATION_LEASE_SCHEMA = 'AdmissionContinuationLeaseV1'
 const FENCED_TASK_WRITE_OWNER_SCHEMA = 'FencedTaskWriteOwnerLeaseV2'
 const WORKFLOW_TASK_TERMINAL_RECEIPT_SCHEMA = 'WorkflowTaskTerminalReceiptV1'
 const TASKLESS_WORKFLOW_INGRESS_RECOVERY_SCHEMA = 'TasklessWorkflowIngressRecoveryV1'
@@ -68,6 +71,7 @@ const DEFAULT_HARD_BYTES = 512 * 1024 * 1024
 const DEFAULT_RESERVE_BYTES = 8 * 1024 * 1024
 const DEFAULT_DISK_HEADROOM_BYTES = 8 * 1024 * 1024
 const DEFAULT_EPHEMERAL_BYTES = 1024 * 1024
+const ADMISSION_INGRESS_SNAPSHOT_MAX_BYTES = 512 * 1024
 const EPHEMERAL_ENTRY_MAX_BYTES = 8 * 1024
 const EPHEMERAL_STUB_TARGET_BYTES = EPHEMERAL_ENTRY_MAX_BYTES - 1024
 const DEFAULT_COLD_AFTER_MS = 7 * 24 * 60 * 60 * 1000
@@ -649,6 +653,266 @@ function validateTasklessWorkflowIngressRecovery(state, options = {}) {
     }
   }
   return { valid: true, status: 'exact', authority: true }
+}
+
+function admissionIngressRefCore(state = {}) {
+  const envelope = state.actualInstructionEnvelope || {}
+  const decision = state.workflowRouteDecision || {}
+  if (!/^aie-[a-f0-9]{40}$/.test(String(envelope.envelopeId || '')) ||
+      !/^[a-f0-9]{64}$/.test(String(envelope.envelopeDigest || '')) ||
+      !/^[a-f0-9]{64}$/.test(String(decision.decisionDigest || '')) ||
+      !/^[a-f0-9]{64}$/.test(String(decision.routeRevision || ''))) return null
+  return {
+    schemaVersion: 'WorkflowIngressProjectionRefV1',
+    envelopeId: envelope.envelopeId,
+    envelopeDigest: envelope.envelopeDigest,
+    decisionDigest: decision.decisionDigest,
+    routeRevision: decision.routeRevision
+  }
+}
+
+function admissionIngressSnapshotKey(ingressRef = {}) {
+  return digestValue({
+    schemaVersion: ADMISSION_INGRESS_SNAPSHOT_REF_SCHEMA,
+    envelopeId: ingressRef.envelopeId,
+    envelopeDigest: ingressRef.envelopeDigest,
+    decisionDigest: ingressRef.decisionDigest,
+    routeRevision: ingressRef.routeRevision
+  })
+}
+
+function validateAdmissionIngressState(state = {}, options = {}) {
+  const errors = []
+  const envelope = state.actualInstructionEnvelope || {}
+  const workItemSet = state.workItemSet || {}
+  const decision = state.workflowRouteDecision || {}
+  const sticky = state.stickyProject || {}
+  const ingressRef = admissionIngressRefCore(state)
+  const envelopeValidation = validateActualInstructionEnvelope(envelope)
+  const workItemValidation = validateWorkItemSet(workItemSet, envelope)
+  const routeValidation = verifyWorkflowRouteDecision(decision, {
+    envelopeDigest: envelope.envelopeDigest,
+    workItemDigest: decision.workItemDigest,
+    routeRevision: decision.routeRevision,
+    actualInstructionEnvelope: envelope,
+    workItemSet
+  })
+  if (!ingressRef) errors.push('ingress-ref')
+  if (!envelopeValidation.valid || envelope.instructionAuthority !== true) errors.push(...envelopeValidation.errors, 'instruction-authority')
+  if (!workItemValidation.valid) errors.push(...workItemValidation.errors)
+  if (!routeValidation.fresh || decision.decisionStatus !== 'selected') errors.push(...routeValidation.errors, 'route-decision')
+  if (workItemSet.envelopeId !== envelope.envelopeId || workItemSet.envelopeDigest !== envelope.envelopeDigest ||
+      decision.envelopeId !== envelope.envelopeId || decision.envelopeDigest !== envelope.envelopeDigest) errors.push('ingress-binding')
+  if (sticky.schemaVersion !== 'ProjectTargetLeaseV2' || sticky.project !== state.activeProject ||
+      sticky.contextEpoch !== envelope.contextEpoch || sticky.routeRevision !== decision.routeRevision ||
+      !/^[a-f0-9]{64}$/.test(String(sticky.leaseDigest || '')) ||
+      !/^[a-f0-9]{64}$/.test(String(sticky.rootIdentityDigest || ''))) errors.push('project-lease-binding')
+  const nowMs = nowMsFrom(options)
+  if (!Number.isFinite(Date.parse(String(envelope.expiresAt || ''))) || Date.parse(envelope.expiresAt) <= nowMs) errors.push('envelope-expired')
+  if (state.workflowIngressRecovery) {
+    const recoveryValidation = validateTasklessWorkflowIngressRecovery(state, options)
+    if (!recoveryValidation.valid || recoveryValidation.authority !== true) {
+      errors.push(recoveryValidation.errorCode || 'workflow-ingress-recovery')
+    }
+  }
+  return { valid: errors.length === 0, errors, ingressRef }
+}
+
+function admissionIngressSnapshotPaths(metaDir, snapshotKey) {
+  const root = path.join(path.resolve(metaDir), 'admission-ingress')
+  return {
+    root,
+    snapshot: path.join(root, `${snapshotKey}.json`),
+    latest: path.join(root, 'latest.json')
+  }
+}
+
+function writeAdmissionIngressSnapshot(input = {}, options = {}) {
+  const fsImpl = options.fs || fs
+  const state = input.state || input
+  const validation = validateAdmissionIngressState(state, options)
+  if (!validation.valid) {
+    const hasCompleteIngress = Boolean(
+      state.actualInstructionEnvelope && state.workItemSet && state.workflowRouteDecision && state.stickyProject?.project
+    )
+    const expired = validation.errors.some(error => error === 'envelope-expired' || /_EXPIRED$/u.test(String(error)))
+    if (expired) return { status: 'skipped', reasonCode: 'admission-ingress-expired' }
+    return hasCompleteIngress
+      ? { status: 'error', errorCode: 'ADMISSION_INGRESS_SNAPSHOT_INPUT_INVALID', errors: validation.errors }
+      : { status: 'skipped', reasonCode: 'admission-ingress-unavailable' }
+  }
+  const ingressRef = validation.ingressRef
+  const snapshotKey = admissionIngressSnapshotKey(ingressRef)
+  const core = {
+    schemaVersion: ADMISSION_INGRESS_SNAPSHOT_SCHEMA,
+    snapshotKey,
+    ingressRef,
+    project: state.activeProject,
+    activeRoot: state.stickyProject.activeRoot,
+    projectRootIdentityDigest: state.stickyProject.rootIdentityDigest,
+    actualInstructionEnvelope: cloneRecoveryValue(state.actualInstructionEnvelope),
+    workItemSet: cloneRecoveryValue(state.workItemSet),
+    workflowRouteDecision: cloneRecoveryValue(state.workflowRouteDecision),
+    projectTargetLease: cloneRecoveryValue(state.stickyProject),
+    issuedAt: state.actualInstructionEnvelope.issuedAt,
+    expiresAt: state.actualInstructionEnvelope.expiresAt
+  }
+  let snapshot = { ...core, snapshotDigest: digestValue(core) }
+  let serializedBytes = jsonBytes(snapshot)
+  if (serializedBytes > ADMISSION_INGRESS_SNAPSHOT_MAX_BYTES) {
+    return {
+      status: 'error',
+      errorCode: 'ADMISSION_INGRESS_SNAPSHOT_TOO_LARGE',
+      bytes: serializedBytes,
+      maxBytes: ADMISSION_INGRESS_SNAPSHOT_MAX_BYTES
+    }
+  }
+  const paths = admissionIngressSnapshotPaths(input.metaDir, snapshotKey)
+  fsImpl.mkdirSync(paths.root, { recursive: true })
+  const existing = readJson(paths.snapshot, fsImpl, ADMISSION_INGRESS_SNAPSHOT_MAX_BYTES)
+  let status = 'persisted'
+  if (existing.status === 'fresh') {
+    const existingSnapshot = existing.value || {}
+    const { snapshotDigest: existingDigest, ...existingCore } = existingSnapshot
+    const sameImmutableBinding = existingSnapshot.schemaVersion === ADMISSION_INGRESS_SNAPSHOT_SCHEMA &&
+      existingDigest === digestValue(existingCore) &&
+      existingSnapshot.snapshotKey === snapshotKey &&
+      existingSnapshot.project === snapshot.project &&
+      recoveryComparablePath(existingSnapshot.activeRoot) === recoveryComparablePath(snapshot.activeRoot) &&
+      existingSnapshot.projectRootIdentityDigest === snapshot.projectRootIdentityDigest &&
+      existingSnapshot.actualInstructionEnvelope?.envelopeDigest === snapshot.actualInstructionEnvelope.envelopeDigest &&
+      existingSnapshot.workItemSet?.setDigest === snapshot.workItemSet.setDigest &&
+      existingSnapshot.workflowRouteDecision?.decisionDigest === snapshot.workflowRouteDecision.decisionDigest
+    if (!sameImmutableBinding) {
+      return { status: 'error', errorCode: 'ADMISSION_INGRESS_SNAPSHOT_CONFLICT', snapshotKey }
+    }
+    snapshot = existingSnapshot
+    serializedBytes = jsonBytes(snapshot)
+    status = 'semantic-noop'
+  } else if (existing.status !== 'missing') {
+    return { status: 'error', errorCode: 'ADMISSION_INGRESS_SNAPSHOT_EXISTING_INVALID', snapshotKey }
+  } else {
+    try {
+      writeFixedJsonSlot(paths.snapshot, `${paths.snapshot}.${process.pid}.tmp`, snapshot, fsImpl)
+    } catch (error) {
+      return { status: 'error', errorCode: error.code || 'ADMISSION_INGRESS_SNAPSHOT_WRITE_FAILED', message: error.message }
+    }
+  }
+  const ref = {
+    ...ingressRef,
+    schemaVersion: ADMISSION_INGRESS_SNAPSHOT_REF_SCHEMA,
+    snapshotKey,
+    snapshotDigest: snapshot.snapshotDigest
+  }
+  const latest = { ...ref, project: snapshot.project, activeRoot: snapshot.activeRoot, expiresAt: snapshot.expiresAt }
+  const latestWrite = writeStableProjection(paths.latest, latest, { fs: fsImpl })
+  if (latestWrite.status !== 'persisted') {
+    return { status: 'error', errorCode: latestWrite.errorCode || 'ADMISSION_INGRESS_LATEST_WRITE_FAILED', message: latestWrite.message }
+  }
+  return { status, ref, snapshotDigest: snapshot.snapshotDigest, bytes: serializedBytes }
+}
+
+function readAdmissionIngressSnapshot(input = {}, options = {}) {
+  const fsImpl = options.fs || fs
+  const ingressRef = input.ingressRef || {}
+  const snapshotKey = admissionIngressSnapshotKey(ingressRef)
+  const paths = admissionIngressSnapshotPaths(input.metaDir, snapshotKey)
+  const read = readJson(paths.snapshot, fsImpl, ADMISSION_INGRESS_SNAPSHOT_MAX_BYTES)
+  if (read.status !== 'fresh') {
+    return { status: read.status, errorCode: read.status === 'missing' ? 'ADMISSION_INGRESS_SNAPSHOT_MISSING' : 'ADMISSION_INGRESS_SNAPSHOT_INVALID' }
+  }
+  const snapshot = read.value || {}
+  const { snapshotDigest, ...core } = snapshot
+  const refMatches = snapshot.snapshotKey === snapshotKey &&
+    snapshot.ingressRef?.envelopeId === ingressRef.envelopeId &&
+    snapshot.ingressRef?.envelopeDigest === ingressRef.envelopeDigest &&
+    snapshot.ingressRef?.decisionDigest === ingressRef.decisionDigest &&
+    snapshot.ingressRef?.routeRevision === ingressRef.routeRevision
+  if (snapshot.schemaVersion !== ADMISSION_INGRESS_SNAPSHOT_SCHEMA || !refMatches ||
+      !/^[a-f0-9]{64}$/.test(String(snapshotDigest || '')) || snapshotDigest !== digestValue(core)) {
+    return { status: 'invalid', errorCode: 'ADMISSION_INGRESS_SNAPSHOT_DIGEST_MISMATCH' }
+  }
+  if (input.project && snapshot.project !== input.project) {
+    return { status: 'identity-mismatch', errorCode: 'ADMISSION_INGRESS_SNAPSHOT_PROJECT_MISMATCH' }
+  }
+  if (input.activeRoot && recoveryComparablePath(snapshot.activeRoot) !== recoveryComparablePath(input.activeRoot)) {
+    return { status: 'identity-mismatch', errorCode: 'ADMISSION_INGRESS_SNAPSHOT_ROOT_MISMATCH' }
+  }
+  const state = {
+    activeProject: snapshot.project,
+    activeScope: 'project',
+    actualInstructionEnvelope: snapshot.actualInstructionEnvelope,
+    workItemSet: snapshot.workItemSet,
+    workflowRouteDecision: snapshot.workflowRouteDecision,
+    workflowRoutePlanBinding: null,
+    workflowIngressRecovery: null,
+    stickyProject: snapshot.projectTargetLease
+  }
+  const validation = validateAdmissionIngressState(state, options)
+  if (!validation.valid) {
+    return {
+      status: validation.errors.includes('envelope-expired') ? 'expired' : 'invalid',
+      errorCode: validation.errors.includes('envelope-expired')
+        ? 'ADMISSION_INGRESS_SNAPSHOT_EXPIRED'
+        : 'ADMISSION_INGRESS_SNAPSHOT_AUTHORITY_INVALID',
+      errors: validation.errors
+    }
+  }
+  return {
+    status: 'fresh',
+    snapshot,
+    ref: {
+      ...snapshot.ingressRef,
+      schemaVersion: ADMISSION_INGRESS_SNAPSHOT_REF_SCHEMA,
+      snapshotKey,
+      snapshotDigest
+    },
+    state
+  }
+}
+
+function admissionContinuationLeaseDigest(lease = {}) {
+  const value = cloneRecoveryValue(lease || {})
+  delete value.leaseDigest
+  return digestValue(value)
+}
+
+function validateAdmissionContinuationLease(lease, transaction = null) {
+  const errors = []
+  if (!lease || typeof lease !== 'object' || Array.isArray(lease)) return { valid: false, errors: ['lease-object-required'] }
+  if (lease.schemaVersion !== ADMISSION_CONTINUATION_LEASE_SCHEMA) errors.push('schema-version')
+  if (!['active', 'consumed'].includes(lease.status)) errors.push('status')
+  if (!/^admission-continuation-[a-f0-9]{40}$/.test(String(lease.leaseId || ''))) errors.push('lease-id')
+  for (const field of ['projectRootIdentityDigest', 'sessionDigest', 'actualInstructionDigest', 'workItemDigest', 'routeRevision', 'snapshotKey', 'snapshotDigest']) {
+    if (!/^[a-f0-9]{64}$/.test(String(lease[field] || ''))) errors.push(field)
+  }
+  if (!/^admission-[a-f0-9]{40}$/.test(String(lease.admissionId || ''))) errors.push('admission-id')
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(lease.taskId || ''))) errors.push('task-id')
+  if (!String(lease.project || '').trim() || !String(lease.contextEpoch || '').trim()) errors.push('project-context')
+  const issuedAtMs = Date.parse(String(lease.issuedAt || ''))
+  const expiresAtMs = Date.parse(String(lease.expiresAt || ''))
+  if (!Number.isFinite(issuedAtMs) || !Number.isFinite(expiresAtMs) || expiresAtMs <= issuedAtMs) errors.push('timestamps')
+  if (lease.status === 'active' && (lease.consumedAt !== null || lease.ownerLeaseDigest !== null)) errors.push('active-consumption')
+  if (lease.status === 'consumed' &&
+      (!Number.isFinite(Date.parse(String(lease.consumedAt || ''))) || !/^[a-f0-9]{64}$/.test(String(lease.ownerLeaseDigest || '')))) {
+    errors.push('consumed-binding')
+  }
+  if (!/^[a-f0-9]{64}$/.test(String(lease.leaseDigest || '')) || lease.leaseDigest !== admissionContinuationLeaseDigest(lease)) errors.push('lease-digest')
+  if (transaction) {
+    const bindings = [
+      [lease.admissionId, transaction.admissionId],
+      [lease.taskId, transaction.taskId],
+      [lease.project, transaction.project],
+      [lease.projectRootIdentityDigest, transaction.projectRootIdentityDigest],
+      [lease.sessionDigest, transaction.sessionDigest],
+      [lease.actualInstructionDigest, transaction.actualInstructionDigest],
+      [lease.workItemDigest, transaction.workItemDigest],
+      [lease.routeRevision, transaction.routeRevision]
+    ]
+    if (bindings.some(([expected, observed]) => expected !== observed)) errors.push('transaction-binding')
+    if (['owner-fenced', 'finalized', 'terminal-closeout'].includes(transaction.phase) && lease.status !== 'consumed') errors.push('phase-consumption')
+  }
+  return { valid: errors.length === 0, errors }
 }
 
 function recoveryComparablePath(value) {
@@ -4382,6 +4646,12 @@ function validateTaskAdmissionTransaction(transaction, expectedIdentity = null) 
       errors.push(...reconciliationValidation.errors, 'admission-reconciliation-phase-binding')
     }
   }
+  if (transaction.continuationLease !== undefined && transaction.continuationLease !== null) {
+    const continuationValidation = validateAdmissionContinuationLease(transaction.continuationLease, transaction)
+    if (!continuationValidation.valid) {
+      errors.push(...continuationValidation.errors.map(error => `continuation-${error}`))
+    }
+  }
   const expectedStatus = transaction.phase === 'finalized'
     ? 'finalized'
     : (transaction.phase === 'terminal-closeout'
@@ -4882,6 +5152,9 @@ function reconcileEmergencyTaskCloseout(input = {}, options = {}) {
 }
 
 module.exports = {
+  ADMISSION_CONTINUATION_LEASE_SCHEMA,
+  ADMISSION_INGRESS_SNAPSHOT_REF_SCHEMA,
+  ADMISSION_INGRESS_SNAPSHOT_SCHEMA,
   TELEMETRY_RECORD_MAX_BYTES,
   TELEMETRY_SEGMENT_MAX_BYTES,
   TELEMETRY_TOTAL_MAX_BYTES,
@@ -4909,6 +5182,7 @@ module.exports = {
   TASKLESS_WORKFLOW_INGRESS_RECOVERY_SCHEMA,
   WORKFLOW_TASK_TERMINAL_RECEIPT_SCHEMA,
   TaskRecoveryStoreV5Error,
+  admissionContinuationLeaseDigest,
   appendTaskRecoveryTelemetry,
   commitFencedTaskWriteOwnerTransition,
   commitTaskAdmissionReconciliation,
@@ -4923,6 +5197,7 @@ module.exports = {
   maintainTaskRecoveryStore,
   normalizeIdentity,
   readEmergencyCloseouts,
+  readAdmissionIngressSnapshot,
   readFencedTaskWriteOwner,
   readTaskAdmissionTransaction,
   readTaskRecoveryState,
@@ -4936,11 +5211,13 @@ module.exports = {
   taskAdmissionReconciliationReceiptDigest,
   updateTaskRecoveryState,
   validateFencedTaskWriteOwner,
+  validateAdmissionContinuationLease,
   validateTasklessWorkflowIngressRecovery,
   validateTaskAdmissionTransaction,
   validateTaskAdmissionReconciliationReceipt,
   validateWorkflowTaskTerminalReceipt,
   workflowTaskTerminalReceiptDigest,
+  writeAdmissionIngressSnapshot,
   writeEmergencyCloseout,
   writeStableProjection
 }

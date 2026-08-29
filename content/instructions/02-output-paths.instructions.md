@@ -18,7 +18,7 @@ version: 1.19.3
 
 ## 语言规则
 
-> 人类可读正文和标题跟随当前 `LanguageContextV1` 决策；默认 canonical 目录名、文件名、编号槽位和稳定 ID 使用 English（例如 `requirements/add-login-feature/01-requirements.md`）。历史中文路径继续可读。只有用户明确要求本地化磁盘文件名时，才可创建受控 alias；语言优先级见 [`00-safety.instructions.md`](./00-safety.instructions.md) §输出语言规则。
+> 人类可读正文和标题跟随当前 `LanguageContextV2` 的 `responseLanguage` / `artifactLanguage` 决策；yes/no、确认码、路径、版本、代码和引用文本不得切换任务主语言。默认 canonical 目录名、文件名、编号槽位和稳定 ID 使用 English（例如 `requirements/add-login-feature/01-requirements.md`）。历史中文路径继续可读。只有用户明确要求本地化磁盘文件名时，才可创建受控 alias；语言优先级见 [`00-safety.instructions.md`](./00-safety.instructions.md) §输出语言规则。
 
 ## 路径映射说明（v4 ↔ v1）
 
@@ -102,7 +102,7 @@ version: 1.19.3
 | **ArtifactDecisionMatrix** | CP1/CP2/CP3/ECR 需要按任务规模列出关键产物的 `create` / `update` / `skip` / `N/A` 状态、原因、触发条件和升级回退；判定优先级为“已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免”，覆盖入口分类、00/01（含 `01-需求确认.md`、`01-产品需求.md`、`01-需求变更确认.md`、`01-问题确认.md`）/02/04/05/06、目标文档、报告和记忆 |
 | **禁止写入源码目录** | 脚本/测试/辅助文件严禁放入项目源码目录 |
 | **ArtifactPathGate（槽位语义）** | `requirements/<任务>/02-*` **仅**技术方案语义（如 `02-技术方案.md`）；`04-*` **仅**实施计划语义。功能清单/盘点/遗漏扫/inventory 等分析报告**禁止**占用 02/04 槽位，须写入 `reports/analysis|audit|…/<agent>/YYYYMMDD/`。Hook 对非法槽位 hard deny（错误码 `ARTIFACT_PATH_INVALID`）；见 `scripts/lib/process-enforcement.js` |
-| **强制产物首轮完成** | 默认 00/01/04 在首轮会话结束前按 ArtifactDecisionMatrix 处理：需要则创建/更新，命中 SimpleTaskFastPath 或子类型豁免则记录 `N/A + skipReason`；PC0~PC7、Profile、报告、记忆、安全底线和必要验证不可省略；02-技术方案.md、实施方案/ 与 `06-关键决策.md` 按条件触发；services/ 在 CP2 后按需创建；强触发条件命中时 `05-实施进度.md` 必须在执行前初始化 |
+| **强制产物首轮完成** | 默认 00/01/04 在首轮会话结束前按 ArtifactDecisionMatrix 处理：需要则创建/更新，命中 SimpleTaskFastPath 或子类型豁免则记录 `N/A + skipReason`；PC0~PC10、Profile、报告、记忆、安全底线和必要验证不可省略；02-技术方案.md、实施方案/ 与 `06-关键决策.md` 按条件触发；services/ 在 CP2 后按需创建；强触发条件命中时 `05-实施进度.md` 必须在执行前初始化 |
 | **需求归档（v1.9.3+）** | 已完成且不再活跃的需求目录下创建空文件 `.archived`；CP gate 扫描跳过含此标记的需求，避免历史需求全局阻断 dev 工作流 |
 
 ## 临时产物生命周期
@@ -148,7 +148,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 用户可见文件交付统一由 `skills/user-visible-output-contract/SKILL.md` 管理。执行链固定为：
 
-`ArtifactDeliveryManifestV1（内部完整）→ UserFacingArtifactSetV1（用户最小必要）→ FinalValidationSummaryV1（dev/fix/self-fix 完成态验证摘要）→ PostCompletionActionSetV1（真实且有授权边界的后续动作）→ DevCodexVisibleEnvelopeV2 → HostLinkCapabilityDecisionV2 renderer`。`LinkCapabilityDecisionV1` 继续供持久化记忆/产物相对链接投影和兼容读取使用，不得被宿主展示面的 V2 反向替换。
+`ArtifactDeliveryManifestV1（内部完整）→ UserFacingArtifactSetV1（用户最小必要）→ FinalValidationSummaryV1（dev/fix/self-fix 完成态验证摘要）→ PostCompletionActionSetV1（真实且有授权边界的后续动作）→ DevCodexVisibleEnvelopeV3 → ArtifactDeliveryResolver → HostLinkCapabilityDecisionV2 + ArtifactDeliveryAttemptV1`。`DevCodexVisibleEnvelopeV1/V2` 与 `LinkCapabilityDecisionV1` 只供兼容读取；新生产者不得回写旧 envelope，也不得用宿主展示面的 V2 反向替换持久化链接投影。
 
 ### 内部完整与用户可见分层
 
@@ -179,12 +179,12 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 | hostSurface / presentationSurface | 首选 renderer | 未验证或失败时 |
 |---|---|---|
-| Codex Desktop / desktop panel | `codex-native-file-panel`（native action） | 绝对路径 copy |
+| Codex Desktop / desktop panel | `codex-native-file-link`（宿主渲染的本地文件 Markdown action） | 绝对路径 copy |
 | VS Code + Codex / terminal | `vscode-cli-goto`（`code --goto`） | 绝对路径 copy |
 | Zed / terminal | `zed-cli-open` | 绝对路径 copy |
 | WebStorm / JetBrains terminal | `webstorm-cli-open` | 绝对路径 copy |
 | Codex CLI、Claude Code / terminal | `absolute-path-copy` | 绝对路径 copy |
-| unknown / unknown | `unavailable-renderer` | 绝对路径 copy 或 unavailable + reason |
+| unknown / unknown | `absolute-path-copy` | 绝对路径 copy + reason |
 
 | capability mode | 主表示 | 路径列（强制） | 绝对路径 fallback | 证据边界 |
 |---|---|---|---|---|
@@ -194,6 +194,8 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 | `failed` | 语义名称 + 绝对定位 | 绝对路径 + reason | 显示 | 链接失败或无法定位 |
 
 只有以下情况允许路径列使用绝对路径（或额外 `绝对路径：...`）：用户明确要求、链接实际失败、目标位于工作区外、路径歧义、宿主无法定位。
+
+每个用户可见目标必须同时生成 `ArtifactDeliveryAttemptV1`，记录 `rendererId/openMode/actionId/target/attempted/actionStatus/readback/status/fallbackReason`。`status=opened` 仅在动作执行成功且 host readback 成功时成立；renderer 被选中、命令被生成或 Markdown 被渲染最多是 `ready`，不得写成“已打开”。native action 未实际附加、动作失败、readback 失败/不可用或 attempt 缺失时必须 `fallback`，立即显示绝对路径和原因。最终对话的 attempt 不能由报告/记忆相对内链回执替代。
 
 `ArtifactLinkSet` 保留为可见集合的兼容投影名，不再是真相源；`ArtifactLinkSetDedupeGate` 执行规范化绝对路径去重，按 canonical path 合并同一物理文件。禁止 `file://`，禁止只输出裸文件名，禁止询问“是否需要打开”。
 
@@ -222,7 +224,7 @@ Portable 示例保持同一语义项，链接 target 与路径列均为工作区
 - [最终执行与验证报告](.devcodex/devcodex/reports/requirements/codex/20260719/12--最终执行报告.md) — 汇总完成范围、验证结果和残余风险；路径：`.devcodex/devcodex/reports/requirements/codex/20260719/12--最终执行报告.md`；操作：查看结论
 ```
 
-Portable/Plain 在同一 semanticDigest 下只改变链接形式，不改变文件集合、顺序、状态、动作或路径列语义。V2 的 `hostSurface / presentationSurface / rendererId / openMode` 属于宿主展示语义并进入 V2 semantic core。legacy “主要产物 + 绝对路径”文本最多识别为 `unverified-legacy`，不能作为 verified delivery receipt。当且仅当 fallback 激活时，可追加 `绝对路径：E:/...` 并记录 reason。
+Portable/Plain 在同一 semanticDigest 下只改变链接形式，不改变文件集合、顺序、状态、动作或路径列语义。V2 的 `hostSurface / presentationSurface / rendererId / openMode` 与 V3 的 `ArtifactDeliveryAttemptV1` 状态属于用户面交付语义并进入 V3 semantic core；V1 持久化链接的纯展示差异继续不改变摘要。legacy “主要产物 + 绝对路径”文本最多识别为 `unverified-legacy`，不能作为 verified delivery receipt。当且仅当 fallback 激活时，可追加 `绝对路径：E:/...` 并记录 reason。
 ### MCP profile fallback
 
 若 Copilot / Codex 等非 Claude Code 宿主调用 `profile_load`、`profile_get_mode` 或其他 DevCodex MCP 工具时出现 `TypeError: Cannot read properties of undefined (reading 'invoke')`、工具桥接不可用、MCP server 未连接等错误，视为**宿主 MCP bridge 失败**，不得反复重试同一 MCP 调用。AI 必须立即降级：

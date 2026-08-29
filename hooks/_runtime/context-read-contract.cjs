@@ -8,6 +8,12 @@ const {
   stableStringify,
   validateContentIdentity
 } = require('./content-identity.cjs')
+const {
+  buildContextObservationLease,
+  buildContextSnapshot,
+  buildContextSnapshotHandoff,
+  normalizeContextSnapshotHandoff
+} = require('./context-continuity-contract.cjs')
 const STATIC_WORKFLOW_ROUTE_REGISTRY_V2 = require('./workflow-root-registry.v2.json')
 const {
   resolveWorkflowRouteDescriptor
@@ -27,7 +33,11 @@ const CONTEXT_READ_CONTRACT = Object.freeze({
     workflowRoutePlanRef: 'WorkflowRoutePlanRefV1',
     executionOptimizationBinding: 'ExecutionOptimizationPlanBindingV1',
     reuseDecision: 'ContextReuseDecisionV1',
-    stageTiming: 'StageTimingV1'
+    stageTiming: 'StageTimingV1',
+    contextSnapshot: 'ContextSnapshotV1',
+    observationLease: 'ContextObservationLeaseV1',
+    snapshotHandoff: 'ContextSnapshotHandoffV1',
+    routeBinding: 'ContextRouteBindingV1'
   }),
   errors: Object.freeze([
     'CONTEXT_INTENT_REQUIRED',
@@ -114,7 +124,8 @@ const RECEIPT_V1_FIELDS = new Set([
 ])
 const RECEIPT_FIELDS = new Set([
   ...RECEIPT_V1_FIELDS,
-  'planContentId', 'sourceIdentities', 'delivery', 'reuseFrom'
+  'planContentId', 'sourceIdentities', 'delivery', 'reuseFrom',
+  'contextSnapshotId', 'observationLease'
 ])
 const SUCCESS_OUTCOMES = new Set(['baseline-ready', 'observed-success'])
 const RISK_RANK = Object.freeze({ normal: 0, high: 1, critical: 2 })
@@ -1893,74 +1904,79 @@ function evaluateContextReuse(input = {}) {
     decision.delivery.reasonCode = 'execution-optimization-full-only'
     return decision
   }
-  if (!priorValidation.valid || priorPlan?.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.plan) {
+  const validPriorPlan = priorValidation.valid && priorPlan?.schemaVersion === CONTEXT_READ_CONTRACT.schemas.plan
+  const suppliedHandoff = normalizeContextSnapshotHandoff(input.priorHandoff, plan)
+  if (!validPriorPlan && !suppliedHandoff) {
     decision.computation.reasonCode = priorPlan?.schemaVersion === CONTEXT_READ_CONTRACT.schemas.planV1
       ? 'legacy-plan-no-content-identity'
       : 'no-compatible-prior-plan'
     decision.delivery.reasonCode = 'legacy-or-missing-prior-plan'
     return decision
   }
-  const targetMatches = normalizePath(plan.identity.activeRoot) === normalizePath(priorPlan.identity.activeRoot) &&
-    plan.identity.project === priorPlan.identity.project
+  const targetMatches = suppliedHandoff
+    ? true
+    : normalizePath(plan.identity.activeRoot) === normalizePath(priorPlan.identity.activeRoot) &&
+      plan.identity.project === priorPlan.identity.project
   if (!targetMatches) {
     decision.computation.reasonCode = 'target-mismatch'
     decision.delivery.reasonCode = 'target-mismatch'
     return decision
   }
-  if (plan.planContentId !== priorPlan.planContentId) {
+  const priorPlanContentId = suppliedHandoff?.planContentId || priorPlan.planContentId
+  if (plan.planContentId !== priorPlanContentId) {
     decision.computation.reasonCode = 'plan-content-mismatch'
     decision.delivery.reasonCode = 'plan-content-mismatch'
     return decision
   }
   decision.computation = { reuse: true, reasonCode: 'content-identity-match' }
-  decision.reuseFrom = { planId: priorPlan.planId, planContentId: priorPlan.planContentId }
+  decision.reuseFrom = {
+    planId: suppliedHandoff?.priorPlanId || priorPlan.planId,
+    planContentId: priorPlanContentId
+  }
 
-  if (!rawPriorReceipt || rawPriorReceipt.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.receipt) {
+  let continuity = suppliedHandoff
+  let priorReceipt = null
+  if (!continuity && rawPriorReceipt?.schemaVersion === CONTEXT_READ_CONTRACT.schemas.receipt) {
+    priorReceipt = normalizeReceipt(rawPriorReceipt, priorPlan)
+    if (priorReceipt.schemaVersion === CONTEXT_READ_CONTRACT.schemas.receipt &&
+        priorReceipt.receiptId === rawPriorReceipt.receiptId &&
+        priorReceipt.planId === priorPlan.planId && priorReceipt.planContentId === priorPlan.planContentId) {
+      continuity = buildContextSnapshotHandoff(priorPlan, priorReceipt)
+    }
+  }
+  if (!continuity) {
     decision.delivery.reasonCode = 'legacy-or-missing-receipt'
     return decision
   }
-  const priorReceipt = normalizeReceipt(rawPriorReceipt, priorPlan)
-  if (priorReceipt.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.receipt ||
-      priorReceipt.receiptId !== rawPriorReceipt.receiptId) {
-    decision.delivery.reasonCode = 'prior-receipt-invalid'
-    return decision
-  }
-  if (priorReceipt.planId !== priorPlan.planId || priorReceipt.planContentId !== priorPlan.planContentId) {
-    decision.delivery.reasonCode = 'prior-receipt-plan-mismatch'
-    return decision
-  }
-  if (!hostSessionId || priorReceipt.delivery?.hostSessionId !== hostSessionId) {
+  if (!hostSessionId || continuity.hostSessionId !== hostSessionId) {
     decision.delivery.reasonCode = 'host-session-mismatch'
     return decision
   }
-  if (plan.identity.contextEpoch !== priorPlan.identity.contextEpoch || priorReceipt.contextEpoch !== plan.identity.contextEpoch) {
-    decision.delivery.reasonCode = 'context-epoch-mismatch'
-    return decision
-  }
-  if (priorReceipt.verificationMode !== 'structured-plan' || !['relevant-complete', 'completed'].includes(priorReceipt.status)) {
-    decision.delivery.reasonCode = 'prior-receipt-incomplete'
-    return decision
-  }
-  const priorSourceIdentities = Array.isArray(priorReceipt.sourceIdentities) ? priorReceipt.sourceIdentities : []
-  const currentSourceIdentities = Array.isArray(input.sourceIdentities) ? input.sourceIdentities : []
-  if (priorSourceIdentities.length !== plan.mandatorySourceIds.length ||
-      currentSourceIdentities.length !== plan.mandatorySourceIds.length ||
+  const priorSourceIdentities = continuity.sourceIdentities
+  const suppliedCurrentSourceIdentities = Array.isArray(input.sourceIdentities) ? input.sourceIdentities : []
+  const currentSourceIdentities = suppliedCurrentSourceIdentities.length
+    ? suppliedCurrentSourceIdentities
+    : priorSourceIdentities
+  const currentSnapshot = buildContextSnapshot(plan, currentSourceIdentities)
+  if (!currentSnapshot || currentSnapshot.contextSnapshotId !== continuity.contextSnapshotId ||
       !sameSourceIdentities(priorSourceIdentities, currentSourceIdentities)) {
     decision.delivery.reasonCode = 'source-identity-mismatch'
     return decision
   }
-  const allBodiesObserved = plan.mandatorySourceIds.every(sourceId => priorReceipt.observations
-    .some(observation => observation.sourceId === sourceId && observationSuccessful(observation) &&
-      observation.bodyObserved === true && observation.hostSessionId === hostSessionId &&
-      validateContentIdentity(observation.contentIdentity).valid))
-  if (!allBodiesObserved) {
-    decision.delivery.reasonCode = 'body-observation-unproven'
-    return decision
+  const epochRebound = continuity.priorContextEpoch !== plan.identity.contextEpoch
+  decision.contextSnapshotId = currentSnapshot.contextSnapshotId
+  decision.observationLeaseRebound = epochRebound
+  decision.delivery = {
+    reuse: true,
+    reasonCode: epochRebound
+      ? 'same-session-snapshot-observation-lease-rebound'
+      : 'same-session-epoch-content-observed'
   }
-  decision.delivery = { reuse: true, reasonCode: 'same-session-epoch-content-observed' }
   decision.reuseFrom = {
     ...decision.reuseFrom,
-    receiptId: priorReceipt.receiptId,
+    receiptId: continuity.receiptId,
+    contextSnapshotId: continuity.contextSnapshotId,
+    observationLeaseDigest: continuity.observationLeaseDigest,
     sourceIdentities: deepClone(priorSourceIdentities)
   }
   return decision
@@ -1982,7 +1998,9 @@ function buildReceiptId(receipt) {
       hostSessionId: item.hostSessionId
     })),
     delivery: receipt.delivery || null,
-    reuseFrom: receipt.reuseFrom || null
+    reuseFrom: receipt.reuseFrom || null,
+    contextSnapshotId: receipt.contextSnapshotId || null,
+    observationLease: receipt.observationLease || null
   }).slice(0, 24)}`
 }
 
@@ -2072,6 +2090,12 @@ function baseReceipt(plan, verificationMode, options = {}) {
   if (isV2) {
     receipt.planContentId = plan.planContentId
     receipt.sourceIdentities = collectReceiptSourceIdentities(observations)
+    const contextSnapshot = buildContextSnapshot(plan, receipt.sourceIdentities)
+    receipt.contextSnapshotId = contextSnapshot?.contextSnapshotId || null
+    receipt.observationLease = buildContextObservationLease(plan, contextSnapshot, {
+      hostSessionId,
+      turnBinding: options.turnBinding
+    })
     receipt.delivery = normalizeDeliveryState({
       hostSessionId,
       bodyObserved: receipt.sourceIdentities.length === plan.mandatorySourceIds.length,
@@ -2094,31 +2118,52 @@ function createContextReadReceipt(plan, options = {}) {
   if (!VERIFICATION_MODES.has(verificationMode)) verificationMode = 'instruction-only'
   if (verificationMode === 'structured-plan' && options.planObserved !== true) verificationMode = 'instruction-only'
   const receipt = baseReceipt(plan, verificationMode, options)
-  if (plan.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.plan || !options.priorPlan || !options.priorReceipt) {
+  const hasPriorReceipt = options.priorPlan && options.priorReceipt
+  const hasPriorHandoff = options.priorHandoff && typeof options.priorHandoff === 'object'
+  if (plan.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.plan || (!hasPriorReceipt && !hasPriorHandoff)) {
     return receipt
   }
   const decision = evaluateContextReuse({
     plan,
     priorPlan: options.priorPlan,
     priorReceipt: options.priorReceipt,
+    priorHandoff: options.priorHandoff,
     hostSessionId: options.hostSessionId,
     sourceIdentities: options.sourceIdentities
   })
   if (options.reuseDecision && stableDigest(options.reuseDecision) !== stableDigest(decision)) return receipt
   if (decision?.delivery?.reuse !== true) return receipt
   const reusedObservations = []
-  for (const sourceId of plan.mandatorySourceIds) {
-    const candidates = options.priorReceipt.observations.filter(item =>
-      item.sourceId === sourceId && observationSuccessful(item) && item.bodyObserved === true
-    )
-    const prior = candidates[candidates.length - 1]
-    if (!prior) return receipt
+  const reusableIdentities = new Map((decision.reuseFrom?.sourceIdentities || [])
+    .map(item => [item.sourceId, item.contentIdentity]))
+  const reusableSourceIds = plan.selectedSources
+    .map(source => source.sourceId)
+    .filter(sourceId => reusableIdentities.has(sourceId))
+  if (plan.mandatorySourceIds.some(sourceId => !reusableIdentities.has(sourceId))) return receipt
+  for (const sourceId of reusableSourceIds) {
+    const contentIdentity = reusableIdentities.get(sourceId)
+    if (!validateContentIdentity(contentIdentity).valid) return receipt
+    const selected = plan.selectedSources.find(source => source.sourceId === sourceId)
     reusedObservations.push(normalizeObservation({
-      ...prior,
-      observationId: `reuse-${stableDigest({ sourceId, planId: plan.planId, receiptId: options.priorReceipt.receiptId }).slice(0, 20)}`,
+      observationId: `reuse-${stableDigest({ sourceId, planId: plan.planId, receiptId: decision.reuseFrom.receiptId }).slice(0, 20)}`,
       toolCallId: String(options.toolCallId || ''),
       attemptedAt: nowIso(options),
       observedAt: nowIso(options),
+      sourceId,
+      sourceKind: selected?.kind || null,
+      outcome: 'observed-success',
+      successful: true,
+      observable: true,
+      transportSuccess: true,
+      activeRootMatch: true,
+      sourceLayer: selected?.sourceLayer || null,
+      sourceRefsMatch: true,
+      schemaMatch: true,
+      targetMatch: true,
+      correlationValid: true,
+      resultDigest: contentIdentity.digest,
+      contentIdentity,
+      bodyObserved: true,
       hostSessionId: String(options.hostSessionId || ''),
       cache: true
     }))
@@ -2202,7 +2247,14 @@ function normalizeReceipt(raw, plan, options = {}) {
     normalized.planContentId = plan.planContentId
     normalized.sourceIdentities = collectReceiptSourceIdentities(observations)
     const hostSessionId = normalized.identity.hostSessionId
-    const bodyObserved = normalized.sourceIdentities.length === plan.mandatorySourceIds.length
+    const identitySourceIds = new Set(normalized.sourceIdentities.map(item => item.sourceId))
+    const bodyObserved = plan.mandatorySourceIds.every(sourceId => identitySourceIds.has(sourceId))
+    const contextSnapshot = buildContextSnapshot(plan, normalized.sourceIdentities)
+    normalized.contextSnapshotId = contextSnapshot?.contextSnapshotId || null
+    normalized.observationLease = buildContextObservationLease(plan, contextSnapshot, {
+      hostSessionId,
+      turnBinding: options.turnBinding || raw.observationLease?.turnBinding
+    })
     const reused = raw.delivery?.reused === true && raw.reuseFrom && typeof raw.reuseFrom === 'object'
     normalized.delivery = normalizeDeliveryState({
       hostSessionId,

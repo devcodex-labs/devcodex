@@ -20,6 +20,7 @@ const {
   commitFencedTaskWriteOwnerTransition,
   commitTaskAdmissionReconciliation,
   commitTaskAdmissionTransaction,
+  admissionContinuationLeaseDigest,
   fencedTaskWriteOwnerDigest,
   readFencedTaskWriteOwner,
   readTaskAdmissionTransaction,
@@ -27,6 +28,7 @@ const {
   resolveTaskRecoveryMetaDir,
   taskAdmissionTransactionDigest,
   taskAdmissionReconciliationReceiptDigest,
+  validateAdmissionContinuationLease,
   workflowTaskTerminalReceiptDigest
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const { digestValue } = require('../hooks/_runtime/lifecycle-state-projection-v5.cjs')
@@ -42,6 +44,7 @@ const TASK_WRITE_OWNER_RECEIPT_SCHEMA = 'TaskWriteOwnerTransitionReceiptV1'
 const WORKFLOW_TASK_TERMINAL_RECEIPT_SCHEMA = 'WorkflowTaskTerminalReceiptV1'
 const TASK_ADMISSION_REQUEST_DIGEST_SCHEMA = 'TaskAdmissionRequestDigestV2'
 const WRITE_OWNER_LEASE_MS = 30 * 60 * 1000
+const ADMISSION_CONTINUATION_LEASE_MS = 30 * 60 * 1000
 const DIGEST_RE = /^[a-f0-9]{64}$/
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const TASK_KINDS = Object.freeze(['requirements', 'bugs', 'optimizations', 'scenario-tests'])
@@ -600,6 +603,106 @@ function validateIngress(input, options = {}) {
   }
 }
 
+function normalizeAdmissionIngressSnapshotRef(rawRef, input) {
+  if (rawRef == null) return null
+  const ref = rawRef && typeof rawRef === 'object' && !Array.isArray(rawRef) ? clone(rawRef) : null
+  if (!ref || ref.schemaVersion !== 'AdmissionIngressSnapshotRefV1' ||
+      !DIGEST_RE.test(String(ref.snapshotKey || '')) || !DIGEST_RE.test(String(ref.snapshotDigest || '')) ||
+      ref.envelopeId !== input.actualInstructionEnvelope.envelopeId ||
+      ref.envelopeDigest !== input.actualInstructionEnvelope.envelopeDigest ||
+      ref.decisionDigest !== input.workflowRouteDecision.decisionDigest ||
+      ref.routeRevision !== input.workflowRouteDecision.routeRevision) {
+    throw new TaskAdmissionError(
+      'TASK_ADMISSION_CONTINUATION_SNAPSHOT_MISMATCH',
+      'admission ingress snapshot ref does not match the exact verified ingress'
+    )
+  }
+  return ref
+}
+
+function createAdmissionContinuationLease(transaction, input, snapshotRef, nowMs) {
+  if (!snapshotRef) return null
+  const issuedAt = new Date(nowMs).toISOString()
+  const envelopeExpiryMs = Date.parse(input.actualInstructionEnvelope.expiresAt)
+  const expiresAtMs = Math.min(envelopeExpiryMs, nowMs + ADMISSION_CONTINUATION_LEASE_MS)
+  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= nowMs) {
+    throw new TaskAdmissionError('TASK_ADMISSION_CONTINUATION_EXPIRED', 'admission continuation cannot outlive its verified ingress')
+  }
+  const leaseSeed = digest({
+    admissionId: transaction.admissionId,
+    taskId: transaction.taskId,
+    snapshotKey: snapshotRef.snapshotKey,
+    snapshotDigest: snapshotRef.snapshotDigest
+  })
+  const core = {
+    schemaVersion: 'AdmissionContinuationLeaseV1',
+    leaseId: `admission-continuation-${leaseSeed.slice(0, 40)}`,
+    status: 'active',
+    admissionId: transaction.admissionId,
+    taskId: transaction.taskId,
+    project: transaction.project,
+    projectRootIdentityDigest: transaction.projectRootIdentityDigest,
+    sessionDigest: transaction.sessionDigest,
+    contextEpoch: input.actualInstructionEnvelope.contextEpoch,
+    actualInstructionDigest: transaction.actualInstructionDigest,
+    workItemDigest: transaction.workItemDigest,
+    routeRevision: transaction.routeRevision,
+    snapshotKey: snapshotRef.snapshotKey,
+    snapshotDigest: snapshotRef.snapshotDigest,
+    issuedAt,
+    expiresAt: new Date(expiresAtMs).toISOString(),
+    consumedAt: null,
+    ownerLeaseDigest: null
+  }
+  const lease = { ...core, leaseDigest: admissionContinuationLeaseDigest(core) }
+  const validation = validateAdmissionContinuationLease(lease, transaction)
+  if (!validation.valid) {
+    throw new TaskAdmissionError('TASK_ADMISSION_CONTINUATION_INVALID', validation.errors.join(','))
+  }
+  return lease
+}
+
+function validateOwnerContinuation(transaction, input, operation, nowMs) {
+  const lease = transaction.continuationLease
+  if (!lease || !['acquire', 'reopen'].includes(operation)) return
+  const validation = validateAdmissionContinuationLease(lease, transaction)
+  if (!validation.valid) {
+    throw new TaskAdmissionError('TASK_ADMISSION_CONTINUATION_INVALID', validation.errors.join(','))
+  }
+  const ref = normalizeAdmissionIngressSnapshotRef(input.ingressSnapshotRef, input)
+  if (!ref || ref.snapshotKey !== lease.snapshotKey || ref.snapshotDigest !== lease.snapshotDigest) {
+    throw new TaskAdmissionError(
+      'TASK_ADMISSION_CONTINUATION_MISMATCH',
+      'owner acquisition requires the exact task-bound admission continuation snapshot'
+    )
+  }
+  if (lease.status === 'active' && Date.parse(lease.expiresAt) <= nowMs) {
+    throw new TaskAdmissionError('TASK_ADMISSION_CONTINUATION_EXPIRED', 'admission continuation lease is expired')
+  }
+}
+
+function consumeOwnerContinuation(transaction, owner, nowMs) {
+  const lease = transaction.continuationLease
+  if (!lease) return transaction
+  if (lease.status === 'consumed') {
+    if (lease.ownerLeaseDigest !== owner.leaseDigest) {
+      throw new TaskAdmissionError('TASK_ADMISSION_CONTINUATION_REPLAYED', 'admission continuation was already consumed by a different owner lease')
+    }
+    return transaction
+  }
+  if (Date.parse(lease.expiresAt) <= nowMs) {
+    throw new TaskAdmissionError('TASK_ADMISSION_CONTINUATION_EXPIRED', 'admission continuation lease is expired')
+  }
+  const consumed = {
+    ...clone(lease),
+    status: 'consumed',
+    consumedAt: new Date(nowMs).toISOString(),
+    ownerLeaseDigest: owner.leaseDigest
+  }
+  consumed.leaseDigest = admissionContinuationLeaseDigest(consumed)
+  return { ...transaction, continuationLease: consumed }
+}
+
 function compactFileReceipt(receipt) {
   return {
     file: receipt.file,
@@ -1013,6 +1116,7 @@ function admissionReceipt(transaction, replayed = false) {
     routeKey: transaction.routeKey,
     routeRevision: transaction.routeRevision,
     transactionDigest: transaction.transactionDigest,
+    continuationLease: transaction.continuationLease ? clone(transaction.continuationLease) : null,
     replayed,
     admissionGeneration: transaction.admissionGeneration,
     finalized,
@@ -1033,6 +1137,7 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
     project: String(rawInput.project || '').trim()
   }
   validateIngress(input, { nowMs })
+  const ingressSnapshotRef = normalizeAdmissionIngressSnapshotRef(input.ingressSnapshotRef, input)
   const ingressIdempotencyKey = createIngressIdempotencyKey({
     projectRootIdentity: input.projectTargetLease.rootIdentityDigest,
     hostVariant: input.actualInstructionEnvelope.hostVariant,
@@ -1326,6 +1431,9 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
         createdAt,
         updatedAt: createdAt
       }
+      if (ingressSnapshotRef) {
+        transaction.continuationLease = createAdmissionContinuationLease(transaction, input, ingressSnapshotRef, nowMs)
+      }
       transaction.transactionDigest = taskAdmissionTransactionDigest(transaction)
       commitJournal(transaction, priorTerminalTransaction ? 'terminal-closeout' : '')
       faultInjector('after-prepared', { transaction: clone(transaction) })
@@ -1602,6 +1710,7 @@ function taskWriteOwnerReceipt(operation, transaction, owner, replayed = false, 
     taskId: owner?.taskId || transaction?.taskId || null,
     admissionId: transaction?.admissionId || null,
     admissionGeneration: transaction?.admissionGeneration || null,
+    continuationLease: transaction?.continuationLease ? clone(transaction.continuationLease) : null,
     owner: owner || null,
     ownerRef: owner ? ownerRef(owner) : null,
     finalized,
@@ -1643,6 +1752,7 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
     )
   }
   let transaction = admissionRead.transaction
+  validateOwnerContinuation(transaction, input, operation, nowMs)
   const ownerRead = readFencedTaskWriteOwner({ metaDir, identity }, { fs: fsImpl })
   let currentOwner = ownerRead.status === 'fresh' ? ownerRead.owner : null
   const sessionDigest = input.projectTargetLease.authorityDigest
@@ -1732,11 +1842,12 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
       revocationEpoch: currentOwner?.revocationEpoch || 0,
       status: 'active'
     })
-    const ownerFenced = nextTransaction(transaction, 'owner-fenced', 'owner', {
+    let ownerFenced = nextTransaction(transaction, 'owner-fenced', 'owner', {
       status: 'fenced',
       ownerGeneration: nextOwner.ownerGeneration,
       leaseDigest: nextOwner.leaseDigest
     }, nowMs)
+    ownerFenced = consumeOwnerContinuation(ownerFenced, nextOwner, nowMs)
     ownerFenced.effects.cpState = {
       ...ownerFenced.effects.cpState,
       status: cp.cp1Confirmed ? 'confirmed' : 'pending',

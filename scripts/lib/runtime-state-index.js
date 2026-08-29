@@ -8,6 +8,10 @@ const {
   stableStringify
 } = require('../../hooks/_runtime/content-identity.cjs')
 const { createDerivedIndexStore } = require('./derived-index-contract.js')
+const {
+  LEDGER_DEFINITIONS,
+  resolveAllGovernanceLedgerFamilies
+} = require('./governance-ledger-resolver.js')
 
 const RECORD_PATTERN = /\b(PI|PF|VL|GR|ISSUE)-\d+\b/g
 const SOURCE_RANK = {
@@ -16,13 +20,9 @@ const SOURCE_RANK = {
   'daily-task': 70,
   'global-summary': 60
 }
-const CANONICAL_LEDGER_BY_KIND = {
-  PI: 'data/process-improvements.md',
-  PF: 'data/pending-fixes.md',
-  VL: 'data/violations.md',
-  GR: 'data/gap-registry.md',
-  ISSUE: 'data/pending-issues.md'
-}
+const CANONICAL_LEDGER_BY_KIND = Object.freeze(Object.fromEntries(
+  Object.values(LEDGER_DEFINITIONS).map(definition => [definition.kind, definition.activePath])
+))
 
 function normalizeStatus(text) {
   const value = String(text || '').toLowerCase()
@@ -43,6 +43,7 @@ function statusTextForLine(line) {
 function classifySource(activeRoot, file) {
   const relative = path.relative(activeRoot, file).replace(/\\/g, '/')
   if (/^data\/(?:process-improvements|pending-fixes|violations|gap-registry|pending-issues)\.md$/.test(relative)) return 'ledger'
+  if (/^data\/archive\/(?:process-improvements|pending-fixes|violations|gap-registry|pending-issues)\/.+\.md$/.test(relative)) return 'ledger'
   if (/^\.memory\/clients\/[^/]+\/SUMMARY\.md$/.test(relative)) return 'agent-summary'
   if (/^\.memory\/clients\/[^/]+\/tasks\/\d{8}\.md$/.test(relative)) return 'daily-task'
   if (relative === '.memory/SUMMARY.md') return 'global-summary'
@@ -50,24 +51,33 @@ function classifySource(activeRoot, file) {
 }
 
 function discoverSources(activeRoot) {
-  const candidates = Object.values(CANONICAL_LEDGER_BY_KIND)
-    .map(relative => path.join(activeRoot, relative))
+  const candidates = resolveAllGovernanceLedgerFamilies(activeRoot)
+    .flatMap(resolution => resolution.documents.map(document => ({
+      file: document.file,
+      kind: 'ledger',
+      ledgerKind: document.kind,
+      ledgerRole: document.role
+    })))
   const clientsRoot = path.join(activeRoot, '.memory', 'clients')
   if (fs.existsSync(clientsRoot)) {
     for (const agent of fs.readdirSync(clientsRoot, { withFileTypes: true }).filter(entry => entry.isDirectory())) {
       const agentRoot = path.join(clientsRoot, agent.name)
-      candidates.push(path.join(agentRoot, 'SUMMARY.md'))
+      candidates.push({ file: path.join(agentRoot, 'SUMMARY.md') })
       const tasksRoot = path.join(agentRoot, 'tasks')
       if (!fs.existsSync(tasksRoot)) continue
       for (const entry of fs.readdirSync(tasksRoot, { withFileTypes: true })) {
-        if (entry.isFile() && /^\d{8}\.md$/.test(entry.name)) candidates.push(path.join(tasksRoot, entry.name))
+        if (entry.isFile() && /^\d{8}\.md$/.test(entry.name)) candidates.push({ file: path.join(tasksRoot, entry.name) })
       }
     }
   }
-  candidates.push(path.join(activeRoot, '.memory', 'SUMMARY.md'))
+  candidates.push({ file: path.join(activeRoot, '.memory', 'SUMMARY.md') })
   return candidates
-    .filter(file => fs.existsSync(file) && fs.statSync(file).isFile())
-    .map(file => ({ file, kind: classifySource(activeRoot, file) }))
+    .map(candidate => typeof candidate === 'string' ? { file: candidate } : candidate)
+    .filter(candidate => fs.existsSync(candidate.file) && fs.statSync(candidate.file).isFile())
+    .map(candidate => ({
+      ...candidate,
+      kind: candidate.kind || classifySource(activeRoot, candidate.file)
+    }))
     .filter(item => item.kind)
     .sort((a, b) => a.file.localeCompare(b.file))
 }
@@ -124,6 +134,8 @@ function extractClaims(activeRoot, source, content) {
         kind: recordId.split('-')[0],
         source: relative,
         sourceKind: source.kind,
+        ledgerKind: source.ledgerKind || null,
+        ledgerRole: source.ledgerRole || null,
         anchor: `${relative}:${index + 1}`,
         line: index + 1,
         normalizedStatus,
@@ -156,6 +168,8 @@ function classifyTransition(from, to) {
 
 function authorityRankForClaim(claim) {
   if (claim.sourceKind !== 'ledger') return SOURCE_RANK[claim.sourceKind]
+  if (claim.ledgerRole === 'active') return SOURCE_RANK.ledger
+  if (claim.ledgerRole === 'archive') return 90
   return claim.source === CANONICAL_LEDGER_BY_KIND[claim.kind] ? SOURCE_RANK.ledger : 75
 }
 
@@ -192,6 +206,7 @@ function projectClaimsBySource(claims) {
       sourceProjections.push({
         source,
         sourceKind: selected.sourceKind,
+        ledgerRole: selected.ledgerRole || null,
         authorityRank: authorityRankForClaim(selected),
         normalizedStatus: selected.normalizedStatus,
         anchor: selected.anchor,
@@ -271,7 +286,7 @@ function buildRuntimeStateIndex(activeRoot) {
       consumerDrifts,
       conflict,
       conflictingStatuses: conflict ? conflictingStatuses : [],
-      precedence: 'last known status per source; canonical ledger > agent-summary > cross-ledger reference > daily-task > global-summary; conflict only within a qualified current authority rank',
+      precedence: 'last known status per source; active ledger > immutable archive shard > agent-summary > cross-ledger reference > daily-task > global-summary; conflict only within a qualified current authority rank',
       selectedAnchor: currentProjection ? currentProjection.anchor : null,
       claims: recordClaims.sort((a, b) => a.source.localeCompare(b.source) || a.line - b.line)
     }

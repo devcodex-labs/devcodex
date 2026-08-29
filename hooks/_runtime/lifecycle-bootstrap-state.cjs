@@ -6,6 +6,7 @@ const {
   validateContentIdentity
 } = require('./content-identity.cjs')
 const { readContextPlanObservation } = require('./context-plan-observation.cjs')
+const { buildContextSnapshotHandoff } = require('./context-continuity-contract.cjs')
 const { replayMcpContextSourceObservations } = require('./context-source-observation.cjs')
 const {
   readLifecycleStateCommit
@@ -13,6 +14,7 @@ const {
 const {
   commitTaskRecoveryState,
   readTaskRecoveryState,
+  writeAdmissionIngressSnapshot,
   writeStableProjection
 } = require('./task-recovery-store-v5.cjs')
 const {
@@ -395,7 +397,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const previous = normalizeContextAcquisition(state)
     const project = targetProject(state)
     const targetResolved = !LAYOUT.enabled || !!state.activeProject
-    const handoff = previous.contextEpoch
+    const reusableHandoff = buildContextSnapshotHandoff(previous.plan, previous.receipt)
+    const handoff = reusableHandoff || (previous.contextEpoch
       ? {
           contextEpoch: previous.contextEpoch,
           planId: previous.plan?.planId || '',
@@ -404,7 +407,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
           activeRoot: previous.activeRoot,
           project: previous.project
         }
-      : previous.handoff
+      : previous.handoff)
     const launcherEpoch = env?.DEVCODEX_GROK_SINGLE_TURN === '1' &&
       /^ctx-[A-Za-z0-9-]{8,251}$/.test(String(env.DEVCODEX_CONTEXT_EPOCH || ''))
       ? String(env.DEVCODEX_CONTEXT_EPOCH)
@@ -585,6 +588,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       actualInstructionEnvelope: null,
       workItemSet: null,
       workflowRouteDecision: null,
+      workflowPlanDecision: null,
       workflowResumeTargetDecision: null,
       workflowRoutePlanBinding: null,
       workflowRoutePending: null,
@@ -1011,6 +1015,15 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     }
     const committedState = commit.state || compactLifecycleStateV5(state).state
     const projectionWarnings = []
+    const ingressSnapshot = writeAdmissionIngressSnapshot({ metaDir: activePaths.dir, state }, { fs })
+    if (ingressSnapshot.status === 'error') {
+      const error = new Error(
+        `Admission ingress snapshot failed: ${ingressSnapshot.errorCode || ingressSnapshot.status}`
+      )
+      error.code = ingressSnapshot.errorCode || 'ADMISSION_INGRESS_SNAPSHOT_WRITE_FAILED'
+      error.details = ingressSnapshot
+      throw error
+    }
     const activeProjectionWrite = writeStableProjection(activePaths.file, committedState, { fs })
     if (activeProjectionWrite.status !== 'persisted') {
       projectionWarnings.push({ role: 'active', file: activePaths.file, message: activeProjectionWrite.message, errorCode: activeProjectionWrite.errorCode })
@@ -1029,7 +1042,12 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         projectionWarnings.push({ role: 'meta', file: META_STATE_PATHS.file, message: metaProjectionWrite.message, errorCode: metaProjectionWrite.errorCode })
       }
     }
-    return { ...commit, projectionStatus: projectionWarnings.length ? 'warn' : 'persisted', projectionWarnings }
+    return {
+      ...commit,
+      ingressSnapshot,
+      projectionStatus: projectionWarnings.length ? 'warn' : 'persisted',
+      projectionWarnings
+    }
   }
 
   function resetState(mode, previousState) {
@@ -1068,7 +1086,10 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     state.workspaceSkillAutoMatch = null
     const previousAcquisition = previousState ? normalizeContextAcquisition(previousState) : null
     if (previousAcquisition?.contextEpoch) {
-      state.contextAcquisition.handoff = {
+      state.contextAcquisition.handoff = buildContextSnapshotHandoff(
+        previousAcquisition.plan,
+        previousAcquisition.receipt
+      ) || {
         contextEpoch: previousAcquisition.contextEpoch,
         planId: previousAcquisition.plan?.planId || '',
         planContentId: previousAcquisition.plan?.planContentId || '',
@@ -1876,6 +1897,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     }
     const priorPlan = acquisition.plan
     const priorReceipt = acquisition.receipt
+    const priorHandoff = acquisition.handoff
     if (priorPlan && priorPlan.planId !== plan.planId) {
       const conditional = Array.isArray(attempt.args.profileSelectors) && attempt.args.profileSelectors.length > 0 &&
         !!attempt.args.baselineDigest && acquisition.conditionalReplanCount < 1
@@ -1891,6 +1913,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       plan,
       priorPlan,
       priorReceipt,
+      priorHandoff,
       hostSessionId: acquisition.hostSessionId,
       sourceIdentities: []
     })
@@ -1901,6 +1924,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       hostSessionId: acquisition.hostSessionId,
       priorPlan,
       priorReceipt,
+      priorHandoff,
       sourceIdentities: [],
       reuseDecision
     })
@@ -2057,9 +2081,9 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       'Resolve the active target against legacy .devcodex/profile/ or workspace-namespace base + project overlay roots before reading.',
       targetHandoff,
       'A full Profile/SUMMARY/tasks read is a legacy or explicit escalation path, not the normal bootstrap default.',
-      'Your first user-visible block must be the entry check PC0-PC7 before substantive task content; dev mode adds full PC4 diagnostics.',
+      'Your first user-visible block must be the entry check PC0-PC10 before substantive task content; dev mode adds full PC4 diagnostics.',
       '*** S07 compaction trigger (v1.9.6+): if this turn resumes from /compact, /resume, or summary-restore,',
-      'this also counts as "first user-visible reply" — you MUST re-output PC0-PC7 even when instructed to "continue without acknowledging".'
+      'this also counts as "first user-visible reply" — you MUST re-output PC0-PC10 even when instructed to "continue without acknowledging".'
     ].join(' ')
   }
 
@@ -2078,7 +2102,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         '### DevCodex · 入口检查',
         `\`BLOCK\` · \`${project}\``,
         '',
-        '- PC0 [UNVERIFIED] ContextReadPlan 与必要来源回执',
+        '- PC0 [UNVERIFIED] 安装包版本、活动运行时 generation、源码候选与对齐状态',
         '- PC1 [UNVERIFIED] 语义初判 → 最终路由',
         '- PC2 [UNVERIFIED] 会话/Token/待跟进',
         '- PC3 [UNVERIFIED] 唯一项目与产物落点',
@@ -2086,11 +2110,14 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         '- PC5 [UNVERIFIED] Grok HostParity（Partial unless Full launcher）',
         '- PC6 [UNVERIFIED] dirty/active task',
         '- PC7 [UNVERIFIED] resume/continuation',
+        '- PC8 [UNVERIFIED] 初判/二次判断的流程仪式与方案深度差异',
+        '- PC9 [UNVERIFIED] 验证级别、目标数量、CI/package/install/release 与预计时长',
+        '- PC10 [UNVERIFIED] 下一阶段、是否自动继续、用户动作与修正提示',
         '',
-        '下一步：先输出完整 PC0~PC7，再完成 ContextReadPlan 证据后重试工具',
-        'GrokTurnChecklist: PC0~PC7 → Intent→Skill bundle → context plan → work → report+memory → honest ceiling',
+        '下一步：先输出完整 PC0~PC10，再完成 ContextReadPlan 证据后重试工具',
+        'GrokTurnChecklist: PC0~PC10 → Intent→Skill bundle → context plan → work → report+memory → honest ceiling',
         'Skill bundle (non-chat): intent+compliance+user-visible-output-contract+workflow+report+memory',
-        'DevCodexVisibleEnvelopeV2 · entry-check · BLOCK · s07-assist-context-incomplete',
+        'DevCodexVisibleEnvelopeV3 · entry-check · BLOCK · s07-assist-context-incomplete',
         '--- end S07 assist ---'
       ].join('\n')
     }

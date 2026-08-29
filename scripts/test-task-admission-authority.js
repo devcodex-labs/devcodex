@@ -22,6 +22,7 @@ const {
   taskAdmissionTransactionDigest,
   taskPaths,
   updateTaskRecoveryState,
+  validateAdmissionContinuationLease,
   validateTaskAdmissionReconciliationReceipt
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const {
@@ -187,6 +188,20 @@ function admissionInput(root, suffix = 'base', overrides = {}) {
   }
 }
 
+function admissionIngressSnapshotRef(input, suffix = 'base') {
+  const snapshotKey = crypto.createHash('sha256').update(`snapshot-key:${suffix}`).digest('hex')
+  const snapshotDigest = crypto.createHash('sha256').update(`snapshot-content:${suffix}`).digest('hex')
+  return {
+    schemaVersion: 'AdmissionIngressSnapshotRefV1',
+    envelopeId: input.actualInstructionEnvelope.envelopeId,
+    envelopeDigest: input.actualInstructionEnvelope.envelopeDigest,
+    decisionDigest: input.workflowRouteDecision.decisionDigest,
+    routeRevision: input.workflowRouteDecision.routeRevision,
+    snapshotKey,
+    snapshotDigest
+  }
+}
+
 function run(input, options = {}) {
   return executeTaskAdmission(input, {
     nowMs: NOW_MS,
@@ -218,6 +233,7 @@ function ownerInput(ingress, admission, operation, overrides = {}) {
     workItemSet: ingress.workItemSet,
     workflowRouteDecision: ingress.workflowRouteDecision,
     projectTargetLease: ingress.projectTargetLease,
+    ...(ingress.ingressSnapshotRef ? { ingressSnapshotRef: ingress.ingressSnapshotRef } : {}),
     taskId: admission.taskId,
     admissionId: admission.admissionId,
     ...overrides
@@ -452,6 +468,66 @@ try {
   fs.writeFileSync(productSourcePath, '# 被篡改的产品需求\n')
   assert.throws(() => run(productInput), error => error.code === 'TASK_ADMISSION_READBACK_MISMATCH')
   fs.writeFileSync(productSourcePath, productSourceBytes)
+
+  const continuationRoot = setupRoot('admission-continuation')
+  let continuationInput = admissionInput(continuationRoot, 'admission-continuation')
+  continuationInput = {
+    ...continuationInput,
+    ingressSnapshotRef: admissionIngressSnapshotRef(continuationInput, 'admission-continuation')
+  }
+  const continuationAdmission = run(continuationInput)
+  assert.strictEqual(continuationAdmission.continuationLease.status, 'active')
+  const continuationMetaDir = resolveTaskRecoveryMetaDir({
+    activeRoot: continuationRoot.activeRoot,
+    project: continuationRoot.project
+  })
+  const continuationIdentity = {
+    activeRoot: continuationRoot.activeRoot,
+    project: continuationRoot.project,
+    taskId: continuationAdmission.taskId
+  }
+  const continuationPrepared = readTaskAdmissionTransaction({
+    metaDir: continuationMetaDir,
+    identity: continuationIdentity
+  }).transaction
+  assert.strictEqual(validateAdmissionContinuationLease(continuationPrepared.continuationLease, continuationPrepared).valid, true)
+  confirmCp1(taskRootFor(continuationInput, continuationAdmission))
+  const continuationOwnerInput = ownerInput(continuationInput, continuationAdmission, 'acquire')
+  const missingSnapshotOwnerInput = { ...continuationOwnerInput }
+  delete missingSnapshotOwnerInput.ingressSnapshotRef
+  assert.throws(
+    () => runOwner(missingSnapshotOwnerInput),
+    error => error.code === 'TASK_ADMISSION_CONTINUATION_MISMATCH'
+  )
+  assert.throws(
+    () => runOwner({
+      ...continuationOwnerInput,
+      ingressSnapshotRef: { ...continuationInput.ingressSnapshotRef, snapshotKey: 'f'.repeat(64) }
+    }),
+    error => error.code === 'TASK_ADMISSION_CONTINUATION_MISMATCH'
+  )
+  const continuationOwner = runOwner(continuationOwnerInput)
+  assert.strictEqual(continuationOwner.finalized, true)
+  assert.strictEqual(continuationOwner.mutationAuthority, true)
+  assert.strictEqual(continuationOwner.continuationLease.status, 'consumed')
+  assert.strictEqual(continuationOwner.continuationLease.ownerLeaseDigest, continuationOwner.owner.leaseDigest)
+  assert.strictEqual(runOwner(continuationOwnerInput).replayed, true, 'exact continuation replay must be idempotent')
+
+  const expiredContinuationRoot = setupRoot('admission-continuation-expired')
+  let expiredContinuationInput = admissionInput(expiredContinuationRoot, 'admission-continuation-expired')
+  expiredContinuationInput = {
+    ...expiredContinuationInput,
+    ingressSnapshotRef: admissionIngressSnapshotRef(expiredContinuationInput, 'admission-continuation-expired')
+  }
+  const expiredContinuationAdmission = run(expiredContinuationInput)
+  confirmCp1(taskRootFor(expiredContinuationInput, expiredContinuationAdmission))
+  assert.throws(
+    () => runOwner(
+      ownerInput(expiredContinuationInput, expiredContinuationAdmission, 'acquire'),
+      NOW_MS + 31 * 60 * 1000
+    ),
+    error => error.code === 'TASK_ADMISSION_CONTINUATION_EXPIRED'
+  )
 
   const ownerRoot = setupRoot('owner-transitions')
   const ownerAdmissionInput = admissionInput(ownerRoot, 'owner-transitions')

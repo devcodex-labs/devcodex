@@ -206,6 +206,14 @@ function buildCliRuntimeUtils({
         fs.mkdirSync(path.join(runtimeRoot, '.audit-state'), { recursive: true })
       }
       ensureRuntimeDataTemplates(runtimeRoot, dryRun)
+      if (!dryRun) {
+        const {
+          initializeGovernanceLedgerManifest,
+          rebuildGovernanceLedgerIndex
+        } = require('./governance-ledger-resolver.js')
+        initializeGovernanceLedgerManifest(runtimeRoot)
+        rebuildGovernanceLedgerIndex(runtimeRoot)
+      }
       const { ensureDevcodexMdTemplate } = require('../../hooks/_runtime/devcodex-md-entry.cjs')
       const workspaceEntry = ensureDevcodexMdTemplate(cwd, { dryRun, fs })
       if (!workspaceEntry.ok && !dryRun) {

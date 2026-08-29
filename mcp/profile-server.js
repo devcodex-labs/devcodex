@@ -17,6 +17,7 @@
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
+const { execFileSync } = require('child_process')
 const { assertSingleSegment, resolveInside } = require('./path-guard')
 const { createJsonLineServer } = require('./stdio-jsonrpc.cjs')
 const {
@@ -70,6 +71,8 @@ const {
   getLifecycleHostAdapterDigest
 } = require('../hooks/_runtime/host-adapter-identity.cjs')
 const { captureRuntimeProcessIdentity } = require('../hooks/_runtime/runtime-generation-identity.cjs')
+const { buildWorkflowPlanDecision } = require('../hooks/_runtime/workflow-plan-decision-v1.cjs')
+const { createEntryCheckModelV3 } = require('../hooks/_runtime/visible-output-contract.cjs')
 const {
   findLayoutInfo,
   namespaceRootPath,
@@ -380,14 +383,15 @@ const TOOLS = [
   },
   {
     name: 'profile_compose_entry_check',
-    description: '生成 PC0~PC7 portable 入口检查块。',
+    description: 'PC0-PC10.',
     inputSchema: {
       type: 'object',
       properties: {
         project: { type: 'string' },
         status: { type: 'string' },
         nextStep: { type: 'string' },
-        semanticDigest: { type: 'string' }
+        semanticDigest: { type: 'string' },
+        entry: { type: 'object' }
       },
       additionalProperties: false
     }
@@ -583,6 +587,53 @@ function resolveProjectBinding(projectName, { requireProfile = true } = {}) {
   })
   if (binding.status !== 'resolved') throwWorkspaceBindingError(binding)
   return binding
+}
+
+function readPackageVersionAt(root) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
+    return String(parsed.version || '').trim() || null
+  } catch {
+    return null
+  }
+}
+
+function composeEntryVersionFacts(projectName) {
+  const runtimeRoot = path.resolve(__dirname, '..')
+  const installedPackageVersion = readPackageVersionAt(runtimeRoot) || PROFILE_PROCESS_IDENTITY.packageVersion || 'unverified'
+  const activeRuntimeGeneration = {
+    generationId: PROFILE_PROCESS_IDENTITY.generationId || 'unverified',
+    packageVersion: PROFILE_PROCESS_IDENTITY.packageVersion || 'unverified',
+    manifestStatus: PROFILE_PROCESS_IDENTITY.manifestStatus || 'unverified'
+  }
+  let sourceCandidate = null
+  let sourceObserved = false
+  try {
+    const binding = resolveProjectBinding(projectName, { requireProfile: false })
+    const sourceRoot = binding?.physicalRoot || (!LAYOUT.enabled ? resolveProjectRoot(projectName) : null)
+    const packageVersion = sourceRoot ? readPackageVersionAt(sourceRoot) : null
+    if (sourceRoot && packageVersion) {
+      let shortHead = 'unverified'
+      let dirty = false
+      try {
+        shortHead = execFileSync('git', ['rev-parse', '--short=8', 'HEAD'], {
+          cwd: sourceRoot, encoding: 'utf8', timeout: 2000, maxBuffer: 64 * 1024, windowsHide: true
+        }).trim() || 'unverified'
+        dirty = execFileSync('git', ['status', '--porcelain=v1', '--untracked-files=normal'], {
+          cwd: sourceRoot, encoding: 'utf8', timeout: 3000, maxBuffer: 256 * 1024, windowsHide: true
+        }).trim().length > 0
+        sourceObserved = true
+      } catch {}
+      sourceCandidate = { root: sourceRoot, packageVersion, shortHead, dirty }
+    }
+  } catch {}
+  let alignment = 'unverified'
+  if (activeRuntimeGeneration.packageVersion !== installedPackageVersion) alignment = 'runtime-mismatch'
+  else if (!sourceCandidate) alignment = 'version-only'
+  else if (!sourceObserved) alignment = 'unverified'
+  else if (sourceCandidate.dirty || sourceCandidate.packageVersion !== activeRuntimeGeneration.packageVersion) alignment = 'source-ahead'
+  else alignment = 'version-only'
+  return { installedPackageVersion, activeRuntimeGeneration, sourceCandidate, alignment }
 }
 
 function resolveProjectName(projectName) {
@@ -2386,6 +2437,8 @@ function handleProfileLoad(args = {}, internal = {}) {
     ledgerStatus: contextObservation?.ledgerStatus || null,
     lifecycleStatus: contextObservation?.lifecycleStatus || null,
     receiptStatus: contextObservation?.receiptStatus || null,
+    contextSnapshotId: contextObservation?.contextSnapshotId || null,
+    observationLease: contextObservation?.observationLease || null,
     satisfiedSourceIds: (contextObservation?.satisfiedSourceIds || []).slice(0, 20),
     missingSourceIds: (contextObservation?.missingSourceIds || []).slice(0, 20)
   }
@@ -2607,7 +2660,7 @@ function handlePromptsGet(args) {
   }
   const profileText = profileResponse.content[0].text
 
-  const promptText = `请严格遵循以下工作流规范与项目配置执行后续任务：\n\n## 1. 核心规范 (user-global runtime kernel)\n\n来源：${runtimeKernel.path || 'unavailable'}\n\n${runtimeKernel.content}\n\n## 2. 项目专属配置 (Profile)\n\n${profileText}\n\n请在充分理解上述规范后，输出预检查块 (PC0~PC7) 并等待我的进一步指示。`
+  const promptText = `请严格遵循以下工作流规范与项目配置执行后续任务：\n\n## 1. 核心规范 (user-global runtime kernel)\n\n来源：${runtimeKernel.path || 'unavailable'}\n\n${runtimeKernel.content}\n\n## 2. 项目专属配置 (Profile)\n\n${profileText}\n\n请在充分理解上述规范后，输出预检查块 (PC0~PC10) 并等待我的进一步指示。`
 
   return {
     description: PROMPTS[0].description,
@@ -2666,17 +2719,43 @@ function dispatch(method, params) {
           case 'profile_get_mode': return handleProfileGetMode(args)
           case 'profile_compose_entry_check': {
             const { composeEntryCheckBlock } = require('../scripts/lib/host-parity-scorecard.js')
+            const entry = args.entry && typeof args.entry === 'object' && !Array.isArray(args.entry) ? args.entry : {}
+            const workflowRouting = resolveConfigFile(args.project).config?.extensions?.devcodex?.workflowRouting
+            const precheckDecision = buildWorkflowPlanDecision({
+              phase: 'precheck', prompt: entry.prompt, config: workflowRouting, facts: entry.facts
+            })
+            const postContextDecision = entry.postContextFacts
+              ? buildWorkflowPlanDecision({
+                  phase: 'post-context', prompt: entry.prompt, userIntent: precheckDecision.userIntent,
+                  config: workflowRouting, facts: entry.postContextFacts, previousDecision: precheckDecision
+                })
+              : null
+            const entryCheckModel = createEntryCheckModelV3({
+              versionFacts: composeEntryVersionFacts(args.project),
+              precheckDecision,
+              postContextDecision,
+              validationPlan: entry.validationPlan,
+              continuation: entry.continuation || {
+                nextStage: args.nextStep || 'bounded-context-read',
+                automatic: false,
+                userAction: '按入口提示继续；无需操作时为 none',
+                correctionHint: '直接说明要调整的流程、方案深度或验证范围'
+              },
+              showPlan: entry.showPlan !== false && precheckDecision.showPlan !== false
+            })
             const block = composeEntryCheckBlock({
               project: args.project,
               status: args.status,
               nextStep: args.nextStep,
-              semanticDigest: args.semanticDigest
+              semanticDigest: args.semanticDigest,
+              entryCheckModel
             })
             return {
               content: [{ type: 'text', text: block }],
               structuredContent: {
-                schemaVersion: 'EntryCheckComposeV1',
+                schemaVersion: 'EntryCheckComposeV3',
                 block,
+                entryCheckModel,
                 note: 'Paste into the user-visible reply before substantive work. Grok hooks cannot inject this.'
               }
             }

@@ -3,12 +3,18 @@
 
 const fs = require('fs')
 const path = require('path')
-const { RECEIPT_SCHEMA, resolveArtifactPath } = require('./exact-release-artifact')
+const {
+  PUBLISHED_RECEIPT_SCHEMA,
+  RECEIPT_SCHEMA,
+  resolveArtifactPath
+} = require('./exact-release-artifact')
+const { AGGREGATE_SCHEMA, PLAN_SCHEMA, compatibilityMatrix } = require('./plan-ci-validation')
 
 const ROOT = path.resolve(__dirname, '..')
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const plugin = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugin.json'), 'utf8'))
 const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'))
+const validationManifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'validation-manifest.json'), 'utf8'))
 const publicCi = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8')
 const publishWorkflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'publish.yml'), 'utf8')
 const exactArtifactSource = fs.readFileSync(path.join(ROOT, 'scripts', 'exact-release-artifact.js'), 'utf8')
@@ -53,12 +59,18 @@ expect(nonEmptyString(pkg.homepage), 'package.json homepage 不能为空')
 expect(nonEmptyString(pkg.engines && pkg.engines.node), 'package.json engines.node 不能为空')
 expect(pkg.engines.node === '>=18.17.0', 'package.json engines.node 必须匹配 recursive fs API 的精确最低版本 >=18.17.0')
 expect(lock.packages?.['']?.engines?.node === pkg.engines.node, 'package-lock 根 engines.node 必须与 package.json 一致')
-expect(publicCi.includes('node: 18.17.0'), '公共 CI 必须验证精确最低 Node 18.17.0')
-expect(publicCi.includes('node: 26.x'), '公共 CI 必须验证前瞻 Node 26 current compatibility')
-expect(publicCi.includes('route: test:windows-control-plane'), '公共 CI 必须在 Windows 运行控制面路线')
+const compatibility = compatibilityMatrix(validationManifest)
+expect(compatibility.some(item => item.node === '18.17.0'), 'nightly/manual full matrix 必须验证精确最低 Node 18.17.0')
+expect(compatibility.some(item => item.node === '26.x'), 'nightly/manual full matrix 必须验证前瞻 Node 26 current compatibility')
+expect(compatibility.some(item => item.os === 'windows-latest' && item.command === 'test:windows-control-plane'), 'nightly/manual full matrix 必须在 Windows 运行控制面路线')
 expect(publicCi.includes('name: Full quality (Node 24.17)'), '公共 CI 全量质量门必须使用发布 Node 24.17')
 expect(publicCi.includes('name: Package boundary (Node 24.17)'), '公共 CI package job 必须只声明实际执行的 package boundary')
 expect(!publicCi.includes('Website and package'), '公共 CI 不得把条件缺席的网站构建表述为绿色证据')
+expect(publicCi.includes('Build ValidationImpactGraphV2 CI plan'), '公共 CI 必须先运行 affected planner')
+expect(publicCi.includes('fromJSON(needs.plan.outputs.matrix)'), 'affected job 必须消费 planner matrix')
+expect(publicCi.includes("if: needs.plan.outputs.run-full-quality == 'true'"), 'full quality 必须由 planner 显式触发')
+expect(publicCi.includes("if: needs.plan.outputs.run-package-boundary == 'true'"), 'package boundary 必须由 planner 显式触发')
+expect(publicCi.includes('name: Required validation aggregate'), '公共 CI 必须始终聚合 required node receipts')
 expect(publicCi.includes('set -euo pipefail'), '公共 CI 必须让 full plan 管道失败关闭')
 expect(
   publicCi.includes('node scripts/run-validation.js --route full --actor trusted-ci') &&
@@ -101,16 +113,20 @@ expect(
 )
 expect(!publishWorkflow.includes('npm pack --dry-run'), 'Publish workflow 不得以另一次 dry-run pack 冒充实际发布对象证据')
 expect(
-  publishWorkflow.includes('exact-release-artifact.js postcheck --output-dir') &&
-    publishWorkflow.includes('Published artifact did not converge to the qualified identity'),
-  'Publish workflow 必须回查 registry integrity、gitHead 与 provenance'
+  publishWorkflow.includes('exact-release-artifact.js mark-published') &&
+    publishWorkflow.includes('exact-release-artifact.js finalize') &&
+    publishWorkflow.includes('finalize-only'),
+  'Publish workflow 必须在不可逆 publish 后立即持久化 receipt，并允许 finalize-only 恢复'
 )
 expect(
-  publishWorkflow.includes('contents: write') && publishWorkflow.includes('gh release create "${GITHUB_REF_NAME}"') &&
-    publishWorkflow.includes('--verify-tag') && publishWorkflow.includes('--notes-file "changelogs/releases/${GITHUB_REF_NAME}.md"'),
+  publishWorkflow.includes('contents: write') && publishWorkflow.includes('gh release create "${RELEASE_TAG}"') &&
+    publishWorkflow.includes('--verify-tag') && publishWorkflow.includes('--notes-file "changelogs/releases/${RELEASE_TAG}.md"'),
   'Publish workflow 必须在 registry 回查后从既有精确 tag 与同一 tarball 创建 GitHub Release'
 )
 expect(RECEIPT_SCHEMA === 'ExactReleaseArtifactReceiptV1', '发布制品回执必须使用稳定 ExactReleaseArtifactReceiptV1 schema')
+expect(PUBLISHED_RECEIPT_SCHEMA === 'PublishedArtifactReceiptV1', '不可逆 publish 边界必须使用 PublishedArtifactReceiptV1')
+expect(PLAN_SCHEMA === 'CiValidationPlanV1', 'CI planner 必须输出稳定 CiValidationPlanV1')
+expect(AGGREGATE_SCHEMA === 'CiValidationAggregateReceiptV1', 'CI aggregator 必须输出稳定 CiValidationAggregateReceiptV1')
 expect(
   exactArtifactSource.includes("'sha256'") && exactArtifactSource.includes("'sha512'") &&
     exactArtifactSource.includes('releaseTerminalDigest') && exactArtifactSource.includes('published-provenance-missing'),

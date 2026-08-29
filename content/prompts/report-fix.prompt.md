@@ -77,7 +77,7 @@ applyTo: .devcodex/**/reports/bugs/**
 
 ECR 的 review 状态必须来自唯一 `ReviewStateSnapshotV1`，并引用 planId、candidate/stage、fresh receipt digests、EvidenceSaturation 与 StageTiming；不得在报告手写另一套 open/blocker/stale 计数。
 
-命中用户可见输出时追加 `VisibleOutputContract`：引用同一 `ArtifactDeliveryManifestV1.manifestDigest`、`UserFacingArtifactSetV1` 计数、`PostCompletionActionSetV1`、`DevCodexVisibleEnvelopeV2.semanticDigest`、持久化 `LinkCapabilityDecisionV1`、用户面 `HostLinkCapabilityDecisionV2` 的 hostSurface/presentationSurface/rendererId/evidenceState/openMode/fallbackReason 和 renderer parity。默认用户列表不包含 session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger，但这些内部产物仍须写入、验证和参与 ECR。
+命中用户可见输出时追加 `VisibleOutputContract`：引用同一 `ArtifactDeliveryManifestV1.manifestDigest`、`UserFacingArtifactSetV1` 计数、`PostCompletionActionSetV1`、`EntryCheckModelV3`、`DevCodexVisibleEnvelopeV3.semanticDigest`、持久化 `LinkCapabilityDecisionV1`、用户面 `HostLinkCapabilityDecisionV2` 的 hostSurface/presentationSurface/rendererId/evidenceState/openMode/fallbackReason，以及逐目标 `ArtifactDeliveryAttemptV1` 的 actionId/attempted/actionStatus/readback/status/fallbackReason 和 renderer parity。renderer-only、action/readback 失败或缺失必须 absolute fallback，不能声明已打开。默认用户列表不包含 session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger，但这些内部产物仍须写入、验证和参与 ECR。
 
 <!-- devcodex:include shared/report/mcp-fallback-recording.md -->
 

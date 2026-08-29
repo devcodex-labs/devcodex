@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://devcodex.dev/schemas/workflow-plan-decision-v1.json",
+  "title": "WorkflowPlanDecisionV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "phase", "showPlan", "priorityOrder", "userIntent", "config", "facts",
+    "axes", "mandatoryObligations", "plannedStages", "change", "decisionId", "validation"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "WorkflowPlanDecisionV1" },
+    "phase": { "enum": ["precheck", "post-context", "scope-expansion"] },
+    "showPlan": { "type": "boolean" },
+    "priorityOrder": {
+      "const": ["user-explicit", "profile-config", "adaptive-classifier", "fallback"]
+    },
+    "userIntent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ceremonyTier", "designDepth", "assuranceLevel", "evidence"],
+      "properties": {
+        "ceremonyTier": { "type": ["string", "null"], "enum": ["simple", "standard", null] },
+        "designDepth": { "type": ["string", "null"], "enum": ["minimal", "standard", null] },
+        "assuranceLevel": { "type": ["string", "null"], "enum": ["targeted", "affected", "full", null] },
+        "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "showPlan", "source"],
+      "properties": {
+        "mode": { "enum": ["adaptive", "simple", "standard"] },
+        "showPlan": { "type": "boolean" },
+        "source": { "enum": ["default", "profile-config", "invalid-config-fallback"] }
+      }
+    },
+    "facts": { "type": "object" },
+    "axes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ceremonyTier", "designDepth", "assuranceLevel"],
+      "properties": {
+        "ceremonyTier": { "$ref": "#/$defs/axis" },
+        "designDepth": { "$ref": "#/$defs/axis" },
+        "assuranceLevel": { "$ref": "#/$defs/axis" }
+      }
+    },
+    "mandatoryObligations": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+    "plannedStages": { "type": "array", "minItems": 4, "items": { "type": "string", "minLength": 1 } },
+    "change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["changedFromPrecheck", "changedAxes", "reason"],
+      "properties": {
+        "changedFromPrecheck": { "type": "boolean" },
+        "changedAxes": { "type": "array", "uniqueItems": true, "items": { "enum": ["ceremonyTier", "designDepth", "assuranceLevel"] } },
+        "reason": { "type": ["string", "null"] }
+      }
+    },
+    "decisionId": { "type": "string", "pattern": "^workflow-plan-[a-f0-9]{64}$" },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["valid", "errors"],
+      "properties": {
+        "valid": { "const": true },
+        "errors": { "type": "array", "maxItems": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "axis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "source", "reason"],
+      "properties": {
+        "value": { "type": "string", "minLength": 1 },
+        "source": { "enum": ["user-explicit", "profile-config", "legacy-design-read-compatibility", "adaptive-classifier", "fallback"] },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

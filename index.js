@@ -18,6 +18,7 @@ const { buildCliObservabilityCommands } = require('./scripts/lib/cli-observabili
 const { buildCliExecutionCommands } = require('./scripts/lib/cli-execution-commands.js')
 const { buildCliRuntimeCommands } = require('./scripts/lib/cli-runtime-commands.js')
 const { buildCliTempCommands } = require('./scripts/lib/cli-temp-commands.js')
+const { buildCliGovernanceCommands } = require('./scripts/lib/cli-governance-commands.js')
 const {
   prepareWorkspaceTempBackupRoot,
   withWorkspaceTempBackup
@@ -419,6 +420,7 @@ const { cmdProbe, cmdTrace } = buildCliObservabilityCommands({
 const { cmdSkill, cmdTask } = buildCliExecutionCommands({ process, console, c })
 const { cmdRuntime } = buildCliRuntimeCommands({ process, console, c, cliMetadata: { packageVersion: require('./package.json').version } })
 const { cmdTemp } = buildCliTempCommands({ process, console, c, cliMetadata: { packageVersion: require('./package.json').version } })
+const { cmdGovernance } = buildCliGovernanceCommands({ process, console, c, resolveActiveRuntimeRoot })
 const { cmdGlobalAdapters } = require('./scripts/lib/global-adapters-cli.js').buildHandler({
   fs, path, process, console, c, packageRoot: PKG_ROOT, packageJson: require('./package.json')
 })
@@ -436,7 +438,7 @@ function cmdGrok(argv) {
 
 const cliCommandRegistry = createCliCommandRegistry({
   cmdInitWorkspaceRuntime, cmdInitHost, cmdUninstallHost, cmdGrok, cmdStatus, cmdProfileInit, cmdDoctor,
-  cmdProbe, cmdTrace, cmdSkill, cmdTask, cmdGlobalAdapters, cmdRuntime, cmdTemp, cmdHelp
+  cmdProbe, cmdTrace, cmdSkill, cmdTask, cmdGlobalAdapters, cmdRuntime, cmdTemp, cmdGovernance, cmdHelp
 })
 
 if (require.main === module) {
@@ -447,7 +449,7 @@ if (require.main === module) {
 module.exports = {
   walkDir, cmdInitWorkspaceRuntime, cmdInitHost,
   cmdUninstallHost, cmdGrok, cmdStatus, cmdHelp, cmdProfileInit, cmdDoctor, cmdProbe, cmdTrace,
-  cmdSkill, cmdTask, cmdGlobalAdapters, cmdRuntime, cmdTemp, isSourceRepo, findLayoutInfo, inferProjectFromCwd, resolveActiveRuntimeRoot,
+  cmdSkill, cmdTask, cmdGlobalAdapters, cmdRuntime, cmdTemp, cmdGovernance, isSourceRepo, findLayoutInfo, inferProjectFromCwd, resolveActiveRuntimeRoot,
   resolveWorkspaceTempBackupRoot, resolveWorkspaceTempProject, resolveWorkspaceTempRoot,
   prepareWorkspaceTempBackupRoot,
   resolveHostAdapterScope, resolveGitignoreRoot, ensureWorkspaceNamespaceLayout, ensureRuntimeDirs, SOURCES, CLAUDE_SOURCES,

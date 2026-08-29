@@ -3,7 +3,7 @@
 const { appendTaskRecoveryTelemetry } = require('./task-recovery-store-v5.cjs')
 
 /**
- * PF-087: free-text entry-check completeness for PC0~PC7 (extends Envelope rules to markdown paths).
+ * PF-087: free-text entry-check completeness for current PC0~PC10, with V1/V2 PC0~PC7 read compatibility.
  * Does not invent a parallel gate owner — used by lifecycle-visible-reply + UV contract.
  *
  * @param {string} text assistant-visible reply
@@ -21,7 +21,11 @@ const { appendTaskRecoveryTelemetry } = require('./task-recovery-store-v5.cjs')
 function analyzeEntryCheckCompleteness(text, options = {}) {
   const body = String(text || '')
   const mode = String(options.mode || options.envMode || '').toLowerCase()
-  const claimed = /入口检查|预检查（\s*DEV|###\s*DevCodex\s*·\s*入口检查|DevCodexVisibleEnvelopeV(?:1|2)\s*·\s*entry-check|PC0\s*(?:上下文|\[|（)|PC0\s*[：:]/i.test(body)
+  const marker = body.match(/DevCodexVisibleEnvelopeV([123])\s*·\s*entry-check/i)
+  const sourceSchemaVersion = marker ? `DevCodexVisibleEnvelopeV${marker[1]}` : null
+  const legacyReadOnly = marker && ['1', '2'].includes(marker[1])
+  const lastOrdinal = legacyReadOnly ? 7 : 10
+  const claimed = /入口检查|预检查（\s*DEV|###\s*DevCodex\s*·\s*入口检查|DevCodexVisibleEnvelopeV(?:1|2|3)\s*·\s*entry-check|PC0\s*(?:上下文|版本|\[|（)|PC0\s*[：:]/i.test(body)
   if (!claimed) {
     return {
       claimed: false,
@@ -30,14 +34,16 @@ function analyzeEntryCheckCompleteness(text, options = {}) {
       missingPcs: [],
       missingItems: [],
       foldedRanges: [],
-      presentPcs: []
+      presentPcs: [],
+      sourceSchemaVersion,
+      migrationStatus: 'not-claimed'
     }
   }
 
   const missingItems = []
   const foldedRanges = []
   // Folded / merged PC ranges (e.g. PC2–PC7, PC2-7, PC2~PC7)
-  const foldedRe = /PC\s*([0-7])\s*(?:[-–—~～至到]|到)\s*(?:PC\s*)?([0-7])/gi
+  const foldedRe = /PC\s*(10|[0-9])\s*(?:[-–—~～至到]|到)\s*(?:PC\s*)?(10|[0-9])/gi
   let fm
   while ((fm = foldedRe.exec(body)) !== null) {
     const a = Number(fm[1])
@@ -48,12 +54,12 @@ function analyzeEntryCheckCompleteness(text, options = {}) {
     }
   }
   // "PC2–PC7 PASS" style without individual lines
-  if (/PC\s*[2-6]\s*[-–—~～]\s*PC\s*7|PC2\s*[-–—~～]\s*7/i.test(body)) {
+  if (/PC\s*[2-9]\s*[-–—~～]\s*PC\s*(?:7|10)|PC2\s*[-–—~～]\s*(?:7|10)/i.test(body)) {
     if (!missingItems.includes('pc-folded-range')) missingItems.push('pc-folded-range')
   }
 
   const presentPcs = []
-  for (let i = 0; i <= 7; i++) {
+  for (let i = 0; i <= lastOrdinal; i++) {
     // Separate line/bullet/table cell for this PC (not only inside a folded range token)
     const lineRe = new RegExp(
       `(?:^|\\n)\\s*(?:[-*]\\s*)?(?:\\|\\s*)?PC${i}\\b(?!\\s*[-–—~～至到])`,
@@ -62,21 +68,35 @@ function analyzeEntryCheckCompleteness(text, options = {}) {
     if (lineRe.test(body)) presentPcs.push(`PC${i}`)
   }
   const missingPcs = []
-  for (let i = 0; i <= 7; i++) {
+  for (let i = 0; i <= lastOrdinal; i++) {
     const id = `PC${i}`
     if (!presentPcs.includes(id)) missingPcs.push(id)
   }
   if (missingPcs.length) missingItems.push('pc-columns-incomplete')
 
-  // PC0 must carry context-ish content (not empty status-only)
+  // Legacy V1/V2 PC0 carried context. V3 PC0 carries installed/runtime/source version facts and alignment.
   const pc0Line = body.match(/(?:^|\n)\s*(?:[-*]\s*)?(?:\|\s*)?PC0\b[^\n]{0,200}/i)
   if (pc0Line) {
     const content = pc0Line[0]
-    const hasContext = /上下文|Context|plan|active-root|项目|PASS|WARN|BLOCK|UNVERIFIED|N\/A|回执|receipt/i.test(content) &&
+    const hasContext = (legacyReadOnly
+      ? /上下文|Context|plan|active-root|项目|PASS|WARN|BLOCK|UNVERIFIED|N\/A|回执|receipt/i
+      : /版本|version|runtime|运行时|source|源码|generation|对齐|alignment|installed|安装包/i).test(content) &&
       content.replace(/PC0|\[[^\]]*\]|[|`*_#\-]/gi, '').trim().length >= 2
     if (!hasContext) missingItems.push('pc0-context-thin')
   } else {
     missingItems.push('pc0-context-thin')
+  }
+
+  if (!legacyReadOnly) {
+    const semanticChecks = [
+      ['PC8', /复杂|流程|ceremony|方案|design|precheck|二次判断|差异/i, 'pc8-workflow-plan-thin'],
+      ['PC9', /验证|assurance|targeted|affected|full|CI|安装|发布|时长|duration/i, 'pc9-validation-plan-thin'],
+      ['PC10', /下一|next|自动|用户|动作|修正|correction|continue/i, 'pc10-continuation-thin']
+    ]
+    for (const [id, evidence, errorCode] of semanticChecks) {
+      const line = body.match(new RegExp(`(?:^|\\n)\\s*(?:[-*]\\s*)?(?:\\|\\s*)?${id}\\b[^\\n]{0,260}`, 'i'))
+      if (!line || !evidence.test(line[0])) missingItems.push(errorCode)
+    }
   }
 
   // PC4: in dev, N/A without skip/reason is invalid; bare "PC4 N/A" alone is thin
@@ -111,7 +131,9 @@ function analyzeEntryCheckCompleteness(text, options = {}) {
     missingPcs,
     missingItems: uniqueMissing,
     foldedRanges: [...new Set(foldedRanges)],
-    presentPcs
+    presentPcs,
+    sourceSchemaVersion,
+    migrationStatus: legacyReadOnly ? `legacy-v${marker[1]}-read-only` : 'current-v3'
   }
 }
 
@@ -184,7 +206,7 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     const barePathBulletRe = /^\s*[-*]\s*(?:`?[\w./\\-]+\.(?:md|json|js|cjs|mjs|ts)`?|[A-Za-z]:\\[^\s]+)\s*$/
     for (let index = 0; index < lines.length; index++) {
       const line = lines[index]
-      const marker = line.match(/DevCodexVisibleEnvelopeV(?:1|2)\s*·\s*(?:entry-check|completion-check|confirmation|progress|final-result|error-block)\s*·\s*(?:PASS|WARN|BLOCK|UNVERIFIED|N\/A)\s*·\s*([a-f0-9]{64})/)
+      const marker = line.match(/DevCodexVisibleEnvelopeV(?:1|2|3)\s*·\s*(?:entry-check|completion-check|confirmation|progress|final-result|error-block)\s*·\s*(?:PASS|WARN|BLOCK|UNVERIFIED|N\/A)\s*·\s*([a-f0-9]{64})/)
       if (marker) {
         envelopeMarker = true
         semanticDigest = marker[1]
@@ -287,11 +309,10 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     state.visible.payloadObserved = true
     // Keep bounded sample for soft reminders / F-08 exemption (Stop path)
     state.visible.assistantTextSample = String(text || '').slice(0, 12000)
-    // Accept V2 plus the one-window V1 read-compatibility marker (W8).
-    // PF-087: presence alone is not enough — require free-text PC0~PC7 column completeness.
+    // Accept V1/V2 as read-only compatibility; current V3 requires free-text PC0~PC10 completeness.
     const entryCompleteness = analyzeEntryCheckCompleteness(text, { mode: state.mode })
     state.visible.entryCheckCompleteness = entryCompleteness
-    if (/入口检查（|预检查（DEV 模式）|PC0 上下文|###\s*DevCodex\s*·\s*入口检查|DevCodexVisibleEnvelopeV(?:1|2)\s*·\s*entry-check|PC0\s*[\[（]/.test(text)) {
+    if (/入口检查（|预检查（DEV 模式）|PC0 (?:上下文|版本)|###\s*DevCodex\s*·\s*入口检查|DevCodexVisibleEnvelopeV(?:1|2|3)\s*·\s*entry-check|PC0\s*[\[（]/.test(text)) {
       if (entryCompleteness.complete) {
         state.visible.precheck = true
         state.visible.precheckStatus = 'verified-present'
@@ -460,16 +481,16 @@ function buildLifecycleVisibleReplyUtils(ctx) {
           ...(completeness.missingItems || []),
           ...(completeness.missingPcs || [])
         ].slice(0, 8).join(', ')
-        items.push(`entry check incomplete（PF-087：PC0~PC7 须分列完整；不得折叠合并；missing=${detail || 'pc-columns-incomplete'}）`)
+        items.push(`entry check incomplete（PF-087：当前 V3 的 PC0~PC10 须分列完整；V1/V2 仅只读兼容；不得折叠合并；missing=${detail || 'pc-columns-incomplete'}）`)
       } else {
-        items.push('entry check block 未输出（S07/C18：首条用户可见回复必须含 PC0~PC7 入口检查块）')
+        items.push('entry check block 未输出（S07/C18：首条用户可见回复必须含 PC0~PC10 入口检查块）')
       }
     } else if (eventName === 'Stop' && precheckStatus === 'unverified') {
       items.push(`无法验证最终用户可见回复是否包含入口检查块（Stop/PreCompact 未提供可解析 assistant 内容；如需取证请创建 ${getStatePaths(state).finalPayloadFlag} 后重试）`)
     }
     settleS07OrderStatus(state, eventName)
     if (eventName === 'Stop' && state.visible?.s07OrderStatus === 'late') {
-      items.push('S07 order: product mutation before entry-check evidence（VL-004：文首补 PC 不算先输出；reports/.memory/台账写入须在首次可见 PC0~PC7 之后）')
+      items.push('S07 order: product mutation before entry-check evidence（VL-004：文首补 PC 不算先输出；reports/.memory/台账写入须在首次可见 PC0~PC10 之后）')
     }
     // F-14/F-16: dev + (report or mutation) must show completion-check; standard heading accepted
     if (
@@ -479,7 +500,7 @@ function buildLifecycleVisibleReplyUtils(ctx) {
       state.visible &&
       !state.visible.compliance
     ) {
-      items.push('完成检查未输出或未识别（须含 ### DevCodex · 完成检查 或 DevCodexVisibleEnvelopeV2 · completion-check；V1 仅兼容读取；F-14）')
+      items.push('完成检查未输出或未识别（须含 ### DevCodex · 完成检查 或 DevCodexVisibleEnvelopeV3 · completion-check；V1/V2 仅兼容读取；F-14）')
     }
     if (eventName === 'Stop' && state.mode === 'dev' && state.reportTouched && state.visible?.compliance) {
       const summaryStatus = state.visible.finalValidationSummaryStatus || 'verified-missing'

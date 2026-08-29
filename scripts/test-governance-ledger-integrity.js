@@ -34,6 +34,17 @@ assert(inspectGovernanceLedgerBuffer(duplicate, { expectedPrefix: 'PF-' }).issue
 const invalidUtf8 = Buffer.from([0xc3, 0x28])
 assert(inspectGovernanceLedgerBuffer(invalidUtf8, { expectedPrefix: 'PI-' }).issues.includes('invalid-utf8'))
 
+const archiveWithReferenceHeading = Buffer.from([
+  '## 登记表',
+  '| GR-010 | 2026-08-01 | archived |',
+  '## GR-010 primary',
+  '### GR-011 reference-only'
+].join('\n'))
+assert.deepStrictEqual(
+  inspectGovernanceLedgerBuffer(archiveWithReferenceHeading, { expectedPrefix: 'GR-', exactHeadingLevel: 2 }).primaryIds,
+  ['GR-010']
+)
+
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-ledger-integrity-'))
 try {
   const dataRoot = path.join(tempRoot, 'data')

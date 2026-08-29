@@ -7,6 +7,10 @@ const path = require('path')
 const { spawnSync } = require('child_process')
 const { performance } = require('perf_hooks')
 const contract = require('../hooks/_runtime/context-read-contract.cjs')
+const {
+  buildContextRouteBinding,
+  buildContextSnapshotHandoff
+} = require('../hooks/_runtime/context-continuity-contract.cjs')
 const { buildContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
 const workflowRouteRegistryV2 = require('../hooks/_runtime/workflow-root-registry.v2.json')
 
@@ -850,6 +854,12 @@ const priorPlan = assertPlan(buildContextReadPlan(makeInput('dev', ['source-code
   invocationNonce: 'reuse-prior'
 }))
 const priorReceipt = satisfyAll(priorPlan)
+assert.match(priorReceipt.contextSnapshotId, /^context-snapshot-[a-f0-9]{64}$/)
+assert.strictEqual(priorReceipt.observationLease.schemaVersion, 'ContextObservationLeaseV1')
+assert.match(priorReceipt.observationLease.turnBinding, /^turn-[a-f0-9]{40}$/)
+const priorHandoff = buildContextSnapshotHandoff(priorPlan, priorReceipt)
+assert.strictEqual(priorHandoff.schemaVersion, 'ContextSnapshotHandoffV1')
+assert.strictEqual(priorHandoff.contextSnapshotId, priorReceipt.contextSnapshotId)
 const currentPlan = assertPlan(buildContextReadPlan(makeInput('dev', ['source-code']), {
   nowMs: BASE_MS + 1,
   invocationNonce: 'reuse-current'
@@ -899,8 +909,27 @@ const epochDecision = evaluateContextReuse({
   sourceIdentities: priorReceipt.sourceIdentities
 })
 assert.strictEqual(epochDecision.computation.reuse, true)
-assert.strictEqual(epochDecision.delivery.reuse, false)
-assert.strictEqual(epochDecision.delivery.reasonCode, 'context-epoch-mismatch')
+assert.strictEqual(epochDecision.delivery.reuse, true)
+assert.strictEqual(epochDecision.delivery.reasonCode, 'same-session-snapshot-observation-lease-rebound')
+assert.strictEqual(epochDecision.contextSnapshotId, priorReceipt.contextSnapshotId)
+const reboundReceipt = createContextReadReceipt(nextEpochPlan, {
+  verificationMode: 'structured-plan',
+  planObserved: true,
+  hostSessionId: 'host-session-1',
+  priorHandoff,
+  nowMs: BASE_MS + 3
+})
+assert.strictEqual(reboundReceipt.status, 'relevant-complete')
+assert.strictEqual(reboundReceipt.contextSnapshotId, priorReceipt.contextSnapshotId)
+assert.notStrictEqual(reboundReceipt.observationLease.leaseDigest, priorReceipt.observationLease.leaseDigest)
+assert.strictEqual(reboundReceipt.delivery.reused, true)
+const routeBinding = buildContextRouteBinding({
+  contextSnapshotId: reboundReceipt.contextSnapshotId,
+  workflowRouteDigest: nextEpochPlan.workflowRoute.routeIdentityDigest,
+  skillPlanDigest: 'a'.repeat(64)
+})
+assert.strictEqual(routeBinding.schemaVersion, 'ContextRouteBindingV1')
+assert.match(routeBinding.bindingDigest, /^[a-f0-9]{64}$/)
 const sessionDecision = evaluateContextReuse({
   plan: currentPlan,
   priorPlan,

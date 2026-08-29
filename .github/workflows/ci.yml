@@ -4,35 +4,66 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "17 3 * * *"
   workflow_dispatch:
+    inputs:
+      validation_scope:
+        description: Validation scope
+        required: true
+        default: affected
+        type: choice
+        options:
+          - affected
+          - full
 
 permissions:
   contents: read
 
 jobs:
-  supported-control-plane:
-    name: Control plane (${{ matrix.os }}, Node ${{ matrix.node }})
+  plan:
+    name: Plan affected validation
+    runs-on: ubuntu-latest
+    outputs:
+      run-affected: ${{ steps.plan.outputs.run-affected }}
+      run-impact-validation: ${{ steps.plan.outputs.run-impact-validation }}
+      run-full-quality: ${{ steps.plan.outputs.run-full-quality }}
+      run-package-boundary: ${{ steps.plan.outputs.run-package-boundary }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      planner-digest: ${{ steps.plan.outputs.planner-digest }}
+      changed-files-b64: ${{ steps.plan.outputs.changed-files-b64 }}
+      plan-b64: ${{ steps.plan.outputs.plan-b64 }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Build ValidationImpactGraphV2 CI plan
+        id: plan
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          MANUAL_SCOPE: ${{ inputs.validation_scope || 'affected' }}
+        run: |
+          set -euo pipefail
+          node --check scripts/plan-ci-validation.js
+          node scripts/plan-ci-validation.js \
+            --event "${GITHUB_EVENT_NAME}" \
+            --base "${BASE_SHA}" \
+            --head "${GITHUB_SHA}" \
+            --manual-scope "${MANUAL_SCOPE}" \
+            --github-output "${GITHUB_OUTPUT}" \
+            > "${RUNNER_TEMP}/ci-validation-plan.json"
+          node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(`### CI validation plan\n\n- planner: \`${p.plannerDigest}\`\n- changed: ${p.totalChangedFiles}\n- affected: ${p.jobs.affected}\n- full: ${p.jobs.fullQuality}${p.fullReasonCodes.length?` (${p.fullReasonCodes.join(", ")})`:""}\n- package: ${p.jobs.packageBoundary}\n`)' "${RUNNER_TEMP}/ci-validation-plan.json" >> "${GITHUB_STEP_SUMMARY}"
+
+  affected:
+    name: Affected (${{ matrix.id }}, Node ${{ matrix.node }})
+    needs: plan
+    if: needs.plan.outputs.run-affected == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            node: 18.17.0
-            route: test:supported-runtime-control-plane
-          - os: ubuntu-latest
-            node: 22.x
-            route: test:supported-runtime-control-plane
-          - os: ubuntu-latest
-            node: 26.x
-            route: test:supported-runtime-control-plane
-          - os: windows-latest
-            node: 18.17.0
-            route: test:windows-control-plane
-          - os: windows-latest
-            node: 24.17.0
-            route: test:windows-control-plane
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -40,10 +71,42 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
-      - run: npm run ${{ matrix.route }}
+      - name: Run exact affected validation plan
+        if: matrix.kind == 'impact'
+        shell: bash
+        env:
+          CHANGED_FILES_B64: ${{ needs.plan.outputs.changed-files-b64 }}
+          CI_PLAN_B64: ${{ needs.plan.outputs.plan-b64 }}
+        run: |
+          set -euo pipefail
+          mapfile -d '' CHANGED_FILES < <(node -e 'for(const f of JSON.parse(Buffer.from(process.env.CHANGED_FILES_B64,"base64").toString("utf8"))) process.stdout.write(f+"\0")')
+          CHANGED_ARGS=()
+          for file in "${CHANGED_FILES[@]}"; do CHANGED_ARGS+=(--changed "${file}"); done
+          AUTHORITY_SOURCE="github-actions:${GITHUB_WORKFLOW}:${GITHUB_EVENT_NAME}:${GITHUB_REPOSITORY}:${GITHUB_REF}:${GITHUB_SHA}"
+          VALIDATION_LEVEL="$(node -e 'const p=JSON.parse(Buffer.from(process.env.CI_PLAN_B64,"base64").toString("utf8")); process.stdout.write(p.effective.verificationLevel)')"
+          export VALIDATION_LEVEL
+          POLICY_DIGEST="$(node -e 'const {sha256}=require("./hooks/_runtime/content-identity.cjs"); process.stdout.write(sha256(JSON.stringify({workflow:process.env.GITHUB_WORKFLOW,event:process.env.GITHUB_EVENT_NAME,repository:process.env.GITHUB_REPOSITORY,ref:process.env.GITHUB_REF,commit:process.env.GITHUB_SHA,level:process.env.VALIDATION_LEVEL})))' )"
+          BUDGET_DIGEST="$(
+            node scripts/run-validation.js --route changed "${CHANGED_ARGS[@]}" --actor trusted-ci --authority-source "${AUTHORITY_SOURCE}" --policy-digest "${POLICY_DIGEST}" --plan --json |
+              node -e 'const fs=require("fs"); const value=JSON.parse(fs.readFileSync(0,"utf8")); const digest=value?.data?.plan?.budgetCard?.digest; if(value?.ok!==true||!/^[a-f0-9]{64}$/.test(String(digest||""))) process.exit(1); process.stdout.write(digest)'
+          )"
+          node scripts/run-validation.js --route changed "${CHANGED_ARGS[@]}" --actor trusted-ci --authority-source "${AUTHORITY_SOURCE}" --policy-digest "${POLICY_DIGEST}" --approve-plan "${BUDGET_DIGEST}" --json > "${RUNNER_TEMP}/ci-validation-result-${{ matrix.id }}.json"
+      - name: Run scheduled compatibility route
+        if: matrix.kind == 'compatibility'
+        run: npm run ${{ matrix.command }}
+      - name: Preserve affected validation receipt
+        if: always() && matrix.kind == 'impact'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-validation-result-${{ matrix.id }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-validation-result-${{ matrix.id }}.json
+          if-no-files-found: error
+          retention-days: 14
 
   full-quality:
     name: Full quality (Node 24.17)
+    needs: plan
+    if: needs.plan.outputs.run-full-quality == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -64,12 +127,22 @@ jobs:
             node scripts/run-validation.js --route full --actor trusted-ci --authority-source "${AUTHORITY_SOURCE}" --policy-digest "${POLICY_DIGEST}" --plan --json |
               node -e 'const fs=require("fs"); const value=JSON.parse(fs.readFileSync(0,"utf8")); const digest=value?.data?.plan?.budgetCard?.digest; if(value?.ok!==true || !/^[a-f0-9]{64}$/.test(String(digest||""))) process.exit(1); process.stdout.write(digest)'
           )"
-          node scripts/run-validation.js --route full --actor trusted-ci --authority-source "${AUTHORITY_SOURCE}" --policy-digest "${POLICY_DIGEST}" --approve-plan "${BUDGET_DIGEST}"
+          node scripts/run-validation.js --route full --actor trusted-ci --authority-source "${AUTHORITY_SOURCE}" --policy-digest "${POLICY_DIGEST}" --approve-plan "${BUDGET_DIGEST}" --json > "${RUNNER_TEMP}/ci-validation-result-full.json"
       - run: npm run test:coverage
       - run: npm run test:audit
+      - name: Preserve full validation receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-validation-result-full-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-validation-result-full.json
+          if-no-files-found: error
+          retention-days: 14
 
-  website-package:
+  package-boundary:
     name: Package boundary (Node 24.17)
+    needs: plan
+    if: needs.plan.outputs.run-package-boundary == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -80,3 +153,32 @@ jobs:
       - run: npm ci
       - run: npm run release:dry-run:all
       - run: npm run test:pack-clean
+
+  aggregate:
+    name: Required validation aggregate
+    if: always()
+    needs: [plan, affected, full-quality, package-boundary]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Download validation receipts
+        if: needs.plan.result == 'success' && (needs.plan.outputs.run-impact-validation == 'true' || needs.plan.outputs.run-full-quality == 'true')
+        uses: actions/download-artifact@v5
+        with:
+          pattern: ci-validation-result-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-validation-results
+          merge-multiple: true
+      - name: Verify required jobs and node receipts
+        env:
+          DEVCODEX_CI_PLAN_B64: ${{ needs.plan.outputs.plan-b64 }}
+          DEVCODEX_CI_JOB_RESULTS: >-
+            {"plan":"${{ needs.plan.result }}","affected":"${{ needs.affected.result }}","fullQuality":"${{ needs['full-quality'].result }}","packageBoundary":"${{ needs['package-boundary'].result }}"}
+        run: node scripts/plan-ci-validation.js aggregate --results-dir "${RUNNER_TEMP}/ci-validation-results" > "${RUNNER_TEMP}/ci-validation-aggregate.json"
+      - name: Preserve aggregate receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-validation-aggregate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-validation-aggregate.json
+          if-no-files-found: warn
+          retention-days: 14

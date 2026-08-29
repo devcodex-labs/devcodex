@@ -43,6 +43,7 @@ const {
   projectPendingStages
 } = require('./skill-route-budget.cjs')
 const { replayMcpContextSourceObservations } = require('./context-source-observation.cjs')
+const { buildContextRouteBinding } = require('./context-continuity-contract.cjs')
 const { getContextDeliveryDecision } = require('./context-delivery-ledger-v2.cjs')
 const {
   resolveTaskRecoveryMetaDir,
@@ -187,16 +188,17 @@ function buildTrustedContextSemanticCore (input = {}) {
         changeTypes: uniqueSorted(plan.changeTypes || [])
       }
   return {
-    schemaVersion: 'TrustedContextSemanticCoreV1',
+    schemaVersion: receipt.contextSnapshotId
+      ? 'TrustedContextSemanticCoreV2'
+      : 'TrustedContextSemanticCoreV1',
     schema: {
       plan: String(plan.schemaVersion || ''),
       receipt: String(receipt.schemaVersion || ''),
       consumer: String(plan.identityInputs?.versions?.consumers || 'profile-memory-hook@2')
     },
     plan: {
-      contextEpoch: String(input.contextEpoch || plan.identity?.contextEpoch || receipt.contextEpoch || ''),
-      planId: String(plan.planId || receipt.planId || ''),
       planContentId: String(plan.planContentId || receipt.planContentId || ''),
+      contextSnapshotId: String(receipt.contextSnapshotId || ''),
       target: {
         activeRoot: portable(input.activeRoot || plan.identity?.activeRoot || receipt.identity?.activeRoot || ''),
         project: String(input.project || plan.identity?.project || receipt.identity?.project || '')
@@ -205,8 +207,7 @@ function buildTrustedContextSemanticCore (input = {}) {
     sourceIdentity: sourceIdentities,
     route,
     consumer: {
-      host: String(plan.identity?.host || receipt.identity?.host || ''),
-      hostSessionId: String(input.hostSessionId || receipt.identity?.hostSessionId || '')
+      host: String(plan.identity?.host || receipt.identity?.host || '')
     },
     successfulObservation: {
       sourceIds: satisfiedSourceIds,
@@ -481,6 +482,8 @@ function validateTrustedContextBinding (binding, target, options = {}) {
     changeTypes: plan.changeTypes || [],
     receiptId: receipt.receiptId,
     receiptStatus: receipt.status,
+    contextSnapshotId: receipt.contextSnapshotId || null,
+    observationLeaseDigest: receipt.observationLease?.leaseDigest || null,
     hostSessionId: String(acquisition.hostSessionId || ''),
     statePath: portable(statePath)
   }
@@ -512,6 +515,7 @@ function validateTrustedContextBinding (binding, target, options = {}) {
     }
   }
   value.bindingDigest = sha256(semanticCore)
+  value.workflowRouteDigest = sha256(semanticCore.route)
   return value
 }
 
@@ -1176,6 +1180,11 @@ function handleCommit (input, target, options) {
         lateConditionId: input.lateConditionId || null,
         activatedConditionIds
       })
+      const contextRouteBinding = buildContextRouteBinding({
+        contextSnapshotId: trustedContext.contextSnapshotId,
+        workflowRouteDigest: trustedContext.workflowRouteDigest,
+        skillPlanDigest: plan.planDigest
+      })
       const replanProgressOptions = isReplan
         ? { reopenStageIds: ['closeout'] }
         : {}
@@ -1211,6 +1220,7 @@ function handleCommit (input, target, options) {
           decision,
            plan: summary,
            contextBindingDigest: trustedContext.bindingDigest,
+           contextRouteBinding,
            obligations: state.obligationLedger,
            budgetReservation: budgetReservation?.projection || null
         }, [], 16 * 1024)
@@ -1225,6 +1235,7 @@ function handleCommit (input, target, options) {
               decision,
                plan: summary,
                contextBindingDigest: trustedContext.bindingDigest,
+               contextRouteBinding,
                obligations: state.obligationLedger,
                budgetReservation: budgetReservation?.projection || null
             },
@@ -1357,6 +1368,11 @@ function handleRebind (input, target, options) {
         lateConditionId: null,
         activatedConditionIds: priorPlan.activatedConditionIds || []
       })
+      const contextRouteBinding = buildContextRouteBinding({
+        contextSnapshotId: trustedContext.contextSnapshotId,
+        workflowRouteDigest: trustedContext.workflowRouteDigest,
+        skillPlanDigest: plan.planDigest
+      })
       if (rebindSemanticDigest(priorPlan) !== rebindSemanticDigest(plan)) {
         const retirement = {
           schemaVersion: 'SkillRouteRetirementStateV1',
@@ -1421,6 +1437,7 @@ function handleRebind (input, target, options) {
         priorPlanDigest: priorPlan.planDigest,
         plan: summarizePlan(plan),
         contextBindingDigest: trustedContext.bindingDigest,
+        contextRouteBinding,
         obligations: state.obligationLedger,
         budgetReservation: budgetReservation.projection,
         preservedStageProgress: summarizeStageProgress(state.stageProgress),

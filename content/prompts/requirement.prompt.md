@@ -20,7 +20,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 产品需求是业务事实源，且必须以需求方 + 产品双方确认后的版本为准：产品不填写验收标准、验证清单、测试用例、数据库字段或接口 Schema；研发 / AI 在技术方案、实施计划与测试方案中从产品原文、流程节点、字段描述、样例和异常边界派生实现验收与验证清单。
 > ⚠️ 写需求前先判断需求类型：业务/交互型需求默认展开 `§3 业务流程`；治理/迁移/控制面/规范收口类需求可将 `§3` 标为 `N/A`，但必须强化 `核心定义`、`作用域与边界判定` 与 `风险与开放问题`。
 > ⚠️ 写需求和定义问题时必须前置平台工程师视角：先判断消费者范围、共享契约边界、模块职责、可维护性成本和明确非目标；“通用性/模块化”只有在真实复用者、演进边界或跨模块共享契约存在时才成立，否则保持局部最小实现。
-> ⚠️ CP1 必须填写 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：用户未要求复杂化、需求未说明或简单方案能满足已确认产品事实源和业务目标时，默认 `简单够用`；AI 可以展示 `中等` / `企业级` 可选方案，但必须让用户自行选择是否升级，并说明开发周期、难度、维护成本与取舍。
+> ⚠️ CP1 必须填写 `WorkflowPlanDecisionV1`：流程仪式 `ceremonyTier`、方案深度 `designDepth`、验证等级 `assuranceLevel` 与独立 `mandatoryObligations`。优先级固定为用户当前任务明确意图 > Profile `workflowRouting` 配置 > 智能识别 > 回退；入口初判后须结合有界项目事实二次判断，三个轴不得互相推导。
 > ⚠️ ExistingRequirementArtifactOverride：用户要求调整/修改/补充既有需求时，如果已有 `00-需求变更概况.md`、`01-需求变更确认.md`、`00-需求概况.md`、`01-需求确认.md`、历史 `01-需求概述.md`、Profile 声明的正式需求文件或 website requirement，必须先增量编辑该文件；回复只能概述变更，不能替代文件回写。SimpleTaskFastPath 只豁免新建完整需求产物，不豁免更新既有真相源。
 > ⚠️ CP1 必须给出 ArtifactDecisionMatrix：列出入口分类、`00-需求概况.md`、`00-需求变更概况.md`、`01-需求确认.md`、`01-产品需求.md`、`01-需求变更确认.md`、`02-技术方案.md`、`04-实施计划.md`、`05-实施进度.md`、`06-关键决策.md`、目标文档、报告、记忆的 `create` / `update` / `skip` / `N/A` 状态、原因和升级回退条件；判定优先级为已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免。
 > ⚠️ CP1 候选在请求确认前必须附 `CandidateReviewBundleV1`：`phaseKind=CP1`、`RQMatrix`、`DomainRealityMatrix`、`ClaimEvidenceMatrix`、`EscapeAbsorptionQueue`。缺任一项时只能写待补充或阻断，不能写“可确认 CP1”。
@@ -57,7 +57,7 @@ applyTo: .devcodex/**/requirements/**
 > **需求类型**: 业务/交互型 / 治理/迁移/控制面型
 > **目标用户 / 使用角色**: [角色]
 > **优先级**: P0 / P1 / P2
-> **复杂度档位**: 简单够用 / 中等 / 企业级
+> **流程 / 方案 / 验证**: simple|standard / minimal|standard / targeted|affected|full
 > **目标版本 / 时间窗口**: [版本或日期]
 > **入口服务**: [服务名]
 > **影响服务**: [服务A（入口）· 服务B · 服务C]
@@ -76,7 +76,7 @@ applyTo: .devcodex/**/requirements/**
   - [§0.3 需求类型判定](#03-需求类型判定)
 - [§1 背景、用户与问题证据](#1-背景用户与问题证据)
 - [§2 业务目标、范围与成功信号](#2-业务目标范围与成功信号)
-  - [§2.3 开发程度等级](#23-开发程度等级)
+  - [§2.3 流程、方案与验证决策](#23-流程方案与验证决策)
   - [§2.4 技术路线对比证据](#24-技术路线对比证据)
   - [§2.5 产品体验补充（条件）](#25-产品体验补充条件)
   - [§2.6 项目实况与需求评估（强制）](#26-项目实况与需求评估强制)
@@ -164,21 +164,23 @@ applyTo: .devcodex/**/requirements/**
 > 写清本轮纳入范围、明确排除范围、默认不做的事情，以及哪些情况必须回到上一步重新确认。
 > 同时用平台工程视角回答：谁会复用、哪一层值得抽象、哪一层应保持局部、长期维护成本是什么；若没有真实复用者或演进边界，不得把模块化作为默认目标。
 
-### §2.3 开发程度等级（ImplementationComplexityLevel / ImplementationComplexityPreference）
+### §2.3 流程、方案与验证决策（WorkflowPlanDecisionV1）
 
-> 默认填写 `简单够用`。需求不够详细时也默认 `简单够用`，不得把模糊需求自动理解成“企业级”。只有用户明确选择、更高风险边界、真实多消费者、公共契约或长期演进证据成立并经确认时，才可升级到 `中等` 或 `企业级`。
+> 先记录 prompt/config 初判，再在读取唯一项目、消费者和真实变更边界后记录二次判断。配置只为流程仪式提供默认值；用户当前明确意图优先。旧 `ImplementationComplexityLevel` / `ImplementationComplexityPreference` 只读兼容并只映射到 `designDepth`，本模板禁止新写入。
 
-| 档位 | 默认 | 适用条件 | 开发周期 / 难度 | CP2 / CP3 传递 |
-|------|:----:|----------|-----------------|----------------|
-| `简单够用` | ✅ | 需求不详细、用户未要求复杂化，或简单方案可满足已确认产品事实源和业务目标；优先局部补丁、既有模式和最少文件改动 | 短周期 / 低到中等难度 | CP2 `§2.7` 继承并禁止无计划抽象 |
-| `中等` | 条件 | 有明确复用者、演进边界或跨模块协作，但不需要平台化或企业级预设 | 中等周期 / 中等难度 | CP2 说明新增抽象证据和维护成本 |
-| `企业级` | 条件 | 仅用户明确选择，或已有公共契约、多消费者、高风险长期演进且经用户确认 | 长周期 / 高难度 | CP2 必须列备选方案、成本与确认依据 |
+| 决策轴 | 可选值 | 当前选择 | 来源 | 项目事实与理由 | CP2 / CP3 传递 |
+|--------|--------|----------|------|----------------|----------------|
+| `ceremonyTier` | `simple` / `standard` | | user-explicit / profile-config / adaptive-classifier / fallback | | 只决定流程仪式与产物展开程度 |
+| `designDepth` | `minimal` / `standard` | | user-explicit / adaptive-classifier / fallback | | CP2 `§2.7` 继承；只决定技术方案深度 |
+| `assuranceLevel` | `targeted` / `affected` / `full` | | user-explicit / adaptive-classifier / fallback | | CP3 与验证路由继承；只决定验证范围 |
 
-**当前选择**：`简单够用` / `中等` / `企业级`
+**初判阶段**：`precheck`
 
-**选择理由**：
+**二次判断**：未变化 / 已变化（变化轴与原因：）
 
-**可选升级方案**（默认不升级；仅供用户选择）：
+**强制义务**：无 / contract-schema-consumer-sync / state-continuity-negative-probe / migration-read-compatibility / security-boundary-review / package-boundary-check / release-safety-gate / external-side-effect-authorization
+
+**升级取舍**（仅当 AI 建议改变任一轴）：开发周期、难度、维护成本、非目标与证据。
 
 ### §2.4 技术路线对比证据（TechnicalRouteComparativeGate，条件）
 

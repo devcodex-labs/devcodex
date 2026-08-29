@@ -118,7 +118,7 @@ applyTo: .devcodex/**/requirements/**
 
 ### §4.2 最小实现与注释守门
 
-> 实施计划必须继承 CP1/CP2 的 `ImplementationComplexityLevel`，把“做小”和“必要注释”落到任务级，避免执行阶段把 5 行修复扩展成无计划的企业级结构。默认 `简单够用` 时，只排满足已确认产品事实源和技术验证项的局部最小任务；若要升级到 `中等` / `企业级`，必须已有用户确认，并写明开发周期、难度、维护成本和取舍。
+> 实施计划必须继承 CP1/CP2 的 `WorkflowPlanDecisionV1`，分别消费 `ceremonyTier`、`designDepth`、`assuranceLevel` 与 `mandatoryObligations`。`designDepth=minimal` 时只排满足已确认产品事实源和技术验证项的局部最小任务；流程仪式或验证等级不得反向扩大实现范围。任何轴在二次判断后升级都必须有用户明确意图或项目事实证据，并写明开发周期、难度、维护成本和取舍；旧复杂度字段仅供读取兼容，不得新写入。
 > 计划中的推荐路径必须通过 `SolutionFitAgainstRepoGate`：列出复用点、消费者、变更面、回滚、保持现状成本与 V84/targeted probe；已收敛方案不得再输出多推荐偏好菜单。
 
 #### 复杂度预算

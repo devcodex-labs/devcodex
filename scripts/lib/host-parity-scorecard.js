@@ -10,6 +10,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { resolveGlobalHostTarget } = require('./global-host-target.js')
+const { createEntryCheckModelV3 } = require('../../hooks/_runtime/visible-output-contract.cjs')
 
 const PACKAGE_ROOT = path.join(__dirname, '..', '..')
 
@@ -105,7 +106,7 @@ function buildCheckRepairCatalog(guidance) {
 
 /** Scannable always-on checklist for passive-hook hosts (Grok). */
 const GROK_TURN_EXECUTION_CHECKLIST = Object.freeze([
-  { id: 'entry-pc0-pc7', text: 'First user-visible block: full PC0~PC7 (S07); compaction/resume re-emit' },
+  { id: 'entry-pc0-pc10', text: 'First user-visible block: full PC0~PC10 (S07); compaction/resume re-emit' },
   { id: 'intent-route', text: 'IntentSeed → final route (dev/fix/analyze/audit/…); chat/resume only when true' },
   { id: 'skill-bundle', text: 'Load Intent→Skill mandatory bundle before substantive work (minimal-sufficient; no full Skill encyclopedia preload)' },
   { id: 'context-plan', text: 'ContextReadPlanV2 + receipts; no unbounded full Profile read without fullReadReason' },
@@ -229,7 +230,7 @@ function classifyGrokTurnOmissionSample(sample) {
   const text = String(sample || '')
   const claimsComplete = /完整(执行|工作流)|GrokTurnChecklist|HostParity|已按.*全流程|workflow complete|full workflow/i.test(text)
   if (!claimsComplete) return 'not-grok-turn-claim'
-  const hasPc = /PC0|PC0~PC7|入口检查/i.test(text)
+  const hasPc = /PC0|PC0~PC(?:7|10)|入口检查/i.test(text)
   const hasBundle = /Skill bundle|intent\s*\+|compliance|user-visible-output-contract|mandatorySkill/i.test(text)
   const hasReportMemory = /report|memory|报告|记忆|S05/i.test(text)
   const hasCeiling = /cannot claim|不得宣称|inject|Stop hard|platform ceiling|平台上限/i.test(text)
@@ -545,6 +546,45 @@ function composeEntryCheckBlock(options = {}) {
   const overall = String(options.status || 'UNVERIFIED').trim() || 'UNVERIFIED'
   const next = String(options.nextStep || '完成 ContextReadPlan 与有界 Profile/memory 读取后继续').trim()
   const digest = String(options.semanticDigest || 'pending-entry-check').trim()
+  const entryCheckModel = options.entryCheckModel?.schemaVersion === 'EntryCheckModelV3'
+    ? options.entryCheckModel
+    : createEntryCheckModelV3({
+        versionFacts: options.versionFacts || {},
+        workflowPlan: options.workflowPlan || {
+          precheck: {
+            decisionId: 'workflow-plan-unverified',
+            phase: 'precheck',
+            ceremonyTier: 'standard',
+            designDepth: 'standard',
+            assuranceLevel: 'affected'
+          },
+          postContext: null,
+          differences: []
+        },
+        validationPlan: options.validationPlan || {},
+        continuation: options.continuation || {
+          nextStage: next,
+          automatic: false,
+          userAction: '按当前提示操作；若无需操作则为 none',
+          correctionHint: '直接说明要调整的流程、方案深度或验证范围'
+        },
+        showPlan: options.showPlan !== false
+      })
+  const version = entryCheckModel.versionFacts
+  const precheck = entryCheckModel.workflowPlan.precheck
+  const postContext = entryCheckModel.workflowPlan.postContext
+  const validation = entryCheckModel.validationPlan
+  const continuation = entryCheckModel.continuation
+  const runtime = version.activeRuntimeGeneration
+    ? `${version.activeRuntimeGeneration.packageVersion}/${version.activeRuntimeGeneration.generationId}`
+    : 'unverified'
+  const source = version.sourceCandidate
+    ? `${version.sourceCandidate.packageVersion}@${version.sourceCandidate.shortHead}${version.sourceCandidate.dirty ? ' dirty' : ''}`
+    : 'none'
+  const post = postContext
+    ? `${postContext.ceremonyTier}/${postContext.designDepth}`
+    : '待有界上下文后二次判断'
+  const differences = entryCheckModel.workflowPlan.differences.join(', ') || 'none'
   // UserVisibleReplyLayoutV1: plain-language table shared by all six hosts.
   // Cell keeps "PC4 [STATUS] …" so parsers matching /PC4 \[STATUS\]/ still work.
   const pc4Cell = composePc4Line(options).replace(/^- /, '').trim()
@@ -554,7 +594,7 @@ function composeEntryCheckBlock(options = {}) {
     '',
     '| 项 | 内容（人话；禁止进度缩写） |',
     '|----|----------------------------|',
-    '| PC0 | 上下文：ContextReadPlan + 必要来源回执（填写 plan + 回执） |',
+    `| PC0 | 版本：installed=${version.installedPackageVersion}；runtime=${runtime}；source=${source}；alignment=${version.alignment} |`,
     '| PC1 | 意图：语义初判 → 扩展后工作流 |',
     '| PC2 | 会话：轮次 / Token 防护 / 待跟进 |',
     '| PC3 | 执行准备：唯一项目 · 连续性 · 产物落点 |',
@@ -562,9 +602,12 @@ function composeEntryCheckBlock(options = {}) {
     '| PC5 | 宿主：部署/同步/加载证据（Grok: Partial unless Full launcher） |',
     '| PC6 | 工作区：git dirty · active task |',
     '| PC7 | 续接：新会话或 resume 有界检测 |',
+    `| PC8 | 流程/方案：初判=${precheck.ceremonyTier}/${precheck.designDepth}；二次=${post}；差异=${differences} |`,
+    `| PC9 | 验证：${validation.assuranceLevel}；targeted=${validation.targetedCount}，affected=${validation.affectedCount}，full=${validation.fullCount}；CI=${validation.ciRequired}，package=${validation.packageRequired}，install=${validation.installRequired}，release=${validation.releaseRequired}；时长=${validation.estimatedDuration} |`,
+    `| PC10 | 下一阶段=${continuation.nextStage}；自动继续=${continuation.automatic}；用户动作=${continuation.userAction}；修正提示=${continuation.correctionHint} |`,
     '',
     `下一步：${next}`,
-    `DevCodexVisibleEnvelopeV2 · entry-check · ${overall} · ${digest}`
+    `DevCodexVisibleEnvelopeV3 · entry-check · ${overall} · ${digest}`
   ].join('\n')
 }
 
@@ -576,7 +619,7 @@ function entryCheckAssistSuffix(options = {}) {
     '--- DevCodex S07 assist (Grok cannot inject this into the model; emit in the user-visible reply) ---',
     composeEntryCheckBlock(options),
     '',
-    'GrokTurnChecklist: PC0~PC7 → Intent→Skill → context → scan-hygiene → TTFV → work/gates → report+memory → honest ceiling',
+    'GrokTurnChecklist: PC0~PC10 → Intent→Skill → context → scan-hygiene → TTFV → work/gates → report+memory → honest ceiling',
     `Intent→Skill bundle (${bundle.intent}): ${bundle.mandatorySkillIds.join(', ') || '(chat: none mandatory)'}`,
     'C16: no workspace-root Recurse inventory; same-turn TTFV delivery (scope/findings/block)',
     '--- end S07 assist ---'

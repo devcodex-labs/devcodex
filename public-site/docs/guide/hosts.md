@@ -46,6 +46,10 @@ devcodex doctor
 
 不要只看“配置文件存在”。依次确认 workspace 已解析、adapter configured、contract 通过，以及当前宿主要求的 native probe 是否有直接证据。没有证据就保留 `UNVERIFIED`。
 
+## 产物链接为什么有时打不开
+
+DevCodex 按当前呈现面选择打开方式，而不是看到宿主名称就假定链接可用。Codex Desktop 使用真实本地文件链接；VS Code、Zed、JetBrains 可给对应打开命令；CLI、未知界面或能力未验证时给可复制绝对路径。只有打开动作执行且回读成功才会显示“已打开”；仅生成 renderer、命令或链接不会冒充成功。若目标缺失、动作失败或无法回读，回复会直接显示绝对路径和 fallback 原因。
+
 ## 常见恢复
 
 - **更新后仍是旧行为**：完全退出并新开会话，再核对版本和 runtime generation。

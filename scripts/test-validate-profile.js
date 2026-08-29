@@ -825,6 +825,38 @@ function main() {
         assert.match(invalidWorkflowCompletionOutput, /workflowCompletion contains unsupported key: autoPromote/)
         assert.match(invalidWorkflowCompletionOutput, /workflowCompletion\.mode must be one of: off, shadow, enforce, rolled-back/)
 
+        const validWorkflowRoutingRoot = createWorkspace(`${currentProjectInfo()}\n- extensions.devcodex.workflowRouting 使用 WorkflowPlanDecisionV1 控制流程路由。\n`)
+        writeFile(validWorkflowRoutingRoot, '.devcodex/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'codex',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    workflowRouting: { mode: 'adaptive', showPlan: true }
+                }
+            }
+        }, null, 2))
+        const validWorkflowRoutingResult = runValidate(validWorkflowRoutingRoot)
+        assert.strictEqual(validWorkflowRoutingResult.status, 0, `${validWorkflowRoutingResult.stdout}\n${validWorkflowRoutingResult.stderr}`)
+
+        const invalidWorkflowRoutingRoot = createWorkspace(currentProjectInfo())
+        writeFile(invalidWorkflowRoutingRoot, '.devcodex/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'codex',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    workflowRouting: { mode: 'smart', showPlan: 'yes', inferDesignDepth: true }
+                }
+            }
+        }, null, 2))
+        const invalidWorkflowRoutingResult = runValidate(invalidWorkflowRoutingRoot)
+        const invalidWorkflowRoutingOutput = `${invalidWorkflowRoutingResult.stdout}\n${invalidWorkflowRoutingResult.stderr}`
+        assert.strictEqual(invalidWorkflowRoutingResult.status, 1, invalidWorkflowRoutingOutput)
+        assert.match(invalidWorkflowRoutingOutput, /workflowRouting contains unsupported key: inferDesignDepth/)
+        assert.match(invalidWorkflowRoutingOutput, /workflowRouting\.mode must be one of: adaptive, simple, standard/)
+        assert.match(invalidWorkflowRoutingOutput, /workflowRouting\.showPlan must be a boolean/)
+
         const validTaskRecoveryRoot = createWorkspace(`${currentProjectInfo()}\n- extensions.devcodex.taskRecovery.hardLimitMiB 配置 TaskRecoveryStoreV5 的 hard 水位。\n`)
         writeFile(validTaskRecoveryRoot, '.devcodex/profile/config.json', JSON.stringify({
             mode: 'dev',

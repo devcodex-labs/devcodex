@@ -56,15 +56,19 @@ function runHooksRuntimeVisibilityScenarios(context) {
 
   const FULL_ENTRY_CHECK_LINES = [
     '### DevCodex · 入口检查',
-    '- PC0 [PASS] Context plan',
+    '- PC0 [PASS] Version installed=1.19.3 runtime=1.19.3 source=dirty alignment=source-ahead',
     '- PC1 [PASS] Intent',
     '- PC2 [PASS] Session',
     '- PC3 [PASS] Project',
     '- PC4 [N/A] skipReason=non-dev',
     '- PC5 [PASS] Host',
     '- PC6 [PASS] Git',
-    '- PC7 [PASS] Next'
+    '- PC7 [PASS] Continuation',
+    '- PC8 [PASS] Workflow ceremony=simple design=minimal',
+    '- PC9 [PASS] Validation assurance=targeted checks=1 release=no',
+    '- PC10 [PASS] Next stage=implementation auto=yes userAction=none'
   ]
+  const FULL_ENTRY_CHECK_TEXT = FULL_ENTRY_CHECK_LINES.join('\n')
 
   const FINAL_VALIDATION_SUMMARY_LINES = [
     '#### 验证摘要',
@@ -820,7 +824,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
   const contentPartsStop = run({
     hookEventName: 'Stop',
     assistantMessage: [
-      { type: 'text', text: '### DevCodex · 入口检查\n- PC0 [PASS] Context plan\n- PC1 [PASS] Intent\n- PC2 [PASS] Session\n- PC3 [PASS] Project\n- PC4 [N/A] skipReason=non-dev\n- PC5 [PASS] Host\n- PC6 [PASS] Git\n- PC7 [PASS] Next' }
+      { type: 'text', text: FULL_ENTRY_CHECK_TEXT }
     ]
   })
   assert.ok(!/entry check block 未输出|entry-check-missing/i.test(contentPartsStop.systemMessage || ''))
@@ -836,7 +840,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     hookEventName: 'Stop',
     messages: [
       { role: 'user', content: 'PC0 上下文 should not count from a user message' },
-      { role: 'assistant', content: [{ type: 'text', text: '### DevCodex · 入口检查\n- PC0 [PASS] Context plan\n- PC1 [PASS] Intent\n- PC2 [PASS] Session\n- PC3 [PASS] Project\n- PC4 [N/A] skipReason=non-dev\n- PC5 [PASS] Host\n- PC6 [PASS] Git\n- PC7 [PASS] Next' }] }
+      { role: 'assistant', content: [{ type: 'text', text: FULL_ENTRY_CHECK_TEXT }] }
     ]
   })
   assert.ok(!/entry check block 未输出|entry-check-missing/i.test(messagesStop.systemMessage || ''))
@@ -849,7 +853,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
   const choicesStop = run({
     hookEventName: 'Stop',
     choices: [
-      { message: { role: 'assistant', content: [{ text: '### DevCodex · 入口检查\n- PC0 [PASS] Context plan\n- PC1 [PASS] Intent\n- PC2 [PASS] Session\n- PC3 [PASS] Project\n- PC4 [N/A] skipReason=non-dev\n- PC5 [PASS] Host\n- PC6 [PASS] Git\n- PC7 [PASS] Next' }] } }
+      { message: { role: 'assistant', content: [{ text: FULL_ENTRY_CHECK_TEXT }] } }
     ]
   })
   assert.ok(!/entry check block 未输出|entry-check-missing/i.test(choicesStop.systemMessage || ''))
@@ -861,7 +865,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
   })
   const variantTranscriptPath = writeTranscriptEntries('copilot-stop-transcript-variant.jsonl', [
     { role: 'user', content: 'trigger prompt' },
-    { role: 'assistant', message: { content: [{ type: 'text', text: '### DevCodex · 入口检查\n- PC0 [PASS] Context plan\n- PC1 [PASS] Intent\n- PC2 [PASS] Session\n- PC3 [PASS] Project\n- PC4 [N/A] skipReason=non-dev\n- PC5 [PASS] Host\n- PC6 [PASS] Git\n- PC7 [PASS] Next' }] } }
+    { role: 'assistant', message: { content: [{ type: 'text', text: FULL_ENTRY_CHECK_TEXT }] } }
   ])
   const variantTranscriptStop = run({
     hookEventName: 'Stop',
@@ -1155,15 +1159,15 @@ function runHooksRuntimeVisibilityScenarios(context) {
   s07State = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.notStrictEqual(s07State.productMutationBeforePrecheck, true)
 
-  // --- PF-087: free-text PC0~PC7 completeness (folded / incomplete must not green precheck) ---
+  // --- PF-087: free-text current PC0~PC10 completeness (folded / incomplete must not green precheck) ---
   const {
     analyzeEntryCheckCompleteness
   } = require('../../hooks/_runtime/lifecycle-visible-reply.cjs')
 
   const foldedSample = [
     '### DevCodex · 入口检查',
-    '- PC0 [PASS] Context plan',
-    '- PC2–PC7 [PASS] 其余合并'
+    '- PC0 [PASS] Version installed=1.19.3 runtime=1.19.3 alignment=version-only',
+    '- PC2–PC10 [PASS] 其余合并'
   ].join('\n')
   const folded = analyzeEntryCheckCompleteness(foldedSample)
   assert.strictEqual(folded.claimed, true)
@@ -1173,23 +1177,26 @@ function runHooksRuntimeVisibilityScenarios(context) {
 
   const incompleteSample = [
     '### DevCodex · 入口检查',
-    '- PC0 [PASS] Context plan',
+    '- PC0 [PASS] Version installed=1.19.3 runtime=1.19.3 alignment=version-only',
     '- PC1 [PASS] Intent'
   ].join('\n')
   const incomplete = analyzeEntryCheckCompleteness(incompleteSample)
   assert.strictEqual(incomplete.complete, false)
-  assert.ok(incomplete.missingPcs.includes('PC7'))
+  assert.ok(incomplete.missingPcs.includes('PC10'))
 
   const devNa = analyzeEntryCheckCompleteness([
     '### DevCodex · 入口检查',
-    '- PC0 [PASS] Context plan',
+    '- PC0 [PASS] Version installed=1.19.3 runtime=1.19.3 alignment=version-only',
     '- PC1 [PASS] Intent',
     '- PC2 [PASS] Session',
     '- PC3 [PASS] Project',
     '- PC4 [N/A]',
     '- PC5 [PASS] Host',
     '- PC6 [PASS] Git',
-    '- PC7 [PASS] Next'
+    '- PC7 [PASS] Continuation',
+    '- PC8 [PASS] Workflow ceremony=simple design=minimal',
+    '- PC9 [PASS] Validation assurance=targeted checks=1 release=no',
+    '- PC10 [PASS] Next stage=implementation auto=yes userAction=none'
   ].join('\n'), { mode: 'dev' })
   assert.ok(devNa.missingItems.includes('pc4-dev-na-without-skip'))
 
@@ -1207,7 +1214,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     stop_hook_active: true,
     finalMessage: foldedSample
   })
-  assert.match(foldedStop.systemMessage || '', /entry check incomplete|PF-087|pc-folded|PC0~PC7/i)
+  assert.match(foldedStop.systemMessage || '', /entry check incomplete|PF-087|pc-folded|PC0~PC10/i)
   const foldedState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(foldedState.visible.precheckStatus, 'verified-missing')
   assert.strictEqual(foldedState.visible.precheck, false)

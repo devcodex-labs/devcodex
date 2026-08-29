@@ -4,11 +4,11 @@
   "intents": [
     {
       "id": "primary",
-      "label": "执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC7 入口检查所...",
+      "label": "执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC10 入口检查...",
       "include": [
         "FC",
         "PC0",
-        "PC7",
+        "PC10",
         "SC",
         "chat",
         "compliance",
@@ -27,5 +27,5 @@
       "由其他领域 Skill 明确负责的任务"
     ]
   },
-  "summary": "执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC7 入口检查所有模式启用；仅 dev 模式执行全量合规校验，prod 模式不执行（规范已验证）。chat 豁免合规块。"
+  "summary": "执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC10 入口检查所有模式启用；仅 dev 模式执行全量合规校验，prod 模式不执行（规范已验证）。chat 豁免合规块。"
 }

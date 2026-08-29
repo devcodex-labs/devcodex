@@ -47,11 +47,13 @@ const {
 } = require('./artifact-link-projection.cjs')
 const {
   readFencedTaskWriteOwner,
+  readAdmissionIngressSnapshot,
   readEmergencyCloseouts,
   readTaskRecoveryState,
   resolveTaskRecoveryMetaDir,
   sameIdentity,
-  updateTaskRecoveryState
+  updateTaskRecoveryState,
+  writeAdmissionIngressSnapshot
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const {
   applyArtifactMutationReconciliation,
@@ -273,7 +275,7 @@ const TASK_WRITE_OWNER_REF_SCHEMA = Object.freeze({
 const TOOLS = [
   {
     name: 'memory_task_admit_v2',
-    description: '从已验证 ingress 准入或恢复正式任务；不授予源码写权限。',
+    description: '从已验证 ingress 准入或恢复正式任务，并在同一调用内原子获取 fenced owner；源码写权限仍取决于精确 CP 状态。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -1092,10 +1094,42 @@ function escapeSummaryCell(value) {
   return String(value || '').replace(/(^|[^\\])\|/g, '$1\\|')
 }
 
+function canonicalMemoryPath(filePath) {
+  const resolved = path.resolve(String(filePath || ''))
+  let existing = resolved
+  const suffix = []
+  while (!fs.existsSync(existing)) {
+    const parent = path.dirname(existing)
+    if (parent === existing) break
+    suffix.unshift(path.basename(existing))
+    existing = parent
+  }
+  let canonical = existing
+  try {
+    const realpath = fs.realpathSync.native || fs.realpathSync
+    canonical = realpath(existing)
+  } catch {
+    canonical = existing
+  }
+  const value = path.resolve(canonical, ...suffix).replace(/\\/g, '/')
+  return process.platform === 'win32' ? value.toLowerCase() : value
+}
+
+function memoryOperationIdentity(kind, target, value) {
+  return crypto.createHash('sha256').update(JSON.stringify({
+    schemaVersion: 'MemoryPureOperationIdentityV1',
+    kind,
+    activeRoot: canonicalMemoryPath(target.activeRoot),
+    project: target.project,
+    agent: target.agent,
+    value
+  })).digest('hex')
+}
+
 function memoryLockDir(target, filePath) {
   const key = crypto
     .createHash('sha256')
-    .update(`${target.activeRoot}\0${path.resolve(filePath)}`)
+    .update(`${canonicalMemoryPath(target.activeRoot)}\0${canonicalMemoryPath(filePath)}`)
     .digest('hex')
   return resolveInside(resolveRuntimeStateRoot(target.activeRoot, target.project).root, 'memory-locks', key)
 }
@@ -1203,6 +1237,8 @@ function acquireMemoryLock(target, filePath) {
     host: os.hostname(),
     token,
     file: relativeToActiveRoot(target, filePath),
+    canonicalActiveRoot: canonicalMemoryPath(target.activeRoot),
+    canonicalTargetPath: canonicalMemoryPath(filePath),
     acquiredAt: new Date().toISOString()
   }
   try {
@@ -1227,25 +1263,27 @@ function releaseMemoryLock(lock) {
   }
 }
 
-function withMemoryTransaction(target, filePath, operation) {
+function withMemoryTransaction(target, filePath, operation, options = {}) {
   const lock = acquireMemoryLock(target, filePath)
   const startedAt = new Date().toISOString()
   try {
-    const expectedSnapshot = MEMORY_FILE_TRANSACTION.readSnapshot(filePath)
-    const planned = operation(expectedSnapshot.content)
-    const content = typeof planned === 'string' ? planned : planned?.content
-    const appendText = typeof planned === 'object' && typeof planned?.appendText === 'string'
-      ? planned.appendText
-      : null
-    if (typeof content !== 'string') {
-      throw new Error('MEMORY_TRANSACTION_PLAN_INVALID: writer must return a string or { content, appendText }.')
-    }
-    return MEMORY_FILE_TRANSACTION.commit({
+    const reconcileIdentity = String(options.reconcileIdentity || '')
+    const operationFingerprint = crypto.createHash('sha256').update(JSON.stringify({
+      schemaVersion: 'MemoryPureOperationFingerprintV1',
+      file: canonicalMemoryPath(filePath),
+      reconcileIdentity
+    })).digest('hex')
+    return MEMORY_FILE_TRANSACTION.commitPureOperation({
       filePath,
       relativeFile: relativeToActiveRoot(target, filePath),
-      expectedSnapshot,
-      content,
-      appendText,
+      operation: existing => {
+        const planned = operation(existing)
+        return typeof planned === 'string'
+          ? { content: planned, reconcileIdentity }
+          : { ...planned, reconcileIdentity }
+      },
+      operationFingerprint,
+      reconcileOnce: options.reconcileOnce !== false,
       startedAt,
       receiptContext: {
         activeRoot: target.activeRoot,
@@ -2582,6 +2620,8 @@ function withProjectionIdentity(projection, toolName, target, sourceDocuments, s
       ledgerStatus: contextObservation?.ledgerStatus || null,
       lifecycleStatus: contextObservation?.lifecycleStatus || null,
       receiptStatus: contextObservation?.receiptStatus || null,
+      contextSnapshotId: contextObservation?.contextSnapshotId || null,
+      observationLease: contextObservation?.observationLease || null,
       satisfiedSourceIds: (contextObservation?.satisfiedSourceIds || []).slice(0, 20),
       missingSourceIds: (contextObservation?.missingSourceIds || []).slice(0, 20)
     },
@@ -3040,6 +3080,13 @@ function handleMemorySessionWrite(args) {
         ? rendered.content.slice(existing.length)
         : null
     }
+  }, {
+    reconcileIdentity: memoryOperationIdentity('session-write', target, {
+      date: args.date || today(),
+      sessionId: binding.sessionId,
+      sessionBinding: binding.sessionBinding,
+      contentDigest: crypto.createHash('sha256').update(renderedContent).digest('hex')
+    })
   })
   receipt.sessionWrite = sessionWriteReceipt
   receipt.indexReceipt = refreshDailyMemoryIndex(target, p, args.date || today())
@@ -3122,6 +3169,14 @@ function handleMemorySessionAllocate(args) {
     const separator = existing ? '\n\n' : ''
     const appendText = separator + block
     return { content: existing + appendText, appendText }
+  }, {
+    reconcileIdentity: memoryOperationIdentity('session-allocate', target, {
+      date: input.date,
+      title: input.title || null,
+      intent: input.intent || null,
+      sourceMessage: input.sourceMessage || null,
+      sessionBinding
+    })
   })
   receipt.indexReceipt = refreshDailyMemoryIndex(target, p, input.date)
   const allocation = {
@@ -3149,6 +3204,13 @@ function handleMemoryCpConfirm(args) {
   const hasDigest = Boolean(args.artifactPath || args.artifactSha256 || args.artifactVersion)
   if (hasDigest && (!args.artifactPath || !args.artifactSha256)) {
     throw new Error('ConfirmBindingGate: artifactPath and artifactSha256 are required together')
+  }
+  if (!hasDigest) {
+    throw memoryQueryError(
+      'CP confirmation is unbound and cannot be recorded as authoritative.',
+      'Pass the canonical artifactPath, its current SHA-256, artifactVersion, and the exact confirmation sourceMessage.',
+      'MEMORY_CP_CONFIRMATION_UNBOUND'
+    )
   }
   const sha = args.artifactSha256 ? String(args.artifactSha256).replace(/`/g, '').toUpperCase() : null
   let artifactPath = args.artifactPath ? String(args.artifactPath).replace(/\\/g, '/') : null
@@ -3235,7 +3297,18 @@ function handleMemoryCpConfirm(args) {
     sourceMessage,
     artifactLink: artifactLinks?.links?.[0]?.markdown || null,
     time
-  }))
+  }), {
+    reconcileIdentity: memoryOperationIdentity('cp-confirm', target, {
+      kind,
+      requirement: args.requirement,
+      phase: args.phase,
+      artifactPath,
+      artifactSha256: sha,
+      artifactVersion,
+      sourceMessage,
+      time
+    })
+  })
   const persisted = readFile(p)
   assertNoCpRowsOutsideDedicatedBlock(persisted)
   const block = locateCpTableBlock(persisted)
@@ -3360,6 +3433,8 @@ function handleMemorySummaryAppend(args) {
       ? finalRow + '\n'
       : summaryHeader(args.agent || target.agent, args) + finalRow + '\n'
     return { content: existing + appendText, appendText }
+  }, {
+    reconcileIdentity: memoryOperationIdentity('summary-append', target, { row: finalRow })
   })
   receipt.indexReceipt = refreshSummaryMemoryIndex(target, p)
   const parsed = parseSummaryRows(readFile(p))
@@ -3432,7 +3507,7 @@ function currentPhysicalProjectRoot(target) {
   return path.resolve(binding.physicalRoot)
 }
 
-function readServerOwnedAdmissionIngress(target, ingressRef) {
+function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
   const ref = ingressRef && typeof ingressRef === 'object' && !Array.isArray(ingressRef) ? ingressRef : null
   const digestPattern = /^[a-f0-9]{64}$/
   if (!ref || ref.schemaVersion !== 'WorkflowIngressProjectionRefV1' ||
@@ -3446,6 +3521,58 @@ function readServerOwnedAdmissionIngress(target, ingressRef) {
     )
   }
   const scopeKey = LAYOUT.enabled ? assertSingleSegment(target.project, 'project') : 'legacy'
+  const ingressMetaDir = path.join(target.activeRoot, '.memory', 'hooks', scopeKey)
+  const snapshotRead = options.allowSnapshot === true
+    ? readAdmissionIngressSnapshot({
+        metaDir: ingressMetaDir,
+        ingressRef: ref,
+        project: target.project,
+        activeRoot: target.activeRoot
+      }, { fs, nowMs: Date.now() })
+    : { status: 'missing' }
+  if (snapshotRead.status === 'fresh') {
+    const snapshot = snapshotRead.snapshot
+    const projectRoot = currentPhysicalProjectRoot(target)
+    const leaseValidation = validateProjectTargetLease(snapshot.projectTargetLease, {
+      project: target.project,
+      activeRoot: target.activeRoot,
+      physicalRoot: projectRoot,
+      contextEpoch: snapshot.actualInstructionEnvelope.contextEpoch,
+      routeRevision: snapshot.workflowRouteDecision.routeRevision
+    }, { nowMs: Date.now() })
+    if (!leaseValidation.valid) {
+      throw taskAdmissionIngressError(
+        'TASK_ADMISSION_CONTINUATION_PROJECT_LEASE_INVALID',
+        'the immutable admission ingress is bound to a stale or different project target lease',
+        { errors: leaseValidation.errors, snapshotKey: snapshot.snapshotKey }
+      )
+    }
+    return {
+      actualInstructionEnvelope: snapshot.actualInstructionEnvelope,
+      workItemSet: snapshot.workItemSet,
+      workflowRouteDecision: snapshot.workflowRouteDecision,
+      projectTargetLease: snapshot.projectTargetLease,
+      projectRoot,
+      lifecycleState: snapshotRead.state,
+      ingressSnapshotRef: snapshotRead.ref,
+      authorityReceipt: {
+        schemaVersion: 'ServerOwnedAdmissionIngressReceiptV1',
+        source: 'immutable-snapshot',
+        sourceDigest: snapshot.snapshotDigest,
+        envelopeDigest: snapshot.actualInstructionEnvelope.envelopeDigest,
+        decisionDigest: snapshot.workflowRouteDecision.decisionDigest,
+        projectTargetLeaseDigest: snapshot.projectTargetLease.leaseDigest,
+        snapshotKey: snapshot.snapshotKey
+      }
+    }
+  }
+  if (!['missing'].includes(snapshotRead.status)) {
+    throw taskAdmissionIngressError(
+      `TASK_ADMISSION_CONTINUATION_${String(snapshotRead.status || 'invalid').toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`,
+      'the exact immutable admission ingress snapshot is unavailable or invalid',
+      { snapshot: snapshotRead }
+    )
+  }
   const relativeStatePath = path.join('.memory', 'hooks', scopeKey, 'lifecycle-state.json')
   let statePath
   try {
@@ -3514,6 +3641,14 @@ function readServerOwnedAdmissionIngress(target, ingressRef) {
       { errors: leaseValidation.errors }
     )
   }
+  const snapshotWrite = writeAdmissionIngressSnapshot({ metaDir: ingressMetaDir, state }, { fs, nowMs: Date.now() })
+  if (!['persisted', 'semantic-noop'].includes(snapshotWrite.status)) {
+    throw taskAdmissionIngressError(
+      snapshotWrite.errorCode || 'ADMISSION_INGRESS_SNAPSHOT_WRITE_FAILED',
+      'current ingress was verified but could not be frozen for task admission continuation',
+      { snapshot: snapshotWrite }
+    )
+  }
   return {
     actualInstructionEnvelope: envelope,
     workItemSet,
@@ -3521,13 +3656,15 @@ function readServerOwnedAdmissionIngress(target, ingressRef) {
     projectTargetLease: lease,
     projectRoot,
     lifecycleState: state,
+    ingressSnapshotRef: snapshotWrite.ref,
     authorityReceipt: {
       schemaVersion: 'ServerOwnedAdmissionIngressReceiptV1',
       source: path.relative(target.activeRoot, statePath).replace(/\\/g, '/'),
       sourceDigest: crypto.createHash('sha256').update(raw).digest('hex'),
       envelopeDigest: envelope.envelopeDigest,
       decisionDigest: decision.decisionDigest,
-      projectTargetLeaseDigest: lease.leaseDigest
+      projectTargetLeaseDigest: lease.leaseDigest,
+      snapshotKey: snapshotWrite.ref.snapshotKey
     }
   }
 }
@@ -3735,7 +3872,7 @@ function handleMemoryTaskAdmitV2(args) {
       code: 'TASK_ADMISSION_PROJECT_REQUIRED'
     })
   }
-  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef)
+  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef, { allowSnapshot: true })
   const admission = executeTaskAdmission({
     operation: args.operation,
     task: args.task,
@@ -3744,6 +3881,7 @@ function handleMemoryTaskAdmitV2(args) {
     workItemSet: ingress.workItemSet,
     workflowRouteDecision: ingress.workflowRouteDecision,
     projectTargetLease: ingress.projectTargetLease,
+    ingressSnapshotRef: ingress.ingressSnapshotRef,
     activeRoot: target.activeRoot,
     project: target.project
   })
@@ -3751,6 +3889,27 @@ function handleMemoryTaskAdmitV2(args) {
   admission.routeBinding = routeBinding
   admission.routeBindingRequired = !formalWorkflowRouteBound(routeBinding)
   admission.ingressAuthority = ingress.authorityReceipt
+  if (!admission.routeBindingRequired && !['needs-reconcile', 'aborted'].includes(admission.status)) {
+    const owner = executeTaskWriteOwner({
+      operation: 'acquire',
+      taskId: admission.taskId,
+      admissionId: admission.admissionId,
+      actualInstructionEnvelope: ingress.actualInstructionEnvelope,
+      workItemSet: ingress.workItemSet,
+      workflowRouteDecision: ingress.workflowRouteDecision,
+      projectTargetLease: ingress.projectTargetLease,
+      ingressSnapshotRef: ingress.ingressSnapshotRef,
+      activeRoot: target.activeRoot,
+      project: target.project
+    })
+    admission.ownerAcquisition = owner
+    admission.continuationLease = owner.continuationLease
+    admission.phase = owner.finalized ? 'finalized' : admission.phase
+    admission.status = owner.finalized ? owner.status : admission.status
+    admission.finalized = owner.finalized
+    admission.mutationAuthority = owner.mutationAuthority
+    admission.nextRequiredPhase = owner.finalized ? null : admission.nextRequiredPhase
+  }
   return {
     content: [{ type: 'text', text: JSON.stringify(admission, null, 2) }],
     structuredContent: admission,
@@ -3957,7 +4116,7 @@ function handleMemoryTaskWriteOwner(args) {
   if (target.scope !== 'project' || !target.project) {
     throw taskAdmissionIngressError('TASK_WRITE_OWNER_PROJECT_REQUIRED', 'fenced task ownership requires one exact project scope')
   }
-  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef)
+  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef, { allowSnapshot: true })
   const taskId = String(args.taskId || '').trim().toLowerCase()
   const serverObservation = args.operation === 'takeover-prepare'
     ? buildServerOwnedTakeoverObservation(target, ingress, taskId)
@@ -3983,6 +4142,7 @@ function handleMemoryTaskWriteOwner(args) {
     workItemSet: ingress.workItemSet,
     workflowRouteDecision: ingress.workflowRouteDecision,
     projectTargetLease: ingress.projectTargetLease,
+    ingressSnapshotRef: ingress.ingressSnapshotRef,
     activeRoot: target.activeRoot,
     project: target.project
   })
@@ -4085,7 +4245,7 @@ function handleMemoryTaskTerminalV1(args) {
   if (target.scope !== 'project' || !target.project) {
     throw taskAdmissionIngressError('TASK_TERMINAL_PROJECT_REQUIRED', 'workflow task terminal closeout requires one exact project scope')
   }
-  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef)
+  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef, { allowSnapshot: true })
   const result = executeWorkflowTaskTerminal({
     taskId: args.taskId,
     admissionId: args.admissionId,
@@ -4117,7 +4277,7 @@ function handleMemoryTaskCloseoutReconcileV1(args) {
   if (target.scope !== 'project' || !target.project) {
     throw taskAdmissionIngressError('TASK_TERMINAL_PROJECT_REQUIRED', 'workflow task closeout reconciliation requires one exact project scope')
   }
-  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef)
+  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef, { allowSnapshot: true })
   const result = reconcileWorkflowTaskTerminal({
     activeRoot: target.activeRoot,
     project: target.project,
@@ -4198,7 +4358,10 @@ function dispatch(method, params) {
               schemaVersion: 'MemoryWriterErrorV1',
               errorCode,
               message: err.message,
-              nextStep: err.nextStep || 'Correct the memory writer request and retry once.'
+              nextStep: err.nextStep || 'Correct the memory writer request and retry once.',
+              ...(err.details?.conflictReceipt
+                ? { conflictReceipt: err.details.conflictReceipt }
+                : {})
             }
           } : {}),
           isError: true

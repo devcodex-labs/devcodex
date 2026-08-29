@@ -4,29 +4,56 @@
 const fs = require('fs')
 const path = require('path')
 const { inspectGovernanceLedgerFile } = require('../hooks/_runtime/governance-ledger-integrity.cjs')
+const {
+  LEDGER_DEFINITIONS,
+  loadGovernanceLedgerManifest,
+  resolveAllGovernanceLedgerFamilies
+} = require('./lib/governance-ledger-resolver.js')
 
-const LEDGERS = Object.freeze([
-  ['process-improvements.md', 'PI-'],
-  ['pending-fixes.md', 'PF-'],
-  ['violations.md', 'VL-'],
-  ['gap-registry.md', 'GR-'],
-  ['pending-issues.md', 'ISSUE-']
-])
+const LEDGERS = Object.freeze(Object.values(LEDGER_DEFINITIONS).map(definition => [
+  path.basename(definition.activePath),
+  definition.prefix
+]))
 
 function validateGovernanceLedgers (activeRoot) {
   const root = path.resolve(activeRoot)
-  const dataRoot = path.join(root, 'data')
   const receipts = []
-  for (const [name, prefix] of LEDGERS) {
-    const file = path.join(dataRoot, name)
-    if (!fs.existsSync(file)) continue
-    receipts.push(inspectGovernanceLedgerFile(file, { expectedPrefix: prefix }))
+  let loaded
+  try {
+    loaded = loadGovernanceLedgerManifest(root)
+    for (const resolution of resolveAllGovernanceLedgerFamilies(root, { loaded })) {
+      const prefix = LEDGER_DEFINITIONS[resolution.kind].prefix
+      for (const document of resolution.documents) {
+        if (!fs.existsSync(document.file)) continue
+        receipts.push({
+          ...inspectGovernanceLedgerFile(document.file, {
+            expectedPrefix: prefix,
+            exactHeadingLevel: document.role === 'archive' ? 2 : undefined
+          }),
+          kind: resolution.kind,
+          role: document.role,
+          relativePath: document.relativePath
+        })
+      }
+    }
+  } catch (error) {
+    return {
+      schemaVersion: 'GovernanceLedgerValidationReceiptV1',
+      activeRoot: root,
+      ledgerCount: 0,
+      manifestOrigin: 'invalid',
+      result: 'FAIL',
+      failures: [{ file: path.join(root, 'data', 'governance-ledger-manifest.json'), issues: [error.code || error.message] }],
+      receipts: []
+    }
   }
   const failures = receipts.filter(receipt => !receipt.valid)
   return {
     schemaVersion: 'GovernanceLedgerValidationReceiptV1',
     activeRoot: root,
     ledgerCount: receipts.length,
+    manifestOrigin: loaded.origin,
+    manifestDigest: loaded.inspection.manifestDigest,
     result: failures.length ? 'FAIL' : 'PASS',
     failures: failures.map(receipt => ({ file: receipt.file, issues: receipt.issues })),
     receipts

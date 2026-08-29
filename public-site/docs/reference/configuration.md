@@ -29,6 +29,27 @@ DevCodex 新生成的 Profile 在直属 `README.md` 声明 `Profile 路径契约
 - 空数组 `[]`：关闭默认快捷别名；
 - 配置不会重命名正式的 `@devcodex-auto` 入口。
 
+## 自适应流程路由
+
+默认配置为：
+
+```json
+{
+  "extensions": {
+    "devcodex": {
+      "workflowRouting": {
+        "mode": "adaptive",
+        "showPlan": true
+      }
+    }
+  }
+}
+```
+
+`mode` 支持 `adaptive`、`simple`、`standard`，只决定流程仪式的默认值；方案深度和验证范围仍由当前需求事实独立判断。优先级固定为：用户在当前任务中的明确意图、项目配置、智能识别、回退值。入口先根据消息与配置初判，完成唯一项目和有界项目读取后二次判断；只有真实范围扩大才再次调整。`showPlan=false` 只压缩入口展示，不会省略 PC8～PC10 的流程/方案、验证计划与后续动作结论，也不能省略公共契约、恢复、package 或发布等强制义务。
+
+入口 PC0 会分别报告已安装 package、当前 runtime generation 与可选源码候选。只有构建身份可证明一致才显示 `aligned`；仅版本号相同显示 `version-only`，源码有未提交或领先变更显示 `source-ahead`，避免把“目录存在”或“版本号相同”误当作运行内容已经同步。
+
 ## 任务恢复容量
 
 默认不需要配置。TaskRecoveryStoreV5 的 soft limit 固定为 256 MiB，默认 hard limit 为 512 MiB；正式任务数量不设硬上限。确有更多本地恢复容量时，只能提高 hard limit：

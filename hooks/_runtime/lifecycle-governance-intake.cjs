@@ -3,6 +3,10 @@
 const fs = require('fs')
 const path = require('path')
 const { inspectGovernanceLedgerFile } = require('./governance-ledger-integrity.cjs')
+const {
+  LEDGER_DEFINITIONS,
+  resolveGovernanceLedgerFamily
+} = require('../../scripts/lib/governance-ledger-resolver.js')
 
 function buildLifecycleGovernanceIntakeUtils() {
   const GOVERNANCE_INTAKE_STATE_VERSION = 3
@@ -10,14 +14,16 @@ function buildLifecycleGovernanceIntakeUtils() {
   const MAX_ACTIVE_UNRESOLVED_CANDIDATES = 1
   const MAX_CONTEXT_MESSAGE_CHARS = 1024
   const RECORD_INTENT_RE = /record\.(?:violation|spec-defect|process-improvement|pending-issue|audit-gap|none|ambiguous)/gi
-  const LEDGER_PATH_RE = /data\/(?:violations|pending-fixes|process-improvements|pending-issues|gap-registry)\.md/gi
+  const LEDGER_PATH_RE = new RegExp(Object.values(LEDGER_DEFINITIONS)
+    .map(definition => definition.activePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|'), 'gi')
   const LEDGER_ID_RE = /\b(?:PI|PF|VL|GR|ISSUE)-\d{3,}\b/gi
   const INTENT_CONTRACT = {
-    'record.violation': { ledger: 'data/violations.md', file: 'violations.md', prefix: 'VL-' },
-    'record.spec-defect': { ledger: 'data/pending-fixes.md', file: 'pending-fixes.md', prefix: 'PF-' },
-    'record.process-improvement': { ledger: 'data/process-improvements.md', file: 'process-improvements.md', prefix: 'PI-' },
-    'record.pending-issue': { ledger: 'data/pending-issues.md', file: 'pending-issues.md', prefix: 'ISSUE-' },
-    'record.audit-gap': { ledger: 'data/gap-registry.md', file: 'gap-registry.md', prefix: 'GR-' }
+    'record.violation': { kind: 'VL', ledger: LEDGER_DEFINITIONS.VL.activePath, file: path.basename(LEDGER_DEFINITIONS.VL.activePath), prefix: 'VL-' },
+    'record.spec-defect': { kind: 'PF', ledger: LEDGER_DEFINITIONS.PF.activePath, file: path.basename(LEDGER_DEFINITIONS.PF.activePath), prefix: 'PF-' },
+    'record.process-improvement': { kind: 'PI', ledger: LEDGER_DEFINITIONS.PI.activePath, file: path.basename(LEDGER_DEFINITIONS.PI.activePath), prefix: 'PI-' },
+    'record.pending-issue': { kind: 'ISSUE', ledger: LEDGER_DEFINITIONS.ISSUE.activePath, file: path.basename(LEDGER_DEFINITIONS.ISSUE.activePath), prefix: 'ISSUE-' },
+    'record.audit-gap': { kind: 'GR', ledger: LEDGER_DEFINITIONS.GR.activePath, file: path.basename(LEDGER_DEFINITIONS.GR.activePath), prefix: 'GR-' }
   }
   const ASSESSMENT_VERDICTS = new Set(['accepted', 'rejected', 'uncertain', 'no-governance-impact'])
   const GENERALIZATION_SCOPES = new Set(['project-local', 'cross-project', 'devcodex-control-plane', 'none'])
@@ -410,13 +416,15 @@ function buildLifecycleGovernanceIntakeUtils() {
     const observations = []
 
     for (const contract of LEDGER_CONTRACTS) {
-      const expectedPath = path.normalize(path.join(activeRoot, 'data', contract.file)).toLowerCase()
+      const resolution = resolveGovernanceLedgerFamily(activeRoot, contract.kind)
+      const activeDocument = resolution.documents.find(document => document.role === 'active')
+      const expectedPath = path.normalize(activeDocument?.file || path.join(activeRoot, contract.ledger)).toLowerCase()
       const target = resolvedPaths.find(item => item.resolved === expectedPath) ||
         resolvedPaths.find(item => item.resolved.endsWith(path.normalize(path.join('data', contract.file)).toLowerCase()))
       if (!target) continue
       const activeRootMatch = target.resolved === expectedPath
       const snapshot = activeRootMatch
-        ? readLedgerSnapshot(path.join(activeRoot, 'data', contract.file), contract)
+        ? readLedgerSnapshot(activeDocument.file, contract)
         : { integrity: null, ids: [] }
       const fileIds = snapshot.ids
       const evidenceIds = activeRootMatch && outcome.observable && outcome.successful

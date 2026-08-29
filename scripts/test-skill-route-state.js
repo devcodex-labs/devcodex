@@ -724,10 +724,15 @@ try {
     mcpTarget,
     fixture.runtimeOptions
   )
-  assert.notStrictEqual(
+  assert.strictEqual(
     driftedTrustedContext.bindingDigest,
     stableTrustedContext.bindingDigest,
-    'a real host-session identity change must invalidate the trusted context digest'
+    'host-session delivery lease changes must not invalidate the stable Context semantic digest'
+  )
+  assert.notStrictEqual(
+    driftedTrustedContext.hostSessionId,
+    stableTrustedContext.hostSessionId,
+    'the delivery/session identity must remain independently observable'
   )
   semanticLifecycle.contextAcquisition.hostSessionId = stableTrustedContext.hostSessionId
   fs.writeFileSync(lifecyclePath, `${JSON.stringify(semanticLifecycle, null, 2)}\n`, 'utf8')

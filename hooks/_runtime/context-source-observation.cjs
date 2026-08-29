@@ -736,6 +736,8 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
         observationId: result.observationId
       })),
       receiptStatus: acquisition.receipt?.status || 'unknown',
+      contextSnapshotId: acquisition.receipt?.contextSnapshotId || null,
+      observationLeaseDigest: acquisition.receipt?.observationLease?.leaseDigest || null,
       satisfiedSourceIds: Array.isArray(acquisition.receipt?.satisfiedSourceIds)
         ? [...acquisition.receipt.satisfiedSourceIds].sort()
         : [],
@@ -795,6 +797,8 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
     lifecycleStatus: projectionWarnings.length ? 'committed-with-projection-warnings' : 'committed',
     projectionWarnings,
     foldReceipt,
+    contextSnapshotId: receipt?.contextSnapshotId || null,
+    observationLease: receipt?.observationLease || null,
     satisfiedSourceIds: Array.isArray(receipt?.satisfiedSourceIds) ? receipt.satisfiedSourceIds : [],
     missingSourceIds: Array.isArray(receipt?.missingSourceIds) ? receipt.missingSourceIds : [],
     receiptStatus: receipt?.status || 'unknown'

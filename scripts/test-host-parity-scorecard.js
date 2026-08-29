@@ -203,7 +203,7 @@ assert.strictEqual(
 assert.strictEqual(
   classifyGrokTurnOmissionSample([
     '按 GrokTurnChecklist 完整执行工作流：',
-    'PC0~PC7 已输出；Skill bundle intent+compliance+user-visible-output-contract+report+memory；',
+    'PC0~PC10 已输出；Skill bundle intent+compliance+user-visible-output-contract+report+memory；',
     '已写报告与记忆 S05；platform ceiling: cannot claim inject/Stop hard-block'
   ].join(' ')),
   'checklist-ready'

@@ -3,6 +3,13 @@
   "contractVersion": "3",
   "description": "Canonical serial validation graph for DevCodex source, package and deployment consumers.",
   "consumerGraphComplete": true,
+  "ciCompatibilityMatrix": [
+    { "id": "node18-linux", "os": "ubuntu-latest", "node": "18.17.0", "kind": "compatibility", "command": "test:supported-runtime-control-plane" },
+    { "id": "node22-linux", "os": "ubuntu-latest", "node": "22.x", "kind": "compatibility", "command": "test:supported-runtime-control-plane" },
+    { "id": "node26-linux", "os": "ubuntu-latest", "node": "26.x", "kind": "compatibility", "command": "test:supported-runtime-control-plane" },
+    { "id": "node18-windows", "os": "windows-latest", "node": "18.17.0", "kind": "compatibility", "command": "test:windows-control-plane" },
+    { "id": "node24-windows", "os": "windows-latest", "node": "24.17.0", "kind": "compatibility", "command": "test:windows-control-plane" }
+  ],
   "narrativeMarkdownExclusions": [
     "README.md",
     "public-site/**/*.md",
@@ -54,10 +61,13 @@
   "verificationBoundaries": {
     "validation-control-plane": {
       "inputs": [
+        ".github/workflows/ci.yml",
         "scripts/validation-manifest.json",
+        "scripts/plan-ci-validation.js",
         "scripts/run-validation.js",
         "scripts/lib/validation-dag.js",
         "scripts/lib/narrative-markdown-policy.js",
+        "scripts/test-ci-validation-plan.js",
         "scripts/test-validation-dag.js",
         "content/skills/test-router/**",
         "hooks/_runtime/workflow-completion-contract.cjs",
@@ -109,6 +119,8 @@
       "inputs": [
         "hooks/_runtime/actual-instruction-envelope.cjs",
         "hooks/_runtime/workflow-route-decision-v2.cjs",
+        "hooks/_runtime/workflow-plan-decision-v1.cjs",
+        "content/skills/cp-gate/workflow-plan-decision.v1.schema.json",
         "hooks/_runtime/workflow-root-registry.v2.json",
         "hooks/_runtime/workspace-session-route-index-v1.cjs",
         "hooks/_runtime/lifecycle-project-target.cjs",
@@ -126,6 +138,7 @@
       ],
       "nodes": [
         "workflow-capabilities",
+        "workflow-plan-decision",
         "session-route-consumers",
         "task-admission-authority",
         "task-recovery",
@@ -160,6 +173,8 @@
         "runtime-generation-retention",
         "context-delivery",
         "workflow-completion-contract",
+        "workflow-plan-decision",
+        "language-context",
         "hooks-runtime",
         "host-adapters"
       ],
@@ -184,7 +199,8 @@
         "runtime-generation-retention",
         "memory-index",
         "profile-section-selector",
-        "mcp-servers"
+        "mcp-servers",
+        "workflow-plan-decision"
       ],
       "enforceForMatchingInputs": true
     },
@@ -202,7 +218,8 @@
         "profile-section-selector",
         "context-read-controls",
         "deployment-manifest",
-        "profile-governance"
+        "profile-governance",
+        "workflow-plan-decision"
       ],
       "enforceForMatchingInputs": true
     },
@@ -210,8 +227,17 @@
       "inputs": [
         "package.json",
         "plugin.json",
-        ".github/workflows/**",
+        ".github/workflows/publish.yml",
         "index.js",
+        "scripts/postinstall.js",
+        "scripts/lib/npm-lifecycle-adapter.js",
+        "scripts/test-npm-lifecycle-adapter.js",
+        "scripts/lib/global-host-*.js",
+        "scripts/test-global-host-*.js",
+        "scripts/lib/runtime-dependency-closure.js",
+        "scripts/test-mcp-runtime-closure.js",
+        "scripts/test-global-install-smoke.js",
+        "scripts/fixtures/global-host-config/**",
         "scripts/prepack-control-content.js",
         "scripts/postpack-control-content.js",
         "scripts/validate-installed-package.js",
@@ -465,6 +491,8 @@
         "context-read-controls",
         "tenant-selection",
         "workflow-capabilities",
+        "workflow-plan-decision",
+        "language-context",
         "session-route-consumers",
         "task-admission-authority",
         "api-verification-contracts",
@@ -489,6 +517,7 @@
         "spec-governance",
         "governance-intake",
         "governance-ledger-integrity",
+        "governance-ledger-resolver",
         "profile-governance",
         "public-product-expression",
         "readme-governance",
@@ -549,7 +578,8 @@
         "context-read-controls",
         "profile-section-selector",
         "deployment-manifest",
-        "profile-governance"
+        "profile-governance",
+        "workflow-plan-decision"
       ]
     },
     "package-release": {
@@ -1725,7 +1755,8 @@
         "scripts/test-runtime-state-index.js"
       ],
       "dependencies": [
-        "derived-index-contract"
+        "derived-index-contract",
+        "governance-ledger-resolver"
       ],
       "inputs": [
         "scripts/lib/runtime-state-index.js",
@@ -2146,8 +2177,11 @@
         "scripts/lib/validation-dag.js",
         "scripts/lib/narrative-markdown-policy.js",
         "scripts/lib/validation-orchestration.js",
+        "scripts/plan-ci-validation.js",
         "scripts/run-validation.js",
+        "scripts/test-ci-validation-plan.js",
         "scripts/test-validation-dag.js",
+        ".github/workflows/ci.yml",
         "scripts/lib/checked-command.js",
         "package.json"
       ],
@@ -2743,6 +2777,104 @@
       },
       "evidenceArtifacts": [
         "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "workflow-plan-decision",
+      "owner": "workflow-routing",
+      "command": "node",
+      "args": [
+        "scripts/test-workflow-plan-decision.js"
+      ],
+      "dependencies": [
+        "workflow-capabilities"
+      ],
+      "inputs": [
+        "instructions.md",
+        "instructions/10-dev.instructions.md",
+        "instructions/11-fix.instructions.md",
+        "skills/cp-gate/SKILL.md",
+        "skills/cp-gate/workflow-plan-decision.v1.schema.json",
+        "prompts/requirement.prompt.md",
+        "prompts/technical-design.prompt.md",
+        "prompts/implementation-plan.prompt.md",
+        "prompts/precheck-status.prompt.md",
+        "hooks/_runtime/workflow-plan-decision-v1.cjs",
+        "hooks/_runtime/lifecycle.cjs",
+        "hooks/_runtime/lifecycle-bootstrap-state.cjs",
+        "mcp/profile-server.js",
+        "scripts/test-workflow-plan-decision.js",
+        "scripts/validate-profile.js",
+        "scripts/lib/profile-bootstrap-utils.js",
+        "package.json"
+      ],
+      "consumers": [
+        "visible-output-contract"
+      ],
+      "invariants": [
+        "user-intent-precedence",
+        "independent-decision-axes",
+        "precheck-post-context-redecision",
+        "mandatory-obligations-independent"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "candidate-bound",
+      "writeScopes": [],
+      "timeoutMs": 30000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "WorkflowPlanDecisionV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "language-context",
+      "owner": "workflow-routing",
+      "command": "node",
+      "args": [
+        "scripts/test-language-context-v2.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "instructions/00-safety.instructions.md",
+        "instructions/02-output-paths.instructions.md",
+        "prompts/precheck-status.prompt.md",
+        "hooks/_runtime/language-context.cjs",
+        "hooks/_runtime/lifecycle.cjs",
+        "scripts/test-language-context-v2.js",
+        "package.json"
+      ],
+      "consumers": [
+        "visible-output-contract"
+      ],
+      "invariants": [
+        "task-primary-language-continuity",
+        "neutral-turn-no-language-switch",
+        "artifact-response-language-alignment",
+        "legacy-v1-read-compatibility"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "candidate-bound",
+      "writeScopes": [],
+      "timeoutMs": 30000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "LanguageContextV2"
       ]
     },
     {
@@ -3670,6 +3802,66 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "governance-ledger-resolver",
+      "owner": "spec-governance",
+      "command": "node",
+      "args": [
+        "scripts/test-governance-ledger-resolver.js"
+      ],
+      "dependencies": [
+        "governance-ledger-integrity"
+      ],
+      "inputs": [
+        "package.json",
+        "index.js",
+        "content/skills/spec-governance/governance-ledger-manifest.v1.schema.json",
+        "hooks/_runtime/lifecycle-governance-intake.cjs",
+        "scripts/lib/governance-ledger-resolver.js",
+        "scripts/lib/governance-ledger-migration.js",
+        "scripts/lib/cli-governance-commands.js",
+        "scripts/lib/cli-runtime-utils.js",
+        "scripts/lib/cli-command-registry.js",
+        "scripts/lib/runtime-state-index.js",
+        "scripts/validate-governance-ledgers.js",
+        "scripts/test-governance-ledger-resolver.js"
+      ],
+      "consumers": [
+        "runtime-state-index",
+        "cli-command-registry",
+        "hooks-runtime",
+        "pack-clean"
+      ],
+      "invariants": [
+        "zero-move-legacy-equivalence",
+        "manifest-canonical-index-derived",
+        "atomic-monotonic-id-allocation",
+        "immutable-shard-digest",
+        "gap-registry-pilot-plan-bound-apply",
+        "reopened-active-overlay",
+        "lossless-rollback"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "GovernanceLedgerManifestV1",
+        "GovernanceLedgerMigrationReceiptV1",
+        "GovernanceLedgerIndexV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "profile-governance",
       "owner": "profile-governance",
       "command": "node",
@@ -4477,10 +4669,12 @@
         "CHANGELOG.md",
         "changelogs/**",
         "website/docs/versions/**",
+        ".github/workflows/ci.yml",
         ".github/workflows/publish.yml",
         "scripts/exact-release-artifact.js",
         "scripts/verify-release-validation-receipt.js",
-        "scripts/test-release-metadata.js"
+        "scripts/test-release-metadata.js",
+        "scripts/test-publish-workflow-replay.js"
       ],
       "consumers": [],
       "invariants": [
@@ -4900,7 +5094,10 @@
       "args": [
         "scripts/test-visible-output-contract.js"
       ],
-      "dependencies": [],
+      "dependencies": [
+        "workflow-plan-decision",
+        "language-context"
+      ],
       "inputs": [
         "instructions.md",
         "instructions/01-common.instructions.md",
@@ -4921,6 +5118,7 @@
         "skills/routing/SKILL.md",
         "skills/spec-governance/gate-registry.json",
         "prompts/precheck-status.prompt.md",
+        "prompts/requirement.prompt.md",
         "prompts/technical-design.prompt.md",
         "prompts/implementation-plan.prompt.md",
         "prompts/implementation-progress.prompt.md",
@@ -4930,6 +5128,8 @@
         "prompts/report-fix.prompt.md",
         "prompts/report-audit.prompt.md",
         "hooks/_runtime/visible-output-contract.cjs",
+        "hooks/_runtime/workflow-plan-decision-v1.cjs",
+        "hooks/_runtime/language-context.cjs",
         "hooks/_runtime/lifecycle-visible-reply.cjs",
         "scripts/test-visible-output-contract.js",
         "scripts/lib/test-hooks-runtime-visibility.js",
@@ -4950,6 +5150,7 @@
         "semantic-display-name",
         "renderer-parity",
         "link-capability-honesty",
+        "artifact-delivery-attempt-readback",
         "visible-envelope-fail-closed",
         "final-validation-summary"
       ],
@@ -4971,9 +5172,13 @@
         "FinalValidationSummaryV1",
         "DevCodexVisibleEnvelopeV1",
         "DevCodexVisibleEnvelopeV2",
+        "DevCodexVisibleEnvelopeV3",
+        "EntryCheckModelV3",
         "PostCompletionActionSetV1",
         "LinkCapabilityDecisionV1",
-        "HostLinkCapabilityDecisionV2"
+        "HostLinkCapabilityDecisionV2",
+        "ArtifactDeliveryAttemptV1",
+        "ArtifactDeliveryResolutionV1"
       ]
     },
     {

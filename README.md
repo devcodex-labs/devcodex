@@ -150,7 +150,11 @@ DevCodex 不改变模型参数。它通过四件事提升 AI 在真实项目中�
 3. **调用正确能力**：在当前阶段加载对应的专业 Skill，而不是一次性塞入全部规则；
 4. **获得真实反馈**：测试、构建、命令结果、代码差异和审查证据会继续影响后续判断。
 
-简单任务可以走更短路径；涉及公共契约、数据、安全、多模块或发布风险时，会自动提高确认和验证强度。
+简单任务可以走更短路径；涉及公共契约、数据、安全、多模块或发布风险时，会自动提高确认和验证强度。流程仪式、技术方案深度与验证范围分别判断，不再用一个模糊的“简单/复杂”标签同时控制三者：当前任务中用户明确说法优先，其次才是项目配置、基于项目事实的智能识别和保守回退。入口先初判，读取项目后再二次判断，并在 PC8～PC10 写清流程/方案、验证范围与预计耗时、后续阶段和当前是否需要用户动作。
+
+Profile 可配置 `extensions.devcodex.workflowRouting.mode` 为 `adaptive`（默认）、`simple` 或 `standard`，并用 `showPlan` 控制展示密度；该配置只提供流程仪式默认值，不能降低公共契约、状态恢复、package 或发布等强制义务。入口 PC0 同时显示已安装包、当前 runtime 与源码候选的版本关系，避免“版本号相同”被误报为运行内容完全一致。
+
+产物打开按实际呈现面而不是仅按宿主名称决定。Codex Desktop 输出真实的本地文件链接；VS Code、Zed、JetBrains 可输出对应打开命令；未知或未验证界面直接给可复制绝对路径。系统只有在打开动作执行且回读成功时才会写“已打开”，renderer 选中、命令生成或链接渲染本身不冒充打开成功。
 
 ### Auto 自动推进：一次授权，持续完成整条工程链
 
@@ -461,9 +465,13 @@ devcodex status
 devcodex doctor --json
 devcodex runtime status --json
 devcodex runtime maintenance --dry-run --json
+devcodex governance ledger init --apply --json
+devcodex governance ledger plan --kind GR --json
 ```
 
 状态会区分“配置存在”“适配器合同通过”“原生宿主已验证”和“端到端可用”，不会把文件存在冒充成真实能力。
+
+普通非 dry-run 的 `init` / `update` 会零搬迁初始化治理台账 manifest 并重建派生索引，不改写现有 Markdown 台账。历史分片不会自动执行：`governance ledger plan` 只读预览；确认候选后使用 `devcodex governance ledger apply --kind GR --plan <sha256> --json`，回滚使用同一精确摘要执行 `rollback`。活动台账始终是唯一写入目标，archive shard 为只读历史。
 
 ---
 

@@ -65,7 +65,7 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
 
 ### CP 执行规则
 
-> **执行 authority 不变量**：正式任务必须先由 `memory_task_admit_v2` 完成 `TaskAdmissionTransactionV1` 的 identity/overview/CP pending，再按 CP 顺序推进；源码 mutation 前还须 finalized admission、所需 CP confirmation 与 active `FencedTaskWriteOwnerLeaseV2`。`WorkflowRouteDecisionV2`、`WorkspaceSessionRouteIndexV1`、resolver、“继续”或最新 mtime 均不授写权。
+> **执行 authority 不变量**：正式任务必须先由 `memory_task_admit_v2` 基于不可变 ingress snapshot 完成 `TaskAdmissionTransactionV1` 的 identity/overview/CP pending，并在同一 MCP 调用内取得 fenced owner、finalize admission，再按 CP 顺序推进；CP pending owner 不授 mutation authority，确认后必要时以 owner renew 复证。源码 mutation 前仍须 finalized admission、所需 CP confirmation 与 active `FencedTaskWriteOwnerLeaseV2`。`WorkflowRouteDecisionV2`、`WorkspaceSessionRouteIndexV1`、resolver、“继续”或最新 mtime 均不授写权。
 
 1. **严格按序**：CP1 → CP2 → CP3，不得跳过中间步骤
 2. **禁止合并**：不得将 CP1+CP2 合并为一次输出
@@ -104,7 +104,7 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
 
 轻路径约束：
 
-- 仍必须执行 PC0~PC7、Profile/记忆/报告、安全底线、必要测试和 ECR；CP1/CP2 以回复内联摘要或报告字段承载，报告写明 `SimpleTaskFastPath: applied`、`skipReason` 与验证证据。
+- 仍必须执行 PC0~PC10、Profile/记忆/报告、安全底线、必要测试和 ECR；CP1/CP2 以回复内联摘要或报告字段承载，报告写明 `SimpleTaskFastPath: applied`、`skipReason` 与验证证据。
 - **ExistingRequirementArtifactOverride**：若用户是在调整/修改/补充/变更既有需求，或当前任务已存在 `00-需求变更概况.md`、`01-需求变更确认.md`、`00-需求概况.md`、`01-需求确认.md`、`01-产品需求.md`、历史 `01-需求概述.md`、Profile 声明的正式需求文件、website requirement 或其他已确认需求真相源，轻路径只允许不新建完整目录，不允许跳过已有文件回写；必须先增量编辑该文件并在回复中说明更新位置。找不到目标文件时，先按 Profile、当前需求目录、sessions、tasks 和用户提及路径定位；仍无法定位才最小澄清，禁止只输出新需求口径。
 - 租约最多消费 2 次；一旦执行中新增第 3 个路径、跨 module/artifact boundary，或命中正式产物、公共契约/配置/控制面/安全/依赖/发布/台账来源/高风险，必须在 mutation 前撤销轻路径并升级回完整 CP/产物链，补建对应需求产物后再继续。禁止先写再升级。
 
@@ -175,9 +175,9 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
 
 ### 代码实现复杂度与注释守门
 
-- CP1 需求必须给出 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：`简单够用`（默认，需求不详细或简单方案可满足已确认产品事实源和业务目标）、`中等`（已有明确复用 / 演进边界，但不做企业级预设）、`企业级`（仅用户明确选择，或已有公共契约、多消费者、高风险长期演进且经确认）。用户未提出复杂化、需求未说明或简单方案可满足已确认产品事实源和业务目标时，默认选择 `简单够用`。
-- 若 AI 认为需要从 `简单够用` 升级到 `中等` / `企业级`，必须在 CP1 或 CP2 列出 2~3 个方案、开发周期、难度、维护成本、非目标与取舍，等待用户确认后再升级；不得为了“完美”“企业级”“通用性”自行加复杂度。
-- CP2 技术方案必须继承 CP1 的 `ImplementationComplexityLevel` 并给出 `§2.7 最小实现与注释策略`；非纯文案或单文件小修时，至少写明复杂度预算、抽象准入、防御分支边界和必要注释触发点。
+- CP1 必须给出 `WorkflowPlanDecisionV1`：`ceremonyTier=simple|standard`、`designDepth=minimal|standard`、`assuranceLevel=targeted|affected|full` 与 `mandatoryObligations`。优先级固定为用户当前明确意图 > Profile 配置 > 智能识别 > 回退；入口初判后须在有界项目读取完成时二次判断。
+- 若 AI 认为任一轴需要升级，必须在 CP1 或 CP2 说明证据、开发周期、难度、维护成本、非目标与取舍；只有真实范围扩张才允许实施中的第三次判断。不得把流程仪式、方案深度和验证等级互相推导。
+- CP2 技术方案必须继承 `designDepth` 并给出 `§2.7 最小实现与注释策略`；非纯文案或单文件小修时，至少写明复杂度预算、抽象准入、防御分支边界和必要注释触发点。旧 `ImplementationComplexityLevel` / `ImplementationComplexityPreference` 只读兼容并只映射到 `designDepth`，禁止新写入。
 - 实施默认采用满足双方确认后的产品事实源和派生技术验证项的最小实现，优先局部补丁和既有本地模式；禁止为“企业级”“可扩展”预设新增无真实消费者的 service / factory / adapter / manager、策略注册表、通用配置或预留扩展点。
 - 新增抽象只在真实消费者、既有本地模式、边界隔离或已确认契约需要时允许；防御性分支只覆盖已确认输入、兼容、安全或错误契约。
 - 必要注释必须覆盖非显然业务规则、状态转换、不变量、兼容约束、安全边界、外部契约映射和反直觉权衡，注释解释“为什么”和“守住什么约束”。

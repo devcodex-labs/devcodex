@@ -12,6 +12,22 @@ devcodex runtime maintenance --dry-run --json
 
 `runtime status` 将 V5、项目内 legacy lifecycle 文件与用户级安装 runtime generation 分栏，并显示物理磁盘、reserve、hot/cold/terminal/ephemeral、top task 与配置来源。`runtime doctor` 检查 A/B、reserve 大小和尾标、容量/headroom、配置、legacy 最近写入及 generation retention 证据。`runtime maintenance` 默认 preview；即使显式普通 `--apply`，legacy 的 `deletedFiles` 仍必须为 0，安装 generation 也只有匹配 `--generation-plan` 才会处理。
 
+## 治理台账清单、索引与分片
+
+普通非 dry-run 的 `devcodex init` / `devcodex update` 会以零搬迁方式初始化 `GovernanceLedgerManifestV1` 并重建派生索引；既有 Markdown 台账字节不应改变。也可以显式检查：
+
+```bash
+devcodex governance ledger init --json
+devcodex governance ledger init --apply --json
+devcodex governance ledger index --json
+devcodex governance ledger index --apply --json
+devcodex governance ledger plan --kind GR --json
+```
+
+`plan` 始终只读。GR 试点只迁移具有明确日期、终态且自包含的记录；真正执行必须把预览返回的 64 位 `planDigest` 原样传给 `devcodex governance ledger apply --kind GR --plan <sha256> --json`。source 或 manifest 在预览后漂移会返回 `GOVERNANCE_LEDGER_MIGRATION_PLAN_STALE`；缺失/篡改 shard、重复主 ID、非法 reopened overlay 或事务残留会失败关闭。回滚使用 `devcodex governance ledger rollback --kind GR --plan <sha256> --json`，immutable shard 保留为未引用审计证据，不会被普通回滚删除。
+
+manifest 是活动文件、archive shard、reopened overlay 与 `nextSequence` 的唯一真相源；`.memory/indexes/governance-ledgers.json` 只是可重建索引。所有普通写入仍落到活动台账，不得直接修改 archive，也不得通过扫描“当前最大编号 + 1”分配新 ID。
+
 `status` 与 `doctor` 的 `worktrees` 字段是只读 `WorktreeDiagnosticsV1`。`WARN` 通常表示当前工作树有改动、存在 prunable 元数据，或某个外部 worktree 的 owner/dirty 状态未核实；它不表示 DevCodex 已清理或可以清理。诊断受单命令和总时间预算约束，且绝不执行 prune、remove、unlock、branch 操作或 `safe.directory` 修改。
 
 若“提交后怎么多了一个分支”，先区分事实与历史原因：过去发生过代理误用通用多人协作分支惯例、又未在创建前告知的情况；这不是 DevCodex 内置的自动建分支行为。先用 `git status --short --branch` 核实当前分支，再运行 `devcodex status` 和 `devcodex doctor --json` 检查 worktree 归属。不要仅因看到未知分支或 prunable 元数据就删除它；任何 branch create/switch/cleanup 都需要独立授权。

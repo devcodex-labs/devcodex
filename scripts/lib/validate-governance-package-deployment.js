@@ -486,8 +486,8 @@ function buildGovernancePackageDeploymentChecks(ctx) {
           })
           const payload = JSON.parse(out || '{}')
           const context = payload.hookSpecificOutput?.additionalContext || ''
-          if (!payload.systemMessage || !/PC0-PC7/.test(context) || payload.hookSpecificOutput?.hookEventName !== 'UserPromptSubmit') {
-            warn('[V8] Codex UserPromptSubmit output missing systemMessage/additionalContext PC0-PC7 bootstrap context')
+          if (!payload.systemMessage || !/PC0-PC10/.test(context) || payload.hookSpecificOutput?.hookEventName !== 'UserPromptSubmit') {
+            warn('[V8] Codex UserPromptSubmit output missing systemMessage/additionalContext PC0-PC10 bootstrap context')
             stale++
           }
         } catch (error) {

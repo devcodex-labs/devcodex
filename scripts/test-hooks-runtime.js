@@ -1241,19 +1241,32 @@ function main() {
 
   assert.deepStrictEqual(
     resolveLanguageContext({ prompt: '请用中文分析这个项目' }),
-    { schemaVersion: 'LanguageContextV1', language: 'zh-CN', source: 'explicit-current-turn', confidence: 'high' }
+    {
+      schemaVersion: 'LanguageContextV2', primaryLanguage: 'zh-CN', responseLanguage: 'zh-CN',
+      artifactLanguage: 'zh-CN', currentTurnClass: 'explicit-switch', source: 'explicit-current-turn',
+      confidence: 'high', updatedPrimary: true
+    }
   )
   assert.deepStrictEqual(
     resolveLanguageContext({ prompt: 'Please inspect the project.' }),
-    { schemaVersion: 'LanguageContextV1', language: 'en', source: 'current-user-message', confidence: 'high' }
+    {
+      schemaVersion: 'LanguageContextV2', primaryLanguage: 'en', responseLanguage: 'en', artifactLanguage: 'en',
+      currentTurnClass: 'substantive', source: 'first-substantive-user-message', confidence: 'high', updatedPrimary: true
+    }
   )
   assert.deepStrictEqual(
     resolveLanguageContext({ carrier: { language: 'ja' } }),
-    { schemaVersion: 'LanguageContextV1', language: 'ja', source: 'turn-bound-carrier', confidence: 'medium' }
+    {
+      schemaVersion: 'LanguageContextV2', primaryLanguage: 'ja', responseLanguage: 'ja', artifactLanguage: 'ja',
+      currentTurnClass: 'neutral', source: 'conversation-primary-language', confidence: 'high', updatedPrimary: false
+    }
   )
   assert.deepStrictEqual(
     resolveLanguageContext({}),
-    { schemaVersion: 'LanguageContextV1', language: 'en', source: 'und-en-fallback', confidence: 'low' }
+    {
+      schemaVersion: 'LanguageContextV2', primaryLanguage: 'en', responseLanguage: 'en', artifactLanguage: 'en',
+      currentTurnClass: 'neutral', source: 'und-en-fallback', confidence: 'low', updatedPrimary: false
+    }
   )
 
   runHooksRuntimeBootstrapLayoutScenarios(runtimeScenarioContext)
@@ -1282,7 +1295,7 @@ function main() {
   })
   const continuationContext = resolvedContinuation.hookSpecificOutput?.additionalContext || resolvedContinuation.systemMessage || ''
   assert.match(continuationContext, /TaskResolutionV1 resolved-active/)
-  assert.match(continuationContext, /LanguageContextV1/)
+  assert.match(continuationContext, /LanguageContextV2/)
   const continuationStore = storePaths(STATE_DIR)
   const taskSlotFiles = []
   const pendingTaskDirs = [continuationStore.tasks]

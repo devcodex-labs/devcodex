@@ -24,7 +24,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 条件治理能力统一从 `skills/spec-governance/gate-registry.json` 选择 `gateGroup` 与 Owner Skill；技术方案只写触发事实、owner、产物链接、验证路线和 skipReason，不复制 Owner 正文。品牌母版、主题/尺寸变体或单色资产生产命中 `brand-visual-quality` 时，必须链接五类视觉产物和人工验收路线。
 > ⚠️ 新增或改变 Rule/Skill、Prompt、MCP Resource/Resource Template/Tool、Task 增强 Tool、CLI 或 Hook 时，CP2 必须引用 `CapabilitySurfaceDecisionV1` 的 `decisionRef / status / identity / preferredSurface / decisionOwner / runtimeOwner / validationRoute`；判定仍由 `spec-governance` 单写，领域方案只补证据，不复制选择矩阵。缺失、stale、blocked 或 identity 不匹配时属于 CP2 blocker。
 > ⚠️ provider / connector / 三方 SDK 接入类方案必须先冻结业务功能接口，再说明底层 provider adapter / model / operation / 配置如何实现该功能；不得把内部 provider 能力直接反向暴露成业务接口。随后冻结字段级合同和统一 operation contract；包 / 库 / adapter / CLI 方案必须同时检查代码实现层与包工程层。
-> ⚠️ CP2 必须承接 CP1 的平台工程判断和 `ImplementationComplexityLevel`（兼容旧字段 `ImplementationComplexityPreference`）：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
+> ⚠️ CP2 必须承接 CP1 `WorkflowPlanDecisionV1` 的 `designDepth` 与 `mandatoryObligations`：消费者范围、共享契约边界、模块职责、可维护性成本、非目标和最小实现预算要互相一致；`ceremonyTier` 不得抬高方案复杂度，`assuranceLevel` 不得反向制造实现范围。没有真实复用者或演进边界时，不得新增 factory / manager / adapter / registry 等预设抽象。
 > ⚠️ 重要技术结论必须通过 `CodeTruthEvidenceMatrixGate` 绑定 repo path、symbol/contract、currentBehavior、negativeProbe 和 gap；方案推荐还必须通过 `SolutionFitAgainstRepoGate` 说明 reusePoint、consumer、rollback 与 statusQuoCost。
 > ⚠️ CP2 候选在请求确认前必须附 `CandidateReviewBundleV1`：`phaseKind=CP2`、`TDMatrix`、`BlockerSnapshot`、`ClaimEvidenceMatrix`。缺任一项、证据陈旧或存在未关闭 blocker 时，不得写“可确认 CP2 / 可进入 CP3”。
 > ⚠️ **PR-1 实质自审（防假绿）**：在写「请确认 CP2 / 确认技术方案」前，任务目录必须已有独立 `03-*方案复审*`（或等价），含 `open blocker = 0`（或明确 PR-1 通过句）**且**实质章节（验收映射 / 契约矩阵 / CodeTruth / BlockerSnapshot / 根因 等至少 2 类）；禁止仅在 `02` 内嵌薄表 `PR-1 | ✅` 或仅 sessions 一行。Stop 门 `pr1EvidenceOk` 会拒绝 thin green。
@@ -305,13 +305,12 @@ applyTo: .devcodex/**/requirements/**
 
 ### §2.7 最小实现与注释策略
 
-> 必须继承 CP1 的 `ImplementationComplexityLevel`。默认采用 `简单够用`：能满足已确认产品事实源和派生技术验证项的最小实现，优先局部补丁和既有模式；复杂度预算超限、新增抽象或新增防御分支必须有证据，否则回 CP2/CP1 收窄范围。
+> 必须继承 CP1 `WorkflowPlanDecisionV1.designDepth`。默认采用 `minimal`：能满足已确认产品事实源和派生技术验证项的最小充分实现，优先局部补丁和既有模式；复杂度预算超限、新增抽象或新增防御分支必须有证据，否则回 CP2/CP1 收窄范围。旧复杂度字段仅作读取兼容，不得写入本方案。
 
-| CP1 档位 | CP2 落地要求 |
-|----------|--------------|
-| `简单够用` | 只保留满足已确认产品事实源和技术验证项的局部最小实现；不新增 service / factory / adapter / manager、策略注册表、通用配置或预留扩展点 |
-| `中等` | 写明真实复用者、演进边界或跨模块共享契约，以及为什么直接实现不足 |
-| `企业级` | 写明用户确认依据、多方案取舍、开发周期 / 难度 / 长期维护成本、迁移/回滚和验证路线 |
+| `designDepth` | CP2 落地要求 |
+|---------------|--------------|
+| `minimal` | 只保留满足已确认产品事实源和技术验证项的局部最小实现；不新增无真实消费者的 service / factory / adapter / manager、策略注册表、通用配置或预留扩展点 |
+| `standard` | 写明真实复用者、演进边界、跨模块共享契约或迁移/恢复证据，以及为什么局部直接实现不足；同时冻结开发周期、维护成本、回滚和验证路线 |
 
 #### 复杂度预算
 

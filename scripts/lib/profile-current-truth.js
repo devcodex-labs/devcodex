@@ -253,12 +253,21 @@ function workflowJobBlock(workflowText, jobId) {
   return next ? remainder.slice(0, next.index) : remainder
 }
 
-function extractWorkflowCurrentTruth(workflowText) {
+function extractWorkflowCurrentTruth(workflowText, validationManifest = null) {
+  const plannerDriven = /scripts\/plan-ci-validation\.js/.test(String(workflowText || ''))
   const control = workflowJobBlock(workflowText, 'supported-control-plane')
-  const supportedControlPlane = []
-  const lanePattern = /^\s*- os:\s*(\S+)\s*\n\s*node:\s*(\S+)\s*\n\s*route:\s*(\S+)\s*$/gm
-  for (const match of control.matchAll(lanePattern)) {
-    supportedControlPlane.push({ os: match[1], node: match[2], route: match[3] })
+  const supportedControlPlane = plannerDriven
+    ? (validationManifest?.ciCompatibilityMatrix || []).map(item => ({
+        os: String(item.os || ''),
+        node: String(item.node || ''),
+        route: String(item.command || '')
+      }))
+    : []
+  if (!plannerDriven) {
+    const lanePattern = /^\s*- os:\s*(\S+)\s*\n\s*node:\s*(\S+)\s*\n\s*route:\s*(\S+)\s*$/gm
+    for (const match of control.matchAll(lanePattern)) {
+      supportedControlPlane.push({ os: match[1], node: match[2], route: match[3] })
+    }
   }
 
   const jobIdentity = jobId => {
@@ -272,7 +281,7 @@ function extractWorkflowCurrentTruth(workflowText) {
   return {
     supportedControlPlane,
     fullQuality: jobIdentity('full-quality'),
-    packageBoundary: jobIdentity('website-package')
+    packageBoundary: jobIdentity(plannerDriven ? 'package-boundary' : 'website-package')
   }
 }
 
@@ -355,7 +364,7 @@ function validateDevCodexCurrentTruth(input = {}) {
       const stateLabel = released ? 'active released Profile' : 'previous released distribution'
       if (record[field]?.status !== 'PASS') errors.push(`${field}.status must be PASS for the ${stateLabel}`)
     }
-    const expectedMatrix = extractWorkflowCurrentTruth(input.workflowText)
+    const expectedMatrix = extractWorkflowCurrentTruth(input.workflowText, input.validationManifest)
     const recordedMatrix = normalizeCiMatrix(record.ciMatrix)
     if (!recordedMatrix) errors.push('ciMatrix is required for the active DevCodex Profile')
     else if (JSON.stringify(recordedMatrix) !== JSON.stringify(expectedMatrix)) {

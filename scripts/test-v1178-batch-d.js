@@ -282,6 +282,64 @@ function testTransactionCasAndAppendAmplification() {
     error => error.code === CAS_ERROR_CODE
   )
   assert.strictEqual(external.state.content, 'external-edit\n', 'CAS rejection must preserve the external edit')
+
+  const reconciledExternal = createFakeAdapter('before\n')
+  let reconcileInjected = false
+  const reconciler = createMemoryFileTransaction({
+    adapter: reconciledExternal.adapter,
+    faultInjector(stage) {
+      if (stage === 'before-commit-cas' && !reconcileInjected) {
+        reconcileInjected = true
+        reconciledExternal.state.content = 'external-edit\n'
+        reconciledExternal.state.revision += 1
+      }
+    }
+  })
+  const reconciled = reconciler.commitPureOperation({
+    filePath: 'memory.md',
+    relativeFile: '.memory/tasks/20260829.md',
+    operationFingerprint: 'b'.repeat(64),
+    reconcileOnce: true,
+    operation(content) {
+      return {
+        content: `${content}writer\n`,
+        appendText: 'writer\n',
+        reconcileIdentity: 'c'.repeat(64)
+      }
+    }
+  })
+  assert.strictEqual(reconciledExternal.state.content, 'external-edit\nwriter\n')
+  assert.strictEqual(reconciled.conflictReceipt.schemaVersion, 'MemoryTransactionConflictReceiptV2')
+  assert.strictEqual(reconciled.conflictReceipt.status, 'reconciled')
+  assert.strictEqual(reconciled.conflictReceipt.writerFingerprint.status, 'UNVERIFIED')
+
+  const semanticDrift = createFakeAdapter('before\n')
+  let semanticInjected = false
+  const semanticGuard = createMemoryFileTransaction({
+    adapter: semanticDrift.adapter,
+    faultInjector(stage) {
+      if (stage === 'before-commit-cas' && !semanticInjected) {
+        semanticInjected = true
+        semanticDrift.state.content = 'changed-precondition\n'
+        semanticDrift.state.revision += 1
+      }
+    }
+  })
+  assert.throws(() => semanticGuard.commitPureOperation({
+    filePath: 'memory.md',
+    relativeFile: '.memory/tasks/20260829.md',
+    operationFingerprint: 'd'.repeat(64),
+    reconcileOnce: true,
+    operation(content) {
+      return {
+        content: `${content}writer\n`,
+        appendText: 'writer\n',
+        reconcileIdentity: sha256(Buffer.from(content, 'utf8'))
+      }
+    }
+  }), error => error.code === 'MEMORY_TRANSACTION_RECONCILE_PRECONDITION_CHANGED' &&
+    error.details?.conflictReceipt?.status === 'blocked-semantic-precondition-changed')
+  assert.strictEqual(semanticDrift.state.content, 'changed-precondition\n')
 }
 
 function testNodeAdapterInMemory() {

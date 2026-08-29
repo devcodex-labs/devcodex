@@ -870,7 +870,7 @@ function readLifecycleState (fixture, sessionId, options = {}) {
       prompt: '请检查这个项目并保持中文'
     })
     const languageBefore = readLifecycleState(fixture, languageSession)
-    assert.strictEqual(languageBefore.languageContext.language, 'zh-CN')
+    assert.strictEqual(languageBefore.languageContext.primaryLanguage, 'zh-CN')
     runLifecycle(fixture, {
       hookEventName: 'UserPromptSubmit',
       session_id: languageSession,
@@ -881,7 +881,7 @@ function readLifecycleState (fixture, sessionId, options = {}) {
     assert.deepStrictEqual(
       languageAfter.languageContext,
       languageBefore.languageContext,
-      'host-generated route continuations must not reset LanguageContextV1'
+      'host-generated route continuations must not reset LanguageContextV2'
     )
 
     const otherProject = 'other-project'

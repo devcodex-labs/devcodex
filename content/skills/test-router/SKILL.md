@@ -74,7 +74,7 @@ AI Hook 在生成 BudgetCard 前必须由当前宿主 session 解析出唯一、
 
 `baseAdmissionGovernance` 绑定 `spec-absorption` / `skill-lifecycle-governance`，不新增顶层 selector：新增或晋级规范、Skill、Prompt、流程、验证器或部署消费者至少选择 `static + unit-integration`，并记录 `BaseImpactAssessmentV1`、`ComplexityDeltaBudgetV1`、`UnaffectedIntentRegression`、`replacementOrRetirementCredit`、回滚和退役/删除条件。`base-changing` 叠加 `runtime-e2e + profile-deploy`，且必须有单独确认和未受影响意图负样本；普通 chat/dev/fix 不因此增加默认验证路径。V96 负责正负向分类器证据。
 
-`visibleOutputContract` 绑定 `user-visible-output-contract`，不新增顶层 selector：任何 `ArtifactDeliveryManifestV1`、`UserFacingArtifactSetV1`、`PostCompletionActionSetV1`、`DevCodexVisibleEnvelopeV2`、V1 兼容 parser、renderer 或 visible-reply Hook 变化至少选择 `static + unit-integration + runtime-e2e`，覆盖 planned/observed/internalDelivered 对账、required hidden=0、计数守恒、六 message kinds、完成态 requiredNow=0、动作适用性与授权负例、V1 只读/V2 只写、compact eligibility、legacy/unobserved ceiling、semanticDigest 和 rich/portable/plain 等价性。触达 README/website/Profile/部署副本时叠加 `profile-deploy`，进入 package public surface 时叠加 `package-release`。宿主 capability 未 direct replay 时必须保持 portable/plain 或 unverified，不得按宿主名推断 clickable。
+`visibleOutputContract` 绑定 `user-visible-output-contract`，不新增顶层 selector：任何 `ArtifactDeliveryManifestV1`、`UserFacingArtifactSetV1`、`PostCompletionActionSetV1`、`EntryCheckModelV3`、`DevCodexVisibleEnvelopeV3`、`HostLinkCapabilityDecisionV2`、`ArtifactDeliveryAttemptV1`、V1/V2 兼容 parser、renderer 或 visible-reply Hook 变化至少选择 `static + unit-integration + runtime-e2e`，覆盖 planned/observed/internalDelivered 对账、required hidden=0、计数守恒、六 message kinds、完成态 requiredNow=0、动作适用性与授权负例、V1/V2 只读/V3 只写、PC0~PC10、presentationSurface 主选 renderer、renderer-only、action/readback、missing target、absolute fallback、compact eligibility、legacy/unobserved ceiling、semanticDigest 和 rich/portable/plain 等价性。触达 README/website/Profile/部署副本时叠加 `profile-deploy`，进入 package public surface 时叠加 `package-release`。宿主 capability 未 direct replay 时必须保持 ready/fallback 或 unverified；未同时观察 action 与 readback 成功不得声明 opened。
 
 `evidenceFreshness` 绑定 `report` / `analyze-default` / `audit-report` / `review-checklist`，不新增顶层 selector：强主张新鲜度、summary-only 降级、外部 finding 采纳、artifact anchor 或 final validation summary 绑定变化至少选择 `static + unit-integration`，执行 `npm run test:evidence-freshness` 并在控制面或当前消费者同步时叠加 `node scripts/validate.js` 与 `profile-deploy`。若只是普通报告没有 strong claim，写 `N/A + skipReason=no-strong-claims`。
 
@@ -87,6 +87,12 @@ AI Hook 在生成 BudgetCard 前必须由当前宿主 session 解析出唯一、
 ### 发布候选验证
 
 `package-release` selector 可在 V2 只表示 package compatibility 边界；它不会执行 tag、publish 或 registry mutation。只有 release-pipeline 在当前发布授权下取得 purpose=`release`、level=`V3` 的 LeaseV2，才必须调用 `release-verification`，并把 `npm run test:audit`、package completeness gate、publish dry-run、ExactReleaseArtifactV1 和远端 CI 作为独立证据记录。publish dry-run 只验证发布通道、registry 与候选元数据，不等价于真实 publish，也不能替代 exact artifact、远端 CI 或发布后 registry 对账。pack 或本地 install 通过不能替代远端 CI，也不能替代发布前的 package completeness gate；未形成真实发布候选时必须记录 skipReason，不得把普通开发验证写成发布完成。
+
+### CI 影响面执行
+
+远端 CI 必须从 `scripts/validation-manifest.json` 的同一 `ValidationImpactGraphV2` 生成 `CiValidationPlanV1`，不得在 workflow 内维护第二套路经分类。普通 push/PR/手动 affected 只执行计划选中的节点；package/installer/host activation 变更才追加 package boundary。nightly、release、用户手动 full，以及 changed-file 截断、impact graph 不完整或 planner blocker 才进入 full。planner 异常必须使 aggregate BLOCK 并公开原因，禁止静默改成无条件 full。
+
+`CiValidationAggregateReceiptV1` 必须对账 planner digest、目标 HEAD、required node receipt 与各条件 job 结果。同一 SHA 已有可信 receipt 时，本地不得机械重复等价 full、pack 或 install；修复 CI 失败时默认只重跑失败节点及其失效依赖，除非实际边界或候选身份已经改变。
 
 ## TestRoute 输出
 
@@ -147,4 +153,4 @@ coverageClaim: executed-selected-routes
 
 ## 报告要求
 
-dev/fix/optimization/scenario-test 报告应包含 TestRoute 或明确 `N/A`，ECR-3/ECR-4 应引用实际执行结果。若命中宿主验证，还应同时引用 `host-contract-verification` 的 HostContractRoute 结果，包括适用时的 `mcpFallback=used`；若命中用户可见输出，必须引用 manifest/visible set/envelope/capability 的同一 semanticDigest 与 renderer parity 结果。
+dev/fix/optimization/scenario-test 报告应包含 TestRoute 或明确 `N/A`，ECR-3/ECR-4 应引用实际执行结果。若命中宿主验证，还应同时引用 `host-contract-verification` 的 HostContractRoute 结果，包括适用时的 `mcpFallback=used`；若命中用户可见输出，必须引用 manifest/visible set/envelope/capability/attempt 的同一 semanticDigest、action/readback/fallback 与 renderer parity 结果。

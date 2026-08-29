@@ -1,6 +1,6 @@
 {
   "schemaVersion": "PublicProductProjectionV2",
-  "generatedAt": "2026-08-28T05:31:24.753Z",
+  "generatedAt": "2026-08-29T04:47:05.832Z",
   "release": {
     "version": "1.19.3"
   },
@@ -631,7 +631,7 @@
       {
         "id": "compliance",
         "name": "compliance",
-        "description": "执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC7 入口检查所有模式启用；仅 dev 模式执行全量合规校验，prod 模式不执行（规范已验证）。chat 豁免合规块。",
+        "description": "执行入口检查与 FC/SC/RC/T 合规校验。PC0~PC10 入口检查所有模式启用；仅 dev 模式执行全量合规校验，prod 模式不执行（规范已验证）。chat 豁免合规块。",
         "lifecycleState": "active",
         "publicCategory": "runtime-governance"
       },
@@ -1184,10 +1184,10 @@
     }
   ],
   "sourceIdentities": {
-    "package": "8e03d90ef6b6318de87abb8991f75b95768c8d7746d55c4447a1c5fe2bb7391b",
+    "package": "7be85958234271e65420bb27a3bca92098cc47e7af5702b44680128009fec9e3",
     "expression": "60e525d34e5531e6b4bbbb77f8b34bb93c9ca9ebee5df4fe2812749232175c3c",
     "workflows": "d9eb7086866fe3c3815f673957ed978c1594079261009ac775bf3e1336ad44fd",
-    "portfolio": "f4ba712fcc12352d67bef6ecff67d50039633f728f8d87d88fe30ddd07f96343",
+    "portfolio": "5e368f1d589b0e5c07fd636d96307c1a11e1675ddc6b35a86f81b5f19ad03f15",
     "taxonomy": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030"
   }
 }

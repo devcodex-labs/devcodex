@@ -78,12 +78,12 @@ daily/SUMMARY 仍是唯一真相源：受管 writer 在文件提交后刷新索�
 
 ### TaskIdentity / TaskResolution 真相边界
 
-新正式任务只能由 `memory_task_admit_v2` 的 `TaskAdmissionTransactionV1` 在准入事务内同步 create-if-absent `<task-root>/.memory/task.json`（`TaskIdentityV2`：稳定 UUID `taskId`、`displayName`、去重 `aliases`、project、首次准入 root provenance、task kind/entry variant、相对任务路径与 digest），并回读 canonical overview/问题概况和 CP pending。`projectRootIdentityDigest` 是首次准入 provenance，不是永久磁盘位置 authority；实时项目 authority 只来自当前 `ProjectTargetLeaseV2`。工作区迁移后，只有完整 schema/core/`identityDigest` 验证通过且 `taskId + project + taskRootRelative` 相同、任务目录受当前 active-root containment 约束时才可重绑定；旧根 TaskRecovery 热态失效，当前根重新水合 hot state、admission 与 owner，禁止沿用旧 lease / BudgetCard / mutation authority，也不自动删除旧槽。status/CP 继续只由 sessions 与绑定 artifact digest 决定。legacy `TaskIdentityV1` 仅可读唯一解析；查询不得主动物化 identity，手工目录/mtime/模型摘要不得作为准入。派生 index 损坏、锁竞争或写预算达限时走 bounded rebuild/bypass，不得覆盖 canonical task/session。
+新正式任务只能由 `memory_task_admit_v2` 基于不可变 `AdmissionIngressSnapshotV1`，在 `TaskAdmissionTransactionV1` 内同步 create-if-absent `<task-root>/.memory/task.json`（`TaskIdentityV2`：稳定 UUID `taskId`、`displayName`、去重 `aliases`、project、首次准入 root provenance、task kind/entry variant、相对任务路径与 digest），回读 canonical overview/问题概况和 CP pending，并在同一 MCP 调用内取得 fenced owner、finalize admission。CP 未确认时 owner 仍无 mutation authority；兼容分步调用只可消费短时、单用途、精确绑定的 `AdmissionContinuationLeaseV1`。`projectRootIdentityDigest` 是首次准入 provenance，不是永久磁盘位置 authority；实时项目 authority 只来自当前 `ProjectTargetLeaseV2`。工作区迁移后，只有完整 schema/core/`identityDigest` 验证通过且 `taskId + project + taskRootRelative` 相同、任务目录受当前 active-root containment 约束时才可重绑定；旧根 TaskRecovery 热态失效，当前根重新水合 hot state、admission 与 owner，禁止沿用旧 lease / BudgetCard / mutation authority，也不自动删除旧槽。status/CP 继续只由 sessions 与绑定 artifact digest 决定。legacy `TaskIdentityV1` 仅可读唯一解析；查询不得主动物化 identity，手工目录/mtime/模型摘要不得作为准入。派生 index 损坏、锁竞争或写预算达限时走 bounded rebuild/bypass，不得覆盖 canonical task/session。
 结构化记忆投影必须携带可验证的 `ContentIdentityV1`；telemetry、wall clock 和调用身份不进入内容 digest。旧 `memory_session_read` / `memory_summary_read` 保持兼容，但 no-args 全文结果不是生产默认路径，也不能单独把 `ContextReadReceiptV2`（或兼容的 `ContextReadReceiptV1`）推进到 `relevant-complete/completed`。
 
 ### TaskRouteAdmissionRecoveryGate
 
-- `ActualInstructionEnvelopeV1/WorkflowRouteDecisionV2`、`WorkspaceSessionRouteIndexV1` 与 `ProjectTargetLeaseV2` 只建立 instruction/route/project identity；它们本身不授 mutation/release。正式 task 在 CP confirmation 后还须 `memory_task_write_owner` 对 `FencedTaskWriteOwnerLeaseV2` 完成 generation/nonce/CAS，并达到 finalized admission。
+- `ActualInstructionEnvelopeV1/WorkflowRouteDecisionV2`、`WorkspaceSessionRouteIndexV1` 与 `ProjectTargetLeaseV2` 只建立 instruction/route/project identity；它们本身不授 mutation/release。`memory_task_admit_v2` 默认原子取得 `FencedTaskWriteOwnerLeaseV2` 并 finalize admission；CP confirmation 后若 owner 的 CP observation 尚未刷新，调用 `memory_task_write_owner renew` 复证当前 exact CP。只有 finalized admission + exact CP + active owner 才形成正式 mutation authority。
 - `SimpleTaskFastPathLeaseV1` 只能由 `memory_task_fast_path_lease` 签发，最多 2 个同一边界 exact 低风险路径、最多 2 次 create-or-update；正式产物、公共契约、控制面、安全、依赖、发布、跨模块或第 3 个路径必须在写入前升级正式准入。低风险叙述型 Markdown 可走 `dev.docs` 轻路径，配置/API/schema/security/release 文档不得借此绕过。
 - 每次实际 mutation 使用一次性 `TaskOwnedMutationLeaseV2` 并在 V5 prewrite 后执行；Post actual effects 为 partial/unknown/越界、required effect 未发生或 tool failure 时写 `needs-reconcile`，禁止把退出码 0 当完成。
 - `memory_task_terminal_v1` 必须回读 ECR/report/memory/completion 四类独立证据，成功后立即 terminal-unbind route/owner；Stop/PreCompact 只 checkpoint。显式 reopen 必须产生新 admission generation 与 owner nonce。
@@ -91,8 +91,8 @@ daily/SUMMARY 仍是唯一真相源：受管 writer 在文件提交后刷新索�
 ### MemoryFileTransactionGate
 
 - `memory_session_allocate`、`memory_session_write`、`memory_summary_append` 与 CP 状态写入共用 `MemoryFileTransactionV1` owner；成功提交必须返回 `MemoryFileTransactionReceiptV1`，包含 before/after digest、final CAS、flush/directory durability、readback、bytesRead/bytesWritten/writeAmplificationRatio 与 metadata receipt。
-- 这四类 Memory writer 是 server-owned 单一事务 Owner：Hook 继续校验实际指令、project/session route 与 PC0～PC7 产物时序，但不得再把逻辑 URI 纳入通用 artifact mutation prewrite/closeout/reconcile。`memory_workflow_operational_write_lease` 等 authority-control Tool 只签发或恢复后继工作流权威，不得自消费 artifact mutation authority。六宿主的 direct、下划线/连字符 MCP qualifier、slash 与双下划线名称必须归一到同一 server-owned leaf；第三方同名 Tool 不得豁免。
-- 已存在 canonical 文件的纯 EOF 增长走 append fast path；创建走 atomic temp+rename，中段更新保留 rewrite。append/rewrite 都必须在最终写入窗口重新比较 source identity，外部编辑时 fail closed 且不得覆盖。
+- 这四类 Memory writer 是 server-owned 单一事务 Owner：Hook 继续校验实际指令、project/session route 与 PC0～PC10 产物时序，但不得再把逻辑 URI 纳入通用 artifact mutation prewrite/closeout/reconcile。`memory_workflow_operational_write_lease` 等 authority-control Tool 只签发或恢复后继工作流权威，不得自消费 artifact mutation authority。六宿主的 direct、下划线/连字符 MCP qualifier、slash 与双下划线名称必须归一到同一 server-owned leaf；第三方同名 Tool 不得豁免。
+- 已存在 canonical 文件的纯 EOF 增长走 append fast path；创建走 atomic temp+rename，中段更新保留 rewrite。四类 writer 按 canonical physical active-root + target path 共用唯一锁键，并在最终写入窗口比较 source identity。CAS 冲突时返回 `MemoryTransactionConflictReceiptV2`；仅同一 `reconcileIdentity` 的纯操作可基于当前文件重算并有界重试一次，语义前置条件漂移或第二次冲突必须零覆盖失败。文件系统无法证明外部 writer 身份时必须标记 `UNVERIFIED`，不得猜测具体写入方。
 - POSIX rewrite 保留 mode/uid/gid，新文件 mode=0600；Windows DACL 未执行真实 before/after probe 时必须明确 `WARN/UNVERIFIED`，不得用 POSIX mode 模拟 PASS。事务只清理由自己创建的临时文件。
 
 ### TaskRecoveryStoreV5
@@ -113,7 +113,7 @@ V5 只保存 admission、fenced owner、mutation preflight/closeout、validation
 ### ArtifactLinkProjectionGate
 
 - 新增本地 Markdown 关联前，先调用 `memory_artifact_link_project(operation: "project", documentPath, artifacts, linkCapability)`；`documentPath` 与每个 `targetPath` 都必须相对 active-root，目标必须是 canonical containment 校验通过的现存普通文件。投影固定返回 `ArtifactLinkProjectionSetV1`，按 canonical path 去重，从 `documentPath` 所在目录生成 `/` 分隔的相对 href；含空格的 href 使用 Markdown angle destination，禁止 `file://`、绝对路径 fallback 和越界/reparse traversal。
-- `memory_session_write.artifacts[]`、`memory_summary_append.reportArtifact/memoryArtifact` 与 digest-bound `memory_cp_confirm` 由 writer 使用同一投影 owner：daily 自动生成“关联产物”块，SUMMARY 自动生成第 5/6 列，CP `artifactPath` 单元格生成相对链接；receipt 必须同时返回投影与 `validate-existing` 写后回读。legacy raw content/row 保持兼容，但其中新增的本地 Markdown 链接若不是从当前目标文档解析、目标不存在或越界，必须零写入失败。
+- `memory_session_write.artifacts[]`、`memory_summary_append.reportArtifact/memoryArtifact` 与 digest-bound `memory_cp_confirm` 由 writer 使用同一投影 owner：daily 自动生成“关联产物”块，SUMMARY 自动生成第 5/6 列，CP `artifactPath` 单元格生成相对链接；receipt 必须同时返回投影与 `validate-existing` 写后回读。`memory_cp_confirm` 缺少当前 `artifactPath + artifactSha256` 时必须返回 `MEMORY_CP_CONFIRMATION_UNBOUND`、零写入且不得生成伪 `✅`。legacy raw content/row 保持兼容，但其中新增的本地 Markdown 链接若不是从当前目标文档解析、目标不存在或越界，必须零写入失败。
 - 手工/宿主 fallback 写入时，落盘前使用 `operation: "project"`，落盘后对同一 `{documentPath, artifacts, linkCapability}` 使用 `operation: "validate-existing"`；缺任一阶段不得声称链接交付完成。历史 active-root 文档只允许先做有界预览与问题清单，未经单独确认禁止批量回写旧链接。
 
 ## Context Rehydration Contract（记忆侧）
@@ -133,7 +133,7 @@ V5 只保存 admission、fenced owner、mutation preflight/closeout、validation
 - `SUMMARY.md` 是索引，不是事实源；不得用 SUMMARY 覆盖当日 tasks 或需求级 sessions。
 - 若 tasks / sessions / 已确认产物与摘要冲突，必须以文件真相源为准，并重建 Intent Expansion Card。
 - 新会话首步的 `memory_status` 与必要的有界 session/SUMMARY query 一致性检查（PC7）是 Context Rehydration Contract 的最低执行面，不得省略。
-- compact / summary 恢复必须按 contextEpoch 重建计划，先查询精确 `ContextHandoffCard`，再按其 source-of-truth 定向复证；不能把压缩摘要或全文件重读当作捷径。
+- compact / summary 恢复必须按 contextEpoch 重建计划，先查询精确 `ContextHandoffCard`，再按其 source-of-truth 定向复证；不能把压缩摘要或全文件重读当作捷径。同一 host session 的普通轮次变化只有在 `ContextSnapshotV1` 完全稳定时才可重新绑定 observation lease；compact/stale、跨 session 或 source drift 不得复用 handoff。
 
 ## ContextHandoffCard（记忆侧）
 

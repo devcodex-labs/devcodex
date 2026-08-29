@@ -69,17 +69,17 @@
       "projectionAnchors": ["ClosureEvidenceGate", "ControlPlaneContractFirstGate", "FC", "SC", "RC", "T1~T13"],
       "projectionLines": [
         "- 控制面先执行 ControlPlaneContractFirstGate；closed/可实施声明受 ClosureEvidenceGate 的 runtime owner 与负向探针约束。",
-        "- 完成顺序为 PC0~PC7→FC→SC→RC→报告验证→T1~T13；内部 manifest、记忆与报告必须真实写入并参与 ECR。"
+        "- 完成顺序为 PC0~PC10→FC→SC→RC→报告验证→T1~T13；内部 manifest、记忆与报告必须真实写入并参与 ECR。"
       ]
     },
     {
       "id": "visible-output",
       "title": "用户可见输出",
-      "sourceAnchors": ["user-visible-output-contract", "UserVisibleReplyLayoutV1", "PC0~PC7", "PASS / WARN / BLOCK / UNVERIFIED / N/A", "ArtifactDeliveryManifestV1", "FinalValidationSummaryV1"],
-      "projectionAnchors": ["user-visible-output-contract", "UserVisibleReplyLayoutV1", "PC0~PC7", "PASS", "WARN", "BLOCK", "UNVERIFIED", "ArtifactDeliveryManifestV1", "FinalValidationSummaryV1"],
+      "sourceAnchors": ["user-visible-output-contract", "UserVisibleReplyLayoutV1", "PC0~PC10", "PASS / WARN / BLOCK / UNVERIFIED / N/A", "ArtifactDeliveryManifestV1", "FinalValidationSummaryV1"],
+      "projectionAnchors": ["user-visible-output-contract", "UserVisibleReplyLayoutV1", "PC0~PC10", "PASS", "WARN", "BLOCK", "UNVERIFIED", "ArtifactDeliveryManifestV1", "FinalValidationSummaryV1"],
       "projectionLines": [
-        "- 入口、确认、进度、完成与阻断由 user-visible-output-contract 投影；首条和恢复首条必须显示 PC0~PC7。",
-        "- UserVisibleReplyLayoutV1（六宿主同源）：入口用 PC0~PC7 人话表（禁止进度缩写/折叠行）；FinalValidationSummaryV1 白话在上、命令+exitCode 在下。",
+        "- 入口、确认、进度、完成与阻断由 user-visible-output-contract 投影；首条和恢复首条必须显示 PC0~PC10。",
+        "- UserVisibleReplyLayoutV1（六宿主同源）：入口用 PC0~PC10 人话表（禁止进度缩写/折叠行）；FinalValidationSummaryV1 白话在上、命令+exitCode 在下。",
         "- UserVisibleNoisePolicyV1：入口常显；未宣称完成不贴完成检查/FVS；宣称完成且全绿用短 FVS；失败才展开。",
         "- 状态仅 PASS/WARN/BLOCK/UNVERIFIED/N/A；ArtifactDeliveryManifestV1 内部完整，默认用户面仅显示需要决策、结果和 required evidence。"
       ]
@@ -97,11 +97,11 @@
     {
       "id": "passive-host",
       "title": "Passive/partial 宿主边界（Grok / Cursor Cloud）",
-      "sourceAnchors": ["user-visible-output-contract", "PC0~PC7", "S07", "Cursor Cloud Agent"],
+      "sourceAnchors": ["user-visible-output-contract", "PC0~PC10", "S07", "Cursor Cloud Agent"],
       "projectionAnchors": ["devcodex grok", "GrokTurnChecklist", "Skill bundle", "Cursor Cloud"],
       "projectionLines": [
         "- Grok 等 passive-hook 宿主：优先 `devcodex grok` Full 入口；禁止把 full-capable 解读为 UserPromptSubmit 已注入 PC0。",
-        "- GrokTurnChecklist（可扫）：PC0~PC7（UserVisibleReplyLayoutV1 人话表）→ Intent→Skill bundle → 实质任务 → report/memory；不得因无 inject 省略入口或改用其它宿主专属版式。",
+        "- GrokTurnChecklist（可扫）：PC0~PC10（UserVisibleReplyLayoutV1 人话表）→ Intent→Skill bundle → 实质任务 → report/memory；不得因无 inject 省略入口或改用其它宿主专属版式。",
         "- Cursor Cloud Agent 不加载用户级 Hook；必须保持 Partial/UNVERIFIED，不得继承 Cursor 本地 IDE/CLI/Headless 的 Beta readiness。"
       ]
     }

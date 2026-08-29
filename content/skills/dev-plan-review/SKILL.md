@@ -67,7 +67,7 @@ PR-7 测试与风险（🟡 标注，不阻断）
 - PR-2 非单文件小修、控制面、多模块、接口契约、数据/状态模型或模板-校验链任务缺少 `§2.0 目标架构与模块边界`、契约矩阵、数据/状态模型，且未写 `N/A + skipReason`
 - PR-2 **ControlPlaneContractFirstGate**：Hook/MCP/CLI/descriptor/manifest/plugin 生命周期/CP 状态机/validate 语义/多宿主分发任务缺少 **Current→Target ContractMatrix**（字段、writer、reader、error/compat、迁移）或 `runtimeOwners`，且未写 `N/A + skipReason` → 🔴
 - PR-2 **ClosureEvidenceGate**：方案或承接审查宣称 closed/可实施时，P0 项缺少双列 `designEvidence` + `runtimeOwners` + `negativeProbe`；仅 design 不得标 closed
-- PR-2 非纯文案或单文件小修的方案缺少 `§2.7 最小实现与注释策略`、CP1 `ImplementationComplexityLevel` 继承、复杂度预算，或新增抽象缺少真实消费者 / 既有本地模式 / 边界隔离 / 已确认契约依据
+- PR-2 非纯文案或单文件小修的方案缺少 `§2.7 最小实现与注释策略`、CP1 `WorkflowPlanDecisionV1.designDepth` 继承、复杂度预算，或新增抽象缺少真实消费者 / 既有本地模式 / 边界隔离 / 已确认契约依据
 - PR-2 在 CP1 为 `简单够用` 或用户未要求复杂化时自行升级为 `中等` / `企业级`，但缺少用户确认、多方案取舍和维护成本说明
 - PR-2 三方 provider / connector / SDK 接入类方案未先区分业务功能接口与底层 provider adapter，缺少 provider metadata、内部 payload、上游 request 映射、标准化 result、错误 detail 字段级合同，或首个 provider 反向定义公共 contract
 - PR-2 包 / 库 / adapter / CLI 方案缺少代码实现层 + 包工程层检查，且未写 `N/A + skipReason`
@@ -122,7 +122,7 @@ PR-7 测试与风险（🟡 标注，不阻断）
 | 宣称 closed/可实施时是否满足 ClosureEvidenceGate？ | 每条 P0 有 designEvidence + runtimeOwners + negativeProbe；仅 design → partial，禁止可确认 CP3 |
 | 涉及 Schema/Model/数据库/配置/缓存/运行态状态/台账/Profile/报告字段时，是否给出数据模型 / 状态模型？ | 已说明当前结构、目标结构、生命周期/状态转换、持久化/迁移影响、兼容策略与验证方式；不触发时有 `N/A + skipReason` |
 | 技术执行流程是否区别于 CP1 业务流程，并能映射到 CP3？ | `§2.1` 以技术实现路径和节点职责为主，且含文件/依赖/CP3锚点 |
-| 方案是否给出最小实现与注释策略？ | 已在 `§2.7` 继承 CP1 `ImplementationComplexityLevel`，写明复杂度预算、最小实现边界、必要注释触发点；小修豁免时有 `N/A + skipReason` |
+| 方案是否给出最小实现与注释策略？ | 已在 `§2.7` 继承 CP1 `WorkflowPlanDecisionV1.designDepth`，写明复杂度预算、最小实现边界、必要注释触发点；小修豁免时有 `N/A + skipReason` |
 | 复杂度是否默认简单够用且未擅自升级？ | 用户未要求复杂化或需求不详细时默认 `简单够用`；升级到 `中等` / `企业级` 已有用户确认、多方案取舍、维护成本和真实消费者 / 公共契约证据 |
 | 新增抽象、工具层或防御分支是否有证据？ | 仅在真实消费者、既有本地模式、边界隔离或已确认契约需要时允许；无真实消费者或只是预留扩展则 🔴 阻断 |
 | 必要注释是否覆盖关键意图？ | 非显然业务规则、状态转换、不变量、兼容约束、安全边界、外部契约映射、反直觉权衡已有短注释计划；JS/Node 必要注释计划使用标准 JSDoc；逐行解释或重复代码含义不计为有效注释 |

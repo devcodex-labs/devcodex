@@ -5,6 +5,7 @@ const assert = require('assert')
 const fs = require('fs')
 const path = require('path')
 const { normalizeCommandLine, planValidation } = require('./lib/validation-dag')
+const { compatibilityMatrix } = require('./plan-ci-validation')
 
 const ROOT = path.resolve(__dirname, '..')
 const map = JSON.parse(fs.readFileSync(path.join(__dirname, 'critical-risk-coverage.json'), 'utf8'))
@@ -75,8 +76,9 @@ for (const item of map.directCoverageModules || []) {
 }
 
 const workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8')
-assert.match(workflow, /windows-latest/, 'Windows junction lane missing')
 assert.match(workflow, /ubuntu-latest/, 'Unix symlink lane missing')
-assert.match(workflow, /node:\s*18\.17\.0/, 'exact minimum Node lane missing')
+const ciMatrix = compatibilityMatrix(manifest)
+assert.ok(ciMatrix.some(item => item.os === 'windows-latest'), 'Windows junction lane missing')
+assert.ok(ciMatrix.some(item => item.node === '18.17.0'), 'exact minimum Node lane missing')
 
 console.log(`critical risk coverage passed: findings=${map.findings.length} directModules=${map.directCoverageModules.length}`)

@@ -9,7 +9,8 @@ const {
 } = require('./lib/canonical-consumer-contracts')
 const {
   createHostLinkCapabilityDecisionV2,
-  createLinkCapabilityDecision
+  createLinkCapabilityDecision,
+  resolveArtifactDelivery
 } = require('../hooks/_runtime/visible-output-contract.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -36,6 +37,7 @@ const clientContractProbes = [
   ['instructions/01-common.instructions.md', 'mcpFallback=used'],
   ['instructions/02-output-paths.instructions.md', 'LinkCapabilityDecision 客户端兼容矩阵'],
   ['instructions/02-output-paths.instructions.md', 'HostLinkCapabilityDecisionV2'],
+  ['instructions/02-output-paths.instructions.md', 'ArtifactDeliveryAttemptV1'],
   ['instructions/02-output-paths.instructions.md', 'capability mode'],
   ['instructions/02-output-paths.instructions.md', '`clickable`'],
   ['instructions/02-output-paths.instructions.md', '`portable`'],
@@ -47,6 +49,7 @@ const clientContractProbes = [
   ['skills/host-contract-verification/SKILL.md', 'artifactLinkMatrix'],
   ['skills/host-contract-verification/SKILL.md', 'VisibleOutputHostEvidenceGate'],
   ['skills/host-contract-verification/SKILL.md', 'presentationSurface'],
+  ['skills/host-contract-verification/SKILL.md', 'readback'],
   ['skills/host-contract-verification/SKILL.md', 'mcpFallback'],
   ['skills/test-router/SKILL.md', 'visibleOutputContract'],
   ['skills/execution-contract/SKILL.md', 'MCP fallback'],
@@ -56,7 +59,7 @@ const clientContractProbes = [
   ['skills/audit-common/SKILL.md', 'UserFacingArtifactSetV1'],
   ['prompts/implementation-plan.prompt.md', 'VisibleOutputContract'],
   ['prompts/implementation-progress.prompt.md', 'mcpFallback'],
-  ['prompts/report-dev.prompt.md', 'DevCodexVisibleEnvelopeV2.semanticDigest'],
+  ['prompts/report-dev.prompt.md', 'DevCodexVisibleEnvelopeV3.semanticDigest'],
   ['prompts/report-fix.prompt.md', 'mcpFallback'],
   ['scripts/test-mcp-servers.js', 'testProfileLoadWithoutArguments']
 ]
@@ -68,7 +71,7 @@ const forcedCanonicalFallback = createCanonicalAwareReader(ROOT, file => {
   error.code = 'ENOENT'
   throw error
 })
-if (!forcedCanonicalFallback(path.join(ROOT, 'prompts', 'report-dev.prompt.md')).includes('DevCodexVisibleEnvelopeV2')) {
+if (!forcedCanonicalFallback(path.join(ROOT, 'prompts', 'report-dev.prompt.md')).includes('DevCodexVisibleEnvelopeV3')) {
   failures.push('canonical-aware reader did not resolve rendered content delivery')
 }
 
@@ -109,7 +112,7 @@ if (failedLink.mode !== 'failed' || !failedLink.absolutePathFallback || failedLi
 }
 
 for (const [hostSurface, presentationSurface, rendererId, openMode] of [
-  ['codex-desktop', 'codex-desktop-panel', 'codex-native-file-panel', 'native-action'],
+  ['codex-desktop', 'codex-desktop-panel', 'codex-native-file-link', 'markdown-link'],
   ['vscode-codex', 'vscode-terminal', 'vscode-cli-goto', 'terminal-command'],
   ['zed', 'zed-terminal', 'zed-cli-open', 'terminal-command'],
   ['webstorm', 'jetbrains-terminal', 'webstorm-cli-open', 'terminal-command'],
@@ -126,6 +129,29 @@ for (const [hostSurface, presentationSurface, rendererId, openMode] of [
   if (!decision.validation.valid || decision.rendererId !== rendererId || decision.openMode !== openMode) {
     failures.push(`${hostSurface}/${presentationSurface} renderer mismatch: ${JSON.stringify(decision)}`)
   }
+}
+
+const mismatchedPresentation = createHostLinkCapabilityDecisionV2({
+  hostSurface: 'codex-desktop', presentationSurface: 'vscode-terminal', evidenceState: 'verified',
+  targetRelation: 'workspace', evidenceRefs: ['host-presentation-mismatch']
+})
+if (mismatchedPresentation.openMode !== 'absolute-copy' || mismatchedPresentation.fallbackReason !== 'presentation-host-mismatch') {
+  failures.push(`presentation surface did not own renderer selection: ${JSON.stringify(mismatchedPresentation)}`)
+}
+
+const rendererOnlyNative = createHostLinkCapabilityDecisionV2({
+  hostSurface: 'codex-app', presentationSurface: 'codex-desktop-panel', evidenceState: 'verified',
+  targetRelation: 'workspace', evidenceRefs: ['native-capability-only'],
+  supportsNativeAction: true, nativeRendererId: 'codex-native-action-fixture'
+})
+const rendererOnlyResolution = resolveArtifactDelivery({
+  linkCapability: rendererOnlyNative,
+  artifactId: 'renderer-only-artifact',
+  target: path.join(ROOT, 'README.md')
+})
+if (!rendererOnlyResolution.validation.valid || rendererOnlyResolution.attempt.status !== 'fallback' ||
+    rendererOnlyResolution.attempt.fallbackReason !== 'native-action-not-attached') {
+  failures.push(`renderer-only native action produced a false open claim: ${JSON.stringify(rendererOnlyResolution)}`)
 }
 
 const unknownHostLink = createHostLinkCapabilityDecisionV2({

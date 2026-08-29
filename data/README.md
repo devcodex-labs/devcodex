@@ -13,6 +13,17 @@ data/
 └── README.md                       ← 本文件
 ```
 
+目标项目初始化后的 **active-root** 还会包含运行时治理台账控制文件；这些文件不等于源码包 `data/` 根目录：
+
+```text
+<active-root>/
+├── data/
+│   ├── governance-ledger-manifest.json  ← 台账文件集合、摘要与 nextSequence 的唯一真相源
+│   ├── *.md                             ← 当前活动台账，也是唯一写入目标
+│   └── archive/<family>/<year>/*.md     ← manifest 引用的只读 immutable shard
+└── .memory/indexes/governance-ledgers.json ← 可从 manifest + 台账重建的派生索引
+```
+
 ## v1.6.0 变更说明（重要）
 
 **变更前（v1.5.x）**：`data/` 直接包含维护者自身的违规/过程记录；`npm pack` 会把 `violations.md` 等**连同真实项目名与历史数据**发给所有用户。
@@ -35,6 +46,8 @@ data/
 - workspace-namespace 单项目：`<工作区根>/.devcodex/<project>/data/*.md`
 - workspace-namespace 全工作区：`<工作区根>/.devcodex/workspace/data/*.md`
 
+普通非 dry-run 的 `devcodex init` / `devcodex update` 还会对既有台账执行**零搬迁初始化**：创建或复核 `GovernanceLedgerManifestV1`，再重建 `.memory/indexes/governance-ledgers.json`。这一步不改写现有 Markdown 台账，也不会自动把历史记录移入 archive；`--dry-run` 保持零写入。需要分片时，先显式运行只读 `devcodex governance ledger plan --kind GR --json`，再用其精确 `planDigest` 执行 apply。
+
 同时，默认 `init` / `init --claude` 仍会把模板副本分发到宿主部署目录，作为随 adapter 下发的辅助副本：
 
 - Copilot：`.github/data/*.md`
@@ -50,12 +63,20 @@ data/
 - `data/pending-fixes.md`
 - `data/pending-issues.md`
 - `data/process-improvements.md`
+- `data/pending-issues.md`
+- `data/gap-registry.md`
+- `data/governance-ledger-manifest.json`
+- `data/archive/<family>/<year>/*.md`
+- `.memory/indexes/governance-ledgers.json`
 
 而在**源仓**里：
 
 - `data/templates/*.md`：仅提供空模板与允许的 EXAMPLE 行
 - `.devcodex/<project>/data/*.md`：workspace-namespace 下单项目维护者实际记录，不参与 npm 分发
 - `.devcodex/workspace/data/*.md`：workspace-namespace 下全工作区维护者实际记录，不参与 npm 分发
+- active-root `data/governance-ledger-manifest.json`：PI/PF/VL/GR/ISSUE 活动文件、immutable shard、reopened overlay 与 `nextSequence` 的 canonical 清单
+- active-root `data/archive/<family>/<year>/*.md`：只读归档分片；普通 writer 不得追加或改写
+- active-root `.memory/indexes/governance-ledgers.json`：只读消费者的派生索引，损坏或缺失时从 canonical 清单重建
 
 换句话说，规范里写 `data/*.md` 时，表达的是“应该把记录落到运行时台账”，不是说源仓根 `data/` 目录里直接保存真实记录。
 

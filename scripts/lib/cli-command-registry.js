@@ -6,7 +6,7 @@ function createCliCommandRegistry(commands) {
   const required = [
     'cmdInitWorkspaceRuntime', 'cmdInitHost', 'cmdUninstallHost', 'cmdGrok', 'cmdStatus',
     'cmdProfileInit', 'cmdDoctor', 'cmdProbe', 'cmdTrace', 'cmdSkill', 'cmdTask',
-    'cmdGlobalAdapters', 'cmdRuntime', 'cmdTemp', 'cmdHelp'
+    'cmdGlobalAdapters', 'cmdRuntime', 'cmdTemp', 'cmdGovernance', 'cmdHelp'
   ]
   for (const name of required) {
     if (typeof commands[name] !== 'function') throw new TypeError(`missing CLI command handler: ${name}`)
@@ -138,6 +138,7 @@ function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, cons
   }
   if (cmd === 'runtime') { registry.cmdRuntime(argv); return 'runtime' }
   if (cmd === 'tmp') { registry.cmdTemp(argv); return 'tmp' }
+  if (cmd === 'governance') { registry.cmdGovernance(argv); return 'governance' }
   if (cmd === 'grok') { registry.cmdGrok(argv); return 'grok' }
   if (cmd === 'global-adapters') {
     registry.cmdGlobalAdapters(argv)

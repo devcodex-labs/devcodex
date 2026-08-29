@@ -757,7 +757,7 @@ function testProfilePrompts() {
   assert.doesNotMatch(text, /工作区根目录未找到 CLAUDE\.md/)
   assert.match(text, /01-项目信息/)
   assert.match(text, /config\.local\.json/)
-  assert.match(text, /PC0~PC7/)
+  assert.match(text, /PC0~PC10/)
 }
 
 function testProfilePromptRequiresProjectAtWorkspaceRoot() {
@@ -1175,12 +1175,18 @@ function testMemoryTaskAdmissionV2Contract() {
   )
   const admitted = resultById(responses, 2)
   assert.strictEqual(admitted.isError, false)
-  assert.strictEqual(admitted.structuredContent.phase, 'cp-state-written')
+  assert.strictEqual(admitted.structuredContent.phase, 'finalized')
+  assert.strictEqual(admitted.structuredContent.finalized, true)
   assert.strictEqual(admitted.structuredContent.mutationAuthority, false)
+  assert.strictEqual(admitted.structuredContent.ownerAcquisition.status, 'active')
+  assert.strictEqual(admitted.structuredContent.ownerAcquisition.cp1Confirmed, false)
+  assert.strictEqual(admitted.structuredContent.continuationLease.status, 'consumed')
+  assert.strictEqual(admitted.structuredContent.ownerAcquisition.finalized, true)
   const replay = resultById(responses, 3)
   assert.strictEqual(replay.isError, false)
   assert.strictEqual(replay.structuredContent.admissionId, admitted.structuredContent.admissionId)
   assert.strictEqual(replay.structuredContent.replayed, true)
+  assert.strictEqual(replay.structuredContent.ownerAcquisition.replayed, true)
   assert.strictEqual(resultById(responses, 4).isError, true)
   assert.match(resultById(responses, 4).content[0].text, /TASK_ADMISSION_IDEMPOTENCY_CONFLICT/)
   assert.strictEqual(resultById(responses, 5).isError, true)
@@ -1448,22 +1454,35 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
   assert.strictEqual(resultById(rejectedResponses, 3).isError, true)
   assert.match(resultById(rejectedResponses, 3).content[0].text, /TASK_ADMISSION_INGRESS_STATE_MISMATCH/)
   assert.strictEqual(resultById(rejectedResponses, 4).isError, true)
-  assert.match(resultById(rejectedResponses, 4).content[0].text, /FENCED_TASK_WRITE_OWNER_MISSING/)
+  assert.match(resultById(rejectedResponses, 4).content[0].text, /TASK_WRITE_OWNER_CAS_MISMATCH/)
   assert.strictEqual(resultById(rejectedResponses, 5).isError, true)
   const beforeOwner = readFencedTaskWriteOwner({ metaDir, identity: recoveryIdentity })
-  assert.strictEqual(beforeOwner.status, 'missing', 'invalid compact refs must have zero owner effect')
-  assert.strictEqual(beforeOwner.transaction.phase, 'cp-state-written')
+  assert.strictEqual(beforeOwner.status, 'fresh', 'atomic admission must leave one durable owner')
+  assert.strictEqual(beforeOwner.owner.leaseDigest, admitted.ownerAcquisition.ownerRef.leaseDigest)
+  assert.strictEqual(beforeOwner.transaction.phase, 'finalized')
 
   const taskRoot = path.join(activeRoot, ...admitted.taskRootRelative.split('/'))
   confirmTaskAuthorityCp1(taskRoot)
+  const clearedLifecycleState = {
+    ...JSON.parse(fs.readFileSync(path.join(activeRoot, '.memory', 'hooks', 'legacy', 'lifecycle-state.json'), 'utf8')),
+    actualInstructionEnvelope: null,
+    workItemSet: null,
+    workflowRouteDecision: null,
+    stickyProject: {}
+  }
+  fs.writeFileSync(
+    path.join(activeRoot, '.memory', 'hooks', 'legacy', 'lifecycle-state.json'),
+    JSON.stringify(clearedLifecycleState, null, 2) + '\n'
+  )
   const ownerResponses = runServer('mcp/memory-server.js', [
     rpcRequest(6, 'tools/call', {
       name: 'memory_task_write_owner',
       arguments: {
-        operation: 'acquire',
+        operation: 'renew',
         ingressRef: ingress.ingressRef,
         taskId: admitted.taskId,
-        admissionId: admitted.admissionId
+        admissionId: admitted.admissionId,
+        expectedOwner: admitted.ownerAcquisition.ownerRef
       }
     })
   ], TEMP_ROOT)
@@ -1473,6 +1492,8 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
   assert.strictEqual(acquired.structuredContent.finalized, true)
   assert.strictEqual(acquired.structuredContent.cp1Confirmed, true)
   assert.strictEqual(acquired.structuredContent.mutationAuthority, true)
+  assert.strictEqual(acquired.structuredContent.ingressAuthority.source, 'immutable-snapshot')
+  assert.strictEqual(acquired.structuredContent.continuationLease.status, 'consumed')
 
   const routeIndex = createWorkspaceSessionRouteIndex({
     metaDir: path.join(activeRoot, '.memory', 'hooks', 'legacy'),
@@ -2046,12 +2067,10 @@ function testMemoryCpConfirmForBugs() {
 
   assert.ok(resultById(responses, 1).capabilities.tools)
   const text = resultById(responses, 2).content?.[0]?.text || ''
-  assert.match(text, /CP2/)
+  assert.strictEqual(resultById(responses, 2).isError, true)
+  assert.match(text, /MEMORY_CP_CONFIRMATION_UNBOUND/)
   const sessionsPath = path.join(TEMP_ROOT, '.devcodex', 'bugs', 'Bug任务', '.memory', 'sessions.md')
-  assert.ok(fs.existsSync(sessionsPath))
-  const sessions = fs.readFileSync(sessionsPath, 'utf8')
-  assert.match(sessions, /artifactPath \| version \| sha256 \| sourceMessage \| confirmedAt/)
-  assert.match(sessions, /\| CP2 \| ✅ \| — \| — \| — \| — \| 10:30 \|/)
+  assert.ok(!fs.existsSync(sessionsPath), 'unbound CP must have zero write effect')
 }
 
 function testMemoryCpConfirmForExtendedTaskKinds() {
@@ -2069,10 +2088,12 @@ function testMemoryCpConfirmForExtendedTaskKinds() {
   ], TEMP_ROOT)
 
   assert.ok(resultById(responses, 1).capabilities.tools)
-  assert.match(resultById(responses, 2).content?.[0]?.text || '', /CP3/)
-  assert.match(resultById(responses, 3).content?.[0]?.text || '', /CP3/)
-  assert.ok(fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'optimizations', '性能任务', '.memory', 'sessions.md')))
-  assert.ok(fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'scenario-tests', '场景测试任务', '.memory', 'sessions.md')))
+  assert.strictEqual(resultById(responses, 2).isError, true)
+  assert.strictEqual(resultById(responses, 3).isError, true)
+  assert.match(resultById(responses, 2).content?.[0]?.text || '', /MEMORY_CP_CONFIRMATION_UNBOUND/)
+  assert.match(resultById(responses, 3).content?.[0]?.text || '', /MEMORY_CP_CONFIRMATION_UNBOUND/)
+  assert.ok(!fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'optimizations', '性能任务', '.memory', 'sessions.md')))
+  assert.ok(!fs.existsSync(path.join(TEMP_ROOT, '.devcodex', 'scenario-tests', '场景测试任务', '.memory', 'sessions.md')))
 }
 
 function testMemoryCpConfirmRejectsArtifactPathEscape() {
@@ -2232,20 +2253,17 @@ function testMemoryCpConfirmPreservesOrdinaryTables() {
     '| CP | 状态 | 时间 |', '|---|---|---|',
     '| CP1 | ✅ | 09:00 |', '| CP2 | ⏹️ | — |', '| CP3 | ⏹️ | — |', ''
   ].join('\n'), 'utf8')
+  const legacyBefore = fs.readFileSync(legacySessions, 'utf8')
   const legacy = runServer('mcp/memory-server.js', [
     rpcRequest(3, 'tools/call', {
       name: 'memory_cp_confirm',
       arguments: { requirement: '旧表任务', phase: 'CP2', time: '12:10' }
     })
   ], TEMP_ROOT)
-  assert.strictEqual(resultById(legacy, 3).structuredContent.readbackVerified, true)
+  assert.strictEqual(resultById(legacy, 3).isError, true)
+  assert.match(resultById(legacy, 3).content?.[0]?.text || '', /MEMORY_CP_CONFIRMATION_UNBOUND/)
   const upgraded = fs.readFileSync(legacySessions, 'utf8')
-  assert.match(upgraded, /artifactPath \| version \| sha256 \| sourceMessage \| confirmedAt/)
-  assert.match(upgraded, /\| CP1 \| ✅ \| — \| — \| — \| — \| 09:00 \|/)
-  assert.match(upgraded, /\| CP2 \| ✅ \| — \| — \| — \| — \| 12:10 \|/)
-  const legacyParsedByOwner = parseCpSessions(upgraded)
-  assert.strictEqual(legacyParsedByOwner.CP1.confirmed, true)
-  assert.strictEqual(legacyParsedByOwner.CP2.confirmed, true)
+  assert.strictEqual(upgraded, legacyBefore, 'unbound legacy CP rejection must not rewrite the existing table')
 }
 
 /**
@@ -4809,8 +4827,22 @@ function testMemorySessionAllocationAndTransactions() {
 
   const lockedDate = '20260525'
   const activeRoot = path.join(TEMP_ROOT, '.devcodex', 'chat')
+  const canonicalLockPath = file => {
+    const resolved = path.resolve(file)
+    let existing = resolved
+    const suffix = []
+    while (!fs.existsSync(existing)) {
+      const parent = path.dirname(existing)
+      if (parent === existing) break
+      suffix.unshift(path.basename(existing))
+      existing = parent
+    }
+    const realpath = fs.realpathSync.native || fs.realpathSync
+    const value = path.resolve(realpath(existing), ...suffix).replace(/\\/g, '/')
+    return process.platform === 'win32' ? value.toLowerCase() : value
+  }
   const lockedFile = path.join(activeRoot, '.memory', 'clients', 'claude-code', 'tasks', `${lockedDate}.md`)
-  const lockKey = crypto.createHash('sha256').update(`${activeRoot}\0${path.resolve(lockedFile)}`).digest('hex')
+  const lockKey = crypto.createHash('sha256').update(`${canonicalLockPath(activeRoot)}\0${canonicalLockPath(lockedFile)}`).digest('hex')
   const lockDir = path.join(TEMP_ROOT, '.devcodex', 'workspace', '.runtime-state', 'projects', 'chat', 'memory-locks', lockKey)
   fs.mkdirSync(lockDir, { recursive: true })
   fs.writeFileSync(path.join(lockDir, 'owner.json'), `${JSON.stringify({
@@ -4835,7 +4867,7 @@ function testMemorySessionAllocationAndTransactions() {
 
   const liveDate = '20260528'
   const liveFile = path.join(activeRoot, '.memory', 'clients', 'claude-code', 'tasks', `${liveDate}.md`)
-  const liveKey = crypto.createHash('sha256').update(`${activeRoot}\0${path.resolve(liveFile)}`).digest('hex')
+  const liveKey = crypto.createHash('sha256').update(`${canonicalLockPath(activeRoot)}\0${canonicalLockPath(liveFile)}`).digest('hex')
   const liveLockDir = path.join(TEMP_ROOT, '.devcodex', 'workspace', '.runtime-state', 'projects', 'chat', 'memory-locks', liveKey)
   fs.mkdirSync(liveLockDir, { recursive: true })
   fs.writeFileSync(path.join(liveLockDir, 'owner.json'), `${JSON.stringify({

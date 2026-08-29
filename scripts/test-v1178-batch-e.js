@@ -63,7 +63,7 @@ function currentRecord(overrides = {}) {
     publishRun: { id: '31910507513', status: 'PASS', observedAt: '2026-08-16T13:47:39Z', completedAt: '2026-08-15T21:59:55Z' },
     githubRelease: { tag: 'v1.17.8', status: 'PASS', observedAt: '2026-08-16T13:47:39Z', publishedAt: '2026-08-15T22:00:24Z' },
     asOf: '2026-08-16T13:47:39Z',
-    ciMatrix: extractWorkflowCurrentTruth(read('.github/workflows/ci.yml')),
+    ciMatrix: extractWorkflowCurrentTruth(read('.github/workflows/ci.yml'), JSON.parse(read('scripts/validation-manifest.json'))),
     ...overrides
   }
 }
@@ -150,7 +150,8 @@ probe('Profile current truth matches package, workflow, release, and refs', () =
     docsProfileText,
     packageVersion: candidateRecord().sourceVersion,
     gitHead: '85f3a8eadf61b0614f88d6817d255f255de968c2',
-    workflowText: read('.github/workflows/ci.yml')
+    workflowText: read('.github/workflows/ci.yml'),
+    validationManifest: JSON.parse(read('scripts/validation-manifest.json'))
   })
   assert.deepStrictEqual(result.errors, [])
   assert.strictEqual(result.record.ciRun.id, '31910021943')
@@ -167,7 +168,8 @@ probe('Profile current truth matches package, workflow, release, and refs', () =
       gitHead: currentSourceGitHead(),
       candidateId: buildCandidateIdentity({ repoRoot: ROOT }).candidateId,
       requireSourceCandidate: true,
-      workflowText: read('.github/workflows/ci.yml')
+      workflowText: read('.github/workflows/ci.yml'),
+      validationManifest: JSON.parse(read('scripts/validation-manifest.json'))
     })
     assert.deepStrictEqual(activeResult.errors, [])
   }
@@ -179,11 +181,12 @@ probe('Profile current truth matches package, workflow, release, and refs', () =
     docsProfileText,
     packageVersion: '1.17.9',
     gitHead: '85f3a8eadf61b0614f88d6817d255f255de968c2',
-    workflowText: read('.github/workflows/ci.yml')
+    workflowText: read('.github/workflows/ci.yml'),
+    validationManifest: JSON.parse(read('scripts/validation-manifest.json'))
   })
   assert(missingOverviewRef.errors.some(item => item.includes('01-项目信息.md')))
 
-  const changedWorkflow = read('.github/workflows/ci.yml').replace('node: 26.x', 'node: 28.x')
+  const changedWorkflow = read('.github/workflows/ci.yml').replace('node-version: 24.17.0', 'node-version: 28.x')
   const stale = validateDevCodexCurrentTruth({
     releaseProfileText,
     overviewProfileText,
@@ -191,7 +194,8 @@ probe('Profile current truth matches package, workflow, release, and refs', () =
     docsProfileText,
     packageVersion: '1.17.9',
     gitHead: '85f3a8eadf61b0614f88d6817d255f255de968c2',
-    workflowText: changedWorkflow
+    workflowText: changedWorkflow,
+    validationManifest: JSON.parse(read('scripts/validation-manifest.json'))
   })
   assert(stale.errors.some(item => item.includes('ciMatrix drift')))
 })
@@ -205,7 +209,8 @@ probe('Profile current truth distinguishes source candidate from released distri
     gitHead: '85f3a8eadf61b0614f88d6817d255f255de968c2',
     candidateId: `validation-candidate-${'a'.repeat(64)}`,
     requireSourceCandidate: true,
-    workflowText: read('.github/workflows/ci.yml')
+    workflowText: read('.github/workflows/ci.yml'),
+    validationManifest: JSON.parse(read('scripts/validation-manifest.json'))
   }
   const valid = validateDevCodexCurrentTruth({
     ...common,

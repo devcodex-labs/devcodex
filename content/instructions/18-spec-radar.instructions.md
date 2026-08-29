@@ -211,7 +211,7 @@ PC4 入口（仅 dev 模式）
 
 | 文件 | 关系 |
 |------|------|
-| `17-compliance.instructions.md` | PC4 触发点在预检查（PC0~PC7），合规检查（FC/SC/RC/T）在任务完成后；两者独立不重叠 |
+| `17-compliance.instructions.md` | PC4 触发点在预检查（PC0~PC10），合规检查（FC/SC/RC/T）在任务完成后；两者独立不重叠 |
 | `data/pending-fixes.md` | 目标项目 / 已部署副本中的 PF 输出目标；源仓提供 `data/templates/pending-fixes.md` 模板，维护者实录按 active-root 写入（workspace-namespace 单项目如 `.devcodex/<project>/data/pending-fixes.md`） |
 | `data/violations.md` | 目标项目 / 已部署副本中的 VL / T_RECORD 输出目标；源仓提供 `data/templates/violations.md` 模板 |
 | `data/process-improvements.md` | 目标项目 / 已部署副本中的 PI 输出目标（优化清单）；源仓提供 `data/templates/process-improvements.md` 模板，维护者实录按 active-root 写入 |

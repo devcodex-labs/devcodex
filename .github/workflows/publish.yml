@@ -4,17 +4,39 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Recovery mode
+        required: true
+        default: finalize-only
+        type: choice
+        options:
+          - finalize-only
+      release_tag:
+        description: Existing published tag (for example v1.19.3)
+        required: true
+        type: string
+      publish_run_id:
+        description: Workflow run containing PublishedArtifactReceiptV1
+        required: true
+        type: string
+      publish_run_attempt:
+        description: Attempt number that produced the receipt
+        required: true
+        default: "1"
+        type: string
 
 concurrency:
   group: publish-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  publish:
+  qualify:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      id-token: write
+      contents: read
 
     steps:
       - name: Checkout
@@ -24,7 +46,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 24.17.0
-          registry-url: https://registry.npmjs.org
           package-manager-cache: false
 
       - name: Verify tag matches package.json version
@@ -51,48 +72,196 @@ jobs:
           )"
           node scripts/run-validation.js --route package-release --purpose release --actor release-pipeline --authority-source "${AUTHORITY_SOURCE}" --policy-digest "${POLICY_DIGEST}" --approve-plan "${BUDGET_DIGEST}"
 
-      - name: Create the exact qualified release artifact
+      - name: Create and verify the exact qualified artifact
         shell: bash
         run: |
           set -euo pipefail
           RELEASE_DIR="${RUNNER_TEMP}/devcodex-release-artifact"
           mkdir -p "${RELEASE_DIR}"
-          CREATE_RESULT="${RUNNER_TEMP}/devcodex-release-create-result.json"
-          node scripts/exact-release-artifact.js create --output-dir "${RELEASE_DIR}" > "${CREATE_RESULT}"
-          RELEASE_ARTIFACT_PATH="$(node -e 'const fs=require("fs"); const value=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(value.ok!==true||!value.artifactPath) process.exit(1); process.stdout.write(value.artifactPath)' "${CREATE_RESULT}")"
-          echo "RELEASE_DIR=${RELEASE_DIR}" >> "${GITHUB_ENV}"
-          echo "RELEASE_ARTIFACT_PATH=${RELEASE_ARTIFACT_PATH}" >> "${GITHUB_ENV}"
+          node scripts/exact-release-artifact.js create --output-dir "${RELEASE_DIR}"
+          node scripts/exact-release-artifact.js verify --output-dir "${RELEASE_DIR}"
 
-      - name: Verify the exact release artifact
-        run: node scripts/exact-release-artifact.js verify --output-dir "${RELEASE_DIR}"
+      - name: Preserve qualified artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qualified-release-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/devcodex-release-artifact
+          if-no-files-found: error
+          retention-days: 30
 
-      - name: Publish the exact qualified tarball
-        run: npm publish "${RELEASE_ARTIFACT_PATH}" --ignore-scripts --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+  publish:
+    needs: qualify
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
 
-      - name: Verify registry identity and provenance
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.17.0
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Download qualified artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: qualified-release-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/devcodex-release-artifact
+
+      - name: Verify exact artifact and detect an existing version
+        id: prepare
         shell: bash
         run: |
           set -euo pipefail
-          for attempt in $(seq 1 12); do
-            if node scripts/exact-release-artifact.js postcheck --output-dir "${RELEASE_DIR}"; then
-              exit 0
+          RELEASE_DIR="${RUNNER_TEMP}/devcodex-release-artifact"
+          node scripts/exact-release-artifact.js verify --output-dir "${RELEASE_DIR}" --embedded-qualification
+          node scripts/exact-release-artifact.js prepare-publish \
+            --output-dir "${RELEASE_DIR}" \
+            --embedded-qualification \
+            --run-id "${GITHUB_RUN_ID}" \
+            --run-attempt "${GITHUB_RUN_ATTEMPT}" \
+            > "${RUNNER_TEMP}/prepare-publish.json"
+          ACTION="$(node -e 'const fs=require("fs"); const value=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); if(value.ok!==true||!value.action) process.exit(1); process.stdout.write(value.action)' "${RUNNER_TEMP}/prepare-publish.json")"
+          echo "action=${ACTION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Publish the exact qualified tarball once
+        if: steps.prepare.outputs.action == 'publish-required'
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_DIR="${RUNNER_TEMP}/devcodex-release-artifact"
+          RELEASE_ARTIFACT_PATH="$(node -e 'const fs=require("fs"); const value=JSON.parse(fs.readFileSync(`${process.env.RELEASE_DIR}/exact-release-artifact.receipt.json`,"utf8")); process.stdout.write(`${process.env.RELEASE_DIR}/${value.artifactFile}`)')"
+          npm publish "${RELEASE_ARTIFACT_PATH}" --ignore-scripts --provenance --access public
+          node scripts/exact-release-artifact.js mark-published \
+            --output-dir "${RELEASE_DIR}" \
+            --embedded-qualification \
+            --status published \
+            --run-id "${GITHUB_RUN_ID}" \
+            --run-attempt "${GITHUB_RUN_ATTEMPT}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          RELEASE_DIR: ${{ runner.temp }}/devcodex-release-artifact
+
+      - name: Verify and preserve PublishedArtifactReceiptV1
+        run: node scripts/exact-release-artifact.js verify-published --output-dir "${RUNNER_TEMP}/devcodex-release-artifact" --embedded-qualification
+
+      - name: Upload irreversible publish receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: published-release-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/devcodex-release-artifact
+          if-no-files-found: error
+          retention-days: 90
+
+  finalize:
+    needs: [qualify, publish]
+    if: always() && ((github.event_name != 'workflow_dispatch' && needs.publish.result == 'success') || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.17.0
+          package-manager-cache: false
+
+      - name: Download current publish receipt
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/download-artifact@v5
+        with:
+          name: published-release-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/devcodex-release-artifact
+
+      - name: Download prior publish receipt for finalize-only recovery
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@v5
+        with:
+          name: published-release-${{ inputs.release_tag }}-${{ inputs.publish_run_id }}-${{ inputs.publish_run_attempt }}
+          path: ${{ runner.temp }}/devcodex-release-artifact
+          run-id: ${{ inputs.publish_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify tag and published receipt binding
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          TAG_VERSION="${RELEASE_TAG#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "${RELEASE_TAG}" != "v${PKG_VERSION}" ] || [ "${TAG_VERSION}" != "${PKG_VERSION}" ]; then
+            echo "Release tag ${RELEASE_TAG} does not match package version ${PKG_VERSION}"
+            exit 1
+          fi
+          node scripts/exact-release-artifact.js verify-published --output-dir "${RUNNER_TEMP}/devcodex-release-artifact" --embedded-qualification
+
+      - name: Reconcile registry identity with bounded exponential backoff
+        shell: bash
+        env:
+          FINALIZE_MAX_ATTEMPTS: ${{ vars.DEVCODEX_FINALIZE_MAX_ATTEMPTS }}
+          FINALIZE_INITIAL_DELAY_SECONDS: ${{ vars.DEVCODEX_FINALIZE_INITIAL_DELAY_SECONDS }}
+          FINALIZE_MAX_DELAY_SECONDS: ${{ vars.DEVCODEX_FINALIZE_MAX_DELAY_SECONDS }}
+        run: |
+          set -euo pipefail
+          MAX_ATTEMPTS="${FINALIZE_MAX_ATTEMPTS:-8}"
+          DELAY="${FINALIZE_INITIAL_DELAY_SECONDS:-5}"
+          MAX_DELAY="${FINALIZE_MAX_DELAY_SECONDS:-60}"
+          for attempt in $(seq 1 "${MAX_ATTEMPTS}"); do
+            set +e
+            node scripts/exact-release-artifact.js finalize --output-dir "${RUNNER_TEMP}/devcodex-release-artifact" --embedded-qualification > "${RUNNER_TEMP}/finalize-result.json"
+            STATUS=$?
+            set -e
+            if [ "${STATUS}" -eq 0 ]; then
+              cat "${RUNNER_TEMP}/finalize-result.json"
+              break
             fi
-            if [ "${attempt}" -eq 12 ]; then
-              echo "Published artifact did not converge to the qualified identity"
+            if [ "${STATUS}" -ne 75 ]; then
+              exit "${STATUS}"
+            fi
+            if [ "${attempt}" -eq "${MAX_ATTEMPTS}" ]; then
+              echo "Registry did not converge within the finalize budget; rerun finalize-only with this publish receipt"
               exit 1
             fi
-            sleep 10
+            sleep "${DELAY}"
+            DELAY=$((DELAY * 2))
+            if [ "${DELAY}" -gt "${MAX_DELAY}" ]; then DELAY="${MAX_DELAY}"; fi
           done
 
-      - name: Create the GitHub Release from the verified tag and artifact
+      - name: Create or verify the GitHub Release idempotently
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
+          RELEASE_DIR: ${{ runner.temp }}/devcodex-release-artifact
         run: |
           set -euo pipefail
-          gh release create "${GITHUB_REF_NAME}" "${RELEASE_ARTIFACT_PATH}" \
-            --verify-tag \
-            --title "DevCodex ${GITHUB_REF_NAME}" \
-            --notes-file "changelogs/releases/${GITHUB_REF_NAME}.md"
+          RELEASE_ARTIFACT_PATH="$(node -e 'const fs=require("fs"); const value=JSON.parse(fs.readFileSync(`${process.env.RELEASE_DIR}/exact-release-artifact.receipt.json`,"utf8")); process.stdout.write(`${process.env.RELEASE_DIR}/${value.artifactFile}`)')"
+          ASSET_NAME="$(basename "${RELEASE_ARTIFACT_PATH}")"
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            EXISTING_DIR="${RUNNER_TEMP}/existing-release-asset"
+            mkdir -p "${EXISTING_DIR}"
+            if gh release download "${RELEASE_TAG}" --pattern "${ASSET_NAME}" --dir "${EXISTING_DIR}"; then
+              cmp "${RELEASE_ARTIFACT_PATH}" "${EXISTING_DIR}/${ASSET_NAME}"
+            else
+              gh release upload "${RELEASE_TAG}" "${RELEASE_ARTIFACT_PATH}"
+            fi
+          else
+            gh release create "${RELEASE_TAG}" "${RELEASE_ARTIFACT_PATH}" \
+              --verify-tag \
+              --title "DevCodex ${RELEASE_TAG}" \
+              --notes-file "changelogs/releases/${RELEASE_TAG}.md"
+          fi

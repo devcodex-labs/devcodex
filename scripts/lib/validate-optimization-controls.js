@@ -181,8 +181,12 @@ function buildOptimizationControlChecks(ctx) {
     if (pkg.devDependencies?.c8 !== '10.1.3') err('[V92] c8 must stay pinned to Node18-compatible 10.1.3')
 
     const workflow = read(path.join(ROOT, '.github/workflows/ci.yml'))
-    for (const needle of ['18.17.0', '22.x', '24.17.0', '26.x', 'windows-latest', 'test:supported-runtime-control-plane', 'test:windows-control-plane', 'Package boundary', 'test:coverage', 'release:dry-run:all']) {
+    for (const needle of ['plan-ci-validation.js', 'fromJSON(needs.plan.outputs.matrix)', 'Package boundary', 'test:coverage', 'release:dry-run:all', 'Required validation aggregate']) {
       if (!workflow.includes(needle)) err(`[V92] CI matrix missing: ${needle}`)
+    }
+    const compatibilityText = JSON.stringify(validationManifest.ciCompatibilityMatrix || [])
+    for (const needle of ['18.17.0', '22.x', '24.17.0', '26.x', 'windows-latest', 'test:supported-runtime-control-plane', 'test:windows-control-plane']) {
+      if (!compatibilityText.includes(needle)) err(`[V92] CI compatibility manifest missing: ${needle}`)
     }
     if (workflow.includes('Website and package')) err('[V92] public CI must not claim a website build that can be conditionally absent')
 

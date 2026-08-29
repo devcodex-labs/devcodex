@@ -15,8 +15,12 @@ const {
   classifyArtifactPathColumnSample,
   createLinkCapabilityDecision,
   createHostLinkCapabilityDecisionV2,
+  createArtifactDeliveryAttemptV1,
+  resolveArtifactDelivery,
   createLegacyVisibleEnvelopeV1,
   createPostCompletionActionSet,
+  createEntryCheckModelV3,
+  createVisibleEnvelopeV2,
   createVisibleEnvelope,
   analyzeFinalValidationSummarySample,
   analyzeDialogueNarrativeSample,
@@ -69,7 +73,7 @@ function manifest(entries, overrides = {}) {
 }
 
 function checks(localizedSuffix = '') {
-  return Array.from({ length: 8 }, (_, ordinal) => ({
+  return Array.from({ length: 11 }, (_, ordinal) => ({
     id: `PC${ordinal}`,
     ordinal,
     status: ordinal === 5 ? 'WARN' : ordinal === 7 ? 'N/A' : 'PASS',
@@ -234,7 +238,7 @@ assert.strictEqual(createLinkCapabilityDecision({
 }).validation.valid, false)
 
 const hostLinkMatrix = [
-  ['codex-desktop', 'codex-desktop-panel', 'codex-native-file-panel', 'native-action'],
+  ['codex-desktop', 'codex-desktop-panel', 'codex-native-file-link', 'markdown-link'],
   ['vscode-codex', 'vscode-terminal', 'vscode-cli-goto', 'terminal-command'],
   ['zed', 'zed-terminal', 'zed-cli-open', 'terminal-command'],
   ['webstorm', 'jetbrains-terminal', 'webstorm-cli-open', 'terminal-command'],
@@ -261,10 +265,61 @@ const unknownHostLink = createHostLinkCapabilityDecisionV2({
 assert.strictEqual(unknownHostLink.openMode, 'absolute-copy')
 assert.strictEqual(unknownHostLink.absolutePathFallback, true)
 assert.strictEqual(unknownHostLink.fallbackReason, 'renderer-unverified')
+const presentationMismatch = createHostLinkCapabilityDecisionV2({
+  hostSurface: 'codex-desktop', presentationSurface: 'vscode-terminal', evidenceState: 'verified',
+  workspaceRoot: WORKSPACE, targetRelation: 'workspace', evidenceRefs: ['mismatch-probe']
+})
+assert.strictEqual(presentationMismatch.openMode, 'absolute-copy')
+assert.strictEqual(presentationMismatch.fallbackReason, 'presentation-host-mismatch')
 assert.strictEqual(createHostLinkCapabilityDecisionV2({
   hostSurface: 'codex-desktop', presentationSurface: 'codex-desktop-panel', evidenceState: 'verified',
   workspaceRoot: WORKSPACE, targetRelation: 'workspace'
 }).validation.valid, false)
+
+const nativeCapability = createHostLinkCapabilityDecisionV2({
+  hostSurface: 'codex-app', presentationSurface: 'codex-desktop-panel', evidenceState: 'verified',
+  workspaceRoot: WORKSPACE, targetRelation: 'workspace', evidenceRefs: ['native-action-capability-probe'],
+  supportsNativeAction: true, nativeRendererId: 'codex-open-file-action'
+})
+const nativeWithoutAction = resolveArtifactDelivery({
+  linkCapability: nativeCapability,
+  artifactId: 'artifact-native-missing',
+  target: path.join(ROOT, 'README.md')
+})
+assert.strictEqual(nativeWithoutAction.validation.valid, true, JSON.stringify(nativeWithoutAction))
+assert.strictEqual(nativeWithoutAction.attempt.status, 'fallback')
+assert.strictEqual(nativeWithoutAction.attempt.fallbackReason, 'native-action-not-attached')
+const nativeOpened = resolveArtifactDelivery({
+  linkCapability: nativeCapability,
+  artifactId: 'artifact-native-opened',
+  target: path.join(ROOT, 'README.md'),
+  actionId: 'codex-action-fixture-1',
+  attempted: true,
+  actionStatus: 'succeeded',
+  readback: 'succeeded',
+  attemptEvidenceRefs: ['native-action-executed', 'native-action-readback']
+})
+assert.strictEqual(nativeOpened.validation.valid, true, JSON.stringify(nativeOpened))
+assert.strictEqual(nativeOpened.attempt.status, 'opened')
+const forgedOpened = createArtifactDeliveryAttemptV1({
+  artifactId: 'artifact-forged-opened', rendererId: 'codex-open-file-action', openMode: 'native-action',
+  actionId: 'codex-action-fixture-2', target: path.join(ROOT, 'README.md'), attempted: true,
+  actionStatus: 'succeeded', readback: 'unavailable', evidenceState: 'verified', evidenceRefs: ['action-only']
+})
+assert.strictEqual(forgedOpened.status, 'fallback')
+assert.strictEqual(forgedOpened.fallbackReason, 'readback-unavailable')
+const missingTarget = resolveArtifactDelivery({
+  linkCapability: createHostLinkCapabilityDecisionV2({
+    hostSurface: 'codex-app', presentationSurface: 'codex-desktop-panel', evidenceState: 'verified',
+    workspaceRoot: WORKSPACE, targetRelation: 'workspace', evidenceRefs: ['missing-target-capability']
+  }),
+  artifactId: 'artifact-missing-target',
+  target: path.join(ROOT, 'missing-artifact.md'),
+  targetReadback: 'missing',
+  attemptEvidenceRefs: ['target-readback-missing']
+})
+assert.strictEqual(missingTarget.attempt.status, 'fallback')
+assert.strictEqual(missingTarget.attempt.fallbackReason, 'target-missing')
 
 const entrySet = projectUserFacingArtifactSet(deliveryManifest, { messageKind: 'entry-check' })
 
@@ -289,6 +344,34 @@ const postCompletionActions = createPostCompletionActionSet({
 })
 assert.strictEqual(postCompletionActions.validation.valid, true)
 
+const entryCheckModel = createEntryCheckModelV3({
+  versionFacts: {
+    installedPackageVersion: '1.19.3',
+    activeRuntimeGeneration: { generationId: 'generation-fixture', packageVersion: '1.19.3', manifestStatus: 'verified' },
+    sourceCandidate: { root: ROOT, packageVersion: '1.19.3', shortHead: '83e2adb9', dirty: true },
+    alignment: 'source-ahead'
+  },
+  workflowPlan: {
+    precheck: {
+      decisionId: 'workflow-plan-precheck', phase: 'precheck', ceremonyTier: 'standard',
+      designDepth: 'standard', assuranceLevel: 'affected'
+    },
+    postContext: null,
+    differences: []
+  },
+  validationPlan: {
+    assuranceLevel: 'affected', targetedCount: 3, affectedCount: 8, fullCount: 0,
+    ciRequired: false, packageRequired: false, installRequired: false, releaseRequired: false,
+    estimatedDuration: '约 2～5 分钟'
+  },
+  continuation: {
+    nextStage: 'bounded-context-read', automatic: true, userAction: 'none',
+    correctionHint: '直接说明要改为简单/标准流程、最小/标准方案或定向/受影响/全量验证'
+  },
+  showPlan: true
+})
+assert.strictEqual(entryCheckModel.validation.valid, true, entryCheckModel.validation.errors.join(', '))
+
 const baseInput = {
   messageKind: 'entry-check',
   context: {
@@ -296,6 +379,7 @@ const baseInput = {
     phase: 'implementation', contextEpoch: 'epoch-1', hostSurface: 'codex-app-fixture'
   },
   checks: checks(),
+  entryCheckModel,
   artifactManifest: deliveryManifest,
   userFacingArtifactSet: entrySet,
   linkCapability: clickable,
@@ -304,7 +388,7 @@ const baseInput = {
 }
 const envelope = createVisibleEnvelope(baseInput)
 assert.strictEqual(envelope.validation.valid, true)
-assert.strictEqual(envelope.schemaVersion, 'DevCodexVisibleEnvelopeV2')
+assert.strictEqual(envelope.schemaVersion, 'DevCodexVisibleEnvelopeV3')
 assert.strictEqual(envelope.status, 'WARN')
 assert.match(envelope.semanticDigest, /^[a-f0-9]{64}$/)
 const codexDesktopLink = createHostLinkCapabilityDecisionV2({
@@ -317,7 +401,10 @@ const codexDesktopEnvelope = createVisibleEnvelope({
   linkCapability: codexDesktopLink
 })
 assert.strictEqual(codexDesktopEnvelope.validation.valid, true)
-assert.match(renderVisibleEnvelope(codexDesktopEnvelope, { tier: 'rich-markdown' }), /Codex 文件面板打开/)
+assert.strictEqual(codexDesktopEnvelope.artifactDeliveryAttempts[0].status, 'ready')
+const codexDesktopRendered = renderVisibleEnvelope(codexDesktopEnvelope, { tier: 'rich-markdown' })
+assert.match(codexDesktopRendered, /\[.+\]\([^)]+\)/)
+assert.doesNotMatch(codexDesktopRendered, /使用 Codex 文件面板打开/)
 const vscodeLink = createHostLinkCapabilityDecisionV2({
   hostSurface: 'vscode-codex', presentationSurface: 'vscode-terminal', evidenceState: 'verified',
   workspaceRoot: WORKSPACE, targetRelation: 'workspace', evidenceRefs: ['direct-vscode-cli-probe']
@@ -328,7 +415,18 @@ const vscodeEnvelope = createVisibleEnvelope({
   linkCapability: vscodeLink
 })
 assert.strictEqual(vscodeEnvelope.validation.valid, true)
+assert.strictEqual(vscodeEnvelope.artifactDeliveryAttempts[0].status, 'ready')
 assert.match(renderVisibleEnvelope(vscodeEnvelope, { tier: 'rich-markdown' }), /code --goto/)
+const tamperedDeliveryAttempt = {
+  ...codexDesktopEnvelope.artifactDeliveryAttempts[0],
+  status: 'opened'
+}
+assert.strictEqual(createVisibleEnvelope({
+  ...baseInput,
+  context: { ...baseInput.context, hostSurface: 'codex-app' },
+  linkCapability: codexDesktopLink,
+  artifactDeliveryAttempts: [tamperedDeliveryAttempt]
+}).validation.valid, false)
 const tamperedHostLink = { ...codexDesktopLink, unexpectedSibling: true }
 assert.strictEqual(createVisibleEnvelope({ ...baseInput, linkCapability: tamperedHostLink }).validation.valid, false)
 const localizedEnvelope = createVisibleEnvelope({ ...baseInput, checks: checks('（另一种本地化）') })
@@ -383,6 +481,8 @@ assert.doesNotMatch(noNextStepText, /继续当前动作|下一步：|条件动�
 
 const legacyInput = { ...baseInput }
 delete legacyInput.postCompletionActions
+delete legacyInput.entryCheckModel
+legacyInput.checks = checks().slice(0, 8)
 legacyInput.recommendedAction = '继续执行下一批'
 const legacyEnvelope = createLegacyVisibleEnvelopeV1(legacyInput)
 assert.strictEqual(legacyEnvelope.schemaVersion, 'DevCodexVisibleEnvelopeV1')
@@ -395,7 +495,10 @@ assert.strictEqual(legacyView.postCompletionActions.primaryAction.applicability,
 assert.match(renderVisibleEnvelope(legacyEnvelope, { tier: 'portable-markdown' }), /V1 兼容读取/)
 assert.match(renderVisibleEnvelope(legacyEnvelope, { tier: 'portable-markdown' }), /DevCodexVisibleEnvelopeV1/)
 
-const tamperedV2 = JSON.parse(JSON.stringify(envelope))
+const v2Envelope = createVisibleEnvelopeV2({ ...baseInput, checks: checks().slice(0, 8) })
+assert.strictEqual(v2Envelope.schemaVersion, 'DevCodexVisibleEnvelopeV2')
+assert.strictEqual(normalizeCompatibleVisibleEnvelope(v2Envelope).migrationStatus, 'legacy-v2-read-only')
+const tamperedV2 = JSON.parse(JSON.stringify(v2Envelope))
 tamperedV2.postCompletionActions.requiredNow.push({
   kind: 'api-docs', label: '伪造完成后必做', reason: '负向读取探针', evidenceRefs: ['tampered'],
   applicability: 'required-now', authorization: 'not-required'
@@ -405,9 +508,9 @@ const tamperedV2View = normalizeCompatibleVisibleEnvelope(tamperedV2)
 assert.strictEqual(tamperedV2View.validation.valid, false)
 assert(tamperedV2View.validation.errors.includes('completion-claim-requiredNow-must-be-empty'))
 assert(tamperedV2View.validation.errors.includes('semanticDigest-mismatch'))
-const extraFieldV2 = { ...envelope, recommendedAction: 'V1 field injection' }
+const extraFieldV2 = { ...v2Envelope, recommendedAction: 'V1 field injection' }
 assert.strictEqual(normalizeCompatibleVisibleEnvelope(extraFieldV2).validation.valid, false)
-const forgedActionValidation = JSON.parse(JSON.stringify(envelope))
+const forgedActionValidation = JSON.parse(JSON.stringify(v2Envelope))
 forgedActionValidation.postCompletionActions.validation.valid = false
 assert.strictEqual(normalizeCompatibleVisibleEnvelope(forgedActionValidation).validation.valid, false)
 
@@ -742,7 +845,7 @@ assert.strictEqual(shouldUseCompact(compactEnvelope, compactEnvelope), true)
 assert.strictEqual(shouldUseCompact(compactEnvelope, compactEnvelope, { userRequestedDetails: true }), false)
 assert.strictEqual(shouldUseCompact(compactEnvelope, createVisibleEnvelope({ ...baseInput, messageKind: 'final-result', checks: compactChecks.slice(0, 2) })), false)
 const compactText = renderVisibleEnvelope(compactEnvelope, { tier: 'portable-markdown', compact: true })
-for (let index = 0; index < 8; index += 1) assert.match(compactText, new RegExp(`PC${index}=`))
+for (let index = 0; index < 11; index += 1) assert.match(compactText, new RegExp(`PC${index}=`))
 assert.match(compactText, /状态未变化/)
 const confirmationExpanded = renderVisibleEnvelope(confirmation, { tier: 'portable-markdown', compact: true })
 assert.doesNotMatch(confirmationExpanded, /状态未变化/)
@@ -789,21 +892,28 @@ for (const definition of [
   'UserFacingArtifactSetV1',
   'LinkCapabilityDecisionV1',
   'HostLinkCapabilityDecisionV2',
+  'ArtifactDeliveryAttemptV1',
+  'ArtifactDeliveryResolutionV1',
   'FinalValidationSummaryV1',
   'PostCompletionActionSetV1',
   'DevCodexVisibleEnvelopeV1',
-  'DevCodexVisibleEnvelopeV2'
+  'DevCodexVisibleEnvelopeV2',
+  'EntryCheckModelV3',
+  'DevCodexVisibleEnvelopeV3'
 ]) {
   assert.ok(schema.$defs[definition], `schema missing ${definition}`)
   assert.strictEqual(schema.$defs[definition].additionalProperties, false, `${definition} must reject sibling fields`)
 }
 assert.ok(schema.$defs.LinkCapabilityDecisionV1.required.includes('evidenceRefs'))
 assert.ok(schema.$defs.HostLinkCapabilityDecisionV2.required.includes('presentationSurface'))
+assert.ok(schema.$defs.ArtifactDeliveryAttemptV1.required.includes('readback'))
+assert.ok(schema.$defs.DevCodexVisibleEnvelopeV3.required.includes('artifactDeliveryAttempts'))
 assert.strictEqual(schema.$defs.ArtifactDeliveryManifestV1.properties.generatedAt.format, 'date-time')
 assert.strictEqual(schema.$defs.ArtifactAnchorV1.properties.generatedAt.format, 'date-time')
 assert.match(schema.$defs.ArtifactAnchorProjectionV1.properties.projectionDigest.pattern, /artifact-anchor-projection/)
 assert.ok(schema.$defs.DevCodexVisibleEnvelopeV1.required.includes('recommendedAction'))
 assert.ok(schema.$defs.DevCodexVisibleEnvelopeV2.required.includes('postCompletionActions'))
 assert.ok(!schema.$defs.DevCodexVisibleEnvelopeV2.required.includes('recommendedAction'))
+assert.ok(schema.$defs.DevCodexVisibleEnvelopeV3.required.includes('entryCheckModel'))
 
-console.log('visible output contract passed: V2 actions/V1 read-compatibility/manifest/projection/anchors/renderers/fail-closed')
+console.log('visible output contract passed: V3 PC0-PC10 with V1/V2 read compatibility and fail-closed rendering')

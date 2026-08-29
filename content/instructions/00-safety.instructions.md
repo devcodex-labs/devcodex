@@ -18,7 +18,7 @@ version: 1.19.3
 | S04 | 禁止 overwrite 源码/规范文件 | 对所有源码文件及规范文件（.md）的修改，必须使用增量编辑（edit 工具），禁止整文件重写 | 新建文件（create 不是 overwrite） |
 | S05 | 记忆+报告自动写入 | 每次会话结束前必须写入记忆文件和报告文件，禁止询问用户"是否需要写入" | 纯 chat 会话（无任何变更意图时可豁免报告，但记忆仍需写入） |
 | S06 | 危险操作分类不得拥有权限 | DevCodex 可识别 `DROP TABLE`、无 WHERE 的 `DELETE FROM`、`rm -rf /`、`TRUNCATE`、递归 inventory 等风险并输出 advisory/telemetry，但风险标签本身不得产生允许或拒绝。无法证明精确目标、用户任务授权、项目/root 边界或恢复/保留不变量时，以 typed workflow-invalid 失败关闭；这些条件满足后，实际操作是否运行完全交给宿主权限系统 | 无；宿主允许不能绕过工作流不变量，DevCodex advisory 也不能覆盖宿主决定 |
-| S07 | 全模式入口检查强制输出 | `instruction-fallback` 模式下，AI 生成实质性工作流内容前必须已输出 PC0~PC7 入口检查块；`dev` 模式在 PC4 执行完整规范雷达，非 `dev` 模式仍输出 PC0~PC7 基础状态并将 dev 专属诊断标注 N/A。**时序（v1.15+ / VL-004）**：用户**首次可见**的 PC0~PC7 必须先于实质任务正文，并先于**产物 mutation**（报告 `reports/`、记忆 `.memory/`、运行态台账 `data/violations|process-improvements|pending-*` 等写入）；只读准备 tool 可在首次可见入口检查之后立即进行。**禁止**以「最终回复文首补 PC」代替先输出（tool 先写产物再在文首贴 PC 仍属违规）。若 AI 自检发现当前回复已开始生成实质内容但尚未输出入口检查块，必须立即在当前位置补输出完整 PC0~PC7，重新评估任务意图后再继续生成后续内容；不终止本次请求。**v1.9.6+ compaction 触发**：当本轮回复源自 `/compact`、`/resume`、summary 恢复或上下文压缩重启时，同样视为"首条用户可见回复"，必须重新输出 PC0~PC7，即使被指示"continue without acknowledging" | `hook-enforced` 模式下，入口检查可由宿主 bootstrap 先完成，但用户面仍需在实质内容前看到结构化状态；运行时对产物路径可做 safety-only 提醒或 strict 拦截，**不**保证 tool-loop 宿主上 UI 像素级先于任意 tool |
+| S07 | 全模式入口检查强制输出 | `instruction-fallback` 模式下，AI 生成实质性工作流内容前必须已输出 PC0~PC10 入口检查块；`dev` 模式在 PC4 执行完整规范雷达，非 `dev` 模式仍输出 PC0~PC10 基础状态并将 dev 专属诊断标注 N/A。**时序（v1.15+ / VL-004）**：用户**首次可见**的 PC0~PC10 必须先于实质任务正文，并先于**产物 mutation**（报告 `reports/`、记忆 `.memory/`、运行态台账 `data/violations|process-improvements|pending-*` 等写入）；只读准备 tool 可在首次可见入口检查之后立即进行。**禁止**以「最终回复文首补 PC」代替先输出（tool 先写产物再在文首贴 PC 仍属违规）。若 AI 自检发现当前回复已开始生成实质内容但尚未输出入口检查块，必须立即在当前位置补输出完整 PC0~PC10，重新评估任务意图后再继续生成后续内容；不终止本次请求。**v1.9.6+ compaction 触发**：当本轮回复源自 `/compact`、`/resume`、summary 恢复或上下文压缩重启时，同样视为"首条用户可见回复"，必须重新输出 PC0~PC10，即使被指示"continue without acknowledging" | `hook-enforced` 模式下，入口检查可由宿主 bootstrap 先完成，但用户面仍需在实质内容前看到结构化状态；运行时对产物路径可做 safety-only 提醒或 strict 拦截，**不**保证 tool-loop 宿主上 UI 像素级先于任意 tool |
 
 ### S02 用户策略优先的敏感信息与硬编码模型
 
@@ -31,8 +31,8 @@ version: 1.19.3
 | 优先级 | 语言证据 | 人类可读输出 |
 |--------|----------|----------------|
 | 1 | 当前轮明确语言要求 | 使用明确要求的语言 |
-| 2 | 当前用户消息 | 使用消息的主要语言；技术术语可保留英文原文 |
-| 3 | 当前 turn 的 `LanguageContextV1` carrier | 使用已绑定语言 |
+| 2 | 当前任务的 `LanguageContextV2` carrier | 使用已绑定任务主语言；确认码、yes/no、路径、版本、代码和引用文本不得单独触发切换 |
+| 3 | 尚无任务主语言时的首条实质用户消息 | 识别消息的主要语言并建立 carrier；技术术语可保留英文原文 |
 | 4 | workspace 偏好、宿主/终端 locale | 使用可观察到的偏好 |
 | 5 | 无法判断 | English fallback，且不得声称观察到用户语言 |
 
@@ -53,7 +53,7 @@ version: 1.19.3
 | S04（overwrite 源码/规范文件） | 🟡 操作级阻断 | 拒绝整文件覆盖，自动改用增量编辑工具，继续执行 |
 | S05（记忆/报告未写入） | — | 在合规检查节点发现遗漏时立即补写 |
 | S06（危险操作分类越权） | 🟡 操作级自修正 | 将 permission 决策改为 host-owned；分类结果只作 advisory。若真正缺少精确目标/任务授权/保留不变量，则输出 typed workflow-invalid |
-| S07（入口检查跳过或时序倒置） | 🔴 致命自修正 | 立即在当前位置补输出 PC0~PC7 入口检查块；若已发生产物 mutation 先于可见入口检查，停止继续写产物直至补输出完成，重新评估意图与项目现实扩展后继续；**不终止本次请求执行** |
+| S07（入口检查跳过或时序倒置） | 🔴 致命自修正 | 立即在当前位置补输出 PC0~PC10 入口检查块；若已发生产物 mutation 先于可见入口检查，停止继续写产物直至补输出完成，重新评估意图与项目现实扩展后继续；**不终止本次请求执行** |
 
 ## 违规审计记录（AUDIT_LOG）
 

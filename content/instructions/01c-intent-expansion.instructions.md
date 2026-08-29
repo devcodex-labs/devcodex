@@ -106,6 +106,6 @@ Hook closure 对入口检查块的判断必须区分三态：
 
 | 状态 | 含义 | 行为 |
 |------|------|------|
-| `verified-present` | 已解析最终 assistant 可见回复，且包含 PC0~PC7 | 不提醒入口块 |
-| `verified-missing` | 已解析最终 assistant 可见回复，但缺 PC0~PC7 | 提醒或 strict 阻断 `entry check block 未输出` |
+| `verified-present` | 已解析最终 assistant 可见回复，且包含 PC0~PC10 | 不提醒入口块 |
+| `verified-missing` | 已解析最终 assistant 可见回复，但缺 PC0~PC10 | 提醒或 strict 阻断 `entry check block 未输出` |
 | `unverified` | Stop/PreCompact 未提供可解析 assistant 内容 | 提醒“无法验证最终用户可见回复”，附 payload capture 指引；不得断言“未输出” |

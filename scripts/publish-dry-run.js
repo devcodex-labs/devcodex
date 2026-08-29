@@ -7,7 +7,9 @@ const path = require('path')
 const { runChecked } = require('./lib/checked-command')
 
 const ROOT = path.resolve(__dirname, '..')
-const PACKAGE_NAME = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).name
+const PACKAGE_METADATA = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
+const PACKAGE_NAME = PACKAGE_METADATA.name
+const PACKAGE_VERSION = PACKAGE_METADATA.version
 const targets = {
   npmjs: { registry: 'https://registry.npmjs.org/', access: 'public' },
   github: { registry: 'https://npm.pkg.github.com/', access: 'restricted' }
@@ -62,6 +64,52 @@ function buildPublishArgs(name, packageName = PACKAGE_NAME, packageArtifact = '.
   return args
 }
 
+function allowsExistingVersion(argv) {
+  return argv.includes('--allow-existing-version')
+}
+
+function isPublishedVersionCollision(error, packageVersion = PACKAGE_VERSION) {
+  const evidence = error?.evidence
+  if (!evidence || evidence.command !== 'npm' || evidence.exitCode !== 1 ||
+      !Array.isArray(evidence.args) || evidence.args[0] !== 'publish' ||
+      !evidence.args.includes('--dry-run') ||
+      !evidence.args.includes(`--registry=${targets.npmjs.registry}`)) {
+    return false
+  }
+  const collisionLine = `npm error You cannot publish over the previously published versions: ${packageVersion}.`
+  const errorLines = String(evidence.stderr || '')
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => /^npm error\b/i.test(line))
+  return errorLines.includes(collisionLine) && errorLines.every(line =>
+    line === collisionLine || /^npm error A complete log of this run can be found in:/.test(line)
+  )
+}
+
+function runPublishDryRun(name, packageName, packageVersion, packageArtifact, options = {}) {
+  const runner = options.run || runChecked
+  const label = `publish-dry-run:${name}`
+  try {
+    return {
+      label,
+      ...runner('npm', buildPublishArgs(name, packageName, packageArtifact), {
+        cwd: options.cwd || ROOT,
+        timeoutMs: options.timeoutMs || 120000
+      })
+    }
+  } catch (error) {
+    if (options.allowExistingVersion === true && name === 'npmjs' &&
+        isPublishedVersionCollision(error, packageVersion)) {
+      return {
+        label,
+        ...error.evidence,
+        acceptedFailure: 'PUBLISHED_VERSION_EXISTS'
+      }
+    }
+    throw error
+  }
+}
+
 function parsePackJson(stdout) {
   const text = String(stdout || '').trim()
   const match = text.match(/(\[\s*\{[\s\S]*\}\s*\])\s*$/)
@@ -96,6 +144,7 @@ function createCandidateTarball(tempRoot) {
 
 function main(argv = process.argv.slice(2)) {
   const selected = readTarget(argv)
+  const allowExistingVersion = allowsExistingVersion(argv)
   if (!['npmjs', 'github', 'all'].includes(selected)) {
     console.error(`Unknown registry target: ${selected || '(missing)'}`)
     return 2
@@ -112,16 +161,20 @@ function main(argv = process.argv.slice(2)) {
       ...candidate.evidence
     }]
     for (const name of names) {
-      evidence.push({
-        label: `publish-dry-run:${name}`,
-        ...runChecked('npm', buildPublishArgs(name, PACKAGE_NAME, candidate.tarballPath), {
-          cwd: ROOT,
-          timeoutMs: 120000
-        })
-      })
+      evidence.push(runPublishDryRun(
+        name,
+        PACKAGE_NAME,
+        PACKAGE_VERSION,
+        candidate.tarballPath,
+        { allowExistingVersion }
+      ))
     }
     for (const item of evidence) {
-      console.log(`✓ ${item.label}: exitCode=${item.exitCode} durationMs=${item.durationMs}`)
+      if (item.acceptedFailure) {
+        console.log(`✓ ${item.label}: acceptedFailure=${item.acceptedFailure} originalExitCode=${item.exitCode} durationMs=${item.durationMs}`)
+      } else {
+        console.log(`✓ ${item.label}: exitCode=${item.exitCode} durationMs=${item.durationMs}`)
+      }
     }
     return 0
   } catch (error) {
@@ -140,13 +193,16 @@ function main(argv = process.argv.slice(2)) {
 if (require.main === module) process.exitCode = main()
 
 module.exports = {
+  allowsExistingVersion,
   assertTargetSupported,
   buildPublishArgs,
   createCandidateTarball,
+  isPublishedVersionCollision,
   main,
   packageScope,
   parsePackJson,
   readTarget,
+  runPublishDryRun,
   supportedTargets,
   targets
 }

@@ -91,6 +91,7 @@ const RUNTIME_CONTRACT_FILES = Object.freeze([
   'task-recovery-store-v5.cjs',
   'workflow-operational-write-lease.cjs',
   'workflow-root-registry.v2.json',
+  'workflow-plan-decision-v1.cjs',
   'workflow-route-decision-v2.cjs',
   'workspace-session-route-index-v1.cjs'
 ])

@@ -151,7 +151,7 @@ jobs:
           node-version: 24.17.0
           cache: npm
       - run: npm ci
-      - run: npm run release:dry-run:all
+      - run: npm run release:dry-run:all -- --allow-existing-version
       - run: npm run test:pack-clean
 
   aggregate:

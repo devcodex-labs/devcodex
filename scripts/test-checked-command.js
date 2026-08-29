@@ -15,9 +15,12 @@ const {
 } = require('./lib/checked-command')
 const {
   assertTargetSupported,
+  allowsExistingVersion,
   buildPublishArgs,
+  isPublishedVersionCollision,
   packageScope,
   parsePackJson,
+  runPublishDryRun,
   supportedTargets
 } = require('./publish-dry-run')
 
@@ -159,6 +162,70 @@ try {
     parsePackJson('npm notice ignored\n[{"filename":"devcodex-1.16.4.tgz"}]\n'),
     { filename: 'devcodex-1.16.4.tgz' }
   )
+  assert.strictEqual(allowsExistingVersion(['--registry', 'all']), false)
+  assert.strictEqual(allowsExistingVersion(['--allow-existing-version']), true)
+
+  const publishedVersion = '1.19.3'
+  const collisionEvidence = {
+    code: 'ECOMMAND',
+    command: 'npm',
+    resolvedCommand: 'npm',
+    args: [
+      'publish',
+      candidateTarball,
+      '--dry-run',
+      '--json',
+      '--registry=https://registry.npmjs.org/',
+      '--access=public'
+    ],
+    cwd: root,
+    exitCode: 1,
+    signal: null,
+    durationMs: 12,
+    stdout: '',
+    stderr: [
+      'npm warn This command requires you to be logged in to https://registry.npmjs.org/ (dry-run)',
+      `npm error You cannot publish over the previously published versions: ${publishedVersion}.`,
+      'npm error A complete log of this run can be found in: /tmp/npm-debug.log'
+    ].join('\n')
+  }
+  const collisionError = new CheckedCommandError('published version collision', collisionEvidence)
+  assert.strictEqual(isPublishedVersionCollision(collisionError, publishedVersion), true)
+  const acceptedCollision = runPublishDryRun(
+    'npmjs',
+    'devcodex',
+    publishedVersion,
+    candidateTarball,
+    {
+      cwd: root,
+      allowExistingVersion: true,
+      run: () => { throw collisionError }
+    }
+  )
+  assert.strictEqual(acceptedCollision.acceptedFailure, 'PUBLISHED_VERSION_EXISTS')
+  assert.strictEqual(acceptedCollision.exitCode, 1)
+  assert.throws(
+    () => runPublishDryRun('npmjs', 'devcodex', publishedVersion, candidateTarball, {
+      cwd: root,
+      allowExistingVersion: false,
+      run: () => { throw collisionError }
+    }),
+    error => error === collisionError
+  )
+  const unrelatedFailure = new CheckedCommandError('authentication failed', {
+    ...collisionEvidence,
+    stderr: 'npm error code ENEEDAUTH\nnpm error need auth This command requires you to be logged in.'
+  })
+  assert.strictEqual(isPublishedVersionCollision(unrelatedFailure, publishedVersion), false)
+  assert.throws(
+    () => runPublishDryRun('npmjs', 'devcodex', publishedVersion, candidateTarball, {
+      cwd: root,
+      allowExistingVersion: true,
+      run: () => { throw unrelatedFailure }
+    }),
+    error => error === unrelatedFailure
+  )
+  assert.strictEqual(isPublishedVersionCollision(collisionError, '1.19.4'), false)
 
   console.log('✓ checked-command fail-fast, literal-glob and registry fixtures passed')
 } finally {

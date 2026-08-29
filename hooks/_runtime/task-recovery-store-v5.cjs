@@ -4646,6 +4646,33 @@ function validateTaskAdmissionTransaction(transaction, expectedIdentity = null) 
       errors.push(...reconciliationValidation.errors, 'admission-reconciliation-phase-binding')
     }
   }
+  if (transaction.recovery !== undefined && transaction.recovery !== null) {
+    const recovery = transaction.recovery
+    if (!recovery || typeof recovery !== 'object' || Array.isArray(recovery)) {
+      errors.push('recovery-object')
+    } else {
+      if (recovery.schemaVersion !== 'TaskAdmissionRecoveryV1') errors.push('recovery-schema-version')
+      if (recovery.mode !== 'awaiting-owner-rebind') errors.push('recovery-mode')
+      if (!/^admission-[a-f0-9]{40}$/.test(String(recovery.priorAdmissionId || ''))) {
+        errors.push('recovery-prior-admission-id')
+      }
+      if (!Number.isInteger(recovery.priorAdmissionGeneration) || recovery.priorAdmissionGeneration < 1 ||
+          recovery.priorAdmissionGeneration >= transaction.admissionGeneration) {
+        errors.push('recovery-prior-admission-generation')
+      }
+      if (!/^[a-f0-9]{64}$/.test(String(recovery.priorTransactionDigest || ''))) {
+        errors.push('recovery-prior-transaction-digest')
+      }
+      if (!/^[a-f0-9]{64}$/.test(String(recovery.canonicalOverviewDigest || ''))) {
+        errors.push('recovery-canonical-overview-digest')
+      }
+      if (!Number.isFinite(Date.parse(String(recovery.recoveredAt || ''))) ||
+          recovery.recoveredAt !== transaction.createdAt) {
+        errors.push('recovery-timestamp')
+      }
+      if (transaction.entryVariant !== 'continue') errors.push('recovery-entry-variant')
+    }
+  }
   if (transaction.continuationLease !== undefined && transaction.continuationLease !== null) {
     const continuationValidation = validateAdmissionContinuationLease(transaction.continuationLease, transaction)
     if (!continuationValidation.valid) {
@@ -4750,6 +4777,26 @@ function commitTaskAdmissionTransaction(input = {}, options = {}) {
           current.phase === 'terminal-closeout' && transaction.phase === 'prepared' &&
           transaction.entryVariant === 'reopen' && current.taskId === transaction.taskId &&
           transaction.admissionGeneration === current.admissionGeneration + 1
+        const continuationLease = current.continuationLease || null
+        const commitNowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
+        const continuationExpired = continuationLease?.status === 'active' &&
+          Date.parse(continuationLease.expiresAt) <= commitNowMs
+        const recovery = transaction.recovery
+        const awaitingOwnerRebind = options.allowAwaitingOwnerRebind === true &&
+          current.phase === 'cp-state-written' && transaction.phase === 'prepared' &&
+          current.status === 'admitting' && current.effects?.owner?.status === 'pending' &&
+          !state.fencedWriteOwner && transaction.entryVariant === 'continue' &&
+          current.project === transaction.project && current.taskId === transaction.taskId &&
+          current.taskKind === transaction.taskKind && current.taskRootRelative === transaction.taskRootRelative &&
+          current.taskIdentityDigest === transaction.taskIdentityDigest &&
+          current.admissionPolicyRevision === transaction.admissionPolicyRevision &&
+          transaction.admissionGeneration === current.admissionGeneration + 1 &&
+          (!continuationLease || continuationExpired) &&
+          recovery?.schemaVersion === 'TaskAdmissionRecoveryV1' &&
+          recovery.mode === 'awaiting-owner-rebind' && recovery.priorAdmissionId === current.admissionId &&
+          recovery.priorAdmissionGeneration === current.admissionGeneration &&
+          recovery.priorTransactionDigest === current.transactionDigest &&
+          recovery.canonicalOverviewDigest === current.effects?.overview?.contentDigest
         if (reopening) {
           state.previousAdmissionTransaction = {
             schemaVersion: 'PreviousTaskAdmissionTransactionRefV1',
@@ -4757,6 +4804,15 @@ function commitTaskAdmissionTransaction(input = {}, options = {}) {
             admissionGeneration: current.admissionGeneration,
             transactionDigest: current.transactionDigest,
             terminalAt: current.updatedAt
+          }
+        } else if (awaitingOwnerRebind) {
+          state.previousAdmissionTransaction = {
+            schemaVersion: 'PreviousTaskAdmissionTransactionRefV2',
+            admissionId: current.admissionId,
+            admissionGeneration: current.admissionGeneration,
+            transactionDigest: current.transactionDigest,
+            disposition: 'awaiting-owner-rebind',
+            replacedAt: transaction.createdAt
           }
         } else if (current.ingressIdempotencyKey !== transaction.ingressIdempotencyKey ||
             current.admissionId !== transaction.admissionId ||
@@ -4766,25 +4822,25 @@ function commitTaskAdmissionTransaction(input = {}, options = {}) {
             'an existing admission journal is bound to different ingress or request content'
           )
         }
-        if (!reopening && expectedPreviousPhase && current.phase !== expectedPreviousPhase && current.phase !== transaction.phase) {
+        if (!reopening && !awaitingOwnerRebind && expectedPreviousPhase && current.phase !== expectedPreviousPhase && current.phase !== transaction.phase) {
           throw new TaskRecoveryStoreV5Error(
             'TASK_ADMISSION_PHASE_CAS_MISMATCH',
             `expected admission phase ${expectedPreviousPhase}, observed ${current.phase}`
           )
         }
-        if (!reopening && !taskAdmissionTransitionAllowed(current.phase, transaction.phase)) {
+        if (!reopening && !awaitingOwnerRebind && !taskAdmissionTransitionAllowed(current.phase, transaction.phase)) {
           throw new TaskRecoveryStoreV5Error(
             'TASK_ADMISSION_PHASE_TRANSITION_INVALID',
             `cannot transition task admission from ${current.phase} to ${transaction.phase}`
           )
         }
-        if (!reopening && current.phase === transaction.phase && current.transactionDigest !== transaction.transactionDigest) {
+        if (!reopening && !awaitingOwnerRebind && current.phase === transaction.phase && current.transactionDigest !== transaction.transactionDigest) {
           throw new TaskRecoveryStoreV5Error(
             'TASK_ADMISSION_PHASE_CONTENT_CONFLICT',
             `admission phase ${current.phase} already has different durable content`
           )
         }
-        if (!reopening && current.transactionDigest === transaction.transactionDigest) return state
+        if (!reopening && !awaitingOwnerRebind && current.transactionDigest === transaction.transactionDigest) return state
       } else if (transaction.phase !== 'prepared') {
         throw new TaskRecoveryStoreV5Error(
           'TASK_ADMISSION_PREPARE_REQUIRED',

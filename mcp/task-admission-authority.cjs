@@ -1116,6 +1116,7 @@ function admissionReceipt(transaction, replayed = false) {
     routeKey: transaction.routeKey,
     routeRevision: transaction.routeRevision,
     transactionDigest: transaction.transactionDigest,
+    recovery: transaction.recovery ? clone(transaction.recovery) : null,
     continuationLease: transaction.continuationLease ? clone(transaction.continuationLease) : null,
     replayed,
     admissionGeneration: transaction.admissionGeneration,
@@ -1176,6 +1177,7 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
   }
   let transaction = existing.status === 'fresh' ? existing.transaction : null
   let priorTerminalTransaction = null
+  let priorAwaitingOwnerTransaction = null
 
   let plan
   if (input.operation === 'admit' && transaction) {
@@ -1216,8 +1218,55 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
   const productSourcePath = input.task.entryVariant === 'product-provided'
     ? path.join(taskRoot, '01-产品需求.md')
     : null
-  const overviewContent = String(input.overview.content)
-  const productSourceContent = productSourcePath ? String(input.overview.productSourceContent) : ''
+  let overviewContent = String(input.overview.content)
+  let productSourceContent = productSourcePath ? String(input.overview.productSourceContent) : ''
+  const priorContinuationLease = transaction?.continuationLease || null
+  const priorContinuationExpired = priorContinuationLease?.status === 'active' &&
+    Date.parse(priorContinuationLease.expiresAt) <= nowMs
+  const awaitingOwnerRebind = !!transaction &&
+    transaction.phase === 'cp-state-written' && transaction.status === 'admitting' &&
+    transaction.ingressIdempotencyKey !== ingressIdempotencyKey &&
+    transaction.effects?.owner?.status === 'pending' && !existing.state?.fencedWriteOwner &&
+    ['adopt', 'bind'].includes(input.operation) && input.task.entryVariant === 'continue' &&
+    transaction.project === input.project && transaction.taskId === plan.identity.taskId &&
+    transaction.taskKind === input.task.taskKind && transaction.taskRootRelative === taskRootRelative &&
+    transaction.taskIdentityDigest === plan.identity.identityDigest &&
+    transaction.admissionPolicyRevision === ADMISSION_POLICY_REVISION &&
+    overviewName(transaction.taskKind, transaction.entryVariant) === overviewName(input.task.taskKind, input.task.entryVariant) &&
+    (!priorContinuationLease || priorContinuationExpired)
+  if (awaitingOwnerRebind) {
+    const canonicalOverviewPath = path.join(taskRoot, overviewName(transaction.taskKind, transaction.entryVariant))
+    const canonicalProductSourcePath = transaction.entryVariant === 'product-provided'
+      ? path.join(taskRoot, '01-产品需求.md')
+      : null
+    try { overviewContent = fsImpl.readFileSync(canonicalOverviewPath, 'utf8') } catch (error) {
+      throw new TaskAdmissionError(
+        'TASK_ADMISSION_READBACK_MISMATCH',
+        'canonical overview is unavailable for awaiting-owner rebind',
+        { cause: error.code }
+      )
+    }
+    let canonicalProductSourceContent = ''
+    if (canonicalProductSourcePath) {
+      try { canonicalProductSourceContent = fsImpl.readFileSync(canonicalProductSourcePath, 'utf8') } catch (error) {
+        throw new TaskAdmissionError(
+          'TASK_ADMISSION_READBACK_MISMATCH',
+          'canonical product requirement source is unavailable for awaiting-owner rebind',
+          { cause: error.code }
+        )
+      }
+    }
+    verifyAdmissionReadback(input, plan, transaction, {
+      taskRoot,
+      overviewPath: canonicalOverviewPath,
+      overviewContent,
+      productSourcePath: canonicalProductSourcePath,
+      productSourceContent: canonicalProductSourceContent,
+      sessionsPath
+    }, fsImpl, { allowLegacyRecord: plan.legacyCpCompatibility === true })
+    priorAwaitingOwnerTransaction = transaction
+    transaction = null
+  }
   const requestCore = {
     operation: input.operation,
     actualInstructionDigest: input.actualInstructionEnvelope.actualInstructionDigest,
@@ -1375,6 +1424,7 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
       nowMs,
       ...options.storeOptions,
       ...(priorTerminalTransaction ? { allowReopen: true } : {}),
+      ...(priorAwaitingOwnerTransaction ? { allowAwaitingOwnerRebind: true } : {}),
       ...extraOptions
     })
     if (!['committed', 'semantic-noop'].includes(commit.status)) {
@@ -1391,8 +1441,8 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
         schemaVersion: 'TaskAdmissionTransactionV1',
         admissionId: `admission-${ingressIdempotencyKey.slice(0, 40)}`,
         ingressIdempotencyKey,
-        admissionGeneration: priorTerminalTransaction
-          ? Number(priorTerminalTransaction.admissionGeneration || 1) + 1
+        admissionGeneration: priorTerminalTransaction || priorAwaitingOwnerTransaction
+          ? Number((priorTerminalTransaction || priorAwaitingOwnerTransaction).admissionGeneration || 1) + 1
           : 1,
         admissionPolicyRevision: ADMISSION_POLICY_REVISION,
         phase: 'prepared',
@@ -1427,6 +1477,17 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
           cpState: { status: 'pending', path: path.relative(input.activeRoot, sessionsPath).replace(/\\/g, '/') },
           owner: { status: 'pending' }
         },
+        ...(priorAwaitingOwnerTransaction ? {
+          recovery: {
+            schemaVersion: 'TaskAdmissionRecoveryV1',
+            mode: 'awaiting-owner-rebind',
+            priorAdmissionId: priorAwaitingOwnerTransaction.admissionId,
+            priorAdmissionGeneration: priorAwaitingOwnerTransaction.admissionGeneration,
+            priorTransactionDigest: priorAwaitingOwnerTransaction.transactionDigest,
+            canonicalOverviewDigest: sha256(overviewContent),
+            recoveredAt: createdAt
+          }
+        } : {}),
         error: null,
         createdAt,
         updatedAt: createdAt
@@ -1435,7 +1496,10 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
         transaction.continuationLease = createAdmissionContinuationLease(transaction, input, ingressSnapshotRef, nowMs)
       }
       transaction.transactionDigest = taskAdmissionTransactionDigest(transaction)
-      commitJournal(transaction, priorTerminalTransaction ? 'terminal-closeout' : '')
+      commitJournal(
+        transaction,
+        priorTerminalTransaction ? 'terminal-closeout' : (priorAwaitingOwnerTransaction ? 'cp-state-written' : '')
+      )
       faultInjector('after-prepared', { transaction: clone(transaction) })
     } else if (transaction.phase === 'prepared') {
       commitJournal(transaction, 'prepared', { force: true })

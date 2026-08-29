@@ -1,9 +1,9 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要；历史版本见对应详细变更文件。
-> **最新版本详细变更文档**: [`changelogs/releases/v1.19.3.md`](./changelogs/releases/v1.19.3.md)
-> **最后更新**: 2026-08-28
-> **当前版本**: v1.19.3 修复确认后的 taskless ingress 在工具事件或生命周期状态投影后丢失，以及 CP writer 与正式任务 owner 对 artifactPath 格式理解不一致的问题；用户对同一候选的有效确认可以继续驱动任务准入与执行，不再因内部恢复链断裂被重复索取。版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
+> **最新版本详细变更文档**: [`changelogs/releases/v1.19.4.md`](./changelogs/releases/v1.19.4.md)
+> **最后更新**: 2026-08-29
+> **当前版本**: v1.19.4 汇总发布自适应流程与入口增强、显式空目录 Profile 目标、按影响选择 CI、发布与 finalize 解耦，并修复 Codex Desktop 中 awaiting-owner admission 无法由可信新会话接管的 P0 死锁。版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
 
 ---
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.19.4](./changelogs/releases/v1.19.4.md) | 2026-08-29 | 🚑 **自适应流程与跨会话 owner 恢复**：PC0～PC10 与流程/方案/验证四轴决策落地；显式 `init --profile` 接受现存空目录；CI 按影响范围执行；publish/finalize 可恢复；awaiting-owner admission 可在严格身份与真相回读边界内安全换代接管 | [查看](./changelogs/releases/v1.19.4.md) |
 | [v1.19.3](./changelogs/releases/v1.19.3.md) | 2026-08-28 | 🚑 **确认持久化与任务 owner P0 修复**：有界恢复 taskless instruction/work-item/route/plan/project 绑定；超限降级为无 authority identity-only；CP writer 的安全链接投影可被 owner 精确复核，并提供 30 秒内专项快测 | [查看](./changelogs/releases/v1.19.3.md) |
 | [v1.19.2](./changelogs/releases/v1.19.2.md) | 2026-08-27 | 🔧 **宿主权限与文件交付修复**：DevCodex 对所有操作权限事件保持中立，不再产生 allow/deny/ask/block；文件入口按 hostSurface 与 presentationSurface 选择原生打开、IDE CLI 或绝对路径 fallback | [查看](./changelogs/releases/v1.19.2.md) |
 | [v1.19.1](./changelogs/releases/v1.19.1.md) | 2026-08-27 | 🧩 **发布收敛补丁**：移除 DevCodex 影子权限层及 Grok fallback shadow deny；为 artifact/admission durable fail-closed 增加 exact server-owned 恢复；修复 SkillRoute 容量锁死、Windows V5 用量账本瞬时占用与控制中止原因缺失；严格后继验证根支持 fresh Auto 续接；只发布经验证的唯一 tgz | [查看](./changelogs/releases/v1.19.1.md) |

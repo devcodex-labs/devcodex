@@ -1,10 +1,11 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.19.3 已进入确认后的发布候选资格链；确认持久化与正式任务 owner 契约修复已归档到 `changelogs/releases/v1.19.3.md`，正式发布事实只在 tag、registry、GitHub Release 与本机 R7 证据实际形成后成立。
+> **当前**: v1.19.4 已进入发布候选资格链；本轮全部待发布变更已归档到 `changelogs/releases/v1.19.4.md`，正式发布事实只在 tag、registry、GitHub Release 与本机 R7 证据实际形成后成立。
 
 ## 当前未发布实现候选
 
+- **v1.19.4 归档候选 — 自适应流程与跨会话 owner 恢复**：汇总发布 `WorkflowPlanDecisionV1` / PC0～PC10、显式现存目录 `init --profile` 直通、按影响范围选择 GitHub CI、不可逆 publish 与可恢复 finalize 分离，并增加 `TaskAdmissionRecoveryV1/awaiting-owner-rebind`，让 CP 已持久化但 owner 尚未建立的孤儿事务在稳定任务身份、canonical truth 回读、无有效 continuation lease 且无 fenced owner 时安全换代。完整说明见 [`changelogs/releases/v1.19.4.md`](./releases/v1.19.4.md)。
 - **治理台账 resolver、immutable 分片与 GR 试点**：新增 `GovernanceLedgerManifestV1`、共享 resolver、锁内单调 `nextSequence`、可重建 `GovernanceLedgerIndexV1` 与 `governance ledger init|plan|apply|rollback|index`。普通 `init/update` 只做零搬迁 manifest/index 初始化；active 是唯一 writer，archive 只读，reopened 通过 manifest overlay 表达。真实 active-root 的最终 GR 试点把 39 个自包含终态 H2 移入摘要绑定 shard，canonical 记录总数迁移前后均为 990；混合容器 GR-068 被负向探针排除。两次早期异常均由事务恢复或 exact rollback 收敛，未引用 immutable shard按审计策略保留。
 - **P1 产物打开 action/readback 闭环**：`ArtifactDeliveryResolver` 现在以 `presentationSurface + capability evidence` 为 renderer 主决策键，`hostSurface` 只验证 adapter 匹配；Codex Desktop 从无动作的“使用文件面板打开”文字改为真实本地文件 Markdown action。每个可见目标新增 `ArtifactDeliveryAttemptV1`，逐项记录 actionId、attempted、actionStatus、readback、status 与 fallbackReason；仅 action 与 readback 均成功才声明 opened，renderer-only、失败、不可回读或未知 surface 立即降级为绝对路径。报告/记忆相对内链仍由 `LinkCapabilityDecisionV1` 独立维护，不能冒充最终对话打开证据。
 - **P0 自适应流程、入口与语言连续性**：新增 `WorkflowPlanDecisionV1`，将流程仪式、方案深度、验证等级和强制义务分离；优先级固定为用户当前明确意图 > Profile `workflowRouting` 配置 > 项目事实智能识别 > 回退，并在入口初判与项目读取后二次判断。`LanguageContextV2` 让确认码、yes/no、版本、路径、代码与引用文本不再误切主语言。入口升级为 `EntryCheckModelV3` / `DevCodexVisibleEnvelopeV3` 的 PC0~PC10：PC0 显示 installed/runtime/source identity，PC8~PC10 显示流程与方案、验证预算/耗时、后续阶段和用户动作；V1/V2 仅保留读取兼容。

@@ -23,6 +23,7 @@ const {
   taskPaths,
   updateTaskRecoveryState,
   validateAdmissionContinuationLease,
+  validateTaskAdmissionTransaction,
   validateTaskAdmissionReconciliationReceipt
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const {
@@ -468,6 +469,104 @@ try {
   fs.writeFileSync(productSourcePath, '# 被篡改的产品需求\n')
   assert.throws(() => run(productInput), error => error.code === 'TASK_ADMISSION_READBACK_MISMATCH')
   fs.writeFileSync(productSourcePath, productSourceBytes)
+  const productRebindInput = admissionInput(productRoot, 'product-provided-next', {
+    operation: 'bind',
+    routeTaskKind: 'dev',
+    routeCandidate: 'dev.default',
+    task: {
+      taskId: productAdmission.taskId,
+      taskKind: 'requirements',
+      entryVariant: 'continue',
+      taskRootRelative: productAdmission.taskRootRelative
+    },
+    overview: { content: '# 当前消息不得替换产品型需求真相\n' }
+  })
+  fs.writeFileSync(productSourcePath, '# 跨会话接管前发生篡改\n')
+  assert.throws(
+    () => run(productRebindInput),
+    error => error.code === 'TASK_ADMISSION_READBACK_MISMATCH',
+    'awaiting-owner rebind must verify the durable product requirement source'
+  )
+  fs.writeFileSync(productSourcePath, productSourceBytes)
+  const reboundProductAdmission = run(productRebindInput)
+  assert.strictEqual(reboundProductAdmission.recovery.mode, 'awaiting-owner-rebind')
+  assert.deepStrictEqual(fs.readFileSync(productSourcePath), productSourceBytes)
+
+  const awaitingOwnerRoot = setupRoot('awaiting-owner-rebind')
+  const awaitingOwnerInput = admissionInput(awaitingOwnerRoot, 'awaiting-owner-rebind')
+  const awaitingOwnerAdmission = run(awaitingOwnerInput)
+  const awaitingOwnerTaskRoot = taskRootFor(awaitingOwnerInput, awaitingOwnerAdmission)
+  const awaitingOwnerOverview = fs.readFileSync(path.join(awaitingOwnerTaskRoot, '00-问题概况.md'), 'utf8')
+  confirmCp1(awaitingOwnerTaskRoot)
+  const awaitingOwnerRebindInput = admissionInput(awaitingOwnerRoot, 'awaiting-owner-rebind-next', {
+    operation: 'bind',
+    task: {
+      taskId: awaitingOwnerAdmission.taskId,
+      taskKind: 'bugs',
+      entryVariant: 'continue',
+      taskRootRelative: awaitingOwnerAdmission.taskRootRelative
+    },
+    overview: { content: '# 当前消息不得替换 canonical overview\n' }
+  })
+  awaitingOwnerRebindInput.projectTargetLease = refreshedProjectLease(
+    awaitingOwnerRebindInput.projectTargetLease,
+    { rootIdentityDigest: '8'.repeat(64) }
+  )
+  const reboundAwaitingOwner = run(awaitingOwnerRebindInput)
+  assert.notStrictEqual(reboundAwaitingOwner.admissionId, awaitingOwnerAdmission.admissionId)
+  assert.strictEqual(reboundAwaitingOwner.admissionGeneration, awaitingOwnerAdmission.admissionGeneration + 1)
+  assert.strictEqual(reboundAwaitingOwner.recovery.mode, 'awaiting-owner-rebind')
+  assert.strictEqual(reboundAwaitingOwner.recovery.priorAdmissionId, awaitingOwnerAdmission.admissionId)
+  const reboundAwaitingOwnerTransaction = readTaskAdmissionTransaction({
+    metaDir: resolveTaskRecoveryMetaDir({
+      activeRoot: awaitingOwnerRoot.activeRoot,
+      project: awaitingOwnerRoot.project
+    }),
+    identity: {
+      activeRoot: awaitingOwnerRoot.activeRoot,
+      project: awaitingOwnerRoot.project,
+      taskId: reboundAwaitingOwner.taskId
+    }
+  }).transaction
+  const invalidRecoveryTransaction = JSON.parse(JSON.stringify(reboundAwaitingOwnerTransaction))
+  invalidRecoveryTransaction.recovery.priorTransactionDigest = 'invalid'
+  invalidRecoveryTransaction.transactionDigest = taskAdmissionTransactionDigest(invalidRecoveryTransaction)
+  assert(
+    validateTaskAdmissionTransaction(invalidRecoveryTransaction).errors.includes('recovery-prior-transaction-digest'),
+    'awaiting-owner recovery metadata must be schema-validated independently of the transaction digest'
+  )
+  assert.strictEqual(
+    fs.readFileSync(path.join(awaitingOwnerTaskRoot, '00-问题概况.md'), 'utf8'),
+    awaitingOwnerOverview,
+    'cross-session recovery must reuse rather than replace the canonical overview'
+  )
+  const reboundAwaitingOwnerLease = runOwner(ownerInput(awaitingOwnerRebindInput, reboundAwaitingOwner, 'acquire'))
+  assert.strictEqual(reboundAwaitingOwnerLease.finalized, true)
+  assert.strictEqual(reboundAwaitingOwnerLease.mutationAuthority, true)
+  assert.strictEqual(reboundAwaitingOwnerLease.owner.projectRootIdentity, '8'.repeat(64))
+
+  const activeContinuationGuardRoot = setupRoot('awaiting-owner-active-continuation')
+  let activeContinuationGuardInput = admissionInput(activeContinuationGuardRoot, 'awaiting-owner-active-continuation')
+  activeContinuationGuardInput = {
+    ...activeContinuationGuardInput,
+    ingressSnapshotRef: admissionIngressSnapshotRef(activeContinuationGuardInput, 'awaiting-owner-active-continuation')
+  }
+  const activeContinuationGuardAdmission = run(activeContinuationGuardInput)
+  const blockedActiveContinuationInput = admissionInput(activeContinuationGuardRoot, 'awaiting-owner-active-continuation-next', {
+    operation: 'bind',
+    task: {
+      taskId: activeContinuationGuardAdmission.taskId,
+      taskKind: 'bugs',
+      entryVariant: 'continue',
+      taskRootRelative: activeContinuationGuardAdmission.taskRootRelative
+    },
+    overview: { content: '# 不得抢占仍有效的 continuation lease\n' }
+  })
+  assert.throws(
+    () => run(blockedActiveContinuationInput),
+    error => error.code === 'TASK_ADMISSION_IDEMPOTENCY_CONFLICT',
+    'a still-active continuation lease must prevent cross-session awaiting-owner takeover'
+  )
 
   const continuationRoot = setupRoot('admission-continuation')
   let continuationInput = admissionInput(continuationRoot, 'admission-continuation')
@@ -528,6 +627,28 @@ try {
     ),
     error => error.code === 'TASK_ADMISSION_CONTINUATION_EXPIRED'
   )
+  let expiredContinuationRebindInput = admissionInput(expiredContinuationRoot, 'admission-continuation-expired-next', {
+    operation: 'bind',
+    task: {
+      taskId: expiredContinuationAdmission.taskId,
+      taskKind: 'bugs',
+      entryVariant: 'continue',
+      taskRootRelative: expiredContinuationAdmission.taskRootRelative
+    },
+    overview: { content: '# expired lease 后复用 canonical overview\n' }
+  })
+  expiredContinuationRebindInput = {
+    ...expiredContinuationRebindInput,
+    ingressSnapshotRef: admissionIngressSnapshotRef(expiredContinuationRebindInput, 'admission-continuation-expired-next')
+  }
+  const expiredContinuationRebound = run(expiredContinuationRebindInput, { nowMs: NOW_MS + 31 * 60 * 1000 })
+  assert.strictEqual(expiredContinuationRebound.recovery.mode, 'awaiting-owner-rebind')
+  const expiredContinuationOwner = runOwner(
+    ownerInput(expiredContinuationRebindInput, expiredContinuationRebound, 'acquire'),
+    NOW_MS + 31 * 60 * 1000
+  )
+  assert.strictEqual(expiredContinuationOwner.finalized, true)
+  assert.strictEqual(expiredContinuationOwner.mutationAuthority, true)
 
   const ownerRoot = setupRoot('owner-transitions')
   const ownerAdmissionInput = admissionInput(ownerRoot, 'owner-transitions')

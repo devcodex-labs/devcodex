@@ -13,10 +13,10 @@
     "publicTaxonomyDigest": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 666,
-    "consumerInventoryDigest": "afe0c32da79d35ac91a0f20b47d4c9cd65eecd067093dab7e2d4edf628c0c838",
-    "consumerProjectionDigest": "439b7e25d132b54ce8fcf18ff87169582c887677692584cec363450f4e6a3519",
-    "portfolioInputDigest": "9ccb8740a7851c75f72c80c3951914090f365eeabd53a8040bae24407b6cdcc3"
+    "consumerInventoryFileCount": 668,
+    "consumerInventoryDigest": "71585f29afe88122c710de66b6fad1d99eaa3c8f2dc2fc77abd2ce7cb11ea039",
+    "consumerProjectionDigest": "a8f2ae467596258c2279e888505a1f3f428e5138e80d37c5b9035d15ad50965b",
+    "portfolioInputDigest": "de31999ec3f265048a456a88a6947d57f320013f9c09ee0539fae8d0f4dadf1b"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -11768,6 +11768,10 @@
         },
         {
           "path": "changelogs/releases/v1.19.3.md",
+          "role": "historical"
+        },
+        {
+          "path": "changelogs/releases/v1.19.5.md",
           "role": "historical"
         },
         {

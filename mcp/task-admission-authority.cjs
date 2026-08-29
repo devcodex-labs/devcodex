@@ -33,6 +33,16 @@ const {
   validateAdmissionContinuationLease,
   workflowTaskTerminalReceiptDigest
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
+const {
+  FENCED_TASK_WRITE_OWNER_SCHEMA,
+  WRITE_OWNER_LEASE_MS,
+  buildOwnerTransitionRef,
+  exactOwnerRefMatches,
+  ownerNonce,
+  ownerRef,
+  ownerTransitionReplayMatches,
+  sealOwner
+} = require('../hooks/_runtime/fenced-task-write-owner.cjs')
 const { digestValue } = require('../hooks/_runtime/lifecycle-state-projection-v5.cjs')
 const { createMemoryFileTransaction, sha256 } = require('./memory-file-transaction.cjs')
 
@@ -41,11 +51,9 @@ const FORMAL_ADMISSION_RECEIPT_SCHEMA = 'FormalTaskAdmissionReceiptV2'
 const TASK_DIRECTORY_DECISION_SCHEMA = 'TaskDirectoryNameDecisionV1'
 const TASK_IDENTITY_V2_SCHEMA = 'TaskIdentityV2'
 const PROJECT_TARGET_LEASE_SCHEMA = 'ProjectTargetLeaseV2'
-const FENCED_TASK_WRITE_OWNER_SCHEMA = 'FencedTaskWriteOwnerLeaseV2'
 const TASK_WRITE_OWNER_RECEIPT_SCHEMA = 'TaskWriteOwnerTransitionReceiptV1'
 const WORKFLOW_TASK_TERMINAL_RECEIPT_SCHEMA = 'WorkflowTaskTerminalReceiptV1'
 const TASK_ADMISSION_REQUEST_DIGEST_SCHEMA = 'TaskAdmissionRequestDigestV2'
-const WRITE_OWNER_LEASE_MS = 5 * 60 * 1000
 const ADMISSION_CONTINUATION_LEASE_MS = 30 * 60 * 1000
 const DIGEST_RE = /^[a-f0-9]{64}$/
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -1669,57 +1677,6 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
   }
 }
 
-function ownerNonce(options = {}) {
-  if (typeof options.nonceFactory === 'function') {
-    const value = String(options.nonceFactory())
-    if (/^owner-[a-f0-9]{40}$/.test(value)) return value
-  }
-  return `owner-${crypto.randomBytes(20).toString('hex')}`
-}
-
-function ownerRef(owner) {
-  return owner
-    ? {
-        ownerGeneration: owner.ownerGeneration,
-        ownerNonce: owner.ownerNonce,
-        leaseRevision: owner.leaseRevision,
-        leaseDigest: owner.leaseDigest
-      }
-    : { mode: 'absent' }
-}
-
-function exactOwnerRefMatches(owner, expected) {
-  return !!owner && !!expected &&
-    owner.ownerGeneration === expected.ownerGeneration &&
-    owner.ownerNonce === expected.ownerNonce &&
-    owner.leaseRevision === expected.leaseRevision &&
-    owner.leaseDigest === expected.leaseDigest
-}
-
-function sealOwner(input) {
-  const owner = {
-    schemaVersion: FENCED_TASK_WRITE_OWNER_SCHEMA,
-    taskId: input.taskId,
-    projectRootIdentity: input.projectRootIdentity,
-    sessionDigest: input.sessionDigest,
-    contextEpoch: input.contextEpoch,
-    routeRevision: input.routeRevision,
-    ownerGeneration: input.ownerGeneration,
-    ownerNonce: input.ownerNonce,
-    leaseRevision: input.leaseRevision,
-    issuedAt: input.issuedAt,
-    expiresAt: input.expiresAt,
-    handoffRef: input.handoffRef || null,
-    takeoverRef: input.takeoverRef || null,
-    transitionRef: input.transitionRef || null,
-    reopenGeneration: input.reopenGeneration,
-    revocationEpoch: input.revocationEpoch,
-    status: input.status
-  }
-  owner.leaseDigest = fencedTaskWriteOwnerDigest(owner)
-  return owner
-}
-
 function observedCpState(transaction, activeRoot, fsImpl = fs) {
   const sessionsPath = path.join(activeRoot, ...transaction.taskRootRelative.split('/'), '.memory', 'sessions.md')
   let sessions
@@ -1847,60 +1804,6 @@ function refreshFinalizedCpObservation(transaction, activeRoot, nowMs, fsImpl = 
   refreshed.updatedAt = new Date(nowMs).toISOString()
   refreshed.transactionDigest = taskAdmissionTransactionDigest(refreshed)
   return refreshed
-}
-
-function ownerTransitionRequestDigest(operation, input) {
-  const expectedOwner = input.expectedOwner?.mode === 'absent'
-    ? { mode: 'absent' }
-    : (input.expectedOwner
-        ? {
-            ownerGeneration: input.expectedOwner.ownerGeneration,
-            ownerNonce: input.expectedOwner.ownerNonce,
-            leaseRevision: input.expectedOwner.leaseRevision,
-            leaseDigest: input.expectedOwner.leaseDigest
-          }
-        : { mode: 'absent' })
-  const terminalEvidence = Array.isArray(input.evidence)
-    ? input.evidence.map(item => ({
-        role: String(item?.role || '').trim(),
-        path: String(item?.path || '').trim().replace(/\\/g, '/'),
-        sha256: String(item?.sha256 || '').trim().toLowerCase(),
-        bytes: Number(item?.bytes)
-      })).sort((left, right) => left.role.localeCompare(right.role) || left.path.localeCompare(right.path))
-    : []
-  return digest({
-    schemaVersion: 'FencedTaskWriteOwnerTransitionRequestV1',
-    operation,
-    taskId: input.taskId,
-    admissionId: input.admissionId,
-    sessionDigest: input.projectTargetLease.authorityDigest,
-    contextEpoch: input.actualInstructionEnvelope.contextEpoch,
-    routeRevision: input.workflowRouteDecision.routeRevision,
-    expectedOwner,
-    targetSessionDigest: String(input.targetSessionDigest || '').toLowerCase() || null,
-    handoffRefDigest: String(input.handoffRefDigest || '').toLowerCase() || null,
-    takeoverRefDigest: String(input.takeoverRefDigest || '').toLowerCase() || null,
-    terminalStatus: String(input.terminalStatus || '').trim() || null,
-    terminalEvidence
-  })
-}
-
-function buildOwnerTransitionRef(operation, currentOwner, input, committedAt) {
-  const core = {
-    schemaVersion: 'FencedTaskWriteOwnerTransitionRefV1',
-    operation,
-    priorLeaseDigest: currentOwner?.leaseDigest || null,
-    requestDigest: ownerTransitionRequestDigest(operation, input),
-    committedAt
-  }
-  return { ...core, refDigest: digest(core) }
-}
-
-function ownerTransitionReplayMatches(owner, operation, input) {
-  const ref = owner?.transitionRef
-  return ref?.operation === operation &&
-    ref.requestDigest === ownerTransitionRequestDigest(operation, input) &&
-    ref.priorLeaseDigest === (input.expectedOwner?.leaseDigest || null)
 }
 
 function finalizeAdmission(metaDir, identity, hostSessionDigest, transaction, nowMs, options = {}) {

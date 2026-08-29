@@ -68,7 +68,7 @@ const {
   resolveTaskRecoveryMetaDir,
   validateWorkflowTaskTerminalReceipt
 } = require('./task-recovery-store-v5.cjs')
-const { executeTaskWriteOwner } = require('../../mcp/task-admission-authority.cjs')
+const { executeLifecycleTaskWriteOwner } = require('./fenced-task-write-owner.cjs')
 const { extractMutationFootprint } = require('./mutation-footprint.cjs')
 const {
   classifyHostToolMutation,
@@ -1771,7 +1771,15 @@ function transitionLifecycleOwner(state, operation, options = {}) {
     return { status: 'skipped', reasonCode: 'owner-lease-sufficient' }
   }
   try {
-    const result = executeTaskWriteOwner({
+    const activeRoot = getActiveNamespaceRoot(state)
+    const metaDir = resolveTaskRecoveryMetaDir({ activeRoot, project: binding.project })
+    const identity = {
+      activeRoot,
+      project: binding.project,
+      taskId: binding.taskId,
+      taskStatus: 'active'
+    }
+    const result = executeLifecycleTaskWriteOwner({
       operation,
       taskId: binding.taskId,
       admissionId: transaction.admissionId,
@@ -1785,17 +1793,13 @@ function transitionLifecycleOwner(state, operation, options = {}) {
       workItemSet,
       workflowRouteDecision: decision,
       projectTargetLease: lease,
-      activeRoot: getActiveNamespaceRoot(state),
-      project: binding.project
-    })
+      metaDir,
+      identity,
+      cpConfirmed: operation === 'release' || readCpConfirmations(binding.taskRoot).CP1
+    }, { fs })
     const refreshed = readFencedTaskWriteOwner({
-      metaDir: resolveTaskRecoveryMetaDir({ activeRoot: getActiveNamespaceRoot(state), project: binding.project }),
-      identity: {
-        activeRoot: getActiveNamespaceRoot(state),
-        project: binding.project,
-        taskId: binding.taskId,
-        taskStatus: 'active'
-      }
+      metaDir,
+      identity
     }, { fs })
     if (refreshed.status === 'fresh') {
       state.fencedWriteOwner = refreshed.owner

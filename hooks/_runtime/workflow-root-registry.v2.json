@@ -1089,10 +1089,10 @@
     },
     {
       "ref": "scripts/lib/host-parity-scorecard.js",
-      "digest": "86c9460c1e4c89c103038066b5a9b7d273985c59063af16ddf6ccf55c349ec90"
+      "digest": "6736da26ec7e8650636832a75e1163e8de1bfbf001ba358c915c747f48517b5f"
     }
   ],
-  "sourceDigest": "7d56369a83e480ef1dd2bba6ec30857c852f6bd66806f60eee1c952bfd7aab65",
+  "sourceDigest": "44098def3e94976dc6a91242e8d8fc485aa62bf85a51a4d041c5d89ac77c29b3",
   "routeRevision": "cd86a6045a9fc8cd72b094254bc68bef4210e0bb4639a7c2d755f8368aa3310b",
-  "registryDigest": "3cc550114f81dbe0c3db1ef12718aa62d62c8ce3267bf95b059c3a32a605238c"
+  "registryDigest": "89e717a4a7111797799171b094d50a0d9b1679f596168843e3194dd23b40ea85"
 }

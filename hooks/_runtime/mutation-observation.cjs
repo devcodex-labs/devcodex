@@ -5,6 +5,13 @@ const fs = require('fs')
 const path = require('path')
 
 const { sha256, stableStringify } = require('./content-identity.cjs')
+const {
+  findArtifactTemplateQualification,
+  qualifyArtifactFile,
+  validateArtifactTemplateBinding,
+  validateArtifactTemplateBindingProjection,
+  validateArtifactTemplateQualification
+} = require('./artifact-template-contract.cjs')
 
 const LEASE_SCHEMA = 'TaskOwnedMutationLeaseV2'
 const PRE_OBSERVATION_SCHEMA = 'MutationPreObservationV1'
@@ -473,6 +480,35 @@ function nativeExitCode(payload) {
   return null
 }
 
+function observeTemplateQualifications(decision, payload, options = {}) {
+  const qualifications = []
+  const errors = []
+  for (const binding of decision?.templateBindings || []) {
+    const bindingValidation = binding?.schemaVersion === 'ArtifactTemplateBindingProjectionV1'
+      ? validateArtifactTemplateBindingProjection(binding)
+      : validateArtifactTemplateBinding(binding)
+    if (!bindingValidation.valid) {
+      errors.push(...bindingValidation.errors)
+      continue
+    }
+    const logical = isLogical(binding.targetRef)
+    const qualification = logical
+      ? (findArtifactTemplateQualification(payload, binding.bindingDigest) || findArtifactTemplateQualification(payload))
+      : qualifyArtifactFile(binding, binding.targetRef, { slotId: binding.slotId }, options)
+    const qualificationValidation = validateArtifactTemplateQualification(qualification, logical ? null : binding)
+    const logicalBindingMatch = !logical || ['slotId', 'targetRef', 'templateRef', 'templateDigest', 'contractDigest', 'requiredSemanticDigest']
+      .every(field => String(qualification?.[field] || '') === String(binding?.[field] || ''))
+    if (!qualificationValidation.valid || !logicalBindingMatch || qualification?.status !== 'qualified' || qualification?.readbackVerified !== true) {
+      errors.push('artifact-template-qualification-rejected')
+      if (!logicalBindingMatch) errors.push('artifact-template-logical-binding-mismatch')
+      errors.push(...qualificationValidation.errors)
+      errors.push(...(qualification?.errorCodes || []))
+    }
+    if (qualification) qualifications.push(qualification)
+  }
+  return { qualifications, errors: [...new Set(errors)] }
+}
+
 function observeMutationEffects(input = {}, options = {}) {
   const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
   const footprint = input.footprint || {}
@@ -527,6 +563,8 @@ function observeMutationEffects(input = {}, options = {}) {
   for (const target of [...created, ...modified, ...deleted]) {
     if (!effectPathAllowed(target, allPlanned, controlledRoots)) errors.push(`unplanned-effect:${target}`)
   }
+  const templateObservation = observeTemplateQualifications(decision, input.payload, options)
+  errors.push(...templateObservation.errors)
   const observedEffects = {
     created: [...new Set(created)].sort(),
     modified: [...new Set(modified)].sort(),
@@ -542,6 +580,7 @@ function observeMutationEffects(input = {}, options = {}) {
     leaseDigest: lease.leaseDigest || null,
     plannedSetDigest: footprint.plannedSetDigest || decision.plannedSetDigest || null,
     observedEffects,
+    templateQualifications: templateObservation.qualifications,
     observationCoverage: drift.some(code => /observation|receipt-missing|too-large|entry-limit/.test(code)) ? 'partial' : 'complete',
     nativeExitCode: exitCode,
     drift,
@@ -603,6 +642,17 @@ function validateMutationObservationReceipt(value) {
   if (!Array.isArray(value?.drift) || value.drift.length > MAX_OBSERVATION_ENTRIES ||
       value.drift.some(item => !String(item || '').trim() || Buffer.byteLength(String(item), 'utf8') > MAX_PATH_BYTES)) {
     errors.push('mutation-observation-drift-invalid')
+  }
+  if (value?.templateQualifications !== undefined && (!Array.isArray(value.templateQualifications) || value.templateQualifications.length > MAX_OBSERVATION_ENTRIES)) {
+    errors.push('mutation-observation-template-qualifications-invalid')
+  } else {
+    for (const qualification of value?.templateQualifications || []) {
+      const validation = validateArtifactTemplateQualification(qualification)
+      if (!validation.valid) errors.push(...validation.errors)
+      if (value.status === 'consumed' && (qualification.status !== 'qualified' || qualification.readbackVerified !== true)) {
+        errors.push('mutation-observation-template-qualification-not-final')
+      }
+    }
   }
   if (value?.reconcileRequired !== (value?.status === 'needs-reconcile')) {
     errors.push('mutation-observation-reconcile-status-mismatch')

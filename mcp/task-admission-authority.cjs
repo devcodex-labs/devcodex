@@ -44,6 +44,7 @@ const {
   sealOwner
 } = require('../hooks/_runtime/fenced-task-write-owner.cjs')
 const { digestValue } = require('../hooks/_runtime/lifecycle-state-projection-v5.cjs')
+const { taskOperationTerminalSnapshot } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 const { createMemoryFileTransaction, sha256 } = require('./memory-file-transaction.cjs')
 
 const ADMISSION_POLICY_REVISION = 'TaskAdmissionPolicyV1@1'
@@ -52,6 +53,7 @@ const TASK_DIRECTORY_DECISION_SCHEMA = 'TaskDirectoryNameDecisionV1'
 const TASK_IDENTITY_V2_SCHEMA = 'TaskIdentityV2'
 const PROJECT_TARGET_LEASE_SCHEMA = 'ProjectTargetLeaseV2'
 const TASK_WRITE_OWNER_RECEIPT_SCHEMA = 'TaskWriteOwnerTransitionReceiptV1'
+const CANONICAL_TASK_WRITE_CONTEXT_SCHEMA = 'CanonicalTaskWriteContextV1'
 const WORKFLOW_TASK_TERMINAL_RECEIPT_SCHEMA = 'WorkflowTaskTerminalReceiptV1'
 const TASK_ADMISSION_REQUEST_DIGEST_SCHEMA = 'TaskAdmissionRequestDigestV2'
 const ADMISSION_CONTINUATION_LEASE_MS = 30 * 60 * 1000
@@ -1824,7 +1826,9 @@ function finalizeAdmission(metaDir, identity, hostSessionDigest, transaction, no
 function taskWriteOwnerReceipt(operation, transaction, owner, replayed = false, nowMs = Date.now()) {
   const finalized = transaction?.phase === 'finalized'
   const cpConfirmed = transaction?.effects?.cpState?.status === 'confirmed'
-  const active = owner?.status === 'active' && Date.parse(owner.expiresAt) > nowMs
+  const active = owner?.status === 'active'
+  const expiresAtMs = Date.parse(String(owner?.expiresAt || ''))
+  const leaseFreshDiagnostic = Number.isFinite(expiresAtMs) && expiresAtMs > nowMs
   return {
     schemaVersion: TASK_WRITE_OWNER_RECEIPT_SCHEMA,
     status: owner?.status || 'missing',
@@ -1837,14 +1841,78 @@ function taskWriteOwnerReceipt(operation, transaction, owner, replayed = false, 
     ownerRef: owner ? ownerRef(owner) : null,
     finalized,
     cp1Confirmed: cpConfirmed,
+    leaseFreshDiagnostic,
+    leaseExpiredDiagnostic: active && !leaseFreshDiagnostic,
     mutationAuthority: finalized && cpConfirmed && active,
     replayed
   }
 }
 
+function readCanonicalTaskWriteContext(metaDir, identity, expectedOwner = null, options = {}) {
+  const read = readFencedTaskWriteOwner({ metaDir, identity }, { fs: options.fs || fs })
+  if (read.status !== 'fresh' || !read.owner || !read.transaction || !read.envelope) {
+    throw new TaskAdmissionError(
+      read.errorCode || 'TASK_WRITE_CONTEXT_READBACK_FAILED',
+      'canonical task write context could not be read back from TaskRecoveryStoreV5'
+    )
+  }
+  if (expectedOwner && read.owner.leaseDigest !== expectedOwner.leaseDigest) {
+    throw new TaskAdmissionError(
+      'TASK_WRITE_CONTEXT_READBACK_MISMATCH',
+      'canonical task write context no longer belongs to the committed owner'
+    )
+  }
+  const operationSnapshot = taskOperationTerminalSnapshot(read.state?.turnLiveness)
+  if (!operationSnapshot.valid) {
+    throw new TaskAdmissionError(
+      'TASK_WRITE_CONTEXT_OPERATION_SET_INVALID',
+      'canonical task write context found an invalid TaskOperationSetV1',
+      operationSnapshot
+    )
+  }
+  const owner = read.owner
+  const transaction = read.transaction
+  const runtimeGeneration = String(
+    options.runtimeGeneration ||
+    read.state?.progressiveSkillRoute?.modeReceipt?.processRuntimeIdentity?.generationId ||
+    read.state?.hostIdentity?.runtimeGeneration ||
+    'unverified'
+  )
+  const contextBinding = {
+    taskId: owner.taskId,
+    projectRootIdentity: owner.projectRootIdentity,
+    lifecycleRevision: Number(owner.reopenGeneration || 0) + 1,
+    stateSequence: Number(read.envelope.sequence),
+    writerGeneration: Number(read.envelope.writerGeneration ?? owner.ownerGeneration),
+    holderSession: owner.sessionDigest,
+    operationSetDigest: digestValue(read.state?.turnLiveness?.taskOperationSet || null),
+    settledSetDigest: operationSnapshot.settledSetDigest,
+    runtimeGeneration,
+    contextEpoch: owner.contextEpoch,
+    routeRevision: owner.routeRevision
+  }
+  const contextDigest = digestValue({
+    schemaVersion: CANONICAL_TASK_WRITE_CONTEXT_SCHEMA,
+    ...contextBinding
+  })
+  return {
+    schemaVersion: CANONICAL_TASK_WRITE_CONTEXT_SCHEMA,
+    ...contextBinding,
+    contextDigest,
+    ownerStatus: owner.status,
+    admissionId: transaction.admissionId,
+    admissionGeneration: transaction.admissionGeneration,
+    readback: 'PASS',
+    mutationAuthority: transaction.phase === 'finalized' &&
+      transaction.effects?.cpState?.status === 'confirmed' &&
+      transaction.effects?.cpState?.cp1Confirmed === true &&
+      owner.status === 'active'
+  }
+}
+
 function finalizedResumeFailureDetails(errorCode) {
   const code = String(errorCode || '')
-  if (code.includes('OWNER_BUSY')) return { reasonCode: 'owner-busy', retryability: 'retry-after-expiry', nextStep: 'Wait for the current owner lease to expire or release, then replay the same resume request.' }
+  if (code.includes('OWNER_BUSY')) return { reasonCode: 'owner-busy', retryability: 'read-winner', nextStep: 'Read the current writer and live-operation evidence; lease expiry alone cannot transfer write authority.' }
   if (code.includes('OLD_TURN_LIVE') || code.includes('LIVENESS_DRIFT')) return { reasonCode: 'old-turn-live', retryability: 'retry-after-turn-terminal', nextStep: 'Let the prior turn finish or persist a terminal checkpoint, then replay the same resume request.' }
   if (code.includes('OPERATION_LIVE')) return { reasonCode: 'operation-live', retryability: 'retry-after-operation-closeout', nextStep: 'Wait for the current operation lease and closeout before retrying resume.' }
   if (code.includes('SIDE_EFFECT_UNKNOWN')) return { reasonCode: 'side-effect-unknown', retryability: 'reconcile-required', nextStep: 'Reconcile the exact prior mutation or external side effect before retrying resume.' }
@@ -1904,22 +1972,28 @@ function executeFinalizedTaskResumeV3({
     )
   }
   const ownerRead = readFencedTaskWriteOwner({ metaDir, identity }, { fs: fsImpl })
-  if (ownerRead.status !== 'fresh' || ownerRead.source !== 'primary' || !ownerRead.owner) {
+  const primaryOwnerStateAvailable = ownerRead.source === 'primary' &&
+    ['fresh', 'missing'].includes(ownerRead.status) && ownerRead.transaction
+  if (!primaryOwnerStateAvailable) {
     throw new TaskAdmissionError(
       ownerRead.errorCode || 'FINALIZED_TASK_RESUME_OWNER_UNAVAILABLE',
       'current fenced owner is unavailable for finalized resume',
       finalizedResumeFailureDetails(ownerRead.errorCode)
     )
   }
-  const currentOwner = ownerRead.owner
+  const currentOwner = ownerRead.owner || null
   const replayed = transaction.recovery?.schemaVersion === 'FinalizedTaskResumeRecoveryReceiptV3' &&
     transaction.recovery.candidateDigest === candidate.candidateDigest &&
     transaction.ingressIdempotencyKey === ingressIdempotencyKey &&
-    currentOwner.status === 'active' && currentOwner.sessionDigest === input.projectTargetLease.authorityDigest &&
+    currentOwner?.status === 'active' && currentOwner.sessionDigest === input.projectTargetLease.authorityDigest &&
     currentOwner.contextEpoch === input.actualInstructionEnvelope.contextEpoch &&
     currentOwner.routeRevision === input.workflowRouteDecision.routeRevision
   if (replayed) {
     const ownerReceipt = taskWriteOwnerReceipt('resume', transaction, currentOwner, true, nowMs)
+    ownerReceipt.writeContext = readCanonicalTaskWriteContext(metaDir, identity, currentOwner, {
+      fs: fsImpl,
+      runtimeGeneration: input.serverRuntime?.generationId
+    })
     return {
       ...admissionReceipt(transaction, true),
       ownerAcquisition: ownerReceipt,
@@ -1931,12 +2005,19 @@ function executeFinalizedTaskResumeV3({
       recoveryStage: 'authority-committed'
     }
   }
+  const exactPriorOwner = currentOwner
+    ? candidate.prior.ownerStatus !== 'missing' &&
+      candidate.prior.ownerGeneration === currentOwner.ownerGeneration &&
+      candidate.prior.leaseRevision === currentOwner.leaseRevision &&
+      candidate.prior.ownerLeaseDigest === currentOwner.leaseDigest
+    : candidate.prior.ownerStatus === 'missing' &&
+      candidate.prior.ownerGeneration === 0 &&
+      candidate.prior.leaseRevision === 0 &&
+      (candidate.prior.ownerLeaseDigest === null || candidate.prior.ownerLeaseDigest === undefined)
   const exactPrior = candidate.prior.admissionId === transaction.admissionId &&
     candidate.prior.admissionGeneration === transaction.admissionGeneration &&
     candidate.prior.transactionDigest === transaction.transactionDigest &&
-    candidate.prior.ownerGeneration === currentOwner.ownerGeneration &&
-    candidate.prior.leaseRevision === currentOwner.leaseRevision &&
-    candidate.prior.ownerLeaseDigest === currentOwner.leaseDigest
+    exactPriorOwner
   if (!exactPrior) {
     throw new TaskAdmissionError(
       'FINALIZED_TASK_RESUME_CAS_LOST',
@@ -1947,21 +2028,22 @@ function executeFinalizedTaskResumeV3({
   const issuedAt = new Date(nowMs).toISOString()
   const transitionInput = { ...input, expectedOwner: ownerRef(currentOwner) }
   const nextOwner = sealOwner({
-    ...currentOwner,
+    ...(currentOwner || {}),
+    taskId: transaction.taskId,
     projectRootIdentity: input.projectTargetLease.rootIdentityDigest,
     sessionDigest: input.projectTargetLease.authorityDigest,
     contextEpoch: input.actualInstructionEnvelope.contextEpoch,
     routeRevision: input.workflowRouteDecision.routeRevision,
-    ownerGeneration: currentOwner.ownerGeneration + 1,
+    ownerGeneration: (currentOwner?.ownerGeneration || 0) + 1,
     ownerNonce: ownerNonce(options),
-    leaseRevision: currentOwner.leaseRevision + 1,
+    leaseRevision: (currentOwner?.leaseRevision || 0) + 1,
     issuedAt,
     expiresAt: new Date(nowMs + WRITE_OWNER_LEASE_MS).toISOString(),
     handoffRef: null,
     takeoverRef: null,
     transitionRef: buildOwnerTransitionRef('resume', currentOwner, transitionInput, issuedAt),
-    reopenGeneration: currentOwner.reopenGeneration,
-    revocationEpoch: currentOwner.revocationEpoch + 1,
+    reopenGeneration: currentOwner?.reopenGeneration || 0,
+    revocationEpoch: currentOwner ? currentOwner.revocationEpoch + 1 : 0,
     status: 'active'
   })
   const recoveryCore = {
@@ -1970,9 +2052,9 @@ function executeFinalizedTaskResumeV3({
     priorAdmissionId: transaction.admissionId,
     priorAdmissionGeneration: transaction.admissionGeneration,
     priorTransactionDigest: transaction.transactionDigest,
-    priorOwnerGeneration: currentOwner.ownerGeneration,
-    priorLeaseRevision: currentOwner.leaseRevision,
-    priorOwnerLeaseDigest: currentOwner.leaseDigest,
+    priorOwnerGeneration: currentOwner?.ownerGeneration || 0,
+    priorLeaseRevision: currentOwner?.leaseRevision || 0,
+    priorOwnerLeaseDigest: currentOwner?.leaseDigest || null,
     candidateDigest: candidate.candidateDigest,
     attemptDigest: candidate.attemptDigest,
     canonicalOverviewDigest: canonical.canonicalOverviewDigest,
@@ -2047,6 +2129,10 @@ function executeFinalizedTaskResumeV3({
     )
   }
   const ownerReceipt = taskWriteOwnerReceipt('resume', nextTransactionValue, nextOwner, false, nowMs)
+  ownerReceipt.writeContext = readCanonicalTaskWriteContext(metaDir, identity, nextOwner, {
+    fs: fsImpl,
+    runtimeGeneration: input.serverRuntime?.generationId
+  })
   return {
     ...admissionReceipt(nextTransactionValue, false),
     ownerAcquisition: ownerReceipt,
@@ -2101,6 +2187,20 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
   const routeRevision = input.workflowRouteDecision.routeRevision
   const projectRootIdentity = input.projectTargetLease.rootIdentityDigest
   const faultInjector = typeof options.faultInjector === 'function' ? options.faultInjector : () => {}
+  const buildOwnerReceipt = (receiptOperation, receiptTransaction, receiptOwner, replayed) => {
+    const receipt = taskWriteOwnerReceipt(
+      receiptOperation,
+      receiptTransaction,
+      receiptOwner,
+      replayed,
+      nowMs
+    )
+    receipt.writeContext = readCanonicalTaskWriteContext(metaDir, identity, receiptOwner, {
+      fs: fsImpl,
+      runtimeGeneration: input.serverRuntime?.generationId
+    })
+    return receipt
+  }
 
   if (operation === 'acquire' && currentOwner?.status === 'released') {
     if (transaction.phase !== 'finalized' || !exactOwnerRefMatches(currentOwner, input.expectedOwner)) {
@@ -2138,7 +2238,7 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
       throw new TaskAdmissionError(commit.errorCode || 'TASK_WRITE_OWNER_COMMIT_FAILED', commit.message || 'owner reacquire failed', commit)
     }
     faultInjector('after-owner-reacquired', { owner: clone(nextOwner), transaction: clone(transaction) })
-    return taskWriteOwnerReceipt(operation, transaction, nextOwner, false, nowMs)
+    return buildOwnerReceipt(operation, transaction, nextOwner, false)
   }
 
   if (operation === 'acquire' || operation === 'reopen') {
@@ -2147,7 +2247,7 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
         ['owner-fenced', 'finalized'].includes(transaction.phase) &&
         ownerTransitionReplayMatches(currentOwner, operation, input)) {
       if (transaction.phase === 'owner-fenced') transaction = finalizeAdmission(metaDir, identity, input.actualInstructionEnvelope.hostSessionDigest, transaction, nowMs, { fs: fsImpl, ...options })
-      return taskWriteOwnerReceipt(operation, transaction, currentOwner, true, nowMs)
+      return buildOwnerReceipt(operation, transaction, currentOwner, true)
     }
     const reopening = operation === 'reopen'
     if (transaction.phase !== 'cp-state-written') {
@@ -2214,7 +2314,7 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
     faultInjector('after-owner-fenced', { owner: clone(currentOwner), transaction: clone(transaction) })
     transaction = finalizeAdmission(metaDir, identity, input.actualInstructionEnvelope.hostSessionDigest, transaction, nowMs, { fs: fsImpl, ...options })
     faultInjector('after-admission-finalized', { owner: clone(currentOwner), transaction: clone(transaction) })
-    return taskWriteOwnerReceipt(operation, transaction, currentOwner, false, nowMs)
+    return buildOwnerReceipt(operation, transaction, currentOwner, false)
   }
 
   if (!currentOwner || currentOwner.status === 'terminal') {
@@ -2235,7 +2335,7 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
         currentOwner.takeoverRef?.refDigest === input.takeoverRefDigest &&
         currentOwner.sessionDigest === sessionDigest && currentOwner.contextEpoch === contextEpoch)
     if (replayed && ownerTransitionReplayMatches(currentOwner, operation, input)) {
-      return taskWriteOwnerReceipt(operation, transaction, currentOwner, true, nowMs)
+      return buildOwnerReceipt(operation, transaction, currentOwner, true)
     }
   }
   if (!exactOwnerRefMatches(currentOwner, input.expectedOwner)) {
@@ -2282,8 +2382,8 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
     nextOwner = sealOwner({ ...currentOwner, sessionDigest, contextEpoch, routeRevision, ownerNonce: ownerNonce(options), leaseRevision: currentOwner.leaseRevision + 1, issuedAt, expiresAt: new Date(nowMs + WRITE_OWNER_LEASE_MS).toISOString(), status: 'active' })
   } else if (operation === 'takeover-prepare') {
     const observation = input.serverObservation || {}
-    if (!['active', 'handoff-pending', 'takeover-pending'].includes(currentOwner.status) || Date.parse(currentOwner.expiresAt) > nowMs || observation.canonicalTaskReadback !== true || observation.noLiveTurn !== true || !DIGEST_RE.test(String(observation.reconcileReceiptDigest || ''))) {
-      throw new TaskAdmissionError('TASK_WRITE_OWNER_TAKEOVER_INVALID', 'takeover requires expiry, canonical task readback, no live turn and a server-owned reconcile receipt')
+    if (!['active', 'handoff-pending', 'takeover-pending'].includes(currentOwner.status) || observation.canonicalTaskReadback !== true || observation.noLiveTurn !== true || !DIGEST_RE.test(String(observation.reconcileReceiptDigest || ''))) {
+      throw new TaskAdmissionError('TASK_WRITE_OWNER_TAKEOVER_INVALID', 'takeover requires canonical task readback, no live turn and a server-owned reconcile receipt; lease expiry is diagnostic only')
     }
     const takeoverCore = { schemaVersion: 'FencedTaskWriteOwnerTakeoverRefV1', fromLeaseDigest: currentOwner.leaseDigest, targetSessionDigest: sessionDigest, reconcileReceiptDigest: observation.reconcileReceiptDigest, preparedAt: issuedAt }
     const takeoverRef = { ...takeoverCore, refDigest: digest(takeoverCore) }
@@ -2312,7 +2412,7 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
   if (!['committed', 'semantic-noop'].includes(commit.status)) {
     throw new TaskAdmissionError(commit.errorCode || 'TASK_WRITE_OWNER_COMMIT_FAILED', commit.message || 'owner transition failed', commit)
   }
-  return taskWriteOwnerReceipt(operation, transaction, nextOwner, false, nowMs)
+  return buildOwnerReceipt(operation, transaction, nextOwner, false)
 }
 
 function readStableEvidenceFile(activeRoot, taskRoot, evidence, fsImpl = fs) {
@@ -2366,11 +2466,24 @@ function executeWorkflowTaskTerminal(rawInput = {}, options = {}) {
     project: String(rawInput.project || '').trim(),
     taskId: String(rawInput.taskId || '').trim().toLowerCase(),
     admissionId: String(rawInput.admissionId || '').trim(),
-    terminalStatus: String(rawInput.terminalStatus || '').trim()
+    terminalStatus: String(rawInput.terminalStatus || '').trim(),
+    lifecycleRevision: Number(rawInput.lifecycleRevision),
+    expectedStateSequence: Number(rawInput.expectedStateSequence),
+    expectedWriterGeneration: Number(rawInput.expectedWriterGeneration),
+    settledSetDigest: String(rawInput.settledSetDigest || '').trim().toLowerCase()
   }
   validateAuthorityIngress(input, { nowMs, allowBindRoute: true })
   if (!UUID_RE.test(input.taskId) || !/^admission-[a-f0-9]{40}$/.test(input.admissionId) || !['completed', 'rejected', 'cancelled', 'failed'].includes(input.terminalStatus)) {
     throw new TaskAdmissionError('TASK_TERMINAL_INPUT_INVALID', 'taskId, admissionId and terminalStatus are required')
+  }
+  if (!Number.isSafeInteger(input.lifecycleRevision) || input.lifecycleRevision < 1 ||
+      !Number.isSafeInteger(input.expectedStateSequence) || input.expectedStateSequence < 1 ||
+      !Number.isSafeInteger(input.expectedWriterGeneration) || input.expectedWriterGeneration < 1 ||
+      !DIGEST_RE.test(input.settledSetDigest)) {
+    throw new TaskAdmissionError(
+      'TASK_TERMINAL_EXPECTED_STATE_REQUIRED',
+      'terminal closeout requires lifecycleRevision, expected stateSequence, expected writerGeneration and settledSetDigest'
+    )
   }
   const activeIdentity = { activeRoot: input.activeRoot, project: input.project, taskId: input.taskId, taskStatus: 'active' }
   const terminalIdentity = { ...activeIdentity, taskStatus: input.terminalStatus === 'rejected' ? 'rejected' : 'completed' }
@@ -2389,6 +2502,10 @@ function executeWorkflowTaskTerminal(rawInput = {}, options = {}) {
       schemaVersion: 'WorkflowTaskTerminalResultV1',
       status: 'terminal',
       receipt: ownerRead.terminalReceipt,
+      writeContext: readCanonicalTaskWriteContext(metaDir, activeIdentity, ownerRead.owner, {
+        fs: fsImpl,
+        runtimeGeneration: input.serverRuntime?.generationId
+      }),
       persistence: ownerRead.source,
       replayed: true,
       mutationAuthority: false
@@ -2400,6 +2517,48 @@ function executeWorkflowTaskTerminal(rawInput = {}, options = {}) {
       currentOwner.status !== 'active' || !exactOwnerRefMatches(currentOwner, input.expectedOwner) ||
       currentOwner.sessionDigest !== input.projectTargetLease.authorityDigest || currentOwner.contextEpoch !== input.actualInstructionEnvelope.contextEpoch) {
     throw new TaskAdmissionError('TASK_TERMINAL_OWNER_MISMATCH', 'terminal closeout requires the exact finalized active owner')
+  }
+  const observedStateSequence = Number(ownerRead.envelope?.sequence || 0)
+  const observedWriterGeneration = Number(ownerRead.envelope?.writerGeneration ?? currentOwner.ownerGeneration)
+  const observedLifecycleRevision = Number(currentOwner.reopenGeneration || 0) + 1
+  const operationSnapshot = taskOperationTerminalSnapshot(ownerRead.state?.turnLiveness)
+  if (!operationSnapshot.valid) {
+    throw new TaskAdmissionError(
+      'TASK_TERMINAL_OPERATION_STATE_INVALID',
+      'terminal closeout found an invalid task operation set',
+      operationSnapshot
+    )
+  }
+  if (!operationSnapshot.terminalReady) {
+    throw new TaskAdmissionError(
+      'TASK_TERMINAL_OPERATION_UNSETTLED',
+      'terminal closeout requires every mutating operation to settle or reconcile first',
+      operationSnapshot
+    )
+  }
+  if (input.expectedStateSequence !== observedStateSequence ||
+      input.expectedWriterGeneration !== observedWriterGeneration ||
+      input.expectedWriterGeneration !== currentOwner.ownerGeneration ||
+      input.lifecycleRevision !== observedLifecycleRevision ||
+      input.settledSetDigest !== operationSnapshot.settledSetDigest) {
+    throw new TaskAdmissionError(
+      'TASK_TERMINAL_STATE_CAS_MISMATCH',
+      'terminal closeout expected state, writer generation, lifecycle revision or settled set is stale',
+      {
+        expected: {
+          lifecycleRevision: input.lifecycleRevision,
+          stateSequence: input.expectedStateSequence,
+          writerGeneration: input.expectedWriterGeneration,
+          settledSetDigest: input.settledSetDigest
+        },
+        observed: {
+          lifecycleRevision: observedLifecycleRevision,
+          stateSequence: observedStateSequence,
+          writerGeneration: observedWriterGeneration,
+          settledSetDigest: operationSnapshot.settledSetDigest
+        }
+      }
+    )
   }
   if (input.terminalStatus === 'completed' &&
       (transaction.effects?.cpState?.status !== 'confirmed' || transaction.effects?.cpState?.cp1Confirmed !== true)) {
@@ -2449,6 +2608,10 @@ function executeWorkflowTaskTerminal(rawInput = {}, options = {}) {
     admissionTransactionDigest: terminalTransaction.transactionDigest,
     ownerGeneration: terminalOwner.ownerGeneration,
     terminalGeneration: terminalOwner.ownerGeneration,
+    lifecycleRevision: input.lifecycleRevision,
+    expectedStateSequence: input.expectedStateSequence,
+    expectedWriterGeneration: input.expectedWriterGeneration,
+    settledSetDigest: input.settledSetDigest,
     terminalStatus: input.terminalStatus,
     evidence,
     issuedAt
@@ -2459,6 +2622,11 @@ function executeWorkflowTaskTerminal(rawInput = {}, options = {}) {
     identity: terminalIdentity,
     hostSessionDigest: input.actualInstructionEnvelope.hostSessionDigest,
     expectedOwner: ownerRef(currentOwner),
+    expectedCommitFence: {
+      schemaVersion: 'TaskRecoveryCommitFenceV1',
+      stateSequence: input.expectedStateSequence,
+      writerGeneration: input.expectedWriterGeneration
+    },
     owner: terminalOwner,
     transition: 'terminal',
     transaction: terminalTransaction,
@@ -2469,12 +2637,19 @@ function executeWorkflowTaskTerminal(rawInput = {}, options = {}) {
   if (!['committed', 'semantic-noop', 'closeout-reserved'].includes(commit.status)) {
     throw new TaskAdmissionError(commit.errorCode || 'TASK_TERMINAL_CLOSEOUT_FAILED', commit.message || 'terminal closeout failed', commit)
   }
+  const writeContext = commit.status === 'closeout-reserved'
+    ? null
+    : readCanonicalTaskWriteContext(metaDir, terminalIdentity, terminalOwner, {
+        fs: fsImpl,
+        runtimeGeneration: input.serverRuntime?.generationId
+      })
   return {
     schemaVersion: 'WorkflowTaskTerminalResultV1',
     status: commit.status === 'closeout-reserved' ? 'terminal-closeout-reserved' : 'terminal',
     receipt: terminalReceipt,
     owner: terminalOwner,
     transaction: terminalTransaction,
+    writeContext,
     persistence: commit.status,
     reserveSequence: commit.sequence || null,
     replayed: false,
@@ -2499,6 +2674,7 @@ function reconcileWorkflowTaskTerminal(rawInput = {}, options = {}) {
 
 module.exports = {
   ADMISSION_POLICY_REVISION,
+  CANONICAL_TASK_WRITE_CONTEXT_SCHEMA,
   FORMAL_ADMISSION_RECEIPT_SCHEMA,
   FENCED_TASK_WRITE_OWNER_SCHEMA,
   PROJECT_TARGET_LEASE_SCHEMA,
@@ -2519,6 +2695,7 @@ module.exports = {
   recoverTaskAdmissionTransaction,
   executeTaskWriteOwner,
   executeWorkflowTaskTerminal,
+  readCanonicalTaskWriteContext,
   readFinalizedResumeCanonicalEvidence,
   reconcileWorkflowTaskTerminal,
   validateProjectTargetLease

@@ -57,6 +57,12 @@ const {
 const {
   createWorkflowOperationalWriteLease
 } = require('../hooks/_runtime/workflow-operational-write-lease.cjs')
+const {
+  markTaskOperationDispatched,
+  markTaskOperationObserved,
+  prepareTaskOperationRecord,
+  settleTaskOperationRecord
+} = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-task-recovery-v5-'))
 const metaDir = path.join(tempRoot, 'hooks', 'devcodex')
@@ -66,6 +72,19 @@ const baseOptions = {
   softBytes: 64 * 1024 * 1024,
   hardBytes: 128 * 1024 * 1024,
   nowMs: Date.parse('2026-08-22T00:00:00Z')
+}
+
+function zhLanguageContext(turnClass = 'neutral') {
+  return {
+    schemaVersion: 'LanguageContextV2',
+    primaryLanguage: 'zh-CN',
+    responseLanguage: 'zh-CN',
+    artifactLanguage: 'zh-CN',
+    currentTurnClass: turnClass,
+    source: 'task-primary-language',
+    confidence: 'high',
+    updatedPrimary: false
+  }
 }
 
 function identity(taskId, taskStatus = 'active') {
@@ -266,10 +285,10 @@ function tasklessIngressState() {
   return value
 }
 
-function mutationStateV2Ephemeral() {
+function mutationStateV2Ephemeral(operationIdOverride = 'ephemeral-mutation-v2') {
   const value = state('00000000-0000-4000-8000-000000000099', 'implementation')
   value.taskRecoveryBinding = null
-  const operationId = 'ephemeral-mutation-v2'
+  const operationId = operationIdOverride
   const targetPath = path.join(tempRoot, 'src', 'ephemeral-source.js')
   const decisionDigest = 'a'.repeat(64)
   const footprintDigest = 'b'.repeat(64)
@@ -453,6 +472,17 @@ function mutationStateV2Ephemeral() {
       receiptDigest: '9'.repeat(64)
     }
   }
+  value.turnLiveness = prepareTaskOperationRecord(value.turnLiveness, {
+    operationId,
+    idempotencyKey: 'ephemeral-mutation-v2-idempotency',
+    writerGeneration: 0,
+    expectedStateSequence: 0,
+    kind: 'create-or-update',
+    exactTargets: [targetPath],
+    targetSetDigest: value.turnLiveness.inFlightOperation.artifactDecision.targetSetDigest,
+    beforeDigest: value.turnLiveness.inFlightOperation.mutationPreObservation.snapshotDigest
+  }, baseOptions)
+  value.turnLiveness = markTaskOperationDispatched(value.turnLiveness, operationId, baseOptions)
   return value
 }
 
@@ -711,6 +741,7 @@ function runTasklessIngressRecoveryScenario() {
   const tasklessIngressEntry = tasklessIngressRing.entries.find(entry => entry.sessionKeyDigest)
   assert(jsonBytes(tasklessIngressEntry) <= EPHEMERAL_ENTRY_MAX_BYTES)
   const oversizedIngress = tasklessIngressState()
+  oversizedIngress.languageContext = zhLanguageContext()
   oversizedIngress.actualInstructionEnvelope.recoveryPadding = 'x'.repeat(16 * 1024)
   const oversizedSession = 'taskless-ingress-oversized-session'
   assert.strictEqual(commitTaskRecoveryState({
@@ -726,6 +757,8 @@ function runTasklessIngressRecoveryScenario() {
   }, baseOptions)
   assert.strictEqual(oversizedRead.ingressRecovery.status, 'identity-only')
   assert.strictEqual(oversizedRead.ingressRecovery.authority, false)
+  assert.deepStrictEqual(oversizedRead.state.languageContext, zhLanguageContext(),
+    'identity-only taskless recovery must retain the task language under the 8 KiB cap')
   return {
     authorityMode: tasklessIngressRead.ingressRecovery.status,
     entryBytes: jsonBytes(tasklessIngressEntry),
@@ -798,14 +831,18 @@ try {
   assert.strictEqual(fs.readFileSync(compactSerializationSlot, 'utf8').split('\n').length, 2)
 
   const taskId = '00000000-0000-4000-8000-000000000001'
+  const firstState = state(taskId)
   const first = commitTaskRecoveryState({
     metaDir,
     identity: identity(taskId),
     sessionKey: 'session-test',
-    state: state(taskId)
+    state: firstState
   }, baseOptions)
   assert.strictEqual(first.status, 'committed')
   assert.strictEqual(first.fullStateWrite, true)
+  assert.deepStrictEqual(firstState.taskRecoveryCommitFence, first.commitFence)
+  assert.strictEqual(first.commitFence.stateSequence, 1)
+  assert.strictEqual(first.commitFence.writerGeneration, 0)
 
   const admissionTaskId = '00000000-0000-4000-8000-0000000000a1'
   const preparedAdmission = admissionTransaction(admissionTaskId)
@@ -886,6 +923,7 @@ try {
   const slotMtimes = ownerPaths.slots.map(file => fs.existsSync(file) ? fs.statSync(file).mtimeMs : null)
   for (let index = 0; index < 10000; index += 1) {
     const nextState = state(taskId)
+    nextState.taskRecoveryCommitFence = first.commitFence
     nextState.toolUseCount = index + 2
     nextState.updatedAt = new Date(baseOptions.nowMs + index + 1).toISOString()
     nextState.turnLiveness.lastEventAt = nextState.updatedAt
@@ -902,6 +940,7 @@ try {
   assert.deepStrictEqual(ownerPaths.slots.map(file => fs.existsSync(file) ? fs.statSync(file).mtimeMs : null), slotMtimes)
 
   const secondState = state(taskId, 'implementation')
+  secondState.taskRecoveryCommitFence = first.commitFence
   const second = commitTaskRecoveryState({
     metaDir,
     identity: identity(taskId),
@@ -910,16 +949,75 @@ try {
   }, { ...baseOptions, nowMs: baseOptions.nowMs + 20000 })
   assert.strictEqual(second.status, 'committed')
   assert.strictEqual(ownerPaths.slots.filter(file => fs.existsSync(file)).length, 2)
+  const thirdState = state(taskId, 'validation')
+  thirdState.taskRecoveryCommitFence = second.commitFence
   const third = commitTaskRecoveryState({
     metaDir,
     identity: identity(taskId),
     sessionKey: 'session-test',
-    state: state(taskId, 'validation')
+    state: thirdState
   }, { ...baseOptions, nowMs: baseOptions.nowMs + 30000 })
   assert.strictEqual(third.status, 'committed')
   assert.strictEqual(ownerPaths.slots.filter(file => fs.existsSync(file)).length, 2)
   assert(!listNames(paths.root).some(name => /[0-9a-f]{8}-[0-9a-f]{4}/i.test(path.basename(name))))
   assert(!listNames(paths.root).some(name => /\.tmp-/.test(name)))
+
+  const fenceTaskId = '00000000-0000-4000-8000-0000000000f1'
+  const fencedBaseState = state(fenceTaskId, 'fence-base')
+  const fencedBaseCommit = commitTaskRecoveryState({
+    metaDir,
+    identity: identity(fenceTaskId),
+    sessionKey: 'fence-session',
+    state: fencedBaseState
+  }, baseOptions)
+  assert.strictEqual(fencedBaseCommit.status, 'committed')
+  const staleWriterState = JSON.parse(JSON.stringify(fencedBaseState))
+  const freshWriterState = JSON.parse(JSON.stringify(fencedBaseState))
+  freshWriterState.phase = 'fence-fresh-writer'
+  const freshWriterCommit = commitTaskRecoveryState({
+    metaDir,
+    identity: identity(fenceTaskId),
+    sessionKey: 'fence-session',
+    state: freshWriterState
+  }, { ...baseOptions, nowMs: baseOptions.nowMs + 1 })
+  assert.strictEqual(freshWriterCommit.status, 'committed')
+  assert.strictEqual(freshWriterCommit.commitFence.stateSequence, 2)
+  staleWriterState.phase = 'fence-stale-writer'
+  const staleWriterCommit = commitTaskRecoveryState({
+    metaDir,
+    identity: identity(fenceTaskId),
+    sessionKey: 'fence-session',
+    state: staleWriterState
+  }, { ...baseOptions, nowMs: baseOptions.nowMs + 2, force: true })
+  assert.strictEqual(staleWriterCommit.errorCode, 'LIFECYCLE_STATE_FENCE_MISMATCH')
+  assert.strictEqual(staleWriterCommit.fullStateWrite, false)
+  assert.strictEqual(staleWriterCommit.observedCommitFence.stateSequence, 2)
+  const afterStaleWrite = readTaskRecoveryState({ metaDir, identity: identity(fenceTaskId) })
+  assert.strictEqual(afterStaleWrite.envelope.sequence, 2)
+  assert.strictEqual(afterStaleWrite.state.phase, 'fence-fresh-writer')
+  assert.deepStrictEqual(afterStaleWrite.state.taskRecoveryCommitFence, freshWriterCommit.commitFence)
+  assert.strictEqual(afterStaleWrite.envelope.writerGeneration, 0)
+  assert.strictEqual(
+    Object.prototype.hasOwnProperty.call(afterStaleWrite.envelope.state, 'taskRecoveryCommitFence'),
+    false,
+    'the runtime fence must not be persisted inside the lifecycle payload'
+  )
+  const missingFenceState = state(fenceTaskId, 'fence-missing')
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir,
+    identity: identity(fenceTaskId),
+    sessionKey: 'fence-session',
+    state: missingFenceState
+  }, { ...baseOptions, force: true }).errorCode, 'LIFECYCLE_STATE_FENCE_REQUIRED')
+  const wrongGenerationState = JSON.parse(JSON.stringify(afterStaleWrite.state))
+  wrongGenerationState.phase = 'fence-wrong-generation'
+  wrongGenerationState.taskRecoveryCommitFence.writerGeneration += 1
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir,
+    identity: identity(fenceTaskId),
+    sessionKey: 'fence-session',
+    state: wrongGenerationState
+  }, { ...baseOptions, force: true }).errorCode, 'LIFECYCLE_STATE_FENCE_MISMATCH')
 
   const slotValues = ownerPaths.slots.map(file => JSON.parse(fs.readFileSync(file, 'utf8')))
   const newestIndex = slotValues[0].sequence > slotValues[1].sequence ? 0 : 1
@@ -936,17 +1034,21 @@ try {
 
   const preflightMeta = path.join(tempRoot, 'preflight-hooks')
   const preflightId = '00000000-0000-4000-8000-000000000004'
-  assert.strictEqual(commitTaskRecoveryState({
+  const preflightBaseState = state(preflightId, 'implementation')
+  const preflightBaseCommit = commitTaskRecoveryState({
     metaDir: preflightMeta,
     identity: identity(preflightId),
     sessionKey: 'preflight-session',
-    state: state(preflightId, 'implementation')
-  }, baseOptions).status, 'committed')
+    state: preflightBaseState
+  }, baseOptions)
+  assert.strictEqual(preflightBaseCommit.status, 'committed')
+  const preflightMutationState = mutationState(preflightId)
+  preflightMutationState.taskRecoveryCommitFence = preflightBaseCommit.commitFence
   const preflightCommit = commitTaskRecoveryState({
     metaDir: preflightMeta,
     identity: identity(preflightId),
     sessionKey: 'preflight-session',
-    state: mutationState(preflightId)
+    state: preflightMutationState
   }, { ...baseOptions, nowMs: baseOptions.nowMs + 1, reason: 'mutation-preflight', force: true })
   assert.strictEqual(preflightCommit.status, 'committed')
   assert.strictEqual(preflightCommit.recordType, 'mutation-preflight')
@@ -1010,9 +1112,21 @@ try {
   )
 
   const secondUseMeta = path.join(tempRoot, 'ephemeral-preflight-second-use-hooks')
-  const secondUseState = mutationStateV2Ephemeral()
   const priorOperationId = `simple-prior-${'p'.repeat(80)}`
   const currentOperationId = `simple-current-${'c'.repeat(80)}`
+  const secondUseState = mutationStateV2Ephemeral(priorOperationId)
+  secondUseState.turnLiveness = markTaskOperationObserved(
+    secondUseState.turnLiveness,
+    priorOperationId,
+    { resultDigest: 'a'.repeat(64), evidenceDigest: 'b'.repeat(64) },
+    { ...baseOptions, nowMs: baseOptions.nowMs + 1 }
+  )
+  secondUseState.turnLiveness = settleTaskOperationRecord(
+    secondUseState.turnLiveness,
+    priorOperationId,
+    { effect: 'known-applied' },
+    { ...baseOptions, nowMs: baseOptions.nowMs + 2 }
+  )
   const secondUseUsageSemantic = {
     ...secondUseState.simpleTaskFastPathUsage,
     useCount: 1,
@@ -1027,13 +1141,32 @@ try {
   }
   secondUseState.turnLiveness.inFlightOperation.operationId = currentOperationId
   secondUseState.turnLiveness.inFlightOperation.mutationLease.operationId = currentOperationId
+  secondUseState.turnLiveness = prepareTaskOperationRecord(secondUseState.turnLiveness, {
+    operationId: currentOperationId,
+    idempotencyKey: 'ephemeral-mutation-v2-second-use',
+    writerGeneration: 0,
+    expectedStateSequence: 0,
+    kind: 'create-or-update',
+    exactTargets: secondUseState.turnLiveness.inFlightOperation.mutationFootprint.normalizedTargets,
+    targetSetDigest: secondUseState.turnLiveness.inFlightOperation.artifactDecision.targetSetDigest,
+    beforeDigest: secondUseState.turnLiveness.inFlightOperation.mutationPreObservation.snapshotDigest
+  }, baseOptions)
+  secondUseState.turnLiveness = markTaskOperationDispatched(
+    secondUseState.turnLiveness,
+    currentOperationId,
+    baseOptions
+  )
   const secondUsePreflight = commitTaskRecoveryState({
     metaDir: secondUseMeta,
     identity: { activeRoot, project: 'devcodex' },
     sessionKey: 'ephemeral-preflight-second-use-session',
     state: secondUseState
   }, { ...baseOptions, reason: 'mutation-preflight', force: true })
-  assert.strictEqual(secondUsePreflight.status, 'ephemeral-stub')
+  assert.strictEqual(
+    secondUsePreflight.status,
+    'ephemeral-stub',
+    JSON.stringify(secondUsePreflight)
+  )
   assert(secondUsePreflight.preflightBytes <= MUTATION_PREFLIGHT_STATE_MAX_BYTES)
   const secondUseRead = readTaskRecoveryState({
     metaDir: secondUseMeta,
@@ -1045,17 +1178,20 @@ try {
 
   const lowDiskMeta = path.join(tempRoot, 'low-disk-hooks')
   const lowDiskId = '00000000-0000-4000-8000-000000000005'
-  assert.strictEqual(commitTaskRecoveryState({
+  const lowDiskBaseCommit = commitTaskRecoveryState({
     metaDir: lowDiskMeta,
     identity: identity(lowDiskId),
     sessionKey: 'low-disk-session',
     state: state(lowDiskId, 'implementation')
-  }, baseOptions).status, 'committed')
+  }, baseOptions)
+  assert.strictEqual(lowDiskBaseCommit.status, 'committed')
+  const lowDiskMutationState = mutationState(lowDiskId)
+  lowDiskMutationState.taskRecoveryCommitFence = lowDiskBaseCommit.commitFence
   const lowDisk = commitTaskRecoveryState({
     metaDir: lowDiskMeta,
     identity: identity(lowDiskId),
     sessionKey: 'low-disk-session',
-    state: mutationState(lowDiskId)
+    state: lowDiskMutationState
   }, {
     ...baseOptions,
     availableDiskBytes: 0,
@@ -1406,6 +1542,7 @@ try {
   const coldMeta = path.join(tempRoot, 'cold-hooks')
   const coldId = '00000000-0000-4000-8000-000000000006'
   const checkpointed = state(coldId, 'implementation')
+  checkpointed.languageContext = zhLanguageContext('substantive')
   checkpointed.turnLiveness.checkpoint = {
     phase: 'pre-compact:implementation',
     artifactPaths: [path.join(activeRoot, 'bugs', coldId, '05-实施进度.md')],
@@ -1484,6 +1621,8 @@ try {
   assert.strictEqual(coldRead.state.validationControlIngress, null)
   assert.strictEqual(coldRead.state.validationExecution, null,
     'cold resume stubs must strip every live or replayable validation authority record')
+  assert.deepStrictEqual(coldRead.state.languageContext, zhLanguageContext('substantive'),
+    'cold recovery must preserve the compact task language carrier')
   assert.strictEqual(coldRead.state.turnLiveness.lastMutationCloseout.result, 'reconciled')
   assert.strictEqual(validateArtifactMutationReconciliationEvidence(
     coldRead.state.turnLiveness.lastMutationCloseout.reconciliation,
@@ -1527,6 +1666,7 @@ try {
   const simpleEphemeralMeta = path.join(tempRoot, 'simple-ephemeral-hooks')
   const simpleEphemeralState = mutationStateV2Ephemeral()
   simpleEphemeralState.turnLiveness.inFlightOperation = null
+  simpleEphemeralState.languageContext = zhLanguageContext()
   assert.strictEqual(commitTaskRecoveryState({
     metaDir: simpleEphemeralMeta,
     identity: { activeRoot, project: 'devcodex' },
@@ -1539,6 +1679,8 @@ try {
   }, baseOptions)
   assert.strictEqual(simpleEphemeralRead.status, 'ephemeral-stub')
   assert.strictEqual(simpleEphemeralRead.state.recoveryCompaction, 'simple-authority-budget')
+  assert.deepStrictEqual(simpleEphemeralRead.state.languageContext, zhLanguageContext(),
+    'simple authority recovery must preserve task language')
   assert.deepStrictEqual(
     simpleEphemeralRead.state.simpleTaskFastPathLease,
     simpleEphemeralState.simpleTaskFastPathLease,
@@ -1555,6 +1697,7 @@ try {
   const ephemeralMeta = path.join(tempRoot, 'ephemeral-hooks')
   const ephemeralState = state('ephemeral')
   ephemeralState.taskRecoveryBinding = null
+  ephemeralState.languageContext = zhLanguageContext()
   const operationalLeaseSemantic = {
     schemaVersion: 'WorkflowOperationalWriteLeaseV1',
     leaseId: `operational-${'1'.repeat(40)}`,
@@ -1709,6 +1852,8 @@ try {
     'operational-authority-budget',
     'active operational authority must use the bounded dedicated recovery projection'
   )
+  assert.deepStrictEqual(approvalEphemeralRead.state.languageContext, zhLanguageContext(),
+    'operational authority recovery must preserve task language under byte pressure')
   assert.strictEqual(
     approvalEphemeralRead.state.workflowOperationalWriteLeaseCloseout.leaseDigest,
     ephemeralState.workflowOperationalWriteLeaseCloseout.leaseDigest,
@@ -1790,6 +1935,7 @@ try {
   const oversizedEphemeralMeta = path.join(tempRoot, 'oversized-ephemeral-hooks')
   const oversizedEphemeralState = state('oversized-ephemeral')
   oversizedEphemeralState.taskRecoveryBinding = null
+  oversizedEphemeralState.languageContext = zhLanguageContext()
   oversizedEphemeralState.progressiveSkillRoute = {
     schemaVersion: 'ProgressiveSkillRouteStateV1',
     bootstrap: {
@@ -1827,6 +1973,8 @@ try {
   assert.strictEqual(oversizedEphemeralRead.status, 'ephemeral-stub')
   assert.strictEqual(oversizedEphemeralRead.state.recoveryCompaction, 'minimal-budget')
   assert.strictEqual(oversizedEphemeralRead.state.contextAcquisition.handoff.planId, 'plan-test')
+  assert.deepStrictEqual(oversizedEphemeralRead.state.languageContext, zhLanguageContext(),
+    'minimal ephemeral recovery must preserve task language instead of falling back to the host locale')
   const oversizedRingFiles = storePaths(oversizedEphemeralMeta).ephemeral
     .filter(file => fs.existsSync(file))
     .map(file => JSON.parse(fs.readFileSync(file, 'utf8')))
@@ -1837,17 +1985,21 @@ try {
   for (const faultKind of ['open', 'fsync', 'rename', 'readback']) {
     const faultMeta = path.join(tempRoot, `fault-${faultKind}`)
     const faultId = `20000000-0000-4000-8000-${faultKind.padEnd(12, '0').slice(0, 12)}`
-    assert.strictEqual(commitTaskRecoveryState({
+    const faultBaseCommit = commitTaskRecoveryState({
       metaDir: faultMeta,
       identity: identity(faultId),
       state: state(faultId, 'before-fault')
-    }, baseOptions).status, 'committed')
+    }, baseOptions)
+    assert.strictEqual(faultBaseCommit.status, 'committed')
+    const faultCandidateState = state(faultId, `after-${faultKind}`)
+    faultCandidateState.taskRecoveryCommitFence = faultBaseCommit.commitFence
     const failed = commitTaskRecoveryState({
       metaDir: faultMeta,
       identity: identity(faultId),
-      state: state(faultId, `after-${faultKind}`)
+      state: faultCandidateState
     }, { ...baseOptions, fs: faultInjectingFs(faultKind), force: true })
     assert.strictEqual(failed.status, 'error', `${faultKind} must fail the attempted commit`)
+    assert.notStrictEqual(failed.errorCode, 'LIFECYCLE_STATE_FENCE_REQUIRED')
     const afterFault = readTaskRecoveryState({ metaDir: faultMeta, identity: identity(faultId) })
     assert.strictEqual(afterFault.status, 'fresh')
     assert.strictEqual(afterFault.envelope.sequence, 1, `${faultKind} must preserve the prior valid slot`)
@@ -1856,20 +2008,26 @@ try {
 
   const closeoutFaultMeta = path.join(tempRoot, 'fault-closeout')
   const closeoutFaultId = '30000000-0000-4000-8000-000000000001'
-  assert.strictEqual(commitTaskRecoveryState({
+  const closeoutBaseCommit = commitTaskRecoveryState({
     metaDir: closeoutFaultMeta,
     identity: identity(closeoutFaultId),
     state: state(closeoutFaultId, 'before-mutation')
-  }, baseOptions).status, 'committed')
-  assert.strictEqual(commitTaskRecoveryState({
+  }, baseOptions)
+  assert.strictEqual(closeoutBaseCommit.status, 'committed')
+  const closeoutPreflightState = mutationState(closeoutFaultId)
+  closeoutPreflightState.taskRecoveryCommitFence = closeoutBaseCommit.commitFence
+  const closeoutPreflightCommit = commitTaskRecoveryState({
     metaDir: closeoutFaultMeta,
     identity: identity(closeoutFaultId),
-    state: mutationState(closeoutFaultId)
-  }, { ...baseOptions, reason: 'mutation-preflight', force: true }).status, 'committed')
+    state: closeoutPreflightState
+  }, { ...baseOptions, reason: 'mutation-preflight', force: true })
+  assert.strictEqual(closeoutPreflightCommit.status, 'committed')
+  const closeoutFinalState = mutationState(closeoutFaultId, 'mutation-finished')
+  closeoutFinalState.taskRecoveryCommitFence = closeoutPreflightCommit.commitFence
   const reservedCloseout = commitTaskRecoveryState({
     metaDir: closeoutFaultMeta,
     identity: identity(closeoutFaultId),
-    state: mutationState(closeoutFaultId, 'mutation-finished')
+    state: closeoutFinalState
   }, {
     ...baseOptions,
     fs: faultInjectingFs('rename'),

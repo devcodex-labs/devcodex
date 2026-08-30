@@ -10,7 +10,10 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { resolveGlobalHostTarget } = require('./global-host-target.js')
-const { createEntryCheckModelV3 } = require('../../hooks/_runtime/visible-output-contract.cjs')
+const {
+  createEntryCheckModelV3,
+  resolveVisibleLocale
+} = require('../../hooks/_runtime/visible-output-contract.cjs')
 
 const PACKAGE_ROOT = path.join(__dirname, '..', '..')
 
@@ -368,13 +371,21 @@ function normalizeEnvMode(value) {
 
 function composePc4Line(options = {}) {
   const mode = normalizeEnvMode(options.envMode || options.mode || options.profileMode)
+  const locale = resolveVisibleLocale(options.languageContext)
+  const english = locale.renderedLanguage === 'en'
   if (mode === 'dev') {
-    return '- PC4 [UNVERIFIED] dev 模式：必须输出完整规范雷达，并绑定所用 Skills/Profile/Owner/TestRoute'
+    return english
+      ? '- PC4 [UNVERIFIED] dev mode: show the full specification radar and bind the selected Skills/Profile/Owner/TestRoute'
+      : '- PC4 [UNVERIFIED] dev 模式：必须输出完整规范雷达，并绑定所用 Skills/Profile/Owner/TestRoute'
   }
   if (mode === 'prod') {
-    return '- PC4 [N/A] prod 模式：不展开 dev 规范雷达；安全底线与 CP 门控仍强制'
+    return english
+      ? '- PC4 [N/A] prod mode: omit the dev specification radar; safety invariants and CP gates still apply'
+      : '- PC4 [N/A] prod 模式：不展开 dev 规范雷达；安全底线与 CP 门控仍强制'
   }
-  return '- PC4 [UNVERIFIED] ENV_MODE unknown：需先读取 Profile config 后判定 dev/prod 与 PC4 展开方式'
+  return english
+    ? '- PC4 [UNVERIFIED] ENV_MODE unknown: read Profile config before selecting dev/prod and the PC4 detail level'
+    : '- PC4 [UNVERIFIED] ENV_MODE unknown：需先读取 Profile config 后判定 dev/prod 与 PC4 展开方式'
 }
 
 /**
@@ -542,10 +553,30 @@ function evaluateGrokHostParity(input = {}) {
 }
 
 function composeEntryCheckBlock(options = {}) {
-  const project = String(options.project || '未识别').trim() || '未识别'
+  const locale = resolveVisibleLocale(options.languageContext)
+  const english = locale.renderedLanguage === 'en'
+  const projectFallback = english ? 'unverified' : '未识别'
+  const project = String(options.project || projectFallback).trim() || projectFallback
   const overall = String(options.status || 'UNVERIFIED').trim() || 'UNVERIFIED'
-  const next = String(options.nextStep || '完成 ContextReadPlan 与有界 Profile/memory 读取后继续').trim()
+  const next = String(options.nextStep || (
+    english
+      ? 'Continue after ContextReadPlan and bounded Profile/memory reads'
+      : '完成 ContextReadPlan 与有界 Profile/memory 读取后继续'
+  )).trim()
   const digest = String(options.semanticDigest || 'pending-entry-check').trim()
+  const continuationFallback = english
+    ? {
+        nextStage: next,
+        automatic: false,
+        userAction: 'Follow the entry guidance; use none when no action is required',
+        correctionHint: 'State the workflow, design depth, or validation scope to change'
+      }
+    : {
+        nextStage: next,
+        automatic: false,
+        userAction: '按当前提示操作；若无需操作则为 none',
+        correctionHint: '直接说明要调整的流程、方案深度或验证范围'
+      }
   const entryCheckModel = options.entryCheckModel?.schemaVersion === 'EntryCheckModelV3'
     ? options.entryCheckModel
     : createEntryCheckModelV3({
@@ -562,12 +593,7 @@ function composeEntryCheckBlock(options = {}) {
           differences: []
         },
         validationPlan: options.validationPlan || {},
-        continuation: options.continuation || {
-          nextStage: next,
-          automatic: false,
-          userAction: '按当前提示操作；若无需操作则为 none',
-          correctionHint: '直接说明要调整的流程、方案深度或验证范围'
-        },
+        continuation: options.continuation || continuationFallback,
         showPlan: options.showPlan !== false
       })
   const version = entryCheckModel.versionFacts
@@ -578,37 +604,64 @@ function composeEntryCheckBlock(options = {}) {
   const runtime = version.activeRuntimeGeneration
     ? `${version.activeRuntimeGeneration.packageVersion}/${version.activeRuntimeGeneration.generationId}`
     : 'unverified'
+  const configuredRuntime = version.configuredRuntimeGeneration
+    ? `${version.configuredRuntimeGeneration.packageVersion}/${version.configuredRuntimeGeneration.generationId}`
+    : 'unverified'
   const source = version.sourceCandidate
     ? `${version.sourceCandidate.packageVersion}@${version.sourceCandidate.shortHead}${version.sourceCandidate.dirty ? ' dirty' : ''}`
     : 'none'
   const post = postContext
     ? `${postContext.ceremonyTier}/${postContext.designDepth}`
-    : '待有界上下文后二次判断'
+    : (english ? 'pending bounded-context reassessment' : '待有界上下文后二次判断')
   const differences = entryCheckModel.workflowPlan.differences.join(', ') || 'none'
+  const restartRequired = version.restartRequired === true
+    ? (english ? 'yes' : '是')
+    : (version.restartRequired === false ? (english ? 'no' : '否') : 'unverified')
+  const includeMachineMarker = options.includeMachineMarker === true || options.audience === 'audit'
+  const fallbackLine = locale.fallbackReason
+    ? locale.catalog.localeFallback(locale.requestedLanguage, locale.fallbackReason)
+    : null
   // UserVisibleReplyLayoutV1: plain-language table shared by all six hosts.
   // Cell keeps "PC4 [STATUS] …" so parsers matching /PC4 \[STATUS\]/ still work.
-  const pc4Cell = composePc4Line(options).replace(/^- /, '').trim()
-  return [
-    '### DevCodex · 入口检查',
-    `\`${overall}\` · \`${project}\``,
-    '',
-    '| 项 | 内容（人话；禁止进度缩写） |',
-    '|----|----------------------------|',
-    `| PC0 | 版本：installed=${version.installedPackageVersion}；runtime=${runtime}；source=${source}；alignment=${version.alignment} |`,
+  const pc4Cell = composePc4Line({ ...options, languageContext: options.languageContext }).replace(/^- /, '').trim()
+  const zhRows = [
+    `| PC0 | 版本与运行代际：installed=${version.installedPackageVersion}；active=${runtime}；configured=${configuredRuntime}；source=${source}；alignment=${version.alignment}；需要重启=${restartRequired}；原因=${version.restartReason} |`,
     '| PC1 | 意图：语义初判 → 扩展后工作流 |',
-    '| PC2 | 会话：轮次 / Token 防护 / 待跟进 |',
-    '| PC3 | 执行准备：唯一项目 · 连续性 · 产物落点 |',
+    '| PC2 | 会话：轮次、Token 防护与待跟进项 |',
+    '| PC3 | 执行准备：唯一项目、连续性与产物落点 |',
     `| PC4 | ${pc4Cell} |`,
-    '| PC5 | 宿主：部署/同步/加载证据（Grok: Partial unless Full launcher） |',
-    '| PC6 | 工作区：git dirty · active task |',
-    '| PC7 | 续接：新会话或 resume 有界检测 |',
-    `| PC8 | 流程/方案：初判=${precheck.ceremonyTier}/${precheck.designDepth}；二次=${post}；差异=${differences} |`,
-    `| PC9 | 验证：${validation.assuranceLevel}；targeted=${validation.targetedCount}，affected=${validation.affectedCount}，full=${validation.fullCount}；CI=${validation.ciRequired}，package=${validation.packageRequired}，install=${validation.installRequired}，release=${validation.releaseRequired}；时长=${validation.estimatedDuration} |`,
-    `| PC10 | 下一阶段=${continuation.nextStage}；自动继续=${continuation.automatic}；用户动作=${continuation.userAction}；修正提示=${continuation.correctionHint} |`,
+    '| PC5 | 宿主：部署、同步与加载证据（Grok 仅在 Full 启动器下可判 Full） |',
+    '| PC6 | 工作区：Git 改动状态与当前活动任务 |',
+    '| PC7 | 续接：新会话或 resume 的有界检测 |',
+    `| PC8 | 流程与方案：初判=${precheck.ceremonyTier}/${precheck.designDepth}；二次=${post}；差异=${differences} |`,
+    `| PC9 | 验证：${validation.assuranceLevel}；定向=${validation.targetedCount}，受影响=${validation.affectedCount}，全量=${validation.fullCount}；CI=${validation.ciRequired}，打包=${validation.packageRequired}，安装=${validation.installRequired}，发布=${validation.releaseRequired}；预计时长=${validation.estimatedDuration} |`,
+    `| PC10 | 下一阶段=${continuation.nextStage}；自动继续=${continuation.automatic}；用户动作=${continuation.userAction}；修正提示=${continuation.correctionHint} |`
+  ]
+  const enRows = [
+    `| PC0 | Version and runtime generation: installed=${version.installedPackageVersion}; active=${runtime}; configured=${configuredRuntime}; source=${source}; alignment=${version.alignment}; restart required=${restartRequired}; reason=${version.restartReason} |`,
+    '| PC1 | Intent: semantic precheck → expanded workflow |',
+    '| PC2 | Session: turn count, token guard, and follow-ups |',
+    '| PC3 | Execution readiness: unique project, continuity, and artifact destinations |',
+    `| PC4 | ${pc4Cell} |`,
+    '| PC5 | Host: deployment, synchronization, and load evidence (Grok is Full only through the Full launcher) |',
+    '| PC6 | Workspace: Git change state and active task |',
+    '| PC7 | Continuation: bounded detection for a new session or resume |',
+    `| PC8 | Workflow and design: precheck=${precheck.ceremonyTier}/${precheck.designDepth}; reassessment=${post}; differences=${differences} |`,
+    `| PC9 | Validation: ${validation.assuranceLevel}; targeted=${validation.targetedCount}, affected=${validation.affectedCount}, full=${validation.fullCount}; CI=${validation.ciRequired}, package=${validation.packageRequired}, install=${validation.installRequired}, release=${validation.releaseRequired}; estimate=${validation.estimatedDuration} |`,
+    `| PC10 | Next stage=${continuation.nextStage}; automatic=${continuation.automatic}; user action=${continuation.userAction}; correction hint=${continuation.correctionHint} |`
+  ]
+  return [
+    english ? '### DevCodex · Entry check' : '### DevCodex · 入口检查',
+    `\`${overall}\` · \`${project}\``,
+    fallbackLine,
     '',
-    `下一步：${next}`,
-    `DevCodexVisibleEnvelopeV3 · entry-check · ${overall} · ${digest}`
-  ].join('\n')
+    english ? '| Check | Human-readable decision |' : '| 检查项 | 人类可读判定 |',
+    '|---|---|',
+    ...(english ? enRows : zhRows),
+    '',
+    `${english ? 'Next' : '下一步'}：${next}`,
+    includeMachineMarker ? `DevCodexVisibleEnvelopeV3 · entry-check · ${overall} · ${digest}` : null
+  ].filter(value => value !== null && value !== undefined).join('\n')
 }
 
 function entryCheckAssistSuffix(options = {}) {

@@ -27,6 +27,7 @@ description: AI Agent 系统架构专家 Owner — 当任务涉及 Agent 路由�
 | `ToolPermissionBoundaryGate` | 工具权限、危险操作、确认和 fallback 必须明确 | toolPermissionBoundary |
 | `ContextAcquisitionGate` | 每条消息必须先形成语义种子与唯一目标，再按计划读取最小充分上下文，并用 Post 成功回执证明完成 | IntentSeedV1、ContextReadPlanV2、ContextReadReceiptV2（V1 兼容） |
 | `ContextMemoryStateGate` | 上下文恢复、记忆、handoff 和状态新鲜度必须设计 | contextMemoryModel |
+| `TaskContinuityWriteGate` | 正式任务写入必须由单一 V5 store owner、精确 state/writer fence、canonical write context、operation 状态机与 terminal lineage 共同约束；TTL 不产生写权 | taskContinuityWriteContract |
 | `ReplayObservabilityGate` | 行为验证不能只靠文字说明，需 replay、fixture 或日志证据 | observabilityReplay |
 | `TurnLivenessRecoveryGate` | 长任务或工具输出后的 turn 必须用事件时间、AI-owned lease、continuation ACK、terminal invariant 与 checkpoint 区分运行、可疑、可恢复停滞和终态 | turnLivenessContract、TurnRecoveryCard、TurnLivenessEvidence |
 | `LocalTaskTraceGate` | 当前 turn 的 typed trace 必须严格有序、拒绝重复/终态后追加，并只提供不执行 payload 的只读 replay | LocalTaskTraceV1、LocalTaskTraceReplayV1 |
@@ -64,6 +65,12 @@ IntentSeedV1 → unique project/activeRoot → ContextReadPlanV2（V1 兼容）�
 - SkillRoute per-turn envelope 是临时执行 cache，不是正式任务存储。容量必须按语义活跃对象计数；空 orphan、无业务义务终态和同会话已被后继 context 取代的未提交 route 只能在 root/turn lock、identity 与 quarantine/readback 复证后有界退出。protected、live lock、identity mismatch、其他会话未完成 route 和业务回复义务必须保留并在 hard pressure 下失败关闭。正式任务数量仍由 TaskRecoveryStoreV5 的字节/headroom 合同治理，不得套用 per-turn 数量上限。
 - 用户/项目明确要求、audit/migration、低置信或必要来源缺失可升级全量；目标、scope/action/risk、source digest 或 compact/resume 发生实质漂移时重新规划。不得每个动作都重复加载。
 - 宿主缺少结构化工具时可走一次 path-observable / instruction fallback；证据不足保持 `partial/unverified`，后续安全、CP、治理和验证门禁不得因节流而降低。
+
+### TaskContinuityWriteGate
+
+正式任务的 locator、当前写者、单次 operation、终态和运行时投影是不同边界，不能把“找到了任务”解释为“可以写”。所有正式 envelope commit 必须由 TaskRecoveryStoreV5 精确比较 `TaskRecoveryCommitFenceV1.stateSequence + writerGeneration`；`force` 不绕过 stale fence，writer generation 只可在 owner transition 中增加 1。owner claim/transition 后必须 readback `CanonicalTaskWriteContextV1`，writer 绑定 task/root、lifecycle revision、state sequence、writer generation、holder session、operation/settled set digest、runtime generation 与 context digest。TTL 只作 freshness、清理和诊断，不能产生 takeover。
+
+每个任务最多存在一个未结算 mutating `TaskOperationRecordV1`，固定经过 `prepared → dispatched → observed → settled`，未知副作用转 `reconcile-required`，未派发才允许 `aborted-zero-effect`。已派发操作不得自动重试；迟到回执和 emergency reserve 只能推进同一 operationId、idempotency key、writer generation、exact targets 与 before digest。terminal 必须同时验证 current writer、write context fence、settled set 和独立证据；replay 零新写，reopen 产生 lifecycle revision+1 与新 owner generation。
 
 ### TurnLivenessRecoveryGate
 
@@ -108,6 +115,7 @@ IntentSeedV1 → unique project/activeRoot → ContextReadPlanV2（V1 兼容）�
 | stateMachineHandoff | 状态机、恢复、阻塞、交接 |
 | observabilityReplay | replay、fixture、日志、validate 证据 |
 | turnLivenessContract | 状态、事件、lease、ACK、终态、双阶段 checkpoint、LocalTaskTrace、能力边界与故障矩阵 |
+| taskContinuityWriteContract | store owner、state/writer fence、CanonicalTaskWriteContext、operation 状态机、terminal/reopen、TTL 边界与负向探针 |
 | humanInLoopBoundary | 用户确认、auto、人工复核和最终责任边界 |
 | capabilitySurfaceEvidence | `decisionRef`、控制方、read/write/execute、authority、状态/Task 与直接证据边界 |
 | evidenceMatrix | 判断 -> hook / runtime / report / memory / replay / tests |

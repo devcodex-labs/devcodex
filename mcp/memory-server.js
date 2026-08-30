@@ -119,6 +119,14 @@ const {
   createSimpleTaskFastPathUsage,
   validateSimpleTaskFastPathUsage
 } = require('../hooks/_runtime/simple-task-fast-path-lease.cjs')
+const { readLayeredArtifactSlotRegistry } = require('../hooks/_runtime/artifact-slot-decision.cjs')
+const {
+  createArtifactTemplateBinding,
+  projectArtifactTemplateBinding,
+  qualifyArtifactContent,
+  renderArtifactTemplateQualification,
+  validateArtifactTemplateQualification
+} = require('../hooks/_runtime/artifact-template-contract.cjs')
 
 function loadCpDigestContract() {
   try {
@@ -444,7 +452,11 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       additionalProperties: false,
-      required: ['ingressRef', 'taskId', 'admissionId', 'terminalStatus', 'expectedOwner', 'evidence'],
+      required: [
+        'ingressRef', 'taskId', 'admissionId', 'terminalStatus', 'expectedOwner',
+        'lifecycleRevision', 'expectedStateSequence', 'expectedWriterGeneration',
+        'settledSetDigest', 'evidence'
+      ],
       properties: {
         project: PROJECT_NAMESPACE_INPUT_SCHEMA,
         scope: { type: 'string', enum: ['project'] },
@@ -453,6 +465,10 @@ const TOOLS = [
         admissionId: { type: 'string', pattern: '^admission-[a-f0-9]{40}$' },
         terminalStatus: { type: 'string', enum: ['completed', 'rejected', 'cancelled', 'failed'] },
         expectedOwner: TASK_WRITE_OWNER_REF_SCHEMA,
+        lifecycleRevision: { type: 'integer', minimum: 1 },
+        expectedStateSequence: { type: 'integer', minimum: 1 },
+        expectedWriterGeneration: { type: 'integer', minimum: 1 },
+        settledSetDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
         evidence: {
           type: 'array',
           minItems: 4,
@@ -507,7 +523,7 @@ const TOOLS = [
   },
   {
     name: 'memory_task_resolve',
-    description: '按稳定 taskId、active displayName 或 alias 精确定位任务。只读取有界 identity/session/CP 元数据，不把任务名或派生索引当作状态真相。',
+    description: '按 taskId、名称或 alias 精确定位，仅返回有界元数据。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -522,7 +538,7 @@ const TOOLS = [
   },
   {
     name: 'memory_status',
-    description: '返回当前目标的紧凑记忆状态：今日/昨日元数据、有限 SUMMARY 行、活动会话与状态冲突。不返回整文件正文。',
+    description: '返回当前目标的有界记忆状态与冲突摘要。',
     inputSchema: {
       type: 'object',
       required: ['contextBinding'],
@@ -579,7 +595,7 @@ const TOOLS = [
   },
   {
     name: 'memory_session_allocate',
-    description: '在 active-root/agent/date 作用域内原子分配下一会话编号与不透明 sessionBinding，并写入 reserved daily memory 段；后续写入必须回传二者，避免多写者串写。',
+    description: '原子分配会话编号与 sessionBinding，并预留 daily memory 段。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -611,7 +627,7 @@ const TOOLS = [
   },
   {
     name: 'memory_session_write',
-    description: '把内容追加到已分配的精确会话段。可传 artifacts，由写入器按 daily document 上下文生成 canonical 去重的相对 Markdown 链接块。',
+    description: '向已分配会话段追加内容及去重的产物链接。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -1062,7 +1078,7 @@ function renderCpConfirmation(existing, args, binding) {
   }
 
   const renderedLines = renderExtendedCpTable(phases).split('\n')
-  renderedLines[0] = (location.found && location.headingLine) || (sanitized ? '### CP 确认记录' : `# ${args.requirement} — CP 确认记录`)
+  renderedLines[0] = (location.found && location.headingLine) || '### CP 确认记录'
   const rendered = renderedLines.join('\n')
   let output
   if (location.found) {
@@ -1074,6 +1090,18 @@ function renderCpConfirmation(existing, args, binding) {
   } else {
     // Never append a bare CP data row; always materialize heading + header + CP1~CP3
     output = `${String(sanitized || '').trimEnd()}${sanitized ? '\n\n' : ''}${rendered}`
+  }
+  if (!/^#\s+/m.test(output)) output = `# ${args.requirement} 任务会话记录\n\n${output}`
+  const requiredSections = [
+    ['## 本轮摘要', '- 本轮 CP 确认状态已由结构化表格记录。'],
+    ['## 已确认事项', '- 以 CP 确认表及其 artifact digest 绑定为准。'],
+    ['## 待确认事项', '- 无则保持本项。'],
+    ['## 备注', '- 本文件由 Memory MCP 事务写入并读回。']
+  ]
+  for (const [heading, placeholder] of requiredSections) {
+    if (!new RegExp(`^${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'm').test(output)) {
+      output = `${output.trimEnd()}\n\n${heading}\n\n${placeholder}`
+    }
   }
   return output.replace(/\n/g, newline).replace(new RegExp(`${newline}*$`), newline)
 }
@@ -1163,6 +1191,52 @@ function memoryOperationIdentity(kind, target, value) {
     agent: target.agent,
     value
   })).digest('hex')
+}
+
+function memoryTemplateLogicalTarget(kind, args = {}) {
+  const project = encodeURIComponent(String(args.project || 'current'))
+  const agent = encodeURIComponent(String(args.agent || 'current'))
+  if (kind === 'session') {
+    return `devcodex-memory://session/${project}/${agent}/${encodeURIComponent(String(args.date || 'current'))}`
+  }
+  if (kind === 'summary') return `devcodex-memory://summary/${project}/${agent}`
+  if (kind === 'task') {
+    return `devcodex-memory://task/${project}/${encodeURIComponent(String(args.kind || 'requirements'))}/${encodeURIComponent(String(args.requirement || 'unknown'))}/sessions`
+  }
+  throw memoryQueryError(`Unsupported memory template target kind: ${kind}`, null, 'MEMORY_TEMPLATE_TARGET_INVALID')
+}
+
+function createMemoryTemplateContext(target, logicalTarget) {
+  const registry = readLayeredArtifactSlotRegistry({
+    activeRoot: target.activeRoot,
+    project: target.project,
+    fs
+  })
+  const slot = registry.slots.find(item => item.slotId === 'project-memory')
+  if (!slot) throw memoryQueryError('ArtifactSlotRegistryV2 is missing project-memory.', null, 'MEMORY_TEMPLATE_SLOT_MISSING')
+  const binding = createArtifactTemplateBinding({
+    slot,
+    target: logicalTarget,
+    intent: 'memory',
+    bindingMode: 'producer-supplied'
+  })
+  if (!binding) throw memoryQueryError('No template applies to the formal memory target.', null, 'MEMORY_TEMPLATE_BINDING_MISSING')
+  return { logicalTarget, binding }
+}
+
+function assertMemoryTemplateQualification(qualification, phase) {
+  const validation = validateArtifactTemplateQualification(qualification)
+  if (!validation.valid || qualification.status !== 'qualified' || (phase === 'readback' && qualification.readbackVerified !== true)) {
+    const reasons = [...new Set([...validation.errors, ...(qualification?.errorCodes || [])])]
+    const error = memoryQueryError(
+      `Memory artifact template qualification failed during ${phase}: ${reasons.join(', ') || 'unknown qualification error'}.`,
+      'Repair the artifact so it preserves the bound template semantics, then retry with a fresh binding.',
+      'MEMORY_TEMPLATE_QUALIFICATION_REJECTED'
+    )
+    error.templateQualification = qualification
+    error.validationErrors = validation.errors
+    throw error
+  }
 }
 
 function memoryLockDir(target, filePath) {
@@ -1312,14 +1386,28 @@ function withMemoryTransaction(target, filePath, operation, options = {}) {
       file: canonicalMemoryPath(filePath),
       reconcileIdentity
     })).digest('hex')
-    return MEMORY_FILE_TRANSACTION.commitPureOperation({
+    const receipt = MEMORY_FILE_TRANSACTION.commitPureOperation({
       filePath,
       relativeFile: relativeToActiveRoot(target, filePath),
       operation: existing => {
         const planned = operation(existing)
-        return typeof planned === 'string'
+        const normalized = typeof planned === 'string'
           ? { content: planned, reconcileIdentity }
           : { ...planned, reconcileIdentity }
+        if (options.templateContext) {
+          const qualification = qualifyArtifactContent(
+            options.templateContext.binding,
+            normalized.content,
+            {
+              slotId: 'project-memory',
+              target: options.templateContext.logicalTarget,
+              readbackVerified: false,
+              requireReadback: false
+            }
+          )
+          assertMemoryTemplateQualification(qualification, 'prewrite')
+        }
+        return normalized
       },
       operationFingerprint,
       reconcileOnce: options.reconcileOnce !== false,
@@ -1331,6 +1419,24 @@ function withMemoryTransaction(target, filePath, operation, options = {}) {
         agent: target.agent
       }
     })
+    if (options.templateContext) {
+      const persisted = readFile(filePath)
+      const qualification = qualifyArtifactContent(
+        options.templateContext.binding,
+        persisted,
+        {
+          slotId: 'project-memory',
+          target: options.templateContext.logicalTarget,
+          readbackVerified: true,
+          requireReadback: true
+        }
+      )
+      assertMemoryTemplateQualification(qualification, 'readback')
+      receipt.templateBinding = projectArtifactTemplateBinding(options.templateContext.binding)
+      receipt.templateQualification = qualification
+      receipt.templateStatus = renderArtifactTemplateQualification(qualification, 'zh-CN')
+    }
+    return receipt
   } finally {
     releaseMemoryLock(lock)
   }
@@ -3109,6 +3215,7 @@ function handleMemorySessionWrite(args) {
     documentPath,
     markdown: renderedContent
   })
+  const templateContext = createMemoryTemplateContext(target, memoryTemplateLogicalTarget('session', args))
   let sessionWriteReceipt = null
   const receipt = withMemoryTransaction(target, p, existing => {
     const rendered = insertMemorySessionContent(existing, renderedContent, binding)
@@ -3125,7 +3232,8 @@ function handleMemorySessionWrite(args) {
       sessionId: binding.sessionId,
       sessionBinding: binding.sessionBinding,
       contentDigest: crypto.createHash('sha256').update(renderedContent).digest('hex')
-    })
+    }),
+    templateContext
   })
   receipt.sessionWrite = sessionWriteReceipt
   receipt.indexReceipt = refreshDailyMemoryIndex(target, p, args.date || today())
@@ -3171,6 +3279,7 @@ function handleMemorySessionAllocate(args) {
   const input = { ...args, date: args.date || today() }
   const target = resolveMemoryTarget(input)
   const p = memoryClientPath(target, 'tasks', `${input.date}.md`)
+  const templateContext = createMemoryTemplateContext(target, memoryTemplateLogicalTarget('session', args))
   let allocatedId = null
   const sessionBinding = crypto.randomBytes(32).toString('hex')
   const receipt = withMemoryTransaction(target, p, existing => {
@@ -3199,6 +3308,10 @@ function handleMemorySessionAllocate(args) {
       `- **sourceMessage**：${sourceMessage}`,
       memorySessionBindingMarker(allocatedId, sessionBinding),
       '',
+      '### 🎯 任务摘要',
+      '',
+      `- ${title}`,
+      '',
       '### 📨 对话记录',
       '',
       '| 轮次 | 👤 用户消息 | 🤖 AI执行 | 状态 |',
@@ -3215,7 +3328,8 @@ function handleMemorySessionAllocate(args) {
       intent: input.intent || null,
       sourceMessage: input.sourceMessage || null,
       sessionBinding
-    })
+    }),
+    templateContext
   })
   receipt.indexReceipt = refreshDailyMemoryIndex(target, p, input.date)
   const allocation = {
@@ -3239,6 +3353,7 @@ function handleMemoryCpConfirm(args) {
 
   const p = taskSessionsPath(kind, args.requirement, args)
   const target = taskMemoryTransactionTarget(args)
+  const templateContext = createMemoryTemplateContext(target, memoryTemplateLogicalTarget('task', args))
   const time = args.time || currentTime()
   const hasDigest = Boolean(args.artifactPath || args.artifactSha256 || args.artifactVersion)
   if (hasDigest && (!args.artifactPath || !args.artifactSha256)) {
@@ -3346,7 +3461,8 @@ function handleMemoryCpConfirm(args) {
       artifactVersion,
       sourceMessage,
       time
-    })
+    }),
+    templateContext
   })
   const persisted = readFile(p)
   assertNoCpRowsOutsideDedicatedBlock(persisted)
@@ -3467,13 +3583,15 @@ function handleMemorySummaryAppend(args) {
     documentPath,
     markdown: finalRow
   })
+  const templateContext = createMemoryTemplateContext(target, memoryTemplateLogicalTarget('summary', args))
   const receipt = withMemoryTransaction(target, p, existing => {
     const appendText = existing
       ? finalRow + '\n'
       : summaryHeader(args.agent || target.agent, args) + finalRow + '\n'
     return { content: existing + appendText, appendText }
   }, {
-    reconcileIdentity: memoryOperationIdentity('summary-append', target, { row: finalRow })
+    reconcileIdentity: memoryOperationIdentity('summary-append', target, { row: finalRow }),
+    templateContext
   })
   receipt.indexReceipt = refreshSummaryMemoryIndex(target, p)
   const parsed = parseSummaryRows(readFile(p))
@@ -3970,10 +4088,10 @@ function exactResumeTaskState(target, taskId) {
   }
   const metaDir = resolveTaskRecoveryMetaDir(identity)
   const ownerRead = readFencedTaskWriteOwner({ metaDir, identity }, { fs })
-  if (ownerRead.status !== 'fresh' || ownerRead.source !== 'primary' || !ownerRead.owner || !ownerRead.transaction) {
+  if (!['fresh', 'missing'].includes(ownerRead.status) || ownerRead.source !== 'primary' || !ownerRead.transaction) {
     throw taskAdmissionIngressError(
       ownerRead.errorCode || 'FINALIZED_TASK_RESUME_STATE_UNAVAILABLE',
-      'finalized resume requires the exact current primary admission and fenced owner'
+      'finalized resume requires the exact current primary admission; a legacy missing owner is adopted by the resume CAS'
     )
   }
   if (ownerRead.transaction.phase !== 'finalized' || ownerRead.transaction.status !== 'finalized') {
@@ -4192,7 +4310,7 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
     envelopeDigest: ingress.actualInstructionEnvelope.envelopeDigest,
     decisionDigest: ingress.workflowRouteDecision.decisionDigest,
     priorTransactionDigest: transaction.transactionDigest,
-    priorOwnerLeaseDigest: ownerRead.owner.leaseDigest,
+    priorOwnerLeaseDigest: ownerRead.owner?.leaseDigest || null,
     runtimeDigest: MEMORY_RUNTIME_IDENTITY.runtimeDigest
   })
   const write = writeBoundedResumeIngressCapability({
@@ -4221,11 +4339,11 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
       admissionId: transaction.admissionId,
       admissionGeneration: transaction.admissionGeneration,
       transactionDigest: transaction.transactionDigest,
-      ownerGeneration: ownerRead.owner.ownerGeneration,
-      leaseRevision: ownerRead.owner.leaseRevision,
-      ownerLeaseDigest: ownerRead.owner.leaseDigest,
-      ownerStatus: ownerRead.owner.status,
-      ownerExpiresAt: ownerRead.owner.expiresAt
+      ownerGeneration: ownerRead.owner?.ownerGeneration || 0,
+      leaseRevision: ownerRead.owner?.leaseRevision || 0,
+      ownerLeaseDigest: ownerRead.owner?.leaseDigest || null,
+      ownerStatus: ownerRead.owner?.status || 'missing',
+      ownerExpiresAt: ownerRead.owner?.expiresAt || null
     },
     runtime: MEMORY_RUNTIME_IDENTITY,
     liveness
@@ -4406,6 +4524,7 @@ function handleMemoryTaskAdmitV2(args) {
       workflowRouteDecision: verifiedIngress.workflowRouteDecision,
       projectTargetLease: verifiedIngress.projectTargetLease,
       ingressSnapshotRef: verifiedIngress.ingressSnapshotRef,
+      serverRuntime: MEMORY_RUNTIME_IDENTITY,
       activeRoot: target.activeRoot,
       project: target.project
     })
@@ -4652,6 +4771,7 @@ function handleMemoryTaskWriteOwner(args) {
     workflowRouteDecision: ingress.workflowRouteDecision,
     projectTargetLease: ingress.projectTargetLease,
     ingressSnapshotRef: ingress.ingressSnapshotRef,
+    serverRuntime: MEMORY_RUNTIME_IDENTITY,
     activeRoot: target.activeRoot,
     project: target.project
   })
@@ -4760,11 +4880,16 @@ function handleMemoryTaskTerminalV1(args) {
     admissionId: args.admissionId,
     terminalStatus: args.terminalStatus,
     expectedOwner: args.expectedOwner,
+    lifecycleRevision: args.lifecycleRevision,
+    expectedStateSequence: args.expectedStateSequence,
+    expectedWriterGeneration: args.expectedWriterGeneration,
+    settledSetDigest: args.settledSetDigest,
     evidence: args.evidence,
     actualInstructionEnvelope: ingress.actualInstructionEnvelope,
     workItemSet: ingress.workItemSet,
     workflowRouteDecision: ingress.workflowRouteDecision,
     projectTargetLease: ingress.projectTargetLease,
+    serverRuntime: MEMORY_RUNTIME_IDENTITY,
     activeRoot: target.activeRoot,
     project: target.project
   })

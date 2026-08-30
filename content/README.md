@@ -4,7 +4,7 @@
 
 ## 目录
 
-- `instructions.md`、`instructions/`、`prompts/`、`skills/*/SKILL.md`：135 个可物化 source entry。
+- `instructions.md`、`instructions/`、`prompts/`、`skills/*/SKILL.md`：136 个可物化 source entry。
 - `shared/`：至少有两个真实消费者的单层 include 片段。
 - `manifest.json`：source、delivery、companion 和 compatibility mirror 合同。
 - `duplication-inventory.json`、`duplication-dispositions.json`：重复候选与人工处置。

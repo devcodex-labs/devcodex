@@ -6,6 +6,11 @@ const {
   enumerateTaskArtifacts,
   readLayeredArtifactSlotRegistry
 } = require('../../hooks/_runtime/artifact-slot-decision.cjs')
+const {
+  createArtifactTemplateBinding,
+  qualifyArtifactFile,
+  validateArtifactTemplateQualification
+} = require('../../hooks/_runtime/artifact-template-contract.cjs')
 const { verifyActualCandidateEvidenceReceipt } = require('./actual-candidate-evidence')
 
 const RECENT_REQUIREMENT_ARTIFACT_DAYS = 2
@@ -84,6 +89,50 @@ function collectInventoryIssues(inventory, relDir) {
   const classes = new Set(inventory.artifacts.map(item => item.slot.artifactClass))
   if ((classes.has('cp2') || classes.has('cp3-plan') || classes.has('progress')) && !classes.has('overview') && !classes.has('cp1')) {
     issues.push(`${relDir} missing intake truth before CP2/CP3 artifacts`)
+  }
+  return issues
+}
+
+function hasFormalTemplateQualificationClaim(filePath) {
+  const head = fs.readFileSync(filePath, 'utf8').slice(0, 8192)
+  return /(?:templateBindingStatus:\s*qualified-v1|ArtifactTemplateBindingV1)/i.test(head)
+}
+
+function checkArtifactTemplateFile({ slot, filePath, intent = 'dev' }) {
+  try {
+    const binding = createArtifactTemplateBinding({
+      slot,
+      target: filePath,
+      intent,
+      bindingMode: 'runtime-prewrite'
+    })
+    if (!binding) return { passed: true, issues: [], qualification: null, binding: null }
+    const qualification = qualifyArtifactFile(binding, filePath, { slotId: slot.slotId })
+    const validation = validateArtifactTemplateQualification(qualification, binding)
+    const issues = []
+    if (!validation.valid) issues.push(...validation.errors)
+    if (qualification.status !== 'qualified' || qualification.readbackVerified !== true) issues.push(...qualification.errorCodes)
+    return { passed: issues.length === 0, issues: [...new Set(issues)], qualification, binding }
+  } catch (error) {
+    return {
+      passed: false,
+      issues: [...new Set([error?.code || 'ARTIFACT_TEMPLATE_VALIDATOR_UNAVAILABLE', ...(error?.details?.errors || [])])],
+      qualification: null,
+      binding: null
+    }
+  }
+}
+
+function collectBoundTemplateIssues(dirPath, inventory, relDir) {
+  const issues = []
+  for (const artifact of inventory.artifacts) {
+    if (!artifact.slot?.templateRef || !['canonical', 'versioned-candidate'].includes(artifact.matchType)) continue
+    const filePath = path.join(dirPath, artifact.relativePath)
+    if (!fs.existsSync(filePath)) continue
+    const mustValidate = artifact.slot.slotId === 'plan-review-pr1' || hasFormalTemplateQualificationClaim(filePath)
+    if (!mustValidate) continue // historical/unbound artifacts remain read-only; runtime receipts govern new writes
+    const result = checkArtifactTemplateFile({ slot: artifact.slot, filePath })
+    for (const issue of result.issues) issues.push(`${relDir}/${artifact.relativePath} template qualification ${issue}`)
   }
   return issues
 }
@@ -252,6 +301,7 @@ function collectRecentRequirementArtifactIssues({
     checkedDirs.push(entry.name)
     issues.push(...collectInventoryIssues(inventory, entry.name))
     issues.push(...checkRequirementDir(dirPath))
+    issues.push(...collectBoundTemplateIssues(dirPath, inventory, entry.name))
   }
 
   return {
@@ -302,6 +352,7 @@ function collectRecentBugArtifactIssues({
     checkedDirs.push(entry.name)
     issues.push(...collectInventoryIssues(inventory, entry.name))
     issues.push(...checkBugDir(dirPath))
+    issues.push(...collectBoundTemplateIssues(dirPath, inventory, entry.name))
   }
 
   return {
@@ -318,6 +369,7 @@ module.exports = {
   BUG_FILES,
   REQUIREMENT_FILES,
   SIMPLE_TASK_FAST_PATH_MARKERS,
+  checkArtifactTemplateFile,
   checkBugDir,
   checkRequirementDir,
   checkActualCandidateEvidence,

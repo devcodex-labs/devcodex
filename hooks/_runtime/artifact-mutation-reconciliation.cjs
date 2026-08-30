@@ -15,6 +15,18 @@ const {
   validateMutationPreObservation,
   validateMutationObservationReceipt
 } = require('./mutation-observation.cjs')
+const {
+  reconcileTaskOperationRecord,
+  validateTaskOperationRecord,
+  validateTaskOperationSet
+} = require('./lifecycle-turn-liveness.cjs')
+const {
+  projectArtifactTemplateBinding,
+  qualifyArtifactFile,
+  validateArtifactTemplateBinding,
+  validateArtifactTemplateBindingProjection,
+  validateArtifactTemplateQualification
+} = require('./artifact-template-contract.cjs')
 
 const RECEIPT_SCHEMA = 'ArtifactMutationReconciliationReceiptV1'
 const PROJECTION_SCHEMA = 'ArtifactMutationReconciliationProjectionV1'
@@ -321,7 +333,10 @@ function createArtifactMutationReconciliationInput(input = {}) {
     schemaVersion: INPUT_SCHEMA,
     operationId: String(input.operationId || ''),
     footprint,
-    preObservation: JSON.parse(JSON.stringify(input.preObservation || null))
+    preObservation: JSON.parse(JSON.stringify(input.preObservation || null)),
+    templateBindings: (input.templateBindings || []).map(item => item?.schemaVersion === 'ArtifactTemplateBindingProjectionV1'
+      ? JSON.parse(JSON.stringify(item))
+      : projectArtifactTemplateBinding(item))
   }
   const value = Object.freeze({ ...semantic, inputDigest: digest(semantic) })
   const validation = validateArtifactMutationReconciliationInput(value)
@@ -393,6 +408,17 @@ function validateArtifactMutationReconciliationInput(value, binding = null) {
       }
     } else {
       errors.push('artifact-reconciliation-input-preobservation-granularity')
+    }
+    if (value?.templateBindings !== undefined && (!Array.isArray(value.templateBindings) || value.templateBindings.length > MAX_OBSERVATION_ENTRIES)) {
+      errors.push('artifact-reconciliation-input-template-bindings-invalid')
+    } else {
+      for (const templateBinding of value?.templateBindings || []) {
+        const templateValidation = validateArtifactTemplateBindingProjection(templateBinding)
+        if (!templateValidation.valid) errors.push(...templateValidation.errors)
+        if (!footprintTargetSet.has(comparable(templateBinding.targetRef))) {
+          errors.push('artifact-reconciliation-input-template-target-binding')
+        }
+      }
     }
   }
   const { inputDigest, ...semantic } = value || {}
@@ -542,6 +568,40 @@ function closeoutFromLifecycle(value) {
   return { observation, closeout }
 }
 
+function qualifyReconciliationTemplates(bindings, fsImpl) {
+  const qualifications = []
+  for (const binding of bindings || []) {
+    const bindingValidation = binding?.schemaVersion === 'ArtifactTemplateBindingProjectionV1'
+      ? validateArtifactTemplateBindingProjection(binding)
+      : validateArtifactTemplateBinding(binding)
+    if (!bindingValidation.valid) {
+      throw new ArtifactMutationReconciliationError(
+        'ARTIFACT_RECONCILIATION_TEMPLATE_BINDING_INVALID',
+        'template recovery requires the exact valid prewrite binding',
+        { errors: bindingValidation.errors }
+      )
+    }
+    if (!path.isAbsolute(String(binding.targetRef || ''))) {
+      throw new ArtifactMutationReconciliationError(
+        'ARTIFACT_RECONCILIATION_TEMPLATE_LOGICAL_UNSUPPORTED',
+        'logical template writes must be qualified atomically by their server-owned writer',
+        { target: binding.targetRef }
+      )
+    }
+    const qualification = qualifyArtifactFile(binding, binding.targetRef, { slotId: binding.slotId }, { fs: fsImpl })
+    const validation = validateArtifactTemplateQualification(qualification, binding)
+    if (!validation.valid || qualification.status !== 'qualified' || qualification.readbackVerified !== true) {
+      throw new ArtifactMutationReconciliationError(
+        'ARTIFACT_RECONCILIATION_TEMPLATE_REJECTED',
+        'the current artifact still does not qualify against its bound template',
+        { errors: [...validation.errors, ...(qualification.errorCodes || [])] }
+      )
+    }
+    qualifications.push(qualification)
+  }
+  return qualifications
+}
+
 function createArtifactMutationReconciliationReceipt(input = {}, options = {}) {
   const fsImpl = options.fs || fs
   const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
@@ -572,6 +632,10 @@ function createArtifactMutationReconciliationReceipt(input = {}, options = {}) {
         plannedSetDigest: observation.plannedSetDigest
       })
   const entries = recovery.expectedStates.map(item => inspectExpectedPath(item.path, item.state, roots, fsImpl))
+  const templateQualifications = qualifyReconciliationTemplates(
+    lifecycleCloseout.reconciliationInput?.templateBindings || [],
+    fsImpl
+  )
   const currentEffectSnapshot = {
     schemaVersion: 'ArtifactMutationReconciliationSnapshotV1',
     entries,
@@ -603,6 +667,7 @@ function createArtifactMutationReconciliationReceipt(input = {}, options = {}) {
     projectTargetLeaseDigest: String(ingress.projectTargetLeaseDigest || ''),
     hostSessionDigest: String(ingress.hostSessionDigest || ''),
     currentEffectSnapshot,
+    templateQualifications,
     mutationAuthority: false,
     reconciledAt: new Date(nowMs).toISOString()
   }
@@ -750,6 +815,17 @@ function validateArtifactMutationReconciliationReceipt(value, binding = null) {
   if (value?.mutationAuthority !== false || !Number.isFinite(Date.parse(String(value?.reconciledAt || '')))) {
     errors.push('artifact-reconciliation-authority-or-time-invalid')
   }
+  if (value?.templateQualifications !== undefined && (!Array.isArray(value.templateQualifications) || value.templateQualifications.length > MAX_OBSERVATION_ENTRIES)) {
+    errors.push('artifact-reconciliation-template-qualifications-invalid')
+  } else {
+    for (const qualification of value?.templateQualifications || []) {
+      const validation = validateArtifactTemplateQualification(qualification)
+      if (!validation.valid || qualification.status !== 'qualified' || qualification.readbackVerified !== true) {
+        errors.push('artifact-reconciliation-template-qualification-invalid')
+        errors.push(...validation.errors)
+      }
+    }
+  }
   const { receiptDigest, ...semantic } = value || {}
   if (!DIGEST_RE.test(String(receiptDigest || '')) || digest(semantic) !== receiptDigest) errors.push('artifact-reconciliation-digest-invalid')
   if (binding) {
@@ -784,6 +860,7 @@ function projectArtifactMutationReconciliationReceipt(value) {
     recoveredObservedEffects: JSON.parse(JSON.stringify(value.recoveredObservedEffects)),
     recoveredObservedEffectsDigest: value.recoveredObservedEffectsDigest,
     currentEffectSnapshotDigest: value.currentEffectSnapshot.snapshotDigest,
+    templateQualificationDigests: (value.templateQualifications || []).map(item => item.qualificationDigest),
     mutationAuthority: false,
     reconciledAt: value.reconciledAt
   }
@@ -824,6 +901,10 @@ function validateArtifactMutationReconciliationProjection(value, binding = null)
   if (value?.mutationAuthority !== false || !Number.isFinite(Date.parse(String(value?.reconciledAt || '')))) {
     errors.push('artifact-reconciliation-projection-authority-or-time-invalid')
   }
+  if (value?.templateQualificationDigests !== undefined && (!Array.isArray(value.templateQualificationDigests) || value.templateQualificationDigests.length > MAX_OBSERVATION_ENTRIES ||
+      value.templateQualificationDigests.some(item => !DIGEST_RE.test(String(item || ''))))) {
+    errors.push('artifact-reconciliation-projection-template-qualifications-invalid')
+  }
   const { projectionDigest, ...semantic } = value || {}
   if (!DIGEST_RE.test(String(projectionDigest || '')) || digest(semantic) !== projectionDigest) {
     errors.push('artifact-reconciliation-projection-digest-invalid')
@@ -854,6 +935,41 @@ function applyArtifactMutationReconciliation(state, lifecycleCloseout, receipt) 
   }
   const next = JSON.parse(JSON.stringify(state || {}))
   next.turnLiveness = { ...(next.turnLiveness || {}) }
+  const currentOperationRecord = next.turnLiveness.taskOperationSet?.unresolved || null
+  const observedOperationRecord = lifecycleCloseout.taskOperationRecord || null
+  if (currentOperationRecord && observedOperationRecord) {
+    const currentValidation = validateTaskOperationRecord(currentOperationRecord)
+    const observedValidation = validateTaskOperationRecord(observedOperationRecord)
+    const immutableFields = [
+      'operationId', 'idempotencyKey', 'writerGeneration', 'expectedStateSequence',
+      'kind', 'targetSetDigest', 'beforeDigest', 'preparedAt', 'dispatchedAt'
+    ]
+    const sameImmutableIdentity = immutableFields.every(field =>
+      JSON.stringify(currentOperationRecord[field]) === JSON.stringify(observedOperationRecord[field])) &&
+      JSON.stringify(currentOperationRecord.exactTargets) === JSON.stringify(observedOperationRecord.exactTargets)
+    if (!currentValidation.valid || !observedValidation.valid || !sameImmutableIdentity ||
+        observedOperationRecord.phase !== 'reconcile-required' ||
+        !['dispatched', 'observed', 'reconcile-required'].includes(currentOperationRecord.phase)) {
+      throw new ArtifactMutationReconciliationError(
+        'ARTIFACT_RECONCILIATION_OPERATION_RECORD_MISMATCH',
+        'reconciliation closeout does not advance the exact dispatched TaskOperationRecordV1',
+        { currentErrors: currentValidation.errors, observedErrors: observedValidation.errors }
+      )
+    }
+    next.turnLiveness.taskOperationSet.unresolved = JSON.parse(JSON.stringify(observedOperationRecord))
+    if (next.turnLiveness.inFlightOperation?.operationId === receipt.operationId) {
+      next.turnLiveness.inFlightOperation.operationRecord = JSON.parse(JSON.stringify(observedOperationRecord))
+    }
+    const promotedSetValidation = validateTaskOperationSet(next.turnLiveness.taskOperationSet)
+    if (!promotedSetValidation.valid) {
+      throw new ArtifactMutationReconciliationError(
+        'ARTIFACT_RECONCILIATION_OPERATION_SET_INVALID',
+        'reconciliation could not promote the reserved operation record into the canonical set',
+        { errors: promotedSetValidation.errors }
+      )
+    }
+    next.turnLiveness.taskOperationSet = promotedSetValidation.set
+  }
   if (next.turnLiveness.inFlightOperation?.operationId === receipt.operationId) {
     next.turnLiveness.inFlightOperation = null
   }
@@ -864,6 +980,26 @@ function applyArtifactMutationReconciliation(state, lifecycleCloseout, receipt) 
     reconciliation: receipt
   }
   delete next.turnLiveness.lastMutationCloseout.reconciliationInput
+  if (next.turnLiveness.taskOperationSet?.unresolved || lifecycleCloseout.taskOperationRecord) {
+    if (next.turnLiveness.taskOperationSet?.unresolved?.phase !== 'reconcile-required') {
+      throw new ArtifactMutationReconciliationError(
+        'ARTIFACT_RECONCILIATION_OPERATION_STATE_UNOBSERVED',
+        'reconciliation requires one exact reconcile-required TaskOperationRecordV1'
+      )
+    }
+    const effects = receipt.recoveredObservedEffects || {}
+    const applied = ['created', 'modified', 'deleted', 'moved']
+      .some(kind => Array.isArray(effects[kind]) && effects[kind].length > 0)
+    next.turnLiveness = reconcileTaskOperationRecord(next.turnLiveness, receipt.operationId, {
+      effect: applied ? 'known-applied' : 'known-not-applied',
+      resultDigest: receipt.receiptDigest,
+      evidenceDigest: receipt.currentEffectSnapshot.snapshotDigest
+    }, { nowMs: Date.parse(receipt.reconciledAt) })
+    next.turnLiveness.lastMutationCloseout = {
+      ...next.turnLiveness.lastMutationCloseout,
+      taskOperationRecord: next.turnLiveness.lastTaskOperationRecord
+    }
+  }
   if (next.simpleTaskFastPathLeaseCloseout?.operationId === receipt.operationId) {
     next.simpleTaskFastPathLeaseCloseout = {
       ...next.simpleTaskFastPathLeaseCloseout,

@@ -83,10 +83,10 @@ daily/SUMMARY 仍是唯一真相源：受管 writer 在文件提交后刷新索�
 
 ### TaskRouteAdmissionRecoveryGate
 
-- `ActualInstructionEnvelopeV1/WorkflowRouteDecisionV2`、`WorkspaceSessionRouteIndexV1` 与 `ProjectTargetLeaseV2` 只建立 instruction/route/project identity；它们本身不授 mutation/release。`memory_task_admit_v2` 默认原子取得 `FencedTaskWriteOwnerLeaseV2` 并 finalize admission；CP confirmation 后若 owner 的 CP observation 尚未刷新，调用 `memory_task_write_owner renew` 复证当前 exact CP。只有 finalized admission + exact CP + active owner 才形成正式 mutation authority。
+- `ActualInstructionEnvelopeV1/WorkflowRouteDecisionV2`、`WorkspaceSessionRouteIndexV1` 与 `ProjectTargetLeaseV2` 只建立 instruction/route/project identity；它们本身不授 mutation/release。`memory_task_admit_v2` 默认原子取得 `FencedTaskWriteOwnerLeaseV2` 并 finalize admission；CP confirmation 后若 owner 的 CP observation 尚未刷新，调用 `memory_task_write_owner renew` 复证当前 exact CP。每次 claim/owner transition 都必须回读 `CanonicalTaskWriteContextV1`，正式 writer 绑定其中的 task/root、lifecycle revision、state sequence、writer generation、holder session、operation set、runtime generation 与 context digest；只有 finalized admission + exact CP + active owner + fresh write context 才形成正式 mutation authority。owner TTL 只作诊断/清理，不能转移写权。
 - `SimpleTaskFastPathLeaseV1` 只能由 `memory_task_fast_path_lease` 签发，最多 2 个同一边界 exact 低风险路径、最多 2 次 create-or-update；正式产物、公共契约、控制面、安全、依赖、发布、跨模块或第 3 个路径必须在写入前升级正式准入。低风险叙述型 Markdown 可走 `dev.docs` 轻路径，配置/API/schema/security/release 文档不得借此绕过。
 - 每次实际 mutation 使用一次性 `TaskOwnedMutationLeaseV2` 并在 V5 prewrite 后执行；Post actual effects 为 partial/unknown/越界、required effect 未发生或 tool failure 时写 `needs-reconcile`，禁止把退出码 0 当完成。
-- `memory_task_terminal_v1` 必须回读 ECR/report/memory/completion 四类独立证据，成功后立即 terminal-unbind route/owner；Stop/PreCompact 只 checkpoint。显式 reopen 必须产生新 admission generation 与 owner nonce。
+- `memory_task_terminal_v1` 必须精确消费当前 write context 的 lifecycle revision、state sequence、writer generation 与 settled-set digest，并回读 ECR/report/memory/completion 四类独立证据；存在未结算/待 reconcile operation、stale fence 或证据漂移时零终态提交。成功后立即 terminal-unbind route/owner；相同请求 replay 为零新写。Stop/PreCompact 只 checkpoint，显式 reopen 必须产生 revision+1、新 admission generation 与 owner nonce。
 
 ### MemoryFileTransactionGate
 
@@ -108,7 +108,7 @@ daily/SUMMARY 仍是唯一真相源：受管 writer 在文件提交后刷新索�
 | 8 MiB closeout reserve | 仅 terminal/abort/reconcile；耗尽明确失败，不旁路普通 mutation |
 | legacy | 只读保留；maintenance 不自动删除或迁移 |
 
-V5 只保存 admission、fenced owner、mutation preflight/closeout、validation terminal 等有界恢复投影，不复制正文或大 stdout。容量字节预算不是任务数量上限，也不能授权删除正式任务产物。
+V5 只保存 admission、fenced owner、`TaskRecoveryCommitFenceV1`、`TaskOperationSetV1`、mutation preflight/closeout、validation terminal 等有界恢复投影，不复制正文或大 stdout。所有正式 commit 精确比较 state sequence + writer generation；force 不可绕过 stale fence。operation 必须按 prepare→dispatch→observe→settle/reconcile 推进，已派发 unknown effect 不自动重试；紧急 reserve 只能推进同一 operation。容量字节预算不是任务数量上限，也不能授权删除正式任务产物。
 
 ### ArtifactLinkProjectionGate
 

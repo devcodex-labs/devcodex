@@ -70,9 +70,16 @@ const { getBootRuntimeContractDigest } = require('../hooks/_runtime/skill-route-
 const {
   getLifecycleHostAdapterDigest
 } = require('../hooks/_runtime/host-adapter-identity.cjs')
-const { captureRuntimeProcessIdentity } = require('../hooks/_runtime/runtime-generation-identity.cjs')
+const {
+  captureRuntimeProcessIdentity,
+  readRuntimeGenerationStatus
+} = require('../hooks/_runtime/runtime-generation-identity.cjs')
+const { resolveLanguageContext } = require('../hooks/_runtime/language-context.cjs')
 const { buildWorkflowPlanDecision } = require('../hooks/_runtime/workflow-plan-decision-v1.cjs')
-const { createEntryCheckModelV3 } = require('../hooks/_runtime/visible-output-contract.cjs')
+const {
+  createEntryCheckModelV3,
+  resolveVisibleLocale
+} = require('../hooks/_runtime/visible-output-contract.cjs')
 const {
   findLayoutInfo,
   namespaceRootPath,
@@ -600,12 +607,22 @@ function readPackageVersionAt(root) {
 
 function composeEntryVersionFacts(projectName) {
   const runtimeRoot = path.resolve(__dirname, '..')
-  const installedPackageVersion = readPackageVersionAt(runtimeRoot) || PROFILE_PROCESS_IDENTITY.packageVersion || 'unverified'
+  const runtimeStatus = readRuntimeGenerationStatus(runtimeRoot)
+  const installedPackageVersion = runtimeStatus.receiptStatus === 'resolved'
+    ? runtimeStatus.installedPackageVersion
+    : (readPackageVersionAt(runtimeRoot) || PROFILE_PROCESS_IDENTITY.packageVersion || 'unverified')
   const activeRuntimeGeneration = {
     generationId: PROFILE_PROCESS_IDENTITY.generationId || 'unverified',
     packageVersion: PROFILE_PROCESS_IDENTITY.packageVersion || 'unverified',
     manifestStatus: PROFILE_PROCESS_IDENTITY.manifestStatus || 'unverified'
   }
+  const configuredRuntimeGeneration = runtimeStatus.configuredRuntimeGeneration
+    ? {
+        generationId: runtimeStatus.configuredRuntimeGeneration.generationId,
+        packageVersion: runtimeStatus.configuredRuntimeGeneration.packageVersion,
+        manifestStatus: runtimeStatus.configuredRuntimeGeneration.manifestStatus
+      }
+    : null
   let sourceCandidate = null
   let sourceObserved = false
   try {
@@ -627,13 +644,30 @@ function composeEntryVersionFacts(projectName) {
       sourceCandidate = { root: sourceRoot, packageVersion, shortHead, dirty }
     }
   } catch {}
-  let alignment = 'unverified'
-  if (activeRuntimeGeneration.packageVersion !== installedPackageVersion) alignment = 'runtime-mismatch'
-  else if (!sourceCandidate) alignment = 'version-only'
-  else if (!sourceObserved) alignment = 'unverified'
-  else if (sourceCandidate.dirty || sourceCandidate.packageVersion !== activeRuntimeGeneration.packageVersion) alignment = 'source-ahead'
-  else alignment = 'version-only'
-  return { installedPackageVersion, activeRuntimeGeneration, sourceCandidate, alignment }
+  let alignment = runtimeStatus.alignment
+  let restartRequired = runtimeStatus.restartRequired
+  let restartReason = runtimeStatus.reasonCode
+  if (activeRuntimeGeneration.packageVersion !== installedPackageVersion) {
+    alignment = 'runtime-mismatch'
+    restartRequired = true
+    restartReason = configuredRuntimeGeneration
+      ? 'active-runtime-generation-superseded'
+      : 'active-runtime-package-version-superseded'
+  } else if (alignment !== 'runtime-mismatch') {
+    if (!sourceCandidate) alignment = alignment === 'aligned' ? 'aligned' : 'version-only'
+    else if (!sourceObserved) alignment = 'unverified'
+    else if (sourceCandidate.dirty || sourceCandidate.packageVersion !== activeRuntimeGeneration.packageVersion) alignment = 'source-ahead'
+    else alignment = alignment === 'aligned' ? 'aligned' : 'version-only'
+  }
+  return {
+    installedPackageVersion,
+    activeRuntimeGeneration,
+    configuredRuntimeGeneration,
+    sourceCandidate,
+    alignment,
+    restartRequired,
+    restartReason
+  }
 }
 
 function resolveProjectName(projectName) {
@@ -2720,6 +2754,15 @@ function dispatch(method, params) {
           case 'profile_compose_entry_check': {
             const { composeEntryCheckBlock } = require('../scripts/lib/host-parity-scorecard.js')
             const entry = args.entry && typeof args.entry === 'object' && !Array.isArray(args.entry) ? args.entry : {}
+            const languageContext = resolveLanguageContext({
+              prompt: entry.prompt,
+              taskContext: entry.languageContext || entry.taskLanguageContext,
+              conversationContext: entry.conversationLanguageContext,
+              workspacePreference: entry.workspacePreference,
+              locale: entry.locale || process.env.LC_ALL || process.env.LANG || process.env.LANGUAGE || ''
+            })
+            const localeDecision = resolveVisibleLocale(languageContext)
+            const english = localeDecision.renderedLanguage === 'en'
             const workflowRouting = resolveConfigFile(args.project).config?.extensions?.devcodex?.workflowRouting
             const precheckDecision = buildWorkflowPlanDecision({
               phase: 'precheck', prompt: entry.prompt, config: workflowRouting, facts: entry.facts
@@ -2738,8 +2781,12 @@ function dispatch(method, params) {
               continuation: entry.continuation || {
                 nextStage: args.nextStep || 'bounded-context-read',
                 automatic: false,
-                userAction: '按入口提示继续；无需操作时为 none',
-                correctionHint: '直接说明要调整的流程、方案深度或验证范围'
+                userAction: english
+                  ? 'Follow the entry guidance; use none when no action is required'
+                  : '按入口提示继续；无需操作时为 none',
+                correctionHint: english
+                  ? 'State the workflow, design depth, or validation scope to change'
+                  : '直接说明要调整的流程、方案深度或验证范围'
               },
               showPlan: entry.showPlan !== false && precheckDecision.showPlan !== false
             })
@@ -2748,7 +2795,9 @@ function dispatch(method, params) {
               status: args.status,
               nextStep: args.nextStep,
               semanticDigest: args.semanticDigest,
-              entryCheckModel
+              entryCheckModel,
+              languageContext,
+              audience: 'human'
             })
             return {
               content: [{ type: 'text', text: block }],
@@ -2756,6 +2805,18 @@ function dispatch(method, params) {
                 schemaVersion: 'EntryCheckComposeV3',
                 block,
                 entryCheckModel,
+                languageContext,
+                localeDecision: {
+                  schemaVersion: localeDecision.schemaVersion,
+                  requestedLanguage: localeDecision.requestedLanguage,
+                  renderedLanguage: localeDecision.renderedLanguage,
+                  confidence: localeDecision.confidence,
+                  fallbackReason: localeDecision.fallbackReason
+                },
+                machineProjection: {
+                  semanticDigest: String(args.semanticDigest || 'pending-entry-check'),
+                  marker: `DevCodexVisibleEnvelopeV3 · entry-check · ${String(args.status || 'UNVERIFIED')} · ${String(args.semanticDigest || 'pending-entry-check')}`
+                },
                 note: 'Paste into the user-visible reply before substantive work. Grok hooks cannot inject this.'
               }
             }

@@ -1,5 +1,9 @@
 'use strict'
 
+const LANGUAGE_CONTEXT_SCHEMA = 'LanguageContextV2'
+const LANGUAGE_TURN_CLASSES = new Set(['neutral', 'code', 'quoted', 'explicit-switch', 'substantive'])
+const LANGUAGE_CONFIDENCE = new Set(['high', 'medium', 'low'])
+
 const LANGUAGE_RULES = [
   ['ja', /[\u3040-\u30ff]/u],
   ['ko', /[\uac00-\ud7af]/u],
@@ -33,13 +37,48 @@ function explicitLanguage(text) {
 
 function primaryFromContext(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return ''
-  if (value.schemaVersion === 'LanguageContextV2') {
+  if (value.schemaVersion === LANGUAGE_CONTEXT_SCHEMA) {
     return normalizeLanguageTag(value.primaryLanguage || value.responseLanguage)
   }
   if (value.schemaVersion === 'LanguageContextV1' || value.language) {
     return normalizeLanguageTag(value.language)
   }
   return ''
+}
+
+function compactLanguageContext(value) {
+  const primaryLanguage = primaryFromContext(value)
+  if (!primaryLanguage) return null
+  const responseLanguage = normalizeLanguageTag(value?.responseLanguage) || primaryLanguage
+  const artifactLanguage = normalizeLanguageTag(value?.artifactLanguage) || primaryLanguage
+  const currentTurnClass = LANGUAGE_TURN_CLASSES.has(value?.currentTurnClass)
+    ? value.currentTurnClass
+    : 'neutral'
+  const confidence = LANGUAGE_CONFIDENCE.has(value?.confidence) ? value.confidence : 'low'
+  const source = String(value?.source || 'durable-language-carrier').trim().slice(0, 96) || 'durable-language-carrier'
+  return {
+    schemaVersion: LANGUAGE_CONTEXT_SCHEMA,
+    primaryLanguage,
+    responseLanguage,
+    artifactLanguage,
+    currentTurnClass,
+    source,
+    confidence,
+    updatedPrimary: value?.updatedPrimary === true
+  }
+}
+
+function languageContextIntegrityErrors(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return ['language-context-required']
+  const errors = []
+  if (value.schemaVersion !== LANGUAGE_CONTEXT_SCHEMA) errors.push('language-context-schema-invalid')
+  if (!normalizeLanguageTag(value.primaryLanguage)) errors.push('language-context-primary-invalid')
+  if (!normalizeLanguageTag(value.responseLanguage)) errors.push('language-context-response-invalid')
+  if (!normalizeLanguageTag(value.artifactLanguage)) errors.push('language-context-artifact-invalid')
+  if (!LANGUAGE_TURN_CLASSES.has(value.currentTurnClass)) errors.push('language-context-turn-class-invalid')
+  if (!LANGUAGE_CONFIDENCE.has(value.confidence)) errors.push('language-context-confidence-invalid')
+  if (!String(value.source || '').trim()) errors.push('language-context-source-required')
+  return errors
 }
 
 function classifyLanguageTurn(text) {
@@ -125,7 +164,7 @@ function resolveLanguageContext(input = {}) {
     confidence = 'low'
   }
   return {
-    schemaVersion: 'LanguageContextV2',
+    schemaVersion: LANGUAGE_CONTEXT_SCHEMA,
     primaryLanguage,
     responseLanguage: primaryLanguage,
     artifactLanguage: primaryLanguage,
@@ -144,8 +183,17 @@ function formatLanguageContextInstruction(context) {
     '### DevCodex · LanguageContextV2',
     `Human-facing reply language: ${language}; human-facing artifact title/body/semantic filename language: ${artifactLanguage} (source=${source}, currentTurnClass=${context?.currentTurnClass || 'neutral'}).`,
     'Keep protocol keys, CLI parameters, schema/gate/skill IDs, and fixed canonical filenames unchanged. A yes/no confirmation, CP/version code, path, code block, or quoted text never changes the task primary language.',
+    'Render PC0-PC10, confirmations, progress, failures, final results, and report headings through the locale-aware human renderer. Do not expose a raw protocol/receipt table as the primary user response.',
     'Do not claim user-language observation when source=und-en-fallback.'
   ].join('\n')
 }
 
-module.exports = { classifyLanguageTurn, formatLanguageContextInstruction, normalizeLanguageTag, resolveLanguageContext }
+module.exports = {
+  LANGUAGE_CONTEXT_SCHEMA,
+  classifyLanguageTurn,
+  compactLanguageContext,
+  formatLanguageContextInstruction,
+  languageContextIntegrityErrors,
+  normalizeLanguageTag,
+  resolveLanguageContext
+}

@@ -35,6 +35,15 @@ const {
 } = require('../hooks/_runtime/visible-output-contract.cjs')
 const ROOT = path.resolve(__dirname, '..')
 const WORKSPACE = path.dirname(ROOT)
+const ZH_LANGUAGE_CONTEXT = Object.freeze({
+  schemaVersion: 'LanguageContextV2', primaryLanguage: 'zh-CN', responseLanguage: 'zh-CN',
+  artifactLanguage: 'zh-CN', currentTurnClass: 'neutral', source: 'task-primary-language',
+  confidence: 'high', updatedPrimary: false
+})
+const EN_LANGUAGE_CONTEXT = Object.freeze({
+  ...ZH_LANGUAGE_CONTEXT,
+  primaryLanguage: 'en', responseLanguage: 'en', artifactLanguage: 'en'
+})
 
 function entry(id, overrides = {}) {
   return {
@@ -348,8 +357,11 @@ const entryCheckModel = createEntryCheckModelV3({
   versionFacts: {
     installedPackageVersion: '1.19.3',
     activeRuntimeGeneration: { generationId: 'generation-fixture', packageVersion: '1.19.3', manifestStatus: 'verified' },
+    configuredRuntimeGeneration: { generationId: 'generation-fixture', packageVersion: '1.19.3', manifestStatus: 'verified' },
     sourceCandidate: { root: ROOT, packageVersion: '1.19.3', shortHead: '83e2adb9', dirty: true },
-    alignment: 'source-ahead'
+    alignment: 'source-ahead',
+    restartRequired: false,
+    restartReason: 'active-runtime-generation-current'
   },
   workflowPlan: {
     precheck: {
@@ -371,6 +383,19 @@ const entryCheckModel = createEntryCheckModelV3({
   showPlan: true
 })
 assert.strictEqual(entryCheckModel.validation.valid, true, entryCheckModel.validation.errors.join(', '))
+const invalidRuntimeMismatch = createEntryCheckModelV3({
+  versionFacts: {
+    ...entryCheckModel.versionFacts,
+    alignment: 'runtime-mismatch',
+    restartRequired: false,
+    restartReason: 'incorrect-negative-fixture'
+  },
+  workflowPlan: entryCheckModel.workflowPlan,
+  validationPlan: entryCheckModel.validationPlan,
+  continuation: entryCheckModel.continuation
+})
+assert.strictEqual(invalidRuntimeMismatch.validation.valid, false)
+assert(invalidRuntimeMismatch.validation.errors.includes('versionFacts.runtimeMismatch-restart-required'))
 
 const baseInput = {
   messageKind: 'entry-check',
@@ -402,7 +427,9 @@ const codexDesktopEnvelope = createVisibleEnvelope({
 })
 assert.strictEqual(codexDesktopEnvelope.validation.valid, true)
 assert.strictEqual(codexDesktopEnvelope.artifactDeliveryAttempts[0].status, 'ready')
-const codexDesktopRendered = renderVisibleEnvelope(codexDesktopEnvelope, { tier: 'rich-markdown' })
+const codexDesktopRendered = renderVisibleEnvelope(codexDesktopEnvelope, {
+  tier: 'rich-markdown', languageContext: ZH_LANGUAGE_CONTEXT
+})
 assert.match(codexDesktopRendered, /\[.+\]\([^)]+\)/)
 assert.doesNotMatch(codexDesktopRendered, /使用 Codex 文件面板打开/)
 const vscodeLink = createHostLinkCapabilityDecisionV2({
@@ -416,7 +443,9 @@ const vscodeEnvelope = createVisibleEnvelope({
 })
 assert.strictEqual(vscodeEnvelope.validation.valid, true)
 assert.strictEqual(vscodeEnvelope.artifactDeliveryAttempts[0].status, 'ready')
-assert.match(renderVisibleEnvelope(vscodeEnvelope, { tier: 'rich-markdown' }), /code --goto/)
+assert.match(renderVisibleEnvelope(vscodeEnvelope, {
+  tier: 'rich-markdown', languageContext: ZH_LANGUAGE_CONTEXT
+}), /code --goto/)
 const tamperedDeliveryAttempt = {
   ...codexDesktopEnvelope.artifactDeliveryAttempts[0],
   status: 'opened'
@@ -450,9 +479,15 @@ const sameSurfaceFailed = createLinkCapabilityDecision({
 const failedLinkEnvelope = createVisibleEnvelope({ ...baseInput, linkCapability: sameSurfaceFailed })
 assert.notStrictEqual(failedLinkEnvelope.semanticDigest, envelope.semanticDigest, 'failed link capability is a material semantic change')
 
-const richText = renderVisibleEnvelope(envelope, { tier: 'rich-markdown' })
-const portableText = renderVisibleEnvelope(envelope, { tier: 'portable-markdown' })
-const plainText = renderVisibleEnvelope(envelope, { tier: 'plain-text' })
+const richText = renderVisibleEnvelope(envelope, {
+  tier: 'rich-markdown', languageContext: ZH_LANGUAGE_CONTEXT, audience: 'audit'
+})
+const portableText = renderVisibleEnvelope(envelope, {
+  tier: 'portable-markdown', languageContext: ZH_LANGUAGE_CONTEXT, audience: 'audit'
+})
+const plainText = renderVisibleEnvelope(envelope, {
+  tier: 'plain-text', languageContext: ZH_LANGUAGE_CONTEXT, audience: 'audit'
+})
 for (const output of [richText, portableText, plainText]) {
   assert.match(output, new RegExp(envelope.semanticDigest))
   for (const check of envelope.checks) assert.match(output, new RegExp(`${check.id} \\[${check.status.replace('/', '\\/')}\\]`))
@@ -472,11 +507,35 @@ assert.doesNotMatch(plainText, /####|\[[^\]]+\]\([^\)]+\)/)
 assert.match(richText, /下一步：确认后提交已验证改动/)
 assert.match(richText, /条件动作：提交确认后再决定是否推送/)
 
+const zhHumanText = renderVisibleEnvelope(envelope, {
+  tier: 'portable-markdown', languageContext: ZH_LANGUAGE_CONTEXT, audience: 'human'
+})
+assert.match(zhHumanText, /### DevCodex · 入口检查/)
+assert.doesNotMatch(zhHumanText, new RegExp(envelope.semanticDigest))
+assert.doesNotMatch(zhHumanText, /DevCodexVisibleEnvelopeV3/)
+const enHumanText = renderVisibleEnvelope(envelope, {
+  tier: 'portable-markdown', languageContext: EN_LANGUAGE_CONTEXT, audience: 'human'
+})
+assert.match(enHumanText, /### DevCodex · Entry check/)
+assert.match(enHumanText, /Files from this batch/)
+assert.match(enHumanText, /Next:/)
+assert.doesNotMatch(enHumanText, /语言回退|入口检查/)
+assert.strictEqual(envelope.semanticDigest, localizedEnvelope.semanticDigest)
+const missingLanguageText = renderVisibleEnvelope(envelope, { tier: 'portable-markdown' })
+assert.match(missingLanguageText, /Language fallback: requested=und, rendered=en, reason=language-context-missing/)
+const unsupportedLocaleText = renderVisibleEnvelope(envelope, {
+  tier: 'portable-markdown',
+  languageContext: { ...ZH_LANGUAGE_CONTEXT, primaryLanguage: 'ja', responseLanguage: 'ja', artifactLanguage: 'ja' }
+})
+assert.match(unsupportedLocaleText, /Language fallback: requested=ja, rendered=en, reason=locale-catalog-unavailable:ja/)
+
 const noNextStep = createVisibleEnvelope({
   ...baseInput,
   postCompletionActions: createPostCompletionActionSet({ requiredNow: [], primaryAction: null, conditionalActions: [] })
 })
-const noNextStepText = renderVisibleEnvelope(noNextStep, { tier: 'portable-markdown' })
+const noNextStepText = renderVisibleEnvelope(noNextStep, {
+  tier: 'portable-markdown', languageContext: ZH_LANGUAGE_CONTEXT
+})
 assert.doesNotMatch(noNextStepText, /继续当前动作|下一步：|条件动作：/)
 
 const legacyInput = { ...baseInput }
@@ -492,8 +551,12 @@ assert.strictEqual(legacyView.validation.valid, true)
 assert.strictEqual(legacyView.migrationStatus, 'legacy-v1-read-only')
 assert.strictEqual(legacyView.postCompletionActions.primaryAction.kind, 'legacy')
 assert.strictEqual(legacyView.postCompletionActions.primaryAction.applicability, 'unverified')
-assert.match(renderVisibleEnvelope(legacyEnvelope, { tier: 'portable-markdown' }), /V1 兼容读取/)
-assert.match(renderVisibleEnvelope(legacyEnvelope, { tier: 'portable-markdown' }), /DevCodexVisibleEnvelopeV1/)
+assert.match(renderVisibleEnvelope(legacyEnvelope, {
+  tier: 'portable-markdown', languageContext: ZH_LANGUAGE_CONTEXT, audience: 'audit'
+}), /V1 兼容读取/)
+assert.match(renderVisibleEnvelope(legacyEnvelope, {
+  tier: 'portable-markdown', languageContext: ZH_LANGUAGE_CONTEXT, audience: 'audit'
+}), /DevCodexVisibleEnvelopeV1/)
 
 const v2Envelope = createVisibleEnvelopeV2({ ...baseInput, checks: checks().slice(0, 8) })
 assert.strictEqual(v2Envelope.schemaVersion, 'DevCodexVisibleEnvelopeV2')
@@ -784,7 +847,9 @@ const failedForSurface = createLinkCapabilityDecision({
 })
 const failedSurfaceEnvelope = createVisibleEnvelope({ ...baseInput, linkCapability: failedForSurface })
 assert.strictEqual(failedSurfaceEnvelope.validation.valid, true)
-assert.match(renderVisibleEnvelope(failedSurfaceEnvelope, { tier: 'plain-text' }), /fallback：link-failed/)
+assert.match(renderVisibleEnvelope(failedSurfaceEnvelope, {
+  tier: 'plain-text', languageContext: ZH_LANGUAGE_CONTEXT
+}), /fallback：link-failed/)
 
 const invalidStatus = createVisibleEnvelope({
   ...baseInput,
@@ -844,14 +909,25 @@ const compactEnvelope = createVisibleEnvelope({ ...baseInput, checks: compactChe
 assert.strictEqual(shouldUseCompact(compactEnvelope, compactEnvelope), true)
 assert.strictEqual(shouldUseCompact(compactEnvelope, compactEnvelope, { userRequestedDetails: true }), false)
 assert.strictEqual(shouldUseCompact(compactEnvelope, createVisibleEnvelope({ ...baseInput, messageKind: 'final-result', checks: compactChecks.slice(0, 2) })), false)
-const compactText = renderVisibleEnvelope(compactEnvelope, { tier: 'portable-markdown', compact: true })
+const compactText = renderVisibleEnvelope(compactEnvelope, {
+  tier: 'portable-markdown', compact: true, languageContext: ZH_LANGUAGE_CONTEXT
+})
 for (let index = 0; index < 11; index += 1) assert.match(compactText, new RegExp(`PC${index}=`))
 assert.match(compactText, /状态未变化/)
-const confirmationExpanded = renderVisibleEnvelope(confirmation, { tier: 'portable-markdown', compact: true })
+const confirmationExpanded = renderVisibleEnvelope(confirmation, {
+  tier: 'portable-markdown', compact: true, languageContext: ZH_LANGUAGE_CONTEXT
+})
 assert.doesNotMatch(confirmationExpanded, /状态未变化/)
-const invalidPortable = renderVisibleEnvelope(invalidStatus, { tier: 'rich-markdown', compact: true })
-assert.match(invalidPortable, /VISIBLE_ENVELOPE_INVALID/)
+const invalidPortable = renderVisibleEnvelope(invalidStatus, {
+  tier: 'rich-markdown', compact: true, languageContext: ZH_LANGUAGE_CONTEXT
+})
+assert.match(invalidPortable, /可见输出契约无效/)
+assert.doesNotMatch(invalidPortable, /VISIBLE_ENVELOPE_INVALID/)
 assert.doesNotMatch(invalidPortable, /状态未变化/)
+const invalidAudit = renderVisibleEnvelope(invalidStatus, {
+  tier: 'rich-markdown', compact: true, languageContext: ZH_LANGUAGE_CONTEXT, audience: 'audit'
+})
+assert.match(invalidAudit, /VISIBLE_ENVELOPE_INVALID/)
 
 const fastPathAllowed = buildSimpleGovernanceFastPathDecision({
   taskKind: 'chat',

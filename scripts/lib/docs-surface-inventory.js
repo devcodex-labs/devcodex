@@ -258,7 +258,7 @@ function assertDocsSurfaceInventory (inv) {
     failures.push(`hook runtime cjs expected >=26 got ${inv.hookRuntimeCount}`)
   }
 
-  if (inv.prompts !== 30) failures.push(`prompts expected 30 got ${inv.prompts}`)
+  if (inv.prompts !== 31) failures.push(`prompts expected 31 got ${inv.prompts}`)
   if (inv.instructionsMain !== 15) {
     failures.push(`instructions main expected 15 got ${inv.instructionsMain}`)
   }

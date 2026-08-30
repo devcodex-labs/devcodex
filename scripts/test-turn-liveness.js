@@ -7,9 +7,15 @@ const {
   classifyTurnLiveness,
   completeToolLease,
   createTurnLivenessState,
+  abortPreparedTaskOperation,
+  markTaskOperationDispatched,
+  markTaskOperationObserved,
   markTurnTerminal,
   normalizeTurnLivenessState,
   observeTurnEvent,
+  prepareTaskOperationRecord,
+  reconcileTaskOperationRecord,
+  settleTaskOperationRecord,
   startToolLease
 } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 
@@ -81,6 +87,107 @@ function main() {
   assert.strictEqual(state.inFlightOperation, null)
   assert.strictEqual(state.previousTurn.terminalState, 'completed')
   assert.strictEqual(state.checkpointValidation.postExecution.status, 'pass')
+
+  let prepared = observeTurnEvent(createTurnLivenessState({ nowMs: at(0) }), 'UserPromptSubmit', {
+    session_id: 'operation-prepare-turn'
+  }, { nowMs: at(1000) }).state
+  prepared = startToolLease(prepared, { tool_use_id: 'operation-prepared' }, 'write_file', {
+    nowMs: at(2000),
+    mutating: true,
+    targetPaths: ['D:/workspace/a.md']
+  })
+  const preparedInput = {
+    operationId: 'operation-prepared',
+    writerGeneration: 3,
+    expectedStateSequence: 7,
+    kind: 'update',
+    exactTargets: ['D:/workspace/a.md'],
+    targetSetDigest: '1'.repeat(64),
+    beforeDigest: '2'.repeat(64)
+  }
+  prepared = prepareTaskOperationRecord(prepared, preparedInput, { nowMs: at(2000) })
+  assert.strictEqual(prepared.taskOperationSet.unresolved.phase, 'prepared')
+  const exactReplay = prepareTaskOperationRecord(prepared, preparedInput, { nowMs: at(2200) })
+  assert.strictEqual(exactReplay.taskOperationSet.unresolved.recordDigest, prepared.taskOperationSet.unresolved.recordDigest)
+  assert.strictEqual(exactReplay.taskOperationSet.unresolved.preparedAt, prepared.taskOperationSet.unresolved.preparedAt)
+  assert.throws(
+    () => prepareTaskOperationRecord(prepared, {
+      ...preparedInput,
+      exactTargets: ['D:/workspace/different.md']
+    }, { nowMs: at(2200) }),
+    error => error.code === 'TASK_OPERATION_REPLAY_MISMATCH',
+    'the same operationId must not authorize a different prepared target set'
+  )
+  assert.throws(
+    () => prepareTaskOperationRecord(prepared, {
+      ...preparedInput,
+      writerGeneration: preparedInput.writerGeneration + 1
+    }, { nowMs: at(2200) }),
+    error => error.code === 'TASK_OPERATION_REPLAY_MISMATCH',
+    'the same operationId must not cross a writer generation fence'
+  )
+  assert.throws(
+    () => markTurnTerminal(prepared, 'completed', 'must-not-close', { nowMs: at(2500) }),
+    error => error.code === 'TASK_OPERATION_UNSETTLED'
+  )
+  const aborted = abortPreparedTaskOperation(prepared, 'operation-prepared', { nowMs: at(2600) })
+  assert.strictEqual(aborted.taskOperationSet.unresolved, null)
+  assert.strictEqual(aborted.taskOperationSet.settled[0].phase, 'aborted-zero-effect')
+  assert.doesNotThrow(() => markTurnTerminal(aborted, 'completed', 'zero-effect-abort', { nowMs: at(2700) }))
+
+  let dispatched = observeTurnEvent(createTurnLivenessState({ nowMs: at(0) }), 'UserPromptSubmit', {
+    session_id: 'operation-dispatch-turn'
+  }, { nowMs: at(1000) }).state
+  dispatched = startToolLease(dispatched, { tool_use_id: 'operation-dispatched' }, 'write_file', {
+    nowMs: at(2000),
+    mutating: true,
+    targetPaths: ['D:/workspace/b.md']
+  })
+  dispatched = prepareTaskOperationRecord(dispatched, {
+    operationId: 'operation-dispatched',
+    writerGeneration: 4,
+    expectedStateSequence: 8,
+    kind: 'update',
+    exactTargets: ['D:/workspace/b.md'],
+    targetSetDigest: '3'.repeat(64),
+    beforeDigest: '4'.repeat(64)
+  }, { nowMs: at(2000) })
+  dispatched = markTaskOperationDispatched(dispatched, 'operation-dispatched', { nowMs: at(2100) })
+  assert.throws(
+    () => abortPreparedTaskOperation(dispatched, 'operation-dispatched', { nowMs: at(2200) }),
+    error => error.code === 'TASK_OPERATION_ABORT_INVALID',
+    'a dispatched operation must never be downgraded to zero effect'
+  )
+  dispatched = completeToolLease(dispatched, {
+    tool_use_id: 'operation-dispatched',
+    success: true,
+    tool_output: { accepted: true }
+  }, { nowMs: at(2300) })
+  assert.strictEqual(dispatched.taskOperationSet.unresolved.phase, 'observed')
+  dispatched = settleTaskOperationRecord(dispatched, 'operation-dispatched', {
+    needsReconcile: true,
+    effect: 'unknown',
+    resultDigest: '5'.repeat(64),
+    evidenceDigest: '6'.repeat(64)
+  }, { nowMs: at(2400) })
+  assert.strictEqual(dispatched.taskOperationSet.unresolved.phase, 'reconcile-required')
+  assert.throws(
+    () => markTurnTerminal(dispatched, 'completed', 'unknown-effect', { nowMs: at(2500) }),
+    error => error.code === 'TASK_OPERATION_UNSETTLED'
+  )
+  const reconciled = reconcileTaskOperationRecord(dispatched, 'operation-dispatched', {
+    effect: 'known-applied',
+    resultDigest: '7'.repeat(64),
+    evidenceDigest: '8'.repeat(64)
+  }, { nowMs: at(2600) })
+  assert.strictEqual(reconciled.taskOperationSet.unresolved, null)
+  assert.strictEqual(reconciled.taskOperationSet.settled[0].effect, 'known-applied')
+  const operationTerminal = markTurnTerminal(reconciled, 'completed', 'settled', { nowMs: at(2700) })
+  assert.throws(
+    () => markTaskOperationObserved(operationTerminal, 'operation-dispatched', {}, { nowMs: at(2800) }),
+    error => error.code === 'TASK_OPERATION_CAS_MISMATCH',
+    'a late PostToolUse cannot reopen or overwrite a settled terminal operation'
+  )
 
   const oldState = normalizeTurnLivenessState({ state: 'running', lastEventAt: '2026-07-15T00:00:01.000Z' }, { nowMs: at(0) })
   assert.strictEqual(oldState.schemaVersion, 1)

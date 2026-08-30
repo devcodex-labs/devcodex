@@ -24,17 +24,60 @@ const {
 const { resolveRuntimeStateRoot } = require('../hooks/_runtime/workspace-layout.cjs')
 const {
   commitFencedTaskWriteOwnerTransition,
-  commitTaskRecoveryState,
   fencedTaskWriteOwnerDigest,
+  normalizeIdentity,
   readTaskRecoveryState,
-  resolveTaskRecoveryMetaDir
+  resolveTaskRecoveryMetaDir,
+  storePaths,
+  taskPaths
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
+const {
+  compactLifecycleStateV5,
+  digestValue,
+  semanticLifecycleProjection
+} = require('../hooks/_runtime/lifecycle-state-projection-v5.cjs')
+const {
+  readRuntimeGenerationStatus
+} = require('../hooks/_runtime/runtime-generation-identity.cjs')
 
 const PACKAGE_ROOT = path.resolve(__dirname, '..')
 const REGISTRY_MODE = process.argv.includes('--registry')
 
 function digestBuffer (value) {
   return crypto.createHash('sha256').update(value).digest('hex')
+}
+
+function writeV1194TaskRecoveryEnvelope (metaDir, identityInput, state, committedAt) {
+  const identity = normalizeIdentity(identityInput)
+  const persistedState = compactLifecycleStateV5(state).state
+  const envelope = {
+    schemaVersion: 'TaskRecoveryStateV5',
+    kind: 'hot',
+    sequence: 1,
+    committedAt,
+    lastAccessedAt: committedAt,
+    terminalAt: null,
+    identity,
+    semanticDigest: digestValue(semanticLifecycleProjection(persistedState)),
+    state: persistedState
+  }
+  envelope.payloadDigest = digestValue({
+    schemaVersion: envelope.schemaVersion,
+    kind: envelope.kind,
+    recordType: envelope.recordType,
+    baseSequence: envelope.baseSequence,
+    sequence: envelope.sequence,
+    committedAt: envelope.committedAt,
+    lastAccessedAt: envelope.lastAccessedAt,
+    terminalAt: envelope.terminalAt,
+    identity: envelope.identity,
+    semanticDigest: envelope.semanticDigest,
+    state: envelope.state
+  })
+  const legacyPaths = taskPaths(storePaths(metaDir), identity.recoveryKey)
+  fs.mkdirSync(legacyPaths.dir, { recursive: true })
+  fs.writeFileSync(legacyPaths.slots[0], `${JSON.stringify(envelope)}\n`, 'utf8')
+  return envelope
 }
 
 function safeTempCleanup (root) {
@@ -258,10 +301,20 @@ function runFormalTaskContinuityUpgradeProbe (tempRoot) {
     },
     fencedWriteOwner: owner
   }
-  const committed = commitTaskRecoveryState({ metaDir, identity, state: legacyState }, { force: true })
-  assert.strictEqual(committed.status, 'committed')
+  const legacyEnvelope = writeV1194TaskRecoveryEnvelope(
+    metaDir,
+    identity,
+    legacyState,
+    new Date(issuedAtMs).toISOString()
+  )
+  assert.strictEqual(legacyEnvelope.writerGeneration, undefined)
   const read = readTaskRecoveryState({ metaDir, identity })
   assert.strictEqual(read.status, 'fresh')
+  assert.deepStrictEqual(read.commitFence, {
+    schemaVersion: 'TaskRecoveryCommitFenceV1',
+    stateSequence: 1,
+    writerGeneration: owner.ownerGeneration
+  })
   assert.strictEqual(read.state.fencedWriteOwner.ownerNonce, owner.ownerNonce)
   assert.strictEqual(read.state.resumeIngressCapabilityRef, undefined)
 
@@ -400,6 +453,23 @@ async function main () {
     assert(fs.existsSync(oldServer), 'candidate activation must retain the running old runtime generation')
     assert(fs.existsSync(path.join(newTarget.runtimeRoot, 'runtime-generation.json')))
     process.kill(oldPid, 0)
+
+    const supersededRuntimeStatus = readRuntimeGenerationStatus(oldTarget.runtimeRoot, {
+      receiptFile: newTarget.receiptFile
+    })
+    assert.strictEqual(supersededRuntimeStatus.alignment, 'runtime-mismatch')
+    assert.strictEqual(supersededRuntimeStatus.restartRequired, true)
+    assert.strictEqual(supersededRuntimeStatus.reasonCode, 'active-runtime-generation-superseded')
+    assert.strictEqual(
+      supersededRuntimeStatus.configuredRuntimeGeneration.generationId,
+      newTarget.runtimeGeneration.generationId
+    )
+    const currentRuntimeStatus = readRuntimeGenerationStatus(newTarget.runtimeRoot, {
+      receiptFile: newTarget.receiptFile
+    })
+    assert.strictEqual(currentRuntimeStatus.alignment, 'aligned')
+    assert.strictEqual(currentRuntimeStatus.restartRequired, false)
+    assert.strictEqual(currentRuntimeStatus.reasonCode, 'active-runtime-generation-current')
 
     const currentMcp = startMcp(path.join(newTarget.runtimeRoot, 'mcp', 'profile-server.js'), workspace, env)
     newProcess = currentMcp.child

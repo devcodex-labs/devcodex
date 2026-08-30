@@ -17,7 +17,11 @@ const {
   buildWorkItemSet
 } = require('../hooks/_runtime/actual-instruction-envelope.cjs')
 const { buildWorkflowRouteDecision } = require('../hooks/_runtime/workflow-route-decision-v2.cjs')
-const { resolveLanguageContext } = require('../hooks/_runtime/language-context.cjs')
+const {
+  compactLanguageContext,
+  languageContextIntegrityErrors,
+  resolveLanguageContext
+} = require('../hooks/_runtime/language-context.cjs')
 const { createRuntimeStateStore } = require('../hooks/_runtime/runtime-state-store.cjs')
 const { resolveRuntimeStateRoots } = require('../hooks/_runtime/workspace-layout.cjs')
 const { buildLifecycleNamespaceStateUtils } = require('../hooks/_runtime/lifecycle-namespace-state.cjs')
@@ -1195,7 +1199,7 @@ function runR2BTaskOwnerLifecycleScenarios() {
     }
   }, { nonceFactory: () => `owner-${'c'.repeat(40)}` })
   assert.strictEqual(reopenedOwner.status, 'active')
-  run({
+  const reboundOutput = run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'r2b-terminal-continuation',
     prompt: '继续 R2B Hook owner task'
@@ -1209,6 +1213,36 @@ function runR2BTaskOwnerLifecycleScenarios() {
     continuation: reboundState.taskContinuation,
     ownerReadError: reboundState.lifecycleOwnerTransitionError
   }))
+  assert.strictEqual(reboundState.languageContext?.primaryLanguage, 'zh-CN')
+  assert.match(JSON.stringify(reboundOutput), /Human-facing reply language: zh-CN/)
+
+  const projectionWithWrongLocale = {
+    ...reboundState,
+    languageContext: {
+      schemaVersion: 'LanguageContextV2', primaryLanguage: 'en', responseLanguage: 'en',
+      artifactLanguage: 'en', currentTurnClass: 'neutral', source: 'host-or-terminal-locale',
+      confidence: 'low', updatedPrimary: false
+    }
+  }
+  fs.writeFileSync(STATE_FILE, JSON.stringify(projectionWithWrongLocale, null, 2))
+  const neutralConfirmation = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'r2b-terminal-continuation',
+    prompt: '确认'
+  })
+  const neutralConfirmationState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(neutralConfirmationState.languageContext?.primaryLanguage, 'zh-CN',
+    'fresh task binding must restore durable Chinese when a neutral confirmation arrives')
+  assert.match(JSON.stringify(neutralConfirmation), /Human-facing reply language: zh-CN/)
+
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'r2b-terminal-continuation',
+    prompt: '后续请用英文回复'
+  })
+  const switchedLanguageState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(switchedLanguageState.languageContext?.primaryLanguage, 'en')
+  assert.strictEqual(switchedLanguageState.languageContext?.currentTurnClass, 'explicit-switch')
 
   process.stdout.write('hooks runtime R2B owner + R3B mutation scenarios passed\n')
 }
@@ -1303,6 +1337,35 @@ function main() {
       currentTurnClass: 'neutral', source: 'und-en-fallback', confidence: 'low', updatedPrimary: false
     }
   )
+  const compactLanguage = compactLanguageContext({
+    ...resolveLanguageContext({ prompt: '请检查语言载体' }),
+    source: 'x'.repeat(200),
+    ignoredMachinePayload: { shouldNotSurvive: true }
+  })
+  assert.strictEqual(compactLanguage.primaryLanguage, 'zh-CN')
+  assert.strictEqual(compactLanguage.source.length, 96)
+  assert.strictEqual(Object.hasOwn(compactLanguage, 'ignoredMachinePayload'), false)
+  assert.deepStrictEqual(languageContextIntegrityErrors(compactLanguage), [])
+  assert(languageContextIntegrityErrors({ ...compactLanguage, responseLanguage: '' })
+    .includes('language-context-response-invalid'))
+
+  cleanState()
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'language-transform-session',
+    prompt: '请检查入口语言连续性'
+  })
+  const transformProjection = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'language-transform-session',
+    prompt: '确认',
+    devcodex_host_transform_only: true,
+    devcodex_host_continuation: true
+  })
+  assert.match(JSON.stringify(transformProjection), /LanguageContextV2/)
+  assert.match(JSON.stringify(transformProjection), /Human-facing reply language: zh-CN/)
+  const transformState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(transformState.languageContext?.primaryLanguage, 'zh-CN')
 
   runHooksRuntimeBootstrapLayoutScenarios(runtimeScenarioContext)
   runHooksRuntimeGovernanceIntakeScenarios(runtimeScenarioContext)

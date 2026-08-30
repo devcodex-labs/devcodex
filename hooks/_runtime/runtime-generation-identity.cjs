@@ -7,6 +7,7 @@ const { acquireRuntimeGenerationLease } = require('./runtime-generation-lease.cj
 
 const PROCESS_IDENTITY_SCHEMA = 'RuntimeProcessIdentityV2'
 const RUNTIME_GENERATION_SCHEMA = 'RuntimeGenerationManifestV1'
+const RUNTIME_GENERATION_STATUS_SCHEMA = 'RuntimeGenerationStatusV1'
 const RUNTIME_CONTRACT_VERSION = 2
 const DIGEST_RE = /^[a-f0-9]{64}$/
 const identityCache = new Map()
@@ -60,6 +61,69 @@ function readRuntimeGenerationManifest (runtimeRoot = defaultRuntimeRoot(), fsIm
       sourceDigest: null,
       immutable: false
     }
+  }
+}
+
+function readRuntimeGenerationStatus (runtimeRoot = defaultRuntimeRoot(), options = {}) {
+  const fsImpl = options.fs || fs
+  const activeRoot = path.resolve(runtimeRoot)
+  const activeRead = readRuntimeGenerationManifest(activeRoot, fsImpl)
+  const runtimeBase = path.dirname(activeRoot)
+  const receiptFile = path.resolve(options.receiptFile || path.join(runtimeBase, 'global-host-receipt.json'))
+  const receipt = readJson(receiptFile, fsImpl)
+  const configuredInput = receipt?.runtimeGeneration && typeof receipt.runtimeGeneration === 'object'
+    ? receipt.runtimeGeneration
+    : null
+  const configuredRoot = receipt?.runtimeRoot ? path.resolve(String(receipt.runtimeRoot)) : null
+  const configuredValid = receipt?.schemaVersion === 'GlobalHostConfigReceiptV1' &&
+    configuredInput?.schemaVersion === RUNTIME_GENERATION_SCHEMA &&
+    typeof configuredInput.generationId === 'string' && configuredInput.generationId.trim() &&
+    typeof configuredInput.packageVersion === 'string' && configuredInput.packageVersion.trim() &&
+    configuredRoot !== null
+  const active = {
+    generationId: String(activeRead.manifest.generationId || 'unverified'),
+    packageVersion: String(activeRead.manifest.packageVersion || 'unverified'),
+    manifestStatus: activeRead.status
+  }
+  const configured = configuredValid ? {
+    generationId: String(configuredInput.generationId),
+    packageVersion: String(configuredInput.packageVersion),
+    runtimeRoot: configuredRoot,
+    manifestStatus: 'resolved'
+  } : null
+  const installedPackageVersion = String(
+    receipt?.packageVersion || configured?.packageVersion || active.packageVersion || 'unverified'
+  )
+  let alignment = 'unverified'
+  let restartRequired = null
+  let reasonCode = 'configured-runtime-receipt-unavailable'
+  if (configured) {
+    const sameRuntimeRoot = path.relative(configured.runtimeRoot, activeRoot) === ''
+    const sameGeneration = configured.generationId === active.generationId &&
+      configured.packageVersion === active.packageVersion &&
+      sameRuntimeRoot
+    if (sameGeneration) {
+      alignment = activeRead.status === 'resolved' ? 'aligned' : 'version-only'
+      restartRequired = false
+      reasonCode = activeRead.status === 'resolved'
+        ? 'active-runtime-generation-current'
+        : 'active-runtime-version-current-identity-unverified'
+    } else {
+      alignment = 'runtime-mismatch'
+      restartRequired = true
+      reasonCode = 'active-runtime-generation-superseded'
+    }
+  }
+  return {
+    schemaVersion: RUNTIME_GENERATION_STATUS_SCHEMA,
+    installedPackageVersion,
+    activeRuntimeGeneration: active,
+    configuredRuntimeGeneration: configured,
+    alignment,
+    restartRequired,
+    reasonCode,
+    receiptFile,
+    receiptStatus: configured ? 'resolved' : 'unverified'
   }
 }
 
@@ -188,9 +252,11 @@ module.exports = {
   PROCESS_IDENTITY_SCHEMA,
   RUNTIME_CONTRACT_VERSION,
   RUNTIME_GENERATION_SCHEMA,
+  RUNTIME_GENERATION_STATUS_SCHEMA,
   compareRuntimeProcessIdentity,
   captureRuntimeProcessIdentity,
   defaultRuntimeRoot,
   readRuntimeGenerationManifest,
+  readRuntimeGenerationStatus,
   validateRuntimeProcessIdentity
 }

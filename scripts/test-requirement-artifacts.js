@@ -9,6 +9,7 @@ const path = require('path')
 
 const {
   RECENT_REQUIREMENT_ARTIFACT_DAYS,
+  checkArtifactTemplateFile,
   checkActualCandidateEvidence,
   hasSimpleTaskFastPathMarker,
   collectRecentBugArtifactIssues,
@@ -189,6 +190,23 @@ try {
     '01-问题确认.md: N/A + skipReason'
   ].join('\n'))
 
+  write(path.join(requirementsRoot, 'bad-template-pr1', '03-方案复审-PR1.md'), '# invalid PR1\n')
+  write(path.join(requirementsRoot, 'good-template-pr1', '03-方案复审-PR1.md'), [
+    '# Good PR1',
+    '',
+    '## 审查范围',
+    '',
+    '## 需求与方案映射',
+    '',
+    '## 代码实况',
+    '',
+    '## 阻断项快照',
+    '',
+    '## 复核结论',
+    '',
+    '## 专项审查维度'
+  ].join('\n'))
+
   const { checkedDirs, issues, mergedRegistryDigest, registrySlotCount } = collectRecentRequirementArtifactIssues({
     activeRoot: tempRoot,
     recentDays: RECENT_REQUIREMENT_ARTIFACT_DAYS
@@ -212,6 +230,8 @@ try {
   assert(checkedDirs.includes('bad-requirement'))
   assert(checkedDirs.includes('bad-change'))
   assert(checkedDirs.includes('bad-product-requirement'))
+  assert(checkedDirs.includes('bad-template-pr1'))
+  assert(checkedDirs.includes('good-template-pr1'))
   assert(!checkedDirs.includes('old-requirement'))
   assert(!checkedDirs.includes('simple-fast-path'))
   assert(hasSimpleTaskFastPathMarker(path.join(requirementsRoot, 'simple-fast-path')))
@@ -223,8 +243,20 @@ try {
   assert(issues.some(item => item.includes('bad-requirement/04-实施计划.md missing plan mode')))
   assert(issues.some(item => item.includes('bad-requirement/04-实施计划.md missing rollback section')))
   assert(issues.some(item => item.includes('bad-requirement/05-实施进度.md missing "支撑产物状态"')))
+  assert(issues.some(item => item.includes('bad-template-pr1/03-方案复审-PR1.md template qualification artifact-template-required-semantic-missing:')))
   assert(!issues.some(item => item.includes('good-requirement')))
   assert(!issues.some(item => item.includes('good-product-requirement')))
+  assert(!issues.some(item => item.includes('good-template-pr1')))
+
+  const pr1Slot = baseRegistry.slots.find(slot => slot.slotId === 'plan-review-pr1')
+  const invalidPr1Path = path.join(requirementsRoot, 'bad-template-pr1', '03-方案复审-PR1.md')
+  assert.strictEqual(checkArtifactTemplateFile({ slot: pr1Slot, filePath: invalidPr1Path }).passed, false)
+  const deletedValidatorResult = checkArtifactTemplateFile({
+    slot: { ...pr1Slot, templateValidator: undefined },
+    filePath: invalidPr1Path
+  })
+  assert.strictEqual(deletedValidatorResult.passed, false, 'deleting the validator contract must keep invalid fixtures red')
+  assert(deletedValidatorResult.issues.includes('ARTIFACT_TEMPLATE_BINDING_INVALID'))
 
   const bugResult = collectRecentBugArtifactIssues({
     activeRoot: tempRoot,

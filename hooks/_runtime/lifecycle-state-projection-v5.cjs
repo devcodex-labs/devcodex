@@ -2,6 +2,8 @@
 
 const crypto = require('crypto')
 const { projectArtifactMutationReconciliationReceipt } = require('./artifact-mutation-reconciliation.cjs')
+const { projectArtifactTemplateBinding } = require('./artifact-template-contract.cjs')
+const { compactLanguageContext } = require('./language-context.cjs')
 
 const TASK_STATE_TARGET_BYTES = 64 * 1024
 const TASK_STATE_SLOT_MAX_BYTES = 256 * 1024
@@ -232,6 +234,11 @@ function compactMutationDecision(raw) {
         }
       : null,
     authoritySourceRef: boundedString(raw.authoritySourceRef, 512),
+    templateBindings: Array.isArray(raw.templateBindings)
+      ? raw.templateBindings.slice(0, 24).map(item => item?.schemaVersion === 'ArtifactTemplateBindingProjectionV1'
+          ? clone(item)
+          : projectArtifactTemplateBinding(item))
+      : [],
     decisionStatus: raw.decisionStatus,
     expiresAt: raw.expiresAt || null,
     singleUse: raw.singleUse === true,
@@ -343,6 +350,7 @@ function compactInFlightOperation(raw) {
     mutationLease: compactMutationLease(value.mutationLease),
     mutationFootprint: compactMutationFootprint(value.mutationFootprint),
     mutationPreObservation: compactMutationPreObservation(value.mutationPreObservation),
+    operationRecord: isPlainObject(value.operationRecord) ? clone(value.operationRecord) : null,
     sourceDigest: digestValue(value)
   }
 }
@@ -552,6 +560,10 @@ function compactLifecycleStateV5(raw, options = {}) {
     throw new LifecycleStateProjectionV5Error('LIFECYCLE_STATE_INVALID', 'lifecycle state must be an object')
   }
   const value = clone(raw)
+  // TaskRecoveryCommitFenceV1 is a runtime CAS carrier. The authoritative
+  // sequence/generation live on the envelope and must not be copied into the
+  // durable lifecycle payload or influence its semantic digest.
+  delete value.taskRecoveryCommitFence
   value.turnLiveness = compactTurnLiveness(value.turnLiveness)
   value.contextAcquisition = compactContextAcquisition(value.contextAcquisition)
   value.contextDeliveryReceipts = compactDeliveryReceipts(value.contextDeliveryReceipts)
@@ -607,7 +619,7 @@ function semanticLifecycleProjection(compactState) {
   ])
   const value = {}
   for (const [key, raw] of Object.entries(source)) {
-    if (volatileKeys.has(key) || ['contextAcquisition', 'turnLiveness', 'taskRecoveryBinding', 'governanceIntake', 'contextDeliveryReceipts'].includes(key)) continue
+    if (volatileKeys.has(key) || ['contextAcquisition', 'turnLiveness', 'taskRecoveryBinding', 'taskRecoveryCommitFence', 'governanceIntake', 'contextDeliveryReceipts'].includes(key)) continue
     value[key] = clone(raw)
   }
   if (isPlainObject(source.contextAcquisition)) {
@@ -688,6 +700,9 @@ function buildColdResumeStub(compactState) {
     workflowIngressError: isPlainObject(state.workflowIngressError)
       ? clone(state.workflowIngressError)
       : null,
+    // Task language is minimum continuity state. Coldification may rebuild
+    // route/catalog projections, but must never fall back to a host locale.
+    languageContext: compactLanguageContext(state.languageContext),
     workflowIngressResume: envelope || workItemSet
       ? {
           schemaVersion: 'WorkflowIngressResumeRefV1',

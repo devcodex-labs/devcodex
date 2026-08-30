@@ -909,6 +909,11 @@ function runHooksRuntimeVisibilityScenarios(context) {
     'deny',
     JSON.stringify(firstSimplePre)
   )
+  assert.doesNotMatch(
+    JSON.stringify(firstSimplePre),
+    /LIFECYCLE_PREFLIGHT_(?:PAYLOAD_EXCEEDED|TASK_OPERATION_)/,
+    'first simple-task mutation must persist its complete recovery preflight'
+  )
   let simpleState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(simpleState.turnLiveness?.inFlightOperation?.mutationLease?.ownerKind, 'simple-task-fast-path')
   fs.mkdirSync(path.dirname(simpleFirstPath), { recursive: true })
@@ -952,6 +957,17 @@ function runHooksRuntimeVisibilityScenarios(context) {
     secondSimplePre.hookSpecificOutput?.permissionDecision,
     'deny',
     JSON.stringify(secondSimplePre)
+  )
+  assert.doesNotMatch(
+    JSON.stringify(secondSimplePre),
+    /LIFECYCLE_PREFLIGHT_(?:PAYLOAD_EXCEEDED|TASK_OPERATION_)/,
+    'second simple-task mutation must persist its complete recovery preflight'
+  )
+  simpleState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(simpleState.turnLiveness?.inFlightOperation?.operationId, 'simple-write-2')
+  assert.strictEqual(
+    simpleState.turnLiveness?.inFlightOperation?.operationRecord?.phase,
+    'dispatched'
   )
   fs.writeFileSync(simpleSecondPath, secondSimpleInput.content)
   run({
@@ -1017,6 +1033,16 @@ function runHooksRuntimeVisibilityScenarios(context) {
   assert.strictEqual(memoryAllocateState.memoryTouched, true)
   assert.strictEqual(JSON.stringify(memoryAllocateState.turnLiveness?.lastMutationCloseout || null), memoryCloseoutBefore)
   const firstReportPath = path.join(TEMP_ROOT, '.devcodex', 'reports', 'analysis', 'test', '20260824', '01--sample.md')
+  const qualifiedAnalysisReport = [
+    '# report',
+    '## 核心问题',
+    '## 调研范围',
+    '## 分析结论',
+    '## 支撑证据',
+    '## 后续建议',
+    '## 约束声明',
+    ''
+  ].join('\n')
   const firstOperationalLease = issueWorkflowOperationalCreateLease(firstReportPath)
   const productWriteWarn = run({
     hookEventName: 'PreToolUse',
@@ -1024,7 +1050,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     tool_name: 'Write',
     tool_input: {
       file_path: firstReportPath,
-      content: '# report\n'
+      content: qualifiedAnalysisReport
     }
   })
   assert.strictEqual(productWriteWarn.continue, true)
@@ -1040,12 +1066,12 @@ function runHooksRuntimeVisibilityScenarios(context) {
   assert.strictEqual(s07State.turnLiveness?.inFlightOperation?.artifactDecision?.decisionStatus, 'allow')
   assert.strictEqual(s07State.turnLiveness?.inFlightOperation?.mutationLease?.ownerKind, 'workflow-operational')
   fs.mkdirSync(path.dirname(firstReportPath), { recursive: true })
-  fs.writeFileSync(firstReportPath, '# report\n')
+  fs.writeFileSync(firstReportPath, qualifiedAnalysisReport)
   run({
     hookEventName: 'PostToolUse',
     tool_use_id: 's07-operational-report-1',
     tool_name: 'Write',
-    tool_input: { file_path: firstReportPath, content: '# report\n' },
+    tool_input: { file_path: firstReportPath, content: qualifiedAnalysisReport },
     success: true
   })
   s07State = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
@@ -1071,16 +1097,16 @@ function runHooksRuntimeVisibilityScenarios(context) {
     tool_name: 'Write',
     tool_input: {
       file_path: secondReportPath,
-      content: '# report2\n'
+      content: qualifiedAnalysisReport
     }
   })
   assert.strictEqual(productWriteSecond.continue, true)
-  fs.writeFileSync(secondReportPath, '# report2\n')
+  fs.writeFileSync(secondReportPath, qualifiedAnalysisReport)
   run({
     hookEventName: 'PostToolUse',
     tool_use_id: 's07-operational-report-2',
     tool_name: 'Write',
-    tool_input: { file_path: secondReportPath, content: '# report2\n' },
+    tool_input: { file_path: secondReportPath, content: qualifiedAnalysisReport },
     success: true
   })
 

@@ -210,6 +210,8 @@ function run() {
     }
     assert.deepStrictEqual(artifactMutationAuthority.evidenceArtifacts, [
       'ArtifactSlotDecisionV2',
+      'ArtifactTemplateBindingV1',
+      'ArtifactTemplateQualificationV1',
       'TaskOwnedMutationLeaseV2',
       'MutationObservationReceiptV1',
       'ArtifactMutationCloseoutReceiptV2'

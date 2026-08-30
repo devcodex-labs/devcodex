@@ -32,19 +32,19 @@ function fixtureRoot () {
 }
 
 const sourceInventory = inventory(ROOT)
-assert.strictEqual(sourceInventory.actual, 135)
+assert.strictEqual(sourceInventory.actual, 136)
 assert.deepStrictEqual(
   sourceInventory.entries.reduce((counts, entry) => {
     counts[entry.kind] = (counts[entry.kind] || 0) + 1
     return counts
   }, {}),
-  { 'instruction-root': 1, instruction: 18, prompt: 30, skill: 86 }
+  { 'instruction-root': 1, instruction: 18, prompt: 31, skill: 86 }
 )
 
 const repoBundle = buildBundle(ROOT, { mode: 'check' })
-assert.strictEqual(repoBundle.receipt.entryCount, 135)
+assert.strictEqual(repoBundle.receipt.entryCount, 136)
 assert.ok(
-  repoBundle.receipt.fresh || repoBundle.receipt.stale.length === 135,
+  repoBundle.receipt.fresh || repoBundle.receipt.stale.length === 136,
   repoBundle.receipt.stale.join(', ')
 )
 assert.strictEqual(repoBundle.receipt.mirrorCount, 1)

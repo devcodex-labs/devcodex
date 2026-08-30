@@ -20,6 +20,7 @@ const {
   readTaskAdmissionTransaction,
   readTaskRecoveryState,
   resolveTaskRecoveryMetaDir,
+  commitTaskRecoveryState,
   storePaths,
   taskAdmissionTransactionDigest,
   taskPaths,
@@ -39,6 +40,7 @@ const {
   reconcileWorkflowTaskTerminal,
   validateProjectTargetLease
 } = require('../mcp/task-admission-authority.cjs')
+const { taskOperationTerminalSnapshot } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 
 const TEMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-task-admission-'))
 const NOW_MS = Date.parse('2026-08-25T00:00:00.000Z')
@@ -296,6 +298,28 @@ function evidenceSet(input, admission, suffix = 'terminal') {
   })
 }
 
+function withTerminalExpectedState(ingress, admission, terminalInput, nowMs, options = {}) {
+  const metaDir = resolveTaskRecoveryMetaDir({ activeRoot: ingress.activeRoot, project: ingress.project })
+  const identity = {
+    activeRoot: ingress.activeRoot,
+    project: ingress.project,
+    taskId: admission.taskId,
+    taskStatus: 'active'
+  }
+  const recovery = readTaskRecoveryState({ metaDir, identity }, { nowMs })
+  assert.strictEqual(recovery.status, 'fresh')
+  const owner = recovery.state.fencedWriteOwner
+  const operationSnapshot = taskOperationTerminalSnapshot(recovery.state.turnLiveness)
+  if (options.requireReady !== false) assert.strictEqual(operationSnapshot.terminalReady, true)
+  return {
+    ...terminalInput,
+    lifecycleRevision: Number(owner.reopenGeneration || 0) + 1,
+    expectedStateSequence: recovery.commitFence.stateSequence,
+    expectedWriterGeneration: recovery.commitFence.writerGeneration,
+    settledSetDigest: operationSnapshot.settledSetDigest
+  }
+}
+
 function taskRootFor(input, receipt) {
   return path.join(input.activeRoot, ...receipt.taskRootRelative.split('/'))
 }
@@ -352,7 +376,7 @@ function buildFinalizedResumeAttempt(root, admission, suffix, nowMs, options = {
     schemaVersion: 'TestFinalizedResumeAttemptV1',
     suffix,
     transactionDigest: transaction.transactionDigest,
-    ownerLeaseDigest: owner.leaseDigest,
+    ownerLeaseDigest: owner?.leaseDigest || null,
     envelopeDigest: resumeInput.actualInstructionEnvelope.envelopeDigest
   })
   const candidateWrite = writeBoundedResumeIngressCapability({
@@ -377,9 +401,10 @@ function buildFinalizedResumeAttempt(root, admission, suffix, nowMs, options = {
       admissionId: transaction.admissionId,
       admissionGeneration: transaction.admissionGeneration,
       transactionDigest: transaction.transactionDigest,
-      ownerGeneration: owner.ownerGeneration,
-      leaseRevision: owner.leaseRevision,
-      ownerLeaseDigest: owner.leaseDigest
+      ownerGeneration: owner?.ownerGeneration || 0,
+      leaseRevision: owner?.leaseRevision || 0,
+      ownerLeaseDigest: owner?.leaseDigest || null,
+      ownerStatus: owner?.status || 'missing'
     },
     runtime: options.runtime || TEST_RUNTIME,
     liveness
@@ -403,6 +428,44 @@ function createFinalizedResumeFixture(name) {
   assert.strictEqual(owner.finalized, true)
   assert.strictEqual(owner.mutationAuthority, true)
   return { root, input, admission, owner }
+}
+
+function rewriteAsLegacyOwnerlessFinalizedState(fixture, nowMs) {
+  const metaDir = resolveTaskRecoveryMetaDir({
+    activeRoot: fixture.root.activeRoot,
+    project: fixture.root.project
+  })
+  const identity = normalizeIdentity({
+    activeRoot: fixture.root.activeRoot,
+    project: fixture.root.project,
+    taskId: fixture.admission.taskId,
+    taskStatus: 'active'
+  })
+  const recovery = readTaskRecoveryState({ metaDir, identity }, { nowMs })
+  assert.strictEqual(recovery.status, 'fresh')
+  const legacyState = JSON.parse(JSON.stringify(recovery.state))
+  delete legacyState.taskRecoveryCommitFence
+  delete legacyState.fencedWriteOwner
+  delete legacyState.previousFencedWriteOwner
+  delete legacyState.resumeIngressCapabilityRef
+  const taskStore = taskPaths(storePaths(metaDir), identity.recoveryKey)
+  const resolvedTaskStore = path.resolve(taskStore.dir)
+  const resolvedTempRoot = `${path.resolve(TEMP_ROOT)}${path.sep}`
+  assert(resolvedTaskStore.startsWith(resolvedTempRoot), 'legacy rewrite must stay inside the isolated test root')
+  fs.rmSync(resolvedTaskStore, { recursive: true, force: true })
+  const committed = commitTaskRecoveryState({ metaDir, identity, state: legacyState }, {
+    nowMs,
+    force: true,
+    reason: 'test-legacy-ownerless-finalized-state',
+    ...STORE_OPTIONS
+  })
+  assert.strictEqual(committed.status, 'committed', JSON.stringify(committed))
+  assert.strictEqual(committed.writerGeneration, 0)
+  const readback = readTaskRecoveryState({ metaDir, identity }, { nowMs })
+  assert.strictEqual(readback.status, 'fresh')
+  assert.strictEqual(readback.state.fencedWriteOwner, undefined)
+  assert.strictEqual(readback.commitFence.writerGeneration, 0)
+  return readback
 }
 
 try {
@@ -777,12 +840,16 @@ try {
   assert.strictEqual(initialOwner.finalized, true)
   assert.strictEqual(initialOwner.cp1Confirmed, false)
   assert.strictEqual(initialOwner.mutationAuthority, false)
+  assert.strictEqual(initialOwner.writeContext.schemaVersion, 'CanonicalTaskWriteContextV1')
+  assert.strictEqual(initialOwner.writeContext.readback, 'PASS')
+  assert.strictEqual(initialOwner.writeContext.writerGeneration, initialOwner.owner.ownerGeneration)
+  assert.strictEqual(initialOwner.writeContext.mutationAuthority, false)
   assert.strictEqual(runOwner(initialAcquireInput).replayed, true, 'acquire response-loss retry must be exact replay')
-  const prematureTerminalInput = {
+  const prematureTerminalInput = withTerminalExpectedState(ownerAdmissionInput, ownerAdmission, {
     ...ownerInput(ownerAdmissionInput, ownerAdmission, 'release', { expectedOwner: ownerRef(initialOwner) }),
     terminalStatus: 'completed',
     evidence: evidenceSet(ownerAdmissionInput, ownerAdmission, 'premature')
-  }
+  }, NOW_MS)
   delete prematureTerminalInput.operation
   assert.throws(
     () => executeWorkflowTaskTerminal(prematureTerminalInput, { nowMs: NOW_MS, storeOptions: STORE_OPTIONS }),
@@ -796,6 +863,9 @@ try {
   const firstRenew = runOwner(firstRenewInput)
   assert.strictEqual(firstRenew.cp1Confirmed, true)
   assert.strictEqual(firstRenew.mutationAuthority, true)
+  assert.strictEqual(firstRenew.writeContext.mutationAuthority, true)
+  assert.strictEqual(firstRenew.writeContext.holderSession, firstRenew.owner.sessionDigest)
+  assert.match(firstRenew.writeContext.contextDigest, /^[a-f0-9]{64}$/)
   assert.strictEqual(runOwner(firstRenewInput).replayed, true, 'renew response-loss retry must not advance the lease')
   const secondRenewInput = ownerInput(ownerAdmissionInput, ownerAdmission, 'renew', {
     expectedOwner: ownerRef(firstRenew)
@@ -860,7 +930,8 @@ try {
     error => error.code === 'TASK_WRITE_OWNER_CAS_MISMATCH'
   )
 
-  const takeoverAt = NOW_MS + 31 * 60 * 1000
+  const takeoverAt = NOW_MS + 60 * 1000
+  assert(Date.parse(handoffAccepted.owner.expiresAt) > takeoverAt, 'takeover proof must run before the prior owner TTL')
   const takeoverIngress = admissionInput(ownerRoot, 'takeover-target')
   const takeoverPrepareInput = ownerInput(takeoverIngress, ownerAdmission, 'takeover-prepare', {
     expectedOwner: ownerRef(handoffAccepted),
@@ -906,14 +977,48 @@ try {
   const duplicateEvidence = terminalEvidence.map(item => ({ ...item }))
   duplicateEvidence[3] = { ...duplicateEvidence[0], role: 'completion' }
   const terminalAt = rescueAt + 1000
-  const terminalCommand = {
+  const terminalCommand = withTerminalExpectedState(secondRescueIngress, ownerAdmission, {
     ...ownerInput(secondRescueIngress, ownerAdmission, 'release', {
       expectedOwner: ownerRef(terminalOwner)
     }),
     terminalStatus: 'completed',
     evidence: duplicateEvidence
-  }
+  }, terminalAt)
   delete terminalCommand.operation
+  assert.throws(
+    () => executeWorkflowTaskTerminal({
+      ...terminalCommand,
+      expectedStateSequence: undefined
+    }, { nowMs: terminalAt, storeOptions: STORE_OPTIONS }),
+    error => error.code === 'TASK_TERMINAL_EXPECTED_STATE_REQUIRED'
+  )
+  const beforeStaleTerminal = readTaskRecoveryState({
+    metaDir: resolveTaskRecoveryMetaDir({ activeRoot: ownerRoot.activeRoot, project: ownerRoot.project }),
+    identity: {
+      activeRoot: ownerRoot.activeRoot,
+      project: ownerRoot.project,
+      taskId: ownerAdmission.taskId,
+      taskStatus: 'active'
+    }
+  }, { nowMs: terminalAt })
+  assert.throws(
+    () => executeWorkflowTaskTerminal({
+      ...terminalCommand,
+      expectedStateSequence: terminalCommand.expectedStateSequence - 1
+    }, { nowMs: terminalAt, storeOptions: STORE_OPTIONS }),
+    error => error.code === 'TASK_TERMINAL_STATE_CAS_MISMATCH'
+  )
+  const afterStaleTerminal = readTaskRecoveryState({
+    metaDir: resolveTaskRecoveryMetaDir({ activeRoot: ownerRoot.activeRoot, project: ownerRoot.project }),
+    identity: {
+      activeRoot: ownerRoot.activeRoot,
+      project: ownerRoot.project,
+      taskId: ownerAdmission.taskId,
+      taskStatus: 'active'
+    }
+  }, { nowMs: terminalAt })
+  assert.strictEqual(afterStaleTerminal.commitFence.stateSequence, beforeStaleTerminal.commitFence.stateSequence)
+  assert.strictEqual(afterStaleTerminal.envelope.payloadDigest, beforeStaleTerminal.envelope.payloadDigest)
   assert.throws(
     () => executeWorkflowTaskTerminal(terminalCommand, { nowMs: terminalAt, storeOptions: STORE_OPTIONS }),
     error => error.code === 'TASK_TERMINAL_EVIDENCE_DUPLICATE'
@@ -922,8 +1027,13 @@ try {
   const terminal = executeWorkflowTaskTerminal(terminalCommand, { nowMs: terminalAt, storeOptions: STORE_OPTIONS })
   assert.strictEqual(terminal.status, 'terminal')
   assert.strictEqual(terminal.mutationAuthority, false)
+  assert.strictEqual(terminal.writeContext.ownerStatus, 'terminal')
+  assert.strictEqual(terminal.writeContext.mutationAuthority, false)
+  assert.strictEqual(terminal.writeContext.writerGeneration, terminal.owner.ownerGeneration)
   const terminalReplay = executeWorkflowTaskTerminal(terminalCommand, { nowMs: terminalAt, storeOptions: STORE_OPTIONS })
   assert.strictEqual(terminalReplay.replayed, true)
+  assert.strictEqual(terminal.receipt.lifecycleRevision, 1)
+  assert.strictEqual(terminal.receipt.settledSetDigest, terminalCommand.settledSetDigest)
   assert.throws(
     () => executeWorkflowTaskTerminal({ ...terminalCommand, terminalStatus: 'failed' }, { nowMs: terminalAt, storeOptions: STORE_OPTIONS }),
     error => error.code === 'TASK_TERMINAL_REPLAY_MISMATCH'
@@ -1022,6 +1132,55 @@ try {
     assert.strictEqual(resumed.replayed, true, stage)
   }
 
+  const unsettledRoot = setupRoot('terminal-unsettled-operation')
+  const unsettledInput = admissionInput(unsettledRoot, 'terminal-unsettled-operation')
+  const unsettledAdmission = run(unsettledInput)
+  confirmCp1(taskRootFor(unsettledInput, unsettledAdmission))
+  const unsettledOwner = runOwner(ownerInput(unsettledInput, unsettledAdmission, 'acquire', {
+    expectedOwner: { mode: 'absent' }
+  }))
+  const unsettledMetaDir = resolveTaskRecoveryMetaDir({
+    activeRoot: unsettledRoot.activeRoot,
+    project: unsettledRoot.project
+  })
+  const unsettledIdentity = {
+    activeRoot: unsettledRoot.activeRoot,
+    project: unsettledRoot.project,
+    taskId: unsettledAdmission.taskId,
+    taskStatus: 'active'
+  }
+  const unsettledWrite = updateTaskRecoveryState({
+    metaDir: unsettledMetaDir,
+    identity: unsettledIdentity
+  }, state => {
+    state.turnLiveness = {
+      ...(state.turnLiveness || {}),
+      state: 'running',
+      inFlightOperation: {
+        operationId: 'legacy-unsettled-mutation',
+        toolName: 'write_file',
+        startedAt: new Date(NOW_MS).toISOString(),
+        leaseExpiresAt: new Date(NOW_MS + 30 * 60 * 1000).toISOString(),
+        ownedByAgent: true,
+        mutating: true,
+        targetPaths: [path.join(taskRootFor(unsettledInput, unsettledAdmission), 'pending.md')]
+      }
+    }
+    return state
+  }, { nowMs: NOW_MS, force: true, reason: 'test-terminal-unsettled-operation', ...STORE_OPTIONS })
+  assert.strictEqual(unsettledWrite.status, 'committed')
+  const unsettledTerminalInput = withTerminalExpectedState(unsettledInput, unsettledAdmission, {
+    ...ownerInput(unsettledInput, unsettledAdmission, 'release', { expectedOwner: ownerRef(unsettledOwner) }),
+    terminalStatus: 'completed',
+    evidence: evidenceSet(unsettledInput, unsettledAdmission, 'unsettled')
+  }, NOW_MS + 1, { requireReady: false })
+  delete unsettledTerminalInput.operation
+  assert.throws(
+    () => executeWorkflowTaskTerminal(unsettledTerminalInput, { nowMs: NOW_MS + 1, storeOptions: STORE_OPTIONS }),
+    error => error.code === 'TASK_TERMINAL_OPERATION_UNSETTLED' &&
+      error.details?.unresolvedOperationId === 'legacy-unsettled-mutation'
+  )
+
   const reserveRoot = setupRoot('terminal-reserve')
   const reserveInput = admissionInput(reserveRoot, 'terminal-reserve')
   const reserveAdmission = run(reserveInput)
@@ -1030,11 +1189,11 @@ try {
     expectedOwner: { mode: 'absent' }
   }))
   const reserveEvidence = evidenceSet(reserveInput, reserveAdmission, 'reserve')
-  const reserveTerminalInput = {
+  const reserveTerminalInput = withTerminalExpectedState(reserveInput, reserveAdmission, {
     ...ownerInput(reserveInput, reserveAdmission, 'release', { expectedOwner: ownerRef(reserveOwner) }),
     terminalStatus: 'completed',
     evidence: reserveEvidence
-  }
+  }, NOW_MS + 1000)
   delete reserveTerminalInput.operation
   const reservedTerminal = executeWorkflowTaskTerminal(reserveTerminalInput, {
     nowMs: NOW_MS + 1000,
@@ -1401,6 +1560,12 @@ try {
   const resumed = run(expiredAttempt.input, { nowMs: resumeAt })
   assert.strictEqual(resumed.atomicOwnerAcquired, true)
   assert.strictEqual(resumed.mutationAuthority, true)
+  assert.strictEqual(resumed.ownerAcquisition.writeContext.schemaVersion, 'CanonicalTaskWriteContextV1')
+  assert.strictEqual(resumed.ownerAcquisition.writeContext.readback, 'PASS')
+  assert.strictEqual(
+    resumed.ownerAcquisition.writeContext.writerGeneration,
+    resumed.ownerAcquisition.owner.ownerGeneration
+  )
   assert.strictEqual(resumed.admissionGeneration, expiredAttempt.prior.transaction.admissionGeneration + 1)
   assert.strictEqual(resumed.ownerAcquisition.owner.ownerGeneration, expiredAttempt.prior.owner.ownerGeneration + 1)
   assert.strictEqual(resumed.recovery.schemaVersion, 'FinalizedTaskResumeRecoveryReceiptV3')
@@ -1445,13 +1610,52 @@ try {
   const releasedResumed = run(releasedAttempt.input, { nowMs: releasedResumeAt })
   assert.strictEqual(releasedResumed.mutationAuthority, true, 'released owner must resume without waiting for idle TTL')
 
-  const busyResumeAt = NOW_MS + 60 * 1000
-  const busyResume = createFinalizedResumeFixture('finalized-owner-busy')
-  setFinalizedResumeLiveness(busyResume.root, busyResume.admission, {}, busyResumeAt)
-  const busyAttempt = buildFinalizedResumeAttempt(busyResume.root, busyResume.admission, 'finalized-owner-busy-next', busyResumeAt)
-  assert.throws(
-    () => run(busyAttempt.input, { nowMs: busyResumeAt }),
-    error => error.code === 'FINALIZED_TASK_RESUME_OWNER_BUSY' && error.details?.reasonCode === 'owner-busy'
+  const noTtlWaitResumeAt = NOW_MS + 60 * 1000
+  const noTtlWaitResume = createFinalizedResumeFixture('finalized-no-ttl-wait')
+  setFinalizedResumeLiveness(noTtlWaitResume.root, noTtlWaitResume.admission, {}, noTtlWaitResumeAt)
+  const noTtlWaitAttempt = buildFinalizedResumeAttempt(
+    noTtlWaitResume.root,
+    noTtlWaitResume.admission,
+    'finalized-no-ttl-wait-next',
+    noTtlWaitResumeAt
+  )
+  assert(Date.parse(noTtlWaitAttempt.prior.owner.expiresAt) > noTtlWaitResumeAt)
+  assert.strictEqual(noTtlWaitAttempt.candidate.liveness.ownerLeaseExpiredDiagnostic, false)
+  const noTtlWaitResult = run(noTtlWaitAttempt.input, { nowMs: noTtlWaitResumeAt })
+  assert.strictEqual(noTtlWaitResult.mutationAuthority, true)
+  assert.strictEqual(
+    noTtlWaitResult.ownerAcquisition.owner.ownerGeneration,
+    noTtlWaitAttempt.prior.owner.ownerGeneration + 1,
+    'terminal liveness plus exact CAS must claim immediately without waiting for owner TTL'
+  )
+
+  const legacyOwnerlessResumeAt = NOW_MS + 2 * 60 * 1000
+  const legacyOwnerlessResume = createFinalizedResumeFixture('finalized-legacy-ownerless')
+  rewriteAsLegacyOwnerlessFinalizedState(legacyOwnerlessResume, legacyOwnerlessResumeAt)
+  setFinalizedResumeLiveness(
+    legacyOwnerlessResume.root,
+    legacyOwnerlessResume.admission,
+    {},
+    legacyOwnerlessResumeAt
+  )
+  const legacyOwnerlessAttempt = buildFinalizedResumeAttempt(
+    legacyOwnerlessResume.root,
+    legacyOwnerlessResume.admission,
+    'finalized-legacy-ownerless-next',
+    legacyOwnerlessResumeAt
+  )
+  assert.strictEqual(legacyOwnerlessAttempt.prior.owner, undefined)
+  assert.strictEqual(legacyOwnerlessAttempt.candidate.prior.ownerStatus, 'missing')
+  assert.strictEqual(legacyOwnerlessAttempt.candidate.prior.ownerGeneration, 0)
+  const legacyOwnerlessResult = run(legacyOwnerlessAttempt.input, { nowMs: legacyOwnerlessResumeAt })
+  assert.strictEqual(legacyOwnerlessResult.mutationAuthority, true)
+  assert.strictEqual(legacyOwnerlessResult.ownerAcquisition.owner.ownerGeneration, 1)
+  assert.strictEqual(legacyOwnerlessResult.ownerAcquisition.owner.leaseRevision, 1)
+  const legacyOwnerlessReplay = run(legacyOwnerlessAttempt.input, { nowMs: legacyOwnerlessResumeAt })
+  assert.strictEqual(legacyOwnerlessReplay.replayed, true)
+  assert.strictEqual(
+    legacyOwnerlessReplay.ownerAcquisition.owner.leaseDigest,
+    legacyOwnerlessResult.ownerAcquisition.owner.leaseDigest
   )
 
   const liveTurnResume = createFinalizedResumeFixture('finalized-live-turn')
@@ -1464,6 +1668,27 @@ try {
   assert.throws(
     () => run(liveTurnAttempt.input, { nowMs: resumeAt }),
     error => error.code === 'FINALIZED_TASK_RESUME_OLD_TURN_LIVE' && error.details?.reasonCode === 'old-turn-live'
+  )
+
+  const expiredLiveTurnAt = NOW_MS + 31 * 60 * 1000
+  const expiredLiveTurnResume = createFinalizedResumeFixture('finalized-expired-live-turn')
+  setFinalizedResumeLiveness(expiredLiveTurnResume.root, expiredLiveTurnResume.admission, {
+    state: 'running',
+    lastEventAt: new Date(expiredLiveTurnAt - 30 * 1000).toISOString(),
+    previousTurn: null
+  }, expiredLiveTurnAt)
+  const expiredLiveTurnAttempt = buildFinalizedResumeAttempt(
+    expiredLiveTurnResume.root,
+    expiredLiveTurnResume.admission,
+    'finalized-expired-live-turn-next',
+    expiredLiveTurnAt
+  )
+  assert.strictEqual(expiredLiveTurnAttempt.candidate.liveness.ownerLeaseExpiredDiagnostic, true)
+  assert.strictEqual(expiredLiveTurnAttempt.candidate.liveness.noLiveTurn, false)
+  assert.throws(
+    () => run(expiredLiveTurnAttempt.input, { nowMs: expiredLiveTurnAt }),
+    error => error.code === 'FINALIZED_TASK_RESUME_OLD_TURN_LIVE' && error.details?.reasonCode === 'old-turn-live',
+    'owner TTL expiry must never transfer authority while the prior turn is still live'
   )
 
   const unknownSideEffect = createFinalizedResumeFixture('finalized-side-effect-unknown')

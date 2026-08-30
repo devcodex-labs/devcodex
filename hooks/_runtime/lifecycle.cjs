@@ -41,9 +41,12 @@ const {
   completeToolLease,
   createTurnLivenessState,
   formatTurnRecoveryMessage,
+  markTaskOperationDispatched,
   markTurnTerminal,
   normalizeTurnLivenessState,
   observeTurnEvent,
+  prepareTaskOperationRecord,
+  settleTaskOperationRecord,
   startToolLease
 } = require('./lifecycle-turn-liveness.cjs')
 const { buildLifecycleVisibleReplyUtils } = require('./lifecycle-visible-reply.cjs')
@@ -1580,6 +1583,18 @@ function bindTaskRecoveryState(state, task) {
     state.fencedWriteOwner = ownerRead.owner || ownerRead.state.fencedWriteOwner || null
     state.admissionTransaction = ownerRead.transaction || state.admissionTransaction || null
     state.workflowTaskTerminalReceipt = ownerRead.terminalReceipt || null
+    const durableLanguage = ownerRead.state.languageContext
+    // A fresh task bind must restore the task language before any human
+    // rendering. An explicit switch in the current turn remains authoritative
+    // and will be persisted by the next fenced state commit.
+    if (durableLanguage && state.languageContext?.currentTurnClass !== 'explicit-switch') {
+      state.languageContext = resolveLanguageContext({
+        prompt: '',
+        taskContext: durableLanguage,
+        conversationContext: state.languageContext,
+        locale: process.env.LC_ALL || process.env.LANG || process.env.LANGUAGE || ''
+      })
+    }
   }
   if (ownerRead.status === 'fresh' && ownerRead.owner?.status === 'terminal') {
     const terminalReceipt = ownerRead.terminalReceipt || null
@@ -1852,8 +1867,10 @@ function evaluateFencedTaskMutationAuthority(state) {
   const owner = ownerRead.owner
   const transaction = ownerRead.transaction
   const nowMs = Date.now()
+  const ownerExpiresAtMs = Date.parse(String(owner?.expiresAt || ''))
+  const leaseFreshDiagnostic = Number.isFinite(ownerExpiresAtMs) && ownerExpiresAtMs > nowMs
   const checks = {
-    ownerActive: owner?.status === 'active' && Date.parse(String(owner.expiresAt || '')) > nowMs,
+    ownerActive: owner?.status === 'active',
     task: owner?.taskId === binding.taskId && transaction?.taskId === binding.taskId,
     projectRoot: owner?.projectRootIdentity === state.stickyProject?.rootIdentityDigest &&
       transaction?.projectRootIdentityDigest === state.stickyProject?.rootIdentityDigest,
@@ -1870,6 +1887,8 @@ function evaluateFencedTaskMutationAuthority(state) {
         valid: false,
         errorCode: failed.includes('cp') ? 'TASK_WRITE_OWNER_CP_CONFIRMATION_REQUIRED' : 'TASK_WRITE_OWNER_AUTHORITY_MISMATCH',
         failed,
+        leaseFreshDiagnostic,
+        leaseExpiredDiagnostic: owner?.status === 'active' && !leaseFreshDiagnostic,
         ownerGeneration: owner?.ownerGeneration || null,
         leaseRevision: owner?.leaseRevision || null
       }
@@ -1879,7 +1898,9 @@ function evaluateFencedTaskMutationAuthority(state) {
         leaseRevision: owner.leaseRevision,
         leaseDigest: owner.leaseDigest,
         admissionId: transaction.admissionId,
-        admissionGeneration: transaction.admissionGeneration
+        admissionGeneration: transaction.admissionGeneration,
+        leaseFreshDiagnostic,
+        leaseExpiredDiagnostic: !leaseFreshDiagnostic
       }
 }
 
@@ -2908,6 +2929,26 @@ function startAllowedToolRecovery(state, payload, platform, artifactDecision = n
   state.turnLiveness.inFlightOperation.mutationLease = mutationLease
   state.turnLiveness.inFlightOperation.mutationFootprint = recoveryFootprint
   state.turnLiveness.inFlightOperation.mutationPreObservation = preObservation
+  const operationFenceNowMs = Date.parse(String(mutationLease.issuedAt || ''))
+  const operationFenceOptions = Number.isFinite(operationFenceNowMs)
+    ? { nowMs: operationFenceNowMs }
+    : {}
+  state.turnLiveness = prepareTaskOperationRecord(state.turnLiveness, {
+    operationId,
+    idempotencyKey: state.turnLiveness.checkpoint.idempotencyKey,
+    writerGeneration: state.fencedWriteOwner?.ownerGeneration ??
+      state.taskRecoveryCommitFence?.writerGeneration ?? 0,
+    expectedStateSequence: state.taskRecoveryCommitFence?.stateSequence ?? 0,
+    kind: artifactDecision.operation || 'mutation',
+    exactTargets: recoveryFootprint.normalizedTargets || footprint.normalizedTargets,
+    targetSetDigest: artifactDecision.targetSetDigest,
+    beforeDigest: preObservation.snapshotDigest
+  }, operationFenceOptions)
+  state.turnLiveness = markTaskOperationDispatched(
+    state.turnLiveness,
+    operationId,
+    operationFenceOptions
+  )
   const validation = validateMutationAuthorizationBundle(state, state.turnLiveness.inFlightOperation, { operationId })
   if (!validation.valid) {
     throw mutationAuthorizationError(
@@ -3212,12 +3253,6 @@ async function main() {
 
   // ── UserPromptSubmit ───────────────────────────────────────────────────────
   if (eventName === 'UserPromptSubmit') {
-    if (payload.devcodex_host_continuation === true) {
-      state.lastReason = 'host-route-continuation'
-      saveState(state)
-      writeStdout(noopOutput())
-      return
-    }
     if (payload.devcodex_host_transform_only === true &&
         state.contextAcquisition?.contextEpoch) {
       let progressiveSkillRouteMsg = ''
@@ -3238,10 +3273,17 @@ async function main() {
         [
           buildBootstrapMessage(state),
           buildExecutionModeContextMessage(state),
+          formatLanguageContextInstruction(state.languageContext),
           buildGovernanceIntakeContextMessage(state.governanceIntake),
           progressiveSkillRouteMsg
         ].filter(Boolean).join('\n\n')
       ))
+      return
+    }
+    if (payload.devcodex_host_continuation === true) {
+      state.lastReason = 'host-route-continuation'
+      saveState(state)
+      writeStdout(noopOutput())
       return
     }
     const workflowCompletionLifecycle = state.workflowCompletionLifecycle
@@ -4108,7 +4150,8 @@ async function main() {
           reconciliationInput = createArtifactMutationReconciliationInput({
             operationId: completingMutationOperation.operationId,
             footprint: completingMutationOperation.mutationFootprint,
-            preObservation: completingMutationOperation.mutationPreObservation
+            preObservation: completingMutationOperation.mutationPreObservation,
+            templateBindings: artifactDecision.templateBindings || []
           })
         } catch (error) {
           authorizationErrors.push(error.code || 'artifact-reconciliation-input-unavailable')
@@ -4148,7 +4191,7 @@ async function main() {
           state.simpleTaskFastPathUsage = null
         }
       }
-      state.turnLiveness.lastMutationCloseout = {
+      const lifecycleMutationCloseout = {
         schemaVersion: 'LifecycleMutationCloseoutV2',
         operationId: completingMutationOperation.operationId,
         toolName: completingMutationOperation.toolName,
@@ -4158,6 +4201,36 @@ async function main() {
         observation: mutationObservation,
         artifactCloseout: mutationObservation.closeout,
         reconciliationInput
+      }
+      state.turnLiveness.lastMutationCloseout = lifecycleMutationCloseout
+      try {
+        const observedEffects = mutationObservation.observedEffects || {}
+        const applied = ['created', 'modified', 'deleted', 'moved']
+          .some(kind => Array.isArray(observedEffects[kind]) && observedEffects[kind].length > 0)
+        state.turnLiveness = settleTaskOperationRecord(
+          state.turnLiveness,
+          completingMutationOperation.operationId,
+          {
+            needsReconcile,
+            effect: applied ? 'known-applied' : 'known-not-applied',
+            resultDigest: mutationObservation.receiptDigest,
+            evidenceDigest: mutationObservation.closeout?.closeoutDigest || mutationObservation.receiptDigest
+          }
+        )
+        state.turnLiveness.lastMutationCloseout = {
+          ...lifecycleMutationCloseout,
+          taskOperationRecord: state.turnLiveness.lastTaskOperationRecord
+        }
+      } catch (error) {
+        needsReconcile = true
+        artifactNeedsReconcile = true
+        lifecycleMutationCloseout.result = 'needs-reconcile'
+        lifecycleMutationCloseout.authorizationErrors = [...new Set([
+          ...lifecycleMutationCloseout.authorizationErrors,
+          error.code || 'task-operation-settlement-failed'
+        ])].sort()
+        state.turnLiveness.lastMutationCloseout = lifecycleMutationCloseout
+        state.lastReason = error.code || 'TASK_OPERATION_SETTLEMENT_FAILED'
       }
       if (needsReconcile) {
         artifactNeedsReconcile = true
@@ -4185,6 +4258,21 @@ async function main() {
         authorizationErrors: ['mutation-authority-bundle-missing'],
         observation: null,
         artifactCloseout: null
+      }
+      try {
+        state.turnLiveness = settleTaskOperationRecord(
+          state.turnLiveness,
+          completingMutationOperation.operationId,
+          {
+            needsReconcile: true,
+            effect: 'unknown',
+            resultDigest: stableDigest({ operationId: completingMutationOperation.operationId, result: 'authority-lost' }),
+            evidenceDigest: stableDigest({ operationId: completingMutationOperation.operationId, evidence: 'missing-authority-bundle' })
+          }
+        )
+        state.turnLiveness.lastMutationCloseout.taskOperationRecord = state.turnLiveness.lastTaskOperationRecord
+      } catch (error) {
+        state.turnLiveness.lastMutationCloseout.authorizationErrors.push(error.code || 'task-operation-settlement-failed')
       }
     }
     if (['plan', 'plan-refresh'].includes(observedContextKind) && !routeBinding.ok) {

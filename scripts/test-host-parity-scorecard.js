@@ -26,14 +26,55 @@ const { buildLifecyclePayloadUtils } = require('../hooks/_runtime/lifecycle-payl
 const { resolveGlobalHostTarget } = require('./lib/global-host-target.js')
 
 // --- scorecard pure helpers ---
-const block = composeEntryCheckBlock({ project: 'demo', status: 'PASS', nextStep: 'go' })
+const ZH_LANGUAGE_CONTEXT = Object.freeze({
+  schemaVersion: 'LanguageContextV2', primaryLanguage: 'zh-CN', responseLanguage: 'zh-CN',
+  artifactLanguage: 'zh-CN', currentTurnClass: 'neutral', source: 'task-primary-language',
+  confidence: 'high', updatedPrimary: false
+})
+const EN_LANGUAGE_CONTEXT = Object.freeze({
+  ...ZH_LANGUAGE_CONTEXT,
+  primaryLanguage: 'en', responseLanguage: 'en', artifactLanguage: 'en'
+})
+const block = composeEntryCheckBlock({
+  project: 'demo', status: 'PASS', nextStep: 'go', languageContext: ZH_LANGUAGE_CONTEXT
+})
 assert.match(block, /### DevCodex · 入口检查/)
 assert.match(block, /`PASS` · `demo`/)
 assert.match(block, /PC0/)
 assert.match(block, /PC4 \[UNVERIFIED\] ENV_MODE unknown/)
-assert.match(composeEntryCheckBlock({ project: 'demo', envMode: 'dev' }), /PC4 \[UNVERIFIED\] dev 模式/)
-assert.match(composeEntryCheckBlock({ project: 'demo', envMode: 'prod' }), /PC4 \[N\/A\] prod 模式/)
+assert.doesNotMatch(block, /DevCodexVisibleEnvelopeV3/)
+assert.match(composeEntryCheckBlock({ project: 'demo', envMode: 'dev', languageContext: ZH_LANGUAGE_CONTEXT }), /PC4 \[UNVERIFIED\] dev 模式/)
+assert.match(composeEntryCheckBlock({ project: 'demo', envMode: 'prod', languageContext: ZH_LANGUAGE_CONTEXT }), /PC4 \[N\/A\] prod 模式/)
 assert.match(composePc4Line({ envMode: 'unexpected' }), /ENV_MODE unknown/)
+const englishBlock = composeEntryCheckBlock({
+  project: 'demo', envMode: 'dev', languageContext: EN_LANGUAGE_CONTEXT
+})
+assert.match(englishBlock, /### DevCodex · Entry check/)
+assert.match(englishBlock, /PC4 \[UNVERIFIED\] dev mode/)
+assert.doesNotMatch(englishBlock, /入口检查/)
+const missingLanguageBlock = composeEntryCheckBlock({ project: 'demo' })
+assert.match(missingLanguageBlock, /Language fallback: requested=und/)
+assert.match(missingLanguageBlock, /### DevCodex · Entry check/)
+const auditBlock = composeEntryCheckBlock({
+  project: 'demo', status: 'PASS', semanticDigest: 'digest-fixture',
+  languageContext: ZH_LANGUAGE_CONTEXT, audience: 'audit'
+})
+assert.match(auditBlock, /DevCodexVisibleEnvelopeV3 · entry-check · PASS · digest-fixture/)
+const restartBlock = composeEntryCheckBlock({
+  project: 'demo', languageContext: ZH_LANGUAGE_CONTEXT,
+  versionFacts: {
+    installedPackageVersion: '1.19.5',
+    activeRuntimeGeneration: { generationId: 'old-generation', packageVersion: '1.19.4', manifestStatus: 'resolved' },
+    configuredRuntimeGeneration: { generationId: 'new-generation', packageVersion: '1.19.5', manifestStatus: 'resolved' },
+    sourceCandidate: null,
+    alignment: 'runtime-mismatch',
+    restartRequired: true,
+    restartReason: 'active-runtime-generation-superseded'
+  }
+})
+assert.match(restartBlock, /configured=1\.19\.5\/new-generation/)
+assert.match(restartBlock, /需要重启=是/)
+assert.match(restartBlock, /active-runtime-generation-superseded/)
 assert.match(entryCheckAssistSuffix({ project: 'x' }), /S07 assist/)
 
 // Isolated user-global layout for hardReady

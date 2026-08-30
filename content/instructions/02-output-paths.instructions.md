@@ -205,7 +205,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 
 ```markdown
 #### 完成交付文件
-- [最终执行与验证报告](E:/Worker/.devcodex/devcodex/reports/.../12--最终执行报告.md) — 汇总完成范围、验证结果和残余风险；路径：`.devcodex/devcodex/reports/.../12--最终执行报告.md`；操作：查看结论
+- [最终执行与验证报告]({{workspaceRoot}}/.devcodex/devcodex/reports/.../12--最终执行报告.md) — 汇总完成范围、验证结果和残余风险；路径：`.devcodex/devcodex/reports/.../12--最终执行报告.md`；操作：查看结论
 ```
 
 自由文本表示例：

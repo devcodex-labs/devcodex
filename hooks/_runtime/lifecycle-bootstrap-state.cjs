@@ -1065,6 +1065,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       state.taskRecoveryBinding = { ...previousBinding }
     }
     for (const field of [
+      'taskRecoveryCommitFence',
       'admissionTransaction',
       'previousAdmissionTransaction',
       'fencedWriteOwner',

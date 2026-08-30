@@ -4027,12 +4027,22 @@
         "website/docs/versions/**/requirements/**",
         "prompts/requirement-*.prompt.md",
         "prompts/implementation-plan.prompt.md",
+        "content/manifest.json",
+        "content/prompts/requirement-*.prompt.md",
+        "content/prompts/technical-design.prompt.md",
+        "content/prompts/implementation-*.prompt.md",
+        "content/prompts/plan-review.prompt.md",
+        "hooks/_runtime/artifact-template-contract.cjs",
+        "hooks/_runtime/artifact-slot-registry.v2.json",
         "scripts/lib/requirement-artifact-check.js",
         "scripts/test-requirement-artifacts.js"
       ],
       "consumers": [],
       "invariants": [
-        "contract"
+        "contract",
+        "template-source-owned-semantics",
+        "historical-unbound-readonly",
+        "formal-pr1-template-qualification"
       ],
       "riskClass": "normal",
       "cachePolicy": "never",
@@ -4498,6 +4508,8 @@
       ],
       "inputs": [
         "mcp/**",
+        "hooks/_runtime/artifact-template-contract.cjs",
+        "hooks/_runtime/artifact-slot-registry.v2.json",
         "scripts/test-artifact-link-projection.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-v1178-batch-d.js",
@@ -4512,7 +4524,8 @@
         "memory-file-cas-durability-metadata",
         "memory-opaque-cursor",
         "memory-schema-runtime-parity",
-        "memory-bounded-write-amplification"
+        "memory-bounded-write-amplification",
+        "memory-template-bind-generate-qualify-readback"
       ],
       "riskClass": "high",
       "cachePolicy": "never",
@@ -5965,6 +5978,7 @@
         "hooks/_runtime/artifact-slot-registry.v1.json",
         "hooks/_runtime/artifact-slot-registry.v2.json",
         "hooks/_runtime/artifact-slot-decision.cjs",
+        "hooks/_runtime/artifact-template-contract.cjs",
         "hooks/_runtime/host-tool-mutation-adapters.cjs",
         "hooks/_runtime/mutation-observation.cjs",
         "hooks/_runtime/artifact-mutation-reconciliation.cjs",
@@ -5995,7 +6009,10 @@
         "reconciliation-full-projection-consumer-parity",
         "unprotected-overlay-operation-permission-host-owned",
         "server-owned-memory-transaction-single-owner-and-mcp-name-normalization",
-        "unknown-writer-fail-closed"
+        "unknown-writer-fail-closed",
+        "template-binding-before-write",
+        "template-required-semantics-and-order",
+        "template-readback-and-reconciliation"
       ],
       "riskClass": "high",
       "cachePolicy": "never",
@@ -6012,6 +6029,8 @@
       },
       "evidenceArtifacts": [
         "ArtifactSlotDecisionV2",
+        "ArtifactTemplateBindingV1",
+        "ArtifactTemplateQualificationV1",
         "TaskOwnedMutationLeaseV2",
         "MutationObservationReceiptV1",
         "ArtifactMutationCloseoutReceiptV2"

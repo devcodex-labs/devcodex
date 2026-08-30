@@ -456,10 +456,28 @@
         "versionFacts": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["installedPackageVersion", "activeRuntimeGeneration", "sourceCandidate", "alignment"],
+          "required": [
+            "installedPackageVersion", "activeRuntimeGeneration", "configuredRuntimeGeneration",
+            "sourceCandidate", "alignment", "restartRequired", "restartReason"
+          ],
           "properties": {
             "installedPackageVersion": { "type": "string", "minLength": 1 },
             "activeRuntimeGeneration": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["generationId", "packageVersion", "manifestStatus"],
+                  "properties": {
+                    "generationId": { "type": "string", "minLength": 1 },
+                    "packageVersion": { "type": "string", "minLength": 1 },
+                    "manifestStatus": { "type": "string", "minLength": 1 }
+                  }
+                },
+                { "type": "null" }
+              ]
+            },
+            "configuredRuntimeGeneration": {
               "oneOf": [
                 {
                   "type": "object",
@@ -490,7 +508,9 @@
                 { "type": "null" }
               ]
             },
-            "alignment": { "enum": ["aligned", "version-only", "source-ahead", "runtime-mismatch", "unverified"] }
+            "alignment": { "enum": ["aligned", "version-only", "source-ahead", "runtime-mismatch", "unverified"] },
+            "restartRequired": { "type": ["boolean", "null"] },
+            "restartReason": { "type": "string", "minLength": 1 }
           }
         },
         "workflowPlan": {

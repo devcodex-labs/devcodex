@@ -2,6 +2,7 @@
 
 const crypto = require('crypto')
 const path = require('path')
+const { compactLanguageContext } = require('./language-context.cjs')
 
 const MESSAGE_KINDS = new Set([
   'entry-check', 'completion-check', 'confirmation', 'progress', 'final-result', 'error-block'
@@ -73,6 +74,92 @@ const ACTION_HEADINGS = Object.freeze({
   'entry-check': '本批交付文件',
   'completion-check': '完成交付文件'
 })
+const VISIBLE_LOCALE_CATALOGS = Object.freeze({
+  'zh-CN': Object.freeze({
+    languageName: '中文',
+    kindLabels: {
+      'entry-check': '入口检查', 'completion-check': '完成检查', confirmation: '确认',
+      progress: '进度', 'final-result': '执行结果', 'error-block': '阻断'
+    },
+    actionHeadings: ACTION_HEADINGS,
+    unknownProject: '未识别项目',
+    statusUnchanged: '状态未变化',
+    next: '下一步',
+    checkAction: '动作',
+    confirm: '确认',
+    recommend: '建议',
+    purposeMissing: '用途未标注',
+    view: '查看',
+    path: '路径',
+    action: '操作',
+    absolutePath: '绝对路径',
+    opened: '已打开（动作与回读均成功）',
+    nativeAction: '原生动作',
+    openCommand: '打开命令',
+    listed: '已列',
+    total: '总计',
+    hidden: '默认隐藏',
+    requiredNow: '当前必须完成',
+    conditionalAction: '条件动作',
+    legacyV1: 'V1 兼容读取，适用性与授权未验证',
+    localeFallback: (requested, reason) => `语言回退：请求=${requested || 'und'}，实际=en，原因=${reason}`
+  }),
+  en: Object.freeze({
+    languageName: 'English',
+    kindLabels: {
+      'entry-check': 'Entry check', 'completion-check': 'Completion check', confirmation: 'Confirmation',
+      progress: 'Progress', 'final-result': 'Result', 'error-block': 'Blocked'
+    },
+    actionHeadings: {
+      confirmation: 'Files requiring your confirmation',
+      progress: 'Files from this batch',
+      'final-result': 'Delivered files',
+      'error-block': 'Blocking evidence',
+      'entry-check': 'Files from this batch',
+      'completion-check': 'Delivered files'
+    },
+    unknownProject: 'unverified project',
+    statusUnchanged: 'No status change',
+    next: 'Next',
+    checkAction: 'Action',
+    confirm: 'Confirm',
+    recommend: 'Recommended',
+    purposeMissing: 'Purpose not specified',
+    view: 'View',
+    path: 'Path',
+    action: 'Action',
+    absolutePath: 'Absolute path',
+    opened: 'Opened (action and readback succeeded)',
+    nativeAction: 'Native action',
+    openCommand: 'Open command',
+    listed: 'Listed',
+    total: 'total',
+    hidden: 'hidden by default',
+    requiredNow: 'Required now',
+    conditionalAction: 'Conditional action',
+    legacyV1: 'V1 compatibility read; applicability and authorization are unverified',
+    localeFallback: (requested, reason) => `Language fallback: requested=${requested || 'und'}, rendered=en, reason=${reason}`
+  })
+})
+
+function resolveVisibleLocale(languageContext) {
+  const compact = compactLanguageContext(languageContext)
+  const requestedLanguage = compact?.responseLanguage || compact?.primaryLanguage || ''
+  const renderedLanguage = VISIBLE_LOCALE_CATALOGS[requestedLanguage]
+    ? requestedLanguage
+    : 'en'
+  const fallbackReason = !compact
+    ? 'language-context-missing'
+    : (renderedLanguage !== requestedLanguage ? `locale-catalog-unavailable:${requestedLanguage}` : null)
+  return {
+    schemaVersion: 'VisibleLocaleDecisionV1',
+    requestedLanguage: requestedLanguage || 'und',
+    renderedLanguage,
+    confidence: fallbackReason ? 'low' : compact.confidence,
+    fallbackReason,
+    catalog: VISIBLE_LOCALE_CATALOGS[renderedLanguage]
+  }
+}
 
 function stableValue(value) {
   if (Array.isArray(value)) return value.map(stableValue)
@@ -116,7 +203,13 @@ function createEntryCheckModelV3(input = {}) {
   const runtimeInput = versionInput.activeRuntimeGeneration && typeof versionInput.activeRuntimeGeneration === 'object' && !Array.isArray(versionInput.activeRuntimeGeneration)
     ? versionInput.activeRuntimeGeneration
     : null
+  const configuredRuntimeInput = versionInput.configuredRuntimeGeneration && typeof versionInput.configuredRuntimeGeneration === 'object' && !Array.isArray(versionInput.configuredRuntimeGeneration)
+    ? versionInput.configuredRuntimeGeneration
+    : null
   const alignment = VERSION_ALIGNMENTS.has(versionInput.alignment) ? versionInput.alignment : 'unverified'
+  const restartRequired = typeof versionInput.restartRequired === 'boolean'
+    ? versionInput.restartRequired
+    : (alignment === 'runtime-mismatch' ? true : null)
   const versionFacts = {
     installedPackageVersion: String(versionInput.installedPackageVersion || 'unverified'),
     activeRuntimeGeneration: runtimeInput ? {
@@ -124,13 +217,24 @@ function createEntryCheckModelV3(input = {}) {
       packageVersion: String(runtimeInput.packageVersion || 'unverified'),
       manifestStatus: String(runtimeInput.manifestStatus || 'unverified')
     } : null,
+    configuredRuntimeGeneration: configuredRuntimeInput ? {
+      generationId: String(configuredRuntimeInput.generationId || 'unverified'),
+      packageVersion: String(configuredRuntimeInput.packageVersion || 'unverified'),
+      manifestStatus: String(configuredRuntimeInput.manifestStatus || 'unverified')
+    } : null,
     sourceCandidate: sourceInput ? {
       root: String(sourceInput.root || ''),
       packageVersion: String(sourceInput.packageVersion || 'unverified'),
       shortHead: String(sourceInput.shortHead || 'unverified'),
       dirty: sourceInput.dirty === true
     } : null,
-    alignment
+    alignment,
+    restartRequired,
+    restartReason: String(versionInput.restartReason || (
+      restartRequired === true
+        ? 'active-runtime-generation-superseded'
+        : (restartRequired === false ? 'active-runtime-generation-current' : 'runtime-generation-unverified')
+    ))
   }
   const workflowInput = input.workflowPlan && typeof input.workflowPlan === 'object' && !Array.isArray(input.workflowPlan)
     ? input.workflowPlan
@@ -169,6 +273,11 @@ function createEntryCheckModelV3(input = {}) {
   }
   if (!text(versionFacts.installedPackageVersion)) errors.push('versionFacts.installedPackageVersion-required')
   if (!VERSION_ALIGNMENTS.has(versionFacts.alignment)) errors.push('versionFacts.alignment-invalid')
+  if (![true, false, null].includes(versionFacts.restartRequired)) errors.push('versionFacts.restartRequired-invalid')
+  if (!text(versionFacts.restartReason)) errors.push('versionFacts.restartReason-required')
+  if (versionFacts.alignment === 'runtime-mismatch' && versionFacts.restartRequired !== true) {
+    errors.push('versionFacts.runtimeMismatch-restart-required')
+  }
   if (!precheck || !text(precheck.ceremonyTier) || !text(precheck.designDepth) || !text(precheck.assuranceLevel)) {
     errors.push('workflowPlan.precheck-required')
   }
@@ -195,6 +304,12 @@ function entryCheckModelIntegrityErrors(value) {
   ])) errors.push('entryCheckModel-fields-invalid')
   if (value.schemaVersion !== 'EntryCheckModelV3') errors.push('entryCheckModel-schema-invalid')
   if (!VERSION_ALIGNMENTS.has(value.versionFacts?.alignment)) errors.push('entryCheckModel-alignment-invalid')
+  if (![true, false, null].includes(value.versionFacts?.restartRequired) || !text(value.versionFacts?.restartReason)) {
+    errors.push('entryCheckModel-restart-status-invalid')
+  }
+  if (value.versionFacts?.alignment === 'runtime-mismatch' && value.versionFacts?.restartRequired !== true) {
+    errors.push('entryCheckModel-runtime-mismatch-restart-invalid')
+  }
   if (!value.workflowPlan?.precheck || !text(value.workflowPlan.precheck.ceremonyTier) ||
       !text(value.workflowPlan.precheck.designDepth) || !text(value.workflowPlan.precheck.assuranceLevel)) {
     errors.push('entryCheckModel-workflow-precheck-invalid')
@@ -1842,7 +1957,10 @@ function resolveArtifactPathCell(item, capability) {
   }
 }
 
-function renderArtifactItem(item, capability, tier, deliveryAttempt = null) {
+function renderArtifactItem(item, capability, tier, deliveryAttempt = null, localeDecision = resolveVisibleLocale(null)) {
+  const catalog = localeDecision.catalog
+  const sep = localeDecision.renderedLanguage === 'zh-CN' ? '；' : '; '
+  const colon = localeDecision.renderedLanguage === 'zh-CN' ? '：' : ': '
   const hostDecision = capability?.schemaVersion === 'HostLinkCapabilityDecisionV2'
   const attemptFallback = hostDecision && (!deliveryAttempt || deliveryAttempt.status === 'fallback')
   const pathCapability = attemptFallback
@@ -1852,10 +1970,10 @@ function renderArtifactItem(item, capability, tier, deliveryAttempt = null) {
   const linkTarget = tier === 'rich-markdown' && capability?.mode === 'clickable'
     ? absolute
     : portable
-  const purpose = text(item.purposeText) || '用途未标注'
-  const action = text(item.userAction) || '查看'
+  const purpose = text(item.purposeText) ? item.purposeText : catalog.purposeMissing
+  const action = text(item.userAction) ? item.userAction : catalog.view
   // Path column always present (PF-175); not the same as legacy bare absolute-only lists.
-  const pathSuffix = `；路径：\`${pathCell}\`；操作：${action}`
+  const pathSuffix = `${sep}${catalog.path}${colon}\`${pathCell}\`${sep}${catalog.action}${colon}${action}`
   if (hostDecision) {
     const quoted = `"${absolute.replace(/"/g, '\\"')}"`
     const rendererAction = {
@@ -1866,27 +1984,27 @@ function renderArtifactItem(item, capability, tier, deliveryAttempt = null) {
     const attemptStatus = deliveryAttempt?.status || 'fallback'
     if (attemptStatus === 'fallback') {
       const reason = deliveryAttempt?.fallbackReason || 'attempt-missing'
-      return `- ${item.displayName} — ${purpose}${pathSuffix}；绝对路径：\`${absolute}\`；fallback：${reason}`
+      return `- ${item.displayName} — ${purpose}${pathSuffix}${sep}${catalog.absolutePath}${colon}\`${absolute}\`${sep}fallback${colon}${reason}`
     }
-    const openedSuffix = attemptStatus === 'opened' ? '；状态：已打开（动作与回读均成功）' : ''
+    const openedSuffix = attemptStatus === 'opened' ? `${sep}${catalog.opened}` : ''
     if (capability.openMode === 'markdown-link' && tier === 'rich-markdown') {
       const escapedTarget = /\s/.test(absolute) ? `<${absolute}>` : absolute
       return `- [${item.displayName}](${escapedTarget}) — ${purpose}${pathSuffix}${openedSuffix}`
     }
     if (capability.openMode === 'native-action' && deliveryAttempt?.actionId) {
-      return `- ${item.displayName} — ${purpose}${pathSuffix}；原生动作：${deliveryAttempt.actionId}${openedSuffix}`
+      return `- ${item.displayName} — ${purpose}${pathSuffix}${sep}${catalog.nativeAction}${colon}${deliveryAttempt.actionId}${openedSuffix}`
     }
     if (rendererAction && capability.openMode === 'terminal-command') {
-      return `- ${item.displayName} — ${purpose}${pathSuffix}；打开命令：${rendererAction}${openedSuffix}`
+      return `- ${item.displayName} — ${purpose}${pathSuffix}${sep}${catalog.openCommand}${colon}${rendererAction}${openedSuffix}`
     }
     const fallback = capability.absolutePathFallback
-      ? `；绝对路径：\`${absolute}\`；fallback：${capability.fallbackReason}`
+      ? `${sep}${catalog.absolutePath}${colon}\`${absolute}\`${sep}fallback${colon}${capability.fallbackReason}`
       : ''
     return `- ${item.displayName} — ${purpose}${pathSuffix}${fallback}`
   }
   if (tier === 'plain-text' || capability?.mode === 'plain' || capability?.mode === 'failed') {
     const fallback = capability?.absolutePathFallback && capability?.fallbackReason
-      ? `；fallback：${capability.fallbackReason}`
+      ? `${sep}fallback${colon}${capability.fallbackReason}`
       : ''
     return `- ${item.displayName} — ${purpose}${pathSuffix}${fallback}`
   }
@@ -1894,7 +2012,7 @@ function renderArtifactItem(item, capability, tier, deliveryAttempt = null) {
   let line = `- [${item.displayName}](${escapedTarget}) — ${purpose}${pathSuffix}`
   // Absolute line only when path cell is already absolute and reason must stay explicit for failed surfaces.
   if (forceAbsolute && capability?.absolutePathFallback && capability?.fallbackReason) {
-    line += `\n  绝对路径：${absolute}（${capability.fallbackReason}）`
+    line += `\n  ${catalog.absolutePath}${colon}${absolute} (${capability.fallbackReason})`
   }
   return line
 }
@@ -2142,7 +2260,18 @@ function classifyFinalValidationSummarySample(sample, options = {}) {
   return analyzeFinalValidationSummarySample(sample, options).classification
 }
 
-function renderVisibleEnvelope(envelope, { tier = null, compact = false } = {}) {
+function renderVisibleEnvelope(envelope, {
+  tier = null,
+  compact = false,
+  languageContext = null,
+  audience = 'human',
+  includeMachineMarker = audience === 'audit'
+} = {}) {
+  if (!['human', 'audit'].includes(audience)) throw new Error(`unsupported visible audience: ${audience}`)
+  const localeDecision = resolveVisibleLocale(languageContext)
+  const catalog = localeDecision.catalog
+  const sep = localeDecision.renderedLanguage === 'zh-CN' ? '；' : '; '
+  const colon = localeDecision.renderedLanguage === 'zh-CN' ? '：' : ': '
   const compatible = normalizeCompatibleVisibleEnvelope(envelope)
   const validContract = compatible.validation.valid
   envelope = compatible.envelope
@@ -2152,64 +2281,80 @@ function renderVisibleEnvelope(envelope, { tier = null, compact = false } = {}) 
     : envelope.postCompletionActions
   const effectiveTier = validContract ? (tier || envelope.presentation?.effectiveTier || 'portable-markdown') : 'portable-markdown'
   if (!PRESENTATION_TIERS.has(effectiveTier)) throw new Error(`unsupported presentation tier: ${effectiveTier}`)
-  const kindLabel = {
-    'entry-check': '入口检查', 'completion-check': '完成检查', confirmation: '确认',
-    progress: '进度', 'final-result': '执行结果', 'error-block': '阻断'
-  }[envelope.messageKind]
-  const project = envelope.context?.project || 'unverified-project'
+  const kindLabel = catalog.kindLabels[envelope.messageKind]
+  const project = envelope.context?.project || catalog.unknownProject
   const marker = `${envelope.schemaVersion} · ${envelope.messageKind} · ${envelope.status} · ${envelope.semanticDigest}`
+  const localeFallbackLine = localeDecision.fallbackReason
+    ? catalog.localeFallback(localeDecision.requestedLanguage, localeDecision.fallbackReason)
+    : null
   const primaryLabel = postCompletionActions?.primaryAction?.label || null
   const compactAllowed = validContract && ['entry-check', 'progress'].includes(envelope.messageKind) &&
     envelope.checks.every(check => ['PASS', 'N/A'].includes(check.status))
   if (compact && compactAllowed) {
     const ids = envelope.checks.map(check => `${check.id}=${check.status}`).join(' · ')
-    const compactAction = primaryLabel ? `\n下一步：${primaryLabel}` : ''
+    const compactAction = primaryLabel ? `${catalog.next}: ${primaryLabel}` : null
     return effectiveTier === 'plain-text'
-      ? `${marker}\n${project} | ${ids}\n状态未变化${compactAction}`
-      : `### DevCodex · ${kindLabel}\n\`${envelope.status}\` · \`${project}\` · 状态未变化\n\n${ids}${compactAction ? `\n${compactAction}` : ''}\n\n\`${marker}\``
+      ? [includeMachineMarker ? marker : null, `${project} | ${ids}`, catalog.statusUnchanged,
+          localeFallbackLine, compactAction].filter(Boolean).join('\n')
+      : [`### DevCodex · ${kindLabel}`, `\`${envelope.status}\` · \`${project}\` · ${catalog.statusUnchanged}`,
+          localeFallbackLine, '', ids, compactAction, includeMachineMarker ? `\`${marker}\`` : null]
+          .filter(value => value !== null && value !== undefined).join('\n')
   }
-  const checkLines = envelope.checks.map(check => {
-    const action = check.requiredAction ? `；动作：${check.requiredAction}` : ''
-    return `- ${check.id} [${check.status}] ${check.summary}${action}`
+  let renderedChecks = envelope.checks
+  if (audience === 'human' && envelope.messageKind !== 'entry-check') {
+    const attention = envelope.checks.filter(check => !['PASS', 'N/A'].includes(check.status))
+    renderedChecks = attention.length ? attention : envelope.checks
+  }
+  const checkLines = renderedChecks.map(check => {
+    const action = check.requiredAction ? `${sep}${catalog.checkAction}${colon}${check.requiredAction}` : ''
+    return audience === 'audit' || envelope.messageKind === 'entry-check'
+      ? `- ${check.id} [${check.status}] ${check.summary}${action}`
+      : `- [${check.status}] ${check.summary}${action}`
   })
   const decisionLines = envelope.decision ? [
-    '', `确认：${envelope.decision.question || envelope.decision.fallbackText || ''}`,
-    `建议：${envelope.decision.recommendedOption || primaryLabel || 'N/A'}`
+    '', `${catalog.confirm}${colon}${envelope.decision.question || envelope.decision.fallbackText || ''}`,
+    `${catalog.recommend}${colon}${envelope.decision.recommendedOption || primaryLabel || 'N/A'}`
   ] : []
   const artifactSet = envelope.userFacingArtifactSet
   const deliveryAttemptByArtifact = new Map((envelope.artifactDeliveryAttempts || []).map(attempt => [attempt.artifactId, attempt]))
   const artifactLines = artifactSet ? [
-    '', effectiveTier === 'plain-text' ? artifactSet.heading : `#### ${artifactSet.heading}`,
+    '', effectiveTier === 'plain-text'
+      ? catalog.actionHeadings[envelope.messageKind]
+      : `#### ${catalog.actionHeadings[envelope.messageKind]}`,
     ...artifactSet.items.map(item => renderArtifactItem(
       item,
       envelope.linkCapability,
       effectiveTier,
-      deliveryAttemptByArtifact.get(item.artifactId) || null
+      deliveryAttemptByArtifact.get(item.artifactId) || null,
+      localeDecision
     )),
-    `已列 ${artifactSet.counts.listed} / 总计 ${artifactSet.counts.total}；默认隐藏 ${artifactSet.counts.remaining}`
+    `${catalog.listed} ${artifactSet.counts.listed} / ${catalog.total} ${artifactSet.counts.total}${sep}${catalog.hidden} ${artifactSet.counts.remaining}`
   ] : []
   const actionLines = []
   for (const action of postCompletionActions?.requiredNow || []) {
-    actionLines.push('', `当前必须完成：${action.label}（${action.reason}）`)
+    actionLines.push('', `${catalog.requiredNow}${colon}${action.label} (${action.reason})`)
   }
   if (postCompletionActions?.primaryAction) {
-    const legacy = compatible.migrationStatus === 'legacy-v1-read-only' ? '（V1 兼容读取，适用性与授权未验证）' : ''
-    actionLines.push('', `下一步${legacy}：${postCompletionActions.primaryAction.label}（${postCompletionActions.primaryAction.reason}）`)
+    const legacy = compatible.migrationStatus === 'legacy-v1-read-only' ? ` (${catalog.legacyV1})` : ''
+    actionLines.push('', `${catalog.next}${legacy}${colon}${postCompletionActions.primaryAction.label} (${postCompletionActions.primaryAction.reason})`)
   }
   for (const action of postCompletionActions?.conditionalActions || []) {
-    actionLines.push(`条件动作：${action.label}（${action.reason}）`)
+    actionLines.push(`${catalog.conditionalAction}${colon}${action.label} (${action.reason})`)
   }
   if (effectiveTier === 'plain-text') {
-    return [marker, `DevCodex ${kindLabel} | ${envelope.status} | ${project}`, ...checkLines,
-      ...decisionLines, ...artifactLines, ...actionLines].join('\n')
+    return [includeMachineMarker ? marker : null, `DevCodex ${kindLabel} | ${envelope.status} | ${project}`,
+      localeFallbackLine, ...checkLines, ...decisionLines, ...artifactLines, ...actionLines]
+      .filter(value => value !== null && value !== undefined).join('\n')
   }
   const prefix = effectiveTier === 'rich-markdown' ? '### DevCodex · ' : '### DevCodex · '
   return [
     `${prefix}${kindLabel}`,
     `\`${envelope.status}\` · \`${project}\``,
+    localeFallbackLine,
     '', ...checkLines, ...decisionLines, ...artifactLines, ...actionLines,
-    '', `\`${marker}\``
-  ].join('\n')
+    includeMachineMarker ? '' : null,
+    includeMachineMarker ? `\`${marker}\`` : null
+  ].filter(value => value !== null && value !== undefined).join('\n')
 }
 
 module.exports = {
@@ -2229,6 +2374,7 @@ module.exports = {
   TRUTH_SOURCE_KINDS,
   VISIBILITIES,
   ARTIFACT_ANCHOR_STATUSES,
+  VISIBLE_LOCALE_CATALOGS,
   classifyArtifactTruthSource,
   createArtifactAnchor,
   createArtifactDeliveryManifest,
@@ -2258,6 +2404,7 @@ module.exports = {
   projectUserFacingArtifactSet,
   renderArtifactItem,
   resolveArtifactPathCell,
+  resolveVisibleLocale,
   renderVisibleEnvelope,
   shouldUseCompact
 }

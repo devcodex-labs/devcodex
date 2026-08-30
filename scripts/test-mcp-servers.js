@@ -51,6 +51,7 @@ const {
 } = require('../mcp/task-admission-authority.cjs')
 const {
   readFencedTaskWriteOwner,
+  readTaskRecoveryState,
   resolveTaskRecoveryMetaDir,
   storePaths,
   updateTaskRecoveryState,
@@ -59,6 +60,13 @@ const {
 const { readBoundedTextFileSync } = require('../mcp/bounded-text-reader.cjs')
 const { selectProfileSectionsFromFileSync } = require('../mcp/profile-section-selector.cjs')
 const { createLinkCapabilityDecision } = require('../hooks/_runtime/visible-output-contract.cjs')
+const {
+  markTaskOperationDispatched,
+  markTaskOperationObserved,
+  prepareTaskOperationRecord,
+  settleTaskOperationRecord,
+  taskOperationTerminalSnapshot
+} = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 const workflowRouteRegistryV2 = require('../hooks/_runtime/workflow-root-registry.v2.json')
 const {
   createOptimizationState,
@@ -366,6 +374,14 @@ function memoryTransactionJson(result) {
   return JSON.parse(jsonLine)
 }
 
+function assertTemplateQualified(receipt, label) {
+  assert.strictEqual(receipt.templateBinding?.schemaVersion, 'ArtifactTemplateBindingProjectionV1', `${label} binding`)
+  assert.strictEqual(receipt.templateQualification?.schemaVersion, 'ArtifactTemplateQualificationV1', `${label} qualification`)
+  assert.strictEqual(receipt.templateQualification?.status, 'qualified', `${label} status`)
+  assert.strictEqual(receipt.templateQualification?.readbackVerified, true, `${label} readback`)
+  assert.strictEqual(receipt.templateStatus, '模板资格：通过（已读回）', `${label} human status`)
+}
+
 function allocateMemorySession(cwd, argumentsValue, env = {}) {
   const responses = runServer('mcp/memory-server.js', [
     rpcRequest(9000, 'tools/call', {
@@ -377,6 +393,7 @@ function allocateMemorySession(cwd, argumentsValue, env = {}) {
   assert.notStrictEqual(result.isError, true, result.content?.[0]?.text || 'allocation failed')
   const allocation = toolJson(result)
   assert.deepStrictEqual(result.structuredContent, allocation)
+  assertTemplateQualified(allocation.transaction, 'memory_session_allocate')
   return allocation
 }
 
@@ -1641,10 +1658,15 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
   assert.strictEqual(terminalSchema.additionalProperties, false)
   assert.deepStrictEqual(terminalSchema.properties.evidence.minItems, 4)
   assert.deepStrictEqual(terminalSchema.properties.evidence.maxItems, 4)
+  for (const field of [
+    'lifecycleRevision', 'expectedStateSequence', 'expectedWriterGeneration', 'settledSetDigest'
+  ]) assert(terminalSchema.required.includes(field), `${field} must be a required terminal CAS input`)
 
   const admitted = resultById(admittedResponses, 2).structuredContent
   assert.strictEqual(admitted.routeBindingRequired, false)
   assert.ok(['persisted', 'semantic-noop'].includes(admitted.routeBinding.status))
+  assert.strictEqual(admitted.ownerAcquisition.writeContext.schemaVersion, 'CanonicalTaskWriteContextV1')
+  assert.strictEqual(admitted.ownerAcquisition.writeContext.readback, 'PASS')
   const metaDir = resolveTaskRecoveryMetaDir({ activeRoot, project })
   const recoveryIdentity = { activeRoot, project, taskId: admitted.taskId, taskStatus: 'active' }
   const rejectedResponses = runServer('mcp/memory-server.js', [
@@ -1717,6 +1739,8 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
   assert.strictEqual(acquired.structuredContent.finalized, true)
   assert.strictEqual(acquired.structuredContent.cp1Confirmed, true)
   assert.strictEqual(acquired.structuredContent.mutationAuthority, true)
+  assert.strictEqual(acquired.structuredContent.writeContext.mutationAuthority, true)
+  assert.notStrictEqual(acquired.structuredContent.writeContext.runtimeGeneration, 'unverified')
   assert.strictEqual(acquired.structuredContent.ingressAuthority.source, 'immutable-snapshot')
   assert.strictEqual(acquired.structuredContent.continuationLease.status, 'consumed')
 
@@ -1729,12 +1753,19 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
   assert.strictEqual(routeBound.status, 'fresh')
   assert.strictEqual(routeBound.entry.taskId, admitted.taskId)
   const evidence = writeTaskTerminalEvidence(activeRoot, admitted.taskRootRelative)
+  const terminalState = readFencedTaskWriteOwner({ metaDir, identity: recoveryIdentity })
+  const operationSnapshot = taskOperationTerminalSnapshot(terminalState.state.turnLiveness)
+  assert.strictEqual(operationSnapshot.terminalReady, true)
   const terminalArgs = {
     ingressRef: ingress.ingressRef,
     taskId: admitted.taskId,
     admissionId: admitted.admissionId,
     terminalStatus: 'completed',
     expectedOwner: acquired.structuredContent.ownerRef,
+    lifecycleRevision: Number(terminalState.owner.reopenGeneration || 0) + 1,
+    expectedStateSequence: terminalState.envelope.sequence,
+    expectedWriterGeneration: terminalState.envelope.writerGeneration,
+    settledSetDigest: operationSnapshot.settledSetDigest,
     evidence
   }
   const terminalResponses = runServer('mcp/memory-server.js', [
@@ -1750,6 +1781,8 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
   assert.strictEqual(terminal.structuredContent.status, 'terminal')
   assert.strictEqual(terminal.structuredContent.receipt.evidence.length, 4)
   assert.strictEqual(terminal.structuredContent.mutationAuthority, false)
+  assert.strictEqual(terminal.structuredContent.writeContext.ownerStatus, 'terminal')
+  assert.strictEqual(terminal.structuredContent.writeContext.mutationAuthority, false)
   assert.strictEqual(terminal.structuredContent.routeReconciliationRequired, false)
   assert.strictEqual(resultById(terminalResponses, 8).structuredContent.replayed, true)
   assert.strictEqual(resultById(terminalResponses, 9).isError, true)
@@ -1862,19 +1895,57 @@ function testMemoryArtifactMutationReconciliationContract() {
     return { lifecycleCloseout, inFlightOperation, target }
   }
 
+  function operationTurn(state, fixture, phase = 'dispatched') {
+    const issuedAtMs = Date.parse(fixture.inFlightOperation.mutationLease.issuedAt)
+    let turn = {
+      ...(state.turnLiveness || {}),
+      inFlightOperation: fixture.inFlightOperation
+    }
+    const current = turn.taskOperationSet?.unresolved
+    if (!current) {
+      turn = prepareTaskOperationRecord(turn, {
+        operationId: fixture.inFlightOperation.operationId,
+        idempotencyKey: `${fixture.inFlightOperation.operationId}:fixture`,
+        writerGeneration: state.taskRecoveryCommitFence?.writerGeneration || 0,
+        expectedStateSequence: state.taskRecoveryCommitFence?.stateSequence || 0,
+        kind: fixture.inFlightOperation.artifactDecision.operation,
+        exactTargets: fixture.inFlightOperation.mutationFootprint.normalizedTargets,
+        targetSetDigest: fixture.inFlightOperation.artifactDecision.targetSetDigest,
+        beforeDigest: fixture.inFlightOperation.mutationPreObservation.snapshotDigest
+      }, { nowMs: issuedAtMs })
+      turn = markTaskOperationDispatched(turn, fixture.inFlightOperation.operationId, { nowMs: issuedAtMs })
+    }
+    if (phase === 'reconcile-required' && turn.taskOperationSet.unresolved.phase === 'dispatched') {
+      const observedAtMs = Date.parse(fixture.lifecycleCloseout.completedAt)
+      turn = markTaskOperationObserved(turn, fixture.inFlightOperation.operationId, {
+        resultDigest: fixture.lifecycleCloseout.observation.receiptDigest,
+        evidenceDigest: fixture.lifecycleCloseout.artifactCloseout.closeoutDigest
+      }, { nowMs: observedAtMs })
+      turn = settleTaskOperationRecord(turn, fixture.inFlightOperation.operationId, {
+        needsReconcile: true
+      }, { nowMs: observedAtMs })
+    }
+    return turn
+  }
+
   const primary = needsReconcileCloseout(
     'mcp-primary-artifact-reconciliation',
     '01--primary.md',
     '# primary after\n'
   )
-  const primaryCommit = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
-    ...state,
-    turnLiveness: {
-      ...(state.turnLiveness || {}),
-      inFlightOperation: primary.inFlightOperation,
-      lastMutationCloseout: primary.lifecycleCloseout
+  const primaryCommit = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => {
+    const turnLiveness = operationTurn(state, primary, 'reconcile-required')
+    return {
+      ...state,
+      turnLiveness: {
+        ...turnLiveness,
+        lastMutationCloseout: {
+          ...primary.lifecycleCloseout,
+          taskOperationRecord: turnLiveness.lastTaskOperationRecord
+        }
+      }
     }
-  }), { force: true, reason: 'mutation-closeout' })
+  }, { force: true, reason: 'mutation-closeout' })
   assert(['committed', 'semantic-noop'].includes(primaryCommit.status), JSON.stringify(primaryCommit))
 
   const omittedFormalTaskResult = resultById(runServer('mcp/memory-server.js', [
@@ -1932,12 +2003,15 @@ function testMemoryArtifactMutationReconciliationContract() {
   )
   const reservePrewrite = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
     ...state,
-    turnLiveness: {
-      ...(state.turnLiveness || {}),
-      inFlightOperation: reserve.inFlightOperation
-    }
+    turnLiveness: operationTurn(state, reserve)
   }), { force: true, reason: 'mutation-preflight' })
   assert(['committed', 'semantic-noop'].includes(reservePrewrite.status), JSON.stringify(reservePrewrite))
+  const reservePrimary = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+  const reserveCloseoutTurn = operationTurn(reservePrimary.state, reserve, 'reconcile-required')
+  const reserveLifecycleCloseout = {
+    ...reserve.lifecycleCloseout,
+    taskOperationRecord: reserveCloseoutTurn.lastTaskOperationRecord
+  }
   const reserveWrite = writeEmergencyCloseout(storePaths(metaDir), {
     observedAt: new Date().toISOString(),
     status: 'needs-reconcile',
@@ -1946,8 +2020,8 @@ function testMemoryArtifactMutationReconciliationContract() {
     admissionTransaction: null,
     fencedWriteOwner: null,
     workflowTaskTerminalReceipt: null,
-    inFlightOperation: reserve.inFlightOperation,
-    lastMutationCloseout: reserve.lifecycleCloseout,
+    inFlightOperation: reserveCloseoutTurn.inFlightOperation,
+    lastMutationCloseout: reserveLifecycleCloseout,
     stateDigest: 'b'.repeat(64)
   })
   assert.strictEqual(reserveWrite.status, 'closeout-reserved')
@@ -2188,6 +2262,12 @@ function testMemoryCloseoutReconcileUsesTerminalOwnerRoute() {
     admissionId: admitted.admissionId
   }, { nonceFactory: () => `owner-${'d'.repeat(40)}` })
   const evidence = writeTaskTerminalEvidence(activeRoot, admitted.taskRootRelative, 'reserve-reconcile')
+  const reserveMetaDir = resolveTaskRecoveryMetaDir({ activeRoot, project })
+  const reserveState = readFencedTaskWriteOwner({
+    metaDir: reserveMetaDir,
+    identity: { activeRoot, project, taskId: admitted.taskId, taskStatus: 'active' }
+  })
+  const reserveOperationSnapshot = taskOperationTerminalSnapshot(reserveState.state.turnLiveness)
   const terminal = executeWorkflowTaskTerminal({
     activeRoot,
     project,
@@ -2199,6 +2279,10 @@ function testMemoryCloseoutReconcileUsesTerminalOwnerRoute() {
     admissionId: admitted.admissionId,
     terminalStatus: 'completed',
     expectedOwner: acquired.ownerRef,
+    lifecycleRevision: Number(reserveState.owner.reopenGeneration || 0) + 1,
+    expectedStateSequence: reserveState.envelope.sequence,
+    expectedWriterGeneration: reserveState.envelope.writerGeneration,
+    settledSetDigest: reserveOperationSnapshot.settledSetDigest,
     evidence
   }, {
     storeOptions: {
@@ -2424,6 +2508,7 @@ function testMemoryCpConfirmPreservesOrdinaryTables() {
     confirmation.content?.[0]?.text || 'memory_cp_confirm unexpectedly failed'
   )
   assert.strictEqual(confirmation.structuredContent.readbackVerified, true)
+  assertTemplateQualified(confirmation.structuredContent.transaction, 'memory_cp_confirm')
   assert.strictEqual(confirmation.structuredContent.cpRowCount, 3)
   assert.strictEqual(confirmation.structuredContent.artifactAuthority.schemaVersion, 'MemoryCpArtifactAuthorityV1')
   assert.strictEqual(confirmation.structuredContent.artifactAuthority.rootKind, 'task')
@@ -4880,7 +4965,9 @@ function testMemorySessionAllocationAndTransactions() {
     assert.strictEqual(receipt.sessionWrite.bindingStatus, 'verified')
     assert.strictEqual(receipt.sessionWrite.nonTargetStable, true)
     assert.strictEqual(receipt.sessionWrite.readbackVerified, true)
+    assertTemplateQualified(receipt, 'memory_session_write')
   }
+  assertTemplateQualified(memoryTransactionJson(resultById(responses, 11)), 'memory_summary_append')
   const indexedDaily = toolJson(resultById(responses, 12))
   const indexedSummary = toolJson(resultById(responses, 13))
   assert.strictEqual(indexedDaily.indexReceipt.status, 'fresh')
@@ -5226,7 +5313,9 @@ function testMemoryArtifactLinkProjectionAndWriterIntegration() {
       }
     })
   ], projectRoot)
-  const confirmation = resultById(cpResult, 5).structuredContent
+  const cpConfirmationResult = resultById(cpResult, 5)
+  assert.notStrictEqual(cpConfirmationResult.isError, true, cpConfirmationResult.content?.[0]?.text || 'memory_cp_confirm unexpectedly failed')
+  const confirmation = cpConfirmationResult.structuredContent
   assert.strictEqual(confirmation.artifactLinks.schemaVersion, 'ArtifactLinkProjectionSetV1')
   assert.strictEqual(confirmation.artifactLinkReadback.existingValidation.status, 'verified')
   const cpSessions = fs.readFileSync(path.join(taskRoot, '.memory', 'sessions.md'), 'utf8')

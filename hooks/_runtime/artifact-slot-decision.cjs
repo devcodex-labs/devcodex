@@ -8,6 +8,14 @@ const {
   extractMutationFootprint,
   validateMutationFootprint
 } = require('./mutation-footprint.cjs')
+const {
+  createArtifactTemplateBinding,
+  findArtifactTemplateQualification,
+  qualifyArtifactFile,
+  validateArtifactTemplateBinding,
+  validateArtifactTemplateBindingProjection,
+  validateArtifactTemplateQualification
+} = require('./artifact-template-contract.cjs')
 
 const REGISTRY_PATH = path.join(__dirname, 'artifact-slot-registry.v2.json')
 const LEGACY_REGISTRY_PATH = path.join(__dirname, 'artifact-slot-registry.v1.json')
@@ -20,6 +28,7 @@ const OVERLAY_SCHEMA = 'ArtifactSlotRegistryOverlayV2'
 const DIGEST_RE = /^[a-f0-9]{64}$/
 const PHASE_CLASSES = Object.freeze({ CP1: 'cp1', CP2: 'cp2', CP3: 'cp3-plan' })
 const DIRECT_TRUTH_MATCH_TYPES = new Set(['canonical', 'legacy-read'])
+const TEMPLATE_RESOLVERS = new Set(['overview-artifact', 'cp1-artifact', 'report-workflow', 'memory-kind'])
 
 function digest(value) {
   return sha256(Buffer.from(stableStringify(value), 'utf8'))
@@ -60,6 +69,19 @@ function validateBaseRegistry(registry) {
     if (!['task', 'project'].includes(slot.scope)) errors.push(`slot-scope:${slot.slotId}`)
     if (!slot.owner || !slot.writePolicy || !slot.mutability || !['forbid', 'confirm', 'allow'].includes(slot.destructivePolicy)) errors.push(`slot-policy:${slot.slotId}`)
     if (typeof slot.protected !== 'boolean') errors.push(`slot-protected:${slot.slotId}`)
+    const templateFields = ['templateRef', 'templateResolver', 'templateProducer', 'templateValidator', 'templateAliases']
+    const hasTemplateField = templateFields.some(field => slot[field] !== undefined)
+    if (hasTemplateField) {
+      if (!/^content\/prompts\/[A-Za-z0-9._{}-]+\.prompt\.md$/.test(String(slot.templateRef || '')) ||
+          !String(slot.templateProducer || '').trim() || slot.templateValidator !== 'artifact-template-contract' ||
+          (slot.templateResolver !== undefined && !TEMPLATE_RESOLVERS.has(slot.templateResolver)) ||
+          (slot.templateAliases !== undefined && (!Array.isArray(slot.templateAliases) || slot.templateAliases.some(item => !/^prompts\/[A-Za-z0-9._{}-]+\.prompt\.md$/.test(String(item || '')))))) {
+        errors.push(`slot-template:${slot.slotId}`)
+      }
+      if (['requiredSemanticIds', 'requiredSemantics', 'extensionPoints'].some(field => slot[field] !== undefined)) {
+        errors.push(`slot-template-second-truth:${slot.slotId}`)
+      }
+    }
     for (const pattern of [...(slot.relativePatterns || []), ...(slot.projectRelativePatterns || []), ...(slot.candidatePatterns || []), ...(slot.legacyReadPatterns || []), ...(slot.reportReadPatterns || [])]) {
       try { new RegExp(pattern, 'i') } catch { errors.push(`slot-pattern:${slot.slotId}`) }
     }
@@ -508,6 +530,7 @@ function decideArtifactMutation(input = {}, options = {}) {
       alternativeGroup: null,
       lifecycleOperation: 'none',
       authoritySourceRef: String(input.authoritySourceRef || 'not-applicable'),
+      templateBindings: [],
       decisionStatus: 'not-applicable',
       errorCodes: [],
       issuedAt: new Date(nowMs).toISOString(),
@@ -587,9 +610,47 @@ function decideArtifactMutation(input = {}, options = {}) {
       owner: slot.owner,
       mutability: slot.mutability,
       writePolicy: slot.writePolicy,
-      destructivePolicy: slot.destructivePolicy
+      destructivePolicy: slot.destructivePolicy,
+      templateRef: slot.templateRef || null,
+      templateResolver: slot.templateResolver || null,
+      templateProducer: slot.templateProducer || null,
+      templateValidator: slot.templateValidator || null
     }
   })
+  const suppliedBindings = Array.isArray(input.templateBindings) ? input.templateBindings : []
+  const templateBindings = []
+  if (footprint.operation !== 'delete') {
+    for (const match of targets.filter(item => item.classified?.slot?.templateRef)) {
+      try {
+        const expected = createArtifactTemplateBinding({
+          slot: match.classified.slot,
+          target: match.canonical,
+          intent: input.intent,
+          bindingMode: 'runtime-prewrite'
+        }, options)
+        if (!expected) continue
+        const supplied = suppliedBindings.find(item => item?.targetDigest === expected.targetDigest)
+        if (supplied) {
+          const suppliedValidation = validateArtifactTemplateBinding(supplied)
+          const sameContract = ['slotId', 'targetDigest', 'templateRef', 'templateDigest', 'contractDigest', 'requiredSemanticDigest', 'extensionPointDigest']
+            .every(field => String(supplied?.[field] || '') === String(expected?.[field] || ''))
+          if (!suppliedValidation.valid || !sameContract || supplied.bindingMode !== 'producer-supplied') {
+            errors.push('artifact-template-supplied-binding-invalid')
+          } else {
+            templateBindings.push(supplied)
+          }
+        } else {
+          templateBindings.push(expected)
+        }
+      } catch (error) {
+        errors.push(error?.code || 'artifact-template-binding-failed')
+        errors.push(...(error?.details?.errors || []))
+      }
+    }
+  }
+  if (suppliedBindings.some(item => !templateBindings.some(binding => binding.bindingDigest === item?.bindingDigest))) {
+    errors.push('artifact-template-supplied-binding-unmatched')
+  }
   const semantic = {
     schemaVersion: DECISION_SCHEMA,
     project: String(input.project || ''),
@@ -626,6 +687,7 @@ function decideArtifactMutation(input = {}, options = {}) {
     authorityRole,
     operationalLeaseDigest,
     appendOnlyAuthorized,
+    templateBindings,
     decisionStatus: errors.length ? 'forbid' : 'allow',
     errorCodes: [...new Set(errors)].sort(),
     issuedAt: new Date(nowMs).toISOString(),
@@ -653,6 +715,17 @@ function validateArtifactSlotDecision(value, binding = null, options = {}) {
     errors.push('artifact-decision-root-identity-invalid')
   }
   if (!Array.isArray(value?.slotIds) || !Array.isArray(value?.slotDecisions)) errors.push('artifact-decision-slots-invalid')
+  if (value?.templateBindings !== undefined && !Array.isArray(value.templateBindings)) errors.push('artifact-decision-template-bindings-invalid')
+  else {
+    const seenTargets = new Set()
+    for (const templateBinding of value?.templateBindings || []) {
+      const validation = validateArtifactTemplateBinding(templateBinding)
+      if (!validation.valid) errors.push(...validation.errors)
+      if (!value.slotIds?.includes(templateBinding.slotId)) errors.push('artifact-decision-template-slot-mismatch')
+      if (seenTargets.has(templateBinding.targetDigest)) errors.push('artifact-decision-template-target-duplicate')
+      seenTargets.add(templateBinding.targetDigest)
+    }
+  }
   if (Array.isArray(value?.sourceTargets) && Array.isArray(value?.targetTargets) &&
       digest([...value.sourceTargets, ...value.targetTargets].map(comparable).sort()) !== value.targetSetDigest) {
     errors.push('artifact-decision-target-set-digest-mismatch')
@@ -715,12 +788,42 @@ function reconcileArtifactSlotDecision(decision, input = {}, options = {}) {
   } else if (targetTargets.some(target => !exists(target))) {
     errors.push('artifact-write-target-missing')
   }
+  const templateQualifications = []
+  for (const binding of decision.templateBindings || []) {
+    const bindingValidation = binding?.schemaVersion === 'ArtifactTemplateBindingProjectionV1'
+      ? validateArtifactTemplateBindingProjection(binding)
+      : validateArtifactTemplateBinding(binding)
+    if (!bindingValidation.valid) {
+      errors.push(...bindingValidation.errors)
+      continue
+    }
+    let qualification
+    const logical = isLogicalTarget(binding.targetRef)
+    if (logical) {
+      qualification = (input.templateQualifications || []).find(item => item?.bindingDigest === binding.bindingDigest) ||
+        findArtifactTemplateQualification(input.payload, binding.bindingDigest) ||
+        findArtifactTemplateQualification(input.payload)
+    } else {
+      qualification = qualifyArtifactFile(binding, binding.targetRef, { slotId: binding.slotId }, options)
+    }
+    const qualificationValidation = validateArtifactTemplateQualification(qualification, logical ? null : binding)
+    const logicalBindingMatch = !logical || ['slotId', 'targetRef', 'templateRef', 'templateDigest', 'contractDigest', 'requiredSemanticDigest']
+      .every(field => String(qualification?.[field] || '') === String(binding?.[field] || ''))
+    if (!qualificationValidation.valid || !logicalBindingMatch || qualification?.status !== 'qualified' || qualification?.readbackVerified !== true) {
+      errors.push('artifact-template-qualification-rejected')
+      if (!logicalBindingMatch) errors.push('artifact-template-logical-binding-mismatch')
+      errors.push(...qualificationValidation.errors)
+      errors.push(...(qualification?.errorCodes || []))
+    }
+    if (qualification) templateQualifications.push(qualification)
+  }
   const semantic = {
     schemaVersion: 'ArtifactSlotCloseoutV1',
     decisionDigest: decision.decisionDigest,
     decisionStatus: errors.length ? 'needs-reconcile' : 'consumed',
     targetSetDigest: decision.targetSetDigest,
     observedFootprintDigest: footprint.footprintDigest,
+    templateQualifications,
     errorCodes: [...new Set(errors)].sort(),
     completedAt: new Date(nowMs).toISOString()
   }

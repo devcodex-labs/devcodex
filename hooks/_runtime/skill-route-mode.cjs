@@ -29,6 +29,7 @@ const RUNTIME_CONTRACT_FILES = Object.freeze([
   'content-identity.cjs',
   'actual-instruction-envelope.cjs',
   'artifact-slot-decision.cjs',
+  'artifact-template-contract.cjs',
   'artifact-slot-registry.v1.json',
   'artifact-slot-registry.v2.json',
   'context-delivery-ledger-v2.cjs',

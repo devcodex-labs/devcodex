@@ -389,20 +389,9 @@ const outDir = path.join(
   '20260727',
   'evidence'
 )
-// workspace path is E:\Worker - active root
-const altOut = path.join(
-  'E:',
-  'Worker',
-  '.devcodex',
-  'devcodex',
-  'requirements',
-  'maintainer-site-docs-consistency',
-  'reports',
-  'grok',
-  '20260727',
-  'evidence'
-)
-const dest = fs.existsSync(path.dirname(altOut)) ? altOut : outDir
+// Keep review evidence bound to the checkout's workspace instead of selecting
+// an unrelated drive merely because that directory happens to exist.
+const dest = outDir
 fs.mkdirSync(dest, { recursive: true })
 const jsonPath = path.join(dest, '20-round-review.json')
 fs.writeFileSync(jsonPath, JSON.stringify(summary, null, 2), 'utf8')

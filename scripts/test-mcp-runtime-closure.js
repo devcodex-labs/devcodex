@@ -183,11 +183,21 @@ function allowlistOnlyMcpSmoke() {
   })
   assert.strictEqual(memR.passed, true, `allowlist-only memory smoke failed: ${memR.error} ${memR.textHead}`)
   const profR = mcpToolCallProbe(prof, tmp, 'profile_compose_entry_check', {
-    project: 'devcodex',
+    project: path.basename(tmp),
     status: 'PASS',
-    nextStep: 'test'
+    nextStep: 'test',
+    entry: {
+      prompt: '确认',
+      languageContext: {
+        schemaVersion: 'LanguageContextV2', primaryLanguage: 'zh-CN', responseLanguage: 'zh-CN',
+        artifactLanguage: 'zh-CN', currentTurnClass: 'neutral', source: 'task-primary-language',
+        confidence: 'high', updatedPrimary: false
+      }
+    }
   }, { timeoutMs: 8000 })
   assert.strictEqual(profR.passed, true, `allowlist-only profile smoke failed: ${profR.error} ${profR.textHead}`)
+  assert.match(profR.textHead, /DevCodex · 入口检查/)
+  assert.doesNotMatch(profR.textHead, /DevCodexVisibleEnvelopeV3/)
 }
 
 function packlistContainsRuntimeClosure() {

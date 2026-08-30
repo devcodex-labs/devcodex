@@ -24,12 +24,28 @@ const DEFAULT_THRESHOLDS = Object.freeze({
 const TERMINAL_STATES = new Set(['completed', 'error', 'interrupted'])
 const EXECUTION_ATTEMPT_LEDGER_SCHEMA = 'ExecutionAttemptLedgerV1'
 const EXECUTION_ATTEMPT_TERMINALS = new Set(['completed', 'error', 'aborted', 'cancelled', 'stopped'])
+const TASK_OPERATION_RECORD_SCHEMA = 'TaskOperationRecordV1'
+const TASK_OPERATION_SET_SCHEMA = 'TaskOperationSetV1'
+const TASK_OPERATION_PHASES = new Set([
+  'prepared', 'dispatched', 'observed', 'settled', 'reconcile-required',
+  'aborted-zero-effect', 'terminal-observed'
+])
+const TASK_OPERATION_EFFECTS = new Set(['none', 'known-not-applied', 'known-applied', 'unknown'])
 
 class ExecutionAttemptLedgerError extends Error {
   constructor(code, message) {
     super(message)
     this.name = 'ExecutionAttemptLedgerError'
     this.code = code
+  }
+}
+
+class TaskOperationRecordError extends Error {
+  constructor(code, message, details = {}) {
+    super(message)
+    this.name = 'TaskOperationRecordError'
+    this.code = code
+    this.details = details
   }
 }
 
@@ -53,6 +69,381 @@ function positiveNumber(value, fallback) {
 function stableId(prefix, parts) {
   const digest = crypto.createHash('sha256').update(parts.map(part => String(part || '')).join('\u001f')).digest('hex')
   return `${prefix}-${digest.slice(0, 20)}`
+}
+
+function stableValueDigest(value) {
+  return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex')
+}
+
+function normalizedOperationTargets(values) {
+  if (!Array.isArray(values)) return []
+  return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))].sort().slice(0, 20)
+}
+
+function taskOperationRecordDigest(value = {}) {
+  const semantic = { ...value }
+  delete semantic.recordDigest
+  return stableValueDigest(semantic)
+}
+
+function sealTaskOperationRecord(value = {}) {
+  const semantic = {
+    schemaVersion: TASK_OPERATION_RECORD_SCHEMA,
+    operationId: String(value.operationId || ''),
+    idempotencyKey: String(value.idempotencyKey || ''),
+    writerGeneration: Number.isSafeInteger(value.writerGeneration) && value.writerGeneration >= 0
+      ? value.writerGeneration
+      : 0,
+    expectedStateSequence: Number.isSafeInteger(value.expectedStateSequence) && value.expectedStateSequence >= 0
+      ? value.expectedStateSequence
+      : 0,
+    kind: String(value.kind || 'mutation'),
+    exactTargets: normalizedOperationTargets(value.exactTargets),
+    targetSetDigest: String(value.targetSetDigest || ''),
+    beforeDigest: value.beforeDigest === null || value.beforeDigest === undefined
+      ? null
+      : String(value.beforeDigest),
+    phase: TASK_OPERATION_PHASES.has(value.phase) ? value.phase : 'prepared',
+    effect: TASK_OPERATION_EFFECTS.has(value.effect) ? value.effect : 'none',
+    preparedAt: String(value.preparedAt || ''),
+    dispatchedAt: value.dispatchedAt ? String(value.dispatchedAt) : null,
+    observedAt: value.observedAt ? String(value.observedAt) : null,
+    settledAt: value.settledAt ? String(value.settledAt) : null,
+    resultDigest: value.resultDigest ? String(value.resultDigest) : null,
+    evidenceDigest: value.evidenceDigest ? String(value.evidenceDigest) : null
+  }
+  if (!semantic.targetSetDigest) semantic.targetSetDigest = stableValueDigest(semantic.exactTargets)
+  return { ...semantic, recordDigest: stableValueDigest(semantic) }
+}
+
+function validateTaskOperationRecord(value) {
+  const errors = []
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      value.schemaVersion !== TASK_OPERATION_RECORD_SCHEMA) {
+    return { valid: false, errors: ['task-operation-record-required'] }
+  }
+  if (!String(value.operationId || '').trim() || !String(value.idempotencyKey || '').trim()) {
+    errors.push('task-operation-identity')
+  }
+  if (!Number.isSafeInteger(value.writerGeneration) || value.writerGeneration < 0 ||
+      !Number.isSafeInteger(value.expectedStateSequence) || value.expectedStateSequence < 0) {
+    errors.push('task-operation-fence')
+  }
+  if (!TASK_OPERATION_PHASES.has(value.phase) || !TASK_OPERATION_EFFECTS.has(value.effect)) {
+    errors.push('task-operation-phase-effect')
+  }
+  const targets = normalizedOperationTargets(value.exactTargets)
+  if (!targets.length || JSON.stringify(targets) !== JSON.stringify(value.exactTargets) ||
+      !/^[a-f0-9]{64}$/.test(String(value.targetSetDigest || ''))) {
+    errors.push('task-operation-targets')
+  }
+  if (value.beforeDigest !== null && !/^[a-f0-9]{64}$/.test(String(value.beforeDigest || ''))) {
+    errors.push('task-operation-before-digest')
+  }
+  for (const field of ['preparedAt']) {
+    if (!Number.isFinite(Date.parse(String(value[field] || '')))) errors.push(`task-operation-${field}`)
+  }
+  for (const field of ['dispatchedAt', 'observedAt', 'settledAt']) {
+    if (value[field] !== null && !Number.isFinite(Date.parse(String(value[field] || '')))) {
+      errors.push(`task-operation-${field}`)
+    }
+  }
+  for (const field of ['resultDigest', 'evidenceDigest']) {
+    if (value[field] !== null && !/^[a-f0-9]{64}$/.test(String(value[field] || ''))) {
+      errors.push(`task-operation-${field}`)
+    }
+  }
+  if (value.phase === 'prepared' && (value.dispatchedAt !== null || value.effect !== 'none')) {
+    errors.push('task-operation-prepared-shape')
+  }
+  if (['dispatched', 'observed', 'reconcile-required', 'settled', 'terminal-observed'].includes(value.phase) &&
+      value.dispatchedAt === null) errors.push('task-operation-dispatch-required')
+  if (['observed', 'reconcile-required', 'settled', 'terminal-observed'].includes(value.phase) &&
+      value.observedAt === null) errors.push('task-operation-observation-required')
+  if (['settled', 'aborted-zero-effect'].includes(value.phase) && value.settledAt === null) {
+    errors.push('task-operation-settle-required')
+  }
+  if (value.phase === 'reconcile-required' && value.effect !== 'unknown') {
+    errors.push('task-operation-reconcile-effect')
+  }
+  if (value.phase === 'aborted-zero-effect' && value.effect !== 'none') {
+    errors.push('task-operation-abort-effect')
+  }
+  if (!/^[a-f0-9]{64}$/.test(String(value.recordDigest || '')) ||
+      taskOperationRecordDigest(value) !== value.recordDigest) errors.push('task-operation-record-digest')
+  return { valid: errors.length === 0, errors: [...new Set(errors)] }
+}
+
+function taskOperationRef(record) {
+  return {
+    operationId: record.operationId,
+    writerGeneration: record.writerGeneration,
+    phase: record.phase,
+    effect: record.effect,
+    recordDigest: record.recordDigest,
+    settledAt: record.settledAt
+  }
+}
+
+function taskOperationSettledSetDigest(settled = []) {
+  return stableValueDigest({ schemaVersion: TASK_OPERATION_SET_SCHEMA, settled })
+}
+
+function createTaskOperationSet() {
+  const settled = []
+  return {
+    schemaVersion: TASK_OPERATION_SET_SCHEMA,
+    unresolved: null,
+    settled,
+    settledSetDigest: taskOperationSettledSetDigest(settled)
+  }
+}
+
+function normalizeTaskOperationSet(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return createTaskOperationSet()
+  const settled = Array.isArray(raw.settled)
+    ? raw.settled.filter(item => item && typeof item === 'object').map(item => ({ ...item })).slice(-64)
+    : []
+  return {
+    schemaVersion: TASK_OPERATION_SET_SCHEMA,
+    unresolved: raw.unresolved && typeof raw.unresolved === 'object'
+      ? JSON.parse(JSON.stringify(raw.unresolved))
+      : null,
+    settled,
+    settledSetDigest: String(raw.settledSetDigest || taskOperationSettledSetDigest(settled))
+  }
+}
+
+function validateTaskOperationSet(raw) {
+  const set = normalizeTaskOperationSet(raw)
+  const errors = []
+  if (raw && raw.schemaVersion !== TASK_OPERATION_SET_SCHEMA) errors.push('task-operation-set-schema')
+  if (set.unresolved) {
+    const validation = validateTaskOperationRecord(set.unresolved)
+    if (!validation.valid || ['settled', 'aborted-zero-effect'].includes(set.unresolved.phase)) {
+      errors.push('task-operation-unresolved-invalid', ...validation.errors)
+    }
+  }
+  const seen = new Set()
+  for (const item of set.settled) {
+    if (!item || typeof item !== 'object' || !String(item.operationId || '').trim() ||
+        !Number.isSafeInteger(item.writerGeneration) || item.writerGeneration < 0 ||
+        !['settled', 'aborted-zero-effect'].includes(item.phase) ||
+        !TASK_OPERATION_EFFECTS.has(item.effect) ||
+        !/^[a-f0-9]{64}$/.test(String(item.recordDigest || '')) ||
+        !Number.isFinite(Date.parse(String(item.settledAt || '')))) {
+      errors.push('task-operation-settled-ref-invalid')
+    }
+    if (seen.has(item.operationId)) errors.push('task-operation-settled-ref-duplicate')
+    seen.add(item.operationId)
+  }
+  if (set.settledSetDigest !== taskOperationSettledSetDigest(set.settled)) {
+    errors.push('task-operation-set-digest')
+  }
+  return { valid: errors.length === 0, errors: [...new Set(errors)], set }
+}
+
+function replaceUnresolvedTaskOperation(state, record) {
+  const set = normalizeTaskOperationSet(state.taskOperationSet)
+  set.unresolved = record
+  set.settledSetDigest = taskOperationSettledSetDigest(set.settled)
+  state.taskOperationSet = set
+  if (state.inFlightOperation?.operationId === record.operationId) {
+    state.inFlightOperation.operationRecord = record
+  }
+  return state
+}
+
+function prepareTaskOperationRecord(raw, input = {}, options = {}) {
+  const nowMs = nowMsFrom(options)
+  const state = normalizeTurnLivenessState(raw, { ...options, nowMs })
+  const setValidation = validateTaskOperationSet(state.taskOperationSet)
+  if (!setValidation.valid) {
+    throw new TaskOperationRecordError('TASK_OPERATION_SET_INVALID', 'task operation set failed integrity validation', setValidation)
+  }
+  if (setValidation.set.unresolved && setValidation.set.unresolved.operationId !== input.operationId) {
+    throw new TaskOperationRecordError('TASK_OPERATION_IN_FLIGHT', 'another mutating task operation is unresolved')
+  }
+  const existing = setValidation.set.unresolved
+  if (existing?.operationId === input.operationId) {
+    const existingValidation = validateTaskOperationRecord(existing)
+    const replay = sealTaskOperationRecord({
+      operationId: input.operationId,
+      idempotencyKey: input.idempotencyKey || stableId('idem', [state.turnKey, input.operationId]),
+      writerGeneration: input.writerGeneration,
+      expectedStateSequence: input.expectedStateSequence,
+      kind: input.kind || 'mutation',
+      exactTargets: input.exactTargets,
+      targetSetDigest: input.targetSetDigest,
+      beforeDigest: input.beforeDigest ?? null,
+      phase: 'prepared',
+      effect: 'none',
+      preparedAt: existing.preparedAt
+    })
+    if (existingValidation.valid && existing.phase === 'prepared' && replay.recordDigest === existing.recordDigest) {
+      return replaceUnresolvedTaskOperation(state, existing)
+    }
+    throw new TaskOperationRecordError('TASK_OPERATION_REPLAY_MISMATCH', 'operation replay does not match one prepared record')
+  }
+  const record = sealTaskOperationRecord({
+    operationId: input.operationId,
+    idempotencyKey: input.idempotencyKey || stableId('idem', [state.turnKey, input.operationId]),
+    writerGeneration: input.writerGeneration,
+    expectedStateSequence: input.expectedStateSequence,
+    kind: input.kind || 'mutation',
+    exactTargets: input.exactTargets,
+    targetSetDigest: input.targetSetDigest,
+    beforeDigest: input.beforeDigest ?? null,
+    phase: 'prepared',
+    effect: 'none',
+    preparedAt: toIso(nowMs)
+  })
+  const validation = validateTaskOperationRecord(record)
+  if (!validation.valid) {
+    throw new TaskOperationRecordError('TASK_OPERATION_PREPARE_INVALID', 'prepared task operation is invalid', validation)
+  }
+  return replaceUnresolvedTaskOperation(state, record)
+}
+
+function transitionTaskOperation(raw, operationId, phase, values = {}, options = {}) {
+  const nowMs = nowMsFrom(options)
+  const state = normalizeTurnLivenessState(raw, { ...options, nowMs })
+  const setValidation = validateTaskOperationSet(state.taskOperationSet)
+  const current = setValidation.set.unresolved
+  if (!setValidation.valid || !current || current.operationId !== operationId) {
+    throw new TaskOperationRecordError('TASK_OPERATION_CAS_MISMATCH', 'the exact unresolved task operation is unavailable', setValidation)
+  }
+  const next = sealTaskOperationRecord({ ...current, ...values, phase })
+  const validation = validateTaskOperationRecord(next)
+  if (!validation.valid) {
+    throw new TaskOperationRecordError('TASK_OPERATION_TRANSITION_INVALID', `task operation cannot transition to ${phase}`, validation)
+  }
+  return replaceUnresolvedTaskOperation(state, next)
+}
+
+function markTaskOperationDispatched(raw, operationId, options = {}) {
+  const nowMs = nowMsFrom(options)
+  return transitionTaskOperation(raw, operationId, 'dispatched', {
+    dispatchedAt: toIso(nowMs),
+    effect: 'unknown'
+  }, { ...options, nowMs })
+}
+
+function markTaskOperationObserved(raw, operationId, values = {}, options = {}) {
+  const nowMs = nowMsFrom(options)
+  const state = normalizeTurnLivenessState(raw, { ...options, nowMs })
+  const current = normalizeTaskOperationSet(state.taskOperationSet).unresolved
+  return transitionTaskOperation(state, operationId, 'observed', {
+    dispatchedAt: current?.dispatchedAt || toIso(nowMs),
+    observedAt: toIso(nowMs),
+    effect: 'unknown',
+    resultDigest: values.resultDigest || null,
+    evidenceDigest: values.evidenceDigest || null
+  }, { ...options, nowMs })
+}
+
+function settleTaskOperationRecord(raw, operationId, values = {}, options = {}) {
+  const nowMs = nowMsFrom(options)
+  const state = normalizeTurnLivenessState(raw, { ...options, nowMs })
+  const setValidation = validateTaskOperationSet(state.taskOperationSet)
+  const current = setValidation.set.unresolved
+  if (!setValidation.valid || !current || current.operationId !== operationId) {
+    throw new TaskOperationRecordError('TASK_OPERATION_CAS_MISMATCH', 'the exact observed task operation is unavailable', setValidation)
+  }
+  const needsReconcile = values.needsReconcile === true
+  const phase = needsReconcile ? 'reconcile-required' : 'settled'
+  const effect = needsReconcile
+    ? 'unknown'
+    : (['known-applied', 'known-not-applied', 'none'].includes(values.effect) ? values.effect : 'known-not-applied')
+  const record = sealTaskOperationRecord({
+    ...current,
+    phase,
+    effect,
+    observedAt: current.observedAt || toIso(nowMs),
+    settledAt: needsReconcile ? null : toIso(nowMs),
+    resultDigest: values.resultDigest || current.resultDigest,
+    evidenceDigest: values.evidenceDigest || current.evidenceDigest
+  })
+  const validation = validateTaskOperationRecord(record)
+  if (!validation.valid) {
+    throw new TaskOperationRecordError('TASK_OPERATION_SETTLEMENT_INVALID', 'task operation settlement is invalid', validation)
+  }
+  const set = setValidation.set
+  state.lastTaskOperationRecord = record
+  if (needsReconcile) {
+    set.unresolved = record
+  } else {
+    const prior = set.settled.find(item => item.operationId === record.operationId)
+    const ref = taskOperationRef(record)
+    if (prior && prior.recordDigest !== ref.recordDigest) {
+      throw new TaskOperationRecordError('TASK_OPERATION_SETTLEMENT_REPLAY_MISMATCH', 'settled operation replay changed its result')
+    }
+    if (!prior) set.settled = [...set.settled, ref].slice(-64)
+    set.unresolved = null
+  }
+  set.settledSetDigest = taskOperationSettledSetDigest(set.settled)
+  state.taskOperationSet = set
+  return state
+}
+
+function reconcileTaskOperationRecord(raw, operationId, values = {}, options = {}) {
+  const state = normalizeTurnLivenessState(raw, options)
+  const current = normalizeTaskOperationSet(state.taskOperationSet).unresolved
+  if (!current || current.operationId !== operationId || current.phase !== 'reconcile-required') {
+    throw new TaskOperationRecordError('TASK_OPERATION_RECONCILE_CAS_MISMATCH', 'only the exact reconcile-required operation can settle')
+  }
+  return settleTaskOperationRecord(state, operationId, {
+    needsReconcile: false,
+    effect: values.effect,
+    resultDigest: values.resultDigest,
+    evidenceDigest: values.evidenceDigest
+  }, options)
+}
+
+function abortPreparedTaskOperation(raw, operationId, options = {}) {
+  const nowMs = nowMsFrom(options)
+  const state = normalizeTurnLivenessState(raw, { ...options, nowMs })
+  const setValidation = validateTaskOperationSet(state.taskOperationSet)
+  const current = setValidation.set.unresolved
+  if (!setValidation.valid || !current || current.operationId !== operationId || current.phase !== 'prepared') {
+    throw new TaskOperationRecordError('TASK_OPERATION_ABORT_INVALID', 'only an exact un-dispatched prepared operation can abort with zero effect')
+  }
+  const record = sealTaskOperationRecord({
+    ...current,
+    phase: 'aborted-zero-effect',
+    effect: 'none',
+    settledAt: toIso(nowMs)
+  })
+  const set = setValidation.set
+  set.unresolved = null
+  set.settled = [...set.settled, taskOperationRef(record)].slice(-64)
+  set.settledSetDigest = taskOperationSettledSetDigest(set.settled)
+  state.taskOperationSet = set
+  state.lastTaskOperationRecord = record
+  if (state.inFlightOperation?.operationId === operationId) state.inFlightOperation = null
+  return state
+}
+
+function taskOperationTerminalSnapshot(raw) {
+  const state = raw && typeof raw === 'object' ? raw : {}
+  const validation = validateTaskOperationSet(state.taskOperationSet)
+  const legacyInFlight = state.inFlightOperation?.mutating === true &&
+    !validation.set.unresolved
+  const legacyReconcile = state.lastMutationCloseout?.result === 'needs-reconcile' &&
+    !validation.set.unresolved
+  return {
+    schemaVersion: 'TaskOperationTerminalSnapshotV1',
+    valid: validation.valid,
+    errors: validation.errors,
+    unresolvedOperationId: validation.set.unresolved?.operationId ||
+      (legacyInFlight ? state.inFlightOperation.operationId || 'legacy-in-flight' :
+        (legacyReconcile ? state.lastMutationCloseout.operationId || 'legacy-reconcile' : null)),
+    unresolvedPhase: validation.set.unresolved?.phase ||
+      (legacyInFlight ? 'legacy-in-flight' : (legacyReconcile ? 'reconcile-required' : null)),
+    settledCount: validation.set.settled.length,
+    settledSetDigest: validation.set.settledSetDigest,
+    terminalReady: validation.valid && !validation.set.unresolved && !legacyInFlight && !legacyReconcile
+  }
 }
 
 function nonNegativeNumber(value) {
@@ -337,6 +728,8 @@ function createTurnLivenessState(options = {}) {
     lastToolOutputAt: '',
     continuationAckAt: '',
     inFlightOperation: null,
+    taskOperationSet: createTaskOperationSet(),
+    lastTaskOperationRecord: null,
     checkpoint: {
       phase: '',
       artifactPaths: [],
@@ -388,6 +781,9 @@ function normalizeTurnLivenessState(raw, options = {}) {
           : null,
         mutationPreObservation: raw.inFlightOperation.mutationPreObservation && typeof raw.inFlightOperation.mutationPreObservation === 'object'
           ? JSON.parse(JSON.stringify(raw.inFlightOperation.mutationPreObservation))
+          : null,
+        operationRecord: raw.inFlightOperation.operationRecord && typeof raw.inFlightOperation.operationRecord === 'object'
+          ? JSON.parse(JSON.stringify(raw.inFlightOperation.operationRecord))
           : null
       }
     : null
@@ -397,6 +793,10 @@ function normalizeTurnLivenessState(raw, options = {}) {
     schemaVersion: 1,
     eventSequence: Math.max(0, Number.parseInt(raw.eventSequence, 10) || 0),
     inFlightOperation: operation,
+    taskOperationSet: normalizeTaskOperationSet(raw.taskOperationSet),
+    lastTaskOperationRecord: raw.lastTaskOperationRecord && typeof raw.lastTaskOperationRecord === 'object'
+      ? JSON.parse(JSON.stringify(raw.lastTaskOperationRecord))
+      : null,
     checkpoint: { ...base.checkpoint, ...checkpoint, artifactPaths },
     checkpointValidation: normalizeCheckpointValidationSet(raw.checkpointValidation, options),
     taskTrace: normalizeLocalTaskTrace(raw.taskTrace, {
@@ -633,6 +1033,18 @@ function completeToolLease(raw, payload = {}, options = {}) {
   const duplicate = !!(
     operationId && operationId === state.lastToolCallId && state.lastToolOutputAt && !state.inFlightOperation
   )
+  if (!duplicate && completingOperation?.operationRecord?.operationId === operationId) {
+    const resultDigest = stableValueDigest({
+      operationId,
+      success: !(payload.success === false || payload.is_error === true || payload.isError === true || !!payload.error),
+      toolOutput: payload.tool_output ?? payload.toolOutput ?? payload.output ?? null,
+      error: payload.error ?? null
+    })
+    const observed = markTaskOperationObserved(state, operationId, { resultDigest }, { ...options, nowMs })
+    state.taskOperationSet = observed.taskOperationSet
+    state.lastTaskOperationRecord = observed.lastTaskOperationRecord
+    completingOperation.operationRecord = observed.taskOperationSet.unresolved
+  }
   if (!duplicate) state.lastToolOutputAt = toIso(nowMs)
   state.lastToolCallId = operationId || state.lastToolCallId
   state.inFlightOperation = null
@@ -653,6 +1065,7 @@ function completeToolLease(raw, payload = {}, options = {}) {
       toolName: completingOperation.toolName,
       completedAt: toIso(nowMs),
       result: toolFailed ? 'error' : 'success',
+      taskOperationRecord: completingOperation.operationRecord || null,
       checkpoint: { ...state.checkpoint, artifactPaths: [...state.checkpoint.artifactPaths] }
     }
   }
@@ -671,6 +1084,14 @@ function completeToolLease(raw, payload = {}, options = {}) {
 function markTurnTerminal(raw, terminalState = 'completed', reason = '', options = {}) {
   const nowMs = nowMsFrom(options)
   const state = normalizeTurnLivenessState(raw, { ...options, nowMs })
+  const operationSnapshot = taskOperationTerminalSnapshot(state)
+  if (!operationSnapshot.terminalReady) {
+    throw new TaskOperationRecordError(
+      'TASK_OPERATION_UNSETTLED',
+      'turn terminal requires every mutating task operation to settle or reconcile first',
+      operationSnapshot
+    )
+  }
   const normalizedTerminal = TERMINAL_STATES.has(terminalState) ? terminalState : 'error'
   state.state = normalizedTerminal
   state.inFlightOperation = null
@@ -734,7 +1155,11 @@ function formatTurnRecoveryMessage(card) {
 module.exports = {
   DEFAULT_THRESHOLDS,
   EXECUTION_ATTEMPT_LEDGER_SCHEMA,
+  TASK_OPERATION_RECORD_SCHEMA,
+  TASK_OPERATION_SET_SCHEMA,
   ExecutionAttemptLedgerError,
+  TaskOperationRecordError,
+  abortPreparedTaskOperation,
   buildTurnRecoveryCard,
   classifyTurnLiveness,
   completeToolLease,
@@ -746,9 +1171,19 @@ module.exports = {
   formatTurnRecoveryMessage,
   isTerminalState,
   markTurnTerminal,
+  markTaskOperationDispatched,
+  markTaskOperationObserved,
   normalizeExecutionAttemptLedger,
   normalizeTurnLivenessState,
   observeTurnEvent,
+  prepareTaskOperationRecord,
+  reconcileTaskOperationRecord,
   recordExecutionAttempt,
-  startToolLease
+  settleTaskOperationRecord,
+  startToolLease,
+  taskOperationRecordDigest,
+  taskOperationSettledSetDigest,
+  taskOperationTerminalSnapshot,
+  validateTaskOperationRecord,
+  validateTaskOperationSet
 }

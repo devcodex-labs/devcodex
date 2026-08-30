@@ -131,7 +131,9 @@ function lifecycleOwnerReceipt(operation, transaction, owner, replayed, nowMs) {
   const finalized = transaction?.phase === 'finalized'
   const cpConfirmed = transaction?.effects?.cpState?.status === 'confirmed' &&
     transaction?.effects?.cpState?.cp1Confirmed === true
-  const active = owner?.status === 'active' && Date.parse(String(owner.expiresAt || '')) > nowMs
+  const active = owner?.status === 'active'
+  const expiresAtMs = Date.parse(String(owner?.expiresAt || ''))
+  const leaseFreshDiagnostic = Number.isFinite(expiresAtMs) && expiresAtMs > nowMs
   return {
     schemaVersion: 'TaskWriteOwnerTransitionReceiptV1',
     status: owner?.status || 'missing',
@@ -144,6 +146,8 @@ function lifecycleOwnerReceipt(operation, transaction, owner, replayed, nowMs) {
     ownerRef: owner ? ownerRef(owner) : null,
     finalized,
     cp1Confirmed: cpConfirmed,
+    leaseFreshDiagnostic,
+    leaseExpiredDiagnostic: active && !leaseFreshDiagnostic,
     mutationAuthority: finalized && cpConfirmed && active,
     replayed
   }

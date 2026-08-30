@@ -6,17 +6,17 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "40b5d0891d9f7321f7b8c15ca7762a06adf259f87fd48fadf5a511a04f5cccfd",
+    "sourceDigest": "f370875cf0722517029b79adcceba7916ea7b5f92cf1f5395a3b3f7827fa4999",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "85b47e2dd1cde56e01547af605a82d9f42d18dc9c48f880ffa843e602348be0c",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
     "publicTaxonomyDigest": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 668,
-    "consumerInventoryDigest": "71585f29afe88122c710de66b6fad1d99eaa3c8f2dc2fc77abd2ce7cb11ea039",
-    "consumerProjectionDigest": "a8f2ae467596258c2279e888505a1f3f428e5138e80d37c5b9035d15ad50965b",
-    "portfolioInputDigest": "de31999ec3f265048a456a88a6947d57f320013f9c09ee0539fae8d0f4dadf1b"
+    "consumerInventoryFileCount": 669,
+    "consumerInventoryDigest": "3efebd1bc38d9d30bb71cb50a1eef073eafc51575b8f6649a1054ae661b4f332",
+    "consumerProjectionDigest": "85709480e5c4ba1265064df53a7e4c8c01a69044791ffd98cdb3c385c7fc47f4",
+    "portfolioInputDigest": "d0a3c066b4b27faa493cbcdfaf2b900dc7204630cfa1a20c70705b75b2f8eb13"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -798,8 +798,8 @@
         "content/skills/ai-agent-system-architecture/SKILL.md"
       ],
       "source": "content/skills/ai-agent-system-architecture/SKILL.md",
-      "hash": "a615d29515fbd1a9b4b7f869b305a846b378d0a26bdee9b873c0a1a93de3f847",
-      "sourceBytes": 12228,
+      "hash": "ce7c06c17d6f6db33388f2aef61c7a5cce50413fdf730af88495bcb321136a89",
+      "sourceBytes": 13940,
       "version": "1.19.5",
       "lifecycleState": "active",
       "publicCategory": "domain-architecture",
@@ -5277,8 +5277,8 @@
         "content/skills/cp-gate/SKILL.md"
       ],
       "source": "content/skills/cp-gate/SKILL.md",
-      "hash": "85f07d3ce1617109a4991def302d26c4eb809794836d4e236201b05e1957d128",
-      "sourceBytes": 31744,
+      "hash": "0d3f651fc5c52ddf81cf6b62ba9157cafa66ba5293386b8f890b4ae05ab852eb",
+      "sourceBytes": 32174,
       "version": "1.19.5",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -10638,6 +10638,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/artifact-template-contract.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/context-read-contract.cjs",
           "role": "current"
         },
@@ -10831,6 +10835,10 @@
         },
         {
           "path": "scripts/lib/public-product-expression.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/requirement-artifact-check.js",
           "role": "current"
         },
         {
@@ -11647,8 +11655,8 @@
         "content/skills/memory/SKILL.md"
       ],
       "source": "content/skills/memory/SKILL.md",
-      "hash": "cd091d6defd446dc097da2514e18f8c7a98f9d4900ce03e8e90f9d382229528c",
-      "sourceBytes": 32042,
+      "hash": "d3934d2daabe367beebe813b2cc9e386caceb7f4735c2e58719e056085f5d8ec",
+      "sourceBytes": 33213,
       "version": "1.19.5",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -11848,6 +11856,10 @@
         },
         {
           "path": "hooks/_runtime/artifact-slot-registry.v2.json",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/artifact-template-contract.cjs",
           "role": "current"
         },
         {
@@ -16153,6 +16165,14 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/artifact-template-contract.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/language-context.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/lifecycle-bootstrap-state.cjs",
           "role": "current"
         },
@@ -19588,6 +19608,10 @@
         },
         {
           "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/artifact-template-contract.cjs",
           "role": "current"
         },
         {

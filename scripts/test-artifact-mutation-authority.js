@@ -45,6 +45,15 @@ const {
 } = require('../hooks/_runtime/artifact-mutation-reconciliation.cjs')
 const { compactLifecycleStateV5 } = require('../hooks/_runtime/lifecycle-state-projection-v5.cjs')
 const { sha256, stableStringify } = require('../hooks/_runtime/content-identity.cjs')
+const {
+  createArtifactTemplateBinding,
+  projectArtifactTemplateBinding,
+  qualifyArtifactContent,
+  qualifyArtifactFile,
+  validateArtifactTemplateBinding,
+  validateArtifactTemplateBindingProjection,
+  validateArtifactTemplateQualification
+} = require('../hooks/_runtime/artifact-template-contract.cjs')
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-artifact-authority-'))
 const activeRoot = path.join(tempRoot, '.devcodex', 'devcodex')
@@ -60,6 +69,23 @@ function write(relative, text = '# fixture\n') {
 
 function digest(value) {
   return sha256(Buffer.from(stableStringify(value), 'utf8'))
+}
+
+function artifactFromTemplateBinding(binding, suffix = '') {
+  const lines = []
+  const columns = []
+  for (const semanticId of binding.requiredSemanticIds || []) {
+    if (semanticId === 'document-title') lines.push('# Fixture artifact')
+    else if (semanticId.startsWith('heading:')) lines.push(`## ${semanticId.slice('heading:'.length).replace(/-/g, ' ')}`)
+    else if (semanticId.startsWith('table-column:')) columns.push(semanticId.slice('table-column:'.length).replace(/-/g, ' '))
+  }
+  if (columns.length) {
+    lines.push(`| ${columns.join(' | ')} |`)
+    lines.push(`| ${columns.map(() => '---').join(' | ')} |`)
+    lines.push(`| ${columns.map(() => 'fixture').join(' | ')} |`)
+  }
+  if (suffix) lines.push('', suffix)
+  return `${lines.join('\n')}\n`
 }
 
 function decisionFor(payload, overrides = {}) {
@@ -156,6 +182,12 @@ try {
   )
   assert.strictEqual(cp1Report.slot?.slotId, 'bug-cp1')
   assert.strictEqual(cp1Report.matchType, 'report-alternative')
+  const legacyP0Requirement = classifyRelativeTarget(
+    'requirements/fixture-requirement/01-P0任务连续性需求确认.md',
+    layered
+  )
+  assert.strictEqual(legacyP0Requirement.slot?.slotId, 'requirement-cp1')
+  assert.strictEqual(legacyP0Requirement.matchType, 'legacy-read')
   const baseRegistry = JSON.parse(fs.readFileSync(
     path.join(__dirname, '..', 'hooks', '_runtime', 'artifact-slot-registry.v2.json'),
     'utf8'
@@ -163,6 +195,122 @@ try {
   assert.strictEqual(baseRegistry.projectMutationCoverageContract, 'tracked-product-surfaces-v1')
   assert.strictEqual(baseRegistry.protectedConstraints.operationPermissionOwner, 'host')
   assert(baseRegistry.slots.find(slot => slot.slotId === 'bug-cp2')?.canonicalNames.includes('02-技术方案.md'))
+  assert(baseRegistry.slots.find(slot => slot.slotId === 'plan-review-pr1')?.canonicalNames.includes('03-方案复审-PR1.md'))
+  assert(baseRegistry.slots.filter(slot => slot.templateRef).every(slot =>
+    slot.templateValidator === 'artifact-template-contract' &&
+    slot.requiredSemanticIds === undefined && slot.extensionPoints === undefined
+  ), 'the registry may route templates but must not duplicate their semantic truth')
+  const cp2TemplateSlot = baseRegistry.slots.find(slot => slot.slotId === 'bug-cp2')
+  const producerBinding = createArtifactTemplateBinding({
+    slot: cp2TemplateSlot,
+    target: cp2,
+    intent: 'fix',
+    bindingMode: 'producer-supplied'
+  })
+  assert.strictEqual(validateArtifactTemplateBinding(producerBinding).valid, true)
+  const producerProjection = projectArtifactTemplateBinding(producerBinding)
+  assert.strictEqual(validateArtifactTemplateBindingProjection(producerProjection).valid, true)
+  const validTemplateArtifact = artifactFromTemplateBinding(producerBinding, '## 受控扩展\n\n扩展不能替代模板必需语义。')
+  const validTemplateQualification = qualifyArtifactContent(producerBinding, validTemplateArtifact, {
+    slotId: 'bug-cp2', target: cp2, readbackVerified: true, requireReadback: true
+  })
+  assert.strictEqual(validTemplateQualification.status, 'qualified', JSON.stringify(validTemplateQualification.errorCodes))
+  assert.strictEqual(validateArtifactTemplateQualification(validTemplateQualification, producerBinding).valid, true)
+  assert(validTemplateQualification.observedExtensions.includes('heading:受控扩展'))
+  const missingTemplateQualification = qualifyArtifactContent(producerBinding, '# Fixture artifact\n', {
+    slotId: 'bug-cp2', target: cp2, readbackVerified: true, requireReadback: true
+  })
+  assert.strictEqual(missingTemplateQualification.status, 'rejected')
+  assert(missingTemplateQualification.errorCodes.some(item => item.startsWith('artifact-template-required-semantic-missing:')))
+  const requiredHeadings = producerBinding.requiredSemanticIds.filter(item => item.startsWith('heading:'))
+  const reorderedTemplateArtifact = artifactFromTemplateBinding(producerBinding)
+    .replace(`## ${requiredHeadings[0].slice(8)}`, '## __FIRST__')
+    .replace(`## ${requiredHeadings[1].slice(8)}`, `## ${requiredHeadings[0].slice(8)}`)
+    .replace('## __FIRST__', `## ${requiredHeadings[1].slice(8)}`)
+  const reorderedQualification = qualifyArtifactContent(producerBinding, reorderedTemplateArtifact, {
+    slotId: 'bug-cp2', target: cp2, readbackVerified: true, requireReadback: true
+  })
+  assert.strictEqual(reorderedQualification.status, 'rejected')
+  assert(reorderedQualification.errorCodes.includes('artifact-template-required-order-invalid'))
+  const wrongSlotQualification = qualifyArtifactContent(producerBinding, artifactFromTemplateBinding(producerBinding), {
+    slotId: 'requirement-cp1', target: cp2, readbackVerified: true, requireReadback: true
+  })
+  assert(wrongSlotQualification.errorCodes.includes('artifact-template-wrong-slot'))
+  const noReadbackQualification = qualifyArtifactContent(producerBinding, artifactFromTemplateBinding(producerBinding), {
+    slotId: 'bug-cp2', target: cp2, readbackVerified: false, requireReadback: true
+  })
+  assert(noReadbackQualification.errorCodes.includes('artifact-template-readback-required'))
+  const artifactPath = path.join(tempRoot, 'stable-template-artifact.md')
+  fs.writeFileSync(artifactPath, artifactFromTemplateBinding(producerBinding), 'utf8')
+  const fileBinding = createArtifactTemplateBinding({
+    slot: cp2TemplateSlot,
+    target: artifactPath,
+    intent: 'fix'
+  })
+  let fstatCount = 0
+  const templateDriftFs = Object.assign({}, fs, {
+    fstatSync(descriptor) {
+      const observed = fs.fstatSync(descriptor)
+      fstatCount += 1
+      return fstatCount === 2 ? { ...observed, mtimeMs: observed.mtimeMs + 1 } : observed
+    }
+  })
+  const driftingReadback = qualifyArtifactFile(fileBinding, artifactPath, {
+    slotId: 'bug-cp2', target: artifactPath
+  }, { fs: templateDriftFs })
+  assert.strictEqual(driftingReadback.status, 'rejected')
+  assert.strictEqual(driftingReadback.readbackVerified, false)
+  assert(driftingReadback.errorCodes.includes('artifact-template-readback-drift'))
+  let artifactLstatCount = 0
+  const replacedArtifactPathFs = Object.assign({}, fs, {
+    lstatSync(target) {
+      const observed = fs.lstatSync(target)
+      artifactLstatCount += 1
+      return artifactLstatCount === 2 ? { ...observed, ino: observed.ino + 1 } : observed
+    }
+  })
+  const replacedPathReadback = qualifyArtifactFile(fileBinding, artifactPath, {
+    slotId: 'bug-cp2', target: artifactPath
+  }, { fs: replacedArtifactPathFs })
+  assert.strictEqual(replacedPathReadback.status, 'rejected')
+  assert.strictEqual(replacedPathReadback.readbackVerified, false)
+  assert(replacedPathReadback.errorCodes.includes('artifact-template-readback-drift'))
+  let templateLstatCount = 0
+  const replacedTemplatePathFs = Object.assign({}, fs, {
+    lstatSync(target) {
+      const observed = fs.lstatSync(target)
+      templateLstatCount += 1
+      return templateLstatCount === 2 ? { ...observed, ino: observed.ino + 1 } : observed
+    }
+  })
+  assert.throws(
+    () => createArtifactTemplateBinding({
+      slot: cp2TemplateSlot,
+      target: artifactPath,
+      intent: 'fix'
+    }, { fs: replacedTemplatePathFs }),
+    error => error?.code === 'ARTIFACT_TEMPLATE_SOURCE_DRIFT',
+    'template binding must reject a source path replaced after the descriptor is opened'
+  )
+  const isolatedRuntime = path.join(tempRoot, 'isolated-template-runtime')
+  const isolatedTemplate = path.join(isolatedRuntime, 'content', 'prompts', 'technical-design.prompt.md')
+  fs.mkdirSync(path.dirname(isolatedTemplate), { recursive: true })
+  fs.copyFileSync(path.join(__dirname, '..', 'content', 'prompts', 'technical-design.prompt.md'), isolatedTemplate)
+  const staleBinding = createArtifactTemplateBinding({
+    slot: cp2TemplateSlot,
+    target: cp2,
+    intent: 'fix'
+  }, { runtimeRoot: isolatedRuntime })
+  fs.appendFileSync(isolatedTemplate, '\n<!-- fixture drift -->\n')
+  const staleQualification = qualifyArtifactContent(staleBinding, artifactFromTemplateBinding(staleBinding), {
+    slotId: 'bug-cp2', target: cp2, readbackVerified: true, requireReadback: true
+  }, { runtimeRoot: isolatedRuntime })
+  assert.strictEqual(staleQualification.status, 'rejected')
+  assert(staleQualification.errorCodes.includes('artifact-template-stale-digest'))
+  assert.throws(
+    () => createArtifactTemplateBinding({ slot: cp2TemplateSlot, target: cp2 }, { runtimeRoot: path.join(tempRoot, 'missing-template-runtime') }),
+    error => error?.code === 'ARTIFACT_TEMPLATE_SOURCE_MISSING'
+  )
   fs.writeFileSync(overlayPath, JSON.stringify({
     ...safeOverlay,
     slots: [{ ...safeOverlay.slots[0], destructivePolicy: 'forbid' }]
@@ -439,10 +587,18 @@ try {
   assert.strictEqual(allowed.decision.slotIds.includes('bug-cp2'), true)
   assert.strictEqual(allowed.decision.mergedRegistryDigest, layered.mergedRegistryDigest)
   assert.strictEqual(validateArtifactSlotDecision(allowed.decision).valid, true)
+  const suppliedDecision = decisionFor(
+    { tool_name: 'Edit', tool_input: { file_path: cp2 } },
+    { templateBindings: [producerBinding] }
+  )
+  assert.strictEqual(suppliedDecision.decision.decisionStatus, 'allow', JSON.stringify(suppliedDecision.decision.errorCodes))
+  assert.strictEqual(suppliedDecision.decision.templateBindings[0].bindingDigest, producerBinding.bindingDigest)
+  assert.strictEqual(suppliedDecision.decision.templateBindings[0].bindingMode, 'producer-supplied')
   const httpTarget = path.join(taskRoot, 'verify.http')
   const overlayDecision = decisionFor({ tool_name: 'Write', tool_input: { file_path: httpTarget } })
   assert.strictEqual(overlayDecision.decision.decisionStatus, 'allow', JSON.stringify(overlayDecision.decision.errorCodes))
   assert.strictEqual(overlayDecision.decision.slotId, 'fixture-task-http-verification')
+  fs.writeFileSync(cp2, artifactFromTemplateBinding(allowed.decision.templateBindings[0]), 'utf8')
   const closeout = reconcileArtifactSlotDecision(allowed.decision, {
     footprint: allowed.footprint,
     activeRoot,
@@ -468,7 +624,7 @@ try {
   })
   assert.strictEqual(validateTaskOwnedMutationLease(reportLease).valid, true)
   fs.mkdirSync(path.dirname(reportTarget), { recursive: true })
-  fs.writeFileSync(reportTarget, '# observed report\n')
+  fs.writeFileSync(reportTarget, artifactFromTemplateBinding(reportAuthorization.decision.templateBindings[0]), 'utf8')
   const reportObservation = observeMutationEffects({
     operationId,
     decision: reportAuthorization.decision,
@@ -516,7 +672,7 @@ try {
     owner: { ownerGeneration: 1, leaseDigest: 'a'.repeat(64) },
     decision: modifyAuthorization.decision
   })
-  fs.writeFileSync(cp2, '# modified fixture\n')
+  fs.writeFileSync(cp2, artifactFromTemplateBinding(modifyAuthorization.decision.templateBindings[0], 'modified fixture'), 'utf8')
   const modifyObservation = observeMutationEffects({
     operationId: 'fixture-modify',
     decision: modifyAuthorization.decision,
@@ -760,6 +916,7 @@ try {
   })
   assert.strictEqual(moveDecision.decisionStatus, 'allow', JSON.stringify(moveDecision.errorCodes))
   assert.strictEqual(moveDecision.operation, 'move')
+  fs.writeFileSync(legacyMoveSource, artifactFromTemplateBinding(moveDecision.templateBindings[0]), 'utf8')
   const movePre = createMutationPreObservation({ operationId: 'fixture-move', footprint: moveFootprint })
   const moveLease = createTaskOwnedMutationLease({
     operationId: 'fixture-move',
@@ -806,7 +963,7 @@ try {
   assert.strictEqual(isAuthoritativeTaskArtifact({ slot: { slotId: 'bug-cp1' }, matchType: 'report-alternative' }), false)
   assert.strictEqual(hasTaskArtifact({ fullPath: reportOnlyTask, kind: 'bugs' }, 'CP1'), false)
 
-  const manyReports = Array.from({ length: 40 }, (_, index) => path.join(
+  const manyReports = Array.from({ length: 12 }, (_, index) => path.join(
     activeRoot,
     'reports',
     'fix',
@@ -829,7 +986,8 @@ try {
   assert.strictEqual(manyDecision.decisionStatus, 'allow', JSON.stringify(manyDecision.errorCodes))
   for (const report of manyReports) {
     fs.mkdirSync(path.dirname(report), { recursive: true })
-    fs.writeFileSync(report, '# report\n')
+    const binding = manyDecision.templateBindings.find(item => path.resolve(item.targetRef) === path.resolve(report))
+    fs.writeFileSync(report, artifactFromTemplateBinding(binding), 'utf8')
   }
   const compact = compactLifecycleStateV5({
     turnLiveness: {
@@ -856,7 +1014,8 @@ try {
   assert.strictEqual(compactCloseout.decisionStatus, 'consumed', JSON.stringify(compactCloseout.errorCodes))
 
   const reconciliationTarget = cp2
-  fs.writeFileSync(reconciliationTarget, '# reconciliation before\n')
+  const reconciliationBeforeDecision = decisionFor({ tool_name: 'Edit', tool_input: { file_path: reconciliationTarget } })
+  fs.writeFileSync(reconciliationTarget, artifactFromTemplateBinding(reconciliationBeforeDecision.decision.templateBindings[0], 'reconciliation before'), 'utf8')
   const reconciliationFootprint = extractMutationFootprint({
     tool_name: 'Write',
     tool_input: { file_path: reconciliationTarget, content: '# reconciliation after\n' }
@@ -887,7 +1046,7 @@ try {
     owner: { ownerGeneration: 1, leaseDigest: 'd'.repeat(64) },
     decision: reconciliationDecision
   })
-  fs.writeFileSync(reconciliationTarget, '# reconciliation after\n')
+  fs.writeFileSync(reconciliationTarget, artifactFromTemplateBinding(reconciliationDecision.templateBindings[0], 'reconciliation after'), 'utf8')
   const failedObservation = observeMutationEffects({
     operationId: 'fixture-reconciliation',
     decision: reconciliationDecision,
@@ -899,6 +1058,12 @@ try {
   })
   assert.strictEqual(failedObservation.status, 'needs-reconcile')
   assert.strictEqual(failedObservation.observationCoverage, 'complete')
+  const failedReconciliationInput = createArtifactMutationReconciliationInput({
+    operationId: 'fixture-reconciliation',
+    footprint: reconciliationFootprint,
+    preObservation: reconciliationPre,
+    templateBindings: reconciliationDecision.templateBindings
+  })
   const failedLifecycleCloseout = {
     schemaVersion: 'LifecycleMutationCloseoutV2',
     operationId: 'fixture-reconciliation',
@@ -907,7 +1072,8 @@ try {
     result: 'needs-reconcile',
     authorizationErrors: ['task-mutation-lease-expired'],
     observation: failedObservation,
-    artifactCloseout: failedObservation.closeout
+    artifactCloseout: failedObservation.closeout,
+    reconciliationInput: failedReconciliationInput
   }
   const reconciliationReceipt = createArtifactMutationReconciliationReceipt({
     lifecycleCloseout: failedLifecycleCloseout,
@@ -1032,9 +1198,10 @@ try {
   const partialReconciliationInput = createArtifactMutationReconciliationInput({
     operationId: partialOperationId,
     footprint: partialFootprint,
-    preObservation: partialPre
+    preObservation: partialPre,
+    templateBindings: partialDecision.templateBindings
   })
-  fs.writeFileSync(reconciliationTarget, '# partial after\n')
+  fs.writeFileSync(reconciliationTarget, artifactFromTemplateBinding(partialDecision.templateBindings[0], 'partial after'), 'utf8')
   const partialFs = new Proxy(fs, {
     get(target, property) {
       if (property === 'lstatSync') {

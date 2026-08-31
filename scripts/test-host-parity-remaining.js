@@ -25,6 +25,16 @@ const {
 } = require('./lib/host-parity-scorecard.js')
 
 const tempRoots = []
+const ZH_LANGUAGE_CONTEXT = Object.freeze({
+  schemaVersion: 'LanguageContextV2',
+  primaryLanguage: 'zh-CN',
+  responseLanguage: 'zh-CN',
+  artifactLanguage: 'zh-CN',
+  currentTurnClass: 'neutral',
+  source: 'task-primary-language',
+  confidence: 'high',
+  updatedPrimary: false
+})
 function makeTempRoot(prefix) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix))
   tempRoots.push(root)
@@ -83,7 +93,11 @@ function readIfExists(file) {
 
 // Compose entry check + source-contained HostParity surface. Narrative Markdown
 // is intentionally not a JavaScript validation dependency.
-const block = composeEntryCheckBlock({ project: 'demo', status: 'PASS' })
+const block = composeEntryCheckBlock({
+  project: 'demo',
+  status: 'PASS',
+  languageContext: ZH_LANGUAGE_CONTEXT
+})
 assert.match(block, /### DevCodex · 入口检查/)
 const checklistText = formatGrokTurnChecklistMarkdown()
 const hostParitySurface = checklistText

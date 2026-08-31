@@ -16,7 +16,9 @@ const {
   prepareTaskOperationRecord,
   reconcileTaskOperationRecord,
   settleTaskOperationRecord,
-  startToolLease
+  startToolLease,
+  taskOperationTargetSetDigest,
+  validateTaskOperationSet
 } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 
 const BASE = Date.parse('2026-07-15T00:00:00.000Z')
@@ -102,7 +104,7 @@ function main() {
     expectedStateSequence: 7,
     kind: 'update',
     exactTargets: ['D:/workspace/a.md'],
-    targetSetDigest: '1'.repeat(64),
+    targetSetDigest: taskOperationTargetSetDigest(['D:/workspace/a.md']),
     beforeDigest: '2'.repeat(64)
   }
   prepared = prepareTaskOperationRecord(prepared, preparedInput, { nowMs: at(2000) })
@@ -149,7 +151,7 @@ function main() {
     expectedStateSequence: 8,
     kind: 'update',
     exactTargets: ['D:/workspace/b.md'],
-    targetSetDigest: '3'.repeat(64),
+    targetSetDigest: taskOperationTargetSetDigest(['D:/workspace/b.md']),
     beforeDigest: '4'.repeat(64)
   }, { nowMs: at(2000) })
   dispatched = markTaskOperationDispatched(dispatched, 'operation-dispatched', { nowMs: at(2100) })
@@ -182,6 +184,99 @@ function main() {
   }, { nowMs: at(2600) })
   assert.strictEqual(reconciled.taskOperationSet.unresolved, null)
   assert.strictEqual(reconciled.taskOperationSet.settled[0].effect, 'known-applied')
+
+  const secondTargets = ['D:/workspace/c.md']
+  let secondOperation = prepareTaskOperationRecord(reconciled, {
+    operationId: 'operation-second',
+    writerGeneration: 4,
+    expectedStateSequence: 9,
+    kind: 'update',
+    exactTargets: secondTargets,
+    targetSetDigest: taskOperationTargetSetDigest(secondTargets),
+    beforeDigest: '9'.repeat(64)
+  }, { nowMs: at(2650) })
+  secondOperation = markTaskOperationDispatched(secondOperation, 'operation-second', { nowMs: at(2660) })
+  secondOperation = markTaskOperationObserved(secondOperation, 'operation-second', {
+    resultDigest: 'a'.repeat(64),
+    evidenceDigest: 'b'.repeat(64)
+  }, { nowMs: at(2670) })
+  secondOperation = settleTaskOperationRecord(secondOperation, 'operation-second', {
+    effect: 'known-applied',
+    resultDigest: 'a'.repeat(64),
+    evidenceDigest: 'b'.repeat(64)
+  }, { nowMs: at(2680) })
+  assert.throws(
+    () => prepareTaskOperationRecord(secondOperation, {
+      operationId: 'operation-dispatched',
+      writerGeneration: 4,
+      expectedStateSequence: 10,
+      kind: 'update',
+      exactTargets: ['D:/workspace/b.md'],
+      targetSetDigest: taskOperationTargetSetDigest(['D:/workspace/b.md']),
+      beforeDigest: '4'.repeat(64)
+    }, { nowMs: at(2690) }),
+    error => error.code === 'TASK_OPERATION_ALREADY_SETTLED',
+    'a settled operationId must remain permanently unavailable after later operations settle'
+  )
+  const crossHistoryDuplicate = JSON.parse(JSON.stringify(secondOperation.taskOperationSet))
+  crossHistoryDuplicate.unresolved = reconciled.lastTaskOperationRecord
+  assert.ok(
+    validateTaskOperationSet(crossHistoryDuplicate).errors.includes('task-operation-cross-history-duplicate'),
+    'the operation set validator must reject one identity appearing in unresolved and settled history'
+  )
+
+  for (const count of [21, 24, 256]) {
+    const exactTargets = Array.from({ length: count }, (_, index) =>
+      `D:/workspace/target-${String(index).padStart(3, '0')}.md`)
+    const bounded = prepareTaskOperationRecord(
+      observeTurnEvent(createTurnLivenessState({ nowMs: at(0) }), 'UserPromptSubmit', {
+        session_id: `target-count-${count}`
+      }, { nowMs: at(1000) }).state,
+      {
+        operationId: `target-count-${count}`,
+        writerGeneration: 1,
+        expectedStateSequence: 1,
+        kind: 'update',
+        exactTargets,
+        targetSetDigest: taskOperationTargetSetDigest(exactTargets),
+        beforeDigest: 'c'.repeat(64)
+      },
+      { nowMs: at(2000) }
+    )
+    assert.strictEqual(bounded.taskOperationSet.unresolved.exactTargets.length, count)
+    assert.strictEqual(
+      bounded.taskOperationSet.unresolved.targetSetDigest,
+      taskOperationTargetSetDigest(bounded.taskOperationSet.unresolved.exactTargets)
+    )
+  }
+  const excessiveTargets = Array.from({ length: 257 }, (_, index) =>
+    `D:/workspace/overflow-${String(index).padStart(3, '0')}.md`)
+  assert.throws(
+    () => prepareTaskOperationRecord(createTurnLivenessState({ nowMs: at(0) }), {
+      operationId: 'target-count-257',
+      writerGeneration: 1,
+      expectedStateSequence: 1,
+      kind: 'update',
+      exactTargets: excessiveTargets,
+      targetSetDigest: taskOperationTargetSetDigest(excessiveTargets),
+      beforeDigest: 'd'.repeat(64)
+    }, { nowMs: at(2000) }),
+    error => error.code === 'TASK_OPERATION_PREPARE_INVALID',
+    'target sets above the shared mutation-footprint bound must fail closed without truncation'
+  )
+  assert.throws(
+    () => prepareTaskOperationRecord(createTurnLivenessState({ nowMs: at(0) }), {
+      operationId: 'target-digest-mismatch',
+      writerGeneration: 1,
+      expectedStateSequence: 1,
+      kind: 'update',
+      exactTargets: ['D:/workspace/digest.md'],
+      targetSetDigest: 'e'.repeat(64),
+      beforeDigest: 'f'.repeat(64)
+    }, { nowMs: at(2000) }),
+    error => error.code === 'TASK_OPERATION_PREPARE_INVALID',
+    'the target-set digest must be derived from the full exact target list'
+  )
   const operationTerminal = markTurnTerminal(reconciled, 'completed', 'settled', { nowMs: at(2700) })
   assert.throws(
     () => markTaskOperationObserved(operationTerminal, 'operation-dispatched', {}, { nowMs: at(2800) }),

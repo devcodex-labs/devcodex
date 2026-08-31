@@ -4249,7 +4249,9 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
       ingress.workflowRouteDecision.stage !== 'rehydrate') {
     throw taskAdmissionIngressError('FINALIZED_TASK_RESUME_ROUTE_INVALID', 'finalized resume requires the selected resume/rehydrate route')
   }
-  const canonical = readFinalizedResumeCanonicalEvidence(transaction, target.activeRoot, fs)
+  const canonical = readFinalizedResumeCanonicalEvidence(transaction, target.activeRoot, fs, {
+    state: ownerRead.state
+  })
   if (String(args.overview?.content || '') !== canonical.canonicalOverviewContent) {
     throw taskAdmissionIngressError('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', 'overview must exactly match the canonical task overview')
   }
@@ -4311,6 +4313,8 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
     decisionDigest: ingress.workflowRouteDecision.decisionDigest,
     priorTransactionDigest: transaction.transactionDigest,
     priorOwnerLeaseDigest: ownerRead.owner?.leaseDigest || null,
+    canonicalRevisionDigest: canonical.canonicalRevisionDigest,
+    cpChainDigest: canonical.cpChainDigest,
     runtimeDigest: MEMORY_RUNTIME_IDENTITY.runtimeDigest
   })
   const write = writeBoundedResumeIngressCapability({
@@ -4333,7 +4337,9 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
     taskRootRelative: transaction.taskRootRelative,
     taskIdentityDigest: canonical.taskIdentityDigest,
     canonicalOverviewDigest: canonical.canonicalOverviewDigest,
+    canonicalRevisionDigest: canonical.canonicalRevisionDigest,
     cpArtifactDigest: canonical.cpArtifactDigest,
+    cpChainDigest: canonical.cpChainDigest,
     contextBinding: binding,
     prior: {
       admissionId: transaction.admissionId,

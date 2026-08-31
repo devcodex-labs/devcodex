@@ -201,6 +201,19 @@ try {
     slot.requiredSemanticIds === undefined && slot.extensionPoints === undefined
   ), 'the registry may route templates but must not duplicate their semantic truth')
   const cp2TemplateSlot = baseRegistry.slots.find(slot => slot.slotId === 'bug-cp2')
+  const reportTemplateSlot = baseRegistry.slots.find(slot => slot.slotId === 'task-report')
+  const reviewReportBinding = createArtifactTemplateBinding({
+    slot: reportTemplateSlot,
+    target: path.join(taskRoot, 'reports', 'codex', '20260831', '06--Stage-A全面独立复审与Stage-B需求核对.md'),
+    intent: 'audit'
+  })
+  assert.strictEqual(reviewReportBinding.templateId, 'report-audit', 'the workflow intent must disambiguate generic 复审 report names')
+  const developmentReportBinding = createArtifactTemplateBinding({
+    slot: reportTemplateSlot,
+    target: path.join(taskRoot, 'reports', 'codex', '20260831', '07--Stage-A修复与实施交付.md'),
+    intent: 'dev'
+  })
+  assert.strictEqual(developmentReportBinding.templateId, 'report-dev', 'explicit dev intent must outrank a fix-like filename')
   const producerBinding = createArtifactTemplateBinding({
     slot: cp2TemplateSlot,
     target: cp2,

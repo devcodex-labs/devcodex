@@ -4,6 +4,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const crypto = require('crypto')
+const zlib = require('zlib')
 const {
   COLD_STUB_MAX_BYTES,
   TASK_STATE_SLOT_MAX_BYTES,
@@ -18,11 +19,18 @@ const {
   validateArtifactMutationReconciliationInput
 } = require('./artifact-mutation-reconciliation.cjs')
 const {
+  validateArtifactMutationCloseoutReceipt,
+  validateMutationObservationReceipt,
+  validateMutationPreObservation
+} = require('./mutation-observation.cjs')
+const {
   taskOperationRecordDigest,
+  taskOperationTargetSetDigest,
   taskOperationTerminalSnapshot,
   validateTaskOperationRecord,
   validateTaskOperationSet
 } = require('./lifecycle-turn-liveness.cjs')
+const { MAX_TARGETS } = require('./mutation-footprint.cjs')
 const {
   isTransientWindowsFsError,
   retryTransientWindowsFs
@@ -53,6 +61,7 @@ const ADMISSION_INGRESS_SNAPSHOT_SCHEMA = 'AdmissionIngressSnapshotV1'
 const ADMISSION_INGRESS_SNAPSHOT_REF_SCHEMA = 'AdmissionIngressSnapshotRefV1'
 const BOUNDED_RESUME_INGRESS_CAPABILITY_SCHEMA = 'BoundedResumeIngressCapabilityV1'
 const FINALIZED_TASK_RESUME_RECOVERY_SCHEMA = 'FinalizedTaskResumeRecoveryReceiptV3'
+const TASK_CANONICAL_REVISION_SCHEMA = 'TaskCanonicalRevisionV1'
 const ADMISSION_CONTINUATION_LEASE_SCHEMA = 'AdmissionContinuationLeaseV1'
 const FENCED_TASK_WRITE_OWNER_SCHEMA = 'FencedTaskWriteOwnerLeaseV2'
 const WORKFLOW_TASK_TERMINAL_RECEIPT_SCHEMA = 'WorkflowTaskTerminalReceiptV1'
@@ -103,6 +112,7 @@ const RESERVE_ALLOCATION_MAGIC = Buffer.from('TRV5RS01', 'ascii')
 const RESERVE_WRITE_CHUNK_BYTES = 64 * 1024
 const USAGE_LEDGER_MAX_BYTES = 4 * 1024
 const MUTATION_PREFLIGHT_STATE_MAX_BYTES = 4 * 1024
+const MUTATION_RECOVERY_EXPANDED_MAX_BYTES = 512 * 1024
 const TELEMETRY_SEGMENT_MAX_BYTES = 1024 * 1024
 const TELEMETRY_RECORD_MAX_BYTES = 16 * 1024
 const TELEMETRY_TOTAL_MAX_BYTES = 4 * TELEMETRY_SEGMENT_MAX_BYTES
@@ -522,6 +532,281 @@ function cloneRecoveryValue(value) {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? JSON.parse(JSON.stringify(value))
     : null
+}
+
+function taskCanonicalRevisionDigest(revision = {}) {
+  const semantic = cloneRecoveryValue(revision || {}) || {}
+  delete semantic.revisionDigest
+  return digestValue(semantic)
+}
+
+function sealTaskCanonicalRevision(input = {}) {
+  const semantic = {
+    schemaVersion: TASK_CANONICAL_REVISION_SCHEMA,
+    taskId: String(input.taskId || '').trim().toLowerCase(),
+    project: String(input.project || '').trim(),
+    taskRootRelative: String(input.taskRootRelative || '').trim().replace(/\\/g, '/'),
+    taskIdentityDigest: String(input.taskIdentityDigest || '').trim().toLowerCase(),
+    admissionId: String(input.admissionId || '').trim(),
+    admissionGeneration: Number(input.admissionGeneration),
+    revision: Number(input.revision),
+    source: String(input.source || '').trim(),
+    baseOverviewDigest: String(input.baseOverviewDigest || '').trim().toLowerCase(),
+    previousOverviewDigest: input.previousOverviewDigest ? String(input.previousOverviewDigest).trim().toLowerCase() : null,
+    currentOverviewDigest: String(input.currentOverviewDigest || '').trim().toLowerCase(),
+    cpChainDigest: input.cpChainDigest ? String(input.cpChainDigest).trim().toLowerCase() : null,
+    parentRevisionDigest: input.parentRevisionDigest ? String(input.parentRevisionDigest).trim().toLowerCase() : null,
+    sourceEvidenceDigest: input.sourceEvidenceDigest ? String(input.sourceEvidenceDigest).trim().toLowerCase() : null,
+    operationId: input.operationId ? String(input.operationId).trim() : null,
+    operationRecordDigest: input.operationRecordDigest ? String(input.operationRecordDigest).trim().toLowerCase() : null,
+    mutationReceiptDigest: input.mutationReceiptDigest ? String(input.mutationReceiptDigest).trim().toLowerCase() : null,
+    closeoutDigest: input.closeoutDigest ? String(input.closeoutDigest).trim().toLowerCase() : null,
+    ownerGeneration: Number.isSafeInteger(input.ownerGeneration) && input.ownerGeneration >= 0
+      ? input.ownerGeneration
+      : 0,
+    createdAt: String(input.createdAt || ''),
+    updatedAt: String(input.updatedAt || input.createdAt || '')
+  }
+  return Object.freeze({ ...semantic, revisionDigest: digestValue(semantic) })
+}
+
+function validateTaskCanonicalRevision(value, transaction = null) {
+  const errors = []
+  const digestRe = /^[a-f0-9]{64}$/
+  const sources = new Set([
+    'admission-finalized',
+    'authorized-mutation',
+    'legacy-confirmed-cp-chain',
+    'resume-generation'
+  ])
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      value.schemaVersion !== TASK_CANONICAL_REVISION_SCHEMA) {
+    return { valid: false, errors: ['task-canonical-revision-required'] }
+  }
+  const taskRootRelative = String(value.taskRootRelative || '').replace(/\\/g, '/')
+  if (!String(value.taskId || '').trim() || !String(value.project || '').trim() ||
+      !taskRootRelative || path.isAbsolute(taskRootRelative) || /^[A-Za-z]:/.test(taskRootRelative) ||
+      taskRootRelative.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
+    errors.push('task-canonical-revision-identity')
+  }
+  if (!digestRe.test(String(value.taskIdentityDigest || '')) ||
+      !digestRe.test(String(value.baseOverviewDigest || '')) ||
+      !digestRe.test(String(value.currentOverviewDigest || ''))) {
+    errors.push('task-canonical-revision-digest')
+  }
+  for (const field of [
+    'previousOverviewDigest', 'cpChainDigest', 'parentRevisionDigest', 'sourceEvidenceDigest',
+    'operationRecordDigest', 'mutationReceiptDigest', 'closeoutDigest'
+  ]) {
+    if (value[field] !== null && !digestRe.test(String(value[field] || ''))) {
+      errors.push(`task-canonical-revision-${field}`)
+    }
+  }
+  if (!/^admission-[a-f0-9]{40}$/.test(String(value.admissionId || '')) ||
+      !Number.isSafeInteger(value.admissionGeneration) || value.admissionGeneration < 1 ||
+      !Number.isSafeInteger(value.revision) || value.revision < 1 ||
+      !Number.isSafeInteger(value.ownerGeneration) || value.ownerGeneration < 0 ||
+      !sources.has(value.source)) {
+    errors.push('task-canonical-revision-sequence')
+  }
+  if (!Number.isFinite(Date.parse(String(value.createdAt || ''))) ||
+      !Number.isFinite(Date.parse(String(value.updatedAt || ''))) ||
+      Date.parse(value.updatedAt) < Date.parse(value.createdAt)) {
+    errors.push('task-canonical-revision-time')
+  }
+  if (value.source === 'admission-finalized') {
+    if (value.revision !== 1 || value.previousOverviewDigest !== null || value.parentRevisionDigest !== null ||
+        value.currentOverviewDigest !== value.baseOverviewDigest || value.operationId !== null ||
+        value.operationRecordDigest !== null || value.mutationReceiptDigest !== null || value.closeoutDigest !== null ||
+        !digestRe.test(String(value.sourceEvidenceDigest || ''))) {
+      errors.push('task-canonical-revision-admission-shape')
+    }
+  } else {
+    if (value.revision < 2 || !digestRe.test(String(value.parentRevisionDigest || '')) ||
+        !digestRe.test(String(value.previousOverviewDigest || '')) ||
+        !digestRe.test(String(value.sourceEvidenceDigest || ''))) {
+      errors.push('task-canonical-revision-lineage-shape')
+    }
+    if (value.source === 'authorized-mutation') {
+      if (!String(value.operationId || '').trim() || !digestRe.test(String(value.operationRecordDigest || '')) ||
+          !digestRe.test(String(value.mutationReceiptDigest || '')) || !digestRe.test(String(value.closeoutDigest || '')) ||
+          value.previousOverviewDigest === value.currentOverviewDigest) {
+        errors.push('task-canonical-revision-mutation-shape')
+      }
+    } else if (value.operationId !== null || value.operationRecordDigest !== null ||
+        value.mutationReceiptDigest !== null || value.closeoutDigest !== null) {
+      errors.push('task-canonical-revision-nonmutation-shape')
+    }
+    if (value.source === 'legacy-confirmed-cp-chain' && !digestRe.test(String(value.cpChainDigest || ''))) {
+      errors.push('task-canonical-revision-legacy-cp-shape')
+    }
+    if (value.source === 'resume-generation' && value.previousOverviewDigest !== value.currentOverviewDigest) {
+      errors.push('task-canonical-revision-resume-shape')
+    }
+  }
+  if (!digestRe.test(String(value.revisionDigest || '')) ||
+      value.revisionDigest !== taskCanonicalRevisionDigest(value)) {
+    errors.push('task-canonical-revision-seal')
+  }
+  if (transaction) {
+    if (value.taskId !== String(transaction.taskId || '').toLowerCase() ||
+        value.project !== transaction.project || value.taskRootRelative !== transaction.taskRootRelative ||
+        value.taskIdentityDigest !== transaction.taskIdentityDigest ||
+        value.admissionGeneration > transaction.admissionGeneration) {
+      errors.push('task-canonical-revision-transaction-binding')
+    }
+  }
+  return { valid: errors.length === 0, errors: [...new Set(errors)] }
+}
+
+function createAdmissionTaskCanonicalRevision(transaction) {
+  const overviewDigest = String(transaction?.effects?.overview?.contentDigest || '').toLowerCase()
+  if (transaction?.phase !== 'finalized' || transaction?.status !== 'finalized' ||
+      !/^[a-f0-9]{64}$/.test(overviewDigest)) return null
+  return sealTaskCanonicalRevision({
+    taskId: transaction.taskId,
+    project: transaction.project,
+    taskRootRelative: transaction.taskRootRelative,
+    taskIdentityDigest: transaction.taskIdentityDigest,
+    admissionId: transaction.admissionId,
+    admissionGeneration: transaction.admissionGeneration,
+    revision: 1,
+    source: 'admission-finalized',
+    baseOverviewDigest: overviewDigest,
+    previousOverviewDigest: null,
+    currentOverviewDigest: overviewDigest,
+    cpChainDigest: null,
+    parentRevisionDigest: null,
+    sourceEvidenceDigest: transaction.transactionDigest,
+    ownerGeneration: Number(transaction.effects?.owner?.ownerGeneration) || 0,
+    createdAt: transaction.updatedAt,
+    updatedAt: transaction.updatedAt
+  })
+}
+
+function createLegacyTaskCanonicalRevision(transaction, input = {}) {
+  const parent = createAdmissionTaskCanonicalRevision(transaction)
+  const currentOverviewDigest = String(input.currentOverviewDigest || '').toLowerCase()
+  const cpChainDigest = String(input.cpChainDigest || '').toLowerCase()
+  if (!parent || currentOverviewDigest === parent.currentOverviewDigest ||
+      !/^[a-f0-9]{64}$/.test(currentOverviewDigest) || !/^[a-f0-9]{64}$/.test(cpChainDigest)) return null
+  return sealTaskCanonicalRevision({
+    ...parent,
+    revision: 2,
+    source: 'legacy-confirmed-cp-chain',
+    previousOverviewDigest: parent.currentOverviewDigest,
+    currentOverviewDigest,
+    cpChainDigest,
+    parentRevisionDigest: parent.revisionDigest,
+    sourceEvidenceDigest: cpChainDigest,
+    createdAt: parent.createdAt,
+    updatedAt: String(input.observedAt || transaction.updatedAt)
+  })
+}
+
+function createResumeTaskCanonicalRevision(prior, transaction, input = {}) {
+  const priorValidation = validateTaskCanonicalRevision(prior)
+  if (!priorValidation.valid) return null
+  return sealTaskCanonicalRevision({
+    ...prior,
+    admissionId: transaction.admissionId,
+    admissionGeneration: transaction.admissionGeneration,
+    revision: prior.revision + 1,
+    source: 'resume-generation',
+    previousOverviewDigest: prior.currentOverviewDigest,
+    currentOverviewDigest: prior.currentOverviewDigest,
+    cpChainDigest: input.cpChainDigest || prior.cpChainDigest,
+    parentRevisionDigest: prior.revisionDigest,
+    sourceEvidenceDigest: input.candidateDigest,
+    operationId: null,
+    operationRecordDigest: null,
+    mutationReceiptDigest: null,
+    closeoutDigest: null,
+    ownerGeneration: Number(input.ownerGeneration) || 0,
+    updatedAt: transaction.createdAt
+  })
+}
+
+function canonicalRevisionComparablePath(value) {
+  const normalized = path.normalize(path.resolve(String(value || '')))
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized
+}
+
+function advanceTaskCanonicalRevision(state, input = {}) {
+  const transaction = state?.admissionTransaction
+  const owner = state?.fencedWriteOwner
+  const preObservation = input.preObservation || {}
+  const observation = input.observation || {}
+  const operationRecord = input.operationRecord || {}
+  const closeout = observation.closeout || input.closeout || {}
+  const overviewPath = String(input.overviewPath || '')
+  const preValidation = validateMutationPreObservation(preObservation)
+  const observationValidation = validateMutationObservationReceipt(observation)
+  const closeoutValidation = validateArtifactMutationCloseoutReceipt(closeout, observation)
+  const operationValidation = validateTaskOperationRecord(operationRecord)
+  if (transaction?.phase !== 'finalized' || transaction?.status !== 'finalized' || owner?.status !== 'active' ||
+      !overviewPath || observation.status !== 'consumed' || observation.reconcileRequired !== false ||
+      !preValidation.valid || !observationValidation.valid || !closeoutValidation.valid || !operationValidation.valid ||
+      operationRecord.phase !== 'settled' ||
+      !['known-applied', 'known-not-applied'].includes(operationRecord.effect) ||
+      operationRecord.writerGeneration !== owner.ownerGeneration ||
+      operationRecord.operationId !== observation.operationId ||
+      operationRecord.resultDigest !== observation.receiptDigest ||
+      operationRecord.evidenceDigest !== closeout.closeoutDigest ||
+      closeout.decisionStatus !== 'consumed' || closeout.reconcileRequired !== false) {
+    throw new TaskRecoveryStoreV5Error(
+      'TASK_CANONICAL_REVISION_AUTHORITY_INVALID',
+      'canonical overview revision requires one settled owner-authorized mutation closeout'
+    )
+  }
+  const overviewKey = canonicalRevisionComparablePath(overviewPath)
+  if (!Array.isArray(operationRecord.exactTargets) ||
+      !operationRecord.exactTargets.some(item => canonicalRevisionComparablePath(item) === overviewKey)) {
+    throw new TaskRecoveryStoreV5Error(
+      'TASK_CANONICAL_REVISION_TARGET_MISMATCH',
+      'canonical overview is not part of the exact settled operation target set'
+    )
+  }
+  const before = (preObservation.entries || []).find(item => canonicalRevisionComparablePath(item?.path) === overviewKey)
+  const after = (observation.trackedContentEvidence || []).find(item => canonicalRevisionComparablePath(item?.path) === overviewKey)
+  if (!before?.exists || before.kind !== 'file' || !/^[a-f0-9]{64}$/.test(String(before.digest || '')) ||
+      !after?.exists || after.kind !== 'file' || !/^[a-f0-9]{64}$/.test(String(after.digest || ''))) {
+    throw new TaskRecoveryStoreV5Error(
+      'TASK_CANONICAL_REVISION_CONTENT_EVIDENCE_INVALID',
+      'canonical overview revision requires exact before/after file content evidence'
+    )
+  }
+  const prior = state.taskCanonicalRevision || createAdmissionTaskCanonicalRevision(transaction)
+  const priorValidation = validateTaskCanonicalRevision(prior, transaction)
+  if (!priorValidation.valid || prior.currentOverviewDigest !== before.digest) {
+    throw new TaskRecoveryStoreV5Error(
+      'TASK_CANONICAL_REVISION_PRIOR_DRIFT',
+      'canonical overview changed outside the current authorized revision lineage',
+      { errors: priorValidation.errors }
+    )
+  }
+  if (before.digest === after.digest) return prior
+  if (operationRecord.effect !== 'known-applied') {
+    throw new TaskRecoveryStoreV5Error(
+      'TASK_CANONICAL_REVISION_EFFECT_MISMATCH',
+      'changed canonical overview content requires one known-applied operation result'
+    )
+  }
+  return sealTaskCanonicalRevision({
+    ...prior,
+    revision: prior.revision + 1,
+    source: 'authorized-mutation',
+    previousOverviewDigest: before.digest,
+    currentOverviewDigest: after.digest,
+    parentRevisionDigest: prior.revisionDigest,
+    sourceEvidenceDigest: observation.receiptDigest,
+    operationId: operationRecord.operationId,
+    operationRecordDigest: operationRecord.recordDigest,
+    mutationReceiptDigest: observation.receiptDigest,
+    closeoutDigest: closeout.closeoutDigest,
+    ownerGeneration: owner.ownerGeneration,
+    updatedAt: observation.completedAt
+  })
 }
 
 function tasklessWorkflowIngressRecoveryCore(state, authorityMode = 'exact') {
@@ -1107,7 +1392,10 @@ function validateBoundedResumeIngressCapability(capability, options = {}) {
       taskRootRelative.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
     errors.push('candidate-task-root')
   }
-  for (const field of ['projectRootIdentityDigest', 'taskIdentityDigest', 'canonicalOverviewDigest', 'cpArtifactDigest']) {
+  for (const field of [
+    'projectRootIdentityDigest', 'taskIdentityDigest', 'canonicalOverviewDigest',
+    'canonicalRevisionDigest', 'cpArtifactDigest', 'cpChainDigest'
+  ]) {
     if (!/^[a-f0-9]{64}$/.test(String(value[field] || ''))) errors.push(field)
   }
   const prior = value.prior || {}
@@ -1188,7 +1476,9 @@ function writeBoundedResumeIngressCapability(input = {}, options = {}) {
     taskRootRelative: String(input.taskRootRelative || '').replace(/\\/g, '/'),
     taskIdentityDigest: String(input.taskIdentityDigest || ''),
     canonicalOverviewDigest: String(input.canonicalOverviewDigest || ''),
+    canonicalRevisionDigest: String(input.canonicalRevisionDigest || ''),
     cpArtifactDigest: String(input.cpArtifactDigest || ''),
+    cpChainDigest: String(input.cpChainDigest || ''),
     contextBinding: cloneRecoveryValue(input.contextBinding || {}),
     prior: cloneRecoveryValue(input.prior || {}),
     runtime: cloneRecoveryValue(input.runtime || {}),
@@ -1440,6 +1730,45 @@ function materializeRecoveryDigest(value) {
   const text = String(value || '')
   if (!/^~[A-Za-z0-9+/]{43}$/u.test(text)) return value ?? null
   return Buffer.from(`${text.slice(1)}=`, 'base64').toString('hex')
+}
+
+function compactMutationRecoveryPayload(value) {
+  const source = Buffer.from(JSON.stringify(value), 'utf8')
+  if (source.length > MUTATION_RECOVERY_EXPANDED_MAX_BYTES) {
+    throw new TaskRecoveryStoreV5Error(
+      'LIFECYCLE_PREFLIGHT_RECOVERY_PAYLOAD_EXCEEDED',
+      `expanded mutation recovery payload exceeds ${MUTATION_RECOVERY_EXPANDED_MAX_BYTES} bytes`,
+      { bytes: source.length, maxBytes: MUTATION_RECOVERY_EXPANDED_MAX_BYTES }
+    )
+  }
+  const compressed = zlib.deflateRawSync(source, { level: 9 })
+  const wrapper = {
+    v: 3,
+    e: 'deflate-raw-base64',
+    u: source.length,
+    d: compactRecoveryDigest(digestValue(value)),
+    p: compressed.toString('base64')
+  }
+  return jsonBytes(wrapper) < jsonBytes(value) ? wrapper : value
+}
+
+function expandMutationRecoveryPayload(value) {
+  if (value?.v !== 3) return value
+  if (value.e !== 'deflate-raw-base64' || !Number.isInteger(value.u) || value.u < 1 ||
+      value.u > MUTATION_RECOVERY_EXPANDED_MAX_BYTES ||
+      typeof value.p !== 'string' || value.p.length > Math.ceil(MUTATION_RECOVERY_EXPANDED_MAX_BYTES * 4 / 3) + 4 ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(value.p)) return null
+  try {
+    const source = zlib.inflateRawSync(Buffer.from(value.p, 'base64'), {
+      maxOutputLength: MUTATION_RECOVERY_EXPANDED_MAX_BYTES
+    })
+    if (source.length !== value.u) return null
+    const expanded = JSON.parse(source.toString('utf8'))
+    if (expanded?.v !== 2 || materializeRecoveryDigest(value.d) !== digestValue(expanded)) return null
+    return expanded
+  } catch {
+    return null
+  }
 }
 
 function simpleRiskMask(value = {}) {
@@ -1764,7 +2093,14 @@ function buildTaskOperationRecoveryV1(taskOperationSet, references = {}) {
     : []
   const exactTargets = [...new Set((references.exactTargets || [])
     .map(value => String(value || '').trim())
-    .filter(Boolean))].sort().slice(0, 20)
+    .filter(Boolean))].sort()
+  if (!exactTargets.length || exactTargets.length > MAX_TARGETS ||
+      references.targetSetDigest !== taskOperationTargetSetDigest(exactTargets)) {
+    throw new TaskRecoveryStoreV5Error(
+      'LIFECYCLE_PREFLIGHT_TASK_OPERATION_TARGETS_INVALID',
+      'mutation preflight requires the complete bounded exact target set and its matching digest'
+    )
+  }
   const derivedShapeMatches = record.operationId === references.currentOperationId &&
     record.kind === references.kind &&
     JSON.stringify(record.exactTargets) === JSON.stringify(exactTargets) &&
@@ -1829,7 +2165,7 @@ function materializeTaskOperationRecoveryV1(value, references = {}) {
     kind: references.kind,
     exactTargets: [...new Set((references.exactTargets || [])
       .map(value => String(value || '').trim())
-      .filter(Boolean))].sort().slice(0, 20),
+      .filter(Boolean))].sort(),
     targetSetDigest: references.targetSetDigest,
     beforeDigest: references.beforeDigest,
     phase: 'dispatched',
@@ -1988,6 +2324,8 @@ function buildMutationRecoveryPreflightV2(
 }
 
 function materializeMutationRecoveryPreflightV2(record) {
+  record = expandMutationRecoveryPayload(record)
+  if (!record) return null
   const compactV2 = record?.v === 2
   const roots = compactV2 ? record.r : record?.roots
   const pathTable = compactV2 ? record.p : record?.pathTable
@@ -2239,14 +2577,14 @@ function buildMutationPreflightState(state) {
     )
   }
   const mutationRecovery = hasV2Authority
-    ? buildMutationRecoveryPreflightV2(
+    ? compactMutationRecoveryPayload(buildMutationRecoveryPreflightV2(
         artifactDecision,
         mutationLease,
         mutationFootprint,
         mutationPreObservation,
         buildMutationOwnerAuthorityRecovery(state, mutationLease),
         turn.taskOperationSet
-      )
+      ))
     : null
   const cp3Runtime = {}
   const boundTaskRootInput = String(binding.taskRoot || '').trim()
@@ -5455,11 +5793,15 @@ function validateTaskAdmissionTransaction(transaction, expectedIdentity = null) 
       }
       for (const field of [
         'priorTransactionDigest', 'candidateDigest', 'attemptDigest',
-        'canonicalOverviewDigest', 'taskIdentityDigest', 'cpArtifactDigest', 'livenessDigest', 'runtimeDigest'
+        'canonicalOverviewDigest', 'priorCanonicalRevisionDigest', 'canonicalRevisionDigest',
+        'taskIdentityDigest', 'cpArtifactDigest', 'cpChainDigest', 'livenessDigest', 'runtimeDigest'
       ]) {
         if (!/^[a-f0-9]{64}$/.test(String(recovery[field] || ''))) errors.push(`recovery-${field}`)
       }
       if (!String(recovery.runtimeGeneration || '').trim()) errors.push('recovery-runtime-generation')
+      if (recovery.priorCanonicalRevisionDigest === recovery.canonicalRevisionDigest) {
+        errors.push('recovery-canonical-revision-transition')
+      }
       if (!Number.isFinite(Date.parse(String(recovery.recoveredAt || ''))) ||
           recovery.recoveredAt !== transaction.createdAt) errors.push('recovery-timestamp')
       if (transaction.entryVariant !== 'continue' || transaction.phase !== 'finalized') errors.push('recovery-entry-variant')
@@ -5646,6 +5988,16 @@ function commitTaskAdmissionTransaction(input = {}, options = {}) {
         )
       }
       state.admissionTransaction = transaction
+      if (transaction.phase === 'finalized' && !state.taskCanonicalRevision) {
+        const canonicalRevision = createAdmissionTaskCanonicalRevision(transaction)
+        if (!canonicalRevision) {
+          throw new TaskRecoveryStoreV5Error(
+            'TASK_CANONICAL_REVISION_INITIALIZATION_FAILED',
+            'finalized admission could not initialize its canonical overview revision'
+          )
+        }
+        state.taskCanonicalRevision = canonicalRevision
+      }
       state.phase = transaction.phase === 'cp-state-written' ? 'CP1' : (state.phase || 'CP1')
       state.taskRecoveryBinding = {
         ...(state.taskRecoveryBinding || {}),
@@ -5960,17 +6312,21 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
   const transaction = cloneRecoveryValue(input.transaction || {})
   const owner = cloneRecoveryValue(input.owner || {})
   const candidate = cloneRecoveryValue(input.candidate || {})
+  const canonicalRevision = cloneRecoveryValue(input.canonicalRevision || {})
   const transactionValidation = validateTaskAdmissionTransaction(transaction, input.identity)
   const ownerValidation = validateFencedTaskWriteOwner(owner, input.identity)
   const candidateValidation = validateBoundedResumeIngressCapability(candidate, options)
-  if (!transactionValidation.valid || !ownerValidation.valid || !candidateValidation.valid) {
+  const canonicalRevisionValidation = validateTaskCanonicalRevision(canonicalRevision, transaction)
+  if (!transactionValidation.valid || !ownerValidation.valid || !candidateValidation.valid ||
+      !canonicalRevisionValidation.valid) {
     return {
       status: 'error',
       errorCode: 'FINALIZED_TASK_RESUME_INPUT_INVALID',
       errors: [
         ...transactionValidation.errors.map(error => `transaction:${error}`),
         ...ownerValidation.errors.map(error => `owner:${error}`),
-        ...candidateValidation.errors.map(error => `candidate:${error}`)
+        ...candidateValidation.errors.map(error => `candidate:${error}`),
+        ...canonicalRevisionValidation.errors.map(error => `canonicalRevision:${error}`)
       ]
     }
   }
@@ -5978,6 +6334,9 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
   if (transaction.phase !== 'finalized' || transaction.status !== 'finalized' ||
       recoveryReceipt.schemaVersion !== FINALIZED_TASK_RESUME_RECOVERY_SCHEMA ||
       recoveryReceipt.candidateDigest !== candidate.candidateDigest ||
+      recoveryReceipt.priorCanonicalRevisionDigest !== candidate.canonicalRevisionDigest ||
+      recoveryReceipt.canonicalRevisionDigest !== canonicalRevision.revisionDigest ||
+      recoveryReceipt.cpChainDigest !== candidate.cpChainDigest ||
       transaction.admissionGeneration !== candidate.prior.admissionGeneration + 1 ||
       owner.ownerGeneration !== candidate.prior.ownerGeneration + 1 ||
       owner.leaseRevision !== candidate.prior.leaseRevision + 1) {
@@ -6007,7 +6366,8 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
       }
       if (currentTransaction.transactionDigest === transaction.transactionDigest &&
           currentOwner?.leaseDigest === owner.leaseDigest &&
-          state.resumeIngressCapabilityRef?.candidateDigest === candidate.candidateDigest) return state
+          state.resumeIngressCapabilityRef?.candidateDigest === candidate.candidateDigest &&
+          state.taskCanonicalRevision?.revisionDigest === canonicalRevision.revisionDigest) return state
       if (state.workflowTaskTerminalReceipt || currentTransaction.phase === 'terminal-closeout' || currentOwner?.status === 'terminal') {
         throw new TaskRecoveryStoreV5Error('FINALIZED_TASK_RESUME_TERMINAL', 'terminal tasks require an explicit reopen')
       }
@@ -6051,13 +6411,25 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
         throw new TaskRecoveryStoreV5Error('FINALIZED_TASK_RESUME_CANONICAL_REQUIRED', 'canonical resume verification is required inside the V5 CAS')
       }
       const canonical = input.verifyCanonical(currentTransaction, currentOwner, state) || {}
+      const currentCanonicalRevisionValidation = validateTaskCanonicalRevision(canonical.canonicalRevision, currentTransaction)
       const canonicalMatches = canonical.taskIdentityDigest === candidate.taskIdentityDigest &&
         canonical.canonicalOverviewDigest === candidate.canonicalOverviewDigest &&
-        canonical.cpArtifactDigest === candidate.cpArtifactDigest && canonical.cpConfirmed === true &&
+        canonical.canonicalRevisionDigest === candidate.canonicalRevisionDigest &&
+        canonical.cpArtifactDigest === candidate.cpArtifactDigest &&
+        canonical.cpChainDigest === candidate.cpChainDigest && canonical.cpConfirmed === true &&
+        currentCanonicalRevisionValidation.valid &&
         currentTransaction.taskIdentityDigest === candidate.taskIdentityDigest &&
-        currentTransaction.effects?.overview?.contentDigest === candidate.canonicalOverviewDigest &&
         currentTransaction.projectRootIdentityDigest === candidate.projectRootIdentityDigest &&
-        currentTransaction.taskRootRelative === candidate.taskRootRelative
+        currentTransaction.taskRootRelative === candidate.taskRootRelative &&
+        canonicalRevision.parentRevisionDigest === canonical.canonicalRevisionDigest &&
+        canonicalRevision.previousOverviewDigest === canonical.canonicalOverviewDigest &&
+        canonicalRevision.currentOverviewDigest === canonical.canonicalOverviewDigest &&
+        canonicalRevision.revision === canonical.canonicalRevision.revision + 1 &&
+        canonicalRevision.admissionId === transaction.admissionId &&
+        canonicalRevision.admissionGeneration === transaction.admissionGeneration &&
+        transaction.effects?.overview?.contentDigest === candidate.canonicalOverviewDigest &&
+        transaction.effects?.overview?.canonicalRevisionDigest === canonicalRevision.revisionDigest &&
+        transaction.effects?.cpState?.cpChainDigest === candidate.cpChainDigest
       if (!canonicalMatches) {
         throw new TaskRecoveryStoreV5Error('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', 'TaskIdentity, overview, CP or project binding drifted before resume commit')
       }
@@ -6097,13 +6469,16 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
         priorAdmissionId: currentTransaction.admissionId,
         priorAdmissionGeneration: currentTransaction.admissionGeneration,
         priorTransactionDigest: currentTransaction.transactionDigest,
+        priorCanonicalRevisionDigest: candidate.canonicalRevisionDigest,
         priorOwnerLeaseDigest: currentOwner?.leaseDigest || null,
         admissionId: transaction.admissionId,
         admissionGeneration: transaction.admissionGeneration,
         transactionDigest: transaction.transactionDigest,
+        canonicalRevisionDigest: canonicalRevision.revisionDigest,
         ownerLeaseDigest: owner.leaseDigest,
         recoveredAt: transaction.createdAt
       }].slice(-8)
+      state.taskCanonicalRevision = canonicalRevision
       state.admissionTransaction = transaction
       state.fencedWriteOwner = owner
       state.resumeIngressCapabilityRef = {
@@ -6143,7 +6518,7 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
       details: error.details
     }
   }
-  return { ...result, transaction, owner, candidate, recovery: recoveryReceipt }
+  return { ...result, transaction, owner, candidate, canonicalRevision, recovery: recoveryReceipt }
 }
 
 function readFencedTaskWriteOwner(input = {}, options = {}) {
@@ -6258,6 +6633,7 @@ module.exports = {
   TASK_ADMISSION_PHASES,
   TASK_ADMISSION_RECONCILIATION_SCHEMA,
   TASK_ADMISSION_TRANSACTION_SCHEMA,
+  TASK_CANONICAL_REVISION_SCHEMA,
   TASK_RECOVERY_CLOSEOUT_SCHEMA,
   TASK_RECOVERY_COMMIT_FENCE_SCHEMA,
   TASK_RECOVERY_COMMIT_SCHEMA,
@@ -6269,6 +6645,7 @@ module.exports = {
   TASKLESS_WORKFLOW_INGRESS_RECOVERY_SCHEMA,
   WORKFLOW_TASK_TERMINAL_RECEIPT_SCHEMA,
   TaskRecoveryStoreV5Error,
+  advanceTaskCanonicalRevision,
   admissionContinuationLeaseDigest,
   appendTaskRecoveryTelemetry,
   boundedResumeIngressCapabilityDigest,
@@ -6277,6 +6654,9 @@ module.exports = {
   commitTaskAdmissionReconciliation,
   commitTaskAdmissionTransaction,
   commitTaskRecoveryState,
+  createAdmissionTaskCanonicalRevision,
+  createLegacyTaskCanonicalRevision,
+  createResumeTaskCanonicalRevision,
   buildTaskRecoveryCommitFence,
   createTaskRecoveryKey,
   diagnoseTaskRecoveryStore,
@@ -6301,6 +6681,7 @@ module.exports = {
   taskPaths,
   taskAdmissionTransactionDigest,
   taskAdmissionReconciliationReceiptDigest,
+  taskCanonicalRevisionDigest,
   updateTaskRecoveryState,
   validateFencedTaskWriteOwner,
   validateAdmissionContinuationLease,
@@ -6308,6 +6689,7 @@ module.exports = {
   validateTasklessWorkflowIngressRecovery,
   validateTaskAdmissionTransaction,
   validateTaskAdmissionReconciliationReceipt,
+  validateTaskCanonicalRevision,
   validateWorkflowTaskTerminalReceipt,
   workflowTaskTerminalReceiptDigest,
   writeAdmissionIngressSnapshot,

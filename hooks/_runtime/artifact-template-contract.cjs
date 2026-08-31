@@ -252,6 +252,8 @@ function deriveArtifactTemplateContract(content, input = {}) {
 }
 
 function inferReportTemplate(target, intent) {
+  const explicitIntent = REPORT_TEMPLATE_BY_INTENT[String(intent || '').toLowerCase()]
+  if (explicitIntent) return explicitIntent
   const value = slash(target).toLowerCase()
   const explicit = Object.entries(REPORT_TEMPLATE_BY_INTENT).find(([key]) =>
     new RegExp(`/(?:${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})/`, 'i').test(value)
@@ -263,7 +265,7 @@ function inferReportTemplate(target, intent) {
   if (/(?:修复|fix)/i.test(name)) return 'report-fix'
   if (/(?:优化|optimization)/i.test(name)) return 'report-optimization'
   if (/(?:场景|scenario|测试报告)/i.test(name)) return 'report-scenario-test'
-  return REPORT_TEMPLATE_BY_INTENT[String(intent || '').toLowerCase()] || 'report-dev'
+  return 'report-dev'
 }
 
 function inferMemoryTemplate(target) {

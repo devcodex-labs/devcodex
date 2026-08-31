@@ -20,6 +20,66 @@ const {
 const {
   compactLifecycleStateV5
 } = require('./lifecycle-state-projection-v5.cjs')
+const { resolveVisibleLocale } = require('./visible-output-contract.cjs')
+
+function renderGrokS07Assist(input = {}) {
+  const locale = resolveVisibleLocale(input.languageContext)
+  const zh = locale.renderedLanguage === 'zh-CN'
+  const project = String(input.project || '').trim() || (zh ? '未识别' : 'unverified')
+  const fallback = locale.fallbackReason
+    ? locale.catalog.localeFallback(locale.requestedLanguage, locale.fallbackReason)
+    : null
+  const body = zh
+    ? [
+        '--- DevCodex S07 辅助（Grok 无法注入；请在用户可见回复中输出） ---',
+        '### DevCodex · 入口检查',
+        `\`BLOCK\` · \`${project}\``,
+        fallback,
+        '',
+        '- PC0 [UNVERIFIED] 安装包版本、活动运行时 generation、源码候选与对齐状态',
+        '- PC1 [UNVERIFIED] 语义初判 → 最终路由',
+        '- PC2 [UNVERIFIED] 会话/Token/待跟进',
+        '- PC3 [UNVERIFIED] 唯一项目与产物落点',
+        '- PC4 [N/A] 非 dev 时 N/A',
+        '- PC5 [UNVERIFIED] Grok HostParity（仅 Full launcher 可超出 Partial）',
+        '- PC6 [UNVERIFIED] dirty/active task',
+        '- PC7 [UNVERIFIED] resume/continuation',
+        '- PC8 [UNVERIFIED] 初判/二次判断的流程仪式与方案深度差异',
+        '- PC9 [UNVERIFIED] 验证级别、目标数量、CI/package/install/release 与预计时长',
+        '- PC10 [UNVERIFIED] 下一阶段、是否自动继续、用户动作与修正提示',
+        '',
+        '下一步：先输出完整 PC0~PC10，再完成 ContextReadPlan 证据后重试工具',
+        'GrokTurnChecklist：PC0~PC10 → Intent→Skill bundle → context plan → work → report+memory → honest ceiling',
+        'Skill bundle（非 chat）：intent+compliance+user-visible-output-contract+workflow+report+memory',
+        'DevCodexVisibleEnvelopeV3 · entry-check · BLOCK · s07-assist-context-incomplete',
+        '--- S07 辅助结束 ---'
+      ]
+    : [
+        '--- DevCodex S07 assist (Grok cannot inject this; emit it in the user-visible reply) ---',
+        '### DevCodex · Entry check',
+        `\`BLOCK\` · \`${project}\``,
+        fallback,
+        '',
+        '- PC0 [UNVERIFIED] installed version, active runtime generation, source candidate, and alignment',
+        '- PC1 [UNVERIFIED] initial semantic classification → final route',
+        '- PC2 [UNVERIFIED] session, token, and follow-up state',
+        '- PC3 [UNVERIFIED] unique project and artifact destination',
+        '- PC4 [N/A] N/A outside dev mode',
+        '- PC5 [UNVERIFIED] Grok HostParity (Partial unless launched through the Full launcher)',
+        '- PC6 [UNVERIFIED] dirty state and active task',
+        '- PC7 [UNVERIFIED] resume and continuation state',
+        '- PC8 [UNVERIFIED] workflow ceremony and design-depth delta between initial and final routing',
+        '- PC9 [UNVERIFIED] validation level, target count, CI/package/install/release scope, and estimated duration',
+        '- PC10 [UNVERIFIED] next stage, automatic continuation, user action, and correction guidance',
+        '',
+        'Next: emit the complete PC0~PC10 block, complete the ContextReadPlan evidence, and then retry the tool.',
+        'GrokTurnChecklist: PC0~PC10 → Intent→Skill bundle → context plan → work → report+memory → honest ceiling',
+        'Skill bundle (non-chat): intent+compliance+user-visible-output-contract+workflow+report+memory',
+        'DevCodexVisibleEnvelopeV3 · entry-check · BLOCK · s07-assist-context-incomplete',
+        '--- end S07 assist ---'
+      ]
+  return body.filter(value => value !== null && value !== undefined).join('\n')
+}
 
 function parseContextToolIdentity (rawName, explicitServer = '') {
   const raw = String(rawName || '').trim()
@@ -2096,31 +2156,8 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     // Grok cannot inject UserPromptSubmit context; attach S07 portable block to deny reason (W7 assist).
     // Keep template inline so deployed .codex/hooks/_runtime copies do not depend on package scripts/.
     if (platform === 'grok') {
-      const project = acquisition.project || state.activeProject || '未识别'
-      detail += [
-        '',
-        '--- DevCodex S07 assist (Grok cannot inject this; emit in the user-visible reply) ---',
-        '### DevCodex · 入口检查',
-        `\`BLOCK\` · \`${project}\``,
-        '',
-        '- PC0 [UNVERIFIED] 安装包版本、活动运行时 generation、源码候选与对齐状态',
-        '- PC1 [UNVERIFIED] 语义初判 → 最终路由',
-        '- PC2 [UNVERIFIED] 会话/Token/待跟进',
-        '- PC3 [UNVERIFIED] 唯一项目与产物落点',
-        '- PC4 [N/A] 非 dev 时 N/A',
-        '- PC5 [UNVERIFIED] Grok HostParity（Partial unless Full launcher）',
-        '- PC6 [UNVERIFIED] dirty/active task',
-        '- PC7 [UNVERIFIED] resume/continuation',
-        '- PC8 [UNVERIFIED] 初判/二次判断的流程仪式与方案深度差异',
-        '- PC9 [UNVERIFIED] 验证级别、目标数量、CI/package/install/release 与预计时长',
-        '- PC10 [UNVERIFIED] 下一阶段、是否自动继续、用户动作与修正提示',
-        '',
-        '下一步：先输出完整 PC0~PC10，再完成 ContextReadPlan 证据后重试工具',
-        'GrokTurnChecklist: PC0~PC10 → Intent→Skill bundle → context plan → work → report+memory → honest ceiling',
-        'Skill bundle (non-chat): intent+compliance+user-visible-output-contract+workflow+report+memory',
-        'DevCodexVisibleEnvelopeV3 · entry-check · BLOCK · s07-assist-context-incomplete',
-        '--- end S07 assist ---'
-      ].join('\n')
+      const project = acquisition.project || state.activeProject || ''
+      detail += `\n${renderGrokS07Assist({ languageContext: state.languageContext, project })}`
     }
     return buildInterceptionOutput(
       state,
@@ -2193,5 +2230,6 @@ function buildLifecycleBootstrapStateUtils(ctx) {
 module.exports = {
   buildLifecycleBootstrapStateUtils,
   parseContextToolIdentity,
-  classifyMemoryCoverage
+  classifyMemoryCoverage,
+  renderGrokS07Assist
 }

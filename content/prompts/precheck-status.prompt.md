@@ -58,6 +58,6 @@ applyTo: "**"
 - PC9 必须写清本轮定向/受影响/全量验证数量以及 CI、package、install、release 是否进入计划；不得把“发布后安装验证”默认加入普通修复
 - PC10 必须说明接下来会走哪些阶段、是否自动继续、用户现在是否需要动作以及一句可直接覆盖错误判断的修正提示
 - 六宿主（Copilot / Claude Code / Codex / Gemini / Grok / Cursor）共用本模板；Grok 无 inject、Cursor Cloud 无用户级 Hook 时仍由模型输出本块
-- 先用 `user-visible-output-contract` 形成完整 `EntryCheckModelV3` 和 Envelope，再用同一 `LanguageContextV2` 分别渲染 rich/portable/plain；默认 `audience=human`，以人类可读结论为主并隐藏机器 marker/内部 ID，`audience=audit` 才输出完整机器证据。两种投影必须共享同一语义摘要；状态词固定为 PASS/WARN/BLOCK/UNVERIFIED/N/A
+- 先用 `user-visible-output-contract` 形成完整 `EntryCheckModelV3` 和 `DevCodexVisibleEnvelopeV3`，再用同一 `LanguageContextV2` 分别渲染 rich/portable/plain；默认 `audience=human`，以人类可读结论为主并隐藏机器 marker/内部 ID，`audience=audit` 才输出完整机器证据。两种投影必须共享同一语义摘要；`DevCodexVisibleEnvelopeV1/V2` 仅兼容读取，状态词固定为 PASS/WARN/BLOCK/UNVERIFIED/N/A
 - 新会话、resume/compact、target/intent/risk/CP/dirty/receipt 变化或存在 WARN/BLOCK/UNVERIFIED 时必须 expanded；同 epoch + semanticDigest 不变且全 PASS/N/A 才可 compact，compact 仍保留 PC0~PC10；`showPlan=false` 也不得省略 PC8~PC10
 - 若主动建议或因 C08 要求新会话：同回复附内部完整 `NewSessionContinuationCard`，用户可复制入口固定为 `继续<displayName>任务`；长任务在记忆/报告记 `SessionTimingCard`（开始/结束/阶段，等人与执行分列）

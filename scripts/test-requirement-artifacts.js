@@ -16,6 +16,7 @@ const {
   collectRecentRequirementArtifactIssues
 } = require('./lib/requirement-artifact-check')
 const { buildActualCandidateEvidenceReceipt } = require('./lib/actual-candidate-evidence')
+const { createArtifactTemplateBinding } = require('../hooks/_runtime/artifact-template-contract.cjs')
 
 function write(filePath, content) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true })
@@ -257,6 +258,29 @@ try {
   })
   assert.strictEqual(deletedValidatorResult.passed, false, 'deleting the validator contract must keep invalid fixtures red')
   assert(deletedValidatorResult.issues.includes('ARTIFACT_TEMPLATE_BINDING_INVALID'))
+
+  const reportSlot = baseRegistry.slots.find(slot => slot.slotId === 'task-report')
+  const auditReportPath = path.join(requirementsRoot, 'good-requirement', 'reports', 'codex', '20260831', '09--独立复审报告.md')
+  const auditBinding = createArtifactTemplateBinding({ slot: reportSlot, target: auditReportPath, intent: 'audit' })
+  const auditLines = auditBinding.requiredSemanticIds.map(semanticId => {
+    if (semanticId === 'document-title') return '# 独立复审报告\n\n> **类型**：audit'
+    return semanticId.startsWith('heading:') ? `## ${semanticId.slice('heading:'.length).replace(/-/g, ' ')}` : ''
+  }).filter(Boolean)
+  write(auditReportPath, `${auditLines.join('\n\n')}\n`)
+  assert.strictEqual(checkArtifactTemplateFile({ slot: reportSlot, filePath: auditReportPath }).passed, true,
+    'the artifact checker must honor the report workflow declared by the artifact instead of defaulting every report to dev')
+  assert.strictEqual(checkArtifactTemplateFile({ slot: reportSlot, filePath: auditReportPath, intent: 'dev' }).passed, false,
+    'an explicit caller intent remains authoritative')
+
+  const devRepairReportPath = path.join(requirementsRoot, 'good-requirement', 'reports', 'codex', '20260831', '10--Stage-A修复交付.md')
+  const devRepairBinding = createArtifactTemplateBinding({ slot: reportSlot, target: devRepairReportPath, intent: 'dev' })
+  const devRepairLines = devRepairBinding.requiredSemanticIds.map(semanticId => {
+    if (semanticId === 'document-title') return '# Stage A 修复交付\n\n> **类型**：dev'
+    return semanticId.startsWith('heading:') ? `## ${semanticId.slice('heading:'.length).replace(/-/g, ' ')}` : ''
+  }).filter(Boolean)
+  write(devRepairReportPath, `${devRepairLines.join('\n\n')}\n`)
+  assert.strictEqual(checkArtifactTemplateFile({ slot: reportSlot, filePath: devRepairReportPath }).passed, true,
+    'a declared dev report must keep the dev template even when its filename contains 修复')
 
   const bugResult = collectRecentBugArtifactIssues({
     activeRoot: tempRoot,

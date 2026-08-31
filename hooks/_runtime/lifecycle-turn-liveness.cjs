@@ -1,6 +1,7 @@
 'use strict'
 
-const { extractMutationFootprint } = require('./mutation-footprint.cjs')
+const path = require('path')
+const { extractMutationFootprint, MAX_TARGETS } = require('./mutation-footprint.cjs')
 
 const crypto = require('crypto')
 const {
@@ -77,7 +78,16 @@ function stableValueDigest(value) {
 
 function normalizedOperationTargets(values) {
   if (!Array.isArray(values)) return []
-  return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))].sort().slice(0, 20)
+  return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))].sort()
+}
+
+function comparableOperationTarget(value) {
+  const normalized = path.normalize(String(value || ''))
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized
+}
+
+function taskOperationTargetSetDigest(values) {
+  return stableValueDigest(normalizedOperationTargets(values).map(comparableOperationTarget))
 }
 
 function taskOperationRecordDigest(value = {}) {
@@ -112,7 +122,7 @@ function sealTaskOperationRecord(value = {}) {
     resultDigest: value.resultDigest ? String(value.resultDigest) : null,
     evidenceDigest: value.evidenceDigest ? String(value.evidenceDigest) : null
   }
-  if (!semantic.targetSetDigest) semantic.targetSetDigest = stableValueDigest(semantic.exactTargets)
+  if (!semantic.targetSetDigest) semantic.targetSetDigest = taskOperationTargetSetDigest(semantic.exactTargets)
   return { ...semantic, recordDigest: stableValueDigest(semantic) }
 }
 
@@ -133,8 +143,14 @@ function validateTaskOperationRecord(value) {
     errors.push('task-operation-phase-effect')
   }
   const targets = normalizedOperationTargets(value.exactTargets)
-  if (!targets.length || JSON.stringify(targets) !== JSON.stringify(value.exactTargets) ||
-      !/^[a-f0-9]{64}$/.test(String(value.targetSetDigest || ''))) {
+  const targetDigestMatches = [
+    taskOperationTargetSetDigest(targets),
+    stableValueDigest(targets) // V1 records written before comparable-path digest binding.
+  ].includes(value.targetSetDigest)
+  if (!targets.length || targets.length > MAX_TARGETS ||
+      JSON.stringify(targets) !== JSON.stringify(value.exactTargets) ||
+      !/^[a-f0-9]{64}$/.test(String(value.targetSetDigest || '')) ||
+      !targetDigestMatches) {
     errors.push('task-operation-targets')
   }
   if (value.beforeDigest !== null && !/^[a-f0-9]{64}$/.test(String(value.beforeDigest || ''))) {
@@ -237,6 +253,9 @@ function validateTaskOperationSet(raw) {
     if (seen.has(item.operationId)) errors.push('task-operation-settled-ref-duplicate')
     seen.add(item.operationId)
   }
+  if (set.unresolved && seen.has(set.unresolved.operationId)) {
+    errors.push('task-operation-cross-history-duplicate')
+  }
   if (set.settledSetDigest !== taskOperationSettledSetDigest(set.settled)) {
     errors.push('task-operation-set-digest')
   }
@@ -284,6 +303,12 @@ function prepareTaskOperationRecord(raw, input = {}, options = {}) {
       return replaceUnresolvedTaskOperation(state, existing)
     }
     throw new TaskOperationRecordError('TASK_OPERATION_REPLAY_MISMATCH', 'operation replay does not match one prepared record')
+  }
+  if (setValidation.set.settled.some(item => item.operationId === input.operationId)) {
+    throw new TaskOperationRecordError(
+      'TASK_OPERATION_ALREADY_SETTLED',
+      'a settled task operation identity cannot be prepared again'
+    )
   }
   const record = sealTaskOperationRecord({
     operationId: input.operationId,
@@ -1182,6 +1207,7 @@ module.exports = {
   settleTaskOperationRecord,
   startToolLease,
   taskOperationRecordDigest,
+  taskOperationTargetSetDigest,
   taskOperationSettledSetDigest,
   taskOperationTerminalSnapshot,
   validateTaskOperationRecord,

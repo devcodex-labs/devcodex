@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 669,
     "consumerInventoryDigest": "3efebd1bc38d9d30bb71cb50a1eef073eafc51575b8f6649a1054ae661b4f332",
-    "consumerProjectionDigest": "85709480e5c4ba1265064df53a7e4c8c01a69044791ffd98cdb3c385c7fc47f4",
-    "portfolioInputDigest": "d0a3c066b4b27faa493cbcdfaf2b900dc7204630cfa1a20c70705b75b2f8eb13"
+    "consumerProjectionDigest": "d6f011fb44ef3fbca7acfea76ac972aecc5d2954b251e72850855b26b233bdae",
+    "portfolioInputDigest": "7e79b04ccbde947bd20256a94ece9d0cf339d165d0305b19c839aa77451b40e7"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -11018,6 +11018,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-requirement-artifacts.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-review-execution-contract.js",
           "role": "current"
         },
@@ -11105,6 +11109,7 @@
         "scripts/test-mcp-servers.js",
         "scripts/test-package-compatibility-projection.js",
         "scripts/test-public-product-expression.js",
+        "scripts/test-requirement-artifacts.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-runtime-rolling-upgrade.js",
         "scripts/test-skill-intents.js",
@@ -11209,6 +11214,7 @@
           "scripts/test-mcp-servers.js",
           "scripts/test-package-compatibility-projection.js",
           "scripts/test-public-product-expression.js",
+          "scripts/test-requirement-artifacts.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-runtime-rolling-upgrade.js",
           "scripts/test-skill-intents.js",
@@ -16657,6 +16663,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-requirement-artifacts.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-requirement-parallel-orchestration.js",
           "role": "current"
         },
@@ -16759,6 +16769,7 @@
         "scripts/test-project-knowledge-store.js",
         "scripts/test-repair-prevention-assessment.js",
         "scripts/test-report-index.js",
+        "scripts/test-requirement-artifacts.js",
         "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-review-execution-contract.js",
         "scripts/test-skill-portfolio.js",
@@ -16856,6 +16867,7 @@
           "scripts/test-project-knowledge-store.js",
           "scripts/test-repair-prevention-assessment.js",
           "scripts/test-report-index.js",
+          "scripts/test-requirement-artifacts.js",
           "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-review-execution-contract.js",
           "scripts/test-skill-portfolio.js",
@@ -17621,6 +17633,10 @@
         },
         {
           "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/lifecycle-bootstrap-state.cjs",
           "role": "current"
         },
         {

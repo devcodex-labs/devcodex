@@ -21,6 +21,9 @@ const {
   commitFinalizedTaskResumeV3,
   commitTaskAdmissionReconciliation,
   commitTaskAdmissionTransaction,
+  createAdmissionTaskCanonicalRevision,
+  createLegacyTaskCanonicalRevision,
+  createResumeTaskCanonicalRevision,
   admissionContinuationLeaseDigest,
   fencedTaskWriteOwnerDigest,
   readFencedTaskWriteOwner,
@@ -29,6 +32,7 @@ const {
   resolveTaskRecoveryMetaDir,
   taskAdmissionTransactionDigest,
   taskAdmissionReconciliationReceiptDigest,
+  validateTaskCanonicalRevision,
   validateBoundedResumeIngressCapability,
   validateAdmissionContinuationLease,
   workflowTaskTerminalReceiptDigest
@@ -765,18 +769,19 @@ function initialSessionsContent(transaction) {
   ].join('\n')
 }
 
-function verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, fsImpl = fs, options = {}) {
-  const artifactReference = String(cp1Cells[2] || '').trim()
-  const expectedDigest = String(cp1Cells[4] || '').toLowerCase()
-  const confirmedAt = String(cp1Cells[6] || '').trim()
+function verifyExistingCpConfirmation(cpCells, sessionsPath, activeRoot, fsImpl = fs, options = {}) {
+  const phase = String(options.phase || 'CP1').toUpperCase()
+  const artifactReference = String(cpCells[2] || '').trim()
+  const expectedDigest = String(cpCells[4] || '').toLowerCase()
+  const confirmedAt = String(cpCells[6] || '').trim()
   const allowLegacyRecord = options.allowLegacyRecord === true
   const legacyTimeOnly = /^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(confirmedAt)
-  if (!artifactReference || artifactReference === '—' || !cp1Cells[3] || cp1Cells[3] === '—' ||
-      !DIGEST_RE.test(expectedDigest) || !cp1Cells[5] || cp1Cells[5] === '—' ||
+  if (!artifactReference || artifactReference === '—' || !cpCells[3] || cpCells[3] === '—' ||
+      !DIGEST_RE.test(expectedDigest) || !cpCells[5] || cpCells[5] === '—' ||
       (!Number.isFinite(Date.parse(confirmedAt)) && !(allowLegacyRecord && legacyTimeOnly))) {
     throw new TaskAdmissionError(
       'TASK_ADMISSION_CP_STATE_CONFLICT',
-      'existing CP1 confirmation is not bound to one exact artifact digest, source message and timestamp'
+      `existing ${phase} confirmation is not bound to one exact artifact digest, source message and timestamp`
     )
   }
   const taskRoot = path.dirname(path.dirname(sessionsPath))
@@ -793,7 +798,7 @@ function verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, fsImp
     if (!target || path.isAbsolute(target) || path.posix.isAbsolute(target) ||
         /^[A-Za-z]:/.test(target) || /[%?#]/.test(target) || segments[0] !== '..' ||
         segments.slice(1).some(segment => !segment || segment === '.' || segment === '..')) {
-      throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'legacy CP1 artifact link is ambiguous or unsafe')
+      throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', `legacy ${phase} artifact link is ambiguous or unsafe`)
     }
     candidate = path.resolve(path.dirname(sessionsPath), ...segments)
     artifactPathKind = 'memory-projected-markdown-relative'
@@ -801,12 +806,12 @@ function verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, fsImp
     const artifactPath = artifactReference.replace(/\\/g, '/')
     if (path.isAbsolute(artifactPath) || path.posix.isAbsolute(artifactPath) ||
         /^[A-Za-z]:/.test(artifactPath) || artifactPath.split('/').some(segment => !segment || segment === '.' || segment === '..')) {
-      throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'existing CP1 artifact path is ambiguous or unsafe')
+      throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', `existing ${phase} artifact path is ambiguous or unsafe`)
     }
     candidate = path.resolve(taskRoot, ...artifactPath.split('/'))
   }
   if (!isInside(taskRoot, candidate)) {
-    throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'existing CP1 artifact path escapes the task root')
+    throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', `existing ${phase} artifact path escapes the task root`)
   }
   assertExistingAncestorsSafe(activeRoot, candidate, fsImpl)
   let descriptor
@@ -819,7 +824,7 @@ function verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, fsImp
     bytes = fsImpl.readFileSync(descriptor)
     after = fsImpl.fstatSync(descriptor)
   } catch (error) {
-    throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'existing CP1 artifact is unavailable', { cause: error.code })
+    throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', `existing ${phase} artifact is unavailable`, { cause: error.code })
   } finally {
     if (descriptor !== undefined) fsImpl.closeSync(descriptor)
   }
@@ -827,7 +832,7 @@ function verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, fsImp
   if (!before.isFile() || !current.isFile() || current.isSymbolicLink() || before.size > 8 * 1024 * 1024 || bytes.length !== before.size ||
       !sameStableFileStat(before, after) || !sameStableFileStat(after, current) ||
       sha256(bytes) !== expectedDigest) {
-    throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'existing CP1 artifact readback does not match its confirmation digest')
+    throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', `existing ${phase} artifact readback does not match its confirmation digest`)
   }
   const compatibility = legacyTimeOnly
     ? {
@@ -842,10 +847,16 @@ function verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, fsImp
     candidate,
     artifactDigest: expectedDigest,
     artifactPath: path.relative(taskRoot, candidate).replace(/\\/g, '/'),
-    sourceMessage: String(cp1Cells[5] || '').trim(),
+    phase,
+    version: String(cpCells[3] || '').trim(),
+    sourceMessage: String(cpCells[5] || '').trim(),
     confirmedAt,
     compatibility
   }
+}
+
+function verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, fsImpl = fs, options = {}) {
+  return verifyExistingCpConfirmation(cp1Cells, sessionsPath, activeRoot, fsImpl, { ...options, phase: 'CP1' })
 }
 
 function ensurePendingCpState(fileTransaction, sessionsPath, transaction, activeRoot, options = {}) {
@@ -1271,7 +1282,9 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
         { errors: candidateValidation.errors }
       )
     }
-    finalizedResumeCanonical = readFinalizedResumeCanonicalEvidence(transaction, input.activeRoot, fsImpl)
+    finalizedResumeCanonical = readFinalizedResumeCanonicalEvidence(transaction, input.activeRoot, fsImpl, {
+      state: existing.state
+    })
     if (String(input.overview.content) !== finalizedResumeCanonical.canonicalOverviewContent) {
       throw new TaskAdmissionError(
         'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
@@ -1686,19 +1699,84 @@ function observedCpState(transaction, activeRoot, fsImpl = fs) {
     throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_UNAVAILABLE', 'workflow CP state is unavailable before owner fencing', { cause: error.code })
   }
   const cpRows = (sessions.match(/^\|\s*CP[123]\s*\|/gmu) || []).length
-  const cp1Line = sessions.match(/^\|\s*CP1\s*\|.*$/imu)?.[0] || ''
-  const cp1Cells = cp1Line.split('|').slice(1, -1).map(cell => cell.trim().replace(/`/g, ''))
+  const rows = ['CP1', 'CP2', 'CP3'].map(phase => {
+    const line = sessions.match(new RegExp(`^\\|\\s*${phase}\\s*\\|.*$`, 'imu'))?.[0] || ''
+    const cells = line.split('|').slice(1, -1).map(cell => cell.trim().replace(/`/g, ''))
+    return {
+      phase,
+      cells,
+      confirmed: cells[1]?.includes('✅') === true,
+      pending: cells[1]?.includes('⏳') === true,
+      stopped: cells[1]?.includes('⏹') === true
+    }
+  })
+  const cp1Cells = rows[0].cells
   const cp1Confirmed = cp1Cells[1]?.includes('✅') === true
   const cp1Pending = cp1Cells[1]?.includes('⏳') === true
-  if (cpRows !== 3 || (!cp1Confirmed && !cp1Pending)) {
+  if (cpRows !== 3 || rows.some(row => !row.cells.length || (!row.confirmed && !row.pending && !row.stopped)) ||
+      (!cp1Confirmed && !cp1Pending)) {
     throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'workflow CP table is missing or ambiguous before owner fencing')
   }
-  const cpEvidence = cp1Confirmed
-    ? verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, fsImpl, {
+  const confirmedEvidence = rows.filter(row => row.confirmed).map(row => {
+    const evidence = verifyExistingCpConfirmation(row.cells, sessionsPath, activeRoot, fsImpl, {
+      phase: row.phase,
       allowLegacyRecord: transaction.effects?.cpState?.compatibility?.schemaVersion === 'LegacyCpConfirmationCompatibilityV1'
     })
-    : null
-  return { cp1Confirmed, sessionsPath, cpArtifactDigest: cpEvidence?.artifactDigest || null, cpEvidence }
+    return {
+      phase: row.phase,
+      version: evidence.version,
+      artifactDigest: evidence.artifactDigest,
+      artifactPath: evidence.artifactPath,
+      confirmedAt: evidence.confirmedAt,
+      sourceMessage: evidence.sourceMessage
+    }
+  })
+  const priorEvidence = Array.isArray(transaction.effects?.cpState?.confirmedCpEvidence)
+    ? transaction.effects.cpState.confirmedCpEvidence
+    : []
+  for (const prior of priorEvidence) {
+    const current = confirmedEvidence.find(item => item.phase === prior.phase)
+    if (!current || [
+      'version', 'artifactDigest', 'artifactPath', 'sourceMessage', 'confirmedAt'
+    ].some(field => current[field] !== prior[field])) {
+      throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'confirmed CP evidence rolled back or changed outside its admission lineage')
+    }
+  }
+  const cpChainDigest = digest({
+    schemaVersion: 'ConfirmedCpChainV1',
+    taskId: transaction.taskId,
+    confirmedEvidence
+  })
+  const cpEvidence = confirmedEvidence.find(item => item.phase === 'CP1') || null
+  return {
+    cp1Confirmed,
+    sessionsPath,
+    cpArtifactDigest: cpEvidence?.artifactDigest || null,
+    cpEvidence,
+    confirmedEvidence,
+    confirmedPhases: confirmedEvidence.map(item => item.phase),
+    cpChainDigest
+  }
+}
+
+function overviewBindsConfirmedCpEvolution(content, transaction, cp) {
+  const text = String(content || '')
+  const lines = text.split(/\r?\n/u).map(line => line.trim()).filter(Boolean)
+  const taskId = String(transaction.taskId || '').toLowerCase()
+  const later = (cp.confirmedEvidence || []).filter(item => item.phase !== 'CP1')
+  const taskIdentityBound = lines.some(line =>
+    /taskidentity/i.test(line) && line.toLowerCase().includes(taskId)
+  )
+  if (!later.length || !taskId || !taskIdentityBound) return false
+  return later.every(item => {
+    const phase = String(item.phase || '').toLowerCase()
+    const version = String(item.version || '')
+    const artifactDigest = String(item.artifactDigest || '').toLowerCase()
+    return lines.some(line => {
+      const lower = line.toLowerCase()
+      return lower.includes(phase) && line.includes(version) && lower.includes(artifactDigest)
+    })
+  })
 }
 
 function readStableCanonicalFile(activeRoot, taskRoot, relative, label, fsImpl = fs) {
@@ -1732,7 +1810,7 @@ function readStableCanonicalFile(activeRoot, taskRoot, relative, label, fsImpl =
   }
 }
 
-function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = fs) {
+function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = fs, options = {}) {
   if (!transaction || transaction.phase !== 'finalized' || transaction.status !== 'finalized') {
     throw new TaskAdmissionError('FINALIZED_TASK_RESUME_ADMISSION_PHASE_INVALID', 'canonical resume readback requires one finalized admission')
   }
@@ -1757,9 +1835,6 @@ function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = 
     throw new TaskAdmissionError('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', 'TaskIdentityV2 no longer matches the finalized admission')
   }
   const overviewFile = readStableCanonicalFile(root, taskRoot, overviewRelative, 'canonical overview', fsImpl)
-  if (overviewFile.digest !== transaction.effects?.overview?.contentDigest) {
-    throw new TaskAdmissionError('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', 'canonical overview no longer matches the finalized admission')
-  }
   let cp
   try {
     cp = observedCpState(transaction, root, fsImpl)
@@ -1773,16 +1848,55 @@ function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = 
   if (!cp.cp1Confirmed || !DIGEST_RE.test(String(cp.cpArtifactDigest || ''))) {
     throw new TaskAdmissionError('FINALIZED_TASK_RESUME_CP_DRIFT', 'resume requires one digest-bound confirmed CP1 artifact')
   }
+  const storedRevision = options.state?.taskCanonicalRevision || null
+  let canonicalRevision
+  if (storedRevision) {
+    const revisionValidation = validateTaskCanonicalRevision(storedRevision, transaction)
+    if (!revisionValidation.valid || storedRevision.currentOverviewDigest !== overviewFile.digest) {
+      throw new TaskAdmissionError(
+        'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
+        'canonical overview no longer matches its authorized revision lineage',
+        { errors: revisionValidation.errors }
+      )
+    }
+    canonicalRevision = storedRevision
+  } else if (overviewFile.digest === transaction.effects?.overview?.contentDigest) {
+    canonicalRevision = createAdmissionTaskCanonicalRevision(transaction)
+  } else if (overviewBindsConfirmedCpEvolution(overviewFile.bytes.toString('utf8'), transaction, cp)) {
+    const latestConfirmedAt = cp.confirmedEvidence[cp.confirmedEvidence.length - 1]?.confirmedAt || transaction.updatedAt
+    canonicalRevision = createLegacyTaskCanonicalRevision(transaction, {
+      currentOverviewDigest: overviewFile.digest,
+      cpChainDigest: cp.cpChainDigest,
+      observedAt: latestConfirmedAt
+    })
+  } else {
+    throw new TaskAdmissionError(
+      'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
+      'canonical overview changed without an authorized revision or a verifiable confirmed-CP legacy bridge'
+    )
+  }
+  const revisionValidation = validateTaskCanonicalRevision(canonicalRevision, transaction)
+  if (!revisionValidation.valid || canonicalRevision.currentOverviewDigest !== overviewFile.digest) {
+    throw new TaskAdmissionError(
+      'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
+      'canonical overview revision evidence is invalid',
+      { errors: revisionValidation.errors }
+    )
+  }
   return {
-    schemaVersion: 'FinalizedTaskResumeCanonicalEvidenceV1',
+    schemaVersion: 'FinalizedTaskResumeCanonicalEvidenceV2',
     taskId: transaction.taskId,
     taskRootRelative: transaction.taskRootRelative,
     taskIdentityDigest: identity.identityDigest,
     taskIdentitySourceDigest: identityFile.digest,
     canonicalOverviewDigest: overviewFile.digest,
     canonicalOverviewContent: overviewFile.bytes.toString('utf8'),
+    canonicalRevision: clone(canonicalRevision),
+    canonicalRevisionDigest: canonicalRevision.revisionDigest,
     cpConfirmed: true,
     cpArtifactDigest: cp.cpArtifactDigest,
+    cpChainDigest: cp.cpChainDigest,
+    confirmedCpEvidence: clone(cp.confirmedEvidence),
     cpArtifactPath: cp.cpEvidence?.artifactPath || null,
     cpSourceMessage: cp.cpEvidence?.sourceMessage || null
   }
@@ -1950,6 +2064,17 @@ function executeFinalizedTaskResumeV3({
       finalizedResumeFailureDetails('FINALIZED_TASK_RESUME_RUNTIME_STALE')
     )
   }
+  const replayCandidateBinding = transaction.recovery?.schemaVersion === 'FinalizedTaskResumeRecoveryReceiptV3' &&
+    transaction.recovery.candidateDigest === candidate.candidateDigest &&
+    transaction.recovery.priorCanonicalRevisionDigest === candidate.canonicalRevisionDigest &&
+    transaction.recovery.canonicalRevisionDigest === canonical.canonicalRevisionDigest
+  const concurrentLoserBinding =
+    canonical.canonicalRevision?.parentRevisionDigest === candidate.canonicalRevisionDigest &&
+    transaction.admissionGeneration === Number(candidate.prior?.admissionGeneration || 0) + 1
+  const canonicalCandidateMatches =
+    (candidate.canonicalRevisionDigest === canonical.canonicalRevisionDigest ||
+      replayCandidateBinding || concurrentLoserBinding) &&
+    candidate.cpChainDigest === canonical.cpChainDigest
   const exactCandidateIngress = candidate.ingressRef?.envelopeId === input.actualInstructionEnvelope.envelopeId &&
     candidate.ingressRef?.envelopeDigest === input.actualInstructionEnvelope.envelopeDigest &&
     candidate.ingressRef?.decisionDigest === input.workflowRouteDecision.decisionDigest &&
@@ -1963,7 +2088,7 @@ function executeFinalizedTaskResumeV3({
     candidate.projectRootIdentityDigest === transaction.projectRootIdentityDigest &&
     candidate.taskIdentityDigest === canonical.taskIdentityDigest &&
     candidate.canonicalOverviewDigest === canonical.canonicalOverviewDigest &&
-    candidate.cpArtifactDigest === canonical.cpArtifactDigest
+    candidate.cpArtifactDigest === canonical.cpArtifactDigest && canonicalCandidateMatches
   if (!exactCandidateIngress) {
     throw new TaskAdmissionError(
       'FINALIZED_TASK_RESUME_CANDIDATE_MISMATCH',
@@ -2026,6 +2151,8 @@ function executeFinalizedTaskResumeV3({
     )
   }
   const issuedAt = new Date(nowMs).toISOString()
+  const nextAdmissionId = `admission-${ingressIdempotencyKey.slice(0, 40)}`
+  const nextAdmissionGeneration = transaction.admissionGeneration + 1
   const transitionInput = { ...input, expectedOwner: ownerRef(currentOwner) }
   const nextOwner = sealOwner({
     ...(currentOwner || {}),
@@ -2046,6 +2173,28 @@ function executeFinalizedTaskResumeV3({
     revocationEpoch: currentOwner ? currentOwner.revocationEpoch + 1 : 0,
     status: 'active'
   })
+  const nextCanonicalRevision = createResumeTaskCanonicalRevision(
+    canonical.canonicalRevision,
+    {
+      ...transaction,
+      admissionId: nextAdmissionId,
+      admissionGeneration: nextAdmissionGeneration,
+      createdAt: issuedAt
+    },
+    {
+      candidateDigest: candidate.candidateDigest,
+      cpChainDigest: canonical.cpChainDigest,
+      ownerGeneration: nextOwner.ownerGeneration
+    }
+  )
+  const nextRevisionValidation = validateTaskCanonicalRevision(nextCanonicalRevision)
+  if (!nextRevisionValidation.valid) {
+    throw new TaskAdmissionError(
+      'FINALIZED_TASK_RESUME_CANONICAL_REVISION_INVALID',
+      'finalized resume could not seal the next canonical overview revision',
+      { errors: nextRevisionValidation.errors }
+    )
+  }
   const recoveryCore = {
     schemaVersion: 'FinalizedTaskResumeRecoveryReceiptV3',
     mode: 'finalized-owner-resume',
@@ -2058,8 +2207,11 @@ function executeFinalizedTaskResumeV3({
     candidateDigest: candidate.candidateDigest,
     attemptDigest: candidate.attemptDigest,
     canonicalOverviewDigest: canonical.canonicalOverviewDigest,
+    priorCanonicalRevisionDigest: candidate.canonicalRevisionDigest,
+    canonicalRevisionDigest: nextCanonicalRevision.revisionDigest,
     taskIdentityDigest: canonical.taskIdentityDigest,
     cpArtifactDigest: canonical.cpArtifactDigest,
+    cpChainDigest: canonical.cpChainDigest,
     livenessDigest: candidate.liveness.livenessDigest,
     runtimeGeneration: candidate.runtime.generationId,
     runtimeDigest: candidate.runtime.runtimeDigest,
@@ -2068,9 +2220,9 @@ function executeFinalizedTaskResumeV3({
   const recovery = { ...recoveryCore, recoveryDigest: digestValue(recoveryCore) }
   const nextTransactionValue = {
     ...clone(transaction),
-    admissionId: `admission-${ingressIdempotencyKey.slice(0, 40)}`,
+    admissionId: nextAdmissionId,
     ingressIdempotencyKey,
-    admissionGeneration: transaction.admissionGeneration + 1,
+    admissionGeneration: nextAdmissionGeneration,
     phase: 'finalized',
     status: 'finalized',
     operation: input.operation,
@@ -2093,10 +2245,17 @@ function executeFinalizedTaskResumeV3({
     directoryDecisionDigest: plan.directoryDecision.decisionDigest,
     effects: {
       ...clone(transaction.effects),
+      overview: {
+        ...clone(transaction.effects.overview),
+        contentDigest: canonical.canonicalOverviewDigest,
+        canonicalRevisionDigest: nextCanonicalRevision.revisionDigest
+      },
       cpState: {
         ...clone(transaction.effects.cpState),
         status: 'confirmed',
-        cp1Confirmed: true
+        cp1Confirmed: true,
+        cpChainDigest: canonical.cpChainDigest,
+        confirmedCpEvidence: clone(canonical.confirmedCpEvidence)
       },
       owner: {
         status: 'fenced',
@@ -2119,7 +2278,9 @@ function executeFinalizedTaskResumeV3({
     candidate,
     transaction: nextTransactionValue,
     owner: nextOwner,
-    verifyCanonical: () => readFinalizedResumeCanonicalEvidence(transaction, input.activeRoot, fsImpl)
+    canonicalRevision: nextCanonicalRevision,
+    verifyCanonical: (currentTransaction, _currentOwner, state) =>
+      readFinalizedResumeCanonicalEvidence(currentTransaction, input.activeRoot, fsImpl, { state })
   }, { fs: fsImpl, nowMs, ...options.storeOptions })
   if (!['committed', 'semantic-noop'].includes(commit.status)) {
     throw new TaskAdmissionError(

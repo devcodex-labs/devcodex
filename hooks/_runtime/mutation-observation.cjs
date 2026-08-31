@@ -20,6 +20,7 @@ const OBSERVATION_SCHEMA = 'MutationObservationReceiptV1'
 const CLOSEOUT_SCHEMA = 'ArtifactMutationCloseoutReceiptV2'
 const DIGEST_RE = /^[a-f0-9]{64}$/
 const MAX_OBSERVATION_ENTRIES = 24
+const MAX_TRACKED_CONTENT_EVIDENCE = 4
 const MAX_HASH_BYTES = 64 * 1024 * 1024
 const MAX_PATH_BYTES = 1024
 const DEFAULT_LEASE_MS = 5 * 60 * 1000
@@ -571,6 +572,24 @@ function observeMutationEffects(input = {}, options = {}) {
     deleted: [...new Set(deleted)].sort(),
     moved: moves
   }
+  const trackedContentPaths = [...new Set((input.trackedContentPaths || [])
+    .map(item => String(item || '').trim())
+    .filter(Boolean)
+    .map(comparable))]
+  const trackedContentEvidence = trackedContentPaths.slice(0, MAX_TRACKED_CONTENT_EVIDENCE)
+    .map(key => after.get(key))
+    .filter(Boolean)
+    .map(entry => ({
+      path: entry.path,
+      exists: entry.exists === true,
+      kind: entry.kind,
+      digest: entry.digest || null,
+      bytes: Number(entry.bytes) || 0
+    }))
+  if (trackedContentPaths.length > MAX_TRACKED_CONTENT_EVIDENCE ||
+      trackedContentEvidence.length !== trackedContentPaths.length) {
+    errors.push('tracked-content-evidence-incomplete')
+  }
   const drift = [...new Set(errors)].sort()
   const status = drift.length ? 'needs-reconcile' : 'consumed'
   const semantic = {
@@ -580,6 +599,7 @@ function observeMutationEffects(input = {}, options = {}) {
     leaseDigest: lease.leaseDigest || null,
     plannedSetDigest: footprint.plannedSetDigest || decision.plannedSetDigest || null,
     observedEffects,
+    trackedContentEvidence,
     templateQualifications: templateObservation.qualifications,
     observationCoverage: drift.some(code => /observation|receipt-missing|too-large|entry-limit/.test(code)) ? 'partial' : 'complete',
     nativeExitCode: exitCode,
@@ -639,6 +659,28 @@ function validateMutationObservationReceipt(value) {
       errors.push('mutation-observation-effect-limit-exceeded')
     }
   }
+  if (value?.trackedContentEvidence !== undefined) {
+    if (!Array.isArray(value.trackedContentEvidence) ||
+        value.trackedContentEvidence.length > MAX_TRACKED_CONTENT_EVIDENCE) {
+      errors.push('mutation-observation-tracked-content-invalid')
+    } else {
+      const seenTracked = new Set()
+      for (const entry of value.trackedContentEvidence) {
+        if (!entry || typeof entry !== 'object' || !String(entry.path || '').trim() ||
+            Buffer.byteLength(String(entry.path || ''), 'utf8') > MAX_PATH_BYTES ||
+            typeof entry.exists !== 'boolean' || !['missing', 'file', 'directory', 'logical'].includes(entry.kind) ||
+            !Number.isInteger(entry.bytes) || entry.bytes < 0 ||
+            (entry.exists && entry.kind === 'file' && !DIGEST_RE.test(String(entry.digest || ''))) ||
+            (entry.exists && entry.kind !== 'file' && entry.digest !== null) ||
+            (!entry.exists && (entry.kind !== 'missing' || entry.digest !== null))) {
+          errors.push('mutation-observation-tracked-content-entry-invalid')
+        }
+        const key = comparable(entry?.path)
+        if (seenTracked.has(key)) errors.push('mutation-observation-tracked-content-duplicate')
+        seenTracked.add(key)
+      }
+    }
+  }
   if (!Array.isArray(value?.drift) || value.drift.length > MAX_OBSERVATION_ENTRIES ||
       value.drift.some(item => !String(item || '').trim() || Buffer.byteLength(String(item), 'utf8') > MAX_PATH_BYTES)) {
     errors.push('mutation-observation-drift-invalid')
@@ -694,6 +736,7 @@ module.exports = {
   ARTIFACT_MUTATION_CLOSEOUT_SCHEMA: CLOSEOUT_SCHEMA,
   MAX_HASH_BYTES,
   MAX_OBSERVATION_ENTRIES,
+  MAX_TRACKED_CONTENT_EVIDENCE,
   MUTATION_FOOTPRINT_RECOVERY_PROJECTION_SCHEMA: FOOTPRINT_PROJECTION_SCHEMA,
   MUTATION_OBSERVATION_SCHEMA: OBSERVATION_SCHEMA,
   MUTATION_PRE_OBSERVATION_SCHEMA: PRE_OBSERVATION_SCHEMA,

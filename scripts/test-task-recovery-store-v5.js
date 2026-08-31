@@ -61,7 +61,8 @@ const {
   markTaskOperationDispatched,
   markTaskOperationObserved,
   prepareTaskOperationRecord,
-  settleTaskOperationRecord
+  settleTaskOperationRecord,
+  taskOperationTargetSetDigest
 } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-task-recovery-v5-'))
@@ -285,16 +286,21 @@ function tasklessIngressState() {
   return value
 }
 
-function mutationStateV2Ephemeral(operationIdOverride = 'ephemeral-mutation-v2') {
+function mutationStateV2Ephemeral(operationIdOverride = 'ephemeral-mutation-v2', targetCount = 1) {
   const value = state('00000000-0000-4000-8000-000000000099', 'implementation')
   value.taskRecoveryBinding = null
   const operationId = operationIdOverride
-  const targetPath = path.join(tempRoot, 'src', 'ephemeral-source.js')
+  const targetPaths = targetCount === 1
+    ? [path.join(tempRoot, 'src', 'ephemeral-source.js')]
+    : Array.from({ length: targetCount }, (_, index) =>
+        path.join(tempRoot, 'src', `ephemeral-source-${String(index).padStart(3, '0')}.js`))
+  const targetPath = targetPaths[0]
   const decisionDigest = 'a'.repeat(64)
   const footprintDigest = 'b'.repeat(64)
   const plannedSetDigest = 'c'.repeat(64)
   const adapterDigest = 'd'.repeat(64)
   const registryDigest = 'e'.repeat(64)
+  const operationTargetSetDigest = taskOperationTargetSetDigest(targetPaths)
   value.stickyProject = {
     schemaVersion: 'ProjectTargetLeaseV2',
     targetDigest: '0'.repeat(64),
@@ -349,7 +355,7 @@ function mutationStateV2Ephemeral(operationIdOverride = 'ephemeral-mutation-v2')
     routeRevision: value.workflowRouteDecision.routeRevision,
     routeKey: value.workflowRouteDecision.routeKey,
     operation: 'create-or-update',
-    relativeTargets: ['src/ephemeral-source.js'],
+    relativeTargets: targetPaths.map(item => path.relative(tempRoot, item).replace(/\\/g, '/')),
     targetSetDigest: 'b'.repeat(64),
     slotId: 'project-source',
     moduleBoundary: 'implementation:src',
@@ -364,7 +370,7 @@ function mutationStateV2Ephemeral(operationIdOverride = 'ephemeral-mutation-v2')
     },
     riskEvidenceDigest: 'c'.repeat(64),
     mergedRegistryDigest: registryDigest,
-    maxTargets: 2,
+    maxTargets: Math.max(2, targetCount),
     maxUses: 2,
     issuedAt: '2026-08-22T00:00:00.000Z',
     expiresAt: '2026-08-22T00:05:00.000Z',
@@ -399,14 +405,14 @@ function mutationStateV2Ephemeral(operationIdOverride = 'ephemeral-mutation-v2')
     toolName: 'apply_patch',
     startedAt: '2026-08-22T00:00:00.000Z',
     mutating: true,
-    targetPaths: [targetPath],
+    targetPaths,
     artifactDecision: {
       schemaVersion: 'ArtifactSlotDecisionV2',
       project: 'devcodex',
       taskRecoveryKey: null,
       contextEpoch: 'ctx-test',
       operation: 'create-or-update',
-      targetSetDigest: 'f'.repeat(64),
+      targetSetDigest: operationTargetSetDigest,
       footprintDigest,
       adapterDigest,
       plannedSetDigest,
@@ -419,6 +425,7 @@ function mutationStateV2Ephemeral(operationIdOverride = 'ephemeral-mutation-v2')
       expiresAt: '2026-08-22T00:10:00.000Z',
       singleUse: true,
       status: 'active',
+      targetCount,
       decisionDigest
     },
     mutationLease: {
@@ -448,13 +455,13 @@ function mutationStateV2Ephemeral(operationIdOverride = 'ephemeral-mutation-v2')
       footprintDigest,
       adapterDigest,
       operation: 'create-or-update',
-      plannedCreates: [targetPath],
+      plannedCreates: targetPaths,
       plannedModifies: [],
       plannedDeletes: [],
       plannedMoves: [],
       sourceTargets: [],
-      targetTargets: [targetPath],
-      normalizedTargets: [targetPath],
+      targetTargets: targetPaths,
+      normalizedTargets: targetPaths,
       plannedSetDigest,
       observationPlan: { method: 'pre-post-byte-identity', targetGranularity: 'exact-target' },
       coverage: 'complete'
@@ -464,7 +471,14 @@ function mutationStateV2Ephemeral(operationIdOverride = 'ephemeral-mutation-v2')
       operationId,
       footprintDigest,
       plannedSetDigest,
-      entries: [{ path: targetPath, exists: false, kind: 'missing', digest: null, bytes: 0, complete: true }],
+      entries: targetPaths.map(item => ({
+        path: item,
+        exists: false,
+        kind: 'missing',
+        digest: null,
+        bytes: 0,
+        complete: true
+      })),
       observationCoverage: 'complete',
       errorCodes: [],
       snapshotDigest: '8'.repeat(64),
@@ -478,7 +492,7 @@ function mutationStateV2Ephemeral(operationIdOverride = 'ephemeral-mutation-v2')
     writerGeneration: 0,
     expectedStateSequence: 0,
     kind: 'create-or-update',
-    exactTargets: [targetPath],
+    exactTargets: targetPaths,
     targetSetDigest: value.turnLiveness.inFlightOperation.artifactDecision.targetSetDigest,
     beforeDigest: value.turnLiveness.inFlightOperation.mutationPreObservation.snapshotDigest
   }, baseOptions)
@@ -1109,6 +1123,32 @@ try {
   assert.strictEqual(
     ephemeralPreflightRead.state.turnLiveness.inFlightOperation.mutationPreObservation.observationCoverage,
     'complete'
+  )
+
+  const exactTargetMeta = path.join(tempRoot, 'ephemeral-preflight-exact-target-hooks')
+  const exactTargetState = mutationStateV2Ephemeral('ephemeral-exact-targets-24', 24)
+  const exactTargetPreflight = commitTaskRecoveryState({
+    metaDir: exactTargetMeta,
+    identity: { activeRoot, project: 'devcodex' },
+    sessionKey: 'ephemeral-exact-targets-session',
+    state: exactTargetState
+  }, { ...baseOptions, reason: 'mutation-preflight', force: true })
+  assert.strictEqual(exactTargetPreflight.status, 'ephemeral-stub', JSON.stringify(exactTargetPreflight))
+  assert(exactTargetPreflight.preflightBytes <= MUTATION_PREFLIGHT_STATE_MAX_BYTES,
+    'the complete 24-target recovery record must remain within the 4 KiB preflight state budget')
+  const exactTargetRead = readTaskRecoveryState({
+    metaDir: exactTargetMeta,
+    sessionKey: 'ephemeral-exact-targets-session'
+  })
+  const recoveredExactTargets = exactTargetRead.state.turnLiveness.taskOperationSet.unresolved.exactTargets
+  assert.strictEqual(recoveredExactTargets.length, 24, 'recovery must not truncate 21-24 exact targets to 20')
+  assert.deepStrictEqual(
+    recoveredExactTargets,
+    exactTargetState.turnLiveness.taskOperationSet.unresolved.exactTargets
+  )
+  assert.strictEqual(
+    exactTargetRead.state.turnLiveness.taskOperationSet.unresolved.targetSetDigest,
+    taskOperationTargetSetDigest(recoveredExactTargets)
   )
 
   const secondUseMeta = path.join(tempRoot, 'ephemeral-preflight-second-use-hooks')
@@ -2113,7 +2153,9 @@ try {
     taskRootRelative: 'bugs/resume-capability',
     taskIdentityDigest: '7'.repeat(64),
     canonicalOverviewDigest: '8'.repeat(64),
+    canonicalRevisionDigest: 'a'.repeat(64),
     cpArtifactDigest: '9'.repeat(64),
+    cpChainDigest: '0'.repeat(64),
     contextBinding: {
       schemaVersion: 'ContextReadBindingV1',
       contextEpoch: resumeEnvelope.contextEpoch,
@@ -2185,7 +2227,9 @@ try {
     taskRootRelative: 'bugs/resume-capability',
     taskIdentityDigest: '7'.repeat(64),
     canonicalOverviewDigest: '8'.repeat(64),
+    canonicalRevisionDigest: resumeCapabilityWrite.candidate.canonicalRevisionDigest,
     cpArtifactDigest: '9'.repeat(64),
+    cpChainDigest: resumeCapabilityWrite.candidate.cpChainDigest,
     contextBinding: resumeCapabilityWrite.candidate.contextBinding,
     prior: resumeCapabilityWrite.candidate.prior,
     runtime: resumeCapabilityWrite.candidate.runtime,

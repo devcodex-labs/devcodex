@@ -20,7 +20,22 @@ const {
 } = require('./lib/package-compatibility-projection')
 
 const ROOT = path.resolve(__dirname, '..')
-const EXPECTED_ENTRY_COUNT = 256
+const REQUIRED_PROJECTION_TARGETS = Object.freeze([
+  'instructions.md',
+  'skills/portfolio.json',
+  'skills/public-taxonomy.json',
+  'skills/routing/intent.json'
+])
+
+function assertProjectionPlanShape (plan, label) {
+  assert.strictEqual(plan.entryCount, plan.files.length, `${label}: entryCount must equal the actual projection plan`)
+  assert.strictEqual(new Set(plan.files.map(file => file.target)).size, plan.entryCount, `${label}: projection targets must be unique`)
+  const targets = new Set(plan.files.map(file => file.target))
+  for (const target of REQUIRED_PROJECTION_TARGETS) {
+    assert.ok(targets.has(target), `${label}: required compatibility target missing: ${target}`)
+  }
+  return plan.entryCount
+}
 
 function git (root, args) {
   return execFileSync('git', ['-C', root, ...args], {
@@ -42,12 +57,11 @@ function fixture () {
 }
 
 const currentPlan = buildPackageProjectionPlan(ROOT)
+const currentExpectedEntryCount = assertProjectionPlanShape(currentPlan, 'source plan')
 const currentStatePaths = resolvePackageProjectionStatePaths(ROOT)
 assert.ok(currentStatePaths.stateRoot.startsWith(path.join(os.tmpdir(), 'devcodex-package-compatibility-projection')))
 assert.strictEqual(currentStatePaths.lockPath, path.join(currentStatePaths.stateRoot, DEFAULT_LOCK))
 assert.strictEqual(currentStatePaths.receiptPath, path.join(currentStatePaths.stateRoot, DEFAULT_RECEIPT))
-assert.strictEqual(currentPlan.entryCount, EXPECTED_ENTRY_COUNT)
-assert.strictEqual(new Set(currentPlan.files.map(file => file.target)).size, EXPECTED_ENTRY_COUNT)
 const currentTracked = new Set(git(ROOT, ['ls-files', '-z', '--'])
   .split('\0')
   .filter(Boolean)
@@ -61,7 +75,7 @@ const currentReusableForeignCount = currentPlan.files.filter(file =>
 const current = preparePackageProjection(ROOT)
 if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
   assert.strictEqual(current.mode, 'verify-existing')
-  assert.strictEqual(current.trackedTargetCount, EXPECTED_ENTRY_COUNT)
+  assert.strictEqual(current.trackedTargetCount, currentExpectedEntryCount)
   assert.strictEqual(current.receiptWritten, false)
   assert.strictEqual(fs.existsSync(currentStatePaths.receiptPath), false)
 } else {
@@ -77,6 +91,7 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
 {
   const root = fixture()
   try {
+    const expectedEntryCount = assertProjectionPlanShape(buildPackageProjectionPlan(root), 'materialization fixture')
     const lock = acquireLock(root, { operation: 'test-concurrent' })
     assert.throws(
       () => preparePackageProjection(root),
@@ -95,8 +110,8 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
     })}\n`)
     const materialized = preparePackageProjection(root)
     assert.strictEqual(materialized.mode, 'materialize')
-    assert.strictEqual(materialized.entryCount, EXPECTED_ENTRY_COUNT)
-    assert.strictEqual(materialized.materializedCount, EXPECTED_ENTRY_COUNT)
+    assert.strictEqual(materialized.entryCount, expectedEntryCount)
+    assert.strictEqual(materialized.materializedCount, expectedEntryCount)
     assert.strictEqual(materialized.reusedExistingCount, 0)
     assert.strictEqual(fs.existsSync(path.join(root, 'instructions.md')), true)
     assert.strictEqual(fs.existsSync(path.join(root, 'skills', 'portfolio.json')), true)
@@ -106,11 +121,11 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
 
     const repeated = preparePackageProjection(root)
     assert.strictEqual(repeated.mode, 'materialize')
-    assert.strictEqual(repeated.entryCount, EXPECTED_ENTRY_COUNT)
+    assert.strictEqual(repeated.entryCount, expectedEntryCount)
 
     const cleaned = cleanupPackageProjection(root)
     assert.strictEqual(cleaned.status, 'cleaned')
-    assert.strictEqual(cleaned.removed.length, EXPECTED_ENTRY_COUNT)
+    assert.strictEqual(cleaned.removed.length, expectedEntryCount)
     assert.strictEqual(fs.existsSync(path.join(root, 'instructions.md')), false)
     for (const legacyRoot of ['instructions', 'prompts', 'skills']) {
       assert.strictEqual(fs.existsSync(path.join(root, legacyRoot)), false)
@@ -123,6 +138,7 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
 {
   const root = fixture()
   try {
+    assertProjectionPlanShape(buildPackageProjectionPlan(root), 'staged deletion fixture')
     const first = preparePackageProjection(root)
     const firstReceiptPath = resolvePackageProjectionStatePaths(root).receiptPath
     const firstReceipt = JSON.parse(fs.readFileSync(firstReceiptPath, 'utf8'))
@@ -190,18 +206,19 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
 {
   const root = fixture()
   try {
+    const expectedEntryCount = assertProjectionPlanShape(buildPackageProjectionPlan(root), 'adoption fixture')
     const first = preparePackageProjection(root)
-    assert.strictEqual(first.materializedCount, EXPECTED_ENTRY_COUNT)
+    assert.strictEqual(first.materializedCount, expectedEntryCount)
     fs.unlinkSync(resolvePackageProjectionStatePaths(root).receiptPath)
 
     const adopted = preparePackageProjection(root)
     assert.strictEqual(adopted.mode, 'materialize')
     assert.strictEqual(adopted.materializedCount, 0)
-    assert.strictEqual(adopted.adoptedExistingCount, EXPECTED_ENTRY_COUNT)
+    assert.strictEqual(adopted.adoptedExistingCount, expectedEntryCount)
     assert.strictEqual(adopted.receiptWritten, true)
     const cleaned = cleanupPackageProjection(root)
     assert.strictEqual(cleaned.status, 'cleaned')
-    assert.strictEqual(cleaned.removed.length, EXPECTED_ENTRY_COUNT)
+    assert.strictEqual(cleaned.removed.length, expectedEntryCount)
   } finally {
     fs.rmSync(root, { recursive: true, force: true })
   }

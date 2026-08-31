@@ -242,6 +242,7 @@
         "scripts/postpack-control-content.js",
         "scripts/validate-installed-package.js",
         "scripts/lib/package-compatibility-projection.js",
+        "scripts/test-package-compatibility-projection.js",
         "scripts/lib/published-package-manifest-projection.js",
         "scripts/lib/published-package-scripts-contract.js",
         "scripts/test-published-package-scripts-contract.js"
@@ -250,7 +251,8 @@
         "validation-dag",
         "validate-versions",
         "release-metadata",
-        "published-package-scripts-contract"
+        "published-package-scripts-contract",
+        "package-compatibility-projection"
       ],
       "enforceForMatchingInputs": true,
       "excludeSemanticClasses": [
@@ -278,6 +280,7 @@
       "profile-governance": { "consumerEdgeType": "qualificationConsumer" },
       "release-metadata": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V1" },
       "published-package-scripts-contract": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V2" },
+      "package-compatibility-projection": { "consumerEdgeType": "releaseConsumer", "minimumLevel": "V2" },
       "critical-coverage": { "consumerEdgeType": "releaseConsumer" },
       "pack-clean": { "consumerEdgeType": "releaseConsumer", "minimumLevel": "V2", "heavy": true },
       "global-host-config": { "consumerEdgeType": "releaseConsumer", "heavy": true },
@@ -538,6 +541,7 @@
         "cli-behavior",
         "release-metadata",
         "published-package-scripts-contract",
+        "package-compatibility-projection",
         "pack-clean",
         "public-text-integrity",
         "review-execution-contract",
@@ -588,6 +592,7 @@
         "validation-dag",
         "release-metadata",
         "published-package-scripts-contract",
+        "package-compatibility-projection",
         "pack-clean"
       ]
     }
@@ -4761,6 +4766,49 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "package-compatibility-projection",
+      "owner": "package-boundary",
+      "command": "node",
+      "args": [
+        "scripts/test-package-compatibility-projection.js"
+      ],
+      "dependencies": [
+        "validate-versions",
+        "control-content-source"
+      ],
+      "inputs": [
+        "plugin.json",
+        "content/**",
+        "scripts/lib/package-compatibility-projection.js",
+        "scripts/test-package-compatibility-projection.js"
+      ],
+      "consumers": [
+        "pack-clean"
+      ],
+      "invariants": [
+        "package-compatibility-projection-complete",
+        "package-compatibility-targets-unique",
+        "package-compatibility-required-targets"
+      ],
+      "riskClass": "release",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 300000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "pack-clean",
       "owner": "package-boundary",
       "command": "node",
@@ -4770,7 +4818,8 @@
       "dependencies": [
         "validate-versions",
         "control-content-source",
-        "published-package-scripts-contract"
+        "published-package-scripts-contract",
+        "package-compatibility-projection"
       ],
       "inputs": [
         "package.json",
@@ -4780,6 +4829,7 @@
         "scripts/postpack-control-content.js",
         "scripts/validate-installed-package.js",
         "scripts/lib/package-compatibility-projection.js",
+        "scripts/test-package-compatibility-projection.js",
         "scripts/lib/published-package-manifest-projection.js",
         "scripts/lib/published-package-scripts-contract.js",
         "scripts/validation-manifest.json",
@@ -5143,6 +5193,7 @@
         "hooks/_runtime/visible-output-contract.cjs",
         "hooks/_runtime/workflow-plan-decision-v1.cjs",
         "hooks/_runtime/language-context.cjs",
+        "hooks/_runtime/lifecycle-bootstrap-state.cjs",
         "hooks/_runtime/lifecycle-visible-reply.cjs",
         "scripts/test-visible-output-contract.js",
         "scripts/lib/test-hooks-runtime-visibility.js",
@@ -5165,6 +5216,7 @@
         "link-capability-honesty",
         "artifact-delivery-attempt-readback",
         "visible-envelope-fail-closed",
+        "grok-s07-locale-parity",
         "final-validation-summary"
       ],
       "riskClass": "normal",

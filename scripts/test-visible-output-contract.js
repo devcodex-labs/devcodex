@@ -33,6 +33,7 @@ const {
   hasReadableNarrativeSnippet,
   shouldUseCompact
 } = require('../hooks/_runtime/visible-output-contract.cjs')
+const { renderGrokS07Assist } = require('../hooks/_runtime/lifecycle-bootstrap-state.cjs')
 const ROOT = path.resolve(__dirname, '..')
 const WORKSPACE = path.dirname(ROOT)
 const ZH_LANGUAGE_CONTEXT = Object.freeze({
@@ -528,6 +529,26 @@ const unsupportedLocaleText = renderVisibleEnvelope(envelope, {
   languageContext: { ...ZH_LANGUAGE_CONTEXT, primaryLanguage: 'ja', responseLanguage: 'ja', artifactLanguage: 'ja' }
 })
 assert.match(unsupportedLocaleText, /Language fallback: requested=ja, rendered=en, reason=locale-catalog-unavailable:ja/)
+
+const zhGrokAssist = renderGrokS07Assist({ languageContext: ZH_LANGUAGE_CONTEXT, project: 'devcodex' })
+const enGrokAssist = renderGrokS07Assist({ languageContext: EN_LANGUAGE_CONTEXT, project: 'devcodex' })
+const fallbackGrokAssist = renderGrokS07Assist({
+  languageContext: { ...ZH_LANGUAGE_CONTEXT, primaryLanguage: 'ja', responseLanguage: 'ja', artifactLanguage: 'ja' },
+  project: 'devcodex'
+})
+assert.match(zhGrokAssist, /### DevCodex · 入口检查/)
+assert.match(zhGrokAssist, /下一步：先输出完整 PC0~PC10/)
+assert.doesNotMatch(zhGrokAssist, /### DevCodex · Entry check|Language fallback:/)
+assert.match(enGrokAssist, /### DevCodex · Entry check/)
+assert.match(enGrokAssist, /Next: emit the complete PC0~PC10 block/)
+assert.doesNotMatch(enGrokAssist, /### DevCodex · 入口检查|语言回退：/)
+assert.match(fallbackGrokAssist, /### DevCodex · Entry check/)
+assert.match(fallbackGrokAssist, /Language fallback: requested=ja, rendered=en, reason=locale-catalog-unavailable:ja/)
+for (const output of [zhGrokAssist, enGrokAssist, fallbackGrokAssist]) {
+  for (let ordinal = 0; ordinal <= 10; ordinal += 1) assert.match(output, new RegExp(`PC${ordinal}(?:\\D|$)`))
+  assert.match(output, /GrokTurnChecklist/)
+  assert.match(output, /DevCodexVisibleEnvelopeV3 · entry-check · BLOCK · s07-assist-context-incomplete/)
+}
 
 const noNextStep = createVisibleEnvelope({
   ...baseInput,

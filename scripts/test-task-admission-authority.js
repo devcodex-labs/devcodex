@@ -13,6 +13,7 @@ const {
 const { buildWorkflowRouteDecision } = require('../hooks/_runtime/workflow-route-decision-v2.cjs')
 const { validateTaskIdentity } = require('../hooks/_runtime/task-continuation-contract.cjs')
 const {
+  advanceTaskCanonicalRevision,
   normalizeIdentity,
   observeFinalizedTaskResumeLiveness,
   readBoundedResumeIngressCapability,
@@ -28,6 +29,7 @@ const {
   validateAdmissionContinuationLease,
   validateTaskAdmissionTransaction,
   validateTaskAdmissionReconciliationReceipt,
+  validateTaskCanonicalRevision,
   writeBoundedResumeIngressCapability
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const {
@@ -40,7 +42,15 @@ const {
   reconcileWorkflowTaskTerminal,
   validateProjectTargetLease
 } = require('../mcp/task-admission-authority.cjs')
-const { taskOperationTerminalSnapshot } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
+const {
+  taskOperationRecordDigest,
+  taskOperationTargetSetDigest,
+  taskOperationTerminalSnapshot
+} = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
+const {
+  createMutationPreObservation,
+  observeMutationEffects
+} = require('../hooks/_runtime/mutation-observation.cjs')
 
 const TEMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-task-admission-'))
 const NOW_MS = Date.parse('2026-08-25T00:00:00.000Z')
@@ -264,14 +274,20 @@ function ownerRef(receipt) {
   }
 }
 
-function confirmCp1(taskRoot, artifactName = '01-问题确认.md') {
-  const artifactContent = '# 问题确认\n\n测试确认。\n'
+function confirmCp(taskRoot, phase, artifactName, version = 'v1') {
+  const artifactContent = `# ${phase} 确认\n\n测试确认。\n`
   fs.writeFileSync(path.join(taskRoot, artifactName), artifactContent)
   const artifactDigest = crypto.createHash('sha256').update(artifactContent).digest('hex')
   const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
   const sessions = fs.readFileSync(sessionsPath, 'utf8')
-  const confirmedRow = `| CP1 | ✅ | ${artifactName} | v1 | ${artifactDigest} | test-confirmed | 2026-08-25T00:00:00.000Z |`
-  fs.writeFileSync(sessionsPath, sessions.replace(/^\|\s*CP1\s*\|.*$/mu, confirmedRow))
+  const ordinal = Number(phase.slice(2)) || 1
+  const confirmedRow = `| ${phase} | ✅ | ${artifactName} | ${version} | ${artifactDigest} | test-confirmed-${phase.toLowerCase()} | 2026-08-25T00:0${ordinal}:00.000Z |`
+  fs.writeFileSync(sessionsPath, sessions.replace(new RegExp(`^\\|\\s*${phase}\\s*\\|.*$`, 'mu'), confirmedRow))
+  return { phase, artifactName, version, artifactDigest }
+}
+
+function confirmCp1(taskRoot, artifactName = '01-问题确认.md') {
+  return confirmCp(taskRoot, 'CP1', artifactName, 'v1')
 }
 
 function evidenceSet(input, admission, suffix = 'terminal') {
@@ -349,7 +365,9 @@ function buildFinalizedResumeAttempt(root, admission, suffix, nowMs, options = {
   assert.strictEqual(recovery.status, 'fresh')
   const transaction = recovery.state.admissionTransaction
   const owner = recovery.state.fencedWriteOwner
-  const canonical = readFinalizedResumeCanonicalEvidence(transaction, root.activeRoot)
+  const canonical = readFinalizedResumeCanonicalEvidence(transaction, root.activeRoot, fs, {
+    state: recovery.state
+  })
   const resumeInput = admissionInput(root, suffix, {
     operation: 'bind',
     routeTaskKind: 'resume',
@@ -390,7 +408,9 @@ function buildFinalizedResumeAttempt(root, admission, suffix, nowMs, options = {
     taskRootRelative: transaction.taskRootRelative,
     taskIdentityDigest: canonical.taskIdentityDigest,
     canonicalOverviewDigest: canonical.canonicalOverviewDigest,
+    canonicalRevisionDigest: canonical.canonicalRevisionDigest,
     cpArtifactDigest: canonical.cpArtifactDigest,
+    cpChainDigest: canonical.cpChainDigest,
     contextBinding: {
       schemaVersion: 'ContextReadBindingV1',
       contextEpoch: resumeInput.actualInstructionEnvelope.contextEpoch,
@@ -417,6 +437,91 @@ function buildFinalizedResumeAttempt(root, admission, suffix, nowMs, options = {
     metaDir,
     identity
   }
+}
+
+function recordAuthorizedOverviewEvolution(fixture, content, nowMs) {
+  const metaDir = resolveTaskRecoveryMetaDir({
+    activeRoot: fixture.root.activeRoot,
+    project: fixture.root.project
+  })
+  const identity = {
+    activeRoot: fixture.root.activeRoot,
+    project: fixture.root.project,
+    taskId: fixture.admission.taskId,
+    taskStatus: 'active'
+  }
+  const recovery = readTaskRecoveryState({ metaDir, identity }, { nowMs })
+  assert.strictEqual(recovery.status, 'fresh')
+  const state = recovery.state
+  const overviewPath = path.join(taskRootFor(fixture.input, fixture.admission), '00-问题概况.md')
+  const operationId = `overview-evolution-${fixture.admission.taskId}`
+  const plannedSetDigest = digest({ creates: [], modifies: [overviewPath], deletes: [], moves: [] })
+  const footprint = {
+    schemaVersion: 'MutationFootprintRecoveryProjectionV2',
+    footprintDigest: digest({ operationId, overviewPath }),
+    plannedSetDigest,
+    coverage: 'complete',
+    observationPlan: { targetGranularity: 'exact-target', plannedSetDigest },
+    plannedCreates: [],
+    plannedModifies: [overviewPath],
+    plannedDeletes: [],
+    plannedMoves: [],
+    sourceTargets: [],
+    targetTargets: [overviewPath],
+    normalizedTargets: [overviewPath]
+  }
+  const preObservation = createMutationPreObservation({ operationId, footprint }, { nowMs: nowMs - 3000 })
+  fs.writeFileSync(overviewPath, content)
+  const observation = observeMutationEffects({
+    operationId,
+    decision: { decisionDigest: 'd'.repeat(64), templateBindings: [] },
+    lease: { leaseDigest: 'e'.repeat(64), operationId },
+    footprint,
+    preObservation,
+    trackedContentPaths: [overviewPath],
+    payload: { success: true },
+    success: true
+  }, { nowMs: nowMs - 1000 })
+  assert.strictEqual(observation.status, 'consumed')
+  const applied = ['created', 'modified', 'deleted', 'moved']
+    .some(kind => Array.isArray(observation.observedEffects?.[kind]) && observation.observedEffects[kind].length > 0)
+  const recordSemantic = {
+    schemaVersion: 'TaskOperationRecordV1',
+    operationId,
+    idempotencyKey: `idem-${operationId}`,
+    writerGeneration: state.fencedWriteOwner.ownerGeneration,
+    expectedStateSequence: recovery.commitFence.stateSequence,
+    kind: 'update',
+    exactTargets: [overviewPath],
+    targetSetDigest: taskOperationTargetSetDigest([overviewPath]),
+    beforeDigest: preObservation.snapshotDigest,
+    phase: 'settled',
+    effect: applied ? 'known-applied' : 'known-not-applied',
+    preparedAt: new Date(nowMs - 4000).toISOString(),
+    dispatchedAt: new Date(nowMs - 3000).toISOString(),
+    observedAt: new Date(nowMs - 1000).toISOString(),
+    settledAt: new Date(nowMs).toISOString(),
+    resultDigest: observation.receiptDigest,
+    evidenceDigest: observation.closeout.closeoutDigest
+  }
+  const operationRecord = {
+    ...recordSemantic,
+    recordDigest: taskOperationRecordDigest(recordSemantic)
+  }
+  const canonicalRevision = advanceTaskCanonicalRevision(state, {
+    overviewPath,
+    preObservation,
+    observation,
+    operationRecord,
+    closeout: observation.closeout
+  })
+  assert.strictEqual(validateTaskCanonicalRevision(canonicalRevision, state.admissionTransaction).valid, true)
+  const persisted = updateTaskRecoveryState({ metaDir, identity }, current => {
+    current.taskCanonicalRevision = canonicalRevision
+    return current
+  }, { nowMs, force: true, reason: 'test-authorized-canonical-overview-evolution', ...STORE_OPTIONS })
+  assert(['committed', 'semantic-noop'].includes(persisted.status), persisted.errorCode || persisted.status)
+  return canonicalRevision
 }
 
 function createFinalizedResumeFixture(name) {
@@ -448,6 +553,7 @@ function rewriteAsLegacyOwnerlessFinalizedState(fixture, nowMs) {
   delete legacyState.fencedWriteOwner
   delete legacyState.previousFencedWriteOwner
   delete legacyState.resumeIngressCapabilityRef
+  delete legacyState.taskCanonicalRevision
   const taskStore = taskPaths(storePaths(metaDir), identity.recoveryKey)
   const resolvedTaskStore = path.resolve(taskStore.dir)
   const resolvedTempRoot = `${path.resolve(TEMP_ROOT)}${path.sep}`
@@ -1593,6 +1699,142 @@ try {
     error => ['TASK_ADMISSION_TRANSACTION_MISSING', 'TASK_WRITE_OWNER_CAS_MISMATCH'].includes(error.code),
     'the old admission and owner must never regain authority'
   )
+
+  const evolvedResumeAt = NOW_MS + 7 * 60 * 1000
+  const evolvedResume = createFinalizedResumeFixture('finalized-authorized-overview-evolution')
+  const evolvedTaskRoot = taskRootFor(evolvedResume.input, evolvedResume.admission)
+  const evolvedCp2 = confirmCp(evolvedTaskRoot, 'CP2', '02-修复方案.md', 'v2.0.0-candidate')
+  const evolvedCp3 = confirmCp(evolvedTaskRoot, 'CP3', '04-实施计划.md', 'v3.0.0-candidate')
+  const evolvedContent = [
+    '# 问题概况',
+    '',
+    `> TaskIdentity: \`${evolvedResume.admission.taskId}\``,
+    `- CP2 ${evolvedCp2.version} ${evolvedCp2.artifactDigest}`,
+    `- CP3 ${evolvedCp3.version} ${evolvedCp3.artifactDigest}`,
+    '',
+    '已按确认的 CP 链进入实施。',
+    ''
+  ].join('\n')
+  const evolvedRevision = recordAuthorizedOverviewEvolution(evolvedResume, evolvedContent, evolvedResumeAt - 1000)
+  assert.strictEqual(evolvedRevision.source, 'authorized-mutation')
+  setFinalizedResumeLiveness(evolvedResume.root, evolvedResume.admission, {}, evolvedResumeAt)
+  const evolvedAttempt = buildFinalizedResumeAttempt(
+    evolvedResume.root,
+    evolvedResume.admission,
+    'finalized-authorized-overview-evolution-next',
+    evolvedResumeAt
+  )
+  assert.strictEqual(evolvedAttempt.candidate.canonicalRevisionDigest, evolvedRevision.revisionDigest)
+  const evolvedResult = run(evolvedAttempt.input, { nowMs: evolvedResumeAt })
+  assert.strictEqual(evolvedResult.mutationAuthority, true)
+  assert.strictEqual(evolvedResult.admissionGeneration, evolvedAttempt.prior.transaction.admissionGeneration + 1)
+  const evolvedRead = readTaskRecoveryState({
+    metaDir: evolvedAttempt.metaDir,
+    identity: evolvedAttempt.identity
+  }, { nowMs: evolvedResumeAt })
+  assert.strictEqual(evolvedRead.state.taskCanonicalRevision.source, 'resume-generation')
+  assert.strictEqual(
+    evolvedRead.state.taskCanonicalRevision.parentRevisionDigest,
+    evolvedRevision.revisionDigest
+  )
+  assert.strictEqual(run(evolvedAttempt.input, { nowMs: evolvedResumeAt }).replayed, true)
+  const evolvedSessionsPath = path.join(evolvedTaskRoot, '.memory', 'sessions.md')
+  const evolvedSessions = fs.readFileSync(evolvedSessionsPath, 'utf8')
+  fs.writeFileSync(
+    evolvedSessionsPath,
+    evolvedSessions.replace('test-confirmed-cp3', 'tampered-confirmation-source')
+  )
+  assert.throws(
+    () => buildFinalizedResumeAttempt(
+      evolvedResume.root,
+      evolvedResult,
+      'finalized-authorized-overview-evolution-cp-tampered',
+      evolvedResumeAt + 500
+    ),
+    error => error.code === 'FINALIZED_TASK_RESUME_CP_DRIFT',
+    'a later admission generation must reject changed CP confirmation provenance even when the artifact digest is unchanged'
+  )
+  fs.writeFileSync(evolvedSessionsPath, evolvedSessions)
+  const evolvedOverviewPath = path.join(evolvedTaskRoot, '00-问题概况.md')
+  fs.appendFileSync(evolvedOverviewPath, '\n未授权的带外改写。\n')
+  assert.throws(
+    () => buildFinalizedResumeAttempt(
+      evolvedResume.root,
+      evolvedResult,
+      'finalized-authorized-overview-evolution-tampered',
+      evolvedResumeAt + 1000
+    ),
+    error => error.code === 'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
+    'a stored canonical revision must reject later out-of-band overview edits even when CP bindings remain present'
+  )
+
+  const legacyEvolutionAt = NOW_MS + 8 * 60 * 1000
+  const legacyEvolution = createFinalizedResumeFixture('finalized-legacy-overview-evolution')
+  const legacyTaskRoot = taskRootFor(legacyEvolution.input, legacyEvolution.admission)
+  const legacyCp2 = confirmCp(legacyTaskRoot, 'CP2', '02-修复方案.md', 'v2.1.0-candidate')
+  const legacyCp3 = confirmCp(legacyTaskRoot, 'CP3', '04-实施计划.md', 'v3.1.0-candidate')
+  const legacyMetaDir = resolveTaskRecoveryMetaDir({
+    activeRoot: legacyEvolution.root.activeRoot,
+    project: legacyEvolution.root.project
+  })
+  const legacyEvolutionIdentity = {
+    activeRoot: legacyEvolution.root.activeRoot,
+    project: legacyEvolution.root.project,
+    taskId: legacyEvolution.admission.taskId,
+    taskStatus: 'active'
+  }
+  const strippedLegacy = updateTaskRecoveryState({ metaDir: legacyMetaDir, identity: legacyEvolutionIdentity }, state => {
+    delete state.taskCanonicalRevision
+    return state
+  }, { nowMs: legacyEvolutionAt - 2000, force: true, reason: 'test-legacy-runtime-state', ...STORE_OPTIONS })
+  assert(['committed', 'semantic-noop'].includes(strippedLegacy.status))
+  fs.writeFileSync(path.join(legacyTaskRoot, '00-问题概况.md'), [
+    '# 问题概况',
+    '',
+    `> TaskIdentity: \`${legacyEvolution.admission.taskId}\``,
+    `- versions: ${legacyCp2.version} / ${legacyCp3.version}`,
+    `- digests: ${legacyCp2.artifactDigest} / ${legacyCp3.artifactDigest}`,
+    '- phases: CP2 / CP3',
+    '',
+    '任意正文把已知字符串分散拼贴，不构成可验证的 CP 演进证据。',
+    ''
+  ].join('\n'))
+  setFinalizedResumeLiveness(legacyEvolution.root, legacyEvolution.admission, {}, legacyEvolutionAt)
+  assert.throws(
+    () => buildFinalizedResumeAttempt(
+      legacyEvolution.root,
+      legacyEvolution.admission,
+      'finalized-legacy-overview-evolution-unbound-evidence',
+      legacyEvolutionAt
+    ),
+    error => error.code === 'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
+    'legacy migration must reject overview text that merely scatters known CP versions and digests'
+  )
+  fs.writeFileSync(path.join(legacyTaskRoot, '00-问题概况.md'), [
+    '# 问题概况',
+    '',
+    `> TaskIdentity: \`${legacyEvolution.admission.taskId}\``,
+    `- CP2 ${legacyCp2.version} ${legacyCp2.artifactDigest}`,
+    `- CP3 ${legacyCp3.version} ${legacyCp3.artifactDigest}`,
+    '',
+    '此状态由修复前运行时按已确认 CP 链合法演进。',
+    ''
+  ].join('\n'))
+  setFinalizedResumeLiveness(legacyEvolution.root, legacyEvolution.admission, {}, legacyEvolutionAt)
+  const legacyEvolutionAttempt = buildFinalizedResumeAttempt(
+    legacyEvolution.root,
+    legacyEvolution.admission,
+    'finalized-legacy-overview-evolution-next',
+    legacyEvolutionAt
+  )
+  const legacyEvolutionResult = run(legacyEvolutionAttempt.input, { nowMs: legacyEvolutionAt })
+  assert.strictEqual(legacyEvolutionResult.mutationAuthority, true)
+  const legacyEvolutionRead = readTaskRecoveryState({
+    metaDir: legacyEvolutionAttempt.metaDir,
+    identity: legacyEvolutionAttempt.identity
+  }, { nowMs: legacyEvolutionAt })
+  assert.strictEqual(legacyEvolutionRead.state.taskCanonicalRevision.source, 'resume-generation')
+  assert.strictEqual(legacyEvolutionRead.state.taskCanonicalRevision.revision, 3)
 
   const releasedResumeAt = NOW_MS + 60 * 1000
   const releasedResume = createFinalizedResumeFixture('finalized-released-resume')

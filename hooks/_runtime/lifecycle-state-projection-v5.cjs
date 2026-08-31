@@ -675,6 +675,9 @@ function buildColdResumeStub(compactState) {
     admissionTransaction: isPlainObject(state.admissionTransaction)
       ? compactAdmissionTransaction(state.admissionTransaction)
       : null,
+    taskCanonicalRevision: isPlainObject(state.taskCanonicalRevision)
+      ? clone(state.taskCanonicalRevision)
+      : null,
     fencedWriteOwner: isPlainObject(state.fencedWriteOwner)
       ? compactFencedWriteOwner(state.fencedWriteOwner)
       : null,

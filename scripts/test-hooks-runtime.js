@@ -522,6 +522,86 @@ function runR2BTaskOwnerLifecycleScenarios() {
     'duplicate PostToolUse must preserve the original one-use closeout receipt'
   )
 
+  const canonicalOverviewPath = path.join(taskRoot, '00-问题概况.md')
+  const canonicalOverviewContent = [
+    '# R2B Hook owner task — 问题概况',
+    '',
+    '## 目录导航',
+    '',
+    '## 问题一句话',
+    '',
+    '真实 Hook 写入必须推进 canonical overview revision。',
+    '',
+    '## 重现步骤',
+    '',
+    '1. 由当前 fenced owner 修改概况。',
+    '',
+    '## 期望行为与实际行为',
+    '',
+    '期望 revision 与文件摘要同事务推进；实际由本测试读回验证。',
+    '',
+    '## 频率、影响范围与严重程度',
+    '',
+    '每次正式任务概况发生受权修改；跨会话续办受影响。',
+    '',
+    '## 证据、日志与附件',
+    '',
+    'Hook lifecycle 与 TaskRecovery V5 readback。',
+    '',
+    '## 临时绕过方式',
+    '',
+    '无。',
+    '',
+    '## 不确定问题与补充信息',
+    '',
+    '无。',
+    '',
+    '## 研发确认状态',
+    '',
+    '已确认。',
+    '',
+    '## 问题真实性与去重（AI）',
+    '',
+    '独立测试夹具。',
+    ''
+  ].join('\n')
+  const beforeCanonicalMutation = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(beforeCanonicalMutation.status, 'fresh')
+  assert.strictEqual(beforeCanonicalMutation.state.taskCanonicalRevision?.source, 'admission-finalized')
+  const initialCanonicalRevision = beforeCanonicalMutation.state.taskCanonicalRevision
+  const canonicalMutationPre = run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r2b-owner-canonical-overview',
+    tool_name: 'Write',
+    tool_input: { file_path: canonicalOverviewPath, content: canonicalOverviewContent }
+  })
+  assert.doesNotMatch(
+    JSON.stringify(canonicalMutationPre),
+    /TASK_WRITE_OWNER_|FENCED_TASK_WRITE_OWNER_|ARTIFACT_RECONCILIATION_REQUIRED/
+  )
+  fs.writeFileSync(canonicalOverviewPath, canonicalOverviewContent)
+  const canonicalMutationPost = run({
+    hookEventName: 'PostToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r2b-owner-canonical-overview',
+    tool_name: 'Write',
+    tool_input: { file_path: canonicalOverviewPath, content: canonicalOverviewContent },
+    success: true
+  })
+  assert.doesNotMatch(JSON.stringify(canonicalMutationPost), /ARTIFACT_MUTATION_NEEDS_RECONCILE/)
+  const afterCanonicalMutation = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(afterCanonicalMutation.status, 'fresh')
+  const advancedCanonicalRevision = afterCanonicalMutation.state.taskCanonicalRevision
+  assert.strictEqual(advancedCanonicalRevision.source, 'authorized-mutation')
+  assert.strictEqual(advancedCanonicalRevision.revision, initialCanonicalRevision.revision + 1)
+  assert.strictEqual(advancedCanonicalRevision.parentRevisionDigest, initialCanonicalRevision.revisionDigest)
+  assert.strictEqual(advancedCanonicalRevision.previousOverviewDigest, initialCanonicalRevision.currentOverviewDigest)
+  assert.strictEqual(
+    advancedCanonicalRevision.currentOverviewDigest,
+    crypto.createHash('sha256').update(canonicalOverviewContent).digest('hex')
+  )
+
   const shellAllowed = run({
     hookEventName: 'PreToolUse',
     session_id: sessionId,

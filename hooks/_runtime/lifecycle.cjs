@@ -65,6 +65,7 @@ const { observeWorkflowCompletionEvent } = require('./lifecycle-workflow-complet
 const { observeContextDeliveryFromPayload } = require('./context-delivery-ledger-v2.cjs')
 const { resolveTaskRecoveryConfigForCwd } = require('./task-recovery-config-v1.cjs')
 const {
+  advanceTaskCanonicalRevision,
   appendTaskRecoveryTelemetry,
   readBoundedResumeIngressCapability,
   readFencedTaskWriteOwner,
@@ -2696,6 +2697,22 @@ function sameResolvedPath(left, right) {
   return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b
 }
 
+function canonicalOverviewPathForState(state) {
+  const transaction = state?.admissionTransaction
+  if (transaction?.phase !== 'finalized' || transaction?.status !== 'finalized') return null
+  const relative = String(
+    transaction.effects?.overview?.file?.file || transaction.effects?.overview?.path || ''
+  ).trim().replace(/\\/g, '/')
+  if (!relative || path.isAbsolute(relative) || /^[A-Za-z]:/.test(relative) ||
+      relative.split('/').some(segment => !segment || segment === '.' || segment === '..')) return null
+  const activeRoot = path.resolve(getActiveNamespaceRoot(state))
+  const taskRoot = path.resolve(activeRoot, ...String(transaction.taskRootRelative || '').split('/'))
+  const candidate = path.resolve(activeRoot, ...relative.split('/'))
+  return isInsideOrSamePath(taskRoot, activeRoot) && isInsideOrSamePath(candidate, taskRoot)
+    ? candidate
+    : null
+}
+
 function isSha256(value) {
   return /^[a-f0-9]{64}$/i.test(String(value || ''))
 }
@@ -4074,6 +4091,12 @@ async function main() {
     }
     let artifactNeedsReconcile = false
     if (artifactDecision && completingMutationOperation) {
+      const canonicalOverviewPath = completingMutationOperation.mutationLease?.ownerKind === 'fenced-task-owner'
+        ? canonicalOverviewPathForState(state)
+        : null
+      const tracksCanonicalOverview = canonicalOverviewPath &&
+        (completingMutationOperation.mutationFootprint?.normalizedTargets || [])
+          .some(target => sameResolvedPath(target, canonicalOverviewPath))
       const toolFailed = payload.success === false || payload.is_error === true || payload.isError === true || !!payload.error
       const postOperationId = lifecycleToolOperationId(payload)
       const authorizationErrors = []
@@ -4101,6 +4124,7 @@ async function main() {
           lease: completingMutationOperation.mutationLease,
           footprint: completingMutationOperation.mutationFootprint,
           preObservation: completingMutationOperation.mutationPreObservation,
+          trackedContentPaths: tracksCanonicalOverview ? [canonicalOverviewPath] : [],
           payload,
           success: !toolFailed && authorizationErrors.length === 0
         })
@@ -4116,6 +4140,7 @@ async function main() {
           leaseDigest: completingMutationOperation.mutationLease?.leaseDigest || null,
           plannedSetDigest: completingMutationOperation.mutationFootprint?.plannedSetDigest || null,
           observedEffects: { created: [], modified: [], deleted: [], moved: [] },
+          trackedContentEvidence: [],
           observationCoverage: 'unavailable',
           nativeExitCode: null,
           drift: [...new Set(authorizationErrors)].sort(),
@@ -4207,7 +4232,7 @@ async function main() {
         const observedEffects = mutationObservation.observedEffects || {}
         const applied = ['created', 'modified', 'deleted', 'moved']
           .some(kind => Array.isArray(observedEffects[kind]) && observedEffects[kind].length > 0)
-        state.turnLiveness = settleTaskOperationRecord(
+        const settledTurnLiveness = settleTaskOperationRecord(
           state.turnLiveness,
           completingMutationOperation.operationId,
           {
@@ -4217,9 +4242,69 @@ async function main() {
             evidenceDigest: mutationObservation.closeout?.closeoutDigest || mutationObservation.receiptDigest
           }
         )
-        state.turnLiveness.lastMutationCloseout = {
+        const settledCloseout = {
           ...lifecycleMutationCloseout,
-          taskOperationRecord: state.turnLiveness.lastTaskOperationRecord
+          taskOperationRecord: settledTurnLiveness.lastTaskOperationRecord
+        }
+        let nextCanonicalRevision = state.taskCanonicalRevision || null
+        if (!needsReconcile && tracksCanonicalOverview) {
+          try {
+            nextCanonicalRevision = advanceTaskCanonicalRevision({
+              ...state,
+              turnLiveness: settledTurnLiveness
+            }, {
+              overviewPath: canonicalOverviewPath,
+              preObservation: completingMutationOperation.mutationPreObservation,
+              observation: mutationObservation,
+              operationRecord: settledTurnLiveness.lastTaskOperationRecord,
+              closeout: mutationObservation.closeout
+            })
+          } catch (error) {
+            needsReconcile = true
+            artifactNeedsReconcile = true
+            lifecycleMutationCloseout.result = 'needs-reconcile'
+            lifecycleMutationCloseout.authorizationErrors = [...new Set([
+              ...lifecycleMutationCloseout.authorizationErrors,
+              error.code || 'task-canonical-revision-advance-failed'
+            ])].sort()
+            if (!reconciliationInput) {
+              try {
+                reconciliationInput = createArtifactMutationReconciliationInput({
+                  operationId: completingMutationOperation.operationId,
+                  footprint: completingMutationOperation.mutationFootprint,
+                  preObservation: completingMutationOperation.mutationPreObservation,
+                  templateBindings: artifactDecision.templateBindings || []
+                })
+              } catch (reconciliationError) {
+                lifecycleMutationCloseout.authorizationErrors = [...new Set([
+                  ...lifecycleMutationCloseout.authorizationErrors,
+                  reconciliationError.code || 'artifact-reconciliation-input-unavailable'
+                ])].sort()
+              }
+            }
+            lifecycleMutationCloseout.reconciliationInput = reconciliationInput
+            state.lastReason = error.code || 'TASK_CANONICAL_REVISION_ADVANCE_FAILED'
+          }
+        }
+        if (needsReconcile) {
+          state.turnLiveness = settleTaskOperationRecord(
+            state.turnLiveness,
+            completingMutationOperation.operationId,
+            {
+              needsReconcile: true,
+              effect: 'unknown',
+              resultDigest: mutationObservation.receiptDigest,
+              evidenceDigest: mutationObservation.closeout?.closeoutDigest || mutationObservation.receiptDigest
+            }
+          )
+          state.turnLiveness.lastMutationCloseout = {
+            ...lifecycleMutationCloseout,
+            taskOperationRecord: state.turnLiveness.lastTaskOperationRecord
+          }
+        } else {
+          state.turnLiveness = settledTurnLiveness
+          state.turnLiveness.lastMutationCloseout = settledCloseout
+          if (tracksCanonicalOverview) state.taskCanonicalRevision = nextCanonicalRevision
         }
       } catch (error) {
         needsReconcile = true

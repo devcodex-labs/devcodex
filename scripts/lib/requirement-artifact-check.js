@@ -98,12 +98,23 @@ function hasFormalTemplateQualificationClaim(filePath) {
   return /(?:templateBindingStatus:\s*qualified-v1|ArtifactTemplateBindingV1)/i.test(head)
 }
 
-function checkArtifactTemplateFile({ slot, filePath, intent = 'dev' }) {
+function inferArtifactWorkflowIntent(filePath) {
+  const head = fs.readFileSync(filePath, 'utf8').slice(0, 8192)
+  const match = head.match(/(?:^|\n)(?:>\s*)?(?:\*\*)?(?:类型|type)(?:\*\*)?\s*[：:]\s*`?([a-z][a-z-]*)/i)
+  const value = String(match?.[1] || '').trim().toLowerCase()
+  return new Set([
+    'analyze', 'analysis', 'audit', 'dev', 'fix', 'self-fix', 'optimization',
+    'optimize', 'scenario-test', 'scenario-tests', 'chat', 'resume', 'other'
+  ]).has(value) ? value : null
+}
+
+function checkArtifactTemplateFile({ slot, filePath, intent = null }) {
   try {
+    const effectiveIntent = intent || inferArtifactWorkflowIntent(filePath) || 'dev'
     const binding = createArtifactTemplateBinding({
       slot,
       target: filePath,
-      intent,
+      intent: effectiveIntent,
       bindingMode: 'runtime-prewrite'
     })
     if (!binding) return { passed: true, issues: [], qualification: null, binding: null }
@@ -369,6 +380,7 @@ module.exports = {
   BUG_FILES,
   REQUIREMENT_FILES,
   SIMPLE_TASK_FAST_PATH_MARKERS,
+  inferArtifactWorkflowIntent,
   checkArtifactTemplateFile,
   checkBugDir,
   checkRequirementDir,

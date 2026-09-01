@@ -2,6 +2,11 @@
 
 const crypto = require('crypto')
 const { digestSessionRef } = require('./workspace-session-route-index-v1.cjs')
+const {
+  createTaskScopedAutoContinuationGrant,
+  transitionTaskScopedAutoContinuationGrant,
+  validateTaskScopedAutoContinuationGrant
+} = require('./task-recovery-store-v5.cjs')
 
 function buildLifecycleProjectTargetUtils({
   fs,
@@ -682,6 +687,7 @@ function buildLifecycleProjectTargetUtils({
     const sessionKey = getPayloadSessionKey(payload)
     const now = Date.now()
     const authorityRef = `auto:${source || 'unknown'}:${sessionKey || 'turn-only'}:${now}`
+    const sourceMessageDigest = crypto.createHash('sha256').update(extractUserPrompt(payload)).digest('hex')
     if (!sessionKey) {
       state.stickyAuto = {
         ...emptyStickyAuto('missing-session'),
@@ -689,7 +695,8 @@ function buildLifecycleProjectTargetUtils({
         kind: kind || 'unknown',
         updatedAt: new Date().toISOString(),
         updatedAtMs: now,
-        authorityRef
+        authorityRef,
+        sourceMessageDigest
       }
       return
     }
@@ -701,6 +708,7 @@ function buildLifecycleProjectTargetUtils({
       updatedAt: new Date().toISOString(),
       updatedAtMs: now,
       authorityRef,
+      sourceMessageDigest,
       reason: ''
     }
   }
@@ -710,19 +718,130 @@ function buildLifecycleProjectTargetUtils({
     state.stickyAuto = emptyStickyAuto(reason || '')
   }
 
+  function formalTaskAutoBinding(state) {
+    const task = state?.taskRecoveryBinding
+    const projectRootIdentityDigest = String(state?.stickyProject?.rootIdentityDigest || '').trim().toLowerCase()
+    if (!task?.taskId || !task.project || !task.taskRoot || !/^[a-f0-9]{64}$/.test(projectRootIdentityDigest)) return null
+    const activeRoot = String(state?.stickyProject?.activeRoot || '').trim()
+    let taskRootRelative = ''
+    if (activeRoot) {
+      const relative = path.relative(path.resolve(activeRoot), path.resolve(task.taskRoot)).replace(/\\/g, '/')
+      if (relative && relative !== '..' && !relative.startsWith('../') && !path.isAbsolute(relative)) taskRootRelative = relative
+    }
+    if (!taskRootRelative) taskRootRelative = `${task.kind || 'requirements'}/${task.displayName || task.taskId}`
+    return {
+      taskId: String(task.taskId).trim().toLowerCase(),
+      project: String(task.project).trim(),
+      projectRootIdentityDigest,
+      taskRootRelative
+    }
+  }
+
+  function revokeTaskScopedAuto(state, reason) {
+    const grant = state?.taskScopedAutoContinuationGrant
+    const validation = validateTaskScopedAutoContinuationGrant(grant)
+    if (!validation.valid || grant.status === 'revoked' || grant.status === 'terminal-consumed') return false
+    state.taskScopedAutoContinuationGrant = transitionTaskScopedAutoContinuationGrant(grant, 'revoked', { reason })
+    state.autoCheckpointDecision = null
+    state.taskScopedAutoStatus = { status: 'revoked', reason: reason || 'user-exit' }
+    return true
+  }
+
+  function createTaskScopedAutoFromAuthorization(state, prompt, authorization, sticky = state?.stickyAuto) {
+    const binding = formalTaskAutoBinding(state)
+    if (!binding || !sticky?.authorityRef) return null
+    try {
+      const grant = createTaskScopedAutoContinuationGrant({
+        ...binding,
+        authorityRef: sticky.authorityRef,
+        sourceMessageDigest: sticky.sourceMessageDigest || crypto.createHash('sha256').update(String(prompt || '')).digest('hex'),
+        allowedScope: {
+          scopeClass: 'same-formal-task',
+          taskRootRelative: binding.taskRootRelative,
+          pathPrefixes: [binding.taskRootRelative],
+          actionClasses: ['checkpoint-confirmation', 'same-task-continuation'],
+          checkpointPhases: ['CP1', 'CP2', 'CP3']
+        },
+        riskCeiling: 'R3'
+      })
+      state.taskScopedAutoContinuationGrant = grant
+      state.autoCheckpointDecision = null
+      state.taskScopedAutoStatus = {
+        status: 'active',
+        source: authorization?.source || sticky.source || 'explicit',
+        reason: 'explicit-task-scoped-auto-authorization'
+      }
+      return grant
+    } catch (error) {
+      state.taskScopedAutoStatus = {
+        status: 'reconfirm-required',
+        reason: String(error.code || 'task-scoped-auto-grant-invalid')
+      }
+      return null
+    }
+  }
+
+  function getValidTaskScopedAuto(state) {
+    const grant = state?.taskScopedAutoContinuationGrant
+    if (!grant) return null
+    const base = validateTaskScopedAutoContinuationGrant(grant)
+    if (!base.valid) {
+      state.taskScopedAutoStatus = { status: 'reconfirm-required', reason: 'grant-invalid' }
+      return null
+    }
+    const binding = formalTaskAutoBinding(state)
+    const expected = binding
+      ? validateTaskScopedAutoContinuationGrant(grant, binding)
+      : { valid: false, errors: ['task-auto-grant-current-binding-unavailable'] }
+    if (!expected.valid) {
+      if (grant.status === 'active') {
+        state.taskScopedAutoContinuationGrant = transitionTaskScopedAutoContinuationGrant(
+          grant,
+          'reconfirm-required',
+          { reason: expected.errors.join(',') || 'task-root-binding-drift' }
+        )
+      }
+      state.autoCheckpointDecision = null
+      state.taskScopedAutoStatus = {
+        status: 'reconfirm-required',
+        reason: expected.errors.join(',') || 'task-root-binding-drift'
+      }
+      return null
+    }
+    if (grant.status !== 'active') {
+      state.taskScopedAutoStatus = { status: grant.status, reason: grant.statusReason || grant.status }
+      return null
+    }
+    state.taskScopedAutoStatus = { status: 'active', source: 'durable-task-grant', reason: '' }
+    return grant
+  }
+
   function detectExecutionMode(payload, state, target) {
     const prompt = extractUserPrompt(payload)
     if (hasAutoExitPrompt(prompt)) {
+      revokeTaskScopedAuto(state, 'user-exit')
       clearStickyAuto(state, 'user-exit')
       return EXECUTION_MODE.CONFIRM
     }
     const auth = resolveAutoAuthorization(prompt, state, target)
     if (auth.authorized) {
       setStickyAuto(state, auth.source, auth.kind, payload)
+      if (!state?.taskRecoveryBinding?.taskId || createTaskScopedAutoFromAuthorization(state, prompt, auth)) {
+        return EXECUTION_MODE.AUTO
+      }
+      return EXECUTION_MODE.CONFIRM
+    }
+    if (getValidTaskScopedAuto(state)) {
       return EXECUTION_MODE.AUTO
     }
     const sticky = getValidStickyAuto(state, payload)
     if (sticky) {
+      if (state?.taskRecoveryBinding?.taskId) {
+        if (createTaskScopedAutoFromAuthorization(state, prompt, { source: sticky.source, kind: 'legacy-sticky' }, sticky)) {
+          return EXECUTION_MODE.AUTO
+        }
+        return EXECUTION_MODE.CONFIRM
+      }
       // Refresh TTL while the same session keeps working under auto.
       state.stickyAuto = {
         ...sticky,
@@ -742,6 +861,26 @@ function buildLifecycleProjectTargetUtils({
     const stickyActive = mode === EXECUTION_MODE.AUTO && sticky.active === true
     const source = sticky.source || (mode === EXECUTION_MODE.AUTO ? 'prompt' : 'none')
     const authority = sticky.authorityRef ? ` authorityRef=${sticky.authorityRef}` : ''
+    const grant = state?.taskScopedAutoContinuationGrant
+    const durableActive = mode === EXECUTION_MODE.AUTO && grant?.status === 'active'
+    const zh = /^zh/i.test(String(state?.languageContext?.responseLanguage || state?.languageContext?.primaryLanguage || ''))
+    if (durableActive) {
+      return zh
+        ? [
+            'ExecutionModeV1: auto',
+            '自动续批：已读取当前正式任务的 TaskScopedAutoContinuationGrantV1；授权不依赖 session 或 TTL。',
+            `grantDigest=${grant.grantDigest}`,
+            '每个 CP 仍须独立冻结候选并生成 AutoCheckpointDecisionV1；只有范围未扩张、风险未增加、无排除副作用且 R3/R4 复审通过才可自动确认。',
+            '删除、E 盘修复、验证执行、安装、commit/push/tag、Release、npm publish、权限或 breaking contract 变化必须重新确认；宿主权限不受本授权影响。',
+            '可用“退出自动模式”撤销。'
+          ].join(' | ')
+        : [
+            'ExecutionModeV1: auto',
+            'Task-scoped automatic continuation is active from TaskScopedAutoContinuationGrantV1 and is independent of session TTL.',
+            `grantDigest=${grant.grantDigest}`,
+            'Each CP still requires a distinct AutoCheckpointDecisionV1; scope/risk growth or excluded side effects require reconfirmation, and host permissions are unchanged.'
+          ].join(' | ')
+    }
     if (mode === EXECUTION_MODE.AUTO) {
       return [
         `ExecutionModeV1: auto`,
@@ -749,6 +888,12 @@ function buildLifecycleProjectTargetUtils({
         `source=${source}${authority}`,
         'CP1/CP2/CP3 auto-pass; do not wait for per-gate user confirmation; S01/S03-S07/C01/C10/C18 not waived; auto whitelist boundary unchanged; exit with 退出auto / exit auto mode'
       ].join(' | ')
+    }
+    if (grant && grant.status !== 'active') {
+      const reason = state?.taskScopedAutoStatus?.reason || grant.statusReason || grant.status
+      return zh
+        ? `ExecutionModeV1: confirm | 自动续批需要重新确认：${reason}。当前授权不会自动覆盖任务/root、范围、风险或排除项变化。`
+        : `ExecutionModeV1: confirm | Task-scoped automatic continuation requires reconfirmation: ${reason}.`
     }
     return [
       'ExecutionModeV1: confirm',

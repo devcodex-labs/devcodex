@@ -7,10 +7,13 @@ const os = require('os')
 const path = require('path')
 const {
   buildWindowsNativeInvocation,
+  installedRuntimeTemplateContractProbe,
   nativeVersionProbe,
   resolveWindowsNativeCommand,
   verifyGlobalHostRuntime
 } = require('./lib/global-host-runtime-verifier.js')
+const { buildRuntimeGeneration } = require('./lib/runtime-generation.js')
+const { listControlDeliveryEntries } = require('./lib/control-content-delivery.js')
 const {
   resolveGlobalHostTarget
 } = require('./lib/global-host-target.js')
@@ -37,6 +40,26 @@ const env = {
   COPILOT_HOME: path.join(home, '.copilot')
 }
 const trustedNodeExecutable = canonicalNodeExecutable()
+const packageRoot = path.resolve(__dirname, '..')
+const runtimeGeneration = buildRuntimeGeneration(packageRoot, fs)
+const runtimePromptEntries = listControlDeliveryEntries(packageRoot, 'prompts', fs)
+
+function installRuntimeTemplateFixture(runtimeRoot) {
+  fs.mkdirSync(path.join(runtimeRoot, 'hooks', '_runtime'), { recursive: true })
+  fs.copyFileSync(
+    path.join(packageRoot, 'hooks', '_runtime', 'artifact-slot-registry.v2.json'),
+    path.join(runtimeRoot, 'hooks', '_runtime', 'artifact-slot-registry.v2.json')
+  )
+  for (const entry of runtimePromptEntries) {
+    const destination = path.join(runtimeRoot, 'prompts', entry.relative)
+    fs.mkdirSync(path.dirname(destination), { recursive: true })
+    fs.writeFileSync(destination, entry.content)
+  }
+  fs.writeFileSync(
+    path.join(runtimeRoot, 'runtime-generation.json'),
+    `${JSON.stringify(runtimeGeneration, null, 2)}\n`
+  )
+}
 
 const nodeSystemBin = path.join(root, 'Program Files', 'nodejs')
 fs.mkdirSync(nodeSystemBin, { recursive: true })
@@ -253,6 +276,7 @@ const hosts = ['copilot', 'claude', 'codex', 'gemini', 'grok', 'cursor'].map(hos
 for (const host of hosts) {
   fs.mkdirSync(path.dirname(host.runtimeEntry), { recursive: true })
   fs.writeFileSync(host.runtimeEntry, '// fixture\n', 'utf8')
+  installRuntimeTemplateFixture(resolveGlobalHostTarget(host.host, { env, home }).runtimeRoot)
 }
 
 const spawnProbe = (command, args) => {
@@ -292,6 +316,7 @@ assert(healthy.hosts.every(host => host.adapterReady))
 assert(healthy.hosts.every(host => host.ready === false))
 assert(healthy.hosts.every(host => host.operationalState === 'unverified'))
 assert.strictEqual(healthy.hosts.find(host => host.host === 'copilot').contractStatus, 'passed')
+assert(healthy.hosts.every(host => host.probes.runtimeTemplates.promptCount === runtimeGeneration.promptAssets.count))
 assert.strictEqual(healthy.hosts.find(host => host.host === 'copilot').nativeStatus, 'unverified')
 const healthyGrok = healthy.hosts.find(host => host.host === 'grok')
 assert.strictEqual(healthyGrok.nativeStatus, 'unverified')
@@ -318,6 +343,39 @@ assert.deepStrictEqual(healthyCursor.variants.map(variant => variant.id), [
   'cursor-cloud-agent'
 ])
 assert.strictEqual(healthyCursor.variants.find(variant => variant.id === 'cursor-cloud-agent').support, 'partial')
+
+const codexRuntimeRoot = resolveGlobalHostTarget('codex', { env, home }).runtimeRoot
+const templateProbePass = installedRuntimeTemplateContractProbe(codexRuntimeRoot, { fs })
+assert.strictEqual(templateProbePass.status, 'passed')
+const requiredTemplateFile = path.join(codexRuntimeRoot, 'prompts', 'technical-design.prompt.md')
+const requiredTemplateContent = fs.readFileSync(requiredTemplateFile)
+fs.unlinkSync(requiredTemplateFile)
+const missingTemplateProbe = installedRuntimeTemplateContractProbe(codexRuntimeRoot, { fs })
+assert.strictEqual(missingTemplateProbe.status, 'failed')
+assert(missingTemplateProbe.issues.some(issue => issue.code === 'RUNTIME_PROMPT_CONTRACT_FAILED'))
+const missingTemplateRuntime = verifyGlobalHostRuntime({
+  configuration: {
+    mode: 'GlobalOnlyHostConfigModeV1',
+    workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
+    packageVersion: 'test',
+    hosts
+  },
+  env,
+  home,
+  fs,
+  spawnSync: spawnProbe
+})
+const missingTemplateCodex = missingTemplateRuntime.hosts.find(host => host.host === 'codex')
+assert.strictEqual(missingTemplateCodex.contractStatus, 'failed')
+assert.strictEqual(missingTemplateCodex.adapterReady, false)
+assert(missingTemplateCodex.issues.some(issue => issue.code === 'RUNTIME_PROMPT_CONTRACT_FAILED'))
+fs.writeFileSync(requiredTemplateFile, requiredTemplateContent)
+fs.appendFileSync(requiredTemplateFile, '\n<!-- tampered installed template -->\n')
+const tamperedTemplateProbe = installedRuntimeTemplateContractProbe(codexRuntimeRoot, { fs })
+assert.strictEqual(tamperedTemplateProbe.status, 'failed')
+assert(tamperedTemplateProbe.evidence.failures.some(item => item.includes('runtime-prompt-file-')))
+fs.writeFileSync(requiredTemplateFile, requiredTemplateContent)
+assert.strictEqual(installedRuntimeTemplateContractProbe(codexRuntimeRoot, { fs }).status, 'passed')
 
 const healthyGrokGlobalHooks = fs.readFileSync(grokTarget.files.hooks, 'utf8')
 const duplicateGrokGlobalHooks = JSON.parse(healthyGrokGlobalHooks)

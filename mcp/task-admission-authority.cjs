@@ -22,6 +22,7 @@ const {
   commitTaskAdmissionReconciliation,
   commitTaskAdmissionTransaction,
   createAdmissionTaskCanonicalRevision,
+  createConfirmedCpEvolutionTaskCanonicalRevision,
   createLegacyTaskCanonicalRevision,
   createResumeTaskCanonicalRevision,
   admissionContinuationLeaseDigest,
@@ -32,6 +33,7 @@ const {
   resolveTaskRecoveryMetaDir,
   taskAdmissionTransactionDigest,
   taskAdmissionReconciliationReceiptDigest,
+  validateTaskAdmissionTransaction,
   validateTaskCanonicalRevision,
   validateBoundedResumeIngressCapability,
   validateAdmissionContinuationLease,
@@ -1692,6 +1694,22 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
   }
 }
 
+function cpConfirmationEvidenceSnapshot(value = {}) {
+  return {
+    phase: value.phase,
+    version: value.version,
+    artifactDigest: value.artifactDigest,
+    artifactPath: value.artifactPath,
+    confirmedAt: value.confirmedAt,
+    sourceMessage: value.sourceMessage
+  }
+}
+
+function sameCpConfirmationEvidence(left, right) {
+  return ['phase', 'version', 'artifactDigest', 'artifactPath', 'confirmedAt', 'sourceMessage']
+    .every(field => left?.[field] === right?.[field])
+}
+
 function observedCpState(transaction, activeRoot, fsImpl = fs) {
   const sessionsPath = path.join(activeRoot, ...transaction.taskRootRelative.split('/'), '.memory', 'sessions.md')
   let sessions
@@ -1720,7 +1738,13 @@ function observedCpState(transaction, activeRoot, fsImpl = fs) {
   const confirmedEvidence = rows.filter(row => row.confirmed).map(row => {
     const evidence = verifyExistingCpConfirmation(row.cells, sessionsPath, activeRoot, fsImpl, {
       phase: row.phase,
-      allowLegacyRecord: transaction.effects?.cpState?.compatibility?.schemaVersion === 'LegacyCpConfirmationCompatibilityV1'
+      // memory_cp_confirm intentionally supports the human-readable HH:mm form.
+      // Once a finalized admission already owns digest-bound CP evidence, accept
+      // that writer format for a successor row while retaining every artifact,
+      // source, overview and lineage check below.
+      allowLegacyRecord: transaction.effects?.cpState?.compatibility?.schemaVersion === 'LegacyCpConfirmationCompatibilityV1' ||
+        (Array.isArray(transaction.effects?.cpState?.confirmedCpEvidence) &&
+          transaction.effects.cpState.confirmedCpEvidence.length > 0)
     })
     return {
       phase: row.phase,
@@ -1734,19 +1758,55 @@ function observedCpState(transaction, activeRoot, fsImpl = fs) {
   const priorEvidence = Array.isArray(transaction.effects?.cpState?.confirmedCpEvidence)
     ? transaction.effects.cpState.confirmedCpEvidence
     : []
+  const priorByPhase = new Map(priorEvidence.map(item => [item.phase, item]))
+  const evolutionChanges = []
   for (const prior of priorEvidence) {
     const current = confirmedEvidence.find(item => item.phase === prior.phase)
-    if (!current || [
-      'version', 'artifactDigest', 'artifactPath', 'sourceMessage', 'confirmedAt'
-    ].some(field => current[field] !== prior[field])) {
+    if (!current) {
       throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'confirmed CP evidence rolled back or changed outside its admission lineage')
     }
+    if (sameCpConfirmationEvidence(current, prior)) continue
+    const isDigestBoundSuccessor = current.artifactPath === prior.artifactPath &&
+      current.version !== prior.version && current.artifactDigest !== prior.artifactDigest &&
+      String(current.confirmedAt || '').trim() && String(current.sourceMessage || '').trim()
+    if (!isDigestBoundSuccessor) {
+      throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'confirmed CP evidence changed without one digest-bound successor candidate')
+    }
+    evolutionChanges.push({
+      kind: 'advanced',
+      phase: current.phase,
+      from: cpConfirmationEvidenceSnapshot(prior),
+      to: cpConfirmationEvidenceSnapshot(current)
+    })
+  }
+  const priorMaxPhase = priorEvidence.reduce((max, item) => Math.max(max, Number(String(item.phase || '').slice(2)) || 0), 0)
+  for (const current of confirmedEvidence) {
+    if (priorByPhase.has(current.phase)) continue
+    const phaseNumber = Number(String(current.phase || '').slice(2)) || 0
+    if (phaseNumber <= priorMaxPhase) {
+      throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'confirmed CP evidence was inserted behind the finalized admission frontier')
+    }
+    evolutionChanges.push({
+      kind: 'added',
+      phase: current.phase,
+      from: null,
+      to: cpConfirmationEvidenceSnapshot(current)
+    })
   }
   const cpChainDigest = digest({
     schemaVersion: 'ConfirmedCpChainV1',
     taskId: transaction.taskId,
     confirmedEvidence
   })
+  const cpEvolutionDigest = evolutionChanges.length
+    ? digest({
+        schemaVersion: 'ConfirmedCpEvolutionEvidenceV1',
+        taskId: transaction.taskId,
+        priorCpChainDigest: transaction.effects?.cpState?.cpChainDigest || null,
+        currentCpChainDigest: cpChainDigest,
+        changes: evolutionChanges
+      })
+    : null
   const cpEvidence = confirmedEvidence.find(item => item.phase === 'CP1') || null
   return {
     cp1Confirmed,
@@ -1755,7 +1815,9 @@ function observedCpState(transaction, activeRoot, fsImpl = fs) {
     cpEvidence,
     confirmedEvidence,
     confirmedPhases: confirmedEvidence.map(item => item.phase),
-    cpChainDigest
+    cpChainDigest,
+    evolutionChanges,
+    cpEvolutionDigest
   }
 }
 
@@ -1763,12 +1825,15 @@ function overviewBindsConfirmedCpEvolution(content, transaction, cp) {
   const text = String(content || '')
   const lines = text.split(/\r?\n/u).map(line => line.trim()).filter(Boolean)
   const taskId = String(transaction.taskId || '').toLowerCase()
-  const later = (cp.confirmedEvidence || []).filter(item => item.phase !== 'CP1')
+  const evolved = (cp.evolutionChanges || [])
+    .filter(item => item.kind === 'advanced' || item.phase !== 'CP1')
+    .map(item => item.to)
+    .filter(Boolean)
   const taskIdentityBound = lines.some(line =>
     /taskidentity/i.test(line) && line.toLowerCase().includes(taskId)
   )
-  if (!later.length || !taskId || !taskIdentityBound) return false
-  return later.every(item => {
+  if (!evolved.length || !taskId || !taskIdentityBound) return false
+  return evolved.every(item => {
     const phase = String(item.phase || '').toLowerCase()
     const version = String(item.version || '')
     const artifactDigest = String(item.artifactDigest || '').toLowerCase()
@@ -1852,14 +1917,37 @@ function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = 
   let canonicalRevision
   if (storedRevision) {
     const revisionValidation = validateTaskCanonicalRevision(storedRevision, transaction)
-    if (!revisionValidation.valid || storedRevision.currentOverviewDigest !== overviewFile.digest) {
+    if (!revisionValidation.valid) {
       throw new TaskAdmissionError(
         'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
         'canonical overview no longer matches its authorized revision lineage',
         { errors: revisionValidation.errors }
       )
     }
-    canonicalRevision = storedRevision
+    if (storedRevision.currentOverviewDigest === overviewFile.digest) {
+      if (cp.evolutionChanges.some(item => item.kind === 'advanced') &&
+          !overviewBindsConfirmedCpEvolution(overviewFile.bytes.toString('utf8'), transaction, cp)) {
+        throw new TaskAdmissionError(
+          'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
+          'digest-bound CP successors are not reflected by the canonical overview'
+        )
+      }
+      canonicalRevision = storedRevision
+    } else if (cp.evolutionChanges.length && cp.cpEvolutionDigest &&
+        (!storedRevision.cpChainDigest || storedRevision.cpChainDigest === transaction.effects?.cpState?.cpChainDigest) &&
+        overviewBindsConfirmedCpEvolution(overviewFile.bytes.toString('utf8'), transaction, cp)) {
+      canonicalRevision = createConfirmedCpEvolutionTaskCanonicalRevision(storedRevision, transaction, {
+        currentOverviewDigest: overviewFile.digest,
+        cpChainDigest: cp.cpChainDigest,
+        sourceEvidenceDigest: cp.cpEvolutionDigest,
+        observedAt: cp.confirmedEvidence[cp.confirmedEvidence.length - 1]?.confirmedAt || storedRevision.updatedAt
+      })
+    } else {
+      throw new TaskAdmissionError(
+        'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
+        'canonical overview changed without a matching digest-bound CP successor lineage'
+      )
+    }
   } else if (overviewFile.digest === transaction.effects?.overview?.contentDigest) {
     canonicalRevision = createAdmissionTaskCanonicalRevision(transaction)
   } else if (overviewBindsConfirmedCpEvolution(overviewFile.bytes.toString('utf8'), transaction, cp)) {
@@ -1902,6 +1990,151 @@ function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = 
   }
 }
 
+function readFormalTaskExecutionReadiness(rawInput = {}, options = {}) {
+  const fsImpl = options.fs || fs
+  const activeRoot = path.resolve(String(rawInput.activeRoot || ''))
+  const project = String(rawInput.project || '').trim()
+  const taskId = String(rawInput.taskId || '').trim().toLowerCase()
+  if (!activeRoot || !project || !UUID_RE.test(taskId)) {
+    throw new TaskAdmissionError(
+      'FORMAL_TASK_EXECUTION_PREFLIGHT_IDENTITY_INVALID',
+      'formal task execution preflight requires one exact activeRoot, project and taskId'
+    )
+  }
+  const identity = { activeRoot, project, taskId, taskStatus: 'active' }
+  const metaDir = rawInput.metaDir || resolveTaskRecoveryMetaDir({ activeRoot, project })
+  const ownerRead = readFencedTaskWriteOwner({ metaDir, identity }, { fs: fsImpl })
+  if (ownerRead.source !== 'primary' || ownerRead.status !== 'fresh' ||
+      !ownerRead.transaction || !ownerRead.owner) {
+    throw new TaskAdmissionError(
+      ownerRead.errorCode || 'FORMAL_TASK_EXECUTION_PREFLIGHT_STATE_UNAVAILABLE',
+      'formal task execution preflight requires the current primary admission and fenced owner'
+    )
+  }
+  const transaction = ownerRead.transaction
+  const owner = ownerRead.owner
+  const transactionValidation = validateTaskAdmissionTransaction(transaction, identity)
+  if (!transactionValidation.valid) {
+    throw new TaskAdmissionError(
+      'FORMAL_TASK_EXECUTION_PREFLIGHT_ADMISSION_INVALID',
+      'formal task execution preflight found an invalid primary admission transaction',
+      { errors: transactionValidation.errors }
+    )
+  }
+  if (transaction.phase !== 'finalized' || transaction.status !== 'finalized') {
+    throw new TaskAdmissionError(
+      transaction.phase === 'terminal-closeout'
+        ? 'FORMAL_TASK_EXECUTION_PREFLIGHT_TASK_TERMINAL'
+        : 'FORMAL_TASK_EXECUTION_PREFLIGHT_RESUME_NOT_READY',
+      'formal task execution preflight requires one finalized, resumable admission'
+    )
+  }
+  const admittedOwner = transaction.effects?.owner
+  const admissionOwnerLeaseDigest = transaction.continuationLease?.ownerLeaseDigest || admittedOwner?.leaseDigest
+  if (transaction.taskId !== taskId || transaction.project !== project ||
+      owner.taskId !== taskId || owner.status !== 'active' ||
+      owner.projectRootIdentity !== transaction.projectRootIdentityDigest ||
+      admittedOwner?.status !== 'fenced' ||
+      !Number.isInteger(admittedOwner.ownerGeneration) ||
+      owner.ownerGeneration < admittedOwner.ownerGeneration ||
+      !DIGEST_RE.test(String(admittedOwner.leaseDigest || '')) ||
+      !DIGEST_RE.test(String(admissionOwnerLeaseDigest || '')) ||
+      admissionOwnerLeaseDigest !== admittedOwner.leaseDigest) {
+    throw new TaskAdmissionError(
+      'FORMAL_TASK_EXECUTION_PREFLIGHT_OWNER_MISMATCH',
+      'formal task execution preflight found a task, project or fenced-owner lineage mismatch'
+    )
+  }
+  const expectedOwnerSessionDigest = String(rawInput.expectedOwnerSessionDigest || '').trim()
+  if (!DIGEST_RE.test(expectedOwnerSessionDigest)) {
+    throw new TaskAdmissionError(
+      'FORMAL_TASK_EXECUTION_PREFLIGHT_OWNER_SESSION_REQUIRED',
+      'formal task execution preflight requires the current host session digest'
+    )
+  }
+  if (expectedOwnerSessionDigest !== owner.sessionDigest) {
+    throw new TaskAdmissionError(
+      'FORMAL_TASK_EXECUTION_PREFLIGHT_OWNER_SESSION_MISMATCH',
+      'formal task execution preflight host session does not hold the current fenced owner'
+    )
+  }
+  const expectedProjectRootIdentityDigest = String(rawInput.projectRootIdentityDigest || '').trim()
+  if (expectedProjectRootIdentityDigest &&
+      expectedProjectRootIdentityDigest !== transaction.projectRootIdentityDigest) {
+    throw new TaskAdmissionError(
+      'FORMAL_TASK_EXECUTION_PREFLIGHT_PROJECT_ROOT_DRIFT',
+      'formal task execution preflight project/root identity no longer matches the admitted task'
+    )
+  }
+  const taskState = rawInput.taskState
+  if (taskState && typeof taskState === 'object') {
+    const binding = taskState.taskRecoveryBinding
+    if (binding && (String(binding.taskId || '').trim().toLowerCase() !== taskId ||
+        String(binding.project || '').trim() !== project)) {
+      throw new TaskAdmissionError(
+        'FORMAL_TASK_EXECUTION_PREFLIGHT_TASK_BINDING_DRIFT',
+        'formal task execution preflight task recovery binding no longer matches the primary task'
+      )
+    }
+    const projectedTransaction = taskState.admissionTransaction
+    if (projectedTransaction?.transactionDigest &&
+        projectedTransaction.transactionDigest !== transaction.transactionDigest) {
+      throw new TaskAdmissionError(
+        'FORMAL_TASK_EXECUTION_PREFLIGHT_ADMISSION_DRIFT',
+        'formal task execution preflight lifecycle projection is stale relative to the primary admission'
+      )
+    }
+    const projectedOwner = taskState.fencedWriteOwner
+    if (projectedOwner?.leaseDigest && projectedOwner.leaseDigest !== owner.leaseDigest) {
+      throw new TaskAdmissionError(
+        'FORMAL_TASK_EXECUTION_PREFLIGHT_OWNER_DRIFT',
+        'formal task execution preflight lifecycle projection is stale relative to the primary fenced owner'
+      )
+    }
+  }
+  const canonical = readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl, {
+    state: ownerRead.state
+  })
+  const requiredCpPhases = [...new Set(
+    (Array.isArray(rawInput.requiredCpPhases) ? rawInput.requiredCpPhases : ['CP2', 'CP3'])
+      .map(value => String(value || '').trim().toUpperCase())
+      .filter(value => ['CP1', 'CP2', 'CP3'].includes(value))
+  )]
+  const evidenceByPhase = new Map(
+    (canonical.confirmedCpEvidence || []).map(item => [String(item.phase || '').toUpperCase(), item])
+  )
+  const missingCpPhases = requiredCpPhases.filter(phase => !evidenceByPhase.has(phase))
+  if (missingCpPhases.length) {
+    throw new TaskAdmissionError(
+      'FORMAL_TASK_EXECUTION_PREFLIGHT_CP_DRIFT',
+      'formal task execution preflight requires current digest-bound CP2/CP3 evidence',
+      { missingCpPhases, confirmedCpPhases: [...evidenceByPhase.keys()] }
+    )
+  }
+  return Object.freeze({
+    schemaVersion: 'FormalTaskExecutionAuthorityReadV1',
+    status: 'ready',
+    taskId,
+    project,
+    projectRootIdentityDigest: transaction.projectRootIdentityDigest,
+    admissionId: transaction.admissionId,
+    admissionGeneration: Number(transaction.admissionGeneration || 1),
+    admissionDigest: transaction.transactionDigest,
+    ownerLeaseDigest: owner.leaseDigest,
+    canonicalOverviewDigest: canonical.canonicalOverviewDigest,
+    canonicalRevisionDigest: canonical.canonicalRevisionDigest,
+    cpChainDigest: canonical.cpChainDigest,
+    currentCpDigests: Object.fromEntries(requiredCpPhases.map(phase => [
+      phase,
+      evidenceByPhase.get(phase).artifactDigest
+    ])),
+    requiredCpPhases,
+    resumeReadiness: 'canonical-ready',
+    confirmationReachability: 'next-turn-card-confirmation',
+    mutationAuthority: false
+  })
+}
+
 function refreshFinalizedCpObservation(transaction, activeRoot, nowMs, fsImpl = fs) {
   if (transaction?.phase !== 'finalized') return transaction
   const cp = observedCpState(transaction, activeRoot, fsImpl)
@@ -1935,6 +2168,198 @@ function finalizeAdmission(metaDir, identity, hostSessionDigest, transaction, no
     throw new TaskAdmissionError(commit.errorCode || 'TASK_ADMISSION_FINALIZE_FAILED', commit.message || 'admission finalize failed', commit)
   }
   return finalized
+}
+
+function admissionFinalizationBindingDigest(transaction) {
+  const comparable = clone(transaction)
+  delete comparable.phase
+  delete comparable.status
+  delete comparable.updatedAt
+  delete comparable.transactionDigest
+  return digestValue(comparable)
+}
+
+function recoverOwnerFencedAdmissionForResume(rawInput = {}, options = {}) {
+  const fsImpl = options.fs || fs
+  const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
+  const input = {
+    ...rawInput,
+    operation: String(rawInput.operation || '').trim(),
+    activeRoot: path.resolve(String(rawInput.activeRoot || '')),
+    project: String(rawInput.project || '').trim(),
+    task: {
+      ...(rawInput.task || {}),
+      taskId: String(rawInput.task?.taskId || '').trim().toLowerCase(),
+      taskRootRelative: String(rawInput.task?.taskRootRelative || '').trim().replace(/\\/g, '/')
+    }
+  }
+  validateIngress(input, { nowMs })
+  if (!['bind', 'adopt'].includes(input.operation) || input.task.entryVariant !== 'continue' ||
+      input.workflowRouteDecision.topIntent !== 'resume' || input.workflowRouteDecision.routeKey !== 'resume' ||
+      input.workflowRouteDecision.stage !== 'rehydrate') {
+    throw new TaskAdmissionError(
+      'OWNER_FENCED_ADMISSION_RECOVERY_REQUEST_INVALID',
+      'owner-fenced recovery requires bind/adopt + continue on the exact resume/rehydrate route'
+    )
+  }
+  if (!UUID_RE.test(input.task.taskId)) {
+    throw new TaskAdmissionError('OWNER_FENCED_ADMISSION_RECOVERY_TASK_INVALID', 'owner-fenced recovery requires the exact taskId')
+  }
+
+  const plan = existingIdentityPlan(input, { fs: fsImpl })
+  const identity = {
+    activeRoot: input.activeRoot,
+    project: input.project,
+    taskId: input.task.taskId,
+    taskStatus: 'active'
+  }
+  const metaDir = rawInput.metaDir || resolveTaskRecoveryMetaDir({
+    activeRoot: input.activeRoot,
+    project: input.project
+  })
+  const ownerRead = readFencedTaskWriteOwner({ metaDir, identity }, { fs: fsImpl })
+  if (ownerRead.source !== 'primary' || ownerRead.status !== 'fresh' || !ownerRead.transaction || !ownerRead.owner) {
+    throw new TaskAdmissionError(
+      ownerRead.errorCode || 'OWNER_FENCED_ADMISSION_RECOVERY_STATE_UNAVAILABLE',
+      'owner-fenced recovery requires the exact primary admission and fenced owner'
+    )
+  }
+  const transaction = ownerRead.transaction
+  const alreadyFinalized = transaction.phase === 'finalized' && transaction.status === 'finalized'
+  if (!alreadyFinalized && (transaction.phase !== 'owner-fenced' || transaction.status !== 'admitting')) {
+    throw new TaskAdmissionError(
+      transaction.phase === 'terminal-closeout'
+        ? 'OWNER_FENCED_ADMISSION_RECOVERY_TERMINAL'
+        : 'OWNER_FENCED_ADMISSION_RECOVERY_PHASE_INVALID',
+      'owner-fenced recovery only accepts one non-terminal admission stopped after the owner fence'
+    )
+  }
+  const exactTask = transaction.project === input.project &&
+    transaction.projectRootIdentityDigest === input.projectTargetLease.rootIdentityDigest &&
+    transaction.taskId === input.task.taskId && transaction.taskKind === input.task.taskKind &&
+    transaction.taskRootRelative === input.task.taskRootRelative &&
+    transaction.taskIdentityDigest === plan.identity.identityDigest &&
+    transaction.admissionPolicyRevision === ADMISSION_POLICY_REVISION
+  if (!exactTask) {
+    throw new TaskAdmissionError(
+      'OWNER_FENCED_ADMISSION_RECOVERY_TASK_MISMATCH',
+      'current project lease, task identity or canonical task root does not match the fenced admission'
+    )
+  }
+  const owner = ownerRead.owner
+  const exactOwner = owner.status === 'active' && owner.taskId === transaction.taskId &&
+    owner.projectRootIdentity === transaction.projectRootIdentityDigest &&
+    transaction.effects?.owner?.status === 'fenced' &&
+    transaction.effects.owner.ownerGeneration === owner.ownerGeneration &&
+    transaction.effects.owner.leaseDigest === owner.leaseDigest
+  const continuation = transaction.continuationLease || null
+  const continuationConsumedByOwner = !continuation || (
+    continuation.status === 'consumed' && continuation.ownerLeaseDigest === owner.leaseDigest
+  )
+  if (!exactOwner || !continuationConsumedByOwner) {
+    throw new TaskAdmissionError(
+      'OWNER_FENCED_ADMISSION_RECOVERY_OWNER_MISMATCH',
+      'the fenced owner or consumed continuation no longer matches the admission effects'
+    )
+  }
+
+  const taskRoot = path.join(input.activeRoot, ...transaction.taskRootRelative.split('/'))
+  const overviewPath = path.join(taskRoot, overviewName(transaction.taskKind, transaction.entryVariant))
+  const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
+  const productSourcePath = transaction.entryVariant === 'product-provided'
+    ? path.join(taskRoot, '01-产品需求.md')
+    : null
+  let overviewContent
+  let productSourceContent = ''
+  try { overviewContent = fsImpl.readFileSync(overviewPath, 'utf8') } catch (error) {
+    throw new TaskAdmissionError('OWNER_FENCED_ADMISSION_RECOVERY_CANONICAL_DRIFT', 'canonical overview is unavailable', { cause: error.code })
+  }
+  if (String(input.overview?.content || '') !== overviewContent) {
+    throw new TaskAdmissionError(
+      'OWNER_FENCED_ADMISSION_RECOVERY_CANONICAL_DRIFT',
+      'resume overview must exactly reproduce the current canonical overview'
+    )
+  }
+  if (productSourcePath) {
+    try { productSourceContent = fsImpl.readFileSync(productSourcePath, 'utf8') } catch (error) {
+      throw new TaskAdmissionError('OWNER_FENCED_ADMISSION_RECOVERY_CANONICAL_DRIFT', 'canonical product source is unavailable', { cause: error.code })
+    }
+  }
+  verifyAdmissionReadback(input, plan, transaction, {
+    taskRoot,
+    overviewPath,
+    overviewContent,
+    productSourcePath,
+    productSourceContent,
+    sessionsPath
+  }, fsImpl, { allowLegacyRecord: plan.legacyCpCompatibility === true })
+
+  const finalized = alreadyFinalized
+    ? transaction
+    : nextTransaction(transaction, 'finalized', '', null, nowMs)
+  const canonical = readFinalizedResumeCanonicalEvidence(finalized, input.activeRoot, fsImpl, {
+    state: ownerRead.state
+  })
+  if (canonical.canonicalOverviewContent !== overviewContent) {
+    throw new TaskAdmissionError(
+      'OWNER_FENCED_ADMISSION_RECOVERY_CANONICAL_DRIFT',
+      'canonical overview changed during owner-fenced recovery readback'
+    )
+  }
+  if (alreadyFinalized) {
+    return {
+      schemaVersion: 'OwnerFencedAdmissionRecoveryReceiptV1',
+      status: 'already-finalized',
+      taskId: transaction.taskId,
+      admissionId: transaction.admissionId,
+      priorTransactionDigest: transaction.transactionDigest,
+      transactionDigest: transaction.transactionDigest,
+      ownerRef: ownerRef(ownerRead.owner),
+      canonicalOverviewDigest: canonical.canonicalOverviewDigest,
+      cpChainDigest: canonical.cpChainDigest,
+      replayed: true,
+      mutationAuthority: false
+    }
+  }
+  const priorBindingDigest = admissionFinalizationBindingDigest(transaction)
+  const commit = commitTaskAdmissionTransaction({
+    metaDir,
+    identity,
+    hostSessionDigest: input.actualInstructionEnvelope.hostSessionDigest,
+    transaction: finalized,
+    expectedPreviousPhase: 'owner-fenced'
+  }, { fs: fsImpl, nowMs, ...options.storeOptions })
+  const after = readFencedTaskWriteOwner({ metaDir, identity }, { fs: fsImpl })
+  const converged = after.source === 'primary' && after.status === 'fresh' &&
+    after.transaction?.phase === 'finalized' && after.transaction?.status === 'finalized' &&
+    admissionFinalizationBindingDigest(after.transaction) === priorBindingDigest &&
+    exactOwnerRefMatches(after.owner, ownerRef(owner))
+  if (!['committed', 'semantic-noop'].includes(commit.status) && !converged) {
+    throw new TaskAdmissionError(
+      commit.errorCode || 'OWNER_FENCED_ADMISSION_RECOVERY_CAS_LOST',
+      commit.message || 'owner-fenced admission changed before finalization',
+      { commit }
+    )
+  }
+  if (!converged) {
+    throw new TaskAdmissionError(
+      'OWNER_FENCED_ADMISSION_RECOVERY_READBACK_FAILED',
+      'owner-fenced finalization did not preserve the exact admission and owner binding'
+    )
+  }
+  return {
+    schemaVersion: 'OwnerFencedAdmissionRecoveryReceiptV1',
+    status: commit.status === 'committed' ? 'recovered' : 'concurrent-replay',
+    taskId: after.transaction.taskId,
+    admissionId: after.transaction.admissionId,
+    priorTransactionDigest: transaction.transactionDigest,
+    transactionDigest: after.transaction.transactionDigest,
+    ownerRef: ownerRef(after.owner),
+    canonicalOverviewDigest: canonical.canonicalOverviewDigest,
+    cpChainDigest: canonical.cpChainDigest,
+    replayed: commit.status !== 'committed',
+    mutationAuthority: false
+  }
 }
 
 function taskWriteOwnerReceipt(operation, transaction, owner, replayed = false, nowMs = Date.now()) {
@@ -2279,6 +2704,8 @@ function executeFinalizedTaskResumeV3({
     transaction: nextTransactionValue,
     owner: nextOwner,
     canonicalRevision: nextCanonicalRevision,
+    targetSessionDigest: input.projectTargetLease.authorityDigest,
+    targetContextEpoch: input.actualInstructionEnvelope.contextEpoch,
     verifyCanonical: (currentTransaction, _currentOwner, state) =>
       readFinalizedResumeCanonicalEvidence(currentTransaction, input.activeRoot, fsImpl, { state })
   }, { fs: fsImpl, nowMs, ...options.storeOptions })
@@ -2854,9 +3281,11 @@ module.exports = {
   deterministicTaskId,
   executeTaskAdmission,
   recoverTaskAdmissionTransaction,
+  recoverOwnerFencedAdmissionForResume,
   executeTaskWriteOwner,
   executeWorkflowTaskTerminal,
   readCanonicalTaskWriteContext,
+  readFormalTaskExecutionReadiness,
   readFinalizedResumeCanonicalEvidence,
   reconcileWorkflowTaskTerminal,
   validateProjectTargetLease

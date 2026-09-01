@@ -4,7 +4,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { collectRuntimeScriptDeps } = require('./runtime-dependency-closure.js')
-const { resolveControlAsset } = require('./control-content-delivery.js')
+const { listControlDeliveryEntries, resolveControlAsset } = require('./control-content-delivery.js')
 const { getRuntimeContractDigest } = require('../../hooks/_runtime/skill-route-mode.cjs')
 
 const RUNTIME_GENERATION_SCHEMA = 'RuntimeGenerationManifestV1'
@@ -16,6 +16,7 @@ const SOURCE_ROOTS = Object.freeze([
   'hooks/_runtime',
   'mcp'
 ])
+const RUNTIME_PROMPT_ASSET_SCHEMA = 'RuntimePromptAssetManifestV1'
 
 function portable (value) {
   return String(value || '').replace(/\\/g, '/')
@@ -66,12 +67,46 @@ function generationCreationMetadata (root, version, fsImpl = fs) {
   return { createdAt: null, authority: 'unreleased' }
 }
 
+function collectRuntimePromptAssets (packageRoot, fsImpl = fs) {
+  const root = path.resolve(packageRoot)
+  const delivered = listControlDeliveryEntries(root, 'prompts', fsImpl)
+  const entries = delivered === null
+    ? walkFiles(resolveControlAsset(root, 'prompts', fsImpl), fsImpl).map(file => ({
+        relative: portable(path.relative(resolveControlAsset(root, 'prompts', fsImpl), file)),
+        content: fsImpl.readFileSync(file)
+      }))
+    : delivered.map(entry => ({ relative: portable(entry.relative), content: entry.content }))
+  const files = entries
+    .map(entry => {
+      const content = Buffer.isBuffer(entry.content) ? entry.content : Buffer.from(String(entry.content))
+      return {
+        path: `prompts/${portable(entry.relative)}`,
+        digest: hash(content),
+        bytes: content.length
+      }
+    })
+    .sort((left, right) => left.path.localeCompare(right.path))
+  if (!files.length || files.some(file => !/^prompts\/[A-Za-z0-9._/-]+\.prompt\.md$/.test(file.path))) {
+    const error = new Error('RUNTIME_PROMPT_ASSETS_INVALID: canonical Prompt delivery set is empty or unsafe')
+    error.code = 'RUNTIME_PROMPT_ASSETS_INVALID'
+    throw error
+  }
+  const semantic = {
+    schemaVersion: RUNTIME_PROMPT_ASSET_SCHEMA,
+    root: 'prompts',
+    count: files.length,
+    files
+  }
+  return Object.freeze({ ...semantic, digest: hash(JSON.stringify(semantic)) })
+}
+
 function buildRuntimeGeneration (packageRoot, fsImpl = fs) {
   const root = path.resolve(packageRoot)
   const packageJson = JSON.parse(fsImpl.readFileSync(path.join(root, 'package.json'), 'utf8'))
   const instructionRoot = resolveControlAsset(root, 'instructions', fsImpl)
   const skillRoot = resolveControlAsset(root, 'skills', fsImpl)
   const instructionEntry = resolveControlAsset(root, 'instructions.md', fsImpl)
+  const promptAssets = collectRuntimePromptAssets(root, fsImpl)
   const closureFiles = collectRuntimeScriptDeps(root, { fs: fsImpl })
     .map(relative => path.join(root, ...relative.split('/')))
   const files = [...new Set([
@@ -84,7 +119,8 @@ function buildRuntimeGeneration (packageRoot, fsImpl = fs) {
   const sourceEntries = files.map(file => ({
     path: portable(path.relative(root, file)),
     digest: hash(fsImpl.readFileSync(file))
-  }))
+  })).concat(promptAssets.files.map(file => ({ path: file.path, digest: file.digest })))
+    .sort((left, right) => left.path.localeCompare(right.path))
   const filesDigest = hash(JSON.stringify(sourceEntries))
   const runtimeContractDigest = getRuntimeContractDigest({
     fs: fsImpl,
@@ -107,6 +143,7 @@ function buildRuntimeGeneration (packageRoot, fsImpl = fs) {
     runtimeRetentionProtocolVersion: RUNTIME_RETENTION_PROTOCOL_VERSION,
     runtimeContractDigest,
     filesDigest,
+    promptAssetsDigest: promptAssets.digest,
     createdAt
   }))
   const generationId = `${safeVersion(packageJson.version)}-${sourceDigest.slice(0, 16)}`
@@ -118,6 +155,7 @@ function buildRuntimeGeneration (packageRoot, fsImpl = fs) {
     runtimeContractVersion: RUNTIME_CONTRACT_VERSION,
     runtimeRetentionProtocolVersion: RUNTIME_RETENTION_PROTOCOL_VERSION,
     runtimeContractDigest,
+    promptAssets,
     sourceDigest,
     filesDigest,
     fileCount: sourceEntries.length,
@@ -142,7 +180,9 @@ module.exports = {
   RUNTIME_CONTRACT_VERSION,
   RUNTIME_GENERATION_SCHEMA,
   RUNTIME_RETENTION_PROTOCOL_VERSION,
+  RUNTIME_PROMPT_ASSET_SCHEMA,
   SOURCE_ROOTS,
   buildRuntimeGeneration,
+  collectRuntimePromptAssets,
   runtimeGenerationDirectoryName
 }

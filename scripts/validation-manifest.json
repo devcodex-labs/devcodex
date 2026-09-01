@@ -159,7 +159,8 @@
         "scripts/test-content-identity.js",
         "scripts/test-derived-state-lock-concurrency.js",
         "scripts/test-skill-route-*.js",
-        "scripts/probe-skill-route-s15-host.js"
+        "scripts/probe-skill-route-s15-host.js",
+        "skills/_schemas/**"
       ],
       "nodes": [
         "content-identity",
@@ -176,7 +177,8 @@
         "workflow-plan-decision",
         "language-context",
         "hooks-runtime",
-        "host-adapters"
+        "host-adapters",
+        "global-host-config"
       ],
       "enforceForMatchingInputs": true
     },
@@ -200,7 +202,8 @@
         "memory-index",
         "profile-section-selector",
         "mcp-servers",
-        "workflow-plan-decision"
+        "workflow-plan-decision",
+        "global-host-config"
       ],
       "enforceForMatchingInputs": true
     },
@@ -283,7 +286,7 @@
       "package-compatibility-projection": { "consumerEdgeType": "releaseConsumer", "minimumLevel": "V2" },
       "critical-coverage": { "consumerEdgeType": "releaseConsumer" },
       "pack-clean": { "consumerEdgeType": "releaseConsumer", "minimumLevel": "V2", "heavy": true },
-      "global-host-config": { "consumerEdgeType": "releaseConsumer", "heavy": true },
+      "global-host-config": { "consumerEdgeType": "releaseConsumer", "minimumLevel": "V2", "heavy": true },
       "global-host-removal": { "consumerEdgeType": "releaseConsumer", "heavy": true },
       "global-install-smoke": { "consumerEdgeType": "releaseConsumer", "heavy": true },
       "mcp-runtime-closure": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V2" },
@@ -1309,17 +1312,14 @@
         "skill-intents"
       ],
       "inputs": [
-        "hooks/_runtime/global-skill-runtime-root.cjs",
-        "hooks/_runtime/runtime-skill-identity-index.cjs",
-        "hooks/_runtime/model-skill-catalog.cjs",
-        "hooks/_runtime/progressive-skill-plan.cjs",
-        "hooks/_runtime/progressive-skill-route-contract.cjs",
-        "hooks/_runtime/skill-route-mode.cjs",
-        "hooks/_runtime/host-skill-route-capabilities.v1.json",
-        "hooks/_runtime/evidence/*.json",
-        "hooks/_runtime/workflow-root-registry.cjs",
-        "hooks/_runtime/workflow-root-registry.v1.json",
+        "hooks/_runtime/**",
+        "mcp/profile-server.js",
+        "mcp/memory-server.js",
+        "mcp/stdio-jsonrpc.cjs",
         "skills/_schemas/**",
+        "scripts/lib/host-skill-route-capability.js",
+        "scripts/refresh-host-skill-route-capability.js",
+        "scripts/test-host-skill-route-capability.js",
         "scripts/test-skill-route-contracts.js"
       ],
       "consumers": [
@@ -1572,9 +1572,14 @@
       ],
       "inputs": [
         "package.json",
-        "hooks/_runtime/host-skill-route-capabilities.v1.json",
-        "hooks/_runtime/evidence/*.json",
-        "hooks/_runtime/skill-route-mode.cjs",
+        "hooks/_runtime/**",
+        "mcp/profile-server.js",
+        "mcp/memory-server.js",
+        "mcp/stdio-jsonrpc.cjs",
+        "skills/_schemas/**",
+        "scripts/lib/host-skill-route-capability.js",
+        "scripts/refresh-host-skill-route-capability.js",
+        "scripts/test-host-skill-route-capability.js",
         "scripts/lib/narrative-markdown-policy.js",
         "scripts/fixtures/skill-route-closure-trace.v1.json",
         "scripts/test-skill-route-closure.js"
@@ -2126,6 +2131,7 @@
       "inputs": [
         "hooks/_runtime/workflow-completion-contract.cjs",
         "hooks/_runtime/task-recovery-store-v5.cjs",
+        "mcp/task-admission-authority.cjs",
         "scripts/lib/validation-execution-authority.js",
         "scripts/lib/validation-evidence-store.js",
         "scripts/lib/managed-validation-runner.js",
@@ -2133,6 +2139,7 @@
         "scripts/fixtures/managed-validation-worker-fixture.js",
         "scripts/test-validation-execution-authority.js",
         "scripts/test-validation-budget-control.js",
+        "scripts/test-task-admission-authority.js",
         "scripts/lib/validation-dag.js",
         "scripts/run-validation.js",
         "package.json"
@@ -2146,7 +2153,13 @@
         "managed-cancellation",
         "stable-terminal-cardinality",
         "immutable-budget-root",
-        "bounded-continuation-authorization"
+        "bounded-continuation-authorization",
+        "digest-bound-validation-successor",
+        "successor-parent-pending-to-root-atomic-cas",
+        "successor-scope-risk-side-effect-budget-non-expansion",
+        "legacy-truncated-successor-fail-closed",
+        "formal-task-preflight-before-card-or-execution",
+        "formal-task-preflight-zero-write-on-block"
       ],
       "riskClass": "high",
       "cachePolicy": "never",
@@ -2163,7 +2176,9 @@
         "timeout": "ETIMEDOUT"
       },
       "evidenceArtifacts": [
-        "ValidationExecutionReceiptV3"
+        "ValidationExecutionReceiptV3",
+        "FormalTaskExecutionPreflightV1",
+        "ValidationBudgetSuccessorDecisionV1"
       ]
     },
     {
@@ -2479,6 +2494,7 @@
         "hooks/_runtime/windows-fs-retry.cjs",
         "hooks/_runtime/lifecycle.cjs",
         "hooks/_runtime/lifecycle-bootstrap-state.cjs",
+        "hooks/_runtime/lifecycle-project-target.cjs",
         "hooks/_runtime/lifecycle-turn-liveness.cjs",
         "hooks/_runtime/lifecycle-workflow-completion.cjs",
         "scripts/test-task-recovery-store-v5.js",
@@ -2497,7 +2513,11 @@
         "bounded-write-amplification",
         "semantic-noop",
         "emergency-closeout",
-        "legacy-retention"
+        "legacy-retention",
+        "task-scoped-auto-exact-root-binding",
+        "task-scoped-auto-cross-session-retention",
+        "task-scoped-auto-terminal-consumption",
+        "task-scoped-auto-no-host-permission-authority"
       ],
       "riskClass": "high",
       "cachePolicy": "never",
@@ -2514,7 +2534,9 @@
       },
       "evidenceArtifacts": [
         "ValidationExecutionReceiptV1",
-        "TaskRecoveryStoreV5"
+        "TaskRecoveryStoreV5",
+        "TaskScopedAutoContinuationGrantV1",
+        "AutoCheckpointDecisionV1"
       ]
     },
     {
@@ -2540,6 +2562,8 @@
         "scripts/lib/global-host-config.js",
         "scripts/lib/runtime-generation.js",
         "scripts/lib/runtime-generation-retention.js",
+        "prompts/**",
+        "content/prompts/**",
         "scripts/test-runtime-generation-retention.js"
       ],
       "consumers": [
@@ -4039,6 +4063,8 @@
         "content/prompts/plan-review.prompt.md",
         "hooks/_runtime/artifact-template-contract.cjs",
         "hooks/_runtime/artifact-slot-registry.v2.json",
+        "prompts/**",
+        "content/prompts/**",
         "scripts/lib/requirement-artifact-check.js",
         "scripts/test-requirement-artifacts.js"
       ],
@@ -4515,6 +4541,8 @@
         "mcp/**",
         "hooks/_runtime/artifact-template-contract.cjs",
         "hooks/_runtime/artifact-slot-registry.v2.json",
+        "prompts/**",
+        "content/prompts/**",
         "scripts/test-artifact-link-projection.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-v1178-batch-d.js",
@@ -4921,6 +4949,7 @@
         "scripts/test-execution-chain-controls.js",
         "scripts/lib/validate-execution-chain-controls.js",
         "hooks/_runtime/workflow-completion-contract.cjs",
+        "hooks/_runtime/task-recovery-store-v5.cjs",
         "hooks/_runtime/lifecycle-workflow-completion.cjs",
         "skills/compliance/workflow-completion.schema.json",
         "scripts/lib/validate-workflow-completion-controls.js",
@@ -4967,6 +4996,7 @@
       "inputs": [
         "hooks/_runtime/content-identity.cjs",
         "hooks/_runtime/workflow-completion-contract.cjs",
+        "hooks/_runtime/task-recovery-store-v5.cjs",
         "hooks/_runtime/lifecycle-workflow-completion.cjs",
         "hooks/_runtime/windows-fs-retry.cjs",
         "hooks/_runtime/lifecycle.cjs",
@@ -5010,7 +5040,9 @@
         "shadow-promotion-floor",
         "shadow-rolling-window-reset",
         "profile-rollout-overrides-task-input",
-        "six-host-semantic-parity"
+        "six-host-semantic-parity",
+        "auto-checkpoint-review-and-effect-bound",
+        "auto-checkpoint-no-mutation-or-host-permission-authority"
       ],
       "riskClass": "normal",
       "cachePolicy": "candidate-bound",
@@ -5390,6 +5422,8 @@
         ".npmignore",
         "hooks/_runtime/**",
         "mcp/**",
+        "prompts/**",
+        "content/prompts/**",
         "scripts/lib/runtime-dependency-closure.js",
         "scripts/lib/global-host-config.js",
         "scripts/lib/global-host-runtime-verifier.js",
@@ -5538,6 +5572,8 @@
         "hooks/_runtime/**",
         "mcp/**",
         "skills/**",
+        "prompts/**",
+        "content/prompts/**",
         "codex/**",
         "gemini/**",
         "grok/plugins/devcodex-workspace/**",
@@ -5545,6 +5581,9 @@
         "scripts/lib/global-host-*.js",
         "scripts/lib/runtime-generation.js",
         "scripts/lib/runtime-dependency-closure.js",
+        "scripts/lib/host-skill-route-capability.js",
+        "scripts/refresh-host-skill-route-capability.js",
+        "scripts/test-host-skill-route-capability.js",
         "scripts/fixtures/global-host-config/**",
         "scripts/test-global-host-config.js",
         "scripts/test-global-host-runtime-verifier.js",
@@ -5569,7 +5608,9 @@
         "idempotent-refresh",
         "workspace-host-dirs-zero",
         "immutable-runtime-generation",
-        "runtime-process-identity-handshake"
+        "runtime-process-identity-handshake",
+        "runtime-prompt-tree-manifest-and-digest",
+        "runtime-template-contract-fails-closed"
       ],
       "riskClass": "release",
       "cachePolicy": "never",
@@ -5668,9 +5709,15 @@
         "scripts/lib/npm-lifecycle-adapter.js",
         "scripts/lib/checked-command.js",
         "scripts/lib/global-host-*.js",
+        "scripts/lib/runtime-generation.js",
         "scripts/lib/public-product-expression.js",
         "scripts/lib/public-endpoint-identity.js",
         "cursor/**",
+        "hooks/_runtime/artifact-slot-registry.v2.json",
+        "hooks/_runtime/artifact-template-contract.cjs",
+        "mcp/**",
+        "prompts/**",
+        "content/prompts/**",
         "scripts/lib/runtime-dependency-closure.js",
         "scripts/test-public-product-expression.js",
         "scripts/test-global-install-smoke.js"
@@ -5689,7 +5736,10 @@
         "user-content-preserved",
         "idempotent-managed-removal",
         "workspace-install-no-host-write",
-        "global-only-guidance"
+        "global-only-guidance",
+        "installed-prompt-manifest-byte-parity",
+        "installed-formal-writer-template-qualification-readback",
+        "installed-template-missing-zero-formal-write"
       ],
       "riskClass": "release",
       "cachePolicy": "never",

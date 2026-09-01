@@ -46,6 +46,15 @@ const HOST_ALIASES = Object.freeze({
 })
 
 const HOST_IDENTITY_SCHEMA = 'HostIdentityV2'
+const LIFECYCLE_HOST_ADAPTER_FILES = Object.freeze([
+  'host-adapter-identity.cjs',
+  'host-hook-launcher.cjs',
+  'lifecycle-host-adapters.cjs',
+  'lifecycle.cjs'
+])
+const LIFECYCLE_HOST_ADAPTER_INPUT_PATHS = Object.freeze(
+  LIFECYCLE_HOST_ADAPTER_FILES.map(file => `hooks/_runtime/${file}`)
+)
 const DIRECT_EVENT_NAMES = new Set([
   'userpromptsubmit', 'pretooluse', 'posttooluse', 'posttoolusefailure',
   'precompact', 'stop', 'sessionstart', 'sessionend', 'beforeagent', 'afteragent'
@@ -203,12 +212,7 @@ function getLifecycleHostAdapterDigest (host, options = {}) {
   const fsImpl = options.fs || fs
   const hostVariant = normalizeHostVariant(host, options)
   const runtimeRoot = path.resolve(options.runtimeRoot || __dirname)
-  const files = [
-    'host-adapter-identity.cjs',
-    'host-hook-launcher.cjs',
-    'lifecycle-host-adapters.cjs',
-    'lifecycle.cjs'
-  ].map(name => ({
+  const files = LIFECYCLE_HOST_ADAPTER_FILES.map(name => ({
     name,
     digest: sha256(fsImpl.readFileSync(path.join(runtimeRoot, name)))
   }))
@@ -219,12 +223,18 @@ function getLifecycleHostAdapterDigest (host, options = {}) {
   }))
 }
 
+function getLifecycleHostAdapterInputPaths () {
+  return LIFECYCLE_HOST_ADAPTER_INPUT_PATHS
+}
+
 module.exports = {
   ENTRY_SURFACE_VARIANTS,
   HOST_ENTRY_SURFACES,
   HOST_IDENTITY_SCHEMA,
   HOST_VARIANTS,
+  LIFECYCLE_HOST_ADAPTER_FILES,
   buildHostIdentityV2,
+  getLifecycleHostAdapterInputPaths,
   getLifecycleHostAdapterDigest,
   isCodexDesktopEnvironment,
   normalizeHostId,

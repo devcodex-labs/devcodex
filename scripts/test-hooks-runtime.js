@@ -25,13 +25,15 @@ const {
 const { createRuntimeStateStore } = require('../hooks/_runtime/runtime-state-store.cjs')
 const { resolveRuntimeStateRoots } = require('../hooks/_runtime/workspace-layout.cjs')
 const { buildLifecycleNamespaceStateUtils } = require('../hooks/_runtime/lifecycle-namespace-state.cjs')
+const { buildLifecycleProjectTargetUtils } = require('../hooks/_runtime/lifecycle-project-target.cjs')
 const {
   commitTaskRecoveryState,
   MUTATION_PREFLIGHT_STATE_MAX_BYTES,
   readFencedTaskWriteOwner,
   readTaskRecoveryState,
   resolveTaskRecoveryMetaDir,
-  storePaths
+  storePaths,
+  validateTaskScopedAutoContinuationGrant
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const { createWorkspaceSessionRouteIndex } = require('../hooks/_runtime/workspace-session-route-index-v1.cjs')
 const {
@@ -377,10 +379,24 @@ function runR2BTaskOwnerLifecycleScenarios() {
   })
   const postResetState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(postResetState.executionMode, 'auto')
-  assert.strictEqual(postResetState.validationControlIngress?.action, 'auto-authorize')
-  assert.strictEqual(postResetState.validationControlIngress?.authorityKind, 'auto')
+  assert.strictEqual(postResetState.validationControlIngress?.action, 'none',
+    'a later turn that only inherits durable Auto must not authorize validation')
+  assert.strictEqual(postResetState.validationControlIngress?.authorityKind, 'none')
   assert.strictEqual(postResetState.validationControlIngress?.sourceMessageDigest,
     postResetState.actualInstructionEnvelope.actualInstructionDigest)
+
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: sessionId,
+    prompt: '@rocky 继续当前正式任务，并执行本轮验证'
+  })
+  const freshAutoValidationState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(freshAutoValidationState.executionMode, 'auto')
+  assert.strictEqual(freshAutoValidationState.validationControlIngress?.action, 'auto-authorize',
+    'the exact fresh Auto ingress may authorize only the current bounded V2 validation')
+  assert.strictEqual(freshAutoValidationState.validationControlIngress?.authorityKind, 'auto')
+  assert.strictEqual(freshAutoValidationState.validationControlIngress?.sourceMessageDigest,
+    freshAutoValidationState.actualInstructionEnvelope.actualInstructionDigest)
   const postResetAdmission = readFencedTaskWriteOwner({ metaDir, identity: recoveryIdentity })
   assert.strictEqual(postResetAdmission.transaction.phase, 'cp-state-written')
   assert.strictEqual(postResetAdmission.transaction.admissionId, admission.admissionId)
@@ -1729,6 +1745,94 @@ function main() {
   })
   const crossSessionSticky = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(crossSessionSticky.executionMode, 'confirm', 'different session_id must not inherit sticky auto')
+
+  // Formal tasks use a durable task/root-bound grant instead of stickyAuto as
+  // authority. The same grant survives a new host session, while root drift or
+  // explicit exit returns to confirm mode.
+  const formalAutoUtils = buildLifecycleProjectTargetUtils({
+    fs,
+    path,
+    WORKSPACE_ROOT: TEMP_ROOT,
+    LAYOUT: { enabled: false },
+    CONTEXT_PROJECT: 'devcodex',
+    DEFAULT_SCOPE: 'project',
+    STICKY_PROJECT_TTL_MS: 30 * 60 * 1000,
+    EXECUTION_MODE: { CONFIRM: 'confirm', AUTO: 'auto' },
+    MULTI_PROJECT_EXEMPTION_KEYWORDS: [],
+    PROJECT_ROOT_MARKERS: [],
+    collectWorkspaceProjectNamespaces: () => [],
+    resolveWorkspaceProjectTarget: () => null,
+    escapeRegExp: value => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+    collectProjectPayloadStrings: () => [],
+    normalizeText: value => String(value || ''),
+    readProfileMode: () => 'dev',
+    readProjectProfileConfig: () => ({}),
+    isStrictEnforcement: () => true
+  })
+  const formalTaskId = '00000000-0000-4000-8000-0000000000f5'
+  const formalTaskRoot = path.join(TEMP_ROOT, '.devcodex', 'requirements', '正式自动续批')
+  const formalAutoState = {
+    activeProject: 'devcodex',
+    activeScope: 'project',
+    taskRecoveryBinding: {
+      taskId: formalTaskId,
+      project: 'devcodex',
+      kind: 'requirements',
+      displayName: '正式自动续批',
+      taskRoot: formalTaskRoot
+    },
+    stickyProject: {
+      activeRoot: path.join(TEMP_ROOT, '.devcodex'),
+      rootIdentityDigest: 'a'.repeat(64)
+    },
+    stickyAuto: { active: false },
+    languageContext: {
+      schemaVersion: 'LanguageContextV2',
+      primaryLanguage: 'zh-CN',
+      responseLanguage: 'zh-CN',
+      artifactLanguage: 'zh-CN'
+    }
+  }
+  assert.strictEqual(formalAutoUtils.detectExecutionMode({
+    prompt: '@rocky 自动推进当前正式任务',
+    session_id: 'formal-auto-session-a'
+  }, formalAutoState, null), 'auto')
+  const formalGrant = formalAutoState.taskScopedAutoContinuationGrant
+  assert.strictEqual(validateTaskScopedAutoContinuationGrant(formalGrant, {
+    taskId: formalTaskId,
+    project: 'devcodex',
+    projectRootIdentityDigest: 'a'.repeat(64)
+  }).valid, true)
+  assert(formalGrant.explicitExclusions.includes('validation-execution'))
+  assert.match(formalAutoUtils.buildExecutionModeContextMessage({
+    ...formalAutoState,
+    executionMode: 'auto'
+  }), /自动续批.*不依赖 session 或 TTL/)
+  formalAutoState.stickyAuto.updatedAtMs = 0
+  assert.strictEqual(formalAutoUtils.detectExecutionMode({
+    prompt: '继续同一任务',
+    session_id: 'formal-auto-session-b'
+  }, formalAutoState, null), 'auto', 'a formal task grant must survive a host-session switch')
+
+  const rootDriftState = JSON.parse(JSON.stringify(formalAutoState))
+  rootDriftState.stickyProject.rootIdentityDigest = 'b'.repeat(64)
+  assert.strictEqual(formalAutoUtils.detectExecutionMode({
+    prompt: '继续',
+    session_id: 'formal-auto-session-c'
+  }, rootDriftState, null), 'confirm')
+  assert.strictEqual(rootDriftState.taskScopedAutoContinuationGrant.status, 'reconfirm-required')
+  assert.match(formalAutoUtils.buildExecutionModeContextMessage({
+    ...rootDriftState,
+    executionMode: 'confirm'
+  }), /自动续批需要重新确认/)
+
+  const revokedFormalState = JSON.parse(JSON.stringify(formalAutoState))
+  assert.strictEqual(formalAutoUtils.detectExecutionMode({
+    prompt: '退出自动模式',
+    session_id: 'formal-auto-session-b'
+  }, revokedFormalState, null), 'confirm')
+  assert.strictEqual(revokedFormalState.taskScopedAutoContinuationGrant.status, 'revoked')
+  assert.strictEqual(revokedFormalState.stickyAuto.active, false)
 
   cleanState({
     mode: 'dev',

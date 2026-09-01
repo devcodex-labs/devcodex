@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 669,
     "consumerInventoryDigest": "3efebd1bc38d9d30bb71cb50a1eef073eafc51575b8f6649a1054ae661b4f332",
-    "consumerProjectionDigest": "d6f011fb44ef3fbca7acfea76ac972aecc5d2954b251e72850855b26b233bdae",
-    "portfolioInputDigest": "7e79b04ccbde947bd20256a94ece9d0cf339d165d0305b19c839aa77451b40e7"
+    "consumerProjectionDigest": "0fd8f70e8c9c76141ba67c6fa66b0b12421e29516c758d01099367bee7e3e3ca",
+    "portfolioInputDigest": "5daf11e4938dc96732cbebd388ab6a61c22bd4fc0b7abeeb218cf169cdc8b17b"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -10734,6 +10734,10 @@
           "role": "current"
         },
         {
+          "path": "mcp/task-admission-authority.cjs",
+          "role": "current"
+        },
+        {
           "path": "package.json",
           "role": "current"
         },
@@ -11058,6 +11062,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-validation-budget-control.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-validation-dag.js",
           "role": "current"
         },
@@ -11119,6 +11127,7 @@
         "scripts/test-skill-route-contracts.js",
         "scripts/test-skill-route-lifecycle.js",
         "scripts/test-skill-route-state.js",
+        "scripts/test-validation-budget-control.js",
         "scripts/test-validation-dag.js",
         "scripts/test-visible-output-contract.js",
         "scripts/test-workflow-capabilities.js",
@@ -11224,6 +11233,7 @@
           "scripts/test-skill-route-contracts.js",
           "scripts/test-skill-route-lifecycle.js",
           "scripts/test-skill-route-state.js",
+          "scripts/test-validation-budget-control.js",
           "scripts/test-validation-dag.js",
           "scripts/test-visible-output-contract.js",
           "scripts/test-workflow-capabilities.js",

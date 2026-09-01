@@ -14,6 +14,7 @@ const {
   separateEmbeddedEvidence,
   validateActualInstructionEnvelope
 } = require('./actual-instruction-envelope.cjs')
+const { validateAutoCheckpointDecision } = require('./task-recovery-store-v5.cjs')
 
 const SCHEMAS = Object.freeze({
   candidate: 'WorkflowCompletionCandidateV1',
@@ -125,10 +126,34 @@ function validationProjectRootIdentity(root) {
 }
 
 function normalizeValidationControlInstruction(value) {
-  return String(value || '')
+  let normalized = String(value || '')
     .normalize('NFKC')
     .trim()
-    .replace(/\s+/g, ' ')
+  const inlineCode = normalized.match(/^`([^`\r\n]+)`$/)
+  if (inlineCode) normalized = inlineCode[1].trim()
+  return normalized.replace(/\s+/g, ' ')
+}
+
+function validationControlClauses(value) {
+  return String(value || '')
+    .split(/[，,；;\r\n]+/)
+    .map(clause => clause.trim().replace(/[。！!]+$/g, '').trim())
+    .filter(Boolean)
+}
+
+function directConfirmationClause(value) {
+  return String(value || '')
+    .replace(/^(?:(?:好的?|是的|可以|同意|收到|没问题|行|我|现在|这里)\s*)+/i, '')
+    .trim()
+}
+
+function declaredValidationPathCount(value) {
+  const match = String(value || '').match(
+    /(?:当前\s*)?冻结(?:的)?\s*(\d{1,3})\s*(?:个|条|路)?\s*(?:路径|paths?)/i
+  )
+  if (!match) return null
+  const count = Number(match[1])
+  return Number.isInteger(count) && count > 0 ? count : null
 }
 
 function classifyValidationControlInstruction(value) {
@@ -138,10 +163,50 @@ function classifyValidationControlInstruction(value) {
       /^(?:请)?缩小(?:验证)?范围/i.test(compact)) {
     return { action: 'revoke', reason: 'user-pause-stop-or-scope-reduction' }
   }
-  if (/^(?:确认当前验证卡|确认当前\s*budgetcard|确认当前\s*budget\s*card)$/i.test(compact)) {
-    return { action: 'confirm-current-budget', reason: 'exact-current-budget-confirmation' }
+
+  // Classification recognizes intent only. Pending-card freshness, task/session/candidate
+  // identity, digest equality and the one-turn barrier remain server-side authority gates.
+  if (/(?:不要|别|不必|无需|尚未|未|没有|没|拒绝|取消)\s*(?:再|立即|现在)?\s*确认/i.test(compact) ||
+      /(?:如果|若|假如|是否|能否|可否|怎么|如何|何时|为什么)\s*(?:要|会|能|可)?\s*确认/i.test(compact) ||
+      /(?:请回复|请回答|请输入|请说|例如|示例|引用|他说|她说|用户说)[^，,；;\r\n]*确认/i.test(compact)) {
+    return { action: 'none', reason: 'non-direct-or-negated-confirmation-intent', requestedBudgetDigest: null }
   }
-  return { action: 'none', reason: 'no-validation-control-instruction' }
+
+  for (const rawClause of validationControlClauses(compact)) {
+    const clause = directConfirmationClause(rawClause)
+    if (/^(?:确认|confirm)(?:一下)?$/i.test(clause)) {
+      return {
+        action: 'confirm-current-budget',
+        reason: 'contextual-current-budget-confirmation',
+        requestedBudgetDigest: null
+      }
+    }
+    const confirmation = clause.match(
+      /^(?:确认|confirm)(?:一下)?(?:当前|现在)(?:的)?\s*(?:验证卡|budget\s*card)(?:\s+([a-f0-9]{64}))?$/i
+    )
+    if (confirmation) {
+      return {
+        action: 'confirm-current-budget',
+        reason: confirmation[1]
+          ? 'intent-current-budget-confirmation-with-digest'
+          : 'intent-current-budget-confirmation',
+        requestedBudgetDigest: confirmation[1] ? confirmation[1].toLowerCase() : null
+      }
+    }
+    const scopedExecutionConfirmation = clause.match(
+      /^(?:确认|confirm)(?:一下)?\s*(?:执行|按(?:照)?|采用|采纳|继续)\s+(.+)$/i
+    )
+    if (scopedExecutionConfirmation &&
+        !/(?:吗|呢)\s*[?？]?$|[?？]$/i.test(scopedExecutionConfirmation[1])) {
+      return {
+        action: 'confirm-current-budget',
+        reason: 'intent-scoped-execution-confirmation',
+        requestedBudgetDigest: null,
+        declaredChangedPathCount: declaredValidationPathCount(compact)
+      }
+    }
+  }
+  return { action: 'none', reason: 'no-validation-control-instruction', requestedBudgetDigest: null }
 }
 
 function validateValidationControlIngressReceipt(receipt, binding = null, options = {}) {
@@ -162,6 +227,19 @@ function validateValidationControlIngressReceipt(receipt, binding = null, option
   if (!['confirm', 'auto'].includes(receipt.executionMode)) errors.push('validation-control-ingress-mode-invalid')
   if (!['none', 'confirm-current-budget', 'auto-authorize', 'revoke'].includes(receipt.action)) errors.push('validation-control-ingress-action-invalid')
   if (!['none', 'user-confirmation', 'auto'].includes(receipt.authorityKind)) errors.push('validation-control-ingress-authority-kind-invalid')
+  if (receipt.requestedBudgetDigest !== undefined && receipt.requestedBudgetDigest !== null &&
+      !DIGEST.test(String(receipt.requestedBudgetDigest))) errors.push('validation-control-ingress-requested-budget-digest-invalid')
+  if (receipt.declaredChangedPathCount !== undefined && receipt.declaredChangedPathCount !== null &&
+      (!Number.isInteger(receipt.declaredChangedPathCount) || receipt.declaredChangedPathCount < 1 ||
+        receipt.declaredChangedPathCount > 512)) {
+    errors.push('validation-control-ingress-declared-path-count-invalid')
+  }
+  if (receipt.action !== 'confirm-current-budget' && receipt.requestedBudgetDigest != null) {
+    errors.push('validation-control-ingress-requested-budget-digest-unexpected')
+  }
+  if (receipt.action !== 'confirm-current-budget' && receipt.declaredChangedPathCount != null) {
+    errors.push('validation-control-ingress-declared-path-count-unexpected')
+  }
   if (receipt.action === 'confirm-current-budget' && receipt.authorityKind !== 'user-confirmation') {
     errors.push('validation-control-ingress-confirm-authority-invalid')
   }
@@ -244,6 +322,10 @@ function createValidationControlIngressReceipt(input = {}, options = {}) {
     authorityKind,
     authorityCeiling: 'V2',
     autoAuthorityRef,
+    requestedBudgetDigest: classified.requestedBudgetDigest || null,
+    declaredChangedPathCount: Number.isInteger(classified.declaredChangedPathCount)
+      ? classified.declaredChangedPathCount
+      : null,
     revocationRequested: action === 'revoke',
     reason: classified.reason,
     issuedAt,
@@ -276,6 +358,49 @@ function applyValidationControlIngress(state, receipt) {
     updatedAt: receipt.issuedAt
   }
   return state
+}
+
+/**
+ * Project one already-created task-scoped checkpoint decision into a bounded,
+ * human-first message. The projection grants neither mutation nor host
+ * permission; the CP writer remains the only confirmation owner.
+ */
+function projectAutoCheckpointDecision(decision, languageContext = null) {
+  const validation = validateAutoCheckpointDecision(decision)
+  const zh = /^zh/i.test(String(languageContext?.responseLanguage || languageContext?.primaryLanguage || ''))
+  if (!validation.valid) {
+    return Object.freeze({
+      schemaVersion: 'AutoCheckpointDecisionProjectionV1',
+      status: 'BLOCK',
+      automatic: false,
+      decisionDigest: null,
+      message: zh ? '自动续批凭据无效，当前检查点必须重新确认。' : 'The automatic checkpoint receipt is invalid; reconfirmation is required.',
+      nextAction: zh ? '修复并重新生成当前候选的 AutoCheckpointDecisionV1。' : 'Repair and regenerate AutoCheckpointDecisionV1 for the current candidate.',
+      mutationAuthority: false,
+      hostPermissionAuthority: false
+    })
+  }
+  const automatic = decision.decision === 'auto-pass'
+  const reason = automatic ? '' : decision.reasons.join(', ')
+  return Object.freeze({
+    schemaVersion: 'AutoCheckpointDecisionProjectionV1',
+    status: automatic ? 'PASS' : 'BLOCK',
+    automatic,
+    checkpoint: decision.checkpoint,
+    decisionDigest: decision.decisionDigest,
+    message: zh
+      ? (automatic
+          ? `${decision.checkpoint} 已通过同任务、同范围与风险增量复核，将自动续批。`
+          : `${decision.checkpoint} 不能自动续批：${reason}。`)
+      : (automatic
+          ? `${decision.checkpoint} passed same-task scope and risk review and may continue automatically.`
+          : `${decision.checkpoint} requires reconfirmation: ${reason}.`),
+    nextAction: automatic
+      ? (zh ? '由既有 CP writer 绑定当前候选摘要并记录确认。' : 'Let the existing CP writer bind and confirm the current candidate digest.')
+      : (zh ? '只确认本次增量，或先收敛范围/风险后重新复审。' : 'Confirm only this delta, or narrow the scope/risk and review again.'),
+    mutationAuthority: false,
+    hostPermissionAuthority: false
+  })
 }
 
 /** Own the requested evidence boundary without granting execution authority. */
@@ -1105,6 +1230,7 @@ module.exports = {
   evaluateShadowEvidenceWindow,
   evaluateWorkflowCompletion,
   projectWorkflowCompletion,
+  projectAutoCheckpointDecision,
   validatePhaseTerminals,
   validateRiskAcceptanceReceipt,
   validateWorkflowCompletionCandidate,

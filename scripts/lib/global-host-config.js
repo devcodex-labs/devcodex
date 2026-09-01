@@ -226,6 +226,35 @@ function addSkillRuntimeTree(operations, host, packageRoot, destinationRoot, fsI
   }
 }
 
+function addPromptRuntimeTree(operations, host, packageRoot, destinationRoot, fsImpl = fs) {
+  const contentEntries = listControlDeliveryEntries(packageRoot, 'prompts', fsImpl)
+  if (contentEntries === null) {
+    const sourceRoot = path.join(packageRoot, 'prompts')
+    const files = walkFiles(sourceRoot, fsImpl)
+    if (!files.length) {
+      const error = new Error('GLOBAL_HOST_PROMPT_SOURCE_MISSING: prompts')
+      error.code = 'GLOBAL_HOST_PROMPT_SOURCE_MISSING'
+      throw error
+    }
+    addSourceTree(operations, host, sourceRoot, destinationRoot, fsImpl)
+    return
+  }
+  if (!contentEntries.length) {
+    const error = new Error('GLOBAL_HOST_PROMPT_SOURCE_MISSING: content/prompts')
+    error.code = 'GLOBAL_HOST_PROMPT_SOURCE_MISSING'
+    throw error
+  }
+  for (const entry of contentEntries) {
+    addFileOperation(
+      operations,
+      host,
+      path.join(destinationRoot, entry.relative),
+      entry.content,
+      Buffer.isBuffer(entry.content) ? 'binary' : 'text'
+    )
+  }
+}
+
 function skillsDeployDestination (target) {
   const mode = target.skillsDeployMode || 'hidden'
   if (mode === 'legacy') return target.shared && target.shared.skills
@@ -254,6 +283,7 @@ function addCommonRuntime(operations, target, packageRoot, fsImpl = fs) {
   addSourceFile(operations, target.host, path.join(packageRoot, 'host-projections', 'AGENTS.md'), path.join(runtime, 'AGENTS.md'), fsImpl)
   addSourceTree(operations, target.host, path.join(packageRoot, 'hooks', '_runtime'), path.join(runtime, 'hooks', '_runtime'), fsImpl)
   addSourceTree(operations, target.host, path.join(packageRoot, 'mcp'), path.join(runtime, 'mcp'), fsImpl)
+  addPromptRuntimeTree(operations, target.host, packageRoot, path.join(runtime, 'prompts'), fsImpl)
   for (const relative of MCP_RUNTIME_DEPS) {
     addSourceFile(
       operations,

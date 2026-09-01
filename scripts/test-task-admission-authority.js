@@ -36,8 +36,10 @@ const {
   computeProjectTargetLeaseDigest,
   createTaskIdentityV2,
   executeTaskAdmission,
+  recoverOwnerFencedAdmissionForResume,
   executeTaskWriteOwner,
   executeWorkflowTaskTerminal,
+  readFormalTaskExecutionReadiness,
   readFinalizedResumeCanonicalEvidence,
   reconcileWorkflowTaskTerminal,
   validateProjectTargetLease
@@ -171,16 +173,18 @@ function admissionInput(root, suffix = 'base', overrides = {}) {
   const {
     routeTaskKind = 'fix',
     routeCandidate = 'fix.default',
+    hostSessionId = `session-${suffix}`,
+    contextEpoch = `ctx-${suffix}`,
     ...inputOverrides
   } = overrides
   const envelope = buildActualInstructionEnvelope({
     prompt: `修复任务 ${suffix}`,
-    session_id: `session-${suffix}`,
+    session_id: hostSessionId,
     event_id: `event-${suffix}`,
     timestamp: new Date(NOW_MS).toISOString()
   }, {
     hostVariant: 'codex-cli',
-    contextEpoch: `ctx-${suffix}`,
+    contextEpoch,
     trustedHostEvent: true,
     nowMs: NOW_MS
   })
@@ -286,6 +290,18 @@ function confirmCp(taskRoot, phase, artifactName, version = 'v1') {
   return { phase, artifactName, version, artifactDigest }
 }
 
+function reconfirmCp(taskRoot, phase, artifactName, version, marker, confirmedAt) {
+  const artifactContent = `# ${phase} 确认\n\n${marker}\n`
+  fs.writeFileSync(path.join(taskRoot, artifactName), artifactContent)
+  const artifactDigest = crypto.createHash('sha256').update(artifactContent).digest('hex')
+  const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
+  const sessions = fs.readFileSync(sessionsPath, 'utf8')
+  const sourceMessage = `test-successor-${phase.toLowerCase()}-${version}`
+  const confirmedRow = `| ${phase} | ✅ | ${artifactName} | ${version} | ${artifactDigest} | ${sourceMessage} | ${confirmedAt} |`
+  fs.writeFileSync(sessionsPath, sessions.replace(new RegExp(`^\\|\\s*${phase}\\s*\\|.*$`, 'mu'), confirmedRow))
+  return { phase, artifactName, version, artifactDigest, sourceMessage, confirmedAt }
+}
+
 function confirmCp1(taskRoot, artifactName = '01-问题确认.md') {
   return confirmCp(taskRoot, 'CP1', artifactName, 'v1')
 }
@@ -372,6 +388,8 @@ function buildFinalizedResumeAttempt(root, admission, suffix, nowMs, options = {
     operation: 'bind',
     routeTaskKind: 'resume',
     routeCandidate: 'resume',
+    ...(options.hostSessionId ? { hostSessionId: options.hostSessionId } : {}),
+    ...(options.contextEpoch ? { contextEpoch: options.contextEpoch } : {}),
     task: {
       taskId: admission.taskId,
       taskKind: transaction.taskKind,
@@ -389,7 +407,11 @@ function buildFinalizedResumeAttempt(root, admission, suffix, nowMs, options = {
     workflowRouteDecision: resumeInput.workflowRouteDecision,
     stickyProject: resumeInput.projectTargetLease
   }
-  const liveness = observeFinalizedTaskResumeLiveness(recovery.state, owner, { nowMs })
+  const liveness = observeFinalizedTaskResumeLiveness(recovery.state, owner, {
+    nowMs,
+    targetSessionDigest: resumeInput.projectTargetLease.authorityDigest,
+    targetContextEpoch: resumeInput.actualInstructionEnvelope.contextEpoch
+  })
   const attemptDigest = digest({
     schemaVersion: 'TestFinalizedResumeAttemptV1',
     suffix,
@@ -533,6 +555,57 @@ function createFinalizedResumeFixture(name) {
   assert.strictEqual(owner.finalized, true)
   assert.strictEqual(owner.mutationAuthority, true)
   return { root, input, admission, owner }
+}
+
+function createOwnerFencedCrashFixture(name) {
+  const root = setupRoot(name)
+  const input = admissionInput(root, name)
+  input.ingressSnapshotRef = admissionIngressSnapshotRef(input, name)
+  const admission = run(input)
+  confirmCp1(taskRootFor(input, admission))
+  assert.throws(
+    () => runOwner(ownerInput(input, admission, 'acquire', { expectedOwner: { mode: 'absent' } }), NOW_MS, {
+      faultInjector(stage) {
+        if (stage === 'after-owner-fenced') {
+          throw Object.assign(new Error('fixture process exited after owner fence'), {
+            code: 'FIXTURE_OWNER_FENCED_PROCESS_EXIT'
+          })
+        }
+      }
+    }),
+    error => error.code === 'FIXTURE_OWNER_FENCED_PROCESS_EXIT'
+  )
+  const metaDir = resolveTaskRecoveryMetaDir({ activeRoot: root.activeRoot, project: root.project })
+  const identity = { activeRoot: root.activeRoot, project: root.project, taskId: admission.taskId, taskStatus: 'active' }
+  const crashed = readTaskRecoveryState({ metaDir, identity }, { nowMs: NOW_MS })
+  assert.strictEqual(crashed.status, 'fresh')
+  assert.strictEqual(crashed.state.admissionTransaction.phase, 'owner-fenced')
+  assert.strictEqual(crashed.state.admissionTransaction.status, 'admitting')
+  assert.strictEqual(crashed.state.admissionTransaction.continuationLease.status, 'consumed')
+  assert.strictEqual(
+    crashed.state.admissionTransaction.continuationLease.ownerLeaseDigest,
+    crashed.state.fencedWriteOwner.leaseDigest
+  )
+  return { root, input, admission, metaDir, identity, crashed, owner: crashed.state.fencedWriteOwner }
+}
+
+function ownerFencedResumeInput(fixture, suffix = 'resume') {
+  const resume = admissionInput(fixture.root, `${fixture.root.project}-${suffix}`, {
+    routeTaskKind: 'resume',
+    routeCandidate: 'resume'
+  })
+  return {
+    ...resume,
+    operation: 'bind',
+    task: {
+      taskId: fixture.admission.taskId,
+      taskKind: fixture.input.task.taskKind,
+      entryVariant: 'continue',
+      taskRootRelative: fixture.admission.taskRootRelative
+    },
+    overview: { content: fixture.input.overview.content },
+    serverRuntime: TEST_RUNTIME
+  }
 }
 
 function rewriteAsLegacyOwnerlessFinalizedState(fixture, nowMs) {
@@ -826,10 +899,53 @@ try {
     awaitingOwnerOverview,
     'cross-session recovery must reuse rather than replace the canonical overview'
   )
-  const reboundAwaitingOwnerLease = runOwner(ownerInput(awaitingOwnerRebindInput, reboundAwaitingOwner, 'acquire'))
-  assert.strictEqual(reboundAwaitingOwnerLease.finalized, true)
-  assert.strictEqual(reboundAwaitingOwnerLease.mutationAuthority, true)
-  assert.strictEqual(reboundAwaitingOwnerLease.owner.projectRootIdentity, '8'.repeat(64))
+  assert.throws(
+    () => runOwner(ownerInput(awaitingOwnerRebindInput, reboundAwaitingOwner, 'acquire'), NOW_MS, {
+      faultInjector(stage) {
+        if (stage === 'after-owner-fenced') {
+          throw Object.assign(new Error('generation-2 fixture exited after owner fence'), {
+            code: 'FIXTURE_GENERATION_2_OWNER_FENCED_EXIT'
+          })
+        }
+      }
+    }),
+    error => error.code === 'FIXTURE_GENERATION_2_OWNER_FENCED_EXIT'
+  )
+  const awaitingOwnerCrashResume = admissionInput(awaitingOwnerRoot, 'awaiting-owner-rebind-resume', {
+    operation: 'bind',
+    routeTaskKind: 'resume',
+    routeCandidate: 'resume',
+    task: {
+      taskId: awaitingOwnerAdmission.taskId,
+      taskKind: 'bugs',
+      entryVariant: 'continue',
+      taskRootRelative: awaitingOwnerAdmission.taskRootRelative
+    },
+    overview: { content: awaitingOwnerOverview }
+  })
+  awaitingOwnerCrashResume.projectTargetLease = refreshedProjectLease(
+    awaitingOwnerCrashResume.projectTargetLease,
+    { rootIdentityDigest: '8'.repeat(64) }
+  )
+  const reboundAwaitingOwnerRecovery = recoverOwnerFencedAdmissionForResume(awaitingOwnerCrashResume, {
+    nowMs: NOW_MS,
+    storeOptions: STORE_OPTIONS
+  })
+  assert.strictEqual(reboundAwaitingOwnerRecovery.status, 'recovered')
+  assert.strictEqual(reboundAwaitingOwnerRecovery.mutationAuthority, false)
+  const reboundAwaitingOwnerRead = readTaskRecoveryState({
+    metaDir: resolveTaskRecoveryMetaDir({ activeRoot: awaitingOwnerRoot.activeRoot, project: awaitingOwnerRoot.project }),
+    identity: {
+      activeRoot: awaitingOwnerRoot.activeRoot,
+      project: awaitingOwnerRoot.project,
+      taskId: reboundAwaitingOwner.taskId,
+      taskStatus: 'active'
+    }
+  }, { nowMs: NOW_MS })
+  assert.strictEqual(reboundAwaitingOwnerRead.state.admissionTransaction.phase, 'finalized')
+  assert.strictEqual(reboundAwaitingOwnerRead.state.admissionTransaction.admissionGeneration, 2)
+  assert.strictEqual(reboundAwaitingOwnerRead.state.admissionTransaction.recovery.mode, 'awaiting-owner-rebind')
+  assert.strictEqual(reboundAwaitingOwnerRead.state.fencedWriteOwner.projectRootIdentity, '8'.repeat(64))
 
   const activeContinuationGuardRoot = setupRoot('awaiting-owner-active-continuation')
   let activeContinuationGuardInput = admissionInput(activeContinuationGuardRoot, 'awaiting-owner-active-continuation')
@@ -978,6 +1094,40 @@ try {
   })
   const secondRenew = runOwner(secondRenewInput)
   assert(secondRenew.owner.leaseRevision > firstRenew.owner.leaseRevision)
+  const renewedReadiness = readFormalTaskExecutionReadiness({
+    activeRoot: ownerRoot.activeRoot,
+    project: ownerRoot.project,
+    taskId: ownerAdmission.taskId,
+    expectedOwnerSessionDigest: secondRenew.owner.sessionDigest,
+    requiredCpPhases: ['CP1']
+  })
+  assert.strictEqual(renewedReadiness.status, 'ready')
+  assert.strictEqual(renewedReadiness.ownerLeaseDigest, secondRenew.owner.leaseDigest)
+  assert.throws(
+    () => readFormalTaskExecutionReadiness({
+      activeRoot: ownerRoot.activeRoot,
+      project: ownerRoot.project,
+      taskId: ownerAdmission.taskId,
+      expectedOwnerSessionDigest: 'f'.repeat(64),
+      requiredCpPhases: ['CP1']
+    }),
+    error => error.code === 'FORMAL_TASK_EXECUTION_PREFLIGHT_OWNER_SESSION_MISMATCH',
+    'a different host session must not inherit validation-card authority from the current owner'
+  )
+  assert.throws(
+    () => readFormalTaskExecutionReadiness({
+      activeRoot: ownerRoot.activeRoot,
+      project: ownerRoot.project,
+      taskId: ownerAdmission.taskId,
+      expectedOwnerSessionDigest: secondRenew.owner.sessionDigest,
+      requiredCpPhases: ['CP1'],
+      taskState: {
+        fencedWriteOwner: { leaseDigest: firstRenew.owner.leaseDigest }
+      }
+    }),
+    error => error.code === 'FORMAL_TASK_EXECUTION_PREFLIGHT_OWNER_DRIFT',
+    'a stale projected owner must not authorize a validation card'
+  )
   assert.throws(
     () => runOwner(firstRenewInput),
     error => error.code === 'TASK_WRITE_OWNER_CAS_MISMATCH',
@@ -1653,6 +1803,102 @@ try {
   })
   assert.strictEqual(partialProductRecoveryRead.transaction.reconciliation.recoveredPhase, 'identity-written')
 
+  const ownerFencedCrash = createOwnerFencedCrashFixture('owner-fenced-crash-recovery')
+  const ownerFencedResume = ownerFencedResumeInput(ownerFencedCrash)
+  assert.throws(
+    () => recoverOwnerFencedAdmissionForResume({
+      ...ownerFencedResume,
+      overview: { content: `${ownerFencedResume.overview.content}\n带外漂移\n` }
+    }, { nowMs: NOW_MS + 31 * 60 * 1000, storeOptions: STORE_OPTIONS }),
+    error => error.code === 'OWNER_FENCED_ADMISSION_RECOVERY_CANONICAL_DRIFT'
+  )
+  assert.strictEqual(
+    readTaskAdmissionTransaction({ metaDir: ownerFencedCrash.metaDir, identity: ownerFencedCrash.identity }).transaction.phase,
+    'owner-fenced',
+    'wrong overview must be zero-write'
+  )
+  const wrongRoute = admissionInput(ownerFencedCrash.root, 'owner-fenced-wrong-route')
+  assert.throws(
+    () => recoverOwnerFencedAdmissionForResume({
+      ...ownerFencedResume,
+      actualInstructionEnvelope: wrongRoute.actualInstructionEnvelope,
+      workItemSet: wrongRoute.workItemSet,
+      workflowRouteDecision: wrongRoute.workflowRouteDecision,
+      projectTargetLease: wrongRoute.projectTargetLease
+    }, { nowMs: NOW_MS, storeOptions: STORE_OPTIONS }),
+    error => error.code === 'OWNER_FENCED_ADMISSION_RECOVERY_REQUEST_INVALID'
+  )
+  const ownerFencedWrongRootLeaseCore = {
+    ...ownerFencedResume.projectTargetLease,
+    rootIdentityDigest: '9'.repeat(64)
+  }
+  delete ownerFencedWrongRootLeaseCore.leaseDigest
+  assert.throws(
+    () => recoverOwnerFencedAdmissionForResume({
+      ...ownerFencedResume,
+      projectTargetLease: {
+        ...ownerFencedWrongRootLeaseCore,
+        leaseDigest: computeProjectTargetLeaseDigest(ownerFencedWrongRootLeaseCore)
+      }
+    }, { nowMs: NOW_MS, storeOptions: STORE_OPTIONS }),
+    error => error.code === 'OWNER_FENCED_ADMISSION_RECOVERY_TASK_MISMATCH'
+  )
+  const ownerFencedTaskRoot = taskRootFor(ownerFencedCrash.input, ownerFencedCrash.admission)
+  const ownerFencedCpPath = path.join(ownerFencedTaskRoot, '01-问题确认.md')
+  const ownerFencedCp = fs.readFileSync(ownerFencedCpPath, 'utf8')
+  fs.appendFileSync(ownerFencedCpPath, '\nCP drift\n')
+  assert.throws(
+    () => recoverOwnerFencedAdmissionForResume(ownerFencedResume, {
+      nowMs: NOW_MS + 31 * 60 * 1000,
+      storeOptions: STORE_OPTIONS
+    }),
+    error => /CP|READBACK|CANONICAL/.test(error.code)
+  )
+  fs.writeFileSync(ownerFencedCpPath, ownerFencedCp)
+  assert.strictEqual(
+    readTaskAdmissionTransaction({ metaDir: ownerFencedCrash.metaDir, identity: ownerFencedCrash.identity }).transaction.phase,
+    'owner-fenced',
+    'CP drift must be zero-write'
+  )
+  const ownerFencedRecovered = recoverOwnerFencedAdmissionForResume(ownerFencedResume, {
+    nowMs: NOW_MS + 31 * 60 * 1000,
+    storeOptions: STORE_OPTIONS
+  })
+  assert.strictEqual(ownerFencedRecovered.status, 'recovered')
+  assert.strictEqual(ownerFencedRecovered.mutationAuthority, false)
+  assert.deepStrictEqual(ownerFencedRecovered.ownerRef, ownerRef({ owner: ownerFencedCrash.owner }))
+  const ownerFencedReadback = readTaskRecoveryState({
+    metaDir: ownerFencedCrash.metaDir,
+    identity: ownerFencedCrash.identity
+  }, { nowMs: NOW_MS + 31 * 60 * 1000 })
+  assert.strictEqual(ownerFencedReadback.state.admissionTransaction.phase, 'finalized')
+  assert.strictEqual(ownerFencedReadback.state.fencedWriteOwner.leaseDigest, ownerFencedCrash.owner.leaseDigest)
+  const ownerFencedReplay = recoverOwnerFencedAdmissionForResume(ownerFencedResume, {
+    nowMs: NOW_MS + 31 * 60 * 1000,
+    storeOptions: STORE_OPTIONS
+  })
+  assert.strictEqual(ownerFencedReplay.status, 'already-finalized')
+  assert.strictEqual(ownerFencedReplay.replayed, true)
+  assert.strictEqual(ownerFencedReplay.transactionDigest, ownerFencedRecovered.transactionDigest)
+
+  const ownerMismatchCrash = createOwnerFencedCrashFixture('owner-fenced-owner-mismatch')
+  const ownerMismatchWrite = updateTaskRecoveryState({
+    metaDir: ownerMismatchCrash.metaDir,
+    identity: ownerMismatchCrash.identity
+  }, state => {
+    state.admissionTransaction.effects.owner.leaseDigest = 'f'.repeat(64)
+    state.admissionTransaction.transactionDigest = taskAdmissionTransactionDigest(state.admissionTransaction)
+    return state
+  }, { nowMs: NOW_MS, force: true, reason: 'test-owner-fenced-owner-mismatch', ...STORE_OPTIONS })
+  assert(['committed', 'semantic-noop'].includes(ownerMismatchWrite.status))
+  assert.throws(
+    () => recoverOwnerFencedAdmissionForResume(ownerFencedResumeInput(ownerMismatchCrash), {
+      nowMs: NOW_MS + 31 * 60 * 1000,
+      storeOptions: STORE_OPTIONS
+    }),
+    error => error.code === 'OWNER_FENCED_ADMISSION_RECOVERY_OWNER_MISMATCH'
+  )
+
   const resumeAt = NOW_MS + 6 * 60 * 1000
   const expiredResume = createFinalizedResumeFixture('finalized-expired-resume')
   setFinalizedResumeLiveness(expiredResume.root, expiredResume.admission, {}, resumeAt)
@@ -1836,6 +2082,109 @@ try {
   assert.strictEqual(legacyEvolutionRead.state.taskCanonicalRevision.source, 'resume-generation')
   assert.strictEqual(legacyEvolutionRead.state.taskCanonicalRevision.revision, 3)
 
+  const successorFirstAt = NOW_MS + 9 * 60 * 1000
+  const successorResume = createFinalizedResumeFixture('finalized-confirmed-cp-successor')
+  const successorTaskRoot = taskRootFor(successorResume.input, successorResume.admission)
+  const successorOldCp2 = confirmCp(successorTaskRoot, 'CP2', '02-修复方案.md', 'v2.2.0-candidate')
+  const successorOldCp3 = confirmCp(successorTaskRoot, 'CP3', '04-实施计划.md', 'v3.2.0-candidate')
+  recordAuthorizedOverviewEvolution(successorResume, [
+    '# 问题概况',
+    '',
+    `> TaskIdentity: \`${successorResume.admission.taskId}\``,
+    `- CP2 ${successorOldCp2.version} ${successorOldCp2.artifactDigest}`,
+    `- CP3 ${successorOldCp3.version} ${successorOldCp3.artifactDigest}`,
+    '',
+    '旧候选已确认。',
+    ''
+  ].join('\n'), successorFirstAt - 1000)
+  setFinalizedResumeLiveness(successorResume.root, successorResume.admission, {}, successorFirstAt)
+  const successorFirstAttempt = buildFinalizedResumeAttempt(
+    successorResume.root,
+    successorResume.admission,
+    'finalized-confirmed-cp-successor-g2',
+    successorFirstAt
+  )
+  const successorG2 = run(successorFirstAttempt.input, { nowMs: successorFirstAt })
+  assert.strictEqual(successorG2.mutationAuthority, true)
+
+  const successorSecondAt = NOW_MS + 16 * 60 * 1000
+  const successorNewCp2 = reconfirmCp(
+    successorTaskRoot,
+    'CP2',
+    '02-修复方案.md',
+    'v2.3.0-candidate',
+    '合法 CP2 后继候选。',
+    '16:46'
+  )
+  const successorNewCp3 = reconfirmCp(
+    successorTaskRoot,
+    'CP3',
+    '04-实施计划.md',
+    'v3.3.0-candidate',
+    '合法 CP3 后继候选。',
+    '16:47'
+  )
+  fs.writeFileSync(path.join(successorTaskRoot, '00-问题概况.md'), [
+    '# 问题概况',
+    '',
+    `> TaskIdentity: \`${successorResume.admission.taskId}\``,
+    `- CP2 ${successorNewCp2.version} ${successorNewCp2.artifactDigest}`,
+    `- CP3 ${successorNewCp3.version} ${successorNewCp3.artifactDigest}`,
+    '',
+    '已按重新确认的 CP 后继候选继续。',
+    ''
+  ].join('\n'))
+  setFinalizedResumeLiveness(successorResume.root, successorG2, {}, successorSecondAt)
+  const successorSecondAttempt = buildFinalizedResumeAttempt(
+    successorResume.root,
+    successorG2,
+    'finalized-confirmed-cp-successor-g3',
+    successorSecondAt
+  )
+  const successorG3 = run(successorSecondAttempt.input, { nowMs: successorSecondAt })
+  assert.strictEqual(successorG3.mutationAuthority, true)
+  assert.strictEqual(successorG3.admissionGeneration, successorG2.admissionGeneration + 1)
+  const successorMetaDir = resolveTaskRecoveryMetaDir({
+    activeRoot: successorResume.root.activeRoot,
+    project: successorResume.root.project
+  })
+  const successorRead = readTaskRecoveryState({
+    metaDir: successorMetaDir,
+    identity: {
+      activeRoot: successorResume.root.activeRoot,
+      project: successorResume.root.project,
+      taskId: successorResume.admission.taskId,
+      taskStatus: 'active'
+    }
+  }, { nowMs: successorSecondAt })
+  assert.strictEqual(successorRead.state.taskCanonicalRevision.source, 'resume-generation')
+  assert.strictEqual(
+    successorRead.state.taskCanonicalRevision.parentRevisionDigest,
+    successorSecondAttempt.candidate.canonicalRevisionDigest,
+    'the persisted resume generation must descend from the confirmed-CP evolution bridge'
+  )
+  assert.deepStrictEqual(
+    successorRead.state.admissionTransaction.effects.cpState.confirmedCpEvidence.map(item => [item.phase, item.version]),
+    [['CP1', 'v1'], ['CP2', 'v2.3.0-candidate'], ['CP3', 'v3.3.0-candidate']]
+  )
+  assert.strictEqual(run(successorSecondAttempt.input, { nowMs: successorSecondAt }).replayed, true)
+  const successorSessionsPath = path.join(successorTaskRoot, '.memory', 'sessions.md')
+  const successorSessions = fs.readFileSync(successorSessionsPath, 'utf8')
+  fs.writeFileSync(
+    successorSessionsPath,
+    successorSessions.replace(successorNewCp3.sourceMessage, 'tampered-successor-confirmation-source')
+  )
+  assert.throws(
+    () => buildFinalizedResumeAttempt(
+      successorResume.root,
+      successorG3,
+      'finalized-confirmed-cp-successor-tampered',
+      successorSecondAt + 500
+    ),
+    error => error.code === 'FINALIZED_TASK_RESUME_CP_DRIFT',
+    'changed confirmation provenance without a new artifact candidate must remain fail closed'
+  )
+
   const releasedResumeAt = NOW_MS + 60 * 1000
   const releasedResume = createFinalizedResumeFixture('finalized-released-resume')
   const releasedOwner = runOwner(ownerInput(releasedResume.input, releasedResume.admission, 'release', {
@@ -1851,6 +2200,61 @@ try {
   )
   const releasedResumed = run(releasedAttempt.input, { nowMs: releasedResumeAt })
   assert.strictEqual(releasedResumed.mutationAuthority, true, 'released owner must resume without waiting for idle TTL')
+
+  const releasedSameSessionAt = NOW_MS + 70 * 1000
+  const releasedSameSession = createFinalizedResumeFixture('finalized-released-same-session')
+  const releasedSameSessionOwner = runOwner(ownerInput(
+    releasedSameSession.input,
+    releasedSameSession.admission,
+    'release',
+    { expectedOwner: ownerRef(releasedSameSession.owner) }
+  ), releasedSameSessionAt)
+  assert.strictEqual(releasedSameSessionOwner.status, 'released')
+  setFinalizedResumeLiveness(releasedSameSession.root, releasedSameSession.admission, {
+    state: 'running',
+    lastEventAt: new Date(releasedSameSessionAt).toISOString(),
+    previousTurn: { terminalState: 'completed' }
+  }, releasedSameSessionAt)
+  const releasedSameSessionAttempt = buildFinalizedResumeAttempt(
+    releasedSameSession.root,
+    releasedSameSession.admission,
+    'finalized-released-same-session-next',
+    releasedSameSessionAt,
+    { hostSessionId: 'session-finalized-released-same-session' }
+  )
+  assert.strictEqual(
+    releasedSameSessionAttempt.candidate.liveness.releasedSameSessionContextAdvance,
+    true,
+    'a released owner may resume in the same session under a newly authorized context'
+  )
+  assert.strictEqual(run(releasedSameSessionAttempt.input, { nowMs: releasedSameSessionAt }).mutationAuthority, true)
+
+  const releasedCrossSessionAt = NOW_MS + 80 * 1000
+  const releasedCrossSession = createFinalizedResumeFixture('finalized-released-cross-session')
+  const releasedCrossSessionOwner = runOwner(ownerInput(
+    releasedCrossSession.input,
+    releasedCrossSession.admission,
+    'release',
+    { expectedOwner: ownerRef(releasedCrossSession.owner) }
+  ), releasedCrossSessionAt)
+  assert.strictEqual(releasedCrossSessionOwner.status, 'released')
+  setFinalizedResumeLiveness(releasedCrossSession.root, releasedCrossSession.admission, {
+    state: 'running',
+    lastEventAt: new Date(releasedCrossSessionAt).toISOString(),
+    previousTurn: { terminalState: 'completed' }
+  }, releasedCrossSessionAt)
+  const releasedCrossSessionAttempt = buildFinalizedResumeAttempt(
+    releasedCrossSession.root,
+    releasedCrossSession.admission,
+    'finalized-released-cross-session-next',
+    releasedCrossSessionAt
+  )
+  assert.strictEqual(releasedCrossSessionAttempt.candidate.liveness.releasedSameSessionContextAdvance, false)
+  assert.throws(
+    () => run(releasedCrossSessionAttempt.input, { nowMs: releasedCrossSessionAt }),
+    error => error.code === 'FINALIZED_TASK_RESUME_OLD_TURN_LIVE' && error.details?.reasonCode === 'old-turn-live',
+    'a released owner must not transfer across sessions while the prior turn is live'
+  )
 
   const noTtlWaitResumeAt = NOW_MS + 60 * 1000
   const noTtlWaitResume = createFinalizedResumeFixture('finalized-no-ttl-wait')

@@ -38,6 +38,7 @@ const {
   executeTaskAdmission,
   executeTaskWriteOwner,
   executeWorkflowTaskTerminal,
+  recoverOwnerFencedAdmissionForResume,
   reconcileWorkflowTaskTerminal,
   readFinalizedResumeCanonicalEvidence,
   validateProjectTargetLease
@@ -48,6 +49,7 @@ const {
   validateMarkdownLocalLinks
 } = require('./artifact-link-projection.cjs')
 const {
+  createAutoCheckpointDecision,
   observeFinalizedTaskResumeLiveness,
   readBoundedResumeIngressCapability,
   readFencedTaskWriteOwner,
@@ -57,6 +59,8 @@ const {
   resolveTaskRecoveryMetaDir,
   sameIdentity,
   updateTaskRecoveryState,
+  validateAutoCheckpointDecision,
+  validateTaskScopedAutoContinuationGrant,
   writeAdmissionIngressSnapshot,
   writeBoundedResumeIngressCapability
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
@@ -554,7 +558,7 @@ const TOOLS = [
   },
   {
     name: 'memory_session_query',
-    description: '按日期、会话、状态或 ContextHandoffCard 精确读取 daily memory 的有限片段。',
+    description: '按条件限量查询会话记忆。',
     inputSchema: {
       type: 'object',
       required: ['contextBinding'],
@@ -576,7 +580,7 @@ const TOOLS = [
   },
   {
     name: 'memory_summary_query',
-    description: '返回有限的 SUMMARY 行；默认仅返回 active，支持 unresolved、since 与 last-N。',
+    description: '按条件限量查询 SUMMARY。',
     inputSchema: {
       type: 'object',
       required: ['contextBinding'],
@@ -612,7 +616,7 @@ const TOOLS = [
   },
   {
     name: 'memory_session_read',
-    description: '兼容读取今日或昨日的会话记忆文件；仍要求当前计划授权。',
+    description: '读取已分配的会话记忆。',
     inputSchema: {
       type: 'object',
       required: ['contextBinding'],
@@ -646,7 +650,7 @@ const TOOLS = [
   },
   {
     name: 'memory_artifact_link_project',
-    description: '把 1–20 个 active-root 内现存产物投影为相对 documentPath 的 Markdown 链接；operation=validate-existing 时再校验链接已写入目标文档。',
+    description: '投影或验证 active-root 内产物的 Markdown 链接。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -663,27 +667,56 @@ const TOOLS = [
   },
   {
     name: 'memory_cp_confirm',
-    description: '在任务的 .memory/sessions.md 中记录 CP 确认状态（✅）。控制面/推荐路径应传入 artifactPath+artifactSha256（ConfirmBindingGate）；仅 phase/time 为 legacy 兼容。',
+    description: '记录已绑定 CP；任务 Auto 需复审证据。',
     inputSchema: {
       type: 'object',
       required: ['requirement', 'phase'],
       properties: {
-        requirement: { type: 'string', description: '任务目录名' },
+        requirement: { type: 'string' },
         kind: { type: 'string', enum: ['requirements', 'bugs', 'optimizations', 'scenario-tests'] },
         phase: { type: 'string', enum: ['CP1', 'CP2', 'CP3'] },
         time: { type: 'string' },
-        artifactPath: { type: 'string', description: '确认产物相对路径' },
+        artifactPath: { type: 'string' },
         artifactVersion: { type: 'string' },
-        artifactSha256: { type: 'string', description: '产物 SHA-256' },
+        artifactSha256: { type: 'string' },
         sourceMessage: { type: 'string' },
-        scope: { type: 'string', enum: ['project', 'workspace'], description: '写入域' },
+        autoDecisionEvidence: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['riskClass', 'reviewGradeCard'],
+          properties: {
+            riskClass: { type: 'string', enum: ['R1', 'R2', 'R3', 'R4'] },
+            sideEffectCategories: {
+              type: 'array',
+              maxItems: 32,
+              items: { type: 'string', minLength: 1, maxLength: 128 }
+            },
+            blockers: {
+              type: 'array',
+              maxItems: 32,
+              items: { type: 'string', minLength: 1, maxLength: 256 }
+            },
+            reviewGradeCard: {
+              type: 'object',
+              additionalProperties: false,
+              required: ['grade', 'status', 'openBlockers'],
+              properties: {
+                grade: { type: 'string', enum: ['R1', 'R2', 'R3', 'R4'] },
+                status: { type: 'string', enum: ['PASS', 'WARN', 'BLOCK', 'UNVERIFIED', 'N/A'] },
+                openBlockers: { type: 'integer', minimum: 0 },
+                reviewDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' }
+              }
+            }
+          }
+        },
+        scope: { type: 'string', enum: ['project', 'workspace'] },
         project: PROJECT_NAMESPACE_INPUT_SCHEMA
       }
     }
   },
   {
     name: 'memory_summary_read',
-    description: '兼容读取 Agent SUMMARY.md 文件内容；仍要求当前计划授权。',
+    description: '兼容读取 SUMMARY.md。',
     inputSchema: {
       type: 'object',
       required: ['contextBinding'],
@@ -697,7 +730,7 @@ const TOOLS = [
   },
   {
     name: 'memory_summary_append',
-    description: '向 Agent SUMMARY.md 追加一条状态事件；可传 reportArtifact/memoryArtifact，由写入器生成第 5/6 列相对链接。同一日期/会话最后事件形成当前状态。',
+    description: '追加 SUMMARY.md 状态；可生成报告与记忆链接。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -3345,6 +3378,225 @@ function handleMemorySessionAllocate(args) {
   }
 }
 
+function cpAutoPortablePath(value) {
+  const normalized = String(value || '').trim().replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '')
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized
+}
+
+function cpAutoPathWithin(relativePath, prefix) {
+  const candidate = cpAutoPortablePath(relativePath)
+  const boundary = cpAutoPortablePath(prefix)
+  return Boolean(candidate && boundary && (candidate === boundary || candidate.startsWith(`${boundary}/`)))
+}
+
+function readCpFormalTaskIdentity(taskDir) {
+  const candidates = [
+    path.join(taskDir, '.memory', 'task-identity-v2.json'),
+    path.join(taskDir, '.memory', 'task.json')
+  ]
+  const identityPath = candidates.find(candidate => fs.existsSync(candidate))
+  if (!identityPath) return null
+  let resolved
+  try {
+    resolved = resolveExistingRegularFileInside(taskDir, path.relative(taskDir, identityPath), {
+      fs,
+      label: 'CP TaskIdentityV2'
+    })
+  } catch (error) {
+    throw memoryQueryError(
+      `CP TaskIdentityV2 is unsafe or unavailable: ${error.message}`,
+      'Repair the canonical task identity before confirming the checkpoint.',
+      'MEMORY_CP_TASK_IDENTITY_INVALID'
+    )
+  }
+  const stat = fs.lstatSync(resolved)
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size < 1 || stat.size > 256 * 1024) {
+    throw memoryQueryError(
+      'CP TaskIdentityV2 must be one bounded regular non-symlink file.',
+      'Repair the canonical task identity before confirming the checkpoint.',
+      'MEMORY_CP_TASK_IDENTITY_INVALID'
+    )
+  }
+  try {
+    return JSON.parse(fs.readFileSync(resolved, 'utf8'))
+  } catch (error) {
+    throw memoryQueryError(
+      `CP TaskIdentityV2 JSON is invalid: ${error.message}`,
+      'Repair the canonical task identity before confirming the checkpoint.',
+      'MEMORY_CP_TASK_IDENTITY_INVALID'
+    )
+  }
+}
+
+function currentCpArtifactDigest(sessionsPath, phase) {
+  const current = readFile(sessionsPath)
+  const row = parseCpTableRows(current)[phase]
+  return row?.confirmed && /^[a-f0-9]{64}$/i.test(String(row.artifactSha256 || ''))
+    ? String(row.artifactSha256).toLowerCase()
+    : null
+}
+
+function prepareCpAutoCheckpointDecision({ args, target, sessionsPath, taskDir, artifactTargetPath, artifactSha256 }) {
+  const identity = readCpFormalTaskIdentity(taskDir)
+  if (!identity) {
+    if (args.autoDecisionEvidence) {
+      throw memoryQueryError(
+        'autoDecisionEvidence cannot be used without one canonical formal TaskIdentityV2.',
+        'Bind or admit the exact formal task first, then retry the CP confirmation.',
+        'MEMORY_CP_AUTO_TASK_REQUIRED'
+      )
+    }
+    return null
+  }
+  if (target.scope !== 'project' || !target.project) {
+    throw memoryQueryError(
+      'Task-scoped Auto CP confirmation requires one exact project namespace.',
+      'Retry with scope:"project" and the canonical task project.',
+      'MEMORY_CP_AUTO_PROJECT_REQUIRED'
+    )
+  }
+  const taskId = String(identity.taskId || '').trim().toLowerCase()
+  const recoveryIdentity = {
+    activeRoot: target.activeRoot,
+    project: target.project,
+    taskId,
+    taskStatus: 'active'
+  }
+  const metaDir = resolveTaskRecoveryMetaDir(recoveryIdentity)
+  const recoveryRead = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }, { fs })
+  if (recoveryRead.status !== 'fresh' || !recoveryRead.state?.admissionTransaction) {
+    if (args.autoDecisionEvidence) {
+      throw memoryQueryError(
+        'Task-scoped Auto state is unavailable for this formal task.',
+        'Resume the exact formal task and current owner before retrying the CP confirmation.',
+        recoveryRead.errorCode || 'MEMORY_CP_AUTO_STATE_UNAVAILABLE'
+      )
+    }
+    return null
+  }
+  const transaction = recoveryRead.state.admissionTransaction
+  const taskRootRelative = path.relative(target.activeRoot, taskDir).replace(/\\/g, '/')
+  const portableBinding = evaluatePortableTaskIdentityBinding(identity, {
+    taskId,
+    project: target.project,
+    taskKind: String(transaction.taskKind || ''),
+    taskRootRelative,
+    currentProjectRootIdentityDigest: transaction.projectRootIdentityDigest
+  })
+  if (identity.schemaVersion !== 'TaskIdentityV2' || !portableBinding.valid ||
+      identity.identityDigest !== transaction.taskIdentityDigest ||
+      transaction.taskRootRelative !== taskRootRelative) {
+    throw memoryQueryError(
+      'Task-scoped Auto CP confirmation does not match the canonical task identity/admission.',
+      'Repair or resume the exact formal task binding before retrying.',
+      'MEMORY_CP_AUTO_TASK_BINDING_MISMATCH'
+    )
+  }
+  const grant = recoveryRead.state.taskScopedAutoContinuationGrant || null
+  const grantValidation = validateTaskScopedAutoContinuationGrant(grant, {
+    taskId,
+    project: target.project,
+    projectRootIdentityDigest: transaction.projectRootIdentityDigest
+  })
+  if (!grantValidation.valid || grant?.status !== 'active') {
+    if (args.autoDecisionEvidence) {
+      throw memoryQueryError(
+        'autoDecisionEvidence was supplied but no active task-scoped Auto grant matches this task/root.',
+        'Use a fresh explicit user Auto authorization, or confirm this checkpoint through the ordinary manual path.',
+        'MEMORY_CP_AUTO_GRANT_UNAVAILABLE'
+      )
+    }
+    return null
+  }
+  if (!args.autoDecisionEvidence) {
+    throw memoryQueryError(
+      'An active task-scoped Auto grant requires an independent AutoCheckpointDecisionV1 for this CP candidate.',
+      'Pass autoDecisionEvidence with the current ReviewGradeCard, risk class, blockers and side-effect categories.',
+      'MEMORY_CP_AUTO_DECISION_REQUIRED'
+    )
+  }
+  const evidence = args.autoDecisionEvidence
+  const artifactInScope = cpAutoPortablePath(grant.allowedScope.taskRootRelative) === cpAutoPortablePath(taskRootRelative) &&
+    grant.allowedScope.pathPrefixes.some(prefix => cpAutoPathWithin(artifactTargetPath, prefix))
+  const candidateScopeDigest = artifactInScope
+    ? grant.allowedScope.scopeDigest
+    : crypto.createHash('sha256').update(JSON.stringify({
+        schemaVersion: 'ExpandedCpCandidateScopeV1',
+        grantDigest: grant.grantDigest,
+        artifactTargetPath
+      })).digest('hex')
+  const previousCandidateDigest = currentCpArtifactDigest(sessionsPath, args.phase)
+  const decision = createAutoCheckpointDecision({
+    grant,
+    checkpoint: args.phase,
+    previousCandidateDigest,
+    newCandidateDigest: String(artifactSha256 || '').toLowerCase(),
+    candidateScopeDigest,
+    scopeDelta: artifactInScope ? 'none' : 'expanded',
+    riskClass: evidence.riskClass,
+    sideEffectCategories: evidence.sideEffectCategories || [],
+    blockers: evidence.blockers || [],
+    reviewGradeCard: evidence.reviewGradeCard
+  })
+  const commit = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => {
+    const currentGrant = state.taskScopedAutoContinuationGrant
+    const currentGrantValidation = validateTaskScopedAutoContinuationGrant(currentGrant, {
+      taskId,
+      project: target.project,
+      projectRootIdentityDigest: transaction.projectRootIdentityDigest
+    })
+    if (!currentGrantValidation.valid || currentGrant.status !== 'active' ||
+        currentGrant.grantDigest !== grant.grantDigest) {
+      throw memoryQueryError(
+        'The task-scoped Auto grant changed before the CP decision could be committed.',
+        'Re-read the current task grant and review the candidate again.',
+        'MEMORY_CP_AUTO_GRANT_CAS_MISMATCH'
+      )
+    }
+    const history = (Array.isArray(state.autoCheckpointDecisions) ? state.autoCheckpointDecisions : [])
+      .filter(item => validateAutoCheckpointDecision(item).valid &&
+        !(item.grantDigest === decision.grantDigest && item.checkpoint === decision.checkpoint))
+    state.autoCheckpointDecision = decision
+    state.autoCheckpointDecisions = [...history, decision].slice(-12)
+    return state
+  }, { fs, reason: 'auto-checkpoint-decision', force: true, touchSessionMapping: true })
+  if (!['committed', 'semantic-noop'].includes(commit.status)) {
+    throw memoryQueryError(
+      'AutoCheckpointDecisionV1 could not be persisted and read back.',
+      'Repair the reported TaskRecovery state condition and retry; no CP confirmation was written.',
+      commit.errorCode || 'MEMORY_CP_AUTO_DECISION_COMMIT_FAILED'
+    )
+  }
+  const readback = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }, { fs })
+  const persistedDecision = readback.state?.autoCheckpointDecision
+  const persistedValidation = validateAutoCheckpointDecision(persistedDecision, {
+    grantDigest: grant.grantDigest,
+    checkpoint: args.phase,
+    newCandidateDigest: String(artifactSha256 || '').toLowerCase(),
+    candidateScopeDigest
+  })
+  if (readback.status !== 'fresh' || !persistedValidation.valid ||
+      persistedDecision.decisionDigest !== decision.decisionDigest) {
+    throw memoryQueryError(
+      'AutoCheckpointDecisionV1 readback did not match the current CP candidate.',
+      'Re-read TaskRecovery and retry only after the decision lineage is stable.',
+      'MEMORY_CP_AUTO_DECISION_READBACK_FAILED'
+    )
+  }
+  if (decision.decision !== 'auto-pass') {
+    throw memoryQueryError(
+      `Task-scoped Auto cannot confirm ${args.phase}: ${decision.reasons.join(', ')}.`,
+      'Resolve the reported scope/risk/review delta or obtain one fresh explicit confirmation for this candidate.',
+      'MEMORY_CP_AUTO_RECONFIRM_REQUIRED'
+    )
+  }
+  return {
+    decision,
+    stateSequence: readback.envelope?.sequence || null,
+    stateDigest: readback.envelope?.payloadDigest || null
+  }
+}
+
 function handleMemoryCpConfirm(args) {
   if (!args.requirement) throw new Error('requirement is required')
   if (!args.phase) throw new Error('phase is required')
@@ -3373,6 +3625,7 @@ function handleMemoryCpConfirm(args) {
   let artifactAuthority = null
   let artifactTargetPath = null
   let artifactLinks = null
+  let autoCheckpoint = null
 
   if (hasDigest && artifactPath) {
     const taskDir = path.dirname(path.dirname(p)) // .../<task>/.memory/sessions.md
@@ -3443,15 +3696,44 @@ function handleMemoryCpConfirm(args) {
     }], { surface: 'memory-cp-confirmation' })
   }
 
-  const transaction = withMemoryTransaction(target, p, existing => renderCpConfirmation(existing, args, {
-    hasDigest,
-    sha,
-    artifactPath,
-    artifactVersion,
-    sourceMessage,
-    artifactLink: artifactLinks?.links?.[0]?.markdown || null,
-    time
-  }), {
+  if (hasDigest) {
+    const taskDir = path.dirname(path.dirname(p))
+    autoCheckpoint = prepareCpAutoCheckpointDecision({
+      args,
+      target,
+      sessionsPath: p,
+      taskDir,
+      artifactTargetPath,
+      artifactSha256: sha
+    })
+  }
+
+  const transaction = withMemoryTransaction(target, p, existing => {
+    if (autoCheckpoint) {
+      const current = parseCpTableRows(existing)[args.phase]
+      const currentDigest = current?.confirmed && /^[a-f0-9]{64}$/i.test(String(current.artifactSha256 || ''))
+        ? String(current.artifactSha256).toLowerCase()
+        : null
+      const expectedPrior = autoCheckpoint.decision.previousCandidateDigest
+      const nextDigest = autoCheckpoint.decision.newCandidateDigest
+      if (currentDigest !== expectedPrior && currentDigest !== nextDigest) {
+        throw memoryQueryError(
+          'The CP row changed after AutoCheckpointDecisionV1 was frozen.',
+          'Re-read the current CP artifact/row and generate a new decision before retrying.',
+          'MEMORY_CP_AUTO_DECISION_CP_CAS_MISMATCH'
+        )
+      }
+    }
+    return renderCpConfirmation(existing, args, {
+      hasDigest,
+      sha,
+      artifactPath,
+      artifactVersion,
+      sourceMessage,
+      artifactLink: artifactLinks?.links?.[0]?.markdown || null,
+      time
+    })
+  }, {
     reconcileIdentity: memoryOperationIdentity('cp-confirm', target, {
       kind,
       requirement: args.requirement,
@@ -3460,6 +3742,7 @@ function handleMemoryCpConfirm(args) {
       artifactSha256: sha,
       artifactVersion,
       sourceMessage,
+      autoCheckpointDecisionDigest: autoCheckpoint?.decision.decisionDigest || null,
       time
     }),
     templateContext
@@ -3498,6 +3781,14 @@ function handleMemoryCpConfirm(args) {
           targetPath: artifactTargetPath,
           purpose: `${args.phase} confirmation artifact`
         }], { operation: 'validate-existing', surface: 'memory-cp-confirmation' })
+      : null,
+    autoCheckpointDecision: autoCheckpoint?.decision || null,
+    autoCheckpointState: autoCheckpoint
+      ? {
+          stateSequence: autoCheckpoint.stateSequence,
+          stateDigest: autoCheckpoint.stateDigest,
+          readbackVerified: true
+        }
       : null,
     confirmedAt: time,
     cpRowCount,
@@ -3631,6 +3922,11 @@ function handleMemoryTaskResolve(args) {
     name: args.name,
     project: args.project || '',
     scope: args.scope || 'auto',
+    // An explicit project is already a bounded namespace. Keep the MCP facade's
+    // metadata budget aligned with its existing bounded memory-source ceiling so
+    // a project just above the resolver's 4 MiB default does not dead-end with a
+    // misleading "specify project" instruction.
+    budgets: args.project ? { maxBytes: MEMORY_SOURCE_MAX_BYTES } : {},
     persistIndex: args.persistIndex !== false
   })
   return {
@@ -4079,7 +4375,7 @@ function stableRuntimeDigest(value) {
   return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex')
 }
 
-function exactResumeTaskState(target, taskId) {
+function exactResumeTaskState(target, taskId, options = {}) {
   const identity = {
     activeRoot: target.activeRoot,
     project: target.project,
@@ -4094,7 +4390,10 @@ function exactResumeTaskState(target, taskId) {
       'finalized resume requires the exact current primary admission; a legacy missing owner is adopted by the resume CAS'
     )
   }
-  if (ownerRead.transaction.phase !== 'finalized' || ownerRead.transaction.status !== 'finalized') {
+  const ownerFencedRecoveryCandidate = options.allowOwnerFenced === true &&
+    ownerRead.transaction.phase === 'owner-fenced' && ownerRead.transaction.status === 'admitting'
+  if (!ownerFencedRecoveryCandidate &&
+      (ownerRead.transaction.phase !== 'finalized' || ownerRead.transaction.status !== 'finalized')) {
     throw taskAdmissionIngressError(
       ownerRead.transaction.phase === 'terminal-closeout'
         ? 'FINALIZED_TASK_RESUME_TERMINAL'
@@ -4235,8 +4534,8 @@ function boundedResumeProjectLease(target, transaction, envelope, routeDecision,
 
 function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) {
   const taskId = String(args.task?.taskId || '').trim().toLowerCase()
-  const { metaDir, ownerRead } = exactResumeTaskState(target, taskId)
-  const transaction = ownerRead.transaction
+  let { metaDir, ownerRead } = exactResumeTaskState(target, taskId, { allowOwnerFenced: true })
+  let transaction = ownerRead.transaction
   if (!['bind', 'adopt'].includes(String(args.operation || '')) || args.task?.entryVariant !== 'continue' ||
       args.task?.taskKind !== transaction.taskKind ||
       String(args.task?.taskRootRelative || '').replace(/\\/g, '/') !== transaction.taskRootRelative) {
@@ -4248,6 +4547,26 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
   if (ingress.workflowRouteDecision.topIntent !== 'resume' || ingress.workflowRouteDecision.routeKey !== 'resume' ||
       ingress.workflowRouteDecision.stage !== 'rehydrate') {
     throw taskAdmissionIngressError('FINALIZED_TASK_RESUME_ROUTE_INVALID', 'finalized resume requires the selected resume/rehydrate route')
+  }
+  let ownerFencedRecovery = null
+  if (transaction.phase === 'owner-fenced') {
+    ownerFencedRecovery = recoverOwnerFencedAdmissionForResume({
+      operation: args.operation,
+      task: args.task,
+      overview: args.overview,
+      actualInstructionEnvelope: ingress.actualInstructionEnvelope,
+      workItemSet: ingress.workItemSet,
+      workflowRouteDecision: ingress.workflowRouteDecision,
+      projectTargetLease: ingress.projectTargetLease,
+      ingressSnapshotRef: ingress.ingressSnapshotRef,
+      serverRuntime: MEMORY_RUNTIME_IDENTITY,
+      activeRoot: target.activeRoot,
+      project: target.project
+    })
+    const recoveredState = exactResumeTaskState(target, taskId)
+    metaDir = recoveredState.metaDir
+    ownerRead = recoveredState.ownerRead
+    transaction = ownerRead.transaction
   }
   const canonical = readFinalizedResumeCanonicalEvidence(transaction, target.activeRoot, fs, {
     state: ownerRead.state
@@ -4273,6 +4592,7 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
     return {
       candidate,
       canonical,
+      ownerFencedRecovery,
       ingress: {
         actualInstructionEnvelope: candidate.ingress.actualInstructionEnvelope,
         workItemSet: candidate.ingress.workItemSet,
@@ -4295,13 +4615,17 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
       }
     }
   }
-  const liveness = observeFinalizedTaskResumeLiveness(ownerRead.state || {}, ownerRead.owner, { nowMs: Date.now() })
   const binding = compactContextBinding(contextBinding || {
     contextEpoch: ingress.actualInstructionEnvelope.contextEpoch,
     planId: `host-ingress-${ingress.actualInstructionEnvelope.envelopeId.slice(4)}`,
     planContentId: ingress.workflowRouteDecision.decisionDigest,
     activeRoot: target.activeRoot,
     project: target.project
+  })
+  const liveness = observeFinalizedTaskResumeLiveness(ownerRead.state || {}, ownerRead.owner, {
+    nowMs: Date.now(),
+    targetSessionDigest: ingress.projectTargetLease.authorityDigest,
+    targetContextEpoch: binding.contextEpoch
   })
   const attemptDigest = stableRuntimeDigest({
     schemaVersion: 'FinalizedTaskResumeAttemptV1',
@@ -4365,6 +4689,7 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
   return {
     candidate,
     canonical,
+    ownerFencedRecovery,
     ingress: {
       actualInstructionEnvelope: candidate.ingress.actualInstructionEnvelope,
       workItemSet: candidate.ingress.workItemSet,
@@ -4391,7 +4716,7 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
 function buildBoundedResumeFallbackIngress(target, args) {
   const context = resolveResumeContextAuthorization(target, args.resumeContextBinding)
   const taskId = String(args.task?.taskId || '').trim().toLowerCase()
-  const { ownerRead } = exactResumeTaskState(target, taskId)
+  const { ownerRead } = exactResumeTaskState(target, taskId, { allowOwnerFenced: true })
   const transaction = ownerRead.transaction
   const nowMs = Date.now()
   const bucket = Math.floor(nowMs / (10 * 60 * 1000))
@@ -4500,6 +4825,9 @@ function handleMemoryTaskAdmitV2(args) {
     activeRoot: target.activeRoot,
     project: target.project
   })
+  if (preparedResume?.ownerFencedRecovery) {
+    admission.ownerFencedRecovery = preparedResume.ownerFencedRecovery
+  }
   let verifiedIngress = ingress
   if (admission.atomicOwnerAcquired === true) {
     verifiedIngress = readServerOwnedAdmissionIngress(target, preparedResume.candidate.ingressRef, { allowSnapshot: true })

@@ -34,6 +34,12 @@ const {
 const { createValidationOrchestration } = require('./lib/validation-orchestration')
 const { isNarrativeMarkdownPath, normalizeNarrativePath } = require('./lib/narrative-markdown-policy')
 const {
+  getLifecycleHostAdapterInputPaths
+} = require('../hooks/_runtime/host-adapter-identity.cjs')
+const {
+  getRuntimeContractInputPaths
+} = require('../hooks/_runtime/skill-route-mode.cjs')
+const {
   detectedActorType,
   expectedCiPolicyDigest,
   parseArgs,
@@ -723,6 +729,31 @@ function run() {
         capabilityEvidenceChanged.selectedNodes.some(node => node.id === required),
         `portable capability evidence closure missing ${required}`
       )
+    }
+    const skillRouteContractInputs = [...new Set([
+      ...getRuntimeContractInputPaths(),
+      ...getLifecycleHostAdapterInputPaths()
+    ])]
+    for (const input of skillRouteContractInputs) {
+      const digestInputChanged = planValidation({
+        manifest,
+        route: 'changed',
+        changedFiles: [input],
+        changedSource: 'explicit',
+        riskClass: 'high',
+        candidateStable: true,
+        candidateId: `fixture-skill-route-input-${sha256(input).slice(0, 12)}`
+      })
+      for (const required of [
+        'skill-route-contracts',
+        'skill-route-closure',
+        'global-host-config'
+      ]) {
+        assert(
+          digestInputChanged.selectedNodes.some(node => node.id === required),
+          `${input} must route to ${required}`
+        )
+      }
     }
 
     const memoryServerChanged = planValidation({

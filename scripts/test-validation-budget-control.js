@@ -24,11 +24,17 @@ const { createValidationEvidenceStore } = require('./lib/validation-evidence-sto
 const { ValidationDagError } = require('./lib/validation-dag')
 const {
   createBudgetConfirmationReceipt,
+  createFormalTaskExecutionPreflight,
   createPendingBudgetCardBinding,
   createVerificationExecutionLease,
   planBudgetProjection
 } = require('./lib/validation-execution-authority')
-const { resolveAiBudgetAuthority } = require('./run-validation')
+const {
+  createCliLease,
+  resolveAiBudgetAuthority: resolveAiBudgetAuthorityRuntime,
+  resolveFormalTaskExecutionPreflight,
+  resolvePendingBudgetPlanIdentity
+} = require('./run-validation')
 
 const REPO_ROOT = path.resolve(__dirname, '..')
 const NOW = Date.now()
@@ -60,8 +66,6 @@ function controlReceipt({ prompt, mode, sessionKey, taskId, contextEpoch, suffix
     turnId: `turn-${suffix}`,
     contextEpoch,
     trustedHostEvent: true,
-    nowMs
-  }, {
     nowMs,
     ...(Number.isFinite(ttlMs) ? { ttlMs } : {})
   })
@@ -77,29 +81,33 @@ function controlReceipt({ prompt, mode, sessionKey, taskId, contextEpoch, suffix
 
 function fixturePlan(taskId, contextEpoch, suffix = 'root', overrides = {}) {
   const selectedNodes = overrides.selectedNodes || [{ id: 'validation-authority', writeScopes: [] }]
+  const requestSourceRef = overrides.requestSourceRef || `fixture-plan-request:${suffix}`
+  const identitySeed = stableStringify({ suffix, contextEpoch, requestSourceRef })
   return {
     schemaVersion: 'ValidationPlanV3',
-    planDigest: sha256(`plan-${suffix}`),
+    planDigest: sha256(`plan-${identitySeed}`),
     changedScopeDigest: sha256(`scope-${suffix}`),
-    requestDigest: sha256(`request-${suffix}`),
+    requestDigest: sha256(`request-${identitySeed}`),
+    riskClass: overrides.riskClass || 'normal',
     verificationLevel: overrides.verificationLevel || 'V2',
     verificationPurpose: overrides.verificationPurpose || 'boundary',
     verificationIntent: {
       project: 'devcodex',
       taskRecoveryKey: taskId,
-      contextEpoch
+      contextEpoch,
+      requestSourceRef
     },
-    affectedBoundaries: ['validation-authority'],
+    affectedBoundaries: overrides.affectedBoundaries || ['validation-authority'],
     selectedNodes,
     selectedNodeCount: selectedNodes.length,
     budgetCard: {
       schemaVersion: 'BudgetCardV1',
-      digest: sha256(`budget-${suffix}`),
-      estimatedDurationMs: 700000,
-      hardTimeoutUpperBoundMs: 1200000,
-      logBudgetBytes: 4096,
-      heavyNodeIds: ['validation-authority'],
-      sideEffectCategories: [],
+      digest: sha256(`budget-${identitySeed}`),
+      estimatedDurationMs: overrides.estimatedDurationMs || 700000,
+      hardTimeoutUpperBoundMs: overrides.hardTimeoutUpperBoundMs || 1200000,
+      logBudgetBytes: overrides.logBudgetBytes || 4096,
+      heavyNodeIds: overrides.heavyNodeIds || ['validation-authority'],
+      sideEffectCategories: overrides.sideEffectCategories || [],
       confirmationRequired: true,
       status: 'awaiting-confirmation'
     },
@@ -107,14 +115,18 @@ function fixturePlan(taskId, contextEpoch, suffix = 'root', overrides = {}) {
   }
 }
 
-function fixtureCandidate(suffix = 'root') {
+function fixtureCandidate(suffix = 'root', overrides = {}) {
+  const changedFiles = overrides.changedFiles || ['scripts/run-validation.js']
+  const deletedFiles = new Set(overrides.deletedFiles || [])
   return {
     candidateId: `validation-candidate-${suffix}`,
-    stable: false,
-    head: 'a'.repeat(40),
+    stable: overrides.stable === true,
+    head: overrides.head || 'a'.repeat(40),
     changedSource: 'fixture',
-    changedFiles: ['scripts/run-validation.js'],
-    dirtyIdentities: [{ path: 'scripts/run-validation.js', digest: sha256(`dirty-${suffix}`) }]
+    changedFiles,
+    dirtyIdentities: changedFiles.map(file => deletedFiles.has(file)
+      ? { path: file, deleted: true }
+      : { path: file, digest: sha256(`dirty-${suffix}-${file}`) })
   }
 }
 
@@ -157,6 +169,32 @@ function authorityContext({ identity, sessionKey, contextEpoch, control, state =
     authoritySourceRef: `validation-control:${control.receiptDigest}`,
     taskState: state
   }
+}
+
+function resolveAiBudgetAuthority(input) {
+  const fixtureDigest = suffix => sha256(`${suffix}:${input.authorityContext.taskRecoveryKey}`)
+  input.authorityContext.formalTaskExecutionPreflight = createFormalTaskExecutionPreflight({
+      authorityRead: {
+        taskId: input.authorityContext.taskRecoveryKey,
+        project: 'devcodex',
+        projectRootIdentityDigest: fixtureDigest('admitted-project-root'),
+        admissionId: `admission-${fixtureDigest('admission-id').slice(0, 40)}`,
+        admissionGeneration: 1,
+        admissionDigest: fixtureDigest('admission'),
+        ownerLeaseDigest: fixtureDigest('owner'),
+        canonicalOverviewDigest: fixtureDigest('overview'),
+        canonicalRevisionDigest: fixtureDigest('revision'),
+        cpChainDigest: fixtureDigest('cp-chain'),
+        currentCpDigests: { CP2: fixtureDigest('cp2'), CP3: fixtureDigest('cp3') },
+        resumeReadiness: 'canonical-ready',
+        confirmationReachability: 'next-turn-card-confirmation'
+      },
+      validationProjectRootDigest: validationProjectRootIdentity(input.gitRepoRoot || REPO_ROOT).digest,
+      candidate: input.candidate,
+      plan: input.plan,
+      observedAt: new Date(NOW).toISOString()
+  }, { nowMs: NOW })
+  return resolveAiBudgetAuthorityRuntime(input)
 }
 
 function expectCode(fn, code) {
@@ -1534,8 +1572,51 @@ function main() {
       options: {}, plan: confirmPlan, candidate: confirmCandidate,
       authorityContext: ordinaryContext, activeRoot, execute: true
     }), 'VALIDATION_BUDGET_APPROVAL_REQUIRED')
+    const mismatchedDigestControl = controlReceipt({
+      prompt: `确认当前验证卡 ${'f'.repeat(64)}`,
+      mode: 'confirm',
+      sessionKey: confirmSession,
+      taskId: confirmTaskId,
+      contextEpoch,
+      suffix: 'confirm-mismatched-digest'
+    })
+    updateControl({
+      activeRoot,
+      identity: confirmSeed.identity,
+      metaDir: confirmSeed.metaDir,
+      sessionKey: confirmSession,
+      control: mismatchedDigestControl
+    })
+    const mismatchedPreview = resolveAiBudgetAuthority({
+      options: {},
+      plan: confirmPlan,
+      candidate: confirmCandidate,
+      authorityContext: authorityContext({
+        identity: confirmSeed.identity,
+        sessionKey: confirmSession,
+        contextEpoch,
+        control: mismatchedDigestControl
+      }),
+      activeRoot,
+      execute: false
+    })
+    assert.strictEqual(mismatchedPreview.decision, 'awaiting-current-budget-confirmation')
+    assert.strictEqual(mismatchedPreview.pending.budgetDigest, confirmPlan.budgetCard.digest)
+    expectCode(() => resolveAiBudgetAuthority({
+      options: {},
+      plan: confirmPlan,
+      candidate: confirmCandidate,
+      authorityContext: authorityContext({
+        identity: confirmSeed.identity,
+        sessionKey: confirmSession,
+        contextEpoch,
+        control: mismatchedDigestControl
+      }),
+      activeRoot,
+      execute: true
+    }), 'VALIDATION_CONFIRMED_BUDGET_DIGEST_MISMATCH')
     const confirmControl = controlReceipt({
-      prompt: '确认当前验证卡',
+      prompt: `\`确认当前验证卡 ${confirmPlan.budgetCard.digest}\``,
       mode: 'confirm',
       sessionKey: confirmSession,
       taskId: confirmTaskId,
@@ -1558,6 +1639,902 @@ function main() {
     })
     assert.strictEqual(confirmed.decision, 'user-confirmed')
     assert.strictEqual(confirmed.authority.authorityKind, 'user-confirmation')
+
+    const intentTaskId = '00000000-0000-4000-8000-000000000369'
+    const intentSession = 'validation-intent-confirm-session'
+    const intentOrdinaryControl = controlReceipt({
+      prompt: '继续处理当前任务',
+      mode: 'confirm',
+      sessionKey: intentSession,
+      taskId: intentTaskId,
+      contextEpoch,
+      suffix: 'intent-ordinary'
+    })
+    const intentSeed = seedTask({
+      activeRoot,
+      taskId: intentTaskId,
+      sessionKey: intentSession,
+      control: intentOrdinaryControl
+    })
+    const intentPlan = fixturePlan(intentTaskId, contextEpoch, 'intent-confirm-root')
+    const intentCandidate = fixtureCandidate('intent-confirm-root')
+    assert.strictEqual(resolveAiBudgetAuthority({
+      options: {},
+      plan: intentPlan,
+      candidate: intentCandidate,
+      authorityContext: authorityContext({
+        identity: intentSeed.identity,
+        sessionKey: intentSession,
+        contextEpoch,
+        control: intentOrdinaryControl
+      }),
+      activeRoot,
+      execute: false
+    }).decision, 'awaiting-current-budget-confirmation')
+    const negativeIntentControl = controlReceipt({
+      prompt: '不要确认当前验证卡',
+      mode: 'confirm',
+      sessionKey: intentSession,
+      taskId: intentTaskId,
+      contextEpoch,
+      suffix: 'intent-negative'
+    })
+    assert.strictEqual(negativeIntentControl.action, 'none')
+    updateControl({
+      activeRoot,
+      identity: intentSeed.identity,
+      metaDir: intentSeed.metaDir,
+      sessionKey: intentSession,
+      control: negativeIntentControl
+    })
+    expectCode(() => resolveAiBudgetAuthority({
+      options: {},
+      plan: intentPlan,
+      candidate: intentCandidate,
+      authorityContext: authorityContext({
+        identity: intentSeed.identity,
+        sessionKey: intentSession,
+        contextEpoch,
+        control: negativeIntentControl
+      }),
+      activeRoot,
+      execute: true
+    }), 'VALIDATION_BUDGET_APPROVAL_REQUIRED')
+    const bareIntentControl = controlReceipt({
+      prompt: '确认',
+      mode: 'confirm',
+      sessionKey: intentSession,
+      taskId: intentTaskId,
+      contextEpoch,
+      suffix: 'intent-bare-confirm'
+    })
+    updateControl({
+      activeRoot,
+      identity: intentSeed.identity,
+      metaDir: intentSeed.metaDir,
+      sessionKey: intentSession,
+      control: bareIntentControl
+    })
+    const bareIntentConfirmed = resolveAiBudgetAuthority({
+      options: {},
+      plan: intentPlan,
+      candidate: intentCandidate,
+      authorityContext: authorityContext({
+        identity: intentSeed.identity,
+        sessionKey: intentSession,
+        contextEpoch,
+        control: bareIntentControl
+      }),
+      activeRoot,
+      execute: true
+    })
+    assert.strictEqual(bareIntentConfirmed.decision, 'user-confirmed')
+    assert.strictEqual(bareIntentConfirmed.authority.authorityKind, 'user-confirmation')
+
+    const expiredPlanTaskId = '00000000-0000-4000-8000-000000000370'
+    const expiredPlanSession = 'validation-expired-plan-only-session'
+    const expiredPlanPriorControlSession = 'validation-expired-plan-only-prior-session'
+    const expiredPlanEpoch = 'context-expired-plan-only'
+    const expiredPlanControl = controlReceipt({
+      prompt: '确认当前验证卡，然后继续修复',
+      mode: 'confirm',
+      sessionKey: expiredPlanPriorControlSession,
+      taskId: expiredPlanTaskId,
+      contextEpoch: expiredPlanEpoch,
+      suffix: 'expired-plan-only',
+      nowMs: NOW - 60000,
+      ttlMs: 1
+    })
+    assert.strictEqual(expiredPlanControl.action, 'confirm-current-budget')
+    const expiredPlanSeed = seedTask({
+      activeRoot,
+      taskId: expiredPlanTaskId,
+      sessionKey: expiredPlanSession,
+      control: expiredPlanControl
+    })
+    const expiredPlan = fixturePlan(expiredPlanTaskId, expiredPlanEpoch, 'expired-plan-only', {
+      requestSourceRef: `validation-control:${expiredPlanControl.receiptDigest}`
+    })
+    const expiredPlanCandidate = fixtureCandidate('expired-plan-only')
+    const expiredPlanContext = authorityContext({
+      identity: expiredPlanSeed.identity,
+      sessionKey: expiredPlanSession,
+      contextEpoch: expiredPlanEpoch,
+      control: expiredPlanControl
+    })
+    const expiredPlanPreview = resolveAiBudgetAuthority({
+      options: { nowMs: NOW },
+      plan: expiredPlan,
+      candidate: expiredPlanCandidate,
+      authorityContext: expiredPlanContext,
+      activeRoot,
+      execute: false
+    })
+    assert.strictEqual(expiredPlanPreview.decision, 'confirmation-stale-new-card')
+    assert.deepStrictEqual(expiredPlanPreview.controlErrors, ['validation-control-ingress-expired'])
+    assert.strictEqual(expiredPlanPreview.pending.budgetDigest, expiredPlan.budgetCard.digest)
+    assert.strictEqual(expiredPlanPreview.pending.hostSessionDigest, sha256(expiredPlanSession),
+      'a replacement card must bind the current task session, not an expired prior-session control receipt')
+    assert.notStrictEqual(expiredPlanPreview.pending.hostSessionDigest, expiredPlanControl.hostSessionDigest)
+    expectCode(() => resolveAiBudgetAuthority({
+      options: { nowMs: NOW },
+      plan: expiredPlan,
+      candidate: expiredPlanCandidate,
+      authorityContext: expiredPlanContext,
+      activeRoot,
+      execute: true
+    }), 'VALIDATION_AI_CONTROL_INGRESS_REQUIRED')
+    const freshExpiredPlanControl = controlReceipt({
+      prompt: '确认',
+      mode: 'confirm',
+      sessionKey: expiredPlanSession,
+      taskId: expiredPlanTaskId,
+      contextEpoch: expiredPlanEpoch,
+      suffix: 'expired-plan-only-fresh-confirm',
+      nowMs: NOW + 1000
+    })
+    updateControl({
+      activeRoot,
+      identity: expiredPlanSeed.identity,
+      metaDir: expiredPlanSeed.metaDir,
+      sessionKey: expiredPlanSession,
+      control: freshExpiredPlanControl
+    })
+    const freshExpiredPlanConfirmation = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 1000 },
+      plan: expiredPlan,
+      candidate: expiredPlanCandidate,
+      authorityContext: authorityContext({
+        identity: expiredPlanSeed.identity,
+        sessionKey: expiredPlanSession,
+        contextEpoch: expiredPlanEpoch,
+        control: freshExpiredPlanControl
+      }),
+      activeRoot,
+      execute: true
+    })
+    assert.strictEqual(freshExpiredPlanConfirmation.decision, 'user-confirmed')
+    assert.strictEqual(freshExpiredPlanConfirmation.authority.authorityKind, 'user-confirmation')
+    const rootReplayMismatchControl = controlReceipt({
+      prompt: `确认当前验证卡 ${'e'.repeat(64)}`,
+      mode: 'confirm',
+      sessionKey: confirmSession,
+      taskId: confirmTaskId,
+      contextEpoch,
+      suffix: 'confirmed-root-mismatched-digest'
+    })
+    expectCode(() => resolveAiBudgetAuthority({
+      options: {},
+      plan: confirmPlan,
+      candidate: confirmCandidate,
+      authorityContext: authorityContext({
+        identity: confirmSeed.identity,
+        sessionKey: confirmSession,
+        contextEpoch,
+        control: rootReplayMismatchControl
+      }),
+      activeRoot,
+      execute: true
+    }), 'VALIDATION_CONFIRMED_BUDGET_DIGEST_MISMATCH')
+
+    const crossTurnTaskId = '00000000-0000-4000-8000-000000000363'
+    const crossTurnSession = 'validation-cross-turn-confirm-session'
+    const displayEpoch = 'context-cross-turn-display'
+    const displayControl = controlReceipt({
+      prompt: '继续处理并显示当前验证卡',
+      mode: 'confirm',
+      sessionKey: crossTurnSession,
+      taskId: crossTurnTaskId,
+      contextEpoch: displayEpoch,
+      suffix: 'cross-turn-display'
+    })
+    const crossTurnSeed = seedTask({
+      activeRoot,
+      taskId: crossTurnTaskId,
+      sessionKey: crossTurnSession,
+      control: displayControl
+    })
+    const crossTurnCandidate = fixtureCandidate('cross-turn-confirm')
+    const displayedPlan = fixturePlan(crossTurnTaskId, displayEpoch, 'cross-turn-confirm', {
+      requestSourceRef: `validation-control:${displayControl.receiptDigest}`
+    })
+    assert.strictEqual(resolveAiBudgetAuthority({
+      options: {},
+      plan: displayedPlan,
+      candidate: crossTurnCandidate,
+      authorityContext: authorityContext({
+        identity: crossTurnSeed.identity,
+        sessionKey: crossTurnSession,
+        contextEpoch: displayEpoch,
+        control: displayControl
+      }),
+      activeRoot,
+      execute: false
+    }).decision, 'awaiting-current-budget-confirmation')
+
+    const confirmationEpoch = 'context-cross-turn-confirm'
+    const crossTurnConfirmControl = controlReceipt({
+      prompt: '这是阻断问题，要一起修复，确认当前验证卡，然后继续复核',
+      mode: 'confirm',
+      sessionKey: crossTurnSession,
+      taskId: crossTurnTaskId,
+      contextEpoch: confirmationEpoch,
+      suffix: 'cross-turn-confirm'
+    })
+    updateControl({
+      activeRoot,
+      identity: crossTurnSeed.identity,
+      metaDir: crossTurnSeed.metaDir,
+      sessionKey: crossTurnSession,
+      control: crossTurnConfirmControl
+    })
+    const crossTurnRecovered = readTaskRecoveryState({
+      metaDir: crossTurnSeed.metaDir,
+      identity: crossTurnSeed.identity,
+      sessionKey: crossTurnSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' }
+    })
+    const crossTurnContext = authorityContext({
+      identity: crossTurnSeed.identity,
+      sessionKey: crossTurnSession,
+      contextEpoch: confirmationEpoch,
+      control: crossTurnConfirmControl,
+      state: crossTurnRecovered.state
+    })
+    const rebuiltFromCurrentTurn = fixturePlan(crossTurnTaskId, confirmationEpoch, 'cross-turn-confirm', {
+      requestSourceRef: `validation-control:${crossTurnConfirmControl.receiptDigest}`
+    })
+    assert.notStrictEqual(rebuiltFromCurrentTurn.planDigest, displayedPlan.planDigest,
+      'a real confirmation turn must produce a different volatile request identity before pending replay')
+    const restoredPlanIdentity = resolvePendingBudgetPlanIdentity({
+      actorType: 'ai-hook',
+      authorityContext: crossTurnContext,
+      candidate: crossTurnCandidate,
+      repoRoot: REPO_ROOT,
+      nowMs: NOW + 1000
+    })
+    assert(restoredPlanIdentity, 'the exact server-owned pending card must restore its frozen plan identity')
+    assert.strictEqual(restoredPlanIdentity.contextEpoch, displayEpoch)
+    assert.strictEqual(restoredPlanIdentity.requestSourceRef, displayedPlan.verificationIntent.requestSourceRef)
+    const replayedDisplayedPlan = fixturePlan(
+      crossTurnTaskId,
+      restoredPlanIdentity.contextEpoch,
+      'cross-turn-confirm',
+      { requestSourceRef: restoredPlanIdentity.requestSourceRef }
+    )
+    assert.strictEqual(resolveAiBudgetAuthority({
+      options: {},
+      plan: replayedDisplayedPlan,
+      candidate: crossTurnCandidate,
+      authorityContext: crossTurnContext,
+      activeRoot,
+      execute: false
+    }).decision, 'confirmation-ready')
+    const crossTurnConfirmed = resolveAiBudgetAuthority({
+      options: {},
+      plan: replayedDisplayedPlan,
+      candidate: crossTurnCandidate,
+      authorityContext: crossTurnContext,
+      activeRoot,
+      execute: true
+    })
+    assert.strictEqual(crossTurnConfirmed.decision, 'user-confirmed')
+    assert.strictEqual(crossTurnConfirmed.authority.contextEpoch, displayEpoch,
+      'the confirmation receipt must retain the frozen card plan context')
+    const crossTurnLease = createCliLease({
+      options: {},
+      plan: crossTurnConfirmed.plan,
+      candidate: crossTurnCandidate,
+      actorType: 'ai-hook',
+      authorityContext: crossTurnContext,
+      budgetAuthority: crossTurnConfirmed.authority
+    })
+    assert.strictEqual(crossTurnLease.contextEpoch, confirmationEpoch,
+      'execution authority must bind the current confirmation ContextRead epoch')
+    assert.strictEqual(crossTurnLease.sourceMessageDigest, crossTurnConfirmControl.sourceMessageDigest)
+
+    const driftTaskId = '00000000-0000-4000-8000-000000000364'
+    const driftSession = 'validation-stale-card-session'
+    const driftDisplayEpoch = 'context-stale-card-display'
+    const driftDisplayControl = controlReceipt({
+      prompt: '显示变更前验证卡',
+      mode: 'confirm',
+      sessionKey: driftSession,
+      taskId: driftTaskId,
+      contextEpoch: driftDisplayEpoch,
+      suffix: 'stale-card-display'
+    })
+    const driftSeed = seedTask({
+      activeRoot,
+      taskId: driftTaskId,
+      sessionKey: driftSession,
+      control: driftDisplayControl
+    })
+    const driftOldCandidate = fixtureCandidate('stale-card-old')
+    const driftOldPlan = fixturePlan(driftTaskId, driftDisplayEpoch, 'stale-card-old', {
+      requestSourceRef: `validation-control:${driftDisplayControl.receiptDigest}`
+    })
+    resolveAiBudgetAuthority({
+      options: {},
+      plan: driftOldPlan,
+      candidate: driftOldCandidate,
+      authorityContext: authorityContext({
+        identity: driftSeed.identity,
+        sessionKey: driftSession,
+        contextEpoch: driftDisplayEpoch,
+        control: driftDisplayControl
+      }),
+      activeRoot,
+      execute: false
+    })
+    const driftConfirmationEpoch = 'context-stale-card-confirm'
+    const driftConfirmControl = controlReceipt({
+      prompt: '确认当前验证卡',
+      mode: 'confirm',
+      sessionKey: driftSession,
+      taskId: driftTaskId,
+      contextEpoch: driftConfirmationEpoch,
+      suffix: 'stale-card-confirm'
+    })
+    updateControl({
+      activeRoot,
+      identity: driftSeed.identity,
+      metaDir: driftSeed.metaDir,
+      sessionKey: driftSession,
+      control: driftConfirmControl
+    })
+    const driftRecovered = readTaskRecoveryState({
+      metaDir: driftSeed.metaDir,
+      identity: driftSeed.identity,
+      sessionKey: driftSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' }
+    })
+    const driftContext = authorityContext({
+      identity: driftSeed.identity,
+      sessionKey: driftSession,
+      contextEpoch: driftConfirmationEpoch,
+      control: driftConfirmControl,
+      state: driftRecovered.state
+    })
+    const driftNewCandidate = fixtureCandidate('stale-card-new')
+    assert.strictEqual(resolvePendingBudgetPlanIdentity({
+      actorType: 'ai-hook',
+      authorityContext: driftContext,
+      candidate: driftNewCandidate,
+      repoRoot: REPO_ROOT,
+      nowMs: NOW + 1000
+    }), null, 'candidate drift must never reuse the old pending plan identity')
+    const driftNewPlan = fixturePlan(driftTaskId, driftConfirmationEpoch, 'stale-card-new', {
+      requestSourceRef: `validation-control:${driftConfirmControl.receiptDigest}`
+    })
+    const driftPreview = resolveAiBudgetAuthority({
+      options: {},
+      plan: driftNewPlan,
+      candidate: driftNewCandidate,
+      authorityContext: driftContext,
+      activeRoot,
+      execute: false
+    })
+    assert.strictEqual(driftPreview.decision, 'confirmation-stale-new-card')
+    assert.strictEqual(driftPreview.pending.requestSourceRef,
+      `validation-control:${driftConfirmControl.receiptDigest}`)
+    assert.throws(() => createBudgetConfirmationReceipt({
+      pendingBudgetCard: driftPreview.pending,
+      authorityKind: 'user-confirmation',
+      sourceMessageDigest: driftConfirmControl.sourceMessageDigest,
+      revocationEpoch: 0
+    }, {
+      currentUserInstruction: true,
+      currentSourceMessageDigest: driftConfirmControl.sourceMessageDigest,
+      currentRequestSourceRef: `validation-control:${driftConfirmControl.receiptDigest}`
+    }), error => error.code === 'VALIDATION_FRESH_BUDGET_CONFIRMATION_REQUIRED')
+    expectCode(() => resolveAiBudgetAuthority({
+      options: {},
+      plan: driftNewPlan,
+      candidate: driftNewCandidate,
+      authorityContext: driftContext,
+      activeRoot,
+      execute: true
+    }), 'VALIDATION_FRESH_BUDGET_CONFIRMATION_REQUIRED')
+    const freshDriftConfirmationEpoch = 'context-stale-card-fresh-confirm'
+    const freshDriftControl = controlReceipt({
+      prompt: `确认当前验证卡 ${driftNewPlan.budgetCard.digest}`,
+      mode: 'confirm',
+      sessionKey: driftSession,
+      taskId: driftTaskId,
+      contextEpoch: freshDriftConfirmationEpoch,
+      suffix: 'stale-card-fresh-confirm'
+    })
+    updateControl({
+      activeRoot,
+      identity: driftSeed.identity,
+      metaDir: driftSeed.metaDir,
+      sessionKey: driftSession,
+      control: freshDriftControl
+    })
+    const freshDriftRecovered = readTaskRecoveryState({
+      metaDir: driftSeed.metaDir,
+      identity: driftSeed.identity,
+      sessionKey: driftSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' }
+    })
+    const freshDriftContext = authorityContext({
+      identity: driftSeed.identity,
+      sessionKey: driftSession,
+      contextEpoch: freshDriftConfirmationEpoch,
+      control: freshDriftControl,
+      state: freshDriftRecovered.state
+    })
+    const freshDriftIdentity = resolvePendingBudgetPlanIdentity({
+      actorType: 'ai-hook',
+      authorityContext: freshDriftContext,
+      candidate: driftNewCandidate,
+      repoRoot: REPO_ROOT,
+      nowMs: NOW + 1000
+    })
+    assert(freshDriftIdentity)
+    const freshDriftPlan = fixturePlan(
+      driftTaskId,
+      freshDriftIdentity.contextEpoch,
+      'stale-card-new',
+      { requestSourceRef: freshDriftIdentity.requestSourceRef }
+    )
+    assert.strictEqual(resolveAiBudgetAuthority({
+      options: {},
+      plan: freshDriftPlan,
+      candidate: driftNewCandidate,
+      authorityContext: freshDriftContext,
+      activeRoot,
+      execute: true
+    }).decision, 'user-confirmed')
+
+    const successorTaskId = '00000000-0000-4000-8000-000000000365'
+    const successorSession = 'validation-successor-session'
+    const successorDisplayEpoch = 'context-successor-display'
+    const successorDisplayControl = controlReceipt({
+      prompt: '显示待确认的同范围验证卡',
+      mode: 'confirm',
+      sessionKey: successorSession,
+      taskId: successorTaskId,
+      contextEpoch: successorDisplayEpoch,
+      suffix: 'successor-display'
+    })
+    const successorSeed = seedTask({
+      activeRoot,
+      taskId: successorTaskId,
+      sessionKey: successorSession,
+      control: successorDisplayControl
+    })
+    const successorParentCandidate = fixtureCandidate('successor-parent', {
+      stable: true,
+      changedFiles: ['scripts/lib/validation-execution-authority.js', 'scripts/run-validation.js']
+    })
+    const successorParentPlan = fixturePlan(successorTaskId, successorDisplayEpoch, 'successor-parent', {
+      requestSourceRef: `validation-control:${successorDisplayControl.receiptDigest}`
+    })
+    const successorParentPreview = resolveAiBudgetAuthority({
+      options: { nowMs: NOW },
+      plan: successorParentPlan,
+      candidate: successorParentCandidate,
+      authorityContext: authorityContext({
+        identity: successorSeed.identity,
+        sessionKey: successorSession,
+        contextEpoch: successorDisplayEpoch,
+        control: successorDisplayControl
+      }),
+      activeRoot,
+      execute: false
+    })
+    const successorConfirmEpoch = 'context-successor-confirm'
+    const successorConfirmControl = controlReceipt({
+      prompt: '确认当前验证卡，并继续同范围修复后的验证',
+      mode: 'confirm',
+      sessionKey: successorSession,
+      taskId: successorTaskId,
+      contextEpoch: successorConfirmEpoch,
+      suffix: 'successor-confirm',
+      nowMs: NOW + 1000
+    })
+    updateControl({
+      activeRoot,
+      identity: successorSeed.identity,
+      metaDir: successorSeed.metaDir,
+      sessionKey: successorSession,
+      control: successorConfirmControl
+    })
+    const successorRecovered = readTaskRecoveryState({
+      metaDir: successorSeed.metaDir,
+      identity: successorSeed.identity,
+      sessionKey: successorSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' }
+    })
+    const successorContext = authorityContext({
+      identity: successorSeed.identity,
+      sessionKey: successorSession,
+      contextEpoch: successorConfirmEpoch,
+      control: successorConfirmControl,
+      state: successorRecovered.state
+    })
+    const successorCandidate = fixtureCandidate('successor-current', {
+      stable: true,
+      changedFiles: ['scripts/run-validation.js']
+    })
+    const successorPlan = fixturePlan(successorTaskId, successorConfirmEpoch, 'successor-current', {
+      requestSourceRef: `validation-control:${successorConfirmControl.receiptDigest}`
+    })
+    const successorAuthorized = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 1000 },
+      plan: successorPlan,
+      candidate: successorCandidate,
+      authorityContext: successorContext,
+      activeRoot,
+      execute: false
+    })
+    assert.strictEqual(successorAuthorized.decision, 'validation-successor-authorized-plan-only')
+    assert.strictEqual(successorAuthorized.successorDecision.decision, 'auto-pass')
+    assert.strictEqual(successorAuthorized.authority.authorityKind, 'auto')
+    assert.strictEqual(successorAuthorized.authority.pendingBindingDigest,
+      successorParentPreview.pending.bindingDigest)
+    assert.strictEqual(successorAuthorized.authority.successorDecisionDigest,
+      successorAuthorized.successorDecision.decisionDigest)
+    const successorStore = createValidationEvidenceStore({
+      activeRoot,
+      project: 'devcodex',
+      actorType: 'ai-hook',
+      taskIdentity: successorSeed.identity,
+      taskRecoveryKey: successorTaskId,
+      sessionKey: successorSession
+    })
+    assert.strictEqual(successorStore.readPendingBudgetCard().status, 'missing',
+      'the successor root CAS must clear the parent pending card atomically')
+    const successorRoot = successorStore.readRootBudgetConfirmation()
+    assert.strictEqual(successorRoot.status, 'fresh')
+    assert.strictEqual(successorRoot.rootBudgetConfirmation.candidateId, successorCandidate.candidateId)
+    assert.strictEqual(successorStore.readLease().status, 'missing')
+    assert.strictEqual(successorStore.readTerminal().status, 'missing')
+    const successorReplay = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 1000 },
+      plan: successorPlan,
+      candidate: successorCandidate,
+      authorityContext: successorContext,
+      activeRoot,
+      execute: true
+    })
+    assert.strictEqual(successorReplay.decision, 'root-replay-or-reconcile')
+    assert.strictEqual(successorReplay.authority.receiptDigest,
+      successorRoot.rootBudgetConfirmation.receiptDigest)
+
+    assert.throws(() => createPendingBudgetCardBinding({
+      plan: fixturePlan(successorTaskId, successorConfirmEpoch, 'successor-invalid-risk', {
+        riskClass: 'unknown-risk'
+      }),
+      candidate: fixtureCandidate('successor-invalid-risk', { stable: true }),
+      repoRoot: REPO_ROOT,
+      project: 'devcodex',
+      taskRecoveryKey: successorTaskId,
+      hostSessionDigest: successorConfirmControl.hostSessionDigest,
+      contextEpoch: successorConfirmEpoch
+    }), error => error?.code === 'VALIDATION_PENDING_BUDGET_INVALID',
+    'an unknown validation risk must fail closed instead of being normalized to normal')
+    const unsafePathPending = createPendingBudgetCardBinding({
+      plan: fixturePlan(successorTaskId, successorConfirmEpoch, 'successor-unsafe-path'),
+      candidate: fixtureCandidate('successor-unsafe-path', {
+        stable: true,
+        changedFiles: ['../outside-scope.js']
+      }),
+      repoRoot: REPO_ROOT,
+      project: 'devcodex',
+      taskRecoveryKey: successorTaskId,
+      hostSessionDigest: successorConfirmControl.hostSessionDigest,
+      contextEpoch: successorConfirmEpoch
+    })
+    assert.strictEqual(unsafePathPending.candidateChangedFilesTruncated, true,
+      'an unsafe candidate path must make successor scope incomplete')
+
+    const successorNegativeCases = [
+      {
+        name: 'path-expansion',
+        candidate: { stable: true, changedFiles: ['scripts/run-validation.js', 'scripts/lib/validation-execution-authority.js', 'scripts/new-scope.js'] },
+        plan: {},
+        blocker: 'candidate-paths-expanded'
+      },
+      { name: 'head-change', candidate: { stable: true, head: 'b'.repeat(40) }, plan: {}, blocker: 'candidate-head-changed' },
+      { name: 'unstable', candidate: { stable: false }, plan: {}, blocker: 'candidate-scope-incomplete' },
+      {
+        name: 'deletion',
+        candidate: { stable: true, deletedFiles: ['scripts/run-validation.js'] },
+        plan: {},
+        blocker: 'candidate-scope-incomplete'
+      },
+      { name: 'risk-change', candidate: { stable: true }, plan: { riskClass: 'high' }, blocker: 'validation-risk-changed' },
+      {
+        name: 'node-change',
+        candidate: { stable: true },
+        plan: { selectedNodes: [{ id: 'validation-authority', writeScopes: [] }, { id: 'validation-extra', writeScopes: [] }] },
+        blocker: 'selected-nodes-changed'
+      },
+      { name: 'boundary-change', candidate: { stable: true }, plan: { affectedBoundaries: ['validation-other'] }, blocker: 'affected-boundaries-changed' },
+      { name: 'heavy-change', candidate: { stable: true }, plan: { heavyNodeIds: ['validation-other'] }, blocker: 'heavy-nodes-changed' },
+      { name: 'side-effect-change', candidate: { stable: true }, plan: { sideEffectCategories: ['install'] }, blocker: 'side-effects-changed' },
+      { name: 'budget-increase', candidate: { stable: true }, plan: { estimatedDurationMs: 700001 }, blocker: 'estimated-duration-increased' },
+      {
+        name: 'successor-control-lineage',
+        candidate: { stable: true },
+        plan: { requestSourceRef: 'validation-control:' + 'f'.repeat(64) },
+        blocker: 'successor-control-lineage-mismatch'
+      },
+      {
+        name: 'truncated-scope',
+        candidate: { stable: true, changedFiles: Array.from({ length: 41 }, (_, index) => `scripts/scope-${index}.js`) },
+        plan: {},
+        blocker: 'candidate-scope-incomplete'
+      }
+    ]
+    for (const [index, negative] of successorNegativeCases.entries()) {
+      const taskId = `00000000-0000-4000-8000-${String(800 + index).padStart(12, '0')}`
+      const sessionKey = `validation-successor-negative-${negative.name}`
+      const displayEpoch = `context-successor-negative-display-${index}`
+      const displayControl = controlReceipt({
+        prompt: '显示当前验证卡',
+        mode: 'confirm',
+        sessionKey,
+        taskId,
+        contextEpoch: displayEpoch,
+        suffix: `successor-negative-display-${index}`,
+        nowMs: NOW + index * 10
+      })
+      const seeded = seedTask({ activeRoot, taskId, sessionKey, control: displayControl })
+      const parentCandidate = fixtureCandidate(`successor-negative-parent-${index}`, {
+        stable: true,
+        changedFiles: ['scripts/lib/validation-execution-authority.js', 'scripts/run-validation.js']
+      })
+      const parentPlan = fixturePlan(taskId, displayEpoch, `successor-negative-parent-${index}`, {
+        requestSourceRef: `validation-control:${displayControl.receiptDigest}`
+      })
+      resolveAiBudgetAuthority({
+        options: { nowMs: NOW + index * 10 },
+        plan: parentPlan,
+        candidate: parentCandidate,
+        authorityContext: authorityContext({ identity: seeded.identity, sessionKey, contextEpoch: displayEpoch, control: displayControl }),
+        activeRoot,
+        execute: false
+      })
+      const confirmEpoch = `context-successor-negative-confirm-${index}`
+      const confirmControl = controlReceipt({
+        prompt: '确认当前验证卡',
+        mode: 'confirm',
+        sessionKey,
+        taskId,
+        contextEpoch: confirmEpoch,
+        suffix: `successor-negative-confirm-${index}`,
+        nowMs: NOW + 1000 + index * 10
+      })
+      updateControl({
+        activeRoot,
+        identity: seeded.identity,
+        metaDir: seeded.metaDir,
+        sessionKey,
+        control: confirmControl
+      })
+      const recoveredNegative = readTaskRecoveryState({
+        metaDir: seeded.metaDir,
+        identity: seeded.identity,
+        sessionKey,
+        expectedIdentity: { activeRoot, project: 'devcodex' }
+      })
+      const negativeCandidate = fixtureCandidate(`successor-negative-current-${index}`, {
+        stable: negative.candidate.stable,
+        head: negative.candidate.head,
+        changedFiles: negative.candidate.changedFiles || ['scripts/run-validation.js'],
+        deletedFiles: negative.candidate.deletedFiles || []
+      })
+      const negativePlan = fixturePlan(taskId, confirmEpoch, `successor-negative-current-${index}`, {
+        requestSourceRef: `validation-control:${confirmControl.receiptDigest}`,
+        ...negative.plan
+      })
+      const negativeResult = resolveAiBudgetAuthority({
+        options: { nowMs: NOW + 1000 + index * 10 },
+        plan: negativePlan,
+        candidate: negativeCandidate,
+        authorityContext: authorityContext({
+          identity: seeded.identity,
+          sessionKey,
+          contextEpoch: confirmEpoch,
+          control: confirmControl,
+          state: recoveredNegative.state
+        }),
+        activeRoot,
+        execute: false
+      })
+      assert.strictEqual(negativeResult.decision, 'confirmation-stale-new-card', negative.name)
+      assert(negativeResult.successorDecision.blockers.includes(negative.blocker),
+        `${negative.name} missing ${negative.blocker}: ${JSON.stringify(negativeResult.successorDecision.blockers)}`)
+      assert.strictEqual(createValidationEvidenceStore({
+        activeRoot,
+        project: 'devcodex',
+        actorType: 'ai-hook',
+        taskIdentity: seeded.identity,
+        taskRecoveryKey: taskId,
+        sessionKey
+      }).readRootBudgetConfirmation().status, 'missing', `${negative.name} must not create a root`)
+    }
+
+    const legacySuccessorTaskId = '00000000-0000-4000-8000-000000000900'
+    const legacySuccessorSession = 'validation-successor-legacy'
+    const legacyDisplayEpoch = 'context-successor-legacy-display'
+    const legacyDisplayControl = controlReceipt({
+      prompt: '显示 legacy 候选卡',
+      mode: 'confirm',
+      sessionKey: legacySuccessorSession,
+      taskId: legacySuccessorTaskId,
+      contextEpoch: legacyDisplayEpoch,
+      suffix: 'successor-legacy-display',
+      nowMs: NOW
+    })
+    const legacySeed = seedTask({
+      activeRoot,
+      taskId: legacySuccessorTaskId,
+      sessionKey: legacySuccessorSession,
+      control: legacyDisplayControl
+    })
+    resolveAiBudgetAuthority({
+      options: { nowMs: NOW },
+      plan: fixturePlan(legacySuccessorTaskId, legacyDisplayEpoch, 'successor-legacy-parent', {
+        requestSourceRef: `validation-control:${legacyDisplayControl.receiptDigest}`
+      }),
+      candidate: fixtureCandidate('successor-legacy-parent', { stable: true }),
+      authorityContext: authorityContext({
+        identity: legacySeed.identity,
+        sessionKey: legacySuccessorSession,
+        contextEpoch: legacyDisplayEpoch,
+        control: legacyDisplayControl
+      }),
+      activeRoot,
+      execute: false
+    })
+    const legacyMutation = updateTaskRecoveryState({
+      metaDir: legacySeed.metaDir,
+      identity: legacySeed.identity,
+      sessionKey: legacySuccessorSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' },
+      readFallback: () => ({})
+    }, state => {
+      const pending = { ...state.validationExecution.pendingBudgetCard }
+      for (const field of [
+        'candidateStable', 'candidateHead', 'candidateChangedFiles', 'candidateChangedFilesTruncated',
+        'candidateChangedFilesDigest', 'candidateHasDeletions', 'riskClass', 'requestSourceRef', 'bindingDigest'
+      ]) delete pending[field]
+      pending.bindingDigest = sha256(stableStringify(pending))
+      return {
+        ...state,
+        validationExecution: { ...state.validationExecution, pendingBudgetCard: pending }
+      }
+    }, { force: true, nowMs: NOW + 500 })
+    assert(['committed', 'semantic-noop'].includes(legacyMutation.status), JSON.stringify(legacyMutation))
+    const legacyConfirmEpoch = 'context-successor-legacy-confirm'
+    const legacyConfirmControl = controlReceipt({
+      prompt: '确认当前验证卡',
+      mode: 'confirm',
+      sessionKey: legacySuccessorSession,
+      taskId: legacySuccessorTaskId,
+      contextEpoch: legacyConfirmEpoch,
+      suffix: 'successor-legacy-confirm',
+      nowMs: NOW + 1000
+    })
+    updateControl({
+      activeRoot,
+      identity: legacySeed.identity,
+      metaDir: legacySeed.metaDir,
+      sessionKey: legacySuccessorSession,
+      control: legacyConfirmControl
+    })
+    const legacyRecovered = readTaskRecoveryState({
+      metaDir: legacySeed.metaDir,
+      identity: legacySeed.identity,
+      sessionKey: legacySuccessorSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' }
+    })
+    const legacyResult = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 1000 },
+      plan: fixturePlan(legacySuccessorTaskId, legacyConfirmEpoch, 'successor-legacy-current', {
+        requestSourceRef: `validation-control:${legacyConfirmControl.receiptDigest}`
+      }),
+      candidate: fixtureCandidate('successor-legacy-current', { stable: true }),
+      authorityContext: authorityContext({
+        identity: legacySeed.identity,
+        sessionKey: legacySuccessorSession,
+        contextEpoch: legacyConfirmEpoch,
+        control: legacyConfirmControl,
+        state: legacyRecovered.state
+      }),
+      activeRoot,
+      execute: false
+    })
+    assert.strictEqual(legacyResult.decision, 'confirmation-stale-new-card')
+    assert(legacyResult.successorDecision.blockers.includes('candidate-scope-incomplete'))
+    assert(legacyResult.successorDecision.blockers.includes('parent-confirmation-lineage-missing'))
+
+    const blockedPreflightTaskId = '7b3fe84f-5a5d-4a09-8f54-23827dd9c21a'
+    const blockedPreflightSession = 'session-formal-task-preflight-blocked'
+    const blockedPreflightEpoch = 'context-formal-task-preflight-blocked'
+    const blockedPreflightControl = controlReceipt({
+      prompt: '生成当前验证计划',
+      mode: 'confirm',
+      sessionKey: blockedPreflightSession,
+      taskId: blockedPreflightTaskId,
+      contextEpoch: blockedPreflightEpoch,
+      suffix: 'formal-task-preflight-blocked'
+    })
+    const blockedPreflightSeed = seedTask({
+      activeRoot,
+      taskId: blockedPreflightTaskId,
+      sessionKey: blockedPreflightSession,
+      control: blockedPreflightControl
+    })
+    const blockedPreflightRecovered = readTaskRecoveryState({
+      metaDir: blockedPreflightSeed.metaDir,
+      identity: blockedPreflightSeed.identity,
+      sessionKey: blockedPreflightSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' }
+    })
+    const blockedPreflightContext = authorityContext({
+      identity: blockedPreflightSeed.identity,
+      sessionKey: blockedPreflightSession,
+      contextEpoch: blockedPreflightEpoch,
+      control: blockedPreflightControl,
+      state: blockedPreflightRecovered.state
+    })
+    const blockedPreflightPlan = fixturePlan(blockedPreflightTaskId, blockedPreflightEpoch, 'formal-preflight-block')
+    const blockedPreflightCandidate = fixtureCandidate('formal-preflight-block')
+    let blockedPreflightError = null
+    try {
+      resolveFormalTaskExecutionPreflight({
+        authorityContext: blockedPreflightContext,
+        plan: blockedPreflightPlan,
+        candidate: blockedPreflightCandidate,
+        activeRoot,
+        repoRoot: REPO_ROOT,
+        nowMs: NOW
+      })
+    } catch (error) {
+      blockedPreflightError = error
+    }
+    assert.strictEqual(blockedPreflightError?.code, 'FORMAL_TASK_EXECUTION_PREFLIGHT_BLOCKED')
+    assert.strictEqual(blockedPreflightError?.details?.card, null)
+    assert.strictEqual(blockedPreflightError?.details?.executed, 0)
+    assert.strictEqual(blockedPreflightError?.details?.preflight?.status, 'BLOCK')
+    assert.strictEqual(
+      createValidationEvidenceStore({
+        activeRoot,
+        project: 'devcodex',
+        actorType: 'ai-hook',
+        taskIdentity: blockedPreflightSeed.identity,
+        taskRecoveryKey: blockedPreflightTaskId,
+        sessionKey: blockedPreflightSession
+      }).readPendingBudgetCard().status,
+      'missing',
+      'failed formal-task preflight must not persist a pending BudgetCard'
+    )
 
     const beforeCardinality = countFiles(activeRoot)
     for (let index = 0; index < 100; index += 1) {

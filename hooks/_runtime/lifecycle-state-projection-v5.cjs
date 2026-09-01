@@ -19,6 +19,9 @@ const DELIVERY_RECEIPT_MAX_BYTES = 32 * 1024
 const ADMISSION_TRANSACTION_MAX_BYTES = 12 * 1024
 const VALIDATION_AUTHORITY_RECORD_MAX_BYTES = 4 * 1024
 const VALIDATION_ROOT_BUDGET_PROJECTION_MAX_BYTES = 16 * 1024
+const TASK_SCOPED_AUTO_RECORD_MAX_BYTES = 4 * 1024
+const AUTO_CHECKPOINT_HISTORY_MAX_COUNT = 12
+const AUTO_CHECKPOINT_HISTORY_MAX_BYTES = 64 * 1024
 
 class LifecycleStateProjectionV5Error extends Error {
   constructor(code, message, details = {}) {
@@ -370,6 +373,50 @@ function compactTaskRecoveryBinding(raw) {
   }
 }
 
+function compactTaskScopedAutoRecord(raw, field) {
+  if (raw == null) return null
+  if (!isPlainObject(raw)) {
+    throw new LifecycleStateProjectionV5Error(
+      'LIFECYCLE_TASK_SCOPED_AUTO_RECORD_INVALID',
+      `${field} must be one bounded object`,
+      { field }
+    )
+  }
+  const value = clone(raw)
+  const bytes = jsonBytes(value)
+  if (bytes > TASK_SCOPED_AUTO_RECORD_MAX_BYTES) {
+    throw new LifecycleStateProjectionV5Error(
+      'LIFECYCLE_TASK_SCOPED_AUTO_RECORD_EXCEEDED',
+      `${field} exceeds ${TASK_SCOPED_AUTO_RECORD_MAX_BYTES} bytes`,
+      { field, bytes, maxBytes: TASK_SCOPED_AUTO_RECORD_MAX_BYTES }
+    )
+  }
+  return value
+}
+
+function compactAutoCheckpointHistory(raw) {
+  if (raw == null) return []
+  if (!Array.isArray(raw) || raw.length > AUTO_CHECKPOINT_HISTORY_MAX_COUNT) {
+    throw new LifecycleStateProjectionV5Error(
+      'LIFECYCLE_AUTO_CHECKPOINT_HISTORY_INVALID',
+      `autoCheckpointDecisions must contain at most ${AUTO_CHECKPOINT_HISTORY_MAX_COUNT} records`
+    )
+  }
+  const value = raw.map((item, index) => compactTaskScopedAutoRecord(
+    item,
+    `autoCheckpointDecisions[${index}]`
+  ))
+  const bytes = jsonBytes(value)
+  if (bytes > AUTO_CHECKPOINT_HISTORY_MAX_BYTES) {
+    throw new LifecycleStateProjectionV5Error(
+      'LIFECYCLE_AUTO_CHECKPOINT_HISTORY_EXCEEDED',
+      `autoCheckpointDecisions exceeds ${AUTO_CHECKPOINT_HISTORY_MAX_BYTES} bytes`,
+      { bytes, maxBytes: AUTO_CHECKPOINT_HISTORY_MAX_BYTES }
+    )
+  }
+  return value
+}
+
 function compactGovernanceIntake(raw) {
   if (!isPlainObject(raw)) return raw || null
   const value = clone(raw)
@@ -569,6 +616,21 @@ function compactLifecycleStateV5(raw, options = {}) {
   value.contextDeliveryReceipts = compactDeliveryReceipts(value.contextDeliveryReceipts)
   value.governanceIntake = compactGovernanceIntake(value.governanceIntake)
   value.taskRecoveryBinding = compactTaskRecoveryBinding(value.taskRecoveryBinding)
+  if (Object.prototype.hasOwnProperty.call(value, 'taskScopedAutoContinuationGrant')) {
+    value.taskScopedAutoContinuationGrant = compactTaskScopedAutoRecord(
+      value.taskScopedAutoContinuationGrant,
+      'taskScopedAutoContinuationGrant'
+    )
+  }
+  if (Object.prototype.hasOwnProperty.call(value, 'autoCheckpointDecision')) {
+    value.autoCheckpointDecision = compactTaskScopedAutoRecord(
+      value.autoCheckpointDecision,
+      'autoCheckpointDecision'
+    )
+  }
+  if (Object.prototype.hasOwnProperty.call(value, 'autoCheckpointDecisions')) {
+    value.autoCheckpointDecisions = compactAutoCheckpointHistory(value.autoCheckpointDecisions)
+  }
   if (isPlainObject(value.admissionTransaction)) {
     value.admissionTransaction = compactAdmissionTransaction(value.admissionTransaction)
   }
@@ -672,6 +734,15 @@ function buildColdResumeStub(compactState) {
     stickyProject: state.stickyProject,
     stickyAuto: state.stickyAuto,
     taskRecoveryBinding: state.taskRecoveryBinding || null,
+    taskScopedAutoContinuationGrant: compactTaskScopedAutoRecord(
+      state.taskScopedAutoContinuationGrant,
+      'taskScopedAutoContinuationGrant'
+    ),
+    autoCheckpointDecision: compactTaskScopedAutoRecord(
+      state.autoCheckpointDecision,
+      'autoCheckpointDecision'
+    ),
+    autoCheckpointDecisions: compactAutoCheckpointHistory(state.autoCheckpointDecisions),
     admissionTransaction: isPlainObject(state.admissionTransaction)
       ? compactAdmissionTransaction(state.admissionTransaction)
       : null,
@@ -776,6 +847,7 @@ module.exports = {
   LifecycleStateProjectionV5Error,
   TASK_STATE_SLOT_MAX_BYTES,
   TASK_STATE_TARGET_BYTES,
+  TASK_SCOPED_AUTO_RECORD_MAX_BYTES,
   TRACE_MAX_BYTES,
   TRACE_MAX_EVENTS,
   VALIDATION_AUTHORITY_RECORD_MAX_BYTES,

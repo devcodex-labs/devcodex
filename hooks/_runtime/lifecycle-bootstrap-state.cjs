@@ -14,6 +14,7 @@ const {
 const {
   commitTaskRecoveryState,
   readTaskRecoveryState,
+  validateTaskScopedAutoContinuationGrant,
   writeAdmissionIngressSnapshot,
   writeStableProjection
 } = require('./task-recovery-store-v5.cjs')
@@ -640,9 +641,14 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         updatedAt: '',
         updatedAtMs: 0,
         authorityRef: '',
+        sourceMessageDigest: '',
         reason: ''
       },
       taskRecoveryBinding: null,
+      taskScopedAutoContinuationGrant: null,
+      autoCheckpointDecision: null,
+      autoCheckpointDecisions: [],
+      taskScopedAutoStatus: null,
       workspaceSessionRouteHint: null,
       contextDeliveryReceipts: [],
       actualInstructionEnvelope: null,
@@ -1008,6 +1014,9 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     state.workspaceSessionRouteHint = probe.workspaceSessionRouteHint || state.workspaceSessionRouteHint || null
     if (state.taskRecoveryBinding && String(state.taskRecoveryBinding.project || '') !== recoveryProjectForState(state)) {
       state.taskRecoveryBinding = null
+      state.taskScopedAutoContinuationGrant = null
+      state.autoCheckpointDecision = null
+      state.autoCheckpointDecisions = []
     }
     syncContextProjection(state)
     return state
@@ -1092,6 +1101,10 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       const metaState = {
         ...committedState,
         taskRecoveryBinding: null,
+        taskScopedAutoContinuationGrant: null,
+        autoCheckpointDecision: null,
+        autoCheckpointDecisions: [],
+        taskScopedAutoStatus: null,
         bootstrap: { ...(committedState.bootstrap || {}) },
         visible: { ...(committedState.visible || {}) },
         stickyProject: { ...(committedState.stickyProject || {}) },
@@ -1123,6 +1136,24 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const nextProject = state.activeScope === 'workspace' ? 'workspace' : state.activeProject
     if (previousBinding && String(previousBinding.project || '') === String(nextProject || '')) {
       state.taskRecoveryBinding = { ...previousBinding }
+      const previousGrant = previousState?.taskScopedAutoContinuationGrant
+      const grantValidation = validateTaskScopedAutoContinuationGrant(previousGrant, {
+        taskId: previousBinding.taskId,
+        project: previousBinding.project,
+        projectRootIdentityDigest: state.stickyProject?.rootIdentityDigest
+      })
+      if (grantValidation.valid) {
+        state.taskScopedAutoContinuationGrant = JSON.parse(JSON.stringify(previousGrant))
+        if (previousState?.autoCheckpointDecision && typeof previousState.autoCheckpointDecision === 'object') {
+          state.autoCheckpointDecision = JSON.parse(JSON.stringify(previousState.autoCheckpointDecision))
+        }
+        if (Array.isArray(previousState?.autoCheckpointDecisions)) {
+          state.autoCheckpointDecisions = JSON.parse(JSON.stringify(previousState.autoCheckpointDecisions))
+        }
+        if (previousState?.taskScopedAutoStatus && typeof previousState.taskScopedAutoStatus === 'object') {
+          state.taskScopedAutoStatus = JSON.parse(JSON.stringify(previousState.taskScopedAutoStatus))
+        }
+      }
     }
     for (const field of [
       'taskRecoveryCommitFence',

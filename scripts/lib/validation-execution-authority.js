@@ -12,7 +12,9 @@ const LEASE_SCHEMA = 'VerificationExecutionLeaseV2'
 const LEGACY_LEASE_SCHEMA = 'VerificationExecutionLeaseV1'
 const PENDING_BUDGET_SCHEMA = 'PendingBudgetCardBindingV1'
 const BUDGET_CONFIRMATION_SCHEMA = 'BudgetConfirmationReceiptV1'
+const VALIDATION_BUDGET_SUCCESSOR_DECISION_SCHEMA = 'ValidationBudgetSuccessorDecisionV1'
 const CONTINUATION_AUTHORIZATION_SCHEMA = 'ValidationContinuationAuthorizationV1'
+const FORMAL_TASK_EXECUTION_PREFLIGHT_SCHEMA = 'FormalTaskExecutionPreflightV1'
 const ACTOR_TYPES = new Set(['ai-hook', 'human-cli', 'trusted-ci', 'release-pipeline'])
 const AUTHORITY_CLASSES = new Set(['scoped', 'full-audit', 'release'])
 const LEASE_STATUSES = new Set(['active', 'consumed', 'revoked', 'expired'])
@@ -28,6 +30,8 @@ const ROOT_ROLLOVER_REASONS = new Set([
   'strict-descendant-exact-scope-current-auto-rebind',
   'strict-descendant-current-auto-rescope'
 ])
+const VALIDATION_SUCCESSOR_REASONS = new Set(['pre-execution-same-scope-refresh'])
+const VALIDATION_RISK_CLASSES = new Set(['normal', 'high', 'release', 'security', 'destructive'])
 const RECOVERABLE_TERMINAL_STATUSES = new Set(['failed', 'blocked', 'timed-out'])
 const LEVEL_RANK = Object.freeze({ V0: 0, V1: 1, V2: 2, V3: 3 })
 const DIGEST_RE = /^[a-f0-9]{64}$/
@@ -36,6 +40,7 @@ const LEASE_MARGIN_FLOOR_MS = 30 * 1000
 const PENDING_BUDGET_TTL_MS = 24 * 60 * 60 * 1000
 const MAX_AUTHORITY_RECORD_BYTES = 4 * 1024
 const MAX_CONTINUATION_RETRIES = 2
+const MAX_PENDING_CANDIDATE_PATHS = 40
 
 class ValidationAuthorityError extends Error {
   constructor(code, message, details = null) {
@@ -80,6 +85,37 @@ function canonicalStrings(values = []) {
 
 function stringSetDigest(schemaVersion, values = []) {
   return digest({ schemaVersion, values: canonicalStrings(values) })
+}
+
+function normalizeCandidatePath(value) {
+  const normalized = String(value || '').trim().replace(/\\/g, '/').replace(/^\.\/+/, '')
+  if (!normalized || normalized === '..' || normalized.startsWith('../') || normalized.includes('/../') ||
+      path.posix.isAbsolute(normalized) || /^[a-z]:\//i.test(normalized)) return null
+  return normalized
+}
+
+function candidateScopeSnapshot(candidate = {}, riskClass = 'normal') {
+  const rawChangedPaths = Array.isArray(candidate.changedFiles) ? candidate.changedFiles : []
+  const rawDirtyIdentities = Array.isArray(candidate.dirtyIdentities) ? candidate.dirtyIdentities : []
+  const normalizedChangedPaths = rawChangedPaths.map(normalizeCandidatePath)
+  const normalizedDirtyPaths = rawDirtyIdentities.map(item => normalizeCandidatePath(item?.path))
+  const allPaths = [...new Set(normalizedChangedPaths.filter(Boolean))].sort()
+  const dirtyPaths = [...new Set(normalizedDirtyPaths.filter(Boolean))].sort()
+  const changedSet = new Set(allPaths)
+  const truncated = normalizedChangedPaths.some(file => !file) ||
+    normalizedDirtyPaths.some(file => !file) ||
+    allPaths.length > MAX_PENDING_CANDIDATE_PATHS ||
+    dirtyPaths.some(file => !changedSet.has(file))
+  const normalizedRiskClass = String(riskClass || 'normal')
+  return {
+    candidateStable: candidate.stable === true,
+    candidateHead: candidate.head == null ? null : String(candidate.head).trim().toLowerCase(),
+    candidateChangedFiles: truncated ? [] : allPaths,
+    candidateChangedFilesTruncated: truncated,
+    candidateChangedFilesDigest: stringSetDigest('ValidationPendingCandidatePathSetV1', allPaths),
+    candidateHasDeletions: rawDirtyIdentities.some(item => item?.deleted === true),
+    riskClass: normalizedRiskClass
+  }
 }
 
 function recordBytes(value) {
@@ -231,6 +267,9 @@ function validatePendingBudgetCardBinding(binding, expected = null, options = {}
   ]) {
     if (!text(binding[field], maxLength)) errors.push(`pending-budget-${field}-required`)
   }
+  if (Object.hasOwn(binding, 'requestSourceRef') && !text(binding.requestSourceRef, 1024)) {
+    errors.push('pending-budget-request-source-invalid')
+  }
   for (const field of [
     'hostSessionDigest', 'candidateDigest', 'planDigest', 'budgetDigest', 'affectedBoundaryDigest',
     'heavyNodeDigest', 'sideEffectCategoryDigest', 'selectedNodeDigest', 'bindingDigest'
@@ -245,6 +284,43 @@ function validatePendingBudgetCardBinding(binding, expected = null, options = {}
   }
   if (!Object.hasOwn(LEVEL_RANK, binding.level) || LEVEL_RANK[binding.level] > LEVEL_RANK.V2) errors.push('pending-budget-level-invalid')
   if (!['edit-loop', 'delivery', 'boundary'].includes(binding.purpose)) errors.push('pending-budget-purpose-invalid')
+  const candidateScopeFields = [
+    'candidateStable', 'candidateHead', 'candidateChangedFiles', 'candidateChangedFilesTruncated',
+    'candidateChangedFilesDigest', 'candidateHasDeletions', 'riskClass'
+  ]
+  const candidateScopePresent = candidateScopeFields.some(field => Object.hasOwn(binding, field))
+  if (candidateScopePresent) {
+    for (const field of candidateScopeFields) {
+      if (!Object.hasOwn(binding, field)) errors.push(`pending-budget-${field}-required`)
+    }
+    if (typeof binding.candidateStable !== 'boolean') errors.push('pending-budget-candidate-stable-invalid')
+    if (binding.candidateHead !== null && !/^[a-f0-9]{40,64}$/.test(String(binding.candidateHead || ''))) {
+      errors.push('pending-budget-candidate-head-invalid')
+    }
+    if (binding.candidateStable === true && !/^[a-f0-9]{40,64}$/.test(String(binding.candidateHead || ''))) {
+      errors.push('pending-budget-candidate-stable-head-required')
+    }
+    const candidatePaths = Array.isArray(binding.candidateChangedFiles)
+      ? binding.candidateChangedFiles.map(normalizeCandidatePath)
+      : null
+    if (!candidatePaths || candidatePaths.some(item => !item) ||
+        stableStringify(candidatePaths) !== stableStringify(canonicalStrings(candidatePaths)) ||
+        candidatePaths.length > MAX_PENDING_CANDIDATE_PATHS) {
+      errors.push('pending-budget-candidate-paths-invalid')
+    }
+    if (typeof binding.candidateChangedFilesTruncated !== 'boolean' ||
+        (binding.candidateChangedFilesTruncated === true && candidatePaths?.length !== 0)) {
+      errors.push('pending-budget-candidate-paths-truncation-invalid')
+    }
+    if (typeof binding.candidateHasDeletions !== 'boolean') errors.push('pending-budget-candidate-deletions-invalid')
+    if (!DIGEST_RE.test(String(binding.candidateChangedFilesDigest || ''))) {
+      errors.push('pending-budget-candidate-paths-digest-invalid')
+    } else if (binding.candidateChangedFilesTruncated === false && candidatePaths &&
+        binding.candidateChangedFilesDigest !== stringSetDigest('ValidationPendingCandidatePathSetV1', candidatePaths)) {
+      errors.push('pending-budget-candidate-paths-digest-mismatch')
+    }
+    if (!VALIDATION_RISK_CLASSES.has(binding.riskClass)) errors.push('pending-budget-risk-class-invalid')
+  }
   for (const field of ['selectedNodeCount', 'estimatedDurationMs', 'hardTimeoutUpperBoundMs', 'logBudgetBytes', 'stateRevision']) {
     if (!Number.isInteger(binding[field]) || binding[field] < 0) errors.push(`pending-budget-${field}-invalid`)
   }
@@ -266,9 +342,15 @@ function validatePendingBudgetCardBinding(binding, expected = null, options = {}
     for (const field of [
       'taskRecoveryKey', 'project', 'hostSessionDigest', 'contextEpoch', 'candidateId', 'candidateDigest',
       'planDigest', 'budgetDigest', 'level', 'purpose', 'affectedBoundaryDigest', 'heavyNodeDigest',
-      'sideEffectCategoryDigest', 'selectedNodeDigest', 'stateRevision'
+      'sideEffectCategoryDigest', 'selectedNodeDigest', 'stateRevision', 'requestSourceRef',
+      'candidateStable', 'candidateHead', 'candidateChangedFilesTruncated', 'candidateChangedFilesDigest',
+      'candidateHasDeletions', 'riskClass'
     ]) {
       if (Object.hasOwn(expected, field) && expected[field] !== binding[field]) errors.push(`pending-budget-binding-mismatch:${field}`)
+    }
+    if (Object.hasOwn(expected, 'candidateChangedFiles') &&
+        stableStringify(expected.candidateChangedFiles) !== stableStringify(binding.candidateChangedFiles)) {
+      errors.push('pending-budget-binding-mismatch:candidateChangedFiles')
     }
     if (expected.projectRootIdentity && stableStringify(expected.projectRootIdentity) !== stableStringify(binding.projectRootIdentity)) {
       errors.push('pending-budget-binding-mismatch:projectRootIdentity')
@@ -286,8 +368,10 @@ function createPendingBudgetCardBinding(input = {}, options = {}) {
   const candidate = input.candidate || { candidateId: plan.candidateId }
   const budget = planBudgetProjection(plan)
   const candidateIdentity = candidateIdentityForAuthority(candidate)
+  const candidateScope = candidateScopeSnapshot(candidate, input.riskClass || plan.riskClass || 'normal')
   const createdAt = input.createdAt || new Date(nowMs).toISOString()
   const expiresAt = input.expiresAt || new Date(nowMs + PENDING_BUDGET_TTL_MS).toISOString()
+  const requestSourceRef = String(input.requestSourceRef || plan.verificationIntent?.requestSourceRef || '')
   const semantic = {
     schemaVersion: PENDING_BUDGET_SCHEMA,
     taskRecoveryKey: String(input.taskRecoveryKey || plan.verificationIntent?.taskRecoveryKey || ''),
@@ -295,6 +379,7 @@ function createPendingBudgetCardBinding(input = {}, options = {}) {
     projectRootIdentity: input.projectRootIdentity || projectRootIdentity(input.repoRoot),
     hostSessionDigest: hostSessionIdentity(input.hostSessionDigest || input.sessionKey),
     contextEpoch: String(input.contextEpoch || plan.verificationIntent?.contextEpoch || ''),
+    ...(requestSourceRef ? { requestSourceRef } : {}),
     candidateId: candidateIdentity.candidateId || String(plan.candidateId || ''),
     candidateDigest: candidateIdentity.candidateDigest,
     planDigest: budget.planDigest,
@@ -309,6 +394,7 @@ function createPendingBudgetCardBinding(input = {}, options = {}) {
     estimatedDurationMs: budget.estimatedDurationMs,
     hardTimeoutUpperBoundMs: budget.hardTimeoutUpperBoundMs,
     logBudgetBytes: budget.logBudgetBytes,
+    ...candidateScope,
     createdAt,
     expiresAt,
     stateRevision: Number.isInteger(input.stateRevision) ? input.stateRevision : 1,
@@ -320,6 +406,116 @@ function createPendingBudgetCardBinding(input = {}, options = {}) {
     throw new ValidationAuthorityError('VALIDATION_PENDING_BUDGET_INVALID', 'pending BudgetCard binding is invalid', validation)
   }
   return binding
+}
+
+function pendingCandidateScopeComplete(binding) {
+  return binding?.candidateStable === true &&
+    /^[a-f0-9]{40,64}$/.test(String(binding.candidateHead || '')) &&
+    Array.isArray(binding.candidateChangedFiles) &&
+    binding.candidateChangedFilesTruncated === false &&
+    binding.candidateHasDeletions === false &&
+    DIGEST_RE.test(String(binding.candidateChangedFilesDigest || '')) &&
+    VALIDATION_RISK_CLASSES.has(binding.riskClass)
+}
+
+function setSubset(current = [], allowed = []) {
+  const allowedSet = new Set((allowed || []).map(value => String(value)))
+  return (current || []).every(value => allowedSet.has(String(value)))
+}
+
+function createValidationBudgetSuccessorDecision(input = {}, options = {}) {
+  const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
+  const parent = input.parentPendingBudgetCard
+  const successor = input.successorPendingBudgetCard
+  const control = input.validationControlIngress
+  const parentValidation = validatePendingBudgetCardBinding(parent, null, { nowMs })
+  const successorValidation = validatePendingBudgetCardBinding(successor, null, { nowMs })
+  const blockers = []
+  if (!parentValidation.valid) blockers.push('parent-pending-not-fresh')
+  if (!successorValidation.valid) blockers.push('successor-pending-not-fresh')
+  if (!control || control.action !== 'confirm-current-budget' || control.authorityKind !== 'user-confirmation' ||
+      !DIGEST_RE.test(String(control.receiptDigest || '')) || !DIGEST_RE.test(String(control.sourceMessageDigest || ''))) {
+    blockers.push('fresh-user-confirmation-required')
+  }
+  if (!text(parent?.requestSourceRef, 1024)) {
+    blockers.push('parent-confirmation-lineage-missing')
+  } else if (control && parent.requestSourceRef === `validation-control:${control.receiptDigest}`) {
+    blockers.push('independent-confirmation-required')
+  }
+  if (control && successor?.requestSourceRef !== `validation-control:${control.receiptDigest}`) {
+    blockers.push('successor-control-lineage-mismatch')
+  }
+  if (control?.requestedBudgetDigest && control.requestedBudgetDigest !== parent?.budgetDigest) {
+    blockers.push('confirmed-parent-budget-mismatch')
+  }
+  if (parent && successor) {
+    if (parent.taskRecoveryKey !== successor.taskRecoveryKey || parent.project !== successor.project ||
+        stableStringify(parent.projectRootIdentity) !== stableStringify(successor.projectRootIdentity)) {
+      blockers.push('task-project-root-changed')
+    }
+    if (control?.taskRecoveryKey !== successor.taskRecoveryKey || control?.project !== successor.project ||
+        stableStringify(control?.projectRootIdentity) !== stableStringify(successor.projectRootIdentity)) {
+      blockers.push('control-binding-changed')
+    }
+    if (control?.hostSessionDigest !== successor.hostSessionDigest || control?.contextEpoch !== successor.contextEpoch) {
+      blockers.push('current-session-context-changed')
+    }
+    if (successor.stateRevision !== parent.stateRevision + 1) blockers.push('successor-revision-invalid')
+    if (parent.candidateDigest === successor.candidateDigest) blockers.push('candidate-unchanged')
+    if (!pendingCandidateScopeComplete(parent) || !pendingCandidateScopeComplete(successor)) {
+      blockers.push('candidate-scope-incomplete')
+    } else {
+      if (parent.candidateHead !== successor.candidateHead) blockers.push('candidate-head-changed')
+      if (!setSubset(successor.candidateChangedFiles, parent.candidateChangedFiles)) blockers.push('candidate-paths-expanded')
+    }
+    if (!Object.hasOwn(LEVEL_RANK, parent.level) || !Object.hasOwn(LEVEL_RANK, successor.level) ||
+        LEVEL_RANK[successor.level] > LEVEL_RANK[parent.level]) blockers.push('validation-level-increased')
+    if (successor.purpose !== parent.purpose) blockers.push('validation-purpose-changed')
+    if (successor.riskClass !== parent.riskClass) blockers.push('validation-risk-changed')
+    for (const [field, blocker] of [
+      ['affectedBoundaryDigest', 'affected-boundaries-changed'],
+      ['selectedNodeDigest', 'selected-nodes-changed'],
+      ['heavyNodeDigest', 'heavy-nodes-changed'],
+      ['sideEffectCategoryDigest', 'side-effects-changed']
+    ]) {
+      if (successor[field] !== parent[field]) blockers.push(blocker)
+    }
+    for (const [field, blocker] of [
+      ['selectedNodeCount', 'selected-node-count-increased'],
+      ['estimatedDurationMs', 'estimated-duration-increased'],
+      ['hardTimeoutUpperBoundMs', 'hard-timeout-increased'],
+      ['logBudgetBytes', 'log-budget-increased']
+    ]) {
+      if (Number(successor[field]) > Number(parent[field])) blockers.push(blocker)
+    }
+  }
+  const uniqueBlockers = canonicalStrings(blockers)
+  const semantic = {
+    schemaVersion: VALIDATION_BUDGET_SUCCESSOR_DECISION_SCHEMA,
+    taskRecoveryKey: String(successor?.taskRecoveryKey || parent?.taskRecoveryKey || ''),
+    project: String(successor?.project || parent?.project || ''),
+    projectRootIdentityDigest: String(successor?.projectRootIdentity?.digest || parent?.projectRootIdentity?.digest || ''),
+    parentPendingBindingDigest: String(parent?.bindingDigest || ''),
+    successorPendingBindingDigest: String(successor?.bindingDigest || ''),
+    controlReceiptDigest: String(control?.receiptDigest || ''),
+    sourceMessageDigest: String(control?.sourceMessageDigest || ''),
+    revocationEpoch: Number.isInteger(input.revocationEpoch) ? input.revocationEpoch : 0,
+    reason: 'pre-execution-same-scope-refresh',
+    decision: uniqueBlockers.length === 0 ? 'auto-pass' : 'reconfirm-required',
+    blockers: uniqueBlockers,
+    decidedAt: new Date(nowMs).toISOString()
+  }
+  const decisionDigest = digest(semantic)
+  const decision = Object.freeze({
+    ...semantic,
+    decisionDigest,
+    autoAuthorityRef: `validation-successor:${decisionDigest}`
+  })
+  if (recordBytes(decision) > MAX_AUTHORITY_RECORD_BYTES) {
+    throw new ValidationAuthorityError('VALIDATION_BUDGET_SUCCESSOR_DECISION_TOO_LARGE',
+      'validation successor decision exceeds its bounded record')
+  }
+  return decision
 }
 
 function confirmationSemantic(value = {}) {
@@ -389,6 +585,25 @@ function validateBudgetConfirmationReceipt(receipt, binding = null) {
       errors.push('budget-confirmation-rollover-reason-invalid')
     }
   }
+  const successorFields = [
+    receipt.successorPendingBindingDigest,
+    receipt.successorControlReceiptDigest,
+    receipt.successorDecisionDigest,
+    receipt.successorReason
+  ]
+  if (successorFields.some(value => value != null)) {
+    if (receipt.authorityKind !== 'auto') errors.push('budget-confirmation-successor-authority-invalid')
+    for (const field of ['successorPendingBindingDigest', 'successorControlReceiptDigest', 'successorDecisionDigest']) {
+      if (!DIGEST_RE.test(String(receipt[field] || ''))) errors.push(`budget-confirmation-${field}-invalid`)
+    }
+    if (!VALIDATION_SUCCESSOR_REASONS.has(receipt.successorReason)) {
+      errors.push('budget-confirmation-successor-reason-invalid')
+    }
+    if (receipt.autoAuthorityRef !== `validation-successor:${receipt.successorDecisionDigest}`) {
+      errors.push('budget-confirmation-successor-auto-ref-invalid')
+    }
+    if (rolloverFields.some(value => value != null)) errors.push('budget-confirmation-successor-rollover-conflict')
+  }
   if (errors.length === 0 && digest(confirmationSemantic(receipt)) !== receipt.receiptDigest) errors.push('budget-confirmation-digest-mismatch')
   if (errors.length === 0 && receipt.confirmationId !== `budget-confirmation-${receipt.receiptDigest}`) errors.push('budget-confirmation-id-mismatch')
   if (recordSizeError(receipt, 'VALIDATION_BUDGET_CONFIRMATION_TOO_LARGE')) errors.push('budget-confirmation-record-too-large')
@@ -413,6 +628,17 @@ function createBudgetConfirmationReceipt(input = {}, options = {}) {
     const code = pendingValidation.status === 'stale' ? 'VALIDATION_PENDING_BUDGET_STALE' : 'VALIDATION_PENDING_BUDGET_MISSING'
     throw new ValidationAuthorityError(code, 'one fresh exact pending BudgetCard is required', pendingValidation)
   }
+  const successorPending = input.successorPendingBudgetCard || null
+  const successorValidation = successorPending
+    ? validatePendingBudgetCardBinding(successorPending, null, options)
+    : null
+  if (successorPending && !successorValidation.valid) {
+    throw new ValidationAuthorityError(
+      'VALIDATION_BUDGET_SUCCESSOR_PENDING_INVALID',
+      'one fresh exact successor BudgetCard binding is required',
+      successorValidation
+    )
+  }
   const authorityKind = String(input.authorityKind || '')
   const sourceMessageDigest = input.sourceMessageDigest == null ? null : String(input.sourceMessageDigest)
   const autoAuthorityRef = input.autoAuthorityRef == null ? null : String(input.autoAuthorityRef)
@@ -421,6 +647,19 @@ function createBudgetConfirmationReceipt(input = {}, options = {}) {
         (options.currentSourceMessageDigest && options.currentSourceMessageDigest !== sourceMessageDigest)) {
       throw new ValidationAuthorityError('VALIDATION_BUDGET_CONFIRMATION_SOURCE_INVALID', 'BudgetCard confirmation must come from the current user instruction segment')
     }
+    const currentRequestSourceRef = String(options.currentRequestSourceRef || '')
+    if (pending.requestSourceRef && !text(currentRequestSourceRef, 1024)) {
+      throw new ValidationAuthorityError(
+        'VALIDATION_BUDGET_CONFIRMATION_SOURCE_INVALID',
+        'BudgetCard confirmation requires the persisted plan request and the current confirmation request'
+      )
+    }
+    if (pending.requestSourceRef && pending.requestSourceRef === currentRequestSourceRef) {
+      throw new ValidationAuthorityError(
+        'VALIDATION_FRESH_BUDGET_CONFIRMATION_REQUIRED',
+        'one control receipt cannot both create and confirm the same BudgetCard'
+      )
+    }
   } else if (authorityKind === 'auto') {
     if (!text(autoAuthorityRef, 1024) || options.serverOwnedAutoAuthorityRef !== autoAuthorityRef) {
       throw new ValidationAuthorityError('VALIDATION_AUTO_AUTHORITY_INVALID', 'Auto BudgetCard authority must be issued by the current server-owned session')
@@ -428,32 +667,59 @@ function createBudgetConfirmationReceipt(input = {}, options = {}) {
   } else {
     throw new ValidationAuthorityError('VALIDATION_BUDGET_CONFIRMATION_AUTHORITY_INVALID', 'BudgetCard authority kind is invalid')
   }
+  if (successorPending) {
+    if (authorityKind !== 'auto' || !DIGEST_RE.test(String(input.successorControlReceiptDigest || '')) ||
+        !DIGEST_RE.test(String(input.successorDecisionDigest || '')) ||
+        !VALIDATION_SUCCESSOR_REASONS.has(input.successorReason) ||
+        autoAuthorityRef !== `validation-successor:${input.successorDecisionDigest}`) {
+      throw new ValidationAuthorityError(
+        'VALIDATION_BUDGET_SUCCESSOR_AUTHORITY_INVALID',
+        'validation successor root requires one exact server-owned successor decision'
+      )
+    }
+    if (pending.taskRecoveryKey !== successorPending.taskRecoveryKey || pending.project !== successorPending.project ||
+        stableStringify(pending.projectRootIdentity) !== stableStringify(successorPending.projectRootIdentity)) {
+      throw new ValidationAuthorityError(
+        'VALIDATION_BUDGET_SUCCESSOR_BINDING_INVALID',
+        'validation successor must remain bound to the same task, project and root'
+      )
+    }
+  }
+  const rootPending = successorPending || pending
   const confirmedAt = input.confirmedAt || new Date(Number.isFinite(options.nowMs) ? options.nowMs : Date.now()).toISOString()
   const semantic = {
     schemaVersion: BUDGET_CONFIRMATION_SCHEMA,
     authorityKind,
     sourceMessageDigest: authorityKind === 'user-confirmation' ? sourceMessageDigest : null,
     autoAuthorityRef: authorityKind === 'auto' ? autoAuthorityRef : null,
-    taskRecoveryKey: pending.taskRecoveryKey,
-    project: pending.project,
-    projectRootIdentity: pending.projectRootIdentity,
-    hostSessionDigest: pending.hostSessionDigest,
-    contextEpoch: pending.contextEpoch,
-    candidateId: pending.candidateId,
-    candidateDigest: pending.candidateDigest,
-    budgetDigest: pending.budgetDigest,
-    planDigest: pending.planDigest,
-    maxLevel: pending.level,
-    purpose: pending.purpose,
-    rootAffectedBoundaryDigest: pending.affectedBoundaryDigest,
-    rootHeavyNodeDigest: pending.heavyNodeDigest,
-    rootSideEffectCategoryDigest: pending.sideEffectCategoryDigest,
-    rootSelectedNodeDigest: pending.selectedNodeDigest,
-    rootSelectedNodeCount: pending.selectedNodeCount,
-    rootEstimatedDurationMs: pending.estimatedDurationMs,
-    rootHardTimeoutUpperBoundMs: pending.hardTimeoutUpperBoundMs,
-    rootLogBudgetBytes: pending.logBudgetBytes,
+    taskRecoveryKey: rootPending.taskRecoveryKey,
+    project: rootPending.project,
+    projectRootIdentity: rootPending.projectRootIdentity,
+    hostSessionDigest: rootPending.hostSessionDigest,
+    contextEpoch: rootPending.contextEpoch,
+    candidateId: rootPending.candidateId,
+    candidateDigest: rootPending.candidateDigest,
+    budgetDigest: rootPending.budgetDigest,
+    planDigest: rootPending.planDigest,
+    maxLevel: rootPending.level,
+    purpose: rootPending.purpose,
+    rootAffectedBoundaryDigest: rootPending.affectedBoundaryDigest,
+    rootHeavyNodeDigest: rootPending.heavyNodeDigest,
+    rootSideEffectCategoryDigest: rootPending.sideEffectCategoryDigest,
+    rootSelectedNodeDigest: rootPending.selectedNodeDigest,
+    rootSelectedNodeCount: rootPending.selectedNodeCount,
+    rootEstimatedDurationMs: rootPending.estimatedDurationMs,
+    rootHardTimeoutUpperBoundMs: rootPending.hardTimeoutUpperBoundMs,
+    rootLogBudgetBytes: rootPending.logBudgetBytes,
     pendingBindingDigest: pending.bindingDigest,
+    ...(successorPending
+      ? {
+          successorPendingBindingDigest: successorPending.bindingDigest,
+          successorControlReceiptDigest: String(input.successorControlReceiptDigest),
+          successorDecisionDigest: String(input.successorDecisionDigest),
+          successorReason: String(input.successorReason)
+        }
+      : {}),
     ...(input.parentRootReceiptDigest
       ? {
           parentRootReceiptDigest: String(input.parentRootReceiptDigest),
@@ -780,6 +1046,135 @@ function candidateBinding(candidate = {}) {
       scopeIdentities: semantic.scopeIdentities
     })
   }
+}
+
+function formalTaskExecutionPreflightDigest(value) {
+  return digest(withoutNamedDigest(value, 'receiptDigest'))
+}
+
+function validateFormalTaskExecutionPreflight(receipt, expected = null) {
+  const errors = []
+  if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) {
+    return { valid: false, errors: ['formal-task-preflight-object-required'] }
+  }
+  if (receipt.schemaVersion !== FORMAL_TASK_EXECUTION_PREFLIGHT_SCHEMA) errors.push('formal-task-preflight-schema-invalid')
+  if (!['PASS', 'BLOCK'].includes(receipt.status)) errors.push('formal-task-preflight-status-invalid')
+  for (const [field, maxLength] of [
+    ['taskId', 128], ['project', 255], ['candidateId', 256]
+  ]) {
+    if (!text(receipt[field], maxLength)) errors.push(`formal-task-preflight-${field}-required`)
+  }
+  if (receipt.status === 'PASS') {
+    for (const [field, maxLength] of [
+      ['admissionId', 256], ['resumeReadiness', 64], ['confirmationReachability', 64]
+    ]) {
+      if (!text(receipt[field], maxLength)) errors.push(`formal-task-preflight-${field}-required`)
+    }
+  }
+  const requiredDigestFields = receipt.status === 'PASS'
+    ? [
+        'projectRootIdentityDigest', 'validationProjectRootDigest', 'admissionDigest',
+        'ownerLeaseDigest', 'canonicalOverviewDigest', 'canonicalRevisionDigest',
+        'cpChainDigest', 'candidateDigest', 'planDigest', 'budgetDigest', 'receiptDigest'
+      ]
+    : ['validationProjectRootDigest', 'candidateDigest', 'planDigest', 'budgetDigest', 'receiptDigest']
+  for (const field of requiredDigestFields) {
+    if (!DIGEST_RE.test(String(receipt[field] || ''))) errors.push(`formal-task-preflight-${field}-invalid`)
+  }
+  if (!Number.isInteger(receipt.admissionGeneration) ||
+      (receipt.status === 'PASS' ? receipt.admissionGeneration < 1 : receipt.admissionGeneration < 0)) {
+    errors.push('formal-task-preflight-admission-generation-invalid')
+  }
+  if (!iso(receipt.observedAt)) errors.push('formal-task-preflight-observed-at-invalid')
+  const currentCpDigests = receipt.currentCpDigests
+  if (!currentCpDigests || typeof currentCpDigests !== 'object' || Array.isArray(currentCpDigests)) {
+    errors.push('formal-task-preflight-cp-digests-invalid')
+  } else if (receipt.status === 'PASS') {
+    for (const phase of ['CP2', 'CP3']) {
+      if (!DIGEST_RE.test(String(currentCpDigests[phase] || ''))) errors.push(`formal-task-preflight-${phase.toLowerCase()}-invalid`)
+    }
+  }
+  if (!Array.isArray(receipt.blockers)) errors.push('formal-task-preflight-blockers-invalid')
+  if (receipt.status === 'PASS') {
+    if (receipt.blockers?.length) errors.push('formal-task-preflight-pass-has-blockers')
+    if (receipt.card !== null || receipt.executed !== 0 || receipt.nextAction !== null) {
+      errors.push('formal-task-preflight-pass-projection-invalid')
+    }
+  } else {
+    if (!receipt.blockers?.length || !text(receipt.nextAction, 2048) || receipt.card !== null || receipt.executed !== 0) {
+      errors.push('formal-task-preflight-block-projection-invalid')
+    }
+  }
+  if (receipt.mutationAuthority !== false) errors.push('formal-task-preflight-authority-invalid')
+  if (DIGEST_RE.test(String(receipt.receiptDigest || '')) &&
+      formalTaskExecutionPreflightDigest(receipt) !== receipt.receiptDigest) {
+    errors.push('formal-task-preflight-digest-mismatch')
+  }
+  if (expected && typeof expected === 'object') {
+    for (const field of [
+      'taskId', 'project', 'projectRootIdentityDigest', 'validationProjectRootDigest',
+      'candidateId', 'candidateDigest', 'planDigest', 'budgetDigest'
+    ]) {
+      if (Object.hasOwn(expected, field) && String(receipt[field] || '') !== String(expected[field] || '')) {
+        errors.push(`formal-task-preflight-binding-mismatch:${field}`)
+      }
+    }
+  }
+  return { valid: errors.length === 0, errors: [...new Set(errors)] }
+}
+
+function createFormalTaskExecutionPreflight(input = {}, options = {}) {
+  const authority = input.authorityRead || {}
+  const candidate = input.candidate || {}
+  const candidateIdentity = candidateBinding(candidate)
+  const plan = input.plan || {}
+  const status = input.status === 'BLOCK' ? 'BLOCK' : 'PASS'
+  const blockers = Array.isArray(input.blockers)
+    ? input.blockers.slice(0, 8).map(item => ({
+        code: String(item?.code || 'FORMAL_TASK_EXECUTION_PREFLIGHT_BLOCKED').slice(0, 128),
+        message: String(item?.message || '').slice(0, 1024)
+      }))
+    : []
+  const semantic = {
+    schemaVersion: FORMAL_TASK_EXECUTION_PREFLIGHT_SCHEMA,
+    status,
+    taskId: String(authority.taskId || input.taskId || ''),
+    project: String(authority.project || input.project || ''),
+    projectRootIdentityDigest: String(authority.projectRootIdentityDigest || input.projectRootIdentityDigest || ''),
+    validationProjectRootDigest: String(input.validationProjectRootDigest || ''),
+    admissionId: String(authority.admissionId || input.admissionId || ''),
+    admissionGeneration: Number(authority.admissionGeneration || input.admissionGeneration || 0),
+    admissionDigest: String(authority.admissionDigest || input.admissionDigest || ''),
+    ownerLeaseDigest: String(authority.ownerLeaseDigest || input.ownerLeaseDigest || ''),
+    canonicalOverviewDigest: String(authority.canonicalOverviewDigest || input.canonicalOverviewDigest || ''),
+    canonicalRevisionDigest: String(authority.canonicalRevisionDigest || input.canonicalRevisionDigest || ''),
+    cpChainDigest: String(authority.cpChainDigest || input.cpChainDigest || ''),
+    currentCpDigests: { ...(authority.currentCpDigests || input.currentCpDigests || {}) },
+    resumeReadiness: String(authority.resumeReadiness || input.resumeReadiness || 'blocked'),
+    confirmationReachability: String(authority.confirmationReachability || input.confirmationReachability || 'blocked'),
+    candidateId: String(candidate.candidateId || input.candidateId || ''),
+    candidateDigest: String(input.candidateDigest || candidateIdentity.candidateDigest || ''),
+    planDigest: String(plan.planDigest || input.planDigest || ''),
+    budgetDigest: String(plan.budgetCard?.digest || input.budgetDigest || ''),
+    card: null,
+    executed: 0,
+    blockers,
+    nextAction: status === 'BLOCK' ? String(input.nextAction || '') : null,
+    observedAt: input.observedAt || new Date(Number.isFinite(options.nowMs) ? options.nowMs : Date.now()).toISOString(),
+    mutationAuthority: false
+  }
+  const receipt = Object.freeze({ ...semantic, receiptDigest: formalTaskExecutionPreflightDigest(semantic) })
+  const validation = validateFormalTaskExecutionPreflight(receipt)
+  if (!validation.valid) {
+    throw new ValidationAuthorityError(
+      'FORMAL_TASK_EXECUTION_PREFLIGHT_INVALID',
+      'formal task execution preflight receipt is invalid',
+      { errors: validation.errors }
+    )
+  }
+  const size = recordSizeError(receipt, 'FORMAL_TASK_EXECUTION_PREFLIGHT_TOO_LARGE')
+  if (size) throw new ValidationAuthorityError(size.code, 'formal task execution preflight exceeds the bounded authority record', size)
+  return receipt
 }
 
 function actorIdentity(input = {}) {
@@ -1209,23 +1604,29 @@ module.exports = {
   AUTHORITY_CLASSES,
   BUDGET_CONFIRMATION_SCHEMA,
   CONTINUATION_AUTHORIZATION_SCHEMA,
+  FORMAL_TASK_EXECUTION_PREFLIGHT_SCHEMA,
   LEGACY_LEASE_SCHEMA,
   LEASE_SCHEMA,
   MAX_AUTHORITY_RECORD_BYTES,
   MAX_CONTINUATION_RETRIES,
+  MAX_PENDING_CANDIDATE_PATHS,
   PENDING_BUDGET_SCHEMA,
   PENDING_BUDGET_TTL_MS,
   RUN_IDENTITY_SCHEMA,
+  VALIDATION_BUDGET_SUCCESSOR_DECISION_SCHEMA,
   ValidationAuthorityError,
   approvePlanFromBudgetAuthority,
   assertVerificationExecutionLease,
   candidateBinding,
   createBudgetConfirmationReceipt,
+  createFormalTaskExecutionPreflight,
   createPendingBudgetCardBinding,
+  createValidationBudgetSuccessorDecision,
   createValidationRunIdentity,
   createValidationContinuationAuthorization,
   createVerificationExecutionLease,
   deriveLeaseWindowMs,
+  formalTaskExecutionPreflightDigest,
   hostSessionIdentity,
   leaseBindingFromPlan,
   planBudgetProjection,
@@ -1234,6 +1635,7 @@ module.exports = {
   transitionValidationContinuation,
   transitionLease,
   validateBudgetConfirmationReceipt,
+  validateFormalTaskExecutionPreflight,
   validatePendingBudgetCardBinding,
   validateValidationBudgetProjection,
   validateValidationContinuationAuthorization,

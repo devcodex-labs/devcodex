@@ -50,6 +50,7 @@ const {
   executeWorkflowTaskTerminal
 } = require('../mcp/task-admission-authority.cjs')
 const {
+  createTaskScopedAutoContinuationGrant,
   readFencedTaskWriteOwner,
   readTaskRecoveryState,
   resolveTaskRecoveryMetaDir,
@@ -943,6 +944,135 @@ function testMemoryTaskResolveContract() {
   assert.strictEqual(missing.structuredContent.status, 'not-found')
 }
 
+function testMemoryTaskResolveExplicitProjectBudget() {
+  setupLegacyWorkspace()
+  const targetTaskId = 'f83f63c8-df20-4a87-a6a1-76f937ff4ce4'
+  for (let index = 0; index < 5; index += 1) {
+    const displayName = `MCP项目预算任务${index}`
+    const taskRoot = path.join(TEMP_ROOT, '.devcodex', 'optimizations', displayName)
+    fs.mkdirSync(path.join(taskRoot, '.memory'), { recursive: true })
+    const taskId = index === 0
+      ? targetTaskId
+      : `f83f63c8-df20-4a87-a6a1-76f937ff4c${String(index).padStart(2, '0')}`
+    fs.writeFileSync(path.join(taskRoot, '.memory', 'task.json'), JSON.stringify({
+      schemaVersion: 'TaskIdentityV1',
+      taskId,
+      displayName,
+      aliases: [],
+      createdAt: '2026-09-01T00:00:00.000Z',
+      identityRevision: 1
+    }, null, 2) + '\n')
+    const artifact = `# CP1\n\n${String(index).repeat(900 * 1024)}\n`
+    const artifactPath = path.join(taskRoot, '01-需求确认.md')
+    fs.writeFileSync(artifactPath, artifact)
+    const artifactDigest = crypto.createHash('sha256').update(artifact).digest('hex')
+    fs.writeFileSync(path.join(taskRoot, '.memory', 'sessions.md'), [
+      '# session',
+      '',
+      '> **当前状态**: 🔄 active',
+      '',
+      '| CP | 状态 | artifactPath | version | sha256 | sourceMessage | confirmedAt |',
+      '|:--:|:----:|--------------|---------|--------|---------------|-------------|',
+      `| CP1 | ✅ | 01-需求确认.md | v1 | \`${artifactDigest}\` | confirm | 2026-09-01T00:00:00.000Z |`,
+      '| CP2 | ⏳ | — | — | — | — | — |',
+      '| CP3 | ⏳ | — | — | — | — | — |',
+      ''
+    ].join('\n'))
+  }
+
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/call', {
+      name: 'memory_task_resolve',
+      arguments: {
+        name: targetTaskId,
+        project: 'legacy-scale-project',
+        scope: 'project',
+        persistIndex: false
+      }
+    })
+  ], TEMP_ROOT)
+  const resolved = resultById(responses, 1)
+  assert.strictEqual(resolved.isError, false)
+  assert.strictEqual(resolved.structuredContent.status, 'resolved-active')
+  assert.strictEqual(resolved.structuredContent.candidate.taskId, targetTaskId)
+  assert(resolved.structuredContent.scan.bytes > 4 * 1024 * 1024)
+  assert(resolved.structuredContent.scan.bytes <= 8 * 1024 * 1024)
+
+  const oversizedTaskRoot = path.join(TEMP_ROOT, '.devcodex', 'optimizations', 'MCP项目预算任务0')
+  const oversizedArtifactPath = path.join(oversizedTaskRoot, '01-需求确认.md')
+  const oversizedArtifact = `# CP1\n\n${'x'.repeat(5 * 1024 * 1024)}\n`
+  fs.writeFileSync(oversizedArtifactPath, oversizedArtifact)
+  const oversizedArtifactDigest = crypto.createHash('sha256').update(oversizedArtifact).digest('hex')
+  fs.writeFileSync(path.join(oversizedTaskRoot, '.memory', 'sessions.md'), [
+    '# session',
+    '',
+    '> **当前状态**: 🔄 active',
+    '',
+    '| CP | 状态 | artifactPath | version | sha256 | sourceMessage | confirmedAt |',
+    '|:--:|:----:|--------------|---------|--------|---------------|-------------|',
+    `| CP1 | ✅ | 01-需求确认.md | v1 | \`${oversizedArtifactDigest}\` | confirm | 2026-09-01T00:00:00.000Z |`,
+    '| CP2 | ⏳ | — | — | — | — | — |',
+    '| CP3 | ⏳ | — | — | — | — | — |',
+    ''
+  ].join('\n'))
+  const oversized = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(3, 'tools/call', {
+      name: 'memory_task_resolve',
+      arguments: {
+        name: targetTaskId,
+        project: 'legacy-scale-project',
+        scope: 'project',
+        persistIndex: false
+      }
+    })
+  ], TEMP_ROOT), 3)
+  assert.strictEqual(oversized.isError, true)
+  assert.strictEqual(oversized.structuredContent.status, 'scale-blocked')
+  assert.strictEqual(oversized.structuredContent.errorCode, 'TASK_INDEX_SCALE_BLOCKED')
+  assert(oversized.structuredContent.scan.bytes > 8 * 1024 * 1024)
+  assert.strictEqual(oversized.structuredContent.scan.maxBytes, 8 * 1024 * 1024)
+}
+
+function testMemoryTaskResolveWrongProjectIsolation() {
+  setupLayoutWorkspace()
+  const targetTaskId = '9f3b2f9a-31d7-4b6b-85ef-bce12071b64a'
+  const displayName = '项目隔离解析任务'
+  const taskRoot = path.join(TEMP_ROOT, '.devcodex', 'chat', 'requirements', displayName)
+  fs.mkdirSync(path.join(taskRoot, '.memory'), { recursive: true })
+  fs.writeFileSync(path.join(taskRoot, '.memory', 'task.json'), JSON.stringify({
+    schemaVersion: 'TaskIdentityV1',
+    taskId: targetTaskId,
+    displayName,
+    aliases: [],
+    createdAt: '2026-09-01T00:00:00.000Z',
+    identityRevision: 1
+  }, null, 2) + '\n')
+  fs.writeFileSync(path.join(taskRoot, '.memory', 'sessions.md'), '# session\n\n> **当前状态**: 🔄 active\n')
+
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/call', {
+      name: 'memory_task_resolve',
+      arguments: { name: targetTaskId, project: 'chat', scope: 'project', persistIndex: false }
+    }),
+    rpcRequest(2, 'tools/call', {
+      name: 'memory_task_resolve',
+      arguments: { name: targetTaskId, project: 'missing-project', scope: 'project', persistIndex: false }
+    })
+  ], path.join(TEMP_ROOT, 'chat'))
+  const resolved = resultById(responses, 1)
+  assert.strictEqual(resolved.isError, false)
+  assert.strictEqual(resolved.structuredContent.status, 'resolved-active')
+  assert.strictEqual(resolved.structuredContent.candidate.taskId, targetTaskId)
+  assert.strictEqual(resolved.structuredContent.requestedProject, 'chat')
+
+  const wrongProject = resultById(responses, 2)
+  assert.strictEqual(wrongProject.isError, true)
+  assert.strictEqual(wrongProject.structuredContent.status, 'not-found')
+  assert.strictEqual(wrongProject.structuredContent.errorCode, 'TASK_NOT_FOUND')
+  assert.strictEqual(wrongProject.structuredContent.requestedProject, 'missing-project')
+  assert.strictEqual(wrongProject.structuredContent.scan.bytes, 0)
+}
+
 function buildTaskAuthorityIngress({
   activeRoot,
   project,
@@ -1388,6 +1518,19 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   assert.strictEqual(release.isError, false, release.content?.[0]?.text || '')
   assert.strictEqual(release.structuredContent.status, 'released')
 
+  const liveSameSessionWrite = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
+    ...state,
+    turnLiveness: {
+      schemaVersion: 'TurnLivenessStateV1',
+      state: 'running',
+      turnKey: 'fresh-resume-current-turn',
+      lastEventAt: new Date(nowMs).toISOString(),
+      inFlightOperation: null,
+      previousTurn: { terminalState: 'completed' }
+    }
+  }), { nowMs, force: true, reason: 'mcp-fresh-resume-released-same-session-turn' })
+  assert(['committed', 'semantic-noop'].includes(liveSameSessionWrite.status), JSON.stringify(liveSameSessionWrite))
+
   const resumeContextBinding = createTestContextBinding(TEMP_ROOT, { intent: 'resume' })
   const contextAuthorization = authorizeContextRead({
     activeRoot,
@@ -1401,7 +1544,7 @@ function testMemoryFinalizedFreshResumeV3Contract() {
     activeRoot,
     project,
     contextBinding: resumeContextBinding,
-    hostSessionId: 'mcp-fresh-resume-fallback-session',
+    hostSessionId: 'mcp-task-authority-fresh-resume-current',
     sourceResults: contextAuthorization.plan.selectedSources.map(source => ({
       sourceId: source.sourceId,
       bodyObserved: true,
@@ -1431,7 +1574,7 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   const fallbackResponses = runServer('mcp/memory-server.js', [
     rpcRequest(5, 'tools/call', { name: 'memory_task_admit_v2', arguments: fallbackArgs }),
     rpcRequest(6, 'tools/call', { name: 'memory_task_admit_v2', arguments: fallbackArgs })
-  ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: 'mcp-fresh-resume-fallback-session' })
+  ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: 'mcp-task-authority-fresh-resume-current' })
   const fallback = resultById(fallbackResponses, 5)
   assert.strictEqual(fallback.isError, false, fallback.content?.[0]?.text || '')
   assert.strictEqual(fallback.structuredContent.ingressSource, 'bounded-resume-fallback')
@@ -1439,6 +1582,175 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   assert.strictEqual(fallback.structuredContent.admissionGeneration, resumed.structuredContent.admissionGeneration + 1)
   assert.strictEqual(fallback.structuredContent.recoveryStage, 'readback-complete')
   assert.strictEqual(resultById(fallbackResponses, 6).structuredContent.replayed, true)
+}
+
+function testMemoryOwnerFencedCrashResumeContract() {
+  setupLegacyWorkspace()
+  const activeRoot = path.join(TEMP_ROOT, '.devcodex')
+  const project = path.basename(TEMP_ROOT)
+  const nowMs = Date.now()
+  const ownerIssuedAt = nowMs - 31 * 60 * 1000
+  const priorIngress = buildTaskAuthorityIngress({
+    activeRoot,
+    project,
+    suffix: 'owner-fenced-crash-prior',
+    nowMs: ownerIssuedAt
+  })
+  const ingressSnapshotRef = {
+    schemaVersion: 'AdmissionIngressSnapshotRefV1',
+    envelopeId: priorIngress.actualInstructionEnvelope.envelopeId,
+    envelopeDigest: priorIngress.actualInstructionEnvelope.envelopeDigest,
+    decisionDigest: priorIngress.workflowRouteDecision.decisionDigest,
+    routeRevision: priorIngress.workflowRouteDecision.routeRevision,
+    snapshotKey: crypto.createHash('sha256').update('owner-fenced-crash-snapshot-key').digest('hex'),
+    snapshotDigest: crypto.createHash('sha256').update('owner-fenced-crash-snapshot-content').digest('hex')
+  }
+  const overviewContent = '# 问题概况\n\nMCP owner-fenced crash resume.\n'
+  const priorAdmission = executeTaskAdmission({
+    operation: 'admit',
+    activeRoot,
+    project,
+    actualInstructionEnvelope: priorIngress.actualInstructionEnvelope,
+    workItemSet: priorIngress.workItemSet,
+    workflowRouteDecision: priorIngress.workflowRouteDecision,
+    projectTargetLease: priorIngress.projectTargetLease,
+    ingressSnapshotRef,
+    task: {
+      taskKind: 'bugs',
+      entryVariant: 'fix',
+      displayName: 'MCP owner-fenced crash resume'
+    },
+    overview: { content: overviewContent }
+  }, { nowMs: ownerIssuedAt })
+  const taskRoot = path.join(activeRoot, ...priorAdmission.taskRootRelative.split('/'))
+  confirmTaskAuthorityCp1(taskRoot)
+  assert.throws(
+    () => executeTaskWriteOwner({
+      operation: 'acquire',
+      activeRoot,
+      project,
+      actualInstructionEnvelope: priorIngress.actualInstructionEnvelope,
+      workItemSet: priorIngress.workItemSet,
+      workflowRouteDecision: priorIngress.workflowRouteDecision,
+      projectTargetLease: priorIngress.projectTargetLease,
+      ingressSnapshotRef,
+      taskId: priorAdmission.taskId,
+      admissionId: priorAdmission.admissionId
+    }, {
+      nowMs: ownerIssuedAt,
+      nonceFactory: () => `owner-${'7'.repeat(40)}`,
+      faultInjector(stage) {
+        if (stage === 'after-owner-fenced') {
+          throw Object.assign(new Error('fixture process exited after owner fence'), {
+            code: 'FIXTURE_OWNER_FENCED_PROCESS_EXIT'
+          })
+        }
+      }
+    }),
+    error => error.code === 'FIXTURE_OWNER_FENCED_PROCESS_EXIT'
+  )
+  const metaDir = resolveTaskRecoveryMetaDir({ activeRoot, project })
+  const recoveryIdentity = { activeRoot, project, taskId: priorAdmission.taskId, taskStatus: 'active' }
+  const crashed = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }, { nowMs })
+  assert.strictEqual(crashed.state.admissionTransaction.phase, 'owner-fenced')
+  assert.strictEqual(crashed.state.admissionTransaction.continuationLease.status, 'consumed')
+  assert(Date.parse(crashed.state.admissionTransaction.continuationLease.expiresAt) <= nowMs)
+  assert(Date.parse(crashed.state.fencedWriteOwner.expiresAt) <= nowMs)
+  const oldOwner = crashed.state.fencedWriteOwner
+  const terminalTurnWrite = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
+    ...state,
+    turnLiveness: {
+      schemaVersion: 'TurnLivenessStateV1',
+      state: 'completed',
+      turnKey: 'owner-fenced-crash-prior-turn',
+      lastEventAt: new Date(nowMs - 1000).toISOString(),
+      inFlightOperation: null,
+      previousTurn: { terminalState: 'completed' }
+    }
+  }), { nowMs, force: true, reason: 'mcp-owner-fenced-crash-terminal-turn' })
+  assert(['committed', 'semantic-noop'].includes(terminalTurnWrite.status), JSON.stringify(terminalTurnWrite))
+
+  const resumeIngress = buildTaskAuthorityIngress({
+    activeRoot,
+    project,
+    suffix: 'owner-fenced-crash-current',
+    nowMs,
+    routeKey: 'resume'
+  })
+  assert.notStrictEqual(
+    resumeIngress.actualInstructionEnvelope.sourceEventId,
+    priorIngress.actualInstructionEnvelope.sourceEventId,
+    'recovery must use a genuinely new host event'
+  )
+  writeTaskAuthorityLifecycleState(activeRoot, project, resumeIngress, {
+    taskRecoveryBinding: {
+      taskId: priorAdmission.taskId,
+      displayName: 'MCP owner-fenced crash resume',
+      project,
+      kind: 'bugs',
+      taskRoot,
+      status: 'active'
+    }
+  })
+  const resumeArgs = {
+    operation: 'bind',
+    ingressRef: resumeIngress.ingressRef,
+    task: {
+      taskId: priorAdmission.taskId,
+      taskKind: 'bugs',
+      entryVariant: 'continue',
+      taskRootRelative: priorAdmission.taskRootRelative
+    },
+    overview: { content: overviewContent }
+  }
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/call', {
+      name: 'memory_task_admit_v2',
+      arguments: { ...resumeArgs, overview: { content: `${overviewContent}\nunauthorized drift\n` } }
+    }),
+    rpcRequest(2, 'tools/call', { name: 'memory_task_admit_v2', arguments: resumeArgs }),
+    rpcRequest(3, 'tools/call', { name: 'memory_task_admit_v2', arguments: resumeArgs })
+  ], TEMP_ROOT)
+  assert.strictEqual(resultById(responses, 1).isError, true)
+  assert.match(resultById(responses, 1).content[0].text, /CANONICAL_DRIFT/)
+  const resumed = resultById(responses, 2)
+  assert.strictEqual(resumed.isError, false, resumed.content?.[0]?.text || '')
+  assert.strictEqual(resumed.structuredContent.ownerFencedRecovery.schemaVersion, 'OwnerFencedAdmissionRecoveryReceiptV1')
+  assert.strictEqual(resumed.structuredContent.ownerFencedRecovery.status, 'recovered')
+  assert.strictEqual(resumed.structuredContent.ownerFencedRecovery.mutationAuthority, false)
+  assert.strictEqual(resumed.structuredContent.recovery.schemaVersion, 'FinalizedTaskResumeRecoveryReceiptV3')
+  assert.strictEqual(resumed.structuredContent.mutationAuthority, true)
+  assert.strictEqual(resumed.structuredContent.admissionGeneration, priorAdmission.admissionGeneration + 1)
+  assert.strictEqual(resumed.structuredContent.ownerGeneration, oldOwner.ownerGeneration + 1)
+  const replay = resultById(responses, 3)
+  assert.strictEqual(replay.isError, false, replay.content?.[0]?.text || '')
+  assert.strictEqual(replay.structuredContent.replayed, true)
+  assert.strictEqual(replay.structuredContent.admissionId, resumed.structuredContent.admissionId)
+  assert.strictEqual(
+    replay.structuredContent.ownerAcquisition.owner.leaseDigest,
+    resumed.structuredContent.ownerAcquisition.owner.leaseDigest
+  )
+  assert.throws(
+    () => executeTaskWriteOwner({
+      operation: 'renew',
+      activeRoot,
+      project,
+      actualInstructionEnvelope: priorIngress.actualInstructionEnvelope,
+      workItemSet: priorIngress.workItemSet,
+      workflowRouteDecision: priorIngress.workflowRouteDecision,
+      projectTargetLease: priorIngress.projectTargetLease,
+      taskId: priorAdmission.taskId,
+      admissionId: priorAdmission.admissionId,
+      expectedOwner: {
+        ownerGeneration: oldOwner.ownerGeneration,
+        ownerNonce: oldOwner.ownerNonce,
+        leaseRevision: oldOwner.leaseRevision,
+        leaseDigest: oldOwner.leaseDigest
+      }
+    }, { nowMs }),
+    error => ['TASK_ADMISSION_TRANSACTION_MISSING', 'TASK_WRITE_OWNER_CAS_MISMATCH'].includes(error.code),
+    'the crashed admission and old writer must not regain authority'
+  )
 }
 
 function testMemoryWorkflowOperationalWriteLeaseContract() {
@@ -2362,6 +2674,166 @@ function testMemoryActualHostEnvAgent() {
   assert.ok(!fs.existsSync(path.join(
     TEMP_ROOT, '.devcodex', '.memory', 'clients', 'claude-code', 'tasks', '20260524.md'
   )))
+}
+
+function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
+  setupLegacyWorkspace()
+  const activeRoot = path.join(TEMP_ROOT, '.devcodex')
+  const project = path.basename(TEMP_ROOT)
+  const nowMs = Date.now()
+  const ingress = buildTaskAuthorityIngress({
+    activeRoot,
+    project,
+    suffix: 'cp-auto-decision',
+    nowMs
+  })
+  const admission = executeTaskAdmission({
+    operation: 'admit',
+    activeRoot,
+    project,
+    actualInstructionEnvelope: ingress.actualInstructionEnvelope,
+    workItemSet: ingress.workItemSet,
+    workflowRouteDecision: ingress.workflowRouteDecision,
+    projectTargetLease: ingress.projectTargetLease,
+    task: {
+      taskKind: 'bugs',
+      entryVariant: 'fix',
+      displayName: 'AutoCP大小写任务'
+    },
+    overview: { content: '# Auto CP 概况\n\n验证任务级自动确认。\n' }
+  }, { nowMs })
+  const taskRoot = path.join(activeRoot, ...admission.taskRootRelative.split('/'))
+  const artifactPath = path.join(taskRoot, '02-技术方案.md')
+  const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
+  fs.writeFileSync(artifactPath, '# Auto CP 技术方案\n\n候选内容。\n', 'utf8')
+  const artifactSha256 = crypto.createHash('sha256').update(fs.readFileSync(artifactPath)).digest('hex')
+  const metaDir = resolveTaskRecoveryMetaDir({ activeRoot, project })
+  const recoveryIdentity = {
+    activeRoot,
+    project,
+    taskId: admission.taskId,
+    taskStatus: 'active'
+  }
+  const admittedState = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(admittedState.status, 'fresh')
+  const grant = createTaskScopedAutoContinuationGrant({
+    taskId: admission.taskId,
+    project,
+    projectRootIdentityDigest: admittedState.state.admissionTransaction.projectRootIdentityDigest,
+    authorityRef: 'user-message:@rocky:cp-auto-decision',
+    sourceMessageDigest: 'a'.repeat(64),
+    allowedScope: {
+      scopeClass: 'same-formal-task',
+      taskRootRelative: admission.taskRootRelative,
+      pathPrefixes: [admission.taskRootRelative],
+      actionClasses: ['checkpoint-confirmation', 'same-task-continuation'],
+      checkpointPhases: ['CP1', 'CP2', 'CP3']
+    },
+    riskCeiling: 'R3'
+  }, { nowMs })
+  const grantCommit = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
+    ...state,
+    taskScopedAutoContinuationGrant: grant,
+    autoCheckpointDecision: null,
+    autoCheckpointDecisions: []
+  }), { nowMs, force: true, reason: 'mcp-cp-auto-decision-fixture' })
+  assert(['committed', 'semantic-noop'].includes(grantCommit.status), JSON.stringify(grantCommit))
+
+  const schemaResponses = runServer('mcp/memory-server.js', [rpcRequest(1, 'tools/list')], TEMP_ROOT)
+  const cpSchema = findToolSchema(resultById(schemaResponses, 1).tools, 'memory_cp_confirm')
+  assert.ok(cpSchema.properties.autoDecisionEvidence, 'memory_cp_confirm must expose task Auto decision evidence')
+  assert.notStrictEqual(cpSchema.additionalProperties, false, 'the optional extension must preserve legacy open-field compatibility')
+
+  const baseArguments = {
+    requirement: 'AutoCP大小写任务',
+    kind: 'bugs',
+    phase: 'CP2',
+    artifactPath: '02-技术方案.md',
+    artifactVersion: 'v0.1.0-auto-smoke',
+    artifactSha256,
+    sourceMessage: '@rocky 自动确认当前候选',
+    scope: 'project',
+    project
+  }
+  const sessionsBefore = fs.readFileSync(sessionsPath, 'utf8')
+  const missingDecision = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(2, 'tools/call', { name: 'memory_cp_confirm', arguments: baseArguments })
+  ], TEMP_ROOT), 2)
+  assert.strictEqual(missingDecision.isError, true)
+  assert.match(missingDecision.content?.[0]?.text || '', /MEMORY_CP_AUTO_DECISION_REQUIRED/)
+  assert.strictEqual(fs.readFileSync(sessionsPath, 'utf8'), sessionsBefore, 'missing decision evidence must have zero CP write effect')
+  assert.strictEqual(
+    readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state.autoCheckpointDecision || null,
+    null,
+    'missing decision evidence must not fabricate a decision'
+  )
+
+  const shallowReview = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(3, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: {
+        ...baseArguments,
+        autoDecisionEvidence: {
+          riskClass: 'R2',
+          sideEffectCategories: [],
+          blockers: [],
+          reviewGradeCard: { grade: 'R2', status: 'PASS', openBlockers: 0 }
+        }
+      }
+    })
+  ], TEMP_ROOT), 3)
+  assert.strictEqual(shallowReview.isError, true)
+  assert.match(shallowReview.content?.[0]?.text || '', /MEMORY_CP_AUTO_RECONFIRM_REQUIRED.*review-grade-below-r3/s)
+  assert.strictEqual(fs.readFileSync(sessionsPath, 'utf8'), sessionsBefore, 'R2 review must not confirm a task Auto checkpoint')
+  const rejectedState = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(rejectedState.state.autoCheckpointDecision.decision, 'reconfirm-required')
+  assert(rejectedState.state.autoCheckpointDecision.reasons.includes('review-grade-below-r3'))
+
+  const accepted = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(4, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: {
+        ...baseArguments,
+        autoDecisionEvidence: {
+          riskClass: 'R3',
+          sideEffectCategories: [],
+          blockers: [],
+          reviewGradeCard: { grade: 'R3', status: 'PASS', openBlockers: 0 }
+        }
+      }
+    })
+  ], TEMP_ROOT), 4)
+  assert.notStrictEqual(accepted.isError, true, accepted.content?.[0]?.text || 'task Auto CP confirmation failed')
+  assert.strictEqual(accepted.structuredContent.autoCheckpointDecision.decision, 'auto-pass')
+  assert.strictEqual(accepted.structuredContent.autoCheckpointState.readbackVerified, true)
+  const acceptedState = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(acceptedState.state.autoCheckpointDecision.decision, 'auto-pass')
+  assert.strictEqual(acceptedState.state.autoCheckpointDecisions.length, 1)
+  assert.strictEqual(acceptedState.state.autoCheckpointDecisions[0].checkpoint, 'CP2')
+  assert.strictEqual(parseCpSessions(fs.readFileSync(sessionsPath, 'utf8')).CP2.confirmed, true)
+
+  const excludedEffect = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(5, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: {
+        ...baseArguments,
+        phase: 'CP3',
+        autoDecisionEvidence: {
+          riskClass: 'R3',
+          sideEffectCategories: ['npm-publish'],
+          blockers: [],
+          reviewGradeCard: { grade: 'R3', status: 'PASS', openBlockers: 0 }
+        }
+      }
+    })
+  ], TEMP_ROOT), 5)
+  assert.strictEqual(excludedEffect.isError, true)
+  assert.match(excludedEffect.content?.[0]?.text || '', /MEMORY_CP_AUTO_RECONFIRM_REQUIRED.*explicit-exclusion/s)
+  const finalState = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(finalState.state.autoCheckpointDecision.checkpoint, 'CP3')
+  assert.strictEqual(finalState.state.autoCheckpointDecision.decision, 'reconfirm-required')
+  assert.strictEqual(finalState.state.autoCheckpointDecisions.length, 2)
+  assert.strictEqual(parseCpSessions(fs.readFileSync(sessionsPath, 'utf8')).CP3.confirmed, false)
 }
 
 function testMemoryCpConfirmForBugs() {
@@ -5556,8 +6028,11 @@ testProfileModeFallbackAgent()
 testProfileAgentUsesRuntimeBeforeProfileFallback()
 testMemoryDefaultAgent()
 testMemoryTaskResolveContract()
+testMemoryTaskResolveExplicitProjectBudget()
+testMemoryTaskResolveWrongProjectIsolation()
 testMemoryTaskAdmissionV2Contract()
 testMemoryFinalizedFreshResumeV3Contract()
+testMemoryOwnerFencedCrashResumeContract()
 testMemoryWorkflowOperationalWriteLeaseContract()
 testMemorySimpleTaskFastPathLeaseContract()
 testMemoryTaskOwnerAndTerminalV1Contract()
@@ -5565,6 +6040,7 @@ testMemoryArtifactMutationReconciliationContract()
 testMemoryServerOwnedTakeoverObservation()
 testMemoryCloseoutReconcileUsesTerminalOwnerRoute()
 testMemoryActualHostEnvAgent()
+testMemoryCpConfirmTaskScopedAutoDecisionContract()
 testMemoryCpConfirmForBugs()
 testMemoryCpConfirmForExtendedTaskKinds()
 testMemoryCpConfirmRejectsArtifactPathEscape()

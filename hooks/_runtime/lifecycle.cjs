@@ -70,6 +70,8 @@ const {
   readBoundedResumeIngressCapability,
   readFencedTaskWriteOwner,
   resolveTaskRecoveryMetaDir,
+  transitionTaskScopedAutoContinuationGrant,
+  validateTaskScopedAutoContinuationGrant,
   validateWorkflowTaskTerminalReceipt
 } = require('./task-recovery-store-v5.cjs')
 const { executeLifecycleTaskWriteOwner } = require('./fenced-task-write-owner.cjs')
@@ -1584,6 +1586,36 @@ function bindTaskRecoveryState(state, task) {
     state.fencedWriteOwner = ownerRead.owner || ownerRead.state.fencedWriteOwner || null
     state.admissionTransaction = ownerRead.transaction || state.admissionTransaction || null
     state.workflowTaskTerminalReceipt = ownerRead.terminalReceipt || null
+    const durableGrant = ownerRead.state.taskScopedAutoContinuationGrant || null
+    if (durableGrant) {
+      const grantValidation = validateTaskScopedAutoContinuationGrant(durableGrant, {
+        taskId,
+        project,
+        projectRootIdentityDigest: state.stickyProject?.rootIdentityDigest
+      })
+      if (grantValidation.valid) {
+        state.taskScopedAutoContinuationGrant = JSON.parse(JSON.stringify(durableGrant))
+        state.autoCheckpointDecision = ownerRead.state.autoCheckpointDecision
+          ? JSON.parse(JSON.stringify(ownerRead.state.autoCheckpointDecision))
+          : null
+        state.autoCheckpointDecisions = Array.isArray(ownerRead.state.autoCheckpointDecisions)
+          ? JSON.parse(JSON.stringify(ownerRead.state.autoCheckpointDecisions))
+          : []
+      } else {
+        const baseValidation = validateTaskScopedAutoContinuationGrant(durableGrant)
+        state.taskScopedAutoContinuationGrant = baseValidation.valid && durableGrant.status === 'active'
+          ? transitionTaskScopedAutoContinuationGrant(durableGrant, 'reconfirm-required', {
+              reason: grantValidation.errors.join(',') || 'task-root-binding-drift'
+            })
+          : null
+        state.autoCheckpointDecision = null
+        state.autoCheckpointDecisions = []
+        state.taskScopedAutoStatus = {
+          status: 'reconfirm-required',
+          reason: grantValidation.errors.join(',') || 'task-root-binding-drift'
+        }
+      }
+    }
     const durableLanguage = ownerRead.state.languageContext
     // A fresh task bind must restore the task language before any human
     // rendering. An explicit switch in the current turn remains authoritative
@@ -1605,6 +1637,16 @@ function bindTaskRecoveryState(state, task) {
       taskId,
       taskStatus: 'completed'
     })
+    if (state.taskScopedAutoContinuationGrant?.taskId === taskId &&
+        validateTaskScopedAutoContinuationGrant(state.taskScopedAutoContinuationGrant).valid &&
+        state.taskScopedAutoContinuationGrant.status !== 'terminal-consumed') {
+      state.taskScopedAutoContinuationGrant = transitionTaskScopedAutoContinuationGrant(
+        state.taskScopedAutoContinuationGrant,
+        'terminal-consumed',
+        { reason: 'workflow-task-terminal' }
+      )
+    }
+    state.autoCheckpointDecision = null
     state.taskRecoveryBinding = state.taskRecoveryBinding?.taskId === taskId ? null : state.taskRecoveryBinding
     state.workflowTaskTerminalReceipt = terminalValidation.valid ? terminalReceipt : null
     state.workflowTaskTerminalObservationError = terminalValidation.valid
@@ -1621,6 +1663,12 @@ function bindTaskRecoveryState(state, task) {
   if (['completed', 'rejected'].includes(runtimeStatus)) return false
   if (state.workflowTaskTerminalReceipt?.taskId === taskId) state.workflowTaskTerminalReceipt = null
   if (state.turnLiveness?.workflowTaskTerminal?.taskId === taskId) state.turnLiveness.workflowTaskTerminal = null
+  if (state.taskRecoveryBinding?.taskId && state.taskRecoveryBinding.taskId !== taskId) {
+    state.taskScopedAutoContinuationGrant = null
+    state.autoCheckpointDecision = null
+    state.autoCheckpointDecisions = []
+    state.taskScopedAutoStatus = null
+  }
   state.taskRecoveryBinding = {
     schemaVersion: 'TaskRecoveryBindingV1',
     taskId,
@@ -1646,10 +1694,22 @@ function observeValidationControlIngress(state, prompt) {
     return null
   }
   try {
+    const durableGrant = state.taskScopedAutoContinuationGrant
+    const durableValidation = validateTaskScopedAutoContinuationGrant(durableGrant)
+    // A durable task grant must not silently authorize validation on a later turn.
+    // The exact user message that freshly enabled Auto is different: it is the
+    // current trusted ingress and may create this turn's bounded V2 authority.
+    const freshCurrentAutoAuthorization = state.executionMode === EXECUTION_MODE.AUTO &&
+      state.stickyAuto?.active === true &&
+      state.stickyAuto?.sourceMessageDigest === envelope.actualInstructionDigest &&
+      state.stickyAuto?.authorityRef === durableGrant?.authorityRef
+    const validationExecutionExcluded = durableValidation.valid && durableGrant.status === 'active' &&
+      durableGrant.explicitExclusions.includes('validation-execution') &&
+      !freshCurrentAutoAuthorization
     const receipt = createValidationControlIngressReceipt({
       actualInstructionEnvelope: envelope,
       actualInstruction: prompt,
-      executionMode: state.executionMode,
+      executionMode: validationExecutionExcluded ? EXECUTION_MODE.CONFIRM : state.executionMode,
       taskRecoveryKey: task.taskId,
       project: task.project,
       projectRootIdentity: validationProjectRootIdentity(projectRoot)
@@ -4078,6 +4138,16 @@ async function main() {
     if (workflowTaskTerminalReceipt) {
       state.workflowTaskTerminalReceipt = workflowTaskTerminalReceipt
       state.turnLiveness = applyWorkflowTaskTerminalReceipt(state.turnLiveness, workflowTaskTerminalReceipt)
+      if (validateTaskScopedAutoContinuationGrant(state.taskScopedAutoContinuationGrant).valid &&
+          state.taskScopedAutoContinuationGrant.status !== 'terminal-consumed') {
+        state.taskScopedAutoContinuationGrant = transitionTaskScopedAutoContinuationGrant(
+          state.taskScopedAutoContinuationGrant,
+          'terminal-consumed',
+          { reason: 'workflow-task-terminal' }
+        )
+      }
+      state.autoCheckpointDecision = null
+      state.taskScopedAutoStatus = { status: 'terminal-consumed', reason: 'workflow-task-terminal' }
       state.taskRecoveryBinding = null
       const terminalRouteReceipt = writeWorkspaceSessionRouteHint(state, payload, 'terminal-unbind', {
         taskId: '',

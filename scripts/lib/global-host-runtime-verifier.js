@@ -1,5 +1,6 @@
 'use strict'
 
+const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
@@ -38,12 +39,127 @@ const GROK_LIFECYCLE_EVENTS = Object.freeze([
   'Stop',
   'PreCompact'
 ])
+const MAX_RUNTIME_PROMPT_BYTES = 2 * 1024 * 1024
 
 function readJson(file, fsImpl = fs) {
   try {
     return JSON.parse(fsImpl.readFileSync(file, 'utf8'))
   } catch {
     return null
+  }
+}
+
+function digestBuffer(value) {
+  return crypto.createHash('sha256').update(value).digest('hex')
+}
+
+function normalizeInstalledTemplateRef(value) {
+  const normalized = String(value || '').trim().replace(/\\/g, '/').replace(/^\.\//, '').replace(/^content\//, '')
+  if (!/^prompts\/[A-Za-z0-9._{}-]+\.prompt\.md$/.test(normalized) || normalized.includes('..')) return null
+  return normalized
+}
+
+function templateRefPattern(value) {
+  const normalized = normalizeInstalledTemplateRef(value)
+  if (!normalized) return null
+  const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/\\\{(?:workflow|memory-kind|cp1-kind)\\\}/g, '[A-Za-z0-9._-]+')
+  return new RegExp(`^${escaped}$`)
+}
+
+function installedRuntimeTemplateContractProbe(runtimeRoot, options = {}) {
+  const fsImpl = options.fs || fs
+  const root = path.resolve(runtimeRoot || '')
+  const generationFile = path.join(root, 'runtime-generation.json')
+  const registryFile = path.join(root, 'hooks', '_runtime', 'artifact-slot-registry.v2.json')
+  const generation = readJson(generationFile, fsImpl)
+  const registry = readJson(registryFile, fsImpl)
+  const failures = []
+  const promptAssets = generation?.promptAssets
+  if (generation?.schemaVersion !== 'RuntimeGenerationManifestV1' ||
+      promptAssets?.schemaVersion !== 'RuntimePromptAssetManifestV1' ||
+      promptAssets?.root !== 'prompts' || !Array.isArray(promptAssets?.files) ||
+      promptAssets.count !== promptAssets.files.length || !/^[a-f0-9]{64}$/.test(String(promptAssets.digest || ''))) {
+    failures.push('runtime-prompt-manifest-invalid')
+  } else {
+    const { digest, ...semantic } = promptAssets
+    if (digestBuffer(JSON.stringify(semantic)) !== digest) failures.push('runtime-prompt-manifest-digest-mismatch')
+  }
+  if (registry?.schemaVersion !== 'ArtifactSlotRegistryV2' || !Array.isArray(registry?.slots)) {
+    failures.push('artifact-slot-registry-missing-or-invalid')
+  }
+
+  const installed = new Set()
+  const assetFiles = Array.isArray(promptAssets?.files) ? promptAssets.files : []
+  for (const asset of assetFiles) {
+    const relative = normalizeInstalledTemplateRef(asset?.path)
+    if (!relative || relative !== asset.path || installed.has(relative) ||
+        !/^[a-f0-9]{64}$/.test(String(asset?.digest || '')) ||
+        !Number.isInteger(asset?.bytes) || asset.bytes < 0 || asset.bytes > MAX_RUNTIME_PROMPT_BYTES) {
+      failures.push(`runtime-prompt-asset-invalid:${String(asset?.path || '(missing)')}`)
+      continue
+    }
+    installed.add(relative)
+    const target = path.resolve(root, ...relative.split('/'))
+    if (target === root || !target.startsWith(`${root}${path.sep}`)) {
+      failures.push(`runtime-prompt-path-escape:${relative}`)
+      continue
+    }
+    let before
+    try { before = fsImpl.lstatSync(target) } catch { before = null }
+    if (!before || !before.isFile() || before.isSymbolicLink() || before.size !== asset.bytes || before.size > MAX_RUNTIME_PROMPT_BYTES) {
+      failures.push(`runtime-prompt-file-invalid:${relative}`)
+      continue
+    }
+    let content
+    try { content = fsImpl.readFileSync(target) } catch { content = null }
+    let after
+    try { after = fsImpl.lstatSync(target) } catch { after = null }
+    if (!content || !after || !after.isFile() || after.isSymbolicLink() ||
+        after.size !== before.size || after.mtimeMs !== before.mtimeMs ||
+        content.length !== asset.bytes || digestBuffer(content) !== asset.digest) {
+      failures.push(`runtime-prompt-file-drift:${relative}`)
+    }
+  }
+
+  const requiredRefs = []
+  for (const slot of Array.isArray(registry?.slots) ? registry.slots : []) {
+    for (const raw of [slot?.templateRef, ...(Array.isArray(slot?.templateAliases) ? slot.templateAliases : [])]) {
+      if (!raw) continue
+      const normalized = normalizeInstalledTemplateRef(raw)
+      const pattern = templateRefPattern(raw)
+      if (!normalized || !pattern) {
+        failures.push(`artifact-template-ref-invalid:${slot?.slotId || '(unknown)'}`)
+        continue
+      }
+      requiredRefs.push({ slotId: String(slot?.slotId || ''), ref: normalized })
+      if (![...installed].some(candidate => pattern.test(candidate))) {
+        failures.push(`artifact-template-ref-unresolved:${slot?.slotId || '(unknown)'}:${normalized}`)
+      }
+    }
+  }
+  if (!assetFiles.length || !requiredRefs.length) failures.push('runtime-prompt-contract-empty')
+  const uniqueFailures = [...new Set(failures)].slice(0, 32)
+  const issue = uniqueFailures.length
+    ? probeIssue(
+        'RUNTIME_PROMPT_CONTRACT_FAILED',
+        'contract',
+        JSON.stringify({ generationFile, registryFile, failures: uniqueFailures }),
+        'Re-apply the immutable global runtime from the exact package candidate; do not fall back to source-tree templates.'
+      )
+    : null
+  return {
+    status: issue ? 'failed' : 'passed',
+    evidence: {
+      generationFile,
+      registryFile,
+      generationId: generation?.generationId || null,
+      promptAssetsDigest: promptAssets?.digest || null,
+      promptCount: installed.size,
+      requiredTemplateRefs: requiredRefs.length,
+      failures: uniqueFailures
+    },
+    issues: issue ? [issue] : []
   }
 }
 
@@ -1005,6 +1121,11 @@ function verifyGlobalHostRuntime(options = {}) {
     const probes = { adapter: adapter.evidence }
     if (configurationIssues.length && contractStatus !== 'failed') contractStatus = 'failed'
 
+    const runtimeTemplates = installedRuntimeTemplateContractProbe(target.runtimeRoot, hostCommon)
+    probes.runtimeTemplates = runtimeTemplates.evidence
+    issues.push(...runtimeTemplates.issues)
+    if (runtimeTemplates.status === 'failed') contractStatus = 'failed'
+
     if (configurationHost.host === 'grok') {
       const staticGrok = grokStaticContract(target, hostCommon)
       probes.grokStatic = staticGrok
@@ -1085,5 +1206,6 @@ module.exports = {
   nativeProbeInvocation,
   resolveWindowsNativeCommand,
   grokInstalledHookProbe,
+  installedRuntimeTemplateContractProbe,
   verifyGlobalHostRuntime
 }

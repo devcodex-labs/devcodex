@@ -102,6 +102,16 @@ const RUNTIME_CONTRACT_SKILL_SCHEMAS = Object.freeze([
   'workflow-root-registry.v1.schema.json',
   'progressive-skill-route.v1.schema.json'
 ])
+const RUNTIME_CONTRACT_PACKAGE_INPUTS = Object.freeze([
+  Object.freeze({ key: 'mcp/profile-server.js', option: 'mcpAdapterPath' }),
+  Object.freeze({ key: 'mcp/memory-server.js', option: 'memoryAdapterPath' }),
+  Object.freeze({ key: 'mcp/stdio-jsonrpc.cjs', option: 'stdioTransportPath' })
+])
+const RUNTIME_CONTRACT_INPUT_PATHS = Object.freeze([
+  ...RUNTIME_CONTRACT_FILES.map(file => `hooks/_runtime/${file}`),
+  ...RUNTIME_CONTRACT_SKILL_SCHEMAS.map(file => `skills/_schemas/${file}`),
+  ...RUNTIME_CONTRACT_PACKAGE_INPUTS.map(input => input.key)
+])
 const CAPABILITY_STATUSES = new Set(['PASS', 'WARN', 'BLOCK', 'UNVERIFIED', 'N/A'])
 const REQUIRED_PROBE_OPS = Object.freeze([
   'profile_context_plan',
@@ -258,6 +268,10 @@ function getCapabilityDocumentDigest (options = {}) {
   return capability ? sha256(capability) : null
 }
 
+function getRuntimeContractInputPaths () {
+  return RUNTIME_CONTRACT_INPUT_PATHS
+}
+
 function getRuntimeContractDigest (options = {}) {
   const fsImpl = options.fs || fs
   const runtimeRoot = path.resolve(options.runtimeRoot || __dirname)
@@ -295,38 +309,17 @@ function getRuntimeContractDigest (options = {}) {
       runtimeFileDigests[key] = 'missing'
     }
   }
-  const mcpAdapterPath = path.resolve(
-    options.mcpAdapterPath ||
-    path.join(packageRoot, 'mcp', 'profile-server.js')
-  )
-  try {
-    runtimeFileDigests['mcp/profile-server.js'] = sha256(
-      fsImpl.readFileSync(mcpAdapterPath, 'utf8')
+  for (const input of RUNTIME_CONTRACT_PACKAGE_INPUTS) {
+    const inputPath = path.resolve(
+      options[input.option] || path.join(packageRoot, ...input.key.split('/'))
     )
-  } catch {
-    runtimeFileDigests['mcp/profile-server.js'] = 'missing'
-  }
-  const memoryAdapterPath = path.resolve(
-    options.memoryAdapterPath ||
-    path.join(packageRoot, 'mcp', 'memory-server.js')
-  )
-  try {
-    runtimeFileDigests['mcp/memory-server.js'] = sha256(
-      fsImpl.readFileSync(memoryAdapterPath, 'utf8')
-    )
-  } catch {
-    runtimeFileDigests['mcp/memory-server.js'] = 'missing'
-  }
-  const stdioTransportPath = path.resolve(
-    options.stdioTransportPath ||
-    path.join(packageRoot, 'mcp', 'stdio-jsonrpc.cjs')
-  )
-  try {
-    runtimeFileDigests['mcp/stdio-jsonrpc.cjs'] = sha256(
-      fsImpl.readFileSync(stdioTransportPath, 'utf8')
-    )
-  } catch {
-    runtimeFileDigests['mcp/stdio-jsonrpc.cjs'] = 'missing'
+    try {
+      runtimeFileDigests[input.key] = sha256(
+        fsImpl.readFileSync(inputPath, 'utf8')
+      )
+    } catch {
+      runtimeFileDigests[input.key] = 'missing'
+    }
   }
   return sha256({
     schemaVersion: 'ProgressiveSkillRouteRuntimeContractV1',
@@ -484,9 +477,13 @@ module.exports = {
   MODE_POLICY_VERSION,
   PROTOCOL_VERSION,
   CAPABILITY_PATH,
+  RUNTIME_CONTRACT_FILES,
+  RUNTIME_CONTRACT_SKILL_SCHEMAS,
+  RUNTIME_CONTRACT_PACKAGE_INPUTS,
   normalizeHostVariant,
   getCapabilityDocumentDigest,
   getBootRuntimeContractDigest,
+  getRuntimeContractInputPaths,
   getRuntimeContractDigest,
   validateCapabilityDocument,
   validateCapabilityEvidence,

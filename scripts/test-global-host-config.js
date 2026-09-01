@@ -2,6 +2,7 @@
 'use strict'
 
 const assert = require('assert')
+const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -54,6 +55,8 @@ const { projectionDescriptors } = require('./lib/host-surface-descriptors.js')
 const {
   assertRuntimeClosureCovered
 } = require('./lib/runtime-dependency-closure.js')
+const { collectRuntimePromptAssets } = require('./lib/runtime-generation.js')
+const { listControlDeliveryEntries } = require('./lib/control-content-delivery.js')
 
 const packageRoot = path.resolve(__dirname, '..')
 const cliEntry = path.join(packageRoot, 'index.js')
@@ -149,6 +152,24 @@ assert.strictEqual(
   targets.find(target => target.host === 'gemini').root,
   path.join(home, 'gemini-cli-home', '.gemini')
 )
+const sourcePromptAssets = collectRuntimePromptAssets(packageRoot, fs)
+assert.strictEqual(sourcePromptAssets.schemaVersion, 'RuntimePromptAssetManifestV1')
+assert(sourcePromptAssets.count >= 1)
+const packedLayoutRoot = path.join(tmp, 'packed-layout-fixture')
+for (const entry of listControlDeliveryEntries(packageRoot, 'prompts', fs)) {
+  const destination = path.join(packedLayoutRoot, 'prompts', entry.relative)
+  fs.mkdirSync(path.dirname(destination), { recursive: true })
+  fs.writeFileSync(destination, entry.content)
+}
+const packedPromptAssets = collectRuntimePromptAssets(packedLayoutRoot, fs)
+assert.deepStrictEqual(packedPromptAssets, sourcePromptAssets,
+  'source content/prompts and packed prompts must produce one logical Prompt manifest')
+const packedMutationFile = path.join(packedLayoutRoot, sourcePromptAssets.files[0].path)
+const packedMutationOriginal = fs.readFileSync(packedMutationFile)
+fs.appendFileSync(packedMutationFile, '\n<!-- prompt-generation-mutation -->\n')
+assert.notStrictEqual(collectRuntimePromptAssets(packedLayoutRoot, fs).digest, sourcePromptAssets.digest,
+  'a Prompt byte change must change the runtime Prompt manifest digest')
+fs.writeFileSync(packedMutationFile, packedMutationOriginal)
 const surfaceDescriptors = projectionDescriptors(['all'])
 assert.ok(surfaceDescriptors.length >= GLOBAL_HOST_IDS.length)
 assert.ok(surfaceDescriptors.every(item => item.scope === 'user-global'))
@@ -1025,6 +1046,9 @@ for (const target of targets) {
   assert.strictEqual(receipt.runtimeGeneration.generationId, target.runtimeGeneration.generationId)
   assert.match(receipt.runtimeGeneration.runtimeContractDigest, /^[a-f0-9]{64}$/)
   assert.match(receipt.runtimeGeneration.filesDigest, /^[a-f0-9]{64}$/)
+  assert.strictEqual(receipt.runtimeGeneration.promptAssets.schemaVersion, 'RuntimePromptAssetManifestV1')
+  assert.strictEqual(receipt.runtimeGeneration.promptAssets.digest, sourcePromptAssets.digest)
+  assert.strictEqual(receipt.runtimeGeneration.promptAssets.count, sourcePromptAssets.count)
   assert.match(receipt.runtimeGeneration.createdAt, /^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/)
   assert.strictEqual(
     receipt.runtimeGeneration.creationTimeAuthority,
@@ -1044,6 +1068,13 @@ for (const target of targets) {
   assert.strictEqual(Object.prototype.hasOwnProperty.call(receipt, 'packageRoot'), false)
   assert.strictEqual(Object.prototype.hasOwnProperty.call(receipt.sourcePackageEvidence, 'observedRoot'), false)
   assert.ok(Array.isArray(receipt.managedPaths))
+  for (const asset of receipt.runtimeGeneration.promptAssets.files) {
+    const installedPrompt = path.join(target.runtimeRoot, ...asset.path.split('/'))
+    assert.strictEqual(fs.lstatSync(installedPrompt).isFile(), true)
+    assert.strictEqual(fs.lstatSync(installedPrompt).isSymbolicLink(), false)
+    assert.strictEqual(crypto.createHash('sha256').update(fs.readFileSync(installedPrompt)).digest('hex'), asset.digest)
+    assert(receipt.managedPaths.includes(installedPrompt.replace(/\\/g, '/')))
+  }
   assert.deepStrictEqual(receipt.pendingStaleManagedPaths, [])
 }
 
@@ -1199,7 +1230,7 @@ assert.strictEqual(forgedCodex.ready, false)
 assert.strictEqual(forgedCodex.stale, true)
 assert.strictEqual(applyGlobalHostConfig({ packageRoot, env, home }).transaction.status, 'committed')
 
-const obsoleteManagedFile = path.join(codexTarget.runtimeRoot, 'obsolete-managed-file.txt')
+const obsoleteManagedFile = path.join(codexTarget.runtimeRoot, 'prompts', 'obsolete.prompt.md')
 fs.writeFileSync(obsoleteManagedFile, 'old managed content\n')
 const receiptWithObsolete = JSON.parse(fs.readFileSync(forgedReceiptFile, 'utf8'))
 receiptWithObsolete.managedPaths.push(obsoleteManagedFile.replace(/\\/g, '/'))

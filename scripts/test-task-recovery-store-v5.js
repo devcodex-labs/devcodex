@@ -11,6 +11,8 @@ const {
   BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_SCAN,
   commitTaskAdmissionTransaction,
   commitTaskRecoveryState,
+  createAutoCheckpointDecision,
+  createTaskScopedAutoContinuationGrant,
   createTaskRecoveryKey,
   diagnoseTaskRecoveryStore,
   ensureReserve,
@@ -26,9 +28,12 @@ const {
   storePaths,
   taskPaths,
   taskAdmissionTransactionDigest,
+  transitionTaskScopedAutoContinuationGrant,
   updateTaskRecoveryState,
+  validateAutoCheckpointDecision,
   validateBoundedResumeIngressCapability,
   validateTasklessWorkflowIngressRecovery,
+  validateTaskScopedAutoContinuationGrant,
   writeBoundedResumeIngressCapability,
   writeStableProjection
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
@@ -805,6 +810,182 @@ try {
   })
   if (process.platform === 'win32') assert.strictEqual(stableKey, caseVariantKey)
   else assert.notStrictEqual(stableKey, caseVariantKey)
+
+  const autoTaskId = '00000000-0000-4000-8000-0000000000a5'
+  const autoGrant = createTaskScopedAutoContinuationGrant({
+    taskId: autoTaskId,
+    project: 'devcodex',
+    projectRootIdentityDigest: 'a'.repeat(64),
+    authorityRef: 'user-message:@rocky:auto-task-a5',
+    sourceMessageDigest: 'b'.repeat(64),
+    allowedScope: {
+      scopeClass: 'same-formal-task',
+      taskRootRelative: `bugs/${autoTaskId}`,
+      pathPrefixes: [`bugs/${autoTaskId}`],
+      actionClasses: ['checkpoint-confirmation', 'same-task-continuation'],
+      checkpointPhases: ['CP1', 'CP2', 'CP3']
+    },
+    riskCeiling: 'R3'
+  }, baseOptions)
+  assert.strictEqual(validateTaskScopedAutoContinuationGrant(autoGrant, {
+    taskId: autoTaskId,
+    project: 'devcodex',
+    projectRootIdentityDigest: 'a'.repeat(64)
+  }).valid, true)
+  assert.strictEqual(validateTaskScopedAutoContinuationGrant(autoGrant, {
+    taskId: autoTaskId,
+    project: 'devcodex',
+    projectRootIdentityDigest: 'c'.repeat(64)
+  }).valid, false, 'a task/root change must invalidate durable Auto authority')
+
+  const autoPass = createAutoCheckpointDecision({
+    grant: autoGrant,
+    checkpoint: 'CP3',
+    previousCandidateDigest: 'c'.repeat(64),
+    newCandidateDigest: 'd'.repeat(64),
+    candidateScopeDigest: autoGrant.allowedScope.scopeDigest,
+    scopeDelta: 'none',
+    riskClass: 'R3',
+    reviewGradeCard: { grade: 'R3', status: 'PASS', openBlockers: 0, reviewDigest: 'e'.repeat(64) }
+  }, baseOptions)
+  assert.strictEqual(autoPass.decision, 'auto-pass')
+  assert.strictEqual(validateAutoCheckpointDecision(autoPass).valid, true)
+  const shallowReview = createAutoCheckpointDecision({
+    grant: autoGrant,
+    checkpoint: 'CP2',
+    newCandidateDigest: '4'.repeat(64),
+    candidateScopeDigest: autoGrant.allowedScope.scopeDigest,
+    scopeDelta: 'none',
+    riskClass: 'R2',
+    reviewGradeCard: { grade: 'R2', status: 'PASS', openBlockers: 0 }
+  }, baseOptions)
+  assert.strictEqual(shallowReview.decision, 'reconfirm-required')
+  assert(shallowReview.reasons.includes('review-grade-below-r3'))
+  assert.strictEqual(validateAutoCheckpointDecision(shallowReview).valid, true)
+  const scopeExpansion = createAutoCheckpointDecision({
+    grant: autoGrant,
+    checkpoint: 'CP3',
+    newCandidateDigest: 'e'.repeat(64),
+    candidateScopeDigest: 'f'.repeat(64),
+    scopeDelta: 'expanded',
+    riskClass: 'R3',
+    reviewGradeCard: { grade: 'R3', status: 'PASS', openBlockers: 0 }
+  }, baseOptions)
+  assert.strictEqual(scopeExpansion.decision, 'reconfirm-required')
+  assert(scopeExpansion.reasons.includes('scope-expanded'))
+  const riskExpansion = createAutoCheckpointDecision({
+    grant: autoGrant,
+    checkpoint: 'CP3',
+    newCandidateDigest: '1'.repeat(64),
+    candidateScopeDigest: autoGrant.allowedScope.scopeDigest,
+    scopeDelta: 'none',
+    riskClass: 'R4',
+    reviewGradeCard: { grade: 'R4', status: 'PASS', openBlockers: 0 }
+  }, baseOptions)
+  assert.strictEqual(riskExpansion.decision, 'reconfirm-required')
+  assert(riskExpansion.reasons.includes('risk-increased'))
+  const excludedEffect = createAutoCheckpointDecision({
+    grant: autoGrant,
+    checkpoint: 'CP3',
+    newCandidateDigest: '2'.repeat(64),
+    candidateScopeDigest: autoGrant.allowedScope.scopeDigest,
+    scopeDelta: 'none',
+    riskClass: 'R3',
+    sideEffectCategories: ['install'],
+    reviewGradeCard: { grade: 'R3', status: 'PASS', openBlockers: 0 }
+  }, baseOptions)
+  assert.strictEqual(excludedEffect.decision, 'reconfirm-required')
+  assert(excludedEffect.reasons.includes('explicit-exclusion'))
+  const blockedReview = createAutoCheckpointDecision({
+    grant: autoGrant,
+    checkpoint: 'CP2',
+    newCandidateDigest: '3'.repeat(64),
+    candidateScopeDigest: autoGrant.allowedScope.scopeDigest,
+    scopeDelta: 'none',
+    riskClass: 'R2',
+    reviewGradeCard: { grade: 'R3', status: 'BLOCK', openBlockers: 1 },
+    blockers: ['review-blocker']
+  }, baseOptions)
+  assert.strictEqual(blockedReview.decision, 'reconfirm-required')
+  assert(blockedReview.reasons.includes('review-not-passed'))
+  assert.strictEqual(transitionTaskScopedAutoContinuationGrant(autoGrant, 'revoked', {
+    ...baseOptions,
+    reason: 'user-exit'
+  }).status, 'revoked')
+  assert.strictEqual(transitionTaskScopedAutoContinuationGrant(autoGrant, 'terminal-consumed', {
+    ...baseOptions,
+    reason: 'task-terminal'
+  }).status, 'terminal-consumed')
+
+  const autoProjectionState = state(autoTaskId, 'implementation')
+  autoProjectionState.taskScopedAutoContinuationGrant = autoGrant
+  autoProjectionState.autoCheckpointDecision = autoPass
+  autoProjectionState.autoCheckpointDecisions = [shallowReview, autoPass]
+  const autoCompact = compactLifecycleStateV5(autoProjectionState)
+  assert.strictEqual(autoCompact.state.taskScopedAutoContinuationGrant.grantDigest, autoGrant.grantDigest)
+  assert.strictEqual(autoCompact.state.autoCheckpointDecision.decisionDigest, autoPass.decisionDigest)
+  assert.deepStrictEqual(
+    autoCompact.state.autoCheckpointDecisions.map(item => item.decisionDigest),
+    [shallowReview.decisionDigest, autoPass.decisionDigest]
+  )
+  const autoCold = buildColdResumeStub(autoCompact.state)
+  assert.strictEqual(autoCold.state.taskScopedAutoContinuationGrant.grantDigest, autoGrant.grantDigest)
+  assert.strictEqual(autoCold.state.autoCheckpointDecision.decisionDigest, autoPass.decisionDigest)
+  assert.deepStrictEqual(
+    autoCold.state.autoCheckpointDecisions.map(item => item.decisionDigest),
+    [shallowReview.decisionDigest, autoPass.decisionDigest]
+  )
+
+  const autoMeta = path.join(tempRoot, 'auto-grant-hooks')
+  const autoCommit = commitTaskRecoveryState({
+    metaDir: autoMeta,
+    identity: identity(autoTaskId),
+    sessionKey: 'auto-session-a',
+    state: autoProjectionState
+  }, baseOptions)
+  assert.strictEqual(autoCommit.status, 'committed')
+  const autoSessionARead = readTaskRecoveryState({
+    metaDir: autoMeta,
+    sessionKey: 'auto-session-a',
+    expectedIdentity: { activeRoot, project: 'devcodex' }
+  }, baseOptions)
+  assert.strictEqual(autoSessionARead.state.taskScopedAutoContinuationGrant.grantDigest, autoGrant.grantDigest)
+  const autoSessionBState = JSON.parse(JSON.stringify(autoSessionARead.state))
+  autoSessionBState.taskRecoveryCommitFence = autoCommit.commitFence
+  autoSessionBState.contextAcquisition.hostSessionId = 'auto-session-b'
+  autoSessionBState.turnLiveness.turnKey = 'auto-session-b'
+  const autoSessionBCommit = commitTaskRecoveryState({
+    metaDir: autoMeta,
+    identity: identity(autoTaskId),
+    sessionKey: 'auto-session-b',
+    state: autoSessionBState
+  }, { ...baseOptions, nowMs: baseOptions.nowMs + 1000 })
+  assert.strictEqual(autoSessionBCommit.status, 'committed')
+  const autoSessionBRead = readTaskRecoveryState({
+    metaDir: autoMeta,
+    sessionKey: 'auto-session-b',
+    expectedIdentity: { activeRoot, project: 'devcodex' }
+  }, baseOptions)
+  assert.strictEqual(autoSessionBRead.state.taskScopedAutoContinuationGrant.grantDigest, autoGrant.grantDigest,
+    'task-scoped Auto must survive a host-session switch')
+  const pressureCandidate = JSON.parse(JSON.stringify(autoSessionBRead.state))
+  pressureCandidate.taskRecoveryCommitFence = autoSessionBCommit.commitFence
+  pressureCandidate.phase = 'validation'
+  const pressureBlocked = commitTaskRecoveryState({
+    metaDir: autoMeta,
+    identity: identity(autoTaskId),
+    sessionKey: 'auto-session-b',
+    state: pressureCandidate
+  }, {
+    ...baseOptions,
+    nowMs: baseOptions.nowMs + 2000,
+    softBytes: 1,
+    hardBytes: 1
+  })
+  assert.strictEqual(pressureBlocked.errorCode, 'LIFECYCLE_STORAGE_BUDGET_EXCEEDED')
+  const pressureReadback = readTaskRecoveryState({ metaDir: autoMeta, identity: identity(autoTaskId) }, baseOptions)
+  assert.strictEqual(pressureReadback.state.taskScopedAutoContinuationGrant.grantDigest, autoGrant.grantDigest,
+    'pressure failure must preserve the previously committed grant')
 
   const oversized = state('00000000-0000-4000-8000-000000000001')
   const dataUrl = `data:image/jpeg;base64,${'A'.repeat(600000)}`

@@ -16,6 +16,7 @@ const {
   evaluateReceiptFreshness,
   evaluateShadowEvidenceWindow,
   evaluateWorkflowCompletion,
+  projectAutoCheckpointDecision,
   projectWorkflowCompletion,
   validatePhaseTerminals,
   validateRiskAcceptanceReceipt,
@@ -28,6 +29,10 @@ const {
   validateValidationControlIngressReceipt,
   validationProjectRootIdentity
 } = require('../hooks/_runtime/workflow-completion-contract.cjs')
+const {
+  createAutoCheckpointDecision,
+  createTaskScopedAutoContinuationGrant
+} = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const { buildActualInstructionEnvelope } = require('../hooks/_runtime/actual-instruction-envelope.cjs')
 const { buildContentIdentity, sha256, stableStringify } = require('../hooks/_runtime/content-identity.cjs')
 const { projectWorkflowCompletionVisibleState } = require('../hooks/_runtime/lifecycle-visible-reply.cjs')
@@ -111,7 +116,35 @@ const confirmControl = createValidationControlIngressReceipt({
 }, { ttlMs: 60000 })
 assert.strictEqual(confirmControl.action, 'confirm-current-budget')
 assert.strictEqual(confirmControl.authorityKind, 'user-confirmation')
+assert.strictEqual(confirmControl.requestedBudgetDigest, null)
 assert.strictEqual(validateValidationControlIngressReceipt(confirmControl, null, { now: NOW }).valid, true)
+const explicitBudgetDigest = 'a'.repeat(64)
+const digestConfirmPrompt = `\`确认当前验证卡 ${explicitBudgetDigest.toUpperCase()}\``
+const digestConfirmEnvelope = validationControlEnvelope(digestConfirmPrompt, 'confirm-with-digest')
+const digestConfirmControl = createValidationControlIngressReceipt({
+  actualInstructionEnvelope: digestConfirmEnvelope,
+  actualInstruction: digestConfirmPrompt,
+  executionMode: 'confirm',
+  taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
+  project: 'devcodex',
+  projectRootIdentity: validationRootIdentity
+}, { ttlMs: 60000 })
+assert.strictEqual(digestConfirmControl.action, 'confirm-current-budget')
+assert.strictEqual(digestConfirmControl.requestedBudgetDigest, explicitBudgetDigest)
+assert.strictEqual(validateValidationControlIngressReceipt(digestConfirmControl, null, { now: NOW }).valid, true)
+const compoundConfirmPrompt = '我觉得这是阻断问题，要一起修复，确认当前验证卡，然后修复这个问题'
+const compoundConfirmEnvelope = validationControlEnvelope(compoundConfirmPrompt, 'confirm-compound-intent')
+const compoundConfirmControl = createValidationControlIngressReceipt({
+  actualInstructionEnvelope: compoundConfirmEnvelope,
+  actualInstruction: compoundConfirmPrompt,
+  executionMode: 'confirm',
+  taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
+  project: 'devcodex',
+  projectRootIdentity: validationRootIdentity
+}, { ttlMs: 60000 })
+assert.strictEqual(compoundConfirmControl.action, 'confirm-current-budget')
+assert.strictEqual(compoundConfirmControl.reason, 'intent-current-budget-confirmation')
+assert.strictEqual(compoundConfirmControl.requestedBudgetDigest, null)
 const autoEnvelope = validationControlEnvelope('@rocky 开始自动推进', 'auto')
 const autoControl = createValidationControlIngressReceipt({
   actualInstructionEnvelope: autoEnvelope,
@@ -124,6 +157,53 @@ const autoControl = createValidationControlIngressReceipt({
 assert.strictEqual(autoControl.action, 'auto-authorize')
 assert.match(autoControl.autoAuthorityRef, /^validation-auto:[a-f0-9]{64}$/)
 assert.strictEqual(classifyValidationControlInstruction('继续').action, 'none')
+for (const prompt of [
+  '确认',
+  '好的，确认',
+  '我确认当前验证卡',
+  '可以确认当前 Budget Card',
+  '确认当前验证卡，然后修复这个问题',
+  '确认执行 A4-R2：允许在当前冻结的 33 路径内完成同范围验证',
+  '确认按 v0.1.0-candidate 继续当前验证'
+]) {
+  assert.strictEqual(classifyValidationControlInstruction(prompt).action, 'confirm-current-budget', prompt)
+}
+assert.strictEqual(
+  classifyValidationControlInstruction('确认执行 A4-R2：允许在当前冻结范围内完成验证').reason,
+  'intent-scoped-execution-confirmation'
+)
+assert.strictEqual(
+  classifyValidationControlInstruction('确认执行 A4-R2：允许在当前冻结的 33 路径内完成验证').declaredChangedPathCount,
+  33
+)
+for (const prompt of [
+  '不要确认当前验证卡',
+  '如果确认当前验证卡就执行',
+  '是否确认当前验证卡？',
+  '请回复“确认当前验证卡”',
+  '确认 CP2',
+  '我确认需求，不是当前验证卡',
+  '请确认执行情况',
+  '是否确认执行 A4-R2？',
+  '确认执行 A4-R2 吗？'
+]) {
+  assert.strictEqual(classifyValidationControlInstruction(prompt).action, 'none', prompt)
+}
+assert.strictEqual(classifyValidationControlInstruction(`确认当前验证卡 ${'b'.repeat(63)}`).action, 'none')
+assert.strictEqual(classifyValidationControlInstruction(`确认当前验证卡 ${'b'.repeat(64)} 继续执行`).action, 'none')
+const scopedExecutionPrompt = '确认执行 A4-R2：允许在当前冻结的 33 路径内完成验证'
+const scopedExecutionControl = createValidationControlIngressReceipt({
+  actualInstructionEnvelope: validationControlEnvelope(scopedExecutionPrompt, 'scoped-execution'),
+  actualInstruction: scopedExecutionPrompt,
+  executionMode: 'confirm',
+  taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
+  project: 'devcodex',
+  projectRootIdentity: validationRootIdentity
+}, { ttlMs: 60000 })
+assert.strictEqual(scopedExecutionControl.action, 'confirm-current-budget')
+assert.strictEqual(scopedExecutionControl.reason, 'intent-scoped-execution-confirmation')
+assert.strictEqual(scopedExecutionControl.declaredChangedPathCount, 33)
+assert.strictEqual(validateValidationControlIngressReceipt(scopedExecutionControl, null, { now: NOW }).valid, true)
 const pauseEnvelope = validationControlEnvelope('先暂停验证', 'pause')
 const pauseControl = createValidationControlIngressReceipt({
   actualInstructionEnvelope: pauseEnvelope,
@@ -169,6 +249,51 @@ assert.strictEqual(applyValidationControlIngress({}, neutralControl).validationC
 assert.strictEqual(classifyValidationControlInstruction('请缩小验证范围！').action, 'revoke')
 assert.strictEqual(classifyValidationControlInstruction(null).action, 'none')
 
+const taskAutoGrant = createTaskScopedAutoContinuationGrant({
+  taskId: '00000000-0000-4000-8000-0000000000f5',
+  project: 'devcodex',
+  projectRootIdentityDigest: 'a'.repeat(64),
+  authorityRef: 'user-message:@rocky:workflow-completion-test',
+  sourceMessageDigest: 'b'.repeat(64),
+  allowedScope: {
+    scopeClass: 'same-formal-task',
+    taskRootRelative: 'requirements/auto-checkpoint',
+    pathPrefixes: ['requirements/auto-checkpoint'],
+    actionClasses: ['checkpoint-confirmation'],
+    checkpointPhases: ['CP1', 'CP2', 'CP3']
+  },
+  riskCeiling: 'R3'
+}, { nowMs: NOW })
+const taskAutoPass = createAutoCheckpointDecision({
+  grant: taskAutoGrant,
+  checkpoint: 'CP3',
+  newCandidateDigest: 'c'.repeat(64),
+  candidateScopeDigest: taskAutoGrant.allowedScope.scopeDigest,
+  scopeDelta: 'none',
+  riskClass: 'R3',
+  reviewGradeCard: { grade: 'R3', status: 'PASS', openBlockers: 0 }
+}, { nowMs: NOW })
+const taskAutoPassProjection = projectAutoCheckpointDecision(taskAutoPass, { responseLanguage: 'zh-CN' })
+assert.strictEqual(taskAutoPassProjection.status, 'PASS')
+assert.strictEqual(taskAutoPassProjection.automatic, true)
+assert.strictEqual(taskAutoPassProjection.mutationAuthority, false)
+assert.match(taskAutoPassProjection.message, /自动续批/)
+const taskAutoBlock = createAutoCheckpointDecision({
+  grant: taskAutoGrant,
+  checkpoint: 'CP3',
+  newCandidateDigest: 'd'.repeat(64),
+  candidateScopeDigest: taskAutoGrant.allowedScope.scopeDigest,
+  scopeDelta: 'none',
+  riskClass: 'R3',
+  sideEffectCategories: ['npm-publish'],
+  reviewGradeCard: { grade: 'R4', status: 'PASS', openBlockers: 0 }
+}, { nowMs: NOW })
+const taskAutoBlockProjection = projectAutoCheckpointDecision(taskAutoBlock, { responseLanguage: 'zh-CN' })
+assert.strictEqual(taskAutoBlockProjection.status, 'BLOCK')
+assert.strictEqual(taskAutoBlockProjection.automatic, false)
+assert.match(taskAutoBlockProjection.message, /不能自动续批/)
+assert.strictEqual(projectAutoCheckpointDecision({}).decisionDigest, null)
+
 function invalidValidationControl(overrides = {}, binding = null, options = {}) {
   const receipt = { ...clone(confirmControl), ...overrides }
   return !validateValidationControlIngressReceipt(receipt, binding, options).valid
@@ -181,6 +306,12 @@ expectNegative('validation-control-digest-shape', () => invalidValidationControl
 expectNegative('validation-control-mode', () => invalidValidationControl({ executionMode: 'manual' }))
 expectNegative('validation-control-action', () => invalidValidationControl({ action: 'execute' }))
 expectNegative('validation-control-authority-kind', () => invalidValidationControl({ authorityKind: 'model' }))
+expectNegative('validation-control-requested-budget-digest-shape', () => invalidValidationControl({ requestedBudgetDigest: 'invalid' }))
+expectNegative('validation-control-requested-budget-digest-unexpected', () => invalidValidationControl({
+  action: 'none',
+  authorityKind: 'none',
+  requestedBudgetDigest: 'a'.repeat(64)
+}))
 expectNegative('validation-control-confirm-authority', () => invalidValidationControl({ authorityKind: 'none' }))
 expectNegative('validation-control-auto-authority', () => invalidValidationControl({
   action: 'auto-authorize',

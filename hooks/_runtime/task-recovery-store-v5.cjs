@@ -54,6 +54,10 @@ const TASK_RECOVERY_DOCTOR_SCHEMA = 'TaskRecoveryStoreDoctorV5'
 const TASK_RECOVERY_LOCK_SCHEMA = 'TaskRecoveryWriterLockV5'
 const TASK_RECOVERY_CLOSEOUT_SCHEMA = 'TaskRecoveryEmergencyCloseoutV5'
 const TASK_RECOVERY_KEY_SCHEMA = 'TaskRecoveryKeyV1'
+const TASK_SCOPED_AUTO_GRANT_SCHEMA = 'TaskScopedAutoContinuationGrantV1'
+const TASK_SCOPED_AUTO_SCOPE_SCHEMA = 'TaskScopedAutoAllowedScopeV1'
+const AUTO_CHECKPOINT_DECISION_SCHEMA = 'AutoCheckpointDecisionV1'
+const TASK_SCOPED_AUTO_POLICY_REVISION = 'TaskScopedAutoContinuationPolicyV1@1'
 const TASK_RECOVERY_USAGE_SCHEMA = 'TaskRecoveryUsageLedgerV1'
 const TASK_ADMISSION_TRANSACTION_SCHEMA = 'TaskAdmissionTransactionV1'
 const TASK_ADMISSION_RECONCILIATION_SCHEMA = 'TaskAdmissionReconciliationReceiptV1'
@@ -118,6 +122,24 @@ const TELEMETRY_RECORD_MAX_BYTES = 16 * 1024
 const TELEMETRY_TOTAL_MAX_BYTES = 4 * TELEMETRY_SEGMENT_MAX_BYTES
 const SEMANTIC_CACHE_MAX_ENTRIES = 256
 const semanticCache = new Map()
+const AUTO_GRANT_DIGEST_RE = /^[a-f0-9]{64}$/
+const AUTO_GRANT_TASK_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const AUTO_GRANT_RISK_RANK = Object.freeze({ R1: 1, R2: 2, R3: 3, R4: 4 })
+const AUTO_GRANT_STATUSES = new Set(['active', 'reconfirm-required', 'revoked', 'terminal-consumed'])
+const DEFAULT_AUTO_GRANT_EXCLUSIONS = Object.freeze([
+  'breaking-contract',
+  'delete',
+  'dependency-change',
+  'e-drive-repair',
+  'git-commit',
+  'git-push',
+  'git-tag',
+  'github-release',
+  'install',
+  'npm-publish',
+  'permission-change',
+  'validation-execution'
+])
 
 class TaskRecoveryStoreV5Error extends Error {
   constructor(code, message, details = {}) {
@@ -286,6 +308,310 @@ function createTaskRecoveryKey(input = {}) {
     )
   }
   return digestValue(material)
+}
+
+function canonicalAutoGrantStrings(values, maxItems = 64) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map(value => String(value || '').trim().toLowerCase())
+    .filter(Boolean))]
+    .sort()
+    .slice(0, maxItems)
+}
+
+function normalizeAutoGrantPathPrefix(value) {
+  const normalized = String(value || '').trim().replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '')
+  if (!normalized || normalized === '..' || normalized.startsWith('../') || normalized.includes('/../') ||
+      path.isAbsolute(normalized) || /^[a-z]:\//i.test(normalized)) return null
+  return normalized
+}
+
+function buildTaskScopedAutoAllowedScope(input = {}) {
+  const pathPrefixes = [...new Set((Array.isArray(input.pathPrefixes) ? input.pathPrefixes : [])
+    .map(normalizeAutoGrantPathPrefix)
+    .filter(Boolean))].sort().slice(0, 64)
+  const checkpointPhases = [...new Set((Array.isArray(input.checkpointPhases) && input.checkpointPhases.length
+    ? input.checkpointPhases
+    : ['CP1', 'CP2', 'CP3'])
+    .map(value => String(value || '').trim().toUpperCase())
+    .filter(value => ['CP1', 'CP2', 'CP3'].includes(value)))].sort()
+  const semantic = {
+    schemaVersion: TASK_SCOPED_AUTO_SCOPE_SCHEMA,
+    scopeClass: ['documentation-only', 'task-implementation', 'same-formal-task'].includes(input.scopeClass)
+      ? input.scopeClass
+      : 'same-formal-task',
+    taskRootRelative: normalizeAutoGrantPathPrefix(input.taskRootRelative) || '',
+    pathPrefixes,
+    actionClasses: canonicalAutoGrantStrings(input.actionClasses, 32),
+    checkpointPhases
+  }
+  return Object.freeze({ ...semantic, scopeDigest: digestValue(semantic) })
+}
+
+function taskScopedAutoGrantDigest(value) {
+  const semantic = JSON.parse(JSON.stringify(value || {}))
+  delete semantic.grantDigest
+  return digestValue(semantic)
+}
+
+function validateTaskScopedAutoContinuationGrant(value, expected = null) {
+  const errors = []
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return { valid: false, errors: ['task-auto-grant-object-required'] }
+  }
+  if (value.schemaVersion !== TASK_SCOPED_AUTO_GRANT_SCHEMA) errors.push('task-auto-grant-schema-invalid')
+  if (!AUTO_GRANT_TASK_ID_RE.test(String(value.taskId || ''))) errors.push('task-auto-grant-task-id-invalid')
+  if (!String(value.project || '').trim()) errors.push('task-auto-grant-project-required')
+  for (const field of ['projectRootIdentityDigest', 'sourceMessageDigest', 'grantDigest']) {
+    if (!AUTO_GRANT_DIGEST_RE.test(String(value[field] || ''))) errors.push(`task-auto-grant-${field}-invalid`)
+  }
+  if (!String(value.authorityRef || '').trim() || String(value.authorityRef).length > 1024) errors.push('task-auto-grant-authority-ref-invalid')
+  if (value.policyRevision !== TASK_SCOPED_AUTO_POLICY_REVISION) errors.push('task-auto-grant-policy-revision-invalid')
+  if (!AUTO_GRANT_STATUSES.has(value.status)) errors.push('task-auto-grant-status-invalid')
+  if (!Object.hasOwn(AUTO_GRANT_RISK_RANK, value.riskCeiling)) errors.push('task-auto-grant-risk-ceiling-invalid')
+  const scope = value.allowedScope
+  if (!scope || scope.schemaVersion !== TASK_SCOPED_AUTO_SCOPE_SCHEMA ||
+      !AUTO_GRANT_DIGEST_RE.test(String(scope.scopeDigest || ''))) {
+    errors.push('task-auto-grant-scope-invalid')
+  } else {
+    const scopeSemantic = { ...scope }
+    delete scopeSemantic.scopeDigest
+    if (digestValue(scopeSemantic) !== scope.scopeDigest) errors.push('task-auto-grant-scope-digest-mismatch')
+    if (!['documentation-only', 'task-implementation', 'same-formal-task'].includes(scope.scopeClass)) {
+      errors.push('task-auto-grant-scope-class-invalid')
+    }
+    if (scope.taskRootRelative && normalizeAutoGrantPathPrefix(scope.taskRootRelative) !== scope.taskRootRelative) {
+      errors.push('task-auto-grant-task-root-relative-invalid')
+    }
+    const pathPrefixes = [...new Set((Array.isArray(scope.pathPrefixes) ? scope.pathPrefixes : [])
+      .map(normalizeAutoGrantPathPrefix)
+      .filter(Boolean))].sort()
+    if (JSON.stringify(pathPrefixes) !== JSON.stringify(scope.pathPrefixes || [])) errors.push('task-auto-grant-path-prefixes-invalid')
+    if (JSON.stringify(canonicalAutoGrantStrings(scope.actionClasses, 32)) !== JSON.stringify(scope.actionClasses || [])) {
+      errors.push('task-auto-grant-action-classes-invalid')
+    }
+    const phases = [...new Set((Array.isArray(scope.checkpointPhases) ? scope.checkpointPhases : [])
+      .map(item => String(item || '').toUpperCase()).filter(item => ['CP1', 'CP2', 'CP3'].includes(item)))].sort()
+    if (!phases.length || JSON.stringify(phases) !== JSON.stringify(scope.checkpointPhases || [])) {
+      errors.push('task-auto-grant-checkpoint-phases-invalid')
+    }
+  }
+  const exclusions = canonicalAutoGrantStrings(value.explicitExclusions, 64)
+  if (JSON.stringify(exclusions) !== JSON.stringify(value.explicitExclusions || [])) errors.push('task-auto-grant-exclusions-invalid')
+  if (!Number.isFinite(Date.parse(String(value.grantedAt || '')))) errors.push('task-auto-grant-time-invalid')
+  if (value.status === 'active' && (value.revokedAt !== null || value.consumedAt !== null)) errors.push('task-auto-grant-active-terminal-time')
+  if (value.status === 'revoked' && !Number.isFinite(Date.parse(String(value.revokedAt || '')))) errors.push('task-auto-grant-revoked-time-invalid')
+  if (value.status === 'terminal-consumed' && !Number.isFinite(Date.parse(String(value.consumedAt || '')))) errors.push('task-auto-grant-consumed-time-invalid')
+  if (AUTO_GRANT_DIGEST_RE.test(String(value.grantDigest || '')) && taskScopedAutoGrantDigest(value) !== value.grantDigest) {
+    errors.push('task-auto-grant-digest-mismatch')
+  }
+  if (expected && typeof expected === 'object') {
+    for (const field of ['taskId', 'project', 'projectRootIdentityDigest']) {
+      if (Object.prototype.hasOwnProperty.call(expected, field) && String(value[field] || '') !== String(expected[field] || '')) {
+        errors.push(`task-auto-grant-binding-mismatch:${field}`)
+      }
+    }
+  }
+  return { valid: errors.length === 0, errors: [...new Set(errors)] }
+}
+
+function createTaskScopedAutoContinuationGrant(input = {}, options = {}) {
+  const nowMs = nowMsFrom(options)
+  const semantic = {
+    schemaVersion: TASK_SCOPED_AUTO_GRANT_SCHEMA,
+    taskId: String(input.taskId || '').trim().toLowerCase(),
+    project: normalizedProject(input.project),
+    projectRootIdentityDigest: String(input.projectRootIdentityDigest || '').trim(),
+    authorityRef: String(input.authorityRef || '').trim(),
+    sourceMessageDigest: String(input.sourceMessageDigest || '').trim().toLowerCase(),
+    allowedScope: buildTaskScopedAutoAllowedScope(input.allowedScope || {}),
+    riskCeiling: Object.hasOwn(AUTO_GRANT_RISK_RANK, input.riskCeiling) ? input.riskCeiling : 'R3',
+    explicitExclusions: canonicalAutoGrantStrings(
+      Array.isArray(input.explicitExclusions) && input.explicitExclusions.length
+        ? input.explicitExclusions
+        : DEFAULT_AUTO_GRANT_EXCLUSIONS,
+      64
+    ),
+    policyRevision: TASK_SCOPED_AUTO_POLICY_REVISION,
+    status: 'active',
+    grantedAt: input.grantedAt || new Date(nowMs).toISOString(),
+    revokedAt: null,
+    consumedAt: null,
+    statusReason: ''
+  }
+  const grant = Object.freeze({ ...semantic, grantDigest: taskScopedAutoGrantDigest(semantic) })
+  const validation = validateTaskScopedAutoContinuationGrant(grant)
+  if (!validation.valid || jsonBytes(grant) > 4096) {
+    throw new TaskRecoveryStoreV5Error(
+      jsonBytes(grant) > 4096 ? 'TASK_SCOPED_AUTO_GRANT_TOO_LARGE' : 'TASK_SCOPED_AUTO_GRANT_INVALID',
+      'task-scoped Auto continuation grant is invalid or exceeds its bounded record',
+      { errors: validation.errors, bytes: jsonBytes(grant) }
+    )
+  }
+  return grant
+}
+
+function transitionTaskScopedAutoContinuationGrant(grant, status, options = {}) {
+  const validation = validateTaskScopedAutoContinuationGrant(grant)
+  const allowedTransition = status === 'reconfirm-required'
+    ? grant?.status === 'active'
+    : (status === 'revoked'
+        ? ['active', 'reconfirm-required'].includes(grant?.status)
+        : (status === 'terminal-consumed'
+            ? ['active', 'reconfirm-required'].includes(grant?.status)
+            : false))
+  if (!validation.valid || !allowedTransition) {
+    throw new TaskRecoveryStoreV5Error('TASK_SCOPED_AUTO_GRANT_TRANSITION_INVALID', 'task-scoped Auto grant transition is invalid', {
+      errors: validation.errors,
+      status
+    })
+  }
+  const now = new Date(nowMsFrom(options)).toISOString()
+  const semantic = {
+    ...JSON.parse(JSON.stringify(grant)),
+    status,
+    statusReason: String(options.reason || status).slice(0, 512),
+    ...(status === 'revoked' ? { revokedAt: now } : {}),
+    ...(status === 'terminal-consumed' ? { consumedAt: now } : {})
+  }
+  delete semantic.grantDigest
+  return Object.freeze({ ...semantic, grantDigest: taskScopedAutoGrantDigest(semantic) })
+}
+
+function autoCheckpointDecisionDigest(value) {
+  const semantic = JSON.parse(JSON.stringify(value || {}))
+  delete semantic.decisionDigest
+  return digestValue(semantic)
+}
+
+function validateAutoCheckpointDecision(value, expected = null) {
+  const errors = []
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return { valid: false, errors: ['auto-checkpoint-object-required'] }
+  if (value.schemaVersion !== AUTO_CHECKPOINT_DECISION_SCHEMA) errors.push('auto-checkpoint-schema-invalid')
+  if (!AUTO_GRANT_DIGEST_RE.test(String(value.grantDigest || ''))) errors.push('auto-checkpoint-grant-digest-invalid')
+  if (!['CP1', 'CP2', 'CP3'].includes(value.checkpoint)) errors.push('auto-checkpoint-phase-invalid')
+  if (value.previousCandidateDigest !== null && !AUTO_GRANT_DIGEST_RE.test(String(value.previousCandidateDigest || ''))) errors.push('auto-checkpoint-previous-candidate-invalid')
+  for (const field of ['newCandidateDigest', 'candidateScopeDigest', 'decisionDigest']) {
+    if (!AUTO_GRANT_DIGEST_RE.test(String(value[field] || ''))) errors.push(`auto-checkpoint-${field}-invalid`)
+  }
+  if (!['auto-pass', 'reconfirm-required'].includes(value.decision)) errors.push('auto-checkpoint-decision-invalid')
+  if (!['none', 'expanded'].includes(value.scopeDelta)) errors.push('auto-checkpoint-scope-delta-invalid')
+  if (!Object.hasOwn(AUTO_GRANT_RISK_RANK, value.riskClass)) errors.push('auto-checkpoint-risk-class-invalid')
+  if (!['none', 'increased'].includes(value.riskDelta)) errors.push('auto-checkpoint-risk-delta-invalid')
+  if (!Array.isArray(value.blockers) || !Array.isArray(value.sideEffectCategories) || !Array.isArray(value.reasons)) {
+    errors.push('auto-checkpoint-bounded-lists-invalid')
+  } else {
+    for (const [field, values, max] of [
+      ['blockers', value.blockers, 32],
+      ['side-effects', value.sideEffectCategories, 32],
+      ['reasons', value.reasons, 32],
+      ['excluded-side-effects', value.excludedSideEffects, 32]
+    ]) {
+      if (!Array.isArray(values) || values.length > max ||
+          JSON.stringify(canonicalAutoGrantStrings(values, max)) !== JSON.stringify(values)) {
+        errors.push(`auto-checkpoint-${field}-invalid`)
+      }
+    }
+  }
+  const review = value.reviewGradeCard
+  if (!review || !['R1', 'R2', 'R3', 'R4'].includes(review.grade) ||
+      !['PASS', 'WARN', 'BLOCK', 'UNVERIFIED', 'N/A'].includes(review.status) ||
+      !Number.isInteger(review.openBlockers) || review.openBlockers < 0) errors.push('auto-checkpoint-review-invalid')
+  if (review?.reviewDigest !== null && !AUTO_GRANT_DIGEST_RE.test(String(review?.reviewDigest || ''))) {
+    errors.push('auto-checkpoint-review-digest-invalid')
+  }
+  if (!String(value.authorityRef || '').trim() || String(value.authorityRef).length > 1024) errors.push('auto-checkpoint-authority-ref-invalid')
+  if (!Number.isFinite(Date.parse(String(value.decidedAt || '')))) errors.push('auto-checkpoint-time-invalid')
+  if (value.mutationAuthority !== false || value.hostPermissionAuthority !== false) errors.push('auto-checkpoint-authority-invalid')
+  if (value.decision === 'auto-pass' && (value.blockers?.length || value.reasons?.length || value.scopeDelta !== 'none' || value.riskDelta !== 'none')) {
+    errors.push('auto-checkpoint-pass-inconsistent')
+  }
+  if (value.decision === 'auto-pass' && (review?.status !== 'PASS' || review?.openBlockers !== 0 ||
+      AUTO_GRANT_RISK_RANK[review?.grade] < AUTO_GRANT_RISK_RANK.R3 || value.excludedSideEffects?.length)) {
+    errors.push('auto-checkpoint-pass-review-inconsistent')
+  }
+  if (value.decision === 'reconfirm-required' && !value.reasons?.length) errors.push('auto-checkpoint-reconfirm-reason-required')
+  if (AUTO_GRANT_DIGEST_RE.test(String(value.decisionDigest || '')) && autoCheckpointDecisionDigest(value) !== value.decisionDigest) {
+    errors.push('auto-checkpoint-digest-mismatch')
+  }
+  if (expected && typeof expected === 'object') {
+    for (const field of ['grantDigest', 'checkpoint', 'newCandidateDigest', 'candidateScopeDigest']) {
+      if (Object.prototype.hasOwnProperty.call(expected, field) && String(value[field] || '') !== String(expected[field] || '')) {
+        errors.push(`auto-checkpoint-binding-mismatch:${field}`)
+      }
+    }
+  }
+  return { valid: errors.length === 0, errors: [...new Set(errors)] }
+}
+
+function createAutoCheckpointDecision(input = {}, options = {}) {
+  const grant = input.grant
+  const grantValidation = validateTaskScopedAutoContinuationGrant(grant)
+  if (!grantValidation.valid) {
+    throw new TaskRecoveryStoreV5Error('AUTO_CHECKPOINT_GRANT_INVALID', 'Auto checkpoint decision requires one valid task-scoped grant', {
+      errors: grantValidation.errors
+    })
+  }
+  const checkpoint = String(input.checkpoint || '').trim().toUpperCase()
+  const candidateScopeDigest = String(input.candidateScopeDigest || '').trim().toLowerCase()
+  const riskClass = Object.hasOwn(AUTO_GRANT_RISK_RANK, input.riskClass) ? input.riskClass : 'R4'
+  const scopeDelta = input.scopeDelta === 'none' && candidateScopeDigest === grant.allowedScope.scopeDigest ? 'none' : 'expanded'
+  const riskDelta = AUTO_GRANT_RISK_RANK[riskClass] <= AUTO_GRANT_RISK_RANK[grant.riskCeiling] ? 'none' : 'increased'
+  const sideEffectCategories = canonicalAutoGrantStrings(input.sideEffectCategories, 32)
+  const excludedSideEffects = sideEffectCategories.filter(item => grant.explicitExclusions.includes(item))
+  const review = input.reviewGradeCard && typeof input.reviewGradeCard === 'object'
+    ? {
+        grade: String(input.reviewGradeCard.grade || ''),
+        status: String(input.reviewGradeCard.status || ''),
+        openBlockers: Number(input.reviewGradeCard.openBlockers || 0),
+        reviewDigest: input.reviewGradeCard.reviewDigest || null
+      }
+    : null
+  const blockers = canonicalAutoGrantStrings(input.blockers, 32)
+  const reasons = []
+  if (grant.status !== 'active') reasons.push(`grant-${grant.status}`)
+  if (!grant.allowedScope.checkpointPhases.includes(checkpoint)) reasons.push('checkpoint-out-of-scope')
+  if (scopeDelta !== 'none') reasons.push('scope-expanded')
+  if (riskDelta !== 'none') reasons.push('risk-increased')
+  if (excludedSideEffects.length) reasons.push('explicit-exclusion')
+  if (!review || !['R1', 'R2', 'R3', 'R4'].includes(review.grade) || review.status !== 'PASS' || review.openBlockers !== 0) {
+    reasons.push('review-not-passed')
+  }
+  if (review && AUTO_GRANT_RISK_RANK[review.grade] < AUTO_GRANT_RISK_RANK.R3) {
+    reasons.push('review-grade-below-r3')
+  }
+  if (blockers.length) reasons.push('open-blockers')
+  const decision = reasons.length ? 'reconfirm-required' : 'auto-pass'
+  const semantic = {
+    schemaVersion: AUTO_CHECKPOINT_DECISION_SCHEMA,
+    grantDigest: grant.grantDigest,
+    checkpoint,
+    previousCandidateDigest: input.previousCandidateDigest || null,
+    newCandidateDigest: String(input.newCandidateDigest || '').trim().toLowerCase(),
+    candidateScopeDigest,
+    scopeDelta,
+    riskClass,
+    riskDelta,
+    reviewGradeCard: review,
+    sideEffectCategories,
+    excludedSideEffects,
+    blockers,
+    reasons: [...new Set(reasons)].sort(),
+    decision,
+    authorityRef: grant.authorityRef,
+    decidedAt: input.decidedAt || new Date(nowMsFrom(options)).toISOString(),
+    mutationAuthority: false,
+    hostPermissionAuthority: false
+  }
+  const receipt = Object.freeze({ ...semantic, decisionDigest: autoCheckpointDecisionDigest(semantic) })
+  const validation = validateAutoCheckpointDecision(receipt)
+  if (!validation.valid || jsonBytes(receipt) > 4096) {
+    throw new TaskRecoveryStoreV5Error(
+      jsonBytes(receipt) > 4096 ? 'AUTO_CHECKPOINT_DECISION_TOO_LARGE' : 'AUTO_CHECKPOINT_DECISION_INVALID',
+      'Auto checkpoint decision is invalid or exceeds its bounded record',
+      { errors: validation.errors, bytes: jsonBytes(receipt) }
+    )
+  }
+  return receipt
 }
 
 function normalizeIdentity(input = {}, { allowEphemeral = false } = {}) {
@@ -576,6 +902,7 @@ function validateTaskCanonicalRevision(value, transaction = null) {
   const sources = new Set([
     'admission-finalized',
     'authorized-mutation',
+    'confirmed-cp-evolution',
     'legacy-confirmed-cp-chain',
     'resume-generation'
   ])
@@ -640,6 +967,11 @@ function validateTaskCanonicalRevision(value, transaction = null) {
     if (value.source === 'legacy-confirmed-cp-chain' && !digestRe.test(String(value.cpChainDigest || ''))) {
       errors.push('task-canonical-revision-legacy-cp-shape')
     }
+    if (value.source === 'confirmed-cp-evolution' &&
+        (!digestRe.test(String(value.cpChainDigest || '')) ||
+          value.previousOverviewDigest === value.currentOverviewDigest)) {
+      errors.push('task-canonical-revision-confirmed-cp-evolution-shape')
+    }
     if (value.source === 'resume-generation' && value.previousOverviewDigest !== value.currentOverviewDigest) {
       errors.push('task-canonical-revision-resume-shape')
     }
@@ -701,6 +1033,38 @@ function createLegacyTaskCanonicalRevision(transaction, input = {}) {
     sourceEvidenceDigest: cpChainDigest,
     createdAt: parent.createdAt,
     updatedAt: String(input.observedAt || transaction.updatedAt)
+  })
+}
+
+function createConfirmedCpEvolutionTaskCanonicalRevision(prior, transaction, input = {}) {
+  const priorValidation = validateTaskCanonicalRevision(prior, transaction)
+  const currentOverviewDigest = String(input.currentOverviewDigest || '').toLowerCase()
+  const cpChainDigest = String(input.cpChainDigest || '').toLowerCase()
+  const sourceEvidenceDigest = String(input.sourceEvidenceDigest || '').toLowerCase()
+  if (!priorValidation.valid || currentOverviewDigest === prior.currentOverviewDigest ||
+      !/^[a-f0-9]{64}$/.test(currentOverviewDigest) ||
+      !/^[a-f0-9]{64}$/.test(cpChainDigest) ||
+      !/^[a-f0-9]{64}$/.test(sourceEvidenceDigest)) return null
+  const priorUpdatedAt = Date.parse(String(prior.updatedAt || ''))
+  const observedAt = Date.parse(String(input.observedAt || ''))
+  const updatedAt = new Date(Math.max(
+    Number.isFinite(priorUpdatedAt) ? priorUpdatedAt : 0,
+    Number.isFinite(observedAt) ? observedAt : 0
+  )).toISOString()
+  return sealTaskCanonicalRevision({
+    ...prior,
+    revision: prior.revision + 1,
+    source: 'confirmed-cp-evolution',
+    previousOverviewDigest: prior.currentOverviewDigest,
+    currentOverviewDigest,
+    cpChainDigest,
+    parentRevisionDigest: prior.revisionDigest,
+    sourceEvidenceDigest,
+    operationId: null,
+    operationRecordDigest: null,
+    mutationReceiptDigest: null,
+    closeoutDigest: null,
+    updatedAt
   })
 }
 
@@ -1638,6 +2002,11 @@ function observeFinalizedTaskResumeLiveness(state = {}, owner = null, options = 
   const currentContextEpoch = String(state.contextAcquisition?.contextEpoch || '')
   const ownerContextEpoch = String(owner?.contextEpoch || '')
   const contextAdvanced = !!currentContextEpoch && !!ownerContextEpoch && currentContextEpoch !== ownerContextEpoch
+  const targetSessionDigest = String(options.targetSessionDigest || '')
+  const targetContextEpoch = String(options.targetContextEpoch || '')
+  const releasedSameSessionContextAdvance = owner?.status === 'released' &&
+    /^[a-f0-9]{64}$/.test(targetSessionDigest) && owner.sessionDigest === targetSessionDigest &&
+    !!targetContextEpoch && !!ownerContextEpoch && targetContextEpoch !== ownerContextEpoch && previousTerminal
   const lastEventAtMs = Date.parse(String(turn.lastEventAt || ''))
   const stalledAfterMs = Math.max(60 * 1000, Number(turn.thresholds?.stalledAfterMs || 0) || 5 * 60 * 1000)
   const staleRunningTurnDiagnostic = ['running', 'suspect', 'stalled'].includes(turnState) &&
@@ -1645,6 +2014,7 @@ function observeFinalizedTaskResumeLiveness(state = {}, owner = null, options = 
   const ownerExpiresAtMs = Date.parse(String(owner?.expiresAt || ''))
   const ownerLeaseExpiredDiagnostic = Number.isFinite(ownerExpiresAtMs) && ownerExpiresAtMs <= nowMs
   const noLiveTurn = terminalTurn || (contextAdvanced && previousTerminal) ||
+    releasedSameSessionContextAdvance ||
     (!owner && !operationLeaseLive && !['running', 'suspect', 'stalled'].includes(turnState))
   const core = {
     schemaVersion: 'FinalizedTaskResumeLivenessV1',
@@ -1656,6 +2026,7 @@ function observeFinalizedTaskResumeLiveness(state = {}, owner = null, options = 
     activeOperationLease: operationLeaseLive,
     staleRunningTurnDiagnostic,
     ownerLeaseExpiredDiagnostic,
+    releasedSameSessionContextAdvance,
     sideEffectUnknown,
     noLiveOperation: !operationLeaseLive && !sideEffectUnknown,
     noLiveTurn,
@@ -3626,13 +3997,18 @@ function buildMinimalEphemeralStub (state) {
     : null
   const handoff = context.plan || context.handoff || {}
   const ingressRecovery = buildTasklessWorkflowIngressRecovery(state, 'exact')
+  const formalTaskBinding = state?.taskRecoveryBinding || null
   const stub = {
     version: state?.version,
     mode: boundedRecoveryString(state?.mode, 32),
     activeProject: boundedRecoveryString(state?.activeProject, 128),
     activeScope: boundedRecoveryString(state?.activeScope, 32),
     activeProjectSource: boundedRecoveryString(state?.activeProjectSource, 64),
-    taskRecoveryBinding: null,
+    taskRecoveryBinding: formalTaskBinding ? cloneRecoveryValue(formalTaskBinding) : null,
+    taskScopedAutoContinuationGrant: formalTaskBinding && state?.taskScopedAutoContinuationGrant
+      ? cloneRecoveryValue(state.taskScopedAutoContinuationGrant)
+      : null,
+    autoCheckpointDecision: null,
     languageContext: compactLanguageContext(state?.languageContext),
     stickyProject: (state?.workflowOperationalWriteLease || ingressRecovery) ? {
       schemaVersion: sticky.schemaVersion,
@@ -3818,6 +4194,12 @@ function buildEphemeralStub(state) {
     },
     stickyAuto: state?.stickyAuto,
     taskRecoveryBinding: state?.taskRecoveryBinding || null,
+    taskScopedAutoContinuationGrant: state?.taskRecoveryBinding && state?.taskScopedAutoContinuationGrant
+      ? cloneRecoveryValue(state.taskScopedAutoContinuationGrant)
+      : null,
+    autoCheckpointDecision: state?.taskRecoveryBinding && state?.autoCheckpointDecision
+      ? cloneRecoveryValue(state.autoCheckpointDecision)
+      : null,
     workflowOperationalWriteLease: state?.workflowOperationalWriteLease
       ? JSON.parse(JSON.stringify(state.workflowOperationalWriteLease))
       : null,
@@ -6392,7 +6774,12 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
       if (currentOwner && !['released', 'active', 'handoff-pending', 'takeover-pending'].includes(currentOwner.status)) {
         throw new TaskRecoveryStoreV5Error('FINALIZED_TASK_RESUME_OWNER_STATE_INVALID', 'current owner state is not resumable')
       }
-      const liveness = observeFinalizedTaskResumeLiveness(state, currentOwner, { ...options, nowMs })
+      const liveness = observeFinalizedTaskResumeLiveness(state, currentOwner, {
+        ...options,
+        nowMs,
+        targetSessionDigest: input.targetSessionDigest,
+        targetContextEpoch: input.targetContextEpoch
+      })
       if (liveness.livenessDigest !== candidate.liveness.livenessDigest) {
         throw new TaskRecoveryStoreV5Error('FINALIZED_TASK_RESUME_LIVENESS_DRIFT', 'turn or operation liveness changed before resume commit')
       }
@@ -6642,6 +7029,11 @@ module.exports = {
   TASK_RECOVERY_KEY_SCHEMA,
   TASK_RECOVERY_STATE_SCHEMA,
   TASK_RECOVERY_STATUS_SCHEMA,
+  TASK_SCOPED_AUTO_GRANT_SCHEMA,
+  TASK_SCOPED_AUTO_POLICY_REVISION,
+  TASK_SCOPED_AUTO_SCOPE_SCHEMA,
+  AUTO_CHECKPOINT_DECISION_SCHEMA,
+  DEFAULT_AUTO_GRANT_EXCLUSIONS,
   TASKLESS_WORKFLOW_INGRESS_RECOVERY_SCHEMA,
   WORKFLOW_TASK_TERMINAL_RECEIPT_SCHEMA,
   TaskRecoveryStoreV5Error,
@@ -6655,9 +7047,13 @@ module.exports = {
   commitTaskAdmissionTransaction,
   commitTaskRecoveryState,
   createAdmissionTaskCanonicalRevision,
+  createAutoCheckpointDecision,
+  createConfirmedCpEvolutionTaskCanonicalRevision,
   createLegacyTaskCanonicalRevision,
   createResumeTaskCanonicalRevision,
+  createTaskScopedAutoContinuationGrant,
   buildTaskRecoveryCommitFence,
+  buildTaskScopedAutoAllowedScope,
   createTaskRecoveryKey,
   diagnoseTaskRecoveryStore,
   ensureReserve,
@@ -6682,7 +7078,10 @@ module.exports = {
   taskAdmissionTransactionDigest,
   taskAdmissionReconciliationReceiptDigest,
   taskCanonicalRevisionDigest,
+  taskScopedAutoGrantDigest,
+  transitionTaskScopedAutoContinuationGrant,
   updateTaskRecoveryState,
+  validateAutoCheckpointDecision,
   validateFencedTaskWriteOwner,
   validateAdmissionContinuationLease,
   validateBoundedResumeIngressCapability,
@@ -6690,6 +7089,7 @@ module.exports = {
   validateTaskAdmissionTransaction,
   validateTaskAdmissionReconciliationReceipt,
   validateTaskCanonicalRevision,
+  validateTaskScopedAutoContinuationGrant,
   validateWorkflowTaskTerminalReceipt,
   workflowTaskTerminalReceiptDigest,
   writeAdmissionIngressSnapshot,

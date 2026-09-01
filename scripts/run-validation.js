@@ -18,10 +18,14 @@ const {
   approvePlanFromBudgetAuthority,
   candidateBinding,
   createBudgetConfirmationReceipt,
+  createFormalTaskExecutionPreflight,
   createPendingBudgetCardBinding,
+  createValidationBudgetSuccessorDecision,
   createValidationContinuationAuthorization,
   planBudgetProjection,
-  createVerificationExecutionLease
+  createVerificationExecutionLease,
+  validateFormalTaskExecutionPreflight,
+  validatePendingBudgetCardBinding
 } = require('./lib/validation-execution-authority')
 const {
   buildTerminalProjection,
@@ -46,6 +50,9 @@ const { sha256, stableStringify } = require('../hooks/_runtime/content-identity.
 const {
   validateArtifactMutationReconciliationEvidence
 } = require('../hooks/_runtime/artifact-mutation-reconciliation.cjs')
+const {
+  readFormalTaskExecutionReadiness
+} = require('../mcp/task-admission-authority.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 const DEFAULT_MANIFEST = path.join(__dirname, 'validation-manifest.json')
@@ -551,6 +558,138 @@ function exactPendingMatchesPlan(pending, plan, candidate, projectRoot) {
   }
 }
 
+function resolvePendingBudgetPlanIdentity({ actorType, authorityContext, candidate, repoRoot = ROOT, nowMs = Date.now() }) {
+  const control = authorityContext?.validationControlIngress
+  if (actorType !== 'ai-hook' || control?.action !== 'confirm-current-budget') return null
+  const pending = authorityContext?.taskState?.validationExecution?.pendingBudgetCard
+  if (!pending || typeof pending !== 'object' || !pending.requestSourceRef) return null
+  const currentCandidate = candidateBinding(candidate)
+  const projectRoot = validationProjectRootIdentity(repoRoot)
+  const validation = validatePendingBudgetCardBinding(pending, {
+    taskRecoveryKey: authorityContext.taskRecoveryKey,
+    project: 'devcodex',
+    projectRootIdentity: projectRoot,
+    hostSessionDigest: control.hostSessionDigest,
+    candidateId: candidate.candidateId,
+    candidateDigest: currentCandidate.candidateDigest
+  }, { nowMs })
+  if (!validation.valid) return null
+  return Object.freeze({
+    contextEpoch: pending.contextEpoch,
+    requestSourceRef: pending.requestSourceRef,
+    pendingBudgetCard: pending
+  })
+}
+
+function formalTaskPreflightNextAction(error) {
+  const code = String(error?.code || '')
+  if (code.includes('CP_DRIFT')) {
+    return '重新读取当前 CP2/CP3 产物，修复或重新确认漂移的 CP 摘要后，再生成验证卡。'
+  }
+  if (code.includes('PROJECT_ROOT') || code.includes('TASK_BINDING') || code.includes('IDENTITY')) {
+    return '重新解析并绑定唯一正式任务及当前项目根，然后再生成验证卡。'
+  }
+  if (code.includes('TERMINAL')) {
+    return '如确需继续，请先通过正式 reopen 流程恢复该任务；不要为终态任务生成验证卡。'
+  }
+  if (code.includes('OWNER_SESSION')) {
+    return '通过公开 bind/adopt + continue 续办同一正式任务并取得当前 writer 后，再生成验证卡。'
+  }
+  return '先恢复同一正式任务的 finalized admission、当前 owner 与可续办状态，然后再生成验证卡。'
+}
+
+function currentAiHostSessionDigest(authorityContext) {
+  const sessionKey = String(authorityContext?.sessionKey || '').trim()
+  return sessionKey ? sha256(sessionKey) : ''
+}
+
+function resolveFormalTaskExecutionPreflight({ authorityContext, plan, candidate, activeRoot,
+  repoRoot = ROOT, nowMs = Date.now() }) {
+  const validationRoot = validationProjectRootIdentity(repoRoot)
+  const expected = {
+    taskId: authorityContext.taskRecoveryKey,
+    project: 'devcodex',
+    validationProjectRootDigest: validationRoot.digest,
+    candidateId: candidate.candidateId,
+    candidateDigest: candidateBinding(candidate).candidateDigest,
+    planDigest: plan.planDigest,
+    budgetDigest: plan.budgetCard.digest
+  }
+  const supplied = authorityContext.formalTaskExecutionPreflight
+  if (supplied) {
+    const validation = validateFormalTaskExecutionPreflight(supplied, expected)
+    if (validation.valid && supplied.status === 'PASS') return supplied
+    throw new ValidationDagError(
+      'FORMAL_TASK_EXECUTION_PREFLIGHT_BLOCKED',
+      'the supplied formal task execution preflight is stale or invalid',
+      {
+        card: null,
+        executed: 0,
+        blockerSnapshot: {
+          schemaVersion: 'BlockerSnapshotV1',
+          blockers: [{ code: 'FORMAL_TASK_EXECUTION_PREFLIGHT_INVALID', errors: validation.errors }]
+        },
+        nextStep: 'Re-read the current formal task/CP authority and rebuild the validation plan.'
+      }
+    )
+  }
+  let authorityRead
+  try {
+    authorityRead = readFormalTaskExecutionReadiness({
+      activeRoot,
+      project: 'devcodex',
+      taskId: authorityContext.taskRecoveryKey,
+      taskState: authorityContext.taskState,
+      projectRootIdentityDigest: authorityContext.taskState?.stickyProject?.rootIdentityDigest,
+      expectedOwnerSessionDigest: currentAiHostSessionDigest(authorityContext),
+      requiredCpPhases: ['CP2', 'CP3']
+    })
+  } catch (error) {
+    const nextAction = formalTaskPreflightNextAction(error)
+    const blocked = createFormalTaskExecutionPreflight({
+      status: 'BLOCK',
+      taskId: authorityContext.taskRecoveryKey,
+      project: 'devcodex',
+      validationProjectRootDigest: validationRoot.digest,
+      candidate,
+      plan,
+      blockers: [{ code: error.code || 'FORMAL_TASK_EXECUTION_PREFLIGHT_BLOCKED', message: error.message }],
+      nextAction
+    }, { nowMs })
+    throw new ValidationDagError(
+      'FORMAL_TASK_EXECUTION_PREFLIGHT_BLOCKED',
+      '正式任务或当前 CP 链尚未满足验证卡准入条件；本轮不会生成或展示待确认卡。',
+      {
+        card: null,
+        executed: 0,
+        preflight: blocked,
+        blockerSnapshot: {
+          schemaVersion: 'BlockerSnapshotV1',
+          blockers: blocked.blockers,
+          openBlockers: blocked.blockers.length
+        },
+        nextStep: nextAction
+      }
+    )
+  }
+  const receipt = createFormalTaskExecutionPreflight({
+    authorityRead,
+    validationProjectRootDigest: validationRoot.digest,
+    candidate,
+    plan
+  }, { nowMs })
+  const validation = validateFormalTaskExecutionPreflight(receipt, expected)
+  if (!validation.valid) {
+    throw new ValidationDagError(
+      'FORMAL_TASK_EXECUTION_PREFLIGHT_BLOCKED',
+      'formal task execution preflight readback did not bind the current candidate and plan',
+      { card: null, executed: 0, errors: validation.errors, nextStep: 'Rebuild the current task and validation readback.' }
+    )
+  }
+  authorityContext.formalTaskExecutionPreflight = receipt
+  return receipt
+}
+
 function assertRootReplacementSafe(store, currentRoot, plan, candidate) {
   const root = currentRoot?.rootBudgetConfirmation
   const currentCandidate = candidateBinding(candidate)
@@ -566,6 +705,78 @@ function assertRootReplacementSafe(store, currentRoot, plan, candidate) {
       'VALIDATION_BUDGET_CONFIRMATION_CAS_CONFLICT',
       'a different validation root still owns the current task execution lease'
     )
+  }
+}
+
+function tryAuthorizePendingBudgetSuccessor({
+  store,
+  currentPending,
+  currentRoot,
+  plan,
+  candidate,
+  pendingInput,
+  control,
+  authorityContext,
+  nowMs = Date.now()
+}) {
+  const parentPending = currentPending?.status === 'fresh'
+    ? currentPending.pendingBudgetCard
+    : null
+  if (!parentPending) return { authority: null, decision: null, fallbackCode: 'successor-parent-pending-missing' }
+  if (currentRoot?.status === 'fresh' && currentRoot.rootBudgetConfirmation) {
+    return { authority: null, decision: null, fallbackCode: 'successor-root-already-present' }
+  }
+  const liveLease = store.readLease()
+  const liveRunner = store.readRunnerState()
+  const terminal = store.readTerminal()
+  if ((liveLease.status === 'fresh' && liveLease.lease) ||
+      (liveRunner.status === 'fresh' && liveRunner.runnerState) ||
+      (terminal.status === 'fresh' && terminal.receipt)) {
+    return { authority: null, decision: null, fallbackCode: 'successor-execution-state-present' }
+  }
+  const successorPending = createPendingBudgetCardBinding(pendingInput, { nowMs })
+  const decision = createValidationBudgetSuccessorDecision({
+    parentPendingBudgetCard: parentPending,
+    successorPendingBudgetCard: successorPending,
+    validationControlIngress: control,
+    revocationEpoch: currentValidationRevocationEpoch(authorityContext)
+  }, { nowMs })
+  if (decision.decision !== 'auto-pass') {
+    return {
+      authority: null,
+      decision,
+      fallbackCode: 'successor-reconfirmation-required'
+    }
+  }
+  const receipt = createBudgetConfirmationReceipt({
+    pendingBudgetCard: parentPending,
+    successorPendingBudgetCard: successorPending,
+    authorityKind: 'auto',
+    autoAuthorityRef: decision.autoAuthorityRef,
+    successorControlReceiptDigest: control.receiptDigest,
+    successorDecisionDigest: decision.decisionDigest,
+    successorReason: decision.reason,
+    revocationEpoch: currentValidationRevocationEpoch(authorityContext)
+  }, {
+    nowMs,
+    serverOwnedAutoAuthorityRef: decision.autoAuthorityRef
+  })
+  const write = store.writeRootBudgetConfirmation(receipt, {
+    expectedRootReceiptDigest: null,
+    rootBudgetProjection: planBudgetProjection(plan)
+  })
+  if (!acceptedValidationStateWrite(write.status)) {
+    throw new ValidationDagError(
+      write.errorCode || 'VALIDATION_BUDGET_CONFIRMATION_CAS_CONFLICT',
+      'failed to atomically replace the confirmed parent pending card with its bounded successor root',
+      write
+    )
+  }
+  return {
+    authority: receipt,
+    decision,
+    successorPending,
+    fallbackCode: null
   }
 }
 
@@ -946,6 +1157,14 @@ function resolveAiBudgetAuthority({
   if (!authorityContext.taskIdentity || !authorityContext.sessionKey || !authorityContext.taskRecoveryKey) {
     throw new ValidationDagError('VALIDATION_AI_TASK_BINDING_REQUIRED', 'AI BudgetCard authority requires one current formal task session')
   }
+  resolveFormalTaskExecutionPreflight({
+    authorityContext,
+    plan,
+    candidate,
+    activeRoot,
+    repoRoot: gitRepoRoot,
+    nowMs: Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
+  })
   const projectRoot = validationProjectRootIdentity(ROOT)
   const control = authorityContext.validationControlIngress
   const store = createValidationEvidenceStore({
@@ -970,6 +1189,9 @@ function resolveAiBudgetAuthority({
     controlValidation.errors[0] === 'validation-control-ingress-expired' &&
     currentRoot.status === 'fresh' &&
     currentRoot.rootBudgetConfirmation?.revocationEpoch === revocationEpoch
+  const expiredPlanOnlyIngress = !execute && control?.action !== 'revoke' &&
+    controlValidation.errors.length === 1 &&
+    controlValidation.errors[0] === 'validation-control-ingress-expired'
   const rootRollover = assessAutoRootRollover({
     store,
     currentRoot,
@@ -980,7 +1202,7 @@ function resolveAiBudgetAuthority({
     authorityContext,
     repoRoot: gitRepoRoot
   })
-  if (!controlValidation.valid && !expiredRootContinuation) {
+  if (!controlValidation.valid && !expiredRootContinuation && !expiredPlanOnlyIngress) {
     if (!execute) {
       return {
         plan,
@@ -1002,6 +1224,23 @@ function resolveAiBudgetAuthority({
     throw new ValidationDagError(
       'VALIDATION_INDEPENDENT_V3_AUTHORITY_REQUIRED',
       'V3/full/release validation cannot inherit scoped Auto or current-card continuation authority'
+    )
+  }
+  const requestedParentBudgetMatch = control.action === 'confirm-current-budget' &&
+    control.requestedBudgetDigest && currentPending.status === 'fresh' &&
+    control.requestedBudgetDigest === currentPending.pendingBudgetCard?.budgetDigest
+  const requestedBudgetDigestMismatch = control.action === 'confirm-current-budget' &&
+    control.requestedBudgetDigest && control.requestedBudgetDigest !== plan.budgetCard.digest &&
+    !requestedParentBudgetMatch
+  if (requestedBudgetDigestMismatch && execute) {
+    throw new ValidationDagError(
+      'VALIDATION_CONFIRMED_BUDGET_DIGEST_MISMATCH',
+      'the explicitly confirmed BudgetCard digest does not match the current validation plan',
+      {
+        requestedBudgetDigest: control.requestedBudgetDigest,
+        currentBudgetDigest: plan.budgetCard.digest,
+        nextStep: 'Display the newly generated current BudgetCard and request a fresh exact confirmation.'
+      }
     )
   }
   const currentCandidate = candidateBinding(candidate)
@@ -1065,7 +1304,7 @@ function resolveAiBudgetAuthority({
     projectRootIdentity: projectRoot,
     project: 'devcodex',
     taskRecoveryKey: authorityContext.taskRecoveryKey,
-    hostSessionDigest: control.hostSessionDigest,
+    hostSessionDigest: currentAiHostSessionDigest(authorityContext),
     contextEpoch: authorityContext.contextEpoch,
     stateRevision: currentPendingExact
       ? currentPending.pendingBudgetCard.stateRevision
@@ -1074,13 +1313,86 @@ function resolveAiBudgetAuthority({
       : 1)
   }
 
-  if (control.action === 'confirm-current-budget') {
-    if (currentPending.status !== 'fresh' ||
-        !exactPendingMatchesPlan(currentPending.pendingBudgetCard, plan, candidate, projectRoot)) {
+  if (control.action === 'confirm-current-budget' && !requestedBudgetDigestMismatch) {
+    if (!currentPendingExact) {
+      assertRootReplacementSafe(store, currentRoot, plan, candidate)
+      const successor = controlValidation.valid
+        ? tryAuthorizePendingBudgetSuccessor({
+            store,
+            currentPending,
+            currentRoot,
+            plan,
+            candidate,
+            pendingInput,
+            control,
+            authorityContext,
+            nowMs: Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
+          })
+        : { authority: null, decision: null, fallbackCode: 'successor-control-not-fresh' }
+      if (successor.authority) {
+        return {
+          plan: execute ? approvePlanFromBudgetAuthority(plan, successor.authority) : plan,
+          authority: successor.authority,
+          store,
+          control,
+          successorDecision: successor.decision,
+          decision: execute
+            ? 'validation-successor-authorized'
+            : 'validation-successor-authorized-plan-only'
+        }
+      }
+      if (!execute) {
+        const replacement = createPendingBudgetCardBinding(pendingInput)
+        const replacementWrite = store.writePendingBudgetCard(replacement, {
+          expectedBindingDigest: currentPending.pendingBudgetCard?.bindingDigest || null,
+          expectedStateRevision: currentPending.pendingBudgetCard?.stateRevision
+        })
+        if (!acceptedValidationStateWrite(replacementWrite.status)) {
+          throw new ValidationDagError(
+            replacementWrite.errorCode || 'VALIDATION_BUDGET_CONFIRMATION_CAS_CONFLICT',
+            'failed to persist the replacement BudgetCard after the previous confirmation became stale',
+            replacementWrite
+          )
+        }
+        return {
+          plan,
+          authority: null,
+          store,
+          control,
+          pending: replacement,
+          decision: 'confirmation-stale-new-card',
+          ...(successor.decision ? { successorDecision: successor.decision } : {}),
+          ...(expiredPlanOnlyIngress ? { controlErrors: controlValidation.errors } : {})
+        }
+      }
       throw new ValidationDagError(
         currentPending.status === 'fresh' ? 'VALIDATION_PENDING_BUDGET_STALE' : 'VALIDATION_PENDING_BUDGET_MISSING',
-        'the current confirmation does not match one previously displayed exact BudgetCard'
+        'the current confirmation does not match one previously displayed exact BudgetCard',
+        {
+          successorFallbackCode: successor.fallbackCode,
+          successorBlockers: successor.decision?.blockers || [],
+          nextStep: 'Display and persist the new current BudgetCard, then require a separate fresh confirmation.'
+        }
       )
+    }
+    const currentRequestSourceRef = `validation-control:${control.receiptDigest}`
+    if (!currentPending.pendingBudgetCard.requestSourceRef ||
+        currentPending.pendingBudgetCard.requestSourceRef === currentRequestSourceRef) {
+      if (execute) {
+        throw new ValidationDagError(
+          'VALIDATION_FRESH_BUDGET_CONFIRMATION_REQUIRED',
+          'one user-control receipt cannot both create and confirm the same BudgetCard',
+          { nextStep: 'Display the current BudgetCard and wait for a separate fresh confirmation.' }
+        )
+      }
+      return {
+        plan,
+        authority: null,
+        store,
+        control,
+        pending: currentPending.pendingBudgetCard,
+        decision: 'awaiting-fresh-budget-confirmation'
+      }
     }
     if (!execute) {
       return { plan, authority: null, store, control, decision: 'confirmation-ready' }
@@ -1092,7 +1404,8 @@ function resolveAiBudgetAuthority({
       revocationEpoch
     }, {
       currentUserInstruction: true,
-      currentSourceMessageDigest: control.sourceMessageDigest
+      currentSourceMessageDigest: control.sourceMessageDigest,
+      currentRequestSourceRef
     })
     assertRootReplacementSafe(store, currentRoot, plan, candidate)
     const write = store.writeRootBudgetConfirmation(receipt, {
@@ -1373,7 +1686,7 @@ async function main(argv = process.argv.slice(2)) {
       explicitChangedFiles: options.changedSpecified ? options.changedFiles : null,
       narrativeMarkdownExclusions: manifest.narrativeMarkdownExclusions
     })
-    let plan = planValidation({
+    const planInput = {
       manifest,
       route: routeForMode,
       changedFiles: candidate.changedFiles,
@@ -1389,12 +1702,37 @@ async function main(argv = process.argv.slice(2)) {
       requesterClass: actorType,
       project: 'devcodex',
       taskRecoveryKey: authorityContext.taskRecoveryKey,
+      approvePlanDigest: options.approvePlanDigest
+    }
+    let plan = planValidation({
+      ...planInput,
       contextEpoch: authorityContext.contextEpoch,
       requestSourceRef: authorityContext.authoritySourceRef || (options.releaseAuthorized
         ? 'cli:explicit-release-authorization'
-        : (options.explicitFullAudit ? 'cli:explicit-full-audit-request' : `cli:route:${options.route}`)),
-      approvePlanDigest: options.approvePlanDigest
+        : (options.explicitFullAudit ? 'cli:explicit-full-audit-request' : `cli:route:${options.route}`))
     })
+    const pendingPlanIdentity = resolvePendingBudgetPlanIdentity({
+      actorType,
+      authorityContext,
+      candidate,
+      repoRoot: ROOT,
+      nowMs: Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
+    })
+    if (pendingPlanIdentity) {
+      const replayPlan = planValidation({
+        ...planInput,
+        contextEpoch: pendingPlanIdentity.contextEpoch,
+        requestSourceRef: pendingPlanIdentity.requestSourceRef
+      })
+      if (exactPendingMatchesPlan(
+        pendingPlanIdentity.pendingBudgetCard,
+        replayPlan,
+        candidate,
+        validationProjectRootIdentity(ROOT)
+      )) {
+        plan = replayPlan
+      }
+    }
     const budgetAuthorityResolution = resolveValidationBudgetAuthority({
       options,
       plan,
@@ -1429,8 +1767,16 @@ async function main(argv = process.argv.slice(2)) {
           authorityDigest: budgetAuthorityResolution.authority?.receiptDigest ||
             budgetAuthorityResolution.authority?.continuationDigest || null,
           pendingDigest: budgetAuthorityResolution.pending?.bindingDigest || null,
-          controlErrors: budgetAuthorityResolution.controlErrors || []
-        }
+          controlErrors: budgetAuthorityResolution.controlErrors || [],
+          successor: budgetAuthorityResolution.successorDecision
+            ? {
+                decision: budgetAuthorityResolution.successorDecision.decision,
+                blockers: budgetAuthorityResolution.successorDecision.blockers,
+                decisionDigest: budgetAuthorityResolution.successorDecision.decisionDigest
+              }
+            : null
+        },
+        formalTaskExecutionPreflight: authorityContext.formalTaskExecutionPreflight
       }
       if (options.json) printJson(envelope(true, data, null))
       else {
@@ -1442,6 +1788,12 @@ async function main(argv = process.argv.slice(2)) {
           ' estimatedMs=' + plan.budget.estimatedDurationMs + ' confidence=' + plan.budget.estimateConfidence +
           ' timeoutUpperMs=' + plan.budget.hardTimeoutUpperBoundMs + '\n')
         if (plan.budgetCard.nextStep) process.stdout.write('Budget next: ' + plan.budgetCard.nextStep + '\n')
+        if (budgetAuthorityResolution.decision === 'validation-successor-authorized-plan-only') {
+          process.stdout.write('Budget authorization: the confirmed scope was safely carried forward to the refreshed card; planning executed no validation nodes.\n')
+        } else if (budgetAuthorityResolution.successorDecision?.decision === 'reconfirm-required') {
+          process.stdout.write('Budget authorization: the refreshed card needs confirmation because ' +
+            budgetAuthorityResolution.successorDecision.blockers.join(', ') + '.\n')
+        }
         if (plan.executionBlockers.length) process.stdout.write('Blockers: ' +
           plan.executionBlockers.map(item => item.code).join(', ') + '\n')
         process.stdout.write('Selected (' + plan.selectedNodeCount + '): ' +
@@ -1487,8 +1839,8 @@ async function main(argv = process.argv.slice(2)) {
       lease,
       actorType,
       project: 'devcodex',
-      taskRecoveryKey: plan.verificationIntent.taskRecoveryKey,
-      contextEpoch: plan.verificationIntent.contextEpoch,
+      taskRecoveryKey: authorityContext.taskRecoveryKey || plan.verificationIntent.taskRecoveryKey,
+      contextEpoch: authorityContext.contextEpoch || plan.verificationIntent.contextEpoch,
       taskIdentity: authorityContext.taskIdentity,
       sessionKey: authorityContext.sessionKey || '',
       revocationEpoch: lease.revocationEpoch,
@@ -1547,6 +1899,8 @@ module.exports = {
   parseArgs,
   projectValidationExecutionForCli,
   resolveAiBudgetAuthority,
+  resolvePendingBudgetPlanIdentity,
+  resolveFormalTaskExecutionPreflight,
   resolveValidationBudgetAuthority,
   resolveValidationAuthorityContext,
   resolveActorType,

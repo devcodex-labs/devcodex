@@ -12,6 +12,7 @@ const {
 } = require('../hooks/_runtime/progressive-skill-route-contract.cjs')
 const {
   HOST_VARIANTS,
+  getLifecycleHostAdapterInputPaths,
   getLifecycleHostAdapterDigest
 } = require('../hooks/_runtime/host-adapter-identity.cjs')
 const {
@@ -41,11 +42,15 @@ const {
   loadContentByRelative
 } = require('./generate-workflow-root-registry')
 const {
+  getRuntimeContractInputPaths,
   getRuntimeContractDigest,
   resolveSkillRouteMode,
   validateProbeAuthority,
   validateCapabilityDocument
 } = require('../hooks/_runtime/skill-route-mode.cjs')
+const {
+  run: runHostSkillRouteCapabilityTests
+} = require('./test-host-skill-route-capability')
 const {
   getGrokLauncherAdapterDigest
 } = require('./lib/grok-workspace-launcher')
@@ -898,32 +903,20 @@ try {
   assert.strictEqual(noCapability.hostEligibility, 'UNVERIFIED')
   const currentRuntimeDigest = getRuntimeContractDigest()
   assert.match(currentRuntimeDigest, /^[a-f0-9]{64}$/)
-  const lifecycleRuntimeSource = fs.readFileSync(
-    path.join(fixture.packageRoot, 'hooks', '_runtime', 'lifecycle.cjs'),
-    'utf8'
-  )
-  const lifecycleRuntimeDependencies = [
-    ...lifecycleRuntimeSource.matchAll(/require\(['"]\.\/([^'"]+\.cjs)['"]\)/g)
-  ].map(match => match[1])
-  const runtimeContractInputs = [...new Set([
-    'lifecycle.cjs',
-    ...lifecycleRuntimeDependencies,
-    'artifact-slot-registry.v1.json',
-    'artifact-slot-registry.v2.json',
-    'workflow-root-registry.v2.json'
-  ])].sort()
-  assert(runtimeContractInputs.includes('host-tool-mutation-adapters.cjs'))
-  assert(runtimeContractInputs.includes('task-recovery-store-v5.cjs'))
-  assert(runtimeContractInputs.includes('workflow-route-decision-v2.cjs'))
+  const runtimeContractInputs = getRuntimeContractInputPaths()
+  assert(Object.isFrozen(runtimeContractInputs))
+  assert.strictEqual(new Set(runtimeContractInputs).size, runtimeContractInputs.length)
   for (const runtimeFile of runtimeContractInputs) {
     const mutatedFs = new Proxy(fs, {
       get (target, property) {
         if (property === 'readFileSync') {
           return (file, ...args) => {
             const value = target.readFileSync(file, ...args)
-            return path.basename(String(file)) === runtimeFile && typeof value === 'string'
-              ? `${value}\n// digest-sensitivity-probe`
-              : value
+            const portable = path.resolve(String(file)).replace(/\\/g, '/')
+            if (!portable.endsWith(`/${runtimeFile}`)) return value
+            return Buffer.isBuffer(value)
+              ? Buffer.concat([value, Buffer.from('\n// digest-sensitivity-probe')])
+              : `${value}\n// digest-sensitivity-probe`
           }
         }
         const value = target[property]
@@ -936,6 +929,34 @@ try {
       `${runtimeFile} must participate in the runtime contract digest`
     )
   }
+  const adapterContractInputs = getLifecycleHostAdapterInputPaths()
+  assert(Object.isFrozen(adapterContractInputs))
+  assert.strictEqual(new Set(adapterContractInputs).size, adapterContractInputs.length)
+  const currentAdapterDigest = getLifecycleHostAdapterDigest('codex', { env: {} })
+  for (const adapterFile of adapterContractInputs) {
+    const mutatedFs = new Proxy(fs, {
+      get (target, property) {
+        if (property === 'readFileSync') {
+          return (file, ...args) => {
+            const value = target.readFileSync(file, ...args)
+            const portable = path.resolve(String(file)).replace(/\\/g, '/')
+            if (!portable.endsWith(`/${adapterFile}`)) return value
+            return Buffer.isBuffer(value)
+              ? Buffer.concat([value, Buffer.from('\n// adapter-digest-sensitivity-probe')])
+              : `${value}\n// adapter-digest-sensitivity-probe`
+          }
+        }
+        const value = target[property]
+        return typeof value === 'function' ? value.bind(target) : value
+      }
+    })
+    assert.notStrictEqual(
+      getLifecycleHostAdapterDigest('codex', { env: {}, fs: mutatedFs }),
+      currentAdapterDigest,
+      `${adapterFile} must participate in the host adapter digest`
+    )
+  }
+  runHostSkillRouteCapabilityTests()
 } finally {
   fixture.cleanup()
 }

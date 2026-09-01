@@ -23,6 +23,7 @@ const {
 const { createValidationEvidenceStore } = require('./lib/validation-evidence-store')
 const { ValidationDagError } = require('./lib/validation-dag')
 const {
+  MAX_CONTINUATION_RETRIES,
   createBudgetConfirmationReceipt,
   createFormalTaskExecutionPreflight,
   createPendingBudgetCardBinding,
@@ -720,19 +721,38 @@ function main() {
         { path: thirdRepairPath, digest: sha256('dirty-auto-child-3') }
       ]
     }
-    expectCode(() => resolveAiBudgetAuthority({
-      options: {},
-      plan: thirdChildPlan,
-      candidate: thirdChildCandidate,
-      authorityContext: authorityContext({
-        identity: autoSeed.identity,
-        sessionKey: autoSession,
-        contextEpoch,
+    const thirdRepairContext = authorityContext({
+      identity: autoSeed.identity,
+      sessionKey: autoSession,
+      contextEpoch,
+      control: autoControl,
+      state: thirdRepairState
+    })
+    for (let retryOrdinal = 3; retryOrdinal <= MAX_CONTINUATION_RETRIES; retryOrdinal += 1) {
+      const continuedExecution = resolveAiBudgetAuthority({
+        options: {},
+        plan: thirdChildPlan,
+        candidate: thirdChildCandidate,
+        authorityContext: thirdRepairContext,
+        activeRoot,
+        execute: true
+      })
+      assert.strictEqual(continuedExecution.decision, 'auto-continuation-authorized')
+      assert.strictEqual(continuedExecution.authority.retryOrdinal, retryOrdinal)
+      persistRunTerminal({
+        store: autoStore,
+        plan: continuedExecution.plan,
+        candidate: thirdChildCandidate,
+        authority: continuedExecution.authority,
         control: autoControl,
-        state: thirdRepairState
-      }),
-      activeRoot,
-      execute: true
+        taskId: autoTaskId,
+        contextEpoch,
+        failedNode: 'validation-budget-control'
+      })
+    }
+    expectCode(() => resolveAiBudgetAuthority({
+      options: {}, plan: thirdChildPlan, candidate: thirdChildCandidate,
+      authorityContext: thirdRepairContext, activeRoot, execute: true
     }), 'VALIDATION_CONTINUATION_RETRY_EXHAUSTED')
 
     // A terminal failed root remains immutable, but a later committed strict
@@ -1458,22 +1478,24 @@ function main() {
       contextEpoch,
       failedNode: 'validation-authority'
     })
-    const exactRetrySecond = resolveAiBudgetAuthority({
-      options: {}, plan: exactRetryPlan, candidate: exactRetryCandidate,
-      authorityContext: expiredExactRetryContext, activeRoot, execute: true
-    })
-    assert.strictEqual(exactRetrySecond.decision, 'auto-continuation-authorized')
-    assert.strictEqual(exactRetrySecond.authority.retryOrdinal, 2)
-    persistRunTerminal({
-      store: exactRetryStore,
-      plan: exactRetrySecond.plan,
-      candidate: exactRetryCandidate,
-      authority: exactRetrySecond.authority,
-      control: exactRetryControl,
-      taskId: exactRetryTaskId,
-      contextEpoch,
-      failedNode: 'validation-authority'
-    })
+    for (let retryOrdinal = 2; retryOrdinal <= MAX_CONTINUATION_RETRIES; retryOrdinal += 1) {
+      const exactRetry = resolveAiBudgetAuthority({
+        options: {}, plan: exactRetryPlan, candidate: exactRetryCandidate,
+        authorityContext: expiredExactRetryContext, activeRoot, execute: true
+      })
+      assert.strictEqual(exactRetry.decision, 'auto-continuation-authorized')
+      assert.strictEqual(exactRetry.authority.retryOrdinal, retryOrdinal)
+      persistRunTerminal({
+        store: exactRetryStore,
+        plan: exactRetry.plan,
+        candidate: exactRetryCandidate,
+        authority: exactRetry.authority,
+        control: exactRetryControl,
+        taskId: exactRetryTaskId,
+        contextEpoch,
+        failedNode: 'validation-authority'
+      })
+    }
     expectCode(() => resolveAiBudgetAuthority({
       options: {}, plan: exactRetryPlan, candidate: exactRetryCandidate,
       authorityContext: expiredExactRetryContext, activeRoot, execute: true

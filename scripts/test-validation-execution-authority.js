@@ -12,6 +12,7 @@ const {
   CONTINUATION_AUTHORIZATION_SCHEMA,
   LEGACY_LEASE_SCHEMA,
   LEASE_SCHEMA,
+  MAX_CONTINUATION_RETRIES,
   PENDING_BUDGET_SCHEMA,
   RUN_IDENTITY_SCHEMA,
   ValidationAuthorityError,
@@ -575,7 +576,7 @@ async function main() {
       repairObservationReceiptDigest: sha256('repair-observation'),
       repairFootprintProven: true,
       allowedAddedNodeIds: ['derived-consumer'],
-      retryOrdinal: 3,
+      retryOrdinal: MAX_CONTINUATION_RETRIES + 1,
       revocationEpoch: 0
     }), error => error.code === 'VALIDATION_CONTINUATION_RETRY_EXHAUSTED')
 

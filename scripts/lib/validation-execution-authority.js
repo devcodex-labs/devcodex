@@ -39,7 +39,10 @@ const MIN_LEASE_WINDOW_MS = 60 * 1000
 const LEASE_MARGIN_FLOOR_MS = 30 * 1000
 const PENDING_BUDGET_TTL_MS = 24 * 60 * 60 * 1000
 const MAX_AUTHORITY_RECORD_BYTES = 4 * 1024
-const MAX_CONTINUATION_RETRIES = 2
+// Keep same-scope repair convergence automatic without permitting an
+// unbounded validation loop. Every ordinal still has to satisfy the immutable
+// root, exact task/session, scope, budget, footprint and revocation gates.
+const MAX_CONTINUATION_RETRIES = 8
 const MAX_PENDING_CANDIDATE_PATHS = 40
 
 class ValidationAuthorityError extends Error {

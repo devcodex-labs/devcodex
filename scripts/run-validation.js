@@ -15,6 +15,7 @@ const {
 } = require('./lib/validation-dag')
 const {
   ACTOR_TYPES,
+  MAX_CONTINUATION_RETRIES,
   approvePlanFromBudgetAuthority,
   candidateBinding,
   createBudgetConfirmationReceipt,
@@ -1121,6 +1122,7 @@ function tryResolveAutoContinuation({ plan, candidate, authorityContext, store, 
       revocationEpoch: currentValidationRevocationEpoch(authorityContext)
     }, {
       serverOwnedContextContinuationReceiptDigest: control.receiptDigest,
+      serverOwnedAutoConvergenceRetryLimit: MAX_CONTINUATION_RETRIES,
       serverOwnedCommittedRepairReceiptDigest: committedProof?.proven
         ? committedProof.observationDigest
         : null

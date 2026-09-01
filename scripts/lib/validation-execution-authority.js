@@ -39,9 +39,10 @@ const MIN_LEASE_WINDOW_MS = 60 * 1000
 const LEASE_MARGIN_FLOOR_MS = 30 * 1000
 const PENDING_BUDGET_TTL_MS = 24 * 60 * 60 * 1000
 const MAX_AUTHORITY_RECORD_BYTES = 4 * 1024
-// Keep same-scope repair convergence automatic without permitting an
-// unbounded validation loop. Every ordinal still has to satisfy the immutable
-// root, exact task/session, scope, budget, footprint and revocation gates.
+const DEFAULT_CONTINUATION_RETRIES = 2
+// Absolute schema ceiling for a trusted Auto control-plane convergence run.
+// Every ordinal still has to satisfy the immutable root, exact task/session,
+// scope, budget, footprint and revocation gates.
 const MAX_CONTINUATION_RETRIES = 8
 const MAX_PENDING_CANDIDATE_PATHS = 40
 
@@ -931,7 +932,12 @@ function createValidationContinuationAuthorization(input = {}, options = {}) {
       'continuation exceeds the immutable root node or bounded estimate/hard-timeout/log repair budget')
   }
   const retryOrdinal = Number(input.retryOrdinal)
-  if (!Number.isInteger(retryOrdinal) || retryOrdinal < 1 || retryOrdinal > MAX_CONTINUATION_RETRIES) {
+  const requestedRetryLimit = Number(options.serverOwnedAutoConvergenceRetryLimit)
+  const retryLimit = root.authorityKind === 'auto' && Number.isInteger(requestedRetryLimit) &&
+      requestedRetryLimit >= DEFAULT_CONTINUATION_RETRIES && requestedRetryLimit <= MAX_CONTINUATION_RETRIES
+    ? requestedRetryLimit
+    : DEFAULT_CONTINUATION_RETRIES
+  if (!Number.isInteger(retryOrdinal) || retryOrdinal < 1 || retryOrdinal > retryLimit) {
     throw new ValidationAuthorityError('VALIDATION_CONTINUATION_RETRY_EXHAUSTED', 'continuation retry ordinal exceeds the root allowance')
   }
   if (Number(input.revocationEpoch) !== root.revocationEpoch) {

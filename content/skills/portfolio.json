@@ -13,10 +13,10 @@
     "publicTaxonomyDigest": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 669,
-    "consumerInventoryDigest": "3efebd1bc38d9d30bb71cb50a1eef073eafc51575b8f6649a1054ae661b4f332",
-    "consumerProjectionDigest": "0fd8f70e8c9c76141ba67c6fa66b0b12421e29516c758d01099367bee7e3e3ca",
-    "portfolioInputDigest": "5daf11e4938dc96732cbebd388ab6a61c22bd4fc0b7abeeb218cf169cdc8b17b"
+    "consumerInventoryFileCount": 672,
+    "consumerInventoryDigest": "7f2824e727f1c2d913168bb072cb86cbed42393edade5b2e6f04870f9332ed29",
+    "consumerProjectionDigest": "370d0b951b19e95e5374c916010a99d9804a74d18dec14dfe61fdd59042175b0",
+    "portfolioInputDigest": "86267595850e13a0ac7cdb926a7510b0bc7033637e6871eaf1af28b4ab03beca"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -12195,6 +12195,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/host-skill-route-capability.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/memory-index.js",
           "role": "current"
         },
@@ -12403,6 +12407,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-host-skill-route-capability.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-instruction-fallback-check.js",
           "role": "current"
         },
@@ -12547,6 +12555,7 @@
         "scripts/test-host-capability-routing.js",
         "scripts/test-host-installation.js",
         "scripts/test-host-parity-scorecard.js",
+        "scripts/test-host-skill-route-capability.js",
         "scripts/test-instruction-fallback-check.js",
         "scripts/test-lifecycle-stop-gate.js",
         "scripts/test-mcp-runtime-closure.js",
@@ -12640,6 +12649,7 @@
           "scripts/test-host-capability-routing.js",
           "scripts/test-host-installation.js",
           "scripts/test-host-parity-scorecard.js",
+          "scripts/test-host-skill-route-capability.js",
           "scripts/test-instruction-fallback-check.js",
           "scripts/test-lifecycle-stop-gate.js",
           "scripts/test-mcp-runtime-closure.js",
@@ -13558,6 +13568,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/host-skill-route-capability.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/managed-validation-runner.js",
           "role": "current"
         },
@@ -13898,6 +13912,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-host-skill-route-capability.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-implement-start-gate.js",
           "role": "current"
         },
@@ -14114,6 +14132,7 @@
         "scripts/test-host-adapters.js",
         "scripts/test-host-capability-routing.js",
         "scripts/test-host-installation.js",
+        "scripts/test-host-skill-route-capability.js",
         "scripts/test-implement-start-gate.js",
         "scripts/test-instruction-fallback-check.js",
         "scripts/test-lifecycle-stop-gate.js",
@@ -14237,6 +14256,7 @@
           "scripts/test-host-adapters.js",
           "scripts/test-host-capability-routing.js",
           "scripts/test-host-installation.js",
+          "scripts/test-host-skill-route-capability.js",
           "scripts/test-implement-start-gate.js",
           "scripts/test-instruction-fallback-check.js",
           "scripts/test-lifecycle-stop-gate.js",

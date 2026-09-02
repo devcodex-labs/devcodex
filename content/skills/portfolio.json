@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 672,
     "consumerInventoryDigest": "7f2824e727f1c2d913168bb072cb86cbed42393edade5b2e6f04870f9332ed29",
-    "consumerProjectionDigest": "a90b1054e036ed0c0b53923c35b017a86be334077b63114824aadafd7e3a8252",
-    "portfolioInputDigest": "bc43e52a99c00a7ec3a01d4c291dc5d247ebf3d43fe792a4335916ddd6e0c6ab"
+    "consumerProjectionDigest": "b99ca1373e36f82efa5d6bd4ad3293401589cbfd30cec7172e36b7277b70a9e6",
+    "portfolioInputDigest": "ef8bbd05d387c4c3e5abc3d43684207a447bd3ae093084c4f103b79337fd4742"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -12079,6 +12079,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/check-critical-risk-coverage.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/check-turn-liveness.js",
           "role": "current"
         },
@@ -16705,6 +16709,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-session-route-consumers.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-skill-portfolio.js",
           "role": "current"
         },
@@ -16802,6 +16810,7 @@
         "scripts/test-requirement-artifacts.js",
         "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-review-execution-contract.js",
+        "scripts/test-session-route-consumers.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-route-state.js",
         "scripts/test-skill-sidecar-contract.js",
@@ -16900,6 +16909,7 @@
           "scripts/test-requirement-artifacts.js",
           "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-review-execution-contract.js",
+          "scripts/test-session-route-consumers.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-route-state.js",
           "scripts/test-skill-sidecar-contract.js",
@@ -17687,10 +17697,6 @@
         },
         {
           "path": "hooks/_runtime/task-continuation-contract.cjs",
-          "role": "current"
-        },
-        {
-          "path": "hooks/_runtime/task-continuation-ingress.cjs",
           "role": "current"
         },
         {

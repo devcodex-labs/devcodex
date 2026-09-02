@@ -27,6 +27,12 @@ const TASK_RESOLUTION_SCHEMA = 'TaskResolutionV1'
 const TASK_KINDS = Object.freeze(['requirements', 'bugs', 'optimizations', 'scenario-tests'])
 const TASK_INDEX_RELATIVE_PATH = 'task-continuation-index.json'
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const TASK_LOCATOR_PAGE_SIZE = 256
+const TASK_LOCATOR_IDENTITY_MAX_BYTES = 64 * 1024
+const TASK_LOCATOR_SESSION_PREFIX_BYTES = 16 * 1024
+const TASK_LOCATOR_PAGE_MAX_BYTES = 16 * 1024 * 1024
+const TASK_CANONICAL_CANDIDATE_LIMIT = 5
+const TASK_CANONICAL_FILE_MAX_BYTES = 8 * 1024 * 1024
 
 class TaskContinuationError extends Error {
   constructor(code, message, nextStep = '') {
@@ -67,6 +73,15 @@ function splitContinuationProjectQualifier(value) {
 function parseContinuationCommand(prompt) {
   const normalizedPrompt = String(prompt || '').normalize('NFKC').trim().replace(/\s+/gu, ' ')
   if (!normalizedPrompt.startsWith('继续')) return null
+  if (/^继续(?:任务)?[。！!？?]?$/u.test(normalizedPrompt)) {
+    return Object.freeze({
+      schemaVersion: 'TaskContinuationCommandV1',
+      form: 'continue-bare',
+      displayQuery: '',
+      normalizedQuery: '',
+      bare: true
+    })
+  }
   const spaced = normalizedPrompt.match(/^继续\s+(.+?)$/u)
   const compact = normalizedPrompt.match(/^继续([^\s].*?)任务$/u)
   const match = spaced || compact
@@ -282,31 +297,116 @@ function createBudget(scope, overrides = {}) {
   return {
     maxDirectories: overrides.maxDirectories || (workspace ? 2000 : 500),
     maxBytes: overrides.maxBytes || (workspace ? 16 * 1024 * 1024 : 4 * 1024 * 1024),
+    pageSize: TASK_LOCATOR_PAGE_SIZE,
+    maxIdentityBytes: TASK_LOCATOR_IDENTITY_MAX_BYTES,
+    maxPageBytes: TASK_LOCATOR_PAGE_MAX_BYTES,
+    maxCandidates: TASK_CANONICAL_CANDIDATE_LIMIT,
     directories: 0,
-    bytes: 0
+    bytes: 0,
+    identityBytes: 0,
+    canonicalBytes: 0,
+    pages: 0,
+    pageIdentityBytes: 0,
+    localizedErrors: 0
   }
 }
 
 function consumeDirectory(budget) {
+  if (budget.directories % budget.pageSize === 0) {
+    budget.pages += 1
+    budget.pageIdentityBytes = 0
+  }
   budget.directories += 1
-  if (budget.directories > budget.maxDirectories) {
-    throw new TaskContinuationError('TASK_INDEX_SCALE_BLOCKED', `task inventory exceeds ${budget.maxDirectories} directories`, 'Specify --project to narrow the task search.')
+}
+
+function readLocatorMetadata(filePath, maxBytes, budget, { countIdentity = false } = {}) {
+  let stats
+  try {
+    stats = fs.statSync(filePath)
+  } catch (error) {
+    if (error?.code === 'ENOENT') return { exists: false, text: '', digest: '', bytes: 0, size: 0, mtimeMs: 0 }
+    budget.localizedErrors += 1
+    return { exists: false, text: '', digest: '', bytes: 0, size: 0, mtimeMs: 0, readError: error.code || error.message }
+  }
+  if (!stats.isFile()) {
+    budget.localizedErrors += 1
+    return { exists: true, text: '', digest: '', bytes: 0, size: 0, mtimeMs: stats.mtimeMs, nonFile: true }
+  }
+  const size = stats.size
+  const tooLarge = size > maxBytes
+  const bytesToRead = tooLarge && countIdentity ? 0 : Math.min(size, maxBytes)
+  let bytes = Buffer.alloc(0)
+  if (bytesToRead > 0) {
+    let handle = null
+    try {
+      handle = fs.openSync(filePath, 'r')
+      bytes = Buffer.alloc(bytesToRead)
+      const read = fs.readSync(handle, bytes, 0, bytesToRead, 0)
+      bytes = bytes.subarray(0, read)
+      const after = fs.fstatSync(handle)
+      if (after.size !== stats.size || after.mtimeMs !== stats.mtimeMs) {
+        budget.localizedErrors += 1
+        return { exists: true, text: '', digest: '', bytes: 0, size: after.size, mtimeMs: after.mtimeMs, readError: 'TASK_METADATA_DRIFT' }
+      }
+    } catch (error) {
+      budget.localizedErrors += 1
+      return { exists: true, text: '', digest: '', bytes: 0, size, mtimeMs: stats.mtimeMs, readError: error.code || error.message }
+    } finally {
+      if (handle !== null) {
+        try { fs.closeSync(handle) } catch {}
+      }
+    }
+  }
+  if (countIdentity) {
+    budget.identityBytes += bytes.length
+    budget.pageIdentityBytes += bytes.length
+    if (budget.pageIdentityBytes > budget.maxPageBytes) {
+      budget.localizedErrors += 1
+      return { exists: true, text: '', digest: '', bytes: 0, size, mtimeMs: stats.mtimeMs, pageLimitExceeded: true }
+    }
+  }
+  if (tooLarge && countIdentity) budget.localizedErrors += 1
+  return {
+    exists: true,
+    text: bytes.toString('utf8'),
+    digest: bytes.length ? sha256(bytes) : '',
+    bytes: bytes.length,
+    size,
+    mtimeMs: stats.mtimeMs,
+    truncated: tooLarge && !countIdentity,
+    tooLarge: tooLarge && countIdentity
   }
 }
 
-function readMetadata(filePath, budget) {
+function readCanonicalMetadata(filePath, budget, maxFileBytes = TASK_CANONICAL_FILE_MAX_BYTES) {
   let stats
   try { stats = fs.statSync(filePath) } catch (error) {
-    if (error?.code === 'ENOENT') return { exists: false, text: '', digest: '', bytes: 0 }
-    throw error
+    if (error?.code === 'ENOENT') return { exists: false, text: '', digest: '', bytes: 0, size: 0 }
+    budget.localizedErrors += 1
+    return { exists: false, text: '', digest: '', bytes: 0, size: 0, readError: error.code || error.message }
   }
-  if (!stats.isFile()) return { exists: true, text: '', digest: '', bytes: 0, nonFile: true }
-  budget.bytes += stats.size
-  if (budget.bytes > budget.maxBytes) {
-    throw new TaskContinuationError('TASK_INDEX_SCALE_BLOCKED', `task metadata exceeds ${budget.maxBytes} bytes`, 'Specify --project to narrow the task search.')
+  if (!stats.isFile()) {
+    budget.localizedErrors += 1
+    return { exists: true, text: '', digest: '', bytes: 0, size: 0, nonFile: true }
   }
-  const bytes = fs.readFileSync(filePath)
-  return { exists: true, text: bytes.toString('utf8'), digest: sha256(bytes), bytes: bytes.length }
+  if (stats.size > maxFileBytes) {
+    budget.localizedErrors += 1
+    return { exists: true, text: '', digest: '', bytes: 0, size: stats.size, tooLarge: true }
+  }
+  try {
+    const bytes = fs.readFileSync(filePath)
+    const after = fs.statSync(filePath)
+    if (after.size !== stats.size || after.mtimeMs !== stats.mtimeMs || bytes.length !== stats.size) {
+      budget.localizedErrors += 1
+      return { exists: true, text: '', digest: '', bytes: 0, size: after.size, readError: 'TASK_METADATA_DRIFT' }
+    }
+    budget.canonicalBytes += bytes.length
+    budget.bytes += bytes.length
+    return { exists: true, text: bytes.toString('utf8'), digest: sha256(bytes), bytes: bytes.length, size: bytes.length }
+  } catch (error) {
+    budget.localizedErrors += 1
+    return { exists: true, text: '', digest: '', bytes: 0, size: stats.size, readError: error.code || error.message }
+  }
 }
 
 function resolveRootContext({ cwd, project = '', scope = 'auto' }) {
@@ -372,7 +472,13 @@ function collectTaskInventory(rootContext, budget) {
     for (const kind of TASK_KINDS) {
       const kindRoot = path.join(root.activeRoot, kind)
       let children
-      try { children = fs.readdirSync(kindRoot, { withFileTypes: true }) } catch { continue }
+      try {
+        children = fs.readdirSync(kindRoot, { withFileTypes: true })
+      } catch (error) {
+        if (error?.code !== 'ENOENT') budget.localizedErrors += 1
+        continue
+      }
+      children.sort((left, right) => left.name.localeCompare(right.name))
       for (const child of children) {
         if (!child.isDirectory()) continue
         consumeDirectory(budget)
@@ -380,9 +486,9 @@ function collectTaskInventory(rootContext, budget) {
         const identityPath = path.join(taskRoot, '.memory', 'task.json')
         const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
         const archivedPath = path.join(taskRoot, '.archived')
-        const identitySource = readMetadata(identityPath, budget)
-        const sessionsSource = readMetadata(sessionsPath, budget)
-        const archivedSource = readMetadata(archivedPath, budget)
+        const identitySource = readLocatorMetadata(identityPath, budget.maxIdentityBytes, budget, { countIdentity: true })
+        const sessionsSource = readLocatorMetadata(sessionsPath, TASK_LOCATOR_SESSION_PREFIX_BYTES, budget)
+        const archivedSource = readLocatorMetadata(archivedPath, 0, budget)
         descriptors.push({
           project: root.project,
           activeRoot: root.activeRoot,
@@ -403,8 +509,13 @@ function collectTaskInventory(rootContext, budget) {
   const identityValue = descriptors.map(item => ({
     path: item.relativeTaskPath,
     identity: item.identitySource.digest,
-    sessions: item.sessionsSource.digest,
-    archived: item.archivedSource.exists
+    identitySize: item.identitySource.size,
+    identityMtimeMs: item.identitySource.mtimeMs,
+    sessionsPrefix: item.sessionsSource.digest,
+    sessionsSize: item.sessionsSource.size,
+    sessionsMtimeMs: item.sessionsSource.mtimeMs,
+    archived: item.archivedSource.exists,
+    archivedMtimeMs: item.archivedSource.mtimeMs
   }))
   return {
     descriptors,
@@ -418,12 +529,27 @@ function collectTaskInventory(rootContext, budget) {
 
 function parseTaskIdentity(descriptor) {
   if (!descriptor.identitySource.exists) return { identity: null, valid: true, errors: [], legacy: true }
+  if (descriptor.identitySource.tooLarge) {
+    return { identity: null, valid: false, errors: [`identity exceeds ${TASK_LOCATOR_IDENTITY_MAX_BYTES} bytes`], legacy: false }
+  }
+  if (descriptor.identitySource.nonFile || descriptor.identitySource.readError || descriptor.identitySource.pageLimitExceeded) {
+    const reason = descriptor.identitySource.readError || (descriptor.identitySource.nonFile ? 'identity is not a file' : 'locator page byte limit exceeded')
+    return { identity: null, valid: false, errors: [reason], legacy: false }
+  }
   let value
   try { value = JSON.parse(descriptor.identitySource.text) } catch (error) {
     return { identity: null, valid: false, errors: [`invalid JSON: ${error.message}`], legacy: false }
   }
   const validation = validateTaskIdentity(value)
-  return { identity: validation.valid ? value : null, valid: validation.valid, errors: validation.errors, legacy: false }
+  const errors = [...validation.errors]
+  if (value?.schemaVersion === TASK_IDENTITY_V2_SCHEMA) {
+    if (value.project !== descriptor.project) errors.push('identity project does not match its namespace')
+    if (value.taskKind !== descriptor.kind) errors.push('identity taskKind does not match its task directory')
+    if (value.taskRootRelative !== `${descriptor.kind}/${descriptor.directoryName}`) {
+      errors.push('identity taskRootRelative does not match its task directory')
+    }
+  }
+  return { identity: errors.length ? null : value, valid: errors.length === 0, errors, legacy: false }
 }
 
 function deriveTaskStatus(descriptor) {
@@ -461,32 +587,92 @@ function resolveBindingPath(descriptor, artifactPath) {
     candidates.find(candidate => isInside(descriptor.activeRoot, candidate)) || null
 }
 
-function inspectTaskDescriptor(descriptor, budget) {
+function locatorSourceIdentity(descriptor) {
+  return buildJsonContentIdentity({
+    sourceKey: `task-continuation-locator:${descriptor.relativeTaskPath}`,
+    value: {
+      identity: descriptor.identitySource.digest,
+      identitySize: descriptor.identitySource.size,
+      identityMtimeMs: descriptor.identitySource.mtimeMs,
+      sessionsPrefix: descriptor.sessionsSource.digest,
+      sessionsSize: descriptor.sessionsSource.size,
+      sessionsMtimeMs: descriptor.sessionsSource.mtimeMs,
+      archived: descriptor.archivedSource.exists,
+      archivedMtimeMs: descriptor.archivedSource.mtimeMs
+    },
+    contractVersion: '2'
+  }).identity
+}
+
+function inspectLocatorDescriptor(descriptor) {
   const parsedIdentity = parseTaskIdentity(descriptor)
   const displayName = parsedIdentity.identity?.displayName || descriptor.directoryName
   const aliases = parsedIdentity.identity?.aliases || []
-  const bindings = parseCpBindings(descriptor)
+  return {
+    taskId: parsedIdentity.identity?.taskId || null,
+    displayName,
+    normalizedDisplayName: normalizeTaskName(displayName),
+    directoryName: descriptor.directoryName,
+    normalizedDirectoryName: normalizeTaskName(descriptor.directoryName),
+    aliases,
+    normalizedAliases: aliases.map(normalizeTaskName),
+    identityRevision: parsedIdentity.identity?.identityRevision || parsedIdentity.identity?.identityVersion || null,
+    identityValid: parsedIdentity.valid,
+    identityErrors: parsedIdentity.errors,
+    legacy: parsedIdentity.legacy,
+    project: descriptor.project,
+    kind: descriptor.kind,
+    relativeTaskPath: descriptor.relativeTaskPath,
+    status: deriveTaskStatus(descriptor),
+    sourceIdentity: locatorSourceIdentity(descriptor),
+    confirmationEvidence: [],
+    staleConfirmations: [],
+    historicalStaleConfirmations: [],
+    locatorOnly: true
+  }
+}
+
+function inspectTaskDescriptor(descriptor, budget) {
+  const canonicalDescriptor = {
+    ...descriptor,
+    identitySource: readCanonicalMetadata(descriptor.identityPath, budget, TASK_LOCATOR_IDENTITY_MAX_BYTES),
+    sessionsSource: readCanonicalMetadata(descriptor.sessionsPath, budget),
+    archivedSource: readLocatorMetadata(path.join(descriptor.taskRoot, '.archived'), 0, budget)
+  }
+  const parsedIdentity = parseTaskIdentity(canonicalDescriptor)
+  const displayName = parsedIdentity.identity?.displayName || descriptor.directoryName
+  const aliases = parsedIdentity.identity?.aliases || []
+  const canonicalErrors = []
+  if (!canonicalDescriptor.sessionsSource.exists) canonicalErrors.push('sessions metadata is missing')
+  if (canonicalDescriptor.sessionsSource.tooLarge) canonicalErrors.push(`sessions metadata exceeds ${TASK_CANONICAL_FILE_MAX_BYTES} bytes`)
+  if (canonicalDescriptor.sessionsSource.nonFile) canonicalErrors.push('sessions metadata is not a file')
+  if (canonicalDescriptor.sessionsSource.readError) canonicalErrors.push(`sessions metadata read failed: ${canonicalDescriptor.sessionsSource.readError}`)
+  const bindings = canonicalErrors.length ? [] : parseCpBindings(canonicalDescriptor)
   const confirmationEvidence = []
-  const staleConfirmations = []
-  for (const binding of bindings) {
-    const artifactFile = resolveBindingPath(descriptor, binding.artifactPath)
-    const source = artifactFile ? readMetadata(artifactFile, budget) : { exists: false, digest: '', bytes: 0 }
+  for (const [index, binding] of bindings.entries()) {
+    const artifactFile = resolveBindingPath(canonicalDescriptor, binding.artifactPath)
+    const source = artifactFile ? readCanonicalMetadata(artifactFile, budget) : { exists: false, digest: '', bytes: 0 }
     const evidence = {
       phase: binding.phase,
       artifactPath: binding.artifactPath,
       expectedSha256: binding.expectedSha256,
       observedSha256: source.digest || '',
-      verified: Boolean(source.exists && source.digest === binding.expectedSha256)
+      verified: Boolean(source.exists && source.digest === binding.expectedSha256),
+      historical: index < bindings.length - 1,
+      ...(source.tooLarge ? { errorCode: 'TASK_CP_ARTIFACT_TOO_LARGE' } : {}),
+      ...(source.readError || source.nonFile ? { errorCode: 'TASK_CP_ARTIFACT_UNREADABLE' } : {})
     }
     confirmationEvidence.push(evidence)
-    if (!evidence.verified) staleConfirmations.push(evidence)
   }
+  const latestConfirmedHead = confirmationEvidence.length ? confirmationEvidence[confirmationEvidence.length - 1] : null
+  const staleConfirmations = latestConfirmedHead && !latestConfirmedHead.verified ? [latestConfirmedHead] : []
+  const historicalStaleConfirmations = confirmationEvidence.filter(item => item.historical && !item.verified)
   const sourceIdentity = buildJsonContentIdentity({
     sourceKey: `task-continuation-source:${descriptor.relativeTaskPath}`,
     value: {
-      identity: descriptor.identitySource.digest,
-      sessions: descriptor.sessionsSource.digest,
-      archived: descriptor.archivedSource.exists,
+      identity: canonicalDescriptor.identitySource.digest,
+      sessions: canonicalDescriptor.sessionsSource.digest,
+      archived: canonicalDescriptor.archivedSource.exists,
       confirmations: confirmationEvidence.map(item => ({
         phase: item.phase,
         artifactPath: item.artifactPath,
@@ -500,6 +686,8 @@ function inspectTaskDescriptor(descriptor, budget) {
     taskId: parsedIdentity.identity?.taskId || null,
     displayName,
     normalizedDisplayName: normalizeTaskName(displayName),
+    directoryName: descriptor.directoryName,
+    normalizedDirectoryName: normalizeTaskName(descriptor.directoryName),
     aliases,
     normalizedAliases: aliases.map(normalizeTaskName),
     identityRevision: parsedIdentity.identity?.identityRevision || parsedIdentity.identity?.identityVersion || null,
@@ -509,10 +697,14 @@ function inspectTaskDescriptor(descriptor, budget) {
     project: descriptor.project,
     kind: descriptor.kind,
     relativeTaskPath: descriptor.relativeTaskPath,
-    status: deriveTaskStatus(descriptor),
+    status: deriveTaskStatus(canonicalDescriptor),
     sourceIdentity,
     confirmationEvidence,
-    staleConfirmations
+    staleConfirmations,
+    historicalStaleConfirmations,
+    latestConfirmedHead,
+    canonicalErrors,
+    locatorOnly: false
   }
 }
 
@@ -523,7 +715,7 @@ function buildIndex(rootContext, inventory, budget, observedAt) {
     project: rootContext.project || null,
     sourceIdentity: inventory.sourceIdentity,
     lastObservedAt: new Date(observedAt).toISOString(),
-    entries: inventory.descriptors.map(descriptor => inspectTaskDescriptor(descriptor, budget))
+    entries: inventory.descriptors.map(inspectLocatorDescriptor)
   }
 }
 
@@ -540,10 +732,13 @@ function minimalCandidate(entry) {
   return {
     taskId: entry.taskId,
     displayName: entry.displayName,
+    directoryName: entry.directoryName,
     project: entry.project,
     kind: entry.kind,
     status: entry.status,
-    legacy: Boolean(entry.legacy)
+    legacy: Boolean(entry.legacy),
+    relativeTaskPath: entry.relativeTaskPath,
+    selectionDigest: entry.sourceIdentity?.digest || null
   }
 }
 
@@ -553,10 +748,13 @@ function findExactMatches(entries, normalizedQuery) {
   const active = entries.filter(entry => entry.status === 'active')
   const byDisplay = active.filter(entry => entry.normalizedDisplayName === normalizedQuery)
   if (byDisplay.length) return byDisplay
+  const byDirectory = active.filter(entry => entry.normalizedDirectoryName === normalizedQuery)
+  if (byDirectory.length) return byDirectory
   const byAlias = active.filter(entry => entry.normalizedAliases.includes(normalizedQuery))
   if (byAlias.length) return byAlias
   return entries.filter(entry => entry.status !== 'active' && (
     entry.normalizedDisplayName === normalizedQuery ||
+    entry.normalizedDirectoryName === normalizedQuery ||
     entry.normalizedAliases.includes(normalizedQuery) ||
     (entry.taskId && String(entry.taskId).toLowerCase() === normalizedQuery)
   ))
@@ -583,7 +781,7 @@ function editDistance(left, right) {
 function buildSuggestions(entries, normalizedQuery) {
   const ranked = []
   for (const entry of entries) {
-    const names = [entry.normalizedDisplayName, ...entry.normalizedAliases].filter(Boolean)
+    const names = [entry.normalizedDisplayName, entry.normalizedDirectoryName, ...entry.normalizedAliases].filter(Boolean)
     let best = Infinity
     let prefix = false
     for (const name of names) {
@@ -602,11 +800,14 @@ function buildSuggestions(entries, normalizedQuery) {
 function baseResolution(rootContext, displayQuery, normalizedQuery, indexEvidence) {
   return {
     schemaVersion: TASK_RESOLUTION_SCHEMA,
+    observedAt: new Date().toISOString(),
     query: displayQuery,
     normalizedQuery,
     scope: rootContext.scope,
     requestedProject: rootContext.project || null,
-    index: indexEvidence
+    index: indexEvidence,
+    mutationAuthority: false,
+    authority: 'selection-only'
   }
 }
 
@@ -614,27 +815,25 @@ function descriptorMap(inventory) {
   return new Map(inventory.descriptors.map(descriptor => [descriptor.relativeTaskPath, descriptor]))
 }
 
+function scanReceipt(budget) {
+  return {
+    directories: budget.directories,
+    pages: budget.pages,
+    pageSize: budget.pageSize,
+    identityBytes: budget.identityBytes,
+    canonicalBytes: budget.canonicalBytes,
+    bytes: budget.bytes,
+    localizedErrors: budget.localizedErrors
+  }
+}
+
 function resolveUniqueActiveTaskContinuation({ cwd = process.cwd(), project = '', scope = 'auto', budgets = {}, now = () => Date.now() } = {}) {
   let rootContext
   let budget
-  let inventory
-  try {
-    rootContext = resolveRootContext({ cwd, project, scope })
-    budget = createBudget(rootContext.scope, budgets)
-    inventory = collectTaskInventory(rootContext, budget)
-  } catch (error) {
-    if (error instanceof TaskContinuationError && error.code === 'TASK_INDEX_SCALE_BLOCKED') {
-      return {
-        schemaVersion: TASK_RESOLUTION_SCHEMA,
-        status: 'scale-blocked',
-        errorCode: error.code,
-        message: error.message,
-        nextStep: error.nextStep
-      }
-    }
-    throw error
-  }
-  const active = inventory.descriptors.map(descriptor => inspectTaskDescriptor(descriptor, budget)).filter(item => item.status === 'active')
+  rootContext = resolveRootContext({ cwd, project, scope })
+  budget = createBudget(rootContext.scope, budgets)
+  const inventory = collectTaskInventory(rootContext, budget)
+  const active = inventory.descriptors.map(inspectLocatorDescriptor).filter(item => item.status === 'active')
   if (active.length !== 1) {
     return {
       ...baseResolution(rootContext, '', '', { state: 'bounded-unique-active-scan', sourceIdentity: inventory.sourceIdentity }),
@@ -643,7 +842,8 @@ function resolveUniqueActiveTaskContinuation({ cwd = process.cwd(), project = ''
       message: active.length ? `${active.length} active tasks require an explicit --task selector.` : 'No unique active task is available.',
       candidates: active.slice(0, 5).map(minimalCandidate),
       nextStep: 'Specify --task with an exact display name, alias, or stable taskId.',
-      scan: { directories: budget.directories, bytes: budget.bytes }
+      mutationAuthority: false,
+      scan: scanReceipt(budget)
     }
   }
   const selected = active[0]
@@ -675,26 +875,9 @@ function resolveTaskContinuation({
 
   let rootContext
   let budget
-  let inventory
-  try {
-    rootContext = resolveRootContext({ cwd, project, scope })
-    budget = createBudget(rootContext.scope, budgets)
-    inventory = collectTaskInventory(rootContext, budget)
-  } catch (error) {
-    if (error instanceof TaskContinuationError && error.code === 'TASK_INDEX_SCALE_BLOCKED') {
-      return {
-        schemaVersion: TASK_RESOLUTION_SCHEMA,
-        status: 'scale-blocked',
-        query: displayQuery,
-        normalizedQuery,
-        errorCode: error.code,
-        message: error.message,
-        nextStep: error.nextStep,
-        scan: budget ? { directories: budget.directories, bytes: budget.bytes, maxDirectories: budget.maxDirectories, maxBytes: budget.maxBytes } : null
-      }
-    }
-    throw error
-  }
+  rootContext = resolveRootContext({ cwd, project, scope })
+  budget = createBudget(rootContext.scope, budgets)
+  const inventory = collectTaskInventory(rootContext, budget)
 
   const optimizationActiveRoot = rootContext.scope === 'workspace'
     ? path.join(rootContext.layout.workspaceRoot, '.devcodex', 'workspace')
@@ -726,21 +909,7 @@ function resolveTaskContinuation({
   let indexState = index ? 'reused' : (indexEnabled ? 'rebuilt-memory' : disabledState)
   const rebuildReason = index ? null : (readReceipt.status === 'fresh' ? 'invalid-index-contract' : readReceipt.status)
   if (!index) {
-    try {
-      index = buildIndex(rootContext, inventory, budget, now())
-    } catch (error) {
-      if (error instanceof TaskContinuationError && error.code === 'TASK_INDEX_SCALE_BLOCKED') {
-        return {
-          ...baseResolution(rootContext, displayQuery, normalizedQuery, { state: 'scale-blocked', filePath: store.filePath }),
-          status: 'scale-blocked',
-          errorCode: error.code,
-          message: error.message,
-          nextStep: error.nextStep,
-          scan: { directories: budget.directories, bytes: budget.bytes, maxDirectories: budget.maxDirectories, maxBytes: budget.maxBytes }
-        }
-      }
-      throw error
-    }
+    index = buildIndex(rootContext, inventory, budget, now())
     if (indexEnabled) {
       writeReceipt = store.write(index)
       if (writeReceipt.status === 'persisted') indexState = 'rebuilt-persisted'
@@ -775,7 +944,7 @@ function resolveTaskContinuation({
       message: `No exact task match was found for ${displayQuery}.`,
       suggestions: buildSuggestions(index.entries, normalizedQuery),
       nextStep: rootContext.scope === 'workspace' ? 'Choose one suggestion or include the exact task name.' : 'Check the exact name or retry without --project to search the workspace.',
-      scan: { directories: budget.directories, bytes: budget.bytes }
+      scan: scanReceipt(budget)
     }
   }
   if (matches.length > 1) {
@@ -786,25 +955,24 @@ function resolveTaskContinuation({
       message: `${matches.length} exact task matches require project or taskId disambiguation.`,
       candidates: matches.slice(0, 5).map(minimalCandidate),
       nextStep: 'Specify --project or use the stable taskId.',
-      scan: { directories: budget.directories, bytes: budget.bytes }
+      scan: scanReceipt(budget)
     }
   }
 
-  let selected = matches[0]
-  if (indexState === 'reused') {
-    const descriptor = descriptorMap(inventory).get(selected.relativeTaskPath)
-    if (!descriptor) {
-      return {
-        ...base,
-        status: 'not-found',
-        errorCode: 'TASK_SOURCE_MISSING',
-        message: 'The indexed task path is no longer present in the bounded source inventory.',
-        suggestions: [],
-        nextStep: 'Retry to rebuild the derived task index.'
-      }
+  const indexedSelection = matches[0]
+  const descriptor = descriptorMap(inventory).get(indexedSelection.relativeTaskPath)
+  if (!descriptor) {
+    return {
+      ...base,
+      status: 'not-found',
+      errorCode: 'TASK_SOURCE_MISSING',
+      message: 'The indexed task path is no longer present in the bounded source inventory.',
+      suggestions: [],
+      nextStep: 'Retry to rebuild the derived task index.',
+      scan: scanReceipt(budget)
     }
-    selected = inspectTaskDescriptor(descriptor, budget)
   }
+  const selected = inspectTaskDescriptor(descriptor, budget)
 
   const candidate = minimalCandidate(selected)
   if (!selected.identityValid) {
@@ -814,7 +982,20 @@ function resolveTaskContinuation({
       errorCode: 'TASK_IDENTITY_INVALID',
       message: `Task identity is invalid: ${selected.identityErrors.join('; ')}`,
       candidate,
-      nextStep: 'Repair .memory/task.json while preserving any established taskId.'
+      nextStep: 'Repair .memory/task.json while preserving any established taskId.',
+      scan: scanReceipt(budget)
+    }
+  }
+  if (selected.canonicalErrors.length) {
+    return {
+      ...base,
+      status: 'stale-confirmation',
+      errorCode: 'TASK_CANONICAL_EVIDENCE_UNAVAILABLE',
+      message: `Task ${selected.displayName} canonical evidence is unavailable: ${selected.canonicalErrors.join('; ')}`,
+      candidate,
+      canonicalErrors: selected.canonicalErrors,
+      nextStep: 'Continue in provisional context; repair or re-read the exact task metadata before mutating the existing task.',
+      scan: scanReceipt(budget)
     }
   }
   if (selected.status === 'completed' || selected.status === 'rejected') {
@@ -824,7 +1005,8 @@ function resolveTaskContinuation({
       errorCode: selected.status === 'completed' ? 'TASK_COMPLETED' : 'TASK_REJECTED',
       message: `Task ${selected.displayName} is ${selected.status} and will not be reopened automatically.`,
       candidate,
-      nextStep: 'Request an explicit reopen or create a new branch task.'
+      nextStep: 'Request an explicit reopen or create a new branch task.',
+      scan: scanReceipt(budget)
     }
   }
   if (selected.staleConfirmations.length) {
@@ -835,7 +1017,9 @@ function resolveTaskContinuation({
       message: `Task ${selected.displayName} has ${selected.staleConfirmations.length} stale CP binding(s).`,
       candidate,
       staleConfirmations: selected.staleConfirmations,
-      nextStep: `Return to ${selected.staleConfirmations[0].phase} and bind the current artifact digest before continuing.`
+      historicalStaleConfirmations: selected.historicalStaleConfirmations,
+      nextStep: `Re-verify the latest confirmed ${selected.staleConfirmations[0].phase} head before mutating the existing task.`,
+      scan: scanReceipt(budget)
     }
   }
 
@@ -849,12 +1033,14 @@ function resolveTaskContinuation({
     candidate: { ...candidate, taskRoot, relativeTaskPath: selected.relativeTaskPath },
     sourceIdentity: selected.sourceIdentity,
     confirmationEvidence: selected.confirmationEvidence,
+    latestConfirmedHead: selected.latestConfirmedHead,
+    historicalStaleConfirmations: selected.historicalStaleConfirmations,
     rehydration: {
       identityPath: path.join(taskRoot, '.memory', 'task.json'),
       sessionsPath: path.join(taskRoot, '.memory', 'sessions.md'),
       rule: 'Resolve by identity only; rehydrate sessions and current artifacts before continuing.'
     },
-    scan: { directories: budget.directories, bytes: budget.bytes }
+    scan: scanReceipt(budget)
   }
 }
 

@@ -139,27 +139,48 @@ function buildCliExecutionCommands(ctx) {
     process.exitCode = exitCode
   }
 
-  function printResolutionHuman(resolution) {
+  function printResolutionHuman(resolution, chinese = false) {
     console.log()
-    console.log(c.bold('  DevCodex task resolution'))
-    console.log(`  ${c.cyan('status'.padEnd(16))} ${resolution.status}`)
+    console.log(c.bold(chinese ? '  DevCodex 任务定位' : '  DevCodex task resolution'))
+    console.log(`  ${c.cyan((chinese ? '协议状态' : 'status').padEnd(16))} ${resolution.status}`)
     if (resolution.candidate) {
-      console.log(`  ${c.cyan('task'.padEnd(16))} ${resolution.candidate.displayName}`)
-      console.log(`  ${c.cyan('project/kind'.padEnd(16))} ${resolution.candidate.project}/${resolution.candidate.kind}`)
-      if (resolution.candidate.taskRoot) console.log(`  ${c.cyan('taskRoot'.padEnd(16))} ${resolution.candidate.taskRoot}`)
+      console.log(`  ${c.cyan((chinese ? '任务' : 'task').padEnd(16))} ${resolution.candidate.displayName}`)
+      console.log(`  ${c.cyan((chinese ? '项目/类型' : 'project/kind').padEnd(16))} ${resolution.candidate.project}/${resolution.candidate.kind}`)
+      if (resolution.candidate.taskRoot) console.log(`  ${c.cyan((chinese ? '任务目录' : 'taskRoot').padEnd(16))} ${resolution.candidate.taskRoot}`)
     }
     if (resolution.candidates?.length) {
       for (const candidate of resolution.candidates) {
-        console.log(`  ${c.yellow('candidate'.padEnd(16))} ${candidate.project}/${candidate.kind}/${candidate.displayName} (${candidate.status})`)
+        console.log(`  ${c.yellow((chinese ? '候选' : 'candidate').padEnd(16))} ${candidate.project}/${candidate.kind}/${candidate.displayName} (${candidate.status})`)
       }
     }
     if (resolution.suggestions?.length) {
       for (const suggestion of resolution.suggestions) {
-        console.log(`  ${c.yellow('suggestion'.padEnd(16))} ${suggestion.project}/${suggestion.kind}/${suggestion.displayName}`)
+        console.log(`  ${c.yellow((chinese ? '建议候选' : 'suggestion').padEnd(16))} ${suggestion.project}/${suggestion.kind}/${suggestion.displayName}`)
       }
     }
-    console.log(c.dim('  identity locates the task; sessions and bound artifacts remain the continuation truth'))
+    console.log(c.dim(chinese
+      ? '  本命令只做只读定位且不授予写权；会话、最新确认 head 与 owner 仍是续办真相。'
+      : '  identity locates the task and grants no write authority; sessions, confirmed head, and owner remain continuation truth'))
     console.log()
+  }
+
+  function printResolutionFailureHuman(resolution, chinese) {
+    if (!chinese) {
+      console.log(c.red(`  [${resolution.errorCode || 'TASK_RESOLUTION_FAILED'}] ${resolution.message || `Task resolution finished with status ${resolution.status}.`}`))
+      console.log(c.dim(`  ${resolution.nextStep || 'Choose an exact task and retry.'}`))
+      return
+    }
+    const candidates = resolution.candidates || resolution.suggestions || []
+    const message = resolution.status === 'ambiguous'
+      ? `存在 ${candidates.length} 个精确候选，未自动猜选。当前分析可继续；写入既有任务前必须唯一消歧。`
+      : (resolution.status === 'not-found'
+          ? '未找到精确任务。当前分析可继续，也可以走普通新任务准入。'
+          : '已找到任务线索，但当前 canonical 证据未通过；复证前不得写入该既有任务。')
+    console.log(c.yellow(`  ${message}`))
+    for (const candidate of candidates.slice(0, 5)) {
+      console.log(`  ${c.yellow('候选'.padEnd(16))} ${candidate.project}/${candidate.kind}/${candidate.displayName}`)
+    }
+    console.log(c.dim(`  协议证据：TaskResolutionV1 status=${resolution.status}; errorCode=${resolution.errorCode || 'none'}; mutationAuthority=false`))
   }
 
   function cmdTask(argv = []) {
@@ -188,20 +209,26 @@ function buildCliExecutionCommands(ctx) {
 
     if (resolution.status === 'resolved-active') {
       if (options.json) printCliJson(console, createCliSuccess('task.resolve', resolution, cliMetadata))
-      else printResolutionHuman(resolution)
+      else printResolutionHuman(resolution, /[\u3400-\u9fff]/u.test(`${options.name}${resolution.candidate?.displayName || ''}`))
       process.exitCode = 0
       return resolution
     }
 
     const exitCode = resolution.status === 'ambiguous' ? 2 : 1
-    printFailure(
-      options,
-      resolution.errorCode || 'TASK_RESOLUTION_FAILED',
-      resolution.message || `Task resolution finished with status ${resolution.status}.`,
-      resolution.nextStep || 'Choose an exact task and retry.',
-      resolution,
-      exitCode
-    )
+    if (options.json) {
+      printFailure(
+        options,
+        resolution.errorCode || 'TASK_RESOLUTION_FAILED',
+        resolution.message || `Task resolution finished with status ${resolution.status}.`,
+        resolution.nextStep || 'Choose an exact task and retry.',
+        resolution,
+        exitCode
+      )
+    } else {
+      const localizedEvidence = `${options.name}${(resolution.candidates || resolution.suggestions || []).map(item => item.displayName).join('')}`
+      printResolutionFailureHuman(resolution, /[\u3400-\u9fff]/u.test(localizedEvidence))
+      process.exitCode = exitCode
+    }
     return resolution
   }
 

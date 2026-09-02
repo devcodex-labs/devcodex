@@ -37,14 +37,18 @@ function verified(project, scope, source, evidence = {}, authorityCeiling = 'tas
   })
 }
 
+function workspaceLocator(source, evidence = {}) {
+  return verified('', 'workspace', source, evidence, 'workspace-locator-only')
+}
+
 /**
- * Select an exact project search boundary for a lifecycle task continuation.
- * Workspace scans are permitted only for a user-supplied stable taskId. A
- * session route remains hint-only and must agree with a sealed V2 project lease.
+ * Select a bounded project/workspace search boundary for task continuation.
+ * A stale session route is discarded instead of blocking the user turn; every
+ * route and locator result remains selection-only and grants no mutation right.
  */
 function decideTaskContinuationTarget(input = {}) {
   const command = input.command && typeof input.command === 'object' ? input.command : null
-  if (!command || !text(command.displayQuery)) {
+  if (!command || (!text(command.displayQuery) && command.bare !== true)) {
     return blocked(
       'TASK_CONTINUATION_COMMAND_REQUIRED',
       'A parsed task continuation command is required.',
@@ -86,71 +90,64 @@ function decideTaskContinuationTarget(input = {}) {
     : {}
   if (text(promptTarget.source) === 'sticky' && text(promptTarget.activeProject)) {
     if (!text(input.sessionRef)) {
-      return blocked(
-        'TASK_SESSION_REQUIRED',
-        'A prior project cannot be inherited without a stable session.',
-        'Specify the project explicitly or use the exact stable taskId.'
-      )
+      return workspaceLocator('workspace-fallback-after-stale-hint', {
+        discardedHintErrorCode: 'TASK_SESSION_REQUIRED',
+        hintedProject: text(promptTarget.activeProject)
+      })
     }
     const validation = input.projectLeaseValidation && typeof input.projectLeaseValidation === 'object'
       ? input.projectLeaseValidation
       : {}
     const lease = validation.lease && typeof validation.lease === 'object' ? validation.lease : {}
     if (validation.valid !== true || lease.schemaVersion !== 'ProjectTargetLeaseV2') {
-      return blocked(
-        'TASK_PROJECT_LEASE_MISMATCH',
-        `The current ProjectTargetLeaseV2 is unavailable or stale${validation.reason ? `: ${validation.reason}` : ''}.`,
-        'Rebind the exact project in this session before continuing the task.',
-        { leaseReason: text(validation.reason) || 'unavailable' }
-      )
+      return workspaceLocator('workspace-fallback-after-stale-hint', {
+        discardedHintErrorCode: 'TASK_PROJECT_LEASE_MISMATCH',
+        leaseReason: text(validation.reason) || 'unavailable',
+        hintedProject: text(promptTarget.activeProject)
+      })
     }
     if (lease.authorityKind !== 'session' || text(lease.project) !== text(promptTarget.activeProject)) {
-      return blocked(
-        'TASK_PROJECT_LEASE_MISMATCH',
-        'The project lease is not bound to this stable session and exact project.',
-        'Rebind the exact project in this session before continuing the task.'
-      )
+      return workspaceLocator('workspace-fallback-after-stale-hint', {
+        discardedHintErrorCode: 'TASK_PROJECT_LEASE_MISMATCH',
+        hintedProject: text(promptTarget.activeProject)
+      })
     }
     const routeHint = input.routeHint && typeof input.routeHint === 'object' ? input.routeHint : {}
     const entry = routeHint.entry && typeof routeHint.entry === 'object' ? routeHint.entry : {}
     if (routeHint.status !== 'fresh' || entry.state !== 'live') {
-      return blocked(
-        'TASK_SESSION_ROUTE_UNAVAILABLE',
-        'No live WorkspaceSessionRouteIndexV1 entry exists for this session.',
-        'Specify the project explicitly to establish a fresh session route.'
-      )
+      return workspaceLocator('workspace-fallback-after-stale-hint', {
+        discardedHintErrorCode: 'TASK_SESSION_ROUTE_UNAVAILABLE',
+        hintedProject: text(promptTarget.activeProject)
+      })
     }
     if (text(routeHint.sessionDigest) !== text(lease.authorityDigest) ||
         text(entry.sessionDigest) !== text(lease.authorityDigest) ||
         text(entry.projectRootIdentityDigest) !== text(lease.rootIdentityDigest)) {
-      return blocked(
-        'TASK_SESSION_ROUTE_PROJECT_MISMATCH',
-        'The session route and ProjectTargetLeaseV2 identify different session/project roots.',
-        'Rebind the exact project; copied or cross-session leases cannot be reused.'
-      )
+      return workspaceLocator('workspace-fallback-after-stale-hint', {
+        discardedHintErrorCode: 'TASK_SESSION_ROUTE_PROJECT_MISMATCH',
+        hintedProject: text(promptTarget.activeProject)
+      })
     }
     if (text(entry.routeRevision) !== text(lease.routeRevision)) {
-      return blocked(
-        'TASK_ROUTE_REVISION_STALE',
-        'The session route revision differs from the current project lease.',
-        'Re-run context routing for this session and exact project before continuing.'
-      )
+      return workspaceLocator('workspace-fallback-after-stale-hint', {
+        discardedHintErrorCode: 'TASK_ROUTE_REVISION_STALE',
+        hintedProject: text(promptTarget.activeProject)
+      })
     }
     const currentRouteRevision = text(input.currentRouteRevision)
     if (!currentRouteRevision) {
-      return blocked(
-        'TASK_ROUTE_REGISTRY_UNAVAILABLE',
-        'The current workflow route registry revision is unavailable.',
-        'Restore the current workflow registry before continuing a routed task.'
-      )
+      return workspaceLocator('workspace-fallback-after-stale-hint', {
+        discardedHintErrorCode: 'TASK_ROUTE_REGISTRY_UNAVAILABLE',
+        hintedProject: text(promptTarget.activeProject)
+      })
     }
     if (text(entry.routeRevision) !== 'pending' && text(entry.routeRevision) !== currentRouteRevision) {
-      return blocked(
-        'TASK_ROUTE_REVISION_STALE',
-        'The session route was issued against an obsolete workflow route revision.',
-        'Re-run context routing for this session and exact project before continuing.',
-        { observedRouteRevision: text(entry.routeRevision), currentRouteRevision }
-      )
+      return workspaceLocator('workspace-fallback-after-stale-hint', {
+        discardedHintErrorCode: 'TASK_ROUTE_REVISION_STALE',
+        hintedProject: text(promptTarget.activeProject),
+        observedRouteRevision: text(entry.routeRevision),
+        currentRouteRevision
+      })
     }
     return verified(
       promptTarget.activeProject,
@@ -175,15 +172,11 @@ function decideTaskContinuationTarget(input = {}) {
     }, 'stable-task-id-selection-only')
   }
 
-  return blocked(
-    'TASK_PROJECT_REQUIRED',
-    'A task name cannot select a project across a multi-project workspace.',
-    'Use: 继续 <任务名>，项目=<项目>；或使用精确 taskId。',
-    {
-      promptTargetSource: text(promptTarget.source) || 'unresolved',
-      stableSession: Boolean(text(input.sessionRef))
-    }
-  )
+  return workspaceLocator(command.bare === true ? 'bare-workspace-locator' : 'named-workspace-locator', {
+    actualInstructionBound: input.actualInstructionBound === true,
+    promptTargetSource: text(promptTarget.source) || 'unresolved',
+    stableSession: Boolean(text(input.sessionRef))
+  })
 }
 
 module.exports = {

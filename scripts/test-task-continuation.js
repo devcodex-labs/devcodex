@@ -29,6 +29,18 @@ function digest(text) {
   return crypto.createHash('sha256').update(text).digest('hex')
 }
 
+function stableValue(value) {
+  if (Array.isArray(value)) return value.map(stableValue)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map(key => [key, stableValue(value[key])]))
+  }
+  return value
+}
+
+function stableStringify(value) {
+  return JSON.stringify(stableValue(value))
+}
+
 function writeTask(project, kind, directoryName, options = {}) {
   const taskRoot = path.join(root, '.devcodex', project, kind, directoryName)
   fs.mkdirSync(path.join(taskRoot, '.memory'), { recursive: true })
@@ -75,7 +87,10 @@ try {
   assert.strictEqual(qualifiedCommand.projectQuery, 'alpha')
   assert.strictEqual(qualifiedCommand.projectQualifierForm, 'explicit-project-suffix')
   assert.strictEqual(parseContinuationCommand('请继续长期优化任务'), null)
-  assert.strictEqual(parseContinuationCommand('继续'), null)
+  const bareCommand = parseContinuationCommand('继续')
+  assert.strictEqual(bareCommand.form, 'continue-bare')
+  assert.strictEqual(bareCommand.bare, true)
+  assert.strictEqual(bareCommand.displayQuery, '')
 
   const primary = writeTask('alpha', 'optimizations', 'renamed-directory', {
     displayName: 'Current Performance Task',
@@ -89,10 +104,12 @@ try {
   assert.strictEqual(unique.status, 'resolved-active')
   assert.strictEqual(unique.candidate.project, 'alpha')
   assert.strictEqual(unique.candidate.taskId, primary.identity.taskId)
+  assert.strictEqual(unique.mutationAuthority, false, 'locator resolution must never grant mutation authority')
   assert.strictEqual(unique.confirmationEvidence.every(item => item.verified), true)
   assert.match(unique.index.state, /^rebuilt-/)
   assert.strictEqual(resolve('Old Performance Task').status, 'resolved-active')
   assert.strictEqual(resolve('旧性能任务').candidate.displayName, 'Current Performance Task')
+  assert.strictEqual(resolve('renamed-directory').candidate.taskId, primary.identity.taskId)
   assert.strictEqual(resolve(primary.identity.taskId).status, 'resolved-active')
   const uniqueActive = resolveUniqueActiveTaskContinuation({ cwd: root, project: 'alpha', scope: 'project' })
   assert.strictEqual(uniqueActive.status, 'resolved-active')
@@ -176,6 +193,18 @@ try {
   assert.strictEqual(staleResolution.errorCode, 'TASK_CONFIRMATION_STALE')
   assert.strictEqual(staleResolution.staleConfirmations[0].phase, 'CP1')
 
+  const evolved = writeTask('alpha', 'requirements', 'evolved-task')
+  fs.writeFileSync(path.join(evolved.taskRoot, '01-需求确认.md'), '# legitimately evolved historical requirement\n')
+  const successor = '# confirmed successor design\n'
+  fs.writeFileSync(path.join(evolved.taskRoot, '02-技术方案.md'), successor)
+  fs.appendFileSync(path.join(evolved.taskRoot, '.memory', 'sessions.md'), `| CP2 | ✅ | \`../02-技术方案.md\` | v2 | \`${digest(successor)}\` | test | later |\n`)
+  const evolvedResolution = resolve('evolved-task', { persistIndex: false })
+  assert.strictEqual(evolvedResolution.status, 'resolved-active', 'a verified successor head must supersede historical digest drift')
+  assert.strictEqual(evolvedResolution.latestConfirmedHead.phase, 'CP2')
+  assert.strictEqual(evolvedResolution.latestConfirmedHead.verified, true)
+  assert.strictEqual(evolvedResolution.historicalStaleConfirmations.length, 1)
+  assert.strictEqual(evolvedResolution.historicalStaleConfirmations[0].phase, 'CP1')
+
   const identityFile = path.join(primary.taskRoot, '.memory', 'task.json')
   const revised = createTaskIdentity({
     ...primary.identity,
@@ -203,9 +232,69 @@ try {
   assert.strictEqual(fs.existsSync(`${indexPath}.lock`), true, 'foreign lock must remain untouched')
   fs.rmSync(`${indexPath}.lock`, { force: true })
 
-  const scaleBlocked = resolve('Current Performance Task', { budgets: { maxDirectories: 1, maxBytes: 1024 * 1024 }, persistIndex: false })
-  assert.strictEqual(scaleBlocked.status, 'scale-blocked')
-  assert.strictEqual(scaleBlocked.errorCode, 'TASK_INDEX_SCALE_BLOCKED')
+  const legacyAggregateBudget = resolve('Current Performance Task', { budgets: { maxDirectories: 1, maxBytes: 1024 }, persistIndex: false })
+  assert.strictEqual(legacyAggregateBudget.status, 'resolved-active', 'legacy aggregate limits must not block an exact locator match')
+  assert(legacyAggregateBudget.scan.directories > 1)
+
+  const oversizedTaskRoot = path.join(root, '.devcodex', 'beta', 'optimizations', 'oversized-identity')
+  fs.mkdirSync(path.join(oversizedTaskRoot, '.memory'), { recursive: true })
+  fs.writeFileSync(path.join(oversizedTaskRoot, '.memory', 'task.json'), 'x'.repeat(64 * 1024 + 1))
+  fs.writeFileSync(path.join(oversizedTaskRoot, '.memory', 'sessions.md'), '# oversized identity\n\n> **当前状态**: 🔄 active\n')
+  const localizedOversize = resolve('Current Performance Task', { persistIndex: false })
+  assert.strictEqual(localizedOversize.status, 'resolved-active', 'one oversized identity must not poison unrelated candidates')
+  assert(localizedOversize.scan.localizedErrors >= 1)
+  const selectedOversize = resolve('oversized-identity', { persistIndex: false })
+  assert.strictEqual(selectedOversize.status, 'stale-confirmation')
+  assert.strictEqual(selectedOversize.errorCode, 'TASK_IDENTITY_INVALID')
+
+  const mismatchedRoot = path.join(root, '.devcodex', 'alpha', 'requirements', 'mismatched-binding')
+  fs.mkdirSync(path.join(mismatchedRoot, '.memory'), { recursive: true })
+  const mismatchedCore = {
+    schemaVersion: 'TaskIdentityV2',
+    taskId: '44444444-4444-4444-8444-444444444444',
+    displayName: 'mismatched-binding',
+    aliases: [],
+    project: 'beta',
+    projectRootIdentityDigest: 'a'.repeat(64),
+    taskKind: 'bugs',
+    entryVariant: 'new',
+    taskRootRelative: 'bugs/mismatched-binding',
+    createdAt: '2026-07-18T00:00:00.000Z',
+    identityVersion: 2
+  }
+  fs.writeFileSync(path.join(mismatchedRoot, '.memory', 'task.json'), JSON.stringify({
+    ...mismatchedCore,
+    identityDigest: digest(stableStringify(mismatchedCore))
+  }, null, 2) + '\n')
+  fs.writeFileSync(path.join(mismatchedRoot, '.memory', 'sessions.md'), '# mismatched-binding\n\n> **当前状态**: 🔄 active\n')
+  const mismatchedBinding = resolve('mismatched-binding', { persistIndex: false })
+  assert.strictEqual(mismatchedBinding.status, 'stale-confirmation')
+  assert.strictEqual(mismatchedBinding.errorCode, 'TASK_IDENTITY_INVALID')
+  assert.match(mismatchedBinding.message, /identity project does not match its namespace/)
+
+  const missingSessionsRoot = path.join(root, '.devcodex', 'beta', 'bugs', 'missing-sessions')
+  fs.mkdirSync(path.join(missingSessionsRoot, '.memory'), { recursive: true })
+  fs.writeFileSync(path.join(missingSessionsRoot, '.memory', 'task.json'), JSON.stringify(createTaskIdentity({
+    taskId: '33333333-3333-4333-8333-333333333333',
+    displayName: 'missing-sessions',
+    createdAt: '2026-07-18T00:00:00.000Z'
+  }), null, 2) + '\n')
+  const missingSessions = resolve('missing-sessions', { persistIndex: false })
+  assert.strictEqual(missingSessions.status, 'stale-confirmation')
+  assert.strictEqual(missingSessions.errorCode, 'TASK_CANONICAL_EVIDENCE_UNAVAILABLE')
+  assert.match(missingSessions.canonicalErrors[0], /sessions metadata is missing/)
+  assert.strictEqual(missingSessions.mutationAuthority, false)
+
+  for (let index = 0; index < 260; index += 1) {
+    writeTask('beta', 'scenario-tests', `page-boundary-${String(index).padStart(3, '0')}`, {
+      status: 'completed',
+      withCp: false
+    })
+  }
+  const paged = resolve('Current Performance Task', { persistIndex: false })
+  assert.strictEqual(paged.status, 'resolved-active')
+  assert(paged.scan.pages >= 2, 'locator must traverse stable 256-entry pages without aggregate blocking')
+  assert.strictEqual(paged.scan.pageSize, 256)
 
   const projectScoped = resolveTaskContinuation({ cwd: root, name: 'Current Performance Task', project: 'alpha', scope: 'project', persistIndex: false })
   assert.strictEqual(projectScoped.status, 'resolved-active')

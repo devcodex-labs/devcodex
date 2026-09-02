@@ -1301,7 +1301,11 @@ function testTaskResolveHumanJsonAndNativeExitCodes() {
   assert.strictEqual(json.ok, true)
   assert.strictEqual(json.payload.status, 'resolved-active')
   assert.strictEqual(json.payload.candidate.taskId, '5baea296-2392-493c-a615-a84a0cb6e249')
-  assert.match(runCli(['task', 'resolve', 'CLI任务'], root), /resolved-active/)
+  assert.strictEqual(json.payload.mutationAuthority, false)
+  const humanResolved = runCli(['task', 'resolve', 'CLI任务'], root)
+  assert.match(humanResolved, /DevCodex 任务定位/)
+  assert.match(humanResolved, /resolved-active/)
+  assert.match(humanResolved, /不授予写权/)
   assert.strictEqual(fs.readFileSync(sessionsPath, 'utf8'), canonicalBefore, 'task resolve must not change canonical sessions')
 
   const missing = runCliResult(['task', 'resolve', '不存在', '--json'], root)
@@ -1326,6 +1330,11 @@ function testTaskResolveHumanJsonAndNativeExitCodes() {
   const ambiguousEnvelope = JSON.parse(stripAnsi(ambiguous.stdout))
   assert.strictEqual(ambiguousEnvelope.errorCode, 'TASK_AMBIGUOUS')
   assert.strictEqual(ambiguousEnvelope.details.candidates.length, 2)
+  assert.strictEqual(ambiguousEnvelope.details.mutationAuthority, false)
+  const ambiguousHuman = runCliResult(['task', 'resolve', 'CLI任务'], root)
+  assert.strictEqual(ambiguousHuman.status, 2)
+  assert.match(stripAnsi(ambiguousHuman.stdout), /存在 2 个精确候选/)
+  assert.match(stripAnsi(ambiguousHuman.stdout), /mutationAuthority=false/)
 
   fs.rmSync(root, { recursive: true, force: true })
 }

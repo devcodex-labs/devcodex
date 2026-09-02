@@ -771,7 +771,14 @@ function buildLifecycleBootstrapStateUtils(ctx) {
   }
 
   function resolveProjectFromStableRouteTask(routeHint, expectedProject = '') {
-    const unresolved = { project: '', source: '', taskId: '' }
+    const unresolved = {
+      project: '',
+      source: '',
+      taskId: '',
+      status: 'provisional',
+      mutationAuthority: false,
+      resolutionStatus: 'unavailable'
+    }
     const taskId = String(routeHint?.entry?.taskId || '').trim().toLowerCase()
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(taskId) ||
         typeof resolveTaskContinuation !== 'function') return unresolved
@@ -786,10 +793,30 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       if (resolution?.status === 'resolved-active' && project &&
           (!expectedProject || project === expectedProject) &&
           listWorkspaceProjects().includes(project)) {
-        return { project, source: 'stable-task-id', taskId }
+        return {
+          project,
+          source: 'stable-task-id',
+          taskId,
+          status: 'verified',
+          mutationAuthority: false,
+          resolutionStatus: resolution.status,
+          sourceIdentity: resolution.sourceIdentity || null
+        }
       }
-    } catch {}
-    return unresolved
+      return {
+        ...unresolved,
+        taskId,
+        resolutionStatus: String(resolution?.status || 'unavailable'),
+        errorCode: String(resolution?.errorCode || '')
+      }
+    } catch (error) {
+      return {
+        ...unresolved,
+        taskId,
+        resolutionStatus: 'error',
+        errorCode: String(error?.code || error?.message || 'TASK_ROUTE_LOCATOR_FAILED')
+      }
+    }
   }
 
   function resolveProjectFromSessionRouteHint(routeHint) {

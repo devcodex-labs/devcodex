@@ -15,9 +15,10 @@ const coverage = JSON.parse(fs.readFileSync(path.join(__dirname, 'critical-cover
 assert.strictEqual(map.schemaVersion, 'CriticalRiskCoverageMapV1')
 assert.deepStrictEqual(
   map.findings.map(item => item.id),
-  Array.from({ length: 15 }, (_, index) => `BUG-${String(index + 1).padStart(2, '0')}`),
+  Array.from({ length: map.findings.length }, (_, index) => `BUG-${String(index + 1).padStart(2, '0')}`),
   'risk map must cover every accepted bug, including the complete screenshot recovery chain'
 )
+assert.ok(map.findings.length >= 16, 'risk map must retain the P0 continuation recovery finding')
 assert.match(map.subprocessCoveragePolicy, /no line-coverage claim/i)
 
 assert.strictEqual(manifest.routes.fast.dynamic, true, 'fast must remain an impact-driven V0 route')
@@ -29,7 +30,7 @@ for (const invariant of map.iterativeRoutePolicy.requiredInvariantNodes) {
 }
 
 for (const finding of map.findings) {
-  assert.ok(['P1', 'P2', 'P3'].includes(finding.risk), `${finding.id} risk must be explicit`)
+  assert.ok(['P0', 'P1', 'P2', 'P3'].includes(finding.risk), `${finding.id} risk must be explicit`)
   assert.ok(Array.isArray(finding.modules) && finding.modules.length > 0, `${finding.id} modules missing`)
   for (const relative of finding.modules) {
     assert.ok(fs.existsSync(path.join(ROOT, relative)), `${finding.id} module missing: ${relative}`)
@@ -53,6 +54,12 @@ for (const finding of map.findings) {
   assert.ok(impactNodes.has(finding.validationNode), `${finding.id} authoritative node missing from its impact plan`)
   assert.ok(fullPlan.has(finding.validationNode), `${finding.id} authoritative node missing from explicit full`)
 }
+
+const continuationRecovery = map.findings.find(item => item.id === 'BUG-16')
+assert.strictEqual(continuationRecovery.risk, 'P0')
+assert.strictEqual(continuationRecovery.validationNode, 'task-continuation')
+assert.ok(continuationRecovery.modules.includes('hooks/_runtime/lifecycle.cjs'))
+assert.ok(continuationRecovery.modules.includes('mcp/memory-server.js'))
 
 const highRiskPlan = planValidation({
   manifest,

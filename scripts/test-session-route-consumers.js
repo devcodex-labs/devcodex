@@ -28,6 +28,7 @@ const CURRENT_ROUTE_REVISION = resolveWorkflowRouteDescriptor({
 }).registry.routeRevision
 const ALPHA_TASK_ID = '11111111-1111-4111-8111-111111111111'
 const BETA_TASK_ID = '22222222-2222-4222-8222-222222222222'
+const ALPHA_SECOND_TASK_ID = '33333333-3333-4333-8333-333333333333'
 
 function writeJson(file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true })
@@ -39,20 +40,20 @@ function writeProfile(root, mode) {
   writeJson(path.join(root, 'config.json'), { mode, agent: 'unknown-agent' })
 }
 
-function writeTask(project, taskId) {
-  const taskRoot = path.join(TEMP_ROOT, '.devcodex', project, 'requirements', `shared-${project}`)
+function writeTask(project, taskId, directoryName = `shared-${project}`, displayName = 'Shared Name') {
+  const taskRoot = path.join(TEMP_ROOT, '.devcodex', project, 'requirements', directoryName)
   fs.mkdirSync(path.join(taskRoot, '.memory'), { recursive: true })
   writeJson(path.join(taskRoot, '.memory', 'task.json'), {
     schemaVersion: 'TaskIdentityV1',
     taskId,
-    displayName: 'Shared Name',
+    displayName,
     aliases: [],
     createdAt: '2026-08-25T00:00:00.000Z',
     identityRevision: 1
   })
   fs.writeFileSync(
     path.join(taskRoot, '.memory', 'sessions.md'),
-    '# Shared Name\n\n> **当前状态**: 🔄 active\n'
+    `# ${displayName}\n\n> **当前状态**: 🔄 active\n`
   )
 }
 
@@ -79,7 +80,8 @@ function run(payload) {
       GROK_HOME: '',
       GROK_SESSION: '',
       DEVCODEX_TASK_RECOVERY_TEST_MODE: '1',
-      DEVCODEX_TASK_RECOVERY_TEST_RESERVE_BYTES: '8192'
+      DEVCODEX_TASK_RECOVERY_TEST_RESERVE_BYTES: '8192',
+      DEVCODEX_HOST_PLATFORM: 'codex'
     }
   })
   if (result.status !== 0) {
@@ -94,6 +96,10 @@ function readState(project) {
 
 function outputText(output) {
   return String(output.systemMessage || output.hookSpecificOutput?.additionalContext || '')
+}
+
+function dateStamp(date = new Date()) {
+  return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`
 }
 
 function injectCrossProjectSentinel() {
@@ -150,7 +156,10 @@ function assertTargetDecisionNegatives() {
     sessionRef: 'session-b',
     projectLeaseValidation: { valid: false, reason: 'session-or-turn-drift', lease: null }
   })
-  assert.strictEqual(copiedLease.errorCode, 'TASK_PROJECT_LEASE_MISMATCH')
+  assert.strictEqual(copiedLease.status, 'verified')
+  assert.strictEqual(copiedLease.scope, 'workspace')
+  assert.strictEqual(copiedLease.evidence.discardedHintErrorCode, 'TASK_PROJECT_LEASE_MISMATCH')
+  assert.strictEqual(copiedLease.mutationAuthority, false)
 
   const staleRevision = decideTaskContinuationTarget({
     ...freshInput,
@@ -164,8 +173,9 @@ function assertTargetDecisionNegatives() {
       entry: { ...freshInput.routeHint.entry, routeRevision: 'c'.repeat(64) }
     }
   })
-  assert.strictEqual(staleRevision.status, 'stale')
-  assert.strictEqual(staleRevision.errorCode, 'TASK_ROUTE_REVISION_STALE')
+  assert.strictEqual(staleRevision.status, 'verified')
+  assert.strictEqual(staleRevision.scope, 'workspace')
+  assert.strictEqual(staleRevision.evidence.discardedHintErrorCode, 'TASK_ROUTE_REVISION_STALE')
 
   const crossedProject = decideTaskContinuationTarget({
     ...freshInput,
@@ -174,16 +184,27 @@ function assertTargetDecisionNegatives() {
       entry: { ...freshInput.routeHint.entry, projectRootIdentityDigest: 'd'.repeat(64) }
     }
   })
-  assert.strictEqual(crossedProject.errorCode, 'TASK_SESSION_ROUTE_PROJECT_MISMATCH')
+  assert.strictEqual(crossedProject.status, 'verified')
+  assert.strictEqual(crossedProject.evidence.discardedHintErrorCode, 'TASK_SESSION_ROUTE_PROJECT_MISMATCH')
 
   const noStableSession = decideTaskContinuationTarget({
     ...freshInput,
     sessionRef: ''
   })
-  assert.strictEqual(noStableSession.errorCode, 'TASK_SESSION_REQUIRED')
+  assert.strictEqual(noStableSession.status, 'verified')
+  assert.strictEqual(noStableSession.evidence.discardedHintErrorCode, 'TASK_SESSION_REQUIRED')
 
   const unboundName = decideTaskContinuationTarget({ command, layoutEnabled: true })
-  assert.strictEqual(unboundName.errorCode, 'TASK_PROJECT_REQUIRED')
+  assert.strictEqual(unboundName.status, 'verified')
+  assert.strictEqual(unboundName.scope, 'workspace')
+  assert.strictEqual(unboundName.source, 'named-workspace-locator')
+  assert.strictEqual(unboundName.mutationAuthority, false)
+
+  const bare = decideTaskContinuationTarget({ command: parseContinuationCommand('继续'), layoutEnabled: true })
+  assert.strictEqual(bare.status, 'verified')
+  assert.strictEqual(bare.scope, 'workspace')
+  assert.strictEqual(bare.source, 'bare-workspace-locator')
+  assert.strictEqual(bare.mutationAuthority, false)
 
   const stableId = decideTaskContinuationTarget({
     command: parseContinuationCommand(`继续 ${BETA_TASK_ID}`),
@@ -233,7 +254,7 @@ try {
     session_id: 'session-alpha',
     prompt: '继续 Shared Name'
   })
-  assert.match(outputText(sameSession), /TaskResolutionV1 resolved-active: alpha\//)
+  assert.match(outputText(sameSession), /任务恢复定位：已唯一定位 alpha\//)
   assert.strictEqual(readState('alpha').taskContinuation.candidate.project, 'alpha')
   assert.strictEqual(readState('alpha').taskContinuation.targetDecision.source, 'session-project-lease')
 
@@ -243,10 +264,14 @@ try {
     session_id: 'session-unbound',
     prompt: '继续 Shared Name'
   })
-  assert.match(outputText(newSession), /TASK_PROJECT_REQUIRED|task name cannot select a project/i)
+  assert.match(outputText(newSession), /任务恢复未阻断当前回合：存在多个候选/)
   let workspaceState = readState('workspace')
   assert.strictEqual(workspaceState.activeProject, '')
-  assert.strictEqual(workspaceState.taskContinuation.errorCode, 'TASK_PROJECT_REQUIRED')
+  assert.strictEqual(workspaceState.taskContinuation.status, 'ambiguous')
+  assert.strictEqual(workspaceState.taskContinuation.errorCode, 'TASK_AMBIGUOUS')
+  assert.strictEqual(workspaceState.taskContinuation.mutationAuthority, false)
+  assert.strictEqual(workspaceState.taskContinuation.provisional.sameTaskProven, false)
+  assert.strictEqual(workspaceState.lastReason, 'task-continuation-provisional-ambiguous')
   assert.strictEqual(workspaceState.cp3Runtime?.crossProjectSentinel, undefined)
 
   injectCrossProjectSentinel()
@@ -254,9 +279,10 @@ try {
     hookEventName: 'UserPromptSubmit',
     prompt: '继续 Shared Name'
   })
-  assert.match(outputText(noSession), /TASK_PROJECT_REQUIRED|task name cannot select a project/i)
+  assert.match(outputText(noSession), /任务恢复未阻断当前回合：存在多个候选/)
   workspaceState = readState('workspace')
   assert.strictEqual(workspaceState.activeProject, '')
+  assert.strictEqual(workspaceState.taskContinuation.status, 'ambiguous')
   assert.strictEqual(workspaceState.cp3Runtime?.crossProjectSentinel, undefined)
 
   const qualified = run({
@@ -264,7 +290,7 @@ try {
     session_id: 'session-qualified',
     prompt: '继续 Shared Name，项目=beta'
   })
-  assert.match(outputText(qualified), /TaskResolutionV1 resolved-active: beta\//)
+  assert.match(outputText(qualified), /任务恢复定位：已唯一定位 beta\//)
   const betaState = readState('beta')
   assert.strictEqual(betaState.taskContinuation.status, 'resolved-active')
   assert.strictEqual(betaState.taskContinuation.candidate.project, 'beta')
@@ -275,9 +301,125 @@ try {
     session_id: 'session-task-id',
     prompt: `继续 ${BETA_TASK_ID}`
   })
-  assert.match(outputText(byStableId), /TaskResolutionV1 resolved-active: beta\//)
+  assert.match(outputText(byStableId), /任务恢复定位：已唯一定位 beta\//)
   assert.strictEqual(readState('beta').taskContinuation.candidate.taskId, BETA_TASK_ID)
   assert.strictEqual(readState('beta').taskContinuation.targetDecision.source, 'actual-stable-task-id')
+
+  writeTask('alpha', ALPHA_SECOND_TASK_ID, 'second-alpha', 'Second Alpha Task')
+  const bareSameSession = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'session-alpha',
+    prompt: '继续'
+  })
+  assert.match(outputText(bareSameSession), /任务恢复定位：已唯一定位 alpha\//)
+  const bareState = readState('alpha')
+  assert.strictEqual(bareState.taskContinuation.command.form, 'continue-bare')
+  assert.strictEqual(bareState.taskContinuation.status, 'resolved-active')
+  assert.strictEqual(bareState.taskContinuation.candidate.taskId, ALPHA_TASK_ID)
+  assert.strictEqual(bareState.taskContinuation.recoveryEvidence.source, 'workspace-session-route')
+  assert.strictEqual(bareState.taskContinuation.recoveryEvidence.stableTaskIdUsed, ALPHA_TASK_ID)
+  assert.strictEqual(bareState.taskContinuation.mutationAuthority, false)
+
+  const alphaSessions = path.join(TEMP_ROOT, '.devcodex', 'alpha', 'requirements', 'shared-alpha', '.memory', 'sessions.md')
+  fs.appendFileSync(alphaSessions, '\n- host session: session-task-memory\n')
+  const fromTaskMemory = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'session-task-memory',
+    prompt: '继续'
+  })
+  assert.match(outputText(fromTaskMemory), /任务恢复定位：已唯一定位 alpha\//)
+  const taskMemoryState = readState('alpha')
+  assert.strictEqual(taskMemoryState.taskContinuation.candidate.taskId, ALPHA_TASK_ID)
+  assert.strictEqual(taskMemoryState.taskContinuation.recoveryEvidence.source, 'task-memory')
+
+  const betaAgentDaily = path.join(
+    TEMP_ROOT,
+    '.devcodex',
+    'beta',
+    '.memory',
+    'clients',
+    'codex',
+    'tasks',
+    `${dateStamp()}.md`
+  )
+  fs.mkdirSync(path.dirname(betaAgentDaily), { recursive: true })
+  fs.writeFileSync(betaAgentDaily, `# current task\n\n- stable task: ${BETA_TASK_ID}\n`)
+  const fromAgentMemory = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'session-agent-memory',
+    prompt: '继续'
+  })
+  assert.match(outputText(fromAgentMemory), /任务恢复定位：已唯一定位 beta\//)
+  assert.strictEqual(readState('beta').taskContinuation.recoveryEvidence.source, 'agent-memory')
+
+  const betaReport = path.join(
+    TEMP_ROOT,
+    '.devcodex',
+    'beta',
+    'requirements',
+    'shared-beta',
+    'reports',
+    'codex',
+    dateStamp(),
+    '01--resume.md'
+  )
+  fs.mkdirSync(path.dirname(betaReport), { recursive: true })
+  fs.writeFileSync(betaReport, '# bounded report evidence\n')
+  fs.writeFileSync(
+    betaAgentDaily,
+    `# current task\n\n- [resume report](../../../../requirements/shared-beta/reports/codex/${dateStamp()}/01--resume.md)\n`
+  )
+  const fromReportLink = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'session-report-link',
+    prompt: '继续'
+  })
+  assert.match(outputText(fromReportLink), /任务恢复定位：已唯一定位 beta\//)
+  assert.strictEqual(readState('beta').taskContinuation.recoveryEvidence.source, 'report-link')
+
+  fs.unlinkSync(betaAgentDaily)
+  const fromHostHistory = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'session-host-history',
+    prompt: '继续',
+    messages: [{ role: 'assistant', content: '上次正在处理 requirements/second-alpha/，请从该任务继续。' }]
+  })
+  assert.match(outputText(fromHostHistory), /uniquely located alpha\/requirements\/Second Alpha Task/i)
+  assert.strictEqual(readState('alpha').taskContinuation.candidate.taskId, ALPHA_SECOND_TASK_ID)
+  assert.strictEqual(readState('alpha').taskContinuation.recoveryEvidence.source, 'host-history')
+
+  const outsideReport = path.join(TEMP_ROOT, 'outside', 'reports', 'escape.md')
+  fs.mkdirSync(path.dirname(outsideReport), { recursive: true })
+  fs.writeFileSync(outsideReport, '# outside\n')
+  fs.mkdirSync(path.dirname(betaAgentDaily), { recursive: true })
+  fs.writeFileSync(betaAgentDaily, `[unsafe](${outsideReport.replace(/\\/g, '/')})\n`)
+  const unsafeReportLink = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'session-unsafe-report-link',
+    prompt: '继续'
+  })
+  assert.match(outputText(unsafeReportLink), /multiple candidates remain|存在多个候选/i)
+  assert.strictEqual(readState('workspace').taskContinuation.status, 'ambiguous')
+  assert.strictEqual(readState('workspace').taskContinuation.mutationAuthority, false)
+  assert.strictEqual(readState('workspace').taskRecoveryBinding, null)
+
+  fs.unlinkSync(alphaSessions)
+  const staleSameSession = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'session-alpha',
+    prompt: '继续'
+  })
+  assert.match(outputText(staleSameSession), /TaskResolutionV1 status=stale-confirmation/)
+  assert.doesNotMatch(JSON.stringify(staleSameSession), /require_completion/)
+  const staleState = readState('alpha')
+  assert.strictEqual(staleState.taskContinuation.status, 'stale-confirmation', JSON.stringify({
+    continuation: staleState.taskContinuation,
+    route: staleState.workspaceSessionRouteHint,
+    binding: staleState.taskRecoveryBinding
+  }, null, 2))
+  assert.strictEqual(staleState.taskRecoveryBinding, null)
+  assert.strictEqual(staleState.fencedWriteOwner, null)
+  assert.strictEqual(staleState.taskContinuation.mutationAuthority, false)
 
   process.stdout.write('session route and task continuation consumer negatives passed\n')
 } finally {

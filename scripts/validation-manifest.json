@@ -2075,13 +2075,21 @@
         "scripts/test-task-continuation.js"
       ],
       "dependencies": [
-        "content-identity"
+        "content-identity",
+        "session-route-consumers"
       ],
       "inputs": [
         "hooks/_runtime/execution-optimization-routing.cjs",
         "hooks/_runtime/task-continuation-contract.cjs",
+        "hooks/_runtime/task-continuation-ingress.cjs",
+        "hooks/_runtime/lifecycle.cjs",
+        "hooks/_runtime/lifecycle-bootstrap-state.cjs",
         "scripts/lib/cli-execution-commands.js",
         "scripts/test-task-continuation.js",
+        "scripts/test-session-route-consumers.js",
+        "scripts/test-hooks-runtime.js",
+        "scripts/test-mcp-servers.js",
+        "scripts/test-cli-behavior.js",
         "mcp/memory-server.js",
         "instructions/01c-intent-expansion.instructions.md",
         "instructions/15-memory.instructions.md",

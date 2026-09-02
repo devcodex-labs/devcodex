@@ -938,6 +938,9 @@ function testMemoryTaskResolveContract() {
   const resolved = resultById(responses, 2)
   assert.strictEqual(resolved.isError, false)
   assert.strictEqual(resolved.structuredContent.status, 'resolved-active')
+  assert.strictEqual(resolved.structuredContent.mutationAuthority, false)
+  assert.match(resolved.structuredContent.humanSummary, /已唯一定位任务/)
+  assert.match(resolved.structuredContent.protocolSummary, /TaskResolutionV1 status=resolved-active/)
   assert.strictEqual(toolJson(resolved).candidate.taskId, '6f5faaf1-9a0c-4b12-99c3-4386e415a305')
   const missing = resultById(responses, 3)
   assert.strictEqual(missing.isError, true)
@@ -995,12 +998,13 @@ function testMemoryTaskResolveExplicitProjectBudget() {
   assert.strictEqual(resolved.isError, false)
   assert.strictEqual(resolved.structuredContent.status, 'resolved-active')
   assert.strictEqual(resolved.structuredContent.candidate.taskId, targetTaskId)
-  assert(resolved.structuredContent.scan.bytes > 4 * 1024 * 1024)
-  assert(resolved.structuredContent.scan.bytes <= 8 * 1024 * 1024)
+  assert(resolved.structuredContent.scan.canonicalBytes < 2 * 1024 * 1024, 'only the selected candidate may be deep-read')
+  assert(resolved.structuredContent.scan.identityBytes < 64 * 1024 * 5)
+  assert.strictEqual(resolved.structuredContent.mutationAuthority, false)
 
   const oversizedTaskRoot = path.join(TEMP_ROOT, '.devcodex', 'optimizations', 'MCP项目预算任务0')
   const oversizedArtifactPath = path.join(oversizedTaskRoot, '01-需求确认.md')
-  const oversizedArtifact = `# CP1\n\n${'x'.repeat(5 * 1024 * 1024)}\n`
+  const oversizedArtifact = `# CP1\n\n${'x'.repeat(8 * 1024 * 1024 + 1)}\n`
   fs.writeFileSync(oversizedArtifactPath, oversizedArtifact)
   const oversizedArtifactDigest = crypto.createHash('sha256').update(oversizedArtifact).digest('hex')
   fs.writeFileSync(path.join(oversizedTaskRoot, '.memory', 'sessions.md'), [
@@ -1027,10 +1031,10 @@ function testMemoryTaskResolveExplicitProjectBudget() {
     })
   ], TEMP_ROOT), 3)
   assert.strictEqual(oversized.isError, true)
-  assert.strictEqual(oversized.structuredContent.status, 'scale-blocked')
-  assert.strictEqual(oversized.structuredContent.errorCode, 'TASK_INDEX_SCALE_BLOCKED')
-  assert(oversized.structuredContent.scan.bytes > 8 * 1024 * 1024)
-  assert.strictEqual(oversized.structuredContent.scan.maxBytes, 8 * 1024 * 1024)
+  assert.strictEqual(oversized.structuredContent.status, 'stale-confirmation')
+  assert.strictEqual(oversized.structuredContent.errorCode, 'TASK_CONFIRMATION_STALE')
+  assert.strictEqual(oversized.structuredContent.staleConfirmations[0].errorCode, 'TASK_CP_ARTIFACT_TOO_LARGE')
+  assert.strictEqual(oversized.structuredContent.mutationAuthority, false)
 }
 
 function testMemoryTaskResolveWrongProjectIsolation() {

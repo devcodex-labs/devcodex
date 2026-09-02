@@ -139,9 +139,11 @@ const {
 } = require('./workspace-layout.cjs')
 const {
   evaluatePortableTaskIdentityBinding,
+  isStableTaskId,
   TaskContinuationError,
   parseContinuationCommand,
   resolveTaskContinuation,
+  resolveUniqueActiveTaskContinuation,
   validateTaskIdentity
 } = require('./task-continuation-contract.cjs')
 const {
@@ -163,6 +165,10 @@ const CONTEXT_ROOT = process.cwd()
 const PAYLOAD_PREVIEW_LIMIT = 160
 const TRANSCRIPT_TAIL_LIMIT = 2 * 1024 * 1024
 const STICKY_PROJECT_TTL_MS = 30 * 60 * 1000
+const CONTINUATION_TASK_MEMORY_MAX_BYTES = 16 * 1024
+const CONTINUATION_AGENT_MEMORY_MAX_BYTES = 64 * 1024
+const CONTINUATION_EVIDENCE_FILE_LIMIT = 5
+const CONTINUATION_EVIDENCE_QUERY_LIMIT = 5
 
 // ─── CP Gate constants ────────────────────────────────────────────────────────
 const CP3_RUNTIME_FILE_THRESHOLD = 5
@@ -512,6 +518,8 @@ const {
   resolvePromptTarget,
   readModeForPromptTarget,
   applyPromptTarget,
+  clearStickyAuto,
+  clearStickyProject,
   setStickyProject,
   shouldSuppressMultiProjectWarning,
   detectExecutionMode,
@@ -1261,6 +1269,327 @@ function currentWorkflowRouteRevision() {
   }
 }
 
+function taskContinuationProvisional(resolution) {
+  if (!resolution || resolution.status === 'resolved-active') return null
+  const candidates = resolution.candidates || resolution.suggestions || []
+  return {
+    schemaVersion: 'TaskContinuationProvisionalV1',
+    status: resolution.status,
+    errorCode: resolution.errorCode || null,
+    sameTaskProven: false,
+    mutationAuthority: false,
+    generatedAt: resolution.observedAt || new Date().toISOString(),
+    recoveryEvidence: resolution.recoveryEvidence || null,
+    candidates: candidates.slice(0, 5).map(candidate => ({
+      taskId: candidate.taskId || null,
+      displayName: candidate.displayName,
+      project: candidate.project,
+      kind: candidate.kind,
+      status: candidate.status,
+      relativeTaskPath: candidate.relativeTaskPath || null,
+      selectionDigest: candidate.selectionDigest || null
+    })),
+    nextStep: resolution.nextStep || null
+  }
+}
+
+function clearTaskMutationAuthorityForProvisional(state) {
+  state.taskRecoveryBinding = null
+  state.taskRecoveryCommitFence = null
+  state.admissionTransaction = null
+  state.previousAdmissionTransaction = null
+  state.fencedWriteOwner = null
+  state.workflowTaskTerminalReceipt = null
+  state.taskScopedAutoContinuationGrant = null
+  state.autoCheckpointDecision = null
+  state.autoCheckpointDecisions = []
+  state.taskScopedAutoStatus = null
+  state.pendingReleasedOwnerReacquire = null
+  state.validationExecution = null
+  clearStickyAuto(state, 'task-continuation-provisional')
+}
+
+function durableContinuationIdentityHint(state, targetDecision) {
+  const targetProject = String(targetDecision?.project || '').trim()
+  const targetScope = String(targetDecision?.scope || '').trim()
+  const compatibleProject = value => {
+    const project = String(value || '').trim()
+    return targetScope === 'workspace' || !project || project === 'workspace' || project === targetProject
+  }
+  const route = state?.workspaceSessionRouteHint
+  const routeTaskId = String(route?.entry?.taskId || '').trim()
+  if (['fresh', 'persisted', 'semantic-noop'].includes(String(route?.status || '')) &&
+      route?.entry?.state === 'live' &&
+      isStableTaskId(routeTaskId)) {
+    return {
+      taskId: routeTaskId,
+      project: '',
+      source: 'workspace-session-route'
+    }
+  }
+  const binding = state?.taskRecoveryBinding
+  const bindingTaskId = String(binding?.taskId || '').trim()
+  const bindingStatus = String(binding?.status || '').trim().toLowerCase()
+  if (isStableTaskId(bindingTaskId) &&
+      !['archived', 'cancelled', 'completed', 'terminal'].includes(bindingStatus) &&
+      compatibleProject(binding?.project)) {
+    return {
+      taskId: bindingTaskId,
+      project: String(binding?.project || '').trim(),
+      source: 'task-recovery-binding'
+    }
+  }
+  return null
+}
+
+function readContinuationEvidenceTail(filePath, maximumBytes) {
+  let stats
+  try { stats = fs.statSync(filePath) } catch { return null }
+  if (!stats.isFile()) return null
+  const length = Math.min(stats.size, maximumBytes)
+  const start = Math.max(0, stats.size - length)
+  let handle = null
+  try {
+    handle = fs.openSync(filePath, 'r')
+    const buffer = Buffer.alloc(length)
+    const bytesRead = length ? fs.readSync(handle, buffer, 0, length, start) : 0
+    const after = fs.fstatSync(handle)
+    if (after.size !== stats.size || after.mtimeMs !== stats.mtimeMs) return null
+    const text = buffer.subarray(0, bytesRead).toString('utf8')
+    return {
+      filePath: path.resolve(filePath),
+      text,
+      bytes: bytesRead,
+      sourceDigest: stableDigest({ text })
+    }
+  } catch {
+    return null
+  } finally {
+    if (handle !== null) {
+      try { fs.closeSync(handle) } catch {}
+    }
+  }
+}
+
+function extractTaskQueriesFromEvidence(value) {
+  const text = String(value || '')
+  const found = []
+  for (const match of text.matchAll(/[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/giu)) {
+    found.push({ index: match.index || 0, query: match[0].toLowerCase() })
+  }
+  const taskPath = /(?:^|[^a-z0-9._-])(requirements|bugs|optimizations|scenario-tests)[\\/]+([^\\/\r\n)\]}>?#]+)/giu
+  for (const match of text.matchAll(taskPath)) {
+    let query = String(match[2] || '').trim().replace(/^[`'"<]+|[`'">.,;，。；：:]+$/gu, '')
+    try { query = decodeURIComponent(query) } catch {}
+    if (query) found.push({ index: match.index || 0, query })
+  }
+  found.sort((left, right) => right.index - left.index)
+  const queries = []
+  const seen = new Set()
+  for (const item of found) {
+    const key = normalizeText(item.query)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    queries.push(item.query)
+    if (queries.length >= CONTINUATION_EVIDENCE_QUERY_LIMIT) break
+  }
+  return queries
+}
+
+function continuationNamespaceRoot(project) {
+  return LAYOUT.enabled
+    ? path.join(WORKSPACE_ROOT, '.devcodex', String(project || 'workspace'))
+    : path.join(WORKSPACE_ROOT, '.devcodex')
+}
+
+function candidateTaskMemoryDocuments(resolution, payload) {
+  const sessionRef = String(getPayloadSessionKey(payload) || '').trim()
+  if (!sessionRef) return []
+  const base = LAYOUT.enabled ? WORKSPACE_ROOT : path.join(WORKSPACE_ROOT, '.devcodex')
+  const documents = []
+  for (const candidate of (resolution.candidates || []).slice(0, CONTINUATION_EVIDENCE_FILE_LIMIT)) {
+    const relativeTaskPath = String(candidate.relativeTaskPath || '').trim()
+    if (!relativeTaskPath) continue
+    const taskRoot = path.resolve(base, relativeTaskPath)
+    const namespaceRoot = continuationNamespaceRoot(candidate.project)
+    if (!isInsideOrSamePath(taskRoot, namespaceRoot)) continue
+    const document = readContinuationEvidenceTail(
+      path.join(taskRoot, '.memory', 'sessions.md'),
+      CONTINUATION_TASK_MEMORY_MAX_BYTES
+    )
+    if (!document || !document.text.includes(sessionRef)) continue
+    documents.push({
+      ...document,
+      namespaceRoot,
+      project: candidate.project,
+      forcedQueries: [candidate.taskId || candidate.directoryName || candidate.displayName].filter(Boolean)
+    })
+  }
+  return documents
+}
+
+function candidateAgentMemoryDocuments(resolution, targetDecision, state, payload) {
+  const projects = []
+  const addProject = value => {
+    const project = String(value || '').trim()
+    if (project && !projects.includes(project)) projects.push(project)
+  }
+  if (targetDecision.scope === 'project') addProject(targetDecision.project)
+  for (const candidate of resolution.candidates || []) addProject(candidate.project)
+  if (!projects.length) addProject(CONTEXT_PROJECT || 'workspace')
+  const agent = String(getBootstrapAgent(state, payload) || 'unknown-agent').trim().toLowerCase()
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(agent)) return []
+  const stamps = getRecentBootstrapTaskStamps()
+  const documents = []
+  for (const project of projects.slice(0, CONTINUATION_EVIDENCE_FILE_LIMIT)) {
+    const namespaceRoot = continuationNamespaceRoot(project)
+    const clientRoot = path.join(namespaceRoot, '.memory', 'clients', agent)
+    const files = [
+      path.join(clientRoot, 'tasks', `${stamps[0]}.md`),
+      path.join(clientRoot, 'SUMMARY.md'),
+      path.join(clientRoot, 'tasks', `${stamps[1]}.md`)
+    ]
+    for (const file of files) {
+      if (documents.length >= CONTINUATION_EVIDENCE_FILE_LIMIT) return documents
+      const document = readContinuationEvidenceTail(file, CONTINUATION_AGENT_MEMORY_MAX_BYTES)
+      if (document) documents.push({ ...document, namespaceRoot, project })
+    }
+  }
+  return documents
+}
+
+function reportLinkDocuments(documents) {
+  const links = []
+  for (const document of documents) {
+    const matches = [...document.text.matchAll(/\[[^\]]*\]\(([^)\r\n]+)\)/gu)].reverse()
+    for (const match of matches) {
+      if (links.length >= CONTINUATION_EVIDENCE_FILE_LIMIT) return links
+      let target = String(match[1] || '').trim().replace(/^<|>$/g, '').split('#')[0]
+      if (!target || /^[a-z][a-z0-9+.-]*:/i.test(target) && !/^[a-z]:[\\/]/i.test(target)) continue
+      try { target = decodeURIComponent(target) } catch {}
+      const candidate = path.resolve(path.dirname(document.filePath), target)
+      let resolved
+      try {
+        const stat = fs.lstatSync(candidate)
+        if (!stat.isFile() || stat.isSymbolicLink()) continue
+        resolved = fs.realpathSync(candidate)
+      } catch {
+        continue
+      }
+      if (!isInsideOrSamePath(resolved, document.namespaceRoot) || !/[\\/]reports[\\/]/i.test(resolved)) continue
+      const queries = extractTaskQueriesFromEvidence(resolved)
+      if (!queries.length) continue
+      links.push({
+        filePath: resolved,
+        bytes: 0,
+        sourceDigest: stableDigest({ path: normalizeText(resolved) }),
+        project: document.project || '',
+        forcedQueries: queries
+      })
+    }
+  }
+  return links
+}
+
+function resolveContinuationEvidenceDocuments(documents, source, targetDecision) {
+  for (const document of documents) {
+    const queries = (document.forcedQueries || extractTaskQueriesFromEvidence(document.text))
+      .slice(0, CONTINUATION_EVIDENCE_QUERY_LIMIT)
+    for (const query of queries) {
+      let resolution
+      try {
+        const evidenceProject = document.project && document.project !== 'workspace'
+          ? document.project
+          : targetDecision.project
+        const evidenceScope = document.project && document.project !== 'workspace'
+          ? 'project'
+          : targetDecision.scope
+        resolution = resolveTaskContinuation({
+          cwd: CONTEXT_ROOT,
+          name: query,
+          project: evidenceProject,
+          scope: evidenceScope,
+          persistIndex: false
+        })
+      } catch (error) {
+        if (error instanceof TaskContinuationError) continue
+        throw error
+      }
+      if (resolution.status === 'not-found') continue
+      return {
+        ...resolution,
+        recoveryEvidence: {
+          schemaVersion: 'TaskContinuationRecoveryEvidenceV1',
+          source,
+          stableTaskIdUsed: isStableTaskId(query) ? query.toLowerCase() : null,
+          fallbackUsed: true,
+          sourceDigest: document.sourceDigest,
+          sourceBytes: document.bytes,
+          mutationAuthority: false
+        }
+      }
+    }
+  }
+  return null
+}
+
+function resolveBareContinuationEvidenceFallback(initialResolution, state, payload, targetDecision) {
+  const taskMemory = candidateTaskMemoryDocuments(initialResolution, payload)
+  const fromTaskMemory = resolveContinuationEvidenceDocuments(taskMemory, 'task-memory', targetDecision)
+  if (fromTaskMemory) return fromTaskMemory
+
+  const agentMemory = candidateAgentMemoryDocuments(initialResolution, targetDecision, state, payload)
+  const agentIdentityDocuments = agentMemory.map(document => ({
+    ...document,
+    forcedQueries: extractTaskQueriesFromEvidence(
+      document.text.replace(/\[[^\]]*\]\([^)\r\n]+\)/gu, '')
+    )
+  }))
+  const fromAgentMemory = resolveContinuationEvidenceDocuments(agentIdentityDocuments, 'agent-memory', targetDecision)
+  if (fromAgentMemory) return fromAgentMemory
+
+  const reportLinks = reportLinkDocuments(agentMemory)
+  const fromReport = resolveContinuationEvidenceDocuments(reportLinks, 'report-link', targetDecision)
+  if (fromReport) return fromReport
+
+  const visibleEvidence = getVisibleReplyEvidence(payload)
+  const hostText = String(visibleEvidence.text || '').slice(-CONTINUATION_AGENT_MEMORY_MAX_BYTES)
+  if (hostText) {
+    const hostDocument = {
+      filePath: CONTEXT_ROOT,
+      namespaceRoot: LAYOUT.enabled ? WORKSPACE_ROOT : continuationNamespaceRoot(''),
+      text: hostText,
+      bytes: Buffer.byteLength(hostText, 'utf8'),
+      sourceDigest: stableDigest({ source: visibleEvidence.source, text: hostText })
+    }
+    const fromHost = resolveContinuationEvidenceDocuments([hostDocument], 'host-history', targetDecision)
+    if (fromHost) return fromHost
+  }
+  return null
+}
+
+function formatTaskContinuationResolution(resolution, languageContext) {
+  if (!resolution) return ''
+  const chinese = String(languageContext?.responseLanguage || languageContext?.primaryLanguage || '').toLowerCase().startsWith('zh')
+  const candidates = resolution.candidates || resolution.suggestions || []
+  const candidateText = candidates.slice(0, 5).map(candidate => `${candidate.project}/${candidate.kind}/${candidate.displayName}`).join('、')
+  if (resolution.status === 'resolved-active') {
+    const candidate = resolution.candidate
+    return chinese
+      ? `任务恢复定位：已唯一定位 ${candidate.project}/${candidate.kind}/${candidate.displayName}。该结果只负责定位；写入前仍须重新读取当前任务身份、会话、最新确认 head 和 owner 权威。\n[TaskResolutionV1 status=resolved-active mutationAuthority=false]`
+      : `Task recovery locator: uniquely located ${candidate.project}/${candidate.kind}/${candidate.displayName}. This result locates only; re-read current identity, sessions, confirmed head, and owner authority before mutation.\n[TaskResolutionV1 status=resolved-active mutationAuthority=false]`
+  }
+  const statusLabel = resolution.status === 'ambiguous'
+    ? (chinese ? '存在多个候选' : 'multiple candidates remain')
+    : (resolution.status === 'not-found'
+        ? (chinese ? '尚未找到唯一候选' : 'no unique candidate was found')
+        : (chinese ? '现有任务证据尚未通过校验' : 'existing task evidence is not yet verified'))
+  const human = chinese
+    ? `任务恢复未阻断当前回合：${statusLabel}。分析、解释和只读上下文恢复继续；在唯一任务及其 canonical/owner 权威通过前，不得写入未知的既有任务。${candidateText ? ` 候选：${candidateText}。` : ''}`
+    : `Task recovery did not block this turn: ${statusLabel}. Analysis, explanation, and read-only context recovery continue; do not mutate an unknown existing task until one candidate and its canonical/owner authority verify.${candidateText ? ` Candidates: ${candidateText}.` : ''}`
+  return `${human}\n[TaskResolutionV1 status=${resolution.status} errorCode=${resolution.errorCode || 'none'} mutationAuthority=false]`
+}
+
 function resolveContinuationAtIngress(command, state, payload, promptTarget, projectQualifier) {
   if (!command) return { command: null, resolution: null, recoveryHint: null, targetDecision: null }
   const leaseValidation = promptTarget?.source === 'sticky'
@@ -1297,13 +1626,29 @@ function resolveContinuationAtIngress(command, state, payload, promptTarget, pro
     }
   }
   let resolution
+  const identityHint = command.bare === true
+    ? durableContinuationIdentityHint(state, targetDecision)
+    : null
   try {
-    resolution = resolveTaskContinuation({
-      cwd: CONTEXT_ROOT,
-      name: command.displayQuery,
-      project: targetDecision.project,
-      scope: targetDecision.scope
-    })
+    resolution = identityHint
+      ? resolveTaskContinuation({
+          cwd: CONTEXT_ROOT,
+          name: identityHint.taskId,
+          project: targetDecision.project,
+          scope: targetDecision.scope
+        })
+      : command.bare === true
+      ? resolveUniqueActiveTaskContinuation({
+          cwd: CONTEXT_ROOT,
+          project: targetDecision.project,
+          scope: targetDecision.scope
+        })
+      : resolveTaskContinuation({
+          cwd: CONTEXT_ROOT,
+          name: command.displayQuery,
+          project: targetDecision.project,
+          scope: targetDecision.scope
+        })
   } catch (error) {
     if (!(error instanceof TaskContinuationError)) throw error
     resolution = {
@@ -1314,7 +1659,33 @@ function resolveContinuationAtIngress(command, state, payload, promptTarget, pro
       nextStep: error.nextStep || 'Specify the exact task name and project.'
     }
   }
-  resolution = { ...resolution, targetDecision }
+  if (command.bare === true && ['ambiguous', 'not-found'].includes(resolution.status)) {
+    try {
+      resolution = resolveBareContinuationEvidenceFallback(resolution, state, payload, targetDecision) || resolution
+    } catch (error) {
+      resolution = {
+        ...resolution,
+        recoveryEvidence: {
+          schemaVersion: 'TaskContinuationRecoveryEvidenceV1',
+          source: 'bounded-fallback-unavailable',
+          fallbackUsed: true,
+          errorCode: String(error?.code || error?.message || 'TASK_CONTINUATION_EVIDENCE_UNAVAILABLE'),
+          mutationAuthority: false
+        }
+      }
+    }
+  }
+  resolution = {
+    ...resolution,
+    targetDecision,
+    recoveryEvidence: resolution.recoveryEvidence || {
+      schemaVersion: 'TaskContinuationRecoveryEvidenceV1',
+      source: identityHint?.source || (command.bare === true ? 'unique-active-index' : 'explicit-query'),
+      stableTaskIdUsed: identityHint?.taskId || null,
+      fallbackUsed: command.bare === true && !identityHint,
+      mutationAuthority: false
+    }
+  }
   const candidate = resolution?.status === 'resolved-active' ? resolution.candidate : null
   return {
     command,
@@ -3442,19 +3813,42 @@ async function main() {
           displayName: continuationResolution.candidate.displayName,
           project: continuationResolution.candidate.project,
           kind: continuationResolution.candidate.kind,
-          status: continuationResolution.candidate.status
+          status: continuationResolution.candidate.status,
+          relativeTaskPath: continuationResolution.candidate.relativeTaskPath || null,
+          selectionDigest: continuationResolution.candidate.selectionDigest || null
         } : null,
         indexState: continuationResolution.index?.state || null,
+        recoveryEvidence: continuationResolution.recoveryEvidence || null,
         observedAt: new Date().toISOString(),
         capabilityBoundary: {
           payloadExecution: false,
           taskStatusMutation: false,
           cpMutation: false,
           processWakeup: false
-        }
+        },
+        sameTaskProven: continuationResolution.status === 'resolved-active',
+        mutationAuthority: false,
+        provisional: taskContinuationProvisional(continuationResolution)
       }
       if (continuationResolution.status === 'resolved-active') {
         bindTaskRecoveryState(state, continuationResolution.candidate)
+      } else {
+        clearTaskMutationAuthorityForProvisional(state)
+        if (continuationIngress.targetDecision?.scope === 'workspace') {
+          const priorInvalidationReason = String(
+            state.stickyProject?.invalidationReason ||
+            state.stickyProject?.reason ||
+            continuationIngress.targetDecision?.evidence?.leaseReason ||
+            'task-continuation-provisional'
+          )
+          clearStickyProject(state, priorInvalidationReason)
+          const provisionalProject = String(continuationResolution.candidate?.project || '').trim()
+          state.activeProject = provisionalProject && provisionalProject !== 'workspace' ? provisionalProject : ''
+          state.activeScope = state.activeProject ? 'project' : 'workspace'
+          state.activeProjectSource = state.activeProject
+            ? 'task-continuation-provisional-candidate'
+            : 'task-continuation-provisional'
+        }
       }
     }
     beginContextAcquisition(state, payload, platform)
@@ -3498,46 +3892,30 @@ async function main() {
     state.executionMode = detectExecutionMode(payload, state, promptTarget)
     observeValidationControlIngress(state, prompt)
     if (continuationResolution && continuationResolution.status !== 'resolved-active') {
-      const candidates = continuationResolution.candidates || continuationResolution.suggestions || []
-      const candidateText = candidates.slice(0, 5).map(candidate => `${candidate.project}/${candidate.kind}/${candidate.displayName}`).join(', ')
-      const detail = [
-        `Task continuation status=${continuationResolution.status}.`,
-        continuationResolution.message || '',
-        candidateText ? `Candidates: ${candidateText}.` : ''
-      ].filter(Boolean).join(' ')
-      state.lastReason = `task-continuation-${continuationResolution.status}`
-      const output = buildInterceptionOutput(
-        state,
-        platform,
-        eventName,
-        INTERCEPTION_ACTION.REQUIRE_COMPLETION,
-        `task-continuation-${continuationResolution.status}`,
-        `task-continuation-${continuationResolution.status}`,
-        detail,
-        continuationResolution.nextStep || 'Specify the exact active task and retry.'
-      )
-      saveState(state)
-      writeStdout(output)
-      return
+      state.lastReason = `task-continuation-provisional-${continuationResolution.status}`
     }
-    // Multi-project workspace guard (v1.9.8+):
-    // when no workspace-root profile exists and ≥2 sibling projects detected,
-    // require the user to specify the target project explicitly.
+    // A multi-project ambiguity remains visible, but a continuation turn stays
+    // provisional instead of being terminated before memory/file recovery.
+    let continuationWorkspaceNotice = ''
     const hasWorkspaceProfile = fs.existsSync(getWorkspaceProfileConfigPath())
     if (!hasWorkspaceProfile && isMultiProjectWorkspace()) {
       if (!hasMultiProjectExemption(prompt) && !state.activeProject) {
         if (!shouldSuppressMultiProjectWarning(state, payload)) {
-          state.lastReason = 'multi-project-workspace-block'
-          const detail = isStrictEnforcement()
-            ? buildMultiProjectBlockMessage()
-            : `${buildMultiProjectBlockMessage()} Prompt allowed in safety-only mode.`
-          const output = buildInterceptionOutput(
-            state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'multi-project-workspace',
-            'multi-project-workspace', detail, 'Specify the target project or use a workspace-level exemption keyword.'
-          )
-          saveState(state)
-          writeStdout(output)
-          return
+          if (continuationCommand) {
+            continuationWorkspaceNotice = `multi-project-workspace advisory: ${buildMultiProjectBlockMessage()} task-continuation=provisional；当前分析与只读恢复继续，既有任务 mutationAuthority=false。`
+          } else {
+            state.lastReason = 'multi-project-workspace-block'
+            const detail = isStrictEnforcement()
+              ? buildMultiProjectBlockMessage()
+              : `${buildMultiProjectBlockMessage()} Prompt allowed in safety-only mode.`
+            const output = buildInterceptionOutput(
+              state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'multi-project-workspace',
+              'multi-project-workspace', detail, 'Specify the target project or use a workspace-level exemption keyword.'
+            )
+            saveState(state)
+            writeStdout(output)
+            return
+          }
         }
       }
     }
@@ -3637,9 +4015,8 @@ async function main() {
         buildExecutionModeContextMessage(state),
         formatLanguageContextInstruction(state.languageContext),
         formatWorkflowPlanInstruction(state.workflowPlanDecision),
-        continuationResolution
-          ? `TaskResolutionV1 resolved-active: ${continuationResolution.candidate.project}/${continuationResolution.candidate.kind}/${continuationResolution.candidate.displayName}. The name only locates the task; rehydrate identity, sessions, and current bound artifacts before continuing.`
-          : '',
+        formatTaskContinuationResolution(continuationResolution, state.languageContext),
+        continuationWorkspaceNotice,
         buildGovernanceIntakeContextMessage(state.governanceIntake),
         formatTurnRecoveryMessage(livenessObservation.recoveryCard),
         buildWorkflowIngressContextMessage(state),

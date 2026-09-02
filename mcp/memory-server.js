@@ -3922,16 +3922,38 @@ function handleMemoryTaskResolve(args) {
     name: args.name,
     project: args.project || '',
     scope: args.scope || 'auto',
-    // An explicit project is already a bounded namespace. Keep the MCP facade's
-    // metadata budget aligned with its existing bounded memory-source ceiling so
-    // a project just above the resolver's 4 MiB default does not dead-end with a
-    // misleading "specify project" instruction.
-    budgets: args.project ? { maxBytes: MEMORY_SOURCE_MAX_BYTES } : {},
     persistIndex: args.persistIndex !== false
   })
+  const candidates = resolution.candidates || resolution.suggestions || []
+  const languageEvidence = `${String(args.name || '')}${String(resolution.candidate?.displayName || '')}${candidates.map(item => item.displayName || '').join('')}`
+  const chinese = /[\u3400-\u9fff]/u.test(languageEvidence)
+  let humanText
+  if (resolution.status === 'resolved-active') {
+    humanText = chinese
+      ? `已唯一定位任务：${resolution.candidate.project}/${resolution.candidate.kind}/${resolution.candidate.displayName}。本结果只负责定位，不授予写权；写入前仍须验证当前 canonical/owner。`
+      : `Uniquely located task: ${resolution.candidate.project}/${resolution.candidate.kind}/${resolution.candidate.displayName}. This result locates only and grants no write authority; verify current canonical/owner evidence before mutation.`
+  } else if (resolution.status === 'ambiguous') {
+    humanText = chinese
+      ? `存在 ${candidates.length} 个任务候选，未自动猜选。当前分析可继续；写入既有任务前必须完成唯一消歧。`
+      : `${candidates.length} task candidates remain; none was guessed. Analysis may continue, but an existing task must be uniquely disambiguated before mutation.`
+  } else if (resolution.status === 'not-found') {
+    humanText = chinese
+      ? '未找到精确任务候选。当前分析可继续，也可走普通新任务准入；不得把记忆或报告提示直接当成既有任务写权。'
+      : 'No exact task candidate was found. Analysis may continue or use normal new-task admission; memory/report hints do not grant existing-task write authority.'
+  } else {
+    humanText = chinese
+      ? '已找到任务线索，但当前 canonical 证据未通过。当前分析可继续；在复证前不得写入该既有任务。'
+      : 'A task hint was found, but current canonical evidence did not verify. Analysis may continue; do not mutate the existing task before re-verification.'
+  }
+  const protocolLine = `TaskResolutionV1 status=${resolution.status}; mutationAuthority=false${resolution.errorCode ? `; errorCode=${resolution.errorCode}` : ''}`
+  const response = {
+    humanSummary: humanText,
+    protocolSummary: protocolLine,
+    ...resolution
+  }
   return {
-    content: [{ type: 'text', text: JSON.stringify(resolution, null, 2) }],
-    structuredContent: resolution,
+    content: [{ type: 'text', text: JSON.stringify(response, null, 2) }],
+    structuredContent: response,
     isError: resolution.status !== 'resolved-active'
   }
 }

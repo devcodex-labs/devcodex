@@ -156,6 +156,24 @@
       "probeSource": "scripts/test-skill-route-budget.js",
       "negativeProbeMarker": "PF-267: cumulative budget must retire without replaying load_stage",
       "platforms": ["all"]
+    },
+    {
+      "id": "BUG-16",
+      "risk": "P0",
+      "governanceRefs": ["PI-368", "PF-465"],
+      "modules": [
+        "hooks/_runtime/task-continuation-contract.cjs",
+        "hooks/_runtime/task-continuation-ingress.cjs",
+        "hooks/_runtime/lifecycle.cjs",
+        "hooks/_runtime/lifecycle-bootstrap-state.cjs",
+        "mcp/memory-server.js",
+        "scripts/lib/cli-execution-commands.js"
+      ],
+      "validationNode": "task-continuation",
+      "testCommand": "node scripts/test-task-continuation.js",
+      "probeSource": "scripts/test-task-continuation.js",
+      "negativeProbeMarker": "legacy aggregate limits must not block an exact locator match",
+      "platforms": ["all"]
     }
   ],
   "iterativeRoutePolicy": {

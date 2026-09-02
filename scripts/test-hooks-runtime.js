@@ -1581,7 +1581,8 @@ function main() {
     prompt: '继续 Hook续接任务'
   })
   const continuationContext = resolvedContinuation.hookSpecificOutput?.additionalContext || resolvedContinuation.systemMessage || ''
-  assert.match(continuationContext, /TaskResolutionV1 resolved-active/)
+  assert.match(continuationContext, /任务恢复定位：已唯一定位/)
+  assert.match(continuationContext, /TaskResolutionV1 status=resolved-active mutationAuthority=false/)
   assert.match(continuationContext, /LanguageContextV2/)
   const continuationStore = storePaths(STATE_DIR)
   const taskSlotFiles = []
@@ -1634,6 +1635,8 @@ function main() {
   const continuationState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(continuationState.taskContinuation.status, 'resolved-active')
   assert.strictEqual(continuationState.taskContinuation.candidate.taskId, '6b31500b-f2c4-4f50-9067-d59ad1f806f1')
+  assert.strictEqual(continuationState.taskContinuation.mutationAuthority, false)
+  assert.strictEqual(continuationState.taskContinuation.sameTaskProven, true)
   assert.strictEqual(continuationState.taskContinuation.capabilityBoundary.payloadExecution, false)
   assert.strictEqual(fs.readFileSync(path.join(continuationTask, '.memory', 'sessions.md'), 'utf8'), continuationSessions)
 
@@ -1653,7 +1656,15 @@ function main() {
     session_id: 'task-continuation-ambiguous',
     prompt: '继续Hook续接任务任务'
   })
-  assert.match(ambiguousContinuation.systemMessage || ambiguousContinuation.hookSpecificOutput?.additionalContext || '', /ambiguous|Candidates/i)
+  const ambiguousContext = ambiguousContinuation.systemMessage || ambiguousContinuation.hookSpecificOutput?.additionalContext || ''
+  assert.match(ambiguousContext, /任务恢复未阻断当前回合：存在多个候选/)
+  assert.doesNotMatch(JSON.stringify(ambiguousContinuation), /require_completion/)
+  const ambiguousState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(ambiguousState.taskContinuation.status, 'ambiguous')
+  assert.strictEqual(ambiguousState.taskContinuation.provisional.sameTaskProven, false)
+  assert.match(ambiguousState.taskContinuation.provisional.candidates[0].selectionDigest, /^[a-f0-9]{64}$/)
+  assert.ok(Date.parse(ambiguousState.taskContinuation.provisional.generatedAt))
+  assert.strictEqual(ambiguousState.taskContinuation.mutationAuthority, false)
   fs.rmSync(continuationTask, { recursive: true, force: true })
   fs.rmSync(ambiguousTask, { recursive: true, force: true })
   cleanState()

@@ -1079,6 +1079,7 @@ function buildTaskAuthorityIngress({
   suffix,
   nowMs = Date.now(),
   physicalRoot = TEMP_ROOT,
+  rootIdentityDigest = '2'.repeat(64),
   routeKey = 'fix.default'
 }) {
   const envelope = buildActualInstructionEnvelope({
@@ -1106,7 +1107,7 @@ function buildTaskAuthorityIngress({
     schemaVersion: 'ProjectTargetLeaseV2',
     project,
     targetDigest: '1'.repeat(64),
-    rootIdentityDigest: '2'.repeat(64),
+    rootIdentityDigest,
     layoutIdentity: '3'.repeat(64),
     physicalRoot,
     activeRoot,
@@ -1443,8 +1444,14 @@ function testMemoryFinalizedFreshResumeV3Contract() {
     project,
     suffix: 'fresh-resume-current',
     nowMs,
+    rootIdentityDigest: '4'.repeat(64),
     routeKey: 'resume'
   })
+  assert.notStrictEqual(
+    resumeIngress.projectTargetLease.rootIdentityDigest,
+    priorIngress.projectTargetLease.rootIdentityDigest,
+    'fresh resume fixture must exercise a relocated or replaced project-root identity'
+  )
   writeTaskAuthorityLifecycleState(activeRoot, project, resumeIngress, {
     taskRecoveryBinding: {
       taskId: priorAdmission.taskId,
@@ -1479,6 +1486,31 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   assert.strictEqual(resumed.structuredContent.admissionGeneration, priorAdmission.admissionGeneration + 1)
   assert.strictEqual(resumed.structuredContent.ownerGeneration, priorOwner.owner.ownerGeneration + 1)
   assert.deepStrictEqual(resumed.structuredContent.ingressRef, resumeIngress.ingressRef)
+  const resumedState = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }, { nowMs })
+  assert.strictEqual(resumedState.status, 'fresh')
+  assert.strictEqual(
+    resumedState.state.admissionTransaction.projectRootIdentityDigest,
+    resumeIngress.projectTargetLease.rootIdentityDigest,
+    'resume after relocation must bind the new admission generation to the verified current root'
+  )
+  assert.strictEqual(
+    resumedState.state.fencedWriteOwner.projectRootIdentity,
+    resumeIngress.projectTargetLease.rootIdentityDigest,
+    'the resumed writer must be fenced to the verified current project root'
+  )
+  assert.strictEqual(
+    JSON.parse(fs.readFileSync(path.join(taskRoot, '.memory', 'task.json'), 'utf8')).projectRootIdentityDigest,
+    priorIngress.projectTargetLease.rootIdentityDigest,
+    'relocation must not rewrite immutable TaskIdentityV2 origin provenance'
+  )
+  assert.strictEqual(
+    resumedState.state.admissionTransaction.recovery.priorProjectRootIdentityDigest,
+    priorIngress.projectTargetLease.rootIdentityDigest
+  )
+  assert.strictEqual(
+    resumedState.state.admissionTransaction.recovery.projectRootIdentityDigest,
+    resumeIngress.projectTargetLease.rootIdentityDigest
+  )
   const resumedReplay = resultById(resumeResponses, 2)
   assert.strictEqual(resumedReplay.isError, false, resumedReplay.content?.[0]?.text || '')
   assert.strictEqual(resumedReplay.structuredContent.replayed, true)

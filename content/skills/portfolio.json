@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 672,
     "consumerInventoryDigest": "7f2824e727f1c2d913168bb072cb86cbed42393edade5b2e6f04870f9332ed29",
-    "consumerProjectionDigest": "370d0b951b19e95e5374c916010a99d9804a74d18dec14dfe61fdd59042175b0",
-    "portfolioInputDigest": "86267595850e13a0ac7cdb926a7510b0bc7033637e6871eaf1af28b4ab03beca"
+    "consumerProjectionDigest": "a90b1054e036ed0c0b53923c35b017a86be334077b63114824aadafd7e3a8252",
+    "portfolioInputDigest": "bc43e52a99c00a7ec3a01d4c291dc5d247ebf3d43fe792a4335916ddd6e0c6ab"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -19961,6 +19961,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-global-install-smoke.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-governance-intake.js",
           "role": "current"
         },
@@ -20066,6 +20070,7 @@
         "scripts/test-delivery-honesty.js",
         "scripts/test-evidence-freshness-receipt.js",
         "scripts/test-external-review-claim-verification.js",
+        "scripts/test-global-install-smoke.js",
         "scripts/test-governance-intake.js",
         "scripts/test-governance-status-summary.js",
         "scripts/test-hooks-runtime.js",
@@ -20143,6 +20148,7 @@
           "scripts/test-delivery-honesty.js",
           "scripts/test-evidence-freshness-receipt.js",
           "scripts/test-external-review-claim-verification.js",
+          "scripts/test-global-install-smoke.js",
           "scripts/test-governance-intake.js",
           "scripts/test-governance-status-summary.js",
           "scripts/test-hooks-runtime.js",

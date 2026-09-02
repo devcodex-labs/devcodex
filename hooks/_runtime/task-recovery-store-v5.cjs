@@ -6713,12 +6713,25 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
     }
   }
   const recoveryReceipt = transaction.recovery || {}
+  const recoveryRelocation = recoveryReceipt.relocation || null
+  const recoveryRootBindingValid =
+    /^[a-f0-9]{64}$/.test(String(recoveryReceipt.priorProjectRootIdentityDigest || '')) &&
+    recoveryReceipt.projectRootIdentityDigest === transaction.projectRootIdentityDigest &&
+    transaction.projectRootIdentityDigest === candidate.projectRootIdentityDigest &&
+    (recoveryReceipt.priorProjectRootIdentityDigest === recoveryReceipt.projectRootIdentityDigest
+      ? recoveryRelocation === null
+      : recoveryRelocation?.schemaVersion === 'TaskIdentityRelocationObservationV1' &&
+        recoveryRelocation.taskId === transaction.taskId &&
+        recoveryRelocation.currentProjectRootIdentityDigest === recoveryReceipt.projectRootIdentityDigest &&
+        recoveryRelocation.authority === 'current-project-target-lease' &&
+        recoveryRelocation.mutationAuthority === false)
   if (transaction.phase !== 'finalized' || transaction.status !== 'finalized' ||
       recoveryReceipt.schemaVersion !== FINALIZED_TASK_RESUME_RECOVERY_SCHEMA ||
       recoveryReceipt.candidateDigest !== candidate.candidateDigest ||
       recoveryReceipt.priorCanonicalRevisionDigest !== candidate.canonicalRevisionDigest ||
       recoveryReceipt.canonicalRevisionDigest !== canonicalRevision.revisionDigest ||
       recoveryReceipt.cpChainDigest !== candidate.cpChainDigest ||
+      !recoveryRootBindingValid ||
       transaction.admissionGeneration !== candidate.prior.admissionGeneration + 1 ||
       owner.ownerGeneration !== candidate.prior.ownerGeneration + 1 ||
       owner.leaseRevision !== candidate.prior.leaseRevision + 1) {
@@ -6799,6 +6812,17 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
       }
       const canonical = input.verifyCanonical(currentTransaction, currentOwner, state) || {}
       const currentCanonicalRevisionValidation = validateTaskCanonicalRevision(canonical.canonicalRevision, currentTransaction)
+      const projectRootTransitionMatches =
+        currentTransaction.projectRootIdentityDigest === candidate.projectRootIdentityDigest || (
+          recoveryReceipt.priorProjectRootIdentityDigest === currentTransaction.projectRootIdentityDigest &&
+          recoveryReceipt.projectRootIdentityDigest === candidate.projectRootIdentityDigest &&
+          recoveryRelocation?.schemaVersion === 'TaskIdentityRelocationObservationV1' &&
+          recoveryRelocation.taskId === currentTransaction.taskId &&
+          recoveryRelocation.originProjectRootIdentityDigest === canonical.taskOriginProjectRootIdentityDigest &&
+          recoveryRelocation.currentProjectRootIdentityDigest === candidate.projectRootIdentityDigest &&
+          recoveryRelocation.authority === 'current-project-target-lease' &&
+          recoveryRelocation.mutationAuthority === false
+        )
       const canonicalMatches = canonical.taskIdentityDigest === candidate.taskIdentityDigest &&
         canonical.canonicalOverviewDigest === candidate.canonicalOverviewDigest &&
         canonical.canonicalRevisionDigest === candidate.canonicalRevisionDigest &&
@@ -6806,7 +6830,7 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
         canonical.cpChainDigest === candidate.cpChainDigest && canonical.cpConfirmed === true &&
         currentCanonicalRevisionValidation.valid &&
         currentTransaction.taskIdentityDigest === candidate.taskIdentityDigest &&
-        currentTransaction.projectRootIdentityDigest === candidate.projectRootIdentityDigest &&
+        projectRootTransitionMatches &&
         currentTransaction.taskRootRelative === candidate.taskRootRelative &&
         canonicalRevision.parentRevisionDigest === canonical.canonicalRevisionDigest &&
         canonicalRevision.previousOverviewDigest === canonical.canonicalOverviewDigest &&
@@ -6856,11 +6880,13 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
         priorAdmissionId: currentTransaction.admissionId,
         priorAdmissionGeneration: currentTransaction.admissionGeneration,
         priorTransactionDigest: currentTransaction.transactionDigest,
+        priorProjectRootIdentityDigest: currentTransaction.projectRootIdentityDigest,
         priorCanonicalRevisionDigest: candidate.canonicalRevisionDigest,
         priorOwnerLeaseDigest: currentOwner?.leaseDigest || null,
         admissionId: transaction.admissionId,
         admissionGeneration: transaction.admissionGeneration,
         transactionDigest: transaction.transactionDigest,
+        projectRootIdentityDigest: transaction.projectRootIdentityDigest,
         canonicalRevisionDigest: canonicalRevision.revisionDigest,
         ownerLeaseDigest: owner.leaseDigest,
         recoveredAt: transaction.createdAt

@@ -195,21 +195,86 @@ function sha256File(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
 }
 
+function sha256Text(value) {
+  return crypto.createHash('sha256').update(String(value || '')).digest('hex')
+}
+
+function collectCodexDiagnosticSignals(value, signals, depth = 0) {
+  if (value === null || value === undefined || depth > 5 || signals.length >= 12) return
+  if (Array.isArray(value)) {
+    for (const item of value) collectCodexDiagnosticSignals(item, signals, depth + 1)
+    return
+  }
+  if (typeof value !== 'object') return
+  for (const [key, nested] of Object.entries(value)) {
+    if (signals.length >= 12) break
+    if (/^(?:error|errorCode|message|reason|status|phase|decision|taskId|admissionGeneration|isError|text)$/iu.test(key) &&
+      ['string', 'number', 'boolean'].includes(typeof nested)) {
+      const text = String(nested).replace(/\s+/gu, ' ').trim()
+      if (text) signals.push(`${key}=${text.slice(0, 600)}`)
+      continue
+    }
+    if (nested && typeof nested === 'object') collectCodexDiagnosticSignals(nested, signals, depth + 1)
+  }
+}
+
+function summarizeCodexJsonl(stdout) {
+  const summaries = []
+  for (const line of String(stdout || '').split(/\r?\n/u).filter(Boolean)) {
+    let event
+    try {
+      event = JSON.parse(line)
+    } catch {
+      const text = line.replace(/\s+/gu, ' ').trim()
+      if (/(?:error|fail|cancel|abort)/iu.test(text)) summaries.push(`unparsed ${text.slice(0, 600)}`)
+      continue
+    }
+    const item = event?.item && typeof event.item === 'object' ? event.item : null
+    const type = String(event?.type || 'unknown')
+    const itemType = String(item?.type || '')
+    const name = String(item?.name || item?.tool || item?.tool_name || '')
+    const server = String(item?.server || item?.server_name || '')
+    const signals = []
+    collectCodexDiagnosticSignals(event?.error, signals)
+    collectCodexDiagnosticSignals(event?.message, signals)
+    collectCodexDiagnosticSignals(item?.error, signals)
+    collectCodexDiagnosticSignals(item?.result, signals)
+    collectCodexDiagnosticSignals(item?.output, signals)
+    if (typeof event?.message === 'string') signals.push(`message=${event.message.replace(/\s+/gu, ' ').slice(0, 600)}`)
+    if (typeof event?.error === 'string') signals.push(`error=${event.error.replace(/\s+/gu, ' ').slice(0, 600)}`)
+    if (typeof item?.error === 'string') signals.push(`error=${item.error.replace(/\s+/gu, ' ').slice(0, 600)}`)
+    const relevant = /(?:error|fail|cancel|abort)/iu.test(type) ||
+      /(?:mcp|tool)/iu.test(itemType) ||
+      signals.some(signal => /(?:error|fail|cancel|abort|deny|block)/iu.test(signal))
+    if (!relevant) continue
+    const header = [type, itemType && `item=${itemType}`, server && `server=${server}`, name && `name=${name}`]
+      .filter(Boolean)
+      .join(' ')
+    summaries.push(`${header}${signals.length ? ` ${signals.join(' | ')}` : ''}`.slice(0, 1600))
+  }
+  return summaries.slice(-30).join('\n').slice(-8000) || 'no relevant JSONL diagnostic events'
+}
+
 function runRealCodexTurn(label, prompt, env, options = {}) {
-  const executableName = process.platform === 'win32' ? 'codex.exe' : 'codex'
-  const executable = resolveExecutableOnPath(executableName, env)
-  assert(executable, `real Codex executable not found on PATH: ${executableName}`)
-  const outputPath = path.join(tmp, `${label}-last-message.txt`)
   const hostEnv = { ...process.env, ...env }
   delete hostEnv.CODEX_INTERNAL_ORIGINATOR_OVERRIDE
   delete hostEnv.CODEX_THREAD_ID
+  const executableNames = process.platform === 'win32' ? ['codex.exe', 'codex.cmd'] : ['codex']
+  const executable = executableNames
+    .map(name => resolveExecutableOnPath(name, hostEnv))
+    .find(Boolean)
+  assert(executable, `real Codex executable not found on PATH: ${executableNames.join(' or ')}`)
+  const outputPath = path.join(tmp, `${label}-last-message.txt`)
   const args = [
     '-a', 'never',
     '-s', 'workspace-write',
     '--add-dir', options.runtimeRoot,
     '-c', 'model_reasoning_effort="medium"',
+    '-c', 'mcp_servers.devcodex-profile.default_tools_approval_mode="approve"',
+    '-c', 'mcp_servers.devcodex-memory.default_tools_approval_mode="approve"',
     '--dangerously-bypass-hook-trust',
     'exec',
+    '--json',
     '--ephemeral',
     '--skip-git-repo-check',
     '--output-last-message', outputPath,
@@ -217,7 +282,10 @@ function runRealCodexTurn(label, prompt, env, options = {}) {
     prompt
   ]
   const startedAt = Date.now()
-  const result = spawnSync(executable, args, {
+  const invocation = process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(executable)
+    ? resolveWindowsBatchInvocation(executable, args, hostEnv)
+    : { command: executable, args }
+  const result = spawnSync(invocation.command, invocation.args, {
     cwd: options.cwd || consumer,
     env: hostEnv,
     encoding: 'utf8',
@@ -225,26 +293,34 @@ function runRealCodexTurn(label, prompt, env, options = {}) {
     maxBuffer: 16 * 1024 * 1024,
     windowsHide: true
   })
+  const eventSummary = summarizeCodexJsonl(result.stdout)
   assert.strictEqual(
     result.status,
     0,
-    `real Codex ${label} failed status=${result.status} signal=${result.signal} error=${result.error?.message || 'none'}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`
+    `real Codex ${label} failed status=${result.status} signal=${result.signal} error=${result.error?.message || 'none'}\nevent-summary:\n${eventSummary}\nstderr:\n${String(result.stderr || '').slice(-4000)}`
   )
   assert.strictEqual(fs.existsSync(outputPath), true, `real Codex ${label} last-message evidence missing`)
+  const lastMessage = fs.readFileSync(outputPath, 'utf8').trim()
   return {
     label,
     pid: result.pid || null,
     exitCode: result.status,
     durationMs: Date.now() - startedAt,
-    outputSha256: sha256File(outputPath)
+    outputSha256: sha256File(outputPath),
+    stdoutSha256: sha256Text(result.stdout),
+    lastMessage,
+    eventSummary
   }
 }
 
-function readInstalledFormalTaskState(installedRuntimeRoot, taskName) {
+function readInstalledFormalTaskState(installedRuntimeRoot, taskName, invocation = null) {
   const activeRoot = path.join(workspace, '.devcodex', 'consumer')
   const taskRoot = path.join(activeRoot, 'requirements', taskName)
   const identityPath = path.join(taskRoot, '.memory', 'task.json')
-  assert.strictEqual(fs.existsSync(identityPath), true, `real Codex task identity missing: ${identityPath}`)
+  const diagnostic = invocation?.lastMessage
+    ? `\nlast-message:\n${invocation.lastMessage.slice(0, 4000)}\nevent-summary:\n${String(invocation.eventSummary || '').slice(-8000)}`
+    : ''
+  assert.strictEqual(fs.existsSync(identityPath), true, `real Codex task identity missing: ${identityPath}${diagnostic}`)
   const identity = JSON.parse(fs.readFileSync(identityPath, 'utf8'))
   const recoveryStore = require(path.join(installedRuntimeRoot, 'hooks', '_runtime', 'task-recovery-store-v5.cjs'))
   const metaDir = recoveryStore.resolveTaskRecoveryMetaDir({ activeRoot, project: 'consumer' })
@@ -268,6 +344,17 @@ function readInstalledFormalTaskState(installedRuntimeRoot, taskName) {
     overview: fs.readFileSync(overviewPath, 'utf8'),
     state: recovery.state
   }
+}
+
+function formatRealCodexStateDiagnostic(invocation, taskState) {
+  const admission = taskState?.state?.admissionTransaction || {}
+  const owner = taskState?.state?.fencedWriteOwner || {}
+  return [
+    `admission: phase=${admission.phase || 'missing'} status=${admission.status || 'missing'} generation=${admission.admissionGeneration || 0} cp1Confirmed=${admission.effects?.cpState?.cp1Confirmed === true}`,
+    `owner: status=${owner.status || 'missing'} generation=${owner.ownerGeneration || 0} leaseRevision=${owner.leaseRevision || 0}`,
+    `last-message:\n${String(invocation?.lastMessage || 'missing').slice(0, 4000)}`,
+    `event-summary:\n${String(invocation?.eventSummary || 'missing').slice(-8000)}`
+  ].join('\n')
 }
 
 function isolatedHostEnv(home) {
@@ -636,8 +723,13 @@ for (const asset of installedRuntimeGeneration.promptAssets.files) {
 }
 
 const installedMemoryServer = path.join(installedCodexRuntimeRoot, 'mcp', 'memory-server.js')
-const consumerProject = 'installed-template-consumer'
+const consumerProject = 'consumer'
 const consumerActiveRoot = path.join(workspace, '.devcodex', consumerProject)
+assert.strictEqual(
+  fs.existsSync(path.join(consumerActiveRoot, 'profile', 'README.md')),
+  true,
+  'installed formal-writer project must be explicitly registered before project-scoped MCP calls'
+)
 const successfulTask = '隔离安装模板写入验证'
 const successfulTaskRoot = path.join(consumerActiveRoot, 'requirements', successfulTask)
 const successfulArtifact = path.join(successfulTaskRoot, '02-技术方案.md')
@@ -763,7 +855,9 @@ if (smokeOptions.realCodex) {
     '按模板生成 00-需求概况.md 和 CP1 需求确认产物，自动确认 CP1，并取得 finalized 的第一代正式准入与写 owner。',
     '调用 memory_cp_confirm 前必须形成当前候选的 R3 ReviewGradeCard，并传入 autoDecisionEvidence：riskClass=R3、无 blockers、无 sideEffectCategories、reviewGradeCard.grade=R3、status=PASS、openBlockers=0。',
     '00-需求概况.md 必须包含独立一行 HOST_G1_READY。保持任务 active，不形成 CP2/CP3，不执行 terminal closeout。',
-    '结束前走正常 Stop/owner release 路径。最终只简短报告 taskId、admissionGeneration、owner 状态和文件读回。'
+    'memory_cp_confirm 必须返回非 isError 且读回 CP1 confirmed；如参数、路径或摘要绑定失败，按返回的 nextStep 修正后重试，不得提前结束。',
+    '随后显式调用 memory_task_write_owner，以当前精确 owner 执行 release；release receipt 必须读回 cp1Confirmed=true 且 owner.status=released。不得仅依赖 Stop hook 猜测已释放。',
+    '只有上述 durable readback 全部成立才能结束。最终只简短报告 taskId、admissionGeneration、CP1、owner 状态和文件读回。'
   ].join('\n')
   console.log('global install smoke realCodex stage=formal-g1 start')
   const realCodexOptions = {
@@ -771,11 +865,13 @@ if (smokeOptions.realCodex) {
     runtimeRoot: path.join(workspace, '.devcodex', 'consumer')
   }
   const g1Invocation = runRealCodexTurn('formal-g1', firstPrompt, installedEnv, realCodexOptions)
-  const g1 = readInstalledFormalTaskState(installedCodexRuntimeRoot, formalTaskName)
-  assert.strictEqual(g1.state.admissionTransaction.phase, 'finalized')
-  assert.strictEqual(g1.state.admissionTransaction.status, 'finalized')
-  assert.strictEqual(g1.state.admissionTransaction.effects?.cpState?.cp1Confirmed, true)
-  assert.match(g1.overview, /^HOST_G1_READY$/mu)
+  const g1 = readInstalledFormalTaskState(installedCodexRuntimeRoot, formalTaskName, g1Invocation)
+  const g1Diagnostic = formatRealCodexStateDiagnostic(g1Invocation, g1)
+  assert.strictEqual(g1.state.admissionTransaction.phase, 'finalized', g1Diagnostic)
+  assert.strictEqual(g1.state.admissionTransaction.status, 'finalized', g1Diagnostic)
+  assert.strictEqual(g1.state.admissionTransaction.effects?.cpState?.cp1Confirmed, true, g1Diagnostic)
+  assert.strictEqual(g1.state.fencedWriteOwner?.status, 'released', g1Diagnostic)
+  assert.match(g1.overview, /^HOST_G1_READY$/mu, g1Diagnostic)
   const g1Generation = g1.state.admissionTransaction.admissionGeneration
   const g1CanonicalRevision = g1.state.taskCanonicalRevision?.revision || 0
   console.log(`global install smoke realCodex stage=formal-g1 pass generation=${g1Generation}`)
@@ -792,7 +888,7 @@ if (smokeOptions.realCodex) {
   ].join('\n')
   console.log('global install smoke realCodex stage=formal-g2 start')
   const g2Invocations = [runRealCodexTurn('formal-g2', secondPrompt, installedEnv, realCodexOptions)]
-  let g2 = readInstalledFormalTaskState(installedCodexRuntimeRoot, formalTaskName)
+  let g2 = readInstalledFormalTaskState(installedCodexRuntimeRoot, formalTaskName, g2Invocations[0])
   const g2Ready = () => g2.state.admissionTransaction.admissionGeneration > g1Generation &&
     /^HOST_G2_READY$/mu.test(g2.overview) &&
     g2.state.workflowTaskTerminalReceipt?.terminalStatus === 'completed'

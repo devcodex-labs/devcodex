@@ -1976,6 +1976,7 @@ function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = 
     taskId: transaction.taskId,
     taskRootRelative: transaction.taskRootRelative,
     taskIdentityDigest: identity.identityDigest,
+    taskOriginProjectRootIdentityDigest: identity.projectRootIdentityDigest,
     taskIdentitySourceDigest: identityFile.digest,
     canonicalOverviewDigest: overviewFile.digest,
     canonicalOverviewContent: overviewFile.bytes.toString('utf8'),
@@ -2500,6 +2501,16 @@ function executeFinalizedTaskResumeV3({
     (candidate.canonicalRevisionDigest === canonical.canonicalRevisionDigest ||
       replayCandidateBinding || concurrentLoserBinding) &&
     candidate.cpChainDigest === canonical.cpChainDigest
+  const projectRootRebound = candidate.projectRootIdentityDigest !== transaction.projectRootIdentityDigest
+  const relocation = plan?.relocation || null
+  const projectRootBindingValid = !projectRootRebound || (
+    relocation?.schemaVersion === 'TaskIdentityRelocationObservationV1' &&
+    relocation.taskId === candidate.taskId &&
+    relocation.originProjectRootIdentityDigest === plan.identity?.projectRootIdentityDigest &&
+    relocation.currentProjectRootIdentityDigest === candidate.projectRootIdentityDigest &&
+    relocation.authority === 'current-project-target-lease' &&
+    relocation.mutationAuthority === false
+  )
   const exactCandidateIngress = candidate.ingressRef?.envelopeId === input.actualInstructionEnvelope.envelopeId &&
     candidate.ingressRef?.envelopeDigest === input.actualInstructionEnvelope.envelopeDigest &&
     candidate.ingressRef?.decisionDigest === input.workflowRouteDecision.decisionDigest &&
@@ -2510,7 +2521,7 @@ function executeFinalizedTaskResumeV3({
     candidate.projectRootIdentityDigest === input.projectTargetLease.rootIdentityDigest &&
     candidate.project === input.project && normalizedPath(candidate.activeRoot) === normalizedPath(input.activeRoot) &&
     candidate.taskId === transaction.taskId && candidate.taskRootRelative === transaction.taskRootRelative &&
-    candidate.projectRootIdentityDigest === transaction.projectRootIdentityDigest &&
+    projectRootBindingValid &&
     candidate.taskIdentityDigest === canonical.taskIdentityDigest &&
     candidate.canonicalOverviewDigest === canonical.canonicalOverviewDigest &&
     candidate.cpArtifactDigest === canonical.cpArtifactDigest && canonicalCandidateMatches
@@ -2629,6 +2640,9 @@ function executeFinalizedTaskResumeV3({
     priorOwnerGeneration: currentOwner?.ownerGeneration || 0,
     priorLeaseRevision: currentOwner?.leaseRevision || 0,
     priorOwnerLeaseDigest: currentOwner?.leaseDigest || null,
+    priorProjectRootIdentityDigest: transaction.projectRootIdentityDigest,
+    projectRootIdentityDigest: input.projectTargetLease.rootIdentityDigest,
+    relocation: projectRootRebound ? clone(relocation) : null,
     candidateDigest: candidate.candidateDigest,
     attemptDigest: candidate.attemptDigest,
     canonicalOverviewDigest: canonical.canonicalOverviewDigest,

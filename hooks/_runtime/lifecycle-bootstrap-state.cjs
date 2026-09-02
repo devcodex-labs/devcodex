@@ -159,6 +159,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     validateStickyProjectLease,
     readWorkspaceSessionRouteHint,
     resolveProjectTargetIdentity,
+    resolveTaskContinuation,
     getRecentBootstrapTaskStamps,
     isRecentBootstrapTaskPath,
     buildInterceptionOutput,
@@ -649,6 +650,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       autoCheckpointDecision: null,
       autoCheckpointDecisions: [],
       taskScopedAutoStatus: null,
+      workspaceSessionRouteResolution: null,
       workspaceSessionRouteHint: null,
       contextDeliveryReceipts: [],
       actualInstructionEnvelope: null,
@@ -768,16 +770,41 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       : String(state?.activeProject || state?.contextAcquisition?.project || CONTEXT_PROJECT || path.basename(CONTEXT_ROOT)).trim()
   }
 
+  function resolveProjectFromStableRouteTask(routeHint, expectedProject = '') {
+    const unresolved = { project: '', source: '', taskId: '' }
+    const taskId = String(routeHint?.entry?.taskId || '').trim().toLowerCase()
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(taskId) ||
+        typeof resolveTaskContinuation !== 'function') return unresolved
+    try {
+      const resolution = resolveTaskContinuation({
+        cwd: CONTEXT_ROOT,
+        name: taskId,
+        scope: 'workspace',
+        persistIndex: false
+      })
+      const project = String(resolution?.candidate?.project || '').trim()
+      if (resolution?.status === 'resolved-active' && project &&
+          (!expectedProject || project === expectedProject) &&
+          listWorkspaceProjects().includes(project)) {
+        return { project, source: 'stable-task-id', taskId }
+      }
+    } catch {}
+    return unresolved
+  }
+
   function resolveProjectFromSessionRouteHint(routeHint) {
+    const unresolved = { project: '', source: '', taskId: '' }
     const expectedDigest = String(routeHint?.entry?.projectRootIdentityDigest || '').trim()
-    if (!expectedDigest || typeof resolveProjectTargetIdentity !== 'function') return ''
+    if (!expectedDigest || typeof resolveProjectTargetIdentity !== 'function') return unresolved
     for (const project of listWorkspaceProjects()) {
       try {
         const identity = resolveProjectTargetIdentity(project)
-        if (identity?.rootIdentityDigest === expectedDigest) return project
+        if (identity?.rootIdentityDigest === expectedDigest) {
+          return { project, source: 'project-root-identity', taskId: String(routeHint?.entry?.taskId || '').trim() }
+        }
       } catch {}
     }
-    return ''
+    return resolveProjectFromStableRouteTask(routeHint)
   }
 
   function recoveryIdentityForState(state) {
@@ -853,9 +880,18 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const sessionRouteHint = sessionKey && typeof readWorkspaceSessionRouteHint === 'function'
       ? readWorkspaceSessionRouteHint({ sessionRef: sessionKey })
       : null
-    const routeHintedProject = sessionRouteHint?.status === 'fresh'
+    const carriedRouteResolution = options.routeResolution?.status === 'verified' &&
+      String(options.routeResolution.project || '').trim()
+      ? {
+          project: String(options.routeResolution.project).trim(),
+          source: String(options.routeResolution.source || ''),
+          taskId: String(options.routeResolution.taskId || '').trim()
+        }
+      : null
+    const routeResolution = carriedRouteResolution || (sessionRouteHint?.status === 'fresh'
       ? resolveProjectFromSessionRouteHint(sessionRouteHint)
-      : ''
+      : { project: '', source: '', taskId: '' })
+    const routeHintedProject = routeResolution.project
     let metaTurnProject = ''
     if (LAYOUT.enabled && options.userIngress !== true && !String(sessionKey || '').trim() &&
         typeof validateStickyProjectLease === 'function') {
@@ -892,6 +928,16 @@ function buildLifecycleBootstrapStateUtils(ctx) {
           entry: sessionRouteHint.entry || null,
           authority: false,
           hintOnly: true
+        }
+      : null
+    probe.workspaceSessionRouteResolution = routeHintedProject
+      ? {
+          schemaVersion: 'WorkspaceSessionRouteResolutionV1',
+          status: 'verified',
+          project: routeHintedProject,
+          source: routeResolution.source,
+          taskId: routeResolution.taskId || '',
+          mutationAuthority: false
         }
       : null
     const expected = recoveryIdentityForState(probe)
@@ -1012,6 +1058,29 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     delete state.dangerousApprovals
     delete state.dangerousApprovalRecovery
     state.workspaceSessionRouteHint = probe.workspaceSessionRouteHint || state.workspaceSessionRouteHint || null
+    state.workspaceSessionRouteResolution = probe.workspaceSessionRouteResolution || null
+    if (state.workspaceSessionRouteResolution?.source === 'project-root-identity' &&
+        String(sessionRouteHint?.entry?.taskId || '').trim()) {
+      const stickyValidation = typeof validateStickyProjectLease === 'function'
+        ? validateStickyProjectLease(state, { session_id: sessionKey })
+        : { valid: false }
+      if (!stickyValidation.valid) {
+        const stableTaskResolution = resolveProjectFromStableRouteTask(
+          sessionRouteHint,
+          state.workspaceSessionRouteResolution.project
+        )
+        if (stableTaskResolution.project) {
+          state.workspaceSessionRouteResolution = {
+            schemaVersion: 'WorkspaceSessionRouteResolutionV1',
+            status: 'verified',
+            project: stableTaskResolution.project,
+            source: stableTaskResolution.source,
+            taskId: stableTaskResolution.taskId,
+            mutationAuthority: false
+          }
+        }
+      }
+    }
     if (state.taskRecoveryBinding && String(state.taskRecoveryBinding.project || '') !== recoveryProjectForState(state)) {
       state.taskRecoveryBinding = null
       state.taskScopedAutoContinuationGrant = null

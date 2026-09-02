@@ -520,6 +520,16 @@ function buildLifecycleProjectTargetUtils({
     if (sticky) {
       return { activeProject: sticky.project, activeScope: 'project', source: 'sticky' }
     }
+    const routeResolution = previousState?.workspaceSessionRouteResolution
+    if (routeResolution?.status === 'verified' &&
+        routeResolution.source === 'stable-task-id' &&
+        String(routeResolution.project || '').trim()) {
+      return {
+        activeProject: String(routeResolution.project).trim(),
+        activeScope: 'project',
+        source: 'session-route-task-id'
+      }
+    }
     if (String(previousState?.stickyProject?.project || '').trim()) {
       const validation = previousState?.stickyProject?.authorityKind === 'turn' && !getPayloadSessionKey(payload)
         ? { valid: false, reason: 'turn-boundary' }
@@ -816,6 +826,91 @@ function buildLifecycleProjectTargetUtils({
     return grant
   }
 
+  function sameTurnNewAdmissionAutoBinding(state, sticky, admissionReadback) {
+    const binding = formalTaskAutoBinding(state)
+    const transaction = admissionReadback && typeof admissionReadback === 'object'
+      ? admissionReadback
+      : null
+    const envelope = state?.actualInstructionEnvelope
+    const route = state?.workflowRouteDecision
+    const projectLease = state?.stickyProject
+    if (!binding || !transaction || !envelope || !route || !projectLease) {
+      return { valid: false, reason: 'same-turn-new-admission-evidence-missing' }
+    }
+    if (transaction.schemaVersion !== 'TaskAdmissionTransactionV1' ||
+        transaction.phase !== 'finalized' || transaction.status !== 'finalized' ||
+        transaction.operation !== 'admit' || Number(transaction.admissionGeneration) !== 1) {
+      return { valid: false, reason: 'same-turn-new-admission-not-finalized-g1' }
+    }
+    if (!['new', 'product-provided', 'change', 'fix'].includes(String(transaction.entryVariant || ''))) {
+      return { valid: false, reason: 'same-turn-new-admission-entry-invalid' }
+    }
+    const exactPairs = [
+      [transaction.taskId, binding.taskId],
+      [transaction.project, binding.project],
+      [transaction.projectRootIdentityDigest, binding.projectRootIdentityDigest],
+      [transaction.projectRootIdentityDigest, projectLease.rootIdentityDigest],
+      [transaction.sessionDigest, projectLease.authorityDigest],
+      [transaction.projectTargetLeaseDigest, projectLease.leaseDigest],
+      [transaction.hostVariant, envelope.hostVariant],
+      [transaction.sourceEventId, envelope.sourceEventId],
+      [transaction.actualInstructionDigest, envelope.actualInstructionDigest],
+      [transaction.actualInstructionDigest, sticky?.sourceMessageDigest],
+      [transaction.workItemId, route.workItemId],
+      [transaction.workItemDigest, route.workItemDigest],
+      [transaction.workflowRouteDigest, route.decisionDigest],
+      [transaction.routeKey, route.routeKey],
+      [transaction.routeRevision, route.routeRevision]
+    ]
+    if (exactPairs.some(([left, right]) => !left || !right || String(left) !== String(right))) {
+      return { valid: false, reason: 'same-turn-new-admission-binding-mismatch' }
+    }
+    const transactionTaskRoot = String(transaction.taskRootRelative || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
+    const bindingTaskRoot = String(binding.taskRootRelative || '').replace(/\\/g, '/').replace(/^\/+|\/+$/g, '')
+    const unsafeRoot = value => !value || value.split('/').some(segment => !segment || segment === '.' || segment === '..')
+    const comparable = value => process.platform === 'win32' ? value.toLowerCase() : value
+    if (unsafeRoot(transactionTaskRoot) || unsafeRoot(bindingTaskRoot) ||
+        comparable(transactionTaskRoot) !== comparable(bindingTaskRoot)) {
+      return { valid: false, reason: 'same-turn-new-admission-task-root-mismatch' }
+    }
+    return { valid: true, binding }
+  }
+
+  function promoteTaskScopedAutoAfterBinding(state, payload, evidence = {}) {
+    const existing = state?.taskScopedAutoContinuationGrant || null
+    if (existing) {
+      const active = getValidTaskScopedAuto(state)
+      return active
+        ? { status: 'already-active', grant: active }
+        : { status: 'not-authorized', reason: state?.taskScopedAutoStatus?.reason || 'existing-grant-not-active' }
+    }
+    if (state?.executionMode !== EXECUTION_MODE.AUTO) {
+      return { status: 'not-authorized', reason: 'execution-mode-not-auto' }
+    }
+    const sticky = getValidStickyAuto(state, payload)
+    if (!sticky) {
+      return { status: 'not-authorized', reason: 'same-session-sticky-auto-unavailable' }
+    }
+    const admissionMatch = sameTurnNewAdmissionAutoBinding(
+      state,
+      sticky,
+      evidence.admissionTransaction
+    )
+    if (!admissionMatch.valid) {
+      return { status: 'not-authorized', reason: admissionMatch.reason }
+    }
+    const grant = createTaskScopedAutoFromAuthorization(
+      state,
+      '',
+      { source: sticky.source, kind: 'same-turn-task-bind' },
+      sticky
+    )
+    if (!grant) {
+      return { status: 'not-authorized', reason: state?.taskScopedAutoStatus?.reason || 'formal-task-binding-unavailable' }
+    }
+    return { status: 'promoted', grant }
+  }
+
   function detectExecutionMode(payload, state, target) {
     const prompt = extractUserPrompt(payload)
     if (hasAutoExitPrompt(prompt)) {
@@ -945,6 +1040,7 @@ function buildLifecycleProjectTargetUtils({
     getValidStickyAuto,
     setStickyAuto,
     clearStickyAuto,
+    promoteTaskScopedAutoAfterBinding,
     detectExecutionMode,
     buildExecutionModeContextMessage,
     buildMultiProjectBlockMessage

@@ -1467,6 +1467,99 @@ function main() {
   runHooksRuntimeGovernanceIntakeScenarios(runtimeScenarioContext)
   runHooksRuntimeVisibilityScenarios(runtimeScenarioContext)
 
+  // A session route is a hint, not permanent authority. If the physical root
+  // marker changes after relocation, recover the exact active project once by
+  // the route's stable taskId, then refresh the session route to the new root.
+  const relocatedWorkspace = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-hook-relocated-route-'))
+  try {
+    const relocatedProject = 'relocated-app'
+    const relocatedSession = 'relocated-route-session'
+    const relocatedTaskId = '7d3f1455-a8fc-46a5-91aa-d92ef1e4c7ac'
+    const relocatedPhysicalRoot = path.join(relocatedWorkspace, relocatedProject)
+    const relocatedActiveRoot = path.join(relocatedWorkspace, '.devcodex', relocatedProject)
+    const relocatedStateFile = path.join(
+      relocatedActiveRoot,
+      '.memory',
+      'hooks',
+      relocatedProject,
+      'lifecycle-state.json'
+    )
+    fs.mkdirSync(path.join(relocatedWorkspace, '.devcodex', 'workspace', 'profile'), { recursive: true })
+    fs.mkdirSync(path.join(relocatedActiveRoot, 'profile'), { recursive: true })
+    fs.mkdirSync(relocatedPhysicalRoot, { recursive: true })
+    fs.writeFileSync(
+      path.join(relocatedWorkspace, '.devcodex', 'layout.json'),
+      `${JSON.stringify({ version: 1, mode: 'workspace-namespace' }, null, 2)}\n`
+    )
+    fs.writeFileSync(
+      path.join(relocatedWorkspace, '.devcodex', 'workspace', 'profile', 'config.json'),
+      `${JSON.stringify({ mode: 'prod', agent: TEST_AGENT }, null, 2)}\n`
+    )
+    fs.writeFileSync(
+      path.join(relocatedActiveRoot, 'profile', 'config.json'),
+      `${JSON.stringify({ mode: 'dev', agent: TEST_AGENT }, null, 2)}\n`
+    )
+    const markerPath = path.join(relocatedPhysicalRoot, 'package.json')
+    fs.writeFileSync(markerPath, '{}\n')
+    const relocatedTaskRoot = path.join(relocatedActiveRoot, 'requirements', 'Relocated Hook Task')
+    fs.mkdirSync(path.join(relocatedTaskRoot, '.memory'), { recursive: true })
+    fs.writeFileSync(path.join(relocatedTaskRoot, '.memory', 'task.json'), `${JSON.stringify({
+      schemaVersion: 'TaskIdentityV1',
+      taskId: relocatedTaskId,
+      displayName: 'Relocated Hook Task',
+      aliases: [],
+      createdAt: '2026-08-25T00:00:00.000Z',
+      identityRevision: 1
+    }, null, 2)}\n`)
+    fs.writeFileSync(
+      path.join(relocatedTaskRoot, '.memory', 'sessions.md'),
+      '# Relocated Hook Task\n\n> **当前状态**: 🔄 active\n'
+    )
+    run({
+      hookEventName: 'UserPromptSubmit',
+      session_id: relocatedSession,
+      prompt: `继续 Relocated Hook Task，项目=${relocatedProject}`
+    }, relocatedWorkspace)
+    const beforeRelocation = JSON.parse(fs.readFileSync(relocatedStateFile, 'utf8'))
+    assert.strictEqual(beforeRelocation.taskRecoveryBinding?.taskId, relocatedTaskId)
+    const oldRootIdentity = beforeRelocation.stickyProject.rootIdentityDigest
+    const routeIndex = createWorkspaceSessionRouteIndex({
+      metaDir: path.join(relocatedWorkspace, '.devcodex', 'workspace', '.memory', 'hooks', 'workspace'),
+      fs,
+      path
+    })
+    const oldRoute = routeIndex.read({ sessionRef: relocatedSession })
+    assert.strictEqual(oldRoute.status, 'fresh')
+    assert.strictEqual(oldRoute.entry.taskId, relocatedTaskId)
+    assert.strictEqual(oldRoute.entry.projectRootIdentityDigest, oldRootIdentity)
+
+    fs.renameSync(markerPath, `${markerPath}.pre-relocation`)
+    fs.writeFileSync(markerPath, '{"relocated":true}\n')
+    const resumedAfterRelocation = run({
+      hookEventName: 'UserPromptSubmit',
+      session_id: relocatedSession,
+      prompt: '@rocky 刚才断电了，你继续'
+    }, relocatedWorkspace)
+    const afterRelocation = JSON.parse(fs.readFileSync(relocatedStateFile, 'utf8'))
+    assert.strictEqual(afterRelocation.activeProject, relocatedProject)
+    assert.strictEqual(afterRelocation.activeProjectSource, 'session-route-task-id')
+    assert.strictEqual(afterRelocation.taskRecoveryBinding?.taskId, relocatedTaskId)
+    assert.notStrictEqual(afterRelocation.stickyProject.rootIdentityDigest, oldRootIdentity)
+    assert.doesNotMatch(
+      JSON.stringify(resumedAfterRelocation),
+      /TASK_PROJECT_REQUIRED|multi-project-workspace-block/i
+    )
+    const refreshedRoute = routeIndex.read({ sessionRef: relocatedSession })
+    assert.strictEqual(refreshedRoute.status, 'fresh')
+    assert.strictEqual(refreshedRoute.entry.taskId, relocatedTaskId)
+    assert.strictEqual(
+      refreshedRoute.entry.projectRootIdentityDigest,
+      afterRelocation.stickyProject.rootIdentityDigest
+    )
+  } finally {
+    fs.rmSync(relocatedWorkspace, { recursive: true, force: true })
+  }
+
   // TaskResolutionV1: a canonical resume message resolves identity before
   // Context Acquisition, while Hook remains a no-payload/no-CP thin adapter.
   cleanState()
@@ -1808,6 +1901,119 @@ function main() {
     ...formalAutoState,
     executionMode: 'auto'
   }), /自动续批.*不依赖 session 或 TTL/)
+
+  const lateBoundAutoState = {
+    activeProject: 'devcodex',
+    activeScope: 'project',
+    stickyProject: {
+      schemaVersion: 'ProjectTargetLeaseV2',
+      project: 'devcodex',
+      activeRoot: path.join(TEMP_ROOT, '.devcodex'),
+      rootIdentityDigest: 'c'.repeat(64),
+      authorityDigest: 'd'.repeat(64),
+      leaseDigest: 'e'.repeat(64)
+    },
+    stickyAuto: { active: false }
+  }
+  lateBoundAutoState.executionMode = formalAutoUtils.detectExecutionMode({
+    prompt: '@rocky 新建正式任务并在同一轮自动确认 CP1',
+    session_id: 'late-bound-auto-session'
+  }, lateBoundAutoState, null)
+  assert.strictEqual(lateBoundAutoState.executionMode, 'auto')
+  assert.strictEqual(lateBoundAutoState.taskScopedAutoContinuationGrant, undefined)
+  lateBoundAutoState.taskRecoveryBinding = {
+    taskId: '00000000-0000-4000-8000-0000000000f6',
+    project: 'devcodex',
+    kind: 'requirements',
+    displayName: '同轮新建自动任务',
+    taskRoot: path.join(TEMP_ROOT, '.devcodex', 'requirements', '同轮新建自动任务')
+  }
+  assert.deepStrictEqual(
+    formalAutoUtils.promoteTaskScopedAutoAfterBinding(
+      lateBoundAutoState,
+      { session_id: 'late-bound-auto-session' }
+    ),
+    { status: 'not-authorized', reason: 'same-turn-new-admission-evidence-missing' }
+  )
+  lateBoundAutoState.actualInstructionEnvelope = {
+    hostVariant: 'codex',
+    sourceEventId: 'event-late-bound-auto',
+    actualInstructionDigest: lateBoundAutoState.stickyAuto.sourceMessageDigest
+  }
+  lateBoundAutoState.workflowRouteDecision = {
+    workItemId: 'work-item-late-bound-auto',
+    workItemDigest: '1'.repeat(64),
+    decisionDigest: '2'.repeat(64),
+    routeKey: 'dev.default',
+    routeRevision: '3'.repeat(64)
+  }
+  lateBoundAutoState.admissionTransaction = {
+    schemaVersion: 'TaskAdmissionTransactionV1',
+    phase: 'finalized',
+    status: 'finalized',
+    operation: 'admit',
+    admissionGeneration: 1,
+    taskId: lateBoundAutoState.taskRecoveryBinding.taskId,
+    project: 'devcodex',
+    projectRootIdentityDigest: 'c'.repeat(64),
+    sessionDigest: 'd'.repeat(64),
+    projectTargetLeaseDigest: 'e'.repeat(64),
+    hostVariant: 'codex',
+    sourceEventId: 'event-late-bound-auto',
+    actualInstructionDigest: lateBoundAutoState.stickyAuto.sourceMessageDigest,
+    workItemId: 'work-item-late-bound-auto',
+    workItemDigest: '1'.repeat(64),
+    workflowRouteDigest: '2'.repeat(64),
+    routeKey: 'dev.default',
+    routeRevision: '3'.repeat(64),
+    entryVariant: 'change',
+    taskRootRelative: 'requirements/同轮新建自动任务'
+  }
+  const lateBoundPromotion = formalAutoUtils.promoteTaskScopedAutoAfterBinding(
+    lateBoundAutoState,
+    { session_id: 'late-bound-auto-session' },
+    { admissionTransaction: lateBoundAutoState.admissionTransaction }
+  )
+  assert.strictEqual(lateBoundPromotion.status, 'promoted')
+  assert.strictEqual(validateTaskScopedAutoContinuationGrant(lateBoundPromotion.grant, {
+    taskId: lateBoundAutoState.taskRecoveryBinding.taskId,
+    project: 'devcodex',
+    projectRootIdentityDigest: 'c'.repeat(64)
+  }).valid, true)
+
+  const mismatchedAdmissionState = {
+    ...lateBoundAutoState,
+    taskScopedAutoContinuationGrant: null,
+    autoCheckpointDecision: null,
+    admissionTransaction: {
+      ...lateBoundAutoState.admissionTransaction,
+      taskId: '00000000-0000-4000-8000-000000000099'
+    }
+  }
+  assert.deepStrictEqual(
+    formalAutoUtils.promoteTaskScopedAutoAfterBinding(
+      mismatchedAdmissionState,
+      { session_id: 'late-bound-auto-session' },
+      { admissionTransaction: mismatchedAdmissionState.admissionTransaction }
+    ),
+    { status: 'not-authorized', reason: 'same-turn-new-admission-binding-mismatch' }
+  )
+  assert.strictEqual(mismatchedAdmissionState.taskScopedAutoContinuationGrant, null)
+
+  const crossSessionLateBindState = {
+    ...lateBoundAutoState,
+    taskScopedAutoContinuationGrant: null,
+    autoCheckpointDecision: null
+  }
+  assert.deepStrictEqual(
+    formalAutoUtils.promoteTaskScopedAutoAfterBinding(
+      crossSessionLateBindState,
+      { session_id: 'different-late-bound-session' }
+    ),
+    { status: 'not-authorized', reason: 'same-session-sticky-auto-unavailable' }
+  )
+  assert.strictEqual(crossSessionLateBindState.taskScopedAutoContinuationGrant, null)
+
   formalAutoState.stickyAuto.updatedAtMs = 0
   assert.strictEqual(formalAutoUtils.detectExecutionMode({
     prompt: '继续同一任务',
@@ -1833,6 +2039,130 @@ function main() {
   }, revokedFormalState, null), 'confirm')
   assert.strictEqual(revokedFormalState.taskScopedAutoContinuationGrant.status, 'revoked')
   assert.strictEqual(revokedFormalState.stickyAuto.active, false)
+
+  cleanState()
+  const sameTurnTaskName = '同轮新建Hook自动任务'
+  const sameTurnTaskRoot = path.join(TEMP_ROOT, '.devcodex', 'requirements', sameTurnTaskName)
+  const sameTurnArtifact = path.join(sameTurnTaskRoot, '01-需求确认.md')
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'same-turn-hook-auto-session',
+    prompt: '@rocky 新建正式任务并在同一轮确认 CP1'
+  })
+  runBootstrapReads(TEST_AGENT, 'dev', ['source-code'])
+  let sameTurnState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  const sameTurnWorkItems = sameTurnState.workItemSet
+  const sameTurnRoute = sameTurnState.workflowRouteDecision
+  assert.strictEqual(sameTurnState.stickyProject.routeRevision, sameTurnRoute.routeRevision)
+  const sameTurnProject = sameTurnState.stickyProject.project || sameTurnState.activeProject
+  const sameTurnAdmissionInput = {
+    operation: 'admit',
+    activeRoot: path.join(TEMP_ROOT, '.devcodex'),
+    project: sameTurnProject,
+    actualInstructionEnvelope: sameTurnState.actualInstructionEnvelope,
+    workItemSet: sameTurnWorkItems,
+    workflowRouteDecision: sameTurnRoute,
+    projectTargetLease: sameTurnState.stickyProject,
+    task: {
+      taskKind: 'requirements',
+      entryVariant: 'change',
+      displayName: sameTurnTaskName
+    },
+    overview: { content: '# 需求概况\n\n同轮自动任务。\n' }
+  }
+  const sameTurnAdmission = executeTaskAdmission(sameTurnAdmissionInput)
+  const sameTurnTaskId = sameTurnAdmission.taskId
+  executeTaskWriteOwner({
+    operation: 'acquire',
+    activeRoot: sameTurnAdmissionInput.activeRoot,
+    project: sameTurnProject,
+    actualInstructionEnvelope: sameTurnState.actualInstructionEnvelope,
+    workItemSet: sameTurnWorkItems,
+    workflowRouteDecision: sameTurnRoute,
+    projectTargetLease: sameTurnState.stickyProject,
+    taskId: sameTurnAdmission.taskId,
+    admissionId: sameTurnAdmission.admissionId
+  })
+  const sameTurnRecoveryIdentity = {
+    activeRoot: sameTurnAdmissionInput.activeRoot,
+    project: sameTurnProject,
+    taskId: sameTurnTaskId,
+    taskStatus: 'active'
+  }
+  const sameTurnMetaDir = resolveTaskRecoveryMetaDir(sameTurnRecoveryIdentity)
+  const sameTurnOwnerRead = readFencedTaskWriteOwner({
+    metaDir: sameTurnMetaDir,
+    identity: sameTurnRecoveryIdentity
+  })
+  const sameTurnRecoveryRead = readTaskRecoveryState({
+    metaDir: sameTurnMetaDir,
+    identity: sameTurnRecoveryIdentity
+  })
+  assert.strictEqual(sameTurnOwnerRead.status, 'fresh')
+  assert.strictEqual(sameTurnRecoveryRead.status, 'fresh')
+  assert.strictEqual(sameTurnOwnerRead.transaction.phase, 'finalized')
+  sameTurnState.taskRecoveryBinding = {
+    schemaVersion: 'TaskRecoveryBindingV1',
+    taskId: sameTurnTaskId,
+    displayName: sameTurnTaskName,
+    project: sameTurnProject,
+    kind: 'requirements',
+    taskRoot: sameTurnTaskRoot,
+    status: 'active',
+    identityRevision: 2,
+    boundAt: new Date().toISOString()
+  }
+  sameTurnState.admissionTransaction = sameTurnOwnerRead.transaction
+  sameTurnState.fencedWriteOwner = sameTurnOwnerRead.owner
+  sameTurnState.taskRecoveryCommitFence = sameTurnRecoveryRead.commitFence
+  const sameTurnStateCommit = commitTaskRecoveryState({
+    metaDir: sameTurnMetaDir,
+    identity: sameTurnRecoveryIdentity,
+    sessionKey: 'same-turn-hook-auto-session',
+    state: sameTurnState
+  }, { force: true, reserveBytes: 8 * 1024 * 1024 })
+  assert.strictEqual(
+    sameTurnStateCommit.status,
+    'committed',
+    `same-turn recovery state commit failed: ${JSON.stringify(sameTurnStateCommit)}`
+  )
+  fs.writeFileSync(sameTurnArtifact, '# CP1\n')
+  run({
+    hookEventName: 'PreToolUse',
+    session_id: 'same-turn-hook-auto-session',
+    tool_name: 'mcp__devcodex-memory__memory_cp_confirm',
+    tool_input: {
+      requirement: sameTurnTaskName,
+      kind: 'requirements',
+      phase: 'CP1',
+      artifactPath: sameTurnArtifact,
+      artifactSha256: crypto.createHash('sha256').update(fs.readFileSync(sameTurnArtifact)).digest('hex')
+    }
+  })
+  const sameTurnHookState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(sameTurnHookState.taskRecoveryBinding?.taskId, sameTurnTaskId)
+  assert.strictEqual(validateTaskScopedAutoContinuationGrant(
+    sameTurnHookState.taskScopedAutoContinuationGrant,
+    {
+      taskId: sameTurnTaskId,
+      project: sameTurnHookState.taskRecoveryBinding?.project,
+      projectRootIdentityDigest: sameTurnHookState.stickyProject?.rootIdentityDigest
+    }
+  ).valid, true, 'same-turn Hook binding must persist a task-scoped Auto grant before CP1 confirmation')
+  const sameTurnDurableState = readTaskRecoveryState({
+    metaDir: sameTurnMetaDir,
+    identity: sameTurnRecoveryIdentity
+  })
+  assert.strictEqual(sameTurnDurableState.status, 'fresh')
+  assert.strictEqual(validateTaskScopedAutoContinuationGrant(
+    sameTurnDurableState.state.taskScopedAutoContinuationGrant,
+    {
+      taskId: sameTurnTaskId,
+      project: sameTurnProject,
+      projectRootIdentityDigest: sameTurnHookState.stickyProject?.rootIdentityDigest
+    }
+  ).valid, true, 'same-turn Hook binding must commit Auto authority to the formal task store before the MCP call')
+  fs.rmSync(sameTurnTaskRoot, { recursive: true, force: true })
 
   cleanState({
     mode: 'dev',

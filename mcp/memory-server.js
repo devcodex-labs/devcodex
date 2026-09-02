@@ -3975,57 +3975,10 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
   }
   const scopeKey = LAYOUT.enabled ? assertSingleSegment(target.project, 'project') : 'legacy'
   const ingressMetaDir = path.join(target.activeRoot, '.memory', 'hooks', scopeKey)
-  const snapshotRead = options.allowSnapshot === true
-    ? readAdmissionIngressSnapshot({
-        metaDir: ingressMetaDir,
-        ingressRef: ref,
-        project: target.project,
-        activeRoot: target.activeRoot
-      }, { fs, nowMs: Date.now() })
-    : { status: 'missing' }
-  if (snapshotRead.status === 'fresh') {
-    const snapshot = snapshotRead.snapshot
-    const projectRoot = currentPhysicalProjectRoot(target)
-    const leaseValidation = validateProjectTargetLease(snapshot.projectTargetLease, {
-      project: target.project,
-      activeRoot: target.activeRoot,
-      physicalRoot: projectRoot,
-      contextEpoch: snapshot.actualInstructionEnvelope.contextEpoch,
-      routeRevision: snapshot.workflowRouteDecision.routeRevision
-    }, { nowMs: Date.now() })
-    if (!leaseValidation.valid) {
-      throw taskAdmissionIngressError(
-        'TASK_ADMISSION_CONTINUATION_PROJECT_LEASE_INVALID',
-        'the immutable admission ingress is bound to a stale or different project target lease',
-        { errors: leaseValidation.errors, snapshotKey: snapshot.snapshotKey }
-      )
-    }
-    return {
-      actualInstructionEnvelope: snapshot.actualInstructionEnvelope,
-      workItemSet: snapshot.workItemSet,
-      workflowRouteDecision: snapshot.workflowRouteDecision,
-      projectTargetLease: snapshot.projectTargetLease,
-      projectRoot,
-      lifecycleState: snapshotRead.state,
-      ingressSnapshotRef: snapshotRead.ref,
-      authorityReceipt: {
-        schemaVersion: 'ServerOwnedAdmissionIngressReceiptV1',
-        source: 'immutable-snapshot',
-        sourceDigest: snapshot.snapshotDigest,
-        envelopeDigest: snapshot.actualInstructionEnvelope.envelopeDigest,
-        decisionDigest: snapshot.workflowRouteDecision.decisionDigest,
-        projectTargetLeaseDigest: snapshot.projectTargetLease.leaseDigest,
-        snapshotKey: snapshot.snapshotKey
-      }
-    }
-  }
-  if (!['missing'].includes(snapshotRead.status)) {
-    throw taskAdmissionIngressError(
-      `TASK_ADMISSION_CONTINUATION_${String(snapshotRead.status || 'invalid').toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`,
-      'the exact immutable admission ingress snapshot is unavailable or invalid',
-      { snapshot: snapshotRead }
-    )
-  }
+  // A bounded resume capability is narrower than the immutable host snapshot:
+  // it is additionally bound to the exact finalized task generation and
+  // fenced owner. Prefer it when both share the same ingressRef so relocation
+  // rebinding remains authoritative for renew/release/terminal calls.
   const resumeRead = readBoundedResumeIngressCapability({
     metaDir: ingressMetaDir,
     ingressRef: ref,
@@ -4077,6 +4030,57 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
       resumeRead.errorCode || 'BOUNDED_RESUME_INGRESS_UNAVAILABLE',
       'the bounded resume ingress exists but is not authorized by the current V5 admission and owner',
       { resume: resumeRead }
+    )
+  }
+  const snapshotRead = options.allowSnapshot === true
+    ? readAdmissionIngressSnapshot({
+        metaDir: ingressMetaDir,
+        ingressRef: ref,
+        project: target.project,
+        activeRoot: target.activeRoot
+      }, { fs, nowMs: Date.now() })
+    : { status: 'missing' }
+  if (snapshotRead.status === 'fresh') {
+    const snapshot = snapshotRead.snapshot
+    const projectRoot = currentPhysicalProjectRoot(target)
+    const leaseValidation = validateProjectTargetLease(snapshot.projectTargetLease, {
+      project: target.project,
+      activeRoot: target.activeRoot,
+      physicalRoot: projectRoot,
+      contextEpoch: snapshot.actualInstructionEnvelope.contextEpoch,
+      routeRevision: snapshot.workflowRouteDecision.routeRevision
+    }, { nowMs: Date.now() })
+    if (!leaseValidation.valid) {
+      throw taskAdmissionIngressError(
+        'TASK_ADMISSION_CONTINUATION_PROJECT_LEASE_INVALID',
+        'the immutable admission ingress is bound to a stale or different project target lease',
+        { errors: leaseValidation.errors, snapshotKey: snapshot.snapshotKey }
+      )
+    }
+    return {
+      actualInstructionEnvelope: snapshot.actualInstructionEnvelope,
+      workItemSet: snapshot.workItemSet,
+      workflowRouteDecision: snapshot.workflowRouteDecision,
+      projectTargetLease: snapshot.projectTargetLease,
+      projectRoot,
+      lifecycleState: snapshotRead.state,
+      ingressSnapshotRef: snapshotRead.ref,
+      authorityReceipt: {
+        schemaVersion: 'ServerOwnedAdmissionIngressReceiptV1',
+        source: 'immutable-snapshot',
+        sourceDigest: snapshot.snapshotDigest,
+        envelopeDigest: snapshot.actualInstructionEnvelope.envelopeDigest,
+        decisionDigest: snapshot.workflowRouteDecision.decisionDigest,
+        projectTargetLeaseDigest: snapshot.projectTargetLease.leaseDigest,
+        snapshotKey: snapshot.snapshotKey
+      }
+    }
+  }
+  if (!['missing'].includes(snapshotRead.status)) {
+    throw taskAdmissionIngressError(
+      `TASK_ADMISSION_CONTINUATION_${String(snapshotRead.status || 'invalid').toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`,
+      'the exact immutable admission ingress snapshot is unavailable or invalid',
+      { snapshot: snapshotRead }
     )
   }
   const relativeStatePath = path.join('.memory', 'hooks', scopeKey, 'lifecycle-state.json')
@@ -4622,9 +4626,15 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
     activeRoot: target.activeRoot,
     project: target.project
   })
+  const nowMs = Date.now()
+  // TaskIdentityV2 retains the first-admission root as immutable provenance.
+  // The resumed admission generation and fenced owner instead bind the current
+  // verified host lease, so relocation never leaves live mutation authority on
+  // a root that is no longer the selected physical project.
+  const resumeProjectTargetLease = ingress.projectTargetLease
   const liveness = observeFinalizedTaskResumeLiveness(ownerRead.state || {}, ownerRead.owner, {
-    nowMs: Date.now(),
-    targetSessionDigest: ingress.projectTargetLease.authorityDigest,
+    nowMs,
+    targetSessionDigest: resumeProjectTargetLease.authorityDigest,
     targetContextEpoch: binding.contextEpoch
   })
   const attemptDigest = stableRuntimeDigest({
@@ -4652,11 +4662,11 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
       workflowRouteDecision: ingress.workflowRouteDecision,
       workflowRoutePlanBinding: null,
       workflowIngressRecovery: null,
-      stickyProject: ingress.projectTargetLease
+      stickyProject: resumeProjectTargetLease
     },
     project: target.project,
     activeRoot: target.activeRoot,
-    projectRootIdentityDigest: transaction.projectRootIdentityDigest,
+    projectRootIdentityDigest: resumeProjectTargetLease.rootIdentityDigest,
     taskId,
     taskRootRelative: transaction.taskRootRelative,
     taskIdentityDigest: canonical.taskIdentityDigest,
@@ -4677,7 +4687,7 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
     },
     runtime: MEMORY_RUNTIME_IDENTITY,
     liveness
-  }, { fs, nowMs: Date.now() })
+  }, { fs, nowMs })
   if (!['persisted', 'semantic-noop'].includes(write.status)) {
     throw taskAdmissionIngressError(
       write.errorCode || 'FINALIZED_TASK_RESUME_CANDIDATE_PERSIST_FAILED',

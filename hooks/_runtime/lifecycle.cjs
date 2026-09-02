@@ -515,6 +515,7 @@ const {
   setStickyProject,
   shouldSuppressMultiProjectWarning,
   detectExecutionMode,
+  promoteTaskScopedAutoAfterBinding,
   buildExecutionModeContextMessage,
   buildMultiProjectBlockMessage
 } = buildLifecycleProjectTargetUtils({
@@ -1413,6 +1414,7 @@ const {
   validateStickyProjectLease,
   readWorkspaceSessionRouteHint,
   resolveProjectTargetIdentity,
+  resolveTaskContinuation,
   getRecentBootstrapTaskStamps,
   isRecentBootstrapTaskPath,
   buildInterceptionOutput,
@@ -1550,7 +1552,7 @@ function readTaskIdentityForRecoveryBinding(taskRoot) {
   return null
 }
 
-function bindTaskRecoveryState(state, task) {
+function bindTaskRecoveryState(state, task, options = {}) {
   const rawTaskRoot = String(task?.taskRoot || task?.fullPath || '').trim()
   if (!rawTaskRoot) return false
   const taskRoot = path.resolve(rawTaskRoot)
@@ -1682,6 +1684,11 @@ function bindTaskRecoveryState(state, task) {
       ? state.taskRecoveryBinding.boundAt
       : new Date().toISOString()
   }
+  if (options.promoteTaskScopedAuto === true) {
+    promoteTaskScopedAutoAfterBinding(state, options.payload || {}, {
+      admissionTransaction: ownerRead.status === 'fresh' ? ownerRead.transaction : null
+    })
+  }
   return true
 }
 
@@ -1727,14 +1734,14 @@ function observeValidationControlIngress(state, prompt) {
   }
 }
 
-function refreshTaskRecoveryBinding(state) {
+function refreshTaskRecoveryBinding(state, options = {}) {
   const binding = state?.taskRecoveryBinding
   if (!binding?.taskRoot || !binding?.taskId) return false
   return bindTaskRecoveryState(state, {
     ...binding,
     fullPath: binding.taskRoot,
     name: binding.displayName
-  })
+  }, options)
 }
 
 function rehydrateBoundedResumeIngress(state, payload) {
@@ -1763,6 +1770,14 @@ function rehydrateBoundedResumeIngress(state, payload) {
   if (read.status !== 'fresh' || read.authority !== true) {
     state.resumeIngressRehydrateError = read.errorCode || 'BOUNDED_RESUME_INGRESS_NOT_AUTHORIZED'
     return { status: 'blocked', reasonCode: state.resumeIngressRehydrateError }
+  }
+  let currentTarget
+  try { currentTarget = resolveProjectTargetIdentity(binding.project) } catch {}
+  if (!currentTarget ||
+      read.candidate.projectRootIdentityDigest !== currentTarget.rootIdentityDigest ||
+      read.candidate.ingress?.stickyProject?.rootIdentityDigest !== currentTarget.rootIdentityDigest) {
+    state.resumeIngressRehydrateError = 'BOUNDED_RESUME_PROJECT_ROOT_RELOCATED'
+    return { status: 'skipped', reasonCode: state.resumeIngressRehydrateError }
   }
   const sessionRef = getPayloadSessionKey(payload) || String(state.contextAcquisition?.hostSessionId || '').trim()
   const sessionDigest = sessionRef
@@ -1798,12 +1813,13 @@ function rehydrateBoundedResumeIngress(state, payload) {
   state.fencedWriteOwner = read.owner
   state.resumeIngressCapabilityRef = capabilityRef
   state.resumeIngressRehydrateError = null
-  writeWorkspaceSessionRouteHint(state, payload, 'bounded-resume-rehydrate', { taskId: binding.taskId })
+  const routeReceipt = writeWorkspaceSessionRouteHint(state, payload, 'task-bind', { taskId: binding.taskId })
   return {
     status: 'rehydrated',
     candidateDigest: read.candidate.candidateDigest,
     admissionGeneration: read.transaction.admissionGeneration,
-    ownerGeneration: read.owner.ownerGeneration
+    ownerGeneration: read.owner.ownerGeneration,
+    routeStatus: routeReceipt.status
   }
 }
 
@@ -2727,14 +2743,17 @@ function mutationFootprintBlock(state, payload, platform, adapterDecision, footp
 
 function maybeBindTaskRecoveryForPayload(state, payload, platform) {
   if (isTaskAuthorityControlTool(payload)) return false
-  if (refreshTaskRecoveryBinding(state)) return true
+  const bindOptions = { promoteTaskScopedAuto: true, payload }
+  if (refreshTaskRecoveryBinding(state, bindOptions)) return true
   for (const target of extractToolPaths(payload)) {
     const scoped = getTaskScopeFromPath(target, state)
-    if (scoped && bindTaskRecoveryState(state, scoped)) return true
+    if (scoped && bindTaskRecoveryState(state, scoped, bindOptions)) return true
   }
   if (!isRecoveryMutation(payload, platform, state)) return false
   const task = findIncompleteTaskForPaths(payload, state) || findIncompleteTask(state)
-  return task && !task.taskSelectionError ? bindTaskRecoveryState(state, task) : false
+  return task && !task.taskSelectionError
+    ? bindTaskRecoveryState(state, task, bindOptions)
+    : false
 }
 
 function lifecycleToolOperationId(payload) {
@@ -3271,7 +3290,10 @@ async function main() {
       readModeForPromptTarget(state, promptTarget),
       eventSessionKey,
       null,
-      { userIngress: true }
+      {
+        userIngress: true,
+        routeResolution: state.workspaceSessionRouteResolution || null
+      }
     )
   }
   const continuationIngress = eventName === 'UserPromptSubmit'

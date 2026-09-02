@@ -399,6 +399,11 @@ function buildFinalizedResumeAttempt(root, admission, suffix, nowMs, options = {
     overview: { content: canonical.canonicalOverviewContent },
     serverRuntime: options.runtime || TEST_RUNTIME
   })
+  if (options.projectRootIdentityDigest) {
+    resumeInput.projectTargetLease = refreshedProjectLease(resumeInput.projectTargetLease, {
+      rootIdentityDigest: options.projectRootIdentityDigest
+    })
+  }
   const ingress = {
     activeProject: root.project,
     activeScope: 'project',
@@ -425,7 +430,7 @@ function buildFinalizedResumeAttempt(root, admission, suffix, nowMs, options = {
     ingress,
     project: root.project,
     activeRoot: root.activeRoot,
-    projectRootIdentityDigest: transaction.projectRootIdentityDigest,
+    projectRootIdentityDigest: resumeInput.projectTargetLease.rootIdentityDigest,
     taskId: admission.taskId,
     taskRootRelative: transaction.taskRootRelative,
     taskIdentityDigest: canonical.taskIdentityDigest,
@@ -1934,6 +1939,50 @@ try {
   }, { nowMs: resumeAt, requireAuthority: true })
   assert.strictEqual(authorizedCandidate.status, 'fresh')
   assert.strictEqual(authorizedCandidate.authority, true)
+
+  const relocatedResumeAt = resumeAt + 1000
+  const relocatedResume = createFinalizedResumeFixture('finalized-relocated-resume')
+  setFinalizedResumeLiveness(relocatedResume.root, relocatedResume.admission, {}, relocatedResumeAt)
+  const relocatedAttempt = buildFinalizedResumeAttempt(
+    relocatedResume.root,
+    relocatedResume.admission,
+    'finalized-relocated-resume-next',
+    relocatedResumeAt,
+    { projectRootIdentityDigest: '4'.repeat(64) }
+  )
+  const relocatedTaskRoot = taskRootFor(relocatedResume.input, relocatedResume.admission)
+  const relocatedIdentityBefore = JSON.parse(fs.readFileSync(path.join(relocatedTaskRoot, '.memory', 'task.json'), 'utf8'))
+  assert.strictEqual(relocatedIdentityBefore.projectRootIdentityDigest, '2'.repeat(64))
+  const relocatedResult = run(relocatedAttempt.input, { nowMs: relocatedResumeAt })
+  assert.strictEqual(relocatedResult.mutationAuthority, true)
+  assert.strictEqual(relocatedResult.admissionGeneration, relocatedAttempt.prior.transaction.admissionGeneration + 1)
+  const relocatedReadback = readTaskRecoveryState({
+    metaDir: relocatedAttempt.metaDir,
+    identity: relocatedAttempt.identity
+  }, { nowMs: relocatedResumeAt })
+  assert.strictEqual(relocatedReadback.status, 'fresh')
+  assert.strictEqual(relocatedReadback.state.admissionTransaction.projectRootIdentityDigest, '4'.repeat(64))
+  assert.strictEqual(relocatedReadback.state.fencedWriteOwner.projectRootIdentity, '4'.repeat(64))
+  assert.strictEqual(
+    relocatedReadback.state.admissionTransaction.recovery.priorProjectRootIdentityDigest,
+    '2'.repeat(64)
+  )
+  assert.strictEqual(
+    relocatedReadback.state.admissionTransaction.recovery.projectRootIdentityDigest,
+    '4'.repeat(64)
+  )
+  assert.strictEqual(
+    relocatedReadback.state.admissionTransaction.recovery.relocation.currentProjectRootIdentityDigest,
+    '4'.repeat(64)
+  )
+  assert.strictEqual(
+    JSON.parse(fs.readFileSync(path.join(relocatedTaskRoot, '.memory', 'task.json'), 'utf8')).projectRootIdentityDigest,
+    '2'.repeat(64),
+    'the new admission generation must not rewrite immutable task-origin provenance'
+  )
+  const relocatedReplay = run(relocatedAttempt.input, { nowMs: relocatedResumeAt })
+  assert.strictEqual(relocatedReplay.replayed, true)
+  assert.strictEqual(relocatedReplay.admissionId, relocatedResult.admissionId)
   const downstreamRenew = runOwner(ownerInput(expiredAttempt.input, resumed, 'renew', {
     expectedOwner: ownerRef(resumed.ownerAcquisition)
   }), resumeAt)

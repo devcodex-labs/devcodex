@@ -2234,6 +2234,142 @@ try {
     'changed confirmation provenance without a new artifact candidate must remain fail closed'
   )
 
+  const historicalDriftFirstAt = NOW_MS + 22 * 60 * 1000
+  const historicalDriftResume = createFinalizedResumeFixture('finalized-historical-cp-drift-successor')
+  const historicalDriftTaskRoot = taskRootFor(historicalDriftResume.input, historicalDriftResume.admission)
+  const historicalOldCp2 = confirmCp(historicalDriftTaskRoot, 'CP2', '02-修复方案.md', 'v2.4.0-candidate')
+  const historicalOldCp3 = confirmCp(historicalDriftTaskRoot, 'CP3', '04-实施计划.md', 'v3.4.0-candidate')
+  recordAuthorizedOverviewEvolution(historicalDriftResume, [
+    '# 问题概况',
+    '',
+    `> TaskIdentity: \`${historicalDriftResume.admission.taskId}\``,
+    `- CP2 ${historicalOldCp2.version} ${historicalOldCp2.artifactDigest}`,
+    `- CP3 ${historicalOldCp3.version} ${historicalOldCp3.artifactDigest}`,
+    '',
+    '历史 CP1 仍与首代确认一致。',
+    ''
+  ].join('\n'), historicalDriftFirstAt - 1000)
+  setFinalizedResumeLiveness(historicalDriftResume.root, historicalDriftResume.admission, {}, historicalDriftFirstAt)
+  const historicalFirstAttempt = buildFinalizedResumeAttempt(
+    historicalDriftResume.root,
+    historicalDriftResume.admission,
+    'finalized-historical-cp-drift-g2',
+    historicalDriftFirstAt
+  )
+  const historicalG2 = run(historicalFirstAttempt.input, { nowMs: historicalDriftFirstAt })
+  assert.strictEqual(historicalG2.mutationAuthority, true)
+
+  const historicalDriftSecondAt = NOW_MS + 30 * 60 * 1000
+  const historicalCp1Path = path.join(historicalDriftTaskRoot, '01-问题确认.md')
+  fs.appendFileSync(historicalCp1Path, '\n后续阶段对历史需求正文的合法扩展。\n')
+  const invalidSameVersionCp2 = reconfirmCp(
+    historicalDriftTaskRoot,
+    'CP2',
+    '02-修复方案.md',
+    historicalOldCp2.version,
+    '摘要变化但版本未续代，不得冒充 successor。',
+    '17:01'
+  )
+  const historicalNewCp3 = reconfirmCp(
+    historicalDriftTaskRoot,
+    'CP3',
+    '04-实施计划-v0.1.9.md',
+    'v3.5.0-candidate',
+    '合法 CP3 后继迁移到新文件。',
+    '17:02'
+  )
+  const writeHistoricalOverview = cp2 => fs.writeFileSync(path.join(historicalDriftTaskRoot, '00-问题概况.md'), [
+    '# 问题概况',
+    '',
+    `> TaskIdentity: \`${historicalDriftResume.admission.taskId}\``,
+    `- CP2 ${cp2.version} ${cp2.artifactDigest}`,
+    `- CP3 ${historicalNewCp3.version} ${historicalNewCp3.artifactDigest}`,
+    '',
+    '历史 CP1 只保留审计，当前 head 由已确认 successor 证明。',
+    ''
+  ].join('\n'))
+  writeHistoricalOverview(invalidSameVersionCp2)
+  setFinalizedResumeLiveness(historicalDriftResume.root, historicalG2, {}, historicalDriftSecondAt)
+  assert.throws(
+    () => buildFinalizedResumeAttempt(
+      historicalDriftResume.root,
+      historicalG2,
+      'finalized-historical-cp-drift-same-version',
+      historicalDriftSecondAt
+    ),
+    error => error.code === 'FINALIZED_TASK_RESUME_CP_DRIFT',
+    'a changed artifact digest without a successor version must remain fail closed'
+  )
+
+  const historicalNewCp2 = reconfirmCp(
+    historicalDriftTaskRoot,
+    'CP2',
+    '02-修复方案.md',
+    'v2.5.0-candidate',
+    '合法 CP2 后继候选。',
+    '17:03'
+  )
+  writeHistoricalOverview(historicalNewCp2)
+  const historicalMetaDir = resolveTaskRecoveryMetaDir({
+    activeRoot: historicalDriftResume.root.activeRoot,
+    project: historicalDriftResume.root.project
+  })
+  const historicalIdentity = {
+    activeRoot: historicalDriftResume.root.activeRoot,
+    project: historicalDriftResume.root.project,
+    taskId: historicalDriftResume.admission.taskId,
+    taskStatus: 'active'
+  }
+  const historicalBeforeG3 = readTaskRecoveryState({
+    metaDir: historicalMetaDir,
+    identity: historicalIdentity
+  }, { nowMs: historicalDriftSecondAt })
+  const historicalCanonical = readFinalizedResumeCanonicalEvidence(
+    historicalBeforeG3.state.admissionTransaction,
+    historicalDriftResume.root.activeRoot,
+    fs,
+    { state: historicalBeforeG3.state }
+  )
+  assert.deepStrictEqual(
+    historicalCanonical.historicalStaleConfirmations.map(item => item.phase),
+    ['CP1'],
+    'only the superseded CP1 artifact drift should remain diagnostic'
+  )
+  assert.strictEqual(historicalCanonical.latestConfirmedHead.phase, 'CP3')
+  assert.strictEqual(historicalCanonical.latestConfirmedHead.artifactPath, '04-实施计划-v0.1.9.md')
+  const historicalSecondAttempt = buildFinalizedResumeAttempt(
+    historicalDriftResume.root,
+    historicalG2,
+    'finalized-historical-cp-drift-g3',
+    historicalDriftSecondAt
+  )
+  const historicalG3 = run(historicalSecondAttempt.input, { nowMs: historicalDriftSecondAt })
+  assert.strictEqual(historicalG3.mutationAuthority, true)
+  assert.strictEqual(historicalG3.admissionGeneration, historicalG2.admissionGeneration + 1)
+  const historicalAfterG3 = readTaskRecoveryState({
+    metaDir: historicalMetaDir,
+    identity: historicalIdentity
+  }, { nowMs: historicalDriftSecondAt })
+  assert.deepStrictEqual(
+    historicalAfterG3.state.admissionTransaction.effects.cpState.confirmedCpEvidence.map(item => [item.phase, item.version, item.artifactPath]),
+    [
+      ['CP1', 'v1', '01-问题确认.md'],
+      ['CP2', 'v2.5.0-candidate', '02-修复方案.md'],
+      ['CP3', 'v3.5.0-candidate', '04-实施计划-v0.1.9.md']
+    ]
+  )
+  const historicalDriftThirdAt = historicalDriftSecondAt + 8 * 60 * 1000
+  setFinalizedResumeLiveness(historicalDriftResume.root, historicalG3, {}, historicalDriftThirdAt)
+  const historicalThirdAttempt = buildFinalizedResumeAttempt(
+    historicalDriftResume.root,
+    historicalG3,
+    'finalized-historical-cp-drift-g4',
+    historicalDriftThirdAt
+  )
+  const historicalG4 = run(historicalThirdAttempt.input, { nowMs: historicalDriftThirdAt })
+  assert.strictEqual(historicalG4.mutationAuthority, true)
+  assert.strictEqual(historicalG4.admissionGeneration, historicalG3.admissionGeneration + 1)
+
   const releasedResumeAt = NOW_MS + 60 * 1000
   const releasedResume = createFinalizedResumeFixture('finalized-released-resume')
   const releasedOwner = runOwner(ownerInput(releasedResume.input, releasedResume.admission, 'release', {

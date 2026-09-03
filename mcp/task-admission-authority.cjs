@@ -771,7 +771,7 @@ function initialSessionsContent(transaction) {
   ].join('\n')
 }
 
-function verifyExistingCpConfirmation(cpCells, sessionsPath, activeRoot, fsImpl = fs, options = {}) {
+function observeExistingCpConfirmation(cpCells, sessionsPath, activeRoot, fsImpl = fs, options = {}) {
   const phase = String(options.phase || 'CP1').toUpperCase()
   const artifactReference = String(cpCells[2] || '').trim()
   const expectedDigest = String(cpCells[4] || '').toLowerCase()
@@ -832,10 +832,10 @@ function verifyExistingCpConfirmation(cpCells, sessionsPath, activeRoot, fsImpl 
   }
   const current = fsImpl.lstatSync(candidate)
   if (!before.isFile() || !current.isFile() || current.isSymbolicLink() || before.size > 8 * 1024 * 1024 || bytes.length !== before.size ||
-      !sameStableFileStat(before, after) || !sameStableFileStat(after, current) ||
-      sha256(bytes) !== expectedDigest) {
-    throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', `existing ${phase} artifact readback does not match its confirmation digest`)
+      !sameStableFileStat(before, after) || !sameStableFileStat(after, current)) {
+    throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', `existing ${phase} artifact readback is unstable or unsafe`)
   }
+  const observedArtifactDigest = sha256(bytes)
   const compatibility = legacyTimeOnly
     ? {
         schemaVersion: 'LegacyCpConfirmationCompatibilityV1',
@@ -853,8 +853,21 @@ function verifyExistingCpConfirmation(cpCells, sessionsPath, activeRoot, fsImpl 
     version: String(cpCells[3] || '').trim(),
     sourceMessage: String(cpCells[5] || '').trim(),
     confirmedAt,
-    compatibility
+    compatibility,
+    artifactVerified: observedArtifactDigest === expectedDigest,
+    observedArtifactDigest
   }
+}
+
+function verifyExistingCpConfirmation(cpCells, sessionsPath, activeRoot, fsImpl = fs, options = {}) {
+  const evidence = observeExistingCpConfirmation(cpCells, sessionsPath, activeRoot, fsImpl, options)
+  if (!evidence.artifactVerified) {
+    throw new TaskAdmissionError(
+      'TASK_ADMISSION_CP_STATE_CONFLICT',
+      `existing ${evidence.phase} artifact readback does not match its confirmation digest`
+    )
+  }
+  return evidence
 }
 
 function verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, fsImpl = fs, options = {}) {
@@ -1735,8 +1748,8 @@ function observedCpState(transaction, activeRoot, fsImpl = fs) {
       (!cp1Confirmed && !cp1Pending)) {
     throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'workflow CP table is missing or ambiguous before owner fencing')
   }
-  const confirmedEvidence = rows.filter(row => row.confirmed).map(row => {
-    const evidence = verifyExistingCpConfirmation(row.cells, sessionsPath, activeRoot, fsImpl, {
+  const confirmationObservations = rows.filter(row => row.confirmed).map(row => {
+    const evidence = observeExistingCpConfirmation(row.cells, sessionsPath, activeRoot, fsImpl, {
       phase: row.phase,
       // memory_cp_confirm intentionally supports the human-readable HH:mm form.
       // Once a finalized admission already owns digest-bound CP evidence, accept
@@ -1752,21 +1765,41 @@ function observedCpState(transaction, activeRoot, fsImpl = fs) {
       artifactDigest: evidence.artifactDigest,
       artifactPath: evidence.artifactPath,
       confirmedAt: evidence.confirmedAt,
-      sourceMessage: evidence.sourceMessage
+      sourceMessage: evidence.sourceMessage,
+      artifactVerified: evidence.artifactVerified,
+      observedArtifactDigest: evidence.observedArtifactDigest
     }
   })
+  const confirmedEvidence = confirmationObservations.map(cpConfirmationEvidenceSnapshot)
+  const latestConfirmedHead = confirmationObservations[confirmationObservations.length - 1] || null
+  if (confirmationObservations.length && !latestConfirmedHead?.artifactVerified) {
+    throw new TaskAdmissionError(
+      'TASK_ADMISSION_CP_STATE_CONFLICT',
+      'latest confirmed CP head no longer matches its digest-bound artifact'
+    )
+  }
   const priorEvidence = Array.isArray(transaction.effects?.cpState?.confirmedCpEvidence)
     ? transaction.effects.cpState.confirmedCpEvidence
     : []
   const priorByPhase = new Map(priorEvidence.map(item => [item.phase, item]))
   const evolutionChanges = []
+  const historicalStaleConfirmations = []
   for (const prior of priorEvidence) {
     const current = confirmedEvidence.find(item => item.phase === prior.phase)
+    const observation = confirmationObservations.find(item => item.phase === prior.phase)
     if (!current) {
       throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'confirmed CP evidence rolled back or changed outside its admission lineage')
     }
-    if (sameCpConfirmationEvidence(current, prior)) continue
-    const isDigestBoundSuccessor = current.artifactPath === prior.artifactPath &&
+    if (sameCpConfirmationEvidence(current, prior)) {
+      if (!observation?.artifactVerified) {
+        historicalStaleConfirmations.push({
+          ...cpConfirmationEvidenceSnapshot(current),
+          observedArtifactDigest: observation?.observedArtifactDigest || null
+        })
+      }
+      continue
+    }
+    const isDigestBoundSuccessor = observation?.artifactVerified === true &&
       current.version !== prior.version && current.artifactDigest !== prior.artifactDigest &&
       String(current.confirmedAt || '').trim() && String(current.sourceMessage || '').trim()
     if (!isDigestBoundSuccessor) {
@@ -1782,8 +1815,9 @@ function observedCpState(transaction, activeRoot, fsImpl = fs) {
   const priorMaxPhase = priorEvidence.reduce((max, item) => Math.max(max, Number(String(item.phase || '').slice(2)) || 0), 0)
   for (const current of confirmedEvidence) {
     if (priorByPhase.has(current.phase)) continue
+    const observation = confirmationObservations.find(item => item.phase === current.phase)
     const phaseNumber = Number(String(current.phase || '').slice(2)) || 0
-    if (phaseNumber <= priorMaxPhase) {
+    if (phaseNumber <= priorMaxPhase || observation?.artifactVerified !== true) {
       throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'confirmed CP evidence was inserted behind the finalized admission frontier')
     }
     evolutionChanges.push({
@@ -1792,6 +1826,19 @@ function observedCpState(transaction, activeRoot, fsImpl = fs) {
       from: null,
       to: cpConfirmationEvidenceSnapshot(current)
     })
+  }
+  for (const stale of historicalStaleConfirmations) {
+    const stalePhaseNumber = Number(String(stale.phase || '').slice(2)) || 0
+    const superseded = confirmationObservations.some(observation =>
+      observation.artifactVerified === true &&
+      (Number(String(observation.phase || '').slice(2)) || 0) > stalePhaseNumber
+    )
+    if (!superseded) {
+      throw new TaskAdmissionError(
+        'TASK_ADMISSION_CP_STATE_CONFLICT',
+        'historical CP artifact drift is not covered by a later digest-bound successor'
+      )
+    }
   }
   const cpChainDigest = digest({
     schemaVersion: 'ConfirmedCpChainV1',
@@ -1815,6 +1862,8 @@ function observedCpState(transaction, activeRoot, fsImpl = fs) {
     cpEvidence,
     confirmedEvidence,
     confirmedPhases: confirmedEvidence.map(item => item.phase),
+    latestConfirmedHead: latestConfirmedHead ? cpConfirmationEvidenceSnapshot(latestConfirmedHead) : null,
+    historicalStaleConfirmations,
     cpChainDigest,
     evolutionChanges,
     cpEvolutionDigest
@@ -1986,6 +2035,8 @@ function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = 
     cpArtifactDigest: cp.cpArtifactDigest,
     cpChainDigest: cp.cpChainDigest,
     confirmedCpEvidence: clone(cp.confirmedEvidence),
+    latestConfirmedHead: clone(cp.latestConfirmedHead),
+    historicalStaleConfirmations: clone(cp.historicalStaleConfirmations),
     cpArtifactPath: cp.cpEvidence?.artifactPath || null,
     cpSourceMessage: cp.cpEvidence?.sourceMessage || null
   }

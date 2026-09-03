@@ -3315,6 +3315,14 @@ function validateMutationAuthorizationBundle(state, operation, options = {}) {
 }
 
 function startAllowedToolRecovery(state, payload, platform, artifactDecision = null, footprint = null) {
+  // Server-owned authority controls perform their own durable CAS/lease transaction.
+  // Tracking the control call itself as the generic in-flight operation makes a
+  // finalized resume observe its own PreToolUse lease as an older live operation;
+  // it can also overwrite genuine prior-operation evidence. Keep that evidence
+  // untouched and let the server-owned receipt drive the control-plane transition.
+  if (isTaskAuthorityControlTool(payload)) {
+    return { mutating: false, replay: false, serverOwnedControl: true }
+  }
   const formalMutation = artifactDecision?.decisionStatus === 'allow'
   const mutating = !isTaskAuthorityControlTool(payload) && !isServerOwnedMemoryTransactionTool(payload) &&
     (isRecoveryMutation(payload, platform, state) || formalMutation)
@@ -4496,13 +4504,13 @@ async function main() {
   if (eventName === 'PostToolUse') {
     maybeBindTaskRecoveryForPayload(state, payload, platform)
     const contextDeliveryObservation = observeContextDeliveryFromPayload(state, payload)
-    const completingMutationOperation = state.turnLiveness?.inFlightOperation?.mutating === true
+    const taskAuthorityControl = isTaskAuthorityControlTool(payload)
+    const completingMutationOperation = !taskAuthorityControl && state.turnLiveness?.inFlightOperation?.mutating === true
       ? JSON.parse(JSON.stringify(state.turnLiveness.inFlightOperation))
       : null
     const mutationCloseout = completingMutationOperation?.mutating === true
     const artifactDecision = completingMutationOperation?.artifactDecision || null
     const pendingSkillRoute = state.progressiveSkillRoute?.pending || null
-    const taskAuthorityControl = isTaskAuthorityControlTool(payload)
     const contextPost = taskAuthorityControl
       ? { observed: false, ignored: true }
       : recordContextPostToolUse(state, payload)
@@ -4532,7 +4540,9 @@ async function main() {
       markProductMutationOrder(state, payload, platform)
       updateArtifactTouches(state, payload, platform)
     }
-    state.turnLiveness = completeToolLease(state.turnLiveness, payload)
+    if (!taskAuthorityControl) {
+      state.turnLiveness = completeToolLease(state.turnLiveness, payload)
+    }
     const workflowTaskTerminalReceipt = observeWorkflowTaskTerminalReceipt(state, payload)
     if (workflowTaskTerminalReceipt) {
       state.workflowTaskTerminalReceipt = workflowTaskTerminalReceipt

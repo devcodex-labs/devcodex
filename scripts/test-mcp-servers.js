@@ -1351,7 +1351,7 @@ function testMemoryTaskAdmissionV2Contract() {
     ['schemaVersion', 'envelopeId', 'envelopeDigest', 'decisionDigest', 'routeRevision']
   )
   const admitted = resultById(responses, 2)
-  assert.strictEqual(admitted.isError, false)
+  assert.strictEqual(admitted.isError, false, admitted.content?.[0]?.text || '')
   assert.strictEqual(admitted.structuredContent.phase, 'finalized')
   assert.strictEqual(admitted.structuredContent.finalized, true)
   assert.strictEqual(admitted.structuredContent.mutationAuthority, false)
@@ -1576,11 +1576,11 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   })
   assert.strictEqual(contextAuthorization.status, 'authorized')
   assert.strictEqual(contextAuthorization.plan.workflowRoute.routeKey, 'resume')
+  const fallbackHostSessionId = 'mcp-task-authority-fresh-resume-current'
   const contextObservation = recordMcpContextSourceObservations({
     activeRoot,
     project,
     contextBinding: resumeContextBinding,
-    hostSessionId: 'mcp-task-authority-fresh-resume-current',
     sourceResults: contextAuthorization.plan.selectedSources.map(source => ({
       sourceId: source.sourceId,
       bodyObserved: true,
@@ -1601,22 +1601,100 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   })
   assert.strictEqual(contextObservation.status, 'persisted', JSON.stringify(contextObservation))
   assert.deepStrictEqual(contextObservation.missingSourceIds, [])
+  const lifecycleEnvelope = buildActualInstructionEnvelope({
+    prompt: '继续 MCP finalized task through the current host lifecycle',
+    session_id: fallbackHostSessionId,
+    event_id: 'mcp-fallback-current-host-event',
+    timestamp: new Date(nowMs).toISOString()
+  }, {
+    hostVariant: 'codex-cli',
+    contextEpoch: resumeContextBinding.contextEpoch,
+    trustedHostEvent: true,
+    nowMs
+  })
+  const lifecycleLeaseCore = {
+    schemaVersion: 'ProjectTargetLeaseV2',
+    targetDigest: crypto.createHash('sha256').update('mcp-fallback-current-target').digest('hex'),
+    rootIdentityDigest: '7'.repeat(64),
+    layoutIdentity: crypto.createHash('sha256').update('mcp-fallback-current-layout').digest('hex'),
+    project,
+    physicalRoot: TEMP_ROOT,
+    activeRoot,
+    authorityKind: 'session',
+    authorityDigest: crypto.createHash('sha256').update('mcp-fallback-project-authority').digest('hex'),
+    contextEpoch: resumeContextBinding.contextEpoch,
+    contextBindingDigest: crypto.createHash('sha256').update(JSON.stringify(resumeContextBinding)).digest('hex'),
+    routeRevision: contextAuthorization.plan.workflowRoute.routeRevision,
+    revocationEpoch: 3,
+    issuedAt: new Date(nowMs - 1000).toISOString(),
+    issuedAtMs: nowMs - 1000,
+    expiresAt: new Date(nowMs + 60 * 60 * 1000).toISOString(),
+    expiresAtMs: nowMs + 60 * 60 * 1000
+  }
+  const lifecycleProjectTargetLease = {
+    ...lifecycleLeaseCore,
+    leaseDigest: computeProjectTargetLeaseDigest(lifecycleLeaseCore)
+  }
+  const lifecycleProjection = JSON.parse(fs.readFileSync(contextObservation.statePath, 'utf8'))
+  lifecycleProjection.activeProject = project
+  lifecycleProjection.activeScope = 'project'
+  lifecycleProjection.actualInstructionEnvelope = lifecycleEnvelope
+  lifecycleProjection.stickyProject = lifecycleProjectTargetLease
+  lifecycleProjection.contextAcquisition = {
+    ...lifecycleProjection.contextAcquisition,
+    activeRoot,
+    project,
+    contextEpoch: resumeContextBinding.contextEpoch,
+    hostSessionId: fallbackHostSessionId,
+    plan: contextAuthorization.plan,
+    receipt: {
+      ...lifecycleProjection.contextAcquisition.receipt,
+      identity: {
+        ...lifecycleProjection.contextAcquisition.receipt.identity,
+        activeRoot,
+        project,
+        hostSessionId: fallbackHostSessionId
+      },
+      observations: lifecycleProjection.contextAcquisition.receipt.observations.map(observation => ({
+        ...observation,
+        hostSessionId: fallbackHostSessionId
+      }))
+    }
+  }
+  fs.writeFileSync(contextObservation.statePath, JSON.stringify(lifecycleProjection, null, 2) + '\n')
   const fallbackArgs = {
     operation: 'bind',
     resumeContextBinding,
     task: resumeArgs.task,
     overview: resumeArgs.overview
   }
+  const mismatchedLifecycleProjection = JSON.parse(JSON.stringify(lifecycleProjection))
+  mismatchedLifecycleProjection.contextAcquisition.receipt.identity.hostSessionId = 'different-host-session'
+  fs.writeFileSync(contextObservation.statePath, JSON.stringify(mismatchedLifecycleProjection, null, 2) + '\n')
+  const mismatchedLifecycleResponse = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(4, 'tools/call', { name: 'memory_task_admit_v2', arguments: fallbackArgs })
+  ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: '' }), 4)
+  assert.strictEqual(mismatchedLifecycleResponse.isError, true)
+  assert.match(mismatchedLifecycleResponse.content[0].text, /FINALIZED_TASK_RESUME_SESSION_MISMATCH/)
+  fs.writeFileSync(contextObservation.statePath, JSON.stringify(lifecycleProjection, null, 2) + '\n')
   const fallbackResponses = runServer('mcp/memory-server.js', [
     rpcRequest(5, 'tools/call', { name: 'memory_task_admit_v2', arguments: fallbackArgs }),
     rpcRequest(6, 'tools/call', { name: 'memory_task_admit_v2', arguments: fallbackArgs })
-  ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: 'mcp-task-authority-fresh-resume-current' })
+  ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: '' })
   const fallback = resultById(fallbackResponses, 5)
   assert.strictEqual(fallback.isError, false, fallback.content?.[0]?.text || '')
   assert.strictEqual(fallback.structuredContent.ingressSource, 'bounded-resume-fallback')
   assert.strictEqual(fallback.structuredContent.mutationAuthority, true)
   assert.strictEqual(fallback.structuredContent.admissionGeneration, resumed.structuredContent.admissionGeneration + 1)
   assert.strictEqual(fallback.structuredContent.recoveryStage, 'readback-complete')
+  assert.strictEqual(
+    fallback.structuredContent.ownerAcquisition.owner.sessionDigest,
+    crypto.createHash('sha256').update(fallbackHostSessionId).digest('hex')
+  )
+  assert.strictEqual(
+    fallback.structuredContent.recovery.projectRootIdentityDigest,
+    lifecycleProjectTargetLease.rootIdentityDigest
+  )
   assert.strictEqual(resultById(fallbackResponses, 6).structuredContent.replayed, true)
 }
 

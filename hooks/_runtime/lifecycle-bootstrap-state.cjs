@@ -3,6 +3,7 @@
 const {
   buildContentIdentity,
   buildJsonContentIdentity,
+  matchesContentIdentity,
   validateContentIdentity
 } = require('./content-identity.cjs')
 const { readContextPlanObservation } = require('./context-plan-observation.cjs')
@@ -1780,32 +1781,67 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       const file = match[1].trim()
       if (safeProfileFile(file)) headings.push({ file, start: match.index, bodyStart: regex.lastIndex })
     }
-    return headings.map((heading, index) => ({
-      ...heading,
-      body: text.slice(heading.bodyStart, headings[index + 1]?.start ?? text.length).trim()
-    }))
+    return headings.map((heading, index) => {
+      let body = text.slice(heading.bodyStart, headings[index + 1]?.start ?? text.length)
+      if (index + 1 < headings.length) {
+        const separator = /(?:\r?\n){2}---(?:\r?\n){2}$/.exec(body)
+        if (separator) body = body.slice(0, separator.index)
+      }
+      return { ...heading, body }
+    })
   }
 
   function parseProfileSectionEnvelope(body) {
-    const lines = String(body || '').replace(/\r\n/g, '\n').split('\n')
-    while (lines[0] === '') lines.shift()
-    while (lines[lines.length - 1] === '') lines.pop()
-    if (lines[lines.length - 1]?.trim() === '---') lines.pop()
-    while (lines[lines.length - 1] === '') lines.pop()
-    if (!/^> 来源：.+$/.test(lines[0] || '')) return { valid: false, paths: [], content: '' }
-    let index = 1
+    const framed = String(body || '')
+    const header = /^(?:\r?\n){2}> 来源：[^\r\n]+\r?\n((?:> 路径：[^\r\n]+\r?\n)+)\r?\n/.exec(framed)
+    if (!header) return { valid: false, paths: [], content: '' }
     const paths = []
-    while (/^> 路径：.+$/.test(lines[index] || '')) {
-      paths.push(normalizePath(lines[index].slice('> 路径：'.length)))
-      index += 1
+    for (const line of header[1].split(/\r?\n/)) {
+      if (line) paths.push(normalizePath(line.slice('> 路径：'.length)))
     }
     if (!paths.length) return { valid: false, paths: [], content: '' }
-    if (lines[index] === '') index += 1
     return {
       valid: true,
       paths,
-      content: lines.slice(index).join('\n')
+      content: framed.slice(header[0].length)
     }
+  }
+
+  function reconcileProfileContentIdentity(acquisition, sourceId, sourceKey, content) {
+    const parsedIdentity = buildContentIdentity({
+      sourceKey,
+      content,
+      contractVersion: 'ProfileBodyV1'
+    })
+    const trusted = [...(acquisition.receipt?.observations || [])].reverse().find(item =>
+      item?.sourceId === sourceId && item.toolCallId === 'mcp-direct' &&
+      item.successful === true && item.bodyObserved === true &&
+      validateContentIdentity(item.contentIdentity).valid &&
+      item.contentIdentity.sourceKey === sourceKey &&
+      item.contentIdentity.contractVersion === 'ProfileBodyV1'
+    )?.contentIdentity
+    if (!trusted) return { valid: true, contentIdentity: parsedIdentity, matchedContent: content }
+
+    // Hosts may normalize line endings at the tool-result boundary. Accept only
+    // a bounded representation whose exact bytes match the MCP-persisted identity.
+    const framedCandidates = [String(content)]
+    let withoutExtraBoundary = String(content)
+    for (let index = 0; index < 4; index += 1) {
+      const separator = /(?:\r?\n){2}---(?:\r?\n){2}$/.exec(withoutExtraBoundary)
+      if (!separator) break
+      withoutExtraBoundary = withoutExtraBoundary.slice(0, separator.index)
+      framedCandidates.push(withoutExtraBoundary)
+    }
+    const candidates = [...new Set(framedCandidates.flatMap(candidate => {
+      const lf = candidate.replace(/\r\n/g, '\n')
+      const crlf = lf.replace(/\n/g, '\r\n')
+      return [candidate, lf, crlf, `${lf}\n`, `${crlf}\r\n`]
+    }))]
+    const matches = candidates.filter(candidate => matchesContentIdentity(trusted, candidate))
+    if (matches.length !== 1) {
+      return { valid: false, contentIdentity: parsedIdentity, matchedContent: content }
+    }
+    return { valid: true, contentIdentity: trusted, matchedContent: matches[0] }
   }
 
   function parseProfileLoadReceipt(text) {
@@ -1874,15 +1910,12 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         if (!ref.exists || currentRefDigest(ref) !== ref.metadataDigest) drift = true
       }
       const layers = [...new Set(observedRefs.map(ref => ref.layer))]
+      const sourceKey = `profile://${acquisition.project}/${file}#delivered`
+      const identity = envelope.valid
+        ? reconcileProfileContentIdentity(acquisition, sourceId, sourceKey, envelope.content)
+        : { valid: false, contentIdentity: null, matchedContent: '' }
       const valid = binding.valid && !!selected && matches.length === 1 && !duplicate && !extra && !missingMarker &&
-        envelope.valid && refsMatch && !drift
-      const contentIdentity = envelope.valid
-        ? buildContentIdentity({
-            sourceKey: `profile://${acquisition.project}/${file}#delivered`,
-            content: envelope.content,
-            contractVersion: 'ProfileBodyV1'
-          })
-        : null
+        envelope.valid && refsMatch && !drift && identity.valid
       return {
         observationId: `post-${attempt.attemptId}-${sourceId}`,
         toolCallId: attempt.toolCallId,
@@ -1898,11 +1931,11 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         sourceRefsMatch: refsMatch && !duplicate && !extra,
         schemaMatch: binding.valid,
         targetMatch: binding.valid,
-        contentIdentity,
+        contentIdentity: identity.contentIdentity,
         bodyObserved: valid,
         hostSessionId: acquisition.hostSessionId,
-        bytes: Buffer.byteLength(envelope.content, 'utf8'),
-        chars: envelope.content.length,
+        bytes: identity.contentIdentity?.bytes ?? null,
+        chars: identity.matchedContent.length,
         hostDeliveredBytes: Buffer.byteLength(envelope.content, 'utf8')
       }
     })

@@ -3982,6 +3982,99 @@ function currentPhysicalProjectRoot(target) {
   return path.resolve(binding.physicalRoot)
 }
 
+function readServerOwnedLifecycleProjection(target) {
+  const scopeKey = LAYOUT.enabled ? assertSingleSegment(target.project, 'project') : 'legacy'
+  const relativeStatePath = path.join('.memory', 'hooks', scopeKey, 'lifecycle-state.json')
+  let statePath
+  try {
+    statePath = resolveExistingRegularFileInside(target.activeRoot, relativeStatePath, {
+      fs,
+      label: 'server-owned lifecycle projection'
+    })
+  } catch (error) {
+    throw taskAdmissionIngressError(
+      'TASK_ADMISSION_INGRESS_STATE_UNAVAILABLE',
+      `current server-owned lifecycle projection is unavailable: ${error.message}`
+    )
+  }
+  let descriptor
+  let raw
+  let before
+  let after
+  try {
+    descriptor = fs.openSync(statePath, 'r')
+    before = fs.fstatSync(descriptor)
+    if (!before.isFile() || before.size <= 0 || before.size > 2 * 1024 * 1024) {
+      throw taskAdmissionIngressError('TASK_ADMISSION_INGRESS_STATE_INVALID', 'lifecycle projection size or type is invalid')
+    }
+    raw = fs.readFileSync(descriptor, 'utf8')
+    after = fs.fstatSync(descriptor)
+  } finally {
+    if (descriptor !== undefined) fs.closeSync(descriptor)
+  }
+  const current = fs.lstatSync(statePath)
+  if (!current.isFile() || current.isSymbolicLink() || !sameStableFileStat(before, after) ||
+      !sameStableFileStat(after, current) || Buffer.byteLength(raw, 'utf8') !== after.size) {
+    throw taskAdmissionIngressError('TASK_ADMISSION_INGRESS_STATE_DRIFT', 'lifecycle projection changed during authority readback')
+  }
+  let state
+  try { state = JSON.parse(raw) } catch (error) {
+    throw taskAdmissionIngressError('TASK_ADMISSION_INGRESS_STATE_INVALID', `lifecycle projection JSON is invalid: ${error.message}`)
+  }
+  return { state, statePath, raw }
+}
+
+function verifiedResumeLifecycleContext(target, binding) {
+  let projection
+  try {
+    projection = readServerOwnedLifecycleProjection(target)
+  } catch (error) {
+    return { status: 'unavailable', reasonCode: error.code || 'TASK_ADMISSION_INGRESS_STATE_UNAVAILABLE' }
+  }
+  const state = projection.state
+  const acquisition = state?.contextAcquisition || {}
+  if (String(acquisition.contextEpoch || '') !== binding.contextEpoch) {
+    return { status: 'unavailable', reasonCode: 'lifecycle-context-epoch-not-current' }
+  }
+  const planBinding = acquisition.plan?.contextBinding || {}
+  const receipt = acquisition.receipt || {}
+  const exactBinding = planBinding.contextEpoch === binding.contextEpoch &&
+    planBinding.planId === binding.planId && planBinding.planContentId === binding.planContentId &&
+    comparableActiveRoot(planBinding.activeRoot) === comparableActiveRoot(binding.activeRoot) &&
+    String(planBinding.project || '') === binding.project &&
+    receipt.contextEpoch === binding.contextEpoch && receipt.planId === binding.planId &&
+    receipt.planContentId === binding.planContentId &&
+    comparableActiveRoot(receipt.identity?.activeRoot) === comparableActiveRoot(binding.activeRoot) &&
+    String(receipt.identity?.project || '') === binding.project
+  if (!exactBinding || !['relevant-complete', 'completed'].includes(String(receipt.status || '')) ||
+      (receipt.missingSourceIds || []).length) {
+    return { status: 'invalid', reasonCode: 'lifecycle-context-binding-incomplete' }
+  }
+  const hostSessionId = String(receipt.identity?.hostSessionId || acquisition.hostSessionId || '').trim()
+  if (!hostSessionId) return { status: 'unavailable', reasonCode: 'lifecycle-host-session-missing' }
+  const hostSessionDigest = crypto.createHash('sha256').update(hostSessionId).digest('hex')
+  const envelope = state.actualInstructionEnvelope || {}
+  if (envelope.contextEpoch !== binding.contextEpoch || envelope.hostSessionDigest !== hostSessionDigest) {
+    return { status: 'invalid', reasonCode: 'lifecycle-host-session-mismatch' }
+  }
+  const projectTargetLease = state.stickyProject || null
+  const leaseValidation = validateProjectTargetLease(projectTargetLease, {
+    project: target.project,
+    activeRoot: target.activeRoot,
+    physicalRoot: currentPhysicalProjectRoot(target),
+    contextEpoch: binding.contextEpoch,
+    routeRevision: acquisition.plan?.workflowRoute?.routeRevision
+  }, { nowMs: Date.now() })
+  if (!leaseValidation.valid) {
+    return {
+      status: 'invalid',
+      reasonCode: 'lifecycle-project-target-lease-invalid',
+      errors: leaseValidation.errors
+    }
+  }
+  return { status: 'verified', hostSessionId, hostSessionDigest, projectTargetLease }
+}
+
 function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
   const ref = ingressRef && typeof ingressRef === 'object' && !Array.isArray(ingressRef) ? ingressRef : null
   const digestPattern = /^[a-f0-9]{64}$/
@@ -4105,43 +4198,7 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
       { snapshot: snapshotRead }
     )
   }
-  const relativeStatePath = path.join('.memory', 'hooks', scopeKey, 'lifecycle-state.json')
-  let statePath
-  try {
-    statePath = resolveExistingRegularFileInside(target.activeRoot, relativeStatePath, {
-      fs,
-      label: 'server-owned lifecycle projection'
-    })
-  } catch (error) {
-    throw taskAdmissionIngressError(
-      'TASK_ADMISSION_INGRESS_STATE_UNAVAILABLE',
-      `current server-owned lifecycle projection is unavailable: ${error.message}`
-    )
-  }
-  let descriptor
-  let raw
-  let before
-  let after
-  try {
-    descriptor = fs.openSync(statePath, 'r')
-    before = fs.fstatSync(descriptor)
-    if (!before.isFile() || before.size <= 0 || before.size > 2 * 1024 * 1024) {
-      throw taskAdmissionIngressError('TASK_ADMISSION_INGRESS_STATE_INVALID', 'lifecycle projection size or type is invalid')
-    }
-    raw = fs.readFileSync(descriptor, 'utf8')
-    after = fs.fstatSync(descriptor)
-  } finally {
-    if (descriptor !== undefined) fs.closeSync(descriptor)
-  }
-  const current = fs.lstatSync(statePath)
-  if (!current.isFile() || current.isSymbolicLink() || !sameStableFileStat(before, after) ||
-      !sameStableFileStat(after, current) || Buffer.byteLength(raw, 'utf8') !== after.size) {
-    throw taskAdmissionIngressError('TASK_ADMISSION_INGRESS_STATE_DRIFT', 'lifecycle projection changed during authority readback')
-  }
-  let state
-  try { state = JSON.parse(raw) } catch (error) {
-    throw taskAdmissionIngressError('TASK_ADMISSION_INGRESS_STATE_INVALID', `lifecycle projection JSON is invalid: ${error.message}`)
-  }
+  const { state, statePath, raw } = readServerOwnedLifecycleProjection(target)
   const envelope = state?.actualInstructionEnvelope
   const workItemSet = state?.workItemSet
   const decision = state?.workflowRouteDecision
@@ -4479,7 +4536,27 @@ function resolveResumeContextAuthorization(target, contextBinding) {
       'durable context observations belong to more than one host session'
     )
   }
-  const hostSessionId = observedSessions[0] || String(process.env.DEVCODEX_HOST_SESSION_ID || '').trim() ||
+  const lifecycleContext = verifiedResumeLifecycleContext(target, verifiedBinding)
+  if (lifecycleContext.status === 'invalid') {
+    throw taskAdmissionIngressError(
+      'FINALIZED_TASK_RESUME_SESSION_MISMATCH',
+      'the current lifecycle context does not bind one verified host session and project target',
+      { reasonCode: lifecycleContext.reasonCode, errors: lifecycleContext.errors || [] }
+    )
+  }
+  const environmentSession = String(process.env.DEVCODEX_HOST_SESSION_ID || '').trim()
+  const sessionCandidates = [...new Set([
+    ...observedSessions,
+    lifecycleContext.status === 'verified' ? lifecycleContext.hostSessionId : '',
+    environmentSession
+  ].filter(Boolean))]
+  if (sessionCandidates.length > 1) {
+    throw taskAdmissionIngressError(
+      'FINALIZED_TASK_RESUME_SESSION_AMBIGUOUS',
+      'context observations, lifecycle state and the explicit host session identify different sessions'
+    )
+  }
+  const hostSessionId = sessionCandidates[0] ||
     `resume-context:${verifiedBinding.contextEpoch}:${verifiedBinding.planId}`
   const durable = readMcpContextSourceObservations({
     activeRoot: target.activeRoot,
@@ -4508,35 +4585,43 @@ function resolveResumeContextAuthorization(target, contextBinding) {
     authorization,
     binding: compactContextBinding(verifiedBinding),
     hostSessionId,
+    lifecycleProjectTargetLease: lifecycleContext.status === 'verified'
+      ? lifecycleContext.projectTargetLease
+      : null,
     receipt
   }
 }
 
-function boundedResumeProjectLease(target, transaction, envelope, routeDecision, contextBinding, nowMs) {
+function boundedResumeProjectLease(target, transaction, envelope, routeDecision, contextBinding, nowMs,
+  lifecycleProjectTargetLease = null) {
   const physicalRoot = currentPhysicalProjectRoot(target)
   const issuedAtMs = nowMs
   const expiresAtMs = Math.min(Date.parse(envelope.expiresAt), nowMs + 10 * 60 * 1000)
+  const currentTarget = lifecycleProjectTargetLease?.schemaVersion === 'ProjectTargetLeaseV2'
+    ? lifecycleProjectTargetLease
+    : null
   const core = {
     schemaVersion: 'ProjectTargetLeaseV2',
-    targetDigest: stableRuntimeDigest({
+    targetDigest: currentTarget?.targetDigest || stableRuntimeDigest({
       projectRootIdentityDigest: transaction.projectRootIdentityDigest,
       physicalRoot: comparableActiveRoot(physicalRoot),
       activeRoot: comparableActiveRoot(target.activeRoot)
     }),
-    rootIdentityDigest: transaction.projectRootIdentityDigest,
-    layoutIdentity: stableRuntimeDigest({
+    rootIdentityDigest: currentTarget?.rootIdentityDigest || transaction.projectRootIdentityDigest,
+    layoutIdentity: currentTarget?.layoutIdentity || stableRuntimeDigest({
       mode: LAYOUT.enabled ? 'workspace-namespace' : 'legacy',
       workspaceRoot: comparableActiveRoot(LAYOUT.workspaceRoot || INPUT_ROOT)
     }),
     project: target.project,
     physicalRoot,
     activeRoot: target.activeRoot,
+    ...(currentTarget?.physicalMarker ? { physicalMarker: currentTarget.physicalMarker } : {}),
     authorityKind: 'session',
     authorityDigest: envelope.hostSessionDigest,
     contextEpoch: envelope.contextEpoch,
     contextBindingDigest: stableRuntimeDigest(contextBinding),
     routeRevision: routeDecision.routeRevision,
-    revocationEpoch: 0,
+    revocationEpoch: currentTarget ? Math.max(0, Number(currentTarget.revocationEpoch || 0)) + 1 : 0,
     issuedAt: new Date(issuedAtMs).toISOString(),
     issuedAtMs,
     expiresAt: new Date(expiresAtMs).toISOString(),
@@ -4547,7 +4632,7 @@ function boundedResumeProjectLease(target, transaction, envelope, routeDecision,
     ...core,
     leaseId: `project-target-lease-${leaseDigest.slice(0, 24)}`,
     leaseDigest,
-    source: 'bounded-resume-fallback',
+    source: currentTarget ? 'bounded-resume-lifecycle-context' : 'bounded-resume-fallback',
     validatedAt: new Date(nowMs).toISOString(),
     validatedAtMs: nowMs,
     invalidationReason: '',
@@ -4792,7 +4877,8 @@ function buildBoundedResumeFallbackIngress(target, args) {
     envelope,
     routeDecision,
     context.binding,
-    nowMs
+    nowMs,
+    context.lifecycleProjectTargetLease
   )
   const prepared = prepareFinalizedResumeCandidate(target, args, {
     actualInstructionEnvelope: envelope,

@@ -42,6 +42,15 @@ const {
   executeWorkflowTaskTerminal
 } = require('../mcp/task-admission-authority.cjs')
 
+// Managed validation inherits the outer real-host session. These fixtures bind
+// synthetic sessions through each hook payload, so carrying the outer binding
+// into their MCP child processes would create an impossible split-session test.
+for (const key of [
+  'DEVCODEX_HOST_SESSION_ID',
+  'DEVCODEX_CONTEXT_EPOCH',
+  'DEVCODEX_CONTEXT_EPOCH_SOURCE'
+]) delete process.env[key]
+
 const ROOT = path.resolve(__dirname, '..')
 const RUNTIME = path.join(ROOT, 'hooks', '_runtime', 'lifecycle.cjs')
 const PROFILE_SERVER = path.join(ROOT, 'mcp', 'profile-server.js')
@@ -1343,6 +1352,177 @@ function runR2BTaskOwnerLifecycleScenarios() {
   process.stdout.write('hooks runtime R2B owner + R3B mutation scenarios passed\n')
 }
 
+function runProfileRenderedIdentityScenario({ tamper = false } = {}) {
+  cleanState()
+  const sessionId = tamper ? 'profile-rendered-identity-tamper' : 'profile-rendered-identity'
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: sessionId,
+    prompt: tamper ? 'profile rendered identity tamper regression' : 'profile rendered identity regression'
+  })
+  let state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  const planArgs = {
+    intent: 'dev',
+    changeTypes: ['source-code'],
+    contextEpoch: state.contextAcquisition.contextEpoch,
+    ...(state.contextAcquisition.project ? { project: state.contextAcquisition.project } : {})
+  }
+  const planCallId = `${sessionId}-plan`
+  run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: planCallId,
+    tool_name: 'devcodex-profile/profile_context_plan',
+    tool_input: planArgs
+  })
+  const planResult = callProfileTool(TEMP_ROOT, 'profile_context_plan', planArgs)
+  run({
+    hookEventName: 'PostToolUse',
+    session_id: sessionId,
+    tool_use_id: planCallId,
+    tool_name: 'devcodex-profile/profile_context_plan',
+    tool_input: planArgs,
+    tool_response: planResult
+  })
+
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  const selectedFiles = state.contextAcquisition.plan.profile.selectedFiles
+  for (const file of selectedFiles) {
+    assert(fs.readFileSync(path.join(TEMP_ROOT, '.devcodex', 'profile', file), 'utf8').endsWith('\n'))
+  }
+  const profileArgs = { files: selectedFiles }
+  const profileCallId = `${sessionId}-load`
+  run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: profileCallId,
+    tool_name: 'devcodex-profile/profile_load',
+    tool_input: profileArgs
+  })
+  const profileResult = callProfileTool(TEMP_ROOT, 'profile_load', profileArgs)
+  if (tamper) {
+    profileResult.content[0].text = profileResult.content[0].text.replace(
+      'TEST-PROFILE-BODY',
+      'TAMPERED-PROFILE-BODY'
+    )
+  }
+  run({
+    hookEventName: 'PostToolUse',
+    session_id: sessionId,
+    tool_use_id: profileCallId,
+    tool_name: 'devcodex-profile/profile_load',
+    tool_input: profileArgs,
+    tool_response: profileResult
+  })
+
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  const observations = state.contextAcquisition.receipt.observations
+  for (const file of selectedFiles) {
+    const sourceId = `profile:${file}`
+    const direct = [...observations].reverse().find(item =>
+      item.sourceId === sourceId && item.toolCallId === 'mcp-direct' && item.successful === true
+    )
+    const post = [...observations].reverse().find(item =>
+      item.sourceId === sourceId && item.toolCallId === profileCallId
+    )
+    assert(direct, `MCP direct identity missing for ${file}`)
+    assert(post, `PostToolUse identity missing for ${file}`)
+    if (!tamper || file !== selectedFiles[0]) {
+      assert.strictEqual(post.successful, true, `${file} rendered body must remain observable`)
+      assert.deepStrictEqual(post.contentIdentity, direct.contentIdentity,
+        `${file} rendered identity must equal the exact MCP-persisted source identity`)
+    }
+  }
+  if (tamper) {
+    const sourceId = `profile:${selectedFiles[0]}`
+    const tampered = [...observations].reverse().find(item =>
+      item.sourceId === sourceId && item.toolCallId === profileCallId
+    )
+    assert.strictEqual(tampered.successful, false, 'tampered Profile body must fail identity reconciliation')
+    assert(state.contextAcquisition.receipt.missingSourceIds.includes(sourceId),
+      'tampered Profile body must remain missing for context completion')
+  }
+}
+
+function runServerOwnedTaskAuthorityLivenessIsolationScenario() {
+  cleanState()
+  const sessionId = 'server-owned-authority-liveness-isolation'
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: sessionId,
+    prompt: '继续正式任务并验证准入控制调用不会自我阻断'
+  })
+  runBootstrapReads()
+
+  const authorityCall = {
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'server-owned-task-admit',
+    tool_name: 'devcodex-memory/memory_task_admit_v2',
+    tool_input: { operation: 'bind' }
+  }
+  run(authorityCall)
+  let state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(
+    state.turnLiveness.inFlightOperation,
+    null,
+    'server-owned task admission must not register itself as a product operation lease'
+  )
+  run({
+    ...authorityCall,
+    hookEventName: 'PostToolUse',
+    tool_result: { schemaVersion: 'TaskAdmissionReceiptV2', status: 'finalized' },
+    success: true
+  })
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(
+    state.turnLiveness.inFlightOperation,
+    null,
+    'server-owned task admission closeout must not manufacture a product operation'
+  )
+
+  const priorReadCall = {
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'prior-readable-operation',
+    tool_name: 'Read',
+    tool_input: { file_path: path.join(TEMP_ROOT, '.devcodex', 'profile', 'README.md') }
+  }
+  run(priorReadCall)
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(state.turnLiveness.inFlightOperation?.operationId, 'prior-readable-operation')
+
+  run({ ...authorityCall, tool_use_id: 'server-owned-task-admit-with-prior-operation' })
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(
+    state.turnLiveness.inFlightOperation?.operationId,
+    'prior-readable-operation',
+    'task admission PreToolUse must preserve an independently live prior operation'
+  )
+  run({
+    ...authorityCall,
+    hookEventName: 'PostToolUse',
+    tool_use_id: 'server-owned-task-admit-with-prior-operation',
+    tool_result: { schemaVersion: 'TaskAdmissionReceiptV2', status: 'needs-reconcile' },
+    success: false
+  })
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(
+    state.turnLiveness.inFlightOperation?.operationId,
+    'prior-readable-operation',
+    'task admission PostToolUse must not close or replace an independently live prior operation'
+  )
+
+  run({
+    ...priorReadCall,
+    hookEventName: 'PostToolUse',
+    tool_result: { content: 'observed' },
+    success: true
+  })
+  state = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(state.turnLiveness.inFlightOperation, null)
+}
+
 function main() {
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-runtime-store-'))
   const projectA = path.join(stateRoot, '.devcodex', 'apps', 'api')
@@ -1463,6 +1643,9 @@ function main() {
   const transformState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(transformState.languageContext?.primaryLanguage, 'zh-CN')
 
+  runProfileRenderedIdentityScenario()
+  runProfileRenderedIdentityScenario({ tamper: true })
+  runServerOwnedTaskAuthorityLivenessIsolationScenario()
   runHooksRuntimeBootstrapLayoutScenarios(runtimeScenarioContext)
   runHooksRuntimeGovernanceIntakeScenarios(runtimeScenarioContext)
   runHooksRuntimeVisibilityScenarios(runtimeScenarioContext)
@@ -2699,6 +2882,14 @@ if (process.argv.includes('--confirmation-persistence')) {
 } else if (process.argv.includes('--r2b-task-owner') || process.argv.includes('--r3b-mutation')) {
   try {
     runR2BTaskOwnerLifecycleScenarios()
+  } finally {
+    fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
+  }
+} else if (process.argv.includes('--profile-rendered-identity')) {
+  try {
+    runProfileRenderedIdentityScenario()
+    runProfileRenderedIdentityScenario({ tamper: true })
+    process.stdout.write('profile rendered identity isolation scenarios passed\n')
   } finally {
     fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
   }

@@ -13,10 +13,10 @@
     "publicTaxonomyDigest": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 672,
-    "consumerInventoryDigest": "7f2824e727f1c2d913168bb072cb86cbed42393edade5b2e6f04870f9332ed29",
-    "consumerProjectionDigest": "80b23f703e2164b79a749bd9715be4f89d2f6edb492ed5c8d792997fa3a51461",
-    "portfolioInputDigest": "1ce6d5952872111e6b2770f32012e536f3fe0568d36d12897e4c3f6ddb6e1221"
+    "consumerInventoryFileCount": 674,
+    "consumerInventoryDigest": "15d0a2dc7e5ec1e98cebfd57652fd0fbf1f050baafa9b143e55cc8c969034646",
+    "consumerProjectionDigest": "c61629dd7f935a08cb9e9bb2d4dc5199304b26af5edec4024334cff290387fef",
+    "portfolioInputDigest": "890770a3f856418b1ba711946975b778195f2c3569c395c8e698b834316df718"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -13610,6 +13610,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/real-codex-host-probe.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/repair-prevention-assessment.js",
           "role": "current"
         },
@@ -19845,6 +19849,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/real-codex-host-probe.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/runtime-state-index.js",
           "role": "current"
         },
@@ -20029,6 +20037,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-real-codex-host-probe.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-runtime-state-index.js",
           "role": "current"
         },
@@ -20099,6 +20111,7 @@
         "scripts/test-process-enforcement-e2e.js",
         "scripts/test-public-product-expression.js",
         "scripts/test-public-skill-taxonomy.js",
+        "scripts/test-real-codex-host-probe.js",
         "scripts/test-runtime-state-index.js",
         "scripts/test-skill-intents.js",
         "scripts/test-skill-portfolio.js",
@@ -20177,6 +20190,7 @@
           "scripts/test-process-enforcement-e2e.js",
           "scripts/test-public-product-expression.js",
           "scripts/test-public-skill-taxonomy.js",
+          "scripts/test-real-codex-host-probe.js",
           "scripts/test-runtime-state-index.js",
           "scripts/test-skill-intents.js",
           "scripts/test-skill-portfolio.js",

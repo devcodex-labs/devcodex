@@ -1,5 +1,6 @@
 'use strict'
 
+const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const {
@@ -27,6 +28,11 @@ const REQUIREMENT_FILES = [
 ]
 const BUG_FILES = ['00-问题概况.md', '01-问题确认.md', '02-修复方案.md', '04-实施计划.md', '05-实施进度.md']
 const SIMPLE_TASK_FAST_PATH_MARKERS = ['SimpleTaskFastPath', '简单任务轻路径', 'N/A + skipReason']
+const HISTORICAL_TEMPLATE_DISPOSITION_SCHEMA = 'HistoricalArtifactTemplateDispositionV1'
+const HISTORICAL_TEMPLATE_DISPOSITION_PATH = '.memory/artifact-template-dispositions.json'
+const HISTORICAL_TEMPLATE_DISPOSITIONS = new Set(['superseded-confirmed', 'abandoned-unconfirmed'])
+const SHA256_RE = /^[a-f0-9]{64}$/i
+const MAX_HISTORICAL_TEMPLATE_DISPOSITION_BYTES = 256 * 1024
 
 function resolveConsumerArtifactRegistry(activeRoot, project, registry = null) {
   const resolvedRoot = path.resolve(activeRoot)
@@ -98,6 +104,151 @@ function hasFormalTemplateQualificationClaim(filePath) {
   return /(?:templateBindingStatus:\s*qualified-v1|ArtifactTemplateBindingV1)/i.test(head)
 }
 
+function sha256File(filePath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex')
+}
+
+function slash(value) {
+  return String(value || '').replace(/\\/g, '/')
+}
+
+function isInside(root, candidate) {
+  const relative = path.relative(path.resolve(root), path.resolve(candidate))
+  return !relative.startsWith('..') && !path.isAbsolute(relative)
+}
+
+function candidateVersionFromPath(relativePath) {
+  const match = path.posix.basename(slash(relativePath)).match(/-v(\d+(?:\.\d+)*)\.md$/i)
+  return match ? `v${match[1]}-candidate` : null
+}
+
+function compareCandidateVersions(left, right) {
+  const parse = value => {
+    const match = String(value || '').match(/^v(\d+(?:\.\d+)*)-candidate$/i)
+    return match ? match[1].split('.').map(Number) : null
+  }
+  const a = parse(left)
+  const b = parse(right)
+  if (!a || !b) return null
+  const length = Math.max(a.length, b.length)
+  for (let index = 0; index < length; index += 1) {
+    const difference = (a[index] || 0) - (b[index] || 0)
+    if (difference) return difference
+  }
+  return 0
+}
+
+function normalizedTaskRelativePath(taskRoot, value) {
+  const raw = String(value || '')
+  if (!raw || raw !== slash(raw) || path.isAbsolute(raw) || raw.startsWith('/') || raw.split('/').some(part => !part || part === '.' || part === '..')) {
+    return null
+  }
+  const absolute = path.resolve(taskRoot, ...raw.split('/'))
+  if (!isInside(taskRoot, absolute)) return null
+  const relative = slash(path.relative(taskRoot, absolute))
+  return relative === raw ? relative : null
+}
+
+function currentConfirmedCp3Head(dirPath) {
+  const sessionsPath = path.join(dirPath, '.memory', 'sessions.md')
+  let text
+  try {
+    const stats = fs.statSync(sessionsPath)
+    if (!stats.isFile() || stats.size > 8 * 1024 * 1024) return null
+    text = fs.readFileSync(sessionsPath, 'utf8')
+  } catch {
+    return null
+  }
+  let current = null
+  for (const line of text.split(/\r?\n/u)) {
+    const cells = line.split('|').slice(1, -1).map(cell => cell.trim())
+    if (cells[0] !== 'CP3' || !String(cells[1] || '').includes('✅') || /stale/i.test(String(cells[1] || ''))) continue
+    const artifactCell = String(cells[2] || '')
+    const projected = /^\[(.*)\]\((?:<([^>]+)>|([^)]+))\)$/u.exec(artifactCell)
+    const declared = projected ? (projected[2] || projected[3] || projected[1]) : artifactCell.replace(/^`|`$/gu, '')
+    if (!declared || path.isAbsolute(declared)) continue
+    for (const base of [path.dirname(sessionsPath), dirPath]) {
+      const absolute = path.resolve(base, declared)
+      if (!isInside(dirPath, absolute) || !fs.existsSync(absolute)) continue
+      current = slash(path.relative(dirPath, absolute))
+      break
+    }
+  }
+  return current
+}
+
+function validateHistoricalTemplateDispositions(dirPath, inventory) {
+  const sidecarPath = path.join(dirPath, HISTORICAL_TEMPLATE_DISPOSITION_PATH)
+  if (!fs.existsSync(sidecarPath)) return { exists: false, valid: true, entries: new Map(), issues: [], currentHead: currentConfirmedCp3Head(dirPath) }
+  const issues = []
+  let value = null
+  try {
+    const stats = fs.statSync(sidecarPath)
+    if (!stats.isFile()) issues.push('sidecar-not-file')
+    else if (stats.size > MAX_HISTORICAL_TEMPLATE_DISPOSITION_BYTES) issues.push('sidecar-too-large')
+    else value = JSON.parse(fs.readFileSync(sidecarPath, 'utf8'))
+  } catch (error) {
+    issues.push(`sidecar-invalid-json:${error.message}`)
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) issues.push('sidecar-invalid-shape')
+  else {
+    if (value.schemaVersion !== HISTORICAL_TEMPLATE_DISPOSITION_SCHEMA) issues.push('sidecar-schema-invalid')
+    if (!Array.isArray(value.entries)) issues.push('sidecar-entries-invalid')
+    if (!Object.keys(value).every(field => ['schemaVersion', 'entries'].includes(field))) issues.push('sidecar-fields-invalid')
+  }
+  const currentHead = currentConfirmedCp3Head(dirPath)
+  const artifacts = new Map(inventory.artifacts.map(artifact => [artifact.relativePath, artifact]))
+  const entries = new Map()
+  for (const [index, entry] of (Array.isArray(value?.entries) ? value.entries : []).entries()) {
+    const prefix = `entry-${index + 1}`
+    const fields = ['relativePath', 'artifactSha256', 'candidateVersion', 'disposition', 'replacementPath', 'replacementSha256', 'reasonCode']
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry) ||
+        !fields.every(field => Object.prototype.hasOwnProperty.call(entry, field)) ||
+        !Object.keys(entry).every(field => fields.includes(field))) {
+      issues.push(`${prefix}:fields-invalid`)
+      continue
+    }
+    const relativePath = normalizedTaskRelativePath(dirPath, entry.relativePath)
+    const replacementPath = normalizedTaskRelativePath(dirPath, entry.replacementPath)
+    if (!relativePath) issues.push(`${prefix}:relative-path-invalid`)
+    if (!replacementPath) issues.push(`${prefix}:replacement-path-invalid`)
+    if (!SHA256_RE.test(String(entry.artifactSha256 || ''))) issues.push(`${prefix}:artifact-sha256-invalid`)
+    if (!SHA256_RE.test(String(entry.replacementSha256 || ''))) issues.push(`${prefix}:replacement-sha256-invalid`)
+    if (!HISTORICAL_TEMPLATE_DISPOSITIONS.has(entry.disposition)) issues.push(`${prefix}:disposition-invalid`)
+    if (!/^[a-z0-9][a-z0-9-]{2,95}$/.test(String(entry.reasonCode || ''))) issues.push(`${prefix}:reason-code-invalid`)
+    if (!relativePath || !replacementPath) continue
+    if (entries.has(relativePath)) issues.push(`${prefix}:duplicate-relative-path`)
+    if (relativePath === replacementPath) issues.push(`${prefix}:replacement-self-reference`)
+    if (!currentHead) issues.push(`${prefix}:current-head-unavailable`)
+    else if (relativePath === currentHead) issues.push(`${prefix}:current-head-cannot-be-disposed`)
+    const original = artifacts.get(relativePath)
+    const replacement = artifacts.get(replacementPath)
+    if (!original || original.matchType !== 'versioned-candidate') issues.push(`${prefix}:original-artifact-invalid`)
+    if (!replacement || replacement.matchType !== 'versioned-candidate') issues.push(`${prefix}:replacement-artifact-invalid`)
+    if (original && replacement && original.slot?.slotId !== replacement.slot?.slotId) issues.push(`${prefix}:replacement-slot-mismatch`)
+    const expectedVersion = candidateVersionFromPath(relativePath)
+    const replacementVersion = candidateVersionFromPath(replacementPath)
+    if (!expectedVersion || entry.candidateVersion !== expectedVersion) issues.push(`${prefix}:candidate-version-mismatch`)
+    const versionOrder = compareCandidateVersions(replacementVersion, expectedVersion)
+    if (!replacementVersion || versionOrder === null || versionOrder <= 0) issues.push(`${prefix}:replacement-not-strict-successor`)
+    const originalPath = path.join(dirPath, relativePath)
+    const replacementFile = path.join(dirPath, replacementPath)
+    if (!fs.existsSync(originalPath) || sha256File(originalPath) !== String(entry.artifactSha256).toLowerCase()) issues.push(`${prefix}:artifact-digest-mismatch`)
+    if (!fs.existsSync(replacementFile) || sha256File(replacementFile) !== String(entry.replacementSha256).toLowerCase()) issues.push(`${prefix}:replacement-digest-mismatch`)
+    if (original && fs.existsSync(originalPath) && checkArtifactTemplateFile({ slot: original.slot, filePath: originalPath }).passed) {
+      issues.push(`${prefix}:original-already-qualified`)
+    }
+    if (!replacement || !fs.existsSync(replacementFile)) {
+      issues.push(`${prefix}:replacement-qualification-unavailable`)
+    } else {
+      const qualification = checkArtifactTemplateFile({ slot: replacement.slot, filePath: replacementFile })
+      if (!qualification.passed) issues.push(`${prefix}:replacement-not-qualified`)
+    }
+    entries.set(relativePath, entry)
+  }
+  return { exists: true, valid: issues.length === 0, entries, issues: [...new Set(issues)], currentHead }
+}
+
 function inferArtifactWorkflowIntent(filePath) {
   const head = fs.readFileSync(filePath, 'utf8').slice(0, 8192)
   const match = head.match(/(?:^|\n)(?:>\s*)?(?:\*\*)?(?:类型|type)(?:\*\*)?\s*[：:]\s*`?([a-z][a-z-]*)/i)
@@ -136,13 +287,20 @@ function checkArtifactTemplateFile({ slot, filePath, intent = null }) {
 
 function collectBoundTemplateIssues(dirPath, inventory, relDir) {
   const issues = []
+  const disposition = validateHistoricalTemplateDispositions(dirPath, inventory)
+  for (const issue of disposition.issues) issues.push(`${relDir}/${HISTORICAL_TEMPLATE_DISPOSITION_PATH} ${issue}`)
   for (const artifact of inventory.artifacts) {
     if (!artifact.slot?.templateRef || !['canonical', 'versioned-candidate'].includes(artifact.matchType)) continue
     const filePath = path.join(dirPath, artifact.relativePath)
     if (!fs.existsSync(filePath)) continue
-    const mustValidate = artifact.slot.slotId === 'plan-review-pr1' || hasFormalTemplateQualificationClaim(filePath)
+    const isCurrentHead = disposition.currentHead === artifact.relativePath
+    const dispositionEntry = disposition.entries.get(artifact.relativePath)
+    const mustValidate = artifact.slot.slotId === 'plan-review-pr1' || isCurrentHead ||
+      Boolean(dispositionEntry) || hasFormalTemplateQualificationClaim(filePath)
     if (!mustValidate) continue // historical/unbound artifacts remain read-only; runtime receipts govern new writes
     const result = checkArtifactTemplateFile({ slot: artifact.slot, filePath })
+    if (result.passed) continue
+    if (artifact.matchType === 'versioned-candidate' && !isCurrentHead && disposition.valid && dispositionEntry) continue
     for (const issue of result.issues) issues.push(`${relDir}/${artifact.relativePath} template qualification ${issue}`)
   }
   return issues
@@ -381,11 +539,14 @@ module.exports = {
   REQUIREMENT_FILES,
   SIMPLE_TASK_FAST_PATH_MARKERS,
   inferArtifactWorkflowIntent,
+  HISTORICAL_TEMPLATE_DISPOSITION_PATH,
+  HISTORICAL_TEMPLATE_DISPOSITION_SCHEMA,
   checkArtifactTemplateFile,
   checkBugDir,
   checkRequirementDir,
   checkActualCandidateEvidence,
   collectInventoryIssues,
+  validateHistoricalTemplateDispositions,
   hasSimpleTaskFastPathMarker,
   collectRecentBugArtifactIssues,
   collectRecentRequirementArtifactIssues

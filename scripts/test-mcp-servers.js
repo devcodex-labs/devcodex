@@ -33,9 +33,17 @@ const {
   buildWorkItemSet
 } = require('../hooks/_runtime/actual-instruction-envelope.cjs')
 const { buildWorkflowRouteDecision } = require('../hooks/_runtime/workflow-route-decision-v2.cjs')
-const { createWorkspaceSessionRouteIndex } = require('../hooks/_runtime/workspace-session-route-index-v1.cjs')
+const {
+  createWorkspaceSessionRouteIndex,
+  digestSessionRef
+} = require('../hooks/_runtime/workspace-session-route-index-v1.cjs')
 const { extractMutationFootprint } = require('../hooks/_runtime/mutation-footprint.cjs')
-const { decideArtifactMutation } = require('../hooks/_runtime/artifact-slot-decision.cjs')
+const {
+  classifyRelativeTarget,
+  decideArtifactMutation,
+  readLayeredArtifactSlotRegistry
+} = require('../hooks/_runtime/artifact-slot-decision.cjs')
+const { createArtifactTemplateBinding } = require('../hooks/_runtime/artifact-template-contract.cjs')
 const {
   createMutationPreObservation,
   createTaskOwnedMutationLease,
@@ -47,7 +55,8 @@ const {
   createTaskIdentityV2,
   executeTaskAdmission,
   executeTaskWriteOwner,
-  executeWorkflowTaskTerminal
+  executeWorkflowTaskTerminal,
+  readFormalTaskExecutionReadiness
 } = require('../mcp/task-admission-authority.cjs')
 const {
   createTaskScopedAutoContinuationGrant,
@@ -82,6 +91,26 @@ const PROFILE_TRACE_MAX_BYTES = 1024 * 1024
 
 function rpcRequest(id, method, params = {}) {
   return JSON.stringify({ jsonrpc: '2.0', id, method, params })
+}
+
+function qualifiedCpArtifactContent({ activeRoot, project, taskKind, taskName, relativePath, intent }) {
+  const registry = readLayeredArtifactSlotRegistry({ activeRoot, project, fs })
+  const relativeTarget = `${taskKind}/${taskName}/${relativePath}`
+  const classified = classifyRelativeTarget(relativeTarget, registry, 'active-root')
+  assert(classified.slot, `missing CP artifact slot for ${relativeTarget}`)
+  const binding = createArtifactTemplateBinding({
+    slot: classified.slot,
+    target: path.join(activeRoot, ...relativeTarget.split('/')),
+    intent: intent || (taskKind === 'bugs' ? 'fix' : 'dev'),
+    bindingMode: 'runtime-prewrite'
+  })
+  assert(binding, `missing CP artifact template binding for ${relativeTarget}`)
+  return `${binding.requiredSemanticIds.map(semanticId => {
+    if (semanticId === 'document-title') return `# Qualified ${classified.slot.slotId}`
+    return semanticId.startsWith('heading:')
+      ? `## ${semanticId.slice('heading:'.length).replace(/-/g, ' ')}`
+      : ''
+  }).filter(Boolean).join('\n\n')}\n`
 }
 
 function assertMemoryProjectionIdentity(value, toolName) {
@@ -941,10 +970,14 @@ function testMemoryTaskResolveContract() {
   assert.strictEqual(resolved.structuredContent.mutationAuthority, false)
   assert.match(resolved.structuredContent.humanSummary, /已唯一定位任务/)
   assert.match(resolved.structuredContent.protocolSummary, /TaskResolutionV1 status=resolved-active/)
+  assert.strictEqual(resolved.structuredContent.continuationAllowed, true)
+  assert.strictEqual(resolved.structuredContent.continuationDisposition, 'resolved-readonly')
   assert.strictEqual(toolJson(resolved).candidate.taskId, '6f5faaf1-9a0c-4b12-99c3-4386e415a305')
   const missing = resultById(responses, 3)
-  assert.strictEqual(missing.isError, true)
+  assert.strictEqual(missing.isError, false)
   assert.strictEqual(missing.structuredContent.status, 'not-found')
+  assert.strictEqual(missing.structuredContent.continuationAllowed, true)
+  assert.strictEqual(missing.structuredContent.continuationDisposition, 'provisional-continue')
 }
 
 function testMemoryTaskResolveExplicitProjectBudget() {
@@ -1000,6 +1033,8 @@ function testMemoryTaskResolveExplicitProjectBudget() {
   assert.strictEqual(resolved.structuredContent.candidate.taskId, targetTaskId)
   assert(resolved.structuredContent.scan.canonicalBytes < 2 * 1024 * 1024, 'only the selected candidate may be deep-read')
   assert(resolved.structuredContent.scan.identityBytes < 64 * 1024 * 5)
+  assert.strictEqual(resolved.structuredContent.scan.sessionPrefixReads, 0, 'exact taskId must not pre-read every sessions file')
+  assert.strictEqual(resolved.structuredContent.scan.exactHitStopped, true)
   assert.strictEqual(resolved.structuredContent.mutationAuthority, false)
 
   const oversizedTaskRoot = path.join(TEMP_ROOT, '.devcodex', 'optimizations', 'MCP项目预算任务0')
@@ -1030,8 +1065,9 @@ function testMemoryTaskResolveExplicitProjectBudget() {
       }
     })
   ], TEMP_ROOT), 3)
-  assert.strictEqual(oversized.isError, true)
+  assert.strictEqual(oversized.isError, false)
   assert.strictEqual(oversized.structuredContent.status, 'stale-confirmation')
+  assert.strictEqual(oversized.structuredContent.continuationDisposition, 'provisional-continue')
   assert.strictEqual(oversized.structuredContent.errorCode, 'TASK_CONFIRMATION_STALE')
   assert.strictEqual(oversized.structuredContent.staleConfirmations[0].errorCode, 'TASK_CP_ARTIFACT_TOO_LARGE')
   assert.strictEqual(oversized.structuredContent.mutationAuthority, false)
@@ -1070,11 +1106,12 @@ function testMemoryTaskResolveWrongProjectIsolation() {
   assert.strictEqual(resolved.structuredContent.requestedProject, 'chat')
 
   const wrongProject = resultById(responses, 2)
-  assert.strictEqual(wrongProject.isError, true)
+  assert.strictEqual(wrongProject.isError, false)
   assert.strictEqual(wrongProject.structuredContent.status, 'not-found')
   assert.strictEqual(wrongProject.structuredContent.errorCode, 'TASK_NOT_FOUND')
   assert.strictEqual(wrongProject.structuredContent.requestedProject, 'missing-project')
   assert.strictEqual(wrongProject.structuredContent.scan.bytes, 0)
+  assert(!/--project|指定.*项目/iu.test(wrongProject.structuredContent.nextStep))
 }
 
 function buildTaskAuthorityIngress({
@@ -1086,9 +1123,10 @@ function buildTaskAuthorityIngress({
   rootIdentityDigest = '2'.repeat(64),
   routeKey = 'fix.default'
 }) {
+  const hostSessionId = `mcp-task-authority-${suffix}`
   const envelope = buildActualInstructionEnvelope({
     prompt: `修复 MCP task authority ${suffix}`,
-    session_id: `mcp-task-authority-${suffix}`,
+    session_id: hostSessionId,
     event_id: `mcp-task-authority-event-${suffix}`,
     timestamp: new Date(nowMs).toISOString()
   }, {
@@ -1116,7 +1154,7 @@ function buildTaskAuthorityIngress({
     physicalRoot,
     activeRoot,
     authorityKind: 'session',
-    authorityDigest: envelope.hostSessionDigest,
+    authorityDigest: digestSessionRef(hostSessionId),
     contextEpoch: envelope.contextEpoch,
     contextBindingDigest: '5'.repeat(64),
     routeRevision: route.routeRevision,
@@ -1676,7 +1714,26 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: '' }), 4)
   assert.strictEqual(mismatchedLifecycleResponse.isError, true)
   assert.match(mismatchedLifecycleResponse.content[0].text, /FINALIZED_TASK_RESUME_SESSION_MISMATCH/)
-  fs.writeFileSync(contextObservation.statePath, JSON.stringify(lifecycleProjection, null, 2) + '\n')
+  const staleLifecycleProjection = JSON.parse(JSON.stringify(lifecycleProjection))
+  staleLifecycleProjection.contextAcquisition.receipt.status = 'stale'
+  staleLifecycleProjection.contextAcquisition.receipt.missingSourceIds = contextAuthorization.plan.selectedSources
+    .map(source => source.sourceId)
+  staleLifecycleProjection.contextAcquisition.receipt.lastError = {
+    schemaVersion: 'ContextReadErrorV1',
+    errorCode: 'CONTEXT_PLAN_INVALID',
+    message: 'Context receipt is stale: scope-drift.',
+    nextStep: 'Replan once before the broader action.'
+  }
+  const expiredLifecycleLeaseCore = {
+    ...lifecycleLeaseCore,
+    expiresAt: new Date(nowMs - 1).toISOString(),
+    expiresAtMs: nowMs - 1
+  }
+  staleLifecycleProjection.stickyProject = {
+    ...expiredLifecycleLeaseCore,
+    leaseDigest: computeProjectTargetLeaseDigest(expiredLifecycleLeaseCore)
+  }
+  fs.writeFileSync(contextObservation.statePath, JSON.stringify(staleLifecycleProjection, null, 2) + '\n')
   const fallbackResponses = runServer('mcp/memory-server.js', [
     rpcRequest(5, 'tools/call', { name: 'memory_task_admit_v2', arguments: fallbackArgs }),
     rpcRequest(6, 'tools/call', { name: 'memory_task_admit_v2', arguments: fallbackArgs })
@@ -1684,17 +1741,54 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   const fallback = resultById(fallbackResponses, 5)
   assert.strictEqual(fallback.isError, false, fallback.content?.[0]?.text || '')
   assert.strictEqual(fallback.structuredContent.ingressSource, 'bounded-resume-fallback')
+  assert.strictEqual(
+    fallback.structuredContent.ownerAcquisition.owner.sessionDigest,
+    digestSessionRef(fallbackHostSessionId),
+    'a stale lifecycle receipt and expired target lease must recover only through the durable exact-session observations'
+  )
   assert.strictEqual(fallback.structuredContent.mutationAuthority, true)
   assert.strictEqual(fallback.structuredContent.admissionGeneration, resumed.structuredContent.admissionGeneration + 1)
   assert.strictEqual(fallback.structuredContent.recoveryStage, 'readback-complete')
+  const plainFallbackSessionDigest = crypto.createHash('sha256').update(fallbackHostSessionId).digest('hex')
+  const canonicalFallbackSessionDigest = digestSessionRef(fallbackHostSessionId)
+  assert.notStrictEqual(
+    plainFallbackSessionDigest,
+    canonicalFallbackSessionDigest,
+    'the envelope and project-target authority must remain separate digest domains'
+  )
+  const fallbackProjectRootIdentityDigest = resumeIngress.projectTargetLease.rootIdentityDigest
   assert.strictEqual(
     fallback.structuredContent.ownerAcquisition.owner.sessionDigest,
-    crypto.createHash('sha256').update(fallbackHostSessionId).digest('hex')
+    canonicalFallbackSessionDigest
   )
   assert.strictEqual(
     fallback.structuredContent.recovery.projectRootIdentityDigest,
-    lifecycleProjectTargetLease.rootIdentityDigest
+    fallbackProjectRootIdentityDigest,
+    'an expired project-target projection must not override the current canonical task root'
   )
+  const fallbackRouteIndex = createWorkspaceSessionRouteIndex({
+    metaDir: path.join(activeRoot, '.memory', 'hooks', 'legacy'),
+    fs,
+    path
+  })
+  const canonicalFallbackRoute = fallbackRouteIndex.read({ sessionDigest: canonicalFallbackSessionDigest })
+  assert.strictEqual(canonicalFallbackRoute.status, 'fresh')
+  assert.strictEqual(canonicalFallbackRoute.entry.taskId, priorAdmission.taskId)
+  assert.notStrictEqual(
+    fallbackRouteIndex.read({ sessionDigest: plainFallbackSessionDigest }).status,
+    'fresh',
+    'bounded resume must not bind a formal route under the plain envelope digest'
+  )
+  const fallbackReadiness = readFormalTaskExecutionReadiness({
+    activeRoot,
+    project,
+    taskId: priorAdmission.taskId,
+    projectRootIdentityDigest: fallbackProjectRootIdentityDigest,
+    expectedOwnerSessionDigest: canonicalFallbackSessionDigest,
+    requiredCpPhases: ['CP1']
+  })
+  assert.strictEqual(fallbackReadiness.status, 'ready')
+  assert.strictEqual(fallbackReadiness.ownerLeaseDigest, fallback.structuredContent.ownerAcquisition.owner.leaseDigest)
   assert.strictEqual(resultById(fallbackResponses, 6).structuredContent.replayed, true)
 }
 
@@ -2818,9 +2912,38 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
   }, { nowMs })
   const taskRoot = path.join(activeRoot, ...admission.taskRootRelative.split('/'))
   const artifactPath = path.join(taskRoot, '02-技术方案.md')
+  const cp3ArtifactPath = path.join(taskRoot, '04-实施计划-v0.1.0.md')
+  const unqualifiedCp3Path = path.join(taskRoot, '04-实施计划-v0.1.1.md')
   const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
-  fs.writeFileSync(artifactPath, '# Auto CP 技术方案\n\n候选内容。\n', 'utf8')
+  fs.writeFileSync(artifactPath, qualifiedCpArtifactContent({
+    activeRoot, project, taskKind: 'bugs', taskName: 'AutoCP大小写任务', relativePath: '02-技术方案.md'
+  }), 'utf8')
+  fs.writeFileSync(cp3ArtifactPath, qualifiedCpArtifactContent({
+    activeRoot, project, taskKind: 'bugs', taskName: 'AutoCP大小写任务', relativePath: '04-实施计划-v0.1.0.md'
+  }), 'utf8')
+  fs.writeFileSync(unqualifiedCp3Path, [
+    '# Near-title plan',
+    '',
+    '## 目录导航',
+    '',
+    '## 总览',
+    '',
+    '## 任务分解',
+    '',
+    '## 关键实施约束',
+    '',
+    '## 独立验证方式',
+    '',
+    '## 里程碑',
+    '',
+    '## 风险与回滚',
+    '',
+    '## 技术验证清单',
+    ''
+  ].join('\n'), 'utf8')
   const artifactSha256 = crypto.createHash('sha256').update(fs.readFileSync(artifactPath)).digest('hex')
+  const cp3ArtifactSha256 = crypto.createHash('sha256').update(fs.readFileSync(cp3ArtifactPath)).digest('hex')
+  const unqualifiedCp3Sha256 = crypto.createHash('sha256').update(fs.readFileSync(unqualifiedCp3Path)).digest('hex')
   const metaDir = resolveTaskRecoveryMetaDir({ activeRoot, project })
   const recoveryIdentity = {
     activeRoot,
@@ -2870,6 +2993,32 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
     project
   }
   const sessionsBefore = fs.readFileSync(sessionsPath, 'utf8')
+  const stateBeforeUnqualified = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+  const unqualified = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(20, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: {
+        ...baseArguments,
+        phase: 'CP3',
+        artifactPath: '04-实施计划-v0.1.1.md',
+        artifactVersion: 'v0.1.1-near-title',
+        artifactSha256: unqualifiedCp3Sha256,
+        autoDecisionEvidence: {
+          riskClass: 'R3',
+          sideEffectCategories: [],
+          blockers: [],
+          reviewGradeCard: { grade: 'R3', status: 'PASS', openBlockers: 0 }
+        }
+      }
+    })
+  ], TEMP_ROOT), 20)
+  assert.strictEqual(unqualified.isError, true)
+  assert.match(unqualified.content?.[0]?.text || '', /MEMORY_CP_ARTIFACT_TEMPLATE_UNQUALIFIED/)
+  assert.strictEqual(fs.readFileSync(sessionsPath, 'utf8'), sessionsBefore, 'unqualified CP artifact must have zero sessions effect')
+  const stateAfterUnqualified = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+  assert.deepStrictEqual(stateAfterUnqualified.autoCheckpointDecision, stateBeforeUnqualified.autoCheckpointDecision)
+  assert.deepStrictEqual(stateAfterUnqualified.autoCheckpointDecisions, stateBeforeUnqualified.autoCheckpointDecisions)
+
   const missingDecision = resultById(runServer('mcp/memory-server.js', [
     rpcRequest(2, 'tools/call', { name: 'memory_cp_confirm', arguments: baseArguments })
   ], TEMP_ROOT), 2)
@@ -2920,11 +3069,38 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
   assert.notStrictEqual(accepted.isError, true, accepted.content?.[0]?.text || 'task Auto CP confirmation failed')
   assert.strictEqual(accepted.structuredContent.autoCheckpointDecision.decision, 'auto-pass')
   assert.strictEqual(accepted.structuredContent.autoCheckpointState.readbackVerified, true)
+  assert.strictEqual(accepted.structuredContent.artifactSlot.slotId, 'bug-cp2')
+  assert.strictEqual(accepted.structuredContent.artifactSlot.stage, 'CP2')
+  assert.strictEqual(accepted.structuredContent.artifactTemplateBinding.schemaVersion, 'ArtifactTemplateBindingProjectionV1')
+  assert.strictEqual(accepted.structuredContent.artifactTemplateQualification.status, 'qualified')
+  assert.strictEqual(accepted.structuredContent.artifactTemplateQualification.readbackVerified, true)
   const acceptedState = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
   assert.strictEqual(acceptedState.state.autoCheckpointDecision.decision, 'auto-pass')
   assert.strictEqual(acceptedState.state.autoCheckpointDecisions.length, 1)
   assert.strictEqual(acceptedState.state.autoCheckpointDecisions[0].checkpoint, 'CP2')
   assert.strictEqual(parseCpSessions(fs.readFileSync(sessionsPath, 'utf8')).CP2.confirmed, true)
+
+  const stateBeforeWrongSlot = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+  const wrongSlot = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(21, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: {
+        ...baseArguments,
+        phase: 'CP3',
+        autoDecisionEvidence: {
+          riskClass: 'R3',
+          sideEffectCategories: [],
+          blockers: [],
+          reviewGradeCard: { grade: 'R3', status: 'PASS', openBlockers: 0 }
+        }
+      }
+    })
+  ], TEMP_ROOT), 21)
+  assert.strictEqual(wrongSlot.isError, true)
+  assert.match(wrongSlot.content?.[0]?.text || '', /MEMORY_CP_ARTIFACT_SLOT_MISMATCH/)
+  const stateAfterWrongSlot = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+  assert.deepStrictEqual(stateAfterWrongSlot.autoCheckpointDecision, stateBeforeWrongSlot.autoCheckpointDecision)
+  assert.deepStrictEqual(stateAfterWrongSlot.autoCheckpointDecisions, stateBeforeWrongSlot.autoCheckpointDecisions)
 
   const excludedEffect = resultById(runServer('mcp/memory-server.js', [
     rpcRequest(5, 'tools/call', {
@@ -2932,6 +3108,9 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
       arguments: {
         ...baseArguments,
         phase: 'CP3',
+        artifactPath: '04-实施计划-v0.1.0.md',
+        artifactVersion: 'v0.1.0-auto-smoke',
+        artifactSha256: cp3ArtifactSha256,
         autoDecisionEvidence: {
           riskClass: 'R3',
           sideEffectCategories: ['npm-publish'],
@@ -3060,8 +3239,16 @@ function testMemoryCpConfirmPreservesOrdinaryTables() {
   const taskRoot = path.join(TEMP_ROOT, '.devcodex', 'requirements', '表格任务')
   const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
   const artifactPath = path.join(taskRoot, '02-技术方案.md')
+  const cp3ArtifactPath = path.join(taskRoot, '04-实施计划-v1.0.md')
   fs.mkdirSync(path.dirname(sessionsPath), { recursive: true })
-  fs.writeFileSync(artifactPath, '# 技术方案\n', 'utf8')
+  fs.writeFileSync(artifactPath, qualifiedCpArtifactContent({
+    activeRoot: path.join(TEMP_ROOT, '.devcodex'), project: path.basename(TEMP_ROOT),
+    taskKind: 'requirements', taskName: '表格任务', relativePath: '02-技术方案.md'
+  }), 'utf8')
+  fs.writeFileSync(cp3ArtifactPath, qualifiedCpArtifactContent({
+    activeRoot: path.join(TEMP_ROOT, '.devcodex'), project: path.basename(TEMP_ROOT),
+    taskKind: 'requirements', taskName: '表格任务', relativePath: '04-实施计划-v1.0.md'
+  }), 'utf8')
   const ordinaryTable = [
     '# Requirement Sessions — 表格任务',
     '',
@@ -3072,6 +3259,7 @@ function testMemoryCpConfirmPreservesOrdinaryTables() {
   ].join('\n')
   fs.writeFileSync(sessionsPath, ordinaryTable, 'utf8')
   const digest = crypto.createHash('sha256').update(fs.readFileSync(artifactPath)).digest('hex')
+  const cp3Digest = crypto.createHash('sha256').update(fs.readFileSync(cp3ArtifactPath)).digest('hex')
 
   const first = runServer('mcp/memory-server.js', [
     rpcRequest(1, 'tools/call', {
@@ -3100,6 +3288,7 @@ function testMemoryCpConfirmPreservesOrdinaryTables() {
   assert.strictEqual(confirmation.structuredContent.artifactAuthority.rootKind, 'task')
   assert.strictEqual(confirmation.structuredContent.artifactAuthority.canonicalRelativePath, '02-技术方案.md')
   assert.match(confirmation.structuredContent.artifactAuthority.rootIdentity, /^[a-f0-9]{64}$/)
+  assert.strictEqual(confirmation.structuredContent.artifactTemplateQualification.status, 'qualified')
   assert.strictEqual(
     confirmation.structuredContent.artifactLinks.links[0].targetPath,
     'requirements/表格任务/02-技术方案.md'
@@ -3127,9 +3316,9 @@ function testMemoryCpConfirmPreservesOrdinaryTables() {
         requirement: '表格任务',
         phase: 'CP3',
         time: '12:05',
-        artifactPath: '02-技术方案.md',
+        artifactPath: '04-实施计划-v1.0.md',
         artifactVersion: 'v1.0',
-        artifactSha256: digest,
+        artifactSha256: cp3Digest,
         sourceMessage: '自动确认'
       }
     })
@@ -3173,7 +3362,10 @@ function testMemoryCpConfirmGenericSessionIndexWithoutCpSection() {
   const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
   const artifactPath = path.join(taskRoot, '01-需求确认.md')
   fs.mkdirSync(path.dirname(sessionsPath), { recursive: true })
-  fs.writeFileSync(artifactPath, '# 需求确认\nv0.1\n', 'utf8')
+  fs.writeFileSync(artifactPath, qualifiedCpArtifactContent({
+    activeRoot: path.join(TEMP_ROOT, '.devcodex'), project: path.basename(TEMP_ROOT),
+    taskKind: 'requirements', taskName: '会话索引无CP表', relativePath: '01-需求确认.md'
+  }), 'utf8')
   const sessionIndex = [
     '# Requirement Sessions — 会话索引无CP表',
     '',
@@ -5887,7 +6079,9 @@ function testMemoryArtifactLinkProjectionAndWriterIntegration() {
   const taskRoot = path.join(activeRoot, 'bugs', '链接任务')
   const cpArtifactPath = path.join(taskRoot, '02-技术方案.md')
   fs.mkdirSync(path.join(taskRoot, '.memory'), { recursive: true })
-  fs.writeFileSync(cpArtifactPath, '# CP2 artifact\n', 'utf8')
+  fs.writeFileSync(cpArtifactPath, qualifiedCpArtifactContent({
+    activeRoot, project: path.basename(projectRoot), taskKind: 'bugs', taskName: '链接任务', relativePath: '02-技术方案.md'
+  }), 'utf8')
   const cpDigest = crypto.createHash('sha256').update(fs.readFileSync(cpArtifactPath)).digest('hex')
   const cpResult = runServer('mcp/memory-server.js', [
     rpcRequest(5, 'tools/call', {

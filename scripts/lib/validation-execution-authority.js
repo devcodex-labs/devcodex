@@ -28,7 +28,9 @@ const CONTINUATION_REPAIR_PROOF_KINDS = new Set([
 const ROOT_ROLLOVER_REASONS = new Set([
   'strict-descendant-same-scope',
   'strict-descendant-exact-scope-current-auto-rebind',
-  'strict-descendant-current-auto-rescope'
+  'strict-descendant-current-auto-rescope',
+  'same-head-dirty-current-auto-rebind',
+  'same-head-dirty-same-auto-exact-scope'
 ])
 const VALIDATION_SUCCESSOR_REASONS = new Set(['pre-execution-same-scope-refresh'])
 const VALIDATION_RISK_CLASSES = new Set(['normal', 'high', 'release', 'security', 'destructive'])
@@ -575,7 +577,8 @@ function validateBudgetConfirmationReceipt(receipt, binding = null) {
   const rolloverFields = [
     receipt.parentRootReceiptDigest,
     receipt.parentTerminalDigest,
-    receipt.rootRolloverReason
+    receipt.rootRolloverReason,
+    receipt.rootRolloverOrdinal
   ]
   if (rolloverFields.some(value => value != null)) {
     if (receipt.authorityKind !== 'auto') errors.push('budget-confirmation-rollover-authority-invalid')
@@ -587,6 +590,15 @@ function validateBudgetConfirmationReceipt(receipt, binding = null) {
     }
     if (!ROOT_ROLLOVER_REASONS.has(receipt.rootRolloverReason)) {
       errors.push('budget-confirmation-rollover-reason-invalid')
+    }
+    if (receipt.rootRolloverOrdinal != null &&
+        (!Number.isInteger(receipt.rootRolloverOrdinal) || receipt.rootRolloverOrdinal < 1 ||
+          receipt.rootRolloverOrdinal > MAX_CONTINUATION_RETRIES)) {
+      errors.push('budget-confirmation-rollover-ordinal-invalid')
+    }
+    if (receipt.rootRolloverReason === 'same-head-dirty-same-auto-exact-scope' &&
+        !Number.isInteger(receipt.rootRolloverOrdinal)) {
+      errors.push('budget-confirmation-rollover-ordinal-required')
     }
   }
   const successorFields = [
@@ -728,7 +740,10 @@ function createBudgetConfirmationReceipt(input = {}, options = {}) {
       ? {
           parentRootReceiptDigest: String(input.parentRootReceiptDigest),
           parentTerminalDigest: String(input.parentTerminalDigest || ''),
-          rootRolloverReason: String(input.rootRolloverReason || '')
+          rootRolloverReason: String(input.rootRolloverReason || ''),
+          ...(input.rootRolloverOrdinal == null
+            ? {}
+            : { rootRolloverOrdinal: Number(input.rootRolloverOrdinal) })
         }
       : {}),
     revocationEpoch: Number.isInteger(input.revocationEpoch) ? input.revocationEpoch : 0,

@@ -16,6 +16,7 @@ const {
 const {
   ACTOR_TYPES,
   MAX_CONTINUATION_RETRIES,
+  MAX_PENDING_CANDIDATE_PATHS,
   approvePlanFromBudgetAuthority,
   candidateBinding,
   createBudgetConfirmationReceipt,
@@ -36,6 +37,7 @@ const { runManagedValidation } = require('./lib/managed-validation-runner')
 const {
   resolveActiveRuntimeRoot
 } = require('../hooks/_runtime/workspace-layout.cjs')
+const { digestSessionRef } = require('../hooks/_runtime/workspace-session-route-index-v1.cjs')
 const { resolveExecutionFeatureDecisionForCwd } = require('../hooks/_runtime/execution-optimization-routing.cjs')
 const {
   readTaskRecoveryState,
@@ -62,7 +64,9 @@ const CLI_EXECUTION_PROJECTION_SCHEMA = 'ValidationCliExecutionProjectionV1'
 const CLI_PERSISTENCE_PROJECTION_SCHEMA = 'ValidationCliPersistenceProjectionV1'
 const CLI_EXECUTION_MAX_BYTES = 64 * 1024
 const DIGEST_RE = /^[a-f0-9]{64}$/
+const GIT_OBJECT_RE = /^[a-f0-9]{40,64}$/
 const MAX_COMMITTED_REPAIR_PATHS = 512
+const MAX_SAME_HEAD_AUTO_ADDED_PATHS = 8
 
 function parseArgs(argv) {
   const options = {
@@ -599,9 +603,15 @@ function formalTaskPreflightNextAction(error) {
   return '先恢复同一正式任务的 finalized admission、当前 owner 与可续办状态，然后再生成验证卡。'
 }
 
+/** Returns the plain host-session digest used by validation-control and BudgetCard contracts. */
 function currentAiHostSessionDigest(authorityContext) {
   const sessionKey = String(authorityContext?.sessionKey || '').trim()
   return sessionKey ? sha256(sessionKey) : ''
+}
+
+/** Returns the canonical namespaced digest used only by the fenced task-owner contract. */
+function currentAiFencedOwnerSessionDigest(authorityContext) {
+  return digestSessionRef(authorityContext?.sessionKey)
 }
 
 function resolveFormalTaskExecutionPreflight({ authorityContext, plan, candidate, activeRoot,
@@ -641,8 +651,8 @@ function resolveFormalTaskExecutionPreflight({ authorityContext, plan, candidate
       project: 'devcodex',
       taskId: authorityContext.taskRecoveryKey,
       taskState: authorityContext.taskState,
-      projectRootIdentityDigest: authorityContext.taskState?.stickyProject?.rootIdentityDigest,
-      expectedOwnerSessionDigest: currentAiHostSessionDigest(authorityContext),
+      projectRootIdentityDigest: authorityContext.taskState?.admissionTransaction?.projectRootIdentityDigest,
+      expectedOwnerSessionDigest: currentAiFencedOwnerSessionDigest(authorityContext),
       requiredCpPhases: ['CP2', 'CP3']
     })
   } catch (error) {
@@ -793,7 +803,7 @@ function isSameSet(current = [], expected = []) {
 function isStrictGitDescendant(repoRoot, ancestor, descendant) {
   const previous = String(ancestor || '').trim().toLowerCase()
   const current = String(descendant || '').trim().toLowerCase()
-  if (!/^[a-f0-9]{40,64}$/.test(previous) || !/^[a-f0-9]{40,64}$/.test(current) || previous === current) {
+  if (!GIT_OBJECT_RE.test(previous) || !GIT_OBJECT_RE.test(current) || previous === current) {
     return false
   }
   try {
@@ -806,6 +816,43 @@ function isStrictGitDescendant(repoRoot, ancestor, descendant) {
   } catch {
     return false
   }
+}
+
+function sameHeadDirtyCandidateSuccessorProof(candidate, terminal) {
+  const unavailable = { proven: false, changedFiles: [], dirtyFiles: [], parentChangedFiles: [], addedFiles: [] }
+  const parentHead = String(terminal?.candidateHead || terminal?.runIdentity?.candidateHead || '').trim().toLowerCase()
+  const currentHead = String(candidate?.head || '').trim().toLowerCase()
+  const parentCandidateId = String(terminal?.runIdentity?.candidateId || terminal?.candidateId || '').trim()
+  const currentCandidateId = String(candidate?.candidateId || '').trim()
+  const parentCandidateDigest = String(terminal?.runIdentity?.candidateDigest || '').trim().toLowerCase()
+  const currentCandidateDigest = candidateBinding(candidate).candidateDigest
+  const rawChangedFiles = Array.isArray(candidate?.changedFiles) ? candidate.changedFiles : []
+  const rawDirtyFiles = Array.isArray(candidate?.dirtyIdentities)
+    ? candidate.dirtyIdentities.map(item => item?.path)
+    : []
+  const rawParentChangedFiles = Array.isArray(terminal?.candidateChangedFiles)
+    ? terminal.candidateChangedFiles
+    : null
+  const changedFiles = canonicalCommittedRepairPaths(rawChangedFiles)
+  const dirtyFiles = canonicalCommittedRepairPaths(rawDirtyFiles)
+  const parentChangedFiles = canonicalCommittedRepairPaths(rawParentChangedFiles)
+  if (candidate?.stable !== true || !GIT_OBJECT_RE.test(parentHead) || currentHead !== parentHead ||
+      !parentCandidateId || !currentCandidateId || currentCandidateId === parentCandidateId ||
+      !DIGEST_RE.test(parentCandidateDigest) || currentCandidateDigest === parentCandidateDigest ||
+      terminal?.candidateChangedFilesTruncated === true || !parentChangedFiles ||
+      !changedFiles || !dirtyFiles || changedFiles.length === 0 || dirtyFiles.length === 0 ||
+      rawChangedFiles.length > MAX_PENDING_CANDIDATE_PATHS || rawDirtyFiles.length > MAX_PENDING_CANDIDATE_PATHS ||
+      rawParentChangedFiles.length > MAX_PENDING_CANDIDATE_PATHS ||
+      changedFiles.length > MAX_PENDING_CANDIDATE_PATHS || dirtyFiles.length > MAX_PENDING_CANDIDATE_PATHS ||
+      parentChangedFiles.length > MAX_PENDING_CANDIDATE_PATHS ||
+      changedFiles.length !== rawChangedFiles.length || dirtyFiles.length !== rawDirtyFiles.length ||
+      parentChangedFiles.length !== rawParentChangedFiles.length ||
+      !isSubset(dirtyFiles, changedFiles) || !isSubset(parentChangedFiles, changedFiles)) {
+    return unavailable
+  }
+  const parentSet = new Set(parentChangedFiles)
+  const addedFiles = changedFiles.filter(file => !parentSet.has(file))
+  return { proven: true, changedFiles, dirtyFiles, parentChangedFiles, addedFiles }
 }
 
 function assessAutoRootRollover({
@@ -855,9 +902,17 @@ function assessAutoRootRollover({
   if (!directLineage && !continuationLineage) {
     return { eligible: false, reasonCode: 'auto-root-rollover-lineage-mismatch' }
   }
-  if (!isStrictGitDescendant(repoRoot, terminal.candidateHead, candidate.head)) {
-    return { eligible: false, reasonCode: 'auto-root-rollover-head-not-descendant' }
-  }
+  const controlIssuedAtMs = Date.parse(String(control.issuedAt || ''))
+  const terminalCompletedAtMs = Date.parse(String(terminal.completedAt || ''))
+  // A distinct user Auto turn after the parent terminal is new exact-card
+  // authority, not a continuation.  It may bind the current V2 impact scope;
+  // same/expired Auto authority remains constrained to the immutable root.
+  const currentAutoRescope = freshCurrentAutoRebind && !sameAutoBinding &&
+    control.autoAuthorityRef !== root.autoAuthorityRef &&
+    control.sourceMessageDigest !== root.sourceMessageDigest &&
+    authorityContext.contextEpoch !== root.contextEpoch &&
+    Number.isFinite(controlIssuedAtMs) && Number.isFinite(terminalCompletedAtMs) &&
+    controlIssuedAtMs > terminalCompletedAtMs
   const projection = rootProjectionRead.rootBudgetProjection
   const selectedNodeIds = (plan.selectedNodes || []).map(node => String(node.id || '')).filter(Boolean)
   const budget = plan.budgetCard || {}
@@ -871,31 +926,61 @@ function assessAutoRootRollover({
     Number(budget.estimatedDurationMs || 0) === Number(projection.estimatedDurationMs || 0) &&
     Number(budget.hardTimeoutUpperBoundMs || 0) === Number(projection.hardTimeoutUpperBoundMs || 0) &&
     Number(budget.logBudgetBytes || 0) === Number(projection.logBudgetBytes || 0)
-  const controlIssuedAtMs = Date.parse(String(control.issuedAt || ''))
-  const terminalCompletedAtMs = Date.parse(String(terminal.completedAt || ''))
-  // A distinct user Auto turn after the parent terminal is new exact-card
-  // authority, not a continuation.  It may bind the current V2 impact scope;
-  // same/expired Auto authority remains constrained to the immutable root.
-  const currentAutoRescope = freshCurrentAutoRebind && !sameAutoBinding &&
-    control.autoAuthorityRef !== root.autoAuthorityRef &&
-    control.sourceMessageDigest !== root.sourceMessageDigest &&
-    authorityContext.contextEpoch !== root.contextEpoch &&
-    Number.isFinite(controlIssuedAtMs) && Number.isFinite(terminalCompletedAtMs) &&
-    controlIssuedAtMs > terminalCompletedAtMs
+  const strictGitDescendant = isStrictGitDescendant(repoRoot, terminal.candidateHead, candidate.head)
+  if (!strictGitDescendant && sameAutoBinding && !exactScope) {
+    return { eligible: false, reasonCode: 'auto-root-rollover-scope-changed' }
+  }
+  const sameHeadSuccessor = !strictGitDescendant && (currentAutoRescope || sameAutoBinding)
+    ? sameHeadDirtyCandidateSuccessorProof(candidate, terminal)
+    : { proven: false, parentChangedFiles: [], addedFiles: [] }
+  const sameAutoAddedPathLimit = Math.min(
+    MAX_SAME_HEAD_AUTO_ADDED_PATHS,
+    Math.max(1, Math.ceil(sameHeadSuccessor.parentChangedFiles.length / 4))
+  )
+  const sameHeadCurrentAutoSuccessor = currentAutoRescope && sameHeadSuccessor.proven
+  const sameHeadSameAutoSuccessor = sameAutoBinding && exactScope && sameHeadSuccessor.proven &&
+    sameHeadSuccessor.addedFiles.length > 0 &&
+    sameHeadSuccessor.addedFiles.length <= sameAutoAddedPathLimit
+  if (!strictGitDescendant && !sameHeadCurrentAutoSuccessor && !sameHeadSameAutoSuccessor) {
+    let reasonCode = 'auto-root-rollover-head-not-descendant'
+    if (currentAutoRescope || (sameAutoBinding && exactScope)) {
+      reasonCode = 'auto-root-rollover-same-head-candidate-unproven'
+      if (sameHeadSuccessor.proven && sameAutoBinding && exactScope) {
+        reasonCode = sameHeadSuccessor.addedFiles.length === 0
+          ? 'auto-root-rollover-same-auto-path-delta-required'
+          : 'auto-root-rollover-same-auto-path-delta-exceeded'
+      }
+    }
+    return { eligible: false, reasonCode }
+  }
   if (!exactScope && !currentAutoRescope) {
     return { eligible: false, reasonCode: 'auto-root-rollover-scope-changed' }
   }
+  const parentRolloverOrdinal = Number.isInteger(root.rootRolloverOrdinal)
+    ? root.rootRolloverOrdinal
+    : (root.parentRootReceiptDigest ? 1 : 0)
+  const rootRolloverOrdinal = sameHeadCurrentAutoSuccessor
+    ? 1
+    : (sameHeadSameAutoSuccessor ? parentRolloverOrdinal + 1 : null)
+  if (sameHeadSameAutoSuccessor && rootRolloverOrdinal > MAX_CONTINUATION_RETRIES) {
+    return { eligible: false, reasonCode: 'auto-root-rollover-retry-exhausted' }
+  }
   return {
     eligible: true,
-    reasonCode: exactScope
-      ? (sameAutoBinding
-          ? 'strict-descendant-same-scope'
-          : 'strict-descendant-exact-scope-current-auto-rebind')
-      : 'strict-descendant-current-auto-rescope',
+    reasonCode: sameHeadSameAutoSuccessor
+      ? 'same-head-dirty-same-auto-exact-scope'
+      : (sameHeadCurrentAutoSuccessor
+          ? 'same-head-dirty-current-auto-rebind'
+      : (exactScope
+          ? (sameAutoBinding
+              ? 'strict-descendant-same-scope'
+              : 'strict-descendant-exact-scope-current-auto-rebind')
+          : 'strict-descendant-current-auto-rescope')),
     parentRootReceiptDigest: root.receiptDigest,
     parentTerminalDigest: terminal.terminalDigest,
     previousCandidateHead: terminal.candidateHead,
-    currentCandidateHead: candidate.head
+    currentCandidateHead: candidate.head,
+    rootRolloverOrdinal
   }
 }
 
@@ -1525,7 +1610,8 @@ function resolveAiBudgetAuthority({
         ? {
             parentRootReceiptDigest: rootRollover.parentRootReceiptDigest,
             parentTerminalDigest: rootRollover.parentTerminalDigest,
-            rootRolloverReason: rootRollover.reasonCode
+            rootRolloverReason: rootRollover.reasonCode,
+            rootRolloverOrdinal: rootRollover.rootRolloverOrdinal
           }
         : {}),
       revocationEpoch

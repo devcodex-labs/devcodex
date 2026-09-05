@@ -2004,8 +2004,8 @@ try {
     '# 问题概况',
     '',
     `> TaskIdentity: \`${evolvedResume.admission.taskId}\``,
-    `- CP2 ${evolvedCp2.version} ${evolvedCp2.artifactDigest}`,
-    `- CP3 ${evolvedCp3.version} ${evolvedCp3.artifactDigest}`,
+    `- CP2 ${evolvedCp2.version}（已确认）`,
+    `- CP3 ${evolvedCp3.version}（已确认）`,
     '',
     '已按确认的 CP 链进入实施。',
     ''
@@ -2051,23 +2051,132 @@ try {
   )
   fs.writeFileSync(evolvedSessionsPath, evolvedSessions)
   const evolvedOverviewPath = path.join(evolvedTaskRoot, '00-问题概况.md')
-  fs.appendFileSync(evolvedOverviewPath, '\n未授权的带外改写。\n')
+  fs.writeFileSync(evolvedOverviewPath, [
+    '# 面向读者的进度说明',
+    '',
+    '方案已经按既定范围完成实现，现在进入本地复核。',
+    '这段正常叙述不携带任务号、阶段名、版本号或机器摘要。',
+    ''
+  ].join('\n'))
+  const evolvedAfterNarrativeChange = readTaskRecoveryState({
+    metaDir: evolvedAttempt.metaDir,
+    identity: evolvedAttempt.identity
+  }, { nowMs: evolvedResumeAt + 1000 })
+  const firstReconciliation = readFinalizedResumeCanonicalEvidence(
+    evolvedAfterNarrativeChange.state.admissionTransaction,
+    evolvedResume.root.activeRoot,
+    fs,
+    { state: evolvedAfterNarrativeChange.state }
+  )
+  const replayedReconciliation = readFinalizedResumeCanonicalEvidence(
+    evolvedAfterNarrativeChange.state.admissionTransaction,
+    evolvedResume.root.activeRoot,
+    fs,
+    { state: evolvedAfterNarrativeChange.state }
+  )
+  assert.strictEqual(firstReconciliation.canonicalRevision.source, 'verified-resume-reconciliation')
+  assert.strictEqual(replayedReconciliation.canonicalRevisionDigest, firstReconciliation.canonicalRevisionDigest)
   assert.throws(
-    () => buildFinalizedResumeAttempt(
-      evolvedResume.root,
-      evolvedResult,
-      'finalized-authorized-overview-evolution-tampered',
-      evolvedResumeAt + 1000
+    () => readFinalizedResumeCanonicalEvidence(
+      evolvedAfterNarrativeChange.state.admissionTransaction,
+      evolvedResume.root.activeRoot,
+      fs,
+      {
+        state: {
+          ...evolvedAfterNarrativeChange.state,
+          taskCanonicalRevision: firstReconciliation.canonicalRevision
+        }
+      }
     ),
     error => error.code === 'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
-    'a stored canonical revision must reject later out-of-band overview edits even when CP bindings remain present'
+    'a process-local reconciliation revision must never become readable durable state'
+  )
+  setFinalizedResumeLiveness(evolvedResume.root, evolvedResult, {}, evolvedResumeAt + 1000)
+  const evolvedReconciledAttempt = buildFinalizedResumeAttempt(
+    evolvedResume.root,
+    evolvedResult,
+    'finalized-authorized-overview-evolution-reconciled',
+    evolvedResumeAt + 1000
+  )
+  assert.strictEqual(evolvedReconciledAttempt.candidate.canonicalRevisionDigest, firstReconciliation.canonicalRevisionDigest)
+  const evolvedReconciledResult = run(evolvedReconciledAttempt.input, { nowMs: evolvedResumeAt + 1000 })
+  assert.strictEqual(evolvedReconciledResult.mutationAuthority, true)
+  assert.strictEqual(evolvedReconciledResult.admissionGeneration, evolvedResult.admissionGeneration + 1)
+  const evolvedReconciledRead = readTaskRecoveryState({
+    metaDir: evolvedReconciledAttempt.metaDir,
+    identity: evolvedReconciledAttempt.identity
+  }, { nowMs: evolvedResumeAt + 1000 })
+  assert.strictEqual(evolvedReconciledRead.state.taskCanonicalRevision.source, 'resume-generation')
+  assert.strictEqual(
+    evolvedReconciledRead.state.taskCanonicalRevision.parentRevisionDigest,
+    firstReconciliation.canonicalRevisionDigest
+  )
+  assert.strictEqual(run(evolvedReconciledAttempt.input, { nowMs: evolvedResumeAt + 1000 }).replayed, true)
+
+  const timeOnlyInitialRoot = setupRoot('time-only-initial-confirmation')
+  const timeOnlyInitialInput = admissionInput(timeOnlyInitialRoot, 'time-only-initial-confirmation')
+  const timeOnlyInitialAdmission = run(timeOnlyInitialInput)
+  const timeOnlyInitialTaskRoot = taskRootFor(timeOnlyInitialInput, timeOnlyInitialAdmission)
+  const timeOnlyCp1 = reconfirmCp(
+    timeOnlyInitialTaskRoot,
+    'CP1',
+    '01-问题确认.md',
+    'v1.0.0-candidate',
+    '首次 CP 使用 canonical writer 的人类时间。',
+    '16:40'
+  )
+  const timeOnlyInitialOwner = runOwner(ownerInput(
+    timeOnlyInitialInput,
+    timeOnlyInitialAdmission,
+    'acquire',
+    { expectedOwner: { mode: 'absent' } }
+  ))
+  assert.strictEqual(timeOnlyInitialOwner.finalized, true)
+  assert.strictEqual(timeOnlyInitialOwner.mutationAuthority, true)
+  const timeOnlyInitialMetaDir = resolveTaskRecoveryMetaDir({
+    activeRoot: timeOnlyInitialRoot.activeRoot,
+    project: timeOnlyInitialRoot.project
+  })
+  const timeOnlyInitialRead = readTaskRecoveryState({
+    metaDir: timeOnlyInitialMetaDir,
+    identity: {
+      activeRoot: timeOnlyInitialRoot.activeRoot,
+      project: timeOnlyInitialRoot.project,
+      taskId: timeOnlyInitialAdmission.taskId,
+      taskStatus: 'active'
+    }
+  }, { nowMs: NOW_MS })
+  assert.strictEqual(timeOnlyInitialRead.status, 'fresh')
+  assert.strictEqual(
+    readFinalizedResumeCanonicalEvidence(
+      timeOnlyInitialRead.state.admissionTransaction,
+      timeOnlyInitialRoot.activeRoot,
+      fs,
+      { state: timeOnlyInitialRead.state }
+    ).confirmedCpEvidence[0].confirmedAt,
+    timeOnlyCp1.confirmedAt,
+    'the first time-only CP confirmation must remain intact in canonical evidence'
   )
 
   const legacyEvolutionAt = NOW_MS + 8 * 60 * 1000
   const legacyEvolution = createFinalizedResumeFixture('finalized-legacy-overview-evolution')
   const legacyTaskRoot = taskRootFor(legacyEvolution.input, legacyEvolution.admission)
-  const legacyCp2 = confirmCp(legacyTaskRoot, 'CP2', '02-修复方案.md', 'v2.1.0-candidate')
-  const legacyCp3 = confirmCp(legacyTaskRoot, 'CP3', '04-实施计划.md', 'v3.1.0-candidate')
+  const legacyCp2 = reconfirmCp(
+    legacyTaskRoot,
+    'CP2',
+    '02-修复方案.md',
+    'v2.1.0-candidate',
+    '人类可读时间 CP2。',
+    '16:41'
+  )
+  const legacyCp3 = reconfirmCp(
+    legacyTaskRoot,
+    'CP3',
+    '04-实施计划.md',
+    'v3.1.0-candidate',
+    '人类可读时间 CP3。',
+    '16:42'
+  )
   const legacyMetaDir = resolveTaskRecoveryMetaDir({
     activeRoot: legacyEvolution.root.activeRoot,
     project: legacyEvolution.root.project
@@ -2083,38 +2192,51 @@ try {
     return state
   }, { nowMs: legacyEvolutionAt - 2000, force: true, reason: 'test-legacy-runtime-state', ...STORE_OPTIONS })
   assert(['committed', 'semantic-noop'].includes(strippedLegacy.status))
-  fs.writeFileSync(path.join(legacyTaskRoot, '00-问题概况.md'), [
-    '# 问题概况',
-    '',
-    `> TaskIdentity: \`${legacyEvolution.admission.taskId}\``,
-    `- versions: ${legacyCp2.version} / ${legacyCp3.version}`,
-    `- digests: ${legacyCp2.artifactDigest} / ${legacyCp3.artifactDigest}`,
-    '- phases: CP2 / CP3',
-    '',
-    '任意正文把已知字符串分散拼贴，不构成可验证的 CP 演进证据。',
-    ''
-  ].join('\n'))
-  setFinalizedResumeLiveness(legacyEvolution.root, legacyEvolution.admission, {}, legacyEvolutionAt)
+  const legacySessionsPath = path.join(legacyTaskRoot, '.memory', 'sessions.md')
+  const legacySessions = fs.readFileSync(legacySessionsPath, 'utf8')
+  fs.writeFileSync(legacySessionsPath, legacySessions.replace('16:42', '25:99'))
   assert.throws(
-    () => buildFinalizedResumeAttempt(
-      legacyEvolution.root,
-      legacyEvolution.admission,
-      'finalized-legacy-overview-evolution-unbound-evidence',
-      legacyEvolutionAt
+    () => readFinalizedResumeCanonicalEvidence(
+      strippedLegacy.state.admissionTransaction,
+      legacyEvolution.root.activeRoot,
+      fs,
+      { state: strippedLegacy.state }
     ),
-    error => error.code === 'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
-    'legacy migration must reject overview text that merely scatters known CP versions and digests'
+    error => error.code === 'FINALIZED_TASK_RESUME_CP_DRIFT',
+    'a malformed time outside the existing human-readable HH:mm contract must remain fail closed'
   )
+  fs.writeFileSync(legacySessionsPath, legacySessions)
   fs.writeFileSync(path.join(legacyTaskRoot, '00-问题概况.md'), [
     '# 问题概况',
     '',
-    `> TaskIdentity: \`${legacyEvolution.admission.taskId}\``,
-    `- CP2 ${legacyCp2.version} ${legacyCp2.artifactDigest}`,
-    `- CP3 ${legacyCp3.version} ${legacyCp3.artifactDigest}`,
+    '这是旧运行时留下的人类可读任务说明。',
     '',
-    '此状态由修复前运行时按已确认 CP 链合法演进。',
+    '正文不包含任务标识、阶段或候选版本 token；恢复权威只来自机器身份和已确认 CP 链。',
     ''
   ].join('\n'))
+  const firstLegacyCanonical = readFinalizedResumeCanonicalEvidence(
+    strippedLegacy.state.admissionTransaction,
+    legacyEvolution.root.activeRoot,
+    fs,
+    { state: strippedLegacy.state }
+  )
+  const replayedLegacyCanonical = readFinalizedResumeCanonicalEvidence(
+    strippedLegacy.state.admissionTransaction,
+    legacyEvolution.root.activeRoot,
+    fs,
+    { state: strippedLegacy.state }
+  )
+  assert.strictEqual(firstLegacyCanonical.canonicalRevision.source, 'legacy-confirmed-cp-chain')
+  assert.strictEqual(
+    replayedLegacyCanonical.canonicalRevisionDigest,
+    firstLegacyCanonical.canonicalRevisionDigest,
+    'the same time-only CP state must produce one deterministic canonical revision digest'
+  )
+  assert.strictEqual(
+    firstLegacyCanonical.canonicalRevision.updatedAt,
+    new Date(Date.parse(strippedLegacy.state.admissionTransaction.updatedAt)).toISOString(),
+    'time-only CP evidence must use the deterministic admission timestamp for revision metadata'
+  )
   setFinalizedResumeLiveness(legacyEvolution.root, legacyEvolution.admission, {}, legacyEvolutionAt)
   const legacyEvolutionAttempt = buildFinalizedResumeAttempt(
     legacyEvolution.root,
@@ -2140,8 +2262,8 @@ try {
     '# 问题概况',
     '',
     `> TaskIdentity: \`${successorResume.admission.taskId}\``,
-    `- CP2 ${successorOldCp2.version} ${successorOldCp2.artifactDigest}`,
-    `- CP3 ${successorOldCp3.version} ${successorOldCp3.artifactDigest}`,
+    `- CP2 ${successorOldCp2.version}（已确认）`,
+    `- CP3 ${successorOldCp3.version}（已确认）`,
     '',
     '旧候选已确认。',
     ''
@@ -2176,14 +2298,31 @@ try {
   fs.writeFileSync(path.join(successorTaskRoot, '00-问题概况.md'), [
     '# 问题概况',
     '',
-    `> TaskIdentity: \`${successorResume.admission.taskId}\``,
-    `- CP2 ${successorNewCp2.version} ${successorNewCp2.artifactDigest}`,
-    `- CP3 ${successorNewCp3.version} ${successorNewCp3.artifactDigest}`,
+    '方案已更新，接下来继续实现。',
     '',
-    '已按重新确认的 CP 后继候选继续。',
+    '这里故意不出现任务标识、阶段名或候选版本；机器 CP successor 才是恢复依据。',
     ''
   ].join('\n'))
   setFinalizedResumeLiveness(successorResume.root, successorG2, {}, successorSecondAt)
+  const successorBeforeG3 = readTaskRecoveryState({
+    metaDir: resolveTaskRecoveryMetaDir({
+      activeRoot: successorResume.root.activeRoot,
+      project: successorResume.root.project
+    }),
+    identity: {
+      activeRoot: successorResume.root.activeRoot,
+      project: successorResume.root.project,
+      taskId: successorResume.admission.taskId,
+      taskStatus: 'active'
+    }
+  }, { nowMs: successorSecondAt })
+  const successorCanonical = readFinalizedResumeCanonicalEvidence(
+    successorBeforeG3.state.admissionTransaction,
+    successorResume.root.activeRoot,
+    fs,
+    { state: successorBeforeG3.state }
+  )
+  assert.strictEqual(successorCanonical.canonicalRevision.source, 'confirmed-cp-evolution')
   const successorSecondAttempt = buildFinalizedResumeAttempt(
     successorResume.root,
     successorG2,
@@ -2243,8 +2382,8 @@ try {
     '# 问题概况',
     '',
     `> TaskIdentity: \`${historicalDriftResume.admission.taskId}\``,
-    `- CP2 ${historicalOldCp2.version} ${historicalOldCp2.artifactDigest}`,
-    `- CP3 ${historicalOldCp3.version} ${historicalOldCp3.artifactDigest}`,
+    `- CP2 ${historicalOldCp2.version}（已确认）`,
+    `- CP3 ${historicalOldCp3.version}（已确认）`,
     '',
     '历史 CP1 仍与首代确认一致。',
     ''
@@ -2282,8 +2421,8 @@ try {
     '# 问题概况',
     '',
     `> TaskIdentity: \`${historicalDriftResume.admission.taskId}\``,
-    `- CP2 ${cp2.version} ${cp2.artifactDigest}`,
-    `- CP3 ${historicalNewCp3.version} ${historicalNewCp3.artifactDigest}`,
+    `- CP2 ${cp2.version}（已确认）`,
+    `- CP3 ${historicalNewCp3.version}（已确认）`,
     '',
     '历史 CP1 只保留审计，当前 head 由已确认 successor 证明。',
     ''

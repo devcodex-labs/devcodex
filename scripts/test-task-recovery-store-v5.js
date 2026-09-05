@@ -11,9 +11,11 @@ const {
   BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_SCAN,
   commitTaskAdmissionTransaction,
   commitTaskRecoveryState,
+  createAdmissionTaskCanonicalRevision,
   createAutoCheckpointDecision,
   createTaskScopedAutoContinuationGrant,
   createTaskRecoveryKey,
+  createVerifiedResumeReconciliationTaskCanonicalRevision,
   diagnoseTaskRecoveryStore,
   ensureReserve,
   EPHEMERAL_ENTRY_MAX_BYTES,
@@ -32,6 +34,7 @@ const {
   updateTaskRecoveryState,
   validateAutoCheckpointDecision,
   validateBoundedResumeIngressCapability,
+  validateTaskCanonicalRevision,
   validateTasklessWorkflowIngressRecovery,
   validateTaskScopedAutoContinuationGrant,
   writeBoundedResumeIngressCapability,
@@ -1000,6 +1003,69 @@ try {
   assert(!JSON.stringify(compact.state).includes('data:image'))
   assert(compact.state.turnLiveness.checkpoint.artifactPaths.some(item => item.endsWith('README.md')))
 
+  const governancePressureState = state('00000000-0000-4000-8000-0000000000c4')
+  const ledgerFileIds = Array.from({ length: 400 }, (_, index) => `PI-${String(index + 1).padStart(3, '0')}`)
+  governancePressureState.governanceIntake = {
+    version: 3,
+    promptPreview: 'governance-pressure',
+    candidates: [],
+    ledgerObservations: Array.from({ length: 40 }, (_, index) => ({
+      id: `GIO-${String(index).padStart(8, '0')}`,
+      observedAt: `2026-08-22T00:${String(index % 60).padStart(2, '0')}:00.000Z`,
+      eventName: 'PostToolUse',
+      toolName: 'apply_patch',
+      ledger: 'data/process-improvements.md',
+      ledgerPath: path.join(activeRoot, 'data', 'process-improvements.md'),
+      activeRootMatch: true,
+      outcomeObservable: true,
+      successful: true,
+      inputIds: [`PI-${String(500 + index).padStart(3, '0')}`],
+      fileIds: ledgerFileIds,
+      evidenceIds: [`PI-${String(500 + index).padStart(3, '0')}`],
+      ledgerIntegrity: {
+        schemaVersion: 'GovernanceLedgerIntegrityV1',
+        valid: true,
+        issues: [],
+        primaryIds: ledgerFileIds,
+        contentDigest: 'a'.repeat(64),
+        diagnosticBody: 'ledger-integrity-full-snapshot-marker'.repeat(128)
+      }
+    }))
+  }
+  governancePressureState.validationExecution = {
+    schemaVersion: 'ValidationExecutionTaskStateV1',
+    runnerState: {
+      schemaVersion: 'ManagedValidationRunnerStateV1',
+      checkpoint: 'validation-runner-checkpoint'.repeat(4800)
+    }
+  }
+  const governancePressureSourceBytes = jsonBytes(governancePressureState)
+  assert(governancePressureSourceBytes > 256 * 1024, 'fixture must reproduce a pre-projection oversized combined state')
+  const governancePressureProjection = compactLifecycleStateV5(governancePressureState)
+  const governancePressureReplay = compactLifecycleStateV5(governancePressureState)
+  const governancePressureIdempotent = compactLifecycleStateV5(governancePressureProjection.state)
+  const projectedGovernance = governancePressureProjection.state.governanceIntake
+  const latestObservation = projectedGovernance.ledgerObservations.at(-1)
+  assert(governancePressureProjection.bytes < 256 * 1024)
+  assert(jsonBytes(projectedGovernance.ledgerObservations) <= 32 * 1024)
+  assert(projectedGovernance.ledgerObservations.length <= 32)
+  assert.strictEqual(projectedGovernance.ledgerObservationProjection.sourceCount, 40)
+  assert(projectedGovernance.ledgerObservationProjection.droppedCount >= 8)
+  assert.strictEqual(latestObservation.inputIds[0], 'PI-539')
+  assert.strictEqual(latestObservation.evidenceIds[0], 'PI-539')
+  assert.strictEqual(latestObservation.fileIdCount, 400)
+  assert.match(latestObservation.fileIdsDigest, /^[a-f0-9]{64}$/)
+  assert.strictEqual(latestObservation.ledgerIntegritySummary.valid, true)
+  assert.match(latestObservation.ledgerIntegritySummary.digest, /^[a-f0-9]{64}$/)
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(latestObservation, 'fileIds'), false)
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(latestObservation, 'ledgerIntegrity'), false)
+  assert.strictEqual(JSON.stringify(projectedGovernance).includes('ledger-integrity-full-snapshot-marker'), false)
+  assert.strictEqual(governancePressureReplay.payloadDigest, governancePressureProjection.payloadDigest)
+  assert.deepStrictEqual(governancePressureIdempotent.state.governanceIntake, projectedGovernance,
+    'reprojecting a compact observation must preserve its audit summaries exactly')
+  assert.strictEqual(governancePressureState.governanceIntake.ledgerObservations[0].fileIds.length, 400,
+    'projection must not mutate the producer-local rich observation')
+
   const compactSerializationTaskId = '00000000-0000-4000-8000-0000000000c5'
   const compactSerializationState = state(compactSerializationTaskId)
   compactSerializationState.serializationProbe = Array.from(
@@ -1087,6 +1153,79 @@ try {
     identity: identity('00000000-0000-4000-8000-0000000000a2'),
     transaction: invalidAdmission
   }, baseOptions).errorCode, 'TASK_ADMISSION_TRANSACTION_INVALID')
+
+  const reconciliationTaskId = '00000000-0000-4000-8000-0000000000a3'
+  const reconciliationOverviewDigest = '8'.repeat(64)
+  const reconciliationCpChainDigest = '9'.repeat(64)
+  const reconciliationTransaction = admissionTransaction(reconciliationTaskId, 'finalized', {
+    status: 'finalized',
+    effects: {
+      identity: { status: 'written', identityDigest: '3'.repeat(64) },
+      overview: { status: 'written', contentDigest: reconciliationOverviewDigest },
+      cpState: {
+        status: 'confirmed',
+        cp1Confirmed: true,
+        cpChainDigest: reconciliationCpChainDigest,
+        confirmedCpEvidence: []
+      },
+      owner: { status: 'fenced', ownerGeneration: 1 }
+    }
+  })
+  const admissionCanonicalRevision = createAdmissionTaskCanonicalRevision(reconciliationTransaction)
+  assert.strictEqual(validateTaskCanonicalRevision(admissionCanonicalRevision, reconciliationTransaction).valid, true)
+  const reconciliationInput = {
+    currentOverviewDigest: '7'.repeat(64),
+    cpChainDigest: reconciliationCpChainDigest,
+    confirmedCpEvidenceDigest: '6'.repeat(64),
+    observedAt: '2026-08-22T00:05:00.000Z'
+  }
+  const reconciliationRevision = createVerifiedResumeReconciliationTaskCanonicalRevision(
+    admissionCanonicalRevision,
+    reconciliationTransaction,
+    reconciliationInput
+  )
+  const replayedReconciliationRevision = createVerifiedResumeReconciliationTaskCanonicalRevision(
+    admissionCanonicalRevision,
+    reconciliationTransaction,
+    reconciliationInput
+  )
+  assert.strictEqual(reconciliationRevision.source, 'verified-resume-reconciliation')
+  assert.strictEqual(reconciliationRevision.previousOverviewDigest, reconciliationOverviewDigest)
+  assert.strictEqual(reconciliationRevision.currentOverviewDigest, reconciliationInput.currentOverviewDigest)
+  assert.strictEqual(reconciliationRevision.cpChainDigest, reconciliationCpChainDigest)
+  assert.strictEqual(validateTaskCanonicalRevision(reconciliationRevision, reconciliationTransaction).valid, true)
+  assert.strictEqual(replayedReconciliationRevision.revisionDigest, reconciliationRevision.revisionDigest)
+  const processLocalState = state(reconciliationTaskId)
+  processLocalState.admissionTransaction = reconciliationTransaction
+  processLocalState.taskCanonicalRevision = reconciliationRevision
+  assert.strictEqual(
+    commitTaskRecoveryState({
+      metaDir,
+      identity: identity(reconciliationTaskId),
+      sessionKey: 'process-local-reconciliation',
+      state: processLocalState
+    }, baseOptions).errorCode,
+    'TASK_CANONICAL_REVISION_PROCESS_LOCAL',
+    'the reconciliation source must never become a durable task-state value'
+  )
+  assert.strictEqual(
+    createVerifiedResumeReconciliationTaskCanonicalRevision(
+      admissionCanonicalRevision,
+      reconciliationTransaction,
+      { ...reconciliationInput, cpChainDigest: '5'.repeat(64) }
+    ),
+    null,
+    'a same-CP reconciliation must not bridge a changed machine CP chain'
+  )
+  assert.strictEqual(
+    createVerifiedResumeReconciliationTaskCanonicalRevision(
+      admissionCanonicalRevision,
+      reconciliationTransaction,
+      { ...reconciliationInput, currentOverviewDigest: reconciliationOverviewDigest }
+    ),
+    null,
+    'a reconciliation revision requires an actual human overview change'
+  )
 
   const paths = storePaths(metaDir)
   for (const reserveFile of paths.reserve) {

@@ -3,17 +3,20 @@
 
 const assert = require('assert')
 const childProcess = require('child_process')
+const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
 
 const {
   RECENT_REQUIREMENT_ARTIFACT_DAYS,
+  HISTORICAL_TEMPLATE_DISPOSITION_SCHEMA,
   checkArtifactTemplateFile,
   checkActualCandidateEvidence,
   hasSimpleTaskFastPathMarker,
   collectRecentBugArtifactIssues,
-  collectRecentRequirementArtifactIssues
+  collectRecentRequirementArtifactIssues,
+  validateHistoricalTemplateDispositions
 } = require('./lib/requirement-artifact-check')
 const { buildActualCandidateEvidenceReceipt } = require('./lib/actual-candidate-evidence')
 const { createArtifactTemplateBinding } = require('../hooks/_runtime/artifact-template-contract.cjs')
@@ -26,6 +29,14 @@ function write(filePath, content) {
 function setAge(filePath, daysAgo) {
   const time = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000)
   fs.utimesSync(filePath, time, time)
+}
+
+function qualifiedTemplateText(slot, filePath, intent = 'dev') {
+  const binding = createArtifactTemplateBinding({ slot, target: filePath, intent })
+  return `${binding.requiredSemanticIds.map(semanticId => {
+    if (semanticId === 'document-title') return '# Fixture implementation plan\n\n> **类型**：dev'
+    return semanticId.startsWith('heading:') ? `## ${semanticId.slice('heading:'.length).replace(/-/g, ' ')}` : ''
+  }).filter(Boolean).join('\n\n')}\n`
 }
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-v41-'))
@@ -58,76 +69,28 @@ try {
       destructivePolicy: 'confirm'
     }]
   }, null, 2))
+  const baseRegistry = JSON.parse(fs.readFileSync(
+    path.join(__dirname, '..', 'hooks', '_runtime', 'artifact-slot-registry.v2.json'),
+    'utf8'
+  ))
+  const slot = slotId => baseRegistry.slots.find(item => item.slotId === slotId)
 
-  write(path.join(requirementsRoot, 'good-requirement', '00-需求概况.md'), [
-    '# overview',
-    '',
-    '## 目录导航',
-    '',
-    '- [需求一句话](#需求一句话)'
-  ].join('\n'))
-  write(path.join(requirementsRoot, 'good-requirement', '01-需求确认.md'), [
-    '# good',
-    '',
-    '## 目录导航',
-    '',
-    '- [背景](#背景)'
-  ].join('\n'))
-  write(path.join(requirementsRoot, 'good-requirement', '04-实施计划.md'), [
-    '# plan',
-    '',
-    '> 计划模式：轻计划摘要',
-    '',
-    '## 目录导航',
-    '',
-    '## 验证路线',
-    '',
-    '## 回滚摘要'
-  ].join('\n'))
-  write(path.join(requirementsRoot, 'good-requirement', '05-实施进度.md'), [
-    '# progress',
-    '',
-    '> 当前轮次：R1',
-    '> 当前 CP：执行中',
-    '> 当前批次：Batch 1 / 3',
-    '',
-    '## 目录导航',
-    '',
-    '## 进度总览',
-    '',
-    '## 支撑产物状态',
-    '',
-    '**本轮验证结果**：',
-    '',
-    '## 阻塞与恢复',
-    '',
-    '## 下一步',
-    '',
-    '## 变更记录'
-  ].join('\n'))
+  const goodRequirementOverview = path.join(requirementsRoot, 'good-requirement', '00-需求概况.md')
+  const goodRequirementCp1 = path.join(requirementsRoot, 'good-requirement', '01-需求确认.md')
+  const goodRequirementPlan = path.join(requirementsRoot, 'good-requirement', '04-实施计划.md')
+  const goodRequirementProgress = path.join(requirementsRoot, 'good-requirement', '05-实施进度.md')
+  write(goodRequirementOverview, qualifiedTemplateText(slot('requirement-overview'), goodRequirementOverview))
+  write(goodRequirementCp1, qualifiedTemplateText(slot('requirement-cp1'), goodRequirementCp1))
+  write(goodRequirementPlan, `${qualifiedTemplateText(slot('implementation-plan'), goodRequirementPlan)}\n> 计划模式：轻计划摘要\n\n## 回滚摘要\n`)
+  write(goodRequirementProgress, `${qualifiedTemplateText(slot('implementation-progress'), goodRequirementProgress)}\n> 当前轮次：R1\n> 当前 CP：执行中\n> 当前批次：Batch 1 / 3\n\n## 进度总览\n\n## 支撑产物状态\n\n**本轮验证结果**：\n\n## 阻塞与恢复\n\n## 下一步\n\n## 变更记录\n`)
   write(path.join(requirementsRoot, 'good-requirement', 'verify.http'), 'GET http://localhost/health\n')
 
-  write(path.join(requirementsRoot, 'good-change', '00-需求变更概况.md'), [
-    '# change overview',
-    '',
-    '## 目录导航',
-    '',
-    '- [原需求基线](#原需求基线)'
-  ].join('\n'))
-  write(path.join(requirementsRoot, 'good-change', '01-需求变更确认.md'), [
-    '# change',
-    '',
-    '## 目录导航',
-    '',
-    '- [变更前后差异](#变更前后差异)'
-  ].join('\n'))
-  write(path.join(requirementsRoot, 'good-product-requirement', '01-产品需求.md'), [
-    '# product requirement',
-    '',
-    '## 目录导航',
-    '',
-    '- [产品完整需求](#产品完整需求)'
-  ].join('\n'))
+  const goodChangeOverview = path.join(requirementsRoot, 'good-change', '00-需求变更概况.md')
+  const goodChangeCp1 = path.join(requirementsRoot, 'good-change', '01-需求变更确认.md')
+  const goodProductCp1 = path.join(requirementsRoot, 'good-product-requirement', '01-产品需求.md')
+  write(goodChangeOverview, qualifiedTemplateText(slot('requirement-overview'), goodChangeOverview))
+  write(goodChangeCp1, qualifiedTemplateText(slot('requirement-cp1'), goodChangeCp1))
+  write(goodProductCp1, qualifiedTemplateText(slot('requirement-cp1'), goodProductCp1))
 
   write(path.join(requirementsRoot, 'bad-requirement', '00-需求概况.md'), '# bad overview\n')
   write(path.join(requirementsRoot, 'bad-requirement', '01-需求确认.md'), '# bad\n')
@@ -165,21 +128,12 @@ try {
     '04-实施计划.md: N/A + skipReason'
   ].join('\n'))
 
-  write(path.join(bugsRoot, 'good-bug', '00-问题概况.md'), [
-    '# bug overview',
-    '',
-    '## 目录导航',
-    '',
-    '- [重现步骤](#重现步骤)'
-  ].join('\n'))
-  write(path.join(bugsRoot, 'good-bug', '01-问题确认.md'), [
-    '# bug confirmation',
-    '',
-    '## 目录导航',
-    '',
-    '- [根因](#根因)'
-  ].join('\n'))
-  write(path.join(bugsRoot, 'good-bug', '02-修复方案.md'), '# fix design\n')
+  const goodBugOverview = path.join(bugsRoot, 'good-bug', '00-问题概况.md')
+  const goodBugCp1 = path.join(bugsRoot, 'good-bug', '01-问题确认.md')
+  const goodBugCp2 = path.join(bugsRoot, 'good-bug', '02-修复方案.md')
+  write(goodBugOverview, qualifiedTemplateText(slot('bug-overview'), goodBugOverview, 'fix'))
+  write(goodBugCp1, `${qualifiedTemplateText(slot('bug-cp1'), goodBugCp1, 'fix')}\n## 目录导航\n`)
+  write(goodBugCp2, qualifiedTemplateText(slot('bug-cp2'), goodBugCp2, 'fix'))
   write(path.join(bugsRoot, 'bad-bug', '00-问题概况.md'), '# bad bug overview\n')
   write(path.join(bugsRoot, 'bad-bug', '01-问题确认.md'), '# bad bug confirmation\n')
   write(path.join(bugsRoot, 'unknown-only-bug', '02-功能清单.md'), '# misplaced inventory\n')
@@ -214,10 +168,6 @@ try {
   })
 
   assert.match(mergedRegistryDigest, /^[a-f0-9]{64}$/)
-  const baseRegistry = JSON.parse(fs.readFileSync(
-    path.join(__dirname, '..', 'hooks', '_runtime', 'artifact-slot-registry.v2.json'),
-    'utf8'
-  ))
   assert(baseRegistry.slots.some(slot => slot.slotId === 'project-host-governance'))
   assert.strictEqual(
     registrySlotCount,
@@ -245,7 +195,7 @@ try {
   assert(issues.some(item => item.includes('bad-requirement/04-实施计划.md missing rollback section')))
   assert(issues.some(item => item.includes('bad-requirement/05-实施进度.md missing "支撑产物状态"')))
   assert(issues.some(item => item.includes('bad-template-pr1/03-方案复审-PR1.md template qualification artifact-template-required-semantic-missing:')))
-  assert(!issues.some(item => item.includes('good-requirement')))
+  assert(!issues.some(item => item.includes('good-requirement')), JSON.stringify(issues.filter(item => item.includes('good-requirement'))))
   assert(!issues.some(item => item.includes('good-product-requirement')))
   assert(!issues.some(item => item.includes('good-template-pr1')))
 
@@ -282,6 +232,76 @@ try {
   assert.strictEqual(checkArtifactTemplateFile({ slot: reportSlot, filePath: devRepairReportPath }).passed, true,
     'a declared dev report must keep the dev template even when its filename contains 修复')
 
+  const planSlot = baseRegistry.slots.find(slot => slot.slotId === 'implementation-plan')
+  const dispositionDir = path.join(requirementsRoot, 'historical-template-disposition')
+  const historicalPath = path.join(dispositionDir, '04-实施计划-v0.1.0.md')
+  const replacementPath = path.join(dispositionDir, '04-实施计划-v0.1.1.md')
+  const futurePath = path.join(dispositionDir, '04-实施计划-v0.1.2.md')
+  write(path.join(dispositionDir, '00-需求概况.md'), '# overview\n\n## 目录导航\n')
+  write(historicalPath, '# invalid historical plan\n\ntemplateBindingStatus: qualified-v1\n')
+  write(replacementPath, qualifiedTemplateText(planSlot, replacementPath))
+  write(futurePath, qualifiedTemplateText(planSlot, futurePath))
+  write(path.join(dispositionDir, '.memory', 'sessions.md'), [
+    '# sessions',
+    '',
+    '| CP | 状态 | artifactPath | version | sha256 | sourceMessage | confirmedAt |',
+    '|:--:|:----:|--------------|---------|--------|---------------|-------------|',
+    `| CP3 | ✅ | [04-实施计划-v0.1.1.md](../04-实施计划-v0.1.1.md) | v0.1.1-candidate | \`${crypto.createHash('sha256').update(fs.readFileSync(replacementPath)).digest('hex')}\` | confirm | now |`,
+    ''
+  ].join('\n'))
+  const validDisposition = {
+    schemaVersion: HISTORICAL_TEMPLATE_DISPOSITION_SCHEMA,
+    entries: [{
+      relativePath: '04-实施计划-v0.1.0.md',
+      artifactSha256: crypto.createHash('sha256').update(fs.readFileSync(historicalPath)).digest('hex'),
+      candidateVersion: 'v0.1.0-candidate',
+      disposition: 'superseded-confirmed',
+      replacementPath: '04-实施计划-v0.1.1.md',
+      replacementSha256: crypto.createHash('sha256').update(fs.readFileSync(replacementPath)).digest('hex'),
+      reasonCode: 'historical-semantic-mismatch'
+    }]
+  }
+  const dispositionSidecar = path.join(dispositionDir, '.memory', 'artifact-template-dispositions.json')
+  const dispositionInventory = () => require('../hooks/_runtime/artifact-slot-decision.cjs').enumerateTaskArtifacts({
+    taskRoot: dispositionDir,
+    taskKind: 'requirements',
+    activeRoot: tempRoot,
+    project: overlayProject,
+    registry: require('../hooks/_runtime/artifact-slot-decision.cjs').readLayeredArtifactSlotRegistry({ activeRoot: tempRoot, project: overlayProject, fs }),
+    fs
+  })
+  const writeDisposition = value => write(dispositionSidecar, `${JSON.stringify(value, null, 2)}\n`)
+  writeDisposition(validDisposition)
+  assert.strictEqual(validateHistoricalTemplateDispositions(dispositionDir, dispositionInventory()).valid, true)
+  const dispositionCollection = collectRecentRequirementArtifactIssues({ activeRoot: tempRoot, project: overlayProject })
+  assert(!dispositionCollection.issues.some(issue => issue.startsWith('historical-template-disposition/04-实施计划-v0.1.0.md template qualification')),
+    'an exact digest-bound historical disposition must isolate only the declared failing candidate')
+
+  write(historicalPath, '# tampered historical plan\ntemplateBindingStatus: qualified-v1\n')
+  assert(validateHistoricalTemplateDispositions(dispositionDir, dispositionInventory()).issues.some(issue => issue.includes('artifact-digest-mismatch')))
+  write(historicalPath, '# invalid historical plan\n\ntemplateBindingStatus: qualified-v1\n')
+  writeDisposition({ ...validDisposition, entries: [...validDisposition.entries, { ...validDisposition.entries[0] }] })
+  assert(validateHistoricalTemplateDispositions(dispositionDir, dispositionInventory()).issues.some(issue => issue.includes('duplicate-relative-path')))
+  writeDisposition({ ...validDisposition, entries: [{ ...validDisposition.entries[0], relativePath: '../outside.md' }] })
+  assert(validateHistoricalTemplateDispositions(dispositionDir, dispositionInventory()).issues.some(issue => issue.includes('relative-path-invalid')))
+  writeDisposition({ ...validDisposition, entries: [{
+    ...validDisposition.entries[0],
+    relativePath: '04-实施计划-v0.1.1.md',
+    artifactSha256: crypto.createHash('sha256').update(fs.readFileSync(replacementPath)).digest('hex'),
+    candidateVersion: 'v0.1.1-candidate',
+    replacementPath: '04-实施计划-v0.1.2.md',
+    replacementSha256: crypto.createHash('sha256').update(fs.readFileSync(futurePath)).digest('hex')
+  }] })
+  assert(validateHistoricalTemplateDispositions(dispositionDir, dispositionInventory()).issues.some(issue => issue.includes('current-head-cannot-be-disposed')))
+  write(replacementPath, '# invalid replacement\n')
+  writeDisposition({ ...validDisposition, entries: [{
+    ...validDisposition.entries[0],
+    replacementSha256: crypto.createHash('sha256').update(fs.readFileSync(replacementPath)).digest('hex')
+  }] })
+  assert(validateHistoricalTemplateDispositions(dispositionDir, dispositionInventory()).issues.some(issue => issue.includes('replacement-not-qualified')))
+  write(replacementPath, qualifiedTemplateText(planSlot, replacementPath))
+  writeDisposition(validDisposition)
+
   const bugResult = collectRecentBugArtifactIssues({
     activeRoot: tempRoot,
     recentDays: RECENT_REQUIREMENT_ARTIFACT_DAYS
@@ -298,7 +318,7 @@ try {
   assert(bugResult.issues.some(item => item.includes('bad-bug/00-问题概况.md missing "## 目录导航"')))
   assert(bugResult.issues.some(item => item.includes('bad-bug/01-问题确认.md missing "## 目录导航"')))
   assert(bugResult.issues.some(item => item.includes('unknown-only-bug/02-功能清单.md unknown formal artifact slot')))
-  assert(!bugResult.issues.some(item => item.includes('good-bug')))
+  assert(!bugResult.issues.some(item => item.includes('good-bug')), JSON.stringify(bugResult.issues.filter(item => item.includes('good-bug'))))
 
   const mismatchedOverlay = collectRecentRequirementArtifactIssues({
     activeRoot: tempRoot,

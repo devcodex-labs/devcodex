@@ -305,6 +305,11 @@ function createBudget(scope, overrides = {}) {
     bytes: 0,
     identityBytes: 0,
     canonicalBytes: 0,
+    identityReads: 0,
+    sessionPrefixReads: 0,
+    archivedReads: 0,
+    canonicalReads: 0,
+    exactHitStopped: false,
     pages: 0,
     pageIdentityBytes: 0,
     localizedErrors: 0
@@ -319,7 +324,14 @@ function consumeDirectory(budget) {
   budget.directories += 1
 }
 
-function readLocatorMetadata(filePath, maxBytes, budget, { countIdentity = false } = {}) {
+function readLocatorMetadata(filePath, maxBytes, budget, {
+  countIdentity = false,
+  countSessionPrefix = false,
+  countArchived = false
+} = {}) {
+  if (countIdentity) budget.identityReads += 1
+  if (countSessionPrefix) budget.sessionPrefixReads += 1
+  if (countArchived) budget.archivedReads += 1
   let stats
   try {
     stats = fs.statSync(filePath)
@@ -379,6 +391,7 @@ function readLocatorMetadata(filePath, maxBytes, budget, { countIdentity = false
 }
 
 function readCanonicalMetadata(filePath, budget, maxFileBytes = TASK_CANONICAL_FILE_MAX_BYTES) {
+  budget.canonicalReads += 1
   let stats
   try { stats = fs.statSync(filePath) } catch (error) {
     if (error?.code === 'ENOENT') return { exists: false, text: '', digest: '', bytes: 0, size: 0 }
@@ -487,8 +500,8 @@ function collectTaskInventory(rootContext, budget) {
         const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
         const archivedPath = path.join(taskRoot, '.archived')
         const identitySource = readLocatorMetadata(identityPath, budget.maxIdentityBytes, budget, { countIdentity: true })
-        const sessionsSource = readLocatorMetadata(sessionsPath, TASK_LOCATOR_SESSION_PREFIX_BYTES, budget)
-        const archivedSource = readLocatorMetadata(archivedPath, 0, budget)
+        const sessionsSource = readLocatorMetadata(sessionsPath, TASK_LOCATOR_SESSION_PREFIX_BYTES, budget, { countSessionPrefix: true })
+        const archivedSource = readLocatorMetadata(archivedPath, 0, budget, { countArchived: true })
         descriptors.push({
           project: root.project,
           activeRoot: root.activeRoot,
@@ -815,6 +828,148 @@ function descriptorMap(inventory) {
   return new Map(inventory.descriptors.map(descriptor => [descriptor.relativeTaskPath, descriptor]))
 }
 
+function emptyLocatorSource() {
+  return { exists: false, text: '', digest: '', bytes: 0, size: 0, mtimeMs: 0 }
+}
+
+function identityOnlyDescriptor(rootContext, root, kind, directoryName, budget) {
+  const taskRoot = path.join(root.activeRoot, kind, directoryName)
+  const identityPath = path.join(taskRoot, '.memory', 'task.json')
+  return {
+    project: root.project,
+    activeRoot: root.activeRoot,
+    kind,
+    directoryName,
+    taskRoot,
+    relativeTaskPath: safeRelative(rootContext.relativeBase, taskRoot),
+    identityPath,
+    sessionsPath: path.join(taskRoot, '.memory', 'sessions.md'),
+    identitySource: readLocatorMetadata(identityPath, budget.maxIdentityBytes, budget, { countIdentity: true }),
+    sessionsSource: emptyLocatorSource(),
+    archivedSource: emptyLocatorSource()
+  }
+}
+
+function descriptorFromIndexHint(rootContext, entry, budget) {
+  const hintedPath = String(entry?.relativeTaskPath || '').replace(/\\/g, '/')
+  if (!hintedPath || path.isAbsolute(hintedPath)) return null
+  const taskRoot = path.resolve(rootContext.relativeBase, hintedPath)
+  const root = rootContext.roots.find(candidate => isInside(candidate.activeRoot, taskRoot))
+  if (!root || !isInside(rootContext.relativeBase, taskRoot)) return null
+  const rootRelative = path.relative(root.activeRoot, taskRoot).split(path.sep).filter(Boolean)
+  if (rootRelative.length !== 2 || !TASK_KINDS.includes(rootRelative[0])) return null
+  const [kind, directoryName] = rootRelative
+  if ((entry.project && entry.project !== root.project) || (entry.kind && entry.kind !== kind)) return null
+  const descriptor = identityOnlyDescriptor(rootContext, root, kind, directoryName, budget)
+  if (descriptor.relativeTaskPath !== hintedPath) return null
+  return descriptor
+}
+
+function scanExactTaskIdIdentityFirst(rootContext, taskId, budget) {
+  for (const root of rootContext.roots) {
+    for (const kind of TASK_KINDS) {
+      const kindRoot = path.join(root.activeRoot, kind)
+      let children
+      try {
+        children = fs.readdirSync(kindRoot, { withFileTypes: true })
+      } catch (error) {
+        if (error?.code !== 'ENOENT') budget.localizedErrors += 1
+        continue
+      }
+      children.sort((left, right) => left.name.localeCompare(right.name))
+      for (const child of children) {
+        if (!child.isDirectory()) continue
+        consumeDirectory(budget)
+        const descriptor = identityOnlyDescriptor(rootContext, root, kind, child.name, budget)
+        const parsed = parseTaskIdentity(descriptor)
+        if (!parsed.valid || !parsed.identity) continue
+        if (String(parsed.identity.taskId || '').toLowerCase() !== taskId) continue
+        budget.exactHitStopped = true
+        return descriptor
+      }
+    }
+  }
+  return null
+}
+
+function taskIndexRuntime(rootContext, cwd, project, persistIndex, now) {
+  const optimizationActiveRoot = rootContext.scope === 'workspace'
+    ? path.join(rootContext.layout.workspaceRoot, '.devcodex', 'workspace')
+    : rootContext.roots[0].activeRoot
+  const featureDecision = resolveExecutionFeatureDecisionForCwd({
+    cwd,
+    activeRoot: optimizationActiveRoot,
+    project,
+    featureId: 'task-index-acceleration'
+  })
+  const indexEnabled = featureDecision.optimizationAllowed
+  const store = createRuntimeStateStore({
+    activeRoot: rootContext.storeActiveRoot,
+    project: rootContext.scope === 'workspace' ? 'workspace' : rootContext.project,
+    relativePath: rootContext.storeRelativePath,
+    maxBytes: rootContext.scope === 'workspace' ? 16 * 1024 * 1024 : 4 * 1024 * 1024,
+    lockWaitMs: 2000,
+    maxWrites: persistIndex && indexEnabled ? 1 : 0,
+    now
+  })
+  return { featureDecision, indexEnabled, store }
+}
+
+function featureDecisionEvidence(featureDecision) {
+  return {
+    schemaVersion: featureDecision.schemaVersion,
+    featureId: featureDecision.featureId,
+    lifecycleState: featureDecision.lifecycleState,
+    optimizationAllowed: featureDecision.optimizationAllowed,
+    reasonCode: featureDecision.reasonCode,
+    stateStatus: featureDecision.stateStatus
+  }
+}
+
+function resolveExactTaskIdDescriptor({ rootContext, taskId, budget, cwd, project, persistIndex, useIndex, now }) {
+  const runtime = taskIndexRuntime(rootContext, cwd, project, persistIndex, now)
+  const indexEnabled = useIndex !== false && runtime.indexEnabled
+  const readReceipt = indexEnabled
+    ? runtime.store.read()
+    : { status: 'bypassed', errorCode: runtime.featureDecision.reasonCode }
+  let descriptor = null
+  let hintState = 'identity-scan'
+  if (readReceipt.status === 'fresh' && validateIndex(readReceipt.value, rootContext)) {
+    const matches = readReceipt.value.entries.filter(entry =>
+      entry?.taskId && String(entry.taskId).toLowerCase() === taskId
+    )
+    if (matches.length === 1) {
+      const hinted = descriptorFromIndexHint(rootContext, matches[0], budget)
+      const parsed = hinted ? parseTaskIdentity(hinted) : null
+      if (parsed?.valid && String(parsed.identity?.taskId || '').toLowerCase() === taskId) {
+        descriptor = hinted
+        budget.exactHitStopped = true
+        hintState = 'hint-reused'
+      } else {
+        hintState = 'hint-stale-fallback'
+      }
+    } else if (matches.length > 1) {
+      hintState = 'hint-ambiguous-fallback'
+    }
+  } else if (readReceipt.status !== 'missing') {
+    hintState = 'hint-unavailable-fallback'
+  }
+  if (!descriptor) descriptor = scanExactTaskIdIdentityFirst(rootContext, taskId, budget)
+  return {
+    descriptor,
+    indexEvidence: {
+      state: descriptor && hintState === 'hint-reused' ? hintState : (descriptor ? 'identity-scan-hit' : 'identity-scan-miss'),
+      hintState,
+      rebuildReason: null,
+      filePath: runtime.store.filePath,
+      sourceIdentity: null,
+      readStatus: readReceipt.status,
+      writeStatus: null,
+      featureDecision: featureDecisionEvidence(runtime.featureDecision)
+    }
+  }
+}
+
 function scanReceipt(budget) {
   return {
     directories: budget.directories,
@@ -822,6 +977,11 @@ function scanReceipt(budget) {
     pageSize: budget.pageSize,
     identityBytes: budget.identityBytes,
     canonicalBytes: budget.canonicalBytes,
+    identityReads: budget.identityReads,
+    sessionPrefixReads: budget.sessionPrefixReads,
+    archivedReads: budget.archivedReads,
+    canonicalReads: budget.canonicalReads,
+    exactHitStopped: budget.exactHitStopped,
     bytes: budget.bytes,
     localizedErrors: budget.localizedErrors
   }
@@ -841,7 +1001,9 @@ function resolveUniqueActiveTaskContinuation({ cwd = process.cwd(), project = ''
       errorCode: active.length ? 'TASK_AMBIGUOUS' : 'TASK_SELECTOR_REQUIRED',
       message: active.length ? `${active.length} active tasks require an explicit --task selector.` : 'No unique active task is available.',
       candidates: active.slice(0, 5).map(minimalCandidate),
-      nextStep: 'Specify --task with an exact display name, alias, or stable taskId.',
+      nextStep: rootContext.scope === 'project'
+        ? 'Specify --task with an exact display name, alias, or stable taskId in the current project; current read-only analysis may continue.'
+        : 'Specify --task with an exact display name, alias, or stable taskId; current read-only analysis may continue.',
       mutationAuthority: false,
       scan: scanReceipt(budget)
     }
@@ -877,27 +1039,38 @@ function resolveTaskContinuation({
   let budget
   rootContext = resolveRootContext({ cwd, project, scope })
   budget = createBudget(rootContext.scope, budgets)
+  if (isStableTaskId(displayQuery)) {
+    const exact = resolveExactTaskIdDescriptor({
+      rootContext,
+      taskId: normalizedQuery,
+      budget,
+      cwd,
+      project,
+      persistIndex,
+      useIndex,
+      now
+    })
+    const base = baseResolution(rootContext, displayQuery, normalizedQuery, exact.indexEvidence)
+    if (!exact.descriptor) {
+      return {
+        ...base,
+        status: 'not-found',
+        errorCode: 'TASK_NOT_FOUND',
+        message: `No exact taskId match was found for ${displayQuery}.`,
+        suggestions: [],
+        nextStep: rootContext.scope === 'project'
+          ? 'Continue provisionally or provide an exact task name/taskId from the current project.'
+          : 'Continue provisionally or provide an exact task name/taskId.',
+        scan: scanReceipt(budget)
+      }
+    }
+    return resolveSelectedDescriptor({ base, descriptor: exact.descriptor, rootContext, budget })
+  }
   const inventory = collectTaskInventory(rootContext, budget)
 
-  const optimizationActiveRoot = rootContext.scope === 'workspace'
-    ? path.join(rootContext.layout.workspaceRoot, '.devcodex', 'workspace')
-    : rootContext.roots[0].activeRoot
-  const featureDecision = resolveExecutionFeatureDecisionForCwd({
-    cwd,
-    activeRoot: optimizationActiveRoot,
-    project,
-    featureId: 'task-index-acceleration'
-  })
+  const runtime = taskIndexRuntime(rootContext, cwd, project, persistIndex, now)
+  const { featureDecision, store } = runtime
   const indexEnabled = useIndex !== false && featureDecision.optimizationAllowed
-  const store = createRuntimeStateStore({
-    activeRoot: rootContext.storeActiveRoot,
-    project: rootContext.scope === 'workspace' ? 'workspace' : rootContext.project,
-    relativePath: rootContext.storeRelativePath,
-    maxBytes: rootContext.scope === 'workspace' ? 16 * 1024 * 1024 : 4 * 1024 * 1024,
-    lockWaitMs: 2000,
-    maxWrites: persistIndex && indexEnabled ? 1 : 0,
-    now
-  })
   const readReceipt = indexEnabled
     ? store.read({ expectedIdentity: inventory.sourceIdentity })
     : { status: 'bypassed', errorCode: featureDecision.reasonCode }
@@ -925,14 +1098,7 @@ function resolveTaskContinuation({
     sourceIdentity: inventory.sourceIdentity,
     readStatus: readReceipt.status,
     writeStatus: writeReceipt?.status || null,
-    featureDecision: {
-      schemaVersion: featureDecision.schemaVersion,
-      featureId: featureDecision.featureId,
-      lifecycleState: featureDecision.lifecycleState,
-      optimizationAllowed: featureDecision.optimizationAllowed,
-      reasonCode: featureDecision.reasonCode,
-      stateStatus: featureDecision.stateStatus
-    }
+    featureDecision: featureDecisionEvidence(featureDecision)
   }
   const base = baseResolution(rootContext, displayQuery, normalizedQuery, indexEvidence)
   const matches = findExactMatches(index.entries, normalizedQuery)
@@ -972,8 +1138,11 @@ function resolveTaskContinuation({
       scan: scanReceipt(budget)
     }
   }
-  const selected = inspectTaskDescriptor(descriptor, budget)
+  return resolveSelectedDescriptor({ base, descriptor, rootContext, budget })
+}
 
+function resolveSelectedDescriptor({ base, descriptor, rootContext, budget }) {
+  const selected = inspectTaskDescriptor(descriptor, budget)
   const candidate = minimalCandidate(selected)
   if (!selected.identityValid) {
     return {

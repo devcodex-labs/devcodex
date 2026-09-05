@@ -8,7 +8,12 @@ const { execFileSync } = require('child_process')
 
 const { sha256, stableStringify } = require('../hooks/_runtime/content-identity.cjs')
 const { projectArtifactMutationReconciliationReceipt } = require('../hooks/_runtime/artifact-mutation-reconciliation.cjs')
-const { buildActualInstructionEnvelope } = require('../hooks/_runtime/actual-instruction-envelope.cjs')
+const {
+  buildActualInstructionEnvelope,
+  buildWorkItemSet
+} = require('../hooks/_runtime/actual-instruction-envelope.cjs')
+const { buildWorkflowRouteDecision } = require('../hooks/_runtime/workflow-route-decision-v2.cjs')
+const { digestSessionRef } = require('../hooks/_runtime/workspace-session-route-index-v1.cjs')
 const {
   applyValidationControlIngress,
   createValidationControlIngressReceipt,
@@ -24,12 +29,20 @@ const { createValidationEvidenceStore } = require('./lib/validation-evidence-sto
 const { ValidationDagError } = require('./lib/validation-dag')
 const {
   MAX_CONTINUATION_RETRIES,
+  MAX_PENDING_CANDIDATE_PATHS,
   createBudgetConfirmationReceipt,
   createFormalTaskExecutionPreflight,
   createPendingBudgetCardBinding,
   createVerificationExecutionLease,
-  planBudgetProjection
+  planBudgetProjection,
+  validateBudgetConfirmationReceipt
 } = require('./lib/validation-execution-authority')
+const {
+  computeProjectTargetLeaseDigest,
+  executeTaskAdmission,
+  executeTaskWriteOwner,
+  readFormalTaskExecutionReadiness
+} = require('../mcp/task-admission-authority.cjs')
 const {
   createCliLease,
   resolveAiBudgetAuthority: resolveAiBudgetAuthorityRuntime,
@@ -39,6 +52,13 @@ const {
 
 const REPO_ROOT = path.resolve(__dirname, '..')
 const NOW = Date.now()
+const FORMAL_TASK_STORE_OPTIONS = {
+  reserveBytes: 8 * 1024,
+  softBytes: 64 * 1024 * 1024,
+  hardBytes: 128 * 1024 * 1024,
+  diskHeadroomBytes: 0,
+  availableDiskBytes: 1024 * 1024 * 1024
+}
 
 function countFiles(root) {
   let count = 0
@@ -170,6 +190,172 @@ function authorityContext({ identity, sessionKey, contextEpoch, control, state =
     authoritySourceRef: `validation-control:${control.receiptDigest}`,
     taskState: state
   }
+}
+
+function confirmFormalTaskCp(taskRoot, phase, artifactName, version, confirmedAt) {
+  const artifactContent = `# ${phase} 确认\n\n正式验证摘要域回归。\n`
+  fs.writeFileSync(path.join(taskRoot, artifactName), artifactContent)
+  const artifactDigest = sha256(artifactContent)
+  const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
+  const sessions = fs.readFileSync(sessionsPath, 'utf8')
+  const confirmedRow = `| ${phase} | ✅ | ${artifactName} | ${version} | ${artifactDigest} | ` +
+    `formal-validation-${phase.toLowerCase()} | ${confirmedAt} |`
+  const updated = sessions.replace(new RegExp(`^\\|\\s*${phase}\\s*\\|.*$`, 'mu'), confirmedRow)
+  assert.notStrictEqual(updated, sessions, `${phase} fixture row must exist`)
+  fs.writeFileSync(sessionsPath, updated)
+  return { artifactName, artifactDigest }
+}
+
+function createFormalValidationTaskFixture({ activeRoot, sessionKey, suffix }) {
+  const contextEpoch = `context-formal-${suffix}`
+  const admittedAt = NOW - 5000
+  const envelope = buildActualInstructionEnvelope({
+    prompt: `修复正式验证 ${suffix}`,
+    sourceEventId: `formal-validation-${suffix}`,
+    issuedAt: new Date(admittedAt).toISOString()
+  }, {
+    actualInstruction: `修复正式验证 ${suffix}`,
+    hostVariant: 'codex',
+    hostSessionId: sessionKey,
+    turnId: `turn-formal-${suffix}`,
+    contextEpoch,
+    trustedHostEvent: true,
+    nowMs: admittedAt
+  })
+  const workItemSet = buildWorkItemSet(envelope, {
+    workItems: [{ taskKind: 'fix', routeCandidate: 'fix.default' }]
+  })
+  const route = buildWorkflowRouteDecision({
+    actualInstructionEnvelope: envelope,
+    workItemSet,
+    workItemId: workItemSet.items[0].workItemId,
+    environmentMode: 'dev',
+    routeKey: 'fix.default'
+  })
+  const rootIdentityDigest = validationProjectRootIdentity(REPO_ROOT).digest
+  const leaseCore = {
+    schemaVersion: 'ProjectTargetLeaseV2',
+    project: 'devcodex',
+    targetDigest: sha256(`target:${suffix}`),
+    rootIdentityDigest,
+    layoutIdentity: sha256(`layout:${suffix}`),
+    physicalRoot: REPO_ROOT,
+    activeRoot,
+    authorityKind: 'session',
+    authorityDigest: digestSessionRef(sessionKey),
+    contextEpoch,
+    contextBindingDigest: sha256(`context-binding:${suffix}`),
+    routeRevision: route.routeRevision,
+    revocationEpoch: 0,
+    issuedAtMs: admittedAt - 1000,
+    expiresAtMs: NOW + 60 * 60 * 1000
+  }
+  const projectTargetLease = {
+    ...leaseCore,
+    leaseDigest: computeProjectTargetLeaseDigest(leaseCore)
+  }
+  const admissionInput = {
+    operation: 'admit',
+    activeRoot,
+    project: 'devcodex',
+    actualInstructionEnvelope: envelope,
+    workItemSet,
+    workflowRouteDecision: route,
+    projectTargetLease,
+    task: {
+      taskKind: 'bugs',
+      entryVariant: 'fix',
+      displayName: `正式验证摘要域-${suffix}`,
+      aliases: []
+    },
+    overview: { content: `# 问题概况\n\n${suffix}\n` }
+  }
+  const admission = executeTaskAdmission(admissionInput, {
+    nowMs: admittedAt,
+    storeOptions: FORMAL_TASK_STORE_OPTIONS
+  })
+  const taskRoot = path.join(activeRoot, ...admission.taskRootRelative.split('/'))
+  confirmFormalTaskCp(
+    taskRoot,
+    'CP1',
+    '01-问题确认.md',
+    'v1.0.0-candidate',
+    new Date(NOW - 4000).toISOString()
+  )
+  const owner = executeTaskWriteOwner({
+    operation: 'acquire',
+    activeRoot,
+    project: 'devcodex',
+    actualInstructionEnvelope: envelope,
+    workItemSet,
+    workflowRouteDecision: route,
+    projectTargetLease,
+    taskId: admission.taskId,
+    admissionId: admission.admissionId,
+    expectedOwner: { mode: 'absent' }
+  }, {
+    nowMs: NOW - 3000,
+    storeOptions: FORMAL_TASK_STORE_OPTIONS,
+    nonceFactory: () => `owner-${sha256(`owner:${suffix}`).slice(0, 40)}`
+  })
+  assert.strictEqual(owner.finalized, true)
+  const cp2 = confirmFormalTaskCp(
+    taskRoot,
+    'CP2',
+    '02-技术方案.md',
+    'v1.0.0-candidate',
+    new Date(NOW - 2000).toISOString()
+  )
+  const cp3 = confirmFormalTaskCp(
+    taskRoot,
+    'CP3',
+    '04-实施计划.md',
+    'v1.0.0-candidate',
+    new Date(NOW - 1000).toISOString()
+  )
+  const identity = { activeRoot, project: 'devcodex', taskId: admission.taskId, taskStatus: 'active' }
+  const recovered = readTaskRecoveryState({
+    metaDir: resolveTaskRecoveryMetaDir({ activeRoot, project: 'devcodex' }),
+    identity,
+    sessionKey,
+    expectedIdentity: { activeRoot, project: 'devcodex' }
+  })
+  assert.strictEqual(recovered.status, 'fresh')
+  assert.strictEqual(recovered.state.admissionTransaction.projectRootIdentityDigest, rootIdentityDigest)
+  return {
+    activeRoot,
+    admission,
+    contextEpoch,
+    identity,
+    owner,
+    rootIdentityDigest,
+    sessionKey,
+    taskRoot,
+    cp2,
+    cp3,
+    taskState: {
+      admissionTransaction: recovered.state.admissionTransaction,
+      taskRecoveryBinding: recovered.state.taskRecoveryBinding,
+      stickyProject: { rootIdentityDigest },
+      fencedWriteOwner: { leaseDigest: owner.owner.leaseDigest }
+    }
+  }
+}
+
+function expectFormalTaskPreflightBlock(input, expectedInnerCode) {
+  let observed = null
+  try {
+    const authorityContext = { ...input.authorityContext }
+    delete authorityContext.formalTaskExecutionPreflight
+    resolveFormalTaskExecutionPreflight({ ...input, authorityContext })
+  } catch (error) {
+    observed = error
+  }
+  assert.strictEqual(observed?.code, 'FORMAL_TASK_EXECUTION_PREFLIGHT_BLOCKED')
+  assert.strictEqual(observed?.details?.card, null)
+  assert.strictEqual(observed?.details?.executed, 0)
+  assert.strictEqual(observed?.details?.preflight?.status, 'BLOCK')
+  assert.strictEqual(observed?.details?.preflight?.blockers?.[0]?.code, expectedInnerCode)
 }
 
 function resolveAiBudgetAuthority(input) {
@@ -1221,6 +1407,548 @@ function main() {
     assert.strictEqual(rescopeExecution.authority.parentRootReceiptDigest, rescopeRoot.authority.receiptDigest)
     assert.notStrictEqual(rescopeExecution.authority.autoAuthorityRef, rescopeRoot.authority.autoAuthorityRef)
     assert.strictEqual(rescopeExecution.authority.contextEpoch, rescopeContextEpoch)
+
+    // A pre-commit repair legitimately keeps the same Git HEAD.  A distinct,
+    // current user Auto receipt may replace the failed root only when the dirty
+    // candidate is stable, changed, fully enumerable and repository-relative.
+    const sameHeadTaskId = '00000000-0000-4000-8000-000000000351'
+    const sameHeadSession = 'validation-budget-same-head-rollover-session'
+    const sameHeadRootControl = controlReceipt({
+      prompt: '@rocky 自动执行当前本地候选',
+      mode: 'auto',
+      sessionKey: sameHeadSession,
+      taskId: sameHeadTaskId,
+      contextEpoch,
+      suffix: 'same-head-root',
+      nowMs: NOW
+    })
+    const sameHeadSeed = seedTask({
+      activeRoot,
+      taskId: sameHeadTaskId,
+      sessionKey: sameHeadSession,
+      control: sameHeadRootControl
+    })
+    const sameHeadRootPlan = fixturePlan(sameHeadTaskId, contextEpoch, 'same-head-root')
+    const sameHeadRootCandidate = fixtureCandidate('same-head-root', {
+      stable: true,
+      head: ancestorHead,
+      changedFiles: ['scripts/run-validation.js']
+    })
+    const sameHeadRootContext = authorityContext({
+      identity: sameHeadSeed.identity,
+      sessionKey: sameHeadSession,
+      contextEpoch,
+      control: sameHeadRootControl
+    })
+    const sameHeadRoot = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 250 },
+      plan: sameHeadRootPlan,
+      candidate: sameHeadRootCandidate,
+      authorityContext: sameHeadRootContext,
+      activeRoot,
+      execute: true,
+      gitRepoRoot: rolloverGitRoot
+    })
+    const sameHeadStore = createValidationEvidenceStore({
+      activeRoot,
+      project: 'devcodex',
+      actorType: 'ai-hook',
+      taskIdentity: sameHeadSeed.identity,
+      taskRecoveryKey: sameHeadTaskId,
+      sessionKey: sameHeadSession
+    })
+    persistRunTerminal({
+      store: sameHeadStore,
+      plan: sameHeadRoot.plan,
+      candidate: sameHeadRootCandidate,
+      authority: sameHeadRoot.authority,
+      control: sameHeadRootControl,
+      taskId: sameHeadTaskId,
+      contextEpoch,
+      failedNode: 'validation-authority'
+    })
+    const sameHeadParentState = readTaskRecoveryState({
+      metaDir: sameHeadSeed.metaDir,
+      identity: sameHeadSeed.identity,
+      sessionKey: sameHeadSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' }
+    })
+    const sameHeadChildCandidate = fixtureCandidate('same-head-child', {
+      stable: true,
+      head: ancestorHead,
+      changedFiles: ['scripts/run-validation.js', 'scripts/test-validation-budget-control.js']
+    })
+    const sameHeadOldAutoPlan = fixturePlan(sameHeadTaskId, contextEpoch, 'same-head-old-auto', {
+      selectedNodes: [
+        { id: 'validation-authority', writeScopes: [] },
+        { id: 'validation-budget-control', writeScopes: [] }
+      ],
+      affectedBoundaries: ['validation-authority', 'validation-budget-control']
+    })
+    assert.throws(() => resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 1500 },
+      plan: sameHeadOldAutoPlan,
+      candidate: sameHeadChildCandidate,
+      authorityContext: authorityContext({
+        identity: sameHeadSeed.identity,
+        sessionKey: sameHeadSession,
+        contextEpoch,
+        control: sameHeadRootControl,
+        state: sameHeadParentState.state
+      }),
+      activeRoot,
+      execute: false,
+      gitRepoRoot: rolloverGitRoot
+    }), error => error instanceof ValidationDagError &&
+      error.code === 'VALIDATION_CONTINUATION_SCOPE_WIDENED' &&
+      error.details?.rootRolloverReason === 'auto-root-rollover-scope-changed')
+
+    const prematureSameHeadEpoch = 'ctx-validation-budget-same-head-premature'
+    const prematureSameHeadControl = controlReceipt({
+      prompt: '@rocky 提前重建同 HEAD 验证根',
+      mode: 'auto',
+      sessionKey: sameHeadSession,
+      taskId: sameHeadTaskId,
+      contextEpoch: prematureSameHeadEpoch,
+      suffix: 'same-head-premature',
+      nowMs: NOW + 500
+    })
+    updateControl({
+      activeRoot,
+      identity: sameHeadSeed.identity,
+      metaDir: sameHeadSeed.metaDir,
+      sessionKey: sameHeadSession,
+      control: prematureSameHeadControl
+    })
+    const prematureSameHeadState = readTaskRecoveryState({
+      metaDir: sameHeadSeed.metaDir,
+      identity: sameHeadSeed.identity,
+      sessionKey: sameHeadSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' }
+    })
+    assert.throws(() => resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 750 },
+      plan: fixturePlan(sameHeadTaskId, prematureSameHeadEpoch, 'same-head-premature'),
+      candidate: sameHeadChildCandidate,
+      authorityContext: authorityContext({
+        identity: sameHeadSeed.identity,
+        sessionKey: sameHeadSession,
+        contextEpoch: prematureSameHeadEpoch,
+        control: prematureSameHeadControl,
+        state: prematureSameHeadState.state
+      }),
+      activeRoot,
+      execute: false,
+      gitRepoRoot: rolloverGitRoot
+    }), error => error instanceof ValidationDagError &&
+      error.code === 'VALIDATION_CONTINUATION_FOOTPRINT_UNPROVEN' &&
+      error.details?.rootRolloverReason === 'auto-root-rollover-head-not-descendant')
+
+    const currentSameHeadEpoch = 'ctx-validation-budget-same-head-current'
+    const currentSameHeadControl = controlReceipt({
+      prompt: '@rocky 按当前修复候选继续验证',
+      mode: 'auto',
+      sessionKey: sameHeadSession,
+      taskId: sameHeadTaskId,
+      contextEpoch: currentSameHeadEpoch,
+      suffix: 'same-head-current',
+      nowMs: NOW + 1500
+    })
+    updateControl({
+      activeRoot,
+      identity: sameHeadSeed.identity,
+      metaDir: sameHeadSeed.metaDir,
+      sessionKey: sameHeadSession,
+      control: currentSameHeadControl
+    })
+    const currentSameHeadState = readTaskRecoveryState({
+      metaDir: sameHeadSeed.metaDir,
+      identity: sameHeadSeed.identity,
+      sessionKey: sameHeadSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' }
+    })
+    const currentSameHeadContext = authorityContext({
+      identity: sameHeadSeed.identity,
+      sessionKey: sameHeadSession,
+      contextEpoch: currentSameHeadEpoch,
+      control: currentSameHeadControl,
+      state: currentSameHeadState.state
+    })
+    const currentSameHeadPlan = fixturePlan(sameHeadTaskId, currentSameHeadEpoch, 'same-head-current')
+    const sameCandidateWidenedPlan = fixturePlan(sameHeadTaskId, currentSameHeadEpoch, 'same-head-same-candidate', {
+      selectedNodes: [
+        { id: 'validation-authority', writeScopes: [] },
+        { id: 'validation-budget-control', writeScopes: [] }
+      ],
+      affectedBoundaries: ['validation-authority', 'validation-budget-control']
+    })
+    const invalidSameHeadCandidates = [
+      {
+        label: 'same candidate',
+        expectedCode: 'VALIDATION_CONTINUATION_SCOPE_WIDENED',
+        plan: sameCandidateWidenedPlan,
+        candidate: sameHeadRootCandidate
+      },
+      {
+        label: 'unstable candidate',
+        expectedCode: 'VALIDATION_CONTINUATION_FOOTPRINT_UNPROVEN',
+        plan: currentSameHeadPlan,
+        candidate: fixtureCandidate('same-head-unstable', {
+          stable: false,
+          head: ancestorHead,
+          changedFiles: ['scripts/run-validation.js', 'scripts/test-validation-budget-control.js']
+        })
+      },
+      {
+        label: 'outside candidate path',
+        expectedCode: 'VALIDATION_CONTINUATION_FOOTPRINT_UNPROVEN',
+        plan: currentSameHeadPlan,
+        candidate: fixtureCandidate('same-head-outside', {
+          stable: true,
+          head: ancestorHead,
+          changedFiles: ['scripts/run-validation.js', '../outside.js']
+        })
+      },
+      {
+        label: 'candidate path budget exceeded',
+        expectedCode: 'VALIDATION_CONTINUATION_FOOTPRINT_UNPROVEN',
+        plan: currentSameHeadPlan,
+        candidate: fixtureCandidate('same-head-over-limit', {
+          stable: true,
+          head: ancestorHead,
+          changedFiles: Array.from({ length: MAX_PENDING_CANDIDATE_PATHS + 1 }, (_, index) => `scripts/repair-${index}.js`)
+        })
+      }
+    ]
+    for (const invalid of invalidSameHeadCandidates) {
+      assert.throws(() => resolveAiBudgetAuthority({
+        options: { nowMs: NOW + 2000 },
+        plan: invalid.plan,
+        candidate: invalid.candidate,
+        authorityContext: currentSameHeadContext,
+        activeRoot,
+        execute: false,
+        gitRepoRoot: rolloverGitRoot
+      }), error => error instanceof ValidationDagError &&
+        error.code === invalid.expectedCode &&
+        error.details?.rootRolloverReason === 'auto-root-rollover-same-head-candidate-unproven',
+      invalid.label)
+    }
+    assert.strictEqual(
+      sameHeadStore.readRootBudgetConfirmation().rootBudgetConfirmation.receiptDigest,
+      sameHeadRoot.authority.receiptDigest,
+      'rejected same-head candidates must not replace the failed root'
+    )
+    assert.strictEqual(sameHeadStore.readPendingBudgetCard().status, 'missing',
+      'rejected same-head candidates must not persist a replacement BudgetCard')
+    const sameHeadPreview = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 2000 },
+      plan: currentSameHeadPlan,
+      candidate: sameHeadChildCandidate,
+      authorityContext: currentSameHeadContext,
+      activeRoot,
+      execute: false,
+      gitRepoRoot: rolloverGitRoot
+    })
+    assert.strictEqual(sameHeadPreview.decision, 'auto-root-rollover-plan-only')
+    const sameHeadExecution = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 2000 },
+      plan: currentSameHeadPlan,
+      candidate: sameHeadChildCandidate,
+      authorityContext: currentSameHeadContext,
+      activeRoot,
+      execute: true,
+      gitRepoRoot: rolloverGitRoot
+    })
+    assert.strictEqual(sameHeadExecution.decision, 'auto-root-rollover-authorized')
+    assert.strictEqual(sameHeadExecution.authority.rootRolloverReason, 'same-head-dirty-current-auto-rebind')
+    assert.strictEqual(sameHeadExecution.authority.rootRolloverOrdinal, 1)
+    assert.strictEqual(sameHeadExecution.authority.parentRootReceiptDigest, sameHeadRoot.authority.receiptDigest)
+    assert.notStrictEqual(sameHeadExecution.authority.receiptDigest, sameHeadRoot.authority.receiptDigest)
+    assert.strictEqual(validateBudgetConfirmationReceipt(sameHeadExecution.authority).valid, true)
+    const legacySameHeadReceiptSemantic = { ...sameHeadExecution.authority }
+    delete legacySameHeadReceiptSemantic.confirmationId
+    delete legacySameHeadReceiptSemantic.receiptDigest
+    delete legacySameHeadReceiptSemantic.rootRolloverOrdinal
+    const legacySameHeadReceiptDigest = sha256(stableStringify(legacySameHeadReceiptSemantic))
+    const legacySameHeadReceipt = {
+      ...legacySameHeadReceiptSemantic,
+      receiptDigest: legacySameHeadReceiptDigest,
+      confirmationId: `budget-confirmation-${legacySameHeadReceiptDigest}`
+    }
+    assert.strictEqual(validateBudgetConfirmationReceipt(legacySameHeadReceipt).valid, true,
+      'A4-R16 receipts written before the optional ordinal must remain readable')
+    const invalidReasonReceipt = {
+      ...sameHeadExecution.authority,
+      rootRolloverReason: 'same-head-dirty-unbounded'
+    }
+    assert(validateBudgetConfirmationReceipt(invalidReasonReceipt).errors
+      .includes('budget-confirmation-rollover-reason-invalid'))
+
+    // One user Auto turn may include validation, a bounded local repair and a
+    // rerun.  Reuse the already-confirmed root only when the validation budget
+    // is byte-for-byte equivalent and the same-HEAD path set grows
+    // monotonically within a small, finite convergence chain.
+    const sameAutoTaskId = '00000000-0000-4000-8000-000000000352'
+    const sameAutoSession = 'validation-budget-same-auto-exact-scope-session'
+    const sameAutoControl = controlReceipt({
+      prompt: '@rocky 自动修复并验证直至收敛',
+      mode: 'auto',
+      sessionKey: sameAutoSession,
+      taskId: sameAutoTaskId,
+      contextEpoch,
+      suffix: 'same-auto-exact-root',
+      nowMs: NOW
+    })
+    const sameAutoSeed = seedTask({
+      activeRoot,
+      taskId: sameAutoTaskId,
+      sessionKey: sameAutoSession,
+      control: sameAutoControl
+    })
+    const sameAutoParentPaths = [
+      'scripts/run-validation.js',
+      'scripts/lib/validation-execution-authority.js',
+      'scripts/test-validation-budget-control.js',
+      'scripts/test-validation-dag.js'
+    ]
+    const sameAutoRootPlan = fixturePlan(sameAutoTaskId, contextEpoch, 'same-auto-exact-root')
+    const sameAutoRootCandidate = fixtureCandidate('same-auto-exact-root', {
+      stable: true,
+      head: ancestorHead,
+      changedFiles: sameAutoParentPaths
+    })
+    const sameAutoRootContext = authorityContext({
+      identity: sameAutoSeed.identity,
+      sessionKey: sameAutoSession,
+      contextEpoch,
+      control: sameAutoControl
+    })
+    const sameAutoRoot = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + 250 },
+      plan: sameAutoRootPlan,
+      candidate: sameAutoRootCandidate,
+      authorityContext: sameAutoRootContext,
+      activeRoot,
+      execute: true,
+      gitRepoRoot: rolloverGitRoot
+    })
+    const sameAutoStore = createValidationEvidenceStore({
+      activeRoot,
+      project: 'devcodex',
+      actorType: 'ai-hook',
+      taskIdentity: sameAutoSeed.identity,
+      taskRecoveryKey: sameAutoTaskId,
+      sessionKey: sameAutoSession
+    })
+    persistRunTerminal({
+      store: sameAutoStore,
+      plan: sameAutoRoot.plan,
+      candidate: sameAutoRootCandidate,
+      authority: sameAutoRoot.authority,
+      control: sameAutoControl,
+      taskId: sameAutoTaskId,
+      contextEpoch,
+      failedNode: 'validation-authority'
+    })
+    const sameAutoParentState = readTaskRecoveryState({
+      metaDir: sameAutoSeed.metaDir,
+      identity: sameAutoSeed.identity,
+      sessionKey: sameAutoSession,
+      expectedIdentity: { activeRoot, project: 'devcodex' }
+    })
+    const sameAutoContext = authorityContext({
+      identity: sameAutoSeed.identity,
+      sessionKey: sameAutoSession,
+      contextEpoch,
+      control: sameAutoControl,
+      state: sameAutoParentState.state
+    })
+    const sameAutoExactPlan = fixturePlan(sameAutoTaskId, contextEpoch, 'same-auto-exact-child')
+    const sameAutoChildPaths = [...sameAutoParentPaths, 'scripts/lib/validation-evidence-store.js']
+    const sameAutoChildCandidate = fixtureCandidate('same-auto-exact-child', {
+      stable: true,
+      head: ancestorHead,
+      changedFiles: sameAutoChildPaths
+    })
+    const sameAutoNoPathDelta = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + (20 * 60 * 1000) },
+      plan: sameAutoExactPlan,
+      candidate: fixtureCandidate('same-auto-content-only', {
+        stable: true,
+        head: ancestorHead,
+        changedFiles: sameAutoParentPaths
+      }),
+      authorityContext: sameAutoContext,
+      activeRoot,
+      execute: false,
+      gitRepoRoot: rolloverGitRoot
+    })
+    assert.strictEqual(sameAutoNoPathDelta.decision, 'root-continuation-plan-only',
+      'same-path content repair must retain the bounded continuation route')
+    const sameAutoInvalidCases = [
+      {
+        label: 'same Auto scope widening',
+        expectedCode: 'VALIDATION_CONTINUATION_SCOPE_WIDENED',
+        expectedReason: 'auto-root-rollover-scope-changed',
+        plan: fixturePlan(sameAutoTaskId, contextEpoch, 'same-auto-widened', {
+          selectedNodes: [
+            { id: 'validation-authority', writeScopes: [] },
+            { id: 'validation-budget-control', writeScopes: [] }
+          ],
+          affectedBoundaries: ['validation-authority', 'validation-budget-control']
+        }),
+        candidate: sameAutoChildCandidate
+      },
+      {
+        label: 'non-monotonic same Auto candidate',
+        expectedCode: 'VALIDATION_CONTINUATION_FOOTPRINT_UNPROVEN',
+        expectedReason: 'auto-root-rollover-same-head-candidate-unproven',
+        plan: sameAutoExactPlan,
+        candidate: fixtureCandidate('same-auto-non-monotonic', {
+          stable: true,
+          head: ancestorHead,
+          changedFiles: [...sameAutoParentPaths.slice(0, -1), 'scripts/lib/validation-evidence-store.js']
+        })
+      },
+      {
+        label: 'same Auto path delta exceeded',
+        expectedCode: 'VALIDATION_CONTINUATION_FOOTPRINT_UNPROVEN',
+        expectedReason: 'auto-root-rollover-same-auto-path-delta-exceeded',
+        plan: sameAutoExactPlan,
+        candidate: fixtureCandidate('same-auto-delta-exceeded', {
+          stable: true,
+          head: ancestorHead,
+          changedFiles: [
+            ...sameAutoParentPaths,
+            'scripts/lib/validation-evidence-store.js',
+            'scripts/lib/managed-validation-runner.js'
+          ]
+        })
+      }
+    ]
+    for (const invalid of sameAutoInvalidCases) {
+      assert.throws(() => resolveAiBudgetAuthority({
+        options: { nowMs: NOW + (20 * 60 * 1000) },
+        plan: invalid.plan,
+        candidate: invalid.candidate,
+        authorityContext: sameAutoContext,
+        activeRoot,
+        execute: false,
+        gitRepoRoot: rolloverGitRoot
+      }), error => error instanceof ValidationDagError &&
+        error.code === invalid.expectedCode &&
+        error.details?.rootRolloverReason === invalid.expectedReason,
+      invalid.label)
+    }
+    assert.strictEqual(
+      sameAutoStore.readRootBudgetConfirmation().rootBudgetConfirmation.receiptDigest,
+      sameAutoRoot.authority.receiptDigest,
+      'rejected same-Auto candidates must not replace the parent root'
+    )
+    assert.strictEqual(sameAutoStore.readPendingBudgetCard().status, 'missing')
+
+    const sameAutoPreview = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + (20 * 60 * 1000) },
+      plan: sameAutoExactPlan,
+      candidate: sameAutoChildCandidate,
+      authorityContext: sameAutoContext,
+      activeRoot,
+      execute: false,
+      gitRepoRoot: rolloverGitRoot
+    })
+    assert.strictEqual(sameAutoPreview.decision, 'auto-root-rollover-plan-only')
+    let sameAutoExecution = resolveAiBudgetAuthority({
+      options: { nowMs: NOW + (20 * 60 * 1000) },
+      plan: sameAutoExactPlan,
+      candidate: sameAutoChildCandidate,
+      authorityContext: sameAutoContext,
+      activeRoot,
+      execute: true,
+      gitRepoRoot: rolloverGitRoot
+    })
+    assert.strictEqual(sameAutoExecution.decision, 'auto-root-rollover-authorized')
+    assert.strictEqual(sameAutoExecution.authority.rootRolloverReason,
+      'same-head-dirty-same-auto-exact-scope')
+    assert.strictEqual(sameAutoExecution.authority.rootRolloverOrdinal, 1)
+    assert.strictEqual(validateBudgetConfirmationReceipt(sameAutoExecution.authority).valid, true)
+    const sameAutoMissingOrdinalSemantic = { ...sameAutoExecution.authority }
+    delete sameAutoMissingOrdinalSemantic.confirmationId
+    delete sameAutoMissingOrdinalSemantic.receiptDigest
+    delete sameAutoMissingOrdinalSemantic.rootRolloverOrdinal
+    const sameAutoMissingOrdinalDigest = sha256(stableStringify(sameAutoMissingOrdinalSemantic))
+    const sameAutoMissingOrdinal = {
+      ...sameAutoMissingOrdinalSemantic,
+      receiptDigest: sameAutoMissingOrdinalDigest,
+      confirmationId: `budget-confirmation-${sameAutoMissingOrdinalDigest}`
+    }
+    assert(validateBudgetConfirmationReceipt(sameAutoMissingOrdinal).errors
+      .includes('budget-confirmation-rollover-ordinal-required'))
+
+    let sameAutoChainPaths = sameAutoChildPaths
+    let sameAutoChainCandidate = sameAutoChildCandidate
+    let sameAutoChainPlan = sameAutoExactPlan
+    for (let ordinal = 2; ordinal <= MAX_CONTINUATION_RETRIES; ordinal += 1) {
+      persistRunTerminal({
+        store: sameAutoStore,
+        plan: sameAutoExecution.plan,
+        candidate: sameAutoChainCandidate,
+        authority: sameAutoExecution.authority,
+        control: sameAutoControl,
+        taskId: sameAutoTaskId,
+        contextEpoch,
+        failedNode: 'validation-authority'
+      })
+      sameAutoChainPaths = [...sameAutoChainPaths, `scripts/same-auto-repair-${ordinal}.js`]
+      sameAutoChainCandidate = fixtureCandidate(`same-auto-exact-${ordinal}`, {
+        stable: true,
+        head: ancestorHead,
+        changedFiles: sameAutoChainPaths
+      })
+      sameAutoChainPlan = fixturePlan(sameAutoTaskId, contextEpoch, `same-auto-exact-${ordinal}`)
+      sameAutoExecution = resolveAiBudgetAuthority({
+        options: { nowMs: NOW + (20 * 60 * 1000) + ordinal },
+        plan: sameAutoChainPlan,
+        candidate: sameAutoChainCandidate,
+        authorityContext: sameAutoContext,
+        activeRoot,
+        execute: true,
+        gitRepoRoot: rolloverGitRoot
+      })
+      assert.strictEqual(sameAutoExecution.authority.rootRolloverOrdinal, ordinal)
+      assert.strictEqual(validateBudgetConfirmationReceipt(sameAutoExecution.authority).valid, true)
+    }
+    persistRunTerminal({
+      store: sameAutoStore,
+      plan: sameAutoExecution.plan,
+      candidate: sameAutoChainCandidate,
+      authority: sameAutoExecution.authority,
+      control: sameAutoControl,
+      taskId: sameAutoTaskId,
+      contextEpoch,
+      failedNode: 'validation-authority'
+    })
+    const exhaustedCandidate = fixtureCandidate('same-auto-exhausted', {
+      stable: true,
+      head: ancestorHead,
+      changedFiles: [...sameAutoChainPaths, 'scripts/same-auto-repair-exhausted.js']
+    })
+    assert.throws(() => resolveAiBudgetAuthority({
+      options: { nowMs: NOW + (20 * 60 * 1000) + MAX_CONTINUATION_RETRIES + 1 },
+      plan: fixturePlan(sameAutoTaskId, contextEpoch, 'same-auto-exhausted'),
+      candidate: exhaustedCandidate,
+      authorityContext: sameAutoContext,
+      activeRoot,
+      execute: false,
+      gitRepoRoot: rolloverGitRoot
+    }), error => error instanceof ValidationDagError &&
+      error.code === 'VALIDATION_CONTINUATION_FOOTPRINT_UNPROVEN' &&
+      error.details?.rootRolloverReason === 'auto-root-rollover-retry-exhausted')
+    assert.strictEqual(
+      sameAutoStore.readRootBudgetConfirmation().rootBudgetConfirmation.receiptDigest,
+      sameAutoExecution.authority.receiptDigest,
+      'ordinal exhaustion must preserve the last valid root'
+    )
 
     // A clean strict-descendant repair commit is an immutable server-observed
     // footprint when the host could not supply a mutation closeout.  It may use
@@ -2495,6 +3223,184 @@ function main() {
     assert.strictEqual(legacyResult.decision, 'confirmation-stale-new-card')
     assert(legacyResult.successorDecision.blockers.includes('candidate-scope-incomplete'))
     assert(legacyResult.successorDecision.blockers.includes('parent-confirmation-lineage-missing'))
+
+    const formalSession = 'session-formal-task-owner-canonical'
+    const formalFixture = createFormalValidationTaskFixture({
+      activeRoot,
+      sessionKey: formalSession,
+      suffix: 'owner-canonical'
+    })
+    const formalPlan = fixturePlan(
+      formalFixture.admission.taskId,
+      formalFixture.contextEpoch,
+      'formal-owner-canonical'
+    )
+    const formalCandidate = fixtureCandidate('formal-owner-canonical')
+    const plainSessionDigest = sha256(formalSession)
+    const canonicalSessionDigest = digestSessionRef(formalSession)
+    assert.notStrictEqual(plainSessionDigest, canonicalSessionDigest,
+      'validation-card and fenced-owner session digests are separate contract domains')
+    assert.strictEqual(formalFixture.owner.owner.sessionDigest, canonicalSessionDigest,
+      'formal owner fixture must start from the raw session and use the canonical route digest')
+
+    const formalOrdinaryControl = controlReceipt({
+      prompt: '生成普通验证卡摘要',
+      mode: 'confirm',
+      sessionKey: formalSession,
+      taskId: formalFixture.admission.taskId,
+      contextEpoch: formalFixture.contextEpoch,
+      suffix: 'ordinary-digest-contract'
+    })
+    assert.strictEqual(formalOrdinaryControl.hostSessionDigest, plainSessionDigest,
+      'ordinary validation control must retain the plain host-session digest')
+    const ordinaryPending = createPendingBudgetCardBinding({
+      plan: formalPlan,
+      candidate: formalCandidate,
+      repoRoot: REPO_ROOT,
+      projectRootIdentity: validationProjectRootIdentity(REPO_ROOT),
+      project: 'devcodex',
+      taskRecoveryKey: formalFixture.admission.taskId,
+      hostSessionDigest: formalOrdinaryControl.hostSessionDigest,
+      contextEpoch: formalFixture.contextEpoch,
+      stateRevision: 1
+    })
+    assert.strictEqual(ordinaryPending.hostSessionDigest, plainSessionDigest)
+    assert.notStrictEqual(ordinaryPending.hostSessionDigest, canonicalSessionDigest)
+
+    const migratedRootIdentityDigest = sha256('formal-current-project-root:migrated')
+    const migratedTaskState = {
+      ...formalFixture.taskState,
+      stickyProject: { rootIdentityDigest: migratedRootIdentityDigest }
+    }
+    assert.notStrictEqual(
+      migratedTaskState.stickyProject.rootIdentityDigest,
+      migratedTaskState.admissionTransaction.projectRootIdentityDigest,
+      'the migrated fixture must keep current-root and admission-provenance digest domains distinct'
+    )
+    const formalPreflightInput = {
+      authorityContext: {
+        taskRecoveryKey: formalFixture.admission.taskId,
+        sessionKey: formalSession,
+        taskState: migratedTaskState
+      },
+      plan: formalPlan,
+      candidate: formalCandidate,
+      activeRoot,
+      repoRoot: REPO_ROOT,
+      nowMs: NOW
+    }
+    const formalPreflight = resolveFormalTaskExecutionPreflight(formalPreflightInput)
+    assert.strictEqual(formalPreflight.status, 'PASS')
+    assert.strictEqual(formalPreflight.ownerLeaseDigest, formalFixture.owner.owner.leaseDigest)
+    assert.strictEqual(formalPreflight.projectRootIdentityDigest, formalFixture.rootIdentityDigest)
+    assert.strictEqual(formalPreflight.validationProjectRootDigest,
+      validationProjectRootIdentity(REPO_ROOT).digest)
+    assert.deepStrictEqual(Object.keys(formalPreflight.currentCpDigests), ['CP2', 'CP3'])
+
+    const admissionWithoutProjectedRoot = { ...migratedTaskState.admissionTransaction }
+    delete admissionWithoutProjectedRoot.projectRootIdentityDigest
+    const missingProjectionPreflight = resolveFormalTaskExecutionPreflight({
+      ...formalPreflightInput,
+      authorityContext: {
+        ...formalPreflightInput.authorityContext,
+        taskState: {
+          ...migratedTaskState,
+          admissionTransaction: admissionWithoutProjectedRoot
+        }
+      }
+    })
+    assert.strictEqual(missingProjectionPreflight.status, 'PASS',
+      'missing optional provenance projection must defer to the primary admission transaction')
+
+    expectFormalTaskPreflightBlock({
+      ...formalPreflightInput,
+      authorityContext: {
+        ...formalPreflightInput.authorityContext,
+        taskState: {
+          ...migratedTaskState,
+          admissionTransaction: {
+            ...migratedTaskState.admissionTransaction,
+            projectRootIdentityDigest: 'f'.repeat(64)
+          }
+        }
+      }
+    }, 'FORMAL_TASK_EXECUTION_PREFLIGHT_PROJECT_ROOT_DRIFT')
+    expectFormalTaskPreflightBlock({
+      ...formalPreflightInput,
+      authorityContext: {
+        ...formalPreflightInput.authorityContext,
+        taskState: {
+          ...migratedTaskState,
+          taskRecoveryBinding: {
+            ...migratedTaskState.taskRecoveryBinding,
+            taskId: 'a1fe7b0e-17c8-40d5-9a65-9ca15f1eab52'
+          }
+        }
+      }
+    }, 'FORMAL_TASK_EXECUTION_PREFLIGHT_TASK_BINDING_DRIFT')
+
+    assert.throws(() => resolveFormalTaskExecutionPreflight({
+      ...formalPreflightInput,
+      authorityContext: {
+        ...formalPreflightInput.authorityContext,
+        formalTaskExecutionPreflight: {
+          ...formalPreflight,
+          validationProjectRootDigest: 'e'.repeat(64)
+        }
+      }
+    }), error => error.code === 'FORMAL_TASK_EXECUTION_PREFLIGHT_BLOCKED' &&
+      error.details?.card === null && error.details?.executed === 0 &&
+      error.details?.blockerSnapshot?.blockers?.[0]?.code === 'FORMAL_TASK_EXECUTION_PREFLIGHT_INVALID',
+    'a preflight projected from another validation root must fail before node execution')
+
+    assert.throws(
+      () => readFormalTaskExecutionReadiness({
+        activeRoot,
+        project: 'devcodex',
+        taskId: formalFixture.admission.taskId,
+        projectRootIdentityDigest: formalFixture.rootIdentityDigest,
+        expectedOwnerSessionDigest: plainSessionDigest,
+        requiredCpPhases: ['CP2', 'CP3']
+      }),
+      error => error.code === 'FORMAL_TASK_EXECUTION_PREFLIGHT_OWNER_SESSION_MISMATCH',
+      'the plain validation-card digest must not pass the canonical fenced-owner comparison'
+    )
+    expectFormalTaskPreflightBlock({
+      ...formalPreflightInput,
+      authorityContext: { ...formalPreflightInput.authorityContext, sessionKey: `${formalSession}-other` }
+    }, 'FORMAL_TASK_EXECUTION_PREFLIGHT_OWNER_SESSION_MISMATCH')
+    expectFormalTaskPreflightBlock({
+      ...formalPreflightInput,
+      authorityContext: { ...formalPreflightInput.authorityContext, sessionKey: '   ' }
+    }, 'WORKSPACE_SESSION_ROUTE_SESSION_REQUIRED')
+    expectFormalTaskPreflightBlock({
+      ...formalPreflightInput,
+      authorityContext: {
+        ...formalPreflightInput.authorityContext,
+        taskState: {
+          ...formalFixture.taskState,
+          fencedWriteOwner: { leaseDigest: 'f'.repeat(64) }
+        }
+      }
+    }, 'FORMAL_TASK_EXECUTION_PREFLIGHT_OWNER_DRIFT')
+
+    const formalStore = createValidationEvidenceStore({
+      activeRoot,
+      project: 'devcodex',
+      actorType: 'ai-hook',
+      taskIdentity: formalFixture.identity,
+      taskRecoveryKey: formalFixture.admission.taskId,
+      sessionKey: formalSession
+    })
+    assert.strictEqual(formalStore.readPendingBudgetCard().status, 'missing',
+      'formal preflight probes must not persist a pending BudgetCard')
+    fs.appendFileSync(path.join(formalFixture.taskRoot, formalFixture.cp3.artifactName), '\n漂移。\n')
+    expectFormalTaskPreflightBlock(
+      formalPreflightInput,
+      'FINALIZED_TASK_RESUME_CP_DRIFT'
+    )
+    assert.strictEqual(formalStore.readPendingBudgetCard().status, 'missing',
+      'CP drift must fail before card creation')
 
     const blockedPreflightTaskId = '7b3fe84f-5a5d-4a09-8f54-23827dd9c21a'
     const blockedPreflightSession = 'session-formal-task-preflight-blocked'

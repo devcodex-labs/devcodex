@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 672,
     "consumerInventoryDigest": "7f2824e727f1c2d913168bb072cb86cbed42393edade5b2e6f04870f9332ed29",
-    "consumerProjectionDigest": "b99ca1373e36f82efa5d6bd4ad3293401589cbfd30cec7172e36b7277b70a9e6",
-    "portfolioInputDigest": "ef8bbd05d387c4c3e5abc3d43684207a447bd3ae093084c4f103b79337fd4742"
+    "consumerProjectionDigest": "80b23f703e2164b79a749bd9715be4f89d2f6edb492ed5c8d792997fa3a51461",
+    "portfolioInputDigest": "1ce6d5952872111e6b2770f32012e536f3fe0568d36d12897e4c3f6ddb6e1221"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -12515,6 +12515,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-validation-budget-control.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-validation-dag.js",
           "role": "current"
         },
@@ -12585,6 +12589,7 @@
         "scripts/test-v1178-batch-d.js",
         "scripts/test-v1178-batch-e.js",
         "scripts/test-validate-profile.js",
+        "scripts/test-validation-budget-control.js",
         "scripts/test-validation-dag.js",
         "scripts/test-workflow-capabilities.js",
         "scripts/test-workflow-completion-contract.js",
@@ -12679,6 +12684,7 @@
           "scripts/test-v1178-batch-d.js",
           "scripts/test-v1178-batch-e.js",
           "scripts/test-validate-profile.js",
+          "scripts/test-validation-budget-control.js",
           "scripts/test-validation-dag.js",
           "scripts/test-workflow-capabilities.js",
           "scripts/test-workflow-completion-contract.js",
@@ -17789,6 +17795,10 @@
         },
         {
           "path": "scripts/lib/skill-route-test-fixture.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/test-hooks-runtime-bootstrap-layout.js",
           "role": "current"
         },
         {

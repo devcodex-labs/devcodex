@@ -114,7 +114,10 @@ const {
   resolveTaskContinuation
 } = require('../hooks/_runtime/task-continuation-contract.cjs')
 const { createLinkCapabilityDecision } = require('../hooks/_runtime/visible-output-contract.cjs')
-const { createWorkspaceSessionRouteIndex } = require('../hooks/_runtime/workspace-session-route-index-v1.cjs')
+const {
+  createWorkspaceSessionRouteIndex,
+  digestSessionRef
+} = require('../hooks/_runtime/workspace-session-route-index-v1.cjs')
 const {
   createWorkflowOperationalWriteLease
 } = require('../hooks/_runtime/workflow-operational-write-lease.cjs')
@@ -123,11 +126,15 @@ const {
   createSimpleTaskFastPathUsage,
   validateSimpleTaskFastPathUsage
 } = require('../hooks/_runtime/simple-task-fast-path-lease.cjs')
-const { readLayeredArtifactSlotRegistry } = require('../hooks/_runtime/artifact-slot-decision.cjs')
+const {
+  classifyRelativeTarget,
+  readLayeredArtifactSlotRegistry
+} = require('../hooks/_runtime/artifact-slot-decision.cjs')
 const {
   createArtifactTemplateBinding,
   projectArtifactTemplateBinding,
   qualifyArtifactContent,
+  qualifyArtifactFile,
   renderArtifactTemplateQualification,
   validateArtifactTemplateQualification
 } = require('../hooks/_runtime/artifact-template-contract.cjs')
@@ -1255,6 +1262,75 @@ function createMemoryTemplateContext(target, logicalTarget) {
   })
   if (!binding) throw memoryQueryError('No template applies to the formal memory target.', null, 'MEMORY_TEMPLATE_BINDING_MISSING')
   return { logicalTarget, binding }
+}
+
+function cpArtifactWorkflowIntent(taskKind) {
+  return taskKind === 'bugs' ? 'fix' : 'dev'
+}
+
+/**
+ * Qualify the CP artifact itself before AutoCheckpointDecision or sessions state can mutate.
+ * The memory transaction template proves sessions.md only; it cannot stand in for the
+ * candidate's own slot, phase, canonical template, or stable readback.
+ */
+function qualifyCpConfirmationArtifact({ target, taskKind, phase, candidate, artifactTargetPath }) {
+  const registry = readLayeredArtifactSlotRegistry({
+    activeRoot: target.activeRoot,
+    project: target.project,
+    fs
+  })
+  const classified = classifyRelativeTarget(artifactTargetPath, registry, 'active-root')
+  const slot = classified?.slot || null
+  const allowedMatch = ['canonical', 'versioned-candidate'].includes(classified?.matchType)
+  if (!slot || !allowedMatch || slot.stage !== phase || !(slot.taskKinds || []).includes(taskKind)) {
+    throw memoryQueryError(
+      `CP artifact slot mismatch: phase=${phase}, taskKind=${taskKind}, path=${artifactTargetPath}, ` +
+      `slot=${slot?.slotId || 'none'}, stage=${slot?.stage || 'none'}, matchType=${classified?.matchType || 'none'}.`,
+      'Use the canonical or versioned candidate artifact owned by the same CP phase and task kind.',
+      'MEMORY_CP_ARTIFACT_SLOT_MISMATCH'
+    )
+  }
+  const binding = createArtifactTemplateBinding({
+    slot,
+    target: candidate,
+    intent: cpArtifactWorkflowIntent(taskKind),
+    bindingMode: 'runtime-prewrite'
+  })
+  if (!binding) {
+    throw memoryQueryError(
+      `No canonical template binding is available for CP artifact slot ${slot.slotId}.`,
+      'Restore the shipped/overlay artifact template mapping before confirming this candidate.',
+      'MEMORY_CP_ARTIFACT_TEMPLATE_BINDING_MISSING'
+    )
+  }
+  const qualification = qualifyArtifactFile(binding, candidate, { slotId: slot.slotId }, { fs })
+  const validation = validateArtifactTemplateQualification(qualification, binding)
+  const valid = validation.valid && qualification.status === 'qualified' &&
+    qualification.readbackVerified === true && qualification.artifactDigest
+  if (!valid) {
+    const issues = [...new Set([
+      ...(validation.errors || []),
+      ...(qualification.errorCodes || []),
+      ...(qualification.missingSemanticIds || []).map(id => `missing:${id}`)
+    ])]
+    throw memoryQueryError(
+      `CP artifact template qualification failed for ${artifactTargetPath}: ${issues.join(', ') || 'unqualified'}.`,
+      'Revise a new immutable candidate from the canonical template, re-hash it, and confirm that replacement.',
+      'MEMORY_CP_ARTIFACT_TEMPLATE_UNQUALIFIED'
+    )
+  }
+  return {
+    slot: {
+      schemaVersion: 'MemoryCpArtifactSlotV1',
+      slotId: slot.slotId,
+      artifactClass: slot.artifactClass,
+      stage: slot.stage,
+      matchType: classified.matchType,
+      registryDigest: registry.mergedRegistryDigest || null
+    },
+    binding: projectArtifactTemplateBinding(binding),
+    qualification
+  }
 }
 
 function assertMemoryTemplateQualification(qualification, phase) {
@@ -3625,6 +3701,7 @@ function handleMemoryCpConfirm(args) {
   let artifactAuthority = null
   let artifactTargetPath = null
   let artifactLinks = null
+  let artifactTemplate = null
   let autoCheckpoint = null
 
   if (hasDigest && artifactPath) {
@@ -3688,6 +3765,20 @@ function handleMemoryCpConfirm(args) {
         'Do not reuse a hash computed before subsequent writes.'
       )
     }
+    artifactTemplate = qualifyCpConfirmationArtifact({
+      target,
+      taskKind: kind,
+      phase: args.phase,
+      candidate,
+      artifactTargetPath
+    })
+    if (String(artifactTemplate.qualification.artifactDigest || '').toUpperCase() !== sha) {
+      throw memoryQueryError(
+        `CP artifact changed between digest verification and template qualification: ${artifactPath}.`,
+        'Re-hash the stable candidate after its final edit and retry once.',
+        'MEMORY_CP_ARTIFACT_QUALIFICATION_DIGEST_MISMATCH'
+      )
+    }
     artifactLinks = projectMemoryArtifactLinks(target, relativeToActiveRoot(target, p), [{
       id: `cp-${String(args.phase).toLowerCase()}-artifact`,
       label: artifactPath,
@@ -3742,6 +3833,7 @@ function handleMemoryCpConfirm(args) {
       artifactSha256: sha,
       artifactVersion,
       sourceMessage,
+      artifactTemplateQualificationDigest: artifactTemplate?.qualification?.qualificationDigest || null,
       autoCheckpointDecisionDigest: autoCheckpoint?.decision.decisionDigest || null,
       time
     }),
@@ -3773,6 +3865,9 @@ function handleMemoryCpConfirm(args) {
     artifactPath,
     artifactSha256: sha,
     artifactAuthority,
+    artifactSlot: artifactTemplate?.slot || null,
+    artifactTemplateBinding: artifactTemplate?.binding || null,
+    artifactTemplateQualification: artifactTemplate?.qualification || null,
     artifactLinks,
     artifactLinkReadback: artifactLinks
       ? projectMemoryArtifactLinks(target, relativeToActiveRoot(target, p), [{
@@ -3945,16 +4040,21 @@ function handleMemoryTaskResolve(args) {
       ? '已找到任务线索，但当前 canonical 证据未通过。当前分析可继续；在复证前不得写入该既有任务。'
       : 'A task hint was found, but current canonical evidence did not verify. Analysis may continue; do not mutate the existing task before re-verification.'
   }
-  const protocolLine = `TaskResolutionV1 status=${resolution.status}; mutationAuthority=false${resolution.errorCode ? `; errorCode=${resolution.errorCode}` : ''}`
+  const continuationDisposition = resolution.status === 'resolved-active'
+    ? 'resolved-readonly'
+    : 'provisional-continue'
+  const protocolLine = `TaskResolutionV1 status=${resolution.status}; continuation=${continuationDisposition}; mutationAuthority=false${resolution.errorCode ? `; errorCode=${resolution.errorCode}` : ''}`
   const response = {
     humanSummary: humanText,
     protocolSummary: protocolLine,
+    continuationAllowed: true,
+    continuationDisposition,
     ...resolution
   }
   return {
     content: [{ type: 'text', text: JSON.stringify(response, null, 2) }],
     structuredContent: response,
-    isError: resolution.status !== 'resolved-active'
+    isError: false
   }
 }
 
@@ -4038,17 +4138,16 @@ function verifiedResumeLifecycleContext(target, binding) {
   }
   const planBinding = acquisition.plan?.contextBinding || {}
   const receipt = acquisition.receipt || {}
-  const exactBinding = planBinding.contextEpoch === binding.contextEpoch &&
+  const exactPlanBinding = planBinding.contextEpoch === binding.contextEpoch &&
     planBinding.planId === binding.planId && planBinding.planContentId === binding.planContentId &&
     comparableActiveRoot(planBinding.activeRoot) === comparableActiveRoot(binding.activeRoot) &&
-    String(planBinding.project || '') === binding.project &&
-    receipt.contextEpoch === binding.contextEpoch && receipt.planId === binding.planId &&
+    String(planBinding.project || '') === binding.project
+  const exactReceiptBinding = receipt.contextEpoch === binding.contextEpoch && receipt.planId === binding.planId &&
     receipt.planContentId === binding.planContentId &&
     comparableActiveRoot(receipt.identity?.activeRoot) === comparableActiveRoot(binding.activeRoot) &&
     String(receipt.identity?.project || '') === binding.project
-  if (!exactBinding || !['relevant-complete', 'completed'].includes(String(receipt.status || '')) ||
-      (receipt.missingSourceIds || []).length) {
-    return { status: 'invalid', reasonCode: 'lifecycle-context-binding-incomplete' }
+  if (!exactPlanBinding || !exactReceiptBinding) {
+    return { status: 'invalid', reasonCode: 'lifecycle-context-binding-mismatch' }
   }
   const hostSessionId = String(receipt.identity?.hostSessionId || acquisition.hostSessionId || '').trim()
   if (!hostSessionId) return { status: 'unavailable', reasonCode: 'lifecycle-host-session-missing' }
@@ -4065,6 +4164,22 @@ function verifiedResumeLifecycleContext(target, binding) {
     contextEpoch: binding.contextEpoch,
     routeRevision: acquisition.plan?.workflowRoute?.routeRevision
   }, { nowMs: Date.now() })
+  const receiptComplete = ['relevant-complete', 'completed'].includes(String(receipt.status || '')) &&
+    !(receipt.missingSourceIds || []).length
+  const leaseExpiredOnly = !leaseValidation.valid && leaseValidation.errors.length > 0 &&
+    leaseValidation.errors.every(error => error === 'lease-time')
+  if (!receiptComplete || leaseExpiredOnly) {
+    return {
+      status: 'recoverable-stale',
+      reasonCode: !receiptComplete
+        ? 'lifecycle-context-receipt-stale'
+        : 'lifecycle-project-target-lease-expired',
+      hostSessionId,
+      hostSessionDigest,
+      projectTargetLease: leaseValidation.valid ? projectTargetLease : null,
+      errors: leaseValidation.valid ? [] : leaseValidation.errors
+    }
+  }
   if (!leaseValidation.valid) {
     return {
       status: 'invalid',
@@ -4547,7 +4662,7 @@ function resolveResumeContextAuthorization(target, contextBinding) {
   const environmentSession = String(process.env.DEVCODEX_HOST_SESSION_ID || '').trim()
   const sessionCandidates = [...new Set([
     ...observedSessions,
-    lifecycleContext.status === 'verified' ? lifecycleContext.hostSessionId : '',
+    ['verified', 'recoverable-stale'].includes(lifecycleContext.status) ? lifecycleContext.hostSessionId : '',
     environmentSession
   ].filter(Boolean))]
   if (sessionCandidates.length > 1) {
@@ -4585,15 +4700,16 @@ function resolveResumeContextAuthorization(target, contextBinding) {
     authorization,
     binding: compactContextBinding(verifiedBinding),
     hostSessionId,
-    lifecycleProjectTargetLease: lifecycleContext.status === 'verified'
+    lifecycleProjectTargetLease: ['verified', 'recoverable-stale'].includes(lifecycleContext.status)
       ? lifecycleContext.projectTargetLease
       : null,
     receipt
   }
 }
 
+/** Build the fallback project lease from the verified raw session, not the envelope's plain event digest. */
 function boundedResumeProjectLease(target, transaction, envelope, routeDecision, contextBinding, nowMs,
-  lifecycleProjectTargetLease = null) {
+  hostSessionId, lifecycleProjectTargetLease = null) {
   const physicalRoot = currentPhysicalProjectRoot(target)
   const issuedAtMs = nowMs
   const expiresAtMs = Math.min(Date.parse(envelope.expiresAt), nowMs + 10 * 60 * 1000)
@@ -4617,7 +4733,7 @@ function boundedResumeProjectLease(target, transaction, envelope, routeDecision,
     activeRoot: target.activeRoot,
     ...(currentTarget?.physicalMarker ? { physicalMarker: currentTarget.physicalMarker } : {}),
     authorityKind: 'session',
-    authorityDigest: envelope.hostSessionDigest,
+    authorityDigest: digestSessionRef(hostSessionId),
     contextEpoch: envelope.contextEpoch,
     contextBindingDigest: stableRuntimeDigest(contextBinding),
     routeRevision: routeDecision.routeRevision,
@@ -4878,6 +4994,7 @@ function buildBoundedResumeFallbackIngress(target, args) {
     routeDecision,
     context.binding,
     nowMs,
+    context.hostSessionId,
     context.lifecycleProjectTargetLease
   )
   const prepared = prepareFinalizedResumeCandidate(target, args, {

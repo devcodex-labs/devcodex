@@ -904,6 +904,7 @@ function validateTaskCanonicalRevision(value, transaction = null) {
     'authorized-mutation',
     'confirmed-cp-evolution',
     'legacy-confirmed-cp-chain',
+    'verified-resume-reconciliation',
     'resume-generation'
   ])
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
@@ -971,6 +972,11 @@ function validateTaskCanonicalRevision(value, transaction = null) {
         (!digestRe.test(String(value.cpChainDigest || '')) ||
           value.previousOverviewDigest === value.currentOverviewDigest)) {
       errors.push('task-canonical-revision-confirmed-cp-evolution-shape')
+    }
+    if (value.source === 'verified-resume-reconciliation' &&
+        (!digestRe.test(String(value.cpChainDigest || '')) ||
+          value.previousOverviewDigest === value.currentOverviewDigest)) {
+      errors.push('task-canonical-revision-resume-reconciliation-shape')
     }
     if (value.source === 'resume-generation' && value.previousOverviewDigest !== value.currentOverviewDigest) {
       errors.push('task-canonical-revision-resume-shape')
@@ -1055,6 +1061,58 @@ function createConfirmedCpEvolutionTaskCanonicalRevision(prior, transaction, inp
     ...prior,
     revision: prior.revision + 1,
     source: 'confirmed-cp-evolution',
+    previousOverviewDigest: prior.currentOverviewDigest,
+    currentOverviewDigest,
+    cpChainDigest,
+    parentRevisionDigest: prior.revisionDigest,
+    sourceEvidenceDigest,
+    operationId: null,
+    operationRecordDigest: null,
+    mutationReceiptDigest: null,
+    closeoutDigest: null,
+    updatedAt
+  })
+}
+
+/**
+ * Builds the deterministic, process-local lineage bridge used when a human
+ * overview evolves while the verified machine CP chain remains unchanged.
+ * A successful resume wraps this bridge in the legacy-readable
+ * `resume-generation` record before persistence.
+ */
+function createVerifiedResumeReconciliationTaskCanonicalRevision(prior, transaction, input = {}) {
+  const priorValidation = validateTaskCanonicalRevision(prior, transaction)
+  const currentOverviewDigest = String(input.currentOverviewDigest || '').toLowerCase()
+  const cpChainDigest = String(input.cpChainDigest || '').toLowerCase()
+  const confirmedCpEvidenceDigest = String(input.confirmedCpEvidenceDigest || '').toLowerCase()
+  const transactionCpChainDigest = String(transaction?.effects?.cpState?.cpChainDigest || '').toLowerCase()
+  const digestRe = /^[a-f0-9]{64}$/
+  if (!priorValidation.valid || currentOverviewDigest === prior.currentOverviewDigest ||
+      !digestRe.test(currentOverviewDigest) || !digestRe.test(cpChainDigest) ||
+      !digestRe.test(confirmedCpEvidenceDigest) ||
+      (transactionCpChainDigest && transactionCpChainDigest !== cpChainDigest) ||
+      (prior.cpChainDigest && prior.cpChainDigest !== cpChainDigest)) return null
+  const priorUpdatedAt = Date.parse(String(prior.updatedAt || ''))
+  const observedAt = Date.parse(String(input.observedAt || ''))
+  const updatedAt = new Date(Math.max(
+    Number.isFinite(priorUpdatedAt) ? priorUpdatedAt : 0,
+    Number.isFinite(observedAt) ? observedAt : 0
+  )).toISOString()
+  const sourceEvidenceDigest = digestValue({
+    schemaVersion: 'VerifiedResumeReconciliationEvidenceV1',
+    taskId: prior.taskId,
+    taskIdentityDigest: prior.taskIdentityDigest,
+    priorRevisionDigest: prior.revisionDigest,
+    previousOverviewDigest: prior.currentOverviewDigest,
+    currentOverviewDigest,
+    priorCpChainDigest: prior.cpChainDigest || transactionCpChainDigest || null,
+    currentCpChainDigest: cpChainDigest,
+    confirmedCpEvidenceDigest
+  })
+  return sealTaskCanonicalRevision({
+    ...prior,
+    revision: prior.revision + 1,
+    source: 'verified-resume-reconciliation',
     previousOverviewDigest: prior.currentOverviewDigest,
     currentOverviewDigest,
     cpChainDigest,
@@ -5689,6 +5747,13 @@ function commitTaskRecoveryState(input = {}, options = {}) {
   const paths = storePaths(input.metaDir)
   const state = input.state
   const sessionKey = String(input.sessionKey || '')
+  if (state?.taskCanonicalRevision?.source === 'verified-resume-reconciliation') {
+    return {
+      status: 'error',
+      errorCode: 'TASK_CANONICAL_REVISION_PROCESS_LOCAL',
+      message: 'verified resume reconciliation must be wrapped by resume-generation before persistence'
+    }
+  }
   let identity = null
   try {
     if (input.identity?.taskId) identity = normalizeIdentity(input.identity)
@@ -7077,6 +7142,7 @@ module.exports = {
   createConfirmedCpEvolutionTaskCanonicalRevision,
   createLegacyTaskCanonicalRevision,
   createResumeTaskCanonicalRevision,
+  createVerifiedResumeReconciliationTaskCanonicalRevision,
   createTaskScopedAutoContinuationGrant,
   buildTaskRecoveryCommitFence,
   buildTaskScopedAutoAllowedScope,

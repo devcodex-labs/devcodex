@@ -32,6 +32,8 @@ function buildHostInstructionControlChecks(ctx) {
       'scripts/test-host-adapters.js',
       'scripts/test-host-installation.js',
       'scripts/test-global-host-config.js',
+      'scripts/lib/real-codex-host-probe.js',
+      'scripts/test-real-codex-host-probe.js',
       'scripts/test-global-install-smoke.js',
       'hooks/_runtime/lifecycle-host-adapters.cjs',
       'host-projections/AGENTS.md',
@@ -150,6 +152,8 @@ function buildHostInstructionControlChecks(ctx) {
       'test:host-adapters',
       'test:host-installation',
       'test:global-host-config',
+      'test:real-codex-host-probe',
+      'probe:real-codex-host:h0',
       'test:global-install-smoke'
     ]) {
       if (!pkg.scripts?.[script]) err(`[V103] package script missing: ${script}`)
@@ -166,7 +170,9 @@ function buildHostInstructionControlChecks(ctx) {
       'scripts/lib/global-host-config-merge.js',
       'scripts/lib/global-host-config-transaction.js',
       'scripts/lib/host-adapter-scope.js',
-      'scripts/lib/grok-workspace-launcher.js'
+      'scripts/lib/grok-workspace-launcher.js',
+      'scripts/lib/real-codex-host-probe.js',
+      'scripts/test-real-codex-host-probe.js'
     ]) {
       if (!pkg.files?.includes(packaged)) err(`[V103] package files missing: ${packaged}`)
     }
@@ -207,6 +213,62 @@ function buildHostInstructionControlChecks(ctx) {
       if (!cliSource.includes(anchor)) err(`[V103] CLI host contract missing: ${anchor}`)
     }
 
+    const realHostProbeSource = String(read(path.join(ROOT, 'scripts/lib/real-codex-host-probe.js')))
+    const globalInstallSmokeSource = String(read(path.join(ROOT, 'scripts/test-global-install-smoke.js')))
+    for (const anchor of [
+      "'-C'",
+      "'workspace-write'",
+      "'--add-dir'",
+      "'--ignore-user-config'",
+      "'--ignore-rules'",
+      'RealHostValidationRunIdentityV1',
+      'RealHostAttemptLedgerV1',
+      'RealHostProbeResultV1',
+      'RealHostProbeOracleBindingV1',
+      'REAL_HOST_ATTEMPT_ALREADY_CONSUMED',
+      'REAL_HOST_LEDGER_INTEGRITY_FAILED',
+      'REAL_HOST_RUNTIME_BINDING_DRIFT',
+      'REAL_HOST_STAGE_INVALID',
+      'collectHostHomeRoots',
+      'detachCodexTaskEnvironment',
+      'findAuthFile',
+      'isNonterminalH3SafePartial',
+      'isOwnedCleanupComplete',
+      'cleanupObservationTimedOut',
+      "flag: 'wx'",
+      'taskkill.exe',
+      "'/PID'",
+      "'/T'",
+      "'/F'",
+      'HOST_COMMAND_NOT_OBSERVED',
+      'HOST_PROBE_COMMAND_FAILED',
+      'HOST_FORBIDDEN_PROBE_INCONCLUSIVE',
+      'HOST_LAST_MESSAGE_MISSING',
+      'HOST_CLEANUP_INCOMPLETE'
+    ]) {
+      if (!realHostProbeSource.includes(anchor)) err(`[V103] real Codex host probe contract missing: ${anchor}`)
+    }
+    for (const forbidden of ['danger-full-access', '--dangerously-bypass-sandbox']) {
+      if (realHostProbeSource.includes(forbidden)) {
+        err(`[V103] real Codex host probe must not weaken sandbox: ${forbidden}`)
+      }
+    }
+    for (const anchor of [
+      '--real-codex requires --tarball',
+      '--evidence-root',
+      '--source-candidate',
+      '--authorization-digest',
+      "stage: 'H1'",
+      "stage: 'H2'",
+      "stage: 'H3'",
+      'FORMAL_G2_SAFE_PARTIAL',
+      'isNonterminalH3SafePartial'
+    ]) {
+      if (!globalInstallSmokeSource.includes(anchor)) {
+        err(`[V103] installed real-host stage contract missing: ${anchor}`)
+      }
+    }
+
     const manifest = JSON.parse(String(read(path.join(ROOT, 'scripts/validation-manifest.json'))))
     if (manifest.routes?.fast?.dynamic !== true || Array.isArray(manifest.routes?.fast?.nodes)) {
       err('[V103] fast route must remain impact-driven')
@@ -216,6 +278,7 @@ function buildHostInstructionControlChecks(ctx) {
       'host-adapters',
       'host-installation',
       'global-host-config',
+      'real-codex-host-probe',
       'global-install-smoke'
     ]) {
       if (!manifest.nodes?.some(node => node.id === nodeId)) err(`[V103] validation node missing: ${nodeId}`)

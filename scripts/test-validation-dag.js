@@ -466,6 +466,10 @@ function run() {
     assert.match(fullPlan.manifestIdentity.digest, /^[a-f0-9]{64}$/)
     assert.match(fullPlan.impactGraphDigest, /^[a-f0-9]{64}$/)
     assert.match(fullPlan.planDigest, /^[a-f0-9]{64}$/)
+    assert.ok(fullPlan.selectedNodes.some(node => node.id === 'real-codex-host-probe'))
+    assert.ok(!manifest.nodes.some(node =>
+      node.args?.some(argument => String(argument).includes('probe:real-codex-host:h0'))),
+    'real H0 must remain an explicit maintainer entry outside ordinary validation nodes')
     assert.strictEqual(new Set(manifest.nodes.map(commandSignature)).size, manifest.nodes.length)
     const profileDeployPlan = planValidation({
       manifest,
@@ -518,6 +522,38 @@ function run() {
     assert.ok(!changedManifestV2Ids.includes('mcp-runtime-packlist'), 'changed V2 must not enter npm packlist qualification')
     assert.ok(!changedManifestV2Ids.includes('global-install-smoke'), 'changed V2 must not enter global installation')
     assert.ok(!changedManifestV2Ids.includes('host-installation'), 'changed V2 must not enter host installation')
+    const realProbeV1Plan = planValidation({
+      manifest,
+      route: 'changed',
+      changedFiles: ['scripts/lib/real-codex-host-probe.js'],
+      changedSource: 'explicit',
+      level: 'V1',
+      candidateStable: true,
+      candidateId: 'fixture-real-probe-v1'
+    })
+    const realProbeV1Ids = realProbeV1Plan.selectedNodes.map(node => node.id)
+    assert.ok(realProbeV1Ids.includes('real-codex-host-probe'))
+    assert.ok(!realProbeV1Ids.includes('global-install-smoke'),
+      'real-host helper V1 must not run the pack/install smoke')
+    const realProbeV2Plan = planValidation({
+      manifest,
+      route: 'changed',
+      changedFiles: ['scripts/test-real-codex-host-probe.js'],
+      changedSource: 'explicit',
+      level: 'V2',
+      candidateStable: true,
+      candidateId: 'fixture-real-probe-v2'
+    })
+    const realProbeV2Ids = realProbeV2Plan.selectedNodes.map(node => node.id)
+    assert.ok(realProbeV2Ids.includes('real-codex-host-probe'))
+    assert.ok(!realProbeV2Ids.includes('global-install-smoke'),
+      'real-host helper V2 must not cross the release-consumer boundary')
+    const realProbeNode = manifest.nodes.find(node => node.id === 'real-codex-host-probe')
+    assert.deepStrictEqual(realProbeNode.consumers, ['global-install-smoke'])
+    assert.ok(
+      manifest.nodes.find(node => node.id === 'global-install-smoke')
+        .dependencies.includes('real-codex-host-probe')
+    )
     assert.throws(() => planValidation({
       manifest,
       route: 'profile-deploy',
@@ -1721,6 +1757,11 @@ function run() {
     assert.strictEqual(packageJson.scripts['test:dangerous-command-context'], 'node scripts/test-dangerous-command-context.js')
     assert.strictEqual(packageJson.scripts['test:session-route-consumers'], 'node scripts/test-session-route-consumers.js')
     assert.strictEqual(packageJson.scripts['test:task-admission-authority'], 'node scripts/test-task-admission-authority.js')
+    assert.strictEqual(packageJson.scripts['test:real-codex-host-probe'], 'node scripts/test-real-codex-host-probe.js')
+    assert.strictEqual(
+      packageJson.scripts['probe:real-codex-host:h0'],
+      'node scripts/lib/real-codex-host-probe.js --mode h0'
+    )
     assert.strictEqual(packageJson.scripts['test:validation-authority'], 'node scripts/test-validation-execution-authority.js && node scripts/test-validation-budget-control.js')
     assert.strictEqual(packageJson.scripts['test:mcp-runtime-closure:package'], 'node scripts/test-mcp-runtime-closure.js --packlist-only')
     for (const file of [
@@ -1744,7 +1785,9 @@ function run() {
       'scripts/test-actual-candidate-evidence.js',
       'scripts/test-dangerous-command-context.js',
       'scripts/test-session-route-consumers.js',
-      'scripts/test-task-admission-authority.js'
+      'scripts/test-task-admission-authority.js',
+      'scripts/lib/real-codex-host-probe.js',
+      'scripts/test-real-codex-host-probe.js'
     ]) assert(packageJson.files.includes(file), 'package files missing ' + file)
 
     const cliHumanEnv = { ...process.env }

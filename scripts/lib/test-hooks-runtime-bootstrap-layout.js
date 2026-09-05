@@ -13,6 +13,7 @@ const {
 } = require('../../hooks/_runtime/lifecycle-state-commit.cjs')
 const {
   findLayoutInfo,
+  resolveActiveRuntimeRoot,
   resolveHostWorkspaceBinding,
   resolveRuntimeStateRoot
 } = require('../../hooks/_runtime/workspace-layout.cjs')
@@ -1465,6 +1466,12 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.match(workspaceAmbiguity.systemMessage || '', /multi-project-workspace/)
   assert.match(workspaceAmbiguity.systemMessage || '', /\.devcodex\/workspace\/profile\//)
   assert.ok(!/未在工作区根配置 \.devcodex\/profile\//.test(workspaceAmbiguity.systemMessage || ''))
+  const defaultWorkspaceState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  const defaultWorkspaceRoot = resolveActiveRuntimeRoot(TEMP_ROOT)
+  assert.strictEqual(defaultWorkspaceState.activeProject, '', 'no-project routing must not select devcodex by default')
+  assert.strictEqual(defaultWorkspaceState.activeScope, 'workspace', 'no-project routing must bind workspace scope')
+  assert.strictEqual(defaultWorkspaceRoot, path.join(TEMP_ROOT, '.devcodex', 'workspace'))
+  assert.notStrictEqual(defaultWorkspaceRoot, path.join(TEMP_ROOT, '.devcodex', 'devcodex'))
 
   const dedupedWorkspaceAmbiguity = run({
     hookEventName: 'UserPromptSubmit',

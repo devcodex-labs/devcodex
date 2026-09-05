@@ -239,6 +239,8 @@
         "scripts/test-global-host-*.js",
         "scripts/lib/runtime-dependency-closure.js",
         "scripts/test-mcp-runtime-closure.js",
+        "scripts/lib/real-codex-host-probe.js",
+        "scripts/test-real-codex-host-probe.js",
         "scripts/test-global-install-smoke.js",
         "scripts/fixtures/global-host-config/**",
         "scripts/prepack-control-content.js",
@@ -288,6 +290,7 @@
       "pack-clean": { "consumerEdgeType": "releaseConsumer", "minimumLevel": "V2", "heavy": true },
       "global-host-config": { "consumerEdgeType": "releaseConsumer", "minimumLevel": "V2", "heavy": true },
       "global-host-removal": { "consumerEdgeType": "releaseConsumer", "heavy": true },
+      "real-codex-host-probe": { "consumerEdgeType": "qualificationConsumer" },
       "global-install-smoke": { "consumerEdgeType": "releaseConsumer", "heavy": true },
       "mcp-runtime-closure": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V2" },
       "mcp-runtime-packlist": { "consumerEdgeType": "releaseConsumer" },
@@ -317,6 +320,8 @@
     "scripts/test-global-host-removal.js",
     "scripts/test-global-host-runtime-verifier.js",
     "scripts/test-mcp-runtime-closure.js",
+    "scripts/lib/real-codex-host-probe.js",
+    "scripts/test-real-codex-host-probe.js",
     "scripts/test-global-install-smoke.js",
     "scripts/fixtures/global-host-config/**",
     "scripts/lib/validation-dag.js",
@@ -559,6 +564,7 @@
         "npm-lifecycle-adapter",
         "global-host-config",
         "global-host-removal",
+        "real-codex-host-probe",
         "global-install-smoke",
         "host-installation",
         "syntax",
@@ -5698,6 +5704,52 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "real-codex-host-probe",
+      "owner": "package-lifecycle",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:real-codex-host-probe"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "package.json",
+        "scripts/lib/real-codex-host-probe.js",
+        "scripts/test-real-codex-host-probe.js",
+        "scripts/test-global-install-smoke.js"
+      ],
+      "consumers": [
+        "global-install-smoke"
+      ],
+      "invariants": [
+        "real-host-explicit-only",
+        "exact-cwd-and-add-dir",
+        "persistent-attempt-budget",
+        "command-event-and-effect-oracle",
+        "owned-pid-tree-cleanup",
+        "no-pack-or-install-in-unit-test"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "RealHostProbeResultV1",
+        "RealHostAttemptLedgerV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "global-install-smoke",
       "owner": "package-lifecycle",
       "command": "npm",
@@ -5708,7 +5760,8 @@
       "dependencies": [
         "npm-lifecycle-adapter",
         "global-host-config",
-        "global-host-removal"
+        "global-host-removal",
+        "real-codex-host-probe"
       ],
       "inputs": [
         "package.json",
@@ -5728,6 +5781,8 @@
         "content/prompts/**",
         "scripts/lib/runtime-dependency-closure.js",
         "scripts/test-public-product-expression.js",
+        "scripts/lib/real-codex-host-probe.js",
+        "scripts/test-real-codex-host-probe.js",
         "scripts/test-global-install-smoke.js"
       ],
       "consumers": [

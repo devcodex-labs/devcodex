@@ -25,6 +25,7 @@ const {
   createConfirmedCpEvolutionTaskCanonicalRevision,
   createLegacyTaskCanonicalRevision,
   createResumeTaskCanonicalRevision,
+  createVerifiedResumeReconciliationTaskCanonicalRevision,
   admissionContinuationLeaseDigest,
   fencedTaskWriteOwnerDigest,
   readFencedTaskWriteOwner,
@@ -1751,13 +1752,11 @@ function observedCpState(transaction, activeRoot, fsImpl = fs) {
   const confirmationObservations = rows.filter(row => row.confirmed).map(row => {
     const evidence = observeExistingCpConfirmation(row.cells, sessionsPath, activeRoot, fsImpl, {
       phase: row.phase,
-      // memory_cp_confirm intentionally supports the human-readable HH:mm form.
-      // Once a finalized admission already owns digest-bound CP evidence, accept
-      // that writer format for a successor row while retaining every artifact,
-      // source, overview and lineage check below.
-      allowLegacyRecord: transaction.effects?.cpState?.compatibility?.schemaVersion === 'LegacyCpConfirmationCompatibilityV1' ||
-        (Array.isArray(transaction.effects?.cpState?.confirmedCpEvidence) &&
-          transaction.effects.cpState.confirmedCpEvidence.length > 0)
+      // memory_cp_confirm intentionally writes the human-readable HH:mm form.
+      // This canonical reader must accept that exact bounded format even before
+      // the first finalized transaction owns prior CP evidence; artifact,
+      // source, path, version and successor validation remain unchanged below.
+      allowLegacyRecord: true
     })
     return {
       phase: row.phase,
@@ -1870,29 +1869,6 @@ function observedCpState(transaction, activeRoot, fsImpl = fs) {
   }
 }
 
-function overviewBindsConfirmedCpEvolution(content, transaction, cp) {
-  const text = String(content || '')
-  const lines = text.split(/\r?\n/u).map(line => line.trim()).filter(Boolean)
-  const taskId = String(transaction.taskId || '').toLowerCase()
-  const evolved = (cp.evolutionChanges || [])
-    .filter(item => item.kind === 'advanced' || item.phase !== 'CP1')
-    .map(item => item.to)
-    .filter(Boolean)
-  const taskIdentityBound = lines.some(line =>
-    /taskidentity/i.test(line) && line.toLowerCase().includes(taskId)
-  )
-  if (!evolved.length || !taskId || !taskIdentityBound) return false
-  return evolved.every(item => {
-    const phase = String(item.phase || '').toLowerCase()
-    const version = String(item.version || '')
-    const artifactDigest = String(item.artifactDigest || '').toLowerCase()
-    return lines.some(line => {
-      const lower = line.toLowerCase()
-      return lower.includes(phase) && line.includes(version) && lower.includes(artifactDigest)
-    })
-  })
-}
-
 function readStableCanonicalFile(activeRoot, taskRoot, relative, label, fsImpl = fs) {
   const portable = String(relative || '').trim().replace(/\\/g, '/')
   if (!portable || path.isAbsolute(portable) || /^[A-Za-z]:/.test(portable) ||
@@ -1922,6 +1898,25 @@ function readStableCanonicalFile(activeRoot, taskRoot, relative, label, fsImpl =
   } finally {
     if (descriptor !== undefined) fsImpl.closeSync(descriptor)
   }
+}
+
+function canonicalRevisionObservedAt(transaction, cp, priorRevision = null) {
+  const baseline = String(priorRevision?.updatedAt || transaction?.updatedAt || '')
+  const baselineMs = Date.parse(baseline)
+  const confirmedAt = String(cp?.confirmedEvidence?.[cp.confirmedEvidence.length - 1]?.confirmedAt || '')
+  const confirmedAtMs = Date.parse(confirmedAt)
+  const observedAtMs = Number.isFinite(confirmedAtMs)
+    ? Math.max(baselineMs, confirmedAtMs)
+    : baselineMs
+  return new Date(observedAtMs).toISOString()
+}
+
+function confirmedCpResumeEvidenceDigest(cp = {}) {
+  return digestValue({
+    schemaVersion: 'ConfirmedCpResumeEvidenceV1',
+    confirmedEvidence: cp.confirmedEvidence || [],
+    latestConfirmedHead: cp.latestConfirmedHead || null
+  })
 }
 
 function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = fs, options = {}) {
@@ -1965,6 +1960,12 @@ function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = 
   const storedRevision = options.state?.taskCanonicalRevision || null
   let canonicalRevision
   if (storedRevision) {
+    if (storedRevision.source === 'verified-resume-reconciliation') {
+      throw new TaskAdmissionError(
+        'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
+        'process-local resume reconciliation must not be read as durable canonical state'
+      )
+    }
     const revisionValidation = validateTaskCanonicalRevision(storedRevision, transaction)
     if (!revisionValidation.valid) {
       throw new TaskAdmissionError(
@@ -1974,22 +1975,21 @@ function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = 
       )
     }
     if (storedRevision.currentOverviewDigest === overviewFile.digest) {
-      if (cp.evolutionChanges.some(item => item.kind === 'advanced') &&
-          !overviewBindsConfirmedCpEvolution(overviewFile.bytes.toString('utf8'), transaction, cp)) {
-        throw new TaskAdmissionError(
-          'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
-          'digest-bound CP successors are not reflected by the canonical overview'
-        )
-      }
       canonicalRevision = storedRevision
     } else if (cp.evolutionChanges.length && cp.cpEvolutionDigest &&
-        (!storedRevision.cpChainDigest || storedRevision.cpChainDigest === transaction.effects?.cpState?.cpChainDigest) &&
-        overviewBindsConfirmedCpEvolution(overviewFile.bytes.toString('utf8'), transaction, cp)) {
+        (!storedRevision.cpChainDigest || storedRevision.cpChainDigest === transaction.effects?.cpState?.cpChainDigest)) {
       canonicalRevision = createConfirmedCpEvolutionTaskCanonicalRevision(storedRevision, transaction, {
         currentOverviewDigest: overviewFile.digest,
         cpChainDigest: cp.cpChainDigest,
         sourceEvidenceDigest: cp.cpEvolutionDigest,
-        observedAt: cp.confirmedEvidence[cp.confirmedEvidence.length - 1]?.confirmedAt || storedRevision.updatedAt
+        observedAt: canonicalRevisionObservedAt(transaction, cp, storedRevision)
+      })
+    } else if (!cp.evolutionChanges.length) {
+      canonicalRevision = createVerifiedResumeReconciliationTaskCanonicalRevision(storedRevision, transaction, {
+        currentOverviewDigest: overviewFile.digest,
+        cpChainDigest: cp.cpChainDigest,
+        confirmedCpEvidenceDigest: confirmedCpResumeEvidenceDigest(cp),
+        observedAt: canonicalRevisionObservedAt(transaction, cp, storedRevision)
       })
     } else {
       throw new TaskAdmissionError(
@@ -1999,17 +1999,17 @@ function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = 
     }
   } else if (overviewFile.digest === transaction.effects?.overview?.contentDigest) {
     canonicalRevision = createAdmissionTaskCanonicalRevision(transaction)
-  } else if (overviewBindsConfirmedCpEvolution(overviewFile.bytes.toString('utf8'), transaction, cp)) {
-    const latestConfirmedAt = cp.confirmedEvidence[cp.confirmedEvidence.length - 1]?.confirmedAt || transaction.updatedAt
+  } else {
     canonicalRevision = createLegacyTaskCanonicalRevision(transaction, {
       currentOverviewDigest: overviewFile.digest,
       cpChainDigest: cp.cpChainDigest,
-      observedAt: latestConfirmedAt
+      observedAt: canonicalRevisionObservedAt(transaction, cp)
     })
-  } else {
+  }
+  if (!canonicalRevision) {
     throw new TaskAdmissionError(
       'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
-      'canonical overview changed without an authorized revision or a verifiable confirmed-CP legacy bridge'
+      'canonical overview changed without a valid machine-evidence revision bridge'
     )
   }
   const revisionValidation = validateTaskCanonicalRevision(canonicalRevision, transaction)

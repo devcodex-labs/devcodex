@@ -22,6 +22,9 @@ const VALIDATION_ROOT_BUDGET_PROJECTION_MAX_BYTES = 16 * 1024
 const TASK_SCOPED_AUTO_RECORD_MAX_BYTES = 4 * 1024
 const AUTO_CHECKPOINT_HISTORY_MAX_COUNT = 12
 const AUTO_CHECKPOINT_HISTORY_MAX_BYTES = 64 * 1024
+const GOVERNANCE_LEDGER_OBSERVATION_MAX_COUNT = 32
+const GOVERNANCE_LEDGER_OBSERVATION_MAX_BYTES = 32 * 1024
+const GOVERNANCE_LEDGER_ID_RE = /^(?:PI|PF|VL|GR|ISSUE)-\d{3,}$/
 
 class LifecycleStateProjectionV5Error extends Error {
   constructor(code, message, details = {}) {
@@ -417,11 +420,125 @@ function compactAutoCheckpointHistory(raw) {
   return value
 }
 
+function compactGovernanceEvidenceIds(raw) {
+  const values = []
+  const seen = new Set()
+  for (const item of Array.isArray(raw) ? raw : []) {
+    const value = String(item || '').trim().toUpperCase()
+    if (!GOVERNANCE_LEDGER_ID_RE.test(value) || seen.has(value)) continue
+    values.push(value)
+    seen.add(value)
+  }
+  return values
+}
+
+function governanceObservationHasRichSnapshot(raw) {
+  return isPlainObject(raw) && (
+    Object.prototype.hasOwnProperty.call(raw, 'fileIds') ||
+    Object.prototype.hasOwnProperty.call(raw, 'ledgerIntegrity')
+  )
+}
+
+/**
+ * Keep only the observation fields consumed after a lifecycle-state reload.
+ * Full ledger ID and integrity snapshots remain producer-local because the
+ * verifier rereads the canonical ledger before accepting write evidence.
+ */
+function compactGovernanceLedgerObservation(raw) {
+  if (!isPlainObject(raw)) return null
+  const fileIds = Array.isArray(raw.fileIds) ? raw.fileIds : []
+  const integrity = isPlainObject(raw.ledgerIntegrity) ? raw.ledgerIntegrity : null
+  const priorIntegritySummary = isPlainObject(raw.ledgerIntegritySummary) ? raw.ledgerIntegritySummary : null
+  const priorFileIdsDigest = /^[a-f0-9]{64}$/.test(String(raw.fileIdsDigest || ''))
+    ? String(raw.fileIdsDigest)
+    : null
+  const fileIdCount = fileIds.length
+    ? fileIds.length
+    : Math.max(0, Number.isInteger(raw.fileIdCount) ? raw.fileIdCount : 0)
+  return {
+    id: boundedString(raw.id, 256),
+    observedAt: boundedString(raw.observedAt, 128),
+    eventName: boundedString(raw.eventName, 128),
+    toolName: boundedString(raw.toolName, 128),
+    ledger: boundedString(raw.ledger, 256),
+    ledgerPath: boundedString(raw.ledgerPath, 2048),
+    activeRootMatch: raw.activeRootMatch === true,
+    outcomeObservable: raw.outcomeObservable === true,
+    successful: raw.successful === true,
+    inputIds: compactGovernanceEvidenceIds(raw.inputIds),
+    evidenceIds: compactGovernanceEvidenceIds(raw.evidenceIds),
+    fileIdCount,
+    fileIdsDigest: fileIds.length ? digestValue(fileIds) : priorFileIdsDigest,
+    ledgerIntegritySummary: integrity ? {
+      valid: integrity.valid === true,
+      issueCount: Array.isArray(integrity.issues) ? integrity.issues.length : 0,
+      issues: (Array.isArray(integrity.issues) ? integrity.issues : [])
+        .slice(0, 8)
+        .map(issue => boundedString(issue, 256)),
+      digest: digestValue(integrity)
+    } : priorIntegritySummary ? {
+      valid: priorIntegritySummary.valid === true,
+      issueCount: Math.max(0, Number.isInteger(priorIntegritySummary.issueCount) ? priorIntegritySummary.issueCount : 0),
+      issues: (Array.isArray(priorIntegritySummary.issues) ? priorIntegritySummary.issues : [])
+        .slice(0, 8)
+        .map(issue => boundedString(issue, 256)),
+      digest: /^[a-f0-9]{64}$/.test(String(priorIntegritySummary.digest || ''))
+        ? String(priorIntegritySummary.digest)
+        : null
+    } : null
+  }
+}
+
 function compactGovernanceIntake(raw) {
   if (!isPlainObject(raw)) return raw || null
   const value = clone(raw)
   value.promptPreview = boundedString(value.promptPreview, 2048)
   value.candidates = Array.isArray(value.candidates) ? value.candidates.slice(-32) : []
+  const sourceObservations = Array.isArray(raw.ledgerObservations) ? raw.ledgerObservations : []
+  const priorProjection = isPlainObject(raw.ledgerObservationProjection)
+    ? raw.ledgerObservationProjection
+    : null
+  const appendedRichObservations = priorProjection
+    ? sourceObservations.filter(governanceObservationHasRichSnapshot)
+    : []
+  const sourceCount = priorProjection
+    ? Math.max(
+        sourceObservations.length,
+        (Number(priorProjection.sourceCount) || 0) + appendedRichObservations.length
+      )
+    : sourceObservations.length
+  const priorSourceDigest = /^[a-f0-9]{64}$/.test(String(priorProjection?.sourceDigest || ''))
+    ? String(priorProjection.sourceDigest)
+    : null
+  const sourceDigest = appendedRichObservations.length
+    ? digestValue({ previousSourceDigest: priorSourceDigest, appended: appendedRichObservations })
+    : (priorSourceDigest || (sourceObservations.length ? digestValue(sourceObservations) : null))
+  let observations = sourceObservations
+    .slice(-GOVERNANCE_LEDGER_OBSERVATION_MAX_COUNT)
+    .map(compactGovernanceLedgerObservation)
+    .filter(Boolean)
+  while (observations.length > 1 && jsonBytes(observations) > GOVERNANCE_LEDGER_OBSERVATION_MAX_BYTES) {
+    observations.shift()
+  }
+  const observationBytes = jsonBytes(observations)
+  if (observationBytes > GOVERNANCE_LEDGER_OBSERVATION_MAX_BYTES) {
+    throw new LifecycleStateProjectionV5Error(
+      'LIFECYCLE_GOVERNANCE_OBSERVATION_EVIDENCE_EXCEEDED',
+      `latest governance ledger observation exceeds ${GOVERNANCE_LEDGER_OBSERVATION_MAX_BYTES} bytes`,
+      { bytes: observationBytes, maxBytes: GOVERNANCE_LEDGER_OBSERVATION_MAX_BYTES }
+    )
+  }
+  value.ledgerObservations = observations
+  value.ledgerObservationProjection = {
+    schemaVersion: 'GovernanceLedgerObservationProjectionV1',
+    sourceCount,
+    retainedCount: observations.length,
+    droppedCount: Math.max(0, sourceCount - observations.length),
+    sourceDigest,
+    maxCount: GOVERNANCE_LEDGER_OBSERVATION_MAX_COUNT,
+    maxBytes: GOVERNANCE_LEDGER_OBSERVATION_MAX_BYTES,
+    bytes: observationBytes
+  }
   return value
 }
 

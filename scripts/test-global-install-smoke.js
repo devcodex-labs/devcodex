@@ -8,7 +8,6 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const {
-  resolveExecutableOnPath,
   resolveNpmInvocation,
   resolveWindowsBatchInvocation
 } = require('./lib/checked-command')
@@ -17,14 +16,37 @@ const { decodeHostHookCommand } = require('./lib/host-command')
 const { isDevCodexManagedHookEntry } = require('./lib/global-host-config-merge')
 const { cleanupPackageProjection } = require('./lib/package-compatibility-projection')
 const { restorePublishedPackageManifest } = require('./lib/published-package-manifest-projection')
+const {
+  createRunIdentity,
+  collectHostHomeRoots,
+  detachCodexTaskEnvironment,
+  findAuthFile,
+  finalizeDeferredAttempt,
+  initializeAttemptLedger,
+  isNonterminalH3SafePartial,
+  readCodexVersion,
+  resolveCodexExecutable,
+  validateEvidenceRoot
+} = require('./lib/real-codex-host-probe')
 
 const NPM_COMMAND_TIMEOUT_MS = 180000
 const PACKAGE_PACK_TIMEOUT_MS = 600000
 const packageRoot = path.resolve(__dirname, '..')
 const packageJson = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'))
+const INSTALLED_REAL_CODEX_CONFIG_OVERRIDES = Object.freeze([
+  'model_reasoning_effort="medium"',
+  'mcp_servers.devcodex-profile.default_tools_approval_mode="approve"',
+  'mcp_servers.devcodex-memory.default_tools_approval_mode="approve"'
+])
 
 function parseSmokeArguments(argv) {
-  const options = { tarball: null, realCodex: false }
+  const options = {
+    tarball: null,
+    realCodex: false,
+    evidenceRoot: null,
+    sourceCandidate: null,
+    authorizationDigest: null
+  }
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
     if (argument === '--tarball') {
@@ -35,9 +57,35 @@ function parseSmokeArguments(argv) {
       index += 1
     } else if (argument === '--real-codex') {
       options.realCodex = true
+    } else if (['--evidence-root', '--source-candidate', '--authorization-digest'].includes(argument)) {
+      const value = argv[index + 1]
+      assert(value && !value.startsWith('-'), argument + ' requires one value')
+      const key = {
+        '--evidence-root': 'evidenceRoot',
+        '--source-candidate': 'sourceCandidate',
+        '--authorization-digest': 'authorizationDigest'
+      }[argument]
+      options[key] = argument === '--evidence-root' ? path.resolve(value) : value
+      index += 1
     } else {
       assert.fail(`unknown global install smoke argument: ${argument}`)
     }
+  }
+  if (options.realCodex) {
+    assert(options.tarball, '--real-codex requires --tarball so the installed chain cannot create a second package')
+    assert(options.evidenceRoot && path.isAbsolute(options.evidenceRoot),
+      '--real-codex requires an absolute --evidence-root outside the smoke fixture')
+    validateEvidenceRoot(options.evidenceRoot, [packageRoot, ...collectHostHomeRoots(process.env)])
+    assert(/^[a-f0-9]{64}$/iu.test(String(options.sourceCandidate || '')),
+      '--real-codex requires --source-candidate SHA-256')
+    assert(/^[a-f0-9]{64}$/iu.test(String(options.authorizationDigest || '')),
+      '--real-codex requires --authorization-digest SHA-256')
+  } else {
+    assert.strictEqual(
+      [options.evidenceRoot, options.sourceCandidate, options.authorizationDigest].some(Boolean),
+      false,
+      'real-host run binding arguments require --real-codex'
+    )
   }
   return options
 }
@@ -56,6 +104,7 @@ assert.strictEqual(new Set(isolatedRoots.map(item => path.resolve(item))).size, 
 let tempCleaned = false
 let realCodexEvidence = null
 let installedAdmissionNegativesPassed = false
+let realHostIdentity = null
 
 function cleanupTempFixture() {
   if (tempCleaned) return
@@ -99,13 +148,14 @@ const codexConfigSentinel = smokeOptions.realCodex
   : 'model = "user-model"\n'
 fs.writeFileSync(path.join(globalHome, '.codex', 'config.toml'), codexConfigSentinel)
 if (smokeOptions.realCodex) {
-  const rawSourceHome = String(process.env.USERPROFILE || process.env.HOME || '').trim()
-  assert(rawSourceHome, 'real Codex validation requires one credential source HOME')
-  const sourceHome = path.resolve(rawSourceHome)
-  assert.notStrictEqual(sourceHome, path.resolve(globalHome), 'real Codex validation credential source must remain outside the fixture')
-  const sourceAuth = path.join(sourceHome, '.codex', 'auth.json')
-  assert.strictEqual(fs.existsSync(sourceAuth), true, 'real Codex validation requires an existing authenticated auth.json')
-  fs.copyFileSync(sourceAuth, path.join(globalHome, '.codex', 'auth.json'))
+  const sourceAuth = findAuthFile(process.env)
+  const isolatedAuth = path.join(globalHome, '.codex', 'auth.json')
+  assert.notStrictEqual(
+    path.resolve(sourceAuth),
+    path.resolve(isolatedAuth),
+    'real Codex validation credential source must remain outside the fixture'
+  )
+  fs.copyFileSync(sourceAuth, isolatedAuth)
 }
 fs.mkdirSync(path.join(globalHome, '.claude'), { recursive: true })
 fs.writeFileSync(path.join(globalHome, '.claude', 'settings.json'), `${JSON.stringify({
@@ -255,62 +305,80 @@ function summarizeCodexJsonl(stdout) {
   return summaries.slice(-30).join('\n').slice(-8000) || 'no relevant JSONL diagnostic events'
 }
 
-function runRealCodexTurn(label, prompt, env, options = {}) {
-  const hostEnv = { ...process.env, ...env }
-  delete hostEnv.CODEX_INTERNAL_ORIGINATOR_OVERRIDE
-  delete hostEnv.CODEX_THREAD_ID
-  const executableNames = process.platform === 'win32' ? ['codex.exe', 'codex.cmd'] : ['codex']
-  const executable = executableNames
-    .map(name => resolveExecutableOnPath(name, hostEnv))
-    .find(Boolean)
-  assert(executable, `real Codex executable not found on PATH: ${executableNames.join(' or ')}`)
-  const outputPath = path.join(tmp, `${label}-last-message.txt`)
-  const args = [
-    '-a', 'never',
-    '-s', 'workspace-write',
-    '--add-dir', options.runtimeRoot,
-    '-c', 'model_reasoning_effort="medium"',
-    '-c', 'mcp_servers.devcodex-profile.default_tools_approval_mode="approve"',
-    '-c', 'mcp_servers.devcodex-memory.default_tools_approval_mode="approve"',
-    '--dangerously-bypass-hook-trust',
-    'exec',
-    '--json',
-    '--ephemeral',
-    '--skip-git-repo-check',
-    '--output-last-message', outputPath,
-    '--color', 'never',
-    prompt
-  ]
-  const startedAt = Date.now()
-  const invocation = process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(executable)
-    ? resolveWindowsBatchInvocation(executable, args, hostEnv)
-    : { command: executable, args }
-  const result = spawnSync(invocation.command, invocation.args, {
-    cwd: options.cwd || consumer,
-    env: hostEnv,
+function runRealHostHelper(label, request, env, helperPath) {
+  assert(path.isAbsolute(helperPath), 'real-host helper path must be absolute')
+  assert.strictEqual(fs.existsSync(helperPath), true, 'installed real-host helper is missing')
+  const requestPath = path.join(tmp, label + '-real-host-request.json')
+  const resultPath = path.join(tmp, label + '-real-host-result.json')
+  fs.writeFileSync(requestPath, JSON.stringify(request, null, 2) + '\n', {
     encoding: 'utf8',
-    timeout: 900000,
-    maxBuffer: 16 * 1024 * 1024,
-    windowsHide: true
+    flag: 'wx'
   })
-  const eventSummary = summarizeCodexJsonl(result.stdout)
-  assert.strictEqual(
-    result.status,
-    0,
-    `real Codex ${label} failed status=${result.status} signal=${result.signal} error=${result.error?.message || 'none'}\nevent-summary:\n${eventSummary}\nstderr:\n${String(result.stderr || '').slice(-4000)}`
-  )
-  assert.strictEqual(fs.existsSync(outputPath), true, `real Codex ${label} last-message evidence missing`)
-  const lastMessage = fs.readFileSync(outputPath, 'utf8').trim()
+  runCommand(process.execPath, [
+    helperPath,
+    '--mode', 'request',
+    '--request-file', requestPath,
+    '--result-file', resultPath
+  ], {
+    cwd: request.consumerRoot,
+    env: detachCodexTaskEnvironment(env),
+    timeout: (request.timeoutMs || 900000) + 60000
+  })
+  assert.strictEqual(fs.existsSync(resultPath), true, 'real-host helper result is missing: ' + label)
+  return JSON.parse(fs.readFileSync(resultPath, 'utf8'))
+}
+
+function runRealCodexTurn(label, prompt, env, options = {}) {
+  const hostEnv = detachCodexTaskEnvironment({ ...process.env, ...env })
+  const receipt = runRealHostHelper(label, {
+    schemaVersion: 'RealCodexHostProbeRequestV1',
+    operation: 'turn',
+    evidenceRoot: smokeOptions.evidenceRoot,
+    identity: realHostIdentity,
+    forbiddenRoots: [packageRoot, tmp],
+    stage: options.stage,
+    attempt: options.attempt || 1,
+    retrySafety: options.retrySafety || null,
+    consumerRoot: options.cwd || consumer,
+    addDir: options.runtimeRoot,
+    codexExecutable: realHostIdentity.codexExecutable,
+    configOverrides: INSTALLED_REAL_CODEX_CONFIG_OVERRIDES,
+    bypassHookTrust: true,
+    prompt,
+    timeoutMs: 900000,
+    deferFinalization: true
+  }, hostEnv, options.helperPath)
+  assert.strictEqual(receipt.status, 'PASS', 'real Codex ' + label + ' process stage failed: ' + receipt.code)
+  assert.strictEqual(receipt.deferred, true, 'formal real Codex stage must await durable-state readback')
+  const stdout = fs.readFileSync(receipt.evidence.stdoutPath, 'utf8')
   return {
     label,
-    pid: result.pid || null,
-    exitCode: result.status,
-    durationMs: Date.now() - startedAt,
-    outputSha256: sha256File(outputPath),
-    stdoutSha256: sha256Text(result.stdout),
-    lastMessage,
-    eventSummary
+    stage: options.stage,
+    attempt: options.attempt || 1,
+    pid: receipt.child.pid,
+    exitCode: receipt.child.exitCode,
+    durationMs: receipt.child.durationMs,
+    outputSha256: sha256Text(receipt.lastMessage),
+    stdoutSha256: receipt.stdoutSha256,
+    lastMessage: receipt.lastMessage,
+    eventSummary: summarizeCodexJsonl(stdout),
+    receiptDigest: receipt.receiptDigest
   }
+}
+
+function finalizeRealCodexTurn(invocation, status, options = {}) {
+  return finalizeDeferredAttempt({
+    evidenceRoot: smokeOptions.evidenceRoot,
+    identity: realHostIdentity,
+    stage: invocation.stage,
+    attempt: invocation.attempt,
+    status,
+    code: options.code || null,
+    retryEligible: options.retryEligible === true,
+    state: options.state,
+    receiptDigest: invocation.receiptDigest,
+    summary: options.summary || null
+  })
 }
 
 function readInstalledFormalTaskState(installedRuntimeRoot, taskName, invocation = null) {
@@ -437,6 +505,21 @@ assert.strictEqual(fs.existsSync(tarball), true)
 const tarballBefore = {
   bytes: fs.statSync(tarball).size,
   sha256: sha256File(tarball)
+}
+
+function assertRealHostCandidateStable(stage) {
+  assert.strictEqual(fs.existsSync(tarball), true, stage + ': exact tarball disappeared')
+  assert.strictEqual(fs.statSync(tarball).size, tarballBefore.bytes, stage + ': exact tarball size drifted')
+  assert.strictEqual(sha256File(tarball), tarballBefore.sha256, stage + ': exact tarball digest drifted')
+  if (realHostIdentity?.installedRuntime) {
+    const generationPath = path.join(realHostIdentity.installedRuntime.root, 'runtime-generation.json')
+    assert.strictEqual(fs.existsSync(generationPath), true, stage + ': installed runtime identity disappeared')
+    assert.strictEqual(
+      sha256File(generationPath),
+      realHostIdentity.installedRuntime.generationDigest,
+      stage + ': installed runtime generation drifted'
+    )
+  }
 }
 
 fs.writeFileSync(path.join(consumer, 'package.json'), `${JSON.stringify({
@@ -825,6 +908,20 @@ if (smokeOptions.tarball) {
 }
 
 if (smokeOptions.realCodex) {
+  for (const relative of [
+    'scripts/lib/real-codex-host-probe.js',
+    'scripts/test-real-codex-host-probe.js',
+    'scripts/test-global-install-smoke.js'
+  ]) {
+    const sourceFile = path.join(packageRoot, ...relative.split('/'))
+    const installedFile = path.join(installedPackageRoot, ...relative.split('/'))
+    assert.strictEqual(fs.existsSync(installedFile), true, 'installed real-host file missing: ' + relative)
+    assert.strictEqual(
+      sha256File(installedFile),
+      sha256File(sourceFile),
+      'installed real-host file differs from the source candidate: ' + relative
+    )
+  }
   console.log('global install smoke realCodex stage=installed-s15 start')
   const installedS15EvidencePath = path.join(tmp, 'installed-codex-s15.json')
   runCommand(process.execPath, [
@@ -848,6 +945,100 @@ if (smokeOptions.realCodex) {
   console.log('global install smoke realCodex stage=installed-s15 pass')
 
   const formalTaskName = 'Tarball真实宿主连续性验收'
+  const installedH1Nonce = crypto.randomBytes(24).toString('hex')
+  const installedRealHostHelper = path.join(
+    installedPackageRoot,
+    'scripts',
+    'lib',
+    'real-codex-host-probe.js'
+  )
+  assert.strictEqual(fs.existsSync(installedRealHostHelper), true, 'installed real-host helper is missing')
+  const realCodexExecutable = resolveCodexExecutable(null, installedEnv)
+  const realCodexVersion = readCodexVersion(realCodexExecutable, installedEnv)
+  realHostIdentity = createRunIdentity({
+    mode: 'installed',
+    sourceCandidate: smokeOptions.sourceCandidate,
+    authorizationDigest: smokeOptions.authorizationDigest,
+    codexVersion: realCodexVersion,
+    codexExecutable: realCodexExecutable,
+    argvContract: [
+      '-a=never',
+      'exec',
+      '-C=' + path.resolve(consumer),
+      '-s=workspace-write',
+      '--add-dir=' + path.resolve(consumerActiveRoot),
+      'installed-config=true',
+      ...INSTALLED_REAL_CODEX_CONFIG_OVERRIDES.map(value => '-c=' + value),
+      '--dangerously-bypass-hook-trust',
+      '--json --ephemeral --skip-git-repo-check'
+    ],
+    topology: {
+      processCwd: path.resolve(consumer),
+      cliCwd: path.resolve(consumer),
+      addDir: path.resolve(consumerActiveRoot),
+      probeEffectRoots: [
+        { label: 'globalHome', root: path.resolve(globalHome) },
+        { label: 'globalPrefix', root: path.resolve(globalPrefix) },
+        { label: 'npmCache', root: path.resolve(cacheDir) }
+      ]
+    },
+    oracle: {
+      schemaVersion: 'RealHostInstalledOracleBindingV1',
+      stageOrder: ['H1', 'H2', 'H3'],
+      h1: {
+        nonce: installedH1Nonce,
+        createExclusive: true,
+        expectedCommandExitCode: 0,
+        unexpectedEffectCount: 0
+      },
+      formal: {
+        taskName: formalTaskName,
+        g1Marker: 'HOST_G1_READY',
+        g2Marker: 'HOST_G2_READY',
+        terminalStatus: 'completed'
+      }
+    },
+    tarball: {
+      path: path.resolve(tarball),
+      bytes: tarballBefore.bytes,
+      sha256: tarballBefore.sha256
+    },
+    installedRuntime: {
+      root: path.resolve(installedCodexRuntimeRoot),
+      generationDigest: sha256File(path.join(installedCodexRuntimeRoot, 'runtime-generation.json'))
+    }
+  })
+  initializeAttemptLedger({
+    evidenceRoot: smokeOptions.evidenceRoot,
+    identity: realHostIdentity,
+    forbiddenRoots: [packageRoot, tmp, globalHome, workspace]
+  })
+  assertRealHostCandidateStable('H1 preflight')
+  console.log('global install smoke realCodex stage=installed-h1 start')
+  const installedH1 = runRealHostHelper('installed-h1', {
+    schemaVersion: 'RealCodexHostProbeRequestV1',
+    operation: 'probe',
+    evidenceRoot: smokeOptions.evidenceRoot,
+    identity: realHostIdentity,
+    forbiddenRoots: [packageRoot, tmp],
+    stage: 'H1',
+    expectation: 'allowed',
+    nonce: installedH1Nonce,
+    consumerRoot: consumer,
+    addDir: consumerActiveRoot,
+    codexExecutable: realCodexExecutable,
+    configOverrides: INSTALLED_REAL_CODEX_CONFIG_OVERRIDES,
+    bypassHookTrust: true,
+    additionalEffectRoots: [
+      { label: 'globalHome', root: globalHome },
+      { label: 'globalPrefix', root: globalPrefix },
+      { label: 'npmCache', root: cacheDir }
+    ],
+    timeoutMs: 900000
+  }, installedEnv, installedRealHostHelper)
+  assert.strictEqual(installedH1.status, 'PASS', 'installed H1 topology probe failed: ' + installedH1.code)
+  console.log('global install smoke realCodex stage=installed-h1 pass')
+
   const firstPrompt = [
     '@rocky 自动执行当前隔离安装包验收，不要向用户追问。',
     '项目固定为 consumer；当前 cwd 就是带显式 package.json 的独立 consumer，活动根固定为其父目录下的 .devcodex/consumer。不得读取或修改隔离 HOME、consumer、该活动根之外的文件。',
@@ -862,16 +1053,42 @@ if (smokeOptions.realCodex) {
   console.log('global install smoke realCodex stage=formal-g1 start')
   const realCodexOptions = {
     cwd: consumer,
-    runtimeRoot: path.join(workspace, '.devcodex', 'consumer')
+    runtimeRoot: path.join(workspace, '.devcodex', 'consumer'),
+    helperPath: installedRealHostHelper,
+    stage: 'H2'
   }
-  const g1Invocation = runRealCodexTurn('formal-g1', firstPrompt, installedEnv, realCodexOptions)
-  const g1 = readInstalledFormalTaskState(installedCodexRuntimeRoot, formalTaskName, g1Invocation)
-  const g1Diagnostic = formatRealCodexStateDiagnostic(g1Invocation, g1)
-  assert.strictEqual(g1.state.admissionTransaction.phase, 'finalized', g1Diagnostic)
-  assert.strictEqual(g1.state.admissionTransaction.status, 'finalized', g1Diagnostic)
-  assert.strictEqual(g1.state.admissionTransaction.effects?.cpState?.cp1Confirmed, true, g1Diagnostic)
-  assert.strictEqual(g1.state.fencedWriteOwner?.status, 'released', g1Diagnostic)
-  assert.match(g1.overview, /^HOST_G1_READY$/mu, g1Diagnostic)
+  let g1Invocation
+  let g1
+  try {
+    assertRealHostCandidateStable('H2 preflight')
+    g1Invocation = runRealCodexTurn('formal-g1', firstPrompt, installedEnv, realCodexOptions)
+    g1 = readInstalledFormalTaskState(installedCodexRuntimeRoot, formalTaskName, g1Invocation)
+    const g1Diagnostic = formatRealCodexStateDiagnostic(g1Invocation, g1)
+    assert.strictEqual(g1.state.admissionTransaction.phase, 'finalized', g1Diagnostic)
+    assert.strictEqual(g1.state.admissionTransaction.status, 'finalized', g1Diagnostic)
+    assert.strictEqual(g1.state.admissionTransaction.effects?.cpState?.cp1Confirmed, true, g1Diagnostic)
+    assert.strictEqual(g1.state.fencedWriteOwner?.status, 'released', g1Diagnostic)
+    assert.match(g1.overview, /^HOST_G1_READY$/mu, g1Diagnostic)
+    finalizeRealCodexTurn(g1Invocation, 'PASS', {
+      summary: {
+        taskId: g1.taskId,
+        admissionGeneration: g1.state.admissionTransaction.admissionGeneration,
+        canonicalRevision: g1.state.taskCanonicalRevision?.revision || 0,
+        cp1Confirmed: true,
+        ownerStatus: 'released'
+      }
+    })
+  } catch (error) {
+    if (g1Invocation) {
+      try {
+        finalizeRealCodexTurn(g1Invocation, 'BLOCK', {
+          code: 'FORMAL_G1_DURABLE_READBACK_INCOMPLETE',
+          summary: { error: String(error.message || error).slice(0, 2000) }
+        })
+      } catch {}
+    }
+    throw error
+  }
   const g1Generation = g1.state.admissionTransaction.admissionGeneration
   const g1CanonicalRevision = g1.state.taskCanonicalRevision?.revision || 0
   console.log(`global install smoke realCodex stage=formal-g1 pass generation=${g1Generation}`)
@@ -887,35 +1104,140 @@ if (smokeOptions.realCodex) {
     '最终只简短报告 taskId、前后 admissionGeneration、canonical revision、terminalStatus 和文件读回。'
   ].join('\n')
   console.log('global install smoke realCodex stage=formal-g2 start')
-  const g2Invocations = [runRealCodexTurn('formal-g2', secondPrompt, installedEnv, realCodexOptions)]
-  let g2 = readInstalledFormalTaskState(installedCodexRuntimeRoot, formalTaskName, g2Invocations[0])
+  const g2Options = { ...realCodexOptions, stage: 'H3' }
+  const g2Invocations = []
+  let g2Pending = null
+  let g2
+  let minimumFinalGeneration = g1Generation + 1
+  let minimumFinalCanonicalRevision = g1CanonicalRevision + 1
   const g2Ready = () => g2.state.admissionTransaction.admissionGeneration > g1Generation &&
     /^HOST_G2_READY$/mu.test(g2.overview) &&
     g2.state.workflowTaskTerminalReceipt?.terminalStatus === 'completed'
-  if (!g2Ready()) {
-    const retryPrompt = [
-      '@rocky 这是同一隔离验收的唯一受控重试，不要新建任务也不要向用户追问。',
-      `继续 TaskIdentity=${g1.taskId}；读取当前 durable state，补齐尚未完成的 G2 写入或 completed terminal closeout。`,
-      '必须保持 HOST_G2_READY 文件读回、准入代单调递增、旧 owner 失权，并使用模板生成缺失的四类关闭证据。',
-      '任何尚未完成的 memory_cp_confirm 都必须传当前 R3 PASS、零 blocker、零 side effect 的 autoDecisionEvidence。'
-    ].join('\n')
-    console.log('global install smoke realCodex stage=formal-g2 retry')
-    g2Invocations.push(runRealCodexTurn('formal-g2-retry', retryPrompt, installedEnv, realCodexOptions))
-    g2 = readInstalledFormalTaskState(installedCodexRuntimeRoot, formalTaskName)
+  try {
+    assertRealHostCandidateStable('H3 preflight')
+    g2Pending = runRealCodexTurn('formal-g2', secondPrompt, installedEnv, g2Options)
+    g2Invocations.push(g2Pending)
+    g2 = readInstalledFormalTaskState(installedCodexRuntimeRoot, formalTaskName, g2Pending)
+    if (!g2Ready()) {
+      const safePartial = isNonterminalH3SafePartial({
+        expectedTaskId: g1.taskId,
+        taskId: g2.taskId,
+        expectedTaskRoot: g1.taskRoot,
+        taskRoot: g2.taskRoot,
+        baselineAdmissionGeneration: g1Generation,
+        admissionGeneration: g2.state.admissionTransaction.admissionGeneration,
+        baselineCanonicalRevision: g1CanonicalRevision,
+        canonicalRevision: g2.state.taskCanonicalRevision?.revision || 0,
+        terminalStatus: g2.state.workflowTaskTerminalReceipt?.terminalStatus,
+        admissionPhase: g2.state.admissionTransaction.phase,
+        ownerStatus: g2.state.fencedWriteOwner?.status
+      })
+      if (!safePartial) {
+        finalizeRealCodexTurn(g2Pending, 'BLOCK', {
+          code: 'FORMAL_G2_TERMINAL_INCOMPLETE',
+          summary: {
+            taskId: g2.taskId,
+            taskRoot: path.resolve(g2.taskRoot),
+            admissionGeneration: g2.state.admissionTransaction.admissionGeneration,
+            canonicalRevision: g2.state.taskCanonicalRevision?.revision || 0,
+            terminalStatus: g2.state.workflowTaskTerminalReceipt?.terminalStatus || null,
+            admissionPhase: g2.state.admissionTransaction.phase,
+            ownerStatus: g2.state.fencedWriteOwner?.status || null,
+            safePartial: false
+          }
+        })
+        g2Pending = null
+        assert.fail('formal G2 is incomplete and does not qualify as a nonterminal same-task successor')
+      }
+      finalizeRealCodexTurn(g2Pending, 'UNVERIFIED', {
+        state: 'needs-review',
+        code: 'FORMAL_G2_SAFE_PARTIAL',
+        retryEligible: safePartial,
+        summary: {
+          taskId: g2.taskId,
+          taskRoot: path.resolve(g2.taskRoot),
+          admissionGeneration: g2.state.admissionTransaction.admissionGeneration,
+          canonicalRevision: g2.state.taskCanonicalRevision?.revision || 0,
+          terminalStatus: g2.state.workflowTaskTerminalReceipt?.terminalStatus || null,
+          admissionPhase: g2.state.admissionTransaction.phase,
+          ownerStatus: g2.state.fencedWriteOwner?.status || null,
+          safePartial
+        }
+      })
+      minimumFinalGeneration = Math.max(
+        minimumFinalGeneration,
+        g2.state.admissionTransaction.admissionGeneration
+      )
+      minimumFinalCanonicalRevision = Math.max(
+        minimumFinalCanonicalRevision,
+        g2.state.taskCanonicalRevision?.revision || 0
+      )
+      g2Pending = null
+      const retryPrompt = [
+        '@rocky 这是同一隔离验收的唯一受控重试，不要新建任务也不要向用户追问。',
+        `继续 TaskIdentity=${g1.taskId}；读取当前 durable state，补齐尚未完成的 G2 写入或 completed terminal closeout。`,
+        '必须保持 HOST_G2_READY 文件读回、准入代单调递增、旧 owner 失权，并使用模板生成缺失的四类关闭证据。',
+        '任何尚未完成的 memory_cp_confirm 都必须传当前 R3 PASS、零 blocker、零 side effect 的 autoDecisionEvidence。'
+      ].join('\n')
+      console.log('global install smoke realCodex stage=formal-g2 retry')
+      assertRealHostCandidateStable('H3 retry preflight')
+      g2Pending = runRealCodexTurn('formal-g2-retry', retryPrompt, installedEnv, {
+        ...g2Options,
+        attempt: 2,
+        retrySafety: {
+          safePartial: true,
+          taskId: g1.taskId,
+          taskRoot: path.resolve(g2.taskRoot),
+          admissionGeneration: g2.state.admissionTransaction.admissionGeneration,
+          canonicalRevision: g2.state.taskCanonicalRevision?.revision || 0,
+          admissionPhase: g2.state.admissionTransaction.phase,
+          ownerStatus: g2.state.fencedWriteOwner?.status
+        }
+      })
+      g2Invocations.push(g2Pending)
+      g2 = readInstalledFormalTaskState(installedCodexRuntimeRoot, formalTaskName, g2Pending)
+    }
+    assert.strictEqual(g2.taskId, g1.taskId, 'real Codex switched taskId during G2 continuation')
+    assert.strictEqual(path.resolve(g2.taskRoot), path.resolve(g1.taskRoot),
+      'real Codex switched task root during G2 continuation')
+    assert(g2.state.admissionTransaction.admissionGeneration >= minimumFinalGeneration,
+      'real Codex admission generation regressed after the safe partial')
+    assert((g2.state.taskCanonicalRevision?.revision || 0) >= minimumFinalCanonicalRevision,
+      'real Codex canonical revision regressed after the safe partial')
+    assert.match(g2.overview, /^HOST_G2_READY$/mu)
+    assert.strictEqual(g2.state.admissionTransaction.phase, 'terminal-closeout')
+    assert.strictEqual(g2.state.workflowTaskTerminalReceipt?.terminalStatus, 'completed')
+    assert.strictEqual(g2.state.fencedWriteOwner?.status, 'terminal')
+    assert.ok(
+      Array.isArray(g2.state.autoCheckpointDecisions) &&
+        ['CP2', 'CP3'].every(phase => g2.state.autoCheckpointDecisions.some(decision =>
+          decision.checkpoint === phase && decision.decision === 'auto-pass')),
+      'real Codex did not persist auto-pass decisions for CP2 and CP3'
+    )
+    finalizeRealCodexTurn(g2Pending, 'PASS', {
+      summary: {
+        taskId: g2.taskId,
+        admissionGeneration: g2.state.admissionTransaction.admissionGeneration,
+        canonicalRevision: g2.state.taskCanonicalRevision?.revision || 0,
+        terminalStatus: 'completed',
+        ownerStatus: 'terminal'
+      }
+    })
+    g2Pending = null
+  } catch (error) {
+    if (g2Pending) {
+      try {
+        finalizeRealCodexTurn(g2Pending, 'BLOCK', {
+          code: 'FORMAL_G2_TERMINAL_INCOMPLETE',
+          summary: { error: String(error.message || error).slice(0, 2000) }
+        })
+      } catch {}
+    }
+    throw error
   }
-  assert(g2.state.admissionTransaction.admissionGeneration > g1Generation, 'real Codex did not create a later admission generation')
-  assert((g2.state.taskCanonicalRevision?.revision || 0) > g1CanonicalRevision, 'real Codex canonical revision did not advance')
-  assert.match(g2.overview, /^HOST_G2_READY$/mu)
-  assert.strictEqual(g2.state.admissionTransaction.phase, 'terminal-closeout')
-  assert.strictEqual(g2.state.workflowTaskTerminalReceipt?.terminalStatus, 'completed')
-  assert.strictEqual(g2.state.fencedWriteOwner?.status, 'terminal')
-  assert.ok(
-    Array.isArray(g2.state.autoCheckpointDecisions) &&
-      ['CP2', 'CP3'].every(phase => g2.state.autoCheckpointDecisions.some(decision =>
-        decision.checkpoint === phase && decision.decision === 'auto-pass')),
-    'real Codex did not persist auto-pass decisions for CP2 and CP3'
-  )
   realCodexEvidence = {
+    runDigest: realHostIdentity.digest,
+    h1ReceiptDigest: installedH1.receiptDigest,
     s15RawDigest: installedS15Evidence.rawDigest,
     taskId: g1.taskId,
     g1AdmissionGeneration: g1Generation,
@@ -1105,4 +1427,4 @@ if (smokeOptions.tarball) {
   assert.strictEqual(fs.statSync(tarball).size, tarballBefore.bytes, 'external exact tarball byte count changed')
   assert.strictEqual(sha256File(tarball), tarballBefore.sha256, 'external exact tarball digest changed')
 }
-console.log(`global install smoke passed pack=${packCount} externalTarball=${smokeOptions.tarball ? 1 : 0} tarballBytes=${tarballBefore.bytes} tarballSha256=${tarballBefore.sha256} realGlobalInstall=1 installedPromptManifest=1 installedFormalWriter=1 templateMissingZeroWrite=1 installedAdmissionNegatives=${installedAdmissionNegativesPassed ? 1 : 0} realCodex=${realCodexEvidence ? 1 : 0} realCodexG1=${realCodexEvidence?.g1AdmissionGeneration || 0} realCodexFinalGeneration=${realCodexEvidence?.finalAdmissionGeneration || 0} realCodexTerminal=${realCodexEvidence?.terminalStatus === 'completed' ? 1 : 0} managedRemove=1 npmUninstall=1 idempotent=1 userContent=1 layeredStatus=1 grokNative=${grokAvailable ? 1 : 0} workspaceNoHostDirs=1 tempCleanup=1 version=${packageJson.version}`)
+console.log(`global install smoke passed pack=${packCount} externalTarball=${smokeOptions.tarball ? 1 : 0} tarballBytes=${tarballBefore.bytes} tarballSha256=${tarballBefore.sha256} realGlobalInstall=1 installedPromptManifest=1 installedFormalWriter=1 templateMissingZeroWrite=1 installedAdmissionNegatives=${installedAdmissionNegativesPassed ? 1 : 0} realCodex=${realCodexEvidence ? 1 : 0} realCodexH1=${realCodexEvidence?.h1ReceiptDigest ? 1 : 0} realCodexG1=${realCodexEvidence?.g1AdmissionGeneration || 0} realCodexFinalGeneration=${realCodexEvidence?.finalAdmissionGeneration || 0} realCodexTerminal=${realCodexEvidence?.terminalStatus === 'completed' ? 1 : 0} managedRemove=1 npmUninstall=1 idempotent=1 userContent=1 layeredStatus=1 grokNative=${grokAvailable ? 1 : 0} workspaceNoHostDirs=1 tempCleanup=1 version=${packageJson.version}`)

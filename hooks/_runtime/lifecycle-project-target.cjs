@@ -2,6 +2,7 @@
 
 const crypto = require('crypto')
 const { digestSessionRef } = require('./workspace-session-route-index-v1.cjs')
+const { separateEmbeddedEvidence } = require('./actual-instruction-envelope.cjs')
 const {
   createTaskScopedAutoContinuationGrant,
   transitionTaskScopedAutoContinuationGrant,
@@ -595,14 +596,83 @@ function buildLifecycleProjectTargetUtils({
     return new RegExp(`(?:^|[^A-Za-z0-9_@])${escaped}(?=$|[^A-Za-z0-9_-])`, 'i').test(String(prompt || ''))
   }
 
-  function hasUnnegatedMentionToken(prompt, alias) {
+  /** Return the punctuation-bounded clause that owns one authorization candidate. */
+  function autoIntentClauseAt(text, matchIndex, matchLength) {
+    const source = String(text || '')
+    const isBoundary = value => /[\r\n。！？!?；;，,]/.test(value)
+    let start = Math.max(0, matchIndex)
+    let end = Math.min(source.length, matchIndex + Math.max(0, matchLength))
+    while (start > 0 && !isBoundary(source[start - 1])) start -= 1
+    while (end < source.length && !isBoundary(source[end])) end += 1
+    const rawClause = source.slice(start, end)
+    const leadingWhitespace = rawClause.length - rawClause.trimStart().length
+    return {
+      text: rawClause.trim(),
+      matchOffset: Math.max(0, matchIndex - start - leadingWhitespace),
+      terminator: source[end] || ''
+    }
+  }
+
+  /** Keep quoted/code examples outside the authorization channel. */
+  function autoIntentMatchIsQuoted(text, matchIndex) {
+    const source = String(text || '')
+    const pairedQuotes = [['“', '”'], ['‘', '’'], ['「', '」'], ['『', '』']]
+    for (const [open, close] of pairedQuotes) {
+      if (source.lastIndexOf(open, matchIndex) > source.lastIndexOf(close, matchIndex) &&
+          source.indexOf(close, matchIndex) >= 0) return true
+    }
+    for (const quote of ['`', '"', "'"]) {
+      const before = source.slice(0, matchIndex)
+      const count = before.split(quote).length - 1
+      if (count % 2 === 1 && source.indexOf(quote, matchIndex) >= 0) return true
+    }
+    return false
+  }
+
+  /**
+   * Decide one candidate locally so a question cannot authorize, while an
+   * independent later clause can still carry an explicit command.
+   */
+  function autoIntentMatchIsActionable(text, matchIndex, matchLength, options = {}) {
+    if (isIntentMatchNegated(text, matchIndex) || autoIntentMatchIsQuoted(text, matchIndex)) return false
+    const clause = autoIntentClauseAt(text, matchIndex, matchLength)
+    const before = clause.text.slice(0, Math.max(0, clause.matchOffset)).trim()
+    const after = clause.text.slice(Math.max(0, clause.matchOffset) + matchLength).trim()
+    const questionOrReference = /(?:为什么|为何|怎么|如何|是否|是不是|能否|可否|会不会|有没有|有无|什么意思|\b(?:what|why|how|whether)\b|\bcan\s+(?:we|you|it)\b|\bcould\s+(?:we|you|it)\b|\bwould\s+(?:we|you|it)\b)/i
+    if (questionOrReference.test(clause.text)) return false
+    if (/[？?]/.test(clause.terminator) || /(?:吗|呢|么)\s*$/.test(clause.text)) return false
+    const referenceLead = /(?:检查|核实|验证|测试|分析|审查|评估|讨论|解释|说明|提到|引用|截图|报告|文档|字符串|示例|复现|调查|排查|关于|有关|check|verify|test|analy[sz]e|review|inspect|explain|discuss|quote|mention|document|example)(?:\s*(?:一下|下|过|了|这个|该|当前|有关|关于|the|this))?\s*[:：]?\s*$/i
+    if (referenceLead.test(before)) return false
+    if (options.kind === 'mention' && /^(?:别名|模式|功能|机制|行为|配置|字符串|示例|是指|是什么意思)/i.test(after)) return false
+    if (options.kind === 'natural-language') {
+      const commandLead = /^(?:(?:请(?:你)?|麻烦|现在|接下来|然后|随后|直接|马上|立即|好的?|那|就|并|完成(?:检查|修复|验证)?后|根据(?:你的|上述)?建议|按(?:你的|上述)?建议|采纳(?:你的|上述)?建议并?|我(?:确认|同意|授权|要求|决定))\s*)*$/i
+      if (!commandLead.test(before)) return false
+      if (/^(?:模式|功能|机制|行为|逻辑|实现|问题|bug|缺陷|状态)/i.test(after)) return false
+    }
+    return true
+  }
+
+  function findActionableMentionToken(prompt, alias) {
     const escaped = escapeRegExp(alias)
     const re = new RegExp(`(?:^|[^A-Za-z0-9_@])(${escaped})(?=$|[^A-Za-z0-9_-])`, 'ig')
     const text = String(prompt || '')
     let match
     while ((match = re.exec(text)) !== null) {
       const aliasOffset = match[0].lastIndexOf(match[1])
-      if (!isIntentMatchNegated(text, match.index + Math.max(aliasOffset, 0))) return true
+      const matchIndex = match.index + Math.max(aliasOffset, 0)
+      if (autoIntentMatchIsActionable(text, matchIndex, match[1].length, { kind: 'mention' })) return true
+    }
+    return false
+  }
+
+  function hasActionableAutoPattern(text, pattern) {
+    const source = pattern instanceof RegExp ? pattern.source : String(pattern || '')
+    const flags = pattern instanceof RegExp ? pattern.flags.replace(/g/g, '') : 'i'
+    const re = new RegExp(source, `${flags}g`)
+    let match
+    while ((match = re.exec(String(text || ''))) !== null) {
+      if (autoIntentMatchIsActionable(text, match.index, match[0].length, { kind: 'natural-language' })) return true
+      if (match[0].length === 0) re.lastIndex += 1
     }
     return false
   }
@@ -643,22 +713,28 @@ function buildLifecycleProjectTargetUtils({
   }
 
   function resolveAutoAuthorization(prompt, state, target) {
-    const text = String(prompt || '')
-    if (hasMentionToken(text, '@devcodex-auto') && hasUnnegatedMentionToken(text, '@devcodex-auto')) {
+    let text
+    try {
+      text = separateEmbeddedEvidence(String(prompt || '')).instruction
+    } catch {
+      return { authorized: false, source: '', kind: '' }
+    }
+    if (hasMentionToken(text, '@devcodex-auto') && findActionableMentionToken(text, '@devcodex-auto')) {
       return { authorized: true, source: '@devcodex-auto', kind: 'explicit' }
     }
     for (const alias of getConfiguredAutoAliases(state, target)) {
-      if (hasMentionToken(text, alias) && hasUnnegatedMentionToken(text, alias)) {
+      if (hasMentionToken(text, alias) && findActionableMentionToken(text, alias)) {
         return { authorized: true, source: alias, kind: 'alias' }
       }
     }
-    const normalized = text.replace(/\s+/g, ' ').trim()
+    const normalized = text.replace(/[^\S\r\n]+/g, ' ').replace(/\r\n?/g, '\n').trim()
     const naturalLanguageAutoPatterns = [
       /(?:进入|启用|开启|使用|切换到)\s*(?:auto|自动|全自动)\s*(?:模式|执行|推进|处理)?/i,
+      /(?:开始|继续)\s*(?:以|按|使用)?\s*(?:auto|自动|全自动)\s*(?:模式|执行|推进|处理)?/i,
       /(?:auto|自动|全自动)\s*(?:模式)?\s*(?:开始|继续|执行|推进|处理|修复|实施)/i,
       /(?:run|continue|proceed)\s+(?:in\s+)?auto\s+mode/i
     ]
-    if (naturalLanguageAutoPatterns.some(pattern => hasUnnegatedRegexMatch(normalized, pattern))) {
+    if (naturalLanguageAutoPatterns.some(pattern => hasActionableAutoPattern(normalized, pattern))) {
       return { authorized: true, source: 'natural-language', kind: 'nl' }
     }
     return { authorized: false, source: '', kind: '' }

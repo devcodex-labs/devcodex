@@ -111,6 +111,10 @@ try {
   assert.strictEqual(resolve('旧性能任务').candidate.displayName, 'Current Performance Task')
   assert.strictEqual(resolve('renamed-directory').candidate.taskId, primary.identity.taskId)
   assert.strictEqual(resolve(primary.identity.taskId).status, 'resolved-active')
+  const exactIndexHint = resolve(primary.identity.taskId)
+  assert.strictEqual(exactIndexHint.index.state, 'hint-reused')
+  assert.strictEqual(exactIndexHint.scan.sessionPrefixReads, 0, 'exact taskId index hint must not pre-read unrelated sessions')
+  assert.strictEqual(exactIndexHint.scan.exactHitStopped, true)
   const uniqueActive = resolveUniqueActiveTaskContinuation({ cwd: root, project: 'alpha', scope: 'project' })
   assert.strictEqual(uniqueActive.status, 'resolved-active')
   assert.strictEqual(uniqueActive.candidate.taskId, primary.identity.taskId)
@@ -171,6 +175,9 @@ try {
   const ambiguousActive = resolveUniqueActiveTaskContinuation({ cwd: root, scope: 'workspace' })
   assert.strictEqual(ambiguousActive.status, 'ambiguous')
   assert.strictEqual(ambiguousActive.errorCode, 'TASK_AMBIGUOUS')
+  const projectBoundAmbiguous = resolveUniqueActiveTaskContinuation({ cwd: root, project: 'alpha', scope: 'project' })
+  assert.strictEqual(projectBoundAmbiguous.status, 'ambiguous')
+  assert(!/--project|指定.*项目/iu.test(projectBoundAmbiguous.nextStep), 'an already project-bound recovery must not ask for project again')
   const projectQualifiedDuplicate = resolveTaskContinuation({
     cwd: root,
     name: qualifiedCommand.displayQuery,
@@ -217,6 +224,11 @@ try {
   assert.match(renamed.index.state, /^rebuilt-/)
 
   fs.writeFileSync(indexPath, '{ corrupt derived index', 'utf8')
+  const corruptExactRecovery = resolve(primary.identity.taskId)
+  assert.strictEqual(corruptExactRecovery.status, 'resolved-active')
+  assert.strictEqual(corruptExactRecovery.index.state, 'identity-scan-hit')
+  assert.strictEqual(corruptExactRecovery.index.hintState, 'hint-unavailable-fallback')
+  assert.strictEqual(corruptExactRecovery.scan.sessionPrefixReads, 0)
   const corruptRecovery = resolve('Current Performance Task')
   assert.strictEqual(corruptRecovery.status, 'resolved-active')
   assert.strictEqual(corruptRecovery.index.rebuildReason, 'invalid')
@@ -291,6 +303,17 @@ try {
       withCp: false
     })
   }
+  const lastPage = writeTask('beta', 'scenario-tests', 'zzzz-exact-last-page', {
+    taskId: '77777777-7777-4777-8777-777777777777',
+    displayName: 'Exact Last Page Task',
+    withCp: false
+  })
+  const exactLastPage = resolve(lastPage.identity.taskId, { persistIndex: false, useIndex: false })
+  assert.strictEqual(exactLastPage.status, 'resolved-active')
+  assert(exactLastPage.scan.pages >= 2, 'exact identity fallback must cross stable page boundaries')
+  assert(exactLastPage.scan.identityReads >= 260)
+  assert.strictEqual(exactLastPage.scan.sessionPrefixReads, 0, 'identity fallback must not read sessions before the exact hit')
+  assert.strictEqual(exactLastPage.scan.exactHitStopped, true)
   const paged = resolve('Current Performance Task', { persistIndex: false })
   assert.strictEqual(paged.status, 'resolved-active')
   assert(paged.scan.pages >= 2, 'locator must traverse stable 256-entry pages without aggregate blocking')

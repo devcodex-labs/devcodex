@@ -2,6 +2,7 @@
 'use strict'
 
 const assert = require('assert')
+const { spawnSync } = require('child_process')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -573,21 +574,72 @@ assert.strictEqual(workspacePostinstall.reason, 'workspace-install-global-requir
 
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
 const postinstallSource = fs.readFileSync(path.join(root, 'scripts', 'postinstall.js'), 'utf8')
+const globalInstallSmokeSource = fs.readFileSync(
+  path.join(root, 'scripts', 'test-global-install-smoke.js'),
+  'utf8'
+)
 assert.ok(postinstallSource.includes('global postinstall incomplete'))
 assert.ok(postinstallSource.includes('global-adapter-refresh-guidance') || postinstallSource.includes('devcodex global-adapters apply') || postinstallSource.includes('npm update -g devcodex'))
 assert.ok(postinstallSource.includes('stale managed path(s) remain pending'))
 assert.ok(postinstallSource.includes('receipt finalization step(s) remain pending'))
 assert.strictEqual(pkg.scripts.postinstall, 'node scripts/postinstall.js')
+assert.strictEqual(
+  pkg.scripts['test:real-codex-host-probe'],
+  'node scripts/test-real-codex-host-probe.js'
+)
+assert.strictEqual(
+  pkg.scripts['probe:real-codex-host:h0'],
+  'node scripts/lib/real-codex-host-probe.js --mode h0'
+)
 for (const expected of [
   'scripts/postinstall.js',
   'scripts/lib/npm-lifecycle-adapter.js',
   'scripts/test-npm-lifecycle-adapter.js',
   'scripts/lib/global-host-config.js',
   'scripts/test-global-host-config.js',
+  'scripts/lib/real-codex-host-probe.js',
+  'scripts/test-real-codex-host-probe.js',
   'scripts/test-global-install-smoke.js'
 ]) {
   assert(pkg.files.includes(expected), `package files missing ${expected}`)
 }
+for (const requiredRealHostBinding of [
+  "'--real-codex requires --tarball",
+  "'--real-codex requires an absolute --evidence-root",
+  "'--real-codex requires --source-candidate SHA-256",
+  "'--real-codex requires --authorization-digest SHA-256",
+  "stage: 'H1'",
+  "stage: 'H2'",
+  "stage: 'H3'"
+]) {
+  assert(
+    globalInstallSmokeSource.includes(requiredRealHostBinding),
+    `global install real-host binding missing ${requiredRealHostBinding}`
+  )
+}
+for (const exactRealHostGuard of [
+  'real Codex switched taskId during G2 continuation',
+  'real Codex switched task root during G2 continuation',
+  'real Codex admission generation regressed after the safe partial',
+  'real Codex canonical revision regressed after the safe partial'
+]) {
+  assert(globalInstallSmokeSource.includes(exactRealHostGuard),
+    `global install real-host continuation guard missing ${exactRealHostGuard}`)
+}
+const unboundRealHost = spawnSync(process.execPath, [
+  path.join(root, 'scripts', 'test-global-install-smoke.js'),
+  '--real-codex'
+], {
+  cwd: root,
+  encoding: 'utf8',
+  windowsHide: true,
+  timeout: 30000
+})
+assert.notStrictEqual(unboundRealHost.status, 0)
+assert.match(
+  String(unboundRealHost.stderr || unboundRealHost.stdout),
+  /--real-codex requires --tarball/
+)
 for (const forbidden of ['global init', 'init --global', 'sync --global', 'runtime start', 'runtime stop', 'runtime restart']) {
   assert(!JSON.stringify(pkg.scripts).includes(forbidden), `forbidden first-batch command leaked: ${forbidden}`)
 }

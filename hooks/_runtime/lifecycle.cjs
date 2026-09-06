@@ -3509,6 +3509,10 @@ function startAllowedToolRecovery(state, payload, platform, artifactDecision = n
     )
   }
   const recoveryFootprint = projectMutationFootprintForRecovery(footprint)
+  const canonicalOperationTargets = [
+    ...(artifactDecision.sourceTargets || []),
+    ...(artifactDecision.targetTargets || [])
+  ]
   state.turnLiveness.inFlightOperation.mutationLease = mutationLease
   state.turnLiveness.inFlightOperation.mutationFootprint = recoveryFootprint
   state.turnLiveness.inFlightOperation.mutationPreObservation = preObservation
@@ -3523,7 +3527,13 @@ function startAllowedToolRecovery(state, payload, platform, artifactDecision = n
       state.taskRecoveryCommitFence?.writerGeneration ?? 0,
     expectedStateSequence: state.taskRecoveryCommitFence?.stateSequence ?? 0,
     kind: artifactDecision.operation || 'mutation',
-    exactTargets: recoveryFootprint.normalizedTargets || footprint.normalizedTargets,
+    // ArtifactSlotDecisionV2 computes targetSetDigest from its canonical target
+    // projection.  The raw footprint can still contain a Windows short-path or
+    // differently-cased alias, so binding that raw spelling to the canonical
+    // digest makes an otherwise valid operation fail closed on some runners.
+    exactTargets: canonicalOperationTargets.length
+      ? canonicalOperationTargets
+      : (recoveryFootprint.normalizedTargets || footprint.normalizedTargets),
     targetSetDigest: artifactDecision.targetSetDigest,
     beforeDigest: preObservation.snapshotDigest
   }, operationFenceOptions)

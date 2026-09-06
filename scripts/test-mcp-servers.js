@@ -2652,6 +2652,10 @@ function testMemoryArtifactMutationReconciliationContract() {
 
   function operationTurn(state, fixture, phase = 'dispatched') {
     const issuedAtMs = Date.parse(fixture.inFlightOperation.mutationLease.issuedAt)
+    const canonicalOperationTargets = [
+      ...(fixture.inFlightOperation.artifactDecision.sourceTargets || []),
+      ...(fixture.inFlightOperation.artifactDecision.targetTargets || [])
+    ]
     let turn = {
       ...(state.turnLiveness || {}),
       inFlightOperation: fixture.inFlightOperation
@@ -2664,7 +2668,9 @@ function testMemoryArtifactMutationReconciliationContract() {
         writerGeneration: state.taskRecoveryCommitFence?.writerGeneration || 0,
         expectedStateSequence: state.taskRecoveryCommitFence?.stateSequence || 0,
         kind: fixture.inFlightOperation.artifactDecision.operation,
-        exactTargets: fixture.inFlightOperation.mutationFootprint.normalizedTargets,
+        exactTargets: canonicalOperationTargets.length
+          ? canonicalOperationTargets
+          : fixture.inFlightOperation.mutationFootprint.normalizedTargets,
         targetSetDigest: fixture.inFlightOperation.artifactDecision.targetSetDigest,
         beforeDigest: fixture.inFlightOperation.mutationPreObservation.snapshotDigest
       }, { nowMs: issuedAtMs })

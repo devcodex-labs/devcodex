@@ -19,6 +19,8 @@
     "package.json",
     "scripts/validation-manifest.json",
     "scripts/run-validation.js",
+    "scripts/lib/validation-convergence-state.js",
+    "scripts/lib/validation-evidence-store.js",
     "scripts/lib/validation-dag.js",
     "scripts/lib/validation-orchestration.js",
     "scripts/lib/narrative-markdown-policy.js",
@@ -65,10 +67,22 @@
         "scripts/validation-manifest.json",
         "scripts/plan-ci-validation.js",
         "scripts/run-validation.js",
+        "scripts/lib/validation-convergence-state.js",
+        "scripts/lib/validation-evidence-store.js",
         "scripts/lib/validation-dag.js",
+        "scripts/lib/validate-audit-state-compatibility.js",
+        "scripts/lib/validation-wave-executor.js",
+        "scripts/lib/validation-node-worker.js",
+        "scripts/lib/validation-performance-history.js",
+        "scripts/lib/managed-validation-runner.js",
+        "scripts/lib/validation-worker.js",
         "scripts/lib/narrative-markdown-policy.js",
         "scripts/test-ci-validation-plan.js",
         "scripts/test-validation-dag.js",
+        "scripts/test-validation-convergence.js",
+        "scripts/test-validation-wave-executor.js",
+        "scripts/test-validation-performance-history.js",
+        "scripts/benchmark-validation-executor.js",
         "content/skills/test-router/**",
         "hooks/_runtime/workflow-completion-contract.cjs",
         "hooks/_runtime/lifecycle-workflow-completion.cjs",
@@ -98,18 +112,24 @@
         "mcp/memory-server.js",
         "hooks/_runtime/lifecycle.cjs",
         "hooks/_runtime/lifecycle-turn-liveness.cjs",
-        "hooks/_runtime/task-recovery-store-v5.cjs",
+        "hooks/_runtime/task-checkpoint-epoch-v1.cjs",
+        "hooks/_runtime/task-checkpoint-projection-v1.cjs",
+      "hooks/_runtime/task-continuity-view-v1.cjs",
+      "hooks/_runtime/profile-availability-v1.cjs",
+      "hooks/_runtime/task-recovery-store-v5.cjs",
         "scripts/lib/process-enforcement.js",
         "scripts/lib/requirement-artifact-check.js",
         "scripts/test-artifact-mutation-authority.js",
         "scripts/test-process-enforcement-e2e.js",
         "scripts/test-requirement-artifacts.js",
-        "scripts/test-task-recovery-store-v5.js"
+        "scripts/test-task-recovery-store-v5.js",
+        "scripts/test-task-continuity-stage-b.js"
       ],
       "nodes": [
         "artifact-mutation-authority",
         "process-enforcement-e2e",
         "requirement-artifacts",
+        "task-continuity-stage-b",
         "task-recovery",
         "turn-liveness"
       ],
@@ -125,6 +145,9 @@
         "hooks/_runtime/workspace-session-route-index-v1.cjs",
         "hooks/_runtime/lifecycle-project-target.cjs",
         "hooks/_runtime/task-continuation-ingress.cjs",
+        "hooks/_runtime/task-checkpoint-epoch-v1.cjs",
+        "hooks/_runtime/task-checkpoint-projection-v1.cjs",
+        "hooks/_runtime/task-continuity-view-v1.cjs",
         "hooks/_runtime/simple-task-fast-path-lease.cjs",
         "hooks/_runtime/workflow-operational-write-lease.cjs",
         "hooks/_runtime/task-recovery-store-v5.cjs",
@@ -134,13 +157,15 @@
         "scripts/test-workflow-capabilities.js",
         "scripts/test-session-route-consumers.js",
         "scripts/test-task-admission-authority.js",
-        "scripts/test-task-recovery-store-v5.js"
+        "scripts/test-task-recovery-store-v5.js",
+        "scripts/test-task-continuity-stage-b.js"
       ],
       "nodes": [
         "workflow-capabilities",
         "workflow-plan-decision",
         "session-route-consumers",
         "task-admission-authority",
+        "task-continuity-stage-b",
         "task-recovery",
         "mcp-servers",
         "hooks-runtime"
@@ -153,6 +178,8 @@
         "scripts/test-hooks-runtime.js",
         "scripts/lib/test-hooks-runtime-*.js",
         "scripts/test-task-recovery-store-v5.js",
+      "scripts/test-task-continuity-stage-b.js",
+      "scripts/test-profile-materialization-stage-b.js",
         "scripts/test-runtime-generation-retention.js",
         "scripts/test-context-delivery-ledger-v2.js",
         "scripts/test-host-adapters.js",
@@ -166,11 +193,14 @@
         "content-identity",
         "derived-state-lock-concurrency",
         "skill-route-contracts",
+        "skill-route-stage-b",
         "skill-route-budget",
         "skill-route-state",
         "skill-route-lifecycle",
         "skill-route-closure",
-        "task-recovery",
+      "task-continuity-stage-b",
+      "profile-materialization-stage-b",
+      "task-recovery",
         "runtime-generation-retention",
         "context-delivery",
         "workflow-completion-contract",
@@ -210,14 +240,23 @@
     "profile": {
       "inputs": [
         "data/templates/profile/**",
+        "content/skills/profile-bootstrap/**",
         "skills/load-profile/**",
         "skills/profile-bootstrap/**",
+        "hooks/_runtime/profile-availability-v1.cjs",
+        "hooks/_runtime/workspace-layout.cjs",
+        "scripts/lib/profile-materialization-v1.js",
+        "scripts/lib/cli-profile-materialization.js",
+        "scripts/lib/cli-workspace-init-command.js",
+        "scripts/lib/cli-maintenance-commands.js",
         "scripts/validate-profile.js",
         "scripts/validate-all-profiles.js",
-        "scripts/test-validate-profile.js"
+        "scripts/test-validate-profile.js",
+        "scripts/test-profile-materialization-stage-b.js"
       ],
       "nodes": [
         "validation-dag",
+        "profile-materialization-stage-b",
         "profile-section-selector",
         "context-read-controls",
         "deployment-manifest",
@@ -272,10 +311,16 @@
       "validate-workspace": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V2" },
       "critical-risk-coverage": { "consumerEdgeType": "qualificationConsumer" },
       "validation-dag": { "consumerEdgeType": "qualificationConsumer" },
+      "validation-wave-executor": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V2" },
+      "validation-performance-history": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V2" },
+      "validation-executor-benchmark": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V2", "heavy": true },
       "artifact-mutation-authority": { "consumerEdgeType": "qualificationConsumer", "minimumLevel": "V2" },
       "control-plane-contracts": { "consumerEdgeType": "qualificationConsumer" },
       "workflow-completion-contract": { "consumerEdgeType": "qualificationConsumer" },
       "hooks-runtime": { "consumerEdgeType": "qualificationConsumer", "heavy": true },
+      "task-checkpoint-epoch": { "consumerEdgeType": "qualificationConsumer" },
+      "task-continuity-stage-b": { "consumerEdgeType": "qualificationConsumer" },
+      "profile-materialization-stage-b": { "consumerEdgeType": "qualificationConsumer" },
       "task-recovery": { "consumerEdgeType": "qualificationConsumer" },
       "runtime-generation-retention": { "consumerEdgeType": "qualificationConsumer" },
       "context-delivery": { "consumerEdgeType": "qualificationConsumer" },
@@ -415,6 +460,9 @@
     "hooks/_runtime/progressive-skill-plan.cjs",
     "hooks/_runtime/context-plan-observation.cjs",
     "hooks/_runtime/lifecycle-state-projection-v5.cjs",
+    "hooks/_runtime/task-checkpoint-epoch-v1.cjs",
+    "hooks/_runtime/task-checkpoint-projection-v1.cjs",
+    "hooks/_runtime/task-continuity-view-v1.cjs",
     "hooks/_runtime/task-recovery-store-v5.cjs",
     "hooks/_runtime/mutation-footprint.cjs",
     "hooks/_runtime/artifact-slot-registry.v1.json",
@@ -427,8 +475,11 @@
     "skills/*/intent.json",
     "scripts/test-skill-intents.js",
     "scripts/test-skill-route-contracts.js",
+    "scripts/test-skill-route-stage-b.js",
     "scripts/test-skill-route-state.js",
     "scripts/test-skill-route-lifecycle.js",
+    "scripts/test-task-checkpoint-epoch-v1.js",
+    "scripts/test-task-continuity-stage-b.js",
     "scripts/test-task-recovery-store-v5.js",
     "hooks/_runtime/runtime-generation-lease.cjs",
     "scripts/lib/runtime-generation-retention.js",
@@ -470,6 +521,7 @@
         "skill-portfolio-current",
         "skill-intents",
         "skill-route-contracts",
+        "skill-route-stage-b",
         "skill-route-budget",
         "skill-route-state",
         "skill-route-lifecycle",
@@ -480,6 +532,9 @@
         "runtime-state-index",
         "deployment-manifest",
         "content-identity",
+        "task-checkpoint-epoch",
+        "task-continuity-stage-b",
+        "profile-materialization-stage-b",
         "task-recovery",
         "runtime-generation-retention",
         "derived-state-lock-concurrency",
@@ -488,6 +543,9 @@
         "report-index",
         "task-continuation",
         "validation-authority",
+        "validation-wave-executor",
+        "validation-performance-history",
+        "validation-executor-benchmark",
         "validation-dag",
         "artifact-mutation-authority",
         "probe-registry",
@@ -588,6 +646,7 @@
     "profile-deploy": {
       "nodes": [
         "validation-dag",
+        "profile-materialization-stage-b",
         "context-read-controls",
         "profile-section-selector",
         "deployment-manifest",
@@ -1357,6 +1416,62 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "skill-route-stage-b",
+      "owner": "progressive-skill-route",
+      "command": "node",
+      "args": [
+        "scripts/test-skill-route-stage-b.js"
+      ],
+      "dependencies": [
+        "skill-route-contracts"
+      ],
+      "inputs": [
+        "hooks/_runtime/skill-resolution.cjs",
+        "hooks/_runtime/runtime-skill-identity-index.cjs",
+        "hooks/_runtime/model-skill-catalog.cjs",
+        "hooks/_runtime/layered-skill-resolver-v1.cjs",
+        "hooks/_runtime/skill-route-state.cjs",
+        "hooks/_runtime/skill-route-tool.cjs",
+        "hooks/_runtime/lifecycle-bootstrap-state.cjs",
+        "hooks/_runtime/lifecycle-skill-route-coordinator.cjs",
+        "mcp/profile-server.js",
+        "scripts/lib/skill-route-test-fixture.js",
+        "scripts/test-skill-route-stage-b.js"
+      ],
+      "consumers": [
+        "skill-route-budget",
+        "skill-route-lifecycle",
+        "mcp-servers"
+      ],
+      "invariants": [
+        "metadata-only-shortlist",
+        "project-workspace-global-precedence",
+        "exact-resolution-without-catalog",
+        "local-failure-isolation",
+        "host-native-ownership",
+        "exact-temp-cleanup"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 180000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "StageBSkillRouteAcceptanceV1",
+        "SkillExactResolutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "skill-route-budget",
       "owner": "progressive-skill-route",
       "command": "node",
@@ -1364,7 +1479,7 @@
         "scripts/test-skill-route-budget.js"
       ],
       "dependencies": [
-        "skill-route-contracts"
+        "skill-route-stage-b"
       ],
       "inputs": [
         "hooks/_runtime/skill-route-budget.cjs",
@@ -1424,6 +1539,7 @@
         "hooks/_runtime/skill-route-tool.cjs",
         "hooks/_runtime/windows-fs-retry.cjs",
         "hooks/_runtime/context-read-contract.cjs",
+        "hooks/_runtime/context-source-observation.cjs",
         "hooks/_runtime/workflow-root-registry.v1.json",
         "scripts/lib/skill-route-test-fixture.js",
         "scripts/test-skill-route-state.js"
@@ -2145,14 +2261,20 @@
       "inputs": [
         "hooks/_runtime/workflow-completion-contract.cjs",
         "hooks/_runtime/task-recovery-store-v5.cjs",
+        "hooks/_runtime/lifecycle-state-projection-v5.cjs",
         "mcp/task-admission-authority.cjs",
         "scripts/lib/validation-execution-authority.js",
+        "scripts/lib/validation-convergence-state.js",
         "scripts/lib/validation-evidence-store.js",
         "scripts/lib/managed-validation-runner.js",
         "scripts/lib/validation-worker.js",
+        "scripts/lib/validation-wave-executor.js",
+        "scripts/lib/validation-node-worker.js",
+        "scripts/lib/validation-performance-history.js",
         "scripts/fixtures/managed-validation-worker-fixture.js",
         "scripts/test-validation-execution-authority.js",
         "scripts/test-validation-budget-control.js",
+        "scripts/test-validation-convergence.js",
         "scripts/test-task-admission-authority.js",
         "scripts/lib/validation-dag.js",
         "scripts/run-validation.js",
@@ -2173,7 +2295,13 @@
         "successor-scope-risk-side-effect-budget-non-expansion",
         "legacy-truncated-successor-fail-closed",
         "formal-task-preflight-before-card-or-execution",
-        "formal-task-preflight-zero-write-on-block"
+        "formal-task-preflight-zero-write-on-block",
+        "repair-batch-freeze-before-affected",
+        "repair-batch-open-zero-execution",
+        "same-green-qualification-zero-execution",
+        "failed-candidate-next-generation-baseline",
+        "cold-qualified-node-frontier-replay",
+        "durable-terminal-convergence-recovery"
       ],
       "riskClass": "high",
       "cachePolicy": "never",
@@ -2197,6 +2325,143 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "validation-wave-executor",
+      "owner": "validation-dag",
+      "command": "node",
+      "args": [
+        "scripts/test-validation-wave-executor.js"
+      ],
+      "dependencies": [
+        "checked-command"
+      ],
+      "inputs": [
+        "scripts/lib/validation-dag.js",
+        "scripts/lib/validation-wave-executor.js",
+        "scripts/lib/validation-node-worker.js",
+        "scripts/test-validation-wave-executor.js",
+        "scripts/run-validation.js",
+        "package.json",
+        "scripts/validation-manifest.json"
+      ],
+      "consumers": [
+        "validation-dag"
+      ],
+      "invariants": [
+        "bounded-parallelism",
+        "serial-parity",
+        "single-writer",
+        "exact-temp-cleanup"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "estimatedDurationMs": 5000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationWaveExecutionReceiptV1",
+        "ValidationWaveExecutorSummaryV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "validation-performance-history",
+      "owner": "validation-dag",
+      "command": "node",
+      "args": [
+        "scripts/test-validation-performance-history.js"
+      ],
+      "dependencies": [
+        "checked-command"
+      ],
+      "inputs": [
+        "scripts/lib/validation-performance-history.js",
+        "scripts/lib/managed-validation-runner.js",
+        "scripts/test-validation-performance-history.js",
+        "scripts/run-validation.js",
+        "package.json",
+        "scripts/validation-manifest.json"
+      ],
+      "consumers": [
+        "validation-dag"
+      ],
+      "invariants": [
+        "bounded-history",
+        "critical-path-eta",
+        "non-authoritative-history",
+        "workspace-temp-only"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "estimatedDurationMs": 5000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationPerformanceHistoryV1",
+        "ValidationEtaProjectionV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "validation-executor-benchmark",
+      "owner": "validation-dag",
+      "command": "node",
+      "args": [
+        "scripts/benchmark-validation-executor.js"
+      ],
+      "dependencies": [
+        "validation-wave-executor"
+      ],
+      "inputs": [
+        "scripts/lib/validation-wave-executor.js",
+        "scripts/lib/validation-node-worker.js",
+        "scripts/benchmark-validation-executor.js",
+        "package.json",
+        "scripts/validation-manifest.json"
+      ],
+      "consumers": [],
+      "invariants": [
+        "benchmark-comparability",
+        "bounded-parallelism",
+        "exact-temp-cleanup"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "estimatedDurationMs": 30000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationBenchmarkCardV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "validation-dag",
       "owner": "validation-dag",
       "command": "node",
@@ -2208,13 +2473,23 @@
       ],
       "inputs": [
         "scripts/validation-manifest.json",
+        "scripts/lib/validation-convergence-state.js",
         "scripts/lib/validation-dag.js",
+        "scripts/lib/validation-wave-executor.js",
+        "scripts/lib/validation-node-worker.js",
+        "scripts/lib/validation-performance-history.js",
+        "scripts/lib/managed-validation-runner.js",
+        "scripts/lib/validation-worker.js",
         "scripts/lib/narrative-markdown-policy.js",
         "scripts/lib/validation-orchestration.js",
         "scripts/plan-ci-validation.js",
         "scripts/run-validation.js",
         "scripts/test-ci-validation-plan.js",
         "scripts/test-validation-dag.js",
+        "scripts/test-validation-convergence.js",
+        "scripts/test-validation-wave-executor.js",
+        "scripts/test-validation-performance-history.js",
+        "scripts/benchmark-validation-executor.js",
         ".github/workflows/ci.yml",
         "scripts/lib/checked-command.js",
         "package.json"
@@ -2222,7 +2497,10 @@
       "consumers": [],
       "invariants": [
         "validation-graph",
-        "native-exit"
+        "native-exit",
+        "repair-delta-failure-seed-closure",
+        "qualification-node-frontier-exact-replay",
+        "semantic-log-noise-isolation"
       ],
       "riskClass": "normal",
       "cachePolicy": "never",
@@ -2492,6 +2770,160 @@
     },
     {
       "schemaVersion": "ValidationNodeV1",
+      "id": "task-checkpoint-epoch",
+      "owner": "runtime-recovery",
+      "command": "node",
+      "args": [
+        "scripts/test-task-checkpoint-epoch-v1.js"
+      ],
+      "dependencies": [
+        "content-identity"
+      ],
+      "inputs": [
+        "hooks/_runtime/task-checkpoint-epoch-v1.cjs",
+        "hooks/_runtime/lifecycle-state-projection-v5.cjs",
+        "hooks/_runtime/task-recovery-store-v5.cjs",
+        "scripts/test-task-checkpoint-epoch-v1.js"
+      ],
+      "consumers": [
+        "task-continuity-stage-b",
+        "task-recovery"
+      ],
+      "invariants": [
+        "deterministic-epoch-identity",
+        "single-current-epoch",
+        "exact-single-use-bootstrap",
+        "epoch-fence-preservation",
+        "cold-current-rollback-retention"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "TaskCheckpointEpochSetV1",
+        "CheckpointEpochBootstrapAuthorityV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "task-continuity-stage-b",
+      "owner": "runtime-recovery",
+      "command": "node",
+      "args": [
+        "scripts/test-task-continuity-stage-b.js"
+      ],
+      "dependencies": [
+        "task-checkpoint-epoch"
+      ],
+      "inputs": [
+        "hooks/_runtime/task-checkpoint-epoch-v1.cjs",
+        "hooks/_runtime/task-checkpoint-projection-v1.cjs",
+        "hooks/_runtime/task-continuity-view-v1.cjs",
+        "hooks/_runtime/task-recovery-store-v5.cjs",
+        "mcp/memory-server.js",
+        "mcp/task-admission-authority.cjs",
+        "scripts/lib/cp-digest.js",
+        "scripts/test-task-continuity-stage-b.js"
+      ],
+      "consumers": [
+        "task-recovery",
+        "mcp-servers",
+        "hooks-runtime"
+      ],
+      "invariants": [
+        "machine-first-checkpoint-saga",
+        "current-only-session-projection",
+        "bounded-task-continuity-view",
+        "same-lineage-mutation-fence",
+        "terminal-successor-isolation"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "CheckpointEpochReceiptV1",
+        "TaskContinuityViewV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "profile-materialization-stage-b",
+      "owner": "profile-governance",
+      "command": "node",
+      "args": [
+        "scripts/test-profile-materialization-stage-b.js"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "hooks/_runtime/profile-availability-v1.cjs",
+        "hooks/_runtime/workspace-layout.cjs",
+        "hooks/_runtime/lifecycle.cjs",
+        "scripts/lib/profile-materialization-v1.js",
+        "scripts/lib/cli-profile-materialization.js",
+        "scripts/lib/cli-maintenance-commands.js",
+        "scripts/lib/cli-workspace-init-command.js",
+        "content/skills/profile-bootstrap/SKILL.md",
+        "scripts/lib/test-hooks-runtime-bootstrap-layout.js",
+        "scripts/test-cli-behavior.js",
+        "scripts/test-profile-materialization-stage-b.js"
+      ],
+      "consumers": [
+        "hooks-runtime",
+        "workspace-provisioning",
+        "profile-governance",
+        "cli-behavior"
+      ],
+      "invariants": [
+        "project-identity-before-profile-availability",
+        "workspace-only-no-project-fallback",
+        "deduped-nonblocking-profile-guidance",
+        "atomic-create-missing-profile",
+        "generated-draft-not-reviewed",
+        "owner-scoped-temp-cleanup"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
+        "ProfileAvailabilityV1",
+        "ProfileMaterializationReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
       "id": "task-recovery",
       "owner": "runtime-recovery",
       "command": "node",
@@ -2499,10 +2931,13 @@
         "scripts/test-task-recovery-store-v5.js"
       ],
       "dependencies": [
-        "content-identity"
+        "content-identity",
+        "task-checkpoint-epoch",
+        "task-continuity-stage-b"
       ],
       "inputs": [
         "hooks/_runtime/lifecycle-state-projection-v5.cjs",
+        "hooks/_runtime/task-checkpoint-epoch-v1.cjs",
         "hooks/_runtime/task-recovery-config-v1.cjs",
         "hooks/_runtime/task-recovery-store-v5.cjs",
         "hooks/_runtime/windows-fs-retry.cjs",
@@ -2511,6 +2946,8 @@
         "hooks/_runtime/lifecycle-project-target.cjs",
         "hooks/_runtime/lifecycle-turn-liveness.cjs",
         "hooks/_runtime/lifecycle-workflow-completion.cjs",
+        "scripts/test-task-checkpoint-epoch-v1.js",
+        "scripts/test-task-continuity-stage-b.js",
         "scripts/test-task-recovery-store-v5.js",
         "scripts/validate-profile.js",
         "scripts/test-validate-profile.js"
@@ -4389,6 +4826,12 @@
       "evidenceArtifacts": [
         "RequirementIndependenceDecisionV1",
         "ParallelLaunchCardValidationV1",
+        "HostNativeCollaborationCapabilityValidationV1",
+        "HostSubagentDispatchPlanV1",
+        "AgentWorkLeaseV1",
+        "HostSubagentCancelFenceV1",
+        "ChildAgentEvidenceValidationV1",
+        "RootAgentIntegrationReceiptV1",
         "ValidationExecutionReceiptV1"
       ]
     },
@@ -4482,7 +4925,7 @@
         "contract"
       ],
       "riskClass": "normal",
-      "cachePolicy": "never",
+      "cachePolicy": "candidate-bound",
       "writeScopes": [
         "isolated-temp"
       ],
@@ -4563,6 +5006,7 @@
         "scripts/lib/memory-index.js",
         "hooks/_runtime/execution-optimization-routing.cjs",
         "hooks/_runtime/context-read-contract.cjs",
+        "hooks/_runtime/context-source-observation.cjs",
         "hooks/_runtime/task-continuation-contract.cjs"
       ],
       "consumers": [],
@@ -4695,7 +5139,7 @@
         "contract"
       ],
       "riskClass": "normal",
-      "cachePolicy": "never",
+      "cachePolicy": "candidate-bound",
       "writeScopes": [
         "isolated-temp"
       ],

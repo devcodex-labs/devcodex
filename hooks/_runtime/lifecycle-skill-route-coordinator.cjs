@@ -238,7 +238,7 @@ function isExpectedRouteAction (routeStop, payload, contextPost = null) {
     }
   }
   if (routeStop.errorCode === 'PLAN_NOT_COMMITTED') {
-    if (action.tool === 'skill_route' && ['catalog', 'commit', 'status'].includes(action.op)) {
+    if (action.tool === 'skill_route' && ['resolve_exact', 'catalog', 'commit', 'status'].includes(action.op)) {
       return { expected: true, action }
     }
     // ContextRead must finish before commit can validate its binding. Only

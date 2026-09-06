@@ -1,7 +1,6 @@
 'use strict'
 
 const fs = require('fs')
-const os = require('os')
 const path = require('path')
 const {
   commitTaskRecoveryState,
@@ -152,7 +151,9 @@ function writeContextBindingState (
 }
 
 function createSkillRouteFixture (options = {}) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-skill-route-'))
+  const fixtureBase = path.join(PACKAGE_ROOT, '.tmp', 'devcodex-tests')
+  fs.mkdirSync(fixtureBase, { recursive: true })
+  const root = fs.mkdtempSync(path.join(fixtureBase, 'skill-route-'))
   const project = options.project || 'sample'
   const projectRoot = path.join(root, project)
   const activeRoot = path.join(root, '.devcodex', project)

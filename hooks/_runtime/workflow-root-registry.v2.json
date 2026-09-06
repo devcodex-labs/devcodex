@@ -1077,7 +1077,7 @@
   "sourceEvidence": [
     {
       "ref": "content:instructions/01-common.instructions.md",
-      "digest": "a8b8b9761e7b9df963a112ab6cfb3161a44aed98634b2a7e0f4ea1fac1774e86"
+      "digest": "e765246d0803975423ba74ab41387b1c2de60f0441fc17c98382e4b3f53ad6bd"
     },
     {
       "ref": "content:skills/routing/SKILL.md",
@@ -1092,7 +1092,7 @@
       "digest": "6736da26ec7e8650636832a75e1163e8de1bfbf001ba358c915c747f48517b5f"
     }
   ],
-  "sourceDigest": "44098def3e94976dc6a91242e8d8fc485aa62bf85a51a4d041c5d89ac77c29b3",
+  "sourceDigest": "5be99d3ed9c03e447ef0808943fa13d1e18009ad5573724da9f159255c68c241",
   "routeRevision": "cd86a6045a9fc8cd72b094254bc68bef4210e0bb4639a7c2d755f8368aa3310b",
-  "registryDigest": "89e717a4a7111797799171b094d50a0d9b1679f596168843e3194dd23b40ea85"
+  "registryDigest": "216d737ece7480572349320787ac0ff83e823f6ed763e4062ea8ed7907f7458b"
 }

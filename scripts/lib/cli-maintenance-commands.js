@@ -14,7 +14,7 @@ const {
   formatNodeRuntimeReadiness
 } = require('./cli-runtime-diagnostics.js')
 const { createMaintenanceDiagnosticHelpers } = require('./cli-maintenance-diagnostics.js')
-
+const { materializeMissingProfile, profileLifecycleForCli } = require('./cli-profile-materialization.js')
 function buildCliMaintenanceCommands(ctx) {
   const {
     fs, os, path, process, console, c, SOURCES, CODEX_HOOK_COMMAND,
@@ -33,7 +33,6 @@ function buildCliMaintenanceCommands(ctx) {
     c,
     codexHookCommand: CODEX_HOOK_COMMAND
   })
-
   const cliMetadata = { packageName: PACKAGE_JSON.name, packageVersion: PACKAGE_JSON.version }
   const workspaceCleanMode = 'GlobalOnlyWorkspaceCleanModeV1'
   const {
@@ -79,7 +78,6 @@ function buildCliMaintenanceCommands(ctx) {
     'HOST_FULL_FALLBACK_DRIFT',
     'HOST_KERNEL_DUPLICATE_CONTENT'
   ])
-
   function demoteLegacyWorkspaceProjectionIssues(instructionProjection, globalHostConfig) {
     if (!globalHostConfig?.configured || !instructionProjection) return
     const issues = Array.isArray(instructionProjection.issues) ? instructionProjection.issues : []
@@ -531,6 +529,8 @@ function buildCliMaintenanceCommands(ctx) {
     log(c.bold(`  DevCodex profile ${options.dryRun ? 'plan' : 'init'}`) + c.dim(` (${tier}) in ${cwd}`))
     log(c.dim('  ──────────────────────────────────────'))
     const agent = detectAgent(cwd)
+    const profileScope = runtimeOptions.projectIdentity === 'workspace' || (findLayoutInfo(cwd)?.enabled === true &&
+      path.basename(path.dirname(dir)).toLowerCase() === 'workspace') ? 'workspace' : 'project'
     log(`  target root:      ${dir}`)
     log(`  detected tier:    ${detectedTier || '(none)'}`)
     log(`  requested tier:   ${options.tierExplicit ? tier : '(not explicit)'}`)
@@ -550,7 +550,7 @@ function buildCliMaintenanceCommands(ctx) {
       '05-发布规范.md': () => genReleaseSpec(ctx),
       '06-功能清单.md': () => genFeatureInventory(ctx),
       '07-用户文档与契约规范.md': () => genUserContractSpec(ctx),
-      'config.json': () => genConfigJson(agent, mode)
+      'config.json': () => genConfigJson(agent, mode, profileScope)
     }
 
     let generated = 0, skipped = 0, backedUp = 0
@@ -575,7 +575,38 @@ function buildCliMaintenanceCommands(ctx) {
       generated++
     }
 
-    if (!options.dryRun) {
+    const createMissing = !fs.existsSync(dir) && !options.force
+    let materializationReceipt = null
+
+    if (createMissing) {
+      try {
+        materializationReceipt = materializeMissingProfile({
+          context: ctx,
+          runtimeOptions,
+          projectRoot: cwd,
+          profileRoot: dir,
+          tier,
+          generatorVersion: PACKAGE_JSON.version,
+          actions,
+          generators,
+          dryRun: options.dryRun
+        })
+      } catch (error) {
+        log(c.red(`  Profile create-missing failed: ${error.code || 'PROFILE_MATERIALIZATION_FAILED'} — ${error.message}`))
+        return {
+          ok: false,
+          reason: error.code || 'PROFILE_MATERIALIZATION_FAILED',
+          dryRun: options.dryRun,
+          detectedTier,
+          recommendedTier: recommendation.tier,
+          targetTier: tier,
+          actions,
+          materializationReceipt: error.receipt || null
+        }
+      }
+    }
+
+    if (!options.dryRun && !createMissing) {
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
       const backupId = new Date().toISOString().replace(/[-:TZ.]/g, '')
       for (const item of actions) {
@@ -602,7 +633,21 @@ function buildCliMaintenanceCommands(ctx) {
       log(c.yellow(`  Recommendation: run \`devcodex profile plan --tier ${recommendation.tier}\` before upgrading.`))
     }
     log()
-    return { ok: true, dryRun: options.dryRun, detectedTier, recommendedTier: recommendation.tier, targetTier: tier, actions }
+    const lifecycle = materializationReceipt
+      ? { status: materializationReceipt.lifecycleState, legacyUnclassified: false }
+      : profileLifecycleForCli(dir, fs)
+    return {
+      ok: true,
+      dryRun: options.dryRun,
+      detectedTier,
+      recommendedTier: recommendation.tier,
+      targetTier: tier,
+      actions,
+      status: materializationReceipt?.status || (generated || plannedTierUpdates ? 'updated' : 'unchanged'),
+      lifecycleState: lifecycle.status,
+      legacyUnclassified: lifecycle.legacyUnclassified === true,
+      materializationReceipt
+    }
   }
 
   function collectDoctorFacts() {

@@ -12,8 +12,7 @@ const {
   stableStringify
 } = require('../../hooks/_runtime/content-identity.cjs')
 const { createDerivedStateStore } = require('../../hooks/_runtime/derived-state-store.cjs')
-const { createRuntimeStateStore } = require('../../hooks/_runtime/runtime-state-store.cjs')
-const { resolveRuntimeStateRoot } = require('../../hooks/_runtime/workspace-layout.cjs')
+const { resolveWorkspaceTempRoot } = require('./workspace-temp-layout')
 const {
   VERIFICATION_LEVELS,
   VERIFICATION_PURPOSES,
@@ -38,6 +37,7 @@ const VALIDATION_CACHE_SCHEMA = 'ValidationEvidenceV2'
 const VALIDATION_CONTRACT_VERSION = '3'
 const VALIDATION_CACHE_MAX_BYTES = 256 * 1024 * 1024
 const VALIDATION_CACHE_MAX_ENTRIES = 8192
+const VALIDATION_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const REQUIRED_ROUTES = ['fast', 'full', 'changed', 'delivery', 'boundary', 'profile-deploy', 'package-release']
 const RISK_CLASSES = new Set(['normal', 'high', 'release', 'security', 'destructive'])
 const CACHE_POLICIES = new Set(['never', 'candidate-bound'])
@@ -63,6 +63,7 @@ const HEAVY_NODE_TIMEOUT_MS = 300000
 const DEFAULT_NODE_ESTIMATE_MS = 10000
 const DEFAULT_HEAVY_NODE_ESTIMATE_MS = 120000
 const LOG_SUMMARY_BUDGET_BYTES_PER_NODE = 8000
+const PARALLEL_NODE_DENY_PATTERN = /(?:pack|install|publish|release|security|real[-_/ ]?host|global[-_/ ]?host|time[-_/ ]?sensitive|task[-_/ ]?recovery|profile[-_/ ]?deploy)/i
 const PACKAGE_CONTROL_FIELDS = new Set([
   'version', 'engines', 'scripts', 'files', 'bin', 'exports', 'main', 'type',
   'dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies', 'packageManager'
@@ -132,48 +133,98 @@ function writeScopesConflict(left = [], right = []) {
   return left.some(scope => rightSet.has(scope))
 }
 
+function validationNodeDescriptor(node) {
+  return [node?.id, node?.owner, node?.command, ...(node?.args || []), ...(node?.evidenceArtifacts || [])]
+    .join(' ')
+}
+
+function isolatedTempWriteScopes(scopes = []) {
+  return Array.isArray(scopes) && scopes.length > 0 &&
+    scopes.every(scope => /^isolated-temp:[A-Za-z0-9._-]+$/.test(String(scope)))
+}
+
+function cacheSafeWriteScopes(scopes = []) {
+  return Array.isArray(scopes) && scopes.every(scope =>
+    String(scope) === 'isolated-temp' || /^isolated-temp:[A-Za-z0-9._-]+$/.test(String(scope))
+  )
+}
+
+function parallelExecutionEligibility(node) {
+  const scopes = Array.isArray(node?.writeScopes) ? node.writeScopes.map(String) : []
+  const reasons = []
+  if (node?.riskClass !== 'normal') reasons.push('risk-not-normal')
+  if (scopes.length > 0 && !isolatedTempWriteScopes(scopes)) reasons.push('shared-write-scope')
+  if (Array.isArray(node?.delegatedClosure) && node.delegatedClosure.length > 0) reasons.push('delegated-closure')
+  if (PARALLEL_NODE_DENY_PATTERN.test(validationNodeDescriptor(node))) reasons.push('side-effect-denylist')
+  return { eligible: reasons.length === 0, reasons, scopes }
+}
+
+function cacheReuseEligibility(node) {
+  const scopes = Array.isArray(node?.writeScopes) ? node.writeScopes.map(String) : []
+  const reasons = []
+  if (node?.cachePolicy !== 'candidate-bound') reasons.push('cache-policy-never')
+  if (node?.riskClass !== 'normal') reasons.push('risk-not-normal')
+  if (!cacheSafeWriteScopes(scopes)) reasons.push('shared-write-scope')
+  if (Array.isArray(node?.delegatedClosure) && node.delegatedClosure.length > 0) reasons.push('delegated-closure')
+  if (PARALLEL_NODE_DENY_PATTERN.test(validationNodeDescriptor(node))) reasons.push('side-effect-denylist')
+  return { eligible: reasons.length === 0, reasons, scopes }
+}
+
 /**
- * PF-148 slice-2: lock-aware wave schedule (writeScopes conflict ⇒ different waves).
- * Still executed serially by flattening waves; receipt records parallel eligibility evidence.
+ * Lock-aware wave schedule. Only normal, read-only, non-delegating nodes may
+ * share a wave; every uncertain or side-effecting node is a singleton.
  * @param {object[]} selectedNodes topological subset
  * @returns {{ schemaVersion: string, mode: string, waves: string[][], parallelEligibleCount: number, serialForcedCount: number, scheduleDigest: string }}
  */
 function planLockAwareSchedule(selectedNodes = []) {
   const waves = []
   const waveScopes = []
+  const waveParallel = []
   const nodeWave = new Map()
+  const singletonNodeIds = []
+  const predecessorIds = new Map(selectedNodes.map(node => [node.id, new Set(node.dependencies || [])]))
   for (const node of selectedNodes) {
-    const scopes = Array.isArray(node.writeScopes) ? node.writeScopes : []
+    for (const consumer of node.consumers || []) {
+      if (predecessorIds.has(consumer)) predecessorIds.get(consumer).add(node.id)
+    }
+  }
+  for (const node of selectedNodes) {
+    const eligibility = parallelExecutionEligibility(node)
+    const scopes = eligibility.scopes
+    const parallelEligible = eligibility.eligible
     let waveIndex = -1
-    for (let index = 0; index < waves.length; index += 1) {
-      // dependencies must finish in an earlier wave
-      const depBlocks = (node.dependencies || []).some(depId => {
-        if (!nodeWave.has(depId)) return false
-        return nodeWave.get(depId) >= index
-      })
-      if (depBlocks) continue
-      if (writeScopesConflict(scopes, waveScopes[index])) continue
-      waveIndex = index
-      break
+    const lastWaveIndex = waves.length - 1
+    if (parallelEligible && lastWaveIndex >= 0 && waveParallel[lastWaveIndex]) {
+      const predecessorBlocks = [...(predecessorIds.get(node.id) || [])]
+        .some(predecessorId => nodeWave.has(predecessorId) && nodeWave.get(predecessorId) >= lastWaveIndex)
+      if (!predecessorBlocks && !writeScopesConflict(scopes, waveScopes[lastWaveIndex])) {
+        waveIndex = lastWaveIndex
+      }
     }
     if (waveIndex < 0) {
       waveIndex = waves.length
       waves.push([])
       waveScopes.push([])
+      waveParallel.push(parallelEligible)
     }
     waves[waveIndex].push(node.id)
     waveScopes[waveIndex].push(...scopes)
+    if (!parallelEligible) singletonNodeIds.push(node.id)
     nodeWave.set(node.id, waveIndex)
   }
   const parallelEligibleCount = waves.reduce((sum, wave) => sum + (wave.length > 1 ? wave.length : 0), 0)
-  const serialForcedCount = selectedNodes.filter(node => Array.isArray(node.writeScopes) && node.writeScopes.length > 0).length
+  const parallelWaveCount = waves.filter(wave => wave.length > 1).length
+  const serialForcedCount = singletonNodeIds.length
   const core = {
-    schemaVersion: 'ValidationExecutionScheduleV1',
-    mode: 'serial-lock-aware',
+    schemaVersion: 'ValidationExecutionScheduleV2',
+    mode: 'bounded-parallel-lock-aware',
+    maxConcurrencyDefault: 2,
     waveCount: waves.length,
     waves,
+    parallelWaveCount,
     parallelEligibleCount,
-    serialForcedCount
+    serialForcedCount,
+    singletonNodeIds
   }
   return {
     ...core,
@@ -400,8 +451,14 @@ function validateValidationManifest(manifest, options = {}) {
       (Number.isInteger(node.timeoutMs) && node.estimatedDurationMs > node.timeoutMs)
     )) nodeErrors.push('estimatedDurationMs')
     if (!node.exitMap || stableStringify(node.exitMap.success || []) !== '[0]') nodeErrors.push('exitMap.success')
-    if (node.cachePolicy === 'candidate-bound' && (node.riskClass !== 'normal' || node.writeScopes.length !== 0)) {
-      nodeErrors.push('candidate-bound requires normal risk and empty writeScopes')
+    if (node.cachePolicy === 'candidate-bound' && (node.riskClass !== 'normal' || !cacheSafeWriteScopes(node.writeScopes))) {
+      nodeErrors.push('candidate-bound requires normal risk and no writeScopes outside isolated-temp')
+    }
+    if (node.cachePolicy === 'candidate-bound' && PARALLEL_NODE_DENY_PATTERN.test(validationNodeDescriptor(node))) {
+      nodeErrors.push('candidate-bound forbidden for side-effect denylist nodes')
+    }
+    if (node.cachePolicy === 'candidate-bound' && Array.isArray(node.delegatedClosure) && node.delegatedClosure.length > 0) {
+      nodeErrors.push('candidate-bound forbidden for delegated closure nodes')
     }
     if (nodeErrors.length) errors.push('node ' + (node.id || index) + ' invalid fields: ' + nodeErrors.join(', '))
     if (byId.has(node.id)) errors.push('duplicate node id: ' + node.id)
@@ -879,7 +936,7 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
   affectedBoundaries = [], releaseAuthorized = false, explicitFullAudit = false,
   authoritySource = null, requesterClass = 'human-cli', requestSourceRef = null,
   project = 'devcodex', taskRecoveryKey = null, contextEpoch = null,
-  approvePlanDigest = null }) {
+  approvePlanDigest = null, forcedNodeIds = [], repairContext = null }) {
   validateValidationManifest(manifest)
   if (!REQUIRED_ROUTES.includes(route)) {
     throw new ValidationDagError('VALIDATION_ROUTE_UNKNOWN', 'unknown route: ' + route)
@@ -968,15 +1025,29 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
   const byId = new Map(manifest.nodes.map(node => [node.id, node]))
   const ordered = topologicalNodeOrder(manifest)
   const fullIds = new Set(manifest.routes.full.nodes)
+  const normalizedForcedNodeIds = [...new Set((forcedNodeIds || []).map(String).filter(Boolean))].sort()
+  const qualificationNodeReplay = repairContext?.deltaPrecision === 'qualification-node-frontier'
+  const unknownForcedNodeIds = normalizedForcedNodeIds.filter(id => !byId.has(id))
+  if (unknownForcedNodeIds.length) {
+    throw new ValidationDagError('VALIDATION_REPAIR_NODE_UNKNOWN',
+      'repair convergence referenced unknown validation nodes: ' + unknownForcedNodeIds.join(','))
+  }
+  const levelConflictedForcedNodeIds = normalizedForcedNodeIds.filter(id =>
+    byId.has(id) && !nodeEligibleForImpact(manifest, id, verificationLevel)
+  )
+  if (levelConflictedForcedNodeIds.length) {
+    throw new ValidationDagError(
+      'VALIDATION_REPAIR_NODE_LEVEL_CONFLICT',
+      `repair failures require a higher verification level: ${levelConflictedForcedNodeIds.join(',')}`
+    )
+  }
+  const unknownImpactFallback = verificationLevel !== 'V3' && impactGraph.unknownInputs.length > 0
   const executionBlockers = []
   if (!noJsRouteEligible && verificationLevel !== 'V3' && (!candidateStable || changedSource === 'unknown')) {
     executionBlockers.push({ code: 'VALIDATION_CANDIDATE_IDENTITY_UNSTABLE', detail: changedSource })
   }
   if (!noJsRouteEligible && verificationLevel !== 'V3' && !manifest.consumerGraphComplete) {
     executionBlockers.push({ code: 'VALIDATION_CONSUMER_GRAPH_INCOMPLETE', detail: 'consumerGraphComplete=false' })
-  }
-  if (verificationLevel !== 'V3' && impactGraph.unknownInputs.length > 0) {
-    executionBlockers.push({ code: 'VALIDATION_UNKNOWN_INPUT', detail: impactGraph.unknownInputs.join(',') })
   }
   if (!noJsRouteEligible && verificationLevel === 'V2' && boundaryIds.length === 0) {
     executionBlockers.push({ code: 'VALIDATION_BOUNDARY_REQUIRED', detail: 'no affected boundary could be derived' })
@@ -990,9 +1061,22 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
 
   let selected
   let routeResolved = route
+  let fullFallback = null
   if (verificationLevel === 'V3') {
     routeResolved = 'full'
     selected = new Set(fullIds)
+  } else if (unknownImpactFallback) {
+    routeResolved = 'full-fallback'
+    selected = new Set([...fullIds].filter(id => (
+      LEVEL_RANK[nodeMinimumLevel(manifest, id)] <= LEVEL_RANK[verificationLevel]
+    )))
+    fullFallback = {
+      schemaVersion: 'ValidationFullFallbackV1',
+      reasonCode: 'unknown-affected-input',
+      unknownInputs: [...impactGraph.unknownInputs],
+      verificationLevel,
+      releaseConsumersExcluded: verificationLevel !== 'V3'
+    }
   } else {
     selected = noJsRouteEligible
       ? new Set()
@@ -1004,6 +1088,17 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     } else if (route === 'delivery') {
       routeResolved = 'delivery'
     }
+  }
+
+  if (normalizedForcedNodeIds.length > 0 && verificationLevel !== 'V3') {
+    const forcedClosure = qualificationNodeReplay
+      ? new Set(normalizedForcedNodeIds)
+      : addConsumers(new Set(normalizedForcedNodeIds), byId, {
+          manifest,
+          allowedTypes: LEVEL_CONSUMER_TYPES[verificationLevel] || LEVEL_CONSUMER_TYPES.V3,
+          verificationLevel
+        })
+    for (const id of addDependencies(forcedClosure, byId)) selected.add(id)
   }
 
   const validationLayer = verificationLevel === 'V3'
@@ -1073,6 +1168,9 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     else if (affectedIds.has(node.id)) reasons.push('impact-closure')
     if (boundarySet.has(node.id)) reasons.push('boundary-contract')
     if (invariantSet.has(node.id)) reasons.push(`${validationLayer}-invariant`)
+    if (normalizedForcedNodeIds.includes(node.id)) {
+      reasons.push(qualificationNodeReplay ? 'qualification-replay-node' : 'repair-failure-seed')
+    }
     if (nestedParentIds[node.id]?.length) reasons.push('delegated-leaf')
     if (reasons.length === 1) reasons.push('dependency-closure')
     selectionReasons[node.id] = [...new Set(reasons)].sort()
@@ -1113,6 +1211,21 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     sideEffectNodeIds: sideEffects.sideEffectNodeIds,
     releaseConsumerNodeIds: sideEffects.releaseConsumerNodeIds
   }
+  const invalidationFrontier = [...new Set(unknownImpactFallback
+    ? selectedNodes.map(node => node.id)
+    : [...impactGraph.matchedNodeIds, ...normalizedForcedNodeIds])].sort()
+  const repairPlanContext = repairContext
+    ? {
+        schemaVersion: 'ValidationRepairPlanContextV1',
+        batchId: repairContext.batchId || null,
+        phase: repairContext.phase || null,
+        stateDigest: repairContext.stateDigest || null,
+        repairDeltaDigest: repairContext.repairDeltaDigest || null,
+        deltaPrecision: repairContext.deltaPrecision || null,
+        repairDeltaFiles: [...(repairContext.repairDeltaFiles || [])].sort(),
+        failedNodeIds: normalizedForcedNodeIds
+      }
+    : null
   const planCore = {
     schemaVersion: 'ValidationPlanV3',
     contractVersion: '3',
@@ -1141,13 +1254,14 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
     changeDescriptors: normalizedDescriptors,
     impactGraph,
     impactGraphDigest: impactGraph.impactGraphDigest,
-    invalidationFrontier: [],
+    invalidationFrontier,
+    repairContext: repairPlanContext,
     nestedCommandGraphDigest: nestedCommandGraph.digest,
     nestedEdgeCount: nestedCommandGraph.edgeCount,
     nestedParentIds,
     delegatedParentIds: nestedParentIds,
     executionSchedule,
-    fullFallback: null,
+    fullFallback,
     selectedNodes,
     selectionReasons,
     budget,
@@ -1366,6 +1480,23 @@ function buildNodeReceiptDigest(value) {
   }), 'utf8'))
 }
 
+/**
+ * Produces the dependency-safe semantic evidence identity. Raw logs and timing
+ * stay in the audit receipt but cannot invalidate downstream nodes by noise.
+ */
+function buildSemanticNodeEvidenceDigest({ node, executionNode = node, evidence = {} }) {
+  return sha256(Buffer.from(stableStringify({
+    schemaVersion: 'ValidationSemanticNodeEvidenceV1',
+    nodeId: node.id,
+    command: executionNode.command,
+    args: executionNode.args || [],
+    environment: executionNode.environment || {},
+    exitCode: evidence.exitCode,
+    signal: evidence.signal || null,
+    invariantCoverage: node.invariants || []
+  }), 'utf8'))
+}
+
 function cacheDescriptor({ manifest = null, candidate, node, executionNode = node, dependencyReceiptDigests = [] }) {
   const observedIdentities = Array.isArray(candidate.dirtyIdentities)
     ? candidate.dirtyIdentities
@@ -1393,6 +1524,15 @@ function cacheDescriptor({ manifest = null, candidate, node, executionNode = nod
     nodeRuntime: process.version,
     platform: process.platform + '-' + process.arch
   }
+  value.policyDigest = sha256(Buffer.from(stableStringify({
+    schemaVersion: 'ValidationCachePolicyV1',
+    ttlMs: VALIDATION_CACHE_TTL_MS,
+    denyPattern: String(PARALLEL_NODE_DENY_PATTERN),
+    cachePolicy: node.cachePolicy,
+    cacheEligibility: cacheReuseEligibility(node),
+    riskClass: node.riskClass,
+    writeScopes: node.writeScopes || []
+  }), 'utf8'))
   const identity = buildJsonContentIdentity({
     sourceKey: 'validation-cache/' + node.id,
     value,
@@ -1437,17 +1577,21 @@ function directoryUsage(root, maxEntries = VALIDATION_CACHE_MAX_ENTRIES) {
 }
 
 function cacheRelativePath(cacheKey) {
-  return path.join('.runtime-state', 'validation-evidence', 'v2', 'cache', cacheKey + '.json')
+  return path.join('cache', 'validation-evidence', 'v3', cacheKey + '.json')
 }
 
-function cacheStoreRelativePath(cacheKey) {
-  return cacheRelativePath(cacheKey).replace(/^\.runtime-state[\\/]/, '')
+function validationCacheRoot(activeRoot) {
+  return resolveWorkspaceTempRoot(activeRoot)
 }
 
-function readNodeCache({ activeRoot, descriptor }) {
-  const store = createRuntimeStateStore({
-    activeRoot,
-    relativePath: cacheStoreRelativePath(descriptor.cacheKey),
+function resolveValidationCacheFile(activeRoot, cacheKey) {
+  return path.join(validationCacheRoot(activeRoot), cacheRelativePath(cacheKey))
+}
+
+function readNodeCache({ activeRoot, descriptor, nowMs = Date.now() }) {
+  const store = createDerivedStateStore({
+    root: validationCacheRoot(activeRoot),
+    relativePath: cacheRelativePath(descriptor.cacheKey),
     maxBytes: 1024 * 1024,
     maxWrites: 0,
     identityField: 'cacheIdentity'
@@ -1457,6 +1601,11 @@ function readNodeCache({ activeRoot, descriptor }) {
   const value = observed.value
   if (value.schemaVersion !== VALIDATION_CACHE_SCHEMA || value.cacheKey !== descriptor.cacheKey) {
     return { status: 'invalid', evidence: null, filePath: store.filePath }
+  }
+  if (!Number.isFinite(Date.parse(String(value.createdAt || ''))) ||
+      !Number.isFinite(Date.parse(String(value.expiresAt || ''))) ||
+      Date.parse(value.expiresAt) <= nowMs) {
+    return { status: 'expired', evidence: null, filePath: store.filePath }
   }
   if (!value.nodeEvidence || typeof value.nodeEvidence !== 'object' || Array.isArray(value.nodeEvidence)) {
     return { status: 'invalid', evidence: null, filePath: store.filePath }
@@ -1487,6 +1636,7 @@ function readNodeCache({ activeRoot, descriptor }) {
 
 function writeNodeCache({ activeRoot, descriptor, nodeEvidence, maxCacheBytes = VALIDATION_CACHE_MAX_BYTES }) {
   const evidenceText = stableStringify(nodeEvidence)
+  const createdAtMs = Date.now()
   const value = {
     schemaVersion: VALIDATION_CACHE_SCHEMA,
     cacheKey: descriptor.cacheKey,
@@ -1496,18 +1646,21 @@ function writeNodeCache({ activeRoot, descriptor, nodeEvidence, maxCacheBytes = 
       content: evidenceText,
       contractVersion: VALIDATION_CONTRACT_VERSION
     }),
+    createdAt: new Date(createdAtMs).toISOString(),
+    expiresAt: new Date(createdAtMs + VALIDATION_CACHE_TTL_MS).toISOString(),
     invariantCoverage: nodeEvidence.invariantCoverage,
     nodeEvidence
   }
-  const evidenceRoot = path.join(resolveRuntimeStateRoot(activeRoot).root, 'validation-evidence', 'v2')
+  const tempRoot = validationCacheRoot(activeRoot)
+  const evidenceRoot = path.join(tempRoot, 'cache', 'validation-evidence', 'v3')
   const usage = directoryUsage(evidenceRoot)
   const pendingBytes = Buffer.byteLength(JSON.stringify(value, null, 2) + '\n')
   if (!usage.bounded || usage.bytes + pendingBytes > maxCacheBytes) {
     return { status: 'bypassed', errorCode: 'VALIDATION_CACHE_CAPACITY_REACHED', usage, pendingBytes }
   }
-  const store = createRuntimeStateStore({
-    activeRoot,
-    relativePath: cacheStoreRelativePath(descriptor.cacheKey),
+  const store = createDerivedStateStore({
+    root: tempRoot,
+    relativePath: cacheRelativePath(descriptor.cacheKey),
     maxBytes: 1024 * 1024,
     maxWrites: 1,
     identityField: 'cacheIdentity'
@@ -1696,7 +1849,7 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
       continue
     }
     const cacheEligible = useCache && candidate.stable && effectivePlan.verificationLevel !== 'V3' &&
-      node.cachePolicy === 'candidate-bound'
+      cacheReuseEligibility(node).eligible
     if (cacheEligible) {
       const cached = readNodeCache({ activeRoot, descriptor })
       if (cached.status === 'hit') {
@@ -1743,16 +1896,7 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
 
     try {
       const evidence = invoke(executionNode)
-      const evidenceDigest = sha256(Buffer.from(stableStringify({
-        nodeId: node.id,
-        command: executionNode.command,
-        args: executionNode.args,
-        environment: executionNode.environment || {},
-        exitCode: evidence.exitCode,
-        signal: evidence.signal || null,
-        stdout: evidence.stdout || '',
-        stderr: evidence.stderr || ''
-      }), 'utf8'))
+      const evidenceDigest = buildSemanticNodeEvidenceDigest({ node, executionNode, evidence })
       const nodeEvidence = {
         nodeId: node.id,
         nodeContractDigest,
@@ -1818,6 +1962,22 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
   }
 
   const completedAtMs = Date.now()
+  const executorSummary = typeof invoke.executionMetadata === 'function'
+    ? invoke.executionMetadata()
+    : {
+        schemaVersion: 'ValidationWaveExecutorSummaryV1',
+        requestedConcurrency: 1,
+        effectiveMode: 'serial',
+        parallelBatchCount: 0,
+        parallelNodeCount: 0,
+        maxObservedConcurrency: 1,
+        cleanupComplete: true,
+        waveReceipts: []
+      }
+  if (executorSummary.cleanupComplete === false) {
+    throw new ValidationDagError('VALIDATION_WAVE_CLEANUP_FAILED',
+      'validation wave scratch cleanup did not complete', { executorSummary })
+  }
   const stdoutBytes = results.reduce((sum, result) => sum + Buffer.byteLength(String(result.stdout || ''), 'utf8'), 0)
   const stderrBytes = results.reduce((sum, result) => sum + Buffer.byteLength(String(result.stderr || ''), 'utf8'), 0)
   cacheInvalidations.sort((left, right) => left.nodeId.localeCompare(right.nodeId))
@@ -1825,6 +1985,21 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     ...(effectivePlan.invalidationFrontier || []),
     ...cacheInvalidations.map(item => item.nodeId)
   ])].sort()
+  const cacheEligibility = executionNodes.map(node => ({
+    nodeId: node.id,
+    ...cacheReuseEligibility(node)
+  }))
+  const cacheIneligibilityReasonCounts = {}
+  for (const item of cacheEligibility) {
+    for (const reason of item.reasons) {
+      cacheIneligibilityReasonCounts[reason] = (cacheIneligibilityReasonCounts[reason] || 0) + 1
+    }
+  }
+  const cacheStatusCounts = {}
+  for (const result of results) {
+    const status = result.cacheStatus || 'unspecified'
+    cacheStatusCounts[status] = (cacheStatusCounts[status] || 0) + 1
+  }
   const semanticReceipt = {
     schemaVersion: VALIDATION_RECEIPT_SCHEMA,
     contractVersion: VALIDATION_CONTRACT_VERSION,
@@ -1874,7 +2049,10 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     contextBindingTrace: process.env.DEVCODEX_CONTEXT_BINDING_DIGEST
       ? { status: 'bound', bindingDigest: process.env.DEVCODEX_CONTEXT_BINDING_DIGEST }
       : { status: 'unverified', bindingDigest: null },
-    executionMode: 'orchestrated-serial-lock-aware',
+    executionMode: executorSummary.effectiveMode === 'bounded-parallel'
+      ? 'orchestrated-bounded-parallel'
+      : 'orchestrated-serial-lock-aware',
+    executorSummary,
     nestedCommandGraphDigest: effectivePlan.nestedCommandGraphDigest || null,
     nestedEdgeCount: effectivePlan.nestedEdgeCount || 0,
     nestedParentIds: effectivePlan.nestedParentIds || {},
@@ -1883,6 +2061,10 @@ function executeValidationPlan({ manifest, plan, candidate, repoRoot, activeRoot
     cacheDecision: {
       requested: useCache,
       eligibleRoute: effectivePlan.verificationLevel !== 'V3',
+      policyEligibleNodeCount: cacheEligibility.filter(item => item.eligible).length,
+      policyIneligibleNodeCount: cacheEligibility.filter(item => !item.eligible).length,
+      ineligibleReasonCounts: Object.fromEntries(Object.entries(cacheIneligibilityReasonCounts).sort(([left], [right]) => left.localeCompare(right))),
+      statusCounts: Object.fromEntries(Object.entries(cacheStatusCounts).sort(([left], [right]) => left.localeCompare(right))),
       hitCount: results.filter(result => result.status === 'cache-hit').length,
       duplicateLeafReuseCount: results.filter(result => result.cacheStatus === 'hit-duplicate-leaf').length
     },
@@ -1934,9 +2116,12 @@ module.exports = {
   buildChangeDescriptors,
   boundaryNodeIds,
   buildNestedCommandGraph,
+  buildSemanticNodeEvidenceDigest,
   buildValidationImpactGraph,
   cacheDescriptor,
+  cacheReuseEligibility,
   cacheRelativePath,
+  resolveValidationCacheFile,
   classifyValidationSideEffects,
   commandSignature,
   directoryUsage,
@@ -1951,6 +2136,7 @@ module.exports = {
   normalizeCommandLine,
   normalizeRelativePath,
   normalizeBoundaryIds,
+  parallelExecutionEligibility,
   planLockAwareSchedule,
   planValidation,
   readNodeCache,

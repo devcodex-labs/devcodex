@@ -1,10 +1,12 @@
 # 未发布变更（Unreleased）
 
 > **用途**: 记录尚未正式发版的实现级变更。
-> **当前**: v1.19.5 已进入补丁发布候选资格链；本轮正式任务连续性修复已归档到 `changelogs/releases/v1.19.5.md`，正式发布事实只在 tag、registry、GitHub Release 与本机 R7 证据实际形成后成立。
+> **当前**: v1.20.0 已进入发布资格链；本轮任务连续性与控制面升级已归档到 `changelogs/releases/v1.20.0.md`，正式发布事实只在 tag、registry、GitHub Release 与本机 R7 证据实际形成后成立。
 
 ## 当前未发布实现候选
 
+- **v1.20.0 发布候选 — 任务连续性与工程控制面升级**：汇总 Stage A/B 的任务写入代际、合法 CP 演进续代、taskless 恢复、项目优先 Profile、多语言连续性、分层 SkillRoute、宿主原生多 Agent 编排合同、验证执行提速与修复批次收敛。完整说明见 [`changelogs/releases/v1.20.0.md`](./releases/v1.20.0.md)。正式发布事实仍只由 tag、registry、GitHub Release 与发布后安装回读共同成立。
+- **两阶段精确制品发布防护**：tag 资格阶段只生成一个正式精确 tarball，对同一制品完成隔离 consumer/HOME/prefix/cache/workspace 安装并保存；本机复用该制品完成真实 Codex G1→G2 后，才通过 `publish-qualified` 续发 npm 与 GitHub Release，避免 tag 触发后未经真实宿主验收即发生不可逆发布。
 - **A4-R22 CP 候选模板资格前置**：`memory_cp_confirm` 在写入 Auto 确认状态或 CP 会话记录前，先按分层 `ArtifactSlotRegistryV2` 校验 `artifactPath` 的任务类型、CP 阶段与权威路径匹配，再对同一稳定文件执行 canonical template binding、资格校验和读回；模板失格、阶段错位或文件漂移均以 typed error 零写入拒绝。确认回执以加法字段携带 slot、binding 与 qualification，输入契约、工具名和 CP 表格式保持不变。本项仅为本地源码候选，未生成 H0 或 tarball，未安装、未修改 Profile，未执行 Git 或发布。
 - **A4-R13 同确认点人类文档演进恢复**：finalized 正式任务续办不再把 `00-需求概况.md` 的全文摘要或其中固定 phase/version 文案当作永久权限凭据；同一机器 CP 链内的正常叙述更新以确定性的进程内 `verified-resume-reconciliation` 接入既有 canonical lineage，CAS 成功后仍只持久化旧版本可读的 `resume-generation`。合法 CP successor 与 legacy bridge 同样只依赖 TaskIdentity、项目/root 和摘要绑定的机器 CP 证据；错误 identity/CP/root/session、stale candidate、live operation、owner/CAS 冲突继续零写失败。本项仅为本地源码候选，未生成或安装 tarball，未修改 Profile，未提交、推送或发布。
 - **A4-R11 规模安全恢复与历史模板处置**：稳定 taskId 先复用受控路径提示，提示不可用时只分页读取任务身份并命中即停，不再预读所有任务 sessions/CP；未唯一定位时以 provisional disposition 允许当前读取、分析、消歧或普通新准入继续，且已绑定项目不再循环索要 project。历史 CP3 的错误模板合格声明由任务私有、文件摘要与严格合格后继共同绑定的 sidecar 隔离，当前 head、canonical、未知制品、摘要漂移和不合格 replacement 仍严格失败关闭。本项仅为本地候选，未生成或安装 tarball，未提交、推送或发布。

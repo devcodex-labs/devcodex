@@ -30,10 +30,31 @@ const {
   validatePendingBudgetCardBinding
 } = require('./lib/validation-execution-authority')
 const {
+  TERMINAL_CANDIDATE_PATH_MAX_COUNT,
   buildTerminalProjection,
   createValidationEvidenceStore
 } = require('./lib/validation-evidence-store')
 const { runManagedValidation } = require('./lib/managed-validation-runner')
+const {
+  MAX_REPAIR_ISSUES,
+  REPAIR_BATCH_ACTIONS,
+  ValidationConvergenceError,
+  assertFrozenCandidate,
+  buildCandidateSnapshot,
+  buildQualificationIdentity,
+  canCompleteRepairQualification,
+  completeRepairBatch,
+  createSuccessfulQualification,
+  freezeRepairBatch,
+  openRepairBatch,
+  qualificationReuseDecision,
+  recoverQualificationFromSuccessfulTerminal,
+  recoverRepairBatchFromFailedTerminal,
+  reopenRepairBatchAfterFailure,
+  validateRepairConvergenceState,
+  validateSuccessfulQualification,
+  validationLevelRequiresConvergence
+} = require('./lib/validation-convergence-state')
 const {
   resolveActiveRuntimeRoot
 } = require('../hooks/_runtime/workspace-layout.cjs')
@@ -91,6 +112,9 @@ function parseArgs(argv) {
     json: false,
     planOnly: false,
     useCache: true,
+    maxConcurrency: 2,
+    repairBatchAction: null,
+    repairIssues: [],
     manifestPath: DEFAULT_MANIFEST,
     help: false
   }
@@ -104,7 +128,7 @@ function parseArgs(argv) {
     else if (arg === '--help' || arg === '-h') options.help = true
     else if (['--route', '--risk', '--changed', '--manifest', '--intent', '--purpose', '--level', '--boundary', '--approve-plan',
       '--actor', '--authority-source', '--source-message-digest', '--policy-digest', '--task-recovery-key', '--context-epoch',
-      '--session-key', '--lease'].includes(arg)) {
+      '--session-key', '--lease', '--max-concurrency', '--repair-batch', '--repair-issue'].includes(arg)) {
       const value = argv[index + 1]
       if (!value || value.startsWith('--')) {
         throw new ValidationDagError('VALIDATION_ARGUMENT_MISSING', arg + ' requires a value')
@@ -125,6 +149,9 @@ function parseArgs(argv) {
       else if (arg === '--context-epoch') options.contextEpoch = value
       else if (arg === '--session-key') options.sessionKey = value
       else if (arg === '--lease') options.leasePath = path.resolve(value)
+      else if (arg === '--max-concurrency') options.maxConcurrency = Number(value)
+      else if (arg === '--repair-batch') options.repairBatchAction = value
+      else if (arg === '--repair-issue') options.repairIssues.push(value)
       else {
         options.changedSpecified = true
         options.changedFiles.push(value)
@@ -145,6 +172,9 @@ function parseArgs(argv) {
     else if (arg.startsWith('--context-epoch=')) options.contextEpoch = arg.slice('--context-epoch='.length)
     else if (arg.startsWith('--session-key=')) options.sessionKey = arg.slice('--session-key='.length)
     else if (arg.startsWith('--lease=')) options.leasePath = path.resolve(arg.slice('--lease='.length))
+    else if (arg.startsWith('--max-concurrency=')) options.maxConcurrency = Number(arg.slice('--max-concurrency='.length))
+    else if (arg.startsWith('--repair-batch=')) options.repairBatchAction = arg.slice('--repair-batch='.length)
+    else if (arg.startsWith('--repair-issue=')) options.repairIssues.push(arg.slice('--repair-issue='.length))
     else if (arg.startsWith('--changed=')) {
       options.changedSpecified = true
       options.changedFiles.push(arg.slice('--changed='.length))
@@ -169,6 +199,16 @@ function parseArgs(argv) {
   }
   if (options.actorType !== null && !ACTOR_TYPES.has(options.actorType)) {
     throw new ValidationDagError('VALIDATION_ACTOR_UNKNOWN', 'unknown validation actor: ' + options.actorType)
+  }
+  if (!Number.isInteger(options.maxConcurrency) || options.maxConcurrency < 1 || options.maxConcurrency > 4) {
+    throw new ValidationDagError('VALIDATION_CONCURRENCY_INVALID', '--max-concurrency must be an integer from 1 to 4')
+  }
+  if (options.repairBatchAction !== null && !REPAIR_BATCH_ACTIONS.has(options.repairBatchAction)) {
+    throw new ValidationDagError('VALIDATION_REPAIR_BATCH_ACTION_INVALID', '--repair-batch must be status, open or freeze')
+  }
+  options.repairIssues = [...new Set(options.repairIssues.map(value => String(value || '').trim()).filter(Boolean))].sort()
+  if (options.repairIssues.length > MAX_REPAIR_ISSUES) {
+    throw new ValidationDagError('VALIDATION_REPAIR_STATE_BOUNDS_EXCEEDED', `--repair-issue accepts at most ${MAX_REPAIR_ISSUES} values`)
   }
   return options
 }
@@ -206,6 +246,9 @@ function printHelp() {
     '  --lease <path>              Consume an externally issued exact VerificationExecutionLeaseV2',
     '  --plan                      Resolve the DAG without executing nodes',
     '  --no-cache                  Disable candidate-bound evidence reuse',
+    '  --max-concurrency <1..4>    Eligible validation workers (default 2; use 1 for serial)',
+    '  --repair-batch <action>     status|open|freeze one task-bound repair batch',
+    '  --repair-issue <id>          Repeat to bind known findings before the batch is frozen',
     '  --json                      Emit one machine-readable JSON document',
     '  --manifest <path>           Override the manifest for fixtures',
     '  --help                      Show this help',
@@ -247,6 +290,7 @@ function compactPlan(plan, executionOptimization = null) {
     budget: plan.budget,
     budgetCard: plan.budgetCard,
     invalidationFrontier: plan.invalidationFrontier,
+    repairContext: plan.repairContext || null,
     delegatedParentIds: plan.delegatedParentIds,
     skipped: plan.skipped,
     selectedNodeCount: plan.selectedNodeCount,
@@ -841,10 +885,12 @@ function sameHeadDirtyCandidateSuccessorProof(candidate, terminal) {
       !DIGEST_RE.test(parentCandidateDigest) || currentCandidateDigest === parentCandidateDigest ||
       terminal?.candidateChangedFilesTruncated === true || !parentChangedFiles ||
       !changedFiles || !dirtyFiles || changedFiles.length === 0 || dirtyFiles.length === 0 ||
-      rawChangedFiles.length > MAX_PENDING_CANDIDATE_PATHS || rawDirtyFiles.length > MAX_PENDING_CANDIDATE_PATHS ||
-      rawParentChangedFiles.length > MAX_PENDING_CANDIDATE_PATHS ||
-      changedFiles.length > MAX_PENDING_CANDIDATE_PATHS || dirtyFiles.length > MAX_PENDING_CANDIDATE_PATHS ||
-      parentChangedFiles.length > MAX_PENDING_CANDIDATE_PATHS ||
+      rawChangedFiles.length > TERMINAL_CANDIDATE_PATH_MAX_COUNT ||
+      rawDirtyFiles.length > TERMINAL_CANDIDATE_PATH_MAX_COUNT ||
+      rawParentChangedFiles.length > TERMINAL_CANDIDATE_PATH_MAX_COUNT ||
+      changedFiles.length > TERMINAL_CANDIDATE_PATH_MAX_COUNT ||
+      dirtyFiles.length > TERMINAL_CANDIDATE_PATH_MAX_COUNT ||
+      parentChangedFiles.length > TERMINAL_CANDIDATE_PATH_MAX_COUNT ||
       changedFiles.length !== rawChangedFiles.length || dirtyFiles.length !== rawDirtyFiles.length ||
       parentChangedFiles.length !== rawParentChangedFiles.length ||
       !isSubset(dirtyFiles, changedFiles) || !isSubset(parentChangedFiles, changedFiles)) {
@@ -1743,6 +1789,152 @@ function createCliLease({ options, plan, candidate, actorType, authorityContext,
   })
 }
 
+function createTaskConvergenceStore({ actorType, authorityContext, activeRoot }) {
+  if (actorType !== 'ai-hook' || !authorityContext?.taskIdentity || !authorityContext?.sessionKey) return null
+  return createValidationEvidenceStore({
+    activeRoot,
+    project: 'devcodex',
+    actorType,
+    taskIdentity: authorityContext.taskIdentity,
+    taskRecoveryKey: authorityContext.taskRecoveryKey,
+    sessionKey: authorityContext.sessionKey
+  })
+}
+
+function readConvergenceValue(store, method, valueKey) {
+  if (!store) return { read: { status: 'missing' }, value: null }
+  const read = store[method]()
+  return { read, value: read.status === 'fresh' ? read[valueKey] : null }
+}
+
+function assertConvergenceWrite(write, fallbackCode) {
+  if (!acceptedValidationStateWrite(write?.status)) {
+    throw new ValidationDagError(write?.errorCode || fallbackCode, 'failed to persist validation repair convergence state', write)
+  }
+  return write
+}
+
+function convergenceProjection(state, qualification = null) {
+  const stateValidation = validateRepairConvergenceState(state)
+  return {
+    schemaVersion: 'ValidationRepairConvergenceProjectionV1',
+    phase: state?.phase || 'idle',
+    stateStatus: state ? (stateValidation.valid ? 'valid' : 'invalid') : 'missing',
+    batchId: state?.batchId || null,
+    stateDigest: state?.stateDigest || null,
+    issueCount: state?.issueIds?.length || 0,
+    failedNodeCount: state?.failedNodeIds?.length || 0,
+    repairDeltaFiles: state?.repairDeltaFiles || [],
+    repairDeltaDigest: state?.repairDeltaDigest || null,
+    qualificationDigest: qualification?.qualificationDigest || state?.qualificationDigest || null,
+    qualificationExpiresAt: qualification?.expiresAt || null
+  }
+}
+
+/** Keeps every non-open repair phase bound to the exact frozen repair frontier. */
+function resolveRepairPlanScope(convergenceState, candidate, qualification = null) {
+  const qualificationValidation = validateSuccessfulQualification(qualification)
+  const qualificationMatchesCandidate = qualificationValidation.valid &&
+    qualification?.candidateSnapshot?.candidateId === candidate?.candidateId &&
+    (qualification?.candidateSnapshot?.candidateHead || null) === (candidate?.head || null)
+  const qualificationNodeFrontier = qualificationMatchesCandidate
+    ? qualification.qualificationIdentity.selectedNodeIds
+    : []
+  const coldQualifiedScope = convergenceState?.deltaPrecision === 'qualification-node-frontier' &&
+    convergenceState?.qualificationDigest === qualification?.qualificationDigest &&
+    qualificationNodeFrontier.length > 0
+  const qualificationOnlyScope = !convergenceState && qualificationNodeFrontier.length > 0
+  const repairScoped = Boolean(
+    (convergenceState && convergenceState.phase !== 'batch-open') || qualificationOnlyScope
+  )
+  return {
+    repairScoped,
+    changedFiles: repairScoped
+      ? (coldQualifiedScope || qualificationOnlyScope ? [] : convergenceState.repairDeltaFiles)
+      : candidate.changedFiles,
+    changedSource: repairScoped
+      ? (coldQualifiedScope || qualificationOnlyScope ? 'qualification-node-frontier' : 'repair-delta')
+      : candidate.changedSource,
+    forcedNodeIds: repairScoped
+      ? (coldQualifiedScope || qualificationOnlyScope
+          ? qualificationNodeFrontier
+          : convergenceState.failedNodeIds)
+      : [],
+    affectedBoundaries: coldQualifiedScope || qualificationOnlyScope
+      ? qualification.qualificationIdentity.affectedBoundaries
+      : null,
+    repairContext: convergenceState && convergenceState.phase !== 'batch-open'
+      ? convergenceState
+      : (qualificationOnlyScope
+          ? {
+              batchId: null,
+              phase: 'qualification-replay',
+              stateDigest: null,
+              repairDeltaDigest: null,
+              deltaPrecision: 'qualification-node-frontier',
+              repairDeltaFiles: [],
+              failedNodeIds: qualificationNodeFrontier
+            }
+          : null)
+  }
+}
+
+function resolveValidationConvergenceDecision({ state, qualification, candidate, plan, nowMs = Date.now() }) {
+  const stateValidation = validateRepairConvergenceState(state)
+  if (!stateValidation.valid) {
+    throw new ValidationConvergenceError('VALIDATION_REPAIR_STATE_INVALID', 'repair convergence state is invalid', stateValidation)
+  }
+  const identity = buildQualificationIdentity({ candidate, plan })
+  if (!validationLevelRequiresConvergence(plan.verificationLevel)) {
+    return { action: 'execute-targeted', identity, reuse: { reusable: false, reasonCode: 'level-not-managed' } }
+  }
+  if (state?.phase === 'batch-open') {
+    return { action: 'block-open-batch', identity, reuse: { reusable: false, reasonCode: 'batch-not-frozen' } }
+  }
+  if (state?.phase === 'batch-frozen') {
+    assertFrozenCandidate(state, candidate)
+    if (plan.verificationLevel !== 'V2') {
+      throw new ValidationConvergenceError(
+        'VALIDATION_AFFECTED_QUALIFICATION_REQUIRED',
+        'a frozen repair batch must pass affected V2 before full V3'
+      )
+    }
+    return { action: 'execute-frozen-batch', identity, reuse: { reusable: false, reasonCode: 'frozen-batch' } }
+  }
+  if (['affected-qualified', 'full-qualified'].includes(state?.phase)) {
+    try {
+      assertFrozenCandidate(state, candidate)
+    } catch (error) {
+      if (error.code !== 'VALIDATION_REPAIR_BATCH_CANDIDATE_DRIFT') throw error
+      return { action: 'open-repair-batch', identity, reuse: { reusable: false, reasonCode: 'candidate-drift' } }
+    }
+    const qualificationValidation = validateSuccessfulQualification(qualification, nowMs)
+    if (!qualificationValidation.valid || state.qualificationDigest !== qualification?.qualificationDigest) {
+      throw new ValidationConvergenceError(
+        'VALIDATION_QUALIFIED_STATE_INCONSISTENT',
+        'qualified convergence state is missing its exact valid qualification record',
+        { statePhase: state.phase, qualificationErrors: qualificationValidation.errors }
+      )
+    }
+  }
+  const reuse = qualificationReuseDecision(qualification, identity, nowMs)
+  if (reuse.reusable && plan.executionBlockers.length === 0) {
+    return { action: 'already-qualified', identity, reuse }
+  }
+  if (state?.phase === 'full-qualified' && plan.verificationLevel !== 'V3') {
+    throw new ValidationConvergenceError(
+      'VALIDATION_QUALIFICATION_LEVEL_REGRESSION',
+      'a full-qualified candidate cannot replace its evidence with a lower-level qualification'
+    )
+  }
+  const qualificationValidation = validateSuccessfulQualification(qualification, nowMs)
+  if (qualificationValidation.valid &&
+      qualification.candidateSnapshot?.candidateId !== candidate.candidateId) {
+    return { action: 'open-repair-batch', identity, reuse }
+  }
+  return { action: 'execute-initial', identity, reuse }
+}
+
 async function main(argv = process.argv.slice(2)) {
   const wantsJson = argv.includes('--json')
   try {
@@ -1774,23 +1966,158 @@ async function main(argv = process.argv.slice(2)) {
       explicitChangedFiles: options.changedSpecified ? options.changedFiles : null,
       narrativeMarkdownExclusions: manifest.narrativeMarkdownExclusions
     })
+    const convergenceStore = createTaskConvergenceStore({ actorType, authorityContext, activeRoot })
+    let { value: convergenceState } = readConvergenceValue(
+      convergenceStore, 'readRepairConvergence', 'repairConvergence'
+    )
+    let { value: lastSuccessfulQualification } = readConvergenceValue(
+      convergenceStore, 'readLastSuccessfulQualification', 'lastSuccessfulQualification'
+    )
+    const terminalRead = convergenceStore ? convergenceStore.readTerminal() : { status: 'missing', receipt: null }
+    const convergenceTerminalRead = convergenceStore
+      ? convergenceStore.readConvergenceTerminal()
+      : { status: 'missing', convergenceTerminalReceipt: null }
+    const durableTerminal = terminalRead.status === 'fresh'
+      ? terminalRead.receipt
+      : (convergenceTerminalRead.status === 'fresh'
+          ? convergenceTerminalRead.convergenceTerminalReceipt
+          : null)
+
+    if ((options.repairBatchAction || options.repairIssues.length > 0) && !convergenceStore) {
+      throw new ValidationDagError(
+        'VALIDATION_REPAIR_TASK_BINDING_REQUIRED',
+        'repair batch control requires one task-bound AI validation session',
+        { executed: 0 }
+      )
+    }
+    if (options.repairBatchAction === 'status') {
+      const data = {
+        noExecution: true,
+        qualificationDecision: 'repair-batch-status',
+        candidateId: candidate.candidateId,
+        convergence: convergenceProjection(convergenceState, lastSuccessfulQualification),
+        executed: 0
+      }
+      if (options.json) printJson(envelope(true, data, null))
+      else process.stdout.write(`Repair batch: ${data.convergence.phase}; executed=0\n`)
+      return 0
+    }
+
+    let qualificationValidation = validateSuccessfulQualification(lastSuccessfulQualification)
+    const storedStateValidation = validateRepairConvergenceState(convergenceState)
+    if (!convergenceState && options.repairBatchAction !== 'open') {
+      const recoveredState = recoverRepairBatchFromFailedTerminal({
+        candidate,
+        terminal: durableTerminal,
+        qualification: qualificationValidation.valid ? lastSuccessfulQualification : null
+      })
+      if (recoveredState) {
+        assertConvergenceWrite(convergenceStore.writeRepairConvergence(recoveredState, {
+          expectedStateDigest: null
+        }), 'VALIDATION_REPAIR_STATE_PERSISTENCE_FAILED')
+        convergenceState = recoveredState
+        if (options.json === false && options.repairBatchAction === 'freeze') {
+          process.stdout.write(`Recovered repair batch from durable failed terminal: ${recoveredState.batchId}; executed=0\n`)
+        }
+      }
+    }
+    const usableConvergenceState = storedStateValidation.valid ? convergenceState : null
+    const priorBaseline = usableConvergenceState?.phase === 'batch-open'
+      ? usableConvergenceState.baselineCandidate
+      : (usableConvergenceState?.frozenCandidate ||
+          (qualificationValidation.valid ? lastSuccessfulQualification.candidateSnapshot : candidate))
+    if (options.repairBatchAction === 'open') {
+      const nextState = openRepairBatch({
+        candidate,
+        baselineCandidate: priorBaseline,
+        priorState: usableConvergenceState?.phase === 'batch-open' ? usableConvergenceState : null,
+        issueIds: options.repairIssues
+      })
+      const write = assertConvergenceWrite(convergenceStore.writeRepairConvergence(nextState, {
+        expectedStateDigest: convergenceState?.stateDigest || null
+      }), 'VALIDATION_REPAIR_STATE_PERSISTENCE_FAILED')
+      convergenceState = nextState
+      const data = {
+        noExecution: true,
+        qualificationDecision: 'repair-batch-opened',
+        convergence: convergenceProjection(convergenceState, lastSuccessfulQualification),
+        persistence: compactValidationPersistenceForCli(write),
+        executed: 0
+      }
+      if (options.json) printJson(envelope(true, data, null))
+      else process.stdout.write(`Repair batch opened: ${convergenceState.batchId}; executed=0\n`)
+      return 0
+    }
+
+    if (!options.repairBatchAction && options.repairIssues.length > 0) {
+      const nextState = openRepairBatch({
+        candidate,
+        baselineCandidate: priorBaseline,
+        priorState: convergenceState?.phase === 'batch-open' ? convergenceState : null,
+        issueIds: options.repairIssues
+      })
+      assertConvergenceWrite(convergenceStore.writeRepairConvergence(nextState, {
+        expectedStateDigest: convergenceState?.stateDigest || null
+      }), 'VALIDATION_REPAIR_STATE_PERSISTENCE_FAILED')
+      convergenceState = nextState
+    }
+
+    if (options.repairBatchAction === 'freeze') {
+      const nextState = freezeRepairBatch({
+        state: convergenceState,
+        candidate,
+        issueIds: options.repairIssues
+      })
+      assertConvergenceWrite(convergenceStore.writeRepairConvergence(nextState, {
+        expectedStateDigest: convergenceState?.stateDigest || null
+      }), 'VALIDATION_REPAIR_STATE_PERSISTENCE_FAILED')
+      convergenceState = nextState
+    } else if (convergenceState?.phase === 'batch-frozen') {
+      try {
+        assertFrozenCandidate(convergenceState, candidate)
+      } catch (error) {
+        if (error.code !== 'VALIDATION_REPAIR_BATCH_CANDIDATE_DRIFT') throw error
+        const reopened = openRepairBatch({
+          candidate,
+          baselineCandidate: convergenceState.baselineCandidate,
+          issueIds: convergenceState.issueIds,
+          failedNodeIds: convergenceState.failedNodeIds
+        })
+        assertConvergenceWrite(convergenceStore.writeRepairConvergence(reopened, {
+          expectedStateDigest: convergenceState.stateDigest
+        }), 'VALIDATION_REPAIR_STATE_PERSISTENCE_FAILED')
+        throw new ValidationDagError(error.code, error.message, {
+          ...error.details,
+          executed: 0,
+          nextStep: '继续完成当前修复批次；全部 finding 收敛后再冻结一次。'
+        })
+      }
+    }
+
+    const repairPlanScope = resolveRepairPlanScope(
+      convergenceState,
+      candidate,
+      lastSuccessfulQualification
+    )
     const planInput = {
       manifest,
       route: routeForMode,
-      changedFiles: candidate.changedFiles,
-      changedSource: candidate.changedSource,
+      changedFiles: repairPlanScope.changedFiles,
+      changedSource: repairPlanScope.changedSource,
       riskClass: options.riskClass,
       candidateStable: candidate.stable,
       candidateId: candidate.candidateId,
       purpose: options.purpose,
       level: options.level,
-      affectedBoundaries: options.affectedBoundaries,
+      affectedBoundaries: repairPlanScope.affectedBoundaries || options.affectedBoundaries,
       releaseAuthorized: options.releaseAuthorized,
       explicitFullAudit: options.explicitFullAudit,
       requesterClass: actorType,
       project: 'devcodex',
       taskRecoveryKey: authorityContext.taskRecoveryKey,
-      approvePlanDigest: options.approvePlanDigest
+      approvePlanDigest: options.approvePlanDigest,
+      forcedNodeIds: repairPlanScope.forcedNodeIds,
+      repairContext: repairPlanScope.repairContext
     }
     let plan = planValidation({
       ...planInput,
@@ -1799,6 +2126,97 @@ async function main(argv = process.argv.slice(2)) {
         ? 'cli:explicit-release-authorization'
         : (options.explicitFullAudit ? 'cli:explicit-full-audit-request' : `cli:route:${options.route}`))
     })
+    const convergenceCheckpointAt = convergenceState?.phase === 'batch-frozen'
+      ? convergenceState.frozenAt
+      : (['affected-qualified', 'full-qualified'].includes(convergenceState?.phase)
+          ? convergenceState.qualifiedAt
+          : null)
+    const terminalAfterConvergenceCheckpoint = !convergenceCheckpointAt ||
+      (Number.isFinite(Date.parse(String(durableTerminal?.completedAt || ''))) &&
+        Date.parse(durableTerminal.completedAt) >= Date.parse(convergenceCheckpointAt))
+    if (convergenceStore && convergenceState?.phase !== 'batch-open' && terminalAfterConvergenceCheckpoint) {
+      const terminalRecovery = recoverQualificationFromSuccessfulTerminal({
+        candidate,
+        plan,
+        terminal: durableTerminal
+      })
+      if (terminalRecovery.recoverable &&
+          lastSuccessfulQualification?.recordDigest !== terminalRecovery.qualification.recordDigest) {
+        let recoveryWrite
+        if (canCompleteRepairQualification(
+          convergenceState,
+          terminalRecovery.qualification.qualificationIdentity.verificationLevel
+        )) {
+          const completedState = completeRepairBatch({
+            state: convergenceState,
+            qualification: terminalRecovery.qualification
+          })
+          recoveryWrite = convergenceStore.writeConvergenceOutcome({
+            repairConvergence: completedState,
+            lastSuccessfulQualification: terminalRecovery.qualification
+          }, {
+            expectedStateDigest: convergenceState.stateDigest,
+            expectedQualificationDigest: lastSuccessfulQualification?.recordDigest || null
+          })
+          convergenceState = completedState
+        } else if (!convergenceState) {
+          recoveryWrite = convergenceStore.writeLastSuccessfulQualification(terminalRecovery.qualification, {
+            expectedQualificationDigest: lastSuccessfulQualification?.recordDigest || null
+          })
+        }
+        if (recoveryWrite) {
+          assertConvergenceWrite(recoveryWrite, 'VALIDATION_QUALIFICATION_PERSISTENCE_FAILED')
+          lastSuccessfulQualification = terminalRecovery.qualification
+          qualificationValidation = validateSuccessfulQualification(lastSuccessfulQualification)
+        }
+      }
+    }
+    let convergenceDecision = resolveValidationConvergenceDecision({
+      state: convergenceState,
+      qualification: lastSuccessfulQualification,
+      candidate,
+      plan
+    })
+    if (convergenceDecision.action === 'open-repair-batch') {
+      const opened = openRepairBatch({
+        candidate,
+        baselineCandidate: convergenceState?.frozenCandidate ||
+          lastSuccessfulQualification?.candidateSnapshot || candidate,
+        issueIds: ['candidate-drift-after-qualification']
+      })
+      assertConvergenceWrite(convergenceStore.writeRepairConvergence(opened, {
+        expectedStateDigest: convergenceState?.stateDigest || null
+      }), 'VALIDATION_REPAIR_STATE_PERSISTENCE_FAILED')
+      convergenceState = opened
+      convergenceDecision = { ...convergenceDecision, action: 'block-open-batch' }
+    }
+    if (convergenceDecision.action === 'block-open-batch') {
+      throw new ValidationDagError(
+        'VALIDATION_BATCH_NOT_FROZEN',
+        '修复批次尚未冻结；当前受影响/全量资格验证不会启动。',
+        {
+          executed: 0,
+          convergence: convergenceProjection(convergenceState, lastSuccessfulQualification),
+          nextStep: '先完成并定向验证全部已知修复，再用 --repair-batch freeze 启动一次受影响验收。'
+        }
+      )
+    }
+    if (convergenceDecision.action === 'already-qualified') {
+      const data = {
+        manifestIdentity: manifestIdentity(manifest),
+        plan: compactPlan(plan),
+        noExecution: true,
+        qualificationDecision: 'already-qualified',
+        qualificationDigest: lastSuccessfulQualification.qualificationDigest,
+        qualificationExpiresAt: lastSuccessfulQualification.expiresAt,
+        convergence: convergenceProjection(convergenceState, lastSuccessfulQualification),
+        executionCount: 0,
+        executed: 0
+      }
+      if (options.json) printJson(envelope(true, data, null))
+      else process.stdout.write(`Validation already qualified: executed=0 qualification=${data.qualificationDigest}\n`)
+      return 0
+    }
     const pendingPlanIdentity = resolvePendingBudgetPlanIdentity({
       actorType,
       authorityContext,
@@ -1910,6 +2328,18 @@ async function main(argv = process.argv.slice(2)) {
         if (result.stderr) process.stderr.write(result.stderr + '\n')
       }
     }
+    let lastHeartbeatOutputMs = 0
+    const onHeartbeat = options.json ? null : heartbeat => {
+      const nowMs = Date.now()
+      if (lastHeartbeatOutputMs && nowMs - lastHeartbeatOutputMs < 30000) return
+      lastHeartbeatOutputMs = nowMs
+      const eta = heartbeat.eta || null
+      const etaText = eta?.estimatedRemainingMs !== null && eta?.estimatedRemainingMs !== undefined
+        ? ` eta≈${Math.ceil(eta.estimatedRemainingMs / 1000)}s`
+        : (eta?.rangeMs ? ` eta-range=${Math.ceil(eta.rangeMs.lower / 1000)}-${Math.ceil(eta.rangeMs.upper / 1000)}s` : '')
+      const recent = heartbeat.recentNode ? ` recent=${heartbeat.recentNode}` : ''
+      process.stdout.write(`Validation progress: ${heartbeat.completedNodeCount}/${heartbeat.totalNodeCount}${recent}${etaText}\n`)
+    }
     const lease = createCliLease({
       options,
       plan,
@@ -1933,13 +2363,75 @@ async function main(argv = process.argv.slice(2)) {
       sessionKey: authorityContext.sessionKey || '',
       revocationEpoch: lease.revocationEpoch,
       useCache: options.useCache && featureDecision.optimizationAllowed,
+      maxConcurrency: options.maxConcurrency,
+      onHeartbeat,
       onNode
     })
     const failed = execution.receipt.nativeExitCode !== 0
+    let convergencePersistence = null
+    let qualificationDecision = failed ? 'failed' : 'executed'
+    if (convergenceStore && validationLevelRequiresConvergence(plan.verificationLevel)) {
+      const currentStateRead = readConvergenceValue(
+        convergenceStore, 'readRepairConvergence', 'repairConvergence'
+      )
+      const currentQualificationRead = readConvergenceValue(
+        convergenceStore, 'readLastSuccessfulQualification', 'lastSuccessfulQualification'
+      )
+      const currentState = currentStateRead.value
+      const currentQualification = currentQualificationRead.value
+      if (failed) {
+        const reopened = reopenRepairBatchAfterFailure({
+          state: currentState,
+          candidate,
+          receipt: execution.receipt,
+          baselineCandidate: candidate,
+          issueIds: options.repairIssues
+        })
+        convergencePersistence = assertConvergenceWrite(convergenceStore.writeRepairConvergence(reopened, {
+          expectedStateDigest: currentState?.stateDigest || null
+        }), 'VALIDATION_REPAIR_STATE_PERSISTENCE_FAILED')
+        convergenceState = reopened
+        qualificationDecision = 'repair-batch-reopened'
+      } else {
+        const qualificationIdentity = buildQualificationIdentity({ candidate, plan })
+        const qualification = createSuccessfulQualification({
+          identity: qualificationIdentity,
+          candidate,
+          receipt: execution.receipt
+        })
+        if (canCompleteRepairQualification(currentState, plan.verificationLevel)) {
+          const completedState = completeRepairBatch({ state: currentState, qualification })
+          convergencePersistence = assertConvergenceWrite(convergenceStore.writeConvergenceOutcome({
+            repairConvergence: completedState,
+            lastSuccessfulQualification: qualification
+          }, {
+            expectedStateDigest: currentState.stateDigest,
+            expectedQualificationDigest: currentQualification?.recordDigest || null
+          }), 'VALIDATION_CONVERGENCE_OUTCOME_PERSISTENCE_FAILED')
+          convergenceState = completedState
+        } else if (!currentState) {
+          convergencePersistence = assertConvergenceWrite(convergenceStore.writeLastSuccessfulQualification(qualification, {
+            expectedQualificationDigest: currentQualification?.recordDigest || null
+          }), 'VALIDATION_QUALIFICATION_PERSISTENCE_FAILED')
+        } else {
+          throw new ValidationConvergenceError(
+            'VALIDATION_QUALIFICATION_TRANSITION_INVALID',
+            `qualification level ${plan.verificationLevel} cannot complete state ${currentState.phase}`
+          )
+        }
+        lastSuccessfulQualification = qualification
+        qualificationDecision = 'qualified'
+      }
+    }
     const failureError = failed ? validationExecutionError(execution.receipt) : null
     const data = {
       ...projectValidationExecutionForCli(execution),
-      executionOptimization: optimizationProjection
+      executionOptimization: optimizationProjection,
+      qualificationDecision,
+      convergence: convergenceProjection(convergenceState, lastSuccessfulQualification),
+      convergencePersistence: convergencePersistence
+        ? compactValidationPersistenceForCli(convergencePersistence)
+        : null
     }
     if (options.json) {
       printJson(envelope(!failed, data, failed
@@ -1978,6 +2470,7 @@ module.exports = {
   CLI_EXECUTION_MAX_BYTES,
   CLI_EXECUTION_PROJECTION_SCHEMA,
   compactPlan,
+  convergenceProjection,
   createCliLease,
   directActorIdentityEvidence,
   detectedActorType,
@@ -1990,6 +2483,8 @@ module.exports = {
   resolvePendingBudgetPlanIdentity,
   resolveFormalTaskExecutionPreflight,
   resolveValidationBudgetAuthority,
+  resolveValidationConvergenceDecision,
+  resolveRepairPlanScope,
   resolveValidationAuthorityContext,
   resolveActorType,
   validationExecutionError

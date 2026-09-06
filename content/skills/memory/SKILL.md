@@ -68,7 +68,7 @@ status/current/month/day byte-range 分区。该索引不是记忆真相源：
 
 `ConcurrencyPolicy`：记忆读取可作为只读通道并发执行；记忆写入、SUMMARY 更新、ContextHandoffCard、任务准入/owner/terminal 和会话状态提交必须按 `memory` 单写者锁串行完成。
 
-`requirement-parallel-orchestration`：并行子会话只能把 `RequirementIndependenceDecisionV1`、`ParallelLaunchCardV1` 或局部验证证据交回主会话；需求级 sessions、Agent daily、SUMMARY 和 ContextHandoffCard 仍由主会话按 `memory` 单写者锁串行写入。
+`requirement-parallel-orchestration`：并行子会话只能把 `RequirementIndependenceDecisionV1`、`ParallelLaunchCardV1`、`HostSubagentDispatchPlanV1`、`AgentWorkLeaseV1` 或 digest-bound `ChildAgentEvidenceV1` 交回根会话；child 不得写需求级 sessions、Agent daily、SUMMARY、ContextHandoffCard、CP、owner、terminal 或 Auto 状态。timeout/cancel/late/invalid 结果只进入 quarantine 与串行接管摘要，不恢复旧 lease；所有正式 memory 仍由根会话按 `memory` 单写者锁串行写入。
 
 ### TaskRouteAdmissionGate
 

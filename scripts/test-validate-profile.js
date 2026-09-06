@@ -756,6 +756,74 @@ function main() {
 
         assert.strictEqual(validAutoAliasResult.status, 0, validAutoAliasOutput)
 
+        const validProjectLanguageRoot = createWorkspace(`${currentProjectInfo()}\n- extensions.devcodex.language 使用 LanguagePreferenceV1 配置语言偏好。\n`)
+        writeFile(validProjectLanguageRoot, '.devcodex/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    language: {
+                        schemaVersion: 'LanguagePreferenceV1',
+                        mode: 'inherit',
+                        locale: null,
+                        futureExtension: { preserve: true }
+                    }
+                }
+            }
+        }, null, 2))
+        const validProjectLanguageResult = runValidate(validProjectLanguageRoot)
+        assert.strictEqual(validProjectLanguageResult.status, 0,
+            `${validProjectLanguageResult.stdout}\n${validProjectLanguageResult.stderr}`)
+
+        const validWorkspaceLanguageRoot = createWorkspaceNamespaceWorkspace(`${currentProjectInfo()}\n- extensions.devcodex.language 使用 LanguagePreferenceV1 配置语言偏好。\n`)
+        writeFile(validWorkspaceLanguageRoot, '.devcodex/workspace/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    language: { schemaVersion: 'LanguagePreferenceV1', mode: 'fixed', locale: 'en-US' }
+                }
+            }
+        }, null, 2))
+        const validWorkspaceLanguageResult = runValidate(validWorkspaceLanguageRoot)
+        assert.strictEqual(validWorkspaceLanguageResult.status, 0,
+            `${validWorkspaceLanguageResult.stdout}\n${validWorkspaceLanguageResult.stderr}`)
+
+        const invalidProjectLanguageRoot = createWorkspace(currentProjectInfo())
+        writeFile(invalidProjectLanguageRoot, '.devcodex/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    language: { schemaVersion: 'LanguagePreferenceV1', mode: 'fixed', locale: null }
+                }
+            }
+        }, null, 2))
+        const invalidProjectLanguageResult = runValidate(invalidProjectLanguageRoot)
+        const invalidProjectLanguageOutput = `${invalidProjectLanguageResult.stdout}\n${invalidProjectLanguageResult.stderr}`
+        assert.strictEqual(invalidProjectLanguageResult.status, 1, invalidProjectLanguageOutput)
+        assert.match(invalidProjectLanguageOutput, /language fixed mode requires locale/)
+
+        const invalidWorkspaceLanguageRoot = createWorkspaceNamespaceWorkspace(currentProjectInfo())
+        writeFile(invalidWorkspaceLanguageRoot, '.devcodex/workspace/profile/config.json', JSON.stringify({
+            mode: 'dev',
+            agent: 'claude-code',
+            pluginVersion: VERSION,
+            extensions: {
+                devcodex: {
+                    language: { schemaVersion: 'LanguagePreferenceV1', mode: 'inherit', locale: 'zh-CN' }
+                }
+            }
+        }, null, 2))
+        const invalidWorkspaceLanguageResult = runValidate(invalidWorkspaceLanguageRoot)
+        const invalidWorkspaceLanguageOutput = `${invalidWorkspaceLanguageResult.stdout}\n${invalidWorkspaceLanguageResult.stderr}`
+        assert.strictEqual(invalidWorkspaceLanguageResult.status, 1, invalidWorkspaceLanguageOutput)
+        assert.match(invalidWorkspaceLanguageOutput, /language\.mode must be one of: auto, fixed/)
+        assert.match(invalidWorkspaceLanguageOutput, /language locale is allowed only with fixed mode/)
+
         const validConcurrencyRoot = createWorkspace(currentProjectInfo())
         writeFile(validConcurrencyRoot, '.devcodex/profile/config.json', JSON.stringify({
             mode: 'dev',

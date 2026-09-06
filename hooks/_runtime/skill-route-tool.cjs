@@ -17,13 +17,17 @@ const {
   resolveWorkspaceSkillsRoot
 } = require('./skill-resolution.cjs')
 const {
-  buildRuntimeSkillIdentityIndex
+  buildRuntimeSkillIdentityIndex,
+  hydrateRuntimeSkillIdentityIndex
 } = require('./runtime-skill-identity-index.cjs')
 const {
   resolveCatalogPageIndex,
   encodeCursor,
   decodeCursor
 } = require('./model-skill-catalog.cjs')
+const {
+  resolveExactSkillPage
+} = require('./layered-skill-resolver-v1.cjs')
 const {
   resolveWorkflowRoots
 } = require('./workflow-root-registry.cjs')
@@ -85,6 +89,10 @@ const CONTEXT_BINDING_FIELDS = new Set([
   'project'
 ])
 const SKILL_ROUTE_FIELDS_BY_OP = Object.freeze({
+  resolve_exact: [
+    'op', 'project', 'turnBinding', 'contextEpoch', 'skillId', 'preferredLayer',
+    'expectedContentDigest', 'cursor'
+  ],
   catalog: ['op', 'project', 'turnBinding', 'contextEpoch', 'cursor'],
   commit: [
     'op', 'project', 'turnBinding', 'contextEpoch', 'catalogDigest', 'skillId',
@@ -554,6 +562,19 @@ function validateRequestShape (input) {
       return 'LATE_CONDITION_INVALID'
     }
   }
+  if (op === 'resolve_exact') {
+    if (!SKILL_ID_RE.test(String(input.skillId || '')) ||
+        String(input.skillId).length > 128) return 'SKILL_CHOICE_INVALID'
+    if (input.preferredLayer !== undefined &&
+        input.preferredLayer !== null &&
+        !['project', 'workspace', 'global'].includes(String(input.preferredLayer))) {
+      return 'SKILL_PREFERRED_LAYER_INVALID'
+    }
+    if (input.expectedContentDigest !== undefined &&
+        !DIGEST_RE.test(String(input.expectedContentDigest))) {
+      return 'SKILL_EXPECTED_DIGEST_INVALID'
+    }
+  }
   if (op === 'load_stage') {
     if (!Number.isInteger(input.generation) || input.generation < 0) return 'GENERATION_INVALID'
     if (!DIGEST_RE.test(String(input.planDigest || '')) ||
@@ -581,7 +602,7 @@ function buildRequestShapeDetails (input, errorCode) {
     : []
   const contextBindingHint = SKILL_ROUTE_CONTEXT_BINDING_OPS.has(op)
     ? '`contextBinding` is required for this operation.'
-    : '`contextBinding` is only accepted by commit and rebind; never send it to catalog, load_stage, or status.'
+    : '`contextBinding` is only accepted by commit and rebind; never send it to resolve_exact, catalog, load_stage, or status.'
   return {
     schemaVersion: 'SkillRouteRequestShapeErrorV1',
     errorCode,
@@ -906,7 +927,10 @@ function rebuildIndex (target, options) {
 const INDEX_DRIFT_FIELDS = Object.freeze([
   'effectiveLayer',
   'sourceIdentity',
+  'metadataDigest',
+  'fileIdentity',
   'bodyDigest',
+  'bodyDigestKind',
   'intentDigest',
   'topologyDigest',
   'bodyBytes',
@@ -993,6 +1017,28 @@ function summarizePlan (plan) {
     blockedCodes: plan.baseResolution.blocked.map(item => item.code),
     budget: plan.budget
   }
+}
+
+function buildHydratedProgressiveSkillPlan (planInput, metadataIndex, target, options = {}) {
+  const preview = buildProgressiveSkillPlan({
+    ...planInput,
+    index: metadataIndex
+  })
+  const selectedSkillIds = preview.baseResolution.selected.map(item => item.skillId)
+  if (!selectedSkillIds.length) return preview
+  const hydratedIndex = hydrateRuntimeSkillIdentityIndex(metadataIndex, selectedSkillIds, {
+    ...options,
+    cwd: target.projectRoot,
+    project: target.project,
+    activeRoot: target.activeRoot,
+    runtimeRoot: options.runtimeRoot,
+    packageRoot: options.packageRoot,
+    env: options.env
+  })
+  return buildProgressiveSkillPlan({
+    ...planInput,
+    index: hydratedIndex
+  })
 }
 
 function obligationPriority (sources = []) {
@@ -1089,6 +1135,12 @@ function handleCommit (input, target, options) {
           error.code = 'SKILL_NOT_AUTO_SELECTABLE'
           throw error
         }
+        const catalogSkillIds = new Set((state.catalog.cards || []).map(card => card.skillId))
+        if (!catalogSkillIds.has(input.skillId)) {
+          const error = new Error('SKILL_NOT_IN_SHORTLIST')
+          error.code = 'SKILL_NOT_IN_SHORTLIST'
+          throw error
+        }
       }
 
       const priorPlan = state.plan
@@ -1163,7 +1215,7 @@ function handleCommit (input, target, options) {
             fsImpl.existsSync(path.join(workspaceSkillsRoot, skillId, 'SKILL.md'))
         })
         : []
-      const plan = buildProgressiveSkillPlan({
+      const plan = buildHydratedProgressiveSkillPlan({
         project: input.project,
         turnBinding: input.turnBinding,
         contextEpoch: input.contextEpoch,
@@ -1172,14 +1224,13 @@ function handleCommit (input, target, options) {
         decisionDigest: decision.decisionDigest,
         contextBindingDigest: trustedContext.bindingDigest,
         workflowResolution: workflow,
-        index: currentIndex,
         workspaceAlwaysOn: workspaceEntry.alwaysOn || [],
         workspaceAlwaysOnDisabledIds,
         explicitSkillId: explicitReady ? state.explicit.skillId : null,
         freeSkillId: selectedEntry?.skillId || null,
         lateConditionId: input.lateConditionId || null,
         activatedConditionIds
-      })
+      }, currentIndex, target, options)
       const contextRouteBinding = buildContextRouteBinding({
         contextSnapshotId: trustedContext.contextSnapshotId,
         workflowRouteDigest: trustedContext.workflowRouteDigest,
@@ -1349,7 +1400,7 @@ function handleRebind (input, target, options) {
             fsImpl.existsSync(path.join(workspaceSkillsRoot, skillId, 'SKILL.md'))
         })
         : []
-      const plan = buildProgressiveSkillPlan({
+      const plan = buildHydratedProgressiveSkillPlan({
         project: input.project,
         turnBinding: input.turnBinding,
         contextEpoch: input.contextEpoch,
@@ -1358,7 +1409,6 @@ function handleRebind (input, target, options) {
         decisionDigest: state.decision.decisionDigest,
         contextBindingDigest: trustedContext.bindingDigest,
         workflowResolution: workflow,
-        index: currentIndex,
         workspaceAlwaysOn: workspaceEntry.alwaysOn || [],
         workspaceAlwaysOnDisabledIds,
         explicitSkillId: state.explicit?.status === 'ready'
@@ -1367,7 +1417,7 @@ function handleRebind (input, target, options) {
         freeSkillId: selectedEntry?.skillId || null,
         lateConditionId: null,
         activatedConditionIds: priorPlan.activatedConditionIds || []
-      })
+      }, currentIndex, target, options)
       const contextRouteBinding = buildContextRouteBinding({
         contextSnapshotId: trustedContext.contextSnapshotId,
         workflowRouteDigest: trustedContext.workflowRouteDigest,
@@ -2593,6 +2643,19 @@ function handleSkillRoute (input, options = {}) {
       error.code = 'PROJECT_BINDING_MISMATCH'
       throw error
     }
+    if (input.op === 'resolve_exact') {
+      const expectedTurnBinding = deriveTurnBinding(
+        target.project,
+        target.activeRoot,
+        input.contextEpoch
+      )
+      if (expectedTurnBinding !== input.turnBinding) {
+        const error = new Error('TURN_BINDING_MISMATCH')
+        error.code = 'TURN_BINDING_MISMATCH'
+        throw error
+      }
+      return resolveExactSkillPage(input, target, options)
+    }
     if (input.op === 'catalog') return handleCatalog(input, target, options)
     if (input.op === 'commit') return handleCommit(input, target, options)
     if (input.op === 'rebind') return handleRebind(input, target, options)
@@ -2604,7 +2667,9 @@ function handleSkillRoute (input, options = {}) {
       error.code || error.message || 'SKILL_ROUTE_FAILED',
       skillRouteErrorNextStep(error),
       {
-        limitBytes: input.op === 'catalog' ? 8 * 1024 : (input.op === 'load_stage' ? 48 * 1024 : 16 * 1024),
+        limitBytes: input.op === 'resolve_exact'
+          ? 64 * 1024
+          : (input.op === 'catalog' ? 8 * 1024 : (input.op === 'load_stage' ? 48 * 1024 : 16 * 1024)),
         details: buildSkillRouteErrorDetails(input, error, target)
       }
     )
@@ -2628,7 +2693,8 @@ function formatSkillRouteBootstrapInjection (bootstrap, options = {}) {
     '',
     ...hostToolContract,
     'When the observed ContextRead plan includes `profile.routeLoadRecipe`, call `profile_load` with that exact `contextBinding` and executionOptimization but omit `files` and `sectionSelectors`; the server applies the plan-owned bounded recipe.',
-    `Use the local \`${routeTool}\` Tool. For a non-explicit task, read every catalog page before one \`commit\` choice (\`skillId\` is one id or null).`,
+    `Use the local \`${routeTool}\` Tool. For an explicitly named Skill, call \`resolve_exact\` with its exact id and follow only its returned body cursor; do not read the catalog first.`,
+    'For a non-explicit task, read the bounded metadata shortlist pages before one `commit` choice (`skillId` is one shortlisted id or null).',
     'For the first `catalog` call, omit `cursor` entirely; never send `cursor:null`. Add `cursor` only when the preceding catalog page returns a non-empty `nextCursor`.',
     'There is no `replan` operation. Activate a ready late condition with another `op:"commit"` call using the current `previousPlanDigest`, `lateConditionId`, and fresh `ContextReadBindingV1` before loading that conditional stage.',
     'A quoted, negated, diagnostic, screenshot, log, report, or explanatory mention of a skill id is not an invocation. Choose null unless the user positively asks to use that skill or its intent clearly matches the actual task.',

@@ -37,6 +37,7 @@ const DEVCODEX_READ_ONLY_MCP_TOOLS = new Set([
   'profile_get_mode',
   'profile_compose_entry_check',
   'memory_task_resolve',
+  'memory_task_continuity_view_v1',
   'memory_status',
   'memory_session_query',
   'memory_summary_query',

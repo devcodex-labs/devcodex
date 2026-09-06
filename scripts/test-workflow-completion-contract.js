@@ -4,6 +4,7 @@ const assert = require('assert')
 const {
   WorkflowCompletionError,
   applyValidationControlIngress,
+  bindValidationControlIngressIntent,
   classifyValidationControlInstruction,
   createCommitValidationResult,
   createRiskAcceptanceReceipt,
@@ -12,6 +13,7 @@ const {
   createWorkflowCompletionPlan,
   createWorkflowEvidenceReceipt,
   createVerificationIntent,
+  createValidationControlIngressIntent,
   createValidationControlIngressReceipt,
   evaluateReceiptFreshness,
   evaluateShadowEvidenceWindow,
@@ -26,6 +28,7 @@ const {
   validateWorkflowCompletionSnapshot,
   validateWorkflowEvidenceReceipt,
   validateVerificationIntent,
+  validateValidationControlIngressIntent,
   validateValidationControlIngressReceipt,
   validationProjectRootIdentity
 } = require('../hooks/_runtime/workflow-completion-contract.cjs')
@@ -156,6 +159,42 @@ const autoControl = createValidationControlIngressReceipt({
 })
 assert.strictEqual(autoControl.action, 'auto-authorize')
 assert.match(autoControl.autoAuthorityRef, /^validation-auto:[a-f0-9]{64}$/)
+const tasklessAutoIntent = createValidationControlIngressIntent({
+  actualInstructionEnvelope: autoEnvelope,
+  actualInstruction: '@rocky 开始自动推进',
+  executionMode: 'auto',
+  project: 'devcodex',
+  projectRootIdentity: validationRootIdentity
+})
+assert.strictEqual(tasklessAutoIntent.action, 'auto-authorize')
+assert.strictEqual(tasklessAutoIntent.authorityCeiling, 'unbound-task')
+assert.strictEqual(tasklessAutoIntent.mutationAuthority, false)
+assert.strictEqual(validateValidationControlIngressIntent(tasklessAutoIntent, null, { now: NOW }).valid, true)
+const reboundAutoControl = bindValidationControlIngressIntent(tasklessAutoIntent, {
+  actualInstructionEnvelope: autoEnvelope,
+  taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
+  project: 'devcodex',
+  projectRootIdentity: validationRootIdentity
+}, { now: NOW })
+assert.deepStrictEqual(reboundAutoControl, autoControl)
+const tamperedTasklessAutoIntent = clone(tasklessAutoIntent)
+tamperedTasklessAutoIntent.project = 'other'
+expectNegative('validation-control-taskless-intent-digest-bound', () =>
+  !validateValidationControlIngressIntent(tamperedTasklessAutoIntent).valid)
+assert.throws(() => bindValidationControlIngressIntent(tasklessAutoIntent, {
+  actualInstructionEnvelope: autoEnvelope,
+  taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
+  project: 'other',
+  projectRootIdentity: validationRootIdentity
+}, { now: NOW }), error => error instanceof WorkflowCompletionError &&
+  error.code === 'VALIDATION_CONTROL_INTENT_BINDING_INVALID')
+assert.throws(() => bindValidationControlIngressIntent(tasklessAutoIntent, {
+  actualInstructionEnvelope: autoEnvelope,
+  taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
+  project: 'devcodex',
+  projectRootIdentity: validationRootIdentity
+}, { now: Date.parse(tasklessAutoIntent.expiresAt) + 1 }), error =>
+  error instanceof WorkflowCompletionError && error.code === 'VALIDATION_CONTROL_INTENT_BINDING_INVALID')
 assert.strictEqual(classifyValidationControlInstruction('继续').action, 'none')
 for (const prompt of [
   '确认',

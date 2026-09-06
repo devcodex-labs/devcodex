@@ -27,6 +27,7 @@ const {
   projectArtifactAnchorsFromManifest,
   projectUserFacingArtifactSet,
   renderVisibleEnvelope,
+  resolveVisibleLocale,
   normalizeCompatibleVisibleEnvelope,
   classifyDialogueNarrativeSample,
   classifyFinalValidationSummarySample,
@@ -37,13 +38,15 @@ const { renderGrokS07Assist } = require('../hooks/_runtime/lifecycle-bootstrap-s
 const ROOT = path.resolve(__dirname, '..')
 const WORKSPACE = path.dirname(ROOT)
 const ZH_LANGUAGE_CONTEXT = Object.freeze({
-  schemaVersion: 'LanguageContextV2', primaryLanguage: 'zh-CN', responseLanguage: 'zh-CN',
+  schemaVersion: 'LanguageContextV3', durablePrimaryLocale: 'zh-CN', durableProvisional: false,
+  durableSource: 'task-primary-language', durableConfidence: 'high',
+  primaryLanguage: 'zh-CN', responseLanguage: 'zh-CN',
   artifactLanguage: 'zh-CN', currentTurnClass: 'neutral', source: 'task-primary-language',
-  confidence: 'high', updatedPrimary: false
+  confidence: 'high', updatedPrimary: false, localeCapability: 'full'
 })
 const EN_LANGUAGE_CONTEXT = Object.freeze({
   ...ZH_LANGUAGE_CONTEXT,
-  primaryLanguage: 'en', responseLanguage: 'en', artifactLanguage: 'en'
+  durablePrimaryLocale: 'en-US', primaryLanguage: 'en-US', responseLanguage: 'en-US', artifactLanguage: 'en-US'
 })
 
 function entry(id, overrides = {}) {
@@ -521,6 +524,17 @@ assert.match(enHumanText, /### DevCodex · Entry check/)
 assert.match(enHumanText, /Files from this batch/)
 assert.match(enHumanText, /Next:/)
 assert.doesNotMatch(enHumanText, /语言回退|入口检查/)
+const enLocaleDecision = resolveVisibleLocale(EN_LANGUAGE_CONTEXT)
+assert.strictEqual(enLocaleDecision.requestedLanguage, 'en-US')
+assert.strictEqual(enLocaleDecision.renderedLanguage, 'en')
+assert.strictEqual(enLocaleDecision.fallbackReason, null,
+  'the full en-US locale must use the English catalog without reporting a fallback')
+const legacyV2LocaleDecision = resolveVisibleLocale({
+  schemaVersion: 'LanguageContextV2', primaryLanguage: 'en', responseLanguage: 'en',
+  artifactLanguage: 'en', currentTurnClass: 'neutral', source: 'legacy-reader', confidence: 'high'
+})
+assert.strictEqual(legacyV2LocaleDecision.requestedLanguage, 'en-US')
+assert.strictEqual(legacyV2LocaleDecision.fallbackReason, null)
 assert.strictEqual(envelope.semanticDigest, localizedEnvelope.semanticDigest)
 const missingLanguageText = renderVisibleEnvelope(envelope, { tier: 'portable-markdown' })
 assert.match(missingLanguageText, /Language fallback: requested=und, rendered=en, reason=language-context-missing/)
@@ -529,6 +543,13 @@ const unsupportedLocaleText = renderVisibleEnvelope(envelope, {
   languageContext: { ...ZH_LANGUAGE_CONTEXT, primaryLanguage: 'ja', responseLanguage: 'ja', artifactLanguage: 'ja' }
 })
 assert.match(unsupportedLocaleText, /Language fallback: requested=ja, rendered=en, reason=locale-catalog-unavailable:ja/)
+const partialLocaleDecision = resolveVisibleLocale({
+  ...ZH_LANGUAGE_CONTEXT, durablePrimaryLocale: 'ja', primaryLanguage: 'ja', responseLanguage: 'ja',
+  artifactLanguage: 'ja', localeCapability: 'partial'
+})
+assert.strictEqual(partialLocaleDecision.requestedLanguage, 'ja')
+assert.strictEqual(partialLocaleDecision.renderedLanguage, 'en')
+assert.strictEqual(partialLocaleDecision.fallbackReason, 'locale-catalog-unavailable:ja')
 
 const zhGrokAssist = renderGrokS07Assist({ languageContext: ZH_LANGUAGE_CONTEXT, project: 'devcodex' })
 const enGrokAssist = renderGrokS07Assist({ languageContext: EN_LANGUAGE_CONTEXT, project: 'devcodex' })

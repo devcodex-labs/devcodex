@@ -579,11 +579,19 @@ function testInitBootstrapsWorkspaceProfileAndOneNamedProject() {
   assert.strictEqual(apiConfig.extensions.devcodex.git.sharedActionsRequireExplicitAuthorization, true)
   assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'apps', 'web', 'profile')), 'init --profile must not initialize siblings')
   assert.strictEqual(result.payload.projectProfile.namespace, 'apps/api')
+  assert.strictEqual(result.payload.workspaceProfile.lifecycleState, 'generated-draft')
+  assert.strictEqual(result.payload.projectProfile.lifecycleState, 'generated-draft')
+  assert.strictEqual(result.payload.workspaceProfile.materializationReceipt.schemaVersion, 'ProfileMaterializationReceiptV1')
+  assert.strictEqual(result.payload.projectProfile.materializationReceipt.commit.status, 'readback-verified')
+  assert.ok(fs.existsSync(path.join(workspaceProfile, '.devcodex-profile-receipt.json')))
+  assert.ok(fs.existsSync(path.join(apiProfile, '.devcodex-profile-receipt.json')))
+  assert.ok(!fs.existsSync(path.join(root, 'apps', 'api', '.tmp')), 'create-missing must clean project-owned staging')
 
   const apiReadme = path.join(apiProfile, 'README.md')
   fs.appendFileSync(apiReadme, '\nmanual-profile-content\n', 'utf8')
-  runCli(['init', '--profile=apps/api'], root)
+  const repeated = JSON.parse(runCli(['init', '--profile=apps/api', '--json'], root))
   assert.match(fs.readFileSync(apiReadme, 'utf8'), /manual-profile-content/, 'repeated init must preserve project Profile content')
+  assert.strictEqual(repeated.payload.projectProfile.lifecycleState, 'partial-invalid')
 
   fs.rmSync(root, { recursive: true, force: true })
 
@@ -619,6 +627,9 @@ function testExplicitProfileTargetsAndDryRunStayPhysicalAndZeroWrite() {
   const after = walk(dryRunRoot).map(file => path.relative(dryRunRoot, file)).sort()
   assert.deepStrictEqual(after, before, 'targeted dry-run must not create layout, Profile, backup, or runtime files')
   assert.strictEqual(dry.payload.projectProfile.namespace, 'docs')
+  assert.strictEqual(dry.payload.workspaceProfile.materializationReceipt.status, 'planned')
+  assert.strictEqual(dry.payload.projectProfile.materializationReceipt.status, 'planned')
+  assert.strictEqual(dry.payload.projectProfile.lifecycleState, 'missing')
   assert.ok(dry.payload.projectProfile.actions.length > 0)
   assert.ok(dry.payload.projectProfile.actions.every(item =>
     path.resolve(item.dest).startsWith(path.join(dryRunRoot, '.devcodex', 'docs', 'profile') + path.sep)

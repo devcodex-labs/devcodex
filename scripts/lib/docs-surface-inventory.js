@@ -42,6 +42,7 @@ const REQUIRED_MCP_TOOLS = Object.freeze([
   'memory_summary_read',
   'memory_task_admit_v2',
   'memory_task_closeout_reconcile_v1',
+  'memory_task_continuity_view_v1',
   'memory_task_fast_path_lease',
   'memory_task_resolve',
   'memory_task_terminal_v1',

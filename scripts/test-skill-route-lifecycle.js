@@ -329,6 +329,25 @@ function readLifecycleState (fixture, sessionId, options = {}) {
     activeRoot: '/workspace/.devcodex/sample',
     project: 'sample'
   }
+  const exactBeforeCatalog = reconcileProgressiveSkillRoute({}, preCommit, {
+    trigger: 'PreToolUse',
+    sessionKey: 'session-precommit',
+    payload: {
+      tool_name: 'mcp__devcodex_profile__skill_route',
+      tool_input: {
+        op: 'resolve_exact',
+        project: 'sample',
+        turnBinding: 'turn-precommit',
+        contextEpoch: 'ctx-precommit',
+        skillId: 'workspace-probe'
+      }
+    }
+  })
+  assert.strictEqual(
+    exactBeforeCatalog.allowAction,
+    true,
+    'resolve_exact must bypass catalog while preserving the pending base route'
+  )
   const boundProfileRead = reconcileProgressiveSkillRoute({}, preCommit, {
     trigger: 'PreToolUse',
     sessionKey: 'session-precommit',

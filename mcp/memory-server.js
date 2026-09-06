@@ -66,9 +66,14 @@ const {
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const {
   buildActualInstructionEnvelope,
-  buildWorkItemSet
+  buildWorkItemSet,
+  validateActualInstructionEnvelope,
+  validateWorkItemSet
 } = require('../hooks/_runtime/actual-instruction-envelope.cjs')
-const { buildWorkflowRouteDecision } = require('../hooks/_runtime/workflow-route-decision-v2.cjs')
+const {
+  buildWorkflowRouteDecision,
+  verifyWorkflowRouteDecision
+} = require('../hooks/_runtime/workflow-route-decision-v2.cjs')
 const {
   applyArtifactMutationReconciliation,
   createArtifactMutationReconciliationReceipt,
@@ -111,8 +116,37 @@ const {
 const {
   TaskContinuationError,
   evaluatePortableTaskIdentityBinding,
+  resolveUniqueActiveTaskContinuation,
   resolveTaskContinuation
 } = require('../hooks/_runtime/task-continuation-contract.cjs')
+const {
+  activateTaskCheckpointEpochBootstrap,
+  activateTaskCheckpointEpochSuccessor,
+  checkpointEpochProjectionDigest,
+  confirmTaskCheckpointPhase,
+  digestValue: checkpointDigestValue,
+  normalizeStageKey,
+  prepareTaskCheckpointEpochBootstrap,
+  prepareTaskCheckpointEpochSuccessor,
+  sealCheckpointEpochBootstrapAuthority,
+  sealCheckpointPhaseBinding,
+  sealCheckpointPhaseSlot,
+  sealTaskCheckpointEpoch
+} = require('../hooks/_runtime/task-checkpoint-epoch-v1.cjs')
+const {
+  advanceCheckpointEpochOperation,
+  createCheckpointEpochOperation,
+  createCheckpointEpochReceipt,
+  finalizeTaskCheckpointProjection,
+  parseCurrentEpochMarker,
+  renderTaskCheckpointProjection,
+  sealCheckpointEpochOperation
+} = require('../hooks/_runtime/task-checkpoint-projection-v1.cjs')
+const {
+  buildTaskContinuityView,
+  renderTaskContinuityViewHuman
+} = require('../hooks/_runtime/task-continuity-view-v1.cjs')
+const { normalizeLanguageTag } = require('../hooks/_runtime/language-context.cjs')
 const { createLinkCapabilityDecision } = require('../hooks/_runtime/visible-output-contract.cjs')
 const {
   createWorkspaceSessionRouteIndex,
@@ -126,6 +160,12 @@ const {
   createSimpleTaskFastPathUsage,
   validateSimpleTaskFastPathUsage
 } = require('../hooks/_runtime/simple-task-fast-path-lease.cjs')
+const {
+  bindValidationControlIngressIntent,
+  validateValidationControlIngressReceipt,
+  validateValidationControlIngressIntent,
+  validationProjectRootIdentity
+} = require('../hooks/_runtime/workflow-completion-contract.cjs')
 const {
   classifyRelativeTarget,
   readLayeredArtifactSlotRegistry
@@ -548,6 +588,22 @@ const TOOLS = [
     }
   },
   {
+    name: 'memory_task_continuity_view_v1',
+    description: '返回有界、只读、面向人的任务连续性视图；缺 taskId 时允许唯一候选恢复或一次消歧。',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        taskId: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$' },
+        name: { type: 'string', minLength: 1, maxLength: 300 },
+        project: PROJECT_NAMESPACE_INPUT_SCHEMA,
+        scope: { type: 'string', enum: ['project', 'workspace'] },
+        locale: { type: 'string', minLength: 2, maxLength: 32 },
+        priorDisambiguationReceiptDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' }
+      }
+    }
+  },
+  {
     name: 'memory_status',
     description: '返回当前目标的有界记忆状态与冲突摘要。',
     inputSchema: {
@@ -687,6 +743,8 @@ const TOOLS = [
         artifactVersion: { type: 'string' },
         artifactSha256: { type: 'string' },
         sourceMessage: { type: 'string' },
+        stageKey: { type: 'string', minLength: 1, maxLength: 64, description: '新 CP1 代际标识；省略时由 artifactVersion 派生。' },
+        expectedEpochId: { type: 'string', pattern: '^E[0-9]{4,}-[a-f0-9]{12}$', description: '可选 current epoch CAS。' },
         autoDecisionEvidence: {
           type: 'object',
           additionalProperties: false,
@@ -3673,6 +3731,504 @@ function prepareCpAutoCheckpointDecision({ args, target, sessionsPath, taskDir, 
   }
 }
 
+function checkpointEpochIso(value, fallbackMs = Date.now()) {
+  const parsed = Date.parse(String(value || ''))
+  return new Date(Number.isFinite(parsed) ? parsed : fallbackMs).toISOString()
+}
+
+function checkpointEpochRuntime() {
+  return {
+    stateSchemaVersion: 'TaskRecoveryStateV5',
+    packageVersion: MEMORY_RUNTIME_IDENTITY.activeVersion,
+    mcpProtocolVersion: '2024-11-05',
+    sourceHead: MEMORY_RUNTIME_IDENTITY.generationId,
+    epochCapability: 1
+  }
+}
+
+function checkpointEpochAuthority(state) {
+  const transaction = state.admissionTransaction || {}
+  const owner = state.fencedWriteOwner || {}
+  const canonical = state.taskCanonicalRevision || {}
+  const context = state.contextAcquisition || {}
+  return {
+    taskKind: transaction.taskKind,
+    project: transaction.project,
+    activeRootDigest: transaction.projectRootIdentityDigest,
+    admissionId: transaction.admissionId,
+    owner: {
+      ownerGeneration: owner.ownerGeneration,
+      leaseRevision: owner.leaseRevision,
+      leaseDigest: owner.leaseDigest
+    },
+    lineage: {
+      canonicalRevision: canonical.revision,
+      canonicalHeadDigest: canonical.currentOverviewDigest,
+      canonicalParentRevision: canonical.revision > 1 ? canonical.revision - 1 : null,
+      scopeDigest: transaction.workItemDigest
+    },
+    context: {
+      contextEpoch: owner.contextEpoch || context.contextEpoch || null,
+      planContentId: context.plan?.planContentId || context.binding?.planContentId ||
+        context.planContentId || state.contextHandoffCard?.planContentId || null,
+      autoGrantDigest: state.taskScopedAutoContinuationGrant?.grantDigest || null,
+      autoDecisionDigest: state.autoCheckpointDecision?.decisionDigest || null,
+      validationAuthorityDigest: state.validationExecution?.authorityDigest ||
+        state.validationControl?.authorityDigest || null
+    }
+  }
+}
+
+function cpEpochRecoveryContext({ target, taskDir, identity }) {
+  if (!identity || identity.schemaVersion !== 'TaskIdentityV2') return null
+  const taskId = String(identity.taskId || '').trim().toLowerCase()
+  const recoveryIdentity = {
+    activeRoot: target.activeRoot,
+    project: target.project,
+    taskId,
+    taskStatus: 'active'
+  }
+  const metaDir = resolveTaskRecoveryMetaDir(recoveryIdentity)
+  const recoveryRead = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }, { fs })
+  if (recoveryRead.status !== 'fresh') {
+    throw memoryQueryError(
+      'The formal task recovery state is unavailable for checkpoint mutation.',
+      'Continue reading/analysis, then safely adopt the current task writer and retry this checkpoint.',
+      recoveryRead.errorCode || 'MEMORY_CP_EPOCH_STATE_UNAVAILABLE'
+    )
+  }
+  const state = recoveryRead.state || {}
+  const transaction = state.admissionTransaction || {}
+  // Admission itself still owns its legacy CP1 bootstrap until it reaches the
+  // finalized formal-task boundary. Epoch mutation starts only after that
+  // boundary; this preserves old admission callers without letting them
+  // overwrite an already epoch-aware state.
+  if (transaction.phase !== 'finalized' || transaction.status !== 'finalized') return null
+  const taskRootRelative = path.relative(target.activeRoot, taskDir).replace(/\\/gu, '/')
+  const portable = evaluatePortableTaskIdentityBinding(identity, {
+    taskId,
+    project: target.project,
+    taskKind: transaction.taskKind,
+    taskRootRelative,
+    currentProjectRootIdentityDigest: transaction.projectRootIdentityDigest
+  })
+  if (!portable.valid || transaction.taskIdentityDigest !== identity.identityDigest ||
+      transaction.taskRootRelative !== taskRootRelative) {
+    throw memoryQueryError(
+      'The checkpoint candidate is not bound to the current finalized task identity.',
+      'Continue read-only and repair or resume the exact formal task binding before retrying.',
+      'MEMORY_CP_EPOCH_TASK_BINDING_MISMATCH'
+    )
+  }
+  const owner = state.fencedWriteOwner
+  if (!owner || owner.status !== 'active' || Date.parse(String(owner.expiresAt || '')) <= Date.now() ||
+      owner.taskId !== taskId || owner.projectRootIdentity !== transaction.projectRootIdentityDigest) {
+    throw memoryQueryError(
+      'The current task writer is absent, expired, or belongs to another lineage.',
+      'Reading and analysis remain available; safely adopt the exact task writer before retrying this checkpoint.',
+      'MEMORY_CP_EPOCH_OWNER_UNAVAILABLE'
+    )
+  }
+  try {
+    readFinalizedResumeCanonicalEvidence(transaction, target.activeRoot, fs, { state })
+  } catch (error) {
+    throw memoryQueryError(
+      `The current canonical task lineage is not stable: ${error.message}`,
+      'Continue read-only and repair the exact canonical/CP lineage before retrying this mutation.',
+      error.code || 'MEMORY_CP_EPOCH_CANONICAL_INVALID'
+    )
+  }
+  return { identity, recoveryIdentity, metaDir, recoveryRead, state, transaction, owner, taskId, taskRootRelative }
+}
+
+function checkpointPhaseBinding({ phase, artifactPath, artifactSha256, artifactVersion, templateQualificationDigest, sourceMessage, confirmedAt, autoCheckpoint }) {
+  return sealCheckpointPhaseBinding({
+    phase,
+    role: 'primary',
+    artifactPath,
+    artifactSha256: String(artifactSha256 || '').toLowerCase(),
+    artifactVersion,
+    templateQualificationDigest: String(templateQualificationDigest || '').toLowerCase(),
+    confirmationSourceDigest: crypto.createHash('sha256').update(String(sourceMessage || '')).digest('hex'),
+    confirmedAt: checkpointEpochIso(confirmedAt),
+    confirmationMode: autoCheckpoint ? 'task-scoped-auto' : 'explicit'
+  })
+}
+
+function legacyCheckpointBinding(row, phase, fallbackMs) {
+  if (!row?.confirmed || !/^[a-f0-9]{64}$/i.test(String(row.artifactSha256 || '')) ||
+      !String(row.artifactPath || '').trim()) return null
+  const normalized = {
+    phase,
+    role: 'primary',
+    artifactPath: String(row.artifactPath).replace(/`/gu, ''),
+    artifactSha256: String(row.artifactSha256).toLowerCase(),
+    artifactVersion: String(row.artifactVersion || 'legacy'),
+    templateQualificationDigest: checkpointDigestValue({
+      schemaVersion: 'LegacyCheckpointQualificationRefV1',
+      phase,
+      artifactPath: row.artifactPath,
+      artifactSha256: String(row.artifactSha256).toLowerCase()
+    }),
+    confirmationSourceDigest: crypto.createHash('sha256').update(String(row.sourceMessage || 'legacy-import')).digest('hex'),
+    confirmedAt: checkpointEpochIso(row.confirmedAt, fallbackMs),
+    confirmationMode: 'bootstrap-import'
+  }
+  return sealCheckpointPhaseBinding(normalized)
+}
+
+function legacyCheckpointSlot(parsed, phase, fallbackMs) {
+  const binding = legacyCheckpointBinding(parsed[phase], phase, fallbackMs)
+  return sealCheckpointPhaseSlot({
+    phase,
+    state: binding ? 'confirmed' : 'unstarted',
+    currentBinding: binding,
+    supplements: [],
+    history: [],
+    slotSequence: binding ? 1 : 0
+  })
+}
+
+function legacyHistoricalEpoch(context, sessionsText, stageKey, nowMs) {
+  const parsed = parseCpTableRows(sessionsText)
+  const cp1 = legacyCheckpointBinding(parsed.CP1, 'CP1', nowMs)
+  if (!cp1) return []
+  const authority = checkpointEpochAuthority(context.state)
+  const cp2 = legacyCheckpointSlot(parsed, 'CP2', nowMs)
+  const cp3 = cp2.state === 'confirmed' ? legacyCheckpointSlot(parsed, 'CP3', nowMs) : legacyCheckpointSlot({}, 'CP3', nowMs)
+  const legacyStageKey = `legacy-before-${stageKey}`
+  const createdAt = cp1.confirmedAt
+  return [sealTaskCheckpointEpoch({
+    ordinal: 1,
+    parentEpochId: null,
+    stageKey: legacyStageKey,
+    status: 'superseded',
+    terminalStatus: null,
+    task: {
+      taskId: context.taskId,
+      taskKind: context.transaction.taskKind,
+      project: context.transaction.project,
+      activeRootDigest: context.transaction.projectRootIdentityDigest,
+      admissionId: context.transaction.admissionId
+    },
+    owner: authority.owner,
+    lineage: authority.lineage,
+    context: authority.context,
+    phases: {
+      CP1: sealCheckpointPhaseSlot({ phase: 'CP1', state: 'confirmed', currentBinding: cp1, supplements: [], history: [], slotSequence: 1 }),
+      CP2: cp2,
+      CP3: cp3
+    },
+    runtime: checkpointEpochRuntime(),
+    createdAt,
+    activatedAt: createdAt,
+    supersededAt: checkpointEpochIso(null, nowMs),
+    terminalAt: null,
+    trigger: 'legacy-flat-cp-import'
+  })]
+}
+
+function commitCheckpointEpochState(context, updater, reason) {
+  const commit = updateTaskRecoveryState({
+    metaDir: context.metaDir,
+    identity: context.recoveryIdentity
+  }, updater, { fs, reason, force: true, touchSessionMapping: true })
+  if (!['committed', 'semantic-noop'].includes(commit.status)) {
+    throw memoryQueryError(
+      `Checkpoint epoch state did not commit: ${commit.errorCode || commit.status}.`,
+      'The task remains readable; retry after the exact recovery-store condition is repaired.',
+      commit.errorCode || 'MEMORY_CP_EPOCH_COMMIT_FAILED'
+    )
+  }
+  const readback = readTaskRecoveryState({ metaDir: context.metaDir, identity: context.recoveryIdentity }, { fs })
+  if (readback.status !== 'fresh') {
+    throw memoryQueryError(
+      'Checkpoint epoch state could not be read back after commit.',
+      'The task remains readable; retry reconciliation before another checkpoint mutation.',
+      readback.errorCode || 'MEMORY_CP_EPOCH_READBACK_FAILED'
+    )
+  }
+  context.recoveryRead = readback
+  context.state = readback.state
+  return readback
+}
+
+function prepareCheckpointEpochOperation(context, input) {
+  const state = context.state
+  const existing = state.checkpointEpochOperation
+  const prospective = createCheckpointEpochOperation({
+    taskId: context.taskId,
+    phase: input.phase,
+    stageKey: input.stageKey,
+    bindingDigest: input.binding.bindingDigest,
+    expectedStateSequence: context.recoveryRead.envelope.sequence,
+    expectedWriterGeneration: context.recoveryRead.envelope.writerGeneration,
+    expectedOwnerLeaseDigest: context.owner.leaseDigest,
+    confirmationMode: input.binding.confirmationMode
+  })
+  if (existing?.status === 'complete' && existing.requestDigest === prospective.requestDigest) {
+    return context.recoveryRead
+  }
+  if (existing && existing.status !== 'complete') {
+    if (existing.requestDigest === prospective.requestDigest) return context.recoveryRead
+    throw memoryQueryError(
+      'Another checkpoint operation must be reconciled before this candidate can start.',
+      'Retry once; the server will finish the earlier machine/projection operation first.',
+      'MEMORY_CP_EPOCH_RECONCILE_REQUIRED'
+    )
+  }
+  return commitCheckpointEpochState(context, next => {
+    let epochSet = next.taskCheckpointEpochSet || null
+    let bootstrapAuthority = next.checkpointEpochBootstrapAuthority || null
+    let targetEpochId = epochSet?.currentEpochId || null
+    const authority = checkpointEpochAuthority(next)
+    if (!epochSet) {
+      const legacyRows = parseCpTableRows(input.sessionsText)
+      const legacyCp1 = legacyCheckpointBinding(legacyRows.CP1, 'CP1', Date.now())
+      if (input.phase !== 'CP1' && !legacyCp1) {
+        throw memoryQueryError(
+          'The first epoch-aware CP2/CP3 confirmation requires one verified legacy CP1.',
+          'Confirm the current stage CP1 once; reading and analysis remain available.',
+          'MEMORY_CP_EPOCH_CP1_BOOTSTRAP_REQUIRED'
+        )
+      }
+      const targetCp1 = input.phase === 'CP1' ? input.binding : legacyCp1
+      const historical = input.phase === 'CP1' && legacyCp1 &&
+        legacyCp1.bindingDigest !== input.binding.bindingDigest
+        ? legacyHistoricalEpoch(context, input.sessionsText, input.stageKey, Date.now())
+        : []
+      const ordinal = historical.length ? 2 : 1
+      bootstrapAuthority = sealCheckpointEpochBootstrapAuthority({
+        task: {
+          taskId: context.taskId,
+          taskKind: context.transaction.taskKind,
+          project: context.transaction.project,
+          activeRootDigest: context.transaction.projectRootIdentityDigest
+        },
+        target: {
+          stageKey: input.stageKey,
+          expectedOrdinal: ordinal,
+          parentEpochId: historical[0]?.epochId || null
+        },
+        evidence: [targetCp1],
+        runtime: checkpointEpochRuntime(),
+        fence: {
+          expectedStateSequence: context.recoveryRead.envelope.sequence,
+          expectedWriterGeneration: context.recoveryRead.envelope.writerGeneration,
+          expectedOwnerGeneration: context.owner.ownerGeneration
+        },
+        createdBy: 'workflow-single-writer'
+      })
+      const prepared = prepareTaskCheckpointEpochBootstrap({
+        authority: bootstrapAuthority,
+        historicalEpochs: historical,
+        targetBinding: {
+          admissionId: authority.admissionId,
+          owner: authority.owner,
+          lineage: authority.lineage,
+          context: authority.context
+        },
+        legacyProjectionDigest: input.sessionsText ? fileDigest(input.sessionsText) : null
+      })
+      epochSet = prepared.epochSet
+      targetEpochId = prepared.epochSet.epochs.find(item => item.status === 'preparing')?.epochId || null
+      next.checkpointEpochBootstrapImport = input.phase === 'CP1'
+        ? null
+        : {
+            schemaVersion: 'CheckpointEpochLegacyImportV1',
+            CP2: legacyCheckpointBinding(legacyRows.CP2, 'CP2', Date.now()),
+            CP3: legacyCheckpointBinding(legacyRows.CP3, 'CP3', Date.now())
+          }
+    } else {
+      const current = epochSet.epochs.find(item => item.epochId === epochSet.currentEpochId)
+      if (input.expectedEpochId && current?.epochId !== input.expectedEpochId) {
+        throw memoryQueryError(
+          'The requested checkpoint epoch is no longer current.',
+          'Re-read the continuity view and retry against its current epoch.',
+          'MEMORY_CP_EPOCH_CAS_MISMATCH'
+        )
+      }
+      if (input.phase === 'CP1' && current?.phases?.CP1?.currentBinding?.bindingDigest !== input.binding.bindingDigest) {
+        const prepared = prepareTaskCheckpointEpochSuccessor({
+          epochSet,
+          stageKey: input.stageKey,
+          cp1Binding: input.binding,
+          authority,
+          runtime: checkpointEpochRuntime(),
+          trigger: 'checkpoint-cp1-successor'
+        })
+        epochSet = prepared.epochSet
+        targetEpochId = prepared.epoch.epochId
+      }
+    }
+    next.taskCheckpointEpochSet = epochSet
+    if (bootstrapAuthority) next.checkpointEpochBootstrapAuthority = bootstrapAuthority
+    next.checkpointEpochCandidateBinding = {
+      schemaVersion: 'CheckpointEpochCandidateBindingV1',
+      binding: input.binding,
+      sourceMessage: String(input.sourceMessage || '')
+    }
+    next.checkpointEpochOperation = sealCheckpointEpochOperation({ ...prospective, epochId: targetEpochId })
+    delete next.checkpointEpochReceipt
+    return next
+  }, 'checkpoint-epoch-prepare')
+}
+
+function machineCommitCheckpointEpochOperation(context) {
+  return commitCheckpointEpochState(context, next => {
+    const operation = next.checkpointEpochOperation
+    const candidate = next.checkpointEpochCandidateBinding
+    if (!operation || operation.status !== 'prepared' || !candidate?.binding ||
+        candidate.binding.bindingDigest !== operation.bindingDigest) {
+      throw memoryQueryError(
+        'Prepared checkpoint operation evidence is incomplete.',
+        'Keep the task read-only and retry after repairing the bounded operation record.',
+        'MEMORY_CP_EPOCH_PREPARE_INVALID'
+      )
+    }
+    let epochSet = next.taskCheckpointEpochSet
+    let epochId = operation.epochId
+    if (epochSet.migration?.status === 'prepared' && next.checkpointEpochBootstrapAuthority) {
+      const activated = activateTaskCheckpointEpochBootstrap({
+        epochSet,
+        authority: next.checkpointEpochBootstrapAuthority,
+        observedEvidence: next.checkpointEpochBootstrapAuthority.evidence
+      })
+      epochSet = activated.epochSet
+      next.checkpointEpochBootstrapAuthority = activated.authority
+      epochId = epochSet.currentEpochId
+      const legacyImport = next.checkpointEpochBootstrapImport
+      if (legacyImport?.CP2 && operation.phase !== 'CP2') {
+        epochSet = confirmTaskCheckpointPhase({
+          epochSet,
+          phase: 'CP2',
+          expectedEpochId: epochId,
+          binding: legacyImport.CP2
+        }).epochSet
+      }
+      if (operation.phase !== 'CP1') {
+        epochSet = confirmTaskCheckpointPhase({
+          epochSet,
+          phase: operation.phase,
+          expectedEpochId: epochId,
+          binding: candidate.binding
+        }).epochSet
+      }
+      delete next.checkpointEpochBootstrapImport
+    } else if (epochSet.epochs.some(item => item.status === 'preparing' && item.epochId === epochId)) {
+      const activated = activateTaskCheckpointEpochSuccessor({ epochSet, epochId })
+      epochSet = activated.epochSet
+      epochId = activated.epoch.epochId
+    } else {
+      const confirmed = confirmTaskCheckpointPhase({
+        epochSet,
+        phase: operation.phase,
+        expectedEpochId: operation.epochId || epochSet.currentEpochId,
+        binding: candidate.binding
+      })
+      epochSet = confirmed.epochSet
+      epochId = confirmed.epoch.epochId
+    }
+    next.taskCheckpointEpochSet = epochSet
+    next.checkpointEpochOperation = advanceCheckpointEpochOperation(operation, 'machine-committed', {
+      epochId,
+      desiredProjectionDigest: checkpointEpochProjectionDigest(epochSet)
+    })
+    return next
+  }, 'checkpoint-epoch-machine-commit')
+}
+
+function projectCheckpointEpochOperation(context, sessionsPath, templateContext, requirement) {
+  const operation = context.state.checkpointEpochOperation
+  const candidate = context.state.checkpointEpochCandidateBinding
+  if (!operation || operation.status !== 'machine-committed' || !candidate?.binding) {
+    throw memoryQueryError('Checkpoint projection has no machine-committed source.', null, 'MEMORY_CP_EPOCH_MACHINE_SOURCE_INVALID')
+  }
+  const transaction = withMemoryTransaction(context.target, sessionsPath, existing => {
+    const rendered = renderTaskCheckpointProjection(existing, context.state.taskCheckpointEpochSet, {
+      requirement,
+      sourceMessagesByArtifactDigest: {
+        [candidate.binding.artifactSha256]: candidate.sourceMessage
+      }
+    })
+    return { content: rendered.content }
+  }, {
+    reconcileIdentity: memoryOperationIdentity('checkpoint-epoch-projection', context.target, {
+      operationId: operation.operationId,
+      desiredProjectionDigest: operation.desiredProjectionDigest
+    }),
+    templateContext
+  })
+  const persisted = readFile(sessionsPath)
+  const marker = parseCurrentEpochMarker(persisted)
+  if (!marker.found || marker.epochId !== operation.epochId ||
+      marker.projectionDigest !== operation.desiredProjectionDigest) {
+    throw memoryQueryError(
+      'Checkpoint projection readback does not match the machine authority.',
+      'The machine state remains authoritative; retry forward projection reconciliation.',
+      'MEMORY_CP_EPOCH_PROJECTION_READBACK_FAILED'
+    )
+  }
+  const observedDigest = fileDigest(persisted)
+  commitCheckpointEpochState(context, next => {
+    const current = next.checkpointEpochOperation
+    if (current.operationId !== operation.operationId || current.status !== 'machine-committed') {
+      throw memoryQueryError('Checkpoint operation changed during projection.', null, 'MEMORY_CP_EPOCH_PROJECTION_CAS_MISMATCH')
+    }
+    next.taskCheckpointEpochSet = finalizeTaskCheckpointProjection(next.taskCheckpointEpochSet, observedDigest)
+    next.checkpointEpochOperation = advanceCheckpointEpochOperation(current, 'projection-committed', { observedProjectionDigest: observedDigest })
+    next.checkpointEpochProjectionTransaction = {
+      schemaVersion: 'MemoryCpProjectionTransactionRefV1',
+      operationId: operation.operationId,
+      transactionDigest: transaction.transactionDigest || transaction.operationDigest || fileDigest(JSON.stringify(transaction)),
+      observedDigest
+    }
+    return next
+  }, 'checkpoint-epoch-projection-commit')
+}
+
+function completeCheckpointEpochOperation(context) {
+  commitCheckpointEpochState(context, next => {
+    const operation = next.checkpointEpochOperation
+    if (!operation || operation.status !== 'projection-committed') {
+      throw memoryQueryError('Checkpoint operation cannot finalize from its current state.', null, 'MEMORY_CP_EPOCH_FINALIZE_INVALID')
+    }
+    next.checkpointEpochOperation = advanceCheckpointEpochOperation(operation, 'complete')
+    delete next.checkpointEpochCandidateBinding
+    return next
+  }, 'checkpoint-epoch-finalize')
+  return createCheckpointEpochReceipt({
+    operation: context.state.checkpointEpochOperation,
+    epochSet: context.state.taskCheckpointEpochSet
+  })
+}
+
+function reconcileCheckpointEpochOperation(context, sessionsPath, templateContext, requirement) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const operation = context.state.checkpointEpochOperation
+    if (!operation || operation.status === 'complete') {
+      return operation?.status === 'complete'
+        ? createCheckpointEpochReceipt({ operation, epochSet: context.state.taskCheckpointEpochSet })
+        : null
+    }
+    if (operation.status === 'prepared') {
+      machineCommitCheckpointEpochOperation(context)
+      continue
+    }
+    if (operation.status === 'machine-committed') {
+      projectCheckpointEpochOperation(context, sessionsPath, templateContext, requirement)
+      continue
+    }
+    if (operation.status === 'projection-committed') return completeCheckpointEpochOperation(context)
+    throw memoryQueryError(
+      `Unsupported checkpoint operation state: ${operation.status}.`,
+      'Keep the task read-only and upgrade or repair the epoch-capable runtime.',
+      'MEMORY_CP_EPOCH_OPERATION_UNSUPPORTED'
+    )
+  }
+  throw memoryQueryError('Checkpoint reconciliation exceeded its bounded transition budget.', null, 'MEMORY_CP_EPOCH_RECONCILE_EXCEEDED')
+}
+
 function handleMemoryCpConfirm(args) {
   if (!args.requirement) throw new Error('requirement is required')
   if (!args.phase) throw new Error('phase is required')
@@ -3797,6 +4353,97 @@ function handleMemoryCpConfirm(args) {
       artifactTargetPath,
       artifactSha256: sha
     })
+  }
+
+  const taskDir = path.dirname(path.dirname(p))
+  const formalIdentity = readCpFormalTaskIdentity(taskDir)
+  if (formalIdentity?.schemaVersion === 'TaskIdentityV2') {
+    const epochContext = cpEpochRecoveryContext({ target, taskDir, identity: formalIdentity })
+    if (epochContext) epochContext.target = target
+    if (epochContext) {
+    if (epochContext.state.checkpointEpochOperation &&
+        epochContext.state.checkpointEpochOperation.status !== 'complete') {
+      reconcileCheckpointEpochOperation(epochContext, p, templateContext, args.requirement)
+    }
+    const currentEpoch = epochContext.state.taskCheckpointEpochSet?.epochs?.find(
+      item => item.epochId === epochContext.state.taskCheckpointEpochSet?.currentEpochId
+    ) || null
+    const stageKey = normalizeStageKey(
+      args.stageKey || (args.phase === 'CP1' ? artifactVersion : currentEpoch?.stageKey) || artifactVersion || args.phase
+    )
+    const epochBinding = checkpointPhaseBinding({
+      phase: args.phase,
+      artifactPath,
+      artifactSha256: sha,
+      artifactVersion,
+      templateQualificationDigest: artifactTemplate.qualification.qualificationDigest,
+      sourceMessage,
+      confirmedAt: time,
+      autoCheckpoint
+    })
+    prepareCheckpointEpochOperation(epochContext, {
+      phase: args.phase,
+      stageKey,
+      expectedEpochId: args.expectedEpochId || null,
+      binding: epochBinding,
+      sourceMessage,
+      sessionsText: readFile(p)
+    })
+    const epochReceipt = reconcileCheckpointEpochOperation(epochContext, p, templateContext, args.requirement)
+    const persisted = readFile(p)
+    assertNoCpRowsOutsideDedicatedBlock(persisted)
+    const block = locateCpTableBlock(persisted)
+    const blockText = block.found ? block.lines.slice(block.start, block.end).join('\n') : ''
+    const parsed = parseCpTableRows(blockText)
+    const phaseRow = parsed[args.phase]
+    const cpRowCount = (blockText.match(/^\|\s*CP[123]\s*\|/gm) || []).length
+    const marker = parseCurrentEpochMarker(persisted)
+    if (!block.found || block.incomplete || cpRowCount !== 3 || !phaseRow?.confirmed ||
+        String(phaseRow.artifactPath || '').replace(/`/gu, '') !== artifactPath ||
+        phaseRow.artifactSha256 !== sha || !marker.found || marker.epochId !== epochReceipt.epochId ||
+        marker.projectionDigest !== epochReceipt.projection.desiredDigest) {
+      throw memoryQueryError(
+        'The finalized checkpoint projection failed its current-epoch readback.',
+        'The machine checkpoint remains authoritative; retry forward reconciliation.',
+        'MEMORY_CP_EPOCH_FINAL_READBACK_FAILED'
+      )
+    }
+    const confirmation = {
+      schemaVersion: 'MemoryCpConfirmationReceiptV2',
+      phase: args.phase,
+      status: 'confirmed',
+      digestBound: true,
+      artifactPath,
+      artifactSha256: sha,
+      artifactAuthority,
+      artifactSlot: artifactTemplate.slot,
+      artifactTemplateBinding: artifactTemplate.binding,
+      artifactTemplateQualification: artifactTemplate.qualification,
+      artifactLinks,
+      artifactLinkReadback: projectMemoryArtifactLinks(target, relativeToActiveRoot(target, p), [{
+        id: `cp-${String(args.phase).toLowerCase()}-artifact`,
+        label: artifactPath,
+        targetPath: artifactTargetPath,
+        purpose: `${args.phase} confirmation artifact`
+      }], { operation: 'validate-existing', surface: 'memory-cp-confirmation' }),
+      autoCheckpointDecision: autoCheckpoint?.decision || null,
+      autoCheckpointState: autoCheckpoint
+        ? { stateSequence: autoCheckpoint.stateSequence, stateDigest: autoCheckpoint.stateDigest, readbackVerified: true }
+        : null,
+      checkpointEpoch: epochReceipt,
+      confirmedAt: time,
+      cpRowCount,
+      readbackVerified: true,
+      mutationAuthority: false
+    }
+    return {
+      content: [{
+        type: 'text',
+        text: `已确认 ${args.phase}，当前任务代际 ${epochReceipt.epochId} 已完成机器状态、会话投影与读回对账。`
+      }],
+      structuredContent: confirmation
+    }
+    }
   }
 
   const transaction = withMemoryTransaction(target, p, existing => {
@@ -4052,8 +4699,108 @@ function handleMemoryTaskResolve(args) {
     ...resolution
   }
   return {
-    content: [{ type: 'text', text: JSON.stringify(response, null, 2) }],
+    content: [{ type: 'text', text: `${humanText}\n${protocolLine}` }],
     structuredContent: response,
+    isError: false
+  }
+}
+
+function provisionalTaskResolution(error, selector, project) {
+  return {
+    schemaVersion: 'TaskResolutionV1',
+    status: 'not-found',
+    errorCode: error?.code || 'TASK_CONTINUITY_SOURCE_UNAVAILABLE',
+    message: error?.message || 'bounded task continuity sources are unavailable',
+    displayQuery: String(selector || ''),
+    project: String(project || ''),
+    candidates: [],
+    suggestions: [],
+    mutationAuthority: false
+  }
+}
+
+function handleMemoryTaskContinuityViewV1(args) {
+  const selector = String(args.taskId || args.name || '').trim()
+  let resolution
+  try {
+    resolution = selector
+      ? resolveTaskContinuation({
+          cwd: INPUT_ROOT,
+          name: selector,
+          project: args.project || '',
+          scope: args.scope || 'auto',
+          persistIndex: false
+        })
+      : resolveUniqueActiveTaskContinuation({
+          cwd: INPUT_ROOT,
+          project: args.project || '',
+          scope: args.scope || 'auto'
+        })
+  } catch (error) {
+    resolution = provisionalTaskResolution(error, selector, args.project)
+  }
+
+  const candidate = resolution.status === 'resolved-active' ? resolution.candidate : null
+  const candidateProject = candidate?.project || args.project || ''
+  let target = null
+  let recoveryRead = { status: 'missing', errorCode: 'TASK_RECOVERY_STATE_UNAVAILABLE' }
+  let projectionMarker = { found: false, epochId: null, projectionDigest: null }
+  let canonicalEvidence = null
+  if (candidate?.taskId && candidateProject) {
+    try {
+      target = taskMemoryTransactionTarget({ project: candidateProject, scope: 'project' })
+      const identity = {
+        activeRoot: target.activeRoot,
+        project: target.project,
+        taskId: candidate.taskId,
+        taskStatus: 'active'
+      }
+      const metaDir = resolveTaskRecoveryMetaDir(identity)
+      recoveryRead = readTaskRecoveryState({ metaDir, identity }, { fs })
+      const sessionsPath = path.join(candidate.taskRoot, '.memory', 'sessions.md')
+      projectionMarker = parseCurrentEpochMarker(readFile(sessionsPath))
+      if (recoveryRead.status === 'fresh' && recoveryRead.state?.admissionTransaction) {
+        try {
+          canonicalEvidence = readFinalizedResumeCanonicalEvidence(
+            recoveryRead.state.admissionTransaction,
+            target.activeRoot,
+            fs,
+            { state: recoveryRead.state }
+          )
+        } catch (error) {
+          canonicalEvidence = { errorCode: error.code || 'TASK_CANONICAL_EVIDENCE_UNAVAILABLE' }
+        }
+      }
+    } catch (error) {
+      recoveryRead = {
+        status: 'error',
+        errorCode: error.code || 'TASK_RECOVERY_STATE_UNAVAILABLE',
+        message: error.message
+      }
+    }
+  }
+
+  const view = buildTaskContinuityView({
+    resolution,
+    recoveryRead,
+    projectionMarker,
+    canonicalEvidence,
+    project: candidateProject,
+    activeRoot: target?.activeRoot || '',
+    priorDisambiguationReceiptDigest: args.priorDisambiguationReceiptDigest || null
+  })
+  const persistedLanguage = recoveryRead.state?.languageContext || {}
+  const requestedLocale = normalizeLanguageTag(args.locale)
+  const durableLocale = normalizeLanguageTag(
+    persistedLanguage.responseLanguage ||
+    persistedLanguage.primaryLanguage ||
+    persistedLanguage.durablePrimaryLocale
+  )
+  const languageEvidence = `${args.name || ''}${candidate?.displayName || ''}`
+  const locale = requestedLocale || durableLocale || (/\p{Script=Han}/u.test(languageEvidence) ? 'zh-CN' : 'en-US')
+  return {
+    content: [{ type: 'text', text: renderTaskContinuityViewHuman(view, { locale }) }],
+    structuredContent: view,
     isError: false
   }
 }
@@ -4149,14 +4896,58 @@ function verifiedResumeLifecycleContext(target, binding) {
   if (!exactPlanBinding || !exactReceiptBinding) {
     return { status: 'invalid', reasonCode: 'lifecycle-context-binding-mismatch' }
   }
-  const hostSessionId = String(receipt.identity?.hostSessionId || acquisition.hostSessionId || '').trim()
+  const receiptHostSessionId = String(receipt.identity?.hostSessionId || '').trim()
+  const acquisitionHostSessionId = String(acquisition.hostSessionId || '').trim()
+  if (receiptHostSessionId && acquisitionHostSessionId && receiptHostSessionId !== acquisitionHostSessionId) {
+    return { status: 'invalid', reasonCode: 'lifecycle-host-session-binding-mismatch' }
+  }
+  const hostSessionId = receiptHostSessionId || acquisitionHostSessionId
   if (!hostSessionId) return { status: 'unavailable', reasonCode: 'lifecycle-host-session-missing' }
   const hostSessionDigest = crypto.createHash('sha256').update(hostSessionId).digest('hex')
   const envelope = state.actualInstructionEnvelope || {}
-  if (envelope.contextEpoch !== binding.contextEpoch || envelope.hostSessionDigest !== hostSessionDigest) {
+  const workItemSet = state.workItemSet || {}
+  const routeDecision = state.workflowRouteDecision || {}
+  const projectTargetLease = state.stickyProject || null
+  const envelopePresent = Object.keys(envelope).length > 0
+  const workItemSetPresent = Object.keys(workItemSet).length > 0
+  const routeDecisionPresent = Object.keys(routeDecision).length > 0
+  const projectTargetLeasePresent = !!(
+    projectTargetLease && typeof projectTargetLease === 'object' && Object.keys(projectTargetLease).length
+  )
+  if (!envelopePresent && !workItemSetPresent && !routeDecisionPresent && !projectTargetLeasePresent) {
+    return {
+      status: 'context-only',
+      reasonCode: 'lifecycle-read-only-resume-bootstrap',
+      hostSessionId,
+      hostSessionDigest,
+      projectTargetLease: null
+    }
+  }
+  if (!envelopePresent || !workItemSetPresent || !routeDecisionPresent || !projectTargetLeasePresent ||
+      envelope.contextEpoch !== binding.contextEpoch || envelope.hostSessionDigest !== hostSessionDigest ||
+      workItemSet.envelopeId !== envelope.envelopeId || workItemSet.envelopeDigest !== envelope.envelopeDigest ||
+      routeDecision.envelopeId !== envelope.envelopeId || routeDecision.envelopeDigest !== envelope.envelopeDigest ||
+      routeDecision.topIntent !== 'resume' || routeDecision.routeKey !== 'resume' || routeDecision.stage !== 'rehydrate') {
     return { status: 'invalid', reasonCode: 'lifecycle-host-session-mismatch' }
   }
-  const projectTargetLease = state.stickyProject || null
+  const envelopeValidation = validateActualInstructionEnvelope(envelope)
+  const workItemValidation = validateWorkItemSet(workItemSet, envelope)
+  const routeValidation = verifyWorkflowRouteDecision(routeDecision, {
+    envelopeDigest: envelope.envelopeDigest,
+    workItemDigest: routeDecision.workItemDigest,
+    routeRevision: routeDecision.routeRevision,
+    actualInstructionEnvelope: envelope,
+    workItemSet
+  })
+  if (!envelopeValidation.valid || envelope.instructionAuthority !== true ||
+      envelope.authorityScope !== 'trusted-host-workflow-ingress' || !workItemValidation.valid ||
+      !routeValidation.fresh || routeDecision.decisionStatus !== 'selected') {
+    return {
+      status: 'invalid',
+      reasonCode: 'lifecycle-trusted-ingress-invalid',
+      errors: [...new Set([...envelopeValidation.errors, ...workItemValidation.errors, ...routeValidation.errors])]
+    }
+  }
   const leaseValidation = validateProjectTargetLease(projectTargetLease, {
     project: target.project,
     activeRoot: target.activeRoot,
@@ -4168,6 +4959,20 @@ function verifiedResumeLifecycleContext(target, binding) {
     !(receipt.missingSourceIds || []).length
   const leaseExpiredOnly = !leaseValidation.valid && leaseValidation.errors.length > 0 &&
     leaseValidation.errors.every(error => error === 'lease-time')
+  const ingressRef = {
+    schemaVersion: 'WorkflowIngressProjectionRefV1',
+    envelopeId: envelope.envelopeId,
+    envelopeDigest: envelope.envelopeDigest,
+    decisionDigest: routeDecision.decisionDigest,
+    routeRevision: routeDecision.routeRevision
+  }
+  if (!leaseValidation.valid && !leaseExpiredOnly) {
+    return {
+      status: 'invalid',
+      reasonCode: 'lifecycle-project-target-lease-invalid',
+      errors: leaseValidation.errors
+    }
+  }
   if (!receiptComplete || leaseExpiredOnly) {
     return {
       status: 'recoverable-stale',
@@ -4177,17 +4982,19 @@ function verifiedResumeLifecycleContext(target, binding) {
       hostSessionId,
       hostSessionDigest,
       projectTargetLease: leaseValidation.valid ? projectTargetLease : null,
-      errors: leaseValidation.valid ? [] : leaseValidation.errors
+      errors: leaseValidation.valid ? [] : leaseValidation.errors,
+      lifecycleState: state,
+      ingressRef
     }
   }
-  if (!leaseValidation.valid) {
-    return {
-      status: 'invalid',
-      reasonCode: 'lifecycle-project-target-lease-invalid',
-      errors: leaseValidation.errors
-    }
+  return {
+    status: 'verified',
+    hostSessionId,
+    hostSessionDigest,
+    projectTargetLease,
+    lifecycleState: state,
+    ingressRef
   }
-  return { status: 'verified', hostSessionId, hostSessionDigest, projectTargetLease }
 }
 
 function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
@@ -4662,7 +5469,9 @@ function resolveResumeContextAuthorization(target, contextBinding) {
   const environmentSession = String(process.env.DEVCODEX_HOST_SESSION_ID || '').trim()
   const sessionCandidates = [...new Set([
     ...observedSessions,
-    ['verified', 'recoverable-stale'].includes(lifecycleContext.status) ? lifecycleContext.hostSessionId : '',
+    ['verified', 'recoverable-stale', 'context-only'].includes(lifecycleContext.status)
+      ? lifecycleContext.hostSessionId
+      : '',
     environmentSession
   ].filter(Boolean))]
   if (sessionCandidates.length > 1) {
@@ -4702,6 +5511,12 @@ function resolveResumeContextAuthorization(target, contextBinding) {
     hostSessionId,
     lifecycleProjectTargetLease: ['verified', 'recoverable-stale'].includes(lifecycleContext.status)
       ? lifecycleContext.projectTargetLease
+      : null,
+    lifecycleIngressRef: ['verified', 'recoverable-stale'].includes(lifecycleContext.status)
+      ? lifecycleContext.ingressRef
+      : null,
+    lifecycleState: ['verified', 'recoverable-stale'].includes(lifecycleContext.status)
+      ? lifecycleContext.lifecycleState
       : null,
     receipt
   }
@@ -4759,6 +5574,116 @@ function boundedResumeProjectLease(target, transaction, envelope, routeDecision,
   }
 }
 
+function currentTrustedResumeIngress(target, context) {
+  const state = context?.lifecycleState
+  if (!context?.lifecycleIngressRef || !state) return null
+  const envelope = state.actualInstructionEnvelope || {}
+  const decision = state.workflowRouteDecision || {}
+  if (envelope.contextEpoch !== context.binding.contextEpoch ||
+      envelope.hostSessionDigest !== crypto.createHash('sha256').update(context.hostSessionId).digest('hex') ||
+      decision.topIntent !== 'resume' || decision.routeKey !== 'resume' || decision.stage !== 'rehydrate' ||
+      decision.routeRevision !== context.authorization.plan.workflowRoute.routeRevision) return null
+  return {
+    actualInstructionEnvelope: envelope,
+    workItemSet: state.workItemSet,
+    workflowRouteDecision: decision,
+    projectTargetLease: state.stickyProject,
+    projectRoot: currentPhysicalProjectRoot(target),
+    lifecycleState: state,
+    ingressSnapshotRef: null,
+    authorityReceipt: {
+      schemaVersion: 'ServerOwnedAdmissionIngressReceiptV1',
+      source: 'verified-current-lifecycle-resume',
+      sourceDigest: stableRuntimeDigest({
+        ingressRef: context.lifecycleIngressRef,
+        contextBinding: context.binding,
+        hostSessionDigest: envelope.hostSessionDigest
+      }),
+      envelopeDigest: envelope.envelopeDigest,
+      decisionDigest: decision.decisionDigest,
+      projectTargetLeaseDigest: state.stickyProject.leaseDigest,
+      mutationAuthority: false
+    }
+  }
+}
+
+function buildFinalizedResumeStateHandoff(target, taskId, context, ingress, nowMs = Date.now()) {
+  const envelope = ingress.actualInstructionEnvelope
+  const decision = ingress.workflowRouteDecision
+  const lifecycleState = context?.lifecycleState || {}
+  const projectRootIdentity = validationProjectRootIdentity(currentPhysicalProjectRoot(target))
+  let validationControlIngress = null
+  const currentControl = lifecycleState.validationControlIngress
+  if (currentControl && validateValidationControlIngressReceipt(currentControl, {
+    hostSessionDigest: envelope.hostSessionDigest,
+    contextEpoch: envelope.contextEpoch,
+    taskRecoveryKey: taskId,
+    project: target.project,
+    projectRootIdentity
+  }, { now: nowMs }).valid) {
+    validationControlIngress = currentControl
+  }
+  const intent = lifecycleState.validationControlIngressIntent
+  if (!validationControlIngress && intent &&
+      validateValidationControlIngressIntent(intent, null, { now: nowMs }).valid) {
+    try {
+      validationControlIngress = bindValidationControlIngressIntent(intent, {
+        actualInstructionEnvelope: envelope,
+        taskRecoveryKey: taskId,
+        project: target.project,
+        projectRootIdentity
+      }, { now: nowMs })
+    } catch { }
+  }
+  const observedStickyAuto = lifecycleState.stickyAuto || null
+  const observedStickyAutoCurrent = validationControlIngress?.action === 'auto-authorize' &&
+    observedStickyAuto?.active === true && String(observedStickyAuto.authorityRef || '').trim() &&
+    observedStickyAuto.sourceMessageDigest === envelope.actualInstructionDigest &&
+    crypto.createHash('sha256').update(String(observedStickyAuto.sessionKey || '')).digest('hex') === envelope.hostSessionDigest &&
+    Number.isFinite(Number(observedStickyAuto.updatedAtMs)) &&
+    nowMs - Number(observedStickyAuto.updatedAtMs) >= 0 && nowMs - Number(observedStickyAuto.updatedAtMs) <= 30 * 60 * 1000
+  const stickyAuto = validationControlIngress?.action === 'auto-authorize'
+    ? (observedStickyAutoCurrent
+        ? observedStickyAuto
+        : {
+            active: true,
+            source: 'validation-control-intent',
+            kind: 'taskless-resume-handoff',
+            sessionKey: context.hostSessionId,
+            updatedAt: new Date(nowMs).toISOString(),
+            updatedAtMs: nowMs,
+            authorityRef: `auto:resume-control:${intent?.intentDigest || validationControlIngress.receiptDigest}`,
+            sourceMessageDigest: envelope.actualInstructionDigest,
+            reason: ''
+          })
+    : null
+  return {
+    schemaVersion: 'FinalizedTaskResumeStateHandoffV1',
+    contextAcquisition: {
+      schemaVersion: 'ContextReadStateV2',
+      contextEpoch: context.binding.contextEpoch,
+      activeRoot: target.activeRoot,
+      project: target.project,
+      targetResolved: true,
+      hostSessionId: context.hostSessionId,
+      verificationMode: 'structured-plan',
+      plan: context.authorization.plan,
+      receipt: context.receipt
+    },
+    workflowRoutePlanBinding: {
+      schemaVersion: 'WorkflowRoutePlanBindingV1',
+      bindingDigest: ingress.projectTargetLease.contextBindingDigest,
+      routeRevision: decision.routeRevision,
+      contextEpoch: envelope.contextEpoch,
+      source: 'bounded-resume-v5'
+    },
+    validationControlIngress,
+    stickyAuto,
+    executionMode: stickyAuto ? 'auto' : 'confirm',
+    handoffAt: new Date(nowMs).toISOString()
+  }
+}
+
 function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) {
   const taskId = String(args.task?.taskId || '').trim().toLowerCase()
   let { metaDir, ownerRead } = exactResumeTaskState(target, taskId, { allowOwnerFenced: true })
@@ -4798,9 +5723,11 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
   const canonical = readFinalizedResumeCanonicalEvidence(transaction, target.activeRoot, fs, {
     state: ownerRead.state
   })
-  if (String(args.overview?.content || '') !== canonical.canonicalOverviewContent) {
-    throw taskAdmissionIngressError('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', 'overview must exactly match the canonical task overview')
-  }
+  // The server-owned stable read is authoritative. A caller resuming from an
+  // earlier conversation may legitimately echo an older overview; requiring
+  // byte equality here would turn normal CP-driven task evolution into a
+  // permanent resume failure. Identity, containment, CP lineage, owner and
+  // runtime evidence remain fail-closed below and in executeTaskAdmission.
   const existingAuthorized = readBoundedResumeIngressCapability({
     metaDir,
     ingressRef: {
@@ -4909,7 +5836,8 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
       ownerExpiresAt: ownerRead.owner?.expiresAt || null
     },
     runtime: MEMORY_RUNTIME_IDENTITY,
-    liveness
+    liveness,
+    resumeStateHandoff: ingress.resumeStateHandoff || null
   }, { fs, nowMs })
   if (!['persisted', 'semantic-noop'].includes(write.status)) {
     throw taskAdmissionIngressError(
@@ -4952,41 +5880,47 @@ function buildBoundedResumeFallbackIngress(target, args) {
   const { ownerRead } = exactResumeTaskState(target, taskId, { allowOwnerFenced: true })
   const transaction = ownerRead.transaction
   const nowMs = Date.now()
-  const bucket = Math.floor(nowMs / (10 * 60 * 1000))
-  const bucketStartedAtMs = bucket * 10 * 60 * 1000
-  const sourceEventId = stableRuntimeDigest({
-    contextEpoch: context.binding.contextEpoch,
-    planId: context.binding.planId,
-    taskId,
-    bucket
-  })
-  const envelope = buildActualInstructionEnvelope({
-    sourceEventId,
-    issuedAt: new Date(bucketStartedAtMs).toISOString()
-  }, {
-    actualInstruction: `Resume existing formal task ${taskId}`,
-    hostVariant: `devcodex-memory/${DEFAULT_AGENT}/bounded-resume`,
-    hostSessionId: context.hostSessionId,
-    turnId: `resume-${context.binding.contextEpoch}-${bucket}`,
-    contextEpoch: context.binding.contextEpoch,
-    trustedHostEvent: false,
-    ttlMs: 20 * 60 * 1000,
-    nowMs
-  })
-  const workItemSet = buildWorkItemSet(envelope, {
-    workItems: [{ taskKind: 'resume', routeCandidate: 'resume' }]
-  })
-  const workItem = workItemSet.items[0]
-  const routeDecision = buildWorkflowRouteDecision({
-    actualInstructionEnvelope: envelope,
-    workItemSet,
-    workItemId: workItem.workItemId,
-    environmentMode: 'dev',
-    topIntent: 'resume',
-    subtype: context.authorization.plan.workflowRoute.subtype,
-    routeKey: 'resume',
-    stage: 'rehydrate'
-  })
+  const trustedIngress = currentTrustedResumeIngress(target, context)
+  let envelope = trustedIngress?.actualInstructionEnvelope || null
+  let workItemSet = trustedIngress?.workItemSet || null
+  let routeDecision = trustedIngress?.workflowRouteDecision || null
+  if (!trustedIngress) {
+    const bucket = Math.floor(nowMs / (10 * 60 * 1000))
+    const bucketStartedAtMs = bucket * 10 * 60 * 1000
+    const sourceEventId = stableRuntimeDigest({
+      contextEpoch: context.binding.contextEpoch,
+      planId: context.binding.planId,
+      taskId,
+      bucket
+    })
+    envelope = buildActualInstructionEnvelope({
+      sourceEventId,
+      issuedAt: new Date(bucketStartedAtMs).toISOString()
+    }, {
+      actualInstruction: `Resume existing formal task ${taskId}`,
+      hostVariant: `devcodex-memory/${DEFAULT_AGENT}/bounded-resume`,
+      hostSessionId: context.hostSessionId,
+      turnId: `resume-${context.binding.contextEpoch}-${bucket}`,
+      contextEpoch: context.binding.contextEpoch,
+      trustedHostEvent: false,
+      ttlMs: 20 * 60 * 1000,
+      nowMs
+    })
+    workItemSet = buildWorkItemSet(envelope, {
+      workItems: [{ taskKind: 'resume', routeCandidate: 'resume' }]
+    })
+    const workItem = workItemSet.items[0]
+    routeDecision = buildWorkflowRouteDecision({
+      actualInstructionEnvelope: envelope,
+      workItemSet,
+      workItemId: workItem.workItemId,
+      environmentMode: 'dev',
+      topIntent: 'resume',
+      subtype: context.authorization.plan.workflowRoute.subtype,
+      routeKey: 'resume',
+      stage: 'rehydrate'
+    })
+  }
   const projectTargetLease = boundedResumeProjectLease(
     target,
     transaction,
@@ -4997,17 +5931,26 @@ function buildBoundedResumeFallbackIngress(target, args) {
     context.hostSessionId,
     context.lifecycleProjectTargetLease
   )
-  const prepared = prepareFinalizedResumeCandidate(target, args, {
+  const resumeIngress = {
     actualInstructionEnvelope: envelope,
     workItemSet,
     workflowRouteDecision: routeDecision,
     projectTargetLease,
     projectRoot: currentPhysicalProjectRoot(target),
-    lifecycleState: ownerRead.state,
+    lifecycleState: context.lifecycleState || ownerRead.state,
     ingressSnapshotRef: null,
-    authorityReceipt: null
-  }, context.binding)
+    authorityReceipt: trustedIngress?.authorityReceipt || null
+  }
+  resumeIngress.resumeStateHandoff = buildFinalizedResumeStateHandoff(
+    target,
+    taskId,
+    context,
+    resumeIngress,
+    nowMs
+  )
+  const prepared = prepareFinalizedResumeCandidate(target, args, resumeIngress, context.binding)
   prepared.ingress.contextReceipt = context.receipt
+  prepared.ingress.trustedHostIngressReused = Boolean(trustedIngress)
   return prepared
 }
 
@@ -5034,7 +5977,9 @@ function handleMemoryTaskAdmitV2(args) {
   if (hasResumeContext) {
     preparedResume = buildBoundedResumeFallbackIngress(target, args)
     ingress = preparedResume.ingress
-    ingressSource = 'bounded-resume-fallback'
+    ingressSource = preparedResume.ingress.trustedHostIngressReused
+      ? 'bounded-resume-current-trusted'
+      : 'bounded-resume-fallback'
   } else {
     ingress = readServerOwnedAdmissionIngress(target, args.ingressRef, { allowSnapshot: true })
     const isFinalizedResume = ['bind', 'adopt'].includes(String(args.operation || '')) &&
@@ -5042,6 +5987,17 @@ function handleMemoryTaskAdmitV2(args) {
       ingress.workflowRouteDecision?.routeKey === 'resume'
     if (isFinalizedResume) {
       const contextBinding = ingress.lifecycleState?.contextAcquisition?.plan?.contextBinding || null
+      if (contextBinding) {
+        try {
+          const context = resolveResumeContextAuthorization(target, contextBinding)
+          ingress.resumeStateHandoff = buildFinalizedResumeStateHandoff(
+            target,
+            String(args.task?.taskId || '').trim().toLowerCase(),
+            context,
+            ingress
+          )
+        } catch { }
+      }
       preparedResume = prepareFinalizedResumeCandidate(target, args, ingress, contextBinding)
       ingress = preparedResume.ingress
     }
@@ -5537,6 +6493,7 @@ function dispatch(method, params) {
           case 'memory_task_closeout_reconcile_v1': return handleMemoryTaskCloseoutReconcileV1(args)
           case 'memory_artifact_mutation_reconcile_v1': return handleMemoryArtifactMutationReconcileV1(args)
           case 'memory_task_resolve': return handleMemoryTaskResolve(args)
+          case 'memory_task_continuity_view_v1': return handleMemoryTaskContinuityViewV1(args)
           case 'memory_status': return handleMemoryStatus(args)
           case 'memory_session_query': return handleMemorySessionQuery(args)
           case 'memory_summary_query': return handleMemorySummaryQuery(args)

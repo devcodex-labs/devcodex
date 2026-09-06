@@ -65,6 +65,7 @@ const {
 const {
   createWorkflowOperationalWriteLease
 } = require('../hooks/_runtime/workflow-operational-write-lease.cjs')
+const { compactLanguageContext } = require('../hooks/_runtime/language-context.cjs')
 const {
   markTaskOperationDispatched,
   markTaskOperationObserved,
@@ -84,7 +85,7 @@ const baseOptions = {
 }
 
 function zhLanguageContext(turnClass = 'neutral') {
-  return {
+  return compactLanguageContext({
     schemaVersion: 'LanguageContextV2',
     primaryLanguage: 'zh-CN',
     responseLanguage: 'zh-CN',
@@ -93,7 +94,7 @@ function zhLanguageContext(turnClass = 'neutral') {
     source: 'task-primary-language',
     confidence: 'high',
     updatedPrimary: false
-  }
+  })
 }
 
 function identity(taskId, taskStatus = 'active') {
@@ -756,6 +757,120 @@ function runTasklessIngressRecoveryScenario() {
     }).errorCode,
     'TASKLESS_INGRESS_RECOVERY_EXPIRED'
   )
+  const bootstrapNowMs = baseOptions.nowMs + 2 * 60 * 60 * 1000
+  const bootstrapInput = {
+    metaDir: tasklessIngressMeta,
+    sessionKey: 'taskless-ingress-session',
+    expectedIdentity: { activeRoot, project: 'devcodex' },
+    identity: { activeRoot, project: 'devcodex' },
+    readFallback: () => ({
+      version: 2,
+      mode: 'resume',
+      activeProject: 'devcodex',
+      activeScope: 'project',
+      contextAcquisition: {
+        schemaVersion: 'ContextReadStateV2',
+        contextEpoch: 'ctx-expired-taskless-bootstrap',
+        activeRoot,
+        project: 'devcodex',
+        targetResolved: true,
+        hostSessionId: 'taskless-ingress-session',
+        verificationMode: 'structured-plan',
+        plan: {
+          planId: 'plan-expired-taskless-bootstrap',
+          planContentId: `plan-content-${'a'.repeat(64)}`
+        },
+        receipt: { status: 'complete', missingSourceIds: [] }
+      },
+      // These fields prove that the session mapping override strips authority
+      // even if the stable projection used as the fold base contains it.
+      taskRecoveryBinding: { taskId: '00000000-0000-4000-8000-000000000001' },
+      workflowOperationalWriteLease: { mutationAuthority: true },
+      simpleTaskFastPathLease: { mutationAuthority: true }
+    })
+  }
+  const bootstrapUpdate = lifecycle => ({
+    ...lifecycle,
+    contextObservationFold: { schemaVersion: 'ContextObservationFoldReceiptV1' }
+  })
+  const unqualifiedBootstrap = updateTaskRecoveryState(bootstrapInput, bootstrapUpdate, {
+    ...baseOptions,
+    nowMs: bootstrapNowMs,
+    force: true,
+    touchSessionMapping: true,
+    reason: 'context-source-observation'
+  })
+  assert.strictEqual(unqualifiedBootstrap.status, 'error')
+  assert.strictEqual(unqualifiedBootstrap.errorCode, 'TASKLESS_INGRESS_RECOVERY_EXPIRED')
+  const wrongReasonBootstrap = updateTaskRecoveryState(bootstrapInput, bootstrapUpdate, {
+    ...baseOptions,
+    nowMs: bootstrapNowMs,
+    force: true,
+    touchSessionMapping: true,
+    reason: 'different-read-only-operation',
+    allowExpiredTasklessContextBootstrap: true
+  })
+  assert.strictEqual(wrongReasonBootstrap.status, 'error')
+  assert.strictEqual(wrongReasonBootstrap.errorCode, 'TASKLESS_INGRESS_RECOVERY_EXPIRED')
+  const wrongIdentityBootstrap = updateTaskRecoveryState({
+    ...bootstrapInput,
+    expectedIdentity: { activeRoot, project: 'different-project' },
+    identity: { activeRoot, project: 'different-project' }
+  }, bootstrapUpdate, {
+    ...baseOptions,
+    nowMs: bootstrapNowMs,
+    force: true,
+    touchSessionMapping: true,
+    reason: 'context-source-observation',
+    allowExpiredTasklessContextBootstrap: true
+  })
+  assert.strictEqual(wrongIdentityBootstrap.status, 'error')
+  assert.strictEqual(wrongIdentityBootstrap.errorCode, 'LIFECYCLE_STATE_IDENTITY_MISMATCH')
+
+  const tamperedBootstrapSession = 'taskless-ingress-tampered-bootstrap'
+  const persistedTamperedIngress = JSON.parse(JSON.stringify(tasklessIngress))
+  persistedTamperedIngress.workflowRouteDecision.decisionDigest = 'f'.repeat(64)
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir: tasklessIngressMeta,
+    identity: { activeRoot, project: 'devcodex' },
+    sessionKey: tamperedBootstrapSession,
+    state: persistedTamperedIngress
+  }, baseOptions).status, 'ephemeral-stub')
+  const tamperedBootstrap = updateTaskRecoveryState({
+    ...bootstrapInput,
+    sessionKey: tamperedBootstrapSession
+  }, bootstrapUpdate, {
+    ...baseOptions,
+    force: true,
+    touchSessionMapping: true,
+    reason: 'context-source-observation',
+    allowExpiredTasklessContextBootstrap: true
+  })
+  assert.strictEqual(tamperedBootstrap.status, 'error')
+  assert.strictEqual(tamperedBootstrap.errorCode, 'TASKLESS_INGRESS_RECOVERY_BINDING_MISMATCH')
+
+  const qualifiedBootstrap = updateTaskRecoveryState(bootstrapInput, bootstrapUpdate, {
+    ...baseOptions,
+    nowMs: bootstrapNowMs,
+    force: true,
+    touchSessionMapping: true,
+    reason: 'context-source-observation',
+    allowExpiredTasklessContextBootstrap: true
+  })
+  assert.strictEqual(qualifiedBootstrap.status, 'ephemeral-stub', JSON.stringify(qualifiedBootstrap))
+  assert.strictEqual(qualifiedBootstrap.state.contextAcquisition.receipt.status, 'complete')
+  const bootstrappedRead = readTaskRecoveryState({
+    metaDir: tasklessIngressMeta,
+    sessionKey: 'taskless-ingress-session',
+    expectedIdentity: { activeRoot, project: 'devcodex' }
+  }, { ...baseOptions, nowMs: bootstrapNowMs })
+  assert.strictEqual(bootstrappedRead.status, 'ephemeral-stub')
+  assert.strictEqual(bootstrappedRead.ingressRecovery.status, 'legacy-unverified')
+  assert.strictEqual(bootstrappedRead.ingressRecovery.authority, undefined)
+  assert.strictEqual(bootstrappedRead.state.taskRecoveryBinding, null)
+  assert.strictEqual(bootstrappedRead.state.workflowOperationalWriteLease, null)
+  assert.strictEqual(bootstrappedRead.state.simpleTaskFastPathLease, undefined)
+  assert.strictEqual(bootstrappedRead.state.actualInstructionEnvelope, null)
   const tasklessIngressRing = storePaths(tasklessIngressMeta).ephemeral
     .filter(file => fs.existsSync(file))
     .map(file => JSON.parse(fs.readFileSync(file, 'utf8')))

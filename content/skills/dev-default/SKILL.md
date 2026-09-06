@@ -43,7 +43,7 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 
 **验证卫生与串行边界（F-30） / 验证卫生与并发边界**：按 `ConcurrencyPolicy` 执行：只读准备和隔离验证可在不共享输出目录时并行；release / pack / benchmark / codegen / package boundary 检查不得与会删除、重建或写入 `dist` 的命令并行；消费者验证异常时先核对 package.json / lockfile / node_modules / `npm ls <关键依赖>`；完成前检查并清理本轮或旧验证遗留的无关 dirty 文件。
 
-**多需求并行编排（F-30A）**：N5 前若出现多个 requirement / bug / optimization / scenario-test、用户要求并行推进、子 Agent、子会话或 worktree，必须先调用 `requirement-parallel-orchestration`。只有 `RequirementIndependenceDecisionV1.status=independent` 且 `ParallelLaunchCardV1` 校验通过时，才允许派发隔离执行；`weakly-coupled-lock` 只允许并行准备 + 单写者检查点；`serial-required` 禁止并行 source mutation。
+**多需求并行编排（F-30A）**：N5 前若出现多个 requirement / bug / optimization / scenario-test、用户要求并行推进、子 Agent、子会话或 worktree，必须先调用 `requirement-parallel-orchestration`。`RequirementIndependenceDecisionV1.status=independent` 与 valid `ParallelLaunchCardV1` 只证明可规划；实际派发还必须取得当前宿主 direct collaboration capability、`HostSubagentDispatchPlanV1.status=parallel-eligible` 和逐项 `AgentWorkLeaseV1`。child 仅执行 read-only、独占 `.tmp` 验证或 separate-worktree patch，结果经根 Agent 校验、固定顺序汇合和重测后才可使用；timeout/cancel/late/invalid 自动隔离并由根 Agent 执行同 work graph 串行回退。`weakly-coupled-lock` 只允许并行准备 + 单写者检查点；`serial-required` 或无新鲜宿主证据禁止并行 source mutation，但不得阻断主任务。
 
 **技术路线对比门禁（F-31）**：技术路线、架构优化、性能优化、框架能力设计或高维护成本方案，在 CP1 最终需求确认前执行对比调研；若存在同类产品/项目/框架/本仓库相似模块可比，必须记录证据范围和采纳/不采纳理由；不触发时写 `N/A + skipReason`。
 

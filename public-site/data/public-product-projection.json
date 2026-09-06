@@ -1,8 +1,8 @@
 {
   "schemaVersion": "PublicProductProjectionV2",
-  "generatedAt": "2026-08-29T18:02:04.346Z",
+  "generatedAt": "2026-09-06T12:59:26.451Z",
   "release": {
-    "version": "1.19.5"
+    "version": "1.20.0"
   },
   "expression": {
     "schemaVersion": "PublicProductExpressionV2",
@@ -953,7 +953,7 @@
       {
         "id": "requirement-parallel-orchestration",
         "name": "requirement-parallel-orchestration",
-        "description": "多需求并行编排 Skill — 当任务涉及多个需求/问题/优化并行推进、子会话、子 Agent、worktree 或多 active work 执行前判定时，生成 RequirementIndependenceGate、SharedSurfaceLockMap 与 ParallelLaunchCard。",
+        "description": "多需求与宿主原生子 Agent 编排 Skill — 先判断工作项独立性，再以新鲜宿主能力、租约、隔离证据和根 Agent 单写者完成受控派发或自动串行回退。",
         "lifecycleState": "active",
         "publicCategory": "workflow-routing"
       },
@@ -1184,10 +1184,10 @@
     }
   ],
   "sourceIdentities": {
-    "package": "ca1254f3f7335c5aaa528d9616738b3bf16c23b0dffb5bffa1c8ea82eca25628",
+    "package": "c82436110c9d3144e843c278393def6e4de1d8fdb6341e8877a22294b3b52f44",
     "expression": "60e525d34e5531e6b4bbbb77f8b34bb93c9ca9ebee5df4fe2812749232175c3c",
     "workflows": "d9eb7086866fe3c3815f673957ed978c1594079261009ac775bf3e1336ad44fd",
-    "portfolio": "bd40c5a71f3751d219466613d73196f08f7d373b16996f8f8ae24e3c7ec74784",
+    "portfolio": "7f27a2b9378febe1d31909e5c9d6a002e1e0f151800b89670925a99f784a4d44",
     "taxonomy": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030"
   }
 }

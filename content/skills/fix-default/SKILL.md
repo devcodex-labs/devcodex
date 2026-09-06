@@ -56,7 +56,7 @@ description: 默认修复子类型规范 — Bug 修复三步扫描 + CP 流程
 ## 关键规则
 
 - 修复三步扫描按统一联查矩阵视为 L2 起步；命中控制面、多真相源、模板-示例-校验链或部署副本时，必须升为 L3
-- 多个修复项、并行修复、子 Agent、子会话或 worktree 进入执行前，必须先调用 `requirement-parallel-orchestration`；未得到 valid `ParallelLaunchCardV1` 时，修复源码写入保持串行。
+- 多个修复项、并行修复、子 Agent、子会话或 worktree 进入执行前，必须先调用 `requirement-parallel-orchestration`；valid `ParallelLaunchCardV1` 仍需当前宿主 direct capability、parallel-eligible `HostSubagentDispatchPlanV1` 与 `AgentWorkLeaseV1` 才可派发。child 不得直接写 root checkout 或正式共享状态；timeout/cancel/late/路径或 dirty 漂移一律 quarantine，根 Agent 自动接管相同 work item 串行修复。任一证据缺失时源码写入保持串行，不能因无并行能力阻断修复任务。
 - 所有 repair 的完成证据必须同时包含当前关闭结论和 `RepairPreventionAssessmentV1`；若判定 `no-new-control`，必须给标准 reason 与独立证据，禁止静默跳过
 - 高风险控制面 / 多批次修复的 ExecutionContract 与 TestRoute 必须显式列出历史能力回归矩阵，至少写清“历史能力 → 受影响批次 → 必跑验证 → 失败回滚点”
 - 修复必须附带回归测试，禁止无测试的 hotfix（emergency 除外）

@@ -15,6 +15,12 @@ const {
 } = require('./validation-execution-authority')
 const { buildCandidateIdentity, manifestIdentity } = require('./validation-dag')
 const { createValidationEvidenceStore } = require('./validation-evidence-store')
+const { clampConcurrency } = require('./validation-wave-executor')
+const {
+  estimateValidationEta,
+  readValidationPerformanceHistory,
+  recordValidationPerformance
+} = require('./validation-performance-history')
 
 const RUNNER_SCHEMA = 'ManagedValidationRunnerV2'
 const RUNNER_STATE_SCHEMA = 'ManagedValidationRunnerStateV2'
@@ -132,15 +138,18 @@ function validateRunCheckpoint(checkpoint, { lease, plan, candidate, manifest, r
 }
 
 function buildRunHeartbeat({ lease, attempt, currentNode, completedNodeCount, totalNodeCount, startedAt,
-  hardDeadlineAt, observedAt = new Date().toISOString() }) {
+  hardDeadlineAt, recentNode = null, eta = null, observedAt = new Date().toISOString() }) {
   const core = {
     schemaVersion: RUN_HEARTBEAT_SCHEMA,
     runIdentityDigest: lease.runIdentityDigest,
     attempt,
+    stage: 'validation',
     currentNode: currentNode || null,
+    recentNode: recentNode || null,
     completedNodeCount,
     totalNodeCount,
     elapsedMs: Math.max(0, Date.parse(observedAt) - Date.parse(startedAt)),
+    eta,
     hardDeadlineAt,
     observedAt
   }
@@ -553,6 +562,9 @@ async function runManagedValidation(input = {}) {
   const heartbeatIntervalMs = process.env.DEVCODEX_VALIDATION_TEST_FAULTS === '1' && Number.isFinite(input.heartbeatIntervalMs)
     ? Math.max(25, Number(input.heartbeatIntervalMs))
     : 30000
+  const maxConcurrency = clampConcurrency(input.maxConcurrency)
+  const performanceHistoryRead = readValidationPerformanceHistory({ activeRoot })
+  const performanceHistory = performanceHistoryRead.history
   const perNodeLogBytes = Math.max(1024, Math.min(64 * 1024,
     Math.ceil(Number(plan.budgetCard?.logBudgetBytes || 8000) / Math.max(1, plan.selectedNodeCount))))
   const maxIpcBytes = Math.min(16 * 1024 * 1024, Math.max(1024 * 1024,
@@ -575,6 +587,11 @@ async function runManagedValidation(input = {}) {
     processOwnership: 'runner-child-tree',
     pollIntervalMs,
     heartbeatIntervalMs,
+    maxConcurrency,
+    performanceHistory: {
+      status: performanceHistoryRead.status,
+      filePath: performanceHistoryRead.filePath
+    },
     hardDeadlineAt,
     startedAt,
     attempts: [],
@@ -807,6 +824,8 @@ async function runManagedValidation(input = {}) {
     let lastActivityMs = Date.now()
     let results = []
     let currentNode = null
+    let recentNode = null
+    let performanceHistoryWrite = null
 
     function clearTimers() {
       if (poll) clearInterval(poll)
@@ -820,14 +839,17 @@ async function runManagedValidation(input = {}) {
     }
 
     function progressHeartbeat(observedAt = new Date().toISOString()) {
+      const completedNodeIds = results.map(result => result.nodeId).filter(Boolean)
       return buildRunHeartbeat({
         lease,
         attempt,
         currentNode,
-        completedNodeCount: checkpoint?.results?.length || 0,
+        recentNode,
+        completedNodeCount: results.length,
         totalNodeCount: executionNodeIds(plan).length,
         startedAt,
         hardDeadlineAt,
+        eta: estimateValidationEta({ plan, activeRoot, history: performanceHistory, completedNodeIds }),
         observedAt
       })
     }
@@ -854,7 +876,25 @@ async function runManagedValidation(input = {}) {
     function finish(receipt, leaseStatus, extra = {}) {
       clearTimers()
       try { activeChild?.disconnect() } catch { }
-      resolve(terminalResult(receipt, leaseStatus, { leasePersistence, startingPersistence, ...extra }))
+      if (!performanceHistoryWrite && results.length > 0) {
+        performanceHistoryWrite = recordValidationPerformance({ activeRoot, results })
+      }
+      receipt.performanceHistory = {
+        readStatus: performanceHistoryRead.status,
+        write: performanceHistoryWrite,
+        finalEta: estimateValidationEta({
+          plan,
+          activeRoot,
+          history: performanceHistory,
+          completedNodeIds: results.map(result => result.nodeId).filter(Boolean)
+        })
+      }
+      resolve(terminalResult(receipt, leaseStatus, {
+        leasePersistence,
+        startingPersistence,
+        performanceHistoryWrite,
+        ...extra
+      }))
     }
 
     async function terminateAndFinish(reason, terminalStatus = 'cancelled', nativeExitCode = 130) {
@@ -1014,6 +1054,7 @@ async function runManagedValidation(input = {}) {
         } else if (message.type === 'node') {
           const result = sanitizeNodeResult(message.result, perNodeLogBytes)
           results.push(result)
+          recentNode = result.nodeId || recentNode
           currentNode = null
           if (['passed', 'cache-hit'].includes(result.status) && result.exitCode === 0) {
             try {
@@ -1099,6 +1140,7 @@ async function runManagedValidation(input = {}) {
             contextEpoch,
             revocationEpoch,
             useCache,
+            maxConcurrency,
             resumeResults: checkpoint?.results || []
           }
         }

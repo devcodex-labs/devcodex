@@ -43,7 +43,10 @@ assert.ok(!consumers.some(item => item.path.includes('.devcodex/')), '.devcodex 
 
 // Untracked pollution must not change portfolio serialization (CI clean parity).
 const fs = require('fs')
-const pollution = path.join(ROOT, `_portfolio_pollution_${process.pid}.md`)
+const pollutionBase = path.join(ROOT, '.tmp', 'devcodex-tests')
+fs.mkdirSync(pollutionBase, { recursive: true })
+const pollutionRoot = fs.mkdtempSync(path.join(pollutionBase, 'portfolio-pollution-'))
+const pollution = path.join(pollutionRoot, 'untracked-consumer.md')
 const beforePollution = serializePortfolio(first)
 fs.writeFileSync(pollution, [
   '# pollution',
@@ -58,7 +61,7 @@ try {
     'untracked files must not change Skill portfolio (V92 clean-checkout parity)'
   )
 } finally {
-  fs.unlinkSync(pollution)
+  fs.rmSync(pollutionRoot, { recursive: true, force: true })
 }
 
 // PostStageDerivedArtifactFreshnessGate: an input tracked after generation must stale the index candidate.

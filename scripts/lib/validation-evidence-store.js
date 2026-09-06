@@ -25,6 +25,12 @@ const {
   validateValidationBudgetProjection,
   validateValidationContinuationAuthorization
 } = require('./validation-execution-authority')
+const {
+  REPAIR_CONVERGENCE_SCHEMA,
+  SUCCESSFUL_QUALIFICATION_SCHEMA,
+  validateRepairConvergenceState,
+  validateSuccessfulQualification
+} = require('./validation-convergence-state')
 
 const OWNER_STATE_SCHEMA = 'ValidationEvidenceOwnerStateV1'
 const FIXED_SLOT_SCHEMA = 'ValidationEvidenceFixedSlotV1'
@@ -38,6 +44,8 @@ const RECEIPT_RING_SIZE = 16
 const TASKLESS_RUN_SHARD_COUNT = 32
 const TASKLESS_RUN_SLOT_COUNT = 2
 const ROOT_BUDGET_PROJECTION_MAX_BYTES = 16 * 1024
+const TERMINAL_CANDIDATE_PATH_MAX_COUNT = 256
+const TERMINAL_CANDIDATE_PATH_MAX_BYTES = 24 * 1024
 const RUN_KINDS = new Set(['authority', 'runner', 'terminal'])
 const DIGEST_RE = /^[a-f0-9]{64}$/
 const OWNER_NAMES = Object.freeze({
@@ -498,7 +506,8 @@ function buildTerminalProjection(receipt) {
   let candidateChangedFileBytes = 0
   for (const file of allCandidateChangedFiles) {
     const nextBytes = Buffer.byteLength(file, 'utf8') + 4
-    if (candidateChangedFiles.length >= 256 || candidateChangedFileBytes + nextBytes > 24 * 1024) break
+    if (candidateChangedFiles.length >= TERMINAL_CANDIDATE_PATH_MAX_COUNT ||
+        candidateChangedFileBytes + nextBytes > TERMINAL_CANDIDATE_PATH_MAX_BYTES) break
     candidateChangedFiles.push(file)
     candidateChangedFileBytes += nextBytes
   }
@@ -873,6 +882,51 @@ function createValidationEvidenceStore(options = {}) {
               'revoked'
             )
           }
+        } else if (kind === 'repair-convergence') {
+          const validation = validateRepairConvergenceState(payload)
+          if (!validation.valid || payload?.schemaVersion !== REPAIR_CONVERGENCE_SCHEMA) {
+            throw evidenceBindingError('VALIDATION_REPAIR_STATE_INVALID', 'repair convergence state is invalid', validation)
+          }
+          const existing = currentExecution.repairConvergence || null
+          if (existing?.stateDigest === payload.stateDigest) return state
+          const expectedDigest = writeOptions.expectedStateDigest || null
+          if ((existing?.stateDigest || null) !== expectedDigest) {
+            throw evidenceBindingError('VALIDATION_REPAIR_STATE_CAS_CONFLICT', 'repair convergence state CAS conflicted')
+          }
+          nextExecution.repairConvergence = payload
+        } else if (kind === 'qualification') {
+          const validation = validateSuccessfulQualification(payload, nowMs)
+          if (!validation.valid || payload?.schemaVersion !== SUCCESSFUL_QUALIFICATION_SCHEMA) {
+            throw evidenceBindingError('VALIDATION_QUALIFICATION_INVALID', 'successful qualification record is invalid', validation)
+          }
+          const existing = currentExecution.lastSuccessfulQualification || null
+          if (existing?.recordDigest === payload.recordDigest) return state
+          const expectedDigest = writeOptions.expectedQualificationDigest || null
+          if ((existing?.recordDigest || null) !== expectedDigest) {
+            throw evidenceBindingError('VALIDATION_QUALIFICATION_CAS_CONFLICT', 'successful qualification CAS conflicted')
+          }
+          nextExecution.lastSuccessfulQualification = payload
+        } else if (kind === 'convergence-outcome') {
+          const convergence = payload?.repairConvergence || null
+          const qualification = payload?.lastSuccessfulQualification || null
+          const stateValidation = validateRepairConvergenceState(convergence)
+          const qualificationValidation = validateSuccessfulQualification(qualification, nowMs)
+          if (!stateValidation.valid || !convergence || !qualificationValidation.valid || !qualification) {
+            throw evidenceBindingError('VALIDATION_CONVERGENCE_OUTCOME_INVALID', 'convergence outcome is invalid', {
+              stateErrors: stateValidation.errors,
+              qualificationErrors: qualificationValidation.errors
+            })
+          }
+          const existingState = currentExecution.repairConvergence || null
+          const existingQualification = currentExecution.lastSuccessfulQualification || null
+          if (existingState?.stateDigest === convergence.stateDigest &&
+              existingQualification?.recordDigest === qualification.recordDigest) return state
+          if ((existingState?.stateDigest || null) !== (writeOptions.expectedStateDigest || null) ||
+              (existingQualification?.recordDigest || null) !== (writeOptions.expectedQualificationDigest || null)) {
+            throw evidenceBindingError('VALIDATION_CONVERGENCE_OUTCOME_CAS_CONFLICT', 'convergence outcome CAS conflicted')
+          }
+          nextExecution.repairConvergence = convergence
+          nextExecution.lastSuccessfulQualification = qualification
         } else {
           throw evidenceBindingError('VALIDATION_EVIDENCE_KIND_INVALID', `unsupported validation control state kind: ${kind}`)
         }
@@ -888,6 +942,23 @@ function createValidationEvidenceStore(options = {}) {
           errorCode: 'VALIDATION_CONTINUATION_PERSISTENCE_FAILED',
           write: commit,
           readback,
+          stateOwner: 'task-recovery-v5',
+          kind
+        }
+      }
+      const observedExecution = readback.state?.validationExecution || {}
+      const readbackMatches = kind === 'repair-convergence'
+        ? observedExecution.repairConvergence?.stateDigest === payload.stateDigest
+        : (kind === 'qualification'
+            ? observedExecution.lastSuccessfulQualification?.recordDigest === payload.recordDigest
+            : (kind === 'convergence-outcome'
+                ? observedExecution.repairConvergence?.stateDigest === payload.repairConvergence.stateDigest &&
+                  observedExecution.lastSuccessfulQualification?.recordDigest === payload.lastSuccessfulQualification.recordDigest
+                : true))
+      if (!readbackMatches) {
+        return {
+          status: 'error',
+          errorCode: 'VALIDATION_CONVERGENCE_READBACK_MISMATCH',
           stateOwner: 'task-recovery-v5',
           kind
         }
@@ -1062,6 +1133,15 @@ function createValidationEvidenceStore(options = {}) {
     readContinuationAuthorization() {
       return readTaskControl('continuationAuthorization', 'continuationAuthorization')
     },
+    readRepairConvergence() {
+      return readTaskControl('repairConvergence', 'repairConvergence')
+    },
+    readLastSuccessfulQualification() {
+      return readTaskControl('lastSuccessfulQualification', 'lastSuccessfulQualification')
+    },
+    readConvergenceTerminal() {
+      return readTaskControl('convergenceTerminalReceipt', 'convergenceTerminalReceipt')
+    },
     readRunnerState: readRunnerStateInternal,
     readTerminal: readTerminalInternal,
     writePendingBudgetCard(binding, writeOptions = {}) {
@@ -1084,6 +1164,21 @@ function createValidationEvidenceStore(options = {}) {
     },
     revokeValidationExecution(writeOptions = {}) {
       return updateTaskControl('revoke', null, writeOptions)
+    },
+    writeRepairConvergence(state, writeOptions = {}) {
+      if (state?.schemaVersion !== REPAIR_CONVERGENCE_SCHEMA) {
+        return { status: 'error', errorCode: 'VALIDATION_REPAIR_STATE_INVALID', stateOwner: 'task-recovery-v5' }
+      }
+      return updateTaskControl('repair-convergence', state, writeOptions)
+    },
+    writeLastSuccessfulQualification(qualification, writeOptions = {}) {
+      if (qualification?.schemaVersion !== SUCCESSFUL_QUALIFICATION_SCHEMA) {
+        return { status: 'error', errorCode: 'VALIDATION_QUALIFICATION_INVALID', stateOwner: 'task-recovery-v5' }
+      }
+      return updateTaskControl('qualification', qualification, writeOptions)
+    },
+    writeConvergenceOutcome(outcome, writeOptions = {}) {
+      return updateTaskControl('convergence-outcome', outcome, writeOptions)
     },
     writeLease(lease, writeOptions = {}) {
       const runIdentityDigest = String(lease?.runIdentityDigest || configuredRunIdentityDigest)
@@ -1137,6 +1232,8 @@ module.exports = {
   TASKLESS_RUN_SHARD_COUNT,
   TASKLESS_RUN_SLOT_COUNT,
   TASK_STATE_SCHEMA,
+  TERMINAL_CANDIDATE_PATH_MAX_BYTES,
+  TERMINAL_CANDIDATE_PATH_MAX_COUNT,
   TERMINAL_LINEAGE_SCHEMA,
   TERMINAL_PROJECTION_SCHEMA,
   TERMINAL_UNSUPPORTED_VALUE_SCHEMA,

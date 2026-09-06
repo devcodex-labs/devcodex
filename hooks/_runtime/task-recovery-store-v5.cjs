@@ -9,6 +9,7 @@ const {
   COLD_STUB_MAX_BYTES,
   TASK_STATE_SLOT_MAX_BYTES,
   buildColdResumeStub,
+  compactValidationConvergenceTerminal,
   compactLifecycleStateV5,
   digestValue,
   jsonBytes,
@@ -40,6 +41,11 @@ const {
   validateActualInstructionEnvelope,
   validateWorkItemSet
 } = require('./actual-instruction-envelope.cjs')
+const {
+  bindTaskCheckpointEpochSetFence,
+  validateCheckpointEpochBootstrapAuthority,
+  validateTaskCheckpointEpochSet
+} = require('./task-checkpoint-epoch-v1.cjs')
 const {
   buildWorkflowRouteDecision,
   verifyWorkflowRouteDecision
@@ -157,6 +163,139 @@ function nowMsFrom(options = {}) {
 function writerGenerationFromState(state) {
   const generation = state?.fencedWriteOwner?.ownerGeneration
   return Number.isSafeInteger(generation) && generation >= 0 ? generation : 0
+}
+
+function checkpointEpochAuthorityFromState(state = {}) {
+  const transaction = state.admissionTransaction || {}
+  const owner = state.fencedWriteOwner || {}
+  const canonical = state.taskCanonicalRevision || {}
+  const context = state.contextAcquisition || {}
+  const planContentId = context.plan?.planContentId || context.binding?.planContentId ||
+    context.planContentId || state.contextHandoffCard?.planContentId || null
+  const terminal = state.taskTerminalLineage || null
+  const lineageReady = Number.isSafeInteger(canonical.revision) &&
+    /^[a-f0-9]{64}$/.test(String(canonical.currentOverviewDigest || '')) &&
+    /^[a-f0-9]{64}$/.test(String(transaction.workItemDigest || ''))
+  return {
+    taskKind: transaction.taskKind || null,
+    project: transaction.project || null,
+    activeRootDigest: /^[a-f0-9]{64}$/.test(String(transaction.projectRootIdentityDigest || ''))
+      ? transaction.projectRootIdentityDigest
+      : null,
+    admissionId: transaction.admissionId || null,
+    owner: /^[a-f0-9]{64}$/.test(String(owner.leaseDigest || ''))
+      ? {
+          ownerGeneration: owner.ownerGeneration,
+          leaseRevision: owner.leaseRevision,
+          leaseDigest: owner.leaseDigest
+        }
+      : null,
+    lineage: lineageReady
+      ? {
+          canonicalRevision: canonical.revision,
+          canonicalHeadDigest: canonical.currentOverviewDigest,
+          canonicalParentRevision: canonical.revision > 1 ? canonical.revision - 1 : null,
+          scopeDigest: transaction.workItemDigest
+        }
+      : null,
+    context: {
+      contextEpoch: owner.contextEpoch || context.contextEpoch || null,
+      planContentId: planContentId || null,
+      autoGrantDigest: /^[a-f0-9]{64}$/.test(String(state.taskScopedAutoContinuationGrant?.grantDigest || ''))
+        ? state.taskScopedAutoContinuationGrant.grantDigest
+        : null,
+      autoDecisionDigest: /^[a-f0-9]{64}$/.test(String(state.autoCheckpointDecision?.decisionDigest || ''))
+        ? state.autoCheckpointDecision.decisionDigest
+        : null,
+      validationAuthorityDigest: /^[a-f0-9]{64}$/.test(String(
+        state.validationExecution?.authorityDigest || state.validationControl?.authorityDigest || ''
+      ))
+        ? (state.validationExecution?.authorityDigest || state.validationControl?.authorityDigest)
+        : null
+    },
+    ...(terminal?.terminalStatus
+      ? { terminalStatus: terminal.terminalStatus, terminalAt: terminal.terminalAt }
+      : {})
+  }
+}
+
+function clearReopenedTaskActiveAuthorities(state = {}) {
+  // Historical CP/full-terminal evidence remains on the superseded epoch and
+  // prior admission reference. Active authority pointers never cross a
+  // reopened generation; only repair convergence, green qualification and a
+  // bounded terminal recovery projection remain as non-authority evidence.
+  const priorValidationExecution = state.validationExecution
+  const durableRepairConvergence = priorValidationExecution?.repairConvergence &&
+    typeof priorValidationExecution.repairConvergence === 'object' &&
+    !Array.isArray(priorValidationExecution.repairConvergence)
+    ? priorValidationExecution.repairConvergence
+    : null
+  const durableQualification = priorValidationExecution?.lastSuccessfulQualification &&
+    typeof priorValidationExecution.lastSuccessfulQualification === 'object' &&
+    !Array.isArray(priorValidationExecution.lastSuccessfulQualification)
+    ? priorValidationExecution.lastSuccessfulQualification
+    : null
+  const durableConvergenceTerminal = compactValidationConvergenceTerminal(
+    priorValidationExecution?.convergenceTerminalReceipt || priorValidationExecution?.terminalReceipt
+  )
+  delete state.workflowTaskTerminalReceipt
+  delete state.taskTerminalLineage
+  delete state.taskScopedAutoContinuationGrant
+  delete state.autoCheckpointDecision
+  delete state.validationControlIngressIntent
+  delete state.validationControlIngress
+  delete state.validationExecution
+  if (durableRepairConvergence || durableQualification || durableConvergenceTerminal) {
+    state.validationExecution = {
+      schemaVersion: priorValidationExecution.schemaVersion || 'ValidationExecutionTaskStateV1',
+      ...(durableRepairConvergence ? { repairConvergence: durableRepairConvergence } : {}),
+      ...(durableQualification ? { lastSuccessfulQualification: durableQualification } : {}),
+      ...(durableConvergenceTerminal ? { convergenceTerminalReceipt: durableConvergenceTerminal } : {}),
+      ...(priorValidationExecution.updatedAt ? { updatedAt: priorValidationExecution.updatedAt } : {})
+    }
+  }
+  return state
+}
+
+function validateCheckpointEpochStateForCommit(state, identity, expected = {}) {
+  const epochSet = state?.taskCheckpointEpochSet
+  if (!epochSet) return { valid: true }
+  const validation = validateTaskCheckpointEpochSet(epochSet, {
+    taskId: identity.taskId,
+    ...(expected.stateSequence === undefined ? {} : { stateSequence: expected.stateSequence }),
+    ...(expected.writerGeneration === undefined ? {} : { writerGeneration: expected.writerGeneration })
+  })
+  if (!validation.valid) {
+    return {
+      valid: false,
+      errorCode: 'CHECKPOINT_EPOCH_STATE_INVALID',
+      errors: validation.errors
+    }
+  }
+  if (state.checkpointEpochBootstrapAuthority) {
+    const authority = validateCheckpointEpochBootstrapAuthority(
+      state.checkpointEpochBootstrapAuthority,
+      {
+        taskId: identity.taskId,
+        project: identity.project
+      },
+      { allowExpired: true }
+    )
+    if (!authority.valid) {
+      return {
+        valid: false,
+        errorCode: 'CHECKPOINT_EPOCH_BOOTSTRAP_AUTHORITY_INVALID',
+        errors: authority.errors
+      }
+    }
+  } else if (epochSet.migration?.status === 'prepared') {
+    return {
+      valid: false,
+      errorCode: 'CHECKPOINT_EPOCH_BOOTSTRAP_AUTHORITY_INVALID',
+      errors: ['bootstrap-authority-missing']
+    }
+  }
+  return { valid: true }
 }
 
 function writerGenerationFromEnvelope(envelope) {
@@ -1790,6 +1929,79 @@ function pruneBoundedResumeIngressCapabilities(root, options = {}) {
   return { status: 'ready', activeFiles, removed }
 }
 
+function validateFinalizedTaskResumeStateHandoff(handoff, candidate, options = {}) {
+  if (handoff === null || handoff === undefined) return { valid: true, errors: [] }
+  const errors = []
+  if (!handoff || typeof handoff !== 'object' || Array.isArray(handoff) ||
+      handoff.schemaVersion !== 'FinalizedTaskResumeStateHandoffV1') {
+    return { valid: false, errors: ['resume-handoff-schema'] }
+  }
+  const ingress = candidate?.ingress || {}
+  const envelope = ingress.actualInstructionEnvelope || {}
+  const decision = ingress.workflowRouteDecision || {}
+  const context = handoff.contextAcquisition || {}
+  const binding = context.plan?.contextBinding || {}
+  const receipt = context.receipt || {}
+  if (context.schemaVersion !== 'ContextReadStateV2' || context.targetResolved !== true ||
+      context.contextEpoch !== candidate.contextBinding?.contextEpoch ||
+      recoveryComparablePath(context.activeRoot) !== recoveryComparablePath(candidate.activeRoot) ||
+      context.project !== candidate.project || !String(context.hostSessionId || '').trim() ||
+      crypto.createHash('sha256').update(String(context.hostSessionId)).digest('hex') !== envelope.hostSessionDigest) {
+    errors.push('resume-handoff-context-binding')
+  }
+  if (binding.contextEpoch !== candidate.contextBinding?.contextEpoch ||
+      binding.planId !== candidate.contextBinding?.planId ||
+      binding.planContentId !== candidate.contextBinding?.planContentId ||
+      recoveryComparablePath(binding.activeRoot) !== recoveryComparablePath(candidate.activeRoot) ||
+      binding.project !== candidate.project) errors.push('resume-handoff-plan-binding')
+  if (!['relevant-complete', 'completed'].includes(String(receipt.status || '')) ||
+      (receipt.missingSourceIds || []).length || receipt.contextEpoch !== binding.contextEpoch ||
+      receipt.planId !== binding.planId || receipt.planContentId !== binding.planContentId ||
+      recoveryComparablePath(receipt.identity?.activeRoot) !== recoveryComparablePath(candidate.activeRoot) ||
+      receipt.identity?.project !== candidate.project || receipt.identity?.hostSessionId !== context.hostSessionId) {
+    errors.push('resume-handoff-context-receipt')
+  }
+  const routeBinding = handoff.workflowRoutePlanBinding || {}
+  if (routeBinding.schemaVersion !== 'WorkflowRoutePlanBindingV1' ||
+      routeBinding.contextEpoch !== envelope.contextEpoch ||
+      routeBinding.routeRevision !== decision.routeRevision ||
+      routeBinding.bindingDigest !== ingress.stickyProject?.contextBindingDigest) {
+    errors.push('resume-handoff-route-binding')
+  }
+  const control = handoff.validationControlIngress
+  if (control) {
+    const { receiptDigest, ...controlCore } = control
+    let normalizedRoot = path.resolve(String(ingress.stickyProject?.physicalRoot || '')).replace(/\\/g, '/')
+    if (process.platform === 'win32') normalizedRoot = normalizedRoot.toLowerCase()
+    const rootCore = { schemaVersion: 'ProjectRootIdentityV1', normalizedRoot }
+    if (control.schemaVersion !== 'ValidationControlIngressReceiptV1' ||
+        control.envelopeId !== envelope.envelopeId || control.envelopeDigest !== envelope.envelopeDigest ||
+        control.sourceMessageDigest !== envelope.actualInstructionDigest ||
+        control.hostSessionDigest !== envelope.hostSessionDigest || control.contextEpoch !== envelope.contextEpoch ||
+        control.taskRecoveryKey !== candidate.taskId || control.project !== candidate.project ||
+        control.projectRootIdentity?.digest !== digestValue(rootCore) ||
+        control.projectRootIdentity?.normalizedRoot !== normalizedRoot ||
+        !/^[a-f0-9]{64}$/.test(String(receiptDigest || '')) || receiptDigest !== digestValue(controlCore) ||
+        !Number.isFinite(Date.parse(String(control.expiresAt || ''))) ||
+        Date.parse(control.expiresAt) <= nowMsFrom(options)) {
+      errors.push('resume-handoff-validation-control')
+    }
+  }
+  const stickyAuto = handoff.stickyAuto
+  if (stickyAuto) {
+    if (handoff.executionMode !== 'auto' || control?.action !== 'auto-authorize' ||
+        stickyAuto.active !== true || !String(stickyAuto.authorityRef || '').trim() ||
+        stickyAuto.sourceMessageDigest !== envelope.actualInstructionDigest ||
+        crypto.createHash('sha256').update(String(stickyAuto.sessionKey || '')).digest('hex') !== envelope.hostSessionDigest) {
+      errors.push('resume-handoff-sticky-auto')
+    }
+  } else if (handoff.executionMode !== 'confirm') {
+    errors.push('resume-handoff-execution-mode')
+  }
+  if (!Number.isFinite(Date.parse(String(handoff.handoffAt || '')))) errors.push('resume-handoff-time')
+  return { valid: errors.length === 0, errors: [...new Set(errors)] }
+}
+
 function validateBoundedResumeIngressCapability(capability, options = {}) {
   const errors = []
   const value = capability && typeof capability === 'object' && !Array.isArray(capability)
@@ -1846,6 +2058,8 @@ function validateBoundedResumeIngressCapability(capability, options = {}) {
   const ingress = value.ingress || {}
   const ingressValidation = validateAdmissionIngressState(ingress, options)
   if (!ingressValidation.valid) errors.push(...ingressValidation.errors.map(error => `candidate-ingress:${error}`))
+  const handoffValidation = validateFinalizedTaskResumeStateHandoff(value.resumeStateHandoff, value, options)
+  if (!handoffValidation.valid) errors.push(...handoffValidation.errors)
   const ingressRef = ingressValidation.ingressRef
   if (!ingressRef || value.ingressRef?.schemaVersion !== 'WorkflowIngressProjectionRefV1' ||
       ingressRef.envelopeId !== value.ingressRef?.envelopeId ||
@@ -1905,6 +2119,7 @@ function writeBoundedResumeIngressCapability(input = {}, options = {}) {
     prior: cloneRecoveryValue(input.prior || {}),
     runtime: cloneRecoveryValue(input.runtime || {}),
     liveness: cloneRecoveryValue(input.liveness || {}),
+    resumeStateHandoff: cloneRecoveryValue(input.resumeStateHandoff || null),
     ingress,
     issuedAt,
     expiresAt: new Date(expiresAtMs).toISOString(),
@@ -5332,11 +5547,16 @@ function commitTaskEnvelope(metaDir, identity, state, options = {}) {
   const paths = storePaths(metaDir)
   const currentPaths = taskPaths(paths, identity.recoveryKey)
   const expectedCommitFence = expectedTaskRecoveryCommitFence(state, options)
-  let candidateSemanticDigest
-  try {
-    candidateSemanticDigest = digestValue(semanticLifecycleProjection(state))
-  } catch (error) {
-    return { status: 'error', errorCode: error.code || 'LIFECYCLE_STATE_PROJECTION_FAILED', message: error.message, identity }
+  const initialEpochValidation = validateCheckpointEpochStateForCommit(state, identity)
+  if (!initialEpochValidation.valid) {
+    return {
+      schemaVersion: TASK_RECOVERY_COMMIT_SCHEMA,
+      status: 'error',
+      errorCode: initialEpochValidation.errorCode,
+      errors: initialEpochValidation.errors,
+      fullStateWrite: false,
+      identity
+    }
   }
   const ownsStoreLock = options.storeLockHeld !== true
   let storeLock = ownsStoreLock ? null : { inherited: true }
@@ -5384,28 +5604,39 @@ function commitTaskEnvelope(metaDir, identity, state, options = {}) {
         identity
       }
     }
-    if (prior.status === 'fresh' && prior.current.envelope.semanticDigest === candidateSemanticDigest && options.force !== true) {
-      rememberSemanticState(metaDir, currentPaths, candidateSemanticDigest, prior.current.envelope.sequence, fsImpl)
-      const stateWithFence = attachTaskRecoveryCommitFence(
-        state,
-        observedCommitFence.stateSequence,
-        observedCommitFence.writerGeneration
-      )
-      return {
-        schemaVersion: TASK_RECOVERY_COMMIT_SCHEMA,
-        status: 'semantic-noop',
-        fullStateWrite: false,
-        sequence: prior.current.envelope.sequence,
-        writerGeneration: observedCommitFence.writerGeneration,
-        commitFence: observedCommitFence,
-        state: stateWithFence,
-        identity
-      }
-    }
     const candidateWriterGeneration = writerGenerationFromState(state)
     const writerGenerationChanged = candidateWriterGeneration !== observedCommitFence.writerGeneration
     const writerTransitionAllowed = options.writerTransition === true &&
       candidateWriterGeneration === observedCommitFence.writerGeneration + 1
+    const priorEpochSet = prior.current?.envelope?.state?.taskCheckpointEpochSet || null
+    if (priorEpochSet && !state?.taskCheckpointEpochSet) {
+      return {
+        schemaVersion: TASK_RECOVERY_COMMIT_SCHEMA,
+        status: 'error',
+        errorCode: 'EPOCH_WRITER_CAPABILITY_REQUIRED',
+        message: 'an epoch-aware task state cannot be overwritten by a candidate that omits its epoch set',
+        fullStateWrite: false,
+        observedCommitFence,
+        identity
+      }
+    }
+    const epochFenceValidation = validateCheckpointEpochStateForCommit(state, identity, {
+      stateSequence: observedCommitFence.stateSequence,
+      writerGeneration: writerGenerationChanged && writerTransitionAllowed
+        ? observedCommitFence.writerGeneration
+        : candidateWriterGeneration
+    })
+    if (!epochFenceValidation.valid) {
+      return {
+        schemaVersion: TASK_RECOVERY_COMMIT_SCHEMA,
+        status: 'error',
+        errorCode: epochFenceValidation.errorCode,
+        errors: epochFenceValidation.errors,
+        fullStateWrite: false,
+        observedCommitFence,
+        identity
+      }
+    }
     if (writerGenerationChanged && !writerTransitionAllowed) {
       return {
         schemaVersion: TASK_RECOVERY_COMMIT_SCHEMA,
@@ -5431,7 +5662,53 @@ function commitTaskEnvelope(metaDir, identity, state, options = {}) {
         }
       }
     }
-    const compact = compactLifecycleStateV5(state)
+    const checkpointAuthority = checkpointEpochAuthorityFromState(state)
+    const comparisonState = state?.taskCheckpointEpochSet
+      ? {
+          ...state,
+          taskCheckpointEpochSet: bindTaskCheckpointEpochSetFence(state.taskCheckpointEpochSet, {
+            stateSequence: observedCommitFence.stateSequence,
+            writerGeneration: candidateWriterGeneration,
+            authority: checkpointAuthority
+          })
+        }
+      : state
+    let candidateSemanticDigest
+    try {
+      candidateSemanticDigest = digestValue(semanticLifecycleProjection(comparisonState))
+    } catch (error) {
+      return { status: 'error', errorCode: error.code || 'LIFECYCLE_STATE_PROJECTION_FAILED', message: error.message, identity }
+    }
+    if (prior.status === 'fresh' && prior.current.envelope.semanticDigest === candidateSemanticDigest && options.force !== true) {
+      rememberSemanticState(metaDir, currentPaths, candidateSemanticDigest, prior.current.envelope.sequence, fsImpl)
+      const stateWithFence = attachTaskRecoveryCommitFence(
+        comparisonState,
+        observedCommitFence.stateSequence,
+        observedCommitFence.writerGeneration
+      )
+      return {
+        schemaVersion: TASK_RECOVERY_COMMIT_SCHEMA,
+        status: 'semantic-noop',
+        fullStateWrite: false,
+        sequence: prior.current.envelope.sequence,
+        writerGeneration: observedCommitFence.writerGeneration,
+        commitFence: observedCommitFence,
+        state: stateWithFence,
+        identity
+      }
+    }
+    const sequence = prior.status === 'fresh' ? prior.current.envelope.sequence + 1 : 1
+    const stateForCommit = state?.taskCheckpointEpochSet
+      ? {
+          ...state,
+          taskCheckpointEpochSet: bindTaskCheckpointEpochSetFence(state.taskCheckpointEpochSet, {
+            stateSequence: sequence,
+            writerGeneration: candidateWriterGeneration,
+            authority: checkpointAuthority
+          })
+        }
+      : state
+    const compact = compactLifecycleStateV5(stateForCommit)
     const mutationPreflight = options.reason === 'mutation-preflight'
     const admissionPreflight = options.reason === 'admission-preflight'
     const durablePreflight = mutationPreflight || admissionPreflight
@@ -5464,7 +5741,6 @@ function commitTaskEnvelope(metaDir, identity, state, options = {}) {
     const preflight = mutationPreflight ? buildMutationPreflightState(compact.state) : null
     const persistedState = preflight ? preflight.state : compact.state
     const semanticDigest = digestValue(semanticLifecycleProjection(persistedState))
-    let sequence = prior.status === 'fresh' ? prior.current.envelope.sequence + 1 : 1
     const nowMs = nowMsFrom(options)
     const taskStatus = String(identity.taskStatus || 'active')
     const terminal = ['completed', 'rejected', 'terminal'].includes(taskStatus)
@@ -5815,6 +6091,26 @@ function commitTaskRecoveryState(input = {}, options = {}) {
   return commit
 }
 
+function inferTasklessRecoveryIdentity(state = {}) {
+  const context = state.contextAcquisition || {}
+  const sticky = state.stickyProject || {}
+  const roots = [...new Set([
+    context.activeRoot,
+    sticky.activeRoot
+  ].map(portableRoot).filter(Boolean))]
+  const projects = [...new Set([
+    state.activeProject,
+    context.project,
+    sticky.project
+  ].map(normalizedProject).filter(Boolean))]
+  if (roots.length !== 1 || projects.length !== 1) return null
+  try {
+    return normalizeIdentity({ activeRoot: roots[0], project: projects[0] }, { allowEphemeral: true })
+  } catch {
+    return null
+  }
+}
+
 function readTaskRecoveryState(input = {}, options = {}) {
   const fsImpl = options.fs || fs
   const paths = storePaths(input.metaDir)
@@ -5859,20 +6155,28 @@ function readTaskRecoveryState(input = {}, options = {}) {
   }
   if (!entry.taskKey) {
     const state = materializeEphemeralMutationState(entry.state)
+    const observedIdentity = entry.identity || inferTasklessRecoveryIdentity(state)
+    if (observedIdentity && expected && !sameIdentity(observedIdentity, expected, { allowMissingTask: true })) {
+      return {
+        status: 'identity-mismatch',
+        errorCode: 'LIFECYCLE_STATE_IDENTITY_MISMATCH',
+        observedIdentity
+      }
+    }
     const ingressRecovery = validateTasklessWorkflowIngressRecovery(state, options)
     if (!ingressRecovery.valid) {
       return {
         status: 'invalid',
         errorCode: ingressRecovery.errorCode,
         errors: ingressRecovery.errors || [],
-        identity: entry.identity || null
+        identity: observedIdentity
       }
     }
     return {
       status: 'ephemeral-stub',
       state,
       ingressRecovery,
-      identity: entry.identity || null
+      identity: observedIdentity
     }
   }
   const read = readTaskSlots(taskPaths(paths, entry.taskKey), entry.identity, fsImpl)
@@ -5890,6 +6194,61 @@ function readTaskRecoveryState(input = {}, options = {}) {
     identity: read.current.envelope.identity,
     mapping: entry
   }
+}
+
+function canBootstrapExpiredTasklessContextObservation(read, input = {}, options = {}) {
+  if (options.allowExpiredTasklessContextBootstrap !== true ||
+      options.reason !== 'context-source-observation' ||
+      options.force !== true ||
+      options.touchSessionMapping !== true ||
+      read?.status !== 'invalid' ||
+      read?.errorCode !== 'TASKLESS_INGRESS_RECOVERY_EXPIRED' ||
+      !String(input.sessionKey || '').trim() ||
+      typeof input.readFallback !== 'function' ||
+      input.identity?.taskId ||
+      input.expectedIdentity?.taskId) {
+    return false
+  }
+  try {
+    const identity = normalizeIdentity(input.identity, { allowEphemeral: true })
+    const expected = normalizeIdentity(input.expectedIdentity, { allowEphemeral: true })
+    const observed = normalizeIdentity(read.identity, { allowEphemeral: true })
+    return !identity.taskId && !expected.taskId && !observed.taskId &&
+      sameIdentity(identity, expected, { allowMissingTask: true }) &&
+      sameIdentity(identity, observed, { allowMissingTask: true })
+  } catch {
+    return false
+  }
+}
+
+function buildContextObservationBootstrapStub(state = {}) {
+  const context = state.contextAcquisition && typeof state.contextAcquisition === 'object'
+    ? state.contextAcquisition
+    : {}
+  const turn = state.turnLiveness && typeof state.turnLiveness === 'object'
+    ? state.turnLiveness
+    : {}
+  return buildEphemeralStub({
+    version: state.version,
+    mode: 'resume',
+    activeProject: state.activeProject || context.project,
+    activeScope: state.activeScope || 'project',
+    activeProjectSource: state.activeProjectSource || 'resume-context-observation',
+    taskRecoveryBinding: null,
+    languageContext: state.languageContext || null,
+    contextAcquisition: context,
+    turnLiveness: {
+      schemaVersion: turn.schemaVersion,
+      state: turn.state || 'running',
+      turnKey: context.hostSessionId || turn.turnKey || '',
+      inFlightOperation: null,
+      checkpoint: null,
+      lastMutationCloseout: null
+    },
+    mutated: false,
+    reportTouched: false,
+    memoryTouched: false
+  })
 }
 
 function updateTaskRecoveryState(input, updater, options = {}) {
@@ -5911,7 +6270,12 @@ function updateTaskRecoveryState(input, updater, options = {}) {
   if (!storeLock) return { status: 'error', errorCode: 'LIFECYCLE_STORE_LEASE_CONFLICT' }
   try {
     const read = readTaskRecoveryState(input, options)
-    if (!['fresh', 'ephemeral-stub', 'missing'].includes(read.status)) {
+    const expiredTasklessContextBootstrap = canBootstrapExpiredTasklessContextObservation(
+      read,
+      input,
+      options
+    )
+    if (!['fresh', 'ephemeral-stub', 'missing'].includes(read.status) && !expiredTasklessContextBootstrap) {
       return {
         status: 'error',
         errorCode: read.errorCode || 'LIFECYCLE_STATE_READ_FAILED',
@@ -5924,13 +6288,22 @@ function updateTaskRecoveryState(input, updater, options = {}) {
       ? read.state
       : (typeof input.readFallback === 'function' ? input.readFallback() : {})
     const state = updater(JSON.parse(JSON.stringify(base || {})))
-    const identity = input.identity?.taskId ? input.identity : (read.identity || input.identity)
+    const identity = input.identity?.taskId
+      ? input.identity
+      : (expiredTasklessContextBootstrap ? input.identity : (read.identity || input.identity))
     const expectedCommitFence = read.status === 'fresh'
       ? read.commitFence
       : buildTaskRecoveryCommitFence(0, 0)
     return commitTaskRecoveryState(
       { ...input, identity, state },
-      { ...options, expectedCommitFence, storeLockHeld: true }
+      {
+        ...options,
+        expectedCommitFence,
+        storeLockHeld: true,
+        ...(expiredTasklessContextBootstrap
+          ? { ephemeralStateOverride: buildContextObservationBootstrapStub(state) }
+          : {})
+      }
     )
   } finally {
     releaseLock(storeLock, fsImpl)
@@ -6726,6 +7099,14 @@ function commitFencedTaskWriteOwnerTransition(input = {}, options = {}) {
           terminalAt: terminalReceipt.issuedAt
         }
       }
+      if (String(input.transition || '') === 'reopen') {
+        // Reopen starts a new lifecycle generation. The terminal evidence stays
+        // immutable on the superseded checkpoint epoch / previous admission,
+        // while active authority refs must be cleared before the successor CP1
+        // can bind. Otherwise the generic epoch fence synchronizer would copy a
+        // prior terminal/Auto/validation authority into the reopened lineage.
+        clearReopenedTaskActiveAuthorities(state)
+      }
       state.fencedWriteOwner = nextOwner
       state.taskRecoveryBinding = {
         ...(state.taskRecoveryBinding || {}),
@@ -6979,6 +7360,33 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
         identityRevision: 2,
         boundAt: state.taskRecoveryBinding?.boundAt || transaction.createdAt
       }
+      const resumeStateHandoff = candidate.resumeStateHandoff
+      if (resumeStateHandoff) {
+        const handoffValidation = validateFinalizedTaskResumeStateHandoff(
+          resumeStateHandoff,
+          candidate,
+          { ...options, nowMs }
+        )
+        if (!handoffValidation.valid) {
+          throw new TaskRecoveryStoreV5Error(
+            'FINALIZED_TASK_RESUME_HANDOFF_INVALID',
+            'the bounded current-turn resume handoff is invalid',
+            { errors: handoffValidation.errors }
+          )
+        }
+        state.activeProject = candidate.project
+        state.activeScope = 'project'
+        state.actualInstructionEnvelope = cloneRecoveryValue(candidate.ingress.actualInstructionEnvelope)
+        state.workItemSet = cloneRecoveryValue(candidate.ingress.workItemSet)
+        state.workflowRouteDecision = cloneRecoveryValue(candidate.ingress.workflowRouteDecision)
+        state.stickyProject = cloneRecoveryValue(candidate.ingress.stickyProject)
+        state.workflowRoutePlanBinding = cloneRecoveryValue(resumeStateHandoff.workflowRoutePlanBinding)
+        state.contextAcquisition = cloneRecoveryValue(resumeStateHandoff.contextAcquisition)
+        state.validationControlIngress = cloneRecoveryValue(resumeStateHandoff.validationControlIngress)
+        state.validationControlIngressIntent = null
+        state.stickyAuto = cloneRecoveryValue(resumeStateHandoff.stickyAuto)
+        state.executionMode = resumeStateHandoff.executionMode
+      }
       return state
     }, {
       ...options,
@@ -7146,6 +7554,7 @@ module.exports = {
   createTaskScopedAutoContinuationGrant,
   buildTaskRecoveryCommitFence,
   buildTaskScopedAutoAllowedScope,
+  clearReopenedTaskActiveAuthorities,
   createTaskRecoveryKey,
   diagnoseTaskRecoveryStore,
   ensureReserve,

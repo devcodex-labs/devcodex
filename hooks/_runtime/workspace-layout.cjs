@@ -474,6 +474,8 @@ function resolveHostWorkspaceBinding(options = {}) {
   const empty = {
     schemaVersion: 'HostWorkspaceBindingV1',
     status: 'unresolved',
+    bindingState: 'unresolved',
+    profileAvailability: 'unknown',
     capability,
     physicalRoot: null,
     workspaceRoot: layout?.workspaceRoot ? path.resolve(layout.workspaceRoot) : null,
@@ -530,6 +532,8 @@ function resolveHostWorkspaceBinding(options = {}) {
     return {
       ...empty,
       status: requireProfile && !profileExists ? 'profile-missing' : 'resolved',
+      bindingState: 'project-bound',
+      profileAvailability: profileExists ? 'available' : 'missing',
       capability: 'legacy',
       physicalRoot,
       workspaceRoot: physicalRoot,
@@ -554,7 +558,12 @@ function resolveHostWorkspaceBinding(options = {}) {
   let confidence = 'none'
   const attempts = []
   if (String(options.explicitProject || '').trim()) {
-    attempts.push({ target: options.explicitProject, source: 'explicit-target', confidence: 'exact' })
+    attempts.push({
+      target: options.explicitProject,
+      source: 'explicit-target',
+      confidence: 'exact',
+      allowExistingDirectory: true
+    })
   } else {
     const inferred = inferProjectFromCwd(cwd, layout)
     if (inferred) attempts.push({ target: inferred, source: 'bridge-cwd', confidence: 'verified' })
@@ -573,7 +582,9 @@ function resolveHostWorkspaceBinding(options = {}) {
 
   for (const attempt of attempts) {
     try {
-      resolved = resolveWorkspaceProjectTarget(layout.workspaceRoot, attempt.target)
+      resolved = resolveWorkspaceProjectTarget(layout.workspaceRoot, attempt.target, {
+        allowExistingDirectory: attempt.allowExistingDirectory === true
+      })
       source = attempt.source
       confidence = attempt.confidence
       break
@@ -615,6 +626,22 @@ function resolveHostWorkspaceBinding(options = {}) {
   }
 
   if (!resolved) {
+    if (attempts.length === 0 && candidates.length === 0) {
+      const activeRoot = path.join(layout.workspaceRoot, '.devcodex', 'workspace')
+      return {
+        ...empty,
+        status: 'resolved',
+        bindingState: 'workspace-bound',
+        profileAvailability: fs.existsSync(path.join(activeRoot, 'profile')) ? 'available' : 'missing',
+        physicalRoot: layout.workspaceRoot,
+        projectNamespace: null,
+        activeRoot,
+        runtimeRoot: resolveRuntimeStateRoot(activeRoot, 'workspace').root,
+        source: 'workspace-fallback',
+        confidence: 'verified',
+        error: null
+      }
+    }
     return {
       ...empty,
       error: buildHostWorkspaceBindingError(
@@ -635,6 +662,8 @@ function resolveHostWorkspaceBinding(options = {}) {
   return {
     ...empty,
     status: requireProfile && !profileExists ? 'profile-missing' : 'resolved',
+    bindingState: 'project-bound',
+    profileAvailability: profileExists ? 'available' : 'missing',
     physicalRoot: resolved.projectRoot,
     projectNamespace: resolved.namespace,
     activeRoot,

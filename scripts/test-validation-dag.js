@@ -7,6 +7,11 @@ const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const { CheckedCommandError } = require('./lib/checked-command')
+const {
+  buildAuditStateCompatibilityReceipt,
+  classifyAuditStateDocument,
+  parseAndClassifyAuditStateDocument
+} = require('./lib/validate-audit-state-compatibility')
 const { buildContentIdentity, sha256, stableStringify } = require('../hooks/_runtime/content-identity.cjs')
 const {
   ValidationDagError,
@@ -15,7 +20,9 @@ const {
   buildChangeDescriptors,
   buildValidationImpactGraph,
   cacheDescriptor,
+  cacheReuseEligibility,
   cacheRelativePath,
+  resolveValidationCacheFile,
   commandSignature,
   buildNestedCommandGraph,
   planLockAwareSchedule,
@@ -167,7 +174,68 @@ function approvedPlan(input) {
 function run() {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-validation-dag-'))
   try {
+    const auditClassifications = [
+      classifyAuditStateDocument({ schemaVersion: 'AuditSessionStateV1', sessionId: 'current-v1' }),
+      classifyAuditStateDocument({ schemaVersion: 'AuditSessionStateV2', sessionId: 'current-v2' }),
+      classifyAuditStateDocument({ schemaVersion: 'AuditStateV1', sessionId: 'legacy-v1' }),
+      classifyAuditStateDocument({ sessionId: 'legacy-unversioned', state: 'active', round: 2, findings: [] }),
+      classifyAuditStateDocument({ schemaVersion: 'SkillRouteS15EvidenceV1', state: 'complete' }),
+      classifyAuditStateDocument({ schemaVersion: 'AuditSessionStateV3', sessionId: 'future' }),
+      parseAndClassifyAuditStateDocument('{broken-json').classification
+    ]
+    assert.deepStrictEqual(auditClassifications.map(item => item.kind), [
+      'currentSession',
+      'currentSession',
+      'legacyAuditReadOnly',
+      'legacyAuditReadOnly',
+      'nonAudit',
+      'unsupportedCurrentSession',
+      'invalid'
+    ])
+    assert.deepStrictEqual(buildAuditStateCompatibilityReceipt(auditClassifications), {
+      schemaVersion: 'AuditStateCompatibilityReceiptV1',
+      totalFiles: 7,
+      counts: {
+        currentSession: 2,
+        legacyAuditReadOnly: 2,
+        nonAudit: 1,
+        unsupportedCurrentSession: 1,
+        invalid: 1
+      },
+      strictCurrentCount: 2,
+      readOnlyLegacyCount: 2,
+      skippedNonAuditCount: 1,
+      errorCount: 2
+    })
+    assert.strictEqual(classifyAuditStateDocument({ sessionId: 'not-enough', state: 'active' }).kind, 'nonAudit')
+
     const manifest = readValidationManifest(MANIFEST_PATH)
+    assert.deepStrictEqual(cacheReuseEligibility(fixtureNode('isolated-cache', {
+      cachePolicy: 'candidate-bound',
+      writeScopes: ['isolated-temp']
+    })), {
+      eligible: true,
+      reasons: [],
+      scopes: ['isolated-temp']
+    })
+    assert(cacheReuseEligibility(fixtureNode('shared-cache', {
+      cachePolicy: 'candidate-bound',
+      writeScopes: ['profile-state']
+    })).reasons.includes('shared-write-scope'))
+    assert(cacheReuseEligibility(fixtureNode('high-cache', {
+      cachePolicy: 'candidate-bound',
+      riskClass: 'high',
+      writeScopes: []
+    })).reasons.includes('risk-not-normal'))
+    assert(cacheReuseEligibility(fixtureNode('delegated-cache', {
+      cachePolicy: 'candidate-bound',
+      writeScopes: [],
+      delegatedClosure: [{ nodeId: 'leaf', probe: 'fixture', command: 'node fixture.js' }]
+    })).reasons.includes('delegated-closure'))
+    assert(cacheReuseEligibility(fixtureNode('package-install-cache', {
+      cachePolicy: 'candidate-bound',
+      writeScopes: []
+    })).reasons.includes('side-effect-denylist'))
     const nodeFailure = validationExecutionError({ failedNode: 'fixture-node', terminalStatus: 'failed' })
     assert.strictEqual(nodeFailure.code, 'VALIDATION_NODE_FAILED')
     const candidateDrift = validationExecutionError({
@@ -384,6 +452,16 @@ function run() {
     assert.strictEqual(parseArgs(['--intent', 'boundary']).purpose, 'boundary')
     assert.strictEqual(parseArgs(['--intent=release']).purpose, 'release')
     assert.strictEqual(parseArgs(['--purpose', 'delivery']).purpose, 'delivery')
+    assert.strictEqual(parseArgs(['--repair-batch', 'freeze']).repairBatchAction, 'freeze')
+    assert.deepStrictEqual(parseArgs([
+      '--repair-issue', 'finding-b', '--repair-issue=finding-a', '--repair-issue', 'finding-b'
+    ]).repairIssues, ['finding-a', 'finding-b'])
+    assert.throws(() => parseArgs(['--repair-batch', 'run']), error =>
+      error instanceof ValidationDagError && error.code === 'VALIDATION_REPAIR_BATCH_ACTION_INVALID')
+    assert.strictEqual(parseArgs(['--max-concurrency', '1']).maxConcurrency, 1)
+    assert.strictEqual(parseArgs(['--max-concurrency=4']).maxConcurrency, 4)
+    assert.throws(() => parseArgs(['--max-concurrency', '0']), error =>
+      error instanceof ValidationDagError && error.code === 'VALIDATION_CONCURRENCY_INVALID')
     const aiEnv = {
       CODEX_THREAD_ID: 'fixture-thread',
       GITHUB_ACTIONS: 'true',
@@ -440,7 +518,7 @@ function run() {
     }
     assert.strictEqual(detectedActorType(ciEnv), 'trusted-ci')
     assert.match(expectedCiPolicyDigest('trusted-ci', { verificationLevel: 'V3' }, ciEnv), /^[a-f0-9]{64}$/)
-    assert.ok(cacheRelativePath('fixture').includes(path.join('validation-evidence', 'v2')))
+    assert.ok(cacheRelativePath('fixture').includes(path.join('validation-evidence', 'v3')))
     const fullPlan = planValidation({
       manifest,
       route: 'full',
@@ -649,6 +727,34 @@ function run() {
     assert.throws(() => validateValidationManifest(invalidDurationEstimate),
       error => error instanceof ValidationDagError && /estimatedDurationMs/.test(error.message))
 
+    const forbiddenCandidateCache = fixtureManifest([
+      fixtureNode('package-install-cache', { cachePolicy: 'candidate-bound', writeScopes: [] })
+    ])
+    assert.throws(() => validateValidationManifest(forbiddenCandidateCache),
+      error => error instanceof ValidationDagError && /candidate-bound forbidden/.test(error.message))
+
+    const isolatedTempCandidateCache = fixtureManifest([
+      fixtureNode('isolated-temp-cache', { cachePolicy: 'candidate-bound', writeScopes: ['isolated-temp'] })
+    ])
+    assert.doesNotThrow(() => validateValidationManifest(isolatedTempCandidateCache))
+
+    const sharedWriteCandidateCache = fixtureManifest([
+      fixtureNode('shared-write-cache', { cachePolicy: 'candidate-bound', writeScopes: ['profile-state'] })
+    ])
+    assert.throws(() => validateValidationManifest(sharedWriteCandidateCache),
+      error => error instanceof ValidationDagError && /outside isolated-temp/.test(error.message))
+
+    const delegatedCandidateCache = fixtureManifest([
+      fixtureNode('delegated-cache-owner', {
+        cachePolicy: 'candidate-bound',
+        writeScopes: [],
+        delegatedClosure: [{ nodeId: 'delegated-cache-leaf', probe: 'fixture', command: 'node fixture.js' }]
+      }),
+      fixtureNode('delegated-cache-leaf', { command: 'node', args: ['fixture.js'] })
+    ])
+    assert.throws(() => validateValidationManifest(delegatedCandidateCache),
+      error => error instanceof ValidationDagError && /delegated closure nodes/.test(error.message))
+
     const invalidCoveredNode = clone(manifest)
     invalidCoveredNode.nodes.find(node => node.id === 'validate-workspace').coversNodes = ['missing-node']
     assert.throws(() => validateValidationManifest(invalidCoveredNode),
@@ -712,6 +818,35 @@ function run() {
     for (const wave of schedule.waves) {
       assert.ok(!(wave.includes('a') && wave.includes('b')))
     }
+    const schedulable = (id, options = {}) => ({
+      id,
+      owner: 'fixture-owner',
+      command: process.execPath,
+      args: ['-e', 'process.exit(0)'],
+      riskClass: 'normal',
+      dependencies: [],
+      consumers: [],
+      delegatedClosure: [],
+      evidenceArtifacts: [],
+      writeScopes: [],
+      ...options
+    })
+    const stableSchedule = planLockAwareSchedule([
+      schedulable('read-a'),
+      schedulable('read-b'),
+      schedulable('security-barrier'),
+      schedulable('read-after-barrier')
+    ])
+    assert.deepStrictEqual(stableSchedule.waves, [
+      ['read-a', 'read-b'],
+      ['security-barrier'],
+      ['read-after-barrier']
+    ])
+    const isolatedSchedule = planLockAwareSchedule([
+      schedulable('isolated-a', { writeScopes: ['isolated-temp:one'] }),
+      schedulable('isolated-b', { writeScopes: ['isolated-temp:two'] })
+    ])
+    assert.deepStrictEqual(isolatedSchedule.waves, [['isolated-a', 'isolated-b']])
     const byId = new Map(manifest.nodes.map(node => [node.id, node]))
     const expanded = expandSelectedWithNestedLeaves(new Set(['validate-core']), byId)
     assert.ok(expanded.has('hooks-runtime'))
@@ -830,10 +965,10 @@ function run() {
       candidateStable: true,
       candidateId: 'fixture-unknown'
     })
-    assert.strictEqual(unknown.routeResolved, 'changed')
-    assert.strictEqual(unknown.executionState, 'blocked')
-    assert(unknown.executionBlockers.some(item => item.code === 'VALIDATION_UNKNOWN_INPUT'))
-    assert.strictEqual(unknown.fullFallback, null)
+    assert.strictEqual(unknown.routeResolved, 'full-fallback')
+    assert(!unknown.executionBlockers.some(item => item.code === 'VALIDATION_UNKNOWN_INPUT'))
+    assert.strictEqual(unknown.fullFallback.schemaVersion, 'ValidationFullFallbackV1')
+    assert.deepStrictEqual(unknown.fullFallback.unknownInputs, ['unknown/location.fixture'])
 
     const releaseOnlyManifest = fixtureManifest([
       fixtureNode('fixture-invariant', { inputs: ['base/**'] }),
@@ -855,9 +990,56 @@ function run() {
       candidateId: 'fixture-release-only-input'
     })
     assert.strictEqual(releaseOnlyInput.verificationLevel, 'V1')
-    assert.strictEqual(releaseOnlyInput.executionState, 'blocked')
-    assert(releaseOnlyInput.executionBlockers.some(item => item.code === 'VALIDATION_UNKNOWN_INPUT'))
+    assert.strictEqual(releaseOnlyInput.routeResolved, 'full-fallback')
+    assert(!releaseOnlyInput.executionBlockers.some(item => item.code === 'VALIDATION_UNKNOWN_INPUT'))
     assert.deepStrictEqual(releaseOnlyInput.impactGraph.unknownInputs, ['release-only/candidate.json'])
+    assert(!releaseOnlyInput.selectedNodes.some(node => node.id === 'release-only'))
+    assert.strictEqual(releaseOnlyInput.fullFallback.releaseConsumersExcluded, true)
+
+    const repairSeedManifest = fixtureManifest([
+      fixtureNode('repair-invariant', { inputs: ['fixture/base.js'] }),
+      fixtureNode('repair-failure-seed', {
+        inputs: ['fixture/original-failure.js'],
+        consumers: ['repair-consumer']
+      }),
+      fixtureNode('repair-consumer', {
+        inputs: ['fixture/consumer.js'],
+        dependencies: ['repair-failure-seed']
+      })
+    ])
+    const repairSeedPlan = planValidation({
+      manifest: repairSeedManifest,
+      route: 'changed',
+      changedFiles: ['fixture/base.js'],
+      changedSource: 'repair-delta',
+      riskClass: 'normal',
+      candidateStable: true,
+      candidateId: 'fixture-repair-seed',
+      purpose: 'boundary',
+      level: 'V2',
+      affectedBoundaries: ['fixture'],
+      forcedNodeIds: ['repair-failure-seed'],
+      repairContext: {
+        batchId: 'repair-batch-fixture',
+        phase: 'batch-frozen',
+        stateDigest: sha256('repair-state'),
+        repairDeltaDigest: sha256('repair-delta'),
+        deltaPrecision: 'content-identity',
+        repairDeltaFiles: ['fixture/base.js']
+      }
+    })
+    assert(repairSeedPlan.invalidationFrontier.includes('repair-failure-seed'))
+    assert(repairSeedPlan.selectedNodes.some(node => node.id === 'repair-consumer'))
+    assert(repairSeedPlan.selectionReasons['repair-failure-seed'].includes('repair-failure-seed'))
+    assert.strictEqual(repairSeedPlan.repairContext.batchId, 'repair-batch-fixture')
+    assert.throws(() => planValidation({
+      manifest: repairSeedManifest,
+      route: 'changed',
+      changedFiles: ['fixture/base.js'],
+      candidateStable: true,
+      candidateId: 'fixture-repair-unknown',
+      forcedNodeIds: ['missing-repair-node']
+    }), error => error instanceof ValidationDagError && error.code === 'VALIDATION_REPAIR_NODE_UNKNOWN')
 
     const unresolvedBoundaryManifest = fixtureManifest([
       fixtureNode('unresolved-boundary-owner', { inputs: ['outside-boundary/**'] })
@@ -1172,7 +1354,7 @@ function run() {
 
     const cachedNode = fixtureNode('fixture-cache', {
       cachePolicy: 'candidate-bound',
-      writeScopes: []
+      writeScopes: ['isolated-temp']
     })
     const cachedManifest = fixtureManifest([cachedNode])
     const candidate = {
@@ -1220,6 +1402,10 @@ function run() {
     assert.match(firstRun.receipt.executionSchedule.scheduleDigest, /^[a-f0-9]{64}$/)
     assert.match(firstRun.receipt.nestedCommandGraphDigest || '', /^[a-f0-9]{64}$|^$/)
     assert.strictEqual(firstRun.receipt.contextBindingTrace.status, 'unverified')
+    assert.strictEqual(firstRun.receipt.cacheDecision.policyEligibleNodeCount, 1)
+    assert.strictEqual(firstRun.receipt.cacheDecision.policyIneligibleNodeCount, 0)
+    assert.deepStrictEqual(firstRun.receipt.cacheDecision.ineligibleReasonCounts, {})
+    assert.strictEqual(firstRun.receipt.cacheDecision.statusCounts.miss, 1)
     assert.strictEqual(runCount, 1)
 
     const resumedNodeStarts = []
@@ -1323,6 +1509,7 @@ function run() {
       runCommand
     })
     assert.strictEqual(secondRun.receipt.cacheHitCount, 1)
+    assert.strictEqual(secondRun.receipt.cacheDecision.statusCounts.hit, 1)
     assert.strictEqual(runCount, 1)
 
     const descriptor = cacheDescriptor({
@@ -1337,7 +1524,7 @@ function run() {
         }
       }
     })
-    const cacheFile = path.join(tempRoot, cacheRelativePath(descriptor.cacheKey))
+    const cacheFile = resolveValidationCacheFile(tempRoot, descriptor.cacheKey)
     const tampered = JSON.parse(fs.readFileSync(cacheFile, 'utf8'))
     tampered.nodeEvidence.stdout = 'tampered'
     fs.writeFileSync(cacheFile, JSON.stringify(tampered, null, 2) + '\n')
@@ -1372,6 +1559,22 @@ function run() {
     assert.strictEqual(coverageRun.receipt.cacheHitCount, 0)
     assert.strictEqual(runCount, 3)
 
+    const expiredCache = JSON.parse(fs.readFileSync(cacheFile, 'utf8'))
+    expiredCache.expiresAt = '2000-01-01T00:00:00.000Z'
+    fs.writeFileSync(cacheFile, JSON.stringify(expiredCache, null, 2) + '\n')
+    const expiredRun = executeValidationPlan({
+      manifest: cachedManifest,
+      plan: cachedPlan,
+      candidate,
+      repoRoot: ROOT,
+      activeRoot: tempRoot,
+      runCommand
+    })
+    assert.strictEqual(expiredRun.receipt.cacheHitCount, 0)
+    assert.strictEqual(expiredRun.receipt.cacheInvalidations[0].status, 'expired')
+    assert.strictEqual(runCount, 4)
+    assert(!fs.existsSync(path.join(tempRoot, '.devcodex', '.runtime-state', 'validation-evidence')))
+
     const candidateTwo = { ...candidate, candidateId: 'candidate-two' }
     const planTwo = planValidation({
       manifest: cachedManifest,
@@ -1391,7 +1594,7 @@ function run() {
       runCommand
     })
     assert.strictEqual(candidateTwoRun.receipt.cacheHitCount, 1)
-    assert.strictEqual(runCount, 3, 'candidate id drift alone must not invalidate an unchanged node scope')
+    assert.strictEqual(runCount, 4, 'candidate id drift alone must not invalidate an unchanged node scope')
 
     const v3Plan = approvedPlan({
       manifest: cachedManifest,
@@ -1412,7 +1615,7 @@ function run() {
     })
     assert.strictEqual(v3Run.receipt.cacheHitCount, 0)
     assert.strictEqual(v3Run.receipt.results[0].cacheStatus, 'disabled-v3')
-    assert.strictEqual(runCount, 4, 'V3 must execute even when a V1 cache entry is fresh')
+    assert.strictEqual(runCount, 5, 'V3 must execute even when a V1 cache entry is fresh')
 
     const candidateThree = {
       ...candidate,
@@ -1443,7 +1646,7 @@ function run() {
     assert.strictEqual(capacityRun.persistence.status, 'deferred')
     assert.strictEqual(capacityRun.persistence.reasonCode, 'managed-runner-terminal-owner')
     assert.deepStrictEqual(capacityRun.receipt.invalidationFrontier, ['fixture-cache'])
-    assert.strictEqual(runCount, 5)
+    assert.strictEqual(runCount, 6)
 
     const unstableCacheCandidate = { ...candidate, candidateId: 'candidate-unstable-cache', stable: false }
     const unstableCachePlan = approvedPlan({
@@ -1522,7 +1725,7 @@ function run() {
         }
       }
     })
-    const focusedCacheFile = path.join(tempRoot, cacheRelativePath(focusedDescriptor.cacheKey))
+    const focusedCacheFile = resolveValidationCacheFile(tempRoot, focusedDescriptor.cacheKey)
     const invalidFocusedCache = JSON.parse(fs.readFileSync(focusedCacheFile, 'utf8'))
     invalidFocusedCache.nodeEvidence.invariantCoverage = ['wrong-invariant']
     invalidFocusedCache.invariantCoverage = ['wrong-invariant']
@@ -1762,7 +1965,8 @@ function run() {
       packageJson.scripts['probe:real-codex-host:h0'],
       'node scripts/lib/real-codex-host-probe.js --mode h0'
     )
-    assert.strictEqual(packageJson.scripts['test:validation-authority'], 'node scripts/test-validation-execution-authority.js && node scripts/test-validation-budget-control.js')
+    assert.strictEqual(packageJson.scripts['test:validation-authority'],
+      'node scripts/test-validation-execution-authority.js && node scripts/test-validation-budget-control.js && node scripts/test-validation-convergence.js')
     assert.strictEqual(packageJson.scripts['test:mcp-runtime-closure:package'], 'node scripts/test-mcp-runtime-closure.js --packlist-only')
     for (const file of [
       'scripts/validation-manifest.json',
@@ -1778,7 +1982,9 @@ function run() {
       'scripts/lib/project-knowledge-store.js',
       'scripts/lib/managed-validation-runner.js',
       'scripts/lib/actual-candidate-evidence.js',
+      'scripts/lib/validate-audit-state-compatibility.js',
       'scripts/lib/validation-dag.js',
+      'scripts/lib/validation-convergence-state.js',
       'scripts/lib/validation-evidence-store.js',
       'scripts/lib/validation-execution-authority.js',
       'scripts/lib/validation-worker.js',
@@ -1787,8 +1993,13 @@ function run() {
       'scripts/test-session-route-consumers.js',
       'scripts/test-task-admission-authority.js',
       'scripts/lib/real-codex-host-probe.js',
-      'scripts/test-real-codex-host-probe.js'
+      'scripts/test-real-codex-host-probe.js',
+      'scripts/test-validation-convergence.js'
     ]) assert(packageJson.files.includes(file), 'package files missing ' + file)
+    assert.strictEqual(packageJson.scripts['test:validation-convergence'],
+      'node scripts/test-validation-convergence.js')
+    assert(manifest.nodes.find(node => node.id === 'mcp-servers').inputs.includes('hooks/_runtime/context-source-observation.cjs'),
+      'mcp-servers must map the durable Profile section observation consumer')
 
     const cliHumanEnv = { ...process.env }
     delete cliHumanEnv.CODEX_THREAD_ID

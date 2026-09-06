@@ -1,9 +1,9 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要；历史版本见对应详细变更文件。
-> **最新版本详细变更文档**: [`changelogs/releases/v1.19.5.md`](./changelogs/releases/v1.19.5.md)
-> **最后更新**: 2026-08-30
-> **当前版本**: v1.19.5 修复正式任务在 finalized admission、过期/释放 owner 与 fresh resume 组合下无法恢复的 P0 死锁，并补齐 Stop/reacquire、单赢家 CAS、候选容量与滚动升级边界。版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
+> **最新版本详细变更文档**: [`changelogs/releases/v1.20.0.md`](./changelogs/releases/v1.20.0.md)
+> **最后更新**: 2026-09-06
+> **当前版本**: v1.20.0 完成任务连续性、项目 Profile、安全恢复、多语言、可扩展 SkillRoute、宿主原生多 Agent 编排合同与验证收敛架构升级。版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
 
 ---
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.20.0](./changelogs/releases/v1.20.0.md) | 2026-09-06 | 🚀 **任务连续性与工程控制面升级**：合法 CP 演进可跨会话续代；无 taskId 与异常恢复不再形成永久死锁；项目优先 Profile 与 workspace fallback、多语言连续性、分层 SkillRoute、多 Agent 隔离编排及修复批次收敛进入统一合同；发布采用同一精确制品的两阶段资格化、真实宿主验收与续发 | [查看](./changelogs/releases/v1.20.0.md) |
 | [v1.19.5](./changelogs/releases/v1.19.5.md) | 2026-08-30 | 🚑 **正式任务连续性恢复**：finalized + expired/released owner 可由 fresh resume 原子换代；任务永久、owner 短租约；accepted Stop 停放、同会话重取、跨会话单赢家接管；旧 owner/nonce、活跃 turn/operation、漂移与终态继续失败关闭 | [查看](./changelogs/releases/v1.19.5.md) |
 | [v1.19.4](./changelogs/releases/v1.19.4.md) | 2026-08-29 | 🚑 **自适应流程与跨会话 owner 恢复**：PC0～PC10 与流程/方案/验证四轴决策落地；显式 `init --profile` 接受现存空目录；CI 按影响范围执行；publish/finalize 可恢复；awaiting-owner admission 可在严格身份与真相回读边界内安全换代接管 | [查看](./changelogs/releases/v1.19.4.md) |
 | [v1.19.3](./changelogs/releases/v1.19.3.md) | 2026-08-28 | 🚑 **确认持久化与任务 owner P0 修复**：有界恢复 taskless instruction/work-item/route/plan/project 绑定；超限降级为无 authority identity-only；CP writer 的安全链接投影可被 owner 精确复核，并提供 30 秒内专项快测 | [查看](./changelogs/releases/v1.19.3.md) |

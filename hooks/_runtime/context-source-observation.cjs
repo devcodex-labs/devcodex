@@ -16,6 +16,7 @@ const {
   writeStableProjection
 } = require('./task-recovery-store-v5.cjs')
 const { compactLifecycleStateV5 } = require('./lifecycle-state-projection-v5.cjs')
+const { buildJsonContentIdentity } = require('./content-identity.cjs')
 
 const CONTEXT_SOURCE_LEDGER_SCHEMA = 'ContextSourceObservationLedgerV4'
 const PREVIOUS_CONTEXT_SOURCE_LEDGER_SCHEMA = 'ContextSourceObservationLedgerV3'
@@ -403,9 +404,72 @@ function installObservedPlan(lifecycle, plan, binding, target, hostSessionId) {
   return acquisition
 }
 
+function permitsExpiredTasklessResumeObservationBootstrap(plan, binding, hostSessionId) {
+  const route = plan?.workflowRoute || {}
+  return String(hostSessionId || '').trim().length > 0 &&
+    plan?.identity?.finalIntent === 'resume' &&
+    route.topIntent === 'resume' &&
+    route.routeKey === 'resume' &&
+    route.stage === 'rehydrate' &&
+    plan?.identity?.contextEpoch === binding?.contextEpoch &&
+    plan?.planId === binding?.planId &&
+    plan?.planContentId === binding?.planContentId
+}
+
 function boundedNumber(value) {
   const number = Number(value)
   return Number.isFinite(number) && number >= 0 ? number : null
+}
+
+function uniqueStrings(values) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map(value => String(value || '').trim())
+    .filter(Boolean))].sort()
+}
+
+function profileSectionRequirement(plan, sourceId) {
+  const normalizedSourceId = String(sourceId || '')
+  if (!normalizedSourceId.startsWith('profile:')) return null
+  const file = normalizedSourceId.slice('profile:'.length)
+  const entry = plan?.profile?.routeLoadRecipe?.entries?.find(item => item?.file === file)
+  if (!entry) return null
+  const requiredQueries = uniqueStrings(
+    Array.isArray(entry.requiredQueries) && entry.requiredQueries.length
+      ? entry.requiredQueries
+      : entry.headingQueries
+  )
+  return requiredQueries.length ? { file, requiredQueries } : null
+}
+
+function normalizeProfileSectionCoverage(raw, plan, sourceId) {
+  const requirement = profileSectionRequirement(plan, sourceId)
+  if (!requirement) return null
+  const value = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+  const sourceDigest = String(value.sourceDigest || '').trim().toLowerCase()
+  const schemaMatch = value.schemaVersion === 'ProfileSectionCoverageV1'
+  const fileMatch = String(value.file || '').trim() === requirement.file
+  const digestMatch = /^[a-f0-9]{64}$/.test(sourceDigest)
+  const coveredShapeValid = Array.isArray(value.coveredQueries)
+  const coveredQueries = coveredShapeValid
+    ? uniqueStrings(value.coveredQueries).filter(query => requirement.requiredQueries.includes(query))
+    : []
+  const valid = schemaMatch && fileMatch && digestMatch && coveredShapeValid
+  const complete = valid && requirement.requiredQueries.every(query => coveredQueries.includes(query))
+  return {
+    schemaVersion: 'ProfileSectionCoverageV1',
+    file: requirement.file,
+    sourceDigest: digestMatch ? sourceDigest : null,
+    requiredQueries: requirement.requiredQueries,
+    coveredQueries,
+    missingQueries: requirement.requiredQueries.filter(query => !coveredQueries.includes(query)),
+    deliveryMode: String(value.deliveryMode || 'unknown'),
+    sectionReceiptDigest: /^[a-f0-9]{64}$/.test(String(value.sectionReceiptDigest || ''))
+      ? String(value.sectionReceiptDigest)
+      : null,
+    valid,
+    complete,
+    reasonCode: valid ? (complete ? 'required-sections-complete' : 'required-sections-incomplete') : 'coverage-evidence-invalid'
+  }
 }
 
 function selectedSourceRefsStillMatch(selected, fsImpl = fs) {
@@ -432,14 +496,17 @@ function normalizeSourceResult(raw, plan, binding, target, hostSessionId, fsImpl
   const selected = plan.selectedSources.find(source => source.sourceId === sourceId)
   if (!selected) return null
   const bodyObserved = raw.bodyObserved === true
-  const successful = raw.successful !== false && bodyObserved
+  const profileSectionCoverage = normalizeProfileSectionCoverage(raw.profileSectionCoverage, plan, sourceId)
+  const successful = raw.successful !== false && bodyObserved &&
+    (!profileSectionCoverage || (profileSectionCoverage.valid && profileSectionCoverage.complete))
   const resultDigest = String(raw.resultDigest || stableDigest({
     sourceId,
     contextEpoch: binding.contextEpoch,
     planId: binding.planId,
     contentIdentity: raw.contentIdentity || null,
     bytes: raw.bytes ?? null,
-    chars: raw.chars ?? null
+    chars: raw.chars ?? null,
+    profileSectionCoverage
   }))
   const rawHostSessionId = String(raw.hostSessionId || '')
   const effectiveHostSessionId = String(rawHostSessionId || hostSessionId || '')
@@ -471,7 +538,8 @@ function normalizeSourceResult(raw, plan, binding, target, hostSessionId, fsImpl
     bytes: boundedNumber(raw.bytes),
     chars: boundedNumber(raw.chars),
     hostDeliveredBytes: boundedNumber(raw.hostDeliveredBytes),
-    cache: raw.cache === true
+    cache: raw.cache === true,
+    profileSectionCoverage
   }
 }
 
@@ -519,30 +587,138 @@ function sourceObservationQuality(result) {
   ].reduce((score, value) => (score << 1) + (value === true ? 1 : 0), 0)
 }
 
-/**
- * Fold at most one deterministic durable observation per selected source.
- * Arrival order and duplicate tool events therefore cannot change the V5
- * receipt or its downstream rebind/load-stage identity.
- */
-function selectDurableSourceResultsForFold(plan, sourceResults) {
-  const bySource = new Map()
-  for (const result of Array.isArray(sourceResults) ? sourceResults : []) {
-    const sourceId = String(result?.sourceId || '')
-    if (!sourceId) continue
-    const prior = bySource.get(sourceId)
+function selectBestSourceResult(results) {
+  let best = null
+  let bestRank = ''
+  for (const result of results) {
     const candidateRank = [
       String(sourceObservationQuality(result)).padStart(3, '0'),
       String(result.resultDigest || ''),
       String(result.observationId || '')
     ].join(':')
-    const priorRank = prior
-      ? [
-          String(sourceObservationQuality(prior)).padStart(3, '0'),
-          String(prior.resultDigest || ''),
-          String(prior.observationId || '')
-        ].join(':')
-      : ''
-    if (!prior || candidateRank > priorRank) bySource.set(sourceId, result)
+    if (!best || candidateRank > bestRank) {
+      best = result
+      bestRank = candidateRank
+    }
+  }
+  return best
+}
+
+function usableProfileSectionObservation(result) {
+  return result?.profileSectionCoverage?.valid === true &&
+    result.bodyObserved === true &&
+    result.observable === true &&
+    result.transportSuccess === true &&
+    result.sourceRefsMatch === true &&
+    result.schemaMatch !== false &&
+    result.targetMatch !== false
+}
+
+function aggregateProfileSectionSourceResults(plan, sourceId, results) {
+  const requirement = profileSectionRequirement(plan, sourceId)
+  if (!requirement) return null
+  const byDigest = new Map()
+  for (let ordinal = 0; ordinal < results.length; ordinal += 1) {
+    const result = results[ordinal]
+    if (!usableProfileSectionObservation(result)) continue
+    const sourceDigest = result.profileSectionCoverage.sourceDigest
+    if (!byDigest.has(sourceDigest)) byDigest.set(sourceDigest, { parts: [], lastOrdinal: ordinal })
+    const group = byDigest.get(sourceDigest)
+    group.parts.push(result)
+    group.lastOrdinal = ordinal
+  }
+  const candidates = []
+  for (const [sourceDigest, group] of byDigest) {
+    const parts = group.parts
+    const coveredQueries = uniqueStrings(parts.flatMap(part => part.profileSectionCoverage.coveredQueries))
+      .filter(query => requirement.requiredQueries.includes(query))
+    const complete = requirement.requiredQueries.every(query => coveredQueries.includes(query))
+    candidates.push({
+      sourceDigest,
+      parts: [...parts].sort((left, right) =>
+        String(left.observationId || '').localeCompare(String(right.observationId || '')) ||
+        String(left.resultDigest || '').localeCompare(String(right.resultDigest || ''))
+      ),
+      coveredQueries,
+      complete,
+      lastOrdinal: group.lastOrdinal
+    })
+  }
+  candidates.sort((left, right) =>
+    right.lastOrdinal - left.lastOrdinal ||
+    right.coveredQueries.length - left.coveredQueries.length ||
+    left.sourceDigest.localeCompare(right.sourceDigest)
+  )
+  const selectedGroup = candidates[0]
+  if (!selectedGroup) return null
+  const representative = selectBestSourceResult(selectedGroup.parts)
+  const aggregateMaterial = {
+    schemaVersion: 'ProfileSectionCoverageAggregateV1',
+    sourceId,
+    file: requirement.file,
+    sourceDigest: selectedGroup.sourceDigest,
+    requiredQueries: requirement.requiredQueries,
+    coveredQueries: selectedGroup.coveredQueries,
+    partIdentities: selectedGroup.parts.map(part => ({
+      observationId: part.observationId,
+      resultDigest: part.resultDigest,
+      contentIdentity: part.contentIdentity || null
+    }))
+  }
+  const contentIdentity = buildJsonContentIdentity({
+    sourceKey: `profile-section-coverage://${sourceId}`,
+    value: aggregateMaterial,
+    contractVersion: 'ProfileSectionCoverageV1'
+  }).identity
+  const resultDigest = stableDigest({ aggregateMaterial, contentIdentity })
+  const complete = selectedGroup.complete
+  return {
+    ...representative,
+    observationId: `profile-sections-${resultDigest.slice(0, 20)}`,
+    toolCallId: 'mcp-profile-section-coverage-fold',
+    outcome: complete ? 'observed-success' : 'section-coverage-incomplete',
+    successful: complete,
+    resultDigest,
+    contentIdentity,
+    bodyObserved: complete,
+    bytes: selectedGroup.parts.reduce((sum, part) => sum + Number(part.bytes || 0), 0),
+    chars: selectedGroup.parts.reduce((sum, part) => sum + Number(part.chars || 0), 0),
+    hostDeliveredBytes: selectedGroup.parts.reduce((sum, part) => sum + Number(part.hostDeliveredBytes || 0), 0),
+    profileSectionCoverage: {
+      schemaVersion: 'ProfileSectionCoverageV1',
+      file: requirement.file,
+      sourceDigest: selectedGroup.sourceDigest,
+      requiredQueries: requirement.requiredQueries,
+      coveredQueries: selectedGroup.coveredQueries,
+      missingQueries: requirement.requiredQueries.filter(query => !selectedGroup.coveredQueries.includes(query)),
+      deliveryMode: 'durable-union',
+      sectionReceiptDigest: null,
+      valid: true,
+      complete,
+      reasonCode: complete ? 'required-sections-complete' : 'required-sections-incomplete',
+      partObservationIds: selectedGroup.parts.map(part => part.observationId)
+    }
+  }
+}
+
+/**
+ * Fold at most one deterministic durable observation per selected source.
+ * Profile sources with a route recipe first union required section evidence
+ * inside one sourceDigest; unrelated digests are never stitched together.
+ */
+function selectDurableSourceResultsForFold(plan, sourceResults) {
+  const grouped = new Map()
+  for (const result of Array.isArray(sourceResults) ? sourceResults : []) {
+    const sourceId = String(result?.sourceId || '')
+    if (!sourceId) continue
+    if (!grouped.has(sourceId)) grouped.set(sourceId, [])
+    grouped.get(sourceId).push(result)
+  }
+  const bySource = new Map()
+  for (const [sourceId, results] of grouped) {
+    const aggregate = aggregateProfileSectionSourceResults(plan, sourceId, results)
+    const selected = aggregate || selectBestSourceResult(results)
+    if (selected) bySource.set(sourceId, selected)
   }
   const sourceOrder = new Map((plan?.selectedSources || []).map((source, index) => [source.sourceId, index]))
   return [...bySource.values()].sort((left, right) => {
@@ -620,7 +796,8 @@ function replayMcpContextSourceObservations(receipt, plan, input = {}, options =
     return { ...durable, receipt }
   }
   let nextReceipt = baseReceipt
-  for (const result of durable.sourceResults) {
+  const foldResults = selectDurableSourceResultsForFold(plan, durable.sourceResults)
+  for (const result of foldResults) {
     nextReceipt = recordContextReadOutcome(nextReceipt, plan, result, {
       hostSessionId: input.hostSessionId,
       nowMs: options.nowMs
@@ -630,7 +807,7 @@ function replayMcpContextSourceObservations(receipt, plan, input = {}, options =
     status: 'replayed',
     recoveredFrom: receipt.status === 'stale' ? 'recoverable-stale' : 'current-receipt',
     receipt: nextReceipt,
-    sourceResults: durable.sourceResults,
+    sourceResults: foldResults,
     filePath: durable.filePath,
     observationCount: durable.observationCount
   }
@@ -692,6 +869,11 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
     activeRoot: target.activeRoot,
     project: target.project
   }
+  const expiredTasklessResumeBootstrap = permitsExpiredTasklessResumeObservationBootstrap(
+    observed.plan,
+    binding,
+    sessionKey
+  )
   let foldFailure = null
   let foldReceipt = null
   const write = updateTaskRecoveryState({
@@ -756,7 +938,8 @@ function recordMcpContextSourceObservations(input = {}, options = {}) {
     ...options,
     reason: 'context-source-observation',
     force: true,
-    touchSessionMapping: true
+    touchSessionMapping: true,
+    allowExpiredTasklessContextBootstrap: expiredTasklessResumeBootstrap
   })
   if (foldFailure) {
     return {

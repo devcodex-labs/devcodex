@@ -145,12 +145,13 @@ const VISIBLE_LOCALE_CATALOGS = Object.freeze({
 function resolveVisibleLocale(languageContext) {
   const compact = compactLanguageContext(languageContext)
   const requestedLanguage = compact?.responseLanguage || compact?.primaryLanguage || ''
-  const renderedLanguage = VISIBLE_LOCALE_CATALOGS[requestedLanguage]
-    ? requestedLanguage
+  const catalogLanguage = requestedLanguage === 'en-US' ? 'en' : requestedLanguage
+  const renderedLanguage = VISIBLE_LOCALE_CATALOGS[catalogLanguage]
+    ? catalogLanguage
     : 'en'
   const fallbackReason = !compact
     ? 'language-context-missing'
-    : (renderedLanguage !== requestedLanguage ? `locale-catalog-unavailable:${requestedLanguage}` : null)
+    : (renderedLanguage !== catalogLanguage ? `locale-catalog-unavailable:${requestedLanguage}` : null)
   return {
     schemaVersion: 'VisibleLocaleDecisionV1',
     requestedLanguage: requestedLanguage || 'und',

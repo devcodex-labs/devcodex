@@ -206,6 +206,10 @@ const SKILL_ROUTE_VALUE_SCHEMA_BY_FIELD = Object.freeze({
   cursor: { type: 'string' },
   catalogDigest: { type: 'string' },
   skillId: {},
+  preferredLayer: {
+    enum: ['project', 'workspace', 'global', null]
+  },
+  expectedContentDigest: { type: 'string' },
   contextBinding: { type: 'object' },
   previousPlanDigest: { type: 'string' },
   lateConditionId: { type: 'string' },
@@ -231,6 +235,9 @@ function skillRouteOpSchema (op, required, optional = []) {
 const SKILL_ROUTE_INPUT_SCHEMA = {
   type: 'object',
   oneOf: [
+    skillRouteOpSchema('resolve_exact', [
+      'op', 'project', 'turnBinding', 'contextEpoch', 'skillId'
+    ], ['preferredLayer', 'expectedContentDigest', 'cursor']),
     skillRouteOpSchema('catalog', ['op', 'project', 'turnBinding', 'contextEpoch'], ['cursor']),
     skillRouteOpSchema('commit', [
       'op', 'project', 'turnBinding', 'contextEpoch', 'catalogDigest', 'skillId', 'contextBinding'
@@ -248,12 +255,12 @@ const SKILL_ROUTE_INPUT_SCHEMA = {
 const TOOLS = [
   {
     name: 'skill_route',
-    description: 'Skill 路由：catalog/commit/rebind/load_stage/status；参数见 schema。',
+    description: '显式 Skill 精确解析或非显式渐进路由。',
     inputSchema: SKILL_ROUTE_INPUT_SCHEMA
   },
   {
     name: 'profile_context_plan',
-    description: '生成 ContextReadPlanV2。',
+    description: '生成上下文读取计划。',
     inputSchema: {
       type: 'object',
       required: ['intent'],
@@ -304,7 +311,7 @@ const TOOLS = [
   },
   {
     name: 'profile_load',
-    description: '有界加载计划内 Profile 正文。',
+    description: '加载计划内 Profile。',
     inputSchema: {
       type: 'object',
       required: ['contextBinding'],
@@ -354,7 +361,7 @@ const TOOLS = [
   },
   {
     name: 'profile_skill_plan',
-    description: '生成计划绑定的 BundleDecisionV2。',
+    description: '生成 Skill 组合计划。',
     inputSchema: {
       type: 'object',
       required: ['candidateIds', 'contextBinding'],
@@ -380,7 +387,7 @@ const TOOLS = [
   },
   {
     name: 'profile_get_mode',
-    description: '读取 ENV_MODE 与当前宿主。',
+    description: '读取模式与宿主。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -410,11 +417,11 @@ const TOOLS = [
 const PROMPTS = [
   {
     name: 'devcodex-init',
-    description: '一键加载 DevCodex 工作流规范与当前项目 Profile。在新建会话时使用，实现免手敲挂载规范。',
+    description: '加载规范与项目 Profile。',
     arguments: [
       {
         name: 'project',
-        description: 'workspace-namespace 下的目标项目命名空间；从工作区根启动 MCP 时必填。',
+        description: '目标项目命名空间。',
         required: false
       }
     ]
@@ -875,6 +882,8 @@ function resolveConfigFile(projectName, options = {}) {
           sourcePaths: [fullPath],
           sourceSnapshots,
           config: loaded.config,
+          workspaceConfig: null,
+          projectConfig: loaded.config,
           sourceBytesRead: loaded.sourceBytesRead
         }
       }
@@ -887,6 +896,8 @@ function resolveConfigFile(projectName, options = {}) {
       sourcePaths: [],
       sourceSnapshots,
       config: null,
+      workspaceConfig: null,
+      projectConfig: null,
       sourceBytesRead: 0
     }
   }
@@ -914,6 +925,8 @@ function resolveConfigFile(projectName, options = {}) {
     sourcePaths,
     sourceSnapshots: [workspaceLoaded?.sourceSnapshot, projectLoaded?.sourceSnapshot].filter(Boolean),
     config: exists ? merged : null,
+    workspaceConfig,
+    projectConfig,
     sourceBytesRead: Number(workspaceLoaded?.sourceBytesRead || 0) + Number(projectLoaded?.sourceBytesRead || 0)
   }
 }
@@ -1274,6 +1287,51 @@ function buildProfileRouteAggregateRecoveryRecipe(routeLoadRecipe, sectionReceip
     files: perFile
   }
   return { ...material, recipeDigest: stableDigest(material) }
+}
+
+function profileCoverageSourceDigest(deliveredProfile) {
+  const sectionDigest = String(deliveredProfile?.sectionReceipt?.sourceDigest || '').toLowerCase()
+  if (/^[a-f0-9]{64}$/.test(sectionDigest)) return sectionDigest
+  const sourcePaths = new Set((deliveredProfile?.sourcePaths || []).map(item => path.resolve(item)))
+  const snapshot = [...(deliveredProfile?.sourceSnapshots || [])].reverse().find(item =>
+    item?.exists === true && sourcePaths.has(path.resolve(item.path)) && /^[a-f0-9]{64}$/.test(String(item.sourceDigest || ''))
+  )
+  return snapshot ? String(snapshot.sourceDigest).toLowerCase() : null
+}
+
+function buildProfileSectionCoverage(plan, deliveredProfile) {
+  const file = String(deliveredProfile?.file || '')
+  const entry = plan?.profile?.routeLoadRecipe?.entries?.find(item => item?.file === file)
+  if (!entry) return null
+  const requiredQueries = [...new Set((entry.requiredQueries || entry.headingQueries || [])
+    .map(value => String(value || '').trim()).filter(Boolean))].sort()
+  if (!requiredQueries.length) return null
+  const receipt = deliveredProfile.sectionReceipt
+  const sourceDigest = profileCoverageSourceDigest(deliveredProfile)
+  const completeBodyDelivery = deliveredProfile.missing !== true && Boolean(sourceDigest)
+  const fullBodyDelivery = completeBodyDelivery && (!receipt || receipt.completion === 'fallback-full')
+  const blockedQueries = new Set([
+    ...(receipt?.missing || []),
+    ...(receipt?.ambiguous || []).map(item => item?.query),
+    ...(receipt?.deferredSections || []).map(item => item?.query)
+  ].map(value => String(value || '').trim()).filter(Boolean))
+  const matchedQueries = new Set((receipt?.matchedHeadings || [])
+    .map(item => String(item?.query || '').trim()).filter(Boolean))
+  const coveredQueries = fullBodyDelivery
+    ? [...requiredQueries]
+    : requiredQueries.filter(query => completeBodyDelivery && matchedQueries.has(query) && !blockedQueries.has(query))
+  const material = {
+    schemaVersion: 'ProfileSectionCoverageV1',
+    file,
+    sourceDigest,
+    requiredQueries,
+    coveredQueries,
+    missingQueries: requiredQueries.filter(query => !coveredQueries.includes(query)),
+    deliveryMode: fullBodyDelivery ? (receipt ? 'fallback-full' : 'full-file') : 'section-selection',
+    sectionReceiptDigest: receipt ? stableDigest(receipt) : null,
+    complete: completeBodyDelivery && requiredQueries.every(query => coveredQueries.includes(query))
+  }
+  return material
 }
 
 function contextPlanStableProjection(plan) {
@@ -2288,6 +2346,7 @@ function handleProfileLoad(args = {}, internal = {}) {
         body,
         sourcePaths: resolved.sourcePaths || [],
         sourceSnapshots: resolved.sourceSnapshots || [],
+        sectionReceipt: selection ? selection.receipt : null,
         missing: false
       })
       if (selection) {
@@ -2317,6 +2376,7 @@ function handleProfileLoad(args = {}, internal = {}) {
         body: '',
         sourcePaths: resolved?.sourcePaths || [],
         sourceSnapshots: resolved?.sourceSnapshots || [],
+        sectionReceipt: null,
         missing: true
       })
     }
@@ -2412,6 +2472,11 @@ function handleProfileLoad(args = {}, internal = {}) {
   }
   meta.bodyDelivered = true
   meta.sourceFinalIdentity = sourceFinalIdentity
+  const sectionCoverageReceipts = deliveredProfiles
+    .map(item => buildProfileSectionCoverage(contextAuthorization?.plan, item))
+    .filter(Boolean)
+  const sectionCoverageByFile = new Map(sectionCoverageReceipts.map(item => [item.file, item]))
+  meta.sectionCoverageReceipts = sectionCoverageReceipts
   let contextObservation
   if (bootstrapAuthorized) {
     contextObservation = {
@@ -2450,6 +2515,7 @@ function handleProfileLoad(args = {}, internal = {}) {
             targetMatch: contextBinding.bindingStatus === 'verified',
             contentIdentity,
             bodyObserved: !item.missing,
+            profileSectionCoverage: sectionCoverageByFile.get(item.file) || null,
             bytes: Buffer.byteLength(item.body, 'utf8'),
             chars: item.body.length,
             hostDeliveredBytes: Buffer.byteLength(item.body, 'utf8')
@@ -2754,16 +2820,22 @@ function dispatch(method, params) {
           case 'profile_compose_entry_check': {
             const { composeEntryCheckBlock } = require('../scripts/lib/host-parity-scorecard.js')
             const entry = args.entry && typeof args.entry === 'object' && !Array.isArray(args.entry) ? args.entry : {}
+            const resolvedConfig = resolveConfigFile(args.project)
+            const projectBound = args.project === 'workspace'
+              ? false
+              : resolvedConfig.projectConfig !== null
             const languageContext = resolveLanguageContext({
               prompt: entry.prompt,
               taskContext: entry.languageContext || entry.taskLanguageContext,
               conversationContext: entry.conversationLanguageContext,
-              workspacePreference: entry.workspacePreference,
+              workspacePreference: entry.workspacePreference ?? resolvedConfig.workspaceConfig?.extensions?.devcodex?.language,
+              projectPreference: entry.projectPreference ?? resolvedConfig.projectConfig?.extensions?.devcodex?.language,
+              projectBound,
               locale: entry.locale || process.env.LC_ALL || process.env.LANG || process.env.LANGUAGE || ''
             })
             const localeDecision = resolveVisibleLocale(languageContext)
             const english = localeDecision.renderedLanguage === 'en'
-            const workflowRouting = resolveConfigFile(args.project).config?.extensions?.devcodex?.workflowRouting
+            const workflowRouting = resolvedConfig.config?.extensions?.devcodex?.workflowRouting
             const precheckDecision = buildWorkflowPlanDecision({
               phase: 'precheck', prompt: entry.prompt, config: workflowRouting, facts: entry.facts
             })
@@ -2865,6 +2937,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  buildProfileSectionCoverage,
   dispatch,
   handleProfileLoad,
   profileSourceSnapshot,

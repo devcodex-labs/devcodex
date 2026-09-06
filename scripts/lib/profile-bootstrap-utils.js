@@ -69,7 +69,7 @@ function buildProfileBootstrapUtils(context) {
 | 01-项目信息.md | 技术栈 / 仓库 / 版本 |
 | 02-架构约束.md | 目录结构 / 模块边界 |
 | 03-代码风格.md | 编码规范 / lint / 格式化 |
-${tier !== 'profile-lite' ? '| 04-测试规范.md | 测试与验证路线 |\n| 05-发布规范.md | 交付与发布边界 |\n| 06-功能清单.md | 公开能力与消费者 |\n' : ''}${tier === 'profile-closed-loop' ? '| 07-用户文档与契约规范.md | 用户文档与公开契约 |\n' : ''}| config.json | ENV_MODE + agent 兜底标识 + \`extensions.devcodex.git\` 安全默认值 |
+${tier !== 'profile-lite' ? '| 04-测试规范.md | 测试与验证路线 |\n| 05-发布规范.md | 交付与发布边界 |\n| 06-功能清单.md | 公开能力与消费者 |\n' : ''}${tier === 'profile-closed-loop' ? '| 07-用户文档与契约规范.md | 用户文档与公开契约 |\n' : ''}| config.json | ENV_MODE + agent 兜底标识 + \`extensions.devcodex.language\` 语言偏好 + Git 默认值 |
 | config.local.json | 可选，用户 / 项目指定时使用的本地 overlay：长期连接、本地明文连接信息、env / secretRef 引用、\`extensions.<namespace>\` |
 `
   }
@@ -266,12 +266,17 @@ ${tree || '(empty)'}
 `
   }
 
-  function genConfigJson(agent, mode) {
+  function genConfigJson(agent, mode, profileScope = 'project') {
     return JSON.stringify({
       mode,
       agent,
       extensions: {
         devcodex: {
+          language: {
+            schemaVersion: 'LanguagePreferenceV1',
+            mode: profileScope === 'workspace' ? 'auto' : 'inherit',
+            locale: null
+          },
           workflowRouting: {
             mode: 'adaptive',
             showPlan: true

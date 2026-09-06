@@ -104,7 +104,14 @@ function buildWorkspaceInitCommand(ctx) {
     }
     const profileArgv = dryRun ? ['--dry-run'] : []
     const workspaceProfile = !refresh && typeof initializeProfile === 'function'
-      ? initializeProfile(profileArgv, { cwdOverride: layout.workspaceRoot, source: 'workspace-init', silent: json })
+      ? initializeProfile(profileArgv, {
+          cwdOverride: layout.workspaceRoot,
+          profileDirOverride: path.join(workspaceRuntimeRoot, 'profile'),
+          runtimeRoot: workspaceRuntimeRoot,
+          projectIdentity: 'workspace',
+          source: 'workspace-init',
+          silent: json
+        })
       : { ok: true, targetTier: null, actions: [], status: 'unchanged-by-update' }
     if (!workspaceProfile.ok) {
       return initArgumentFailure(
@@ -117,6 +124,8 @@ function buildWorkspaceInitCommand(ctx) {
       projectProfile = initializeProfile(profileArgv, {
         cwdOverride: profileTarget.projectRoot,
         profileDirOverride: `${profileTarget.runtimeRoot}/profile`,
+        runtimeRoot: profileTarget.runtimeRoot,
+        projectIdentity: profileTarget.namespace,
         source: 'workspace-init-profile-target',
         silent: json,
         useRecommendedTier: true
@@ -145,14 +154,18 @@ function buildWorkspaceInitCommand(ctx) {
       workspaceProfile: {
         status: workspaceProfile.status || (refresh ? 'unchanged-by-update' : 'initialized'),
         tier: workspaceProfile.targetTier,
-        actions: workspaceProfile.actions || []
+        lifecycleState: workspaceProfile.lifecycleState || null,
+        actions: workspaceProfile.actions || [],
+        materializationReceipt: workspaceProfile.materializationReceipt || null
       },
       projectProfile: projectProfile
         ? {
             namespace: profileTarget.namespace,
             tier: projectProfile.targetTier,
             recommendedTier: projectProfile.recommendedTier,
-            actions: projectProfile.actions || []
+            lifecycleState: projectProfile.lifecycleState || null,
+            actions: projectProfile.actions || [],
+            materializationReceipt: projectProfile.materializationReceipt || null
           }
         : null,
       tenantId: tenantId || null,

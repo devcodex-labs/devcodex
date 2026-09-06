@@ -4,6 +4,7 @@ const crypto = require('crypto')
 const { projectArtifactMutationReconciliationReceipt } = require('./artifact-mutation-reconciliation.cjs')
 const { projectArtifactTemplateBinding } = require('./artifact-template-contract.cjs')
 const { compactLanguageContext } = require('./language-context.cjs')
+const { compactTaskCheckpointEpochSet } = require('./task-checkpoint-epoch-v1.cjs')
 
 const TASK_STATE_TARGET_BYTES = 64 * 1024
 const TASK_STATE_SLOT_MAX_BYTES = 256 * 1024
@@ -19,6 +20,9 @@ const DELIVERY_RECEIPT_MAX_BYTES = 32 * 1024
 const ADMISSION_TRANSACTION_MAX_BYTES = 12 * 1024
 const VALIDATION_AUTHORITY_RECORD_MAX_BYTES = 4 * 1024
 const VALIDATION_ROOT_BUDGET_PROJECTION_MAX_BYTES = 16 * 1024
+const VALIDATION_REPAIR_CONVERGENCE_MAX_BYTES = 100 * 1024
+const VALIDATION_QUALIFICATION_MAX_BYTES = 68 * 1024
+const VALIDATION_CONVERGENCE_TERMINAL_MAX_BYTES = 24 * 1024
 const TASK_SCOPED_AUTO_RECORD_MAX_BYTES = 4 * 1024
 const AUTO_CHECKPOINT_HISTORY_MAX_COUNT = 12
 const AUTO_CHECKPOINT_HISTORY_MAX_BYTES = 64 * 1024
@@ -691,6 +695,9 @@ function compactValidationExecution(raw) {
     'currentLease',
     'runnerState',
     'terminalReceipt',
+    'convergenceTerminalReceipt',
+    'repairConvergence',
+    'lastSuccessfulQualification',
     'revocationEpoch',
     'updatedAt'
   ]
@@ -714,9 +721,231 @@ function compactValidationExecution(raw) {
         { field, bytes: jsonBytes(item), maxBytes: VALIDATION_ROOT_BUDGET_PROJECTION_MAX_BYTES }
       )
     }
+    const convergenceLimit = field === 'repairConvergence'
+      ? VALIDATION_REPAIR_CONVERGENCE_MAX_BYTES
+      : (field === 'lastSuccessfulQualification'
+          ? VALIDATION_QUALIFICATION_MAX_BYTES
+          : (field === 'convergenceTerminalReceipt' ? VALIDATION_CONVERGENCE_TERMINAL_MAX_BYTES : null))
+    if (convergenceLimit && item !== null && jsonBytes(item) > convergenceLimit) {
+      throw new LifecycleStateProjectionV5Error(
+        'LIFECYCLE_VALIDATION_CONVERGENCE_RECORD_EXCEEDED',
+        `${field} exceeds ${convergenceLimit} bytes`,
+        { field, bytes: jsonBytes(item), maxBytes: convergenceLimit }
+      )
+    }
     value[field] = item
   }
   return value
+}
+
+function digestFieldMatches(raw, field) {
+  if (!isPlainObject(raw) || !/^[a-f0-9]{64}$/.test(String(raw[field] || ''))) return false
+  const core = clone(raw)
+  delete core[field]
+  return digestValue(core) === raw[field]
+}
+
+function compactValidationCandidateSnapshotForCold(raw) {
+  if (!isPlainObject(raw) || raw.schemaVersion !== 'ValidationCandidateSnapshotV1' ||
+      !String(raw.candidateId || '') || !digestFieldMatches(raw, 'snapshotDigest')) return clone(raw)
+  const core = {
+    schemaVersion: raw.schemaVersion,
+    candidateId: raw.candidateId,
+    candidateHead: raw.candidateHead || null,
+    entries: [],
+    scopeOmitted: true,
+    scopeCount: Number.isInteger(raw.scopeCount) && raw.scopeCount >= 0
+      ? raw.scopeCount
+      : (Array.isArray(raw.entries) ? raw.entries.length : 0),
+    scopeDigest: /^[a-f0-9]{64}$/.test(String(raw.scopeDigest || ''))
+      ? raw.scopeDigest
+      : digestValue(Array.isArray(raw.entries) ? raw.entries : [])
+  }
+  return { ...core, snapshotDigest: digestValue(core) }
+}
+
+function compactSuccessfulQualificationForCold(raw) {
+  if (!isPlainObject(raw) || raw.schemaVersion !== 'ValidationSuccessfulQualificationV1' ||
+      !digestFieldMatches(raw, 'recordDigest')) return clone(raw)
+  const core = clone(raw)
+  delete core.recordDigest
+  core.candidateSnapshot = compactValidationCandidateSnapshotForCold(core.candidateSnapshot)
+  return { ...core, recordDigest: digestValue(core) }
+}
+
+function validQualificationIntegrityForCold(raw) {
+  return isPlainObject(raw) && raw.schemaVersion === 'ValidationSuccessfulQualificationV1' &&
+    digestFieldMatches(raw, 'recordDigest') &&
+    isPlainObject(raw.qualificationIdentity) &&
+    digestFieldMatches(raw.qualificationIdentity, 'qualificationDigest') &&
+    raw.qualificationDigest === raw.qualificationIdentity.qualificationDigest &&
+    isPlainObject(raw.candidateSnapshot) &&
+    digestFieldMatches(raw.candidateSnapshot, 'snapshotDigest') &&
+    raw.qualificationIdentity.candidateId === raw.candidateSnapshot.candidateId &&
+    (raw.qualificationIdentity.candidateHead || null) === (raw.candidateSnapshot.candidateHead || null)
+}
+
+function qualifiedConvergenceMatchesQualificationForCold(convergence, qualification) {
+  return isPlainObject(convergence) && digestFieldMatches(convergence, 'stateDigest') &&
+    ['affected-qualified', 'full-qualified'].includes(convergence.phase) &&
+    validQualificationIntegrityForCold(qualification) &&
+    convergence.qualificationDigest === qualification.qualificationDigest &&
+    isPlainObject(convergence.frozenCandidate) &&
+    digestFieldMatches(convergence.frozenCandidate, 'snapshotDigest') &&
+    convergence.frozenCandidate.candidateId === qualification.candidateSnapshot.candidateId &&
+    (convergence.frozenCandidate.candidateHead || null) ===
+      (qualification.candidateSnapshot.candidateHead || null) &&
+    (convergence.frozenCandidate.scopeOmitted === true ||
+      qualification.candidateSnapshot.scopeOmitted === true ||
+      convergence.frozenCandidate.snapshotDigest === qualification.candidateSnapshot.snapshotDigest)
+}
+
+function compactValidationConvergenceTerminal(raw) {
+  if (!isPlainObject(raw)) return null
+  if (raw.schemaVersion === 'ValidationConvergenceTerminalV1' &&
+      digestFieldMatches(raw, 'projectionDigest')) return clone(raw)
+  const sourceTerminalDigest = String(raw.sourceTerminalDigest || raw.terminalDigest || '')
+  if (!/^[a-f0-9]{64}$/.test(sourceTerminalDigest)) return null
+  const boundedIds = values => {
+    const result = []
+    const seen = new Set()
+    let bytes = 0
+    for (const rawValue of Array.isArray(values) ? values : []) {
+      const value = boundedString(String(rawValue || '').trim(), 256)
+      if (!value || seen.has(value)) continue
+      const nextBytes = Buffer.byteLength(value, 'utf8') + 4
+      if (result.length >= 256 || bytes + nextBytes > 8 * 1024) break
+      seen.add(value)
+      result.push(value)
+      bytes += nextBytes
+    }
+    return result
+  }
+  const core = {
+    schemaVersion: 'ValidationConvergenceTerminalV1',
+    sourceTerminalDigest,
+    receiptId: raw.receiptId ? boundedString(raw.receiptId, 512) : null,
+    candidateId: raw.candidateId ? boundedString(raw.candidateId, 512) : null,
+    candidateHead: raw.candidateHead || raw.candidateIdentity?.head
+      ? boundedString(raw.candidateHead || raw.candidateIdentity?.head, 128)
+      : null,
+    dirtyScopeDigest: /^[a-f0-9]{64}$/.test(String(raw.dirtyScopeDigest || raw.runIdentity?.dirtyScopeDigest || ''))
+      ? (raw.dirtyScopeDigest || raw.runIdentity?.dirtyScopeDigest)
+      : null,
+    planDigest: /^[a-f0-9]{64}$/.test(String(raw.planDigest || raw.testRouteDigest || ''))
+      ? (raw.planDigest || raw.testRouteDigest)
+      : null,
+    verificationLevel: raw.verificationLevel ? boundedString(raw.verificationLevel, 32) : null,
+    verificationPurpose: raw.verificationPurpose ? boundedString(raw.verificationPurpose, 64) : null,
+    routeResolved: raw.routeResolved ? boundedString(raw.routeResolved, 64) : null,
+    selectedNodeCount: Number.isInteger(raw.selectedNodeCount) ? raw.selectedNodeCount : null,
+    terminalStatus: raw.terminalStatus || (raw.nativeExitCode === 0 ? 'completed' : 'failed'),
+    nativeExitCode: Number.isInteger(raw.nativeExitCode) ? raw.nativeExitCode : null,
+    failedNode: raw.failedNode ? boundedString(raw.failedNode, 256) : null,
+    failedNodes: boundedIds(raw.failedNodes),
+    abortedNodes: boundedIds(raw.abortedNodes),
+    completedAt: raw.completedAt ? boundedString(raw.completedAt, 128) : null
+  }
+  return { ...core, projectionDigest: digestValue(core) }
+}
+
+function compactOpenRepairConvergenceForCold(raw) {
+  if (!isPlainObject(raw) || raw.schemaVersion !== 'RepairConvergenceStateV1' ||
+      !digestFieldMatches(raw, 'stateDigest')) return clone(raw)
+  const baselineCandidate = compactValidationCandidateSnapshotForCold(raw.baselineCandidate)
+  const observedSource = raw.phase === 'batch-open' ? raw.observedCandidate : raw.frozenCandidate
+  const observedCandidate = compactValidationCandidateSnapshotForCold(observedSource)
+  if (!isPlainObject(baselineCandidate) || !isPlainObject(observedCandidate)) return clone(raw)
+  const files = ['__devcodex__/cold-resume-conservative']
+  const precision = 'cold-resume-conservative'
+  const deltaCore = {
+    schemaVersion: 'ValidationRepairDeltaV1',
+    baselineSnapshotDigest: baselineCandidate.snapshotDigest,
+    currentSnapshotDigest: observedCandidate.snapshotDigest,
+    files,
+    precision
+  }
+  const core = {
+    ...clone(raw),
+    phase: 'batch-open',
+    revision: Number.isInteger(raw.revision) ? raw.revision + 1 : raw.revision,
+    baselineCandidate,
+    observedCandidate,
+    frozenCandidate: null,
+    repairDeltaFiles: files,
+    repairDeltaDigest: digestValue(deltaCore),
+    deltaPrecision: precision,
+    frozenAt: null,
+    qualifiedAt: null,
+    qualificationDigest: null
+  }
+  delete core.stateDigest
+  return { ...core, stateDigest: digestValue(core) }
+}
+
+function compactQualifiedRepairConvergenceForCold(raw, qualification) {
+  if (!qualifiedConvergenceMatchesQualificationForCold(raw, qualification)) return null
+  const selectedNodeIds = Array.isArray(qualification.qualificationIdentity?.selectedNodeIds)
+    ? qualification.qualificationIdentity.selectedNodeIds.slice()
+    : []
+  if (selectedNodeIds.length === 0) return null
+  const baselineCandidate = compactValidationCandidateSnapshotForCold(raw.baselineCandidate)
+  const frozenCandidate = compactValidationCandidateSnapshotForCold(raw.frozenCandidate)
+  const files = []
+  const precision = 'qualification-node-frontier'
+  const deltaCore = {
+    schemaVersion: 'ValidationRepairDeltaV1',
+    baselineSnapshotDigest: baselineCandidate.snapshotDigest,
+    currentSnapshotDigest: frozenCandidate.snapshotDigest,
+    files,
+    precision
+  }
+  const core = {
+    ...clone(raw),
+    revision: Number.isInteger(raw.revision) ? raw.revision + 1 : raw.revision,
+    baselineCandidate,
+    observedCandidate: null,
+    frozenCandidate,
+    repairDeltaFiles: files,
+    repairDeltaDigest: digestValue(deltaCore),
+    deltaPrecision: precision,
+    issueIds: [],
+    failedNodeIds: selectedNodeIds,
+    qualificationDigest: qualification.qualificationDigest
+  }
+  delete core.stateDigest
+  return { ...core, stateDigest: digestValue(core) }
+}
+
+function compactColdValidationExecution(raw) {
+  if (!isPlainObject(raw)) return null
+  const compacted = compactValidationExecution(raw)
+  const qualificationIntegrity = validQualificationIntegrityForCold(compacted.lastSuccessfulQualification)
+  const qualification = compacted.lastSuccessfulQualification
+    ? compactSuccessfulQualificationForCold(compacted.lastSuccessfulQualification)
+    : null
+  const qualifiedConvergence = qualifiedConvergenceMatchesQualificationForCold(
+    compacted.repairConvergence,
+    compacted.lastSuccessfulQualification
+  )
+  const repairConvergence = qualifiedConvergence && qualificationIntegrity
+    ? compactQualifiedRepairConvergenceForCold(compacted.repairConvergence, qualification)
+    : (compacted.repairConvergence
+        ? compactOpenRepairConvergenceForCold(compacted.repairConvergence)
+        : null)
+  const convergenceTerminalReceipt = compacted.convergenceTerminalReceipt
+    ? compactValidationConvergenceTerminal(compacted.convergenceTerminalReceipt)
+    : compactValidationConvergenceTerminal(compacted.terminalReceipt)
+  const value = {
+    schemaVersion: compacted.schemaVersion || 'ValidationExecutionTaskStateV1',
+    ...(repairConvergence ? { repairConvergence } : {}),
+    ...(qualification ? { lastSuccessfulQualification: qualification } : {}),
+    ...(convergenceTerminalReceipt ? { convergenceTerminalReceipt } : {}),
+    ...(compacted.updatedAt ? { updatedAt: compacted.updatedAt } : {})
+  }
+  return value.repairConvergence || value.lastSuccessfulQualification || value.convergenceTerminalReceipt
+    ? value
+    : null
 }
 
 function compactLifecycleStateV5(raw, options = {}) {
@@ -760,11 +989,21 @@ function compactLifecycleStateV5(raw, options = {}) {
   if (isPlainObject(value.validationExecution)) {
     value.validationExecution = compactValidationExecution(value.validationExecution)
   }
+  if (Object.prototype.hasOwnProperty.call(value, 'taskCheckpointEpochSet')) {
+    value.taskCheckpointEpochSet = compactTaskCheckpointEpochSet(value.taskCheckpointEpochSet)
+  }
   if (isPlainObject(value.validationControlIngress) &&
       jsonBytes(value.validationControlIngress) > VALIDATION_AUTHORITY_RECORD_MAX_BYTES) {
     throw new LifecycleStateProjectionV5Error(
       'LIFECYCLE_VALIDATION_CONTROL_INGRESS_EXCEEDED',
       `validationControlIngress exceeds ${VALIDATION_AUTHORITY_RECORD_MAX_BYTES} bytes`
+    )
+  }
+  if (isPlainObject(value.validationControlIngressIntent) &&
+      jsonBytes(value.validationControlIngressIntent) > VALIDATION_AUTHORITY_RECORD_MAX_BYTES) {
+    throw new LifecycleStateProjectionV5Error(
+      'LIFECYCLE_VALIDATION_CONTROL_INTENT_EXCEEDED',
+      `validationControlIngressIntent exceeds ${VALIDATION_AUTHORITY_RECORD_MAX_BYTES} bytes`
     )
   }
   let bytes = jsonBytes(value)
@@ -851,6 +1090,12 @@ function buildColdResumeStub(compactState) {
     stickyProject: state.stickyProject,
     stickyAuto: state.stickyAuto,
     taskRecoveryBinding: state.taskRecoveryBinding || null,
+    // A cold record remains a safe resume source only when it retains the
+    // current epoch and one supported rollback anchor. Older hot epochs become
+    // bounded audit refs; they never regain mutation authority from the stub.
+    taskCheckpointEpochSet: state.taskCheckpointEpochSet
+      ? compactTaskCheckpointEpochSet(state.taskCheckpointEpochSet, { cold: true })
+      : null,
     taskScopedAutoContinuationGrant: compactTaskScopedAutoRecord(
       state.taskScopedAutoContinuationGrant,
       'taskScopedAutoContinuationGrant'
@@ -872,8 +1117,9 @@ function buildColdResumeStub(compactState) {
     workflowTaskTerminalReceipt: isPlainObject(state.workflowTaskTerminalReceipt)
       ? compactWorkflowTaskTerminalReceipt(state.workflowTaskTerminalReceipt)
       : null,
+    validationControlIngressIntent: null,
     validationControlIngress: null,
-    validationExecution: null,
+    validationExecution: compactColdValidationExecution(state.validationExecution),
     actualInstructionEnvelope: null,
     workItemSet: null,
     workflowRouteDecision: isPlainObject(state.workflowRouteDecision)
@@ -968,11 +1214,17 @@ module.exports = {
   TRACE_MAX_BYTES,
   TRACE_MAX_EVENTS,
   VALIDATION_AUTHORITY_RECORD_MAX_BYTES,
+  VALIDATION_CONVERGENCE_TERMINAL_MAX_BYTES,
+  VALIDATION_QUALIFICATION_MAX_BYTES,
+  VALIDATION_REPAIR_CONVERGENCE_MAX_BYTES,
   VALIDATION_ROOT_BUDGET_PROJECTION_MAX_BYTES,
   boundedString,
   buildColdResumeStub,
   compactArtifactRefs,
   compactDeliveryReceipts,
+  compactColdValidationExecution,
+  compactQualifiedRepairConvergenceForCold,
+  compactValidationConvergenceTerminal,
   compactLifecycleStateV5,
   compactLocalTaskTrace,
   compactValidationExecution,

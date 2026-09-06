@@ -25,7 +25,10 @@ const {
   resolveTaskRecoveryMetaDir,
   updateTaskRecoveryState
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
-const { createValidationEvidenceStore } = require('./lib/validation-evidence-store')
+const {
+  TERMINAL_CANDIDATE_PATH_MAX_COUNT,
+  createValidationEvidenceStore
+} = require('./lib/validation-evidence-store')
 const { ValidationDagError } = require('./lib/validation-dag')
 const {
   MAX_CONTINUATION_RETRIES,
@@ -1429,10 +1432,12 @@ function main() {
       control: sameHeadRootControl
     })
     const sameHeadRootPlan = fixturePlan(sameHeadTaskId, contextEpoch, 'same-head-root')
+    const sameHeadRootPaths = Array.from({ length: MAX_PENDING_CANDIDATE_PATHS + 32 },
+      (_, index) => `scripts/large-repair-${index}.js`)
     const sameHeadRootCandidate = fixtureCandidate('same-head-root', {
       stable: true,
       head: ancestorHead,
-      changedFiles: ['scripts/run-validation.js']
+      changedFiles: sameHeadRootPaths
     })
     const sameHeadRootContext = authorityContext({
       identity: sameHeadSeed.identity,
@@ -1476,7 +1481,7 @@ function main() {
     const sameHeadChildCandidate = fixtureCandidate('same-head-child', {
       stable: true,
       head: ancestorHead,
-      changedFiles: ['scripts/run-validation.js', 'scripts/test-validation-budget-control.js']
+      changedFiles: [...sameHeadRootPaths, 'scripts/test-validation-budget-control.js']
     })
     const sameHeadOldAutoPlan = fixturePlan(sameHeadTaskId, contextEpoch, 'same-head-old-auto', {
       selectedNodes: [
@@ -1596,7 +1601,7 @@ function main() {
         candidate: fixtureCandidate('same-head-unstable', {
           stable: false,
           head: ancestorHead,
-          changedFiles: ['scripts/run-validation.js', 'scripts/test-validation-budget-control.js']
+          changedFiles: [...sameHeadRootPaths, 'scripts/test-validation-budget-control.js']
         })
       },
       {
@@ -1606,7 +1611,7 @@ function main() {
         candidate: fixtureCandidate('same-head-outside', {
           stable: true,
           head: ancestorHead,
-          changedFiles: ['scripts/run-validation.js', '../outside.js']
+          changedFiles: [...sameHeadRootPaths, '../outside.js']
         })
       },
       {
@@ -1616,7 +1621,8 @@ function main() {
         candidate: fixtureCandidate('same-head-over-limit', {
           stable: true,
           head: ancestorHead,
-          changedFiles: Array.from({ length: MAX_PENDING_CANDIDATE_PATHS + 1 }, (_, index) => `scripts/repair-${index}.js`)
+          changedFiles: Array.from({ length: TERMINAL_CANDIDATE_PATH_MAX_COUNT + 1 },
+            (_, index) => `scripts/repair-${index}.js`)
         })
       }
     ]

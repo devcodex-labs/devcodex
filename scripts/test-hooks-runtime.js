@@ -1346,7 +1346,7 @@ function runR2BTaskOwnerLifecycleScenarios() {
     prompt: '后续请用英文回复'
   })
   const switchedLanguageState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
-  assert.strictEqual(switchedLanguageState.languageContext?.primaryLanguage, 'en')
+  assert.strictEqual(switchedLanguageState.languageContext?.primaryLanguage, 'en-US')
   assert.strictEqual(switchedLanguageState.languageContext?.currentTurnClass, 'explicit-switch')
 
   process.stdout.write('hooks runtime R2B owner + R3B mutation scenarios passed\n')
@@ -1584,35 +1584,33 @@ function main() {
   assert.strictEqual(JSON.parse(fs.readFileSync(legacyFile, 'utf8')).value, 'legacy', 'new writes must never mutate the legacy compatibility entry')
   fs.rmSync(stateRoot, { recursive: true, force: true })
 
-  assert.deepStrictEqual(
-    resolveLanguageContext({ prompt: '请用中文分析这个项目' }),
-    {
-      schemaVersion: 'LanguageContextV2', primaryLanguage: 'zh-CN', responseLanguage: 'zh-CN',
-      artifactLanguage: 'zh-CN', currentTurnClass: 'explicit-switch', source: 'explicit-current-turn',
-      confidence: 'high', updatedPrimary: true
-    }
-  )
-  assert.deepStrictEqual(
-    resolveLanguageContext({ prompt: 'Please inspect the project.' }),
-    {
-      schemaVersion: 'LanguageContextV2', primaryLanguage: 'en', responseLanguage: 'en', artifactLanguage: 'en',
-      currentTurnClass: 'substantive', source: 'first-substantive-user-message', confidence: 'high', updatedPrimary: true
-    }
-  )
-  assert.deepStrictEqual(
-    resolveLanguageContext({ carrier: { language: 'ja' } }),
-    {
-      schemaVersion: 'LanguageContextV2', primaryLanguage: 'ja', responseLanguage: 'ja', artifactLanguage: 'ja',
-      currentTurnClass: 'neutral', source: 'conversation-primary-language', confidence: 'high', updatedPrimary: false
-    }
-  )
-  assert.deepStrictEqual(
-    resolveLanguageContext({}),
-    {
-      schemaVersion: 'LanguageContextV2', primaryLanguage: 'en', responseLanguage: 'en', artifactLanguage: 'en',
-      currentTurnClass: 'neutral', source: 'und-en-fallback', confidence: 'low', updatedPrimary: false
-    }
-  )
+  const explicitChinese = resolveLanguageContext({ prompt: '请用中文分析这个项目' })
+  assert.strictEqual(explicitChinese.schemaVersion, 'LanguageContextV3')
+  assert.strictEqual(explicitChinese.primaryLanguage, 'zh-CN')
+  assert.strictEqual(explicitChinese.currentTurnClass, 'explicit-switch')
+  assert.strictEqual(explicitChinese.source, 'explicit-current-turn')
+  assert.strictEqual(explicitChinese.durableProvisional, true,
+    'a one-turn language override must not become durable without task-scoped wording')
+
+  const substantiveEnglish = resolveLanguageContext({ prompt: 'Please inspect the project.' })
+  assert.strictEqual(substantiveEnglish.schemaVersion, 'LanguageContextV3')
+  assert.strictEqual(substantiveEnglish.primaryLanguage, 'en-US')
+  assert.strictEqual(substantiveEnglish.durablePrimaryLocale, 'en-US')
+  assert.strictEqual(substantiveEnglish.durableProvisional, false)
+  assert.strictEqual(substantiveEnglish.source, 'first-substantive-user-message')
+
+  const legacyJapanese = resolveLanguageContext({ carrier: { language: 'ja' } })
+  assert.strictEqual(legacyJapanese.schemaVersion, 'LanguageContextV3')
+  assert.strictEqual(legacyJapanese.primaryLanguage, 'ja')
+  assert.strictEqual(legacyJapanese.localeCapability, 'partial')
+  assert.strictEqual(legacyJapanese.source, 'conversation-primary-language')
+
+  const defaultLanguage = resolveLanguageContext({})
+  assert.strictEqual(defaultLanguage.schemaVersion, 'LanguageContextV3')
+  assert.strictEqual(defaultLanguage.primaryLanguage, 'en-US')
+  assert.strictEqual(defaultLanguage.source, 'und-en-fallback')
+  assert.strictEqual(defaultLanguage.durableProvisional, true,
+    'host/fallback locale must not prevent a later substantive user message from establishing task language')
   const compactLanguage = compactLanguageContext({
     ...resolveLanguageContext({ prompt: '请检查语言载体' }),
     source: 'x'.repeat(200),
@@ -1638,7 +1636,7 @@ function main() {
     devcodex_host_transform_only: true,
     devcodex_host_continuation: true
   })
-  assert.match(JSON.stringify(transformProjection), /LanguageContextV2/)
+  assert.match(JSON.stringify(transformProjection), /LanguageContextV3/)
   assert.match(JSON.stringify(transformProjection), /Human-facing reply language: zh-CN/)
   const transformState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(transformState.languageContext?.primaryLanguage, 'zh-CN')
@@ -1766,7 +1764,7 @@ function main() {
   const continuationContext = resolvedContinuation.hookSpecificOutput?.additionalContext || resolvedContinuation.systemMessage || ''
   assert.match(continuationContext, /任务恢复定位：已唯一定位/)
   assert.match(continuationContext, /TaskResolutionV1 status=resolved-active mutationAuthority=false/)
-  assert.match(continuationContext, /LanguageContextV2/)
+  assert.match(continuationContext, /LanguageContextV3/)
   const continuationStore = storePaths(STATE_DIR)
   const taskSlotFiles = []
   const pendingTaskDirs = [continuationStore.tasks]
@@ -2225,6 +2223,34 @@ function main() {
     projectRootIdentityDigest: 'c'.repeat(64)
   }).valid, true)
 
+  const resumedAutoState = JSON.parse(JSON.stringify(lateBoundAutoState))
+  resumedAutoState.taskScopedAutoContinuationGrant = null
+  resumedAutoState.autoCheckpointDecision = null
+  resumedAutoState.workflowRouteDecision.routeKey = 'resume'
+  resumedAutoState.resumeIngressCapabilityRef = { candidateDigest: '4'.repeat(64) }
+  resumedAutoState.admissionTransaction = {
+    ...resumedAutoState.admissionTransaction,
+    operation: 'bind',
+    admissionGeneration: 2,
+    entryVariant: 'continue',
+    routeKey: 'resume',
+    recovery: {
+      schemaVersion: 'FinalizedTaskResumeRecoveryReceiptV3',
+      candidateDigest: '4'.repeat(64)
+    }
+  }
+  const resumedAutoPromotion = formalAutoUtils.promoteTaskScopedAutoAfterBinding(
+    resumedAutoState,
+    { session_id: 'late-bound-auto-session' },
+    { admissionTransaction: resumedAutoState.admissionTransaction }
+  )
+  assert.strictEqual(resumedAutoPromotion.status, 'promoted')
+  assert.strictEqual(validateTaskScopedAutoContinuationGrant(resumedAutoPromotion.grant, {
+    taskId: resumedAutoState.taskRecoveryBinding.taskId,
+    project: 'devcodex',
+    projectRootIdentityDigest: 'c'.repeat(64)
+  }).valid, true, 'a same-turn finalized resume must refresh task-scoped Auto without another user message')
+
   const mismatchedAdmissionState = {
     ...lateBoundAutoState,
     taskScopedAutoContinuationGrant: null,
@@ -2295,6 +2321,10 @@ function main() {
   })
   runBootstrapReads(TEST_AGENT, 'dev', ['source-code'])
   let sameTurnState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(sameTurnState.validationControlIngress, null)
+  assert.strictEqual(sameTurnState.validationControlIngressIntent?.schemaVersion, 'ValidationControlIngressIntentV1')
+  assert.strictEqual(sameTurnState.validationControlIngressIntent?.action, 'auto-authorize')
+  assert.strictEqual(sameTurnState.validationControlIngressIntent?.mutationAuthority, false)
   const sameTurnWorkItems = sameTurnState.workItemSet
   const sameTurnRoute = sameTurnState.workflowRouteDecision
   assert.strictEqual(sameTurnState.stickyProject.routeRevision, sameTurnRoute.routeRevision)

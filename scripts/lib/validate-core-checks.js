@@ -1,6 +1,10 @@
 'use strict'
 
 const { isNarrativeMarkdownPath } = require('./narrative-markdown-policy')
+const {
+  buildAuditStateCompatibilityReceipt,
+  parseAndClassifyAuditStateDocument
+} = require('./validate-audit-state-compatibility')
 
 function buildValidateCoreChecks(ctx) {
   const {
@@ -267,9 +271,17 @@ function buildValidateCoreChecks(ctx) {
     }
     let totalProbes = 0
     let regressions = 0
+    const classifications = []
     for (const sf of stateFiles) {
-      let state
-      try { state = JSON.parse(read(path.join(stateDir, sf))) } catch { continue }
+      const parsed = parseAndClassifyAuditStateDocument(read(path.join(stateDir, sf)))
+      classifications.push(parsed.classification)
+      if (parsed.classification.kind === 'invalid' || parsed.classification.kind === 'unsupportedCurrentSession') {
+        warn(`[V10] audit-state compatibility error in .devcodex/.audit-state/${sf}: ${parsed.classification.reason}`)
+        regressions++
+        continue
+      }
+      if (parsed.classification.kind !== 'currentSession') continue
+      const state = parsed.value
       const probes = state.regressionProbes || []
       for (const probe of probes) {
         totalProbes++
@@ -290,7 +302,12 @@ function buildValidateCoreChecks(ctx) {
         }
       }
     }
-    console.log(`[V10] regression probes: ${totalProbes} evaluated, ${regressions} regression(s)`)
+    const compatibility = buildAuditStateCompatibilityReceipt(classifications)
+    console.log(
+      `[V10] regression probes: ${totalProbes} evaluated, ${regressions} regression(s); ` +
+      `audit-state current=${compatibility.counts.currentSession}, legacy-read-only=${compatibility.counts.legacyAuditReadOnly}, ` +
+      `non-audit=${compatibility.counts.nonAudit}, errors=${compatibility.errorCount}`
+    )
   }
 
   function checkV11() {
@@ -349,14 +366,18 @@ function buildValidateCoreChecks(ctx) {
     const unresolvedFindingStates = new Set(['open', 'pending', 'in-progress'])
     let violations = 0
     const parsedStates = []
+    const classifications = []
 
     for (const sf of stateFiles) {
-      let state
-      try { state = JSON.parse(read(path.join(stateDir, sf))) } catch {
-        warn(`[V15] invalid JSON: .devcodex/.audit-state/${sf}`)
+      const parsed = parseAndClassifyAuditStateDocument(read(path.join(stateDir, sf)))
+      classifications.push(parsed.classification)
+      if (parsed.classification.kind === 'invalid' || parsed.classification.kind === 'unsupportedCurrentSession') {
+        warn(`[V15] audit-state compatibility error in .devcodex/.audit-state/${sf}: ${parsed.classification.reason}`)
         violations++
         continue
       }
+      if (parsed.classification.kind !== 'currentSession') continue
+      const state = parsed.value
       parsedStates.push({ file: sf, state })
 
       if (!allowedStates.has(state.state)) {
@@ -441,7 +462,12 @@ function buildValidateCoreChecks(ctx) {
       }
     }
 
-    console.log(`[V15] audit-state consistency checked: ${stateFiles.length} files, ${violations} violation(s)`)
+    const compatibility = buildAuditStateCompatibilityReceipt(classifications)
+    console.log(
+      `[V15] audit-state consistency checked: ${compatibility.counts.currentSession} current session(s), ` +
+      `${compatibility.counts.legacyAuditReadOnly} legacy read-only, ${compatibility.counts.nonAudit} non-audit, ` +
+      `${compatibility.errorCount} compatibility error(s), ${violations} violation(s)`
+    )
   }
 
   function checkV16() {

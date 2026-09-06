@@ -37,6 +37,11 @@ const {
   createWorkspaceSessionRouteIndex,
   digestSessionRef
 } = require('../hooks/_runtime/workspace-session-route-index-v1.cjs')
+const {
+  createValidationControlIngressIntent,
+  validateValidationControlIngressReceipt,
+  validationProjectRootIdentity
+} = require('../hooks/_runtime/workflow-completion-contract.cjs')
 const { extractMutationFootprint } = require('../hooks/_runtime/mutation-footprint.cjs')
 const {
   classifyRelativeTarget,
@@ -59,6 +64,7 @@ const {
   readFormalTaskExecutionReadiness
 } = require('../mcp/task-admission-authority.cjs')
 const {
+  commitTaskRecoveryState,
   createTaskScopedAutoContinuationGrant,
   readFencedTaskWriteOwner,
   readTaskRecoveryState,
@@ -392,6 +398,9 @@ function resultById(responses, id) {
 }
 
 function toolJson(result) {
+  if (result.structuredContent && typeof result.structuredContent === 'object') {
+    return result.structuredContent
+  }
   const text = result.content?.[0]?.text || ''
   assert(text, 'expected a JSON MCP text result')
   return JSON.parse(text)
@@ -1121,17 +1130,21 @@ function buildTaskAuthorityIngress({
   nowMs = Date.now(),
   physicalRoot = TEMP_ROOT,
   rootIdentityDigest = '2'.repeat(64),
-  routeKey = 'fix.default'
+  routeKey = 'fix.default',
+  hostSessionId: requestedHostSessionId = '',
+  contextEpoch: requestedContextEpoch = '',
+  prompt: requestedPrompt = ''
 }) {
-  const hostSessionId = `mcp-task-authority-${suffix}`
+  const hostSessionId = requestedHostSessionId || `mcp-task-authority-${suffix}`
+  const prompt = requestedPrompt || `修复 MCP task authority ${suffix}`
   const envelope = buildActualInstructionEnvelope({
-    prompt: `修复 MCP task authority ${suffix}`,
+    prompt,
     session_id: hostSessionId,
     event_id: `mcp-task-authority-event-${suffix}`,
     timestamp: new Date(nowMs).toISOString()
   }, {
     hostVariant: 'codex-cli',
-    contextEpoch: `ctx-mcp-task-authority-${suffix}`,
+    contextEpoch: requestedContextEpoch || `ctx-mcp-task-authority-${suffix}`,
     trustedHostEvent: true,
     nowMs
   })
@@ -1615,9 +1628,67 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   assert.strictEqual(contextAuthorization.status, 'authorized')
   assert.strictEqual(contextAuthorization.plan.workflowRoute.routeKey, 'resume')
   const fallbackHostSessionId = 'mcp-task-authority-fresh-resume-current'
+  const expiredBootstrapLeaseCore = {
+    ...resumeIngress.projectTargetLease,
+    expiresAtMs: nowMs - 1
+  }
+  delete expiredBootstrapLeaseCore.leaseDigest
+  const expiredBootstrapLease = {
+    ...expiredBootstrapLeaseCore,
+    leaseDigest: computeProjectTargetLeaseDigest(expiredBootstrapLeaseCore)
+  }
+  const bootstrapRouteBinding = {
+    schemaVersion: 'WorkflowRoutePlanBindingV1',
+    contextEpoch: resumeIngress.actualInstructionEnvelope.contextEpoch,
+    planId: 'plan-expired-taskless-mcp-bootstrap',
+    planContentId: `plan-content-${'8'.repeat(64)}`,
+    routeKey: resumeIngress.workflowRouteDecision.routeKey,
+    subtype: resumeIngress.workflowRouteDecision.subtype,
+    stage: resumeIngress.workflowRouteDecision.stage,
+    routeRevision: resumeIngress.workflowRouteDecision.routeRevision,
+    routeRegistryDigest: resumeIngress.workflowRouteDecision.routeRegistryDigest,
+    decisionDigest: resumeIngress.workflowRouteDecision.decisionDigest,
+    contextSemanticDigest: '9'.repeat(64),
+    bindingDigest: 'a'.repeat(64)
+  }
+  const expiredTasklessMapping = commitTaskRecoveryState({
+    metaDir,
+    identity: { activeRoot, project },
+    sessionKey: fallbackHostSessionId,
+    state: {
+      version: 2,
+      mode: 'resume',
+      activeProject: project,
+      activeScope: 'project',
+      taskRecoveryBinding: null,
+      actualInstructionEnvelope: resumeIngress.actualInstructionEnvelope,
+      workItemSet: resumeIngress.workItemSet,
+      workflowRouteDecision: resumeIngress.workflowRouteDecision,
+      workflowRoutePlanBinding: bootstrapRouteBinding,
+      stickyProject: expiredBootstrapLease,
+      contextAcquisition: {
+        schemaVersion: 'ContextReadStateV2',
+        contextEpoch: resumeIngress.actualInstructionEnvelope.contextEpoch,
+        activeRoot,
+        project,
+        targetResolved: true,
+        hostSessionId: fallbackHostSessionId
+      },
+      turnLiveness: { state: 'running', turnKey: fallbackHostSessionId }
+    }
+  }, { nowMs })
+  assert.strictEqual(expiredTasklessMapping.status, 'ephemeral-stub')
+  const expiredTasklessRead = readTaskRecoveryState({
+    metaDir,
+    sessionKey: fallbackHostSessionId,
+    expectedIdentity: { activeRoot, project }
+  }, { nowMs })
+  assert.strictEqual(expiredTasklessRead.status, 'invalid')
+  assert.strictEqual(expiredTasklessRead.errorCode, 'TASKLESS_INGRESS_RECOVERY_EXPIRED')
   const contextObservation = recordMcpContextSourceObservations({
     activeRoot,
     project,
+    hostSessionId: fallbackHostSessionId,
     contextBinding: resumeContextBinding,
     sourceResults: contextAuthorization.plan.selectedSources.map(source => ({
       sourceId: source.sourceId,
@@ -1639,45 +1710,25 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   })
   assert.strictEqual(contextObservation.status, 'persisted', JSON.stringify(contextObservation))
   assert.deepStrictEqual(contextObservation.missingSourceIds, [])
-  const lifecycleEnvelope = buildActualInstructionEnvelope({
-    prompt: '继续 MCP finalized task through the current host lifecycle',
-    session_id: fallbackHostSessionId,
-    event_id: 'mcp-fallback-current-host-event',
-    timestamp: new Date(nowMs).toISOString()
-  }, {
-    hostVariant: 'codex-cli',
-    contextEpoch: resumeContextBinding.contextEpoch,
-    trustedHostEvent: true,
-    nowMs
-  })
-  const lifecycleLeaseCore = {
-    schemaVersion: 'ProjectTargetLeaseV2',
-    targetDigest: crypto.createHash('sha256').update('mcp-fallback-current-target').digest('hex'),
-    rootIdentityDigest: '7'.repeat(64),
-    layoutIdentity: crypto.createHash('sha256').update('mcp-fallback-current-layout').digest('hex'),
-    project,
-    physicalRoot: TEMP_ROOT,
-    activeRoot,
-    authorityKind: 'session',
-    authorityDigest: crypto.createHash('sha256').update('mcp-fallback-project-authority').digest('hex'),
-    contextEpoch: resumeContextBinding.contextEpoch,
-    contextBindingDigest: crypto.createHash('sha256').update(JSON.stringify(resumeContextBinding)).digest('hex'),
-    routeRevision: contextAuthorization.plan.workflowRoute.routeRevision,
-    revocationEpoch: 3,
-    issuedAt: new Date(nowMs - 1000).toISOString(),
-    issuedAtMs: nowMs - 1000,
-    expiresAt: new Date(nowMs + 60 * 60 * 1000).toISOString(),
-    expiresAtMs: nowMs + 60 * 60 * 1000
-  }
-  const lifecycleProjectTargetLease = {
-    ...lifecycleLeaseCore,
-    leaseDigest: computeProjectTargetLeaseDigest(lifecycleLeaseCore)
-  }
+  const contextBootstrapRead = readTaskRecoveryState({
+    metaDir,
+    sessionKey: fallbackHostSessionId,
+    expectedIdentity: { activeRoot, project }
+  }, { nowMs })
+  assert.strictEqual(contextBootstrapRead.status, 'ephemeral-stub')
+  assert.strictEqual(contextBootstrapRead.ingressRecovery.status, 'legacy-unverified')
+  assert.strictEqual(contextBootstrapRead.ingressRecovery.authority, undefined)
+  assert.strictEqual(contextBootstrapRead.state.taskRecoveryBinding, null)
+  assert.strictEqual(contextBootstrapRead.state.workflowOperationalWriteLease, null)
+  assert.strictEqual(contextBootstrapRead.state.actualInstructionEnvelope, null)
   const lifecycleProjection = JSON.parse(fs.readFileSync(contextObservation.statePath, 'utf8'))
   lifecycleProjection.activeProject = project
   lifecycleProjection.activeScope = 'project'
-  lifecycleProjection.actualInstructionEnvelope = lifecycleEnvelope
-  lifecycleProjection.stickyProject = lifecycleProjectTargetLease
+  lifecycleProjection.actualInstructionEnvelope = null
+  lifecycleProjection.workItemSet = null
+  lifecycleProjection.workflowRouteDecision = null
+  lifecycleProjection.workflowRoutePlanBinding = null
+  lifecycleProjection.stickyProject = null
   lifecycleProjection.contextAcquisition = {
     ...lifecycleProjection.contextAcquisition,
     activeRoot,
@@ -1714,26 +1765,15 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: '' }), 4)
   assert.strictEqual(mismatchedLifecycleResponse.isError, true)
   assert.match(mismatchedLifecycleResponse.content[0].text, /FINALIZED_TASK_RESUME_SESSION_MISMATCH/)
-  const staleLifecycleProjection = JSON.parse(JSON.stringify(lifecycleProjection))
-  staleLifecycleProjection.contextAcquisition.receipt.status = 'stale'
-  staleLifecycleProjection.contextAcquisition.receipt.missingSourceIds = contextAuthorization.plan.selectedSources
-    .map(source => source.sourceId)
-  staleLifecycleProjection.contextAcquisition.receipt.lastError = {
-    schemaVersion: 'ContextReadErrorV1',
-    errorCode: 'CONTEXT_PLAN_INVALID',
-    message: 'Context receipt is stale: scope-drift.',
-    nextStep: 'Replan once before the broader action.'
-  }
-  const expiredLifecycleLeaseCore = {
-    ...lifecycleLeaseCore,
-    expiresAt: new Date(nowMs - 1).toISOString(),
-    expiresAtMs: nowMs - 1
-  }
-  staleLifecycleProjection.stickyProject = {
-    ...expiredLifecycleLeaseCore,
-    leaseDigest: computeProjectTargetLeaseDigest(expiredLifecycleLeaseCore)
-  }
-  fs.writeFileSync(contextObservation.statePath, JSON.stringify(staleLifecycleProjection, null, 2) + '\n')
+  const partialAuthorityProjection = JSON.parse(JSON.stringify(lifecycleProjection))
+  partialAuthorityProjection.actualInstructionEnvelope = resumeIngress.actualInstructionEnvelope
+  fs.writeFileSync(contextObservation.statePath, JSON.stringify(partialAuthorityProjection, null, 2) + '\n')
+  const partialAuthorityResponse = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(41, 'tools/call', { name: 'memory_task_admit_v2', arguments: fallbackArgs })
+  ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: '' }), 41)
+  assert.strictEqual(partialAuthorityResponse.isError, true)
+  assert.match(partialAuthorityResponse.content[0].text, /FINALIZED_TASK_RESUME_SESSION_MISMATCH/)
+  fs.writeFileSync(contextObservation.statePath, JSON.stringify(lifecycleProjection, null, 2) + '\n')
   const fallbackResponses = runServer('mcp/memory-server.js', [
     rpcRequest(5, 'tools/call', { name: 'memory_task_admit_v2', arguments: fallbackArgs }),
     rpcRequest(6, 'tools/call', { name: 'memory_task_admit_v2', arguments: fallbackArgs })
@@ -1744,7 +1784,7 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   assert.strictEqual(
     fallback.structuredContent.ownerAcquisition.owner.sessionDigest,
     digestSessionRef(fallbackHostSessionId),
-    'a stale lifecycle receipt and expired target lease must recover only through the durable exact-session observations'
+    'a context-only lifecycle projection must recover only through durable exact-session observations'
   )
   assert.strictEqual(fallback.structuredContent.mutationAuthority, true)
   assert.strictEqual(fallback.structuredContent.admissionGeneration, resumed.structuredContent.admissionGeneration + 1)
@@ -1764,7 +1804,7 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   assert.strictEqual(
     fallback.structuredContent.recovery.projectRootIdentityDigest,
     fallbackProjectRootIdentityDigest,
-    'an expired project-target projection must not override the current canonical task root'
+    'an absent project-target projection must not override the current canonical task root'
   )
   const fallbackRouteIndex = createWorkspaceSessionRouteIndex({
     metaDir: path.join(activeRoot, '.memory', 'hooks', 'legacy'),
@@ -1790,6 +1830,199 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   assert.strictEqual(fallbackReadiness.status, 'ready')
   assert.strictEqual(fallbackReadiness.ownerLeaseDigest, fallback.structuredContent.ownerAcquisition.owner.leaseDigest)
   assert.strictEqual(resultById(fallbackResponses, 6).structuredContent.replayed, true)
+
+  const fallbackRelease = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(7, 'tools/call', {
+      name: 'memory_task_write_owner',
+      arguments: {
+        operation: 'release',
+        ingressRef: fallback.structuredContent.ingressRef,
+        taskId: priorAdmission.taskId,
+        admissionId: fallback.structuredContent.admissionId,
+        expectedOwner: fallback.structuredContent.ownerAcquisition.ownerRef
+      }
+    })
+  ], TEMP_ROOT), 7)
+  assert.strictEqual(fallbackRelease.isError, false, fallbackRelease.content?.[0]?.text || '')
+  const autoNowMs = Date.now()
+  const completedFallbackTurn = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
+    ...state,
+    turnLiveness: {
+      schemaVersion: 'TurnLivenessStateV1',
+      state: 'completed',
+      turnKey: fallbackHostSessionId,
+      lastEventAt: new Date(autoNowMs - 1000).toISOString(),
+      inFlightOperation: null,
+      previousTurn: { terminalState: 'completed' }
+    }
+  }), { nowMs: autoNowMs, force: true, reason: 'mcp-auto-resume-prior-turn-complete' })
+  assert(['committed', 'semantic-noop'].includes(completedFallbackTurn.status), JSON.stringify(completedFallbackTurn))
+
+  const autoHostSessionId = 'mcp-task-authority-auto-resume-current'
+  const autoResumeContextBinding = createTestContextBinding(TEMP_ROOT, { intent: 'resume' })
+  const autoContextAuthorization = authorizeContextRead({
+    activeRoot,
+    project,
+    contextBinding: autoResumeContextBinding,
+    requestedSources: []
+  })
+  assert.strictEqual(autoContextAuthorization.status, 'authorized')
+  const autoResumeIngress = buildTaskAuthorityIngress({
+    activeRoot,
+    project,
+    suffix: 'auto-resume-current',
+    nowMs: autoNowMs,
+    rootIdentityDigest: fallbackProjectRootIdentityDigest,
+    routeKey: 'resume',
+    hostSessionId: autoHostSessionId,
+    contextEpoch: autoResumeContextBinding.contextEpoch,
+    prompt: '@rocky 采纳建议'
+  })
+  assert.strictEqual(
+    autoResumeIngress.workflowRouteDecision.routeRevision,
+    autoContextAuthorization.plan.workflowRoute.routeRevision,
+    'trusted resume ingress and ContextRead plan must select the same route revision'
+  )
+  const autoContextObservation = recordMcpContextSourceObservations({
+    activeRoot,
+    project,
+    hostSessionId: autoHostSessionId,
+    contextBinding: autoResumeContextBinding,
+    sourceResults: autoContextAuthorization.plan.selectedSources.map(source => ({
+      sourceId: source.sourceId,
+      bodyObserved: true,
+      successful: true,
+      observable: true,
+      transportSuccess: true,
+      sourceRefsMatch: true,
+      schemaMatch: true,
+      targetMatch: true,
+      contentIdentity: buildJsonContentIdentity({
+        sourceKey: `test://${source.sourceId}`,
+        value: { sourceId: source.sourceId, observed: true, stage: 'auto-resume' },
+        contractVersion: 'McpAutoResumeContextSourceV1'
+      }).identity,
+      bytes: 1,
+      chars: 1
+    }))
+  })
+  assert.strictEqual(autoContextObservation.status, 'persisted', JSON.stringify(autoContextObservation))
+  const autoLifecycleProjection = JSON.parse(fs.readFileSync(autoContextObservation.statePath, 'utf8'))
+  const autoControlIntent = createValidationControlIngressIntent({
+    actualInstructionEnvelope: autoResumeIngress.actualInstructionEnvelope,
+    actualInstruction: '@rocky 采纳建议',
+    executionMode: 'auto',
+    project,
+    projectRootIdentity: validationProjectRootIdentity(TEMP_ROOT)
+  })
+  Object.assign(autoLifecycleProjection, {
+    version: 2,
+    mode: 'resume',
+    activeProject: project,
+    activeScope: 'project',
+    taskRecoveryBinding: null,
+    actualInstructionEnvelope: autoResumeIngress.actualInstructionEnvelope,
+    workItemSet: autoResumeIngress.workItemSet,
+    workflowRouteDecision: autoResumeIngress.workflowRouteDecision,
+    stickyProject: autoResumeIngress.projectTargetLease,
+    validationControlIngress: null,
+    validationControlIngressIntent: autoControlIntent,
+    executionMode: 'auto',
+    stickyAuto: {
+      active: true,
+      source: '@rocky',
+      kind: 'alias',
+      sessionKey: autoHostSessionId,
+      updatedAt: new Date(autoNowMs).toISOString(),
+      updatedAtMs: autoNowMs,
+      authorityRef: `auto:@rocky:${autoHostSessionId}:${autoNowMs}`,
+      sourceMessageDigest: autoResumeIngress.actualInstructionEnvelope.actualInstructionDigest,
+      reason: ''
+    },
+    contextAcquisition: {
+      ...autoLifecycleProjection.contextAcquisition,
+      schemaVersion: 'ContextReadStateV2',
+      contextEpoch: autoResumeContextBinding.contextEpoch,
+      activeRoot,
+      project,
+      targetResolved: true,
+      hostSessionId: autoHostSessionId,
+      verificationMode: 'structured-plan',
+      plan: autoContextAuthorization.plan,
+      receipt: {
+        ...autoLifecycleProjection.contextAcquisition.receipt,
+        status: 'stale',
+        missingSourceIds: [...autoContextAuthorization.plan.mandatorySourceIds],
+        identity: {
+          ...autoLifecycleProjection.contextAcquisition.receipt.identity,
+          activeRoot,
+          project,
+          hostSessionId: autoHostSessionId
+        },
+        observations: autoLifecycleProjection.contextAcquisition.receipt.observations.map(observation => ({
+          ...observation,
+          hostSessionId: autoHostSessionId
+        }))
+      }
+    },
+    turnLiveness: { state: 'running', turnKey: autoHostSessionId }
+  })
+  fs.writeFileSync(autoContextObservation.statePath, JSON.stringify(autoLifecycleProjection, null, 2) + '\n')
+  const autoResumeArgs = {
+    operation: 'bind',
+    resumeContextBinding: autoResumeContextBinding,
+    task: resumeArgs.task,
+    overview: resumeArgs.overview
+  }
+  const invalidAutoLifecycleProjection = JSON.parse(JSON.stringify(autoLifecycleProjection))
+  const invalidAutoLeaseCore = {
+    ...invalidAutoLifecycleProjection.stickyProject,
+    project: 'different-project'
+  }
+  delete invalidAutoLeaseCore.leaseDigest
+  invalidAutoLifecycleProjection.stickyProject = {
+    ...invalidAutoLeaseCore,
+    leaseDigest: computeProjectTargetLeaseDigest(invalidAutoLeaseCore)
+  }
+  fs.writeFileSync(autoContextObservation.statePath, JSON.stringify(invalidAutoLifecycleProjection, null, 2) + '\n')
+  const invalidAutoResumeResponse = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(81, 'tools/call', { name: 'memory_task_admit_v2', arguments: autoResumeArgs })
+  ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: autoHostSessionId }), 81)
+  assert.strictEqual(invalidAutoResumeResponse.isError, true)
+  assert.match(invalidAutoResumeResponse.content[0].text, /FINALIZED_TASK_RESUME_SESSION_MISMATCH/)
+  const stateAfterInvalidAutoResume = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }, { nowMs: autoNowMs })
+  assert.strictEqual(stateAfterInvalidAutoResume.state.admissionTransaction.admissionId, fallback.structuredContent.admissionId)
+  fs.writeFileSync(autoContextObservation.statePath, JSON.stringify(autoLifecycleProjection, null, 2) + '\n')
+  const autoResumeResponse = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(8, 'tools/call', { name: 'memory_task_admit_v2', arguments: autoResumeArgs })
+  ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: autoHostSessionId }), 8)
+  assert.strictEqual(autoResumeResponse.isError, false, autoResumeResponse.content?.[0]?.text || '')
+  assert.strictEqual(autoResumeResponse.structuredContent.ingressSource, 'bounded-resume-current-trusted')
+  const autoResumeState = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }, { nowMs: autoNowMs })
+  assert.strictEqual(autoResumeState.status, 'fresh')
+  assert.strictEqual(
+    autoResumeState.state.actualInstructionEnvelope.envelopeDigest,
+    autoResumeIngress.actualInstructionEnvelope.envelopeDigest,
+    'resume CAS must atomically retain the current trusted host ingress'
+  )
+  assert.strictEqual(autoResumeState.state.contextAcquisition.contextEpoch, autoResumeContextBinding.contextEpoch)
+  assert.strictEqual(autoResumeState.state.contextAcquisition.receipt.status, 'relevant-complete')
+  assert.strictEqual(autoResumeState.state.validationControlIngress.action, 'auto-authorize')
+  assert.strictEqual(autoResumeState.state.validationControlIngress.taskRecoveryKey, priorAdmission.taskId)
+  assert.strictEqual(autoResumeState.state.validationControlIngress.contextEpoch, autoResumeContextBinding.contextEpoch)
+  assert.strictEqual(validateValidationControlIngressReceipt(
+    autoResumeState.state.validationControlIngress,
+    {
+      hostSessionDigest: autoResumeIngress.actualInstructionEnvelope.hostSessionDigest,
+      contextEpoch: autoResumeContextBinding.contextEpoch,
+      taskRecoveryKey: priorAdmission.taskId,
+      project,
+      projectRootIdentity: validationProjectRootIdentity(TEMP_ROOT)
+    },
+    { now: autoNowMs }
+  ).valid, true)
+  assert.strictEqual(autoResumeState.state.stickyAuto.sourceMessageDigest, autoResumeIngress.actualInstructionEnvelope.actualInstructionDigest)
+  assert.strictEqual(autoResumeState.state.executionMode, 'auto')
 }
 
 function testMemoryOwnerFencedCrashResumeContract() {
@@ -2162,7 +2395,9 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
   ], TEMP_ROOT)
   const listedResult = resultById(admittedResponses, 1)
   const toolsListBytes = Buffer.byteLength(JSON.stringify({ jsonrpc: '2.0', id: 1, result: listedResult }))
-  assert(toolsListBytes <= 24 * 1024, `memory tools/list exceeds 24 KiB budget: ${toolsListBytes} bytes`)
+  // Stage B adds one bounded continuity-view operation; keep the complete
+  // public surface below a still-small 26 KiB transport budget.
+  assert(toolsListBytes <= 26 * 1024, `memory tools/list exceeds 26 KiB budget: ${toolsListBytes} bytes`)
   for (const toolName of [
     'memory_task_write_owner',
     'memory_task_terminal_v1',
@@ -2911,6 +3146,20 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
     overview: { content: '# Auto CP 概况\n\n验证任务级自动确认。\n' }
   }, { nowMs })
   const taskRoot = path.join(activeRoot, ...admission.taskRootRelative.split('/'))
+  confirmTaskAuthorityCp1(taskRoot)
+  const finalizedOwner = executeTaskWriteOwner({
+    operation: 'acquire',
+    activeRoot,
+    project,
+    actualInstructionEnvelope: ingress.actualInstructionEnvelope,
+    workItemSet: ingress.workItemSet,
+    workflowRouteDecision: ingress.workflowRouteDecision,
+    projectTargetLease: ingress.projectTargetLease,
+    taskId: admission.taskId,
+    admissionId: admission.admissionId,
+    expectedOwner: { mode: 'absent' }
+  }, { nowMs, nonceFactory: () => `owner-${'9'.repeat(40)}` })
+  assert.strictEqual(finalizedOwner.finalized, true)
   const artifactPath = path.join(taskRoot, '02-技术方案.md')
   const cp3ArtifactPath = path.join(taskRoot, '04-实施计划-v0.1.0.md')
   const unqualifiedCp3Path = path.join(taskRoot, '04-实施计划-v0.1.1.md')
@@ -3074,11 +3323,64 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
   assert.strictEqual(accepted.structuredContent.artifactTemplateBinding.schemaVersion, 'ArtifactTemplateBindingProjectionV1')
   assert.strictEqual(accepted.structuredContent.artifactTemplateQualification.status, 'qualified')
   assert.strictEqual(accepted.structuredContent.artifactTemplateQualification.readbackVerified, true)
+  assert.strictEqual(accepted.structuredContent.checkpointEpoch.schemaVersion, 'CheckpointEpochReceiptV1')
+  assert.strictEqual(accepted.structuredContent.checkpointEpoch.phase, 'CP2')
   const acceptedState = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
   assert.strictEqual(acceptedState.state.autoCheckpointDecision.decision, 'auto-pass')
   assert.strictEqual(acceptedState.state.autoCheckpointDecisions.length, 1)
   assert.strictEqual(acceptedState.state.autoCheckpointDecisions[0].checkpoint, 'CP2')
+  assert.strictEqual(acceptedState.state.taskCheckpointEpochSet.schemaVersion, 'TaskCheckpointEpochSetV1')
+  assert.ok(acceptedState.state.taskCheckpointEpochSet.currentEpochId)
+  assert.strictEqual(acceptedState.state.taskCheckpointEpochSet.projection.status, 'current')
   assert.strictEqual(parseCpSessions(fs.readFileSync(sessionsPath, 'utf8')).CP2.confirmed, true)
+  assert.match(fs.readFileSync(sessionsPath, 'utf8'), /devcodex:current-epoch E\d{4,}-[a-f0-9]{12} projectionDigest=[a-f0-9]{64}/)
+
+  const languageCommit = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
+    ...state,
+    languageContext: {
+      schemaVersion: 'LanguageContextV3',
+      durablePrimaryLocale: 'en-US',
+      durableProvisional: false,
+      durableSource: 'test-task-fixed',
+      durableConfidence: 'high',
+      durableSourceDigest: 'e'.repeat(64),
+      durableUpdatedAt: new Date(nowMs).toISOString(),
+      primaryLanguage: 'en-US',
+      responseLanguage: 'en-US',
+      artifactLanguage: 'en-US',
+      currentTurnClass: 'neutral',
+      source: 'task-primary-language',
+      confidence: 'high',
+      updatedPrimary: false,
+      preferenceDigest: 'f'.repeat(64),
+      preferenceSource: 'project-fixed',
+      localeCapability: 'full',
+      diagnostics: []
+    }
+  }), { force: true, reason: 'mcp-continuity-language-fixture' })
+  assert(['committed', 'semantic-noop'].includes(languageCommit.status), JSON.stringify(languageCommit))
+
+  const durableLanguageContinuity = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(23, 'tools/call', {
+      name: 'memory_task_continuity_view_v1',
+      arguments: { taskId: admission.taskId, project, scope: 'project' }
+    })
+  ], TEMP_ROOT), 23)
+  assert.notStrictEqual(durableLanguageContinuity.isError, true, durableLanguageContinuity.content?.[0]?.text || '')
+  assert.match(durableLanguageContinuity.content?.[0]?.text || '', /task|checkpoint|continue/i,
+    'persisted task language must outrank the Chinese display name')
+
+  const continuity = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(22, 'tools/call', {
+      name: 'memory_task_continuity_view_v1',
+      arguments: { taskId: admission.taskId, project, scope: 'project', locale: 'zh-CN' }
+    })
+  ], TEMP_ROOT), 22)
+  assert.notStrictEqual(continuity.isError, true, continuity.content?.[0]?.text || 'continuity view failed')
+  assert.strictEqual(continuity.structuredContent.schemaVersion, 'TaskContinuityViewV1')
+  assert.strictEqual(continuity.structuredContent.task.taskId, admission.taskId)
+  assert.strictEqual(continuity.structuredContent.epoch.currentEpochId, acceptedState.state.taskCheckpointEpochSet.currentEpochId)
+  assert.match(continuity.content?.[0]?.text || '', /任务|检查点|继续/)
 
   const stateBeforeWrongSlot = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
   const wrongSlot = resultById(runServer('mcp/memory-server.js', [
@@ -3902,6 +4204,70 @@ function testWorkspaceNamespaceProfileMerge() {
   assert.match(profileText, /connectionString/)
 }
 
+function testProfileComposeEntryLanguagePreferenceV3() {
+  setupLayoutWorkspace()
+  const projectRoot = path.join(TEMP_ROOT, 'chat')
+  const workspaceConfigPath = path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile', 'config.json')
+  const projectConfigPath = path.join(TEMP_ROOT, '.devcodex', 'chat', 'profile', 'config.json')
+  const workspaceConfig = JSON.parse(fs.readFileSync(workspaceConfigPath, 'utf8'))
+  const projectConfig = JSON.parse(fs.readFileSync(projectConfigPath, 'utf8'))
+  workspaceConfig.extensions.devcodex.language = {
+    schemaVersion: 'LanguagePreferenceV1', mode: 'fixed', locale: 'zh-CN'
+  }
+  projectConfig.extensions.devcodex.language = {
+    schemaVersion: 'LanguagePreferenceV1', mode: 'inherit', locale: null
+  }
+  fs.writeFileSync(workspaceConfigPath, JSON.stringify(workspaceConfig, null, 2))
+  fs.writeFileSync(projectConfigPath, JSON.stringify(projectConfig, null, 2))
+
+  const inheritedResult = resultById(runServer('mcp/profile-server.js', [
+    rpcRequest(1, 'tools/call', {
+      name: 'profile_compose_entry_check',
+      arguments: { status: 'PASS', nextStep: 'continue', entry: { prompt: '确认' } }
+    })
+  ], projectRoot), 1)
+  assert.notStrictEqual(inheritedResult.isError, true)
+  const inherited = toolJson(inheritedResult)
+  assert.strictEqual(inherited.languageContext.schemaVersion, 'LanguageContextV3')
+  assert.strictEqual(inherited.languageContext.primaryLanguage, 'zh-CN')
+  assert.strictEqual(inherited.languageContext.preferenceSource, 'workspace-fixed-inherited')
+  assert.strictEqual(inherited.localeDecision.renderedLanguage, 'zh-CN')
+  assert.match(inherited.block, /入口检查/)
+
+  projectConfig.extensions.devcodex.language = {
+    schemaVersion: 'LanguagePreferenceV1', mode: 'auto', locale: null
+  }
+  fs.writeFileSync(projectConfigPath, JSON.stringify(projectConfig, null, 2))
+  const projectAuto = toolJson(resultById(runServer('mcp/profile-server.js', [
+    rpcRequest(2, 'tools/call', {
+      name: 'profile_compose_entry_check',
+      arguments: { status: 'PASS', nextStep: 'continue', entry: { prompt: 'Please inspect the project.' } }
+    })
+  ], projectRoot), 2))
+  assert.strictEqual(projectAuto.languageContext.primaryLanguage, 'en-US')
+  assert.strictEqual(projectAuto.languageContext.preferenceSource, 'project-auto')
+  assert.strictEqual(projectAuto.localeDecision.renderedLanguage, 'en')
+  assert.strictEqual(projectAuto.localeDecision.fallbackReason, null)
+  assert.match(projectAuto.block, /Entry check/)
+
+  projectConfig.extensions.devcodex.language = {
+    schemaVersion: 'LanguagePreferenceV1', mode: 'fixed', locale: null
+  }
+  fs.writeFileSync(projectConfigPath, JSON.stringify(projectConfig, null, 2))
+  const invalidResult = resultById(runServer('mcp/profile-server.js', [
+    rpcRequest(3, 'tools/call', {
+      name: 'profile_compose_entry_check',
+      arguments: { status: 'PASS', nextStep: 'continue', entry: { prompt: 'Please inspect the project.' } }
+    })
+  ], projectRoot), 3)
+  assert.notStrictEqual(invalidResult.isError, true,
+    'an invalid language preference must fail soft without blocking the entry check')
+  const invalid = toolJson(invalidResult)
+  assert.strictEqual(invalid.languageContext.primaryLanguage, 'en-US')
+  assert.strictEqual(invalid.languageContext.preferenceSource, 'project-invalid-adaptive')
+  assert(invalid.languageContext.diagnostics.includes('project-language-preference-fixed-locale-required'))
+}
+
 function testWorkspaceNamespaceInvalidProfileFailsClosed() {
   setupLayoutWorkspace()
   const projectRoot = path.join(TEMP_ROOT, 'chat')
@@ -4043,8 +4409,8 @@ function testContextReadBindingContract() {
     result: listedResult
   }))
   assert(
-    toolsListBytes <= 7680,
-    `profile tools/list exceeds Grok local-stdio safety budget: ${toolsListBytes} bytes`
+    toolsListBytes <= 8 * 1024,
+    `profile tools/list exceeds the 8 KiB Grok local-stdio wire budget: ${toolsListBytes} bytes`
   )
   const skillRouteSchema = findToolSchema(listed, 'skill_route')
   assert.ok(Array.isArray(skillRouteSchema.oneOf), 'skill_route inputSchema must be per-op oneOf')
@@ -4053,9 +4419,15 @@ function testContextReadBindingContract() {
     undefined,
     'skill_route must not expose a top-level contextBinding property'
   )
-  for (const op of ['catalog', 'commit', 'rebind', 'load_stage', 'status']) {
+  for (const op of ['resolve_exact', 'catalog', 'commit', 'rebind', 'load_stage', 'status']) {
     findSkillRouteOpSchema(skillRouteSchema, op)
   }
+  const exactSchema = findSkillRouteOpSchema(skillRouteSchema, 'resolve_exact')
+  assert.strictEqual(exactSchema.properties.contextBinding, undefined)
+  assert.deepStrictEqual(
+    exactSchema.properties.preferredLayer.enum,
+    ['project', 'workspace', 'global', null]
+  )
   assert.strictEqual(
     findSkillRouteOpSchema(skillRouteSchema, 'catalog').properties.contextBinding,
     undefined,
@@ -4447,6 +4819,66 @@ function testDevCodexBoundedRouteRecipe() {
   assert.strictEqual(receipt.routeLoadRecipe.applied, true)
   assert.strictEqual(receipt.routeLoadRecipe.recipeDigest, recipe.recipeDigest)
   assert.deepStrictEqual(receipt.loadedFiles.slice().sort(), plan.profile.selectedFiles.slice().sort())
+
+  // PF-471 / GR-120: exercise the real Profile MCP across separate host
+  // processes. Each response carries only one section, while the durable
+  // observation owner accumulates coverage for the same source digest.
+  const partialPlan = toolJson(resultById(runServer('mcp/profile-server.js', [
+    rpcRequest(810, 'tools/call', {
+      name: 'profile_context_plan',
+      arguments: {
+        intent: 'dev',
+        changeTypes: ['source-code', 'testing', 'docs'],
+        project: 'devcodex',
+        contextEpoch: 'devcodex-profile-section-coverage'
+      }
+    })
+  ], projectRoot, { DEVCODEX_AGENT: 'codex' }), 810))
+  const partialEntry = partialPlan.profile.routeLoadRecipe.entries.find(entry =>
+    entry.requiredQueries.length >= 3
+  )
+  assert(partialEntry, 'fixture must expose a Profile route entry with at least three required headings')
+  const partialSourceId = `profile:${partialEntry.file}`
+  const partialMetas = []
+  for (let index = 0; index < partialEntry.requiredQueries.length; index += 1) {
+    const query = partialEntry.requiredQueries[index]
+    const response = resultById(runServer('mcp/profile-server.js', [
+      rpcRequest(811 + index, 'tools/call', {
+        name: 'profile_load',
+        arguments: {
+          project: 'devcodex',
+          files: [partialEntry.file],
+          maxFiles: 1,
+          maxBytes: partialEntry.maxBytes + 2048,
+          executionOptimization: partialPlan.executionOptimization,
+          sectionSelectors: [{
+            file: partialEntry.file,
+            headingQueries: [query],
+            requiredQueries: [query],
+            includePreamble: false,
+            includeDescendants: true,
+            boundedOnly: true,
+            maxBytes: partialEntry.maxBytes
+          }],
+          contextBinding: partialPlan.contextBinding
+        }
+      })
+    ], projectRoot, {
+      DEVCODEX_AGENT: 'codex',
+      DEVCODEX_HOST_SESSION_ID: 'session-devcodex-profile-section-coverage'
+    }), 811 + index)
+    assert.notStrictEqual(response.isError, true, response.content?.[0]?.text || '')
+    const meta = JSON.parse(/<!-- profile_load_budget (\{[^\n]+\}) -->/.exec(response.content?.[0]?.text || '')[1])
+    assert.strictEqual(meta.sectionCoverageReceipts.length, 1)
+    assert.deepStrictEqual(meta.sectionCoverageReceipts[0].requiredQueries, partialEntry.requiredQueries)
+    assert.deepStrictEqual(meta.sectionCoverageReceipts[0].coveredQueries, [query])
+    assert.strictEqual(meta.sectionCoverageReceipts[0].complete, false)
+    partialMetas.push(meta)
+  }
+  assert.strictEqual(partialMetas[0].contextObservation.satisfiedSourceIds.includes(partialSourceId), false)
+  assert.strictEqual(partialMetas[partialMetas.length - 2].contextObservation.satisfiedSourceIds.includes(partialSourceId), false)
+  assert.strictEqual(partialMetas[partialMetas.length - 1].contextObservation.satisfiedSourceIds.includes(partialSourceId), true,
+    'the required Profile source may become satisfied only after all planned headings share one source digest')
 
   const oversizedFile = recipe.entries[0]
   fs.appendFileSync(
@@ -6361,6 +6793,7 @@ testAgentIdentitySharedModule()
 testMemoryProjectionAgentAmbiguity()
 testGrokAgentMemoryWrite()
 testWorkspaceNamespaceProfileMerge()
+testProfileComposeEntryLanguagePreferenceV3()
 testWorkspaceNamespaceInvalidProfileFailsClosed()
 testProfileLoadWithoutArguments()
 testContextReadBindingContract()

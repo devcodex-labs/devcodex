@@ -51,7 +51,9 @@ assert.ok(manualFull.fullReasonCodes.includes('manual-full'))
 
 const unknown = plan(['unmapped-ci-fixture.bin'])
 assert.strictEqual(unknown.jobs.fullQuality, true)
-assert.ok(unknown.fullReasonCodes.includes('impact-plan-blocked'))
+assert.ok(unknown.fullReasonCodes.includes('impact-graph-incomplete'))
+assert.strictEqual(unknown.impact.routeResolved, 'full-fallback')
+assert.strictEqual(unknown.impact.executionBlockers.length, 0)
 
 assert.throws(() => plan([], { event: 'workflow_dispatch', manualScope: 'invalid' }), error =>
   error instanceof CiValidationPlanError && error.code === 'CI_PLAN_MANUAL_SCOPE_INVALID')

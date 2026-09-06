@@ -199,7 +199,7 @@ function buildFixtureBaseline (fixture) {
   }
 }
 
-function buildFixtureContextPlan (fixture, contextEpoch) {
+function buildFixtureContextPlan (fixture, contextEpoch, options = {}) {
   const plan = buildContextReadPlan({
     intentSeed: {
       schemaVersion: 'IntentSeedV1',
@@ -219,6 +219,7 @@ function buildFixtureContextPlan (fixture, contextEpoch) {
     },
     changeTypes: ['source-code'],
     baselineContext: buildFixtureBaseline(fixture),
+    ...(options.profileRouteLoadRecipe ? { profileRouteLoadRecipe: options.profileRouteLoadRecipe } : {}),
     planningTelemetry: { latencyMs: 1.5 }
   }, { nowMs: BASE_MS })
   const validation = validateContextReadPlan(plan)
@@ -404,7 +405,8 @@ try {
   }, fixture.runtimeOptions)
   assert.strictEqual(boot.reused, false)
   assert.strictEqual(boot.bootstrap.mode, 'unified')
-  assert(boot.bootstrap.candidateCount > 70)
+  assert(boot.bootstrap.candidateCount <= 8)
+  assert(boot.bootstrap.availableCandidateCount > 70)
 
   const missingContextBinding = handleSkillRoute({
     op: 'commit',
@@ -459,13 +461,13 @@ try {
   assert.strictEqual(skippedCatalogPage.ok, false)
   assert.strictEqual(
     skippedCatalogPage.errorCode,
-    'CATALOG_CURSOR_OUT_OF_SEQUENCE'
+    'CATALOG_CURSOR_INVALID'
   )
 
   const catalogPaths = turnPaths(fixture.activeRoot, boot.bootstrap.turnBinding)
   const envelopeBeforeCatalog = fs.readFileSync(catalogPaths.envelope, 'utf8')
   const pages = requestCatalogAll(fixture, boot.bootstrap)
-  assert(pages.length <= 5, `expected first catalog to fit in <=5 pages, got ${pages.length}`)
+  assert(pages.length <= 1, `expected metadata shortlist to fit in one page, got ${pages.length}`)
   assert.strictEqual(fs.readFileSync(catalogPaths.envelope, 'utf8'), envelopeBeforeCatalog)
   const catalogProgress = JSON.parse(fs.readFileSync(catalogPaths.catalogProgress, 'utf8'))
   assert.deepStrictEqual(
@@ -899,6 +901,140 @@ try {
     contextBinding: splitPlan.contextBinding
   }, fixture.runtimeOptions)
   assert.strictEqual(splitRecoveredCommit.ok, true, JSON.stringify(splitRecoveredCommit))
+  writeContextBindingState(fixture, contextEpoch, 'dev')
+
+  // PF-471 / GR-120: a plan-required Profile source is complete only after
+  // every required heading has been observed under one source digest.
+  const coverageEpoch = 'ctx-profile-section-coverage-fixture'
+  const coverageSeedPlan = buildFixtureContextPlan(fixture, coverageEpoch)
+  const coverageQueries = ['Contract', 'Runtime', 'Validation']
+  const coverageRecipeMaterial = {
+    schemaVersion: 'ProfileRouteLoadRecipeV2',
+    strategy: 'bounded-section-selectors',
+    maxFiles: coverageSeedPlan.profile.selectedFiles.length,
+    maxBytes: 40 * 1024,
+    minimumHeadroomBytes: 1024,
+    entries: coverageSeedPlan.profile.selectedFiles.map(file => ({
+      file,
+      headingQueries: [...coverageQueries],
+      requiredQueries: [...coverageQueries],
+      includePreamble: false,
+      includeDescendants: true,
+      boundedOnly: true,
+      maxBytes: 4096
+    }))
+  }
+  const coveragePlan = buildFixtureContextPlan(fixture, coverageEpoch, {
+    profileRouteLoadRecipe: {
+      ...coverageRecipeMaterial,
+      recipeDigest: contextStableDigest(coverageRecipeMaterial)
+    }
+  })
+  assert.strictEqual(persistContextPlanObservation({
+    activeRoot: fixture.activeRoot,
+    project: fixture.project,
+    contextEpoch: coverageEpoch,
+    plan: coveragePlan,
+    nowMs: BASE_MS + 24
+  }).status, 'persisted')
+  const coverageTargetFile = coveragePlan.profile.selectedFiles[0]
+  const coverageTargetSource = `profile:${coverageTargetFile}`
+  const digestA = 'a'.repeat(64)
+  const digestB = 'b'.repeat(64)
+  const withCoverage = (sourceId, coveredQueries, sourceDigest, label) => {
+    const base = observedMcpSourceResult(coveragePlan, sourceId)
+    const body = JSON.stringify({ sourceId, coveredQueries, sourceDigest, label })
+    return {
+      ...base,
+      observationId: `coverage-${label}`,
+      resultDigest: contextStableDigest({ sourceId, coveredQueries, sourceDigest, label }),
+      contentIdentity: buildContentIdentity({
+        sourceKey: `fixture://${sourceId}/${label}`,
+        content: body,
+        contractVersion: 'ProfileBodyV1'
+      }),
+      bytes: Buffer.byteLength(body, 'utf8'),
+      chars: body.length,
+      hostDeliveredBytes: Buffer.byteLength(body, 'utf8'),
+      profileSectionCoverage: {
+        schemaVersion: 'ProfileSectionCoverageV1',
+        file: sourceId.slice('profile:'.length),
+        sourceDigest,
+        // Deliberately caller-authored and incomplete: the owner must ignore
+        // this claimed requirement set and rebuild all three from the plan.
+        requiredQueries: [...coveredQueries],
+        coveredQueries: [...coveredQueries],
+        missingQueries: [],
+        deliveryMode: 'section-selection',
+        sectionReceiptDigest: 'c'.repeat(64),
+        complete: true
+      }
+    }
+  }
+  const initialCoverageResults = coveragePlan.mandatorySourceIds.map(sourceId => {
+    if (sourceId === coverageTargetSource) {
+      return withCoverage(sourceId, [coverageQueries[0]], digestA, 'target-a-1')
+    }
+    const recipeEntry = coveragePlan.profile.routeLoadRecipe.entries.find(entry =>
+      sourceId === `profile:${entry.file}`
+    )
+    return recipeEntry
+      ? withCoverage(sourceId, recipeEntry.requiredQueries, digestA, `complete-${recipeEntry.file}`)
+      : observedMcpSourceResult(coveragePlan, sourceId)
+  })
+  const coverageOne = recordMcpContextSourceObservations({
+    activeRoot: fixture.activeRoot,
+    project: fixture.project,
+    contextBinding: coveragePlan.contextBinding,
+    hostSessionId: 'session-profile-section-coverage',
+    sourceResults: initialCoverageResults
+  }, { nowMs: BASE_MS + 25 })
+  assert.deepStrictEqual(coverageOne.missingSourceIds, [coverageTargetSource])
+  assert.notStrictEqual(coverageOne.receiptStatus, 'relevant-complete')
+
+  const coverageDigestDrift = recordMcpContextSourceObservations({
+    activeRoot: fixture.activeRoot,
+    project: fixture.project,
+    contextBinding: coveragePlan.contextBinding,
+    hostSessionId: 'session-profile-section-coverage',
+    sourceResults: [withCoverage(coverageTargetSource, [coverageQueries[1]], digestB, 'target-b-2')]
+  }, { nowMs: BASE_MS + 26 })
+  assert.deepStrictEqual(coverageDigestDrift.missingSourceIds, [coverageTargetSource],
+    'partial sections from different source digests must not be stitched together')
+
+  const coverageTwo = recordMcpContextSourceObservations({
+    activeRoot: fixture.activeRoot,
+    project: fixture.project,
+    contextBinding: coveragePlan.contextBinding,
+    hostSessionId: 'session-profile-section-coverage',
+    sourceResults: [withCoverage(coverageTargetSource, [coverageQueries[1]], digestA, 'target-a-2')]
+  }, { nowMs: BASE_MS + 27 })
+  assert.deepStrictEqual(coverageTwo.missingSourceIds, [coverageTargetSource])
+  assert.notStrictEqual(coverageTwo.receiptStatus, 'relevant-complete')
+
+  const coverageThree = recordMcpContextSourceObservations({
+    activeRoot: fixture.activeRoot,
+    project: fixture.project,
+    contextBinding: coveragePlan.contextBinding,
+    hostSessionId: 'session-profile-section-coverage',
+    sourceResults: [withCoverage(coverageTargetSource, [coverageQueries[2]], digestA, 'target-a-3')]
+  }, { nowMs: BASE_MS + 28 })
+  assert.deepStrictEqual(coverageThree.missingSourceIds, [])
+  assert.strictEqual(coverageThree.receiptStatus, 'relevant-complete')
+  assert(coverageThree.foldReceipt.sourceResultDigests.some(item =>
+    item.sourceId === coverageTargetSource && item.observationId.startsWith('profile-sections-')
+  ))
+
+  const coverageNewDigestPartial = recordMcpContextSourceObservations({
+    activeRoot: fixture.activeRoot,
+    project: fixture.project,
+    contextBinding: coveragePlan.contextBinding,
+    hostSessionId: 'session-profile-section-coverage',
+    sourceResults: [withCoverage(coverageTargetSource, [coverageQueries[0]], digestB, 'target-b-3')]
+  }, { nowMs: BASE_MS + 29 })
+  assert.deepStrictEqual(coverageNewDigestPartial.missingSourceIds, [coverageTargetSource],
+    'a newer partial source digest must supersede an older complete digest instead of preserving stale completion')
+  assert.notStrictEqual(coverageNewDigestPartial.receiptStatus, 'relevant-complete')
   writeContextBindingState(fixture, contextEpoch, 'dev')
 
   const staleReceiptEpoch = 'ctx-mcp-stale-source-observation-fixture'

@@ -913,13 +913,17 @@ function buildLifecycleProjectTargetUtils({
     if (!binding || !transaction || !envelope || !route || !projectLease) {
       return { valid: false, reason: 'same-turn-new-admission-evidence-missing' }
     }
-    if (transaction.schemaVersion !== 'TaskAdmissionTransactionV1' ||
-        transaction.phase !== 'finalized' || transaction.status !== 'finalized' ||
-        transaction.operation !== 'admit' || Number(transaction.admissionGeneration) !== 1) {
-      return { valid: false, reason: 'same-turn-new-admission-not-finalized-g1' }
-    }
-    if (!['new', 'product-provided', 'change', 'fix'].includes(String(transaction.entryVariant || ''))) {
-      return { valid: false, reason: 'same-turn-new-admission-entry-invalid' }
+    const finalized = transaction.schemaVersion === 'TaskAdmissionTransactionV1' &&
+      transaction.phase === 'finalized' && transaction.status === 'finalized'
+    const newAdmission = finalized && transaction.operation === 'admit' &&
+      Number(transaction.admissionGeneration) === 1 &&
+      ['new', 'product-provided', 'change', 'fix'].includes(String(transaction.entryVariant || ''))
+    const resumedAdmission = finalized && ['bind', 'adopt'].includes(String(transaction.operation || '')) &&
+      Number(transaction.admissionGeneration) >= 2 && transaction.entryVariant === 'continue' &&
+      transaction.recovery?.schemaVersion === 'FinalizedTaskResumeRecoveryReceiptV3' &&
+      transaction.recovery.candidateDigest === state?.resumeIngressCapabilityRef?.candidateDigest
+    if (!newAdmission && !resumedAdmission) {
+      return { valid: false, reason: 'same-turn-admission-not-promotable' }
     }
     const exactPairs = [
       [transaction.taskId, binding.taskId],
@@ -954,7 +958,12 @@ function buildLifecycleProjectTargetUtils({
 
   function promoteTaskScopedAutoAfterBinding(state, payload, evidence = {}) {
     const existing = state?.taskScopedAutoContinuationGrant || null
-    if (existing) {
+    const sticky = state?.executionMode === EXECUTION_MODE.AUTO
+      ? getValidStickyAuto(state, payload)
+      : null
+    const freshIngressAuto = sticky &&
+      sticky.sourceMessageDigest === state?.actualInstructionEnvelope?.actualInstructionDigest
+    if (existing && !freshIngressAuto) {
       const active = getValidTaskScopedAuto(state)
       return active
         ? { status: 'already-active', grant: active }
@@ -963,7 +972,6 @@ function buildLifecycleProjectTargetUtils({
     if (state?.executionMode !== EXECUTION_MODE.AUTO) {
       return { status: 'not-authorized', reason: 'execution-mode-not-auto' }
     }
-    const sticky = getValidStickyAuto(state, payload)
     if (!sticky) {
       return { status: 'not-authorized', reason: 'same-session-sticky-auto-unavailable' }
     }
@@ -978,7 +986,7 @@ function buildLifecycleProjectTargetUtils({
     const grant = createTaskScopedAutoFromAuthorization(
       state,
       '',
-      { source: sticky.source, kind: 'same-turn-task-bind' },
+      { source: sticky.source, kind: 'same-turn-task-bind-or-resume' },
       sticky
     )
     if (!grant) {

@@ -49,6 +49,7 @@ converged ──> closed
 
 ```json
 {
+  "schemaVersion": "AuditSessionStateV2",
   "sessionId": "20260520-143055",
   "startedAt": "2026-05-20T14:30:55+08:00",
   "lastUpdatedAt": "2026-05-20T16:12:33+08:00",
@@ -106,6 +107,20 @@ converged ──> closed
 }
 ```
 
+### `.audit-state` 兼容读取边界
+
+`.audit-state` 是多类运行态证据的共享目录名，不代表目录内每个 JSON 都属于当前审计会话。读取者必须先分类，再决定校验方式：
+
+| 分类 | 识别 | 处理 |
+|---|---|---|
+| current session | exact `AuditSessionStateV1` / `AuditSessionStateV2` | 按本 Skill 的状态、finding 与 regression probe 合同严格校验 |
+| legacy audit | `AuditStateV1` 或可识别的历史无 schema 审计形状 | 只读导航与取证，不要求满足当前枚举或新探针，不改写历史字节 |
+| non-audit | SkillRoute、batch plan、validation 等其他 schema | 跳过审计会话校验，由各自 owner 负责 |
+| unsupported current | 未支持的 `AuditSessionStateV*` | 明确报告不支持，禁止猜测或降成 legacy |
+| invalid | JSON 损坏或顶层不是 object | 报告结构错误，不静默忽略 |
+
+兼容分类只解决 reader 误判，不授予旧状态新的写权限，也不得伪造 `superseded`、重算旧 finding 或迁移历史文件。
+
 ### v1.9.4+ schema 字段说明
 
 | 字段 | 引入 | 用途 |
@@ -161,8 +176,8 @@ converged ──> closed
 ## 跨会话 resume 流程
 
 1. 用户说"继续审计" / "继续上次的审查"
-2. 读取 `<audit-root>/.audit-state/` 下所有 `.json`，按 `lastUpdatedAt` 倒序
-3. 找出 state ∈ {paused, active, resumed} 的最新一份
+2. 读取 `<audit-root>/.audit-state/` 下有界 `.json` 清单，先按上述兼容规则分类
+3. 只在 current session 与可导航的 legacy audit 中按 `lastUpdatedAt` 倒序，找出 state ∈ {paused, active, resumed} 的最新一份；其他 schema 不参与排序
 4. 输出："发现未完成审计会话 `<sessionId>`：目标 `<target.scope>`，已完成 `R{round}`，发现 `{open}` 项 open。是否继续？"
 5. 用户确认 → state=resumed → 立即 → active，从 round+1 开始
 6. 用户拒绝 → 询问是否 closed 该会话

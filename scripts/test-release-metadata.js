@@ -112,6 +112,19 @@ expect(
     publishWorkflow.includes('npm publish "${RELEASE_ARTIFACT_PATH}" --ignore-scripts --provenance --access public'),
   'Publish workflow 必须校验并发布同一个已冻结 tgz，且不得再次触发生命周期打包'
 )
+expect(
+  publishWorkflow.includes('node scripts/test-global-install-smoke.js --tarball "${RELEASE_ARTIFACT_PATH}"') &&
+    publishWorkflow.indexOf('exact-release-artifact.js create') < publishWorkflow.indexOf('test-global-install-smoke.js --tarball') &&
+    publishWorkflow.indexOf('test-global-install-smoke.js --tarball') < publishWorkflow.indexOf('actions/upload-artifact@v4'),
+  'Publish workflow 必须在保存唯一精确 tgz 前完成隔离 consumer、HOME、prefix、cache 与 workspace 安装验收'
+)
+expect(
+  publishWorkflow.includes("inputs.mode == 'publish-qualified'") &&
+    publishWorkflow.includes('run-id: ${{ inputs.qualification_run_id }}') &&
+    publishWorkflow.includes('qualified-release-${{ inputs.release_tag }}-${{ inputs.qualification_run_id }}-${{ inputs.qualification_run_attempt }}') &&
+    publishWorkflow.includes('Release tag ${RELEASE_TAG} does not match package version ${PKG_VERSION}'),
+  'Publish workflow 必须先停在可下载的已资格化精确包，待同包真实宿主验收后才允许显式续发'
+)
 expect(!publishWorkflow.includes('npm pack --dry-run'), 'Publish workflow 不得以另一次 dry-run pack 冒充实际发布对象证据')
 expect(
   publishWorkflow.includes('exact-release-artifact.js mark-published') &&

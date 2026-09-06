@@ -738,6 +738,42 @@ function validateGitConfig(git, sourceName) {
   }
 }
 
+function normalizeLanguagePreferenceLocale(value) {
+  const raw = String(value || '').trim().replace(/_/g, '-')
+  if (/^zh(?:-|$)/i.test(raw)) return 'zh-CN'
+  if (/^en(?:-|$)/i.test(raw)) return 'en-US'
+  if (/^(?:ja|ko|ru|ar)(?:-|$)/i.test(raw)) return raw.split('-')[0].toLowerCase()
+  return /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(raw) ? raw : ''
+}
+
+function validateLanguagePreference(language, sourceName, layer) {
+  if (language === undefined) return
+  if (!isPlainObject(language)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.language must be an object`)
+    return
+  }
+  if (language.schemaVersion !== undefined && language.schemaVersion !== 'LanguagePreferenceV1') {
+    err(`[profile] ${sourceName}.extensions.devcodex.language.schemaVersion must be LanguagePreferenceV1`)
+  }
+  const fallback = layer === 'workspace' ? 'auto' : 'inherit'
+  const mode = String(language.mode || fallback).trim().toLowerCase()
+  const allowed = layer === 'workspace' ? ['auto', 'fixed'] : ['inherit', 'auto', 'fixed']
+  if (!allowed.includes(mode)) {
+    err(`[profile] ${sourceName}.extensions.devcodex.language.mode must be one of: ${allowed.join(', ')}`)
+  }
+  const hasLocale = language.locale !== undefined && language.locale !== null && language.locale !== ''
+  const locale = hasLocale ? normalizeLanguagePreferenceLocale(language.locale) : ''
+  if (hasLocale && !locale) {
+    err(`[profile] ${sourceName}.extensions.devcodex.language.locale must be a valid BCP-47 language tag`)
+  }
+  if (mode === 'fixed' && !locale) {
+    err(`[profile] ${sourceName}.extensions.devcodex.language fixed mode requires locale`)
+  }
+  if (mode !== 'fixed' && hasLocale) {
+    err(`[profile] ${sourceName}.extensions.devcodex.language locale is allowed only with fixed mode`)
+  }
+}
+
 function validateProfileConfigExtensions(cfg, sourceName, projectInfoText, readmeText) {
   const extensions = cfg.extensions
   if (extensions === undefined) return
@@ -752,7 +788,7 @@ function validateProfileConfigExtensions(cfg, sourceName, projectInfoText, readm
     return
   }
   for (const key of Object.keys(devcodex)) {
-    if (!['autoAliases', 'concurrency', 'workflowCompletion', 'executionOptimization', 'workflowRouting', 'taskRecovery', 'git'].includes(key)) {
+    if (!['autoAliases', 'concurrency', 'workflowCompletion', 'executionOptimization', 'workflowRouting', 'taskRecovery', 'git', 'language'].includes(key)) {
       err(`[profile] ${sourceName}.extensions.devcodex contains unsupported key: ${key}`)
     }
   }
@@ -763,6 +799,10 @@ function validateProfileConfigExtensions(cfg, sourceName, projectInfoText, readm
   validateWorkflowRoutingConfig(devcodex.workflowRouting, sourceName)
   validateTaskRecoveryConfig(devcodex.taskRecovery, sourceName)
   validateGitConfig(devcodex.git, sourceName)
+  const workspaceLayer = /^workspace\s/i.test(sourceName) || (
+    sourceName === 'config.json' && workspaceProfileDir && samePath(profileDir, workspaceProfileDir)
+  )
+  validateLanguagePreference(devcodex.language, sourceName, workspaceLayer ? 'workspace' : 'project')
   if (Array.isArray(devcodex.autoAliases) && devcodex.autoAliases.length > 0) {
     const combined = `${projectInfoText}\n${readmeText}`
     if (!/extensions\.devcodex\.autoAliases|autoAliases|auto 别名|Auto 别名/i.test(combined)) {
@@ -803,6 +843,12 @@ function validateProfileConfigExtensions(cfg, sourceName, projectInfoText, readm
     const combined = `${projectInfoText}\n${readmeText}`
     if (!/extensions\.devcodex\.git|GitExecutionContext|分支策略|Git 协作/i.test(combined)) {
       warn(`[profile] ${sourceName}.extensions.devcodex.git is configured but Profile README / 01-项目信息.md does not document it`)
+    }
+  }
+  if (devcodex.language !== undefined) {
+    const combined = `${projectInfoText}\n${readmeText}`
+    if (!/extensions\.devcodex\.language|LanguagePreferenceV1|语言偏好/i.test(combined)) {
+      warn(`[profile] ${sourceName}.extensions.devcodex.language is configured but Profile README / 01-项目信息.md does not document it`)
     }
   }
 }

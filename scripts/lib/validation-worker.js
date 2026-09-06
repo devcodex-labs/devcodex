@@ -2,6 +2,7 @@
 
 const { executeValidationPlan } = require('./validation-dag')
 const { createValidationEvidenceStore } = require('./validation-evidence-store')
+const { createValidationWaveCommandRunner } = require('./validation-wave-executor')
 
 const WORKER_MESSAGE_SCHEMA = 'ValidationWorkerMessageV1'
 const RUNNER_COMMAND_SCHEMA = 'ValidationRunnerCommandV1'
@@ -46,8 +47,18 @@ process.once('message', message => {
   send('started', { workerPid: process.pid })
   try {
     const evidenceStore = createValidationEvidenceStore(input.evidenceStore)
+    const runCommand = createValidationWaveCommandRunner({
+      plan: input.execution.plan,
+      repoRoot: input.execution.repoRoot,
+      activeRoot: input.execution.activeRoot,
+      runId: input.execution.lease?.runId,
+      maxConcurrency: input.execution.maxConcurrency,
+      resumeResults: input.execution.resumeResults,
+      useCache: input.execution.useCache
+    })
     const execution = executeValidationPlan({
       ...input.execution,
+      runCommand,
       persistTerminal: false,
       getCurrentLease: () => evidenceStore.readLease().lease,
       onNodeStart: node => {

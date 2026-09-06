@@ -3,6 +3,37 @@
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
+const { parseCurrentEpochMarker } = require('../../hooks/_runtime/task-checkpoint-projection-v1.cjs')
+
+const CP_HEADING_RE = /^#{1,6}\s+.*CP\s*确认记录\s*$/iu
+const CP_HEADER_RE = /^\|\s*CP\s*\|\s*状态\s*\|/iu
+
+/**
+ * Only the dedicated current CP section is an authorization-compatible
+ * projection. Later audit/history sections are deliberately excluded even if
+ * they contain text that resembles old CP rows.
+ */
+function currentCpProjectionBlock(text) {
+  const lines = String(text || '').replace(/\r\n/gu, '\n').split('\n')
+  const heading = lines.findIndex(line => CP_HEADING_RE.test(String(line || '').trim()))
+  if (heading < 0) return { text: '', found: false, incomplete: false }
+  let header = -1
+  for (let index = heading + 1; index < lines.length; index += 1) {
+    if (/^#{1,6}\s+/u.test(lines[index])) break
+    if (CP_HEADER_RE.test(String(lines[index] || '').trim())) {
+      header = index
+      break
+    }
+  }
+  if (header < 0) return { text: lines[heading], found: true, incomplete: true }
+  let end = header + 1
+  while (end < lines.length && (lines[end].trim() === '' || lines[end].trim().startsWith('|'))) end += 1
+  return {
+    text: lines.slice(heading, end).join('\n'),
+    found: true,
+    incomplete: false
+  }
+}
 
 function sha256File(filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex').toUpperCase()
@@ -31,22 +62,31 @@ function parseArtifactPathCell(value) {
  * Extended: | CP | status | artifactPath | version | sha256 | sourceMessage | confirmedAt |
  */
 function parseCpSessions(text) {
+  const projection = currentCpProjectionBlock(text)
+  const marker = parseCurrentEpochMarker(projection.text)
   const rows = {
     CP1: null,
     CP2: null,
     CP3: null,
-    CP3Exempt: false
+    CP3Exempt: false,
+    currentEpochId: marker.epochId,
+    projectionDigest: marker.projectionDigest,
+    projectionMarkerFound: marker.found,
+    projectionFound: projection.found,
+    projectionIncomplete: projection.incomplete
   }
   if (!text) return rows
 
-  if (/(?:\|\s*CP3\s*\|\s*N\/A\b|CP3\s*[:：]\s*N\/A)/i.test(text)) {
+  const currentText = projection.found ? projection.text : String(text || '')
+
+  if (/(?:\|\s*CP3\s*\|\s*N\/A\b|CP3\s*[:：]\s*N\/A)/i.test(currentText)) {
     rows.CP3Exempt = true
   }
 
   // Match legacy `| CP1 | ✅ |`, `| CP1 | ✅ | time |`, and digest-extended rows.
   const lineRe = /^\|\s*(CP[123])\s*\|\s*([^|\n]+)\|(.*)$/gm
   let m
-  while ((m = lineRe.exec(text)) !== null) {
+  while ((m = lineRe.exec(currentText)) !== null) {
     const phase = m[1]
     const statusCell = m[2].trim()
     const rest = (m[3] || '').trim()
@@ -135,6 +175,7 @@ function buildExtendedCpTable({ phases }) {
 }
 
 module.exports = {
+  currentCpProjectionBlock,
   sha256File,
   sha256Text,
   parseCpSessions,

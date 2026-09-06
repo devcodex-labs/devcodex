@@ -7,9 +7,9 @@ description: Profile 计划与分档生成 — 先预览目标根、推荐档位
 
 ## 适用范围
 
-- 触发：`devcodex profile plan` / `devcodex profile init` CLI 调用，或用户要求创建、升级、降档、修复 Profile
+- 触发：`devcodex profile plan` / `devcodex profile init` CLI 调用，或用户以自然语言要求“生成/初始化/补建/升级/降档/修复当前项目 Profile”；自然语言不要求精确口令，最终仍解析为同一项目 ref 的 CLI plan/init
 - 不触发：`devcodex init` / `devcodex init --claude` 完成后仅 **提示** "下一步运行 devcodex profile init"，不自动生成（避免覆盖用户已有 Profile）
-- workspace-namespace：当 `<workspace>/.devcodex/layout.json` 启用后，在工作区根执行 `devcodex profile init` 应治理 `.devcodex/workspace/profile/`；在明确项目上下文执行时治理 `.devcodex/<project>/profile/`。运行时多项目 warning 必须提示 `.devcodex/workspace/profile/`，不得继续指向 legacy `.devcodex/profile/`。
+- workspace-namespace：当 `<workspace>/.devcodex/layout.json` 启用后，在工作区根执行 `devcodex profile init` 应治理 `.devcodex/workspace/profile/`；在明确项目上下文执行时治理 `.devcodex/<project>/profile/`。已识别物理项目但 Profile 缺失时仍保持 project-bound，使用 workspace base 并把项目事实标为未验证；只有完全没有项目时才落 `.devcodex/workspace/`。运行时多项目 warning 必须提示 `.devcodex/workspace/profile/`，不得继续指向 legacy `.devcodex/profile/`。
 - Profile 初稿或复审必须考虑 `ProfileReadChainGate` / `ServiceNormCoverageGate`：记录 workspace base、project overlay、config.local overlay、fallback、全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆消费者；从单服务抽公共 Profile 规则时执行 `StrongestProfileSourceGate` / `ServiceSpecificResidueSweep`。
 - 公开包、SDK、CLI、多模块、文档站、public API 或 runtime 配置明显的项目，Profile 初稿/复审必须执行 `FeatureInventoryProfileGate` / `FeatureInventorySchemaGate`：`06-功能清单.md` 是默认唯一规范清单，新生成内容使用 `FeatureInventorySchemaV2`，在 V1 十字段基础上增加生命周期状态、证据状态、证据日期和证据引用；扫描不能证明的字段写 `unverified` / 待人工确认，不得编造成 implemented/validated/released。validator 兼容读取 V1，但 V1 投影证据状态必须保持 `unverified`。
 - 执行 `ProfileGenerationContractGate` / `ProfileTierStandardGate` / `ProfileLifecycleClassificationGate`：生成器、CLI、加载器、validator、Prompt 和公开文档必须消费同一档位契约。首次创建默认仍以 `profile-lite` 为目标，但必须展示基于 package/目录/脚本证据的推荐档位；用户通过 `--tier` 明确选择后才升级。
@@ -133,12 +133,22 @@ description: Profile 计划与分档生成 — 先预览目标根、推荐档位
 ```json
 {
   "mode": "dev",
-  "agent": "copilot | claude-code | codex"
+  "agent": "copilot | claude-code | codex",
+  "extensions": {
+    "devcodex": {
+      "language": {
+        "schemaVersion": "LanguagePreferenceV1",
+        "mode": "auto | inherit",
+        "locale": null
+      }
+    }
+  }
 }
 ```
 
 - `mode` 默认 `dev`（仅 `devcodex profile init --prod` 时设为 prod）
 - `agent` 从当前宿主证据推断；无法识别时才回退为 `copilot`
+- workspace Profile 的语言默认 `auto`；project Profile 默认 `inherit`。用户可把目标层改为 `fixed` 并配置 locale；project `auto` 明确抑制 workspace fixed。语言配置无效时只对该层降级为自动判断，不得阻断任务。
 
 ## CLI 行为
 
@@ -156,11 +166,13 @@ description: Profile 计划与分档生成 — 先预览目标根、推荐档位
 
 | 步骤 | 动作 |
 |------|------|
-| 1 | 检查目标 Profile 根是否存在 → legacy 为 `.devcodex/profile/`，workspace-namespace 工作区根为 `.devcodex/workspace/profile/`，明确项目为 `.devcodex/<project>/profile/`；不存在则创建 |
+| 1 | 检查目标 Profile 根是否存在 → legacy 为 `.devcodex/profile/`，workspace-namespace 工作区根为 `.devcodex/workspace/profile/`，明确项目为 `.devcodex/<project>/profile/`；缺失时先形成 zero-write preview 与唯一目标 receipt |
 | 2 | 检测现有档位；未显式指定 `--tier` 时继承现有档位，首次创建默认 `profile-lite`，同时输出证据驱动的推荐档位 |
-| 3 | 按统一生成契约逐文件检查：新 README 写入 `portable-v1` 路径契约；已存在 → 跳过；缺失 → 生成；升级时只更新 README 档位声明并保留正文，不自动替 legacy Profile 启用路径迁移 |
-| 4 | 输出生成/跳过/档位更新/备份计数，并提示人工复核所有 `unverified` 字段 |
+| 3 | 纯 create-missing 在 physical project `.tmp/devcodex-profile/<operationId>` 生成完整 staging，校验 UTF-8、tier、portable marker、JSON 与既有 Profile validator，再执行 target-absent CAS 和同卷整目录 rename；锁绑定 owner token 与有界租期，启动时只回收已过期 owner 的精确 operation，失锁旧进程不得提交或删除新 owner 锁；目录已提交但读回中断时，下次运行补做 manifest 读回；失败只精确清理本 operationId，不得留下半套 Profile |
+| 4 | 输出生成/跳过/档位更新/备份计数与 `ProfileMaterializationReceiptV1`；自动生成生命周期只能是 `generated-draft`，必须提示人工复核所有 `unverified` 字段，不能把 validator 通过冒充 `reviewed` |
 | 5 | 退出码 0（即使全部 skip） |
+
+create-missing 之外的已有 Profile、`--force`、升级和显式降档保持原有逐文件兼容路径；自动补给不得覆盖、降档或修改兄弟项目。重复 create-missing 在目标已存在时返回 unchanged。
 
 ### `devcodex profile init --force`
 

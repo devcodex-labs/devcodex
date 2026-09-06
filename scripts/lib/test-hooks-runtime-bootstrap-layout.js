@@ -17,6 +17,7 @@ const {
   resolveHostWorkspaceBinding,
   resolveRuntimeStateRoot
 } = require('../../hooks/_runtime/workspace-layout.cjs')
+const { inspectProfileAvailability } = require('../../hooks/_runtime/profile-availability-v1.cjs')
 
 function runHooksRuntimeBootstrapLayoutScenarios(context) {
   const {
@@ -1571,6 +1572,75 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   })
   assert.strictEqual(missingProfileBinding.status, 'profile-missing')
   assert.strictEqual(missingProfileBinding.error.code, 'PROFILE_MISSING')
+  assert.strictEqual(missingProfileBinding.bindingState, 'project-bound')
+  assert.strictEqual(missingProfileBinding.profileAvailability, 'missing')
+
+  const unmarkedProjectRoot = path.join(TEMP_ROOT, 'explicit-unmarked')
+  fs.mkdirSync(unmarkedProjectRoot, { recursive: true })
+  const explicitUnmarkedBinding = resolveHostWorkspaceBinding({
+    cwd: TEMP_ROOT,
+    layout: bindingLayout,
+    explicitProject: 'explicit-unmarked',
+    requireProfile: true,
+    allowUniqueProject: false
+  })
+  assert.strictEqual(explicitUnmarkedBinding.status, 'profile-missing')
+  assert.strictEqual(explicitUnmarkedBinding.projectNamespace, 'explicit-unmarked')
+  assert.strictEqual(explicitUnmarkedBinding.physicalRoot, unmarkedProjectRoot)
+
+  const isolatedWorkspace = path.join(TEMP_ROOT, 'isolated-workspace-fallback')
+  fs.mkdirSync(path.join(isolatedWorkspace, '.devcodex'), { recursive: true })
+  fs.writeFileSync(
+    path.join(isolatedWorkspace, '.devcodex', 'layout.json'),
+    JSON.stringify({ mode: 'workspace-namespace' })
+  )
+  const noProjectBinding = resolveHostWorkspaceBinding({
+    cwd: isolatedWorkspace,
+    layout: findLayoutInfo(isolatedWorkspace),
+    allowUniqueProject: false
+  })
+  assert.strictEqual(noProjectBinding.status, 'resolved')
+  assert.strictEqual(noProjectBinding.bindingState, 'workspace-bound')
+  assert.strictEqual(noProjectBinding.projectNamespace, null)
+  assert.strictEqual(noProjectBinding.activeRoot, path.join(isolatedWorkspace, '.devcodex', 'workspace'))
+  assert.notStrictEqual(noProjectBinding.activeRoot, path.join(isolatedWorkspace, '.devcodex', 'devcodex'))
+
+  const firstAvailability = inspectProfileAvailability({
+    binding: missingProfileBinding,
+    taskId: '050781b6-8c51-48fc-9912-9cba127104d0',
+    languageContext: { primaryLanguage: 'zh-CN', responseLanguage: 'zh-CN' }
+  })
+  assert.strictEqual(firstAvailability.lifecycleState, 'missing')
+  assert.strictEqual(firstAvailability.fallback, 'workspace-base/project-facts-unverified')
+  assert.strictEqual(firstAvailability.shouldDisplay, true)
+  assert.match(firstAvailability.notice, /任务不会因此中断/)
+  const dedupedAvailability = inspectProfileAvailability({
+    binding: missingProfileBinding,
+    taskId: '050781b6-8c51-48fc-9912-9cba127104d0',
+    languageContext: { primaryLanguage: 'zh-CN', responseLanguage: 'zh-CN' },
+    priorDedupeKey: firstAvailability.dedupeKey
+  })
+  assert.strictEqual(dedupedAvailability.shouldDisplay, false)
+
+  cleanLayoutMultiProjectState()
+  fs.mkdirSync(path.join(TEMP_ROOT, 'profileless'), { recursive: true })
+  fs.writeFileSync(path.join(TEMP_ROOT, 'profileless', 'package.json'), '{}')
+  const firstProfilelessLifecycle = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'profileless-notice-session',
+    prompt: '检查 profileless 项目',
+    currentFile: path.join(TEMP_ROOT, 'profileless', 'package.json')
+  })
+  assert.strictEqual(firstProfilelessLifecycle.continue, true)
+  assert.match(firstProfilelessLifecycle.systemMessage || '', /Profile 尚未生成/)
+  const repeatedProfilelessLifecycle = run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'profileless-notice-session',
+    prompt: '继续检查 profileless 项目',
+    currentFile: path.join(TEMP_ROOT, 'profileless', 'package.json')
+  })
+  assert.strictEqual(repeatedProfilelessLifecycle.continue, true)
+  assert.ok(!/Profile 尚未生成/.test(repeatedProfilelessLifecycle.systemMessage || ''))
 
   const profileBackedRoot = path.join(TEMP_ROOT, 'blank')
   fs.mkdirSync(profileBackedRoot, { recursive: true })

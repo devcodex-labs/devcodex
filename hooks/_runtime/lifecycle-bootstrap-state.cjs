@@ -1400,7 +1400,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       if (identity.tool === 'skill_route') {
         const op = String(args.op || '').trim()
         const epoch = String(args.contextEpoch || '').trim()
-        if (!['catalog', 'commit', 'rebind', 'load_stage', 'status'].includes(op)) {
+        if (!['resolve_exact', 'catalog', 'commit', 'rebind', 'load_stage', 'status'].includes(op)) {
           return { allowed: false, suspicious: true, reason: 'skill_route requires a published route operation' }
         }
         if (epoch && epoch !== acquisition.contextEpoch) {

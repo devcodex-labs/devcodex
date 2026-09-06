@@ -1,8 +1,8 @@
 'use strict'
 
 /**
- * Workspace skill resolution Owner (S2).
- * Single algorithm for W/G path selection; consumers must honor content/digest binding.
+ * Layered skill resolution Owner (S2).
+ * Single algorithm for P/W/G path selection; consumers must honor content/digest binding.
  */
 
 const crypto = require('crypto')
@@ -26,6 +26,8 @@ const RESERVED_SKILL_IDS = Object.freeze(new Set([
 ]))
 
 const MAX_SKILL_BYTES = 256 * 1024
+const MAX_LAYERED_SKILL_BYTES = 8 * 1024 * 1024
+const SKILL_METADATA_PREFIX_BYTES = 64 * 1024
 
 const WEAKEN_PATTERNS = Object.freeze([
   /跳过\s*S0[1-7]/i,
@@ -110,6 +112,7 @@ function resolveGlobalSkillsRoot(options = {}) {
 
 function resolveWorkspaceSkillsRoot(cwdOrRoot, options = {}) {
   const fsImpl = options.fs || fs
+  if (options.workspaceSkillsRoot) return path.resolve(options.workspaceSkillsRoot)
   if (options.workspaceRoot) {
     return path.join(path.resolve(options.workspaceRoot), '.devcodex', 'workspace', 'skills')
   }
@@ -122,6 +125,30 @@ function resolveWorkspaceSkillsRoot(cwdOrRoot, options = {}) {
   }
   const root = path.join(layout.workspaceRoot, '.devcodex', 'workspace', 'skills')
   return root
+}
+
+/**
+ * Resolve the project-local Skill root from an already bound project identity.
+ * `activeRoot` is authoritative because workspace namespace mode deliberately
+ * separates the source checkout from `.devcodex/<project>` artifacts.
+ */
+function resolveProjectSkillsRoot(cwdOrRoot, options = {}) {
+  if (options.projectSkillsRoot) return path.resolve(options.projectSkillsRoot)
+  const project = String(options.project || '').trim()
+  if (!project || project === 'workspace') return null
+  if (options.activeRoot) return path.join(path.resolve(options.activeRoot), 'skills')
+  const cwd = path.resolve(cwdOrRoot || options.cwd || process.cwd())
+  const layout = typeof options.findLayoutInfo === 'function'
+    ? options.findLayoutInfo(cwd)
+    : findLayoutInfo(cwd)
+  if (layout?.enabled === true && String(layout.mode || '') === 'workspace-namespace') {
+    const namespaceRoot = path.join(layout.workspaceRoot, '.devcodex')
+    const candidate = path.resolve(namespaceRoot, project, 'skills')
+    return isUnderPhysical(namespaceRoot, candidate, options.fs || fs) && candidate !== namespaceRoot
+      ? candidate
+      : null
+  }
+  return path.join(cwd, '.devcodex', 'skills')
 }
 
 function realpathExistingPrefix(targetPath, fsImpl = fs) {
@@ -232,8 +259,10 @@ function baseTrace(skillId, options, extra = {}) {
     skippedByUser: false,
     fallbackReason: '',
     distribution: 'UNVERIFIED',
+    projectRoot: options._projectRoot || null,
     workspaceRoot: options._workspaceRoot || null,
     globalSkillsRoot: options._globalSkillsRoot || null,
+    pPath: null,
     wPath: null,
     gPath: null,
     reserved: isReservedSkillId(skillId),
@@ -247,6 +276,92 @@ function fileExists(filePath, fsImpl) {
     return fsImpl.existsSync(filePath) && fsImpl.statSync(filePath).isFile()
   } catch {
     return false
+  }
+}
+
+function readPrefixUtf8(filePath, maxBytes, fsImpl = fs) {
+  const stat = fsImpl.statSync(filePath)
+  const length = Math.min(stat.size, maxBytes)
+  if (length <= 0) return ''
+  const buffer = Buffer.alloc(length)
+  const fd = fsImpl.openSync(filePath, 'r')
+  try {
+    const bytesRead = fsImpl.readSync(fd, buffer, 0, length, 0)
+    return buffer.subarray(0, bytesRead).toString('utf8')
+  } finally {
+    fsImpl.closeSync(fd)
+  }
+}
+
+/**
+ * Metadata reads are deliberately prefix-only. Full content identity is
+ * calculated later only for a selected Skill or an explicit exact resolve.
+ */
+function readSkillPayload(filePath, options = {}, fsImpl = fs) {
+  let stat
+  try {
+    stat = fsImpl.statSync(filePath)
+  } catch {
+    return { ok: false, reasonCode: 'stat-failed' }
+  }
+  const maxBytes = options.metadataOnly === true
+    ? (options.metadataMaxBytes || MAX_LAYERED_SKILL_BYTES)
+    : (options.maxBytes || MAX_SKILL_BYTES)
+  if (!stat.isFile() || stat.size > maxBytes) {
+    return { ok: false, reasonCode: 'oversize', size: stat.size }
+  }
+  if (options.metadataOnly === true) {
+    let prefix
+    let realPath
+    try {
+      prefix = readPrefixUtf8(
+        filePath,
+        options.metadataPrefixBytes || SKILL_METADATA_PREFIX_BYTES,
+        fsImpl
+      )
+      realPath = fsImpl.realpathSync(filePath)
+    } catch {
+      return { ok: false, reasonCode: 'read-failed', size: stat.size }
+    }
+    const fileIdentity = {
+      realPath: portable(realPath),
+      size: stat.size,
+      mtimeMs: stat.mtimeMs,
+      device: Number.isFinite(Number(stat.dev)) ? Number(stat.dev) : null,
+      inode: Number.isFinite(Number(stat.ino)) ? Number(stat.ino) : null
+    }
+    const metadataDigest = sha256Text(JSON.stringify({
+      ...fileIdentity,
+      prefixDigest: sha256Text(prefix)
+    }))
+    return {
+      ok: true,
+      content: options.includeContent === false ? null : prefix,
+      contentBytes: stat.size,
+      prefixBytes: Buffer.byteLength(prefix, 'utf8'),
+      digest: metadataDigest,
+      metadataDigest,
+      metadataOnly: true,
+      fileIdentity
+    }
+  }
+  try {
+    const raw = fsImpl.readFileSync(filePath, 'utf8')
+    const content = options.renderSource === true
+      ? renderSourceSkillContent(filePath, raw, fsImpl)
+      : raw
+    return {
+      ok: true,
+      content: options.includeContent === false ? null : content,
+      contentBytes: Buffer.byteLength(content, 'utf8'),
+      prefixBytes: null,
+      digest: sha256Text(content),
+      metadataDigest: null,
+      metadataOnly: false,
+      fileIdentity: null
+    }
+  } catch {
+    return { ok: false, reasonCode: 'read-failed', size: stat.size }
   }
 }
 
@@ -314,12 +429,17 @@ function resolveSkillRead(skillId, options = {}) {
   const env = options.env || process.env
   const globalSkillsRoot = resolveGlobalSkillsRoot(options)
   const workspaceSkillsRoot = resolveWorkspaceSkillsRoot(options.cwd, options)
+  const projectSkillsRoot = resolveProjectSkillsRoot(options.cwd, options)
+  const preferredLayer = options.preferredLayer == null || options.preferredLayer === ''
+    ? null
+    : String(options.preferredLayer)
   const workspaceRoot = workspaceSkillsRoot
     ? path.resolve(workspaceSkillsRoot, '..', '..', '..')
     : null
 
   const localOpts = {
     ...options,
+    _projectRoot: projectSkillsRoot,
     _workspaceRoot: workspaceRoot,
     _globalSkillsRoot: globalSkillsRoot
   }
@@ -337,12 +457,16 @@ function resolveSkillRead(skillId, options = {}) {
 
   const id = String(skillId).trim()
   const gHit = findSkillMarkdown(path.join(globalSkillsRoot, id), fsImpl)
+  const pDir = projectSkillsRoot ? path.join(projectSkillsRoot, id) : null
   const wDir = workspaceSkillsRoot ? path.join(workspaceSkillsRoot, id) : null
+  const pHit = pDir ? findSkillMarkdown(pDir, fsImpl) : { path: null, caseFolded: false, dirExists: false, hint: 'no-project-root' }
   const wHit = wDir ? findSkillMarkdown(wDir, fsImpl) : { path: null, caseFolded: false, dirExists: false, hint: 'no-workspace-root' }
   const gPath = gHit.path || path.join(globalSkillsRoot, id, 'SKILL.md')
+  const pPath = pHit.path || (pDir ? path.join(pDir, 'SKILL.md') : null)
   const wPath = wHit.path || (wDir ? path.join(wDir, 'SKILL.md') : null)
   const gExists = Boolean(gHit.path) && isUnderPhysical(globalSkillsRoot, gPath, fsImpl)
   const reserved = isReservedSkillId(id)
+  const lowerFallbacks = []
 
   const finishG = (securityDecision, reasonCode, fallbackReason, skippedByUser = false) => {
     if (!gExists) {
@@ -350,6 +474,7 @@ function resolveSkillRead(skillId, options = {}) {
         content: null,
         trace: baseTrace(id, localOpts, {
           selectedLayer: 'missing',
+          pPath: pPath ? portable(pPath) : null,
           wPath,
           gPath: gExists ? portable(gPath) : portable(gPath),
           securityDecision,
@@ -360,23 +485,44 @@ function resolveSkillRead(skillId, options = {}) {
         })
       }
     }
-    // Always read for digest identity; omit body only when includeContent===false
-    const fileText = renderSourceSkillContent(gPath, fsImpl.readFileSync(gPath, 'utf8'), fsImpl)
-    const digest = sha256Text(fileText)
-    const contentBytes = Buffer.byteLength(fileText, 'utf8')
-    const content = options.includeContent === false ? null : fileText
+    const payload = readSkillPayload(gPath, {
+      ...options,
+      maxBytes: options.maxBytes || Number.MAX_SAFE_INTEGER,
+      renderSource: options.metadataOnly !== true
+    }, fsImpl)
+    if (!payload.ok) {
+      return {
+        content: null,
+        trace: baseTrace(id, localOpts, {
+          selectedLayer: 'missing',
+          pPath: pPath ? portable(pPath) : null,
+          wPath: wPath ? portable(wPath) : null,
+          gPath: portable(gPath),
+          securityDecision: 'rejected-global',
+          reasonCode: payload.reasonCode,
+          fallbackReason: payload.reasonCode,
+          skippedByUser,
+          reserved
+        })
+      }
+    }
     return {
-      content,
+      content: payload.content,
       trace: baseTrace(id, localOpts, {
         selectedLayer: 'global',
         selectedPath: portable(gPath),
-        digest,
-        contentBytes,
+        digest: payload.digest,
+        metadataDigest: payload.metadataDigest,
+        metadataOnly: payload.metadataOnly,
+        contentBytes: payload.contentBytes,
+        contentPrefixBytes: payload.prefixBytes,
+        fileIdentity: payload.fileIdentity,
         coversGlobal: false,
         securityDecision,
         reasonCode,
         fallbackReason,
         skippedByUser,
+        pPath: pPath ? portable(pPath) : null,
         wPath: wPath ? portable(wPath) : null,
         gPath: portable(gPath),
         reserved,
@@ -394,70 +540,145 @@ function resolveSkillRead(skillId, options = {}) {
   }
 
   if (reserved) {
-    // S2: reserved never uses W body as override
+    // Reserved control Skills never use project/workspace bodies as overrides.
+    const localReservedLayer = pPath && fileExists(pPath, fsImpl)
+      ? 'p'
+      : (wPath && fileExists(wPath, fsImpl) ? 'w' : '')
     return finishG(
-      wPath && fileExists(wPath, fsImpl) ? 'reserved-blocked-w' : 'not-applicable',
+      localReservedLayer ? `reserved-blocked-${localReservedLayer}` : 'not-applicable',
       'reserved',
-      wPath && fileExists(wPath, fsImpl) ? 'reserved-blocked-w' : ''
+      localReservedLayer ? `reserved-blocked-${localReservedLayer}` : ''
     )
   }
 
-  if (wHit.path && fileExists(wHit.path, fsImpl)) {
-    if (!isUnderPhysical(workspaceSkillsRoot, wHit.path, fsImpl)) {
-      return finishG('rejected-path', 'symlink-escape', 'symlink-escape')
+  const resolveLocal = (layer, root, hit, selectedPath) => {
+    if (!hit.path || !fileExists(hit.path, fsImpl)) {
+      if (hit.dirExists) {
+        lowerFallbacks.push({
+          layer,
+          securityDecision: 'not-applicable',
+          reasonCode: 'missing-SKILL.md',
+          fallbackReason: hit.hint || 'missing-SKILL.md'
+        })
+      }
+      return null
     }
-    let stat
-    try {
-      stat = fsImpl.statSync(wHit.path)
-    } catch {
-      return finishG('rejected-path', 'stat-failed', 'stat-failed')
+    if (!isUnderPhysical(root, hit.path, fsImpl)) {
+      lowerFallbacks.push({ layer, securityDecision: 'rejected-path', reasonCode: 'symlink-escape', fallbackReason: 'symlink-escape' })
+      return null
     }
-    if (stat.size > (options.maxBytes || MAX_SKILL_BYTES)) {
-      return finishG('rejected-oversize', 'oversize', 'oversize')
+    const payload = readSkillPayload(hit.path, options, fsImpl)
+    if (!payload.ok) {
+      lowerFallbacks.push({
+        layer,
+        securityDecision: payload.reasonCode === 'oversize' ? 'rejected-oversize' : 'rejected-path',
+        reasonCode: payload.reasonCode,
+        fallbackReason: payload.reasonCode
+      })
+      return null
     }
-    const fileText = fsImpl.readFileSync(wHit.path, 'utf8')
-    const weaken = detectWeaken(fileText)
+    const inspectedContent = payload.content || ''
+    const weaken = detectWeaken(inspectedContent)
     if (weaken) {
-      return finishG('rejected-weaken', 'weaken-pattern', `weaken:${weaken}`)
+      lowerFallbacks.push({ layer, securityDecision: 'rejected-weaken', reasonCode: 'weaken-pattern', fallbackReason: `weaken:${weaken}` })
+      return null
     }
-    // relative reference guard: optional listed files under skill dir only
-    const skillDir = path.dirname(wHit.path)
-    const refHits = fileText.match(/(?:scripts|references)\/[A-Za-z0-9._/-]+/g) || []
+    const skillDir = path.dirname(hit.path)
+    const refHits = inspectedContent.match(/(?:scripts|references)\/[A-Za-z0-9._/-]+/g) || []
     for (const rel of refHits) {
       const target = path.resolve(skillDir, rel)
       if (!isUnderPhysical(skillDir, target, fsImpl)) {
-        return finishG('rejected-path', 'ref-escape', `ref-escape:${rel}`)
+        lowerFallbacks.push({ layer, securityDecision: 'rejected-path', reasonCode: 'ref-escape', fallbackReason: `ref-escape:${rel}` })
+        return null
       }
     }
-    const digest = sha256Text(fileText)
-    const contentBytes = Buffer.byteLength(fileText, 'utf8')
+    const prefix = layer === 'project' ? 'project' : 'workspace'
     return {
-      content: options.includeContent === false ? null : fileText,
+      content: payload.content,
       trace: baseTrace(id, localOpts, {
-        selectedLayer: 'workspace',
-        selectedPath: portable(wHit.path),
-        digest,
-        contentBytes,
+        selectedLayer: layer,
+        selectedPath: portable(hit.path),
+        digest: payload.digest,
+        metadataDigest: payload.metadataDigest,
+        metadataOnly: payload.metadataOnly,
+        contentBytes: payload.contentBytes,
+        contentPrefixBytes: payload.prefixBytes,
+        fileIdentity: payload.fileIdentity,
         coversGlobal: gExists,
         securityDecision: 'accepted',
-        reasonCode: wHit.caseFolded ? 'workspace-accepted-casefold' : 'workspace-accepted',
-        fallbackReason: wHit.hint || '',
+        reasonCode: hit.caseFolded ? `${prefix}-accepted-casefold` : `${prefix}-accepted`,
+        fallbackReason: [
+          ...lowerFallbacks.map(item => `${item.layer}:${item.fallbackReason}`),
+          hit.hint || ''
+        ].filter(Boolean).join(';'),
         distribution: readDistribution(skillDir, fsImpl),
-        wPath: portable(wHit.path),
+        pPath: pPath ? portable(pPath) : null,
+        wPath: wPath ? portable(wPath) : null,
         gPath: portable(gPath),
         reserved: false,
-        skillFileName: path.basename(wHit.path)
+        skillFileName: path.basename(hit.path),
+        coversLowerLayers: layer === 'project'
+          ? [wHit.path ? 'workspace' : null, gExists ? 'global' : null].filter(Boolean)
+          : (gExists ? ['global'] : []),
+        selectedRoot: portable(root),
+        selectedCandidatePath: portable(selectedPath)
       })
     }
   }
 
-  // Directory exists but SKILL.md missing/wrong name — clearer diagnostics
-  if (wHit.dirExists && !wHit.path) {
+  if (preferredLayer) {
+    if (!['project', 'workspace', 'global'].includes(preferredLayer)) {
+      return {
+        content: null,
+        trace: baseTrace(id, localOpts, {
+          selectedLayer: 'missing',
+          reasonCode: 'preferred-layer-invalid',
+          fallbackReason: preferredLayer,
+          pPath: pPath ? portable(pPath) : null,
+          wPath: wPath ? portable(wPath) : null,
+          gPath: portable(gPath),
+          reserved
+        })
+      }
+    }
+    if (preferredLayer === 'global') {
+      return finishG('not-applicable', gExists ? 'preferred-global' : 'missing', gExists ? '' : 'preferred-global-missing')
+    }
+    const root = preferredLayer === 'project' ? projectSkillsRoot : workspaceSkillsRoot
+    const hit = preferredLayer === 'project' ? pHit : wHit
+    const selectedPath = preferredLayer === 'project' ? pPath : wPath
+    const selected = root ? resolveLocal(preferredLayer, root, hit, selectedPath) : null
+    if (selected) return selected
+    return {
+      content: null,
+      trace: baseTrace(id, localOpts, {
+        selectedLayer: 'missing',
+        reasonCode: 'preferred-layer-unavailable',
+        fallbackReason: lowerFallbacks.map(item => `${item.layer}:${item.fallbackReason}`).join(';') || `${preferredLayer}-missing`,
+        pPath: pPath ? portable(pPath) : null,
+        wPath: wPath ? portable(wPath) : null,
+        gPath: portable(gPath),
+        reserved
+      })
+    }
+  }
+
+  const projectResult = projectSkillsRoot
+    ? resolveLocal('project', projectSkillsRoot, pHit, pPath)
+    : null
+  if (projectResult) return projectResult
+
+  const workspaceResult = workspaceSkillsRoot
+    ? resolveLocal('workspace', workspaceSkillsRoot, wHit, wPath)
+    : null
+  if (workspaceResult) return workspaceResult
+
+  const fallback = lowerFallbacks[0]
+  if (fallback) {
     return finishG(
-      'not-applicable',
-      'missing-SKILL.md',
-      wHit.hint || 'missing-SKILL.md',
-      false
+      fallback.securityDecision,
+      fallback.reasonCode,
+      lowerFallbacks.map(item => `${item.layer}:${item.fallbackReason}`).join(';')
     )
   }
 
@@ -468,14 +689,16 @@ function resolveSkillReadPlan(skillIds, options = {}) {
   const ids = Array.isArray(skillIds) ? skillIds.map(String) : []
   const traces = []
   const selected = []
+  let projectCoverCount = 0
   let workspaceCoverCount = 0
   let reservedBlockedCount = 0
   for (const id of ids) {
     const { trace, content } = resolveSkillRead(id, { ...options, includeContent: options.includeContent !== false })
     traces.push(trace)
-    if (trace.securityDecision === 'reserved-blocked-w') reservedBlockedCount += 1
+    if (String(trace.securityDecision || '').startsWith('reserved-blocked-')) reservedBlockedCount += 1
+    if (trace.selectedLayer === 'project') projectCoverCount += 1
     if (trace.selectedLayer === 'workspace') workspaceCoverCount += 1
-    if (trace.selectedLayer === 'workspace' || trace.selectedLayer === 'global') {
+    if (['project', 'workspace', 'global'].includes(trace.selectedLayer)) {
       selected.push({
         id: trace.skillId,
         layer: trace.selectedLayer,
@@ -493,10 +716,12 @@ function resolveSkillReadPlan(skillIds, options = {}) {
     skillIds: ids,
     traces,
     selected,
+    projectCoverCount,
     workspaceCoverCount,
     reservedBlockedCount,
     enabled: isWorkspaceSkillsEnabled(env),
     consumerAuthority: options.consumerAuthority || 'test',
+    projectSkillsRoot: resolveProjectSkillsRoot(options.cwd, options),
     workspaceRoot: traces[0]?.workspaceRoot || null,
     globalSkillsRoot: resolveGlobalSkillsRoot(options)
   }
@@ -512,6 +737,7 @@ function classifySkillPath(absPath, options = {}) {
     : path.resolve(__dirname, '..', '..')
   const packageSkills = path.join(packageRoot, 'content', 'skills')
   const globalSkillsRoot = resolveGlobalSkillsRoot(options)
+  const projectSkillsRoot = resolveProjectSkillsRoot(options.cwd, options)
   const workspaceSkillsRoot = resolveWorkspaceSkillsRoot(options.cwd, options)
 
   if (isUnderPhysical(packageSkills, target, fsImpl)) {
@@ -519,6 +745,9 @@ function classifySkillPath(absPath, options = {}) {
   }
   if (isUnderPhysical(globalSkillsRoot, target, fsImpl)) {
     return { layer: 'global-managed-skill', path: portable(target), root: portable(globalSkillsRoot) }
+  }
+  if (projectSkillsRoot && isUnderPhysical(projectSkillsRoot, target, fsImpl)) {
+    return { layer: 'project-skill', path: portable(target), root: portable(projectSkillsRoot) }
   }
   if (workspaceSkillsRoot && isUnderPhysical(workspaceSkillsRoot, target, fsImpl)) {
     return { layer: 'workspace-skill', path: portable(target), root: portable(workspaceSkillsRoot) }
@@ -555,10 +784,13 @@ function isWorkspaceSkillPath(absPath, options = {}) {
 module.exports = {
   RESERVED_SKILL_IDS,
   MAX_SKILL_BYTES,
+  MAX_LAYERED_SKILL_BYTES,
+  SKILL_METADATA_PREFIX_BYTES,
   isWorkspaceSkillsEnabled,
   isReservedSkillId,
   isValidSkillId,
   resolveGlobalSkillsRoot,
+  resolveProjectSkillsRoot,
   resolveWorkspaceSkillsRoot,
   resolveSkillRead,
   resolveSkillReadPlan,
@@ -567,6 +799,8 @@ module.exports = {
   isWorkspaceSkillPath,
   isUnderPhysical,
   findSkillMarkdown,
+  readPrefixUtf8,
+  readSkillPayload,
   renderSourceSkillContent,
   sha256Text
 }

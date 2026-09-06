@@ -50,7 +50,11 @@ const {
   startToolLease
 } = require('./lifecycle-turn-liveness.cjs')
 const { buildLifecycleVisibleReplyUtils } = require('./lifecycle-visible-reply.cjs')
-const { formatLanguageContextInstruction, resolveLanguageContext } = require('./language-context.cjs')
+const {
+  formatLanguageContextInstruction,
+  formatLanguagePreferenceDiagnostic,
+  resolveLanguageContext
+} = require('./language-context.cjs')
 const {
   buildWorkflowPlanDecision,
   formatWorkflowPlanInstruction
@@ -69,6 +73,7 @@ const {
   appendTaskRecoveryTelemetry,
   readBoundedResumeIngressCapability,
   readFencedTaskWriteOwner,
+  readTaskRecoveryState,
   resolveTaskRecoveryMetaDir,
   transitionTaskScopedAutoContinuationGrant,
   validateTaskScopedAutoContinuationGrant,
@@ -102,7 +107,8 @@ const {
 } = require('./host-adapter-identity.cjs')
 const {
   buildActualInstructionEnvelope,
-  buildWorkItemSet
+  buildWorkItemSet,
+  validateActualInstructionEnvelope
 } = require('./actual-instruction-envelope.cjs')
 const {
   buildWorkflowRouteDecision,
@@ -111,6 +117,7 @@ const {
 } = require('./workflow-route-decision-v2.cjs')
 const {
   applyValidationControlIngress,
+  createValidationControlIngressIntent,
   createValidationControlIngressReceipt,
   validationProjectRootIdentity
 } = require('./workflow-completion-contract.cjs')
@@ -137,6 +144,7 @@ const {
   resolveHostWorkspaceBinding,
   resolveWorkspaceProjectTarget
 } = require('./workspace-layout.cjs')
+const { inspectProfileAvailability } = require('./profile-availability-v1.cjs')
 const {
   evaluatePortableTaskIdentityBinding,
   isStableTaskId,
@@ -149,6 +157,11 @@ const {
 const {
   decideTaskContinuationTarget
 } = require('./task-continuation-ingress.cjs')
+const {
+  buildTaskContinuityView,
+  renderTaskContinuityViewHuman
+} = require('./task-continuity-view-v1.cjs')
+const { parseCurrentEpochMarker } = require('./task-checkpoint-projection-v1.cjs')
 const {
   evaluateStopCompletionGate,
   extractLastAssistantMessage
@@ -1568,9 +1581,56 @@ function resolveBareContinuationEvidenceFallback(initialResolution, state, paylo
   return null
 }
 
-function formatTaskContinuationResolution(resolution, languageContext) {
+function buildLifecycleTaskContinuityView(resolution, state, priorDisambiguationReceiptDigest = null) {
+  if (!resolution) return null
+  const candidate = resolution.status === 'resolved-active' ? resolution.candidate : null
+  let recoveryRead = { status: 'missing', errorCode: 'TASK_RECOVERY_STATE_UNAVAILABLE' }
+  let projectionMarker = { found: false, epochId: null, projectionDigest: null }
+  let activeRoot = ''
+  if (candidate?.taskId && candidate?.project) {
+    try {
+      activeRoot = getActiveNamespaceRoot(state)
+      const identity = {
+        activeRoot,
+        project: candidate.project,
+        taskId: candidate.taskId,
+        taskStatus: 'active'
+      }
+      const metaDir = resolveTaskRecoveryMetaDir(identity)
+      recoveryRead = readTaskRecoveryState({ metaDir, identity }, { fs })
+      projectionMarker = parseCurrentEpochMarker(
+        fs.readFileSync(path.join(candidate.taskRoot, '.memory', 'sessions.md'), 'utf8')
+      )
+    } catch (error) {
+      recoveryRead = {
+        status: 'error',
+        errorCode: error.code || 'TASK_RECOVERY_STATE_UNAVAILABLE',
+        message: error.message
+      }
+    }
+  }
+  return buildTaskContinuityView({
+    resolution,
+    recoveryRead,
+    projectionMarker,
+    project: candidate?.project || state.activeProject || '',
+    activeRoot,
+    priorDisambiguationReceiptDigest
+  })
+}
+
+function formatTaskContinuationResolution(resolution, languageContext, continuityView = null) {
   if (!resolution) return ''
   const chinese = String(languageContext?.responseLanguage || languageContext?.primaryLanguage || '').toLowerCase().startsWith('zh')
+  if (continuityView) {
+    const human = renderTaskContinuityViewHuman(continuityView, { locale: chinese ? 'zh-CN' : 'en-US' })
+    // Keep the compact TaskResolutionV1 locator line for N-1 host/tests while
+    // adding the richer view. A uniquely located legacy task can legitimately
+    // have a provisional epoch view until its machine lineage is bootstrapped;
+    // the locator result must not be downgraded or hidden by that distinction.
+    const locator = formatTaskContinuationResolution(resolution, languageContext, null)
+    return `${locator}\n${human}\n[TaskContinuityViewV1 status=${continuityView.status} mutationAuthority=false]`
+  }
   const candidates = resolution.candidates || resolution.suggestions || []
   const candidateText = candidates.slice(0, 5).map(candidate => `${candidate.project}/${candidate.kind}/${candidate.displayName}`).join('、')
   if (resolution.status === 'resolved-active') {
@@ -2067,11 +2127,26 @@ function observeValidationControlIngress(state, prompt) {
   const envelope = state.actualInstructionEnvelope
   const task = state.taskRecoveryBinding
   const projectRoot = state.stickyProject?.physicalRoot
-  if (!envelope || !task?.taskId || !task.project || !projectRoot) {
+  const project = String(task?.project || state.activeProject || state.stickyProject?.project || '').trim()
+  if (!envelope || !project || !projectRoot) {
     state.validationControlIngress = null
+    state.validationControlIngressIntent = null
     return null
   }
   try {
+    if (!task?.taskId) {
+      const intent = createValidationControlIngressIntent({
+        actualInstructionEnvelope: envelope,
+        actualInstruction: prompt,
+        executionMode: state.executionMode,
+        project,
+        projectRootIdentity: validationProjectRootIdentity(projectRoot)
+      })
+      state.validationControlIngress = null
+      state.validationControlIngressIntent = intent
+      state.validationControlIngressError = null
+      return intent
+    }
     const durableGrant = state.taskScopedAutoContinuationGrant
     const durableValidation = validateTaskScopedAutoContinuationGrant(durableGrant)
     // A durable task grant must not silently authorize validation on a later turn.
@@ -2093,10 +2168,12 @@ function observeValidationControlIngress(state, prompt) {
       projectRootIdentity: validationProjectRootIdentity(projectRoot)
     })
     applyValidationControlIngress(state, receipt)
+    state.validationControlIngressIntent = null
     state.validationControlIngressError = null
     return receipt
   } catch (error) {
     state.validationControlIngress = null
+    state.validationControlIngressIntent = null
     state.validationControlIngressError = {
       code: error.code || 'VALIDATION_CONTROL_INGRESS_FAILED',
       message: error.message
@@ -2115,9 +2192,30 @@ function refreshTaskRecoveryBinding(state, options = {}) {
   }, options)
 }
 
+function hasFreshCurrentTrustedHostIngress(state, payload) {
+  const envelope = state?.actualInstructionEnvelope
+  const workItemSet = state?.workItemSet
+  const decision = state?.workflowRouteDecision
+  const context = state?.contextAcquisition || {}
+  if (!validateActualInstructionEnvelope(envelope).valid ||
+      envelope.authorityScope !== 'trusted-host-workflow-ingress' || envelope.instructionAuthority !== true ||
+      Date.parse(String(envelope.expiresAt || '')) <= Date.now()) return false
+  const sessionRef = getPayloadSessionKey(payload) || String(context.hostSessionId || '').trim()
+  if (!sessionRef || crypto.createHash('sha256').update(sessionRef).digest('hex') !== envelope.hostSessionDigest ||
+      context.contextEpoch !== envelope.contextEpoch || String(context.hostSessionId || '').trim() !== sessionRef) return false
+  if (workItemSet?.envelopeId !== envelope.envelopeId || workItemSet?.envelopeDigest !== envelope.envelopeDigest ||
+      decision?.envelopeId !== envelope.envelopeId || decision?.envelopeDigest !== envelope.envelopeDigest ||
+      decision?.routeRevision !== state.stickyProject?.routeRevision) return false
+  return validateStickyProjectLease(state, payload).valid
+}
+
 function rehydrateBoundedResumeIngress(state, payload) {
   const binding = state?.taskRecoveryBinding
   if (!binding?.taskId || !binding?.project) return { status: 'skipped', reasonCode: 'task-binding-missing' }
+  if (hasFreshCurrentTrustedHostIngress(state, payload)) {
+    state.resumeIngressRehydrateError = null
+    return { status: 'skipped', reasonCode: 'current-trusted-host-ingress-active' }
+  }
   const activeRoot = getActiveNamespaceRoot(state)
   const identity = {
     activeRoot,
@@ -2165,14 +2263,15 @@ function rehydrateBoundedResumeIngress(state, payload) {
   state.workItemSet = ingress.workItemSet
   state.workflowRouteDecision = ingress.workflowRouteDecision
   state.stickyProject = ingress.stickyProject
-  state.workflowRoutePlanBinding = {
+  const resumeStateHandoff = read.candidate.resumeStateHandoff || null
+  state.workflowRoutePlanBinding = resumeStateHandoff?.workflowRoutePlanBinding || {
     schemaVersion: 'WorkflowRoutePlanBindingV1',
     bindingDigest: ingress.stickyProject.contextBindingDigest,
     routeRevision: ingress.workflowRouteDecision.routeRevision,
     contextEpoch: ingress.actualInstructionEnvelope.contextEpoch,
     source: 'bounded-resume-v5'
   }
-  state.contextAcquisition = {
+  state.contextAcquisition = resumeStateHandoff?.contextAcquisition || {
     ...(state.contextAcquisition || {}),
     contextEpoch: ingress.actualInstructionEnvelope.contextEpoch,
     activeRoot,
@@ -2180,10 +2279,19 @@ function rehydrateBoundedResumeIngress(state, payload) {
     hostSessionId: sessionRef,
     targetResolved: true
   }
+  if (resumeStateHandoff) {
+    state.validationControlIngress = resumeStateHandoff.validationControlIngress || null
+    state.validationControlIngressIntent = null
+    state.stickyAuto = resumeStateHandoff.stickyAuto || null
+    state.executionMode = resumeStateHandoff.executionMode
+  }
   state.admissionTransaction = read.transaction
   state.fencedWriteOwner = read.owner
   state.resumeIngressCapabilityRef = capabilityRef
   state.resumeIngressRehydrateError = null
+  if (resumeStateHandoff?.stickyAuto && state.executionMode === EXECUTION_MODE.AUTO) {
+    promoteTaskScopedAutoAfterBinding(state, payload, { admissionTransaction: read.transaction })
+  }
   const routeReceipt = writeWorkspaceSessionRouteHint(state, payload, 'task-bind', { taskId: binding.taskId })
   return {
     status: 'rehydrated',
@@ -3685,6 +3793,8 @@ async function main() {
       )
     : { command: null, resolution: null, recoveryHint: null, targetDecision: null }
   let continuationResolution = continuationIngress.resolution
+  const priorTaskDisambiguationReceiptDigest = state.taskContinuation?.disambiguationReceiptDigest || null
+  let continuationView = null
   if (continuationIngress.recoveryHint) {
     const recoveredProject = String(continuationIngress.recoveryHint.project || '').trim()
     const workspaceTask = recoveredProject === 'workspace'
@@ -3767,14 +3877,13 @@ async function main() {
     const workflowCompletionLifecycle = state.workflowCompletionLifecycle
     const priorLanguageContext = state.languageContext
     const priorWorkflowPlanDecision = state.workflowPlanDecision
+    const priorProfileAvailabilityNotice = state.profileAvailabilityNotice
+    const priorLanguageDiagnosticKey = state.lastLanguageDiagnosticKey || ''
     state = resetState(mode, state)
     state.hostIdentity = currentHostIdentity
     state.workflowCompletionLifecycle = workflowCompletionLifecycle
-    state.languageContext = resolveLanguageContext({
-      prompt,
-      carrier: priorLanguageContext,
-      locale: process.env.LC_ALL || process.env.LANG || process.env.LANGUAGE || ''
-    })
+    state.profileAvailabilityNotice = priorProfileAvailabilityNotice || null
+    state.lastLanguageDiagnosticKey = priorLanguageDiagnosticKey
     livenessObservation = observeTurnEvent(state.turnLiveness, eventName, payload)
     state.turnLiveness = livenessObservation.state
     applyPromptTarget(state, promptTarget, payload)
@@ -3858,6 +3967,20 @@ async function main() {
             : 'task-continuation-provisional'
         }
       }
+      try {
+        continuationView = buildLifecycleTaskContinuityView(
+          continuationResolution,
+          state,
+          priorTaskDisambiguationReceiptDigest
+        )
+        state.taskContinuation.disambiguationReceiptDigest =
+          continuationView.disambiguation?.receiptDigest || null
+        state.taskContinuation.continuityViewDigest = continuationView.viewDigest
+      } catch (error) {
+        state.taskContinuation.continuityViewError = String(
+          error.code || error.message || 'TASK_CONTINUITY_VIEW_FAILED'
+        )
+      }
     }
     beginContextAcquisition(state, payload, platform)
     initializeWorkflowIngress(
@@ -3896,6 +4019,30 @@ async function main() {
           ? 'project-switch'
           : 'user-message')
     writeWorkspaceSessionRouteHint(state, payload, routeWriteTrigger)
+    const workspaceLanguageConfig = LAYOUT.enabled
+      ? readJsonFile(getWorkspaceProfileConfigPath())?.extensions?.devcodex?.language
+      : undefined
+    const projectLanguageConfig = state.activeProject
+      ? readJsonFile(path.join(getActiveNamespaceRoot(state), 'profile', 'config.json'))?.extensions?.devcodex?.language
+      : (LAYOUT.enabled ? undefined : readResolvedProfileConfig(state)?.extensions?.devcodex?.language)
+    state.languageContext = resolveLanguageContext({
+      prompt,
+      taskContext: priorLanguageContext,
+      workspacePreference: workspaceLanguageConfig,
+      projectPreference: projectLanguageConfig,
+      projectBound: Boolean(state.activeProject),
+      locale: process.env.LC_ALL || process.env.LANG || process.env.LANGUAGE || ''
+    })
+    let languagePreferenceNotice = ''
+    if (state.languageContext.diagnostics?.length) {
+      const diagnosticKey = `${state.activeProject || 'workspace'}:${state.languageContext.preferenceDigest}`
+      if (diagnosticKey !== state.lastLanguageDiagnosticKey) {
+        languagePreferenceNotice = formatLanguagePreferenceDiagnostic(state.languageContext)
+        state.lastLanguageDiagnosticKey = diagnosticKey
+      }
+    } else {
+      state.lastLanguageDiagnosticKey = ''
+    }
     state.governanceIntake = registerGovernanceIntakeCandidate(state.governanceIntake, prompt)
     state.executionMode = detectExecutionMode(payload, state, promptTarget)
     observeValidationControlIngress(state, prompt)
@@ -4015,6 +4162,34 @@ async function main() {
 
     state.workspaceSkillAutoMatch = null
 
+    let profileAvailabilityNotice = ''
+    if (LAYOUT.enabled && state.activeProject) {
+      const profileBinding = resolveHostWorkspaceBinding({
+        cwd: state.stickyProject?.physicalRoot || CONTEXT_ROOT,
+        layout: LAYOUT,
+        capability: process.env.DEVCODEX_HOST_WORKSPACE_CAPABILITY || 'physical',
+        explicitProject: state.activeProject,
+        allowUniqueProject: false
+      })
+      const availability = inspectProfileAvailability({
+        binding: profileBinding,
+        taskId: state.taskRecoveryBinding?.taskId || '',
+        languageContext: state.languageContext,
+        priorDedupeKey: state.profileAvailabilityNotice?.dedupeKey || '',
+        prompt
+      })
+      state.profileAvailabilityNotice = availability
+      profileAvailabilityNotice = availability.notice || ''
+    } else {
+      state.profileAvailabilityNotice = {
+        schemaVersion: 'ProfileAvailabilityV1',
+        bindingState: 'workspace-bound',
+        lifecycleState: 'not-applicable',
+        shouldDisplay: false,
+        notice: ''
+      }
+    }
+
     saveState(state)
     writeStdout(contextMessageOutput(
       'UserPromptSubmit',
@@ -4022,9 +4197,11 @@ async function main() {
         buildBootstrapMessage(state),
         buildExecutionModeContextMessage(state),
         formatLanguageContextInstruction(state.languageContext),
+        languagePreferenceNotice,
         formatWorkflowPlanInstruction(state.workflowPlanDecision),
-        formatTaskContinuationResolution(continuationResolution, state.languageContext),
+        formatTaskContinuationResolution(continuationResolution, state.languageContext, continuationView),
         continuationWorkspaceNotice,
+        profileAvailabilityNotice,
         buildGovernanceIntakeContextMessage(state.governanceIntake),
         formatTurnRecoveryMessage(livenessObservation.recoveryCard),
         buildWorkflowIngressContextMessage(state),

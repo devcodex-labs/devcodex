@@ -9,7 +9,8 @@ const {
   buildRuntimeSkillIdentityIndex
 } = require('./runtime-skill-identity-index.cjs')
 const {
-  buildUnifiedSkillCatalog
+  buildUnifiedSkillCatalog,
+  shortlistSkillCards
 } = require('./model-skill-catalog.cjs')
 const {
   byteLength,
@@ -1108,10 +1109,18 @@ function bootstrapSkillRoute (input, options = {}) {
     packageRoot: options.packageRoot,
     env: options.env
   })
+  const shortlist = shortlistSkillCards(
+    index.cards,
+    input.prompt,
+    index.entries,
+    input.shortlistLimit
+  )
   const catalog = buildUnifiedSkillCatalog(index, {
     project,
     turnBinding,
     contextEpoch
+  }, {
+    cards: shortlist
   })
   const explicitSkillId = Object.prototype.hasOwnProperty.call(input, 'explicitSkillId')
     ? (String(input.explicitSkillId || '').trim() || null)
@@ -1145,6 +1154,7 @@ function bootstrapSkillRoute (input, options = {}) {
     explicitSkillId: explicitEntry?.skillId || null,
     catalogDigest: catalog.catalogDigest,
     candidateCount: catalog.candidateCount,
+    availableCandidateCount: catalog.availableCandidateCount,
     tool: 'skill_route',
     nextOp: explicitStatus === 'ready' ? 'commit' : 'catalog',
     bootstrapDigest: ''

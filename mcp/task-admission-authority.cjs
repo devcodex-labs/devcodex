@@ -51,6 +51,8 @@ const {
   sealOwner
 } = require('../hooks/_runtime/fenced-task-write-owner.cjs')
 const { digestValue } = require('../hooks/_runtime/lifecycle-state-projection-v5.cjs')
+const { validateTaskCheckpointEpochSet } = require('../hooks/_runtime/task-checkpoint-epoch-v1.cjs')
+const { parseCurrentEpochMarker } = require('../hooks/_runtime/task-checkpoint-projection-v1.cjs')
 const { taskOperationTerminalSnapshot } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 const { createMemoryFileTransaction, sha256 } = require('./memory-file-transaction.cjs')
 
@@ -1301,12 +1303,10 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
     finalizedResumeCanonical = readFinalizedResumeCanonicalEvidence(transaction, input.activeRoot, fsImpl, {
       state: existing.state
     })
-    if (String(input.overview.content) !== finalizedResumeCanonical.canonicalOverviewContent) {
-      throw new TaskAdmissionError(
-        'FINALIZED_TASK_RESUME_CANONICAL_DRIFT',
-        'resume overview must exactly reproduce the canonical overview read from disk'
-      )
-    }
+    // The server owns canonical readback. A caller may have resumed from an
+    // older context and must not be required to echo the current overview byte
+    // for byte; identity, CP lineage, root, owner and the final in-CAS readback
+    // below still fail closed on unauthorized drift.
     overviewContent = finalizedResumeCanonical.canonicalOverviewContent
   }
   const priorContinuationLease = transaction?.continuationLease || null
@@ -1724,51 +1724,104 @@ function sameCpConfirmationEvidence(left, right) {
     .every(field => left?.[field] === right?.[field])
 }
 
-function observedCpState(transaction, activeRoot, fsImpl = fs) {
+function observedCpState(transaction, activeRoot, fsImpl = fs, options = {}) {
   const sessionsPath = path.join(activeRoot, ...transaction.taskRootRelative.split('/'), '.memory', 'sessions.md')
   let sessions
   try { sessions = fsImpl.readFileSync(sessionsPath, 'utf8').replace(/\r\n/g, '\n') } catch (error) {
     throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_UNAVAILABLE', 'workflow CP state is unavailable before owner fencing', { cause: error.code })
   }
-  const cpRows = (sessions.match(/^\|\s*CP[123]\s*\|/gmu) || []).length
-  const rows = ['CP1', 'CP2', 'CP3'].map(phase => {
-    const line = sessions.match(new RegExp(`^\\|\\s*${phase}\\s*\\|.*$`, 'imu'))?.[0] || ''
-    const cells = line.split('|').slice(1, -1).map(cell => cell.trim().replace(/`/g, ''))
-    return {
-      phase,
-      cells,
-      confirmed: cells[1]?.includes('✅') === true,
-      pending: cells[1]?.includes('⏳') === true,
-      stopped: cells[1]?.includes('⏹') === true
+  const epochSet = options.state?.taskCheckpointEpochSet || null
+  const epochValidation = epochSet ? validateTaskCheckpointEpochSet(epochSet) : { valid: false, errors: [] }
+  let cp1Confirmed
+  let confirmationObservations
+  let projection = null
+  if (epochSet && epochValidation.valid) {
+    const current = epochSet.epochs.find(item => item.epochId === epochSet.currentEpochId)
+    if (!current || current.status !== 'current') {
+      throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'machine checkpoint state has no current epoch')
     }
-  })
-  const cp1Cells = rows[0].cells
-  const cp1Confirmed = cp1Cells[1]?.includes('✅') === true
-  const cp1Pending = cp1Cells[1]?.includes('⏳') === true
-  if (cpRows !== 3 || rows.some(row => !row.cells.length || (!row.confirmed && !row.pending && !row.stopped)) ||
-      (!cp1Confirmed && !cp1Pending)) {
-    throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'workflow CP table is missing or ambiguous before owner fencing')
-  }
-  const confirmationObservations = rows.filter(row => row.confirmed).map(row => {
-    const evidence = observeExistingCpConfirmation(row.cells, sessionsPath, activeRoot, fsImpl, {
-      phase: row.phase,
-      // memory_cp_confirm intentionally writes the human-readable HH:mm form.
-      // This canonical reader must accept that exact bounded format even before
-      // the first finalized transaction owns prior CP evidence; artifact,
-      // source, path, version and successor validation remain unchanged below.
-      allowLegacyRecord: true
+    cp1Confirmed = current.phases.CP1?.state === 'confirmed'
+    confirmationObservations = ['CP1', 'CP2', 'CP3'].flatMap(phase => {
+      const slot = current.phases[phase]
+      if (slot?.state !== 'confirmed' || !slot.currentBinding) return []
+      const binding = slot.currentBinding
+      const relative = path.posix.join(transaction.taskRootRelative, binding.artifactPath)
+      const artifact = readStableCanonicalFile(
+        path.resolve(activeRoot),
+        path.resolve(activeRoot, ...transaction.taskRootRelative.split('/')),
+        relative,
+        `current ${phase} artifact`,
+        fsImpl
+      )
+      return [{
+        phase,
+        version: binding.artifactVersion,
+        artifactDigest: binding.artifactSha256,
+        artifactPath: binding.artifactPath,
+        confirmedAt: binding.confirmedAt,
+        sourceMessage: binding.confirmationSourceDigest,
+        artifactVerified: artifact.digest === binding.artifactSha256,
+        observedArtifactDigest: artifact.digest
+      }]
     })
-    return {
-      phase: row.phase,
-      version: evidence.version,
-      artifactDigest: evidence.artifactDigest,
-      artifactPath: evidence.artifactPath,
-      confirmedAt: evidence.confirmedAt,
-      sourceMessage: evidence.sourceMessage,
-      artifactVerified: evidence.artifactVerified,
-      observedArtifactDigest: evidence.observedArtifactDigest
+    const marker = parseCurrentEpochMarker(sessions)
+    projection = {
+      schemaVersion: 'CheckpointProjectionObservationV1',
+      status: marker.found && marker.epochId === epochSet.currentEpochId &&
+          marker.projectionDigest === epochSet.projection.desiredDigest && epochSet.projection.status === 'current'
+        ? 'current'
+        : 'stale',
+      marker,
+      desiredDigest: epochSet.projection.desiredDigest,
+      observedDigest: epochSet.projection.observedDigest,
+      authority: 'task-recovery-machine-state'
     }
-  })
+  } else {
+    if (epochSet && !epochValidation.valid) {
+      throw new TaskAdmissionError(
+        'TASK_ADMISSION_CP_EPOCH_UNSUPPORTED',
+        'machine checkpoint epoch is invalid or unsupported; canonical mutation remains read-only',
+        { errors: epochValidation.errors }
+      )
+    }
+    const cpRows = (sessions.match(/^\|\s*CP[123]\s*\|/gmu) || []).length
+    const rows = ['CP1', 'CP2', 'CP3'].map(phase => {
+      const line = sessions.match(new RegExp(`^\\|\\s*${phase}\\s*\\|.*$`, 'imu'))?.[0] || ''
+      const cells = line.split('|').slice(1, -1).map(cell => cell.trim().replace(/`/g, ''))
+      return {
+        phase,
+        cells,
+        confirmed: cells[1]?.includes('✅') === true,
+        pending: cells[1]?.includes('⏳') === true,
+        stopped: cells[1]?.includes('⏹') === true
+      }
+    })
+    const cp1Cells = rows[0].cells
+    cp1Confirmed = cp1Cells[1]?.includes('✅') === true
+    const cp1Pending = cp1Cells[1]?.includes('⏳') === true
+    if (cpRows !== 3 || rows.some(row => !row.cells.length || (!row.confirmed && !row.pending && !row.stopped)) ||
+        (!cp1Confirmed && !cp1Pending)) {
+      throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'workflow CP table is missing or ambiguous before owner fencing')
+    }
+    confirmationObservations = rows.filter(row => row.confirmed).map(row => {
+      const evidence = observeExistingCpConfirmation(row.cells, sessionsPath, activeRoot, fsImpl, {
+        phase: row.phase,
+        // Legacy/current-only projection keeps the bounded HH:mm compatibility
+        // form; artifact/path/source/version validation remains authoritative.
+        allowLegacyRecord: true
+      })
+      return {
+        phase: row.phase,
+        version: evidence.version,
+        artifactDigest: evidence.artifactDigest,
+        artifactPath: evidence.artifactPath,
+        confirmedAt: evidence.confirmedAt,
+        sourceMessage: evidence.sourceMessage,
+        artifactVerified: evidence.artifactVerified,
+        observedArtifactDigest: evidence.observedArtifactDigest
+      }
+    })
+  }
   const confirmedEvidence = confirmationObservations.map(cpConfirmationEvidenceSnapshot)
   const latestConfirmedHead = confirmationObservations[confirmationObservations.length - 1] || null
   if (confirmationObservations.length && !latestConfirmedHead?.artifactVerified) {
@@ -1865,7 +1918,8 @@ function observedCpState(transaction, activeRoot, fsImpl = fs) {
     historicalStaleConfirmations,
     cpChainDigest,
     evolutionChanges,
-    cpEvolutionDigest
+    cpEvolutionDigest,
+    projection
   }
 }
 
@@ -1946,7 +2000,7 @@ function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = 
   const overviewFile = readStableCanonicalFile(root, taskRoot, overviewRelative, 'canonical overview', fsImpl)
   let cp
   try {
-    cp = observedCpState(transaction, root, fsImpl)
+    cp = observedCpState(transaction, root, fsImpl, options)
   } catch (error) {
     throw new TaskAdmissionError(
       'FINALIZED_TASK_RESUME_CP_DRIFT',
@@ -2037,6 +2091,7 @@ function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = 
     confirmedCpEvidence: clone(cp.confirmedEvidence),
     latestConfirmedHead: clone(cp.latestConfirmedHead),
     historicalStaleConfirmations: clone(cp.historicalStaleConfirmations),
+    checkpointProjection: clone(cp.projection),
     cpArtifactPath: cp.cpEvidence?.artifactPath || null,
     cpSourceMessage: cp.cpEvidence?.sourceMessage || null
   }
@@ -2187,9 +2242,9 @@ function readFormalTaskExecutionReadiness(rawInput = {}, options = {}) {
   })
 }
 
-function refreshFinalizedCpObservation(transaction, activeRoot, nowMs, fsImpl = fs) {
+function refreshFinalizedCpObservation(transaction, activeRoot, nowMs, fsImpl = fs, state = null) {
   if (transaction?.phase !== 'finalized') return transaction
-  const cp = observedCpState(transaction, activeRoot, fsImpl)
+  const cp = observedCpState(transaction, activeRoot, fsImpl, { state })
   const desiredStatus = cp.cp1Confirmed ? 'confirmed' : 'pending'
   if (transaction.effects?.cpState?.status === desiredStatus &&
       transaction.effects?.cpState?.cp1Confirmed === cp.cp1Confirmed) return transaction
@@ -2577,10 +2632,20 @@ function executeFinalizedTaskResumeV3({
     candidate.canonicalOverviewDigest === canonical.canonicalOverviewDigest &&
     candidate.cpArtifactDigest === canonical.cpArtifactDigest && canonicalCandidateMatches
   if (!exactCandidateIngress) {
+    const canonicalDrift = candidate.taskIdentityDigest !== canonical.taskIdentityDigest ||
+      candidate.canonicalOverviewDigest !== canonical.canonicalOverviewDigest
+    const cpDrift = candidate.cpArtifactDigest !== canonical.cpArtifactDigest ||
+      candidate.cpChainDigest !== canonical.cpChainDigest
     throw new TaskAdmissionError(
-      'FINALIZED_TASK_RESUME_CANDIDATE_MISMATCH',
+      canonicalDrift
+        ? 'FINALIZED_TASK_RESUME_CANONICAL_DRIFT'
+        : (cpDrift ? 'FINALIZED_TASK_RESUME_CP_DRIFT' : 'FINALIZED_TASK_RESUME_CANDIDATE_MISMATCH'),
       'bounded resume candidate does not match the exact task, canonical state, ingress or runtime generation',
-      finalizedResumeFailureDetails('FINALIZED_TASK_RESUME_CANONICAL_DRIFT')
+      finalizedResumeFailureDetails(
+        canonicalDrift
+          ? 'FINALIZED_TASK_RESUME_CANONICAL_DRIFT'
+          : (cpDrift ? 'FINALIZED_TASK_RESUME_CP_DRIFT' : 'FINALIZED_TASK_RESUME_CANDIDATE_MISMATCH')
+      )
     )
   }
   const ownerRead = readFencedTaskWriteOwner({ metaDir, identity }, { fs: fsImpl })
@@ -2859,7 +2924,7 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
     if (transaction.phase !== 'finalized' || !exactOwnerRefMatches(currentOwner, input.expectedOwner)) {
       throw new TaskAdmissionError('TASK_WRITE_OWNER_CAS_MISMATCH', 'reacquire requires the exact released owner ref and finalized admission')
     }
-    transaction = refreshFinalizedCpObservation(transaction, input.activeRoot, nowMs, fsImpl)
+    transaction = refreshFinalizedCpObservation(transaction, input.activeRoot, nowMs, fsImpl, ownerRead.state)
     const issuedAt = new Date(nowMs).toISOString()
     const nextOwner = sealOwner({
       ...currentOwner,
@@ -2915,7 +2980,7 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
     if (reopening && transaction.admissionGeneration <= Number(ownerRead.terminalReceipt?.admissionGeneration || 0)) {
       throw new TaskAdmissionError('TASK_WRITE_OWNER_REOPEN_ADMISSION_STALE', 'reopen requires a newer admission generation')
     }
-    const cp = observedCpState(transaction, input.activeRoot, fsImpl)
+    const cp = observedCpState(transaction, input.activeRoot, fsImpl, { state: ownerRead.state })
     const baseGeneration = currentOwner?.ownerGeneration || 0
     const baseRevision = currentOwner?.leaseRevision || 0
     const nextOwner = sealOwner({
@@ -2997,7 +3062,7 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
   if (transaction.phase !== 'finalized') {
     throw new TaskAdmissionError('TASK_WRITE_OWNER_ADMISSION_NOT_FINALIZED', 'owner transition requires finalized admission')
   }
-  transaction = refreshFinalizedCpObservation(transaction, input.activeRoot, nowMs, fsImpl)
+  transaction = refreshFinalizedCpObservation(transaction, input.activeRoot, nowMs, fsImpl, ownerRead.state)
   const issuedAt = new Date(nowMs).toISOString()
   let nextOwner
   let transition = operation

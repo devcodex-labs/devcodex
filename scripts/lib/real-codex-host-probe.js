@@ -1514,14 +1514,39 @@ function finalizeAttempt(attemptRef, details) {
   return JSON.parse(fs.readFileSync(target, 'utf8'))
 }
 
-function isPidAlive(pid) {
+function isPidAlive(pid, options = {}) {
   if (!Number.isInteger(pid) || pid <= 0) return false
+  const platform = options.platform || process.platform
+  const fsImpl = options.fs || fs
+  const kill = options.kill || process.kill.bind(process)
+  if (platform === 'linux') {
+    try {
+      const stat = fsImpl.readFileSync(`/proc/${pid}/stat`, 'utf8')
+      const nameEnd = stat.lastIndexOf(')')
+      const state = nameEnd >= 0 ? stat.slice(nameEnd + 1).trimStart()[0] : ''
+      if (state === 'Z' || state === 'X') return false
+    } catch (error) {
+      if (error?.code === 'ENOENT') return false
+    }
+  }
   try {
-    process.kill(pid, 0)
+    kill(pid, 0)
     return true
   } catch (error) {
     return error?.code === 'EPERM'
   }
+}
+
+const PID_EXIT_WAIT_SIGNAL = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT))
+
+function waitForPidExit(pid, timeoutMs = 1000) {
+  const deadline = Date.now() + timeoutMs
+  while (isPidAlive(pid)) {
+    const remaining = deadline - Date.now()
+    if (remaining <= 0) return false
+    Atomics.wait(PID_EXIT_WAIT_SIGNAL, 0, 0, Math.min(25, remaining))
+  }
+  return true
 }
 
 function isOwnedCleanupComplete(cleanup) {
@@ -1549,6 +1574,9 @@ function terminateOwnedProcessTree(pid) {
       result = { status: null, signal: null, error, stdout: '', stderr: '' }
     }
   }
+  const stillRunning = process.platform === 'win32'
+    ? isPidAlive(pid)
+    : !waitForPidExit(pid)
   return {
     attempted: true,
     method: process.platform === 'win32' ? 'taskkill-exact-pid-tree' : 'kill-exact-process-group',
@@ -1556,7 +1584,7 @@ function terminateOwnedProcessTree(pid) {
     exitCode: result.status,
     signal: result.signal || null,
     errorCode: result.error?.code || null,
-    stillRunning: isPidAlive(pid)
+    stillRunning
   }
 }
 
@@ -2753,6 +2781,7 @@ module.exports = {
   isNonterminalH3SafePartial,
   isOwnedCleanupComplete,
   isPathInside,
+  isPidAlive,
   main,
   normalizeObservedCommand,
   normalizeObservedCommandVariants,

@@ -200,6 +200,7 @@ function createSkillRouteFixture (options = {}) {
     inputRoot: root,
     workspaceRoot: root,
     packageRoot: PACKAGE_ROOT,
+    globalSkillsRoot: fixture.globalRuntime.root,
     globalRuntime: fixture.globalRuntime,
     env: {}
   }

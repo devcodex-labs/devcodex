@@ -29,6 +29,7 @@ const {
   isNonterminalH3SafePartial,
   isOwnedCleanupComplete,
   isPathInside,
+  isPidAlive,
   normalizeObservedCommand,
   normalizeObservedCommandVariants,
   openAttemptLedger,
@@ -1886,6 +1887,16 @@ async function main() {
     assert.strictEqual(timeoutChild.cleanup.attempted, true)
     assert.match(timeoutChild.cleanup.method, /exact/)
     assert.strictEqual(timeoutChild.cleanup.stillRunning, false)
+    assert.strictEqual(isPidAlive(4242, {
+      platform: 'linux',
+      fs: { readFileSync: () => '4242 (fixture worker) Z 1 2 3' },
+      kill: () => { throw Object.assign(new Error('must not probe a zombie'), { code: 'ESRCH' }) }
+    }), false)
+    assert.strictEqual(isPidAlive(4243, {
+      platform: 'linux',
+      fs: { readFileSync: () => '4243 (fixture worker) R 1 2 3' },
+      kill: () => undefined
+    }), true)
     let boundedCleanupPid = null
     const boundedCleanupChild = await runOwnedChild({
       command: process.execPath,

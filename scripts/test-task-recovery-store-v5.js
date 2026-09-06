@@ -295,21 +295,26 @@ function tasklessIngressState() {
   return value
 }
 
-function mutationStateV2Ephemeral(operationIdOverride = 'ephemeral-mutation-v2', targetCount = 1) {
+function mutationStateV2Ephemeral(operationIdOverride = 'ephemeral-mutation-v2', targetCount = 1, fixtureOptions = {}) {
   const value = state('00000000-0000-4000-8000-000000000099', 'implementation')
   value.taskRecoveryBinding = null
   const operationId = operationIdOverride
-  const targetPaths = targetCount === 1
-    ? [path.join(tempRoot, 'src', 'ephemeral-source.js')]
-    : Array.from({ length: targetCount }, (_, index) =>
-        path.join(tempRoot, 'src', `ephemeral-source-${String(index).padStart(3, '0')}.js`))
+  const targetPaths = Array.isArray(fixtureOptions.targetPaths)
+    ? fixtureOptions.targetPaths
+    : (targetCount === 1
+        ? [path.join(tempRoot, 'src', 'ephemeral-source.js')]
+        : Array.from({ length: targetCount }, (_, index) =>
+            path.join(tempRoot, 'src', `ephemeral-source-${String(index).padStart(3, '0')}.js`)))
+  const decisionTargetPaths = Array.isArray(fixtureOptions.decisionTargetPaths)
+    ? fixtureOptions.decisionTargetPaths
+    : targetPaths
   const targetPath = targetPaths[0]
   const decisionDigest = 'a'.repeat(64)
   const footprintDigest = 'b'.repeat(64)
   const plannedSetDigest = 'c'.repeat(64)
   const adapterDigest = 'd'.repeat(64)
   const registryDigest = 'e'.repeat(64)
-  const operationTargetSetDigest = taskOperationTargetSetDigest(targetPaths)
+  const operationTargetSetDigest = taskOperationTargetSetDigest(decisionTargetPaths)
   value.stickyProject = {
     schemaVersion: 'ProjectTargetLeaseV2',
     targetDigest: '0'.repeat(64),
@@ -421,6 +426,8 @@ function mutationStateV2Ephemeral(operationIdOverride = 'ephemeral-mutation-v2',
       taskRecoveryKey: null,
       contextEpoch: 'ctx-test',
       operation: 'create-or-update',
+      sourceTargets: [],
+      targetTargets: decisionTargetPaths,
       targetSetDigest: operationTargetSetDigest,
       footprintDigest,
       adapterDigest,
@@ -501,7 +508,7 @@ function mutationStateV2Ephemeral(operationIdOverride = 'ephemeral-mutation-v2',
     writerGeneration: 0,
     expectedStateSequence: 0,
     kind: 'create-or-update',
-    exactTargets: targetPaths,
+    exactTargets: decisionTargetPaths,
     targetSetDigest: value.turnLiveness.inFlightOperation.artifactDecision.targetSetDigest,
     beforeDigest: value.turnLiveness.inFlightOperation.mutationPreObservation.snapshotDigest
   }, baseOptions)
@@ -1584,6 +1591,31 @@ try {
   assert.strictEqual(
     exactTargetRead.state.turnLiveness.taskOperationSet.unresolved.targetSetDigest,
     taskOperationTargetSetDigest(recoveredExactTargets)
+  )
+
+  const lexicalAliasMeta = path.join(tempRoot, 'ephemeral-preflight-lexical-alias-hooks')
+  const lexicalAliasTarget = `${path.join(tempRoot, 'src', 'alias-segment')}${path.sep}..${path.sep}ephemeral-alias.js`
+  const canonicalAliasTarget = path.join(tempRoot, 'src', 'ephemeral-alias.js')
+  const lexicalAliasState = mutationStateV2Ephemeral(
+    'ephemeral-lexical-alias',
+    1,
+    { targetPaths: [lexicalAliasTarget], decisionTargetPaths: [canonicalAliasTarget] }
+  )
+  const lexicalAliasPreflight = commitTaskRecoveryState({
+    metaDir: lexicalAliasMeta,
+    identity: { activeRoot, project: 'devcodex' },
+    sessionKey: 'ephemeral-lexical-alias-session',
+    state: lexicalAliasState
+  }, { ...baseOptions, reason: 'mutation-preflight', force: true })
+  assert.strictEqual(lexicalAliasPreflight.status, 'ephemeral-stub', JSON.stringify(lexicalAliasPreflight))
+  const lexicalAliasRead = readTaskRecoveryState({
+    metaDir: lexicalAliasMeta,
+    sessionKey: 'ephemeral-lexical-alias-session'
+  })
+  assert.deepStrictEqual(
+    lexicalAliasRead.state.turnLiveness.taskOperationSet.unresolved.exactTargets,
+    [canonicalAliasTarget],
+    'recovery must persist the canonical decision target instead of a lexical footprint alias'
   )
 
   const secondUseMeta = path.join(tempRoot, 'ephemeral-preflight-second-use-hooks')

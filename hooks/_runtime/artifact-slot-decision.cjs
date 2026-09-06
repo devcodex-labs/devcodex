@@ -9,6 +9,9 @@ const {
   validateMutationFootprint
 } = require('./mutation-footprint.cjs')
 const {
+  taskOperationTargetSetDigest
+} = require('./lifecycle-turn-liveness.cjs')
+const {
   createArtifactTemplateBinding,
   findArtifactTemplateQualification,
   qualifyArtifactFile,
@@ -519,7 +522,7 @@ function decideArtifactMutation(input = {}, options = {}) {
       operation: footprint.operation,
       sourceTargets: footprint.sourceTargets,
       targetTargets: footprint.targetTargets,
-      targetSetDigest: digest(footprint.normalizedTargets),
+      targetSetDigest: taskOperationTargetSetDigest(footprint.normalizedTargets),
       footprintDigest: footprint.footprintDigest,
       adapterDigest: footprint.adapterDigest || null,
       plannedSetDigest: footprint.plannedSetDigest || null,
@@ -672,7 +675,7 @@ function decideArtifactMutation(input = {}, options = {}) {
     operation: footprint.operation,
     sourceTargets: sourceCanonical,
     targetTargets: targetCanonical,
-    targetSetDigest: digest([...sourceCanonical, ...targetCanonical].map(comparable).sort()),
+    targetSetDigest: taskOperationTargetSetDigest([...sourceCanonical, ...targetCanonical]),
     footprintDigest: footprint.footprintDigest,
     adapterDigest: footprint.adapterDigest,
     plannedSetDigest: footprint.plannedSetDigest,
@@ -727,7 +730,7 @@ function validateArtifactSlotDecision(value, binding = null, options = {}) {
     }
   }
   if (Array.isArray(value?.sourceTargets) && Array.isArray(value?.targetTargets) &&
-      digest([...value.sourceTargets, ...value.targetTargets].map(comparable).sort()) !== value.targetSetDigest) {
+      taskOperationTargetSetDigest([...value.sourceTargets, ...value.targetTargets]) !== value.targetSetDigest) {
     errors.push('artifact-decision-target-set-digest-mismatch')
   }
   const { decisionDigest, ...semantic } = value || {}
@@ -759,7 +762,7 @@ function reconcileArtifactSlotDecision(decision, input = {}, options = {}) {
       : target
   const observedSourceTargets = footprint.sourceTargets.map(canonicalObserved)
   const observedTargetTargets = footprint.targetTargets.map(canonicalObserved)
-  const observedTargets = [...observedSourceTargets, ...observedTargetTargets].map(comparable).sort()
+  const observedTargets = [...observedSourceTargets, ...observedTargetTargets]
   const errors = []
   if (decision.projectionKind === 'digest-only') {
     if (decision.status !== 'active') errors.push(`artifact-decision-not-active:${decision.status}`)
@@ -770,7 +773,7 @@ function reconcileArtifactSlotDecision(decision, input = {}, options = {}) {
     if (!validation.valid) errors.push(...validation.errors)
   }
   if (input.success === false) errors.push('artifact-tool-reported-failure')
-  if (digest(observedTargets) !== decision.targetSetDigest) errors.push('artifact-post-target-set-drift')
+  if (taskOperationTargetSetDigest(observedTargets) !== decision.targetSetDigest) errors.push('artifact-post-target-set-drift')
   const sourceTargets = Array.isArray(decision.sourceTargets) ? decision.sourceTargets : observedSourceTargets
   const targetTargets = Array.isArray(decision.targetTargets) ? decision.targetTargets : observedTargetTargets
   const exists = target => {

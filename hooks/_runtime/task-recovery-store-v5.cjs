@@ -2850,6 +2850,14 @@ function buildMutationRecoveryPreflightV2(
   ownerAuthority = null,
   taskOperationSet = null
 ) {
+  const sealedOperationTargets = taskOperationSet?.unresolved?.exactTargets || []
+  const decisionTargets = [
+    ...(decision.sourceTargets || []),
+    ...(decision.targetTargets || [])
+  ]
+  const operationExactTargets = sealedOperationTargets.length
+    ? sealedOperationTargets
+    : (decisionTargets.length ? decisionTargets : footprint.normalizedTargets)
   const roots = [
     boundedRecoveryString(decision.activeRootIdentity?.canonicalPath, 1024),
     boundedRecoveryString(decision.projectRootIdentity?.canonicalPath, 1024)
@@ -2953,15 +2961,21 @@ function buildMutationRecoveryPreflightV2(
       preObservation.observedAt,
       compactRecoveryDigest(preObservation.receiptDigest)
     ],
-    o: buildTaskOperationRecoveryV1(taskOperationSet, {
-      currentOperationId: lease.operationId,
-      priorOperationIds: ownerAuthority?.usage?.[4] || [],
-      kind: footprint.operation,
-      exactTargets: footprint.normalizedTargets,
-      targetSetDigest: decision.targetSetDigest,
-      beforeDigest: preObservation.snapshotDigest,
-      dispatchedAt: lease.issuedAt
-    }),
+    o: {
+      ...buildTaskOperationRecoveryV1(taskOperationSet, {
+        currentOperationId: lease.operationId,
+        priorOperationIds: ownerAuthority?.usage?.[4] || [],
+        kind: footprint.operation,
+        // TaskOperationRecordV1 seals the canonical target spellings before the
+        // compact decision projection drops its path arrays. The footprint may
+        // retain an equivalent Windows short-path, case alias, or lexical alias.
+        exactTargets: operationExactTargets,
+        targetSetDigest: decision.targetSetDigest,
+        beforeDigest: preObservation.snapshotDigest,
+        dispatchedAt: lease.issuedAt
+      }),
+      x: encodePaths(operationExactTargets)
+    },
     ...(ownerAuthority ? { a: ownerAuthority } : {})
   }
   return record
@@ -3113,11 +3127,17 @@ function materializeMutationRecoveryPreflightV2(record) {
     receiptDigest: materializeRecoveryDigest(preValue.receiptDigest)
   }
   const ownerAuthority = compactV2 ? record.a : record.ownerAuthority
+  const hasOperationTargetRefs = compactV2 && Object.prototype.hasOwnProperty.call(record.o || {}, 'x')
+  const operationExactTargets = hasOperationTargetRefs
+    ? decodePaths(record.o.x)
+    : footprint.normalizedTargets
+  if (hasOperationTargetRefs &&
+      (!Array.isArray(record.o.x) || operationExactTargets.length !== record.o.x.length)) return null
   const taskOperation = materializeTaskOperationRecoveryV1(compactV2 ? record.o : record.taskOperation, {
     currentOperationId: lease.operationId,
     priorOperationIds: ownerAuthority?.usage?.[4] || [],
     kind: footprint.operation,
-    exactTargets: footprint.normalizedTargets,
+    exactTargets: operationExactTargets,
     targetSetDigest: decision.targetSetDigest,
     beforeDigest: preObservation.snapshotDigest,
     dispatchedAt: lease.issuedAt

@@ -45,6 +45,7 @@ const {
 } = require('../hooks/_runtime/artifact-mutation-reconciliation.cjs')
 const { compactLifecycleStateV5 } = require('../hooks/_runtime/lifecycle-state-projection-v5.cjs')
 const { sha256, stableStringify } = require('../hooks/_runtime/content-identity.cjs')
+const { taskOperationTargetSetDigest } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 const {
   createArtifactTemplateBinding,
   projectArtifactTemplateBinding,
@@ -541,6 +542,18 @@ try {
   assert.strictEqual(readOnlyFootprint.coverage, 'not-applicable')
   assert.deepStrictEqual(readOnlyFootprint.normalizedTargets, [])
 
+  const nonFormalTarget = path.join(path.dirname(tempRoot), `Case-Sensitive-Target-${process.pid}.js`)
+  const nonFormal = decisionFor({
+    tool_name: 'Write',
+    tool_input: { file_path: nonFormalTarget, content: 'module.exports = true\n' }
+  })
+  assert.strictEqual(nonFormal.decision.decisionStatus, 'not-applicable')
+  assert.strictEqual(
+    nonFormal.decision.targetSetDigest,
+    taskOperationTargetSetDigest(nonFormal.decision.targetTargets),
+    'non-formal target digest must use the same Windows path identity as task-operation recovery'
+  )
+
   for (const fixture of [
     { command: 'npm install', commandClass: 'package-manager' },
     { command: 'openapi-generator generate', commandClass: 'codegen' },
@@ -599,6 +612,13 @@ try {
   assert.strictEqual(allowed.decision.slotId, 'bug-cp2')
   assert.strictEqual(allowed.decision.slotIds.includes('bug-cp2'), true)
   assert.strictEqual(allowed.decision.mergedRegistryDigest, layered.mergedRegistryDigest)
+  assert.strictEqual(
+    allowed.decision.targetSetDigest,
+    taskOperationTargetSetDigest([
+      ...allowed.decision.sourceTargets,
+      ...allowed.decision.targetTargets
+    ])
+  )
   assert.strictEqual(validateArtifactSlotDecision(allowed.decision).valid, true)
   const suppliedDecision = decisionFor(
     { tool_name: 'Edit', tool_input: { file_path: cp2 } },

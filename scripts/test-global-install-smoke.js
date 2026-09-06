@@ -817,7 +817,38 @@ const successfulTask = '隔离安装模板写入验证'
 const successfulTaskRoot = path.join(consumerActiveRoot, 'requirements', successfulTask)
 const successfulArtifact = path.join(successfulTaskRoot, '02-技术方案.md')
 fs.mkdirSync(successfulTaskRoot, { recursive: true })
-fs.writeFileSync(successfulArtifact, '# 隔离安装技术方案\n\n用于验证已安装正式写入器。\n', 'utf8')
+fs.writeFileSync(successfulArtifact, [
+  '# 隔离安装技术方案',
+  '',
+  '## 目录导航',
+  '',
+  '- [现状分析](#0-现状分析)',
+  '- [方案概述](#1-方案概述)',
+  '- [核心设计](#2-核心设计)',
+  '- [测试策略](#7-测试策略)',
+  '- [风险与缓解](#9-风险与缓解)',
+  '',
+  '## §0 现状分析',
+  '',
+  '隔离 consumer 已安装唯一候选 tarball。',
+  '',
+  '## §1 方案概述',
+  '',
+  '通过正式 MCP 写入器确认 CP2，并验证模板绑定回读。',
+  '',
+  '## §2 核心设计',
+  '',
+  '产物沿用已安装技术方案模板的必需语义，并允许补充隔离验收内容。',
+  '',
+  '## §7 测试策略',
+  '',
+  '验证 CP 状态、模板绑定、摘要和 sessions.md 均由同一安装包产生。',
+  '',
+  '## §9 风险与缓解',
+  '',
+  '全部 HOME、prefix、cache 与 workspace 均隔离并在结束时精确清理。',
+  ''
+].join('\n'), 'utf8')
 const successfulResponses = runInstalledMcp(installedMemoryServer, [
   rpcRequest(1, 'initialize', {
     protocolVersion: '2024-11-05',
@@ -893,7 +924,9 @@ assert.strictEqual(
   'installed template was not restored after the negative probe'
 )
 
-const installedPackageRoot = path.join(globalPrefix, 'node_modules', packageJson.name)
+const installedPackageRoot = process.platform === 'win32'
+  ? path.join(globalPrefix, 'node_modules', packageJson.name)
+  : path.join(globalPrefix, 'lib', 'node_modules', packageJson.name)
 assert.strictEqual(fs.existsSync(path.join(installedPackageRoot, 'package.json')), true, 'installed package root missing')
 if (smokeOptions.tarball) {
   const installedAdmissionSuite = runCommand(process.execPath, [
@@ -1418,7 +1451,7 @@ runNpm(['uninstall', '-g', packageJson.name, '--prefix', globalPrefix], {
   timeout: 180000
 })
 assert.strictEqual(fs.existsSync(binPath), false, 'global devcodex bin remained after npm uninstall')
-assert.strictEqual(fs.existsSync(path.join(globalPrefix, 'node_modules', packageJson.name)), false, 'global package remained after npm uninstall')
+assert.strictEqual(fs.existsSync(installedPackageRoot), false, 'global package remained after npm uninstall')
 
 cleanupTempFixture()
 assert.strictEqual(fs.existsSync(tmp), false, 'global install smoke temporary fixture must be removed before success')

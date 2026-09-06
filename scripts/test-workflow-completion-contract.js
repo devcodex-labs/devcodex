@@ -333,6 +333,79 @@ assert.strictEqual(taskAutoBlockProjection.automatic, false)
 assert.match(taskAutoBlockProjection.message, /不能自动续批/)
 assert.strictEqual(projectAutoCheckpointDecision({}).decisionDigest, null)
 
+function invalidValidationControlIntent(overrides = {}, binding = null, options = {}) {
+  const intent = { ...clone(tasklessAutoIntent), ...overrides }
+  return !validateValidationControlIngressIntent(intent, binding, options).valid
+}
+
+expectNegative('validation-control-intent-non-object', () => !validateValidationControlIngressIntent(null).valid)
+expectNegative('validation-control-intent-array', () => !validateValidationControlIngressIntent([]).valid)
+expectNegative('validation-control-intent-schema', () => invalidValidationControlIntent({
+  schemaVersion: 'ValidationControlIngressIntentV0'
+}))
+expectNegative('validation-control-intent-required-field', () => invalidValidationControlIntent({ envelopeId: '' }))
+expectNegative('validation-control-intent-digest-shape', () => invalidValidationControlIntent({ envelopeDigest: 'invalid' }))
+expectNegative('validation-control-intent-mode', () => invalidValidationControlIntent({ executionMode: 'manual' }))
+expectNegative('validation-control-intent-action', () => invalidValidationControlIntent({ action: 'execute' }))
+expectNegative('validation-control-intent-authority-kind', () => invalidValidationControlIntent({ authorityKind: 'model' }))
+expectNegative('validation-control-intent-budget-digest-shape', () => invalidValidationControlIntent({
+  requestedBudgetDigest: 'invalid'
+}))
+expectNegative('validation-control-intent-path-count-shape', () => invalidValidationControlIntent({
+  declaredChangedPathCount: 0
+}))
+expectNegative('validation-control-intent-budget-digest-unexpected', () => invalidValidationControlIntent({
+  action: 'none',
+  authorityKind: 'none',
+  requestedBudgetDigest: 'a'.repeat(64)
+}))
+expectNegative('validation-control-intent-path-count-unexpected', () => invalidValidationControlIntent({
+  action: 'none',
+  authorityKind: 'none',
+  declaredChangedPathCount: 2
+}))
+expectNegative('validation-control-intent-confirm-authority', () => invalidValidationControlIntent({
+  action: 'confirm-current-budget',
+  authorityKind: 'none'
+}))
+expectNegative('validation-control-intent-auto-authority', () => invalidValidationControlIntent({ authorityKind: 'none' }))
+expectNegative('validation-control-intent-authority-unexpected', () => invalidValidationControlIntent({
+  action: 'none',
+  authorityKind: 'auto'
+}))
+expectNegative('validation-control-intent-revoke-flag', () => invalidValidationControlIntent({
+  action: 'revoke',
+  authorityKind: 'none'
+}))
+expectNegative('validation-control-intent-non-revoke-flag', () => invalidValidationControlIntent({
+  revocationRequested: true
+}))
+expectNegative('validation-control-intent-ceiling', () => invalidValidationControlIntent({
+  authorityCeiling: 'V2'
+}))
+expectNegative('validation-control-intent-time-order', () => invalidValidationControlIntent({
+  expiresAt: tasklessAutoIntent.issuedAt
+}))
+expectNegative('validation-control-intent-root', () => invalidValidationControlIntent({ projectRootIdentity: null }))
+expectNegative('validation-control-intent-root-schema', () => invalidValidationControlIntent({
+  projectRootIdentity: { ...validationRootIdentity, schemaVersion: 'ProjectRootIdentityV0' }
+}))
+expectNegative('validation-control-intent-digest', () => invalidValidationControlIntent({
+  intentDigest: '0'.repeat(64)
+}))
+expectNegative('validation-control-intent-binding', () => invalidValidationControlIntent({}, {
+  envelopeId: 'other-envelope',
+  envelopeDigest: '0'.repeat(64),
+  sourceMessageDigest: '1'.repeat(64),
+  hostSessionDigest: '2'.repeat(64),
+  contextEpoch: 'ctx-other',
+  project: 'other',
+  projectRootIdentity: { ...validationRootIdentity, digest: '3'.repeat(64) }
+}))
+expectNegative('validation-control-intent-expired', () => invalidValidationControlIntent({}, null, {
+  now: Date.parse(tasklessAutoIntent.expiresAt) + 1
+}))
+
 function invalidValidationControl(overrides = {}, binding = null, options = {}) {
   const receipt = { ...clone(confirmControl), ...overrides }
   return !validateValidationControlIngressReceipt(receipt, binding, options).valid

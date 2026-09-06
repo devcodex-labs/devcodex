@@ -438,11 +438,16 @@ async function main() {
     assert.strictEqual(completedOnlyCommand.commandCompleted, true)
     assert.strictEqual(normalizeObservedCommand('  ' + expectedCommand + '\r\n'), expectedCommand)
     const powerShellWrappedCommand = `"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -Command "${expectedCommand}"`
+    const parseWindowsCodexJsonl = (stdout, expectedCommands) => parseCodexJsonl(
+      stdout,
+      expectedCommands,
+      { platform: 'win32' }
+    )
     assert.deepStrictEqual(
       normalizeObservedCommandVariants(powerShellWrappedCommand, 'win32'),
       [powerShellWrappedCommand, expectedCommand]
     )
-    const wrappedDenied = parseCodexJsonl([
+    const wrappedDenied = parseWindowsCodexJsonl([
       JSON.stringify({
         type: 'item.started',
         item: {
@@ -517,7 +522,10 @@ async function main() {
         }
       })
     ].join('\n')
-    const capturedDisplayObserved = parseCodexJsonl(capturedDisplayJsonl, [capturedExpectedCommand])
+    const capturedDisplayObserved = parseWindowsCodexJsonl(
+      capturedDisplayJsonl,
+      [capturedExpectedCommand]
+    )
     assert.strictEqual(capturedDisplayObserved.commandObserved, true)
     assert.strictEqual(capturedDisplayObserved.commandCompleted, true)
     assert.strictEqual(capturedDisplayObserved.commandExitCode, 0)
@@ -533,7 +541,7 @@ async function main() {
       'win32',
       [uncExpectedCommand]
     ).includes(uncExpectedCommand))
-    assert.strictEqual(parseCodexJsonl(JSON.stringify({
+    assert.strictEqual(parseWindowsCodexJsonl(JSON.stringify({
       type: 'item.completed',
       item: {
         id: 'unc-display-command',
@@ -568,7 +576,7 @@ async function main() {
         'win32',
         [capturedExpectedCommand]
       ).includes(capturedExpectedCommand), false)
-      assert.strictEqual(parseCodexJsonl(JSON.stringify({
+      assert.strictEqual(parseWindowsCodexJsonl(JSON.stringify({
         type: 'item.completed',
         item: {
           id: 'rejected-display-command',
@@ -581,7 +589,7 @@ async function main() {
     }
     const capturedRawWrapperCommand = String.raw`"C:\Program Files\PowerShell\7\pwsh.exe" -Command "` +
       capturedExpectedCommand + '"'
-    const representationDrift = parseCodexJsonl([
+    const representationDrift = parseWindowsCodexJsonl([
       JSON.stringify({
         type: 'item.started',
         item: {
@@ -605,7 +613,7 @@ async function main() {
     assert.strictEqual(representationDrift.commandObserved, true)
     assert.strictEqual(representationDrift.commandIdentityDrift, true)
     const changedWrapper = powerShellWrappedCommand.replace('pwsh.exe', 'powershell.exe')
-    assert.strictEqual(parseCodexJsonl([
+    assert.strictEqual(parseWindowsCodexJsonl([
       JSON.stringify({
         type: 'item.started',
         item: { id: 'wrapper-drift', type: 'command_execution', command: powerShellWrappedCommand }
@@ -621,7 +629,7 @@ async function main() {
       `"C:\\Program Files\\Git\\bin\\bash.exe" -Command "${expectedCommand}"`,
       `"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -NoProfile -Command "${expectedCommand}"`
     ]) {
-      assert.strictEqual(parseCodexJsonl(JSON.stringify({
+      assert.strictEqual(parseWindowsCodexJsonl(JSON.stringify({
         type: 'item.completed',
         item: { id: 'rejected-wrapper', type: 'command_execution', command: rejectedWrapper, exit_code: 0 }
       }), [expectedCommand]).commandObserved, false)

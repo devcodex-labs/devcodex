@@ -835,7 +835,8 @@ function hasAccessDeniedEvidence(value) {
     /(?:^|\r?\n)\s*blocked by policy\s*(?:$|\r?\n)/iu.test(text)
 }
 
-function parseCodexJsonl(stdout, expectedCommands = []) {
+function parseCodexJsonl(stdout, expectedCommands = [], options = {}) {
+  const platform = options.platform || process.platform
   const accepted = new Set(expectedCommands.map(normalizeObservedCommand))
   const observed = new Map()
   let invalidLineCount = 0
@@ -859,7 +860,7 @@ function parseCodexJsonl(stdout, expectedCommands = []) {
     if (itemType !== 'command_execution' && itemType !== 'command') continue
     const command = extractCommand(item)
     const normalized = normalizeObservedCommand(command)
-    const variants = normalizeObservedCommandVariants(command, process.platform, accepted)
+    const variants = normalizeObservedCommandVariants(command, platform, accepted)
     const exactIdentity = variants.find(value => accepted.has(value)) || null
     const id = String(item?.id || event?.item_id || normalized || 'command-' + index)
     const record = observed.get(id) || {

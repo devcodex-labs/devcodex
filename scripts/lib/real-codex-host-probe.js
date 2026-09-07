@@ -1009,6 +1009,7 @@ function partitionInstalledRuntimeEffects(effects, identity) {
   for (const change of effects.unexpectedChanges || []) {
     const name = change.path
     const ordinaryFile = [change.before, change.after].every(value => !value || value.type === 'file')
+    const ordinaryDirectory = [change.before, change.after].every(value => !value || value.type === 'directory')
     const createdDirectory = !change.before && change.after?.type === 'directory'
     let owned = false
     if (change.root === 'addDir') {
@@ -1020,8 +1021,15 @@ function partitionInstalledRuntimeEffects(effects, identity) {
       }
     } else if (change.root === 'globalHome') {
       owned = createdDirectory && ['.codex/devcodex/.runtime-generation-leases', leaseRoot].includes(name)
+      // The host populates and refreshes these cache namespaces independently of
+      // task commands. Preserve their diffs without enumerating plugin versions
+      // or assets; config, credentials and the installed runtime stay protected.
+      const hostCachePath = ['.codex/cache', '.codex/plugins/cache'].some(root => name === root || name.startsWith(root + '/')) &&
+        !name.split('/').some(part => part === '.' || part === '..') && !name.includes('\\')
+      if ((hostCachePath && (ordinaryFile || ordinaryDirectory)) ||
+          (createdDirectory && name === '.codex/plugins')) owned = true
       if (ordinaryFile) {
-        owned = name === '.codex/models_cache.json' ||
+        owned = owned || name === '.codex/models_cache.json' ||
           /^\.codex\/(?:state|goals|logs|memories)_[0-9]+\.sqlite(?:-shm|-wal)?$/u.test(name) ||
           /^AppData\/Local\/Microsoft\/PowerShell\/(?:ModuleAnalysisCache-[A-Fa-f0-9]+|StartupProfileData-NonInteractive)$/u.test(name) ||
           (name.startsWith(leaseRoot + '/') && /^(?:memory|profile)-mcp-[a-f0-9]{8}-[0-9]+\.json$/u.test(name.slice(leaseRoot.length + 1)))

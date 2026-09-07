@@ -701,6 +701,9 @@ async function main() {
       [effectHome, '.codex/memories_1.sqlite'],
       [effectHome, '.codex/state_5.sqlite-wal'],
       [effectHome, '.codex/models_cache.json'],
+      [effectHome, '.codex/cache/remote_plugin_catalog/catalog.json'],
+      [effectHome, '.codex/plugins/cache/market/plugin/1.2.3/.codex-plugin/plugin.json'],
+      [effectHome, '.codex/plugins/cache/market/plugin/1.2.3/assets/new-asset.txt'],
       [effectHome, '.codex/devcodex/.runtime-generation-leases/fixture-generation/memory-mcp-24efaa5d-12032.json'],
       [effectHome, 'AppData/Local/Microsoft/PowerShell/ModuleAnalysisCache-0C86AEE9'],
       [effectHome, 'AppData/Local/Microsoft/PowerShell/StartupProfileData-NonInteractive'],
@@ -740,6 +743,8 @@ async function main() {
     for (const [root, name] of [
       ['globalHome', '.codex/config.toml'], ['globalHome', '.codex/auth.json'],
       ['globalHome', '.codex/models_cache.json.backup'], ['addDir', '.codex/models_cache.json'],
+      ['globalHome', '.codex/plugins/config.toml'], ['globalHome', '.codex/plugins/cache-other/asset.txt'],
+      ['globalHome', '.codex/cache/../config.toml'], ['addDir', '.codex/plugins/cache/asset.txt'],
       ['globalHome', '.codex/devcodex/runtime-fixture-generation/mcp/memory-server.js'],
       ['globalHome', '.codex/devcodex/.runtime-generation-leases/other-generation/memory-mcp-24efaa5d-12032.json'],
       ['addDir', '.memory/hooks/another-project/lifecycle-state.json'], ['addDir', 'unexpected.txt'],
@@ -752,6 +757,8 @@ async function main() {
     assert.deepStrictEqual(partitionInstalledRuntimeEffects({ ...rawEffects, unexpectedChanges: [linkEffect] }, effectIdentity).unexpectedChanges, [linkEffect])
     const cacheLinkEffect = { ...linkEffect, path: '.codex/models_cache.json' }
     assert.deepStrictEqual(partitionInstalledRuntimeEffects({ ...rawEffects, unexpectedChanges: [cacheLinkEffect] }, effectIdentity).unexpectedChanges, [cacheLinkEffect])
+    const pluginCacheLink = { ...linkEffect, path: '.codex/plugins/cache/market/plugin/asset' }
+    assert.deepStrictEqual(partitionInstalledRuntimeEffects({ ...rawEffects, unexpectedChanges: [pluginCacheLink] }, effectIdentity).unexpectedChanges, [pluginCacheLink])
     const independentLedger = initializeAttemptLedger({ evidenceRoot, identity: effectIdentity })
     const deniedAttempt = claimAttempt(independentLedger, 'H1')
     const deniedBytes = Buffer.from(JSON.stringify(deniedReceipt) + '\n')

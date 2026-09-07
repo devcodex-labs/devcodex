@@ -371,10 +371,10 @@ function runHooksRuntimeVisibilityScenarios(context) {
     hookEventName: 'Stop',
     assistantMessage: 'All work is complete.'
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CODEX_HOME: '1' })
-  assert.strictEqual(strictStopBlock.decision, 'block')
-  assert.match(strictStopBlock.reason || '', /Stop gate incomplete|incomplete closure|entry-check-missing|entry check block/i)
+  assert.notStrictEqual(strictStopBlock.decision, 'block')
+  assert.match(JSON.stringify(strictStopBlock), /Stop gate incomplete|closure incomplete|incomplete closure|entry-check-missing|entry check block/i)
   assert.ok(!strictStopBlock.hookSpecificOutput?.decision)
-  assert.ok(readInterceptionEntries().some(entry => entry.eventName === 'Stop' && entry.code === 'closure-incomplete' && entry.effective === true))
+  assert.ok(readInterceptionEntries().some(entry => entry.eventName === 'Stop' && entry.code === 'closure-incomplete' && entry.effective === false))
 
   cleanState()
   run({ hookEventName: 'UserPromptSubmit', prompt: 'codex strict precompact contract test' }, TEMP_ROOT, { CODEX_HOME: '1' })
@@ -389,8 +389,8 @@ function runHooksRuntimeVisibilityScenarios(context) {
     hookEventName: 'PreCompact',
     assistantMessage: 'Progress before compact.'
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CODEX_HOME: '1' })
-  assert.strictEqual(codexPreCompactBlock.continue, false)
-  assert.match(codexPreCompactBlock.stopReason || '', /记忆文件尚未写入|memory/i)
+  assert.notStrictEqual(codexPreCompactBlock.continue, false)
+  assert.match(JSON.stringify(codexPreCompactBlock), /记忆文件尚未写入|memory/i)
   assert.ok(!codexPreCompactBlock.hookSpecificOutput?.decision)
 
   cleanState()
@@ -404,8 +404,8 @@ function runHooksRuntimeVisibilityScenarios(context) {
     hook_event_name: 'PreCompact',
     transcript_path: ''
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict', CLAUDE_HOOK_COMMAND: '1' })
-  assert.strictEqual(claudePreCompactBlock.decision, 'block')
-  assert.match(claudePreCompactBlock.reason || '', /记忆文件尚未写入|memory/i)
+  assert.notStrictEqual(claudePreCompactBlock.decision, 'block')
+  assert.match(JSON.stringify(claudePreCompactBlock), /记忆文件尚未写入|memory/i)
   assert.ok(!claudePreCompactBlock.hookSpecificOutput?.decision)
 
   cleanState()
@@ -970,7 +970,7 @@ function runHooksRuntimeVisibilityScenarios(context) {
     'dispatched'
   )
   fs.writeFileSync(simpleSecondPath, secondSimpleInput.content)
-  run({
+  const secondSimplePost = run({
     hookEventName: 'PostToolUse',
     tool_use_id: 'simple-write-2',
     tool_name: 'Write',
@@ -978,7 +978,12 @@ function runHooksRuntimeVisibilityScenarios(context) {
     success: true
   })
   simpleState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
-  assert.strictEqual(simpleState.simpleTaskFastPathLease, null)
+  assert.strictEqual(simpleState.simpleTaskFastPathLease, null, JSON.stringify({
+    output: secondSimplePost,
+    lastEvent: simpleState.turnLiveness?.lastEventType,
+    lastCloseout: simpleState.turnLiveness?.lastMutationCloseout?.operationId,
+    usage: simpleState.simpleTaskFastPathUsage
+  }))
   assert.strictEqual(simpleState.simpleTaskFastPathUsage, null)
   assert.strictEqual(simpleState.simpleTaskFastPathLeaseCloseout?.status, 'consumed')
   assert.strictEqual(simpleState.simpleTaskFastPathLeaseCloseout?.useCount, 2)

@@ -1,5 +1,7 @@
 'use strict'
 
+const { fstatSnapshot, filePathSnapshot } = require('./file-identity.cjs')
+
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
@@ -187,7 +189,7 @@ function hashStableFile(target, fsImpl) {
   let descriptor
   try {
     descriptor = fsImpl.openSync(target, 'r')
-    const before = fsImpl.fstatSync(descriptor)
+    const before = fstatSnapshot(fsImpl, descriptor)
     if (!before.isFile() || before.size > MAX_HASH_BYTES) {
       throw new ArtifactMutationReconciliationError(
         before.isFile() ? 'ARTIFACT_RECONCILIATION_FILE_TOO_LARGE' : 'ARTIFACT_RECONCILIATION_KIND_UNSUPPORTED',
@@ -204,8 +206,8 @@ function hashStableFile(target, fsImpl) {
       hasher.update(buffer.subarray(0, read))
       offset += read
     }
-    const after = fsImpl.fstatSync(descriptor)
-    const current = fsImpl.lstatSync(target)
+    const after = fstatSnapshot(fsImpl, descriptor)
+    const current = filePathSnapshot(fsImpl, target)
     if (!current.isFile() || current.isSymbolicLink()) {
       throw new ArtifactMutationReconciliationError(
         'ARTIFACT_RECONCILIATION_REPARSE_BLOCKED',
@@ -590,7 +592,7 @@ function qualifyReconciliationTemplates(bindings, fsImpl) {
     }
     const qualification = qualifyArtifactFile(binding, binding.targetRef, { slotId: binding.slotId }, { fs: fsImpl })
     const validation = validateArtifactTemplateQualification(qualification, binding)
-    if (!validation.valid || qualification.status !== 'qualified' || qualification.readbackVerified !== true) {
+    if (!validation.valid || qualification.readbackVerified !== true) {
       throw new ArtifactMutationReconciliationError(
         'ARTIFACT_RECONCILIATION_TEMPLATE_REJECTED',
         'the current artifact still does not qualify against its bound template',
@@ -820,7 +822,7 @@ function validateArtifactMutationReconciliationReceipt(value, binding = null) {
   } else {
     for (const qualification of value?.templateQualifications || []) {
       const validation = validateArtifactTemplateQualification(qualification)
-      if (!validation.valid || qualification.status !== 'qualified' || qualification.readbackVerified !== true) {
+      if (!validation.valid || qualification.readbackVerified !== true) {
         errors.push('artifact-reconciliation-template-qualification-invalid')
         errors.push(...validation.errors)
       }

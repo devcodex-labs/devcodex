@@ -3,6 +3,8 @@
 const fs = require('fs')
 const crypto = require('crypto')
 const path = require('path')
+const { patchProvesAppend, splitUpdatePatches } = require('./patch-append-proof.cjs')
+const { validateTaskOperationRecord } = require('./lifecycle-turn-liveness.cjs')
 
 const { stableDigest } = require('./context-read-contract.cjs')
 const {
@@ -16,10 +18,10 @@ const MAX_TARGETS = 4
 const DIGEST_RE = /^[a-f0-9]{64}$/
 const ALLOWED_OPERATIONS = new Set(['create', 'append', 'update'])
 const ALLOWED_SLOT_OPERATIONS = Object.freeze({
-  'task-report': new Set(['create']),
+  'task-report': new Set(['create', 'update']),
   'task-memory': new Set(['create', 'append']),
   'task-evidence': new Set(['create']),
-  'project-report': new Set(['create']),
+  'project-report': new Set(['create', 'update']),
   'project-memory-physical': new Set(['create', 'append']),
   'project-governance-ledger': new Set(['append']),
   'runtime-operational-state': new Set(['create', 'update'])
@@ -100,7 +102,11 @@ function stateBinding(state = {}) {
     routeDecisionDigest: String(route.decisionDigest || ''),
     routeRevision: String(route.routeRevision || ''),
     taskId: String(state.taskRecoveryBinding?.taskId || '').trim().toLowerCase(),
-    taskRoot: String(state.taskRecoveryBinding?.taskRoot || '')
+    taskRoot: String(state.taskRecoveryBinding?.taskRoot || ''),
+    draftTargets: state.workflowOperationalWriteLeaseCloseout?.status === 'consumed' &&
+      state.workflowOperationalWriteLeaseCloseout?.turnKey === turn.turnKey &&
+      state.workflowOperationalWriteLeaseCloseout?.sessionDigest === sticky.authorityDigest
+      ? (state.workflowOperationalWriteLeaseCloseout.draftTargets || []).slice(0, MAX_TARGETS) : []
   }
 }
 
@@ -161,6 +167,11 @@ function classifyOperationalTargets(input = {}, options = {}) {
         `operational lease cannot authorize ${relativePath} (${slot?.slotId || target.classified?.matchType || target.status})`,
         { relativePath, slotId: slot?.slotId || null, matchType: target.classified?.matchType || null }
       )
+    }
+    if (operation === 'update' && ['task-report', 'project-report'].includes(slot.slotId) &&
+        !(taskBinding.draftTargets || []).some(target => comparable(target) === comparable(absolutePath))) {
+      throw new WorkflowOperationalWriteLeaseError('WORKFLOW_OPERATIONAL_REPORT_DRAFT_UNOBSERVED',
+        'only reports created by this observed turn may be revised; preserve delivered history in a new report', { relativePath })
     }
     if (slot.slotId === 'runtime-operational-state' && !relativePath.startsWith('.audit-state/')) {
       throw new WorkflowOperationalWriteLeaseError(
@@ -237,7 +248,8 @@ function createWorkflowOperationalWriteLease(input = {}, options = {}) {
     operation: input.operation,
     taskBinding: {
       taskId: binding.taskId,
-      taskRoot: binding.taskRoot
+      taskRoot: binding.taskRoot,
+      draftTargets: binding.draftTargets
     }
   }, options)
   const requestedTaskId = String(input.taskId || '').trim().toLowerCase()
@@ -321,10 +333,26 @@ function footprintRelativeTargets(footprint, activeRoot) {
 }
 
 function payloadProvesAppend(payload, absoluteTargets, options = {}) {
-  if (absoluteTargets.length !== 1) return false
+  if (!absoluteTargets.length || absoluteTargets.length > MAX_TARGETS) return false
   const fsImpl = options.fs || fs
   const toolName = String(payload?.tool_name || payload?.toolName || payload?.name || '').toLowerCase()
   const input = payload?.tool_input || payload?.toolInput || payload?.arguments || payload?.args || {}
+  if (/(?:^|__|_)apply_patch$/i.test(toolName)) {
+    const updates = splitUpdatePatches(typeof input === 'string' ? input : input.input || input.patch || input.diff)
+    const cwd = payload?.cwd || payload?.working_directory || options.cwd || process.cwd()
+    const seen = new Set()
+    if (updates.length !== absoluteTargets.length) return false
+    return updates.every(update => {
+      const target = absoluteTargets.find(value => comparable(value) === comparable(path.resolve(cwd, update.target)))
+      if (!target || seen.has(comparable(target))) return false
+      seen.add(comparable(target))
+      try {
+        const stat = fsImpl.statSync(target)
+        return stat.isFile() && stat.size <= 8 * 1024 * 1024 && patchProvesAppend(update.patch, fsImpl.readFileSync(target, 'utf8'))
+      } catch { return false }
+    })
+  }
+  if (absoluteTargets.length !== 1) return false
   const target = absoluteTargets[0]
   let existing
   try {
@@ -350,6 +378,15 @@ function payloadProvesAppend(payload, absoluteTargets, options = {}) {
 
 function validateWorkflowOperationalWriteLease(value, input = {}, options = {}) {
   const errors = []
+  const dispatch = input.dispatchedOperation
+  const record = dispatch?.operationRecord
+  const dispatchedAt = Date.parse(String(record?.dispatchedAt || ''))
+  const observedDispatch = options.phase === 'post' && validateTaskOperationRecord(record).valid &&
+    record.operationId === dispatch?.operationId && dispatch?.mutationPreObservation?.operationId === record.operationId &&
+    dispatch?.mutationLease?.ownerLeaseDigest === value?.leaseDigest &&
+    dispatch?.artifactDecision?.operationalLeaseDigest === value?.leaseDigest &&
+    dispatchedAt >= Date.parse(String(value?.issuedAt || '')) && dispatchedAt < Date.parse(String(value?.expiresAt || ''))
+  const metadataDrift = []
   const nowMs = Number.isFinite(options.nowMs) ? options.nowMs : Date.now()
   if (value?.schemaVersion !== WORKFLOW_OPERATIONAL_WRITE_LEASE_SCHEMA) errors.push('workflow-operational-lease-schema-invalid')
   if (!/^operational-[a-f0-9]{40}$/.test(String(value?.leaseId || ''))) errors.push('workflow-operational-lease-id-invalid')
@@ -370,7 +407,8 @@ function validateWorkflowOperationalWriteLease(value, input = {}, options = {}) 
     errors.push('workflow-operational-authority-invalid')
   }
   if (!Number.isFinite(Date.parse(String(value?.issuedAt || ''))) ||
-      !Number.isFinite(Date.parse(String(value?.expiresAt || ''))) || Date.parse(value.expiresAt) <= nowMs) {
+      !Number.isFinite(Date.parse(String(value?.expiresAt || ''))) ||
+      (!observedDispatch && Date.parse(value.expiresAt) <= nowMs)) {
     errors.push('workflow-operational-lease-expired')
   }
   const { leaseDigest, ...semantic } = value || {}
@@ -380,7 +418,7 @@ function validateWorkflowOperationalWriteLease(value, input = {}, options = {}) 
   let binding
   try {
     binding = stateBinding(input.state || {})
-    assertStateBindingComplete(binding)
+    if (!observedDispatch) assertStateBindingComplete(binding)
   } catch (error) {
     errors.push(error.code || 'workflow-operational-current-binding-invalid')
     binding = {}
@@ -400,7 +438,11 @@ function validateWorkflowOperationalWriteLease(value, input = {}, options = {}) 
     taskId: binding.taskId || null
   }
   for (const [field, expectedValue] of Object.entries(expected)) {
-    if ((value?.[field] ?? null) !== (expectedValue ?? null)) errors.push(`workflow-operational-binding-mismatch:${field}`)
+    if ((value?.[field] ?? null) !== (expectedValue ?? null)) {
+      const message = `workflow-operational-binding-mismatch:${field}`
+      if (observedDispatch && !['project', 'activeRootIdentityDigest', 'projectRootIdentityDigest', 'taskId'].includes(field)) metadataDrift.push(message)
+      else errors.push(message)
+    }
   }
   let relativeTargets = input.relativeTargets
   try {
@@ -424,7 +466,9 @@ function validateWorkflowOperationalWriteLease(value, input = {}, options = {}) 
       project: binding.project,
       relativeTargets: value?.relativeTargets,
       operation: value?.operation,
-      taskBinding: { taskId: binding.taskId, taskRoot: binding.taskRoot }
+      taskBinding: { taskId: binding.taskId, taskRoot: binding.taskRoot,
+        draftTargets: observedDispatch && value?.operation === 'update'
+          ? value.relativeTargets.map(target => path.resolve(activeRoot, target)) : binding.draftTargets }
     }, { ...options, checkExistence: options.phase !== 'post' })
     if (classification.slotId !== value?.slotId || classification.authorityRole !== value?.authorityRole ||
         classification.mergedRegistryDigest !== value?.mergedRegistryDigest) {
@@ -446,9 +490,11 @@ function validateWorkflowOperationalWriteLease(value, input = {}, options = {}) 
   return {
     valid: errors.length === 0,
     errors: [...new Set(errors)],
+    metadataDrift,
     lease: value || null,
     authorityRole: value?.authorityRole || null,
     appendOnlyAuthorized: value?.operation === 'append',
+    draftUpdateAuthorized: errors.length === 0 && value?.operation === 'update' && ['task-report', 'project-report'].includes(value?.slotId),
     classification
   }
 }

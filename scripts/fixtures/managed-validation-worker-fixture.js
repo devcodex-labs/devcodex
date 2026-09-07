@@ -3,6 +3,10 @@
 const WORKER_MESSAGE_SCHEMA = 'ValidationWorkerMessageV1'
 const RUNNER_COMMAND_SCHEMA = 'ValidationRunnerCommandV1'
 
+// Keep terminal IPC alive until the parent has observed the receipt and closes
+// the channel. A send callback alone does not prove receiver delivery on Windows.
+process.channel?.ref()
+
 if (process.env.DEVCODEX_VALIDATION_WORKER_FAULT === 'disconnect-before-command') {
   if (process.connected) process.disconnect()
   // Keep the disconnected process alive past the runner's delayed dispatch so
@@ -22,8 +26,8 @@ function createSender(message) {
       sequence,
       type,
       ...payload
-    }, () => {
-      if (close) process.disconnect()
+    }, error => {
+      if (error && close && process.connected) process.disconnect()
     })
   }
 }

@@ -34,7 +34,7 @@ devcodex profile plan --tier profile-closed-loop
 1. `devcodex --version` 是否来自预期 npm 安装；
 2. `devcodex status` 的 adapter 与 contract 是否通过；
 3. 当前目录是否存在正确的 `.devcodex/`；
-4. 是否完全退出旧会话并新建会话。
+4. 当前连接是否实际加载了目标版本；新 CLI 进程的版本不代替原连接证据。
 
 如果 adapter 未就绪，执行：
 
@@ -42,7 +42,7 @@ devcodex profile plan --tier profile-closed-loop
 devcodex global-adapters apply
 ```
 
-随后完全退出宿主并重新打开。不要在旧会话中判断更新是否生效。
+随后优先使用宿主可验证的连接重载通道。没有该能力时保留原任务和检查点、继续可执行工作，方便时重载宿主；加载状态未验证时如实标记。
 
 ## `native=unverified` 是什么
 
@@ -122,7 +122,7 @@ devcodex global-adapters apply
 devcodex status
 ```
 
-完成后重新打开宿主的新会话。
+完成后在原任务中核对加载版本。连接重载能力不可用时保留检查点与待办，避免重复提示或要求另建任务。
 
 ## 卸载
 

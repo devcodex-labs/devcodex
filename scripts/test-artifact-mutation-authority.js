@@ -263,10 +263,11 @@ try {
   })
   let fstatCount = 0
   const templateDriftFs = Object.assign({}, fs, {
-    fstatSync(descriptor) {
-      const observed = fs.fstatSync(descriptor)
+    fstatSync(descriptor, options) {
+      const observed = fs.fstatSync(descriptor, options)
       fstatCount += 1
-      return fstatCount === 2 ? { ...observed, mtimeMs: observed.mtimeMs + 1 } : observed
+      return fstatCount === 2 ? Object.assign(Object.create(Object.getPrototypeOf(observed)), observed,
+        typeof observed.mtimeNs === 'bigint' ? { mtimeNs: observed.mtimeNs + 1000000n } : { mtimeMs: observed.mtimeMs + 1 }) : observed
     }
   })
   const driftingReadback = qualifyArtifactFile(fileBinding, artifactPath, {
@@ -277,10 +278,11 @@ try {
   assert(driftingReadback.errorCodes.includes('artifact-template-readback-drift'))
   let artifactLstatCount = 0
   const replacedArtifactPathFs = Object.assign({}, fs, {
-    lstatSync(target) {
-      const observed = fs.lstatSync(target)
+    lstatSync(target, options) {
+      const observed = fs.lstatSync(target, options)
       artifactLstatCount += 1
-      return artifactLstatCount === 2 ? { ...observed, ino: observed.ino + 1 } : observed
+      return artifactLstatCount === 2 ? Object.assign(Object.create(Object.getPrototypeOf(observed)), observed,
+        { ino: observed.ino + (typeof observed.ino === 'bigint' ? 1n : 1) }) : observed
     }
   })
   const replacedPathReadback = qualifyArtifactFile(fileBinding, artifactPath, {
@@ -291,10 +293,11 @@ try {
   assert(replacedPathReadback.errorCodes.includes('artifact-template-readback-drift'))
   let templateLstatCount = 0
   const replacedTemplatePathFs = Object.assign({}, fs, {
-    lstatSync(target) {
-      const observed = fs.lstatSync(target)
+    lstatSync(target, options) {
+      const observed = fs.lstatSync(target, options)
       templateLstatCount += 1
-      return templateLstatCount === 2 ? { ...observed, ino: observed.ino + 1 } : observed
+      return templateLstatCount === 2 ? Object.assign(Object.create(Object.getPrototypeOf(observed)), observed,
+        { ino: observed.ino + (typeof observed.ino === 'bigint' ? 1n : 1) }) : observed
     }
   })
   assert.throws(
@@ -1355,13 +1358,14 @@ try {
   const driftingFs = new Proxy(fs, {
     get(target, property) {
       if (property === 'fstatSync') {
-        return descriptor => {
-          const stat = target.fstatSync(descriptor)
+        return (descriptor, options) => {
+          const stat = target.fstatSync(descriptor, options)
           fstatReads += 1
           if (fstatReads === 2) {
             return new Proxy(stat, {
               get(value, key) {
-                if (key === 'ctimeMs') return value.ctimeMs + 1
+                if (key === 'ctimeNs' && typeof value.ctimeNs === 'bigint') return value.ctimeNs + 1000000n
+                if (key === 'ctimeMs' && typeof value.ctimeNs !== 'bigint') return value.ctimeMs + 1
                 const member = value[key]
                 return typeof member === 'function' ? member.bind(value) : member
               }

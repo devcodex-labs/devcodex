@@ -175,7 +175,7 @@ const stopSrc = fs.readFileSync(
       '已完成 控制面 reviewClass=R3 ECR 任务完成'
     ].join('\n')
   })
-  assert.strictEqual(stop.decision, 'block')
+  assert.strictEqual(stop.decision, 'allow')
   assert.ok(
     stop.gaps.includes('review-checklist-missing') || stop.gaps.includes('final-validation-summary'),
     `E2E-07 gaps=${stop.gaps.join(',')}`

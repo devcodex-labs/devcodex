@@ -375,11 +375,12 @@ function settleTaskOperationRecord(raw, operationId, values = {}, options = {}) 
   if (!setValidation.valid || !current || current.operationId !== operationId) {
     throw new TaskOperationRecordError('TASK_OPERATION_CAS_MISMATCH', 'the exact observed task operation is unavailable', setValidation)
   }
-  const needsReconcile = values.needsReconcile === true
+  const knownEffect = ['known-applied', 'known-not-applied', 'none'].includes(values.effect)
+  const needsReconcile = values.needsReconcile === true || !knownEffect
   const phase = needsReconcile ? 'reconcile-required' : 'settled'
   const effect = needsReconcile
     ? 'unknown'
-    : (['known-applied', 'known-not-applied', 'none'].includes(values.effect) ? values.effect : 'known-not-applied')
+    : values.effect
   const record = sealTaskOperationRecord({
     ...current,
     phase,
@@ -945,13 +946,19 @@ function observeTurnEvent(raw, eventName, payload = {}, options = {}) {
   state.lastEventAt = nowIso
 
   if (normalizedEvent === 'UserPromptSubmit') {
+    const pending = validateTaskOperationSet(state.taskOperationSet)
+    if (pending.valid && pending.set.unresolved?.phase === 'prepared' && !pending.set.unresolved.dispatchedAt) {
+      const aborted = abortPreparedTaskOperation(state, pending.set.unresolved.operationId, { ...options, nowMs })
+      state.taskOperationSet = aborted.taskOperationSet
+      state.lastTaskOperationRecord = aborted.lastTaskOperationRecord
+    }
     if (state.executionAttemptLedger.terminal) {
       state.previousExecutionAttemptLedger = normalizeExecutionAttemptLedger(state.executionAttemptLedger)
       state.executionAttemptLedger = createExecutionAttemptLedger()
     }
-    if (priorTurnKey && !isTerminalState(priorState) && priorState !== 'idle') {
+    if (!isTerminalState(priorState) && priorState !== 'idle') {
       state.previousTurn = {
-        turnKey: priorTurnKey,
+        turnKey: priorTurnKey || stableId('prior-turn', [state.startedAt, state.eventSequence - 1]),
         terminalState: 'interrupted',
         terminalAt: nowIso,
         reason: recoveryCard ? 'stale-turn-recovered-by-new-prompt' : 'superseded-by-new-prompt'
@@ -1053,10 +1060,26 @@ function startToolLease(raw, payload = {}, toolName = '', options = {}) {
 function completeToolLease(raw, payload = {}, options = {}) {
   const nowMs = nowMsFrom(options)
   const state = normalizeTurnLivenessState(raw, { ...options, nowMs })
-  const completingOperation = state.inFlightOperation ? { ...state.inFlightOperation } : null
   const operationId = getToolCallId(payload) || state.inFlightOperation?.operationId || state.lastToolCallId
+  const durable = normalizeTaskOperationSet(state.taskOperationSet).unresolved
+  const matchesInFlight = state.inFlightOperation?.operationId === operationId
+  const anotherOperationActive = state.inFlightOperation && !matchesInFlight
+  if (!matchesInFlight && durable?.operationId === operationId && durable.observedAt &&
+      validateTaskOperationRecord(durable).valid) {
+    // A later turn may no longer have transient tool IDs. The durable observed
+    // result is still authoritative: never replace its reconciliation evidence
+    // with a bare duplicate success/error result or downgrade its phase.
+    appendStateTrace(state, {
+      eventId: createTraceEventId(state.taskTrace, ['duplicate-durable-result', operationId]),
+      type: 'ToolLeaseResultDeferred', result: 'duplicate', payload: traceEventPayload(payload)
+    }, nowMs)
+    return state
+  }
+  const completingOperation = matchesInFlight ? { ...state.inFlightOperation }
+    : (durable?.operationId === operationId ? { ...durable, mutating: true, operationRecord: durable } : null)
   const duplicate = !!(
-    operationId && operationId === state.lastToolCallId && state.lastToolOutputAt && !state.inFlightOperation
+    operationId && operationId === state.lastToolCallId && state.lastToolOutputAt && !state.inFlightOperation &&
+    (!durable || durable.operationId !== operationId || durable.observedAt)
   )
   if (!duplicate && completingOperation?.operationRecord?.operationId === operationId) {
     const resultDigest = stableValueDigest({
@@ -1069,6 +1092,15 @@ function completeToolLease(raw, payload = {}, options = {}) {
     state.taskOperationSet = observed.taskOperationSet
     state.lastTaskOperationRecord = observed.lastTaskOperationRecord
     completingOperation.operationRecord = observed.taskOperationSet.unresolved
+  }
+  if (anotherOperationActive) {
+    // A delayed result is evidence for its own operation. It cannot close or
+    // replace the lease/checkpoint of a different operation already running.
+    appendStateTrace(state, {
+      eventId: createTraceEventId(state.taskTrace, ['late-lease-result', operationId]),
+      type: 'ToolLeaseResultDeferred', result: 'observed', payload: traceEventPayload(payload)
+    }, nowMs)
+    return state
   }
   if (!duplicate) state.lastToolOutputAt = toIso(nowMs)
   state.lastToolCallId = operationId || state.lastToolCallId

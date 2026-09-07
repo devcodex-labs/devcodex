@@ -252,7 +252,7 @@ function writeLegacyReceipt (target, serverFile) {
 
 function runFormalTaskContinuityUpgradeProbe (tempRoot) {
   const currentVersion = require('../package.json').version
-  assert.strictEqual(currentVersion, '1.20.0')
+  assert.match(currentVersion, /^\d+\.\d+\.\d+$/)
   const activeRoot = path.join(tempRoot, 'v1.19.4-active-root')
   const project = 'rolling-upgrade-fixture'
   const taskId = '00000000-0000-4000-8000-000000001194'

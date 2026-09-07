@@ -3,7 +3,7 @@
   "sourceEvidence": [
     {
       "ref": "content:instructions/01-common.instructions.md",
-      "digest": "e765246d0803975423ba74ab41387b1c2de60f0441fc17c98382e4b3f53ad6bd"
+      "digest": "ffbd6a37d9d0956e0df0a3cbf55b9c1276c2f112e269386d8c6b003b7cb7c5fa"
     },
     {
       "ref": "content:skills/routing/SKILL.md",
@@ -11,10 +11,10 @@
     },
     {
       "ref": "scripts/lib/host-parity-scorecard.js",
-      "digest": "6736da26ec7e8650636832a75e1163e8de1bfbf001ba358c915c747f48517b5f"
+      "digest": "88397755276ad5ab75602f325c5dbd6c7df67cafc412b5dedbef9b7e62dead19"
     }
   ],
-  "sourceDigest": "ea409f720c2d5e40002886c8bb7981af7d1f509cd15f40be49505b8d459668bb",
+  "sourceDigest": "99dbb097b5d1265826a0389d139701823c67217b5e796bbd8ed22eccdb330237",
   "baseBundles": {
     "chat": [],
     "resume": [

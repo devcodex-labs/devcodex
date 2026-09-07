@@ -564,6 +564,7 @@
         "language-context",
         "session-route-consumers",
         "task-admission-authority",
+        "task-write-continuity",
         "api-verification-contracts",
         "git-index-isolation",
         "git-execution-context",
@@ -6794,6 +6795,32 @@
         "FencedTaskWriteOwnerLeaseV2",
         "WorkflowTaskTerminalReceiptV1"
       ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "task-write-continuity",
+      "owner": "task-admission-authority",
+      "command": "node",
+      "args": ["scripts/test-task-write-continuity.js"],
+      "dependencies": [],
+      "inputs": [
+        "hooks/_runtime/file-identity.cjs",
+        "hooks/_runtime/patch-append-proof.cjs",
+        "hooks/_runtime/workflow-operational-write-lease.cjs",
+        "hooks/_runtime/lifecycle-turn-liveness.cjs",
+        "hooks/_runtime/task-recovery-store-v5.cjs",
+        "mcp/bounded-text-reader.cjs",
+        "mcp/memory-file-transaction.cjs",
+        "scripts/test-task-write-continuity.js"
+      ],
+      "consumers": ["task-admission-authority", "mcp-servers"],
+      "invariants": ["lossless-file-identity", "real-append-readback", "same-content-replacement-cas", "patch-append-effect"],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": ["isolated-temp"],
+      "timeoutMs": 60000,
+      "exitMap": { "success": [0], "failure": "nonzero-or-signal", "timeout": "ETIMEDOUT" },
+      "evidenceArtifacts": ["MemoryFileTransactionReceiptV1"]
     },
     {
       "schemaVersion": "ValidationNodeV1",

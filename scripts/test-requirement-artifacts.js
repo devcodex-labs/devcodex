@@ -150,16 +150,17 @@ try {
     '# Good PR1',
     '',
     '## 审查范围',
-    '',
+    'Review the scoped implementation and its callers.',
     '## 需求与方案映射',
-    '',
+    'The requirement maps to the selected task recovery behavior.',
     '## 代码实况',
-    '',
+    'The implementation reads and persists the original task identity.',
     '## 阻断项快照',
-    '',
+    'No unresolved blocking findings remain in this fixture.',
     '## 复核结论',
-    '',
-    '## 专项审查维度'
+    'The scoped behavior and evidence are consistent.',
+    '## 专项审查维度',
+    'Recovery, concurrency and observable write results were reviewed.'
   ].join('\n'))
 
   const { checkedDirs, issues, mergedRegistryDigest, registrySlotCount } = collectRecentRequirementArtifactIssues({

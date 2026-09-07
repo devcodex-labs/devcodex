@@ -137,6 +137,10 @@ function main() {
   assert.strictEqual(aborted.taskOperationSet.settled[0].phase, 'aborted-zero-effect')
   assert.doesNotThrow(() => markTurnTerminal(aborted, 'completed', 'zero-effect-abort', { nowMs: at(2700) }))
 
+  const resumedPrepared = observeTurnEvent(prepared, 'UserPromptSubmit', { session_id: 'resume-prepared' }, { nowMs: at(2800) }).state
+  assert.strictEqual(resumedPrepared.taskOperationSet.unresolved, null)
+  assert.strictEqual(resumedPrepared.taskOperationSet.settled[0].phase, 'aborted-zero-effect')
+
   let dispatched = observeTurnEvent(createTurnLivenessState({ nowMs: at(0) }), 'UserPromptSubmit', {
     session_id: 'operation-dispatch-turn'
   }, { nowMs: at(1000) }).state
@@ -155,6 +159,36 @@ function main() {
     beforeDigest: '4'.repeat(64)
   }, { nowMs: at(2000) })
   dispatched = markTaskOperationDispatched(dispatched, 'operation-dispatched', { nowMs: at(2100) })
+  const resumedDispatch = observeTurnEvent(dispatched, 'UserPromptSubmit', { session_id: 'resume-dispatched' }, { nowMs: at(2150) }).state
+  assert.strictEqual(resumedDispatch.inFlightOperation, null)
+  assert.strictEqual(resumedDispatch.taskOperationSet.unresolved.phase, 'dispatched')
+  const lateObserved = completeToolLease(resumedDispatch, { tool_use_id: 'operation-dispatched', success: true }, { nowMs: at(2160) })
+  assert.strictEqual(lateObserved.taskOperationSet.unresolved.phase, 'observed', 'a result after recovery must attach to the durable operation')
+  const unknownEffect = settleTaskOperationRecord(lateObserved, 'operation-dispatched', {}, { nowMs: at(2170) })
+  assert.strictEqual(unknownEffect.taskOperationSet.unresolved.effect, 'unknown', 'no effect evidence must never imply zero effect')
+  assert.strictEqual(unknownEffect.taskOperationSet.unresolved.phase, 'reconcile-required')
+  const completeUnknownEvidence = { ...unknownEffect, lastMutationCloseout: {
+    operationId: 'operation-dispatched', result: 'needs-reconcile',
+    observation: { receiptDigest: 'c'.repeat(64) },
+    artifactCloseout: { closeoutDigest: 'd'.repeat(64) },
+    reconciliationInput: { inputDigest: 'e'.repeat(64), exactTargets: ['D:/workspace/b.md'] }
+  } }
+  const resumedUnknown = observeTurnEvent(completeUnknownEvidence, 'UserPromptSubmit',
+    { session_id: 'resume-unknown-result' }, { nowMs: at(2171) }).state
+  const duplicateUnknown = completeToolLease(resumedUnknown,
+    { tool_use_id: 'operation-dispatched', success: true }, { nowMs: at(2172) })
+  assert.deepStrictEqual(duplicateUnknown.taskOperationSet, resumedUnknown.taskOperationSet,
+    'a duplicate after a new prompt must not downgrade reconciliation to observed')
+  assert.deepStrictEqual(duplicateUnknown.lastMutationCloseout, resumedUnknown.lastMutationCloseout,
+    'a duplicate must preserve complete primary reconciliation evidence')
+  const activeB = startToolLease(resumedDispatch, { tool_use_id: 'read-operation-b' }, 'read_file', { nowMs: at(2180) })
+  const afterLateA = completeToolLease(activeB, { tool_use_id: 'operation-dispatched', success: true }, { nowMs: at(2190) })
+  assert.deepStrictEqual(afterLateA.inFlightOperation, { ...activeB.inFlightOperation, operationRecord: null }, 'late A must preserve the active B lease')
+  assert.deepStrictEqual(afterLateA.checkpoint, activeB.checkpoint, 'late A must preserve the active B checkpoint')
+  assert.strictEqual(afterLateA.taskOperationSet.unresolved.phase, 'observed')
+  const afterB = completeToolLease(afterLateA, { tool_use_id: 'read-operation-b', success: true }, { nowMs: at(2195) })
+  assert.strictEqual(afterB.inFlightOperation, null)
+  assert.strictEqual(afterB.taskOperationSet.unresolved.operationId, 'operation-dispatched')
   assert.throws(
     () => abortPreparedTaskOperation(dispatched, 'operation-dispatched', { nowMs: at(2200) }),
     error => error.code === 'TASK_OPERATION_ABORT_INVALID',

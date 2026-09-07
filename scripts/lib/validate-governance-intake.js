@@ -633,7 +633,7 @@ function buildGovernanceIntakeChecks(ctx) {
 
     const probes = [
       { file: 'scripts/test-cli-behavior.js', needles: ['PreCompact', 'manual|auto'] },
-      { file: 'scripts/lib/test-hooks-runtime-visibility.js', needles: ['codexPreCompactBlock', 'continue, false', 'stopReason'] },
+      { file: 'scripts/lib/test-hooks-runtime-visibility.js', needles: ['codexPreCompactBlock', 'assert.notStrictEqual(codexPreCompactBlock.continue, false)', 'JSON.stringify(codexPreCompactBlock)'] },
       { file: 'scripts/lib/validate-governance-package-deployment.js', needles: ['Codex hooks.json missing PreCompact event', 'manual|auto'] },
       { file: 'scripts/lib/validate-governance-prompts.js', needles: ['Codex compaction hook config', 'Codex PreCompact matcher'] },
       { file: 'scripts/lib/test-spec-governance-base.js', needles: ['codex/hooks.json', 'PreCompact'] },

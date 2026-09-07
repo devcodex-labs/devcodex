@@ -775,7 +775,7 @@ async function main() {
       maxWorkerAttempts: 1,
       __testEvidenceFaults: { primaryTerminalWrites: 1 }
     })
-    assert.strictEqual(terminalRecovery.receipt.terminalStatus, 'completed')
+    assert.strictEqual(terminalRecovery.receipt.terminalStatus, 'completed', JSON.stringify(terminalRecovery))
     assert.strictEqual(terminalRecovery.persistence.reconciliation, 'reserve-to-primary')
     const reservePending = await runFault('terminal-reserve-pending', null, {
       maxWorkerAttempts: 1,

@@ -1,5 +1,7 @@
 'use strict'
 
+const { fstatSnapshot, filePathSnapshot } = require('./file-identity.cjs')
+
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
@@ -79,8 +81,8 @@ function hashFileBounded(file, fsImpl = fs) {
   const hasher = crypto.createHash('sha256')
   const buffer = Buffer.allocUnsafe(64 * 1024)
   try {
-    const before = fsImpl.fstatSync(descriptor)
-    if (!before.isFile() || !sameStatIdentity(initialPath, before)) {
+    const before = fstatSnapshot(fsImpl, descriptor)
+    if (!before.isFile() || before.size > MAX_HASH_BYTES) {
       return { digest: null, bytes: Number(before.size || 0), complete: false, errorCode: 'mutation-observation-file-drift' }
     }
     let offset = 0
@@ -90,8 +92,8 @@ function hashFileBounded(file, fsImpl = fs) {
       hasher.update(buffer.subarray(0, read))
       offset += read
     }
-    const after = fsImpl.fstatSync(descriptor)
-    const currentPath = fsImpl.lstatSync(file)
+    const after = fstatSnapshot(fsImpl, descriptor)
+    const currentPath = filePathSnapshot(fsImpl, file)
     if (!currentPath.isFile() || currentPath.isSymbolicLink() ||
         !sameStatIdentity(before, after) || !sameStatIdentity(after, currentPath)) {
       return { digest: null, bytes: Number(after.size || 0), complete: false, errorCode: 'mutation-observation-file-drift' }
@@ -499,7 +501,7 @@ function observeTemplateQualifications(decision, payload, options = {}) {
     const qualificationValidation = validateArtifactTemplateQualification(qualification, logical ? null : binding)
     const logicalBindingMatch = !logical || ['slotId', 'targetRef', 'templateRef', 'templateDigest', 'contractDigest', 'requiredSemanticDigest']
       .every(field => String(qualification?.[field] || '') === String(binding?.[field] || ''))
-    if (!qualificationValidation.valid || !logicalBindingMatch || qualification?.status !== 'qualified' || qualification?.readbackVerified !== true) {
+    if (!qualificationValidation.valid || !logicalBindingMatch || qualification?.readbackVerified !== true) {
       errors.push('artifact-template-qualification-rejected')
       if (!logicalBindingMatch) errors.push('artifact-template-logical-binding-mismatch')
       errors.push(...qualificationValidation.errors)
@@ -691,7 +693,7 @@ function validateMutationObservationReceipt(value) {
     for (const qualification of value?.templateQualifications || []) {
       const validation = validateArtifactTemplateQualification(qualification)
       if (!validation.valid) errors.push(...validation.errors)
-      if (value.status === 'consumed' && (qualification.status !== 'qualified' || qualification.readbackVerified !== true)) {
+      if (value.status === 'consumed' && qualification.readbackVerified !== true) {
         errors.push('mutation-observation-template-qualification-not-final')
       }
     }

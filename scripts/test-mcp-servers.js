@@ -116,7 +116,7 @@ function qualifiedCpArtifactContent({ activeRoot, project, taskKind, taskName, r
     return semanticId.startsWith('heading:')
       ? `## ${semanticId.slice('heading:'.length).replace(/-/g, ' ')}`
       : ''
-  }).filter(Boolean).join('\n\n')}\n`
+  }).filter(Boolean).join('\n\n')}\n\n当前任务的方案、执行步骤和验证结果由实际工具回读确认；保留原任务范围。\n`
 }
 
 function assertMemoryProjectionIdentity(value, toolName) {
@@ -1313,15 +1313,8 @@ function testMemoryTaskAdmissionV2Contract() {
     },
     overview: { content: '# 问题概况\n\nMCP task admission\n' }
   }
-  const rejectedIngress = runServer('mcp/memory-server.js', [
-    rpcRequest(1, 'tools/call', {
-      name: 'memory_task_admit_v2',
-      arguments: { ...args, ingressRef: { ...args.ingressRef, decisionDigest: 'f'.repeat(64) } }
-    })
-  ], TEMP_ROOT)
-  assert.strictEqual(resultById(rejectedIngress, 1).isError, true)
-  assert.match(resultById(rejectedIngress, 1).content[0].text, /TASK_ADMISSION_INGRESS_STATE_MISMATCH/)
-  assert.strictEqual(fs.existsSync(path.join(activeRoot, 'bugs')), false)
+  // Derived-reference recovery is tested below against the admitted task.
+  // Real project/root tampering must still have zero admission effects.
   const rejectTamperedProjectLease = (stickyProject, label) => {
     fs.writeFileSync(lifecycleStatePath, JSON.stringify({ ...lifecycleState, stickyProject }, null, 2) + '\n')
     const response = runServer('mcp/memory-server.js', [
@@ -1394,6 +1387,7 @@ function testMemoryTaskAdmissionV2Contract() {
   const toolSchema = findToolSchema(resultById(responses, 1).tools, 'memory_task_admit_v2')
   assert.deepStrictEqual(toolSchema.required, ['operation', 'task', 'overview'])
   assert.deepStrictEqual(toolSchema.oneOf, [
+    { not: { anyOf: [{ required: ['ingressRef'] }, { required: ['resumeContextBinding'] }] } },
     { required: ['ingressRef'], not: { required: ['resumeContextBinding'] } },
     { required: ['resumeContextBinding'], not: { required: ['ingressRef'] } }
   ])
@@ -1417,13 +1411,13 @@ function testMemoryTaskAdmissionV2Contract() {
   assert.strictEqual(replay.structuredContent.ownerAcquisition.replayed, true)
   assert.strictEqual(resultById(responses, 4).isError, true)
   assert.match(resultById(responses, 4).content[0].text, /TASK_ADMISSION_IDEMPOTENCY_CONFLICT/)
-  assert.strictEqual(resultById(responses, 5).isError, true)
-  assert.match(resultById(responses, 5).content[0].text, /TASK_ADMISSION_INGRESS_STATE_MISMATCH/)
+  assert.strictEqual(resultById(responses, 5).isError, false)
+  assert.strictEqual(resultById(responses, 5).structuredContent.admissionId, admitted.structuredContent.admissionId)
   const resolved = resultById(responses, 6)
   assert.strictEqual(resolved.isError, false)
   assert.strictEqual(resolved.structuredContent.candidate.taskId, admitted.structuredContent.taskId)
-  assert.strictEqual(resultById(responses, 7).isError, true)
-  assert.match(resultById(responses, 7).content[0].text, /TASK_ADMISSION_INGRESS_REQUIRED|Invalid tool arguments/)
+  assert.strictEqual(resultById(responses, 7).isError, false)
+  assert.strictEqual(resultById(responses, 7).structuredContent.admissionId, admitted.structuredContent.admissionId)
   assert.strictEqual(resultById(responses, 8).isError, true)
   assert.match(resultById(responses, 8).content[0].text, /TASK_ADMISSION_INGRESS_INPUT_AMBIGUOUS|Invalid tool arguments/)
   assert.strictEqual(admitted.structuredContent.ingressSource, 'host-hook')
@@ -1432,6 +1426,22 @@ function testMemoryTaskAdmissionV2Contract() {
   const taskRoot = path.join(activeRoot, ...admitted.structuredContent.taskRootRelative.split('/'))
   assert.strictEqual(JSON.parse(fs.readFileSync(path.join(taskRoot, '.memory', 'task.json'), 'utf8')).schemaVersion, 'TaskIdentityV2')
   assert.match(fs.readFileSync(path.join(taskRoot, '.memory', 'sessions.md'), 'utf8'), /\| CP1 \| ⏳ \|/u)
+  // Exercise the public first-confirmation path from a genuinely pending CP1.
+  // The wording intentionally differs from the template; identity and content
+  // digests remain exact while template quality is advisory.
+  const firstCpText = '# 首次问题确认\n\n用户确认保持原任务意图，并继续处理当前缺陷。\n'
+  const firstCpPath = '01-问题确认.md'
+  fs.writeFileSync(path.join(taskRoot, firstCpPath), firstCpText)
+  const firstCp = runServer('mcp/memory-server.js', [rpcRequest(9, 'tools/call', {
+    name: 'memory_cp_confirm', arguments: {
+      requirement: admitted.structuredContent.taskRootRelative.split('/').at(-1), kind: 'bugs',
+      phase: 'CP1', artifactPath: firstCpPath,
+      artifactSha256: crypto.createHash('sha256').update(firstCpText).digest('hex'),
+      artifactVersion: 'v0.1.0', sourceMessage: '确认当前问题定义，继续原任务。'
+    }
+  })], TEMP_ROOT)
+  assert.notStrictEqual(resultById(firstCp, 9).isError, true, resultById(firstCp, 9).content?.[0]?.text)
+  assert.doesNotMatch(fs.readFileSync(path.join(taskRoot, '.memory', 'sessions.md'), 'utf8'), /\| CP1 \| ⏳ \|/u)
 }
 
 function testMemoryFinalizedFreshResumeV3Contract() {
@@ -1771,8 +1781,9 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   const partialAuthorityResponse = resultById(runServer('mcp/memory-server.js', [
     rpcRequest(41, 'tools/call', { name: 'memory_task_admit_v2', arguments: fallbackArgs })
   ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: '' }), 41)
-  assert.strictEqual(partialAuthorityResponse.isError, true)
-  assert.match(partialAuthorityResponse.content[0].text, /FINALIZED_TASK_RESUME_SESSION_MISMATCH/)
+  assert.strictEqual(partialAuthorityResponse.isError, false, partialAuthorityResponse.content?.[0]?.text)
+  assert.strictEqual(partialAuthorityResponse.structuredContent.taskId, fallbackArgs.task.taskId,
+    'partial workflow metadata recovers from actual same-session context without changing the task')
   fs.writeFileSync(contextObservation.statePath, JSON.stringify(lifecycleProjection, null, 2) + '\n')
   const fallbackResponses = runServer('mcp/memory-server.js', [
     rpcRequest(5, 'tools/call', { name: 'memory_task_admit_v2', arguments: fallbackArgs }),
@@ -2244,7 +2255,7 @@ function testMemoryWorkflowOperationalWriteLeaseContract() {
   const listed = resultById(responses, 1)
   const schema = findToolSchema(listed.tools, 'memory_workflow_operational_write_lease')
   assert(schema, 'memory_workflow_operational_write_lease must be publicly reachable')
-  assert.deepStrictEqual(schema.required, ['ingressRef', 'operation', 'targets'])
+  assert.deepStrictEqual(schema.required, ['operation', 'targets'])
   assert.strictEqual(schema.additionalProperties, false)
   assert.strictEqual(schema.properties.targets.maxItems, 4)
   const issued = resultById(responses, 2)
@@ -2258,11 +2269,12 @@ function testMemoryWorkflowOperationalWriteLeaseContract() {
   assert.strictEqual(lease.formalArtifactAuthority, false)
   assert.strictEqual(lease.releaseAuthority, false)
   assert.match(lease.leaseDigest, /^[a-f0-9]{64}$/)
-  for (const id of [3, 4, 5, 6]) assert.strictEqual(resultById(responses, id).isError, true)
+  for (const id of [3, 4, 5]) assert.strictEqual(resultById(responses, id).isError, true)
   assert.match(resultById(responses, 3).content[0].text, /WORKFLOW_OPERATIONAL_SLOT_FORBIDDEN/)
   assert.match(resultById(responses, 4).content[0].text, /WORKFLOW_OPERATIONAL_SLOT_FORBIDDEN/)
   assert.match(resultById(responses, 5).content[0].text, /WORKFLOW_OPERATIONAL_TARGET_INVALID/)
-  assert.match(resultById(responses, 6).content[0].text, /TASK_ADMISSION_INGRESS_STATE_MISMATCH/)
+  assert.strictEqual(resultById(responses, 6).isError, false)
+  assert.deepStrictEqual(resultById(responses, 6).structuredContent.lease.relativeTargets, [reportTarget])
 }
 
 function testMemorySimpleTaskFastPathLeaseContract() {
@@ -2453,8 +2465,9 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
       arguments: { ingressRef: ingress.ingressRef, taskId: admitted.taskId }
     })
   ], TEMP_ROOT)
-  assert.strictEqual(resultById(rejectedResponses, 3).isError, true)
-  assert.match(resultById(rejectedResponses, 3).content[0].text, /TASK_ADMISSION_INGRESS_STATE_MISMATCH/)
+  assert.strictEqual(resultById(rejectedResponses, 3).isError, false)
+  assert.strictEqual(resultById(rejectedResponses, 3).structuredContent.ownerRef.leaseDigest,
+    admitted.ownerAcquisition.ownerRef.leaseDigest, 'reference recovery replays the same writer without acquiring a different task')
   assert.strictEqual(resultById(rejectedResponses, 4).isError, true)
   assert.match(resultById(rejectedResponses, 4).content[0].text, /TASK_WRITE_OWNER_CAS_MISMATCH/)
   assert.strictEqual(resultById(rejectedResponses, 5).isError, true)
@@ -2747,7 +2760,7 @@ function testMemoryArtifactMutationReconciliationContract() {
     })
   ], TEMP_ROOT)
   const reconciliationSchema = findToolSchema(resultById(primaryResponses, 2).tools, 'memory_artifact_mutation_reconcile_v1')
-  assert.deepStrictEqual(reconciliationSchema.required, ['ingressRef', 'operationId', 'expectedCloseoutDigest', 'resolution'])
+  assert.deepStrictEqual(reconciliationSchema.required, ['operationId', 'expectedCloseoutDigest', 'resolution'])
   assert.strictEqual(reconciliationSchema.additionalProperties, false)
   assert.strictEqual(reconciliationSchema.properties.taskId === undefined, false)
   const primaryResult = resultById(primaryResponses, 3)
@@ -2969,7 +2982,8 @@ function testMemoryServerOwnedTakeoverObservation() {
   assert.strictEqual(prepared.structuredContent.status, 'takeover-pending')
   assert.strictEqual(prepared.structuredContent.takeoverObservation.canonicalTaskReadback, true)
   assert.strictEqual(prepared.structuredContent.takeoverObservation.noLiveTurn, true)
-  assert.strictEqual(prepared.structuredContent.takeoverObservation.activeOperationLease, true)
+  assert.strictEqual(prepared.structuredContent.takeoverObservation.activeOperationLease, false,
+    'takeover evidence must observe the prior writer, not the caller\'s active read turn')
   assert.strictEqual(prepared.structuredContent.takeoverObservation.activeOperationLeaseForPriorOwner, false)
   assert.match(prepared.structuredContent.takeoverObservation.canonicalTaskSourceDigest, /^[a-f0-9]{64}$/)
 
@@ -3185,6 +3199,8 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
     '',
     '## 任务分解',
     '',
+    '保留当前任务目标，完成恢复与真实写入验证；以下标题差异仅产生质量提示。',
+    '',
     '## 关键实施约束',
     '',
     '## 独立验证方式',
@@ -3268,8 +3284,8 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
     })
   ], TEMP_ROOT), 20)
   assert.strictEqual(unqualified.isError, true)
-  assert.match(unqualified.content?.[0]?.text || '', /MEMORY_CP_ARTIFACT_TEMPLATE_UNQUALIFIED/)
-  assert.strictEqual(fs.readFileSync(sessionsPath, 'utf8'), sessionsBefore, 'unqualified CP artifact must have zero sessions effect')
+  assert.match(unqualified.content?.[0]?.text || '', /CHECKPOINT_EPOCH_CP_PREDECESSOR_MISSING/)
+  assert.strictEqual(fs.readFileSync(sessionsPath, 'utf8'), sessionsBefore, 'a missing CP2 must not be silently marked confirmed')
   const stateAfterUnqualified = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
   assert.deepStrictEqual(stateAfterUnqualified.autoCheckpointDecision, stateBeforeUnqualified.autoCheckpointDecision)
   assert.deepStrictEqual(stateAfterUnqualified.autoCheckpointDecisions, stateBeforeUnqualified.autoCheckpointDecisions)
@@ -3435,6 +3451,28 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
   assert.strictEqual(finalState.state.autoCheckpointDecision.decision, 'reconfirm-required')
   assert.strictEqual(finalState.state.autoCheckpointDecisions.length, 2)
   assert.strictEqual(parseCpSessions(fs.readFileSync(sessionsPath, 'utf8')).CP3.confirmed, false)
+
+  const nearTitleAccepted = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(24, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: {
+        ...baseArguments,
+        phase: 'CP3',
+        artifactPath: '04-实施计划-v0.1.1.md',
+        artifactVersion: 'v0.1.1-near-title',
+        artifactSha256: unqualifiedCp3Sha256,
+        autoDecisionEvidence: {
+          riskClass: 'R3', sideEffectCategories: [], blockers: [],
+          reviewGradeCard: { grade: 'R3', status: 'PASS', openBlockers: 0 }
+        }
+      }
+    })
+  ], TEMP_ROOT), 24)
+  assert.notStrictEqual(nearTitleAccepted.isError, true, nearTitleAccepted.content?.[0]?.text || '')
+  assert.strictEqual(nearTitleAccepted.structuredContent.artifactTemplateQualification.status, 'rejected')
+  assert.strictEqual(nearTitleAccepted.structuredContent.artifactTemplateQualification.readbackVerified, true)
+  assert.strictEqual(parseCpSessions(fs.readFileSync(sessionsPath, 'utf8')).CP3.confirmed, true,
+    'real confirmation and readback must continue despite a template heading diagnostic')
 }
 
 function testMemoryCpConfirmForBugs() {
@@ -5987,7 +6025,7 @@ function testMemorySessionAllocationAndTransactions() {
   assert.strictEqual(writeSchema.properties.content.maxLength, 262144)
   assert.strictEqual(writeSchema.properties.sessionId.maxLength, 64)
   assert.strictEqual(writeSchema.properties.sessionBinding.pattern, '^[a-f0-9]{64}$')
-  assert.deepStrictEqual(writeSchema.required, ['content', 'sessionId', 'sessionBinding'])
+  assert.deepStrictEqual(writeSchema.required, ['content'])
   const first = JSON.parse(resultById(allocations, 3).content[0].text)
   const second = JSON.parse(resultById(allocations, 4).content[0].text)
   assert.deepStrictEqual(resultById(allocations, 3).structuredContent, first)
@@ -6023,10 +6061,6 @@ function testMemorySessionAllocationAndTransactions() {
         sessionBinding: second.sessionBinding,
         content: 'cross-task-must-not-land\n'
       }
-    }),
-    rpcRequest(8, 'tools/call', {
-      name: 'memory_session_write',
-      arguments: { date: '20260524', sessionBinding: first.sessionBinding, content: 'binding-only-must-not-land\n' }
     }),
     rpcRequest(18, 'tools/call', {
       name: 'memory_session_write',
@@ -6084,19 +6118,18 @@ function testMemorySessionAllocationAndTransactions() {
       }
     })
   ], projectRoot)
-  assert.match(resultById(rejected, 5).content?.[0]?.text || '', /MEMORY_WRITER_ARGUMENT_REQUIRED/)
-  assert.match(resultById(rejected, 6).content?.[0]?.text || '', /MEMORY_WRITER_ARGUMENT_REQUIRED/)
+  assert.match(resultById(rejected, 5).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_UNAVAILABLE/)
+  assert.match(resultById(rejected, 6).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_UNAVAILABLE/)
   assert.match(resultById(rejected, 7).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_MISMATCH/)
-  assert.match(resultById(rejected, 8).content?.[0]?.text || '', /MEMORY_WRITER_ARGUMENT_REQUIRED/)
   assert.match(resultById(rejected, 18).content?.[0]?.text || '', /MEMORY_SESSION_NOT_FOUND/)
   assert.match(resultById(rejected, 19).content?.[0]?.text || '', /MEMORY_SESSION_WRITE_VERIFICATION_FAILED/)
   assert.match(resultById(rejected, 20).content?.[0]?.text || '', /MEMORY_SESSION_LAYOUT_INVALID/)
   for (const id of [21, 22, 23]) {
     assert.match(resultById(rejected, id).content?.[0]?.text || '', /MEMORY_WRITER_ARGUMENT_INVALID/)
   }
-  assert.strictEqual(resultById(rejected, 5).structuredContent.errorCode, 'MEMORY_WRITER_ARGUMENT_REQUIRED')
+  assert.strictEqual(resultById(rejected, 5).structuredContent.errorCode, 'MEMORY_SESSION_BINDING_UNAVAILABLE')
   assert.strictEqual(resultById(rejected, 7).structuredContent.errorCode, 'MEMORY_SESSION_BINDING_MISMATCH')
-  for (const id of [5, 6, 7, 8, 18, 19, 20, 21, 22, 23]) {
+  for (const id of [5, 6, 7, 18, 19, 20, 21, 22, 23]) {
     assert.strictEqual(resultById(rejected, id).isError, true)
   }
   assert.strictEqual(
@@ -6186,14 +6219,14 @@ function testMemorySessionAllocationAndTransactions() {
   assertTemplateQualified(memoryTransactionJson(resultById(responses, 11)), 'memory_summary_append')
   const indexedDaily = toolJson(resultById(responses, 12))
   const indexedSummary = toolJson(resultById(responses, 13))
-  assert.strictEqual(indexedDaily.indexReceipt.status, 'fresh')
+  assert.strictEqual(indexedDaily.indexReceipt.status, 'fresh', JSON.stringify(indexedDaily.indexReceipt))
   assert.strictEqual(indexedDaily.coverage.status, 'complete')
   assert.strictEqual(indexedDaily.derivedIndexFreshness.status, 'fresh')
   assert.strictEqual(indexedDaily.canonicalSourceTrust.basis, 'writer-attested-metadata-reconciled')
   assert.strictEqual(indexedDaily.fallbackCoverage.status, 'not-used')
   assert.strictEqual(indexedDaily.repairState.status, 'not-needed')
   assert(indexedDaily.telemetry.indexBytesRead > 0)
-  assert.strictEqual(indexedSummary.indexReceipt.status, 'fresh')
+  assert.strictEqual(indexedSummary.indexReceipt.status, 'fresh', JSON.stringify(indexedSummary.indexReceipt))
   assert.strictEqual(indexedSummary.coverage.status, 'complete')
 
   const daily = fs.readFileSync(dailyPath, 'utf8')
@@ -6245,8 +6278,8 @@ function testMemorySessionAllocationAndTransactions() {
   assert.strictEqual(resultById(rejectedLegacyWrite, 14).isError, true)
   assert.strictEqual(resultById(rejectedLegacyWrite, 15).isError, true)
   assert.strictEqual(resultById(rejectedLegacyWrite, 16).isError, true)
-  assert.match(resultById(rejectedLegacyWrite, 14).content?.[0]?.text || '', /MEMORY_WRITER_ARGUMENT_REQUIRED/)
-  assert.match(resultById(rejectedLegacyWrite, 15).content?.[0]?.text || '', /MEMORY_WRITER_ARGUMENT_REQUIRED/)
+  assert.match(resultById(rejectedLegacyWrite, 14).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_UNAVAILABLE/)
+  assert.match(resultById(rejectedLegacyWrite, 15).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_UNAVAILABLE/)
   assert.match(resultById(rejectedLegacyWrite, 16).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_UNAVAILABLE/)
   assert.strictEqual(fs.readFileSync(legacyPath, 'utf8'), legacyBefore, 'legacy write rejection must be zero-mutation')
   const legacyContinuation = allocateMemorySession(projectRoot, {
@@ -6283,7 +6316,7 @@ function testMemorySessionAllocationAndTransactions() {
     })
   ], projectRoot)
   assert.strictEqual(resultById(rejectedRawLegacy, 18).isError, true)
-  assert.match(resultById(rejectedRawLegacy, 18).content?.[0]?.text || '', /MEMORY_WRITER_ARGUMENT_REQUIRED/)
+  assert.match(resultById(rejectedRawLegacy, 18).content?.[0]?.text || '', /MEMORY_SESSION_BINDING_UNAVAILABLE/)
   assert.strictEqual(fs.readFileSync(rawLegacyPath, 'utf8'), rawLegacyBefore)
   const rawContinuation = allocateMemorySession(projectRoot, {
     date: rawLegacyDate, title: 'raw legacy continuation', intent: 'resume'
@@ -6818,6 +6851,35 @@ testWorkspaceRootMemoryScopeRequiresExplicitTarget()
 testWorkspaceNamespaceNestedProjectInference()
 testWorkspaceNamespaceTraversalRejected()
 testMemorySessionAllocationAndTransactions()
+
+function testMemoryAutomaticBindingAndStructuredSummary() {
+  setupLayoutWorkspace()
+  const projectRoot = path.join(TEMP_ROOT, 'chat')
+  const env = { DEVCODEX_HOST_SESSION_ID: 'real-test-host-memory-continuity' }
+  const allocationArgs = { date: '20260907', title: '原任务续办', intent: 'fix' }
+  const calls = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/call', { name: 'memory_session_allocate', arguments: allocationArgs }),
+    rpcRequest(2, 'tools/call', { name: 'memory_session_allocate', arguments: allocationArgs }),
+    rpcRequest(3, 'tools/call', { name: 'memory_session_write', arguments: { date: '20260907', content: '已完成读取，写入尚待验证。\n' } }),
+    rpcRequest(4, 'tools/call', { name: 'memory_summary_append', arguments: {
+      entry: { date: '2026-09-07', type: 'fix', summary: '原任务 | 保留未完成事实', status: 'active' }
+    } })
+  ], projectRoot, env)
+  for (const id of [1, 2, 3, 4]) assert.notStrictEqual(resultById(calls, id).isError, true, resultById(calls, id).content?.[0]?.text)
+  assert.strictEqual(resultById(calls, 1).structuredContent.sessionBinding, resultById(calls, 2).structuredContent.sessionBinding)
+  assert.strictEqual(resultById(calls, 2).structuredContent.transaction.route, 'no-op')
+  const again = resultById(runServer('mcp/memory-server.js', [rpcRequest(5, 'tools/call', {
+    name: 'memory_session_write', arguments: { date: '20260907', content: '重启 MCP 后继续相同任务。\n' }
+  })], projectRoot, env), 5)
+  assert.notStrictEqual(again.isError, true, again.content?.[0]?.text)
+  const memoryRoot = path.join(TEMP_ROOT, '.devcodex', 'chat', '.memory', 'clients', 'claude-code')
+  const daily = fs.readFileSync(path.join(memoryRoot, 'tasks', '20260907.md'), 'utf8')
+  assert.strictEqual((daily.match(/^## 会话 /gm) || []).length, 1)
+  assert(daily.includes('已完成读取，写入尚待验证。') && daily.includes('重启 MCP 后继续相同任务。'))
+  const summary = fs.readFileSync(path.join(memoryRoot, 'SUMMARY.md'), 'utf8')
+  assert(summary.includes('原任务 \\| 保留未完成事实') && summary.includes('active'))
+}
+testMemoryAutomaticBindingAndStructuredSummary()
 testMemoryArtifactLinkProjectionAndWriterIntegration()
 testMemoryLocalCalendarAndWriterReaderContract()
 testAdjacentMcpPathArgumentsRejected()

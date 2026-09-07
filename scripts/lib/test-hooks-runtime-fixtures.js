@@ -153,6 +153,9 @@ function buildTestHooksRuntimeFixtures({
     if (result.status !== 0) {
       throw new Error((result.stderr || result.stdout || 'runtime exited with failure').trim())
     }
+    if (process.env.DEVCODEX_TEST_TRACE_HOOK_ERRORS === '1' && /DevCodex hook error:/.test(result.stderr || '')) {
+      throw new Error(`${preparedPayload.hookEventName || preparedPayload.hook_event_name}: ${result.stderr}`)
+    }
 
     return JSON.parse(result.stdout || '{}')
   }

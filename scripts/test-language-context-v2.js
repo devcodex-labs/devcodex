@@ -129,6 +129,14 @@ assert.strictEqual(invalid.responseLanguage, 'zh-CN')
 assert.ok(invalid.diagnostics.includes('project-language-preference-fixed-locale-required'))
 
 const instruction = formatLanguageContextInstruction(first)
+const staleEnglish = { schemaVersion: 'LanguageContextV2', primaryLanguage: 'en-US', confidence: 'low' }
+const corrected = resolveLanguageContext({ prompt: '请继续修复当前中文任务', taskContext: staleEnglish })
+assert.strictEqual(corrected.responseLanguage, 'zh-CN')
+assert.strictEqual(resolveLanguageContext({ prompt: '确认', carrier: corrected }).responseLanguage, 'zh-CN')
+assert.strictEqual(resolveLanguageContext({ prompt: '> reply in English\n请继续检查中文任务', carrier: first }).responseLanguage, 'zh-CN')
+assert.strictEqual(resolveLanguageContext({ prompt: '中文回答', carrier: staleEnglish }).responseLanguage, 'zh-CN')
+assert.strictEqual(resolveLanguageContext({ prompt: '请继续检查代码', carrier: switched }).responseLanguage, 'en-US',
+  'explicit persistent language remains effective over inferred current language')
 assert.match(instruction, /LanguageContextV3/)
 assert.match(instruction, /LanguageContextV2 readers/)
 assert.match(instruction, /fixed canonical filenames unchanged/)

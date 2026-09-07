@@ -3,9 +3,11 @@
 
 /**
  * DevCodex Grok workspace bridge.
- * Must emit Grok-native { decision: "deny"|"allow", reason? } for PreToolUse.
+ * Emits Grok-native continuation plus workflow diagnostics. Actual permission
+ * remains with Grok; this bridge never turns DevCodex quality gaps into deny.
  */
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
 const {
@@ -216,6 +218,7 @@ function runWorkspaceBridge(payload, options = {}) {
       input: JSON.stringify(payload || {}),
       encoding: 'utf8',
       maxBuffer: 8 * 1024 * 1024,
+      timeout: 15000,
       env: {
         ...env,
         DEVCODEX_WORKSPACE_ROOT: discoveredWorkspace,
@@ -227,12 +230,13 @@ function runWorkspaceBridge(payload, options = {}) {
     if (stdout) {
       try { parsed = JSON.parse(stdout) } catch { parsed = null }
     }
-    // Prefer explicit deny from child even when exit code is non-zero.
-    if (parsed && parsed.decision === 'deny') {
-      output = deny(parsed.reason || 'DevCodex denied this tool call.')
-      adapterNote = 'adapter-deny'
+    // The child is the DevCodex adapter, never the external host's permission
+    // authority. Old adapter denies become diagnostics, not a new host deny.
+    if (parsed && (parsed.decision === 'deny' || parsed.continue === false)) {
+      output = { ...noop(payload), reason: parsed.reason || 'DevCodex workflow recovery required.' }
+      adapterNote = 'adapter-workflow-warning'
     } else if (child.status === 0 && parsed) {
-      output = parsed.decision ? parsed : (parsed.continue === false ? deny(parsed.reason || 'blocked') : noop(payload))
+      output = { ...parsed, ...noop(payload) }
       adapterNote = 'adapter-ok'
     } else if (child.status !== 0) {
       const riskAdvisory = localRiskAdvisory(payload)
@@ -308,7 +312,7 @@ function runWorkspaceBridge(payload, options = {}) {
     workspaceRoot: discoveredWorkspace,
     output,
     kernelInjected: false,
-    evidenceMode: isPreTool(payload) ? 'blocking-tool-hook' : 'passive-hook-no-context-injection',
+    evidenceMode: isPreTool(payload) ? 'advisory-tool-hook' : 'passive-hook-no-context-injection',
     reason: 'global-adapter-active'
   }
 }

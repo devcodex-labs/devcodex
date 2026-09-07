@@ -486,15 +486,11 @@ function recordInterception(state, eventName, platform, action, code, reason, ne
 }
 
 function buildInterceptionOutput(state, platform, eventName, action, code, reason, detail, nextStep) {
-  const strict = isStrictEnforcement()
-  const operationPermissionEvent = isOperationPermissionEvent(eventName)
-  const effective = !operationPermissionEvent && (
-    action === INTERCEPTION_ACTION.FORBID ||
-    (action === INTERCEPTION_ACTION.REQUIRE_COMPLETION && strict && eventSupportsHardBlock(platform, eventName))
-  )
-  const output = effective
-    ? blockOutput(platform, eventName, reason, detail)
-    : warningOutput(reason, detail, eventName)
+  // This adapter owns workflow diagnostics, not host permission decisions.
+  // Preserve exact-target failures for recovery without commanding the model to refuse.
+  const effective = false
+  action = INTERCEPTION_ACTION.WARN_CONTINUE
+  const output = warningOutput(reason, detail, eventName)
   recordInterception(state, eventName, platform, action, code, reason, nextStep, effective)
   return decorateHookOutput(output, {
     devcodexAction: action,
@@ -3085,7 +3081,8 @@ function evaluateWorkflowOperationalWriteAuthority(state, footprint, payload, op
   }
   return validateWorkflowOperationalWriteLease(lease, operationalLeaseValidationInput(state, {
     footprint,
-    payload
+    payload,
+    dispatchedOperation: options.dispatchedOperation
   }), options)
 }
 
@@ -3188,6 +3185,7 @@ function prepareArtifactMutationDecision(state, payload, platform) {
     authorityRole,
     operationalLeaseDigest: operationalAuthority.valid ? operationalAuthority.lease.leaseDigest : null,
     appendOnlyAuthorized: operationalAuthority.valid && operationalAuthority.appendOnlyAuthorized === true,
+    draftUpdateAuthorized: operationalAuthority.valid && operationalAuthority.draftUpdateAuthorized === true,
     formalIntent: isRecoveryMutation(payload, platform, state)
   })
   return { adapterDecision, footprint, decision, operationalAuthority, simpleAuthority }
@@ -3275,10 +3273,10 @@ function isSha256(value) {
   return /^[a-f0-9]{64}$/i.test(String(value || ''))
 }
 
-function validatePersistedArtifactDecision(decision) {
+function validatePersistedArtifactDecision(decision, options = {}) {
   if (!decision || typeof decision !== 'object') return ['artifact-decision-missing']
   if (decision.projectionKind !== 'digest-only') {
-    const validation = validateArtifactSlotDecision(decision)
+    const validation = validateArtifactSlotDecision(decision, null, options)
     return validation.valid ? [] : validation.errors
   }
   const errors = []
@@ -3299,7 +3297,7 @@ function validatePersistedArtifactDecision(decision) {
   if (!isSha256(decision.activeRootIdentity?.digest) || !isSha256(decision.projectRootIdentity?.digest)) {
     errors.push('artifact-decision-root-identity-invalid')
   }
-  if (!Number.isFinite(Date.parse(String(decision.expiresAt || ''))) || Date.parse(decision.expiresAt) <= Date.now()) {
+  if (!Number.isFinite(Date.parse(String(decision.expiresAt || ''))) || Date.parse(decision.expiresAt) <= (options.nowMs ?? Date.now())) {
     errors.push('artifact-decision-expired')
   }
   return errors
@@ -3312,7 +3310,10 @@ function validateMutationAuthorizationBundle(state, operation, options = {}) {
   const lease = operation.mutationLease
   const footprint = operation.mutationFootprint
   const preObservation = operation.mutationPreObservation
-  errors.push(...validatePersistedArtifactDecision(decision))
+  // Completion verifies the exact dispatched operation at its observed start,
+  // even if the wall clock has since crossed the dispatch lease TTL.
+  const validationClock = options.phase === 'post' ? { nowMs: Date.parse(preObservation?.observedAt) } : {}
+  errors.push(...validatePersistedArtifactDecision(decision, validationClock))
   if (options.operationId && operation.operationId !== options.operationId) errors.push('mutation-operation-id-mismatch')
   if (footprint?.schemaVersion !== 'MutationFootprintRecoveryProjectionV2') {
     errors.push('mutation-footprint-recovery-projection-required')
@@ -3344,15 +3345,15 @@ function validateMutationAuthorizationBundle(state, operation, options = {}) {
     project: decision?.project || '',
     taskId: decision?.taskRecoveryKey || '',
     contextEpoch: decision?.contextEpoch || '',
-    routeRevision: state.workflowRouteDecision?.routeRevision || '',
+    routeRevision: options.phase === 'post' ? (lease?.routeRevision || '') : (state.workflowRouteDecision?.routeRevision || ''),
     adapterDigest: decision?.adapterDigest || '',
     mergedRegistryDigest: decision?.mergedRegistryDigest || '',
     slotDecisionDigest: decision?.decisionDigest || '',
     plannedSetDigest: decision?.plannedSetDigest || ''
   }
-  const leaseValidation = validateTaskOwnedMutationLease(lease, leaseBinding)
+  const leaseValidation = validateTaskOwnedMutationLease(lease, leaseBinding, validationClock)
   if (!leaseValidation.valid) errors.push(...leaseValidation.errors)
-  if (lease?.ownerKind === 'fenced-task-owner') {
+  if (lease?.ownerKind === 'fenced-task-owner' && options.phase !== 'post') {
     if (state.fencedWriteOwner?.status !== 'active' ||
         state.fencedWriteOwner.leaseDigest !== lease.ownerLeaseDigest ||
         state.fencedWriteOwner.ownerGeneration !== lease.ownerGeneration) {
@@ -3377,7 +3378,7 @@ function validateMutationAuthorizationBundle(state, operation, options = {}) {
       state,
       footprint,
       options.payload || null,
-      { phase: options.phase === 'post' ? 'post' : 'pre' }
+      { phase: options.phase === 'post' ? 'post' : 'pre', dispatchedOperation: operation }
     )
     if (!operationalAuthority.valid || operationalAuthority.lease?.leaseDigest !== lease.ownerLeaseDigest) {
       errors.push('task-mutation-workflow-operational-lease-mismatch')
@@ -3695,9 +3696,9 @@ function observeProgressiveSkillRouteEnforcement (state, platform, eventName) {
 function progressiveSkillRouteOutputMeta (coordination, nextStep) {
   const envelope = coordination.envelope || {}
   return {
-    devcodexAction: INTERCEPTION_ACTION.REQUIRE_COMPLETION,
+    devcodexAction: INTERCEPTION_ACTION.WARN_CONTINUE,
     devcodexCode: 'progressive-skill-route',
-    devcodexEffective: true,
+    devcodexEffective: false,
     devcodexHookRunId: envelope.hookRunId,
     devcodexStateFingerprint: envelope.stateFingerprint,
     devcodexNextAction: envelope,
@@ -3708,11 +3709,13 @@ function progressiveSkillRouteOutputMeta (coordination, nextStep) {
 function buildProgressiveSkillRouteContextOutput (eventName, coordination, prefixContext = '') {
   const recoveryCard = formatProgressiveSkillRouteRecoveryCard(coordination)
   const message = [String(prefixContext || '').trim(), recoveryCard].filter(Boolean).join('\n\n')
-  return contextMessageOutput(
+  const meta = progressiveSkillRouteOutputMeta(coordination, recoveryCard)
+  const output = contextMessageOutput(
     eventName,
     message,
-    progressiveSkillRouteOutputMeta(coordination, recoveryCard)
+    meta
   )
+  return ['Stop', 'PreCompact'].includes(eventName) ? decorateHookOutput(output, meta) : output
 }
 
 function buildProgressiveSkillRouteBlockOutput (state, platform, eventName, coordination, enforcement = null) {
@@ -3720,24 +3723,8 @@ function buildProgressiveSkillRouteBlockOutput (state, platform, eventName, coor
   const decision = enforcement || observeProgressiveSkillRouteEnforcement(state, platform, eventName)
   const meta = {
     ...progressiveSkillRouteOutputMeta(coordination, reason),
-    devcodexEffective: decision.hardEnforcement,
+    devcodexEffective: false,
     devcodexProgressiveSkillRouteEnforcement: decision
-  }
-  if (decision.hardEnforcement && eventSupportsHardBlock(platform, eventName)) {
-    recordInterception(
-      state,
-      eventName,
-      platform,
-      INTERCEPTION_ACTION.REQUIRE_COMPLETION,
-      'progressive-skill-route',
-      reason,
-      reason,
-      true
-    )
-    return decorateHookOutput(
-      blockOutput(platform, eventName, 'progressive-skill-route', reason),
-      meta
-    )
   }
   return decorateHookOutput(warningOutput(
     'Progressive Skill route reconciliation advisory',
@@ -3754,7 +3741,8 @@ async function main() {
 
   if (payload === null) {
     process.stderr.write('DevCodex hook: invalid JSON input\n')
-    process.exit(1)
+    writeStdout(noopOutput())
+    return
   }
 
   const eventName = getEventName(payload)
@@ -4692,7 +4680,8 @@ async function main() {
     maybeBindTaskRecoveryForPayload(state, payload, platform)
     const contextDeliveryObservation = observeContextDeliveryFromPayload(state, payload)
     const taskAuthorityControl = isTaskAuthorityControlTool(payload)
-    const completingMutationOperation = !taskAuthorityControl && state.turnLiveness?.inFlightOperation?.mutating === true
+    const completingMutationOperation = !taskAuthorityControl && state.turnLiveness?.inFlightOperation?.mutating === true &&
+      (!lifecycleToolOperationId(payload) || lifecycleToolOperationId(payload) === state.turnLiveness.inFlightOperation.operationId)
       ? JSON.parse(JSON.stringify(state.turnLiveness.inFlightOperation))
       : null
     const mutationCloseout = completingMutationOperation?.mutating === true
@@ -4772,8 +4761,7 @@ async function main() {
       if (completingMutationOperation.mutationLease?.ownerKind === 'fenced-task-owner') {
         const ownerAuthority = evaluateFencedTaskMutationAuthority(state)
         if (!ownerAuthority.valid) {
-          authorizationErrors.push(ownerAuthority.errorCode || 'task-mutation-current-owner-unavailable')
-          authorizationErrors.push(...(ownerAuthority.failed || []))
+          state.lastMutationOwnerAdvisory = ownerAuthority.errorCode || 'task-mutation-current-owner-unavailable'
         }
       }
       const bundleValidation = validateMutationAuthorizationBundle(
@@ -4988,11 +4976,19 @@ async function main() {
         state.lastReason = 'ARTIFACT_MUTATION_NEEDS_RECONCILE'
       }
       if (completingMutationOperation.mutationLease?.ownerKind === 'workflow-operational') {
+        const operationalLease = state.workflowOperationalWriteLease
+        const priorDrafts = state.workflowOperationalWriteLeaseCloseout?.turnKey === state.turnLiveness.turnKey
+          ? state.workflowOperationalWriteLeaseCloseout.draftTargets || [] : []
+        const newDrafts = !needsReconcile && ['task-report', 'project-report'].includes(operationalLease?.slotId)
+          ? mutationObservation.observedEffects.created : []
         state.workflowOperationalWriteLeaseCloseout = {
           schemaVersion: 'WorkflowOperationalWriteLeaseCloseoutV1',
           leaseDigest: completingMutationOperation.mutationLease.ownerLeaseDigest,
           operationId: completingMutationOperation.operationId,
           status: needsReconcile ? 'needs-reconcile' : 'consumed',
+          turnKey: state.turnLiveness.turnKey,
+          sessionDigest: state.stickyProject?.authorityDigest,
+          draftTargets: [...new Set([...priorDrafts, ...newDrafts])].slice(-4),
           completedAt: mutationObservation.completedAt,
           receiptDigest: mutationObservation.receiptDigest
         }
@@ -5232,8 +5228,7 @@ async function main() {
 
     const reminder = buildDedupedClosureReminder(state, eventName)
     let output = reminder ? systemMessageOutput(reminder) : noopOutput()
-    let stopHardBlocked = eventName === 'Stop' && !!reminder && isStrictEnforcement() &&
-      eventSupportsHardBlock(platform, eventName)
+    let stopHardBlocked = false
     if (reminder) {
       output = buildInterceptionOutput(
         state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'closure-incomplete',
@@ -5244,7 +5239,7 @@ async function main() {
       )
     }
     if (eventName === 'Stop') {
-      // B2: evaluateStopCompletionGate — Grok always hard-blocks when supported; others keep strict-only hard path
+      // Observe closure gaps without turning workflow metadata into a host Stop block.
       const lastAssistantMessage =
         extractLastAssistantMessage(payload) ||
         getVisibleReplyText(payload) ||
@@ -5283,55 +5278,19 @@ async function main() {
         evidenceMode: platform === 'grok' ? 'path-observable+stop-conditional' : 'host-native'
       }
 
-      if (gateResult.decision === 'block') {
-        const forceHard = platform === 'grok' || isStrictEnforcement()
-        if (forceHard && eventSupportsHardBlock(platform, eventName)) {
-          stopHardBlocked = true
-          state.stopContinuationCount = continuationCount + 1
-          output = decorateHookOutput(
-            blockOutput(platform, eventName, gateResult.reason, gateResult.reason),
-            {
-              devcodexAction: INTERCEPTION_ACTION.REQUIRE_COMPLETION,
-              devcodexCode: 'stop-completion-gate',
-              devcodexEffective: true,
-              devcodexNextStep: 'Complete missing entry/PR-1/FVS/report/memory then finish.',
-              devcodexProcessGaps: (gateResult.gaps || []).join(',')
-            }
-          )
-          recordInterception(
-            state,
-            eventName,
-            platform,
-            INTERCEPTION_ACTION.REQUIRE_COMPLETION,
-            'stop-completion-gate',
-            gateResult.reason,
-            'Complete missing items then finish.',
-            true
-          )
-        } else if (!reminder) {
-          output = buildInterceptionOutput(
-            state,
-            platform,
-            eventName,
-            INTERCEPTION_ACTION.REQUIRE_COMPLETION,
-            'stop-completion-gate',
-            'DevCodex Stop gate incomplete',
-            gateResult.reason,
-            'Complete missing items then finish.'
-          )
-        }
-      }
-
-      if (stopRouteCoordination?.required && stopRouteEnforcement?.hardEnforcement) {
-        stopHardBlocked = true
-        output = buildProgressiveSkillRouteBlockOutput(
-          state,
-          platform,
-          eventName,
-          stopRouteCoordination,
-          stopRouteEnforcement
+      if ((gateResult.gaps || []).length && !reminder) {
+        output = buildInterceptionOutput(
+          state, platform, eventName, INTERCEPTION_ACTION.WARN_CONTINUE,
+          'stop-completion-gate', 'DevCodex closure advisory',
+          gateResult.reason, 'Preserve unfinished facts and continue available work.'
         )
       }
+      // Skill receipt gaps are recoverable workflow metadata, including on Stop.
+      if (stopRouteCoordination?.required) {
+        output = mergeContinueOutputs(output,
+          buildProgressiveSkillRouteContextOutput(eventName, stopRouteCoordination))
+      }
+      state.stopContinuationCount = 0
 
       if (!stopHardBlocked) {
         if (taskRecoveryBindingFresh) state.lastStopOwnerRelease = transitionLifecycleOwner(state, 'release')
@@ -5355,6 +5314,8 @@ async function main() {
 }
 
 main().catch(err => {
-  process.stderr.write(`DevCodex hook error: ${err.message}\n`)
-  process.exit(1)
+  process.stderr.write(`DevCodex hook error: ${process.env.DEVCODEX_TEST_TRACE_HOOK_ERRORS === '1' ? err.stack : err.message}\n`)
+  // Internal bookkeeping failure must not cancel the host's original task.
+  // No write success or host permission is inferred from this fallback.
+  writeStdout(noopOutput())
 })

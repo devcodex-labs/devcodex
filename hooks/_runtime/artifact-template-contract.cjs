@@ -1,5 +1,7 @@
 'use strict'
 
+const { fstatSnapshot, filePathSnapshot } = require('./file-identity.cjs')
+
 const fs = require('fs')
 const path = require('path')
 
@@ -61,7 +63,7 @@ function comparableStatValue(value) {
 
 function sameFileIdentity(left, right) {
   return ['dev', 'ino'].every(field =>
-    !comparableStatValue(left?.[field]) || !comparableStatValue(right?.[field]) || left[field] === right[field]
+    left?.[field] !== undefined && right?.[field] !== undefined && String(left[field]) === String(right[field])
   )
 }
 
@@ -323,13 +325,13 @@ function readStableTemplate(refs, options = {}) {
     }
     const descriptor = fsImpl.openSync(target, 'r')
     try {
-      const before = fsImpl.fstatSync(descriptor)
+      const before = fstatSnapshot(fsImpl, descriptor)
       const content = fsImpl.readFileSync(descriptor, 'utf8')
-      const after = fsImpl.fstatSync(descriptor)
+      const after = fstatSnapshot(fsImpl, descriptor)
       let finalStat = null
-      try { finalStat = fsImpl.lstatSync(target) } catch (error) {}
+      try { finalStat = filePathSnapshot(fsImpl, target) } catch (error) {}
       if (!finalStat || before.size > MAX_TEMPLATE_BYTES || finalStat.size > MAX_TEMPLATE_BYTES ||
-          !sameStableFileSnapshot(stat, before) || !sameStableFileSnapshot(before, after) ||
+          !before.isFile() || !sameStableFileSnapshot(before, after) ||
           !sameStableFileSnapshot(after, finalStat) || Buffer.byteLength(content, 'utf8') !== after.size) {
         throw new ArtifactTemplateContractError('ARTIFACT_TEMPLATE_SOURCE_DRIFT', 'Template source changed during binding.', { ref })
       }
@@ -495,6 +497,12 @@ function qualifyArtifactContent(binding, content, input = {}, options = {}) {
   if (input.slotId && input.slotId !== binding?.slotId) errorCodes.push('artifact-template-wrong-slot')
   if (input.target && digest(normalizeTarget(input.target)) !== binding?.targetDigest) errorCodes.push('artifact-template-wrong-target')
   const semantics = artifactSemanticPositions(content)
+  const substantiveBody = String(content || '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .split(/\r?\n/)
+    .filter(line => !/^\s*#{1,6}\s/.test(line) && !/^\s*(?:---+|```[^`]*|\|[\s:|-]+)\s*$/.test(line))
+    .join('\n').trim()
+  if (!substantiveBody) errorCodes.push('artifact-template-body-empty')
   const required = contract?.requiredSemanticIds || []
   const missingSemanticIds = required.filter(item => !(semantics.positions.get(item) || []).length)
   for (const item of missingSemanticIds) errorCodes.push(`artifact-template-required-semantic-missing:${item}`)
@@ -550,13 +558,13 @@ function qualifyArtifactFile(binding, target, input = {}, options = {}) {
   let descriptor
   try {
     descriptor = fsImpl.openSync(target, 'r')
-    const before = fsImpl.fstatSync(descriptor)
+    const before = fstatSnapshot(fsImpl, descriptor)
     const content = fsImpl.readFileSync(descriptor, 'utf8')
-    const after = fsImpl.fstatSync(descriptor)
+    const after = fstatSnapshot(fsImpl, descriptor)
     let finalStat = null
-    try { finalStat = fsImpl.lstatSync(target) } catch (error) {}
+    try { finalStat = filePathSnapshot(fsImpl, target) } catch (error) {}
     const stableRead = finalStat && before.size <= MAX_ARTIFACT_BYTES && finalStat.size <= MAX_ARTIFACT_BYTES &&
-      sameStableFileSnapshot(stat, before) && sameStableFileSnapshot(before, after) &&
+      before.isFile() && sameStableFileSnapshot(before, after) &&
       sameStableFileSnapshot(after, finalStat) &&
       Buffer.byteLength(content, 'utf8') === after.size
     if (!stableRead) {
@@ -618,8 +626,8 @@ function findArtifactTemplateQualification(value, bindingDigest = null, state = 
 
 function renderArtifactTemplateQualification(value, locale = 'zh-CN') {
   const passed = value?.status === 'qualified' && validateArtifactTemplateQualification(value).valid
-  if (String(locale).toLowerCase().startsWith('zh')) return passed ? '模板资格：通过（已读回）' : '模板资格：阻断（需修正后重试）'
-  return passed ? 'Template qualification: passed (read back).' : 'Template qualification: blocked (revise and retry).'
+  if (String(locale).toLowerCase().startsWith('zh')) return passed ? '模板资格：通过（已读回）' : '模板质量：警告（保留内容并继续补齐；写入结果以回读为准）'
+  return passed ? 'Template qualification: passed (read back).' : 'Template quality: warning; preserve content and continue repairs. Write status comes from readback.'
 }
 
 module.exports = {

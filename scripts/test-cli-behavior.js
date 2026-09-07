@@ -1526,7 +1526,7 @@ function testSharedReadinessReducerMatrix() {
   const noSession = buildDevCodexReadiness({ ...base, currentSessionEvidence: null })
   assert.strictEqual(noSession.sessionFreshness.status, 'UNVERIFIED')
   assert.strictEqual(noSession.hostEvidence.status, 'UNVERIFIED')
-  assert.strictEqual(noSession.nextAction.id, 'start-fresh-host-task')
+  assert.strictEqual(noSession.nextAction.id, 'refresh-current-host-connection')
   const failedActivation = buildDevCodexReadiness({
     ...base,
     activationReceipt: {

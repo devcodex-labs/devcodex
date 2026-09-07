@@ -1,5 +1,7 @@
 'use strict'
 
+const { fstatSnapshot, filePathSnapshot } = require('../hooks/_runtime/file-identity.cjs')
+
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
@@ -203,7 +205,7 @@ function createNodeMemoryFileAdapter(options = {}) {
     : size => crypto.randomBytes(size)
 
   function readDescriptorSnapshot(descriptor, filePath) {
-    const stat = fsImpl.fstatSync(descriptor)
+    const stat = fstatSnapshot(fsImpl, descriptor)
     if (!stat.isFile()) {
       throw new MemoryFileTransactionError('MEMORY_FILE_NOT_REGULAR', `Memory target is not a regular file: ${filePath}`)
     }
@@ -217,7 +219,7 @@ function createNodeMemoryFileAdapter(options = {}) {
     if (bytesRead !== bytes.length) {
       throw new MemoryFileTransactionError(CAS_ERROR_CODE, `Memory target changed during snapshot read: ${filePath}`)
     }
-    const after = fsImpl.fstatSync(descriptor)
+    const after = fstatSnapshot(fsImpl, descriptor)
     const beforeIdentity = fileIdentity(stat)
     const afterIdentity = fileIdentity(after)
     if (!sameFileIdentity(beforeIdentity, afterIdentity) || stat.size !== after.size || stat.mtimeMs !== after.mtimeMs) {
@@ -260,7 +262,7 @@ function createNodeMemoryFileAdapter(options = {}) {
   }
 
   function verifyPathIdentity(filePath, expectedIdentity) {
-    const stat = fsImpl.statSync(filePath)
+    const stat = filePathSnapshot(fsImpl, filePath)
     const observed = fileIdentity(stat)
     if (!sameFileIdentity(expectedIdentity, observed)) {
       throw new MemoryFileTransactionError(CAS_ERROR_CODE, `Memory target identity changed before commit: ${filePath}`, {
@@ -326,7 +328,7 @@ function createNodeMemoryFileAdapter(options = {}) {
         const written = writeAll(descriptor, bytes, 0)
         if (platform !== 'win32' && typeof fsImpl.fchmodSync === 'function') fsImpl.fchmodSync(descriptor, 0o600)
         const fileFlush = flushFile(descriptor)
-        const stat = fsImpl.fstatSync(descriptor)
+        const stat = fstatSnapshot(fsImpl, descriptor)
         const tail = readExact(descriptor, bytes.length, 0)
         if (stat.size !== bytes.length || !tail.equals(bytes)) {
           throw new MemoryFileTransactionError(READBACK_ERROR_CODE, `New Memory file readback failed: ${input.filePath}`)
@@ -371,7 +373,7 @@ function createNodeMemoryFileAdapter(options = {}) {
       verifyPathIdentity(input.filePath, finalObserved.identity)
       const written = writeAll(descriptor, bytes, input.expected.byteSize)
       const fileFlush = flushFile(descriptor)
-      const afterStat = fsImpl.fstatSync(descriptor)
+      const afterStat = fstatSnapshot(fsImpl, descriptor)
       const appended = readExact(descriptor, bytes.length, input.expected.byteSize)
       verifyPathIdentity(input.filePath, fileIdentity(afterStat))
       if (afterStat.size !== input.expected.byteSize + bytes.length || !appended.equals(bytes)) {
@@ -499,7 +501,7 @@ function createNodeMemoryFileAdapter(options = {}) {
         if (typeof fsImpl.fchmodSync === 'function') {
           fsImpl.fchmodSync(descriptor, input.expected.exists ? input.expected.metadata.mode : 0o600)
         }
-        const tempStat = fsImpl.fstatSync(descriptor)
+        const tempStat = fstatSnapshot(fsImpl, descriptor)
         const expectedUid = input.expected.exists ? input.expected.metadata.uid : tempStat.uid
         const expectedGid = input.expected.exists ? input.expected.metadata.gid : tempStat.gid
         if ((tempStat.uid !== expectedUid || tempStat.gid !== expectedGid) && typeof fsImpl.fchownSync === 'function') {

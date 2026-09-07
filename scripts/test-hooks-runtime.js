@@ -2965,6 +2965,10 @@ if (process.argv.includes('--confirmation-persistence')) {
   } finally {
     fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
   }
+} else if (process.argv.includes('--visibility')) {
+  runHooksRuntimeVisibilityScenarios(runtimeScenarioContext)
+  cleanState()
+  process.stdout.write('hooks runtime visibility scenarios passed\n')
 } else if (process.argv.includes('--profile-rendered-identity')) {
   try {
     runProfileRenderedIdentityScenario()

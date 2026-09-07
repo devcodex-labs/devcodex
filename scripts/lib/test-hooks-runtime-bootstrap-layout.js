@@ -334,7 +334,9 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   }, TEMP_ROOT, {
     DEVCODEX_HOST_PLATFORM: 'codex'
   })
-  assert.strictEqual(pendingStop.devcodexCode, 'closure-incomplete')
+  assert.match(JSON.stringify(pendingStop), /closure incomplete|closure reminder/)
+  assert.notStrictEqual(pendingStop.continue, false)
+  assert.strictEqual(pendingStop.devcodexEffective, false)
   assert.notStrictEqual(pendingStop.decision, 'block')
   const pendingAfterStop = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
   assert.strictEqual(

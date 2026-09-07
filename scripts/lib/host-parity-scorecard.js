@@ -117,7 +117,7 @@ const GROK_TURN_EXECUTION_CHECKLIST = Object.freeze([
   { id: 'ttfv-first-delivery', text: 'C16 TimeToFirstValueGate: same visible turn delivers scope card OR first findings/conclusion OR hard block (non-chat)' },
   { id: 'work-and-gates', text: 'Execute workflow gates (CP/ECR as applicable); no skip for missing inject' },
   { id: 'report-memory', text: 'Non-chat: write report + memory (+ ledger when governance hits); chat exempt' },
-  { id: 'honest-ceiling', text: 'Do not claim UserPromptSubmit inject / unconditional Stop hard-block / Grok===Codex bootstrap; Stop is conditional (body present + softCap)' }
+  { id: 'honest-ceiling', text: 'Do not claim UserPromptSubmit inject / forced Stop continuation / Grok===Codex bootstrap; workflow gaps are advisory and pending work remains recoverable' }
 ])
 
 /**

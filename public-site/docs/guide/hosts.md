@@ -52,7 +52,7 @@ DevCodex 按当前呈现面选择打开方式，而不是看到宿主名称就�
 
 ## 常见恢复
 
-- **更新后仍是旧行为**：完全退出并新开会话，再核对版本和 runtime generation。
+- **更新后仍是旧行为**：在原任务核对安装版本与实际加载的 runtime generation；可用时重载连接，没有该能力时保存检查点、继续可执行工作，方便时重载宿主后续办。
 - **Grok 没有完整流程**：确认从 `devcodex grok` 启动，而不是普通 `grok`。
 - **Cursor Cloud 看起来比本地少**：这是已知能力边界，不能用本地 Beta 结果覆盖 Cloud。
 - **项目识别错误**：回到真实项目或 workspace 根运行 status；检查 Profile 和 project overlay。

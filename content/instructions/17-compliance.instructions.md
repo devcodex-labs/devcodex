@@ -2,11 +2,13 @@
 applyTo: "**"
 description: dev 模式合规检查规则，覆盖 FC/SC/RC/T、入口检查与完成验证
 priority: P4
-version: 1.20.0
+version: 1.20.1
 ---
 # 合规检查规则（17-compliance）
 
 > 本文件定义合规检查的完整规则，含 FC/SC/RC/T 四层检查。
+
+检查用于发现问题、补正和准确报告。内部 `BLOCK`、`FORBID`、规模或模板标签只说明对应检查尚未满足，不得投影为宿主 permission deny、Stop 强制续行或整项任务拒绝。缺失的记忆、报告、PI/PF 编号先保留待办内容和失败原因，继续原任务；后续可执行入口补写，写入前不回执虚构编号。完成证据不足时保留 UNVERIFIED，不伪报完成。
 
 ## 模式判断（前置）
 

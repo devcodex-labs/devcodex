@@ -1,5 +1,7 @@
 'use strict'
 
+const { fstatSnapshot, filePathSnapshot } = require('../hooks/_runtime/file-identity.cjs')
+
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
@@ -825,15 +827,15 @@ function observeExistingCpConfirmation(cpCells, sessionsPath, activeRoot, fsImpl
   let bytes
   try {
     descriptor = fsImpl.openSync(candidate, 'r')
-    before = fsImpl.fstatSync(descriptor)
+    before = fstatSnapshot(fsImpl, descriptor)
     bytes = fsImpl.readFileSync(descriptor)
-    after = fsImpl.fstatSync(descriptor)
+    after = fstatSnapshot(fsImpl, descriptor)
   } catch (error) {
     throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', `existing ${phase} artifact is unavailable`, { cause: error.code })
   } finally {
     if (descriptor !== undefined) fsImpl.closeSync(descriptor)
   }
-  const current = fsImpl.lstatSync(candidate)
+  const current = filePathSnapshot(fsImpl, candidate)
   if (!before.isFile() || !current.isFile() || current.isSymbolicLink() || before.size > 8 * 1024 * 1024 || bytes.length !== before.size ||
       !sameStableFileStat(before, after) || !sameStableFileStat(after, current)) {
     throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', `existing ${phase} artifact readback is unstable or unsafe`)
@@ -1937,13 +1939,13 @@ function readStableCanonicalFile(activeRoot, taskRoot, relative, label, fsImpl =
   let descriptor
   try {
     descriptor = fsImpl.openSync(candidate, 'r')
-    const before = fsImpl.fstatSync(descriptor)
+    const before = fstatSnapshot(fsImpl, descriptor)
     if (!before.isFile() || before.size < 1 || before.size > 8 * 1024 * 1024) {
       throw new TaskAdmissionError('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', `${label} is not a bounded regular file`)
     }
     const bytes = fsImpl.readFileSync(descriptor)
-    const after = fsImpl.fstatSync(descriptor)
-    const current = fsImpl.lstatSync(candidate)
+    const after = fstatSnapshot(fsImpl, descriptor)
+    const current = filePathSnapshot(fsImpl, candidate)
     if (!current.isFile() || current.isSymbolicLink() || bytes.length !== after.size ||
         !sameStableFileStat(before, after) || !sameStableFileStat(after, current)) {
       throw new TaskAdmissionError('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', `${label} changed during readback`)
@@ -2008,9 +2010,8 @@ function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = 
       { ...finalizedResumeFailureDetails('FINALIZED_TASK_RESUME_CP_DRIFT'), cause: error.code || error.message }
     )
   }
-  if (!cp.cp1Confirmed || !DIGEST_RE.test(String(cp.cpArtifactDigest || ''))) {
-    throw new TaskAdmissionError('FINALIZED_TASK_RESUME_CP_DRIFT', 'resume requires one digest-bound confirmed CP1 artifact')
-  }
+  // Identity recovery precedes the first CP1 confirmation. Stage consumers
+  // enforce required CP phases; the reader must preserve genuine pending state.
   const storedRevision = options.state?.taskCanonicalRevision || null
   let canonicalRevision
   if (storedRevision) {
@@ -2085,7 +2086,7 @@ function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = 
     canonicalOverviewContent: overviewFile.bytes.toString('utf8'),
     canonicalRevision: clone(canonicalRevision),
     canonicalRevisionDigest: canonicalRevision.revisionDigest,
-    cpConfirmed: true,
+    cpConfirmed: cp.cp1Confirmed,
     cpArtifactDigest: cp.cpArtifactDigest,
     cpChainDigest: cp.cpChainDigest,
     confirmedCpEvidence: clone(cp.confirmedEvidence),
@@ -2765,6 +2766,7 @@ function executeFinalizedTaskResumeV3({
     priorCanonicalRevisionDigest: candidate.canonicalRevisionDigest,
     canonicalRevisionDigest: nextCanonicalRevision.revisionDigest,
     taskIdentityDigest: canonical.taskIdentityDigest,
+    cpConfirmed: canonical.cpConfirmed,
     cpArtifactDigest: canonical.cpArtifactDigest,
     cpChainDigest: canonical.cpChainDigest,
     livenessDigest: candidate.liveness.livenessDigest,
@@ -2807,8 +2809,8 @@ function executeFinalizedTaskResumeV3({
       },
       cpState: {
         ...clone(transaction.effects.cpState),
-        status: 'confirmed',
-        cp1Confirmed: true,
+        status: canonical.cpConfirmed ? 'confirmed' : 'pending',
+        cp1Confirmed: canonical.cpConfirmed,
         cpChainDigest: canonical.cpChainDigest,
         confirmedCpEvidence: clone(canonical.confirmedCpEvidence)
       },
@@ -3068,7 +3070,8 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
   let transition = operation
   if (operation === 'renew') {
     if (currentOwner.status !== 'active' || currentOwner.sessionDigest !== sessionDigest ||
-        currentOwner.projectRootIdentity !== projectRootIdentity || currentOwner.routeRevision !== routeRevision) {
+        currentOwner.projectRootIdentity !== projectRootIdentity ||
+        (currentOwner.routeRevision !== routeRevision && !input.ingressState)) {
       throw new TaskAdmissionError('TASK_WRITE_OWNER_SESSION_MISMATCH', 'only the current exact session/project/route owner may renew or rebind context')
     }
     const priorExpiryMs = Date.parse(currentOwner.expiresAt)
@@ -3076,6 +3079,7 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
     nextOwner = sealOwner({
       ...currentOwner,
       contextEpoch,
+      routeRevision,
       leaseRevision: currentOwner.leaseRevision + 1,
       issuedAt,
       expiresAt: new Date(nextExpiryMs).toISOString()
@@ -3123,6 +3127,8 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
     expectedOwner: ownerRef(currentOwner),
     owner: nextOwner,
     transition,
+    ingressState: input.ingressState,
+    expectedCommitFence: input.expectedCommitFence || ownerRead.state?.taskRecoveryCommitFence,
     transaction,
     expectedAdmissionPhase: 'finalized',
     reason: operation === 'release' ? 'owner-release' : `owner-${operation}`
@@ -3154,13 +3160,13 @@ function readStableEvidenceFile(activeRoot, taskRoot, evidence, fsImpl = fs) {
   let descriptor
   try {
     descriptor = fsImpl.openSync(filePath, 'r')
-    const before = fsImpl.fstatSync(descriptor)
+    const before = fstatSnapshot(fsImpl, descriptor)
     if (!before.isFile() || before.size < 1 || before.size > 8 * 1024 * 1024) {
       throw new TaskAdmissionError('TASK_TERMINAL_EVIDENCE_FILE_INVALID', `${role} evidence is not a bounded regular file`)
     }
     const bytes = fsImpl.readFileSync(descriptor)
-    const after = fsImpl.fstatSync(descriptor)
-    const current = fsImpl.lstatSync(filePath)
+    const after = fstatSnapshot(fsImpl, descriptor)
+    const current = filePathSnapshot(fsImpl, filePath)
     if (!current.isFile() || current.isSymbolicLink() || !sameStableFileStat(before, after) ||
         !sameStableFileStat(after, current) || bytes.length !== after.size) {
       throw new TaskAdmissionError('TASK_TERMINAL_EVIDENCE_FILE_DRIFT', `${role} evidence changed during readback`)

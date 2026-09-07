@@ -3,6 +3,7 @@
 const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
+const { retryTransientWindowsFs } = require('../../hooks/_runtime/windows-fs-retry.cjs')
 const {
   findLayoutInfo,
   normalizeProjectNamespace,
@@ -397,10 +398,12 @@ function atomicReplaceJson(file, value, expectedDigest) {
   fs.writeFileSync(temporary, content, { encoding: 'utf8', flag: 'wx', mode: 0o600 })
   try {
     if (process.platform !== 'win32') fs.chmodSync(temporary, 0o600)
-    if (controlFileDigest(file) !== expectedDigest) {
-      throw tempContractError('WORKSPACE_TEMP_CONTROL_CAS_MISMATCH', file)
-    }
-    fs.renameSync(temporary, file)
+    retryTransientWindowsFs(() => {
+      if (controlFileDigest(file) !== expectedDigest) {
+        throw tempContractError('WORKSPACE_TEMP_CONTROL_CAS_MISMATCH', file)
+      }
+      fs.renameSync(temporary, file)
+    }, { maxAttempts: 80, delayMs: 25 })
     if (controlFileDigest(file) !== crypto.createHash('sha256').update(content).digest('hex')) {
       throw tempContractError('WORKSPACE_TEMP_CONTROL_READBACK_MISMATCH', file)
     }

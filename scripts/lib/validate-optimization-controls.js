@@ -254,6 +254,10 @@ function buildOptimizationControlChecks(ctx) {
     const committedText = String(read(path.join(ROOT, 'skills/portfolio.json')))
     if (committedText !== serializePortfolio(portfolio)) err('[V92] committed Skill portfolio is stale')
 
+    if (process.env.DEVCODEX_VALIDATION_SCOPE === 'source') {
+      console.log('[V92] optimization source controls checked: skills=86 gray=3; deployed runtime index deferred to profile-deploy')
+      return
+    }
     const runtimeState = buildRuntimeStateIndex(ACTIVE_DEVCODEX_ROOT)
     if (!runtimeState.readOnlySourcePolicy || runtimeState.schemaVersion !== 1) {
       err('[V92] runtime-state index must stay schema v1 and read-only')

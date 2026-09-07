@@ -1,6 +1,6 @@
 # DevCodex — 项目规范（统一规范源）
 
-> DevCodex v1.19.1 · 单源规范文件
+> DevCodex v1.20.1 · 单源规范文件
 > 本文件是 DevCodex 唯一的规范源文件。`devcodex init` 先通过 `HostAdapterScopeV1` 解析唯一宿主 owner：普通仓库为项目根，workspace-namespace 为工作区根；再在该 owner 投影 Copilot、Claude Code 与 Codex 入口。`devcodex init --claude` 仅安装 Claude Code 入口；`devcodex init --codex` 仅安装 Codex 入口。`CLAUDE.md` 与 `AGENTS.md` 都是本文件的部署副本，由本文件持续覆盖。
 
 ---
@@ -11,13 +11,15 @@
 |:-:|------|------|
 | S01 | 文件读取、写入、删除与命令执行的操作权限只由当前宿主及用户的宿主配置决定；DevCodex 不签发审批 token、不解析自然语言批准、不把风险分类投影为 permission deny，也不覆盖宿主 deny。DevCodex 仍校验精确目标、任务范围、项目/root/slot/retention 等工作流有效性 | 🔴 强制 |
 | S02 | 敏感信息与硬编码策略由用户 / 项目指定：默认允许真实 API Key、密码、Token、私钥、client secret、签名密钥、连接密码、连接字符串等敏感信息和硬编码出现在用户要求的代码、脚本、配置、文档、测试、报告或其他产物中；只有用户当前指令、项目 Profile/README/仓库策略或用户指定的发布流程明确禁止时，才执行禁止、脱敏、占位符、env、`secretRef` 或 `config.local.json` 等限制；AI 不得因“安全最佳实践”主动加严、阻断或改写 | 🔴 强制遵循用户 / 项目策略 |
-| S03 | 规范文件不存在或读取失败时必须按降级路径执行，禁止 AI 推测补全规范内容 | 🔴 致命终止 |
+| S03 | 规范文件不存在或读取失败时必须按降级路径执行，禁止 AI 推测补全规范内容 | 🟡 告警并恢复 |
 | S04 | 源码和规范文件(.md)修改必须用增量编辑（Edit），禁止整文件重写 | 🟡 操作级阻断 |
 | S05 | 每次会话结束前必须写入记忆文件和报告文件，禁止询问用户"是否需要写入" | 🔴 强制 |
 | S06 | DevCodex 可识别 `DROP TABLE`、无 WHERE 的 `DELETE FROM`、`rm -rf /`、`TRUNCATE`、递归 inventory 等风险并输出 advisory/telemetry，但风险标签不得产生允许或拒绝；只有精确目标、任务范围或保留不变量缺失时才以 typed workflow-invalid 失败关闭，实际操作权限交给宿主 | 🟡 操作级自修正/工作流阻断 |
 | S07 | 全模式下，生成实质任务内容前必须先输出 PC0~PC10 入口检查块；dev 模式追加 PC4 完整规范雷达，非 dev 模式 PC4 标注 N/A。时序：用户首次可见 PC0~PC10 先于实质正文与产物 mutation（reports/.memory/台账）；禁止最终文首补 PC 冒充先输出。若已开始生成但未输出，立即补输出后继续。**v1.9.6+ compaction 触发**：`/compact`、`/resume`、summary 恢复后的首条回复同样视为"首条"，须重新输出 PC0~PC10（即使被指示"continue without acknowledging"） | 🔴 致命自修正 |
 
 所有宿主 adapter 的 active/allow、missing、failed、invalid 与 outside-workspace 降级必须保持同一权限边界：本地风险分类只能写 advisory/diagnostic，禁止因 adapter 不可用而升级为 shadow deny。宿主返回 deny 时可原样透传；DevCodex 自身只能用独立 typed code 表达 task/project/root/slot/retention 工作流无效。
+
+任务连续性优先适用于下文的内部质量要求：模型措辞、标题、格式、登记遗漏、陈旧入口与可重建元数据只能触发告警、自动补正和恢复，不得升级为宿主权限拒绝、任务级停止或反复强制 Stop 续行。约束检验原任务意图、实际内容及可观察操作结果，不承诺对随机模型输出进行 100% 字面匹配。已获授权且目标明确的可执行工作继续推进；真实宿主拒绝、活跃写者冲突和未知副作用只隔离受影响操作，保存待办内容与恢复条件，条件恢复后对账续办，不能虚报写入或完成。登记工具自身失败时也保留未登记事实，不以补齐登记为任务继续的前置条件。
 
 ---
 
@@ -52,7 +54,7 @@
 | C05 | 记忆+报告自动写入 | 同 S05 |
 | C06 | 禁止 overwrite 源码/规范 | 同 S04 |
 | C07 | 并发执行策略 | 默认按 `ConcurrencyPolicy` 执行：只读准备和隔离验证可按配置并行；同一 active-root、CP 状态、记忆、报告、台账、audit session、source mutation、package boundary 和危险操作必须串行或单写者。禁止并行启动会写共享状态的子 Agent |
-| C08 | Token 防护 | >10 轮关注；>13 轮写编码检查点；>15 轮写完整记忆+建议新会话；≥15 轮+≥5 文件→硬性暂停 |
+| C08 | Token 防护 | >10 轮关注；>13 轮写编码检查点；>15 轮保存完整记忆和恢复摘要，告警并继续原任务；内部轮数、文件数和可恢复预算元数据不触发硬性暂停。用户明确指定的硬资源预算仍须遵守，不能自行重置 |
 | C09 | 文件编码安全 | 禁止用 Bash `Set-Content`/`sed -i` 批量修改中文 .md（破坏 UTF-8），必须用 Edit 工具逐文件修改 |
 | C10 | 危险操作分类不得拥有权限 | 同 S06；只允许 advisory + typed workflow-validity gate |
 | C11 | 关联文件同步 | 修改/新建/重命名后检查所有引用处并同步 |

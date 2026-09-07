@@ -49,7 +49,7 @@ function describeGlobalAdapterRefresh(options = {}) {
       nextStepShort: 'devcodex global-adapters apply',
       recommendedEntry: 'devcodex global-adapters apply --dry-run && devcodex global-adapters apply',
       doctorHint:
-        'Refresh from source with `devcodex global-adapters apply` (or `npm install -g .` / pack+tarball) before judging installed health against this candidate.',
+        'Refresh from source with `devcodex global-adapters apply` (or `npm install -g .` / pack+tarball). Verify the current host connection separately; preserve and resume the original task after a supported connection reload.',
       tarballHint
     })
   }
@@ -64,7 +64,7 @@ function describeGlobalAdapterRefresh(options = {}) {
     nextStepInstall: 'Run npm install -g devcodex to create the user-global host receipt.',
     nextStepShort: 'npm update -g devcodex',
     recommendedEntry: 'npm update -g devcodex && devcodex doctor --json',
-    doctorHint: 'Upgrade DevCodex and refresh adapters with `npm update -g devcodex`.',
+    doctorHint: 'Upgrade DevCodex and refresh adapters with `npm update -g devcodex`. Installed files do not prove a running host loaded them; use an available connection reload and resume the original task, or keep a checkpoint until reload is available.',
     tarballHint
   })
 }

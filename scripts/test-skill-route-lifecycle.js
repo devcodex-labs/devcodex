@@ -780,7 +780,7 @@ function readLifecycleState (fixture, sessionId, options = {}) {
       CODEX_THREAD_ID: ordinaryCodexSession,
       CODEX_INTERNAL_ORIGINATOR_OVERRIDE: ''
     })
-    assert.notStrictEqual(ordinaryCodexStop.output.devcodexCode, 'progressive-skill-route')
+    assertOperationAdvisory(ordinaryCodexStop.output, 'ordinary Codex Stop recovery hint')
     assert.notStrictEqual(ordinaryCodexStop.output.decision, 'block')
     const ordinaryCodexAfterStop = readLifecycleState(fixture, ordinaryCodexSession)
     assert.strictEqual(
@@ -849,7 +849,7 @@ function readLifecycleState (fixture, sessionId, options = {}) {
       DEVCODEX_HOST_PLATFORM: 'codex'
     })
     assert.notStrictEqual(recoveryStop.output.decision, 'block')
-    assert.notStrictEqual(recoveryStop.output.devcodexCode, 'progressive-skill-route')
+    assertOperationAdvisory(recoveryStop.output, 'Codex Stop with pending recovery')
     const recoveryAfterStop = readLifecycleState(fixture, recoverySession)
     assert(
       recoveryAfterStop.progressiveSkillRouteEnforcement?.decisions?.Stop,
@@ -1060,7 +1060,13 @@ function readLifecycleState (fixture, sessionId, options = {}) {
     }, {
       DEVCODEX_HOST_PLATFORM: 'grok'
     })
-    assert.strictEqual(preCommitStop.output.devcodexCode, 'progressive-skill-route')
+    assert.strictEqual(preCommitStop.output.devcodexCode, 'progressive-skill-route', JSON.stringify({
+      output: preCommitStop.output,
+      coordinatorError: readLifecycleState(fixture, preCommitSession).progressiveSkillRouteCoordinatorError
+    }))
+    assertOperationAdvisory(preCommitStop.output, 'Stop with multiple recovery reminders')
+    assert.match(preCommitStop.output.systemMessage, /closure reminder|closure incomplete/)
+    assert.strictEqual(preCommitStop.output.hookSpecificOutput.devcodexEffective, false)
     assert.strictEqual(preCommitStop.output.devcodexNextAction.schemaVersion, 'NextActionEnvelopeV1')
     assert.strictEqual(preCommitStop.output.devcodexNextAction.errorCode, 'PLAN_NOT_COMMITTED')
     assert.strictEqual(preCommitStop.output.devcodexNextAction.trigger, 'Stop')

@@ -1,9 +1,9 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要；历史版本见对应详细变更文件。
-> **最新版本详细变更文档**: [`changelogs/releases/v1.20.0.md`](./changelogs/releases/v1.20.0.md)
-> **最后更新**: 2026-09-06
-> **当前版本**: v1.20.0 完成任务连续性、项目 Profile、安全恢复、多语言、可扩展 SkillRoute、宿主原生多 Agent 编排合同与验证收敛架构升级。版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
+> **最新版本详细变更文档**: [`changelogs/releases/v1.20.1.md`](./changelogs/releases/v1.20.1.md)
+> **最后更新**: 2026-09-07
+> **当前版本**: v1.20.1 修复任务写入与恢复连续性，将内部格式和流程质量缺口改为告警与恢复，保留真实写入、宿主权限及操作归属证据。版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
 
 ---
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.20.1](./changelogs/releases/v1.20.1.md) | 2026-09-07 | 修复首次 CP、过期入口和 owner 恢复、Windows 文件身份、记忆追加、报告草稿修补、晚到工具结果与 Stop 连续性；记忆会话可自动补齐，安装与加载状态分开说明 | [查看](./changelogs/releases/v1.20.1.md) |
 | [v1.20.0](./changelogs/releases/v1.20.0.md) | 2026-09-06 | 🚀 **任务连续性与工程控制面升级**：合法 CP 演进可跨会话续代；无 taskId 与异常恢复不再形成永久死锁；项目优先 Profile 与 workspace fallback、多语言连续性、分层 SkillRoute、多 Agent 隔离编排及修复批次收敛进入统一合同；发布采用同一精确制品的两阶段资格化、真实宿主验收与续发 | [查看](./changelogs/releases/v1.20.0.md) |
 | [v1.19.5](./changelogs/releases/v1.19.5.md) | 2026-08-30 | 🚑 **正式任务连续性恢复**：finalized + expired/released owner 可由 fresh resume 原子换代；任务永久、owner 短租约；accepted Stop 停放、同会话重取、跨会话单赢家接管；旧 owner/nonce、活跃 turn/operation、漂移与终态继续失败关闭 | [查看](./changelogs/releases/v1.19.5.md) |
 | [v1.19.4](./changelogs/releases/v1.19.4.md) | 2026-08-29 | 🚑 **自适应流程与跨会话 owner 恢复**：PC0～PC10 与流程/方案/验证四轴决策落地；显式 `init --profile` 接受现存空目录；CI 按影响范围执行；publish/finalize 可恢复；awaiting-owner admission 可在严格身份与真相回读边界内安全换代接管 | [查看](./changelogs/releases/v1.19.4.md) |

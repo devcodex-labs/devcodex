@@ -1,6 +1,6 @@
 {
   "name": "devcodex",
-  "version": "1.20.0",
+  "version": "1.20.1",
   "description": "DevCodex — cross-host AI coding engineering harness for Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok, and Cursor",
   "main": "index.js",
   "bin": {
@@ -72,6 +72,7 @@
     "test:profile-materialization-stage-b": "node scripts/test-profile-materialization-stage-b.js",
     "test:task-recovery": "node scripts/test-task-recovery-store-v5.js",
     "test:task-admission-authority": "node scripts/test-task-admission-authority.js",
+    "test:task-write-continuity": "node scripts/test-task-write-continuity.js",
     "test:runtime-generation-retention": "node scripts/test-runtime-generation-retention.js",
     "test:context-delivery": "node scripts/test-context-delivery-ledger-v2.js",
     "test:checkpoint-validation": "node scripts/test-checkpoint-validation.js",

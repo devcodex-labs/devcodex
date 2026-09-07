@@ -41,9 +41,9 @@ devcodex status
 - 状态把 configured、adapter contract、native probe 与最终 readiness 分开显示，未验证项不会伪装成 ready；
 - 如果出现 `Profile README.md is missing`、adapter 未就绪或契约失败，先执行 `devcodex doctor`，再按[故障排查](/guide/troubleshooting)恢复。
 
-## 4. 新建宿主会话
+## 4. 核对当前宿主连接
 
-完全退出旧会话，再从同一项目目录打开你实际使用的宿主。已经打开的会话不会在中途自动换用新版本。各宿主入口不同；Grok、Cursor Cloud 和 IDE/CLI 差异见[宿主与工作区设置](/guide/hosts)。
+保留原任务，分别核对安装版本与当前连接加载版本。宿主提供可验证的连接重载时使用该通道；没有该能力时保留检查点、继续可执行工作，方便时重载宿主后续办，无需另建任务。各宿主入口不同，见[宿主与工作区设置](/guide/hosts)。
 
 ## 5. 发起第一个任务
 

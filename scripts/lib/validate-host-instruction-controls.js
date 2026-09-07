@@ -105,7 +105,7 @@ function buildHostInstructionControlChecks(ctx) {
       }
     }
     const pluginHookRuntime = String(read(path.join(ROOT, 'grok/plugins/devcodex-workspace/hooks/devcodex-workspace.cjs')))
-    for (const anchor of ['outside-workspace', 'nearest-workspace-layout', 'global-adapter-missing', '../lib/runtime-root.cjs', 'passive-hook-no-context-injection', 'blocking-tool-hook']) {
+    for (const anchor of ['outside-workspace', 'nearest-workspace-layout', 'global-adapter-missing', '../lib/runtime-root.cjs', 'passive-hook-no-context-injection', 'advisory-tool-hook']) {
       if (!pluginHookRuntime.includes(anchor)) err(`[V103] Grok user-global plugin contract missing: ${anchor}`)
     }
     const pluginMcpRuntime = String(read(path.join(ROOT, 'grok/plugins/devcodex-workspace/mcp/workspace-bridge.cjs')))

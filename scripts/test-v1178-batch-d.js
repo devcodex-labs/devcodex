@@ -68,7 +68,8 @@ class MemoryFs {
       uid: directory ? 1000 : entry.uid,
       gid: directory ? 1000 : entry.gid,
       isFile() { return !directory },
-      isDirectory() { return directory }
+      isDirectory() { return directory },
+      isSymbolicLink() { return false }
     }
   }
 
@@ -108,6 +109,10 @@ class MemoryFs {
     const entry = this.files.get(key)
     if (!entry) throw this.error('ENOENT', `missing: ${key}`)
     return this.statFor(entry, false)
+  }
+
+  lstatSync(filePath) {
+    return this.statSync(filePath)
   }
 
   readSync(descriptor, target, targetOffset, length, position) {
@@ -533,7 +538,7 @@ function testPublicSchemaRuntimeParity() {
   const write = tools.find(tool => tool.name === 'memory_session_write')
   const sessionQuery = tools.find(tool => tool.name === 'memory_session_query')
   const summaryQuery = tools.find(tool => tool.name === 'memory_summary_query')
-  assert.deepStrictEqual(write.inputSchema.required, ['content', 'sessionId', 'sessionBinding'])
+  assert.deepStrictEqual(write.inputSchema.required, ['content'])
   assert.strictEqual(sessionQuery.inputSchema.properties.cursor.maxLength, 8192)
   assert.strictEqual(summaryQuery.inputSchema.properties.cursor.maxLength, 8192)
 
@@ -542,7 +547,8 @@ function testPublicSchemaRuntimeParity() {
     arguments: { content: 'must not be written' }
   })
   assert.strictEqual(rejected.isError, true)
-  assert.strictEqual(rejected.structuredContent.errorCode, 'MEMORY_WRITER_ARGUMENT_REQUIRED')
+  assert(['MEMORY_SESSION_BINDING_UNAVAILABLE', 'MEMORY_SCOPE_AMBIGUOUS'].includes(rejected.structuredContent.errorCode),
+    'missing host/project evidence must remain unresolved instead of guessing a session')
 }
 
 testTransactionCasAndAppendAmplification()

@@ -249,8 +249,10 @@ function validateWorkflowRouteDecision (decision, options = {}) {
   try { registry = registryFromOptions(options) } catch (error) {
     return { valid: false, errors: [error.code || 'registry-invalid'] }
   }
-  if (!Object.keys(decision).every(key => DECISION_FIELDS.includes(key)) ||
-      !DECISION_FIELDS.every(key => Object.prototype.hasOwnProperty.call(decision, key))) errors.push('decision-fields')
+  if (!DECISION_FIELDS.every(key => Object.prototype.hasOwnProperty.call(decision, key))) {
+    return { valid: false, errors: ['decision-fields'] }
+  }
+  if (!Object.keys(decision).every(key => DECISION_FIELDS.includes(key))) errors.push('decision-fields')
   if (decision.schemaVersion !== WORKFLOW_ROUTE_DECISION_SCHEMA) errors.push('schema-version')
   if (!['selected', 'retired'].includes(decision.decisionStatus)) errors.push('decision-status')
   if (!ENVIRONMENT_MODES.has(decision.environmentMode)) errors.push('environment-mode')

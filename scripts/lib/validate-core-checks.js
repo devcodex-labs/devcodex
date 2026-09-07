@@ -217,15 +217,15 @@ function buildValidateCoreChecks(ctx) {
           { hookEventName: 'PreCompact', assistantMessage: 'progress' },
           { CODEX_HOME: '1', DEVCODEX_HOOK_ENFORCEMENT: 'strict' }
         )
-        if (precompact.continue !== false || precompact.hookSpecificOutput?.decision) {
-          err('[V7] Codex PreCompact contract probe failed: expected continue:false without nested hookSpecificOutput.decision')
+        if (precompact.continue === false || precompact.decision === 'block' || precompact.hookSpecificOutput?.decision) {
+          err('[V7] Codex PreCompact contract probe failed: internal quality gaps must warn and preserve continuation')
         }
         const stop = runHook(
           { hookEventName: 'Stop', assistantMessage: 'done' },
           { CODEX_HOME: '1', DEVCODEX_HOOK_ENFORCEMENT: 'strict' }
         )
-        if (stop.decision !== 'block' || stop.hookSpecificOutput?.decision) {
-          err('[V7] Codex Stop contract probe failed: expected top-level decision:block without nested hookSpecificOutput.decision')
+        if (stop.decision === 'block' || stop.continue === false || stop.hookSpecificOutput?.decision) {
+          err('[V7] Codex Stop contract probe failed: internal quality gaps must not force another turn')
         }
       } finally {
         fs.rmSync(tmp, { recursive: true, force: true })

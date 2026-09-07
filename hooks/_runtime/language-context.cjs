@@ -32,6 +32,7 @@ function normalizeLanguageTag(value) {
 
 function maskQuotedLanguageExamples(text) {
   return String(text || '')
+    .replace(/^\s*>[^\r\n]*/gm, match => ' '.repeat(match.length))
     .replace(/```[\s\S]*?```/g, match => ' '.repeat(match.length))
     .replace(/`[^`\r\n]*`/g, match => ' '.repeat(match.length))
     .replace(/[“\"][^”\"\r\n]*[”\"]/g, match => ' '.repeat(match.length))
@@ -59,6 +60,11 @@ function explicitLanguage(text) {
     ['ar', /(?:用|使用|改用|切换(?:为|到)?|回复|回答|输出)\s*(?:阿拉伯文|阿拉伯语)|(?:respond|reply|write|output)(?:\s+to\s+me)?\s+in\s+(?:arabic|ar)/giu]
   ]
   const candidates = []
+  for (const match of value.matchAll(/(中文|汉语|英文|英语|日文|日语|韩文|韩语|俄文|俄语|阿拉伯文|阿拉伯语)\s*(?:回答|回复|沟通|交流|输出)/gu)) {
+    const locale = /中文|汉语/.test(match[1]) ? 'zh-CN' : /英文|英语/.test(match[1]) ? 'en-US'
+      : /日文|日语/.test(match[1]) ? 'ja' : /韩文|韩语/.test(match[1]) ? 'ko' : /俄文|俄语/.test(match[1]) ? 'ru' : 'ar'
+    if (!directiveIsNegatedOrDiscussed(value, match.index)) candidates.push({ locale, index: match.index })
+  }
   for (const [locale, pattern] of definitions) {
     for (const match of value.matchAll(pattern)) {
       if (!directiveIsNegatedOrDiscussed(value, match.index)) candidates.push({ locale, index: match.index })
@@ -190,7 +196,7 @@ function resolveLanguagePreference(input = {}) {
 }
 
 function persistentLanguageOverride(text) {
-  const value = String(text || '')
+  const value = maskQuotedLanguageExamples(text)
   return /(?:本任务|这个任务|当前任务|后续|以后|接下来|始终|一直).{0,20}(?:用|使用|回复|回答|输出)|(?:from\s+now\s+on|for\s+this\s+task|throughout\s+this\s+task|always).{0,30}(?:respond|reply|write|output)/i.test(value)
 }
 
@@ -291,7 +297,7 @@ function resolveLanguageContext(input = {}) {
   const prompt = String(input.prompt || '')
   const currentTurnClass = classifyLanguageTurn(prompt)
   const explicit = currentTurnClass === 'explicit-switch'
-    ? explicitLanguage(input.explicitLanguage || prompt)
+    ? explicitLanguage(prompt)
     : ''
   const preference = resolveLanguagePreference({
     workspacePreference: input.workspacePreference,
@@ -304,6 +310,9 @@ function resolveLanguageContext(input = {}) {
   const conversationPrimary = primaryFromContext(conversationContext)
   const priorDurable = taskPrimary || conversationPrimary
   const persistentOverride = Boolean(explicit && persistentLanguageOverride(prompt))
+  const substantiveLanguage = currentTurnClass === 'substantive'
+    ? languageFromText(maskQuotedLanguageExamples(prompt))
+    : ''
 
   let responseLanguage = ''
   let source = ''
@@ -342,6 +351,18 @@ function resolveLanguageContext(input = {}) {
     durableProvisional = false
     durableSource = preference.source
     durableConfidence = 'high'
+  } else if (priorDurable && durableSource === 'explicit-task-persistent') {
+    responseLanguage = priorDurable
+    source = 'explicit-task-persistent'
+    confidence = 'high'
+  } else if (substantiveLanguage) {
+    responseLanguage = substantiveLanguage
+    durablePrimaryLocale = responseLanguage
+    durableProvisional = false
+    durableSource = priorDurable ? 'current-substantive-user-message' : 'first-substantive-user-message'
+    durableConfidence = 'high'
+    source = durableSource
+    confidence = 'high'
   } else if (taskPrimary) {
     responseLanguage = taskPrimary
     source = 'task-primary-language'

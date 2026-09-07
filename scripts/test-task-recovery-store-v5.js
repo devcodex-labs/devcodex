@@ -71,7 +71,8 @@ const {
   markTaskOperationObserved,
   prepareTaskOperationRecord,
   settleTaskOperationRecord,
-  taskOperationTargetSetDigest
+  taskOperationTargetSetDigest,
+  taskOperationTerminalSnapshot
 } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-task-recovery-v5-'))
@@ -2201,6 +2202,26 @@ try {
 
   runTasklessIngressRecoveryScenario()
 
+  const observedUnknown = mutationStateV2Ephemeral('observed-unknown-after-recovery')
+  observedUnknown.turnLiveness = markTaskOperationObserved(observedUnknown.turnLiveness,
+    'observed-unknown-after-recovery', { resultDigest: 'b'.repeat(64) }, baseOptions)
+  observedUnknown.turnLiveness = settleTaskOperationRecord(observedUnknown.turnLiveness,
+    'observed-unknown-after-recovery', {}, baseOptions)
+  observedUnknown.turnLiveness.inFlightOperation = null
+  const observedMeta = path.join(tempRoot, 'observed-unknown-hooks')
+  assert.strictEqual(commitTaskRecoveryState({
+    metaDir: observedMeta, identity: { activeRoot, project: 'devcodex' },
+    sessionKey: 'observed-unknown-session', state: observedUnknown
+  }, baseOptions).status, 'ephemeral-stub')
+  const observedRecovered = readTaskRecoveryState({
+    metaDir: observedMeta, sessionKey: 'observed-unknown-session',
+    expectedIdentity: { activeRoot, project: 'devcodex' }
+  }, baseOptions)
+  assert.strictEqual(observedRecovered.status, 'ephemeral-stub')
+  assert.deepStrictEqual(observedRecovered.state.turnLiveness.taskOperationSet,
+    observedUnknown.turnLiveness.taskOperationSet, 'unresolved effects must survive actual fixed-ring write/read after inFlight clears')
+  assert.strictEqual(taskOperationTerminalSnapshot(observedRecovered.state.turnLiveness).terminalReady, false)
+
   const ephemeralMeta = path.join(tempRoot, 'ephemeral-hooks')
   const ephemeralState = state('ephemeral')
   ephemeralState.taskRecoveryBinding = null
@@ -2672,7 +2693,7 @@ try {
 
   const resumeCapabilityRoot = path.join(resumeCapabilityMeta, 'resume-ingress')
   const resumeCapabilityFile = fs.readdirSync(resumeCapabilityRoot)
-    .find(name => /^[a-f0-9]{64}\.json$/.test(name))
+    .find(name => /^resume-ingress-[a-f0-9]{40}\.json$/.test(name))
   assert(resumeCapabilityFile)
   const writerLock = path.join(resumeCapabilityRoot, '.writer.lock')
   fs.writeFileSync(writerLock, `${JSON.stringify({

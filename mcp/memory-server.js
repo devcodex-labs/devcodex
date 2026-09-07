@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 'use strict'
 
+const { fstatSnapshot, filePathSnapshot } = require('../hooks/_runtime/file-identity.cjs')
+
 /**
  * DevCodex MCP Memory Server — local stdio process (deployed to .claude/mcp/; needs .claude/scripts/lib deps)
  *
@@ -99,6 +101,7 @@ const {
   recordContextReadOutcome
 } = require('../hooks/_runtime/context-read-contract.cjs')
 const { buildJsonContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
+const { taskOperationTerminalSnapshot } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 const {
   authorizeContextRead,
   readMcpContextSourceObservations,
@@ -264,7 +267,7 @@ const EXPLICIT_RUNTIME_AGENT = normalizeAgent(process.env.DEVCODEX_AGENT)
 const DEFAULT_AGENT = detectRuntimeAgent()
 const TASK_KINDS = new Set(['requirements', 'bugs', 'optimizations', 'scenario-tests'])
 const MAX_MEMORY_SESSION_WRITE_CHARS = 262144
-const MEMORY_SESSION_WRITE_REQUIRED_FIELDS = Object.freeze(['content', 'sessionId', 'sessionBinding'])
+const MEMORY_SESSION_WRITE_REQUIRED_FIELDS = Object.freeze(['content'])
 const MEMORY_SOURCE_MAX_BYTES = 8 * 1024 * 1024
 const WORKSPACE_CONTEXT_PROJECT = '__workspace__'
 const PROJECT_NAMESPACE_INPUT_SCHEMA = Object.freeze({
@@ -374,6 +377,7 @@ const TOOLS = [
       additionalProperties: false,
       required: ['operation', 'task', 'overview'],
       oneOf: [
+        { not: { anyOf: [{ required: ['ingressRef'] }, { required: ['resumeContextBinding'] }] } },
         { required: ['ingressRef'], not: { required: ['resumeContextBinding'] } },
         { required: ['resumeContextBinding'], not: { required: ['ingressRef'] } }
       ],
@@ -399,14 +403,13 @@ const TOOLS = [
         task: {
           type: 'object',
           additionalProperties: false,
-          required: ['taskKind', 'entryVariant'],
           properties: {
-            taskId: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$', description: 'adopt/bind 必填；admit 禁止传入' },
+            taskId: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$', description: 'adopt/bind 可从当前宿主的唯一任务补齐；admit 禁止传入' },
             displayName: { type: 'string', minLength: 1, maxLength: 160, description: 'admit 必填；新目录保留合法显示名' },
             aliases: { type: 'array', maxItems: 32, items: { type: 'string', minLength: 1, maxLength: 300 } },
             taskKind: { type: 'string', enum: ['requirements', 'bugs', 'optimizations', 'scenario-tests'] },
             entryVariant: { type: 'string', enum: ['new', 'product-provided', 'change', 'fix', 'continue', 'reopen'] },
-            taskRootRelative: { type: 'string', minLength: 3, maxLength: 320, description: 'adopt/bind 必填；必须为 <taskKind>/<single-segment>' }
+            taskRootRelative: { type: 'string', minLength: 3, maxLength: 320, description: 'adopt/bind 可从精确任务补齐；必须为 <taskKind>/<single-segment>' }
           }
         },
         overview: {
@@ -427,7 +430,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       additionalProperties: false,
-      required: ['operation', 'ingressRef', 'taskId', 'admissionId'],
+      required: ['operation', 'taskId', 'admissionId'],
       properties: {
         operation: { type: 'string', enum: ['acquire', 'renew', 'release', 'handoff-prepare', 'handoff-accept', 'takeover-prepare', 'takeover-accept', 'reopen'] },
         project: PROJECT_NAMESPACE_INPUT_SCHEMA,
@@ -483,7 +486,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       additionalProperties: false,
-      required: ['ingressRef', 'operation', 'targets'],
+      required: ['operation', 'targets'],
       properties: {
         project: PROJECT_NAMESPACE_INPUT_SCHEMA,
         ingressRef: WORKFLOW_INGRESS_REF_SCHEMA,
@@ -560,7 +563,7 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       additionalProperties: false,
-      required: ['ingressRef', 'operationId', 'expectedCloseoutDigest', 'resolution'],
+      required: ['operationId', 'expectedCloseoutDigest', 'resolution'],
       properties: {
         project: PROJECT_NAMESPACE_INPUT_SCHEMA,
         scope: { type: 'string', enum: ['project'] },
@@ -799,10 +802,18 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       additionalProperties: false,
-      required: ['row'],
+      oneOf: [{ required: ['row'] }, { required: ['entry'] }],
       properties: {
         agent: { type: 'string' },
         row: { type: 'string', description: 'Markdown 表格行' },
+        entry: {
+          type: 'object', required: ['summary', 'status'], additionalProperties: false,
+          properties: {
+            summary: { type: 'string' }, status: { type: 'string', enum: ['active', 'completed', 'blocked'] },
+            type: { type: 'string' }, sessionId: { type: 'string' }, date: { type: 'string' }
+          },
+          description: '结构化事实；运行时构造表格行并恢复当前会话，不要求模型拼接列。'
+        },
         reportArtifact: SUMMARY_ARTIFACT_DESCRIPTOR_SCHEMA,
         memoryArtifact: SUMMARY_ARTIFACT_DESCRIPTOR_SCHEMA,
         scope: { type: 'string', enum: ['project', 'workspace'], description: '写入域' },
@@ -1363,7 +1374,7 @@ function qualifyCpConfirmationArtifact({ target, taskKind, phase, candidate, art
   }
   const qualification = qualifyArtifactFile(binding, candidate, { slotId: slot.slotId }, { fs })
   const validation = validateArtifactTemplateQualification(qualification, binding)
-  const valid = validation.valid && qualification.status === 'qualified' &&
+  const valid = validation.valid &&
     qualification.readbackVerified === true && qualification.artifactDigest
   if (!valid) {
     const issues = [...new Set([
@@ -1393,7 +1404,7 @@ function qualifyCpConfirmationArtifact({ target, taskKind, phase, candidate, art
 
 function assertMemoryTemplateQualification(qualification, phase) {
   const validation = validateArtifactTemplateQualification(qualification)
-  if (!validation.valid || qualification.status !== 'qualified' || (phase === 'readback' && qualification.readbackVerified !== true)) {
+  if (!validation.valid || (phase === 'readback' && qualification.readbackVerified !== true)) {
     const reasons = [...new Set([...validation.errors, ...(qualification?.errorCodes || [])])]
     const error = memoryQueryError(
       `Memory artifact template qualification failed during ${phase}: ${reasons.join(', ') || 'unknown qualification error'}.`,
@@ -1635,7 +1646,7 @@ const MEMORY_ARTIFACT_LINK_PROJECT_FIELDS = new Set([
   'operation', 'documentPath', 'artifacts', 'linkCapability', 'scope', 'project'
 ])
 const MEMORY_SUMMARY_APPEND_FIELDS = new Set([
-  'agent', 'scope', 'project', 'row', 'reportArtifact', 'memoryArtifact'
+  'agent', 'scope', 'project', 'row', 'entry', 'reportArtifact', 'memoryArtifact'
 ])
 
 function memorySessionBindingMarker(sessionId, sessionBinding) {
@@ -1706,6 +1717,7 @@ function parseDailySessionBlocks(content) {
       end,
       raw,
       binding: bindings[0] || null,
+      ownerKey: raw.match(/<!--\s*devcodex:memory-session-owner\s+v1\s+key=([a-f0-9]{64})\s*-->/)?.[1] || null,
       digest: fileDigest(raw)
     }
   })
@@ -1740,6 +1752,34 @@ function normalizeMemorySessionWriteBinding(args) {
     sessionId,
     sessionBinding: hasSessionBinding ? String(args.sessionBinding) : null
   }
+}
+
+function currentMemorySessionOwnerKey(target) {
+  let state = {}
+  try { state = readServerOwnedLifecycleProjection(target).state || {} } catch { }
+  const hostSessionId = process.env.DEVCODEX_HOST_SESSION_ID || state.contextAcquisition?.hostSessionId ||
+    state.contextAcquisition?.receipt?.identity?.hostSessionId
+  if (!hostSessionId) return null
+  const observedSession = state.contextAcquisition?.hostSessionId || state.contextAcquisition?.receipt?.identity?.hostSessionId
+  return fileDigest(JSON.stringify([String(hostSessionId), observedSession === hostSessionId ? state.taskRecoveryBinding?.taskId || null : null]))
+}
+
+function recoverMemorySessionWriteBinding(args, target) {
+  if (args.sessionId != null && args.sessionBinding != null) return normalizeMemorySessionWriteBinding(args)
+  const ownerKey = currentMemorySessionOwnerKey(target)
+  const p = memoryClientPath(target, 'tasks', `${args.date || today()}.md`)
+  const blocks = parseDailySessionBlocks(readFile(p))
+  const matches = blocks.filter(block => block.binding &&
+    (args.sessionBinding ? block.binding === args.sessionBinding : ownerKey && block.ownerKey === ownerKey) &&
+    (args.sessionId == null || block.sessionId === normalizeSessionId(args.sessionId)))
+  if (matches.length === 1) return { sessionId: matches[0].sessionId, sessionBinding: matches[0].binding }
+  if (args.sessionId != null || args.sessionBinding != null || !ownerKey || matches.length > 1) {
+    throw memoryQueryError('The exact current memory session cannot be recovered from observed evidence.',
+      'Preserve this content and continue the task; retry the memory write after allocation is available.',
+      'MEMORY_SESSION_BINDING_UNAVAILABLE')
+  }
+  const allocation = handleMemorySessionAllocate({ agent: args.agent, scope: args.scope, project: args.project, date: args.date })
+  return { sessionId: allocation.structuredContent.sessionId, sessionBinding: allocation.structuredContent.sessionBinding }
 }
 
 function validateMemoryWriterArgs(args, allowedFields, toolName, requiredFields = []) {
@@ -3358,8 +3398,8 @@ function handleMemorySessionWrite(args) {
     )
   }
   validateDate(args.date)
-  const binding = normalizeMemorySessionWriteBinding(args)
   const target = resolveMemoryTarget(args)
+  const binding = recoverMemorySessionWriteBinding(args, target)
   const p = memoryClientPath(target, 'tasks', `${args.date || today()}.md`)
   const documentPath = relativeToActiveRoot(target, p)
   let artifactLinks = null
@@ -3448,8 +3488,17 @@ function handleMemorySessionAllocate(args) {
   const p = memoryClientPath(target, 'tasks', `${input.date}.md`)
   const templateContext = createMemoryTemplateContext(target, memoryTemplateLogicalTarget('session', args))
   let allocatedId = null
-  const sessionBinding = crypto.randomBytes(32).toString('hex')
+  let sessionBinding = crypto.randomBytes(32).toString('hex')
+  const ownerKey = currentMemorySessionOwnerKey(target)
   const receipt = withMemoryTransaction(target, p, existing => {
+    const prior = ownerKey ? parseDailySessionBlocks(existing).filter(block => block.ownerKey === ownerKey && block.binding) : []
+    if (prior.length === 1) {
+      allocatedId = prior[0].sessionId
+      sessionBinding = prior[0].binding
+      return { content: existing, appendText: '' }
+    }
+    if (prior.length > 1) throw memoryQueryError('Multiple current memory sessions need reconciliation.',
+      'Keep the content recoverable and continue the original task.', 'MEMORY_SESSION_AMBIGUOUS')
     const maxId = Math.max(0, ...parseExistingSessionNumbers(existing))
     allocatedId = formatSessionId(maxId + 1)
     const title = normalizeMemoryAllocationLine(input.title, '未命名任务', 'title', 160)
@@ -3474,6 +3523,7 @@ function handleMemorySessionAllocate(args) {
       '- **状态**：🔄 reserved / awaiting content',
       `- **sourceMessage**：${sourceMessage}`,
       memorySessionBindingMarker(allocatedId, sessionBinding),
+      ...(ownerKey ? [`<!-- devcodex:memory-session-owner v1 key=${ownerKey} -->`] : []),
       '',
       '### 🎯 任务摘要',
       '',
@@ -3779,7 +3829,7 @@ function checkpointEpochAuthority(state) {
   }
 }
 
-function cpEpochRecoveryContext({ target, taskDir, identity }) {
+function cpEpochRecoveryContext({ target, taskDir, identity, recoverOwner = true }) {
   if (!identity || identity.schemaVersion !== 'TaskIdentityV2') return null
   const taskId = String(identity.taskId || '').trim().toLowerCase()
   const recoveryIdentity = {
@@ -3821,6 +3871,14 @@ function cpEpochRecoveryContext({ target, taskDir, identity }) {
     )
   }
   const owner = state.fencedWriteOwner
+  if (recoverOwner && owner?.taskId === taskId && owner.projectRootIdentity === transaction.projectRootIdentityDigest &&
+      ((owner.status === 'active' && Date.parse(String(owner.expiresAt || '')) <= Date.now()) || owner.status === 'released')) {
+    handleMemoryTaskWriteOwner({ scope: 'project', project: target.project,
+      operation: owner.status === 'released' ? 'acquire' : 'renew', taskId, admissionId: transaction.admissionId,
+      expectedOwner: { ownerGeneration: owner.ownerGeneration, ownerNonce: owner.ownerNonce,
+        leaseRevision: owner.leaseRevision, leaseDigest: owner.leaseDigest } })
+    return cpEpochRecoveryContext({ target, taskDir, identity, recoverOwner: false })
+  }
   if (!owner || owner.status !== 'active' || Date.parse(String(owner.expiresAt || '')) <= Date.now() ||
       owner.taskId !== taskId || owner.projectRootIdentity !== transaction.projectRootIdentityDigest) {
     throw memoryQueryError(
@@ -4271,7 +4329,7 @@ function handleMemoryCpConfirm(args) {
     const descriptor = fs.openSync(candidate, 'r')
     let actual
     try {
-      const descriptorStat = fs.fstatSync(descriptor)
+      const descriptorStat = fstatSnapshot(fs, descriptor)
       if (!descriptorStat.isFile()) {
         throw new Error(`ConfirmBindingGate: artifactPath is not a regular file: ${artifactPath}`)
       }
@@ -4286,7 +4344,7 @@ function handleMemoryCpConfirm(args) {
         if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
           throw new Error(`ConfirmBindingGate: artifactPath escaped its task root during verification: ${artifactPath}`)
         }
-        const currentStat = fs.statSync(currentPath)
+        const currentStat = filePathSnapshot(fs, currentPath)
         if (!currentStat.isFile() || String(currentStat.dev) !== String(descriptorStat.dev) ||
             String(currentStat.ino) !== String(descriptorStat.ino)) {
           throw new Error(`ConfirmBindingGate: artifactPath identity changed during verification: ${artifactPath}`)
@@ -4345,6 +4403,13 @@ function handleMemoryCpConfirm(args) {
 
   if (hasDigest) {
     const taskDir = path.dirname(path.dirname(p))
+    const predecessor = args.phase === 'CP2' ? 'CP1' : (args.phase === 'CP3' ? 'CP2' : null)
+    if (predecessor && readCpFormalTaskIdentity(taskDir)?.schemaVersion === 'TaskIdentityV2' &&
+        !parseCpTableRows(readFile(p))[predecessor]?.confirmed) {
+      throw memoryQueryError(`Confirmed ${args.phase} requires confirmed ${predecessor}.`,
+        'Persist the already-authorized predecessor first, then continue this checkpoint.',
+        'CHECKPOINT_EPOCH_CP_PREDECESSOR_MISSING')
+    }
     autoCheckpoint = prepareCpAutoCheckpointDecision({
       args,
       target,
@@ -4556,7 +4621,24 @@ function handleMemorySummaryRead(args) {
 }
 
 function handleMemorySummaryAppend(args) {
-  validateMemoryWriterArgs(args, MEMORY_SUMMARY_APPEND_FIELDS, 'memory_summary_append', ['row'])
+  validateMemoryWriterArgs(args, MEMORY_SUMMARY_APPEND_FIELDS, 'memory_summary_append')
+  if (args.entry && args.row) throw memoryQueryError('Pass either a structured entry or a legacy row, not both.')
+  if (args.entry) {
+    const entry = args.entry
+    if (!entry || typeof entry !== 'object' || typeof entry.summary !== 'string' || !entry.summary.trim() ||
+        !['active', 'completed', 'blocked'].includes(entry.status)) throw memoryQueryError('A summary and actual status are required.')
+    const target = resolveMemoryTarget(args)
+    let type = entry.type
+    if (!type) {
+      try { type = readServerOwnedLifecycleProjection(target).state.workflowRouteDecision?.topIntent } catch { }
+    }
+    if (!type) throw memoryQueryError('The workflow type is not observed; supply entry.type without inventing a default.')
+    const date = String(entry.date || today()).replace(/-/g, '')
+    validateDate(date)
+    const sessionId = entry.sessionId || recoverMemorySessionWriteBinding({ ...args, date }, target).sessionId
+    const day = `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`
+    args = { ...args, row: `| ${[day, sessionId, type, entry.summary, '—', '—', entry.status].map(escapeSummaryCell).join(' | ')} |` }
+  }
   if (!args.row) throw new Error('row is required')
   if (typeof args.row !== 'string' || args.row !== args.row.trim() || /[\r\n]/.test(args.row)) {
     throw memoryQueryError('Invalid SUMMARY row: pass one trimmed Markdown table row.')
@@ -4850,16 +4932,16 @@ function readServerOwnedLifecycleProjection(target) {
   let after
   try {
     descriptor = fs.openSync(statePath, 'r')
-    before = fs.fstatSync(descriptor)
+    before = fstatSnapshot(fs, descriptor)
     if (!before.isFile() || before.size <= 0 || before.size > 2 * 1024 * 1024) {
       throw taskAdmissionIngressError('TASK_ADMISSION_INGRESS_STATE_INVALID', 'lifecycle projection size or type is invalid')
     }
     raw = fs.readFileSync(descriptor, 'utf8')
-    after = fs.fstatSync(descriptor)
+    after = fstatSnapshot(fs, descriptor)
   } finally {
     if (descriptor !== undefined) fs.closeSync(descriptor)
   }
-  const current = fs.lstatSync(statePath)
+  const current = filePathSnapshot(fs, statePath)
   if (!current.isFile() || current.isSymbolicLink() || !sameStableFileStat(before, after) ||
       !sameStableFileStat(after, current) || Buffer.byteLength(raw, 'utf8') !== after.size) {
     throw taskAdmissionIngressError('TASK_ADMISSION_INGRESS_STATE_DRIFT', 'lifecycle projection changed during authority readback')
@@ -4914,6 +4996,9 @@ function verifiedResumeLifecycleContext(target, binding) {
   const projectTargetLeasePresent = !!(
     projectTargetLease && typeof projectTargetLease === 'object' && Object.keys(projectTargetLease).length
   )
+  if (envelope.hostSessionDigest && envelope.hostSessionDigest !== hostSessionDigest) {
+    return { status: 'invalid', reasonCode: 'lifecycle-host-session-mismatch' }
+  }
   if (!envelopePresent && !workItemSetPresent && !routeDecisionPresent && !projectTargetLeasePresent) {
     return {
       status: 'context-only',
@@ -4928,7 +5013,8 @@ function verifiedResumeLifecycleContext(target, binding) {
       workItemSet.envelopeId !== envelope.envelopeId || workItemSet.envelopeDigest !== envelope.envelopeDigest ||
       routeDecision.envelopeId !== envelope.envelopeId || routeDecision.envelopeDigest !== envelope.envelopeDigest ||
       routeDecision.topIntent !== 'resume' || routeDecision.routeKey !== 'resume' || routeDecision.stage !== 'rehydrate') {
-    return { status: 'invalid', reasonCode: 'lifecycle-host-session-mismatch' }
+    return { status: 'context-only', reasonCode: 'lifecycle-ingress-rebuild-required',
+      hostSessionId, hostSessionDigest, projectTargetLease: null }
   }
   const envelopeValidation = validateActualInstructionEnvelope(envelope)
   const workItemValidation = validateWorkItemSet(workItemSet, envelope)
@@ -4943,8 +5029,9 @@ function verifiedResumeLifecycleContext(target, binding) {
       envelope.authorityScope !== 'trusted-host-workflow-ingress' || !workItemValidation.valid ||
       !routeValidation.fresh || routeDecision.decisionStatus !== 'selected') {
     return {
-      status: 'invalid',
-      reasonCode: 'lifecycle-trusted-ingress-invalid',
+      status: 'context-only',
+      reasonCode: 'lifecycle-ingress-rebuild-required',
+      hostSessionId, hostSessionDigest, projectTargetLease: null,
       errors: [...new Set([...envelopeValidation.errors, ...workItemValidation.errors, ...routeValidation.errors])]
     }
   }
@@ -4998,7 +5085,22 @@ function verifiedResumeLifecycleContext(target, binding) {
 }
 
 function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
-  const ref = ingressRef && typeof ingressRef === 'object' && !Array.isArray(ingressRef) ? ingressRef : null
+  let ref = ingressRef && typeof ingressRef === 'object' && !Array.isArray(ingressRef) ? ingressRef : null
+  if (!ref) {
+    const { state } = readServerOwnedLifecycleProjection(target)
+    const envelope = state?.actualInstructionEnvelope
+    const route = state?.workflowRouteDecision
+    const observedSession = process.env.DEVCODEX_HOST_SESSION_ID || state?.contextAcquisition?.hostSessionId
+    if (observedSession && envelope?.hostSessionDigest &&
+        crypto.createHash('sha256').update(observedSession).digest('hex') !== envelope.hostSessionDigest) {
+      throw taskAdmissionIngressError('TASK_ADMISSION_HOST_SESSION_MISMATCH', 'current host session does not match the observed ingress')
+    }
+    ref = {
+      schemaVersion: 'WorkflowIngressProjectionRefV1',
+      envelopeId: envelope?.envelopeId, envelopeDigest: envelope?.envelopeDigest,
+      decisionDigest: route?.decisionDigest, routeRevision: route?.routeRevision
+    }
+  }
   const digestPattern = /^[a-f0-9]{64}$/
   if (!ref || ref.schemaVersion !== 'WorkflowIngressProjectionRefV1' ||
       !/^aie-[a-f0-9]{40}$/.test(String(ref.envelopeId || '')) ||
@@ -5020,7 +5122,8 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
     metaDir: ingressMetaDir,
     ingressRef: ref,
     project: target.project,
-    activeRoot: target.activeRoot
+    activeRoot: target.activeRoot,
+    taskId: options.taskId || readServerOwnedLifecycleProjection(target).state?.taskRecoveryBinding?.taskId
   }, { fs, nowMs: Date.now(), requireAuthority: true })
   if (resumeRead.status === 'fresh' && resumeRead.authority === true) {
     const candidate = resumeRead.candidate
@@ -5062,13 +5165,8 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
       }
     }
   }
-  if (!['missing'].includes(resumeRead.status)) {
-    throw taskAdmissionIngressError(
-      resumeRead.errorCode || 'BOUNDED_RESUME_INGRESS_UNAVAILABLE',
-      'the bounded resume ingress exists but is not authorized by the current V5 admission and owner',
-      { resume: resumeRead }
-    )
-  }
+  // A preparation record cannot shadow committed ingress. Its failure remains
+  // diagnostic; snapshots and the current trusted projection are independent.
   const snapshotRead = options.allowSnapshot === true
     ? readAdmissionIngressSnapshot({
         metaDir: ingressMetaDir,
@@ -5112,13 +5210,6 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
         snapshotKey: snapshot.snapshotKey
       }
     }
-  }
-  if (!['missing'].includes(snapshotRead.status)) {
-    throw taskAdmissionIngressError(
-      `TASK_ADMISSION_CONTINUATION_${String(snapshotRead.status || 'invalid').toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`,
-      'the exact immutable admission ingress snapshot is unavailable or invalid',
-      { snapshot: snapshotRead }
-    )
   }
   const { state, statePath, raw } = readServerOwnedLifecycleProjection(target)
   const envelope = state?.actualInstructionEnvelope
@@ -5168,6 +5259,7 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
     projectRoot,
     lifecycleState: state,
     ingressSnapshotRef: snapshotWrite.ref,
+    ingressWarnings: [resumeRead, snapshotRead].filter(item => !['fresh', 'missing'].includes(item.status)).map(item => item.errorCode || item.status),
     authorityReceipt: {
       schemaVersion: 'ServerOwnedAdmissionIngressReceiptV1',
       source: path.relative(target.activeRoot, statePath).replace(/\\/g, '/'),
@@ -5231,16 +5323,16 @@ function stableTaskIdentityReadback(target, transaction, ingress, taskId) {
   let raw
   try {
     descriptor = fs.openSync(identityPath, 'r')
-    before = fs.fstatSync(descriptor)
+    before = fstatSnapshot(fs, descriptor)
     if (!before.isFile() || before.size < 1 || before.size > 256 * 1024) {
       throw taskAdmissionIngressError('TASK_WRITE_OWNER_CANONICAL_TASK_INVALID', 'canonical TaskIdentityV2 size or type is invalid')
     }
     raw = fs.readFileSync(descriptor, 'utf8')
-    after = fs.fstatSync(descriptor)
+    after = fstatSnapshot(fs, descriptor)
   } finally {
     if (descriptor !== undefined) fs.closeSync(descriptor)
   }
-  const current = fs.lstatSync(identityPath)
+  const current = filePathSnapshot(fs, identityPath)
   if (!current.isFile() || current.isSymbolicLink() || !sameStableFileStat(before, after) ||
       !sameStableFileStat(after, current) ||
       Buffer.byteLength(raw, 'utf8') !== after.size) {
@@ -5291,21 +5383,21 @@ function buildServerOwnedTakeoverObservation(target, ingress, taskId) {
   const taskReadback = stableTaskIdentityReadback(target, ownerRead.transaction, ingress, taskId)
   const routeIndex = createWorkspaceSessionRouteIndex({ metaDir: workflowRouteIndexMetaDir(target), fs, path })
   const priorRoute = routeIndex.read({ sessionDigest: ownerRead.owner.sessionDigest })
-  const turn = ingress.lifecycleState?.turnLiveness || {}
+  // Observe the prior writer's canonical state, never the caller's new idle turn.
+  const turn = ownerRead.state?.turnLiveness || {}
+  const durableOperation = taskOperationTerminalSnapshot(turn)
   const currentSessionDigest = ingress.projectTargetLease.authorityDigest
   const currentContextEpoch = ingress.actualInstructionEnvelope.contextEpoch
   const inFlight = turn.inFlightOperation?.ownedByAgent === true &&
     Date.parse(String(turn.inFlightOperation.leaseExpiresAt || '')) > Date.now()
-  const inFlightForPriorOwner = inFlight && currentSessionDigest === ownerRead.owner.sessionDigest &&
-    currentContextEpoch === ownerRead.owner.contextEpoch
-  const terminalTurnForPriorOwner = currentSessionDigest === ownerRead.owner.sessionDigest &&
-    ['completed', 'error', 'interrupted', 'idle'].includes(String(turn.state || ''))
-  const previousContextTerminal = currentSessionDigest === ownerRead.owner.sessionDigest &&
-    ownerRead.owner.contextEpoch !== currentContextEpoch &&
+  const inFlightForPriorOwner = inFlight
+  const terminalTurnForPriorOwner = ['completed', 'error', 'interrupted', 'idle'].includes(String(turn.state || ''))
+  const previousContextTerminal = ownerRead.state?.contextAcquisition?.contextEpoch !== ownerRead.owner.contextEpoch &&
     ['completed', 'error', 'interrupted'].includes(String(turn.previousTurn?.terminalState || ''))
   const routeQuiescent = ['unbound', 'expired'].includes(priorRoute.status)
   const routeTaskMatches = !priorRoute.entry?.taskId || String(priorRoute.entry.taskId).toLowerCase() === taskId
-  const noLiveTurn = !inFlightForPriorOwner && routeTaskMatches && (routeQuiescent || terminalTurnForPriorOwner || previousContextTerminal)
+  const noLiveTurn = !inFlightForPriorOwner && durableOperation.terminalReady && routeTaskMatches &&
+    (terminalTurnForPriorOwner || previousContextTerminal || (routeQuiescent && !turn.turnKey))
   const receiptCore = {
     schemaVersion: 'ServerOwnedTaskTakeoverObservationV1',
     taskId,
@@ -5321,6 +5413,8 @@ function buildServerOwnedTakeoverObservation(target, ingress, taskId) {
     observedPreviousTurnState: String(turn.previousTurn?.terminalState || ''),
     activeOperationLease: inFlight,
     activeOperationLeaseForPriorOwner: inFlightForPriorOwner,
+    unresolvedOperationId: durableOperation.unresolvedOperationId,
+    operationEvidenceValid: durableOperation.valid,
     canonicalTaskReadback: true,
     noLiveTurn
   }
@@ -5422,7 +5516,7 @@ function compactContextBinding(value) {
   }
 }
 
-function resolveResumeContextAuthorization(target, contextBinding) {
+function resolveResumeContextAuthorization(target, contextBinding, continuingTaskId = null) {
   const verifiedBinding = resolveContextReadBinding(contextBinding, target, null)
   const authorization = authorizeContextRead({
     activeRoot: target.activeRoot,
@@ -5437,8 +5531,10 @@ function resolveResumeContextAuthorization(target, contextBinding) {
     )
   }
   const route = authorization.plan?.workflowRoute || {}
-  if (authorization.plan?.identity?.finalIntent !== 'resume' || route.topIntent !== 'resume' ||
-      route.routeKey !== 'resume' || route.stage !== 'rehydrate') {
+  const continuedWork = continuingTaskId && ['fix', 'dev', 'self-fix', 'analyze', 'audit'].includes(route.topIntent) &&
+    authorization.plan?.identity?.finalIntent === route.topIntent
+  if (!continuedWork && (authorization.plan?.identity?.finalIntent !== 'resume' || route.topIntent !== 'resume' ||
+      route.routeKey !== 'resume' || route.stage !== 'rehydrate')) {
     throw taskAdmissionIngressError(
       'FINALIZED_TASK_RESUME_ROUTE_INVALID',
       'resumeContextBinding must belong to an exact resume/rehydrate ContextReadPlanV2'
@@ -5480,8 +5576,11 @@ function resolveResumeContextAuthorization(target, contextBinding) {
       'context observations, lifecycle state and the explicit host session identify different sessions'
     )
   }
-  const hostSessionId = sessionCandidates[0] ||
-    `resume-context:${verifiedBinding.contextEpoch}:${verifiedBinding.planId}`
+  const hostSessionId = sessionCandidates[0]
+  if (!hostSessionId) {
+    throw taskAdmissionIngressError('FINALIZED_TASK_RESUME_HOST_SESSION_UNOBSERVED',
+      'recover actual host session evidence before acquiring a writer; read-only work remains available')
+  }
   const durable = readMcpContextSourceObservations({
     activeRoot: target.activeRoot,
     project: target.project,
@@ -5822,6 +5921,7 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
     taskIdentityDigest: canonical.taskIdentityDigest,
     canonicalOverviewDigest: canonical.canonicalOverviewDigest,
     canonicalRevisionDigest: canonical.canonicalRevisionDigest,
+    cpConfirmed: canonical.cpConfirmed,
     cpArtifactDigest: canonical.cpArtifactDigest,
     cpChainDigest: canonical.cpChainDigest,
     contextBinding: binding,
@@ -5874,10 +5974,10 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
   }
 }
 
-function buildBoundedResumeFallbackIngress(target, args) {
-  const context = resolveResumeContextAuthorization(target, args.resumeContextBinding)
+function buildBoundedResumeFallbackIngress(target, args, options = {}) {
   const taskId = String(args.task?.taskId || '').trim().toLowerCase()
   const { ownerRead } = exactResumeTaskState(target, taskId, { allowOwnerFenced: true })
+  const context = resolveResumeContextAuthorization(target, args.resumeContextBinding, taskId)
   const transaction = ownerRead.transaction
   const nowMs = Date.now()
   const trustedIngress = currentTrustedResumeIngress(target, context)
@@ -5916,7 +6016,7 @@ function buildBoundedResumeFallbackIngress(target, args) {
       workItemId: workItem.workItemId,
       environmentMode: 'dev',
       topIntent: 'resume',
-      subtype: context.authorization.plan.workflowRoute.subtype,
+      subtype: 'resume',
       routeKey: 'resume',
       stage: 'rehydrate'
     })
@@ -5948,10 +6048,45 @@ function buildBoundedResumeFallbackIngress(target, args) {
     resumeIngress,
     nowMs
   )
+  if (options.prepareCandidate === false) return { ingress: resumeIngress }
   const prepared = prepareFinalizedResumeCandidate(target, args, resumeIngress, context.binding)
   prepared.ingress.contextReceipt = context.receipt
   prepared.ingress.trustedHostIngressReused = Boolean(trustedIngress)
   return prepared
+}
+
+function resolveContinuingTaskInput(target, args) {
+  if (!['bind', 'adopt'].includes(args.operation) ||
+      (args.task?.taskId && args.task?.taskKind && args.task?.taskRootRelative && args.task?.entryVariant)) return args
+  let selector = args.task?.taskId || args.task?.displayName || args.task?.taskRootRelative || ''
+  if (!selector) {
+    const state = readServerOwnedLifecycleProjection(target).state || {}
+    const hostSessionId = process.env.DEVCODEX_HOST_SESSION_ID || ''
+    selector = hostSessionId && state.contextAcquisition?.hostSessionId === hostSessionId
+      ? state.taskRecoveryBinding?.taskId || '' : ''
+    if (!selector) {
+      if (hostSessionId) {
+        const index = createWorkspaceSessionRouteIndex({ metaDir: workflowRouteIndexMetaDir(target), fs, path })
+        selector = index.read({ sessionDigest: digestSessionRef(hostSessionId) }).entry?.taskId || ''
+      }
+    }
+  }
+  const options = { cwd: INPUT_ROOT, project: target.project, scope: 'project', persistIndex: false }
+  const resolution = selector ? resolveTaskContinuation({ ...options, name: selector }) : resolveUniqueActiveTaskContinuation(options)
+  const candidate = resolution.status === 'resolved-active' ? resolution.candidate : null
+  if (!candidate) throw taskAdmissionIngressError('TASK_CONTINUATION_TARGET_UNRESOLVED',
+    'Preserve pending content and continue independent work; this write needs one exact existing task.', { resolution })
+  const relativeRoot = path.relative(target.activeRoot, candidate.taskRoot).replace(/\\/g, '/')
+  if (relativeRoot.startsWith('../') || path.isAbsolute(relativeRoot) ||
+      (args.task?.taskId && args.task.taskId.toLowerCase() !== candidate.taskId.toLowerCase()) ||
+      (args.task?.taskKind && args.task.taskKind !== candidate.kind) ||
+      (args.task?.taskRootRelative && args.task.taskRootRelative !== relativeRoot)) {
+    throw taskAdmissionIngressError('TASK_CONTINUATION_TASK_MISMATCH', 'The supplied path and observed task identity disagree.')
+  }
+  return { ...args, task: {
+    ...args.task, taskId: candidate.taskId, taskKind: candidate.kind, taskRootRelative: relativeRoot,
+    entryVariant: args.task?.entryVariant || 'continue', displayName: candidate.displayName
+  } }
 }
 
 function handleMemoryTaskAdmitV2(args) {
@@ -5961,9 +6096,10 @@ function handleMemoryTaskAdmitV2(args) {
       code: 'TASK_ADMISSION_PROJECT_REQUIRED'
     })
   }
+  args = resolveContinuingTaskInput(target, args)
   const hasIngressRef = args.ingressRef !== undefined && args.ingressRef !== null
   const hasResumeContext = args.resumeContextBinding !== undefined && args.resumeContextBinding !== null
-  if (hasIngressRef === hasResumeContext) {
+  if (hasIngressRef && hasResumeContext) {
     throw taskAdmissionIngressError(
       hasIngressRef ? 'TASK_ADMISSION_INGRESS_INPUT_AMBIGUOUS' : 'TASK_ADMISSION_INGRESS_REQUIRED',
       hasIngressRef
@@ -5981,7 +6117,7 @@ function handleMemoryTaskAdmitV2(args) {
       ? 'bounded-resume-current-trusted'
       : 'bounded-resume-fallback'
   } else {
-    ingress = readServerOwnedAdmissionIngress(target, args.ingressRef, { allowSnapshot: true })
+    ingress = resolveCurrentTaskIngress(target, args)
     const isFinalizedResume = ['bind', 'adopt'].includes(String(args.operation || '')) &&
       args.task?.entryVariant === 'continue' && ingress.workflowRouteDecision?.topIntent === 'resume' &&
       ingress.workflowRouteDecision?.routeKey === 'resume'
@@ -6021,7 +6157,7 @@ function handleMemoryTaskAdmitV2(args) {
   }
   let verifiedIngress = ingress
   if (admission.atomicOwnerAcquired === true) {
-    verifiedIngress = readServerOwnedAdmissionIngress(target, preparedResume.candidate.ingressRef, { allowSnapshot: true })
+    verifiedIngress = readServerOwnedAdmissionIngress(target, preparedResume.candidate.ingressRef, { allowSnapshot: true, taskId: admission.taskId })
     admission.recoveryStage = 'readback-complete'
     admission.ingressRef = preparedResume.candidate.ingressRef
     admission.ingressAuthority = verifiedIngress.authorityReceipt
@@ -6036,7 +6172,7 @@ function handleMemoryTaskAdmitV2(args) {
     : null
   admission.ingressAuthority = admission.ingressAuthority || ingress.authorityReceipt
   admission.ingressSource = ingressSource
-  admission.ingressRef = admission.ingressRef || args.ingressRef
+  admission.ingressRef = admission.ingressRef || currentIngressRef(ingress)
   admission.activeVersion = MEMORY_RUNTIME_IDENTITY.activeVersion
   admission.runtimeGeneration = MEMORY_RUNTIME_IDENTITY.generationId
   if (!admission.atomicOwnerAcquired && !admission.routeBindingRequired && !['needs-reconcile', 'aborted'].includes(admission.status)) {
@@ -6119,7 +6255,7 @@ function handleMemoryArtifactMutationReconcileV1(args) {
   if (target.scope !== 'project' || !target.project) {
     throw taskAdmissionIngressError('ARTIFACT_RECONCILIATION_PROJECT_REQUIRED', 'artifact reconciliation requires one exact project scope')
   }
-  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef)
+  const ingress = resolveObservedOperationIngress(target, args)
   const taskId = String(args.taskId || '').trim().toLowerCase()
   if (taskId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(taskId)) {
     throw taskAdmissionIngressError('ARTIFACT_RECONCILIATION_TASK_INVALID', 'taskId is invalid')
@@ -6166,7 +6302,8 @@ function handleMemoryArtifactMutationReconcileV1(args) {
     if (primary.state.admissionTransaction.projectRootIdentityDigest !== ingress.projectTargetLease.rootIdentityDigest) {
       throw taskAdmissionIngressError('ARTIFACT_RECONCILIATION_PROJECT_ROOT_MISMATCH', 'current project root does not match the task admission generation')
     }
-    readFormalWorkflowRouteBinding(target, ingress, taskId)
+    // Exact durable operation/root/CAS evidence owns reconciliation. A stale
+    // route index must not prevent recording already observed effects.
   }
   const reserves = identity ? readEmergencyCloseouts(metaDir, { fs }) : { records: [] }
   const source = artifactReconciliationSource({
@@ -6264,24 +6401,56 @@ function handleMemoryArtifactMutationReconcileV1(args) {
   return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result, isError: false }
 }
 
+function currentIngressRef(ingress) {
+  return {
+    schemaVersion: 'WorkflowIngressProjectionRefV1',
+    envelopeId: ingress.actualInstructionEnvelope.envelopeId,
+    envelopeDigest: ingress.actualInstructionEnvelope.envelopeDigest,
+    decisionDigest: ingress.workflowRouteDecision.decisionDigest,
+    routeRevision: ingress.workflowRouteDecision.routeRevision
+  }
+}
+
+function resolveCurrentTaskIngress(target, args, options = {}) {
+  const taskId = args.taskId || args.task?.taskId
+  const warnings = []
+  let lastError
+  for (const ref of args.ingressRef ? [args.ingressRef, null] : [null]) {
+    try {
+      const ingress = readServerOwnedAdmissionIngress(target, ref, { allowSnapshot: options.allowSnapshot !== false, taskId })
+      ingress.ingressWarnings = [...warnings, ...(ingress.ingressWarnings || [])]
+      return ingress
+    } catch (error) {
+      if (/HOST_SESSION_MISMATCH|ROOT_MISMATCH|TASK_MISMATCH/.test(error.code || '')) throw error
+      lastError = error
+      warnings.push(error.code || error.message)
+    }
+  }
+  const { state } = readServerOwnedLifecycleProjection(target)
+  const exactTaskId = taskId || state.taskRecoveryBinding?.taskId
+  const contextBinding = state.contextAcquisition?.plan?.contextBinding
+  if (!exactTaskId || !contextBinding) {
+    if (lastError) throw lastError
+    throw taskAdmissionIngressError('TASK_CURRENT_INGRESS_UNAVAILABLE',
+      'recover the current task/context binding; continue reads and independent work', { warnings })
+  }
+  const { ingress } = buildBoundedResumeFallbackIngress(target, {
+    operation: 'bind', task: { taskId: exactTaskId, entryVariant: 'continue' }, resumeContextBinding: contextBinding
+  }, { prepareCandidate: false })
+  ingress.ingressWarnings = warnings
+  return ingress
+}
+
 function handleMemoryTaskWriteOwner(args) {
   const target = taskMemoryTransactionTarget(args)
   if (target.scope !== 'project' || !target.project) {
     throw taskAdmissionIngressError('TASK_WRITE_OWNER_PROJECT_REQUIRED', 'fenced task ownership requires one exact project scope')
   }
-  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef, { allowSnapshot: true })
+  const ingress = resolveCurrentTaskIngress(target, args)
   const taskId = String(args.taskId || '').trim().toLowerCase()
   const serverObservation = args.operation === 'takeover-prepare'
     ? buildServerOwnedTakeoverObservation(target, ingress, taskId)
     : null
-  const routeBinding = bindFormalWorkflowRoute(target, ingress, taskId)
-  if (!formalWorkflowRouteBound(routeBinding)) {
-    throw taskAdmissionIngressError(
-      routeBinding?.errorCode || 'TASK_WRITE_OWNER_ROUTE_BINDING_FAILED',
-      'fenced task owner requires one durable same-session formal task route binding',
-      { routeBinding }
-    )
-  }
   const result = executeTaskWriteOwner({
     operation: args.operation,
     taskId,
@@ -6291,6 +6460,15 @@ function handleMemoryTaskWriteOwner(args) {
     handoffRefDigest: args.handoffRefDigest,
     takeoverRefDigest: args.takeoverRefDigest,
     ...(serverObservation ? { serverObservation } : {}),
+    ingressState: {
+      activeProject: target.project, activeScope: 'project',
+      actualInstructionEnvelope: ingress.actualInstructionEnvelope,
+      workItemSet: ingress.workItemSet, workflowRouteDecision: ingress.workflowRouteDecision,
+      stickyProject: ingress.projectTargetLease,
+      contextAcquisition: ingress.resumeStateHandoff?.contextAcquisition || ingress.lifecycleState?.contextAcquisition,
+      workflowRoutePlanBinding: ingress.resumeStateHandoff?.workflowRoutePlanBinding || ingress.lifecycleState?.workflowRoutePlanBinding
+    },
+    expectedCommitFence: ingress.lifecycleState?.taskRecoveryCommitFence,
     actualInstructionEnvelope: ingress.actualInstructionEnvelope,
     workItemSet: ingress.workItemSet,
     workflowRouteDecision: ingress.workflowRouteDecision,
@@ -6301,12 +6479,36 @@ function handleMemoryTaskWriteOwner(args) {
     project: target.project
   })
   result.ingressAuthority = ingress.authorityReceipt
-  result.routeBinding = routeBinding
+  result.ingressRef = currentIngressRef(ingress)
+  result.ingressWarnings = ingress.ingressWarnings || []
+  try { result.routeBinding = bindFormalWorkflowRoute(target, ingress, taskId) }
+  catch (error) { result.routeBinding = { status: 'deferred', errorCode: error.code || error.message } }
+  if (!formalWorkflowRouteBound(result.routeBinding)) result.routeBindingWarning = result.routeBinding?.errorCode || 'TASK_ROUTE_DERIVATION_DEFERRED'
   if (serverObservation) result.takeoverObservation = serverObservation
   return {
     content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
     structuredContent: result,
     isError: false
+  }
+}
+
+function resolveObservedOperationIngress(target, args) {
+  try { return resolveCurrentTaskIngress(target, args) } catch (error) {
+    if (!args.taskId) throw error
+    const { ownerRead } = exactResumeTaskState(target, args.taskId)
+    const state = ownerRead.state
+    const current = readServerOwnedLifecycleProjection(target).state
+    const hostSessionId = process.env.DEVCODEX_HOST_SESSION_ID || current.contextAcquisition?.hostSessionId ||
+      current.contextAcquisition?.receipt?.identity?.hostSessionId
+    if (!hostSessionId || state.fencedWriteOwner?.sessionDigest !== digestSessionRef(hostSessionId) ||
+        comparableActiveRoot(state.stickyProject?.physicalRoot) !== comparableActiveRoot(currentPhysicalProjectRoot(target))) throw error
+    return {
+      actualInstructionEnvelope: state.actualInstructionEnvelope,
+      workItemSet: state.workItemSet, workflowRouteDecision: state.workflowRouteDecision,
+      projectTargetLease: state.stickyProject, projectRoot: currentPhysicalProjectRoot(target),
+      lifecycleState: state, ingressWarnings: [error.code || error.message],
+      authorityReceipt: { source: 'historical-operation-evidence', mutationAuthority: false }
+    }
   }
 }
 
@@ -6318,9 +6520,11 @@ function handleMemoryWorkflowOperationalWriteLease(args) {
       'workflow operational authority requires one exact project scope'
     )
   }
-  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef)
+  const ingress = resolveCurrentTaskIngress(target, args, { allowSnapshot: false })
   const lease = createWorkflowOperationalWriteLease({
-    state: ingress.lifecycleState,
+    state: { ...ingress.lifecycleState, activeProject: target.project, activeScope: 'project',
+      actualInstructionEnvelope: ingress.actualInstructionEnvelope, workItemSet: ingress.workItemSet,
+      workflowRouteDecision: ingress.workflowRouteDecision, stickyProject: ingress.projectTargetLease },
     activeRoot: target.activeRoot,
     projectRoot: ingress.projectRoot,
     project: target.project,

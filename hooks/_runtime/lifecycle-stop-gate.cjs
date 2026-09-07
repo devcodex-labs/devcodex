@@ -422,10 +422,12 @@ function evaluateStopCompletionGate (input = {}) {
   honesty.processGaps = uniqueGaps
 
   if (uniqueGaps.length) {
-    honesty.stopDecision = 'block'
+    // Natural-language/template observations are quality diagnostics, never
+    // authority to force another model turn or prevent an honest handoff.
+    honesty.stopDecision = 'allow'
     const reason = `DevCodex Stop gate: incomplete closure — missing: ${uniqueGaps.join(', ')}. `
-      + 'Add 完成检查/PC0~PC10 / PR-1 as required, then finish. (platform may stop after continuation limit)'
-    return { decision: 'block', gaps: uniqueGaps, reason, honesty }
+      + 'Record unfinished work and recoverable content; continue available work. Do not claim unverified completion.'
+    return { decision: 'allow', gaps: uniqueGaps, reason, honesty }
   }
 
   honesty.stopDecision = 'allow'

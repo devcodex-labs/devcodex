@@ -122,7 +122,8 @@ assert.strictEqual(extractLastAssistantMessage({ last_assistant_message: 'snake'
       '当前回合暂停，后续继续。'
     ].join('\n')
   })
-  assert.strictEqual(blocked.decision, 'block')
+  assert.strictEqual(blocked.decision, 'allow')
+  assert(blocked.gaps.length > 0, 'quality gaps remain visible without forcing another turn')
   assert.strictEqual(accepted.decision, 'allow')
 }
 
@@ -149,14 +150,14 @@ assert.strictEqual(extractLastAssistantMessage({ last_assistant_message: 'snake'
   assert.ok(!r.gaps.includes('entry-check-missing'))
 }
 
-// T3: mutation + work-done claim + no entry → block (R11 names)
+// T3: mutation + work-done claim + no entry → diagnostic only (R11 names)
 {
   const r = evaluateStopCompletionGate({
     mode: 'dev',
     mutated: true,
     lastAssistantMessage: 'All work is complete. 已完成。'
   })
-  assert.strictEqual(r.decision, 'block')
+  assert.strictEqual(r.decision, 'allow')
   assert.ok(r.gaps.includes('entry-check-missing'), `gaps=${r.gaps.join(',')}`)
   assert.ok(r.gaps.includes('completion-check-missing'), `gaps=${r.gaps.join(',')}`)
   assert.ok(r.gaps.includes('final-validation-summary'), `gaps=${r.gaps.join(',')}`)
@@ -313,7 +314,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
       lastAssistantMessage: text,
       taskRoot
     })
-    assert.strictEqual(r.decision, 'block')
+    assert.strictEqual(r.decision, 'allow')
     assert.ok(r.gaps.includes('pr1-skipped'))
   } finally {
     cleanupTestRoot(tmp)
@@ -391,7 +392,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
       lastAssistantMessage: '请确认修复方案（确认 CP2）。',
       state
     })
-    assert.strictEqual(boundResult.decision, 'block')
+    assert.strictEqual(boundResult.decision, 'allow')
     assert(boundResult.gaps.includes('pr1-skipped'), `gaps=${boundResult.gaps.join(',')}`)
     assert(!boundResult.gaps.includes('pr1-task-binding-missing'))
 

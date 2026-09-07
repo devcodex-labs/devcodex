@@ -1,5 +1,7 @@
 'use strict'
 
+const { fstatSnapshot } = require('../hooks/_runtime/file-identity.cjs')
+
 const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
@@ -45,7 +47,7 @@ function verifyFinalPathSnapshot(resolved, expectedIdentity, observedBytes, star
   let descriptor
   try {
     descriptor = fsImpl.openSync(resolved, 'r')
-    const pathIdentity = statIdentity(fsImpl.fstatSync(descriptor))
+    const pathIdentity = statIdentity(fstatSnapshot(fsImpl, descriptor))
     const replay = readExactSync(fsImpl, descriptor, observedBytes.length, startByte)
     const digest = operationDigest(observedBytes)
     const replayDigest = operationDigest(replay)
@@ -72,7 +74,7 @@ function verifyFinalPathDigest(resolved, expectedIdentity, expectedDigest, lengt
   let descriptor
   try {
     descriptor = fsImpl.openSync(resolved, 'r')
-    const pathIdentity = statIdentity(fsImpl.fstatSync(descriptor))
+    const pathIdentity = statIdentity(fstatSnapshot(fsImpl, descriptor))
     if (!sameStatIdentity(pathIdentity, expectedIdentity)) {
       throw boundedTextReadError('SOURCE_CHANGED_DURING_READ', `Context source path identity changed: ${resolved}`, {
         filePath: resolved,
@@ -150,7 +152,7 @@ function readBoundedTextFileOnceSync(filePath, options = {}) {
   }
 
   try {
-    const initial = fsImpl.fstatSync(descriptor)
+    const initial = fstatSnapshot(fsImpl, descriptor)
     if (!initial.isFile()) {
       throw boundedTextReadError('SOURCE_NOT_REGULAR_FILE', `Context source is not a regular file: ${resolved}`, {
         filePath: resolved
@@ -176,7 +178,7 @@ function readBoundedTextFileOnceSync(filePath, options = {}) {
       if (sourceBytesRead > maxBytes) {
         throw boundedTextReadError('SOURCE_TOO_LARGE', `Context source grew beyond the ${maxBytes}-byte read budget: ${resolved}`, {
           filePath: resolved,
-          logicalBytes: fsImpl.fstatSync(descriptor).size,
+          logicalBytes: fstatSnapshot(fsImpl, descriptor).size,
           maxBytes,
           sourceBytesRead
         })
@@ -184,7 +186,7 @@ function readBoundedTextFileOnceSync(filePath, options = {}) {
       chunks.push(chunk.subarray(0, bytesRead))
     }
 
-    const finalStat = fsImpl.fstatSync(descriptor)
+    const finalStat = fstatSnapshot(fsImpl, descriptor)
     if (finalStat.size > maxBytes) {
       throw boundedTextReadError('SOURCE_TOO_LARGE', `Context source grew beyond the ${maxBytes}-byte read budget: ${resolved}`, {
         filePath: resolved,
@@ -280,7 +282,7 @@ function scanBoundedTextLinesOnceSync(filePath, options = {}) {
   }
 
   try {
-    const initial = fsImpl.fstatSync(descriptor)
+    const initial = fstatSnapshot(fsImpl, descriptor)
     if (!initial.isFile()) {
       throw boundedTextReadError('SOURCE_NOT_REGULAR_FILE', `Context source is not a regular file: ${resolved}`, {
         filePath: resolved
@@ -374,7 +376,7 @@ function scanBoundedTextLinesOnceSync(filePath, options = {}) {
       }
     }
 
-    const finalStat = fsImpl.fstatSync(descriptor)
+    const finalStat = fstatSnapshot(fsImpl, descriptor)
     const initialIdentity = statIdentity(initial)
     const finalIdentity = statIdentity(finalStat)
     const identityChanged = !sameStatIdentity(initialIdentity, finalIdentity)
@@ -466,7 +468,7 @@ function readBoundedTextRangeOnceSync(filePath, options = {}) {
   const resolved = path.resolve(String(filePath || ''))
   const descriptor = fsImpl.openSync(resolved, 'r')
   try {
-    const initial = fsImpl.fstatSync(descriptor)
+    const initial = fstatSnapshot(fsImpl, descriptor)
     if (!initial.isFile()) {
       throw boundedTextReadError('SOURCE_NOT_REGULAR_FILE', `Context source is not a regular file: ${resolved}`, {
         filePath: resolved
@@ -510,14 +512,14 @@ function readBoundedTextRangeOnceSync(filePath, options = {}) {
     if (sourceBytesRead !== rangeBytes) {
       throw boundedTextReadError('SOURCE_CHANGED_DURING_READ', `Context source changed during bounded range read: ${resolved}`, {
         filePath: resolved,
-        logicalBytes: fsImpl.fstatSync(descriptor).size,
+        logicalBytes: fstatSnapshot(fsImpl, descriptor).size,
         maxBytes,
         sourceBytesRead,
         startByte,
         endByte
       })
     }
-    const finalStat = fsImpl.fstatSync(descriptor)
+    const finalStat = fstatSnapshot(fsImpl, descriptor)
     const initialIdentity = statIdentity(initial)
     const finalIdentity = statIdentity(finalStat)
     if (!sameStatIdentity(initialIdentity, finalIdentity)) {

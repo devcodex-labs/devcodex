@@ -1181,14 +1181,23 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     }
     const committedState = commit.state || compactLifecycleStateV5(state).state
     const projectionWarnings = []
-    const ingressSnapshot = writeAdmissionIngressSnapshot({ metaDir: activePaths.dir, state }, { fs })
+    let ingressSnapshot
+    try {
+      ingressSnapshot = writeAdmissionIngressSnapshot({ metaDir: activePaths.dir, state }, { fs })
+    } catch (error) {
+      ingressSnapshot = { status: 'error', errorCode: error.code || 'ADMISSION_INGRESS_SNAPSHOT_WRITE_FAILED', message: error.message }
+    }
     if (ingressSnapshot.status === 'error') {
-      const error = new Error(
-        `Admission ingress snapshot failed: ${ingressSnapshot.errorCode || ingressSnapshot.status}`
-      )
-      error.code = ingressSnapshot.errorCode || 'ADMISSION_INGRESS_SNAPSHOT_WRITE_FAILED'
-      error.details = ingressSnapshot
-      throw error
+      // The primary task commit already succeeded. A derived ingress failure
+      // must remain observable without discarding that result or skipping the
+      // remaining projections. Admission will reconstruct fresh ingress later.
+      committedState.admissionIngressWarning = {
+        status: 'WARN', errorCode: ingressSnapshot.errorCode,
+        errors: ingressSnapshot.errors || [], recoveryAction: 'reconstruct-current-ingress'
+      }
+      projectionWarnings.push({ role: 'admission-ingress', ...ingressSnapshot })
+    } else {
+      committedState.admissionIngressWarning = null
     }
     const activeProjectionWrite = writeStableProjection(activePaths.file, committedState, { fs })
     if (activeProjectionWrite.status !== 'persisted') {

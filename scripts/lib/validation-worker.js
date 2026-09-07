@@ -7,6 +7,10 @@ const { createValidationWaveCommandRunner } = require('./validation-wave-executo
 const WORKER_MESSAGE_SCHEMA = 'ValidationWorkerMessageV1'
 const RUNNER_COMMAND_SCHEMA = 'ValidationRunnerCommandV1'
 
+// The parent disconnects only after observing the terminal receipt. Keep this
+// channel referenced until then; send completion is not a delivery ACK.
+process.channel?.ref()
+
 function serializeError(error) {
   return {
     name: error.name || 'Error',
@@ -29,8 +33,8 @@ function createProtocolSender(runIdentityDigest, attempt) {
       sequence,
       type,
       ...payload
-    }, () => {
-      if (close) process.disconnect()
+    }, error => {
+      if (error && close && process.connected) process.disconnect()
     })
   }
 }

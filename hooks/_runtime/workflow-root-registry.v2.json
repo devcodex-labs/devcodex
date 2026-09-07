@@ -1077,7 +1077,7 @@
   "sourceEvidence": [
     {
       "ref": "content:instructions/01-common.instructions.md",
-      "digest": "e765246d0803975423ba74ab41387b1c2de60f0441fc17c98382e4b3f53ad6bd"
+      "digest": "ffbd6a37d9d0956e0df0a3cbf55b9c1276c2f112e269386d8c6b003b7cb7c5fa"
     },
     {
       "ref": "content:skills/routing/SKILL.md",
@@ -1089,10 +1089,10 @@
     },
     {
       "ref": "scripts/lib/host-parity-scorecard.js",
-      "digest": "6736da26ec7e8650636832a75e1163e8de1bfbf001ba358c915c747f48517b5f"
+      "digest": "88397755276ad5ab75602f325c5dbd6c7df67cafc412b5dedbef9b7e62dead19"
     }
   ],
-  "sourceDigest": "5be99d3ed9c03e447ef0808943fa13d1e18009ad5573724da9f159255c68c241",
+  "sourceDigest": "a267880687f453d00cf2e2ca5d61f5c8a6a24f38cce29764bbedd0b6973d29db",
   "routeRevision": "cd86a6045a9fc8cd72b094254bc68bef4210e0bb4639a7c2d755f8368aa3310b",
-  "registryDigest": "216d737ece7480572349320787ac0ff83e823f6ed763e4062ea8ed7907f7458b"
+  "registryDigest": "023bea4faa1e9b8a2a55bd5e9a45e15c4331d33a3835863af06ad280aebe005b"
 }

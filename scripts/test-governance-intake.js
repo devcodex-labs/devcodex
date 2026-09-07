@@ -184,7 +184,7 @@ function runGovernanceIntakeBehaviorReplay() {
   if (unresolvedStop.devcodexCode !== 'progressive-skill-route' ||
       unresolvedStop.devcodexNextAction?.errorCode !== 'PLAN_NOT_COMMITTED' ||
       unresolvedStop.devcodexNextAction?.nextCall?.op !== 'catalog') {
-    failures.push('Stop should resolve the earlier SkillRoute gate before the governance reminder')
+    failures.push(`Stop should preserve the SkillRoute recovery action alongside the governance reminder: ${JSON.stringify(unresolvedStop)}`)
   }
 
   const multiPendingDecision = [

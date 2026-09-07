@@ -578,15 +578,17 @@ function decideArtifactMutation(input = {}, options = {}) {
     ? String(input.operationalLeaseDigest)
     : null
   const appendOnlyAuthorized = input.appendOnlyAuthorized === true && operationalLeaseDigest !== null
+  const draftUpdateAuthorized = input.draftUpdateAuthorized === true && operationalLeaseDigest !== null
   for (const match of matches) {
     const slot = match.classified.slot
+    const currentReportDraft = draftUpdateAuthorized && ['task-report', 'project-report'].includes(slot.slotId) && footprint.operation === 'update'
     const ownerAllowed = slot.owner === authorityRole ||
       (slot.owner === 'task-admission' && slot.artifactClass === 'overview' && authorityRole === 'task-owner')
     if (!ownerAllowed) errors.push(`artifact-owner-required:${slot.owner}`)
     if (slot.mutability === 'immutable' && !(slot.owner === 'task-admission' && authorityRole === 'task-admission' && match.exists === false)) errors.push('artifact-immutable-slot')
     if (match.classified.matchType === 'versioned-candidate' && match.exists === true) errors.push('artifact-versioned-candidate-immutable')
-    if (slot.mutability === 'append-only' && match.exists === true && !isLogicalTarget(match.canonical) && !appendOnlyAuthorized) errors.push('artifact-append-only-existing')
-    if (slot.writePolicy === 'create-only' && match.exists === true) errors.push('artifact-create-only-existing')
+    if (slot.mutability === 'append-only' && match.exists === true && !isLogicalTarget(match.canonical) && !appendOnlyAuthorized && !currentReportDraft) errors.push('artifact-append-only-existing')
+    if (slot.writePolicy === 'create-only' && match.exists === true && !currentReportDraft) errors.push('artifact-create-only-existing')
     if (footprint.operation === 'delete' && slot.destructivePolicy === 'forbid') {
       errors.push('artifact-destructive-policy-forbid')
     }
@@ -690,6 +692,7 @@ function decideArtifactMutation(input = {}, options = {}) {
     authorityRole,
     operationalLeaseDigest,
     appendOnlyAuthorized,
+    draftUpdateAuthorized,
     templateBindings,
     decisionStatus: errors.length ? 'forbid' : 'allow',
     errorCodes: [...new Set(errors)].sort(),
@@ -812,7 +815,7 @@ function reconcileArtifactSlotDecision(decision, input = {}, options = {}) {
     const qualificationValidation = validateArtifactTemplateQualification(qualification, logical ? null : binding)
     const logicalBindingMatch = !logical || ['slotId', 'targetRef', 'templateRef', 'templateDigest', 'contractDigest', 'requiredSemanticDigest']
       .every(field => String(qualification?.[field] || '') === String(binding?.[field] || ''))
-    if (!qualificationValidation.valid || !logicalBindingMatch || qualification?.status !== 'qualified' || qualification?.readbackVerified !== true) {
+    if (!qualificationValidation.valid || !logicalBindingMatch || qualification?.readbackVerified !== true) {
       errors.push('artifact-template-qualification-rejected')
       if (!logicalBindingMatch) errors.push('artifact-template-logical-binding-mismatch')
       errors.push(...qualificationValidation.errors)

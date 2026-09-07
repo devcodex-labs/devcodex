@@ -344,10 +344,10 @@ function chooseNextAction(facts, input = {}) {
   }
   if (facts.sessionFreshness.status !== 'PASS' || facts.hostEvidence.status !== 'PASS') {
     return {
-      id: 'start-fresh-host-task',
+      id: 'refresh-current-host-connection',
       command: null,
       reason: 'current-task-host-evidence-unverified',
-      instruction: 'Start a new task in the target host, then run devcodex doctor --json from that task.'
+      instruction: 'Keep the current task. If the host exposes a connection reload, refresh its DevCodex connection and verify the loaded version there. Otherwise retain the checkpoint, continue available work, and reload the host when convenient; creating a new task is unnecessary.'
     }
   }
   return null

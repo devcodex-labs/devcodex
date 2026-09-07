@@ -1852,13 +1852,13 @@ function readAdmissionIngressSnapshot(input = {}, options = {}) {
   }
 }
 
-function boundedResumeIngressCapabilityPaths(metaDir, ingressRef) {
+function boundedResumeIngressCapabilityPaths(metaDir, ingressRef, candidateId = '') {
   const snapshotKey = admissionIngressSnapshotKey(ingressRef)
   const root = path.join(path.resolve(metaDir), 'resume-ingress')
   return {
     root,
     snapshotKey,
-    capability: path.join(root, `${snapshotKey}.json`),
+    capability: path.join(root, `${/^resume-ingress-[a-f0-9]{40}$/.test(candidateId) ? candidateId : snapshotKey}.json`),
     lock: path.join(root, '.writer.lock')
   }
 }
@@ -1888,7 +1888,7 @@ function pruneBoundedResumeIngressCapabilities(root, options = {}) {
       const entry = directory.readSync()
       if (!entry) break
       scannedEntries += 1
-      if (entry.isFile() && /^[a-f0-9]{64}\.json$/.test(entry.name)) names.push(entry.name)
+      if (entry.isFile() && /^(?:[a-f0-9]{64}|resume-ingress-[a-f0-9]{40})\.json$/.test(entry.name)) names.push(entry.name)
     }
   } catch (error) {
     if (error?.code === 'ENOENT') return { status: 'ready', activeFiles: 0, removed: 0 }
@@ -2028,11 +2028,15 @@ function validateBoundedResumeIngressCapability(capability, options = {}) {
   }
   for (const field of [
     'projectRootIdentityDigest', 'taskIdentityDigest', 'canonicalOverviewDigest',
-    'canonicalRevisionDigest', 'cpArtifactDigest', 'cpChainDigest'
+    'canonicalRevisionDigest', 'cpChainDigest'
   ]) {
     if (!/^[a-f0-9]{64}$/.test(String(value[field] || ''))) errors.push(field)
   }
   const prior = value.prior || {}
+  if (value.cpConfirmed !== undefined && typeof value.cpConfirmed !== 'boolean') errors.push('candidate-cp-confirmed')
+  if (value.cpConfirmed === false ? value.cpArtifactDigest !== null : !/^[a-f0-9]{64}$/.test(String(value.cpArtifactDigest || ''))) {
+    errors.push('cpArtifactDigest')
+  }
   const priorAdmissionValid = /^admission-[a-f0-9]{40}$/.test(String(prior.admissionId || '')) &&
     Number.isInteger(prior.admissionGeneration) && prior.admissionGeneration >= 1 &&
     /^[a-f0-9]{64}$/.test(String(prior.transactionDigest || ''))
@@ -2113,7 +2117,8 @@ function writeBoundedResumeIngressCapability(input = {}, options = {}) {
     taskIdentityDigest: String(input.taskIdentityDigest || ''),
     canonicalOverviewDigest: String(input.canonicalOverviewDigest || ''),
     canonicalRevisionDigest: String(input.canonicalRevisionDigest || ''),
-    cpArtifactDigest: String(input.cpArtifactDigest || ''),
+    cpConfirmed: input.cpConfirmed !== false,
+    cpArtifactDigest: input.cpConfirmed === false ? null : String(input.cpArtifactDigest || ''),
     cpChainDigest: String(input.cpChainDigest || ''),
     contextBinding: cloneRecoveryValue(input.contextBinding || {}),
     prior: cloneRecoveryValue(input.prior || {}),
@@ -2134,7 +2139,7 @@ function writeBoundedResumeIngressCapability(input = {}, options = {}) {
   if (bytes > BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_BYTES) {
     return { status: 'error', errorCode: 'BOUNDED_RESUME_INGRESS_TOO_LARGE', bytes, maxBytes: BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_BYTES }
   }
-  const paths = boundedResumeIngressCapabilityPaths(input.metaDir, candidate.ingressRef)
+  const paths = boundedResumeIngressCapabilityPaths(input.metaDir, candidate.ingressRef, candidate.candidateId)
   fsImpl.mkdirSync(paths.root, { recursive: true })
   const lock = acquireLock(paths.lock, { ...options, fs: fsImpl })
   if (!lock) return { status: 'error', errorCode: 'BOUNDED_RESUME_INGRESS_LOCK_BUSY' }
@@ -2186,8 +2191,37 @@ function writeBoundedResumeIngressCapability(input = {}, options = {}) {
 
 function readBoundedResumeIngressCapability(input = {}, options = {}) {
   const fsImpl = options.fs || fs
-  const paths = boundedResumeIngressCapabilityPaths(input.metaDir, input.ingressRef || {})
-  const read = readJson(paths.capability, fsImpl, BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_BYTES)
+  let committed = null
+  if (input.taskId && input.activeRoot && input.project) {
+    committed = readTaskRecoveryState({ metaDir: input.metaDir, identity: {
+      activeRoot: input.activeRoot, project: input.project, taskId: input.taskId, taskStatus: 'active'
+    } }, options)
+  }
+  const committedRef = committed?.status === 'fresh' ? committed.state?.resumeIngressCapabilityRef : null
+  const candidateId = options.requireAuthority === true ? committedRef?.candidateId : input.candidateId || committedRef?.candidateId
+  const paths = boundedResumeIngressCapabilityPaths(input.metaDir, input.ingressRef || {}, candidateId)
+  let read = readJson(paths.capability, fsImpl, BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_BYTES)
+  if (read.status === 'missing' && candidateId) {
+    const legacy = boundedResumeIngressCapabilityPaths(input.metaDir, input.ingressRef || {})
+    read = readJson(legacy.capability, fsImpl, BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_BYTES)
+  }
+  if (read.status === 'missing' && !candidateId) {
+    // Compatibility lookup is bounded and read-only. A prepared candidate can
+    // be inspected by its old reference, but can never supply committed authority.
+    let names = []
+    try { names = fsImpl.readdirSync(paths.root) } catch { }
+    if (names.length > BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_SCAN) {
+      return { status: 'blocked', errorCode: 'BOUNDED_RESUME_INGRESS_SCAN_LIMIT', authority: false }
+    }
+    const matches = names.filter(name => /^resume-ingress-[a-f0-9]{40}\.json$/.test(name)).map(name =>
+      readJson(path.join(paths.root, name), fsImpl, BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_BYTES)
+    ).filter(item => item.status === 'fresh' &&
+      item.value?.ingressRef?.envelopeDigest === input.ingressRef?.envelopeDigest &&
+      item.value?.ingressRef?.decisionDigest === input.ingressRef?.decisionDigest &&
+      (!input.taskId || item.value?.taskId === input.taskId))
+    if (matches.length === 1) read = matches[0]
+    else if (matches.length > 1) return { status: 'blocked', errorCode: 'BOUNDED_RESUME_INGRESS_AMBIGUOUS', authority: false }
+  }
   if (read.status !== 'fresh') {
     return { status: read.status, errorCode: read.status === 'missing' ? 'BOUNDED_RESUME_INGRESS_MISSING' : 'BOUNDED_RESUME_INGRESS_INVALID' }
   }
@@ -2216,7 +2250,7 @@ function readBoundedResumeIngressCapability(input = {}, options = {}) {
     taskId: candidate.taskId,
     taskStatus: 'active'
   }
-  const recovery = readTaskRecoveryState({ metaDir: input.metaDir, identity }, options)
+  const recovery = committed || readTaskRecoveryState({ metaDir: input.metaDir, identity }, options)
   if (recovery.status !== 'fresh') {
     return { status: 'blocked', errorCode: recovery.errorCode || 'BOUNDED_RESUME_AUTHORITY_STATE_UNAVAILABLE' }
   }
@@ -2262,13 +2296,14 @@ function observeFinalizedTaskResumeLiveness(state = {}, owner = null, options = 
   const nowMs = nowMsFrom(options)
   const turn = state.turnLiveness || {}
   const operation = turn.inFlightOperation || null
+  const durableOperation = taskOperationTerminalSnapshot(turn)
   const operationLeaseLive = operation?.ownedByAgent === true &&
     Date.parse(String(operation.leaseExpiresAt || '')) > nowMs
   const closeout = turn.lastMutationCloseout || null
   const mutationClosed = operation?.operationId && closeout?.operationId === operation.operationId &&
     ['observed', 'reconciled'].includes(String(closeout.result || ''))
-  const sideEffectUnknown = operation?.ownedByAgent === true && operation?.mutating === true &&
-    !operationLeaseLive && !mutationClosed
+  const sideEffectUnknown = !durableOperation.valid || Boolean(durableOperation.unresolvedOperationId) ||
+    (operation?.ownedByAgent === true && operation?.mutating === true && !operationLeaseLive && !mutationClosed)
   const turnState = String(turn.state || '').toLowerCase()
   const terminalTurn = ['completed', 'error', 'interrupted', 'idle'].includes(turnState)
   const previousTerminal = ['completed', 'error', 'interrupted'].includes(String(turn.previousTurn?.terminalState || '').toLowerCase())
@@ -2277,6 +2312,10 @@ function observeFinalizedTaskResumeLiveness(state = {}, owner = null, options = 
   const contextAdvanced = !!currentContextEpoch && !!ownerContextEpoch && currentContextEpoch !== ownerContextEpoch
   const targetSessionDigest = String(options.targetSessionDigest || '')
   const targetContextEpoch = String(options.targetContextEpoch || '')
+  const sameSessionContinuation = (turnState === 'awaiting-continuation' || !turn.turnKey ||
+    (targetContextEpoch && targetContextEpoch !== ownerContextEpoch)) && !operationLeaseLive && durableOperation.terminalReady &&
+    ['active', 'released'].includes(owner?.status) &&
+    /^[a-f0-9]{64}$/.test(targetSessionDigest) && owner?.sessionDigest === targetSessionDigest
   const releasedSameSessionContextAdvance = owner?.status === 'released' &&
     /^[a-f0-9]{64}$/.test(targetSessionDigest) && owner.sessionDigest === targetSessionDigest &&
     !!targetContextEpoch && !!ownerContextEpoch && targetContextEpoch !== ownerContextEpoch && previousTerminal
@@ -2286,7 +2325,7 @@ function observeFinalizedTaskResumeLiveness(state = {}, owner = null, options = 
     Number.isFinite(lastEventAtMs) && nowMs - lastEventAtMs > stalledAfterMs
   const ownerExpiresAtMs = Date.parse(String(owner?.expiresAt || ''))
   const ownerLeaseExpiredDiagnostic = Number.isFinite(ownerExpiresAtMs) && ownerExpiresAtMs <= nowMs
-  const noLiveTurn = terminalTurn || (contextAdvanced && previousTerminal) ||
+  const noLiveTurn = terminalTurn || sameSessionContinuation || (contextAdvanced && previousTerminal) ||
     releasedSameSessionContextAdvance ||
     (!owner && !operationLeaseLive && !['running', 'suspect', 'stalled'].includes(turnState))
   const core = {
@@ -4054,6 +4093,7 @@ function compactTurnLivenessForEphemeral (raw) {
     schemaVersion: raw.schemaVersion,
     state: raw.state,
     turnKey: raw.turnKey,
+    ...(raw.taskOperationSet ? { taskOperationSet: cloneRecoveryValue(raw.taskOperationSet) } : {}),
     inFlightOperation: operation?.mutating === true ? {
       operationId: operation.operationId,
       toolName: operation.toolName,
@@ -4077,6 +4117,11 @@ function compactWorkflowOperationalWriteLeaseCloseout(raw) {
     leaseDigest: boundedRecoveryString(raw.leaseDigest, 64),
     operationId: boundedRecoveryString(raw.operationId, 256),
     status: boundedRecoveryString(raw.status, 32),
+    turnKey: boundedRecoveryString(raw.turnKey, 256),
+    sessionDigest: boundedRecoveryString(raw.sessionDigest, 64),
+    draftTargets: Array.isArray(raw.draftTargets)
+      ? raw.draftTargets.filter(item => typeof item === 'string').slice(0, 4).map(item => boundedRecoveryString(item, 4096))
+      : [],
     completedAt: boundedRecoveryString(raw.completedAt, 64),
     receiptDigest: boundedRecoveryString(raw.receiptDigest, 64),
     reconciliationReceiptDigest: boundedRecoveryString(raw.reconciliationReceiptDigest, 64)
@@ -4102,7 +4147,8 @@ function compactSimpleTaskFastPathLeaseCloseout(raw) {
 function buildTasklessAuthorityEphemeralStub(state) {
   const hasOperationalAuthority = !!state?.workflowOperationalWriteLease
   const hasSimpleAuthority = !!state?.simpleTaskFastPathLease
-  if (!hasOperationalAuthority && !hasSimpleAuthority) return null
+  const hasAuthorityCloseout = !!(state?.workflowOperationalWriteLeaseCloseout || state?.simpleTaskFastPathLeaseCloseout)
+  if (!hasOperationalAuthority && !hasSimpleAuthority && !hasAuthorityCloseout) return null
   if (hasSimpleAuthority && !state?.simpleTaskFastPathUsage) {
     throw new TaskRecoveryStoreV5Error(
       'LIFECYCLE_EPHEMERAL_SIMPLE_USAGE_INCOMPLETE',
@@ -4216,6 +4262,7 @@ function buildTasklessAuthorityEphemeralStub(state) {
       schemaVersion: turn.schemaVersion,
       state: boundedRecoveryString(turn.state, 64),
       turnKey: boundedRecoveryString(turn.turnKey, 256),
+      ...(turn.taskOperationSet ? { taskOperationSet: cloneRecoveryValue(turn.taskOperationSet) } : {}),
       inFlightOperation: null,
       checkpoint: turn.checkpoint ? {
         phase: boundedRecoveryString(turn.checkpoint.phase, 96)
@@ -4242,7 +4289,8 @@ function buildTasklessAuthorityEphemeralStub(state) {
     recoveryKind: 'ephemeral-resume-stub',
     recoveryCompaction: hasOperationalAuthority && hasSimpleAuthority
       ? 'taskless-authority-budget'
-      : (hasSimpleAuthority ? 'simple-authority-budget' : 'operational-authority-budget')
+      : (hasSimpleAuthority ? 'simple-authority-budget'
+          : (hasOperationalAuthority ? 'operational-authority-budget' : 'taskless-closeout-budget'))
   }
   if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
     stub.progressiveSkillRouteStop = stop && typeof stop === 'object' ? {
@@ -4340,6 +4388,12 @@ function buildMinimalEphemeralStub (state) {
     workflowOperationalWriteLease: state?.workflowOperationalWriteLease
       ? JSON.parse(JSON.stringify(state.workflowOperationalWriteLease))
       : null,
+    workflowOperationalWriteLeaseCloseout: compactWorkflowOperationalWriteLeaseCloseout(
+      state?.workflowOperationalWriteLeaseCloseout
+    ),
+    simpleTaskFastPathLeaseCloseout: compactSimpleTaskFastPathLeaseCloseout(
+      state?.simpleTaskFastPathLeaseCloseout
+    ),
     progressiveSkillRoute: !ingressRecovery && route && typeof route === 'object' ? {
       schemaVersion: boundedRecoveryString(route.schemaVersion, 64),
       modeReceipt: route.modeReceipt ? {
@@ -4386,6 +4440,7 @@ function buildMinimalEphemeralStub (state) {
       schemaVersion: turn.schemaVersion,
       state: boundedRecoveryString(turn.state, 64),
       turnKey: boundedRecoveryString(turn.turnKey, 256),
+      ...(turn.taskOperationSet ? { taskOperationSet: cloneRecoveryValue(turn.taskOperationSet) } : {}),
       inFlightOperation: operation ? {
         operationId: boundedRecoveryString(operation.operationId, 256),
         toolName: boundedRecoveryString(operation.toolName, 128),
@@ -4438,7 +4493,8 @@ function buildMinimalEphemeralStub (state) {
 }
 
 function buildEphemeralStub(state) {
-  if (state?.workflowOperationalWriteLease || state?.simpleTaskFastPathLease) {
+  if (state?.workflowOperationalWriteLease || state?.simpleTaskFastPathLease ||
+      state?.workflowOperationalWriteLeaseCloseout || state?.simpleTaskFastPathLeaseCloseout) {
     const tasklessAuthority = buildTasklessAuthorityEphemeralStub(state)
     if (jsonBytes(tasklessAuthority) <= EPHEMERAL_STUB_TARGET_BYTES) {
       return JSON.parse(JSON.stringify(tasklessAuthority))
@@ -4496,6 +4552,12 @@ function buildEphemeralStub(state) {
     workflowOperationalWriteLease: state?.workflowOperationalWriteLease
       ? JSON.parse(JSON.stringify(state.workflowOperationalWriteLease))
       : null,
+    workflowOperationalWriteLeaseCloseout: compactWorkflowOperationalWriteLeaseCloseout(
+      state?.workflowOperationalWriteLeaseCloseout
+    ),
+    simpleTaskFastPathLeaseCloseout: compactSimpleTaskFastPathLeaseCloseout(
+      state?.simpleTaskFastPathLeaseCloseout
+    ),
     actualInstructionEnvelope: ingressRecovery
       ? cloneRecoveryValue(state.actualInstructionEnvelope)
       : (state?.workflowOperationalWriteLease ? compactInstructionEnvelopeIdentity(state.actualInstructionEnvelope) : null),
@@ -6634,17 +6696,21 @@ function validateTaskAdmissionTransaction(transaction, expectedIdentity = null) 
       for (const field of [
         'priorTransactionDigest', 'candidateDigest', 'attemptDigest',
         'canonicalOverviewDigest', 'priorCanonicalRevisionDigest', 'canonicalRevisionDigest',
-        'taskIdentityDigest', 'cpArtifactDigest', 'cpChainDigest', 'livenessDigest', 'runtimeDigest'
+        'taskIdentityDigest', 'cpChainDigest', 'livenessDigest', 'runtimeDigest'
       ]) {
         if (!/^[a-f0-9]{64}$/.test(String(recovery[field] || ''))) errors.push(`recovery-${field}`)
       }
       if (!String(recovery.runtimeGeneration || '').trim()) errors.push('recovery-runtime-generation')
+      if (recovery.cpConfirmed !== undefined && typeof recovery.cpConfirmed !== 'boolean') errors.push('recovery-cp-confirmed')
+      if (recovery.cpConfirmed === false ? recovery.cpArtifactDigest !== null : !/^[a-f0-9]{64}$/.test(String(recovery.cpArtifactDigest || ''))) {
+        errors.push('recovery-cpArtifactDigest')
+      }
       if (recovery.priorCanonicalRevisionDigest === recovery.canonicalRevisionDigest) {
         errors.push('recovery-canonical-revision-transition')
       }
       if (!Number.isFinite(Date.parse(String(recovery.recoveredAt || ''))) ||
           recovery.recoveredAt !== transaction.createdAt) errors.push('recovery-timestamp')
-      if (transaction.entryVariant !== 'continue' || transaction.phase !== 'finalized') errors.push('recovery-entry-variant')
+      if (transaction.entryVariant !== 'continue' || !['finalized', 'terminal-closeout'].includes(transaction.phase)) errors.push('recovery-entry-variant')
       const { recoveryDigest, ...recoveryCore } = recovery
       if (!/^[a-f0-9]{64}$/.test(String(recoveryDigest || '')) || recoveryDigest !== digestValue(recoveryCore)) {
         errors.push('recovery-digest')
@@ -6995,6 +7061,7 @@ function ownerTransitionErrors(current, next, transition) {
 }
 
 function commitFencedTaskWriteOwnerTransition(input = {}, options = {}) {
+  const nowMs = nowMsFrom(options)
   const nextOwner = JSON.parse(JSON.stringify(input.owner || {}))
   const ownerValidation = validateFencedTaskWriteOwner(nextOwner, input.identity)
   if (!ownerValidation.valid) {
@@ -7128,6 +7195,23 @@ function commitFencedTaskWriteOwnerTransition(input = {}, options = {}) {
         clearReopenedTaskActiveAuthorities(state)
       }
       state.fencedWriteOwner = nextOwner
+      if (input.ingressState) {
+        const ingress = input.ingressState
+        const validation = validateAdmissionIngressState(ingress, { ...options, nowMs })
+        if (!validation.valid || ingress.activeProject !== input.identity.project ||
+            recoveryComparablePath(ingress.stickyProject?.activeRoot) !== recoveryComparablePath(input.identity.activeRoot) ||
+            nextOwner.sessionDigest !== ingress.stickyProject?.authorityDigest ||
+            nextOwner.contextEpoch !== ingress.actualInstructionEnvelope?.contextEpoch ||
+            nextOwner.routeRevision !== ingress.workflowRouteDecision?.routeRevision ||
+            nextOwner.projectRootIdentity !== ingress.stickyProject?.rootIdentityDigest) {
+          throw new TaskRecoveryStoreV5Error('TASK_OWNER_INGRESS_BINDING_INVALID',
+            'owner renewal and current ingress must bind the same observed task/root/session', { errors: validation.errors })
+        }
+        for (const key of ['activeProject', 'activeScope', 'actualInstructionEnvelope', 'workItemSet',
+          'workflowRouteDecision', 'stickyProject', 'contextAcquisition', 'workflowRoutePlanBinding']) {
+          if (ingress[key] !== undefined) state[key] = cloneRecoveryValue(ingress[key])
+        }
+      }
       state.taskRecoveryBinding = {
         ...(state.taskRecoveryBinding || {}),
         taskId: nextOwner.taskId,
@@ -7293,7 +7377,7 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
         canonical.canonicalOverviewDigest === candidate.canonicalOverviewDigest &&
         canonical.canonicalRevisionDigest === candidate.canonicalRevisionDigest &&
         canonical.cpArtifactDigest === candidate.cpArtifactDigest &&
-        canonical.cpChainDigest === candidate.cpChainDigest && canonical.cpConfirmed === true &&
+        canonical.cpChainDigest === candidate.cpChainDigest && canonical.cpConfirmed === (candidate.cpConfirmed !== false) &&
         currentCanonicalRevisionValidation.valid &&
         currentTransaction.taskIdentityDigest === candidate.taskIdentityDigest &&
         projectRootTransitionMatches &&
@@ -7306,7 +7390,8 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
         canonicalRevision.admissionGeneration === transaction.admissionGeneration &&
         transaction.effects?.overview?.contentDigest === candidate.canonicalOverviewDigest &&
         transaction.effects?.overview?.canonicalRevisionDigest === canonicalRevision.revisionDigest &&
-        transaction.effects?.cpState?.cpChainDigest === candidate.cpChainDigest
+        transaction.effects?.cpState?.cpChainDigest === candidate.cpChainDigest &&
+        transaction.effects?.cpState?.cp1Confirmed === canonical.cpConfirmed
       if (!canonicalMatches) {
         throw new TaskRecoveryStoreV5Error('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', 'TaskIdentity, overview, CP or project binding drifted before resume commit')
       }
@@ -7381,6 +7466,12 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
         boundAt: state.taskRecoveryBinding?.boundAt || transaction.createdAt
       }
       const resumeStateHandoff = candidate.resumeStateHandoff
+      state.activeProject = candidate.project
+      state.activeScope = 'project'
+      state.actualInstructionEnvelope = cloneRecoveryValue(candidate.ingress.actualInstructionEnvelope)
+      state.workItemSet = cloneRecoveryValue(candidate.ingress.workItemSet)
+      state.workflowRouteDecision = cloneRecoveryValue(candidate.ingress.workflowRouteDecision)
+      state.stickyProject = cloneRecoveryValue(candidate.ingress.stickyProject)
       if (resumeStateHandoff) {
         const handoffValidation = validateFinalizedTaskResumeStateHandoff(
           resumeStateHandoff,
@@ -7394,12 +7485,6 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
             { errors: handoffValidation.errors }
           )
         }
-        state.activeProject = candidate.project
-        state.activeScope = 'project'
-        state.actualInstructionEnvelope = cloneRecoveryValue(candidate.ingress.actualInstructionEnvelope)
-        state.workItemSet = cloneRecoveryValue(candidate.ingress.workItemSet)
-        state.workflowRouteDecision = cloneRecoveryValue(candidate.ingress.workflowRouteDecision)
-        state.stickyProject = cloneRecoveryValue(candidate.ingress.stickyProject)
         state.workflowRoutePlanBinding = cloneRecoveryValue(resumeStateHandoff.workflowRoutePlanBinding)
         state.contextAcquisition = cloneRecoveryValue(resumeStateHandoff.contextAcquisition)
         state.validationControlIngress = cloneRecoveryValue(resumeStateHandoff.validationControlIngress)

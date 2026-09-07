@@ -235,16 +235,16 @@ function scenarioRt3 () {
     cwd
   })
   const kind = classifyStop(stop.json)
-  const reason = String(stop.json?.reason || '')
+  const reason = String(stop.json?.reason || stop.json?.systemMessage || '')
   const pass =
-    kind === 'block' &&
+    kind !== 'block' && stop.json?.continue !== false &&
     /Stop gate|incomplete|entry-check/i.test(reason)
-  // F-13: adapter must preserve block
+  // The adapter must preserve the reminder without adding a workflow Stop block.
   const { adaptHostOutput } = require('../hooks/_runtime/lifecycle-host-adapters.cjs')
   if (pass && stop.json) {
     const adapted = adaptHostOutput('grok', 'Stop', stop.json)
-    if (adapted.decision !== 'block') {
-      return { id: 'R-T3', pass: false, kind, decision: adapted.decision, reason: 'adapter-stripped-block', state: readHonesty(cwd), cwd }
+    if (adapted.decision === 'block' || adapted.continue === false) {
+      return { id: 'R-T3', pass: false, kind, decision: adapted.decision, reason: 'adapter-added-workflow-block', state: readHonesty(cwd), cwd }
     }
   }
   return {
@@ -301,10 +301,8 @@ function scenarioRt6 () {
   })
   const kind = classifyStop(stop.json)
   const reason = String(stop.json?.reason || stop.json?.systemMessage || '')
-  // Expect no completion-gate hard block (allow or soft-only reminder ok)
-  const hardCompletionBlock =
-    kind === 'block' && /Stop gate: incomplete/i.test(reason)
-  const pass = !hardCompletionBlock
+  // Closure or context reminders must both leave the task able to continue.
+  const pass = kind !== 'block' && stop.json?.continue !== false
   return {
     id: 'R-T6',
     pass,

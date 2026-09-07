@@ -130,7 +130,8 @@ assert.ok(badHits >= 10, `golden bad hits=${badHits}`)
       '5/6 完成 只差验收 控制面 全部完成 可关闭需求'
     ].join('\n')
   })
-  assert.strictEqual(r.decision, 'block')
+  assert.strictEqual(r.decision, 'allow')
+  assert.match(r.reason, /Do not claim unverified completion/)
   assert.ok(
     r.gaps.includes('stage-report-missing') ||
       r.gaps.includes('progress-overclaim') ||

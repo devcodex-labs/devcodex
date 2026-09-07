@@ -97,7 +97,8 @@ assert.ok(hits >= 8, `hits=${hits}`)
       '任务已完成 可关闭需求'
     ].join('\n')
   })
-  assert.strictEqual(r.decision, 'block')
+  assert.strictEqual(r.decision, 'allow')
+  assert.match(r.reason, /Record unfinished work and recoverable content/)
   assert.ok(r.gaps.includes('ecr-missing'), `gaps=${r.gaps.join(',')}`)
 }
 

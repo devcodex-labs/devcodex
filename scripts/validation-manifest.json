@@ -632,7 +632,10 @@
         "public-skill-catalog-build",
         "generated-site-postcheck",
         "docs-surface-inventory",
-        "process-enforcement-e2e"
+        "process-enforcement-e2e",
+        "delivery-honesty",
+        "ecr-closure",
+        "stop-gate-hook-matrix"
       ]
     },
     "changed": {
@@ -6887,6 +6890,121 @@
       "consumers": [],
       "invariants": [
         "contract"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "delivery-honesty",
+      "owner": "process-enforcement",
+      "command": "node",
+      "args": [
+        "scripts/test-delivery-honesty.js"
+      ],
+      "dependencies": [
+        "artifact-mutation-authority"
+      ],
+      "inputs": [
+        "scripts/test-delivery-honesty.js",
+        "scripts/lib/process-enforcement.js",
+        "hooks/_runtime/lifecycle-stop-gate.cjs"
+      ],
+      "consumers": [],
+      "invariants": [
+        "closure-gaps-remain-visible",
+        "workflow-observations-never-force-stop"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "ecr-closure",
+      "owner": "process-enforcement",
+      "command": "node",
+      "args": [
+        "scripts/test-ecr-closure.js"
+      ],
+      "dependencies": [
+        "artifact-mutation-authority"
+      ],
+      "inputs": [
+        "scripts/test-ecr-closure.js",
+        "scripts/lib/process-enforcement.js",
+        "hooks/_runtime/lifecycle-stop-gate.cjs"
+      ],
+      "consumers": [],
+      "invariants": [
+        "closure-gaps-remain-visible",
+        "workflow-observations-never-force-stop"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "stop-gate-hook-matrix",
+      "owner": "process-enforcement",
+      "command": "node",
+      "args": [
+        "scripts/replay-stop-gate-hook-matrix.js"
+      ],
+      "dependencies": [
+        "artifact-mutation-authority"
+      ],
+      "inputs": [
+        "scripts/replay-stop-gate-hook-matrix.js",
+        "hooks/_runtime/lifecycle.cjs",
+        "hooks/_runtime/lifecycle-stop-gate.cjs",
+        "hooks/_runtime/lifecycle-host-adapters.cjs"
+      ],
+      "consumers": [],
+      "invariants": [
+        "closure-gaps-remain-visible",
+        "workflow-observations-never-force-stop"
       ],
       "riskClass": "normal",
       "cachePolicy": "never",

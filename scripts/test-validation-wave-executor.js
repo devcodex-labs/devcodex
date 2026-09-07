@@ -83,7 +83,12 @@ function executeActualValidationWorker({ manifest, plan, candidate, repoRoot, ac
       try { child.kill('SIGKILL') } catch { }
       reject(new Error('actual validation worker fixture timed out'))
     }, 15000)
-    child.on('message', message => messages.push(message))
+    child.on('message', message => {
+      messages.push(message)
+      // Match the production runner: acknowledge terminal delivery by closing
+      // the channel only after the receiver has observed the final message.
+      if (['result', 'error'].includes(message.type) && child.connected) child.disconnect()
+    })
     child.once('error', reject)
     child.once('exit', code => {
       clearTimeout(timer)

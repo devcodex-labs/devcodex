@@ -1021,7 +1021,8 @@ function partitionInstalledRuntimeEffects(effects, identity) {
     } else if (change.root === 'globalHome') {
       owned = createdDirectory && ['.codex/devcodex/.runtime-generation-leases', leaseRoot].includes(name)
       if (ordinaryFile) {
-        owned = /^\.codex\/(?:state|goals|logs|memories)_[0-9]+\.sqlite(?:-shm|-wal)?$/u.test(name) ||
+        owned = name === '.codex/models_cache.json' ||
+          /^\.codex\/(?:state|goals|logs|memories)_[0-9]+\.sqlite(?:-shm|-wal)?$/u.test(name) ||
           /^AppData\/Local\/Microsoft\/PowerShell\/(?:ModuleAnalysisCache-[A-Fa-f0-9]+|StartupProfileData-NonInteractive)$/u.test(name) ||
           (name.startsWith(leaseRoot + '/') && /^(?:memory|profile)-mcp-[a-f0-9]{8}-[0-9]+\.json$/u.test(name.slice(leaseRoot.length + 1)))
       }

@@ -700,6 +700,7 @@ async function main() {
       [effectHome, '.codex/goals_1.sqlite-shm'],
       [effectHome, '.codex/memories_1.sqlite'],
       [effectHome, '.codex/state_5.sqlite-wal'],
+      [effectHome, '.codex/models_cache.json'],
       [effectHome, '.codex/devcodex/.runtime-generation-leases/fixture-generation/memory-mcp-24efaa5d-12032.json'],
       [effectHome, 'AppData/Local/Microsoft/PowerShell/ModuleAnalysisCache-0C86AEE9'],
       [effectHome, 'AppData/Local/Microsoft/PowerShell/StartupProfileData-NonInteractive'],
@@ -738,6 +739,7 @@ async function main() {
     ]) assert.strictEqual(canContinueIndependentInstalledTurn({ ...deniedReceipt, ...changed }), false)
     for (const [root, name] of [
       ['globalHome', '.codex/config.toml'], ['globalHome', '.codex/auth.json'],
+      ['globalHome', '.codex/models_cache.json.backup'], ['addDir', '.codex/models_cache.json'],
       ['globalHome', '.codex/devcodex/runtime-fixture-generation/mcp/memory-server.js'],
       ['globalHome', '.codex/devcodex/.runtime-generation-leases/other-generation/memory-mcp-24efaa5d-12032.json'],
       ['addDir', '.memory/hooks/another-project/lifecycle-state.json'], ['addDir', 'unexpected.txt'],
@@ -748,6 +750,8 @@ async function main() {
     }
     const linkEffect = { root: 'globalHome', path: '.codex/logs_2.sqlite', before: null, after: { type: 'symlink', target: sourceRoot } }
     assert.deepStrictEqual(partitionInstalledRuntimeEffects({ ...rawEffects, unexpectedChanges: [linkEffect] }, effectIdentity).unexpectedChanges, [linkEffect])
+    const cacheLinkEffect = { ...linkEffect, path: '.codex/models_cache.json' }
+    assert.deepStrictEqual(partitionInstalledRuntimeEffects({ ...rawEffects, unexpectedChanges: [cacheLinkEffect] }, effectIdentity).unexpectedChanges, [cacheLinkEffect])
     const independentLedger = initializeAttemptLedger({ evidenceRoot, identity: effectIdentity })
     const deniedAttempt = claimAttempt(independentLedger, 'H1')
     const deniedBytes = Buffer.from(JSON.stringify(deniedReceipt) + '\n')

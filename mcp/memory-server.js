@@ -6135,6 +6135,9 @@ function handleMemoryTaskAdmitV2(args) {
       ingress = preparedResume.ingress
     }
   }
+  // Capture before admission/route binding switches the lifecycle projection
+  // to the newly created canonical task.
+  const ownerIngressState = taskOwnerIngressState(target, ingress)
   const admission = executeTaskAdmission({
     operation: args.operation,
     task: args.task,
@@ -6177,6 +6180,7 @@ function handleMemoryTaskAdmitV2(args) {
       operation: 'acquire',
       taskId: admission.taskId,
       admissionId: admission.admissionId,
+      ingressState: ownerIngressState,
       actualInstructionEnvelope: verifiedIngress.actualInstructionEnvelope,
       workItemSet: verifiedIngress.workItemSet,
       workflowRouteDecision: verifiedIngress.workflowRouteDecision,
@@ -6438,6 +6442,36 @@ function resolveCurrentTaskIngress(target, args, options = {}) {
   return ingress
 }
 
+function taskOwnerIngressState(target, ingress) {
+  let contextState = ingress.resumeStateHandoff || ingress.lifecycleState
+  const sameContext = state => {
+    const context = state?.contextAcquisition
+    return context?.contextEpoch === ingress.actualInstructionEnvelope.contextEpoch &&
+      context.hostSessionId && crypto.createHash('sha256').update(context.hostSessionId).digest('hex') === ingress.actualInstructionEnvelope.hostSessionDigest &&
+      comparableActiveRoot(context.activeRoot) === comparableActiveRoot(target.activeRoot)
+  }
+  // Immutable ingress snapshots intentionally omit the mutable ContextRead
+  // receipt. Reuse it only from the same observed instruction/route/session.
+  if (!sameContext(contextState)) {
+    contextState = null
+    try {
+      const { state } = readServerOwnedLifecycleProjection(target)
+      if (state.activeProject === target.project && state.activeScope === 'project' &&
+          state.actualInstructionEnvelope?.envelopeDigest === ingress.actualInstructionEnvelope.envelopeDigest &&
+          state.workflowRouteDecision?.decisionDigest === ingress.workflowRouteDecision.decisionDigest &&
+          sameContext(state)) contextState = state
+    } catch { }
+  }
+  return {
+    activeProject: target.project, activeScope: 'project',
+    actualInstructionEnvelope: ingress.actualInstructionEnvelope,
+    workItemSet: ingress.workItemSet, workflowRouteDecision: ingress.workflowRouteDecision,
+    stickyProject: ingress.projectTargetLease,
+    contextAcquisition: contextState?.contextAcquisition,
+    workflowRoutePlanBinding: contextState?.workflowRoutePlanBinding
+  }
+}
+
 function handleMemoryTaskWriteOwner(args) {
   const target = taskMemoryTransactionTarget(args)
   if (target.scope !== 'project' || !target.project) {
@@ -6457,14 +6491,7 @@ function handleMemoryTaskWriteOwner(args) {
     handoffRefDigest: args.handoffRefDigest,
     takeoverRefDigest: args.takeoverRefDigest,
     ...(serverObservation ? { serverObservation } : {}),
-    ingressState: {
-      activeProject: target.project, activeScope: 'project',
-      actualInstructionEnvelope: ingress.actualInstructionEnvelope,
-      workItemSet: ingress.workItemSet, workflowRouteDecision: ingress.workflowRouteDecision,
-      stickyProject: ingress.projectTargetLease,
-      contextAcquisition: ingress.resumeStateHandoff?.contextAcquisition || ingress.lifecycleState?.contextAcquisition,
-      workflowRoutePlanBinding: ingress.resumeStateHandoff?.workflowRoutePlanBinding || ingress.lifecycleState?.workflowRoutePlanBinding
-    },
+    ingressState: taskOwnerIngressState(target, ingress),
     expectedCommitFence: ingress.lifecycleState?.taskRecoveryCommitFence,
     actualInstructionEnvelope: ingress.actualInstructionEnvelope,
     workItemSet: ingress.workItemSet,

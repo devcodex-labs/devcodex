@@ -1293,7 +1293,13 @@ function testMemoryTaskAdmissionV2Contract() {
     actualInstructionEnvelope: envelope,
     workItemSet,
     workflowRouteDecision: route,
-    stickyProject: projectTargetLease
+    stickyProject: projectTargetLease,
+    contextAcquisition: {
+      contextEpoch: envelope.contextEpoch,
+      hostSessionId: 'mcp-admission-session',
+      activeRoot,
+      project
+    }
   }
   fs.writeFileSync(lifecycleStatePath, JSON.stringify(lifecycleState, null, 2) + '\n')
   const args = {
@@ -1421,6 +1427,20 @@ function testMemoryTaskAdmissionV2Contract() {
   assert.strictEqual(admitted.structuredContent.ownerAcquisition.cp1Confirmed, false)
   assert.strictEqual(admitted.structuredContent.continuationLease.status, 'consumed')
   assert.strictEqual(admitted.structuredContent.ownerAcquisition.finalized, true)
+  // The next Hook reads canonical task state, not the pre-admission projection.
+  // Automatic owner acquisition must carry the verified ingress across that
+  // boundary, just as an explicit owner renewal does.
+  const admittedState = readTaskRecoveryState({
+    metaDir: resolveTaskRecoveryMetaDir({ activeRoot, project }),
+    identity: { activeRoot, project, taskId: admitted.structuredContent.taskId, taskStatus: 'active' }
+  })
+  assert.strictEqual(admittedState.status, 'fresh')
+  assert.deepStrictEqual(admittedState.state.actualInstructionEnvelope, envelope)
+  assert.deepStrictEqual(admittedState.state.workflowRouteDecision, route)
+  assert.deepStrictEqual(admittedState.state.workItemSet, workItemSet)
+  assert.deepStrictEqual(admittedState.state.stickyProject, projectTargetLease)
+  assert.strictEqual(admittedState.state.contextAcquisition.contextEpoch, envelope.contextEpoch)
+  assert.strictEqual(admittedState.state.contextAcquisition.hostSessionId, 'mcp-admission-session')
   const replay = resultById(responses, 3)
   assert.strictEqual(replay.isError, false)
   assert.strictEqual(replay.structuredContent.admissionId, admitted.structuredContent.admissionId)
@@ -1459,6 +1479,29 @@ function testMemoryTaskAdmissionV2Contract() {
   })], TEMP_ROOT)
   assert.notStrictEqual(resultById(firstCp, 9).isError, true, resultById(firstCp, 9).content?.[0]?.text)
   assert.doesNotMatch(fs.readFileSync(path.join(taskRoot, '.memory', 'sessions.md'), 'utf8'), /\| CP1 \| ⏳ \|/u)
+  for (const [label, drift] of [
+    ['other-session', { hostSessionId: 'another-host-session' }],
+    ['other-root', { activeRoot: path.join(TEMP_ROOT, 'another-active-root') }]
+  ]) {
+    setupLegacyWorkspace()
+    fs.mkdirSync(path.dirname(lifecycleStatePath), { recursive: true })
+    fs.writeFileSync(lifecycleStatePath, JSON.stringify({ ...lifecycleState,
+      contextAcquisition: { ...lifecycleState.contextAcquisition, ...drift }
+    }) + '\n')
+    const observed = resultById(runServer('mcp/memory-server.js', [rpcRequest(10, 'tools/call', {
+      name: 'memory_task_admit_v2', arguments: { ...args,
+        task: { ...args.task, displayName: `MCP-context-${label}`, aliases: [] }
+      }
+    })], TEMP_ROOT), 10)
+    assert.notStrictEqual(observed.isError, true, observed.content?.[0]?.text)
+    const isolated = readTaskRecoveryState({
+      metaDir: resolveTaskRecoveryMetaDir({ activeRoot, project }),
+      identity: { activeRoot, project, taskId: observed.structuredContent.taskId, taskStatus: 'active' }
+    })
+    assert.strictEqual(isolated.status, 'fresh')
+    assert.deepStrictEqual(isolated.state.actualInstructionEnvelope, envelope)
+    assert(!isolated.state.contextAcquisition?.hostSessionId, `${label} context must not be inherited`)
+  }
 }
 
 function testMemoryFinalizedFreshResumeV3Contract() {

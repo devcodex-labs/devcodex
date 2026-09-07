@@ -2950,6 +2950,7 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
       expectedOwner: ownerRef(currentOwner),
       owner: nextOwner,
       transition: 'reacquire',
+      ingressState: input.ingressState,
       transaction,
       expectedAdmissionPhase: 'finalized',
       reason: 'owner-reacquire'
@@ -3022,6 +3023,7 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
       expectedOwner: currentOwner ? ownerRef(currentOwner) : { mode: 'absent' },
       owner: nextOwner,
       transition: reopening ? 'reopen' : 'acquire',
+      ingressState: input.ingressState,
       transaction: ownerFenced,
       expectedAdmissionPhase: 'cp-state-written',
       reason: reopening ? 'owner-reopen' : 'owner-acquire'

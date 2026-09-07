@@ -371,16 +371,13 @@ const TASK_WRITE_OWNER_REF_SCHEMA = Object.freeze({
 const TOOLS = [
   {
     name: 'memory_task_admit_v2',
-    description: '正式任务准入/恢复并原子获取 fenced owner；写权限取决于 CP。',
+    description: '正式任务准入/恢复并原子获取 fenced owner。传入 operation、task 对象和 overview.content 原文；新建用 admit，task 内提供 taskKind、entryVariant、displayName，续办用 bind/adopt。通常省略 ingressRef 和 resumeContextBinding，由服务端恢复当前入口；如显式提供则二者互斥。写权限取决于 CP。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
       required: ['operation', 'task', 'overview'],
-      oneOf: [
-        { not: { anyOf: [{ required: ['ingressRef'] }, { required: ['resumeContextBinding'] }] } },
-        { required: ['ingressRef'], not: { required: ['resumeContextBinding'] } },
-        { required: ['resumeContextBinding'], not: { required: ['ingressRef'] } }
-      ],
+      // Keep properties visible to hosts that render top-level oneOf branches
+      // without their parent fields. The handler enforces ingress exclusivity.
       properties: {
         operation: { type: 'string', enum: ['admit', 'adopt', 'bind'] },
         project: PROJECT_NAMESPACE_INPUT_SCHEMA,
@@ -6713,8 +6710,15 @@ function dispatch(method, params) {
         }
       } catch (err) {
         const errorCode = err.contextReadCode || (typeof err.code === 'string' ? err.code : null)
+        const admissionInputError = name === 'memory_task_admit_v2' &&
+          /^TASK_ADMISSION_(?:OPERATION|TASK_KIND|ENTRY_VARIANT|OVERVIEW|PRODUCT_SOURCE)_INVALID$/.test(errorCode || '')
+        const inputContract = admissionInputError ? TOOLS.find(tool => tool.name === name).inputSchema : null
+        const nextStep = err.nextStep || (inputContract
+          ? 'Use the attached inputContract: operation is top-level; taskKind, entryVariant and displayName belong inside task; overview.content contains your original overview text. For a new task use entryVariant=new (or fix for bugs); retain the intended task kind and content. Correct the indicated field, then retry; do not guess alternate field names or task kinds.'
+          : 'Correct the memory writer request and retry once.')
         return {
-          content: [{ type: 'text', text: `Error: ${errorCode ? `${errorCode}: ` : ''}${err.message}` }],
+          content: [{ type: 'text', text: `Error: ${errorCode ? `${errorCode}: ` : ''}${err.message}` },
+            ...(inputContract ? [{ type: 'text', text: JSON.stringify({ nextStep, inputContract }) }] : [])],
           ...(err.workspaceBinding ? {
             structuredContent: err.workspaceBinding
           } : errorCode ? {
@@ -6722,7 +6726,8 @@ function dispatch(method, params) {
               schemaVersion: 'MemoryWriterErrorV1',
               errorCode,
               message: err.message,
-              nextStep: err.nextStep || 'Correct the memory writer request and retry once.',
+              nextStep,
+              ...(inputContract ? { inputContract } : {}),
               ...(err.details?.conflictReceipt
                 ? { conflictReceipt: err.details.conflictReceipt }
                 : {})

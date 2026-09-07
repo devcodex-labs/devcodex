@@ -1352,6 +1352,26 @@ function testMemoryTaskAdmissionV2Contract() {
   rejectTamperedProjectLease({ ...projectTargetLease, leaseDigest: 'f'.repeat(64) },
     'digest-mismatched ProjectTargetLeaseV2 must fail closed')
   fs.writeFileSync(lifecycleStatePath, JSON.stringify(lifecycleState, null, 2) + '\n')
+  // Reproduce the installed host's guesses when oneOf hid the parent fields.
+  // Repair guidance must expose the real nested contract before any task write.
+  const malformedAdmissions = [
+    { operation: 'create-or-resume', task: args.task, overview: args.overview },
+    { operation: 'admit', taskKind: 'bugs', displayName: args.task.displayName, overview: args.overview },
+    { operation: 'admit', task: { taskKind: 'bugs', displayName: args.task.displayName }, overview: args.overview },
+    { operation: 'admit', task: args.task, documents: [{ content: args.overview.content }] }
+  ]
+  for (const malformed of malformedAdmissions) {
+    const failed = resultById(runServer('mcp/memory-server.js', [
+      rpcRequest(90, 'tools/call', { name: 'memory_task_admit_v2', arguments: { ...malformed, ingressRef: args.ingressRef } })
+    ], TEMP_ROOT), 90)
+    assert.strictEqual(failed.isError, true)
+    assert.deepStrictEqual(failed.structuredContent.inputContract.required, ['operation', 'task', 'overview'])
+    assert(failed.structuredContent.inputContract.properties.task.properties.taskKind.enum.includes('bugs'))
+    assert.deepStrictEqual(failed.structuredContent.inputContract.properties.overview.required, ['content'])
+    assert.match(failed.structuredContent.nextStep, /overview\.content/)
+    assert(failed.content.some(item => item.text.includes('inputContract')), 'text-only clients also receive repair guidance')
+    assert.strictEqual(fs.existsSync(path.join(activeRoot, 'bugs')), false, 'invalid admission must not create a task')
+  }
   const responses = runServer('mcp/memory-server.js', [
     rpcRequest(1, 'tools/list'),
     rpcRequest(2, 'tools/call', { name: 'memory_task_admit_v2', arguments: args }),
@@ -1386,11 +1406,8 @@ function testMemoryTaskAdmissionV2Contract() {
   ], TEMP_ROOT)
   const toolSchema = findToolSchema(resultById(responses, 1).tools, 'memory_task_admit_v2')
   assert.deepStrictEqual(toolSchema.required, ['operation', 'task', 'overview'])
-  assert.deepStrictEqual(toolSchema.oneOf, [
-    { not: { anyOf: [{ required: ['ingressRef'] }, { required: ['resumeContextBinding'] }] } },
-    { required: ['ingressRef'], not: { required: ['resumeContextBinding'] } },
-    { required: ['resumeContextBinding'], not: { required: ['ingressRef'] } }
-  ])
+  assert.strictEqual(toolSchema.oneOf, undefined, 'host-facing schema must retain its explicit object fields')
+  assert.deepStrictEqual(toolSchema.properties.operation.enum, ['admit', 'adopt', 'bind'])
   assert.deepStrictEqual(
     toolSchema.properties.ingressRef.required,
     ['schemaVersion', 'envelopeId', 'envelopeDigest', 'decisionDigest', 'routeRevision']

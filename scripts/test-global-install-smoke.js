@@ -431,6 +431,7 @@ function isolatedHostEnv(home) {
   const resolvedHome = path.resolve(home)
   const parsedHome = path.parse(resolvedHome)
   return {
+    ...process.env,
     DEVCODEX_TEST_HOME: home,
     DEVCODEX_POSTINSTALL_FORCE: '1',
     CI: '',
@@ -677,6 +678,10 @@ assert.strictEqual(
 )
 
 const installedEnv = isolatedHostEnv(globalHome)
+// Resolve the real host using the same complete environment as direct helper calls,
+// before the expensive installed S15 probe starts.
+const realCodexExecutable = smokeOptions.realCodex ? resolveCodexExecutable(null, installedEnv) : null
+const realCodexVersion = smokeOptions.realCodex ? readCodexVersion(realCodexExecutable, installedEnv) : null
 runCommand(binPath, ['init', '--profile', 'consumer'], { cwd: workspace, env: installedEnv })
 assert.ok(fs.existsSync(path.join(workspace, '.devcodex')), 'workspace init must create only .devcodex runtime')
 assert.deepStrictEqual(
@@ -986,8 +991,6 @@ if (smokeOptions.realCodex) {
     'real-codex-host-probe.js'
   )
   assert.strictEqual(fs.existsSync(installedRealHostHelper), true, 'installed real-host helper is missing')
-  const realCodexExecutable = resolveCodexExecutable(null, installedEnv)
-  const realCodexVersion = readCodexVersion(realCodexExecutable, installedEnv)
   realHostIdentity = createRunIdentity({
     mode: 'installed',
     sourceCandidate: smokeOptions.sourceCandidate,

@@ -993,6 +993,59 @@ function compareSnapshots(before, after, allowedChanges = []) {
   }
 }
 
+function partitionInstalledRuntimeEffects(effects, identity) {
+  if (identity?.mode !== 'installed' || identity.oracle?.h1?.runtimeEffectPolicy !== 'installed-runtime-v1') return effects
+  const home = identity.topology?.probeEffectRoots?.find(entry => entry.label === 'globalHome')?.root
+  const runtime = identity.installedRuntime?.root
+  const project = path.basename(identity.topology?.addDir || '')
+  if (!home || !runtime || !isPathInside(home, runtime) || !/^[A-Za-z0-9_-]+$/u.test(project)) return effects
+  const runtimeRelative = path.relative(home, runtime).replace(/\\/gu, '/')
+  const generation = /^\.codex\/devcodex\/runtime-([A-Za-z0-9._-]+)$/u.exec(runtimeRelative)?.[1]
+  if (!generation) return effects
+  const hookRoot = '.memory/hooks/' + project
+  const leaseRoot = '.codex/devcodex/.runtime-generation-leases/' + generation
+  const ownedRuntimeChanges = []
+  const unexpectedChanges = []
+  for (const change of effects.unexpectedChanges || []) {
+    const name = change.path
+    const ordinaryFile = [change.before, change.after].every(value => !value || value.type === 'file')
+    const createdDirectory = !change.before && change.after?.type === 'directory'
+    let owned = false
+    if (change.root === 'addDir') {
+      const parents = ['.memory', '.memory/hooks', hookRoot, hookRoot + '/v5']
+      owned = createdDirectory && parents.includes(name)
+      if (ordinaryFile && name.startsWith(hookRoot + '/')) {
+        const relative = name.slice(hookRoot.length + 1)
+        owned = /^(?:lifecycle-state\.json|v5\/(?:ephemeral-[ab]\.json|telemetry-[0-9]+\.ndjson))$/u.test(relative)
+      }
+    } else if (change.root === 'globalHome') {
+      owned = createdDirectory && ['.codex/devcodex/.runtime-generation-leases', leaseRoot].includes(name)
+      if (ordinaryFile) {
+        owned = /^\.codex\/(?:state|goals|logs|memories)_[0-9]+\.sqlite(?:-shm|-wal)?$/u.test(name) ||
+          /^AppData\/Local\/Microsoft\/PowerShell\/(?:ModuleAnalysisCache-[A-Fa-f0-9]+|StartupProfileData-NonInteractive)$/u.test(name) ||
+          (name.startsWith(leaseRoot + '/') && /^(?:memory|profile)-mcp-[a-f0-9]{8}-[0-9]+\.json$/u.test(name.slice(leaseRoot.length + 1)))
+      }
+    }
+    ;(owned ? ownedRuntimeChanges : unexpectedChanges).push(change)
+  }
+  return { ...effects, clean: unexpectedChanges.length === 0 && effects.missingExpectedChanges.length === 0,
+    unexpectedChanges, ownedRuntimeChanges, runtimeEffectPolicy: 'installed-runtime-v1' }
+}
+
+function canContinueIndependentInstalledTurn(receipt) {
+  return receipt?.stage === 'H1' && receipt.status === 'UNVERIFIED' && receipt.code === 'HOST_ADD_DIR_WRITE_DENIED' &&
+    receipt.expectation === 'allowed' && receipt.forbiddenRoot === null &&
+    receipt.child?.spawned === true && receipt.child.exitCode === 0 && receipt.child.timedOut === false &&
+    receipt.observation?.commandObserved === true && receipt.observation.commandCompleted === true &&
+    receipt.observation.invalidLineCount === 0 && receipt.observation.commandIdentityDrift !== true &&
+    receipt.observation.commandEventCount === 1 && receipt.observation.commandFailureAccessDenied === true &&
+    Number.isInteger(receipt.observation.commandExitCode) && receipt.observation.commandExitCode !== 0 &&
+    receipt.marker?.exists === false && Array.isArray(receipt.effects?.unexpectedChanges) &&
+    receipt.effects.unexpectedChanges.length === 0 && receipt.effects.runtimeEffectPolicy === 'installed-runtime-v1' &&
+    receipt.cleanup?.markerAbsent === true && receipt.cleanup.fixtureAbsent === true &&
+    receipt.cleanup.childTreeReleased === true && receipt.cleanup.failures?.length === 0
+}
+
 /** Freeze the source, host, topology, authorization and oracle into one run identity. */
 function createRunIdentity(input) {
   assertHexDigest('sourceCandidate', input.sourceCandidate)
@@ -1303,6 +1356,12 @@ function assertStagePredecessor(ledger, stage) {
   if (index <= 0) return
   const previous = readAttemptTerminal(ledger, order[index - 1], 2) ||
     readAttemptTerminal(ledger, order[index - 1], 1)
+  if (ledger.identity.mode === 'installed' && stage === 'H2' && previous?.status === 'UNVERIFIED' &&
+      previous.code === 'HOST_ADD_DIR_WRITE_DENIED' && previous.receiptDigest &&
+      ledger.identity.oracle?.h1?.runtimeEffectPolicy === 'installed-runtime-v1') {
+    const receipt = readLedgerJson(path.join(attemptDirectory(ledger, 'H1', previous.attempt), 'probe-receipt.json'), 'H1 receipt').value
+    if (canContinueIndependentInstalledTurn(receipt)) return
+  }
   if (!previous || previous.status !== 'PASS') {
     fail('REAL_HOST_STAGE_PREDECESSOR_INCOMPLETE', stage + ' requires PASS from ' + order[index - 1])
   }
@@ -1947,7 +2006,7 @@ function classifyProbeResult(options) {
   if (options.expectation === 'allowed') {
     if (observation.commandExitCode !== 0) {
       return {
-        status: 'BLOCK',
+        status: options.installedRuntimePolicy === true && !marker.exists && observation.commandFailureAccessDenied ? 'UNVERIFIED' : 'BLOCK',
         code: marker.exists
           ? 'HOST_PROBE_READBACK_MISMATCH'
           : (observation.commandFailureAccessDenied ? 'HOST_ADD_DIR_WRITE_DENIED' : 'HOST_PROBE_COMMAND_FAILED'),
@@ -2103,7 +2162,7 @@ async function executeClaimedProbeStage(options, attemptRef, onFixture) {
         after: { type: 'file', bytes: fixture.payload.length, sha256: fixture.payloadSha256 }
       }]
     : []
-  const effects = compareSnapshots(before, after, allowedChanges)
+  const effects = partitionInstalledRuntimeEffects(compareSnapshots(before, after, allowedChanges), options.ledger.identity)
   const marker = readMarker(fixture.targetPath, fixture.payload)
   const observation = parseCodexJsonl(child.stdout, fixture.acceptedCommands)
   const evidence = persistChildEvidence(attemptRef, child)
@@ -2116,6 +2175,7 @@ async function executeClaimedProbeStage(options, attemptRef, onFixture) {
     marker,
     effects,
     observation,
+    installedRuntimePolicy: effects.runtimeEffectPolicy === 'installed-runtime-v1',
     stagePolicy: stageExecution?.policy || null,
     requireTrustedForbiddenPolicy: options.ledger.identity.mode === 'H0'
   })
@@ -2761,6 +2821,7 @@ module.exports = {
   buildCodexArgs,
   buildFixtureCommand,
   buildIsolatedCodexEnv,
+  canContinueIndependentInstalledTurn,
   claimAttempt,
   classifyProbeResult,
   classifyTurnResult,
@@ -2788,6 +2849,7 @@ module.exports = {
   openAttemptLedger,
   parseCliArguments,
   parseCodexJsonl,
+  partitionInstalledRuntimeEffects,
   quoteShellArgument,
   readLedgerJson,
   readWindowsAclProjection,

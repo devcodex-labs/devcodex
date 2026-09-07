@@ -10,6 +10,7 @@ const {
   assertInstalledIdentityBinding,
   assertRuntimeBinding,
   buildCodexArgs,
+  canContinueIndependentInstalledTurn,
   claimAttempt,
   classifyProbeResult,
   classifyTurnResult,
@@ -35,6 +36,7 @@ const {
   openAttemptLedger,
   parseCliArguments,
   parseCodexJsonl,
+  partitionInstalledRuntimeEffects,
   readLedgerJson,
   readWindowsAclProjection,
   runH0,
@@ -677,6 +679,82 @@ async function main() {
     assert.strictEqual(cleanDiff.clean, true)
     assert.strictEqual(compareSnapshots(before, after).clean, false)
     fs.rmSync(expectedFile)
+
+    // Native run 3 wrote host databases, Hook state and current-generation leases;
+    // these owned effects must not hide its separately observed command denial.
+    const effectHome = path.join(tmp, 'installed-effect-home')
+    const effectRuntime = path.join(effectHome, '.codex', 'devcodex', 'runtime-fixture-generation')
+    fs.mkdirSync(effectRuntime, { recursive: true })
+    fs.mkdirSync(path.join(effectHome, 'AppData/Local/Microsoft/PowerShell'), { recursive: true })
+    const effectIdentity = createRunIdentity({
+      ...installedIdentity,
+      authorizationDigest: sha256(Buffer.from('installed-effect-authorization')),
+      topology: { ...installedIdentity.topology, probeEffectRoots: [{ label: 'globalHome', root: effectHome }] },
+      installedRuntime: { root: effectRuntime, generationDigest: sha256(Buffer.from('effect-runtime')) },
+      oracle: { h1: { runtimeEffectPolicy: 'installed-runtime-v1' } }
+    })
+    const effectRoots = [{ label: 'globalHome', root: effectHome }, { label: 'addDir', root: addDir }]
+    const effectBefore = snapshotControlledRoots(effectRoots)
+    const ownedFiles = [
+      [effectHome, '.codex/logs_2.sqlite-wal'],
+      [effectHome, '.codex/goals_1.sqlite-shm'],
+      [effectHome, '.codex/memories_1.sqlite'],
+      [effectHome, '.codex/state_5.sqlite-wal'],
+      [effectHome, '.codex/devcodex/.runtime-generation-leases/fixture-generation/memory-mcp-24efaa5d-12032.json'],
+      [effectHome, 'AppData/Local/Microsoft/PowerShell/ModuleAnalysisCache-0C86AEE9'],
+      [effectHome, 'AppData/Local/Microsoft/PowerShell/StartupProfileData-NonInteractive'],
+      [addDir, '.memory/hooks/consumer/lifecycle-state.json'],
+      [addDir, '.memory/hooks/consumer/v5/ephemeral-a.json'],
+      [addDir, '.memory/hooks/consumer/v5/telemetry-0.ndjson']
+    ]
+    for (const [root, relative] of ownedFiles) {
+      const file = path.join(root, relative)
+      fs.mkdirSync(path.dirname(file), { recursive: true })
+      fs.writeFileSync(file, 'test-owned runtime state\n')
+    }
+    const missingMarker = { root: 'addDir', path: 'probe-marker', after: { type: 'file', bytes: 1, sha256: sha256(Buffer.from('x')) } }
+    const rawEffects = compareSnapshots(effectBefore, snapshotControlledRoots(effectRoots), [missingMarker])
+    const classifiedEffects = partitionInstalledRuntimeEffects(rawEffects, effectIdentity)
+    assert.strictEqual(classifiedEffects.unexpectedChanges.length, 0)
+    assert(classifiedEffects.ownedRuntimeChanges.length >= ownedFiles.length)
+    assert.deepStrictEqual(classifiedEffects.missingExpectedChanges, [missingMarker])
+    assert.strictEqual(partitionInstalledRuntimeEffects(rawEffects, installedIdentity), rawEffects)
+    const deniedObservation = { invalidLineCount: 0, commandObserved: true, commandCompleted: true,
+      commandEventCount: 1, commandExitCode: -1, commandFailureAccessDenied: true, commandIdentityDrift: false }
+    const deniedChild = { spawned: true, exitCode: 0, timedOut: false, cleanup: { stillRunning: false } }
+    const installedDenial = classifyProbeResult({ expectation: 'allowed', installedRuntimePolicy: true,
+      observation: deniedObservation, child: deniedChild, marker: { exists: false }, effects: classifiedEffects })
+    assert.strictEqual(installedDenial.status, 'UNVERIFIED')
+    assert.strictEqual(installedDenial.code, 'HOST_ADD_DIR_WRITE_DENIED')
+    const deniedReceipt = { stage: 'H1', expectation: 'allowed', forbiddenRoot: null, ...installedDenial,
+      child: deniedChild, observation: deniedObservation, marker: { exists: false }, effects: classifiedEffects,
+      cleanup: { markerAbsent: true, fixtureAbsent: true, childTreeReleased: true, failures: [] } }
+    assert.strictEqual(canContinueIndependentInstalledTurn(deniedReceipt), true)
+    for (const changed of [
+      { marker: { exists: true } }, { status: 'PASS' }, { code: 'HOST_ISOLATION_ESCAPE' },
+      { observation: { ...deniedObservation, commandEventCount: 2 } },
+      { cleanup: { ...deniedReceipt.cleanup, childTreeReleased: false } },
+      { effects: { ...classifiedEffects, unexpectedChanges: [{ root: 'globalHome', path: '.codex/config.toml' }] } }
+    ]) assert.strictEqual(canContinueIndependentInstalledTurn({ ...deniedReceipt, ...changed }), false)
+    for (const [root, name] of [
+      ['globalHome', '.codex/config.toml'], ['globalHome', '.codex/auth.json'],
+      ['globalHome', '.codex/devcodex/runtime-fixture-generation/mcp/memory-server.js'],
+      ['globalHome', '.codex/devcodex/.runtime-generation-leases/other-generation/memory-mcp-24efaa5d-12032.json'],
+      ['addDir', '.memory/hooks/another-project/lifecycle-state.json'], ['addDir', 'unexpected.txt'],
+      ['globalPrefix', '.codex/state_5.sqlite']
+    ]) {
+      const unexpected = { root, path: name, before: null, after: { type: 'file', bytes: 1, sha256: sha256(Buffer.from('x')) } }
+      assert.deepStrictEqual(partitionInstalledRuntimeEffects({ ...rawEffects, unexpectedChanges: [unexpected] }, effectIdentity).unexpectedChanges, [unexpected])
+    }
+    const linkEffect = { root: 'globalHome', path: '.codex/logs_2.sqlite', before: null, after: { type: 'symlink', target: sourceRoot } }
+    assert.deepStrictEqual(partitionInstalledRuntimeEffects({ ...rawEffects, unexpectedChanges: [linkEffect] }, effectIdentity).unexpectedChanges, [linkEffect])
+    const independentLedger = initializeAttemptLedger({ evidenceRoot, identity: effectIdentity })
+    const deniedAttempt = claimAttempt(independentLedger, 'H1')
+    const deniedBytes = Buffer.from(JSON.stringify(deniedReceipt) + '\n')
+    fs.writeFileSync(path.join(deniedAttempt.directory, 'probe-receipt.json'), deniedBytes, { flag: 'wx' })
+    finalizeAttempt(deniedAttempt, { status: 'UNVERIFIED', code: installedDenial.code, receiptDigest: sha256(deniedBytes) })
+    assert.strictEqual(claimAttempt(independentLedger, 'H2').stage, 'H2')
+    expectCode(() => claimAttempt(independentLedger, 'H1', 2), 'REAL_HOST_RETRY_NOT_ELIGIBLE')
 
     const identity = makeIdentity({ suffix: 'ledger' })
     const ledger = initializeAttemptLedger({

@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 699,
     "consumerInventoryDigest": "e6d2914108d3e2312ce48f482a081495d070c468296ae8c83f4eada9d24af7e1",
-    "consumerProjectionDigest": "0fde8a62dde555b448bedaf3bc20b356c4a29e7ac3bdfd351b5371f889973ab6",
-    "portfolioInputDigest": "2cb111971d5b68746f3340f67fd80e6eb9b6b4ba51d58ea086170cd19a3c55cf"
+    "consumerProjectionDigest": "b6206343640abbdf0ded9fa02d206437b13d2bb2bbb73d1b515b52b4090524ee",
+    "portfolioInputDigest": "b2428ec1b29a96fcbdd379dabadf6f02409adad5306c384df087eb08f8d081eb"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -12221,6 +12221,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/real-codex-host-probe.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/requirement-artifact-check.js",
           "role": "current"
         },
@@ -12457,6 +12461,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-real-codex-host-probe.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-report-index.js",
           "role": "current"
         },
@@ -12586,6 +12594,7 @@
         "scripts/test-migrate-layout.js",
         "scripts/test-pack-clean.js",
         "scripts/test-process-enforcement-e2e.js",
+        "scripts/test-real-codex-host-probe.js",
         "scripts/test-report-index.js",
         "scripts/test-requirement-artifacts.js",
         "scripts/test-requirement-parallel-orchestration.js",
@@ -12682,6 +12691,7 @@
           "scripts/test-migrate-layout.js",
           "scripts/test-pack-clean.js",
           "scripts/test-process-enforcement-e2e.js",
+          "scripts/test-real-codex-host-probe.js",
           "scripts/test-report-index.js",
           "scripts/test-requirement-artifacts.js",
           "scripts/test-requirement-parallel-orchestration.js",

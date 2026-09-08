@@ -23,8 +23,8 @@ version: 1.20.2
 
 | 检查 | 条件 | 意图 |
 |------|------|------|
-| 按任务名恢复？ | 完整消息符合 `继续<任务名>任务` 或 `继续 <任务名>` | 先用 `memory_task_resolve` 定位；仅 `resolved-active` 进入 `resume` |
-| 恢复中断？ | 用户说"继续"/"恢复"，且今日/昨日任务文件中存在状态为 🔄 的会话 | `resume` → 跳过三问 |
+| 按任务名恢复？ | 根据完整对话判断用户要续接哪项已有任务，提取任务定位信息 | 先用 `memory_task_resolve` 定位；仅 `resolved-active` 进入 `resume` |
+| 恢复中断？ | 当前消息在上下文中表达续接目的，且当前会话任务恢复证据有效；短回答或特定词本身不决定路由 | `resume` → 定向复水化，保留已确认范围与授权 |
 | 纯问答？ | 仅提问/求解释，无文件变更意图 | `chat` → 跳过三问 |
 
 `TaskContinuationIntentGate`：任务名、alias、Hook 命中和派生 index 只负责定位。stable taskId / active displayName / active alias 必须 exact；相似项只提示不自动选中。唯一 active 命中后仍按 `task.json → sessions.md → 当前绑定产物/checkpoint` 定向复证；ambiguous、not-found、completed、rejected、stale-confirmation 或 scale-blocked 均不得静默进入执行。

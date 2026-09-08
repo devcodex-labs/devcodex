@@ -606,8 +606,10 @@ try {
     /profile\.routeLoadRecipe/
   )
 
-  assert.strictEqual(parseExplicitSkillId('请使用 test skill'), 'test')
-  assert.strictEqual(parseExplicitSkillId('用 skill: test'), 'test')
+  // Raw prose cannot grant explicit Skill authority; model selection is tested
+  // through the observed catalog and structured commit in skill-route-state.
+  assert.strictEqual(parseExplicitSkillId('请使用 test skill'), null)
+  assert.strictEqual(parseExplicitSkillId('用 skill: test'), null)
   assert.strictEqual(parseExplicitSkillId('不要使用 test skill'), null)
   assert.strictEqual(parseExplicitSkillId('为什么触发到 test skill'), null)
   assert.strictEqual(parseExplicitSkillId('看截图怎么触发到 test skill'), null)

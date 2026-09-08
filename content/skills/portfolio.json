@@ -6,7 +6,7 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "e3b0a94d5b0f434995c7a9fcac514f242629f73b12d40e6f8d978739f822360f",
+    "sourceDigest": "90d516f0dba882fc0b12b46ef7dcc472536a63cfae9d2503a8b8b3a67e20240a",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "6ffdd7a19b8b0c09aaab71a6974e4b17fa5c59052f809cf79c0590173d36fced",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 713,
     "consumerInventoryDigest": "424ec22febd792e124b514f3a668703849b8d4dee64719c8a7d670f49499c2ca",
-    "consumerProjectionDigest": "c7fdd9c1aff705e16bbbbd2022aeece58a3c4e2d8f30d6293fd77230b7595ac6",
-    "portfolioInputDigest": "63b29ee5c7dac4d50418b153b639c89f62d0c6f5d41504a7c2f64356a68c995a"
+    "consumerProjectionDigest": "888ebbd8cf584f95025396c95e9df15412e81148b8ce7afdabf7758eba7b84b1",
+    "portfolioInputDigest": "bc5a2bdbccfe1a0d3612bb8d7f2efd88093b58bc0f93f8e4f91d0a6fe0b7ce9f"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -11743,8 +11743,8 @@
         "content/skills/memory/SKILL.md"
       ],
       "source": "content/skills/memory/SKILL.md",
-      "hash": "1d0104d516106b5e6e2a652cb091637f1b5349dbbd8c11a7d5f33cd829cef2e4",
-      "sourceBytes": 33822,
+      "hash": "badf85e46500adcfb207a68bab41b7e8e634bc2f28725cfea4aacb3b21c0a261",
+      "sourceBytes": 33960,
       "version": "1.20.2",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -16937,10 +16937,6 @@
           "role": "current"
         },
         {
-          "path": "scripts/test-session-route-consumers.js",
-          "role": "current"
-        },
-        {
           "path": "scripts/test-skill-portfolio.js",
           "role": "current"
         },
@@ -17044,7 +17040,6 @@
         "scripts/test-requirement-artifacts.js",
         "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-review-execution-contract.js",
-        "scripts/test-session-route-consumers.js",
         "scripts/test-skill-portfolio.js",
         "scripts/test-skill-route-state.js",
         "scripts/test-skill-sidecar-contract.js",
@@ -17146,7 +17141,6 @@
           "scripts/test-requirement-artifacts.js",
           "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-review-execution-contract.js",
-          "scripts/test-session-route-consumers.js",
           "scripts/test-skill-portfolio.js",
           "scripts/test-skill-route-state.js",
           "scripts/test-skill-sidecar-contract.js",

@@ -61,7 +61,7 @@ daily/SUMMARY 仍是唯一真相源：受管 writer 在文件提交后刷新索�
 
 | 场景 | 读取范围 | 执行顺序 |
 |------|---------|---------|
-| **命名续接 · 首步** | 完整消息为 `继续<任务名>任务` / `继续 <任务名>` 时调用 `memory_task_resolve(name, project?)`；只返回有界 identity/session/CP metadata | 先于通用 resume 查询 |
+| **命名续接 · 首步** | 用户意图为续接明确任务时，将任务名或稳定 ID 与项目范围提交给 `memory_task_resolve(name, project?, locale?)`；locale 来自用户意图和已确认语言，任务名不决定语言；只返回有界 identity/session/CP metadata | 先于通用 resume 查询，不要求固定句式 |
 | 命名续接 · 唯一 active | 定向读取该任务 `task.json`、`sessions.md`、当前绑定 artifact/checkpoint | resolver 只定位，不替代复水化 |
 | **正常会话 · 首步** | `memory_status(limit <= 5)`：今日/昨日 metadata、有限 SUMMARY 行、active 状态与冲突；不返回整文件正文 | 第一读 |
 | 正常会话 · 连续性相关 | `memory_summary_query(status: active/unresolved, limit <= 5)` | status 证明需要时再读 |

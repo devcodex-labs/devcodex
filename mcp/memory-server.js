@@ -584,6 +584,7 @@ const TOOLS = [
         name: { type: 'string', minLength: 1, maxLength: 300, description: '精确任务名、alias 或稳定 taskId' },
         project: { ...PROJECT_NAMESPACE_INPUT_SCHEMA, description: '可选项目命名空间；提供后限制为 project scope' },
         scope: { type: 'string', enum: ['project', 'workspace'], description: '可选；默认按 cwd/project 推断' },
+        locale: { type: 'string', minLength: 2, maxLength: 32, description: '按当前用户意图选择的提示语言；省略时沿用已确认任务语言，不从任务名称猜测' },
         persistIndex: { type: 'boolean', description: '是否持久化可重建索引；默认 true' }
       }
     }
@@ -4769,6 +4770,26 @@ function handleMemorySummaryAppend(args) {
   }
 }
 
+function taskPresentationLocale(args, candidate, persistedLanguage) {
+  const requested = normalizeLanguageTag(args.locale)
+  if (requested) return requested
+  let language = persistedLanguage
+  if (language === undefined && candidate?.taskId && candidate.project) {
+    try {
+      const target = taskMemoryTransactionTarget({ project: candidate.project, scope: 'project' })
+      const identity = { activeRoot: target.activeRoot, project: target.project, taskId: candidate.taskId, taskStatus: 'active' }
+      const recovery = readTaskRecoveryState({ metaDir: resolveTaskRecoveryMetaDir(identity), identity }, { fs })
+      if (recovery.status === 'fresh') language = recovery.state?.languageContext
+    } catch {
+      // Presentation has no authority to alter a missing or invalid task state.
+    }
+  }
+  const durable = language?.durableProvisional !== true
+    ? normalizeLanguageTag(language?.durablePrimaryLocale || language?.primaryLanguage || language?.responseLanguage)
+    : ''
+  return durable || 'en-US'
+}
+
 function handleMemoryTaskResolve(args) {
   if (!String(args.name || '').trim()) throw new TaskContinuationError('TASK_NAME_REQUIRED', 'name is required')
   const resolution = resolveTaskContinuation({
@@ -4779,8 +4800,7 @@ function handleMemoryTaskResolve(args) {
     persistIndex: args.persistIndex !== false
   })
   const candidates = resolution.candidates || resolution.suggestions || []
-  const languageEvidence = `${String(args.name || '')}${String(resolution.candidate?.displayName || '')}${candidates.map(item => item.displayName || '').join('')}`
-  const chinese = /[\u3400-\u9fff]/u.test(languageEvidence)
+  const chinese = taskPresentationLocale(args, resolution.candidate).startsWith('zh')
   let humanText
   if (resolution.status === 'resolved-active') {
     humanText = chinese
@@ -4901,15 +4921,8 @@ function handleMemoryTaskContinuityViewV1(args) {
     activeRoot: target?.activeRoot || '',
     priorDisambiguationReceiptDigest: args.priorDisambiguationReceiptDigest || null
   })
-  const persistedLanguage = recoveryRead.state?.languageContext || {}
-  const requestedLocale = normalizeLanguageTag(args.locale)
-  const durableLocale = normalizeLanguageTag(
-    persistedLanguage.responseLanguage ||
-    persistedLanguage.primaryLanguage ||
-    persistedLanguage.durablePrimaryLocale
-  )
-  const languageEvidence = `${args.name || ''}${candidate?.displayName || ''}`
-  const locale = requestedLocale || durableLocale || (/\p{Script=Han}/u.test(languageEvidence) ? 'zh-CN' : 'en-US')
+  const locale = taskPresentationLocale(args, candidate,
+    recoveryRead.status === 'fresh' ? recoveryRead.state?.languageContext || {} : {})
   return {
     content: [{ type: 'text', text: renderTaskContinuityViewHuman(view, { locale }) }],
     structuredContent: view,

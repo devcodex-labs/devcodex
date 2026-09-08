@@ -1004,8 +1004,10 @@ function testMemoryTaskResolveContract() {
 
   const responses = runServer('mcp/memory-server.js', [
     rpcRequest(1, 'tools/list'),
-    rpcRequest(2, 'tools/call', { name: 'memory_task_resolve', arguments: { name: 'MCP旧任务名' } }),
-    rpcRequest(3, 'tools/call', { name: 'memory_task_resolve', arguments: { name: '不存在任务', persistIndex: false } })
+    rpcRequest(2, 'tools/call', { name: 'memory_task_resolve', arguments: { name: 'MCP旧任务名', locale: 'zh-CN' } }),
+    rpcRequest(3, 'tools/call', { name: 'memory_task_resolve', arguments: { name: '不存在任务', persistIndex: false } }),
+    rpcRequest(4, 'tools/call', { name: 'memory_task_resolve', arguments: { name: 'MCP旧任务名', locale: 'en' } }),
+    rpcRequest(5, 'tools/call', { name: 'memory_task_resolve', arguments: { name: '6f5faaf1-9a0c-4b12-99c3-4386e415a305', locale: 'zh' } })
   ], TEMP_ROOT)
   assert(resultById(responses, 1).tools.some(tool => tool.name === 'memory_task_resolve'))
   const resolved = resultById(responses, 2)
@@ -1022,6 +1024,12 @@ function testMemoryTaskResolveContract() {
   assert.strictEqual(missing.structuredContent.status, 'not-found')
   assert.strictEqual(missing.structuredContent.continuationAllowed, true)
   assert.strictEqual(missing.structuredContent.continuationDisposition, 'provisional-continue')
+  assert.match(resultById(responses, 4).structuredContent.humanSummary, /^Uniquely located task:/,
+    'Chinese task names must not override the language chosen from user intent')
+  assert.match(resultById(responses, 5).structuredContent.humanSummary, /^已唯一定位任务/,
+    'a stable ID contains no language instruction')
+  assert.match(missing.structuredContent.humanSummary, /^No exact task candidate/,
+    'without a language decision or task state, a Chinese query does not become language authority')
 }
 
 function testMemoryTaskResolveExplicitProjectBudget() {
@@ -3495,6 +3503,15 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
   assert.notStrictEqual(durableLanguageContinuity.isError, true, durableLanguageContinuity.content?.[0]?.text || '')
   assert.match(durableLanguageContinuity.content?.[0]?.text || '', /task|checkpoint|continue/i,
     'persisted task language must outrank the Chinese display name')
+
+  const durableLanguageLocator = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(24, 'tools/call', {
+      name: 'memory_task_resolve',
+      arguments: { name: admission.taskId, project, scope: 'project', persistIndex: false }
+    })
+  ], TEMP_ROOT), 24)
+  assert.notStrictEqual(durableLanguageLocator.isError, true)
+  assert.match(durableLanguageLocator.structuredContent.humanSummary, /^Uniquely located task:/)
 
   const continuity = resultById(runServer('mcp/memory-server.js', [
     rpcRequest(22, 'tools/call', {

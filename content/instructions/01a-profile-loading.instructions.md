@@ -79,7 +79,7 @@ version: 1.20.2
 - 当启用 `workspace-namespace` 且缺少 workspace profile 时，运行时提示必须指向真实路径 `.devcodex/workspace/profile/`。
 - 物理项目已绑定但 `.devcodex/<project>/profile/` 整体缺失时必须返回 `PROFILE_MISSING`；只有项目 Profile 根已存在时，单文件缺失才可按 workspace base + project overlay 规则读取 workspace 文件。
 - 若已用物理 marker、layout identity 与 allowlist 复证唯一目标项目，后续“继续 / 确认”等消息只有在同一 session（无稳定 session 时为同一 turn）、canonical physicalRoot/activeRoot、layout/root identity、context binding 与 route revision 都未漂移时，才可在短 TTL 内沿用 `ProjectTargetLeaseV2`。session/turn、TTL、marker/layout/root/context/route 任一漂移，命中多个项目、显式目标冲突或用户选择 workspace 时都必须立即撤销并重新判断；V1 仅作 reader compatibility。
-- `WorkspaceSessionRouteIndexV1` 只提供项目/task route hint，不提供 CP、artifact、validation 或 mutation authority。完整 `继续<任务名>任务` / `继续 <任务名>` 应先用 `memory_task_resolve` / `TaskResolutionV1` 的 bounded exact resolver 定位项目，再形成该 active namespace 的 ContextReadPlan；该定位阶段不得预读 Profile 正文，且歧义/完成/stale/scale-blocked 不得错误绑定项目、自动 reopen 或恢复写权。
+- `WorkspaceSessionRouteIndexV1` 只提供项目/task route hint，不提供 CP、artifact、validation 或 mutation authority。根据完整对话判断用户要续接明确任务后，应先用 `memory_task_resolve` / `TaskResolutionV1` 的 bounded exact resolver 定位项目，再形成该 active namespace 的 ContextReadPlan；不要求固定句式，任务名或稳定 ID 不决定回复语言。该定位阶段不得预读 Profile 正文，且歧义/完成/stale/scale-blocked 不得错误绑定项目、自动 reopen 或恢复写权。
 
 ## 项目现实扩展（Project Reality Expansion）
 

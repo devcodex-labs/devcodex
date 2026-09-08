@@ -103,9 +103,9 @@ chat / 纯确认短答：TTFV 可 `N/A + skipReason=chat-or-ack`。
 
 > 显式 `@devcodex-auto`、全局默认 `@rocky`、Profile `extensions.devcodex.autoAliases` 替换别名或明确自然语言 auto 授权模式下：
 
-仅在 `hook-enforced` 宿主 + 白名单路径下，FC/SC 失败时自动修正（不暂停等待用户），但 [S01~S06](../../instructions/00-safety.instructions.md) 仍阻断。Auto/白名单不创建正式任务、CP confirmation、fenced owner 或 mutation lease；任何修正都必须先完成对应标准流程与 V5 prewrite。
+在用户已授权的任务范围内，FC/SC 失败时继续修正；遵守 [S01~S06](../../instructions/00-safety.instructions.md) 的宿主权限和工作流边界。Auto/白名单不创建正式任务、CP confirmation、fenced owner 或 mutation lease；任何修正都必须先完成对应标准流程与 V5 prewrite。
 
-`instruction-fallback` 宿主（如 JetBrains / Cursor）仅保留 auto 规则语义，不承诺 runtime 级自动行为；支持 Hook 的宿主默认采用 `safety-only`，非白名单路径在正式 workflow authority 已满足后输出提醒并放行，`strict` 模式下才按白名单执行 runtime 硬拦截，因此其“自动”更多体现为路径受限的 hook 提醒/门禁策略。
+`instruction-fallback` 宿主（如 JetBrains / Cursor）仅保留 auto 规则语义，不承诺 runtime 级自动行为；`hook-enforced` 宿主校验当前语义决定和正式 workflow authority。路径分类仅作 advisory，`safety-only` 或 `strict` 均不得据此覆盖已有授权或要求额外确认。
 
 ## §1 输出验证（每条建议/方案/问题必须附）
 

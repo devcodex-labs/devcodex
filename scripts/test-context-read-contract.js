@@ -397,6 +397,63 @@ assert.strictEqual(normalizeCompatibleContextReadPlan(devPlan, {
   producerIdentity: forgedProducer
 }).status, 'refresh-required')
 
+function previousRegistryPlan(current, routeChanges = {}) {
+  const previous = clone(current)
+  const routeCore = { ...previous.workflowRoute }
+  delete routeCore.routeIdentityDigest
+  Object.assign(routeCore, { routeRegistryDigest: 'c'.repeat(64) }, routeChanges)
+  previous.workflowRoute = { ...routeCore, routeIdentityDigest: stableDigest(routeCore) }
+  previous.identityInputs.intent.workflowRoute = clone(previous.workflowRoute)
+  previous.planContentId = `plan-content-${stableDigest(previous.identityInputs)}`
+  previous.planId = `plan-${stableDigest({
+    planContentId: previous.planContentId,
+    contextEpoch: previous.identity.contextEpoch,
+    invocationNonce: previous.identity.invocationNonce
+  }).slice(0, 24)}`
+  previous.contextBinding.planId = previous.planId
+  previous.contextBinding.planContentId = previous.planContentId
+  previous.cacheDecision.cacheKey = previous.planContentId
+  return previous
+}
+
+const sourceOnlyRegistryPlan = previousRegistryPlan(devPlan)
+assert.strictEqual(validateContextReadPlan(sourceOnlyRegistryPlan).valid, false,
+  'the strict current-plan validator must not silently accept a stale registry')
+const registryCompatible = normalizeCompatibleContextReadPlan(sourceOnlyRegistryPlan, {
+  producerIdentity: producerIdentity(2)
+})
+assert.strictEqual(registryCompatible.status, 'migrated-route-registry')
+assert.strictEqual(validateContextReadPlan(registryCompatible.plan).valid, true)
+assert.strictEqual(registryCompatible.plan.workflowRoute.routeRegistryDigest, workflowRouteRegistryV2.registryDigest)
+assert.strictEqual(registryCompatible.plan.workflowRoute.routeRevision, sourceOnlyRegistryPlan.workflowRoute.routeRevision)
+assert.notStrictEqual(registryCompatible.plan.planContentId, sourceOnlyRegistryPlan.planContentId)
+assert.strictEqual(registryCompatible.receipt.originalPlanDigest, stableDigest(sourceOnlyRegistryPlan))
+assert.strictEqual(registryCompatible.receipt.normalizedPlanDigest, stableDigest(registryCompatible.plan))
+assert.strictEqual(normalizeCompatibleContextReadPlan(sourceOnlyRegistryPlan).status, 'refresh-required')
+for (const identity of [producerIdentity(0), forgedProducer]) {
+  assert.strictEqual(normalizeCompatibleContextReadPlan(sourceOnlyRegistryPlan, { producerIdentity: identity }).status, 'refresh-required')
+}
+for (const changes of [
+  { routeRevision: 'e'.repeat(64) },
+  { routeKey: 'dev.unknown' },
+  { stage: 'internal-step' },
+  { disposition: 'retired' }
+]) {
+  assert.strictEqual(normalizeCompatibleContextReadPlan(previousRegistryPlan(devPlan, changes), {
+    producerIdentity: producerIdentity(2)
+  }).status, 'refresh-required', 'registry rebinding must not repair changed route semantics')
+}
+for (const field of ['planContentId', 'routeIdentityDigest', 'target']) {
+  const corrupt = clone(sourceOnlyRegistryPlan)
+  if (field === 'target') corrupt.identityInputs.target.project = 'foreign-project'
+  else if (field === 'routeIdentityDigest') corrupt.workflowRoute.routeIdentityDigest = 'd'.repeat(64)
+  else corrupt.planContentId = 'plan-content-' + 'd'.repeat(64)
+  const rejected = normalizeCompatibleContextReadPlan(corrupt, { producerIdentity: producerIdentity(2) })
+  assert.strictEqual(rejected.status, 'refresh-required')
+  assert.strictEqual(rejected.error.message, validateContextReadPlan(corrupt).error.message,
+    'a supported producer with an invalid plan must report the plan error')
+}
+
 const stablePlan = assertPlan(buildContextReadPlan(makeInput('dev', ['source-code'], {
   planningTelemetry: { latencyMs: 999, inputTokens: 17 }
 }), { nowMs: BASE_MS }))

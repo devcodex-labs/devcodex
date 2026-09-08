@@ -1037,7 +1037,9 @@ function validateCheckpointEpochBootstrapAuthority(value, expected = {}, options
     if (sealed.authorityId !== value.authorityId) errors.push('authority-id')
     if (sealed.authorityDigest !== value.authorityDigest) errors.push('authority-digest')
     if (expected.taskId && sealed.task.taskId !== normalizeTaskId(expected.taskId)) errors.push('authority-task-id')
-    if (expected.project && sealed.task.project !== expected.project) errors.push('authority-project')
+    // V5 compares project namespaces without case. Keep the sealed original
+    // spelling and digest as provenance; normalize only this comparison key.
+    if (expected.project && sealed.task.project.toLowerCase() !== String(expected.project).toLowerCase()) errors.push('authority-project')
     if (expected.activeRootDigest && sealed.task.activeRootDigest !== expected.activeRootDigest) errors.push('authority-active-root')
     if (expected.stateSequence !== undefined && sealed.fence.expectedStateSequence !== expected.stateSequence) errors.push('authority-state-sequence')
     if (expected.writerGeneration !== undefined && sealed.fence.expectedWriterGeneration !== expected.writerGeneration) errors.push('authority-writer-generation')

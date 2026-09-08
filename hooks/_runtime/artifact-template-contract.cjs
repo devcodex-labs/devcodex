@@ -22,9 +22,12 @@ const REPORT_TEMPLATE_BY_INTENT = Object.freeze({
   analysis: 'report-analysis',
   audit: 'report-audit',
   dev: 'report-dev',
+  requirements: 'report-dev',
   fix: 'report-fix',
+  bugs: 'report-fix',
   'self-fix': 'report-fix',
   optimization: 'report-optimization',
+  optimizations: 'report-optimization',
   optimize: 'report-optimization',
   'scenario-test': 'report-scenario-test',
   'scenario-tests': 'report-scenario-test',
@@ -261,12 +264,8 @@ function inferReportTemplate(target, intent) {
     new RegExp(`/(?:${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})/`, 'i').test(value)
   )?.[1]
   if (explicit) return explicit
-  const name = path.posix.basename(value)
-  if (/(?:审查|复核|review|audit)/i.test(name)) return 'report-audit'
-  if (/(?:分析|analysis)/i.test(name)) return 'report-analysis'
-  if (/(?:修复|fix)/i.test(name)) return 'report-fix'
-  if (/(?:优化|optimization)/i.test(name)) return 'report-optimization'
-  if (/(?:场景|scenario|测试报告)/i.test(name)) return 'report-scenario-test'
+  // The model supplies intent; canonical directory enums support old callers.
+  // A free-form report filename is not an intent authority.
   return 'report-dev'
 }
 
@@ -376,6 +375,47 @@ function createArtifactTemplateBinding(input = {}, options = {}) {
     throw new ArtifactTemplateContractError('ARTIFACT_TEMPLATE_BINDING_INVALID', 'Generated template binding is invalid.', { errors: validation.errors })
   }
   return binding
+}
+
+function renderArtifactTemplate(input = {}, options = {}) {
+  const source = readStableTemplate([input.templateRef], options)
+  const blockId = String(input.blockId || '')
+  if (!/^[a-z][a-z0-9-]{0,63}$/.test(blockId)) {
+    throw new ArtifactTemplateContractError('ARTIFACT_TEMPLATE_BLOCK_INVALID', 'One named template block is required.')
+  }
+  const begin = `<!-- BEGIN DEVCODEX TEMPLATE: ${blockId} -->`
+  const end = `<!-- END DEVCODEX TEMPLATE: ${blockId} -->`
+  const start = source.content.indexOf(begin)
+  const stop = source.content.indexOf(end, start + begin.length)
+  if (start < 0 || stop < start || source.content.indexOf(begin, start + begin.length) !== -1 ||
+      source.content.indexOf(end) !== stop || source.content.indexOf(end, stop + end.length) !== -1) {
+    throw new ArtifactTemplateContractError('ARTIFACT_TEMPLATE_BLOCK_MISSING', `Missing or ambiguous template block: ${blockId}`)
+  }
+  const body = source.content.slice(start + begin.length, stop).trim()
+  const fenced = body.match(/^```markdown\r?\n([\s\S]*?)\r?\n```$/)
+  if (!fenced) throw new ArtifactTemplateContractError('ARTIFACT_TEMPLATE_BLOCK_INVALID', 'Named block must contain one Markdown body.')
+  const values = input.values || {}
+  if (typeof values !== 'object' || Array.isArray(values) ||
+      Object.values(values).some(value => typeof value !== 'string') ||
+      Buffer.byteLength(stableStringify(values), 'utf8') > MAX_ARTIFACT_BYTES) {
+    throw new ArtifactTemplateContractError('ARTIFACT_TEMPLATE_VALUES_INVALID', 'Template values must be bounded strings.')
+  }
+  const content = fenced[1].replace(/\{\{([A-Za-z][A-Za-z0-9]*)\}\}/g, (_, key) => {
+    if (!Object.prototype.hasOwnProperty.call(values, key)) {
+      throw new ArtifactTemplateContractError('ARTIFACT_TEMPLATE_VALUE_MISSING', `Missing template value: ${key}`)
+    }
+    return String(values[key])
+  }) + '\n'
+  if (Buffer.byteLength(content, 'utf8') > MAX_ARTIFACT_BYTES) {
+    throw new ArtifactTemplateContractError('ARTIFACT_TEMPLATE_OUTPUT_TOO_LARGE', 'Rendered artifact exceeds the artifact byte limit.')
+  }
+  const production = {
+    schemaVersion: 'ArtifactTemplateProductionV1', producer: String(input.producer || ''),
+    templateRef: input.templateRef, resolvedTemplateRef: source.resolvedTemplateRef,
+    templateDigest: source.templateDigest, blockId, inputsDigest: digest(values),
+    artifactDigest: sha256(Buffer.from(content, 'utf8')), artifactBytes: Buffer.byteLength(content, 'utf8')
+  }
+  return { content, production: Object.freeze({ ...production, productionDigest: digest(production) }) }
 }
 
 function validateArtifactTemplateBinding(value) {
@@ -539,6 +579,9 @@ function qualifyArtifactContent(binding, content, input = {}, options = {}) {
     observedExtensions,
     orderValid,
     readbackVerified: input.readbackVerified === true,
+    assessment: 'structure-only',
+    intentSatisfaction: 'UNVERIFIED',
+    ...(input.artifactScope ? { artifactScope: input.artifactScope } : {}),
     status: errorCodes.length ? 'rejected' : 'qualified',
     errorCodes: [...new Set(errorCodes)].sort(),
     qualifiedAt: new Date(Number.isFinite(options.nowMs) ? options.nowMs : Date.now()).toISOString()
@@ -626,8 +669,12 @@ function findArtifactTemplateQualification(value, bindingDigest = null, state = 
 
 function renderArtifactTemplateQualification(value, locale = 'zh-CN') {
   const passed = value?.status === 'qualified' && validateArtifactTemplateQualification(value).valid
-  if (String(locale).toLowerCase().startsWith('zh')) return passed ? '模板资格：通过（已读回）' : '模板质量：警告（保留内容并继续补齐；写入结果以回读为准）'
-  return passed ? 'Template qualification: passed (read back).' : 'Template quality: warning; preserve content and continue repairs. Write status comes from readback.'
+  const readback = value?.readbackVerified === true
+  if (String(locale).toLowerCase().startsWith('zh')) return passed
+    ? `模板结构：通过（${readback ? '已读回' : '尚未读回'}）；内容结论需按任务语义审阅。`
+    : '模板结构：待补齐（保留内容继续修补；写入结果以回读为准）。'
+  return passed ? `Template structure: passed (${readback ? 'read back' : 'not yet read back'}); task content requires semantic review.`
+    : 'Template structure needs repair; preserve content. Write status comes from readback.'
 }
 
 module.exports = {
@@ -642,6 +689,7 @@ module.exports = {
   projectArtifactTemplateBinding,
   qualifyArtifactContent,
   qualifyArtifactFile,
+  renderArtifactTemplate,
   renderArtifactTemplateQualification,
   resolveArtifactTemplateRef,
   validateArtifactTemplateBinding,

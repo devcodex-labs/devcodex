@@ -341,8 +341,8 @@ A1~A10 最新吸纳执行包默认复用上述 `docs-semantics-examples`、`deri
 
 - PI/PF/VL/GR/ISSUE 的 reader、validator、runtime index 与 Governance Intake 必须通过共享 resolver 读取 manifest 声明的 active + immutable shards；active 文件始终是唯一普通写入目标。
 - `GovernanceLedgerManifestV1` 是 ledger family、文档摘要、reopened overlay 与 `nextSequence` 的 canonical 真相源；`.memory/indexes/governance-ledgers.json` 仅为可重建派生索引，不得反向写回台账。
-- manifest 缺失时只允许 legacy 单文件读取兼容；首次分配新编号或写入前必须先执行零搬迁初始化。新 ID 必须在 manifest 锁内原子递增 `nextSequence`，禁止扫描 `max(existing)+1`。
-- manifest 一旦存在，缺失或摘要漂移的 shard、重复 primary ID、无合法 active overlay 的重复历史记录、序列回退或 migration transaction 残留都必须 fail closed，禁止静默回退 legacy 路径。
+- manifest 缺失时只允许 legacy 单文件读取兼容；首次分配新编号或写入前必须先执行零搬迁初始化。新 ID 必须在 manifest 锁内原子递增 `nextSequence`，并保存 `allocationHighWatermark`；未落账的已分配编号不再使用。不得由调用者扫描正文自行拼接下一个编号。
+- manifest 一旦存在，缺失或摘要漂移的 shard、重复 primary ID、无合法 active overlay 的重复历史记录或 migration transaction 残留都必须 fail closed，禁止静默回退 legacy。唯一错误是派生 nextSequence 落后时，既有初始化/分配 owner 可在锁内完整校验 active + immutable shards、归档摘要、overlay 和已保存的分配高水位，再 CAS 修复计数；更高的现有计数保留，历史 ID 不变，并返回恢复前后值。历史补充标题的重复引用作歧义诊断，不按标题词语自动重编号。
 - archive shard 创建后 immutable；记录重新打开时在 active 文件写当前 overlay，并由 manifest 精确引用其 historical shard。普通 writer 不得追加或改写 archive。
 - 分片迁移必须逐 family、bounded、默认 dry-run；apply/rollback 绑定精确 plan digest、source digest 与 manifest digest。GR 试点只迁移日期与 terminal status 明确且不包含其他 primary ID 的自包含 H2 记录。
 

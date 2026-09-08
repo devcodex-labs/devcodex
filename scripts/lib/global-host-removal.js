@@ -10,7 +10,8 @@ const {
   targetAcceptsPath,
   targetSafetyRoots,
   isUnder,
-  isUnderPhysical
+  isUnderPhysical,
+  realpathExistingPrefix
 } = require('./global-host-target.js')
 const {
   GLOBAL_HOST_RECEIPT_SCHEMA,
@@ -22,7 +23,8 @@ const {
   parseJsonObject,
   removeHostJsonContent,
   removeManagedBlock,
-  tomlManagedFileMatches
+  tomlManagedFileMatches,
+  extractManagedTomlBody
 } = require('./global-host-config-merge.js')
 const {
   executeGlobalHostTransaction,
@@ -34,6 +36,13 @@ const {
   uninstallGrokPluginInstallation
 } = require('./host-adapter-scope.js')
 const { buildGrokCliEnv } = require('./grok-cli-env.js')
+const { buildGrokConfigCompensationOperation, cleanupGrokRecoveryArtifact } = require('./global-host-grok-recovery.js')
+const {
+  readGenerationManifest, inspectRuntimeGenerationLeases, LEASE_ROOT_NAME
+} = require('../../hooks/_runtime/runtime-generation-lease.cjs')
+const {
+  createRuntimeGenerationGcClaim, releaseRuntimeGenerationGcClaim, RETENTION_STATE_FILE
+} = require('./runtime-generation-retention.js')
 const {
   ACTIVATION_RECEIPT_SCHEMA,
   resolveActivationReceiptFile
@@ -177,12 +186,16 @@ function exclusiveManagedRoots(receipt, target, fsImpl = fs) {
 function unknownFilesInManagedRoots(receipt, target, fsImpl = fs, additionalOwnedPaths = []) {
   const paths = [...receiptPaths(receipt), ...additionalOwnedPaths].map(file => path.resolve(file))
   const owned = new Set(paths.map(pathKey))
+  // This inventory has no mutations. Resolve each distinct path once; the
+  // transaction still performs fresh physical-boundary and digest checks.
+  const physicalPaths = new Map(paths.map(file => [pathKey(file), realpathExistingPrefix(file, fsImpl)]))
   return exclusiveManagedRoots(receipt, target, fsImpl)
     .flatMap(root => {
       const resolvedRoot = path.resolve(root)
+      const physicalRoot = realpathExistingPrefix(resolvedRoot, fsImpl)
       const ownedDirectories = new Set([pathKey(resolvedRoot)])
       for (const file of paths) {
-        if (!isUnderPhysical(resolvedRoot, file, fsImpl)) continue
+        if (!isUnder(physicalRoot, physicalPaths.get(pathKey(file)))) continue
         let cursor = path.dirname(file)
         while (isUnder(resolvedRoot, cursor)) {
           ownedDirectories.add(pathKey(cursor))
@@ -458,13 +471,20 @@ function planArtifactOperation({ artifact, receipt, target, expectedOperation, f
     )
   }
   if (artifact.ownershipKind === 'codex-toml-block') {
-    if (extractManagedBlockText(current, 'toml', artifact.blockId || 'global-codex-mcp') != null &&
-        (!expectedOperation || !tomlManagedFileMatches(
-          current,
-          expectedOperation.content,
-          expectedOperation.managedContent,
-          { id: artifact.blockId || 'global-codex-mcp' }
-        ))) {
+    const id = artifact.blockId || 'global-codex-mcp'
+    const block = extractManagedBlockText(current, 'toml', id)
+    const body = extractManagedTomlBody(current, id)
+    const recordedBody = typeof artifact.managedContent === 'string' &&
+      digestText(artifact.managedContent) === artifact.managedDigest
+      ? artifact.managedContent
+      : body != null && digestText(body) === artifact.managedDigest ? body : null
+    // Removal is bound to the installed receipt, including an older generation.
+    // The currently running package is only a compatibility fallback.
+    const matches = recordedBody != null
+      ? tomlManagedFileMatches(current, current, recordedBody, { id })
+      : expectedOperation && tomlManagedFileMatches(current, expectedOperation.content,
+        expectedOperation.managedContent, { id })
+    if (block != null && !matches) {
       const error = new Error(`GLOBAL_HOST_REMOVAL_MANAGED_BLOCK_MODIFIED: ${file}`)
       error.code = 'GLOBAL_HOST_REMOVAL_MANAGED_BLOCK_MODIFIED'
       throw error
@@ -518,6 +538,92 @@ function planArtifactOperation({ artifact, receipt, target, expectedOperation, f
   }
 }
 
+function removalGenerationInventory(receipt, target, options = {}) {
+  const fsImpl = options.fs || fs
+  const roots = [...new Set([receipt.runtimeRoot, ...(receipt.retainedRuntimeRoots || [])].filter(Boolean).map(portable))]
+  return roots.map(runtimeRoot => {
+    const observed = readGenerationManifest(runtimeRoot, fsImpl)
+    const previous = receipt.removal?.schemaVersion === 'GlobalHostRemovalStateV1'
+      ? receipt.removal.generations?.find(item => samePath(item.runtimeRoot, runtimeRoot))
+      : null
+    const previousIdentityValid = previous &&
+      /^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$/.test(String(previous.generationId || '')) &&
+      samePath(path.join(target.runtimeBaseRoot, `runtime-${previous.generationId}`), runtimeRoot) &&
+      samePath(previous.runtimeBaseRoot || '', target.runtimeBaseRoot)
+    const generationId = observed.manifest?.generationId || (previousIdentityValid ? previous.generationId : null)
+    const base = { runtimeRoot, runtimeBaseRoot: portable(target.runtimeBaseRoot), generationId }
+    if (!generationId) {
+      return { ...base, deferred: fsImpl.existsSync(runtimeRoot), reasonCode: 'generation-identity-unverified' }
+    }
+    const key = pathKey(runtimeRoot)
+    const leases = inspectRuntimeGenerationLeases(target.runtimeBaseRoot, generationId, {
+      fs: fsImpl, nowMs: options.nowMs, pidProbe: options.pidProbe, runtimeRoot,
+      allowedClaimId: options.allowedRemovalClaims?.[key]
+    })
+    // A prior committed detach can leave only empty owned directories after a
+    // failed prune. It cannot authorize removal of new or unproven file bytes.
+    const emptyRetry = observed.status !== 'resolved' && previousIdentityValid &&
+      walkTreeEntries(runtimeRoot, fsImpl).files.length === 0
+    const identityKnown = observed.status === 'resolved' || emptyRetry
+    const deferred = !identityKnown || !leases.complete || leases.live.length > 0 ||
+      (options.initiallyDeferredRoots || []).some(root => samePath(root, runtimeRoot))
+    return {
+      ...base, leases, deferred, needsClaim: observed.status === 'resolved',
+      reasonCode: !identityKnown ? 'generation-identity-unverified'
+        : !leases.complete ? 'generation-lease-evidence-incomplete'
+          : leases.live.length ? 'live-process-lease' : deferred ? 'retry-after-observation-change' : 'inactive-owned-generation'
+    }
+  })
+}
+
+function pendingRemovalReceipt(receipt, generations) {
+  return {
+    ...receipt,
+    removal: {
+      schemaVersion: 'GlobalHostRemovalStateV1',
+      status: 'cleanup-pending',
+      generations: generations.map(({ runtimeRoot, runtimeBaseRoot, generationId, deferred, reasonCode }) =>
+        ({ runtimeRoot, runtimeBaseRoot, generationId, deferred, reasonCode }))
+    }
+  }
+}
+
+function sharedRuntimeConsumers(targets, options = {}) {
+  const fsImpl = options.fs || fs
+  const selected = new Set(targets.map(target => target.host))
+  const consumers = []
+  // Shared instructions and legacy Skill trees can still serve an unselected
+  // host. Its committed installation is enough to retain that shared source.
+  for (const host of GLOBAL_HOST_IDS.filter(host => !selected.has(host))) {
+    try {
+      const target = resolveGlobalHostTargets({ ...options, hosts: [host],
+        runtimeGeneration: targets[0]?.runtimeGeneration, fs: fsImpl })[0]
+      if (!fsImpl.existsSync(target.receiptFile)) {
+        const sharedRoot = target.shared?.root ? path.join(target.shared.root, 'devcodex') : null
+        const residuals = unmanagedResidualEvidence(target, fsImpl)
+          .filter(file => !sharedRoot || !isUnder(sharedRoot, file))
+        if (residuals.length) consumers.push({ host, status: 'UNVERIFIED', reasonCode: 'consumer-receipt-missing' })
+        continue
+      }
+      const stat = fsImpl.lstatSync(target.receiptFile)
+      if (stat.isSymbolicLink() || !stat.isFile() || stat.size > MAX_REMOVAL_RECEIPT_BYTES) {
+        consumers.push({ host, status: 'UNVERIFIED' }); continue
+      }
+      const receipt = parseJsonObject(readText(target.receiptFile, fsImpl), 'shared runtime consumer')
+      validateReceipt(receipt, target, fsImpl)
+      if (receipt.schemaVersion === GLOBAL_HOST_RECEIPT_SCHEMA && receipt.host === host &&
+          receipt.result === 'committed' && !receipt.removal) consumers.push({ host, status: 'PASS' })
+      else if (!receipt.removal) consumers.push({ host, status: 'UNVERIFIED' })
+      else if (removalGenerationInventory(receipt, target, options).some(item => item.deferred)) {
+        consumers.push({ host, status: 'UNVERIFIED' })
+      }
+    } catch {
+      consumers.push({ host, status: 'UNVERIFIED' })
+    }
+  }
+  return consumers
+}
+
 function buildGlobalHostRemovalPlan(options = {}) {
   const fsImpl = options.fs || fs
   const env = options.env || process.env
@@ -541,6 +647,8 @@ function buildGlobalHostRemovalPlan(options = {}) {
   const conflicts = []
   const hostPlans = []
   const seen = new Map()
+  const generations = []
+  const sharedConsumers = sharedRuntimeConsumers(targets, { ...options, packageRoot, env })
 
   for (const target of targets) {
     if (!fsImpl.existsSync(target.receiptFile)) {
@@ -574,6 +682,19 @@ function buildGlobalHostRemovalPlan(options = {}) {
       }
       receipt = parseJsonObject(readText(target.receiptFile, fsImpl), `${target.host} removal receipt`)
       validateReceipt(receipt, target, fsImpl)
+      const hostGenerations = removalGenerationInventory(receipt, target, { ...options, fs: fsImpl })
+      generations.push(...hostGenerations.map(item => ({ ...item, host: target.host })))
+      const deferredRoots = hostGenerations.filter(item => item.deferred).map(item => item.runtimeRoot)
+      const sharedRoot = target.shared?.root ? path.join(target.shared.root, 'devcodex') : null
+      const retainShared = sharedRoot && sharedConsumers.length > 0 &&
+        receiptPaths(receipt).some(file => isUnder(sharedRoot, file))
+      const retained = file => deferredRoots.some(root => isUnder(root, file)) ||
+        (retainShared && isUnder(sharedRoot, file)) ||
+        (deferredRoots.length > 0 && (
+          isUnder(path.join(target.runtimeBaseRoot, LEASE_ROOT_NAME), file) ||
+          samePath(file, path.join(target.runtimeBaseRoot, RETENTION_STATE_FILE)) ||
+          (target.shared?.root && isUnder(path.join(target.shared.root, 'devcodex'), file))
+        ))
       const activationReceiptPath = target.host === 'codex'
         ? validActivationReceiptPath(resolveActivationReceiptFile({
             env,
@@ -583,8 +704,9 @@ function buildGlobalHostRemovalPlan(options = {}) {
         : null
       const auxiliaryManagedPaths = activationReceiptPath ? [activationReceiptPath] : []
       const unknownFiles = unknownFilesInManagedRoots(receipt, target, fsImpl, auxiliaryManagedPaths)
-      if (unknownFiles.length) {
-        const error = new Error(`GLOBAL_HOST_REMOVAL_UNKNOWN_MANAGED_ROOT_CONTENT: ${unknownFiles.join(', ')}`)
+      const blockingUnknownFiles = unknownFiles.filter(file => !retained(file))
+      if (blockingUnknownFiles.length) {
+        const error = new Error(`GLOBAL_HOST_REMOVAL_UNKNOWN_MANAGED_ROOT_CONTENT: ${blockingUnknownFiles.join(', ')}`)
         error.code = 'GLOBAL_HOST_REMOVAL_UNKNOWN_MANAGED_ROOT_CONTENT'
         throw error
       }
@@ -592,6 +714,7 @@ function buildGlobalHostRemovalPlan(options = {}) {
       const paths = Array.from(new Set([...receiptPaths(receipt), ...auxiliaryManagedPaths].map(portable)))
       let changed = 0
       for (const file of paths) {
+        if (retained(file)) continue
         validateReceiptManagedPath(receipt, target, file, expected, fsImpl)
         const artifact = auxiliaryManagedPaths.some(candidate => samePath(candidate, file))
           ? {
@@ -618,11 +741,20 @@ function buildGlobalHostRemovalPlan(options = {}) {
         contentOperations.push(operation)
         changed += 1
       }
+      for (const generation of hostGenerations.filter(item => !item.deferred)) {
+        for (const item of generation.leases?.dead || []) {
+          contentOperations.push({
+            host: target.host, action: 'remove', path: item.path, kind: 'json',
+            expectedDigest: operationDigest(fsImpl.readFileSync(item.path))
+          })
+        }
+      }
       receiptOperations.push({
         host: target.host,
-        action: 'remove',
+        action: 'write',
         path: target.receiptFile,
         kind: 'json',
+        content: JSON.stringify(pendingRemovalReceipt(receipt, hostGenerations), null, 2) + '\n',
         expectedDigest: operationDigest(fsImpl.readFileSync(target.receiptFile))
       })
       hostPlans.push({
@@ -630,7 +762,10 @@ function buildGlobalHostRemovalPlan(options = {}) {
         status: 'planned',
         artifacts: paths.length,
         changed: changed + 1,
-        receiptFile: portable(target.receiptFile)
+        receiptFile: portable(target.receiptFile),
+        retainedRuntimeRoots: deferredRoots.map(portable),
+        retainedSharedRoot: retainShared ? portable(sharedRoot) : null,
+        retainedUnknownPaths: unknownFiles.filter(retained)
       })
     } catch (error) {
       conflicts.push({
@@ -648,6 +783,7 @@ function buildGlobalHostRemovalPlan(options = {}) {
     action: operation.action,
     path: portable(operation.path),
     contentDigest: operation.content == null ? null : digestText(operation.content),
+    expectedDigest: operation.expectedDigest || null,
     expectAbsent: operation.expectAbsent === true
   }))))
   return {
@@ -657,6 +793,8 @@ function buildGlobalHostRemovalPlan(options = {}) {
     home: targets[0]?.home || path.resolve(options.home || ''),
     targets,
     hostPlans,
+    generations,
+    sharedConsumers,
     conflicts,
     operations,
     planDigest
@@ -724,55 +862,6 @@ function refreshAuthorizedGrokConfigMutation(plan, grokTarget, integration, fsIm
   delete operation.expectAbsent
 }
 
-function buildGrokConfigCompensationOperation(snapshot, integration, fsImpl = fs) {
-  const currentExists = fsImpl.existsSync(snapshot.path)
-  const currentBytes = currentExists ? fsImpl.readFileSync(snapshot.path) : null
-  const currentDigest = operationDigest(currentBytes == null ? '' : currentBytes)
-  const beforeDigest = operationDigest(snapshot.content)
-  const authorizedAfter = integration?.dryRun === false &&
-    integration.beforeDigest === beforeDigest &&
-    integration.afterDigest === currentDigest
-
-  if (snapshot.existed) {
-    if (currentExists && currentDigest === beforeDigest) return null
-    if (!currentExists) {
-      return {
-        host: 'grok',
-        action: 'write',
-        path: snapshot.path,
-        kind: 'toml',
-        content: snapshot.content,
-        expectAbsent: true
-      }
-    }
-    if (authorizedAfter) {
-      return {
-        host: 'grok',
-        action: 'write',
-        path: snapshot.path,
-        kind: 'toml',
-        content: snapshot.content,
-        expectedDigest: currentDigest
-      }
-    }
-  } else {
-    if (!currentExists) return null
-    if (authorizedAfter) {
-      return {
-        host: 'grok',
-        action: 'remove',
-        path: snapshot.path,
-        kind: 'toml',
-        expectedDigest: currentDigest
-      }
-    }
-  }
-
-  const error = new Error(`GLOBAL_HOST_REMOVAL_GROK_COMPENSATION_DRIFT: ${snapshot.path}`)
-  error.code = 'GLOBAL_HOST_REMOVAL_GROK_COMPENSATION_DRIFT'
-  throw error
-}
-
 function nearestPruneBoundary(file, target, fsImpl = fs) {
   const destination = path.resolve(file)
   const exclusiveRoots = [
@@ -834,148 +923,9 @@ function pruneEmptyManagedDirectories(operations, targets, fsImpl = fs) {
   return { removed: Array.from(new Set(removed)), failures }
 }
 
-function workspaceTempRootFromManifest(manifestPath) {
-  let current = path.dirname(path.resolve(manifestPath))
-  while (true) {
-    if (path.basename(current).toLowerCase() === 'manifests') {
-      const candidate = path.dirname(current)
-      if (path.basename(candidate).toLowerCase() === 'devcodex' &&
-          path.basename(path.dirname(candidate)).toLowerCase() === '.tmp') return candidate
-    }
-    const parent = path.dirname(current)
-    if (parent === current) return null
-    current = parent
-  }
-}
-
-function cleanupGrokRecoveryArtifact(integration, fsImpl = fs) {
-  const backupPath = integration?.backupPath ? path.resolve(integration.backupPath) : null
-  const manifestPath = integration?.backupManifestPath ? path.resolve(integration.backupManifestPath) : null
-  if (!backupPath && !manifestPath) {
-    return { status: 'not-applicable', transaction: null, failures: [] }
-  }
-  const failures = []
-  if (!backupPath || !manifestPath) {
-    failures.push({
-      errorCode: 'GLOBAL_HOST_GROK_RECOVERY_PROOF_INCOMPLETE',
-      error: 'Grok recovery cleanup requires both backupPath and backupManifestPath'
-    })
-    return { status: 'blocked', transaction: null, failures }
-  }
-  const tempRoot = workspaceTempRootFromManifest(manifestPath)
-  if (!tempRoot ||
-      !isUnderPhysical(tempRoot, backupPath, fsImpl) ||
-      !isUnderPhysical(path.join(tempRoot, 'manifests'), manifestPath, fsImpl)) {
-    failures.push({
-      errorCode: 'GLOBAL_HOST_GROK_RECOVERY_PATH_INVALID',
-      error: 'Grok recovery paths are outside one canonical workspace temp root'
-    })
-    return { status: 'blocked', transaction: null, failures }
-  }
-  if (!fsImpl.existsSync(manifestPath) || fsImpl.lstatSync(manifestPath).isSymbolicLink() ||
-      !fsImpl.lstatSync(manifestPath).isFile()) {
-    failures.push({
-      errorCode: 'GLOBAL_HOST_GROK_RECOVERY_MANIFEST_INVALID',
-      path: portable(manifestPath),
-      error: 'Grok recovery manifest is missing or not a regular file'
-    })
-    return { status: 'blocked', transaction: null, failures }
-  }
-  let manifest
-  try {
-    manifest = parseJsonObject(readText(manifestPath, fsImpl), 'Grok recovery manifest')
-  } catch (error) {
-    failures.push({ errorCode: error.code || 'GLOBAL_HOST_GROK_RECOVERY_MANIFEST_INVALID', error: error.message })
-    return { status: 'blocked', transaction: null, failures }
-  }
-  const v1Proof = manifest.schemaVersion === 'WorkspaceTempManifestV1' &&
-    path.isAbsolute(String(manifest.targetPath || '')) &&
-    samePathValue(manifest.targetPath, backupPath)
-  const v2Target = manifest.schemaVersion === 'WorkspaceTempManifestV2'
-    ? path.resolve(tempRoot, String(manifest.targetRelativePath || ''))
-    : null
-  const v2ManifestPath = manifest.schemaVersion === 'WorkspaceTempManifestV2'
-    ? path.join(
-        tempRoot,
-        'manifests',
-        'v2',
-        crypto.createHash('sha256').update(String(manifest.project || '')).digest('hex'),
-        'backups',
-        `${manifest.artifactId}.json`
-      )
-    : null
-  const v2Proof = manifest.schemaVersion === 'WorkspaceTempManifestV2' &&
-    manifest.type === 'backup' &&
-    manifest.lifecycleState === 'finalized' &&
-    manifest.finalDisposition === 'retained' &&
-    /^[a-f0-9]{64}$/.test(String(manifest.ownerTokenDigest || '')) &&
-    samePathValue(v2Target, backupPath) &&
-    samePathValue(v2ManifestPath, manifestPath)
-  if ((!v1Proof && !v2Proof) ||
-      manifest.owner !== 'devcodex-grok-adapter' ||
-      manifest.producer !== 'grok-plugin-uninstall') {
-    failures.push({
-      errorCode: 'GLOBAL_HOST_GROK_RECOVERY_OWNERSHIP_INVALID',
-      path: portable(manifestPath),
-      error: 'Grok recovery manifest does not prove exact DevCodex uninstall ownership'
-    })
-    return { status: 'blocked', transaction: null, failures }
-  }
-  const operations = []
-  if (fsImpl.existsSync(backupPath)) {
-    const stat = fsImpl.lstatSync(backupPath)
-    if (stat.isSymbolicLink() || !stat.isFile() ||
-        !/^[a-f0-9]{64}$/i.test(String(integration.beforeDigest || '')) ||
-        digestText(fsImpl.readFileSync(backupPath, 'utf8')) !== integration.beforeDigest) {
-      failures.push({
-        errorCode: 'GLOBAL_HOST_GROK_RECOVERY_BACKUP_MODIFIED',
-        path: portable(backupPath),
-        error: 'Grok recovery backup is modified or not a regular file'
-      })
-      return { status: 'blocked', transaction: null, failures }
-    }
-    operations.push({
-      host: 'grok-recovery',
-      action: 'remove',
-      path: backupPath,
-      kind: 'text',
-      expectedDigest: operationDigest(fsImpl.readFileSync(backupPath))
-    })
-  }
-  operations.push({
-    host: 'grok-recovery',
-    action: 'remove',
-    path: manifestPath,
-    kind: 'json',
-    expectedDigest: operationDigest(fsImpl.readFileSync(manifestPath))
-  })
-  try {
-    const transaction = executeGlobalHostTransaction(operations, {
-      fs: fsImpl,
-      allowedRoots: [tempRoot],
-      safetyRoots: [tempRoot],
-      transactionRoot: path.join(tempRoot, 'transactions'),
-      allowedByHost: {
-        'grok-recovery': { allowedRoots: [tempRoot], allowedFiles: [] }
-      }
-    })
-    return {
-      status: transaction.backupCleanupIncomplete ? 'cleanup-incomplete' : 'committed',
-      transaction,
-      failures: transaction.backupCleanupFailures || []
-    }
-  } catch (error) {
-    return {
-      status: 'blocked',
-      transaction: error.receipt || null,
-      failures: [{ errorCode: error.code || 'GLOBAL_HOST_GROK_RECOVERY_CLEANUP_FAILED', error: error.message }]
-    }
-  }
-}
-
 function applyGlobalHostRemoval(options = {}) {
   const fsImpl = options.fs || fs
-  const plan = buildGlobalHostRemovalPlan(options)
+  let plan = buildGlobalHostRemovalPlan(options)
   if (plan.status === 'blocked') {
     const error = new Error(`GLOBAL_HOST_REMOVAL_BLOCKED: ${plan.conflicts.map(item => `${item.host}:${item.errorCode}`).join(', ')}`)
     error.code = 'GLOBAL_HOST_REMOVAL_BLOCKED'
@@ -1037,6 +987,8 @@ function applyGlobalHostRemoval(options = {}) {
     }
   }
 
+  const claims = []
+  const claimCleanupFailures = []
   const grokConfigSnapshot = grokTarget
     ? {
         path: grokTarget.files.config,
@@ -1045,6 +997,21 @@ function applyGlobalHostRemoval(options = {}) {
       }
     : null
   try {
+    const allowedRemovalClaims = {}
+    const initiallyDeferredRoots = plan.generations.filter(item => item.deferred).map(item => item.runtimeRoot)
+    for (const generation of plan.generations.filter(item => !item.deferred && item.needsClaim)) {
+      const claim = createRuntimeGenerationGcClaim(generation, plan.planDigest, { ...options, fs: fsImpl })
+      claims.push(claim)
+      allowedRemovalClaims[pathKey(generation.runtimeRoot)] = claim.claim.claimId
+    }
+    // Rebuild under claims. A live lease appearing after preview becomes a
+    // retention obligation; no generation can become newly eligible unclaimed.
+    plan = buildGlobalHostRemovalPlan({ ...options, allowedRemovalClaims, initiallyDeferredRoots })
+    if (plan.status === 'blocked') {
+      const error = new Error('GLOBAL_HOST_REMOVAL_CHANGED_DURING_CLAIM')
+      error.code = 'GLOBAL_HOST_REMOVAL_CHANGED_DURING_CLAIM'
+      throw error
+    }
     if (grokTarget && grokPlanned) {
       grokBefore = uninstallGrok({
         pluginPath: grokTarget.files.plugin,
@@ -1067,9 +1034,58 @@ function applyGlobalHostRemoval(options = {}) {
     })
     const pruned = pruneEmptyManagedDirectories(plan.operations, plan.targets, fsImpl)
     const grokRecoveryCleanup = cleanupGrokRecoveryArtifact(grokIntegration, fsImpl)
-    const cleanupIncomplete = transaction.backupCleanupIncomplete === true ||
-      pruned.failures.length > 0 ||
+    for (const claim of claims) {
+      releaseRuntimeGenerationGcClaim(claim, fsImpl)
+      if (fsImpl.existsSync(claim.claimFile)) claimCleanupFailures.push({
+        path: portable(claim.claimFile), errorCode: 'GLOBAL_HOST_REMOVAL_CLAIM_CLEANUP_FAILED'
+      })
+    }
+    let cleanupIncomplete = transaction.backupCleanupIncomplete === true ||
+      pruned.failures.length > 0 || claimCleanupFailures.length > 0 ||
+      plan.generations.some(item => item.deferred) ||
+      plan.hostPlans.some(item => item.retainedSharedRoot) ||
       ['blocked', 'cleanup-incomplete'].includes(grokRecoveryCleanup.status)
+    const residualPaths = []
+    for (const target of plan.targets.filter(target =>
+      plan.hostPlans.some(item => item.host === target.host && item.status === 'planned'))) {
+      if (!fsImpl.existsSync(target.runtimeBaseRoot)) continue
+      for (const entry of fsImpl.readdirSync(target.runtimeBaseRoot, { withFileTypes: true })) {
+        const file = path.join(target.runtimeBaseRoot, entry.name)
+        if (!samePath(file, target.receiptFile)) residualPaths.push(portable(file))
+      }
+    }
+    if (residualPaths.length) cleanupIncomplete = true
+    let finalization = null
+    if (!cleanupIncomplete) {
+      const receipts = plan.operations.filter(operation =>
+        plan.targets.some(target => samePath(target.receiptFile, operation.path)))
+      const removals = receipts.map(operation => ({
+        host: operation.host, path: operation.path, action: 'remove', kind: 'json',
+        expectedDigest: operationDigest(operation.content)
+      }))
+      try {
+        finalization = executeGlobalHostTransaction(removals, { fs: fsImpl, ...boundaries })
+        if (finalization.backupCleanupIncomplete) {
+          executeGlobalHostTransaction(receipts.map(operation => ({
+            ...operation, expectedDigest: undefined, expectAbsent: true
+          })), { fs: fsImpl, ...boundaries })
+          cleanupIncomplete = true
+        } else {
+          const finalPruned = pruneEmptyManagedDirectories(removals, plan.targets, fsImpl)
+          pruned.removed.push(...finalPruned.removed)
+          pruned.failures.push(...finalPruned.failures)
+          if (finalPruned.failures.length) {
+            executeGlobalHostTransaction(receipts.map(operation => ({
+              ...operation, expectedDigest: undefined, expectAbsent: true
+            })), { fs: fsImpl, ...boundaries })
+            cleanupIncomplete = true
+          }
+        }
+      } catch (error) {
+        cleanupIncomplete = true
+        pruned.failures.push({ errorCode: error.code || 'GLOBAL_HOST_REMOVAL_FINALIZATION_FAILED', error: error.message })
+      }
+    }
     return {
       ...plan,
       schemaVersion: GLOBAL_HOST_REMOVAL_RECEIPT_SCHEMA,
@@ -1078,6 +1094,9 @@ function applyGlobalHostRemoval(options = {}) {
       transaction,
       grokIntegration,
       grokRecoveryCleanup,
+      finalization,
+      claimCleanupFailures,
+      residualPaths,
       prunedDirectories: pruned.removed,
       pruneFailures: pruned.failures,
       recoveryCleanupFailures: grokRecoveryCleanup.failures,
@@ -1130,6 +1149,8 @@ function applyGlobalHostRemoval(options = {}) {
     error.removalCompensation = compensation
     if (compensation.errors.length) error.code = 'GLOBAL_HOST_REMOVAL_ROLLBACK_INCOMPLETE'
     throw error
+  } finally {
+    for (const claim of claims) releaseRuntimeGenerationGcClaim(claim, fsImpl)
   }
 }
 
@@ -1143,5 +1164,6 @@ module.exports = {
   digestText,
   pruneEmptyManagedDirectories,
   receiptPaths,
-  structuredOwnership
+  structuredOwnership,
+  unknownFilesInManagedRoots
 }

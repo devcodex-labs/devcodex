@@ -2,6 +2,8 @@
 agent: agent
 description: 记忆会话文档模板，用于写入每次会话的结构化记忆
 applyTo: .devcodex/**/.memory/**
+artifactRequiredHeadings: 会话 | 🎯 任务摘要 | 📨 对话记录
+artifactRequireTitle: false
 ---
 # 记忆会话模板
 
@@ -16,23 +18,29 @@ applyTo: .devcodex/**/.memory/**
 
 ### 必填字段
 
+<!-- BEGIN DEVCODEX TEMPLATE: memory-session -->
 ```markdown
-## 会话 NN
+## 会话 {{sessionId}} — {{title}}
 
-- **时间**：YYYY-MM-DD
-- **意图**：dev / fix / analyze / audit / self-fix / chat
-- **状态**：🔄 / ✅
+- **时间**：{{timestamp}}
+- **意图**：{{intent}}
+- **状态**：🔄 已分配，待补充内容
+- **sourceMessage**：{{sourceMessage}}
+{{bindingMarker}}
+{{ownerMarker}}
 
 ### 🎯 任务摘要
 
-本次会话完成的核心工作（2~5句话）。
+- {{title}}
 
 ### 📨 对话记录
 
 | 轮次 | 👤 用户消息 | 🤖 AI执行 | 状态 |
 |:----:|-----------|----------|:----:|
-| 1 | [用户消息摘要] | [AI 执行的关键动作] | ✅ |
 ```
+<!-- END DEVCODEX TEMPLATE: memory-session -->
+
+`memory_session_allocate` 实际读取此命名模板块并替换字段，返回模板与生成内容摘要。任务摘要后续按本次工作的实际内容补充；初始段落不表示任务完成。`memory_session_write` 只对绑定会话的更新结果做结构检查并回读，不得用同一天其他会话的完整结构抵消本次缺失项。结构检查不证明内容满足任务意图。
 
 ### 按需字段（有内容时写入）
 

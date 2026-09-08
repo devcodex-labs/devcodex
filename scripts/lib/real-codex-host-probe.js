@@ -647,6 +647,20 @@ function buildFixtureCommand(options) {
   ].join(' ')
 }
 
+function readObservedCodexModelSettings(env = process.env, fsImpl = fs) {
+  const home = env.CODEX_HOME || path.join(env.USERPROFILE || env.HOME || os.homedir(), '.codex')
+  const file = path.join(home, 'config.toml')
+  if (!fsImpl.existsSync(file) || fsImpl.statSync(file).size > 1024 * 1024) return []
+  const settings = []
+  for (const line of fsImpl.readFileSync(file, 'utf8').split(/\r?\n/)) {
+    // Carry only observed top-level model settings into the isolated process.
+    if (/^\s*\[/.test(line)) break
+    const match = line.match(/^\s*(model|model_reasoning_effort)\s*=\s*("[^"\r\n]+")\s*(?:#.*)?$/)
+    if (match) settings.push(match[1] + '=' + match[2])
+  }
+  return settings
+}
+
 function buildCodexArgs(options) {
   const args = options.approveForMe === true
     ? ['exec', '--approve-for-me']
@@ -2455,8 +2469,16 @@ async function runH0(options) {
     const forbiddenRoot = cleanupForbiddenCandidateLeaf(forbiddenLifecycle)
     let fixtureRoot
     try {
-      fs.rmSync(tempRoot, { recursive: true, force: true })
-      fixtureRoot = { complete: !fs.existsSync(tempRoot), tempRoot, errorCode: null }
+      if (hostEnv.DEVCODEX_TEST_KEEP_TEMP === '1' || hostEnv.DEVCODEX_KEEP_TEST_ARTIFACTS === '1') {
+        fixtureRoot = { complete: true, retained: true, deletionRequired: false, tempRoot, errorCode: null }
+      } else {
+        const resolvedTemp = fs.realpathSync(tempRoot)
+        if (!samePath(resolvedTemp, tempRoot) || !isPathInside(os.tmpdir(), resolvedTemp)) {
+          fail('HOST_CLEANUP_BOUNDARY_INVALID', 'H0 fixture root moved outside its owned temporary boundary')
+        }
+        fs.rmSync(resolvedTemp, { recursive: true, force: true })
+        fixtureRoot = { complete: !fs.existsSync(tempRoot), retained: false, deletionRequired: true, tempRoot, errorCode: null }
+      }
     } catch (error) {
       fixtureRoot = { complete: false, tempRoot, errorCode: error.code || null }
     }
@@ -2863,6 +2885,7 @@ module.exports = {
   readLedgerJson,
   readWindowsAclProjection,
   readCodexVersion,
+  readObservedCodexModelSettings,
   resolveCodexExecutable,
   runH0,
   runOwnedChild,

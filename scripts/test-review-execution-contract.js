@@ -79,6 +79,8 @@ assert.strictEqual(evaluateReceiptFreshness(goodReceipt, binding).fresh, true)
 assert.strictEqual(evaluateReceiptFreshness(goodReceipt, { ...binding, candidateDigest: 'candidate-b' }).fresh, false)
 assert.strictEqual(evaluateReceiptFreshness(goodReceipt, { ...binding, dependencyDigest: 'deps-b' }).fresh, false)
 assert.strictEqual(createReviewEvidenceReceipt({ ...goodReceipt, result: 'failed' }).reuseEligibility, false)
+assert.strictEqual(evaluateReceiptFreshness({ ...goodReceipt, openCount: 5 }, binding).fresh, false,
+  'a persisted validation flag cannot authenticate changed evidence')
 
 const oracle = evaluateStableReceiptOracle([goodReceipt], { [goodReceipt.receiptDigest]: 'passed' })
 assert.strictEqual(oracle.status, 'passed')
@@ -114,6 +116,8 @@ const snapshot = createReviewStateSnapshot(highSmall, {
   dirtyBoundary: 'matched'
 })
 assert.strictEqual(snapshot.nextAction, 'accept')
+assert.strictEqual(createReviewStateSnapshot(highSmall, { saturation }).nextAction, 'full-required',
+  'a passing label without counts, receipts and dirty-boundary observation is incomplete')
 const projections = ['checklist', 'report', 'memory', 'progress', 'final'].map(surface => projectReviewState(snapshot, surface))
 assert.strictEqual(new Set(projections.map(item => item.snapshotDigest)).size, 1)
 assert.strictEqual(new Set(projections.map(item => JSON.stringify(item.state))).size, 1)

@@ -223,7 +223,7 @@ function buildCliMaintenanceCommands(ctx) {
     ].filter(Boolean).length
 
     const profileDir = resolveProfileDir(cwd)
-    const profileState = inspectProfileState(profileDir)
+    const profileState = inspectProfileState(profileDir, { projectRoot: cwd })
     const legacy = getLegacyCounts(ghDir)
     const activeRoot = resolveActiveRuntimeRoot(cwd)
     const layoutInfo = typeof findLayoutInfo === 'function'
@@ -679,7 +679,7 @@ function buildCliMaintenanceCommands(ctx) {
     const hasGrokHookConfig = hasGrokWorkspacePlugin || fs.existsSync(path.join(hostRoot, '.grok', 'hooks', 'devcodex.json'))
     const hasGrokHooks = hasGrokWorkspacePlugin || (hasGrokHookConfig && fs.existsSync(path.join(hostRoot, '.grok', 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')))
     const profileDir = resolveProfileDir(cwd)
-    const profileState = inspectProfileState(profileDir)
+    const profileState = inspectProfileState(profileDir, { projectRoot: cwd })
     const hasProfile = profileState.complete
     const activeRoot = resolveActiveRuntimeRoot(cwd)
     const layoutInfo = typeof findLayoutInfo === 'function'

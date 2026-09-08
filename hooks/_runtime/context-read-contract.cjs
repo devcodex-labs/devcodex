@@ -1,6 +1,7 @@
 'use strict'
 
 const crypto = require('crypto')
+const { validateIntentSemanticDecision } = require('./intent-semantic-decision.cjs')
 const {
   CONTENT_IDENTITY_SCHEMA,
   buildContentIdentity,
@@ -106,7 +107,7 @@ const PLAN_V1_FIELDS = new Set([
 ])
 const PLAN_FIELDS = new Set([
   ...PLAN_V1_FIELDS,
-  'planContentId', 'contextBinding', 'identityInputs', 'workflowRoute', 'executionOptimization', 'reusePolicy', 'stageTiming', 'cacheDecision'
+  'planContentId', 'contextBinding', 'identityInputs', 'workflowRoute', 'executionOptimization', 'reusePolicy', 'stageTiming', 'cacheDecision', 'semanticDecision'
 ])
 const WORKFLOW_ROUTE_REQUEST_FIELDS = new Set(['routeKey', 'subtype', 'stage'])
 const WORKFLOW_ROUTE_PLAN_REF_FIELDS = new Set([
@@ -596,6 +597,7 @@ function buildPlanIdentityInputs(plan) {
       confidenceClass: plan.identity.intentSeed.confidence < 0.6 ? 'low' : 'normal',
       actionEnvelope: deepClone(plan.actionEnvelope),
       changeTypes: [...plan.changeTypes],
+      ...(plan.semanticDecision ? { semanticDecision: deepClone(plan.semanticDecision) } : {}),
       ...(Object.prototype.hasOwnProperty.call(plan, 'workflowRoute')
         ? { workflowRoute: deepClone(plan.workflowRoute) }
         : {})
@@ -626,7 +628,9 @@ function buildPlanIdentityInputs(plan) {
       exitCondition: plan.exitCondition,
       fullRead: plan.fullRead,
       configLocalRequested: plan.profile.configLocalRequested,
-      profileRouteLoadRecipe: deepClone(plan.profile.routeLoadRecipe || null)
+      ...(Object.prototype.hasOwnProperty.call(plan.profile, 'routeLoadRecipe')
+        ? { profileRouteLoadRecipe: deepClone(plan.profile.routeLoadRecipe) }
+        : {})
     },
     versions: normalizeIdentityVersions()
   }
@@ -933,6 +937,8 @@ function deriveActionEnvelope(intent, changeTypes, riskHint) {
 function buildContextReadPlan(input = {}, options = {}) {
   const seed = normalizeIntentSeed(input.intentSeed || input.seed || input, options)
   if (seed.schemaVersion === CONTEXT_READ_CONTRACT.schemas.error) return seed
+  const semantic = validateIntentSemanticDecision(input.semanticDecision, { contextEpoch: seed.contextEpoch })
+  if (!semantic.valid) return buildContextReadError('CONTEXT_PLAN_INVALID', semantic.errors.join('; '))
   const identityInput = input.identity && typeof input.identity === 'object' ? input.identity : {}
   const activeRoot = normalizePath(identityInput.activeRoot || input.activeRoot)
   const project = String(identityInput.project || input.project || seed.targetHint || '').trim()
@@ -1147,6 +1153,7 @@ function buildContextReadPlan(input = {}, options = {}) {
     actionEnvelope: deriveActionEnvelope(finalIntent, changeTypes, seed.riskHint),
     changeTypes,
     workflowRoute: workflowRoute.value,
+    ...(semantic.value !== undefined ? { semanticDecision: semantic.value } : {}),
     selectedSources,
     mandatorySourceIds: selectedSources.filter(source => source.mandatory).map(source => source.sourceId).sort(),
     excludedSources: excludedSources.sort((left, right) => compareText(left.sourceId, right.sourceId)),
@@ -1210,6 +1217,10 @@ function buildContextReadPlan(input = {}, options = {}) {
 }
 
 function validateContextReadPlan(raw) {
+  return validateContextReadPlanWithRouteRef(raw, null)
+}
+
+function validateContextReadPlanWithRouteRef(raw, compatibleRouteRef) {
   const errors = []
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) errors.push('plan must be an object')
   if (errors.length) return { valid: false, errors, error: buildContextReadError('CONTEXT_PLAN_INVALID', errors[0]) }
@@ -1239,12 +1250,16 @@ function validateContextReadPlan(raw) {
   if (raw.baselineContext?.project !== identity.project) errors.push('baseline project does not match plan identity')
 
   const changeTypes = uniqueSorted(raw.changeTypes, CHANGE_TYPES)
+  const semantic = validateIntentSemanticDecision(raw.semanticDecision, { contextEpoch: identity.contextEpoch })
+  if (!semantic.valid) errors.push(...semantic.errors)
   if (!Array.isArray(raw.changeTypes) || stableDigest(changeTypes) !== stableDigest(raw.changeTypes)) errors.push('changeTypes must be sorted, unique, and valid')
   if (identity.intentSeed?.confidence >= 0.6 && !['chat', 'resume'].includes(identity.finalIntent) && !changeTypes.length && raw.fullRead !== true) {
     errors.push('high-confidence non-chat plan lacks changeTypes')
   }
   if (isV2 && Object.prototype.hasOwnProperty.call(raw, 'workflowRoute')) {
-    const workflowRouteValidation = validateWorkflowRoutePlanRef(raw.workflowRoute, identity.finalIntent, changeTypes)
+    const workflowRouteValidation = compatibleRouteRef
+      ? { valid: stableDigest(raw.workflowRoute) === stableDigest(compatibleRouteRef), errors: ['workflowRoute is non-canonical or stale'] }
+      : validateWorkflowRoutePlanRef(raw.workflowRoute, identity.finalIntent, changeTypes)
     if (!workflowRouteValidation.valid) {
       errors.push(`workflowRoute is invalid: ${workflowRouteValidation.errors.join(', ')}`)
     }
@@ -1440,10 +1455,42 @@ function rebuildContextPlanIdentity (plan) {
   return plan
 }
 
-/**
- * Accept the current contract exactly, or migrate the single registered N-1
- * ContextReadPlan signature. This is intentionally not a general repair path.
- */
+// Registry source documents can change while every route and policy remains
+// identical. Check the original plan against that exact route revision before
+// rebinding its source digest; never repair a changed route or a corrupt plan.
+function migrateSourceOnlyWorkflowRegistry(raw, producerIdentity) {
+  const route = raw?.workflowRoute
+  if (raw?.schemaVersion !== CONTEXT_READ_CONTRACT.schemas.plan ||
+      !route || !/^[a-f0-9]{64}$/.test(String(route.routeRegistryDigest || '')) ||
+      route.routeRegistryDigest === STATIC_WORKFLOW_ROUTE_REGISTRY_V2.registryDigest) return null
+  const current = buildWorkflowRoutePlanRef({
+    routeKey: route.routeKey, subtype: route.subtype, stage: route.stage
+  }, raw.identity?.finalIntent, raw.changeTypes)
+  if (!current.valid) return null
+  const currentCore = { ...current.value }
+  delete currentCore.routeIdentityDigest
+  const originalCore = { ...currentCore, routeRegistryDigest: route.routeRegistryDigest }
+  const originalRef = { ...originalCore, routeIdentityDigest: stableDigest(originalCore) }
+  if (!validateContextReadPlanWithRouteRef(raw, originalRef).valid) return null
+  const migrated = deepClone(raw)
+  migrated.workflowRoute = current.value
+  rebuildContextPlanIdentity(migrated)
+  if (!validateContextReadPlan(migrated).valid) return null
+  const status = 'migrated-route-registry'
+  return {
+    valid: true, plan: migrated, status, error: null,
+    receipt: {
+      schemaVersion: 'RuntimeCompatibilityReceiptV1', status,
+      producerRuntimeContractVersion: producerIdentity.runtimeContractVersion,
+      consumerRuntimeContractVersion: CONTEXT_RUNTIME_CONTRACT_VERSION,
+      originalPlanDigest: stableDigest(raw), normalizedPlanDigest: stableDigest(migrated),
+      legacyProducerAssumed: false,
+      migratedFields: ['workflowRoute', 'identityInputs', 'planContentId', 'planId', 'contextBinding', 'cacheDecision', 'stageTiming']
+    }
+  }
+}
+
+/** Accept exact plans and registered compatibility transformations only. */
 function normalizeCompatibleContextReadPlan (raw, options = {}) {
   const producerIdentity = options.producerIdentity || null
   let identityValidation = null
@@ -1465,7 +1512,7 @@ function normalizeCompatibleContextReadPlan (raw, options = {}) {
         receipt: null,
         error: buildContextReadError(
           'CONTEXT_PLAN_INVALID',
-          `Runtime producer identity is outside the supported N-1 window: ${identityValidation.reasonCode || producerVersion}.`,
+          `Runtime producer identity is outside the supported N-1 window: ${identityValidation.valid ? producerVersion : identityValidation.reasonCode}.`,
           'Start a new host session so Hook and MCP use the same installed runtime generation.'
         )
       }
@@ -1490,17 +1537,15 @@ function normalizeCompatibleContextReadPlan (raw, options = {}) {
     }
   }
   if (producerIdentity) {
+    const registryMigration = migrateSourceOnlyWorkflowRegistry(raw, producerIdentity)
+    if (registryMigration) return registryMigration
     if (producerIdentity.runtimeContractVersion !== CONTEXT_RUNTIME_CONTRACT_VERSION - 1) {
       return {
         valid: false,
         plan: null,
         status: 'refresh-required',
         receipt: null,
-        error: buildContextReadError(
-          'CONTEXT_PLAN_INVALID',
-          `Runtime producer identity is outside the supported N-1 window: ${identityValidation.reasonCode || producerIdentity.runtimeContractVersion}.`,
-          'Start a new host session so Hook and MCP use the same installed runtime generation.'
-        )
+        error: exact.error
       }
     }
   }

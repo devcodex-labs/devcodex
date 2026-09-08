@@ -13,8 +13,8 @@ const {
   createWorkflowCompletionPlan,
   createWorkflowEvidenceReceipt,
   createVerificationIntent,
-  createValidationControlIngressIntent,
-  createValidationControlIngressReceipt,
+  createValidationControlIngressIntent: createRawValidationControlIngressIntent,
+  createValidationControlIngressReceipt: createRawValidationControlIngressReceipt,
   evaluateReceiptFreshness,
   evaluateShadowEvidenceWindow,
   evaluateWorkflowCompletion,
@@ -77,6 +77,18 @@ const { createCanonicalAwareReader } = require('./lib/canonical-consumer-contrac
 const { buildCliExecutionCommands } = require('./lib/cli-execution-commands')
 
 const NOW = Date.parse('2026-07-22T08:00:00Z')
+const createValidationControlIngressIntent = (input, options = {}) =>
+  createRawValidationControlIngressIntent(input, { now: NOW, ...options })
+const createValidationControlIngressReceipt = (input, options = {}) =>
+  createRawValidationControlIngressReceipt(input, { now: NOW, ...options })
+function semanticDecision(envelope, validationDecision, executionDecision) {
+  return {
+    schemaVersion: 'IntentSemanticDecisionV1',
+    sourceRef: { envelopeId: envelope.envelopeId, envelopeDigest: envelope.envelopeDigest, contextEpoch: envelope.contextEpoch },
+    ...(validationDecision ? { validationDecision } : {}),
+    ...(executionDecision ? { executionDecision } : {})
+  }
+}
 const OBSERVED_AT = '2026-07-22T15:30:00+08:00'
 const GENERATED_AT = '2026-07-22T15:31:00+08:00'
 const RULE_SET_DIGEST = sha256('workflow-completion-rules-v1')
@@ -111,6 +123,7 @@ const validationRootIdentity = validationProjectRootIdentity(process.cwd())
 const confirmEnvelope = validationControlEnvelope('确认当前验证卡', 'confirm')
 const confirmControl = createValidationControlIngressReceipt({
   actualInstructionEnvelope: confirmEnvelope,
+  semanticDecision: semanticDecision(confirmEnvelope, { action: 'confirm-current-budget' }),
   actualInstruction: '确认当前验证卡',
   executionMode: 'confirm',
   taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
@@ -126,6 +139,7 @@ const digestConfirmPrompt = `\`确认当前验证卡 ${explicitBudgetDigest.toUp
 const digestConfirmEnvelope = validationControlEnvelope(digestConfirmPrompt, 'confirm-with-digest')
 const digestConfirmControl = createValidationControlIngressReceipt({
   actualInstructionEnvelope: digestConfirmEnvelope,
+  semanticDecision: semanticDecision(digestConfirmEnvelope, { action: 'confirm-current-budget', requestedBudgetDigest: explicitBudgetDigest }),
   actualInstruction: digestConfirmPrompt,
   executionMode: 'confirm',
   taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
@@ -139,6 +153,7 @@ const compoundConfirmPrompt = '我觉得这是阻断问题，要一起修复，�
 const compoundConfirmEnvelope = validationControlEnvelope(compoundConfirmPrompt, 'confirm-compound-intent')
 const compoundConfirmControl = createValidationControlIngressReceipt({
   actualInstructionEnvelope: compoundConfirmEnvelope,
+  semanticDecision: semanticDecision(compoundConfirmEnvelope, { action: 'confirm-current-budget' }),
   actualInstruction: compoundConfirmPrompt,
   executionMode: 'confirm',
   taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
@@ -146,11 +161,12 @@ const compoundConfirmControl = createValidationControlIngressReceipt({
   projectRootIdentity: validationRootIdentity
 }, { ttlMs: 60000 })
 assert.strictEqual(compoundConfirmControl.action, 'confirm-current-budget')
-assert.strictEqual(compoundConfirmControl.reason, 'intent-current-budget-confirmation')
+assert.strictEqual(compoundConfirmControl.reason, 'model-validation-decision')
 assert.strictEqual(compoundConfirmControl.requestedBudgetDigest, null)
 const autoEnvelope = validationControlEnvelope('@rocky 开始自动推进', 'auto')
 const autoControl = createValidationControlIngressReceipt({
   actualInstructionEnvelope: autoEnvelope,
+  semanticDecision: semanticDecision(autoEnvelope, { action: 'none' }, 'enable-auto'),
   actualInstruction: '@rocky 开始自动推进',
   executionMode: 'auto',
   taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
@@ -161,6 +177,7 @@ assert.strictEqual(autoControl.action, 'auto-authorize')
 assert.match(autoControl.autoAuthorityRef, /^validation-auto:[a-f0-9]{64}$/)
 const tasklessAutoIntent = createValidationControlIngressIntent({
   actualInstructionEnvelope: autoEnvelope,
+  semanticDecision: semanticDecision(autoEnvelope, { action: 'none' }, 'enable-auto'),
   actualInstruction: '@rocky 开始自动推进',
   executionMode: 'auto',
   project: 'devcodex',
@@ -205,14 +222,14 @@ for (const prompt of [
   '确认执行 A4-R2：允许在当前冻结的 33 路径内完成同范围验证',
   '确认按 v0.1.0-candidate 继续当前验证'
 ]) {
-  assert.strictEqual(classifyValidationControlInstruction(prompt).action, 'confirm-current-budget', prompt)
+  assert.strictEqual(classifyValidationControlInstruction(prompt).action, 'none', prompt)
 }
 assert.strictEqual(
-  classifyValidationControlInstruction('确认执行 A4-R2：允许在当前冻结范围内完成验证').reason,
-  'intent-scoped-execution-confirmation'
+  classifyValidationControlInstruction({ action: 'confirm-current-budget' }).reason,
+  'model-validation-decision'
 )
 assert.strictEqual(
-  classifyValidationControlInstruction('确认执行 A4-R2：允许在当前冻结的 33 路径内完成验证').declaredChangedPathCount,
+  classifyValidationControlInstruction({ action: 'confirm-current-budget', declaredChangedPathCount: 33 }).declaredChangedPathCount,
   33
 )
 for (const prompt of [
@@ -233,6 +250,8 @@ assert.strictEqual(classifyValidationControlInstruction(`确认当前验证卡 $
 const scopedExecutionPrompt = '确认执行 A4-R2：允许在当前冻结的 33 路径内完成验证'
 const scopedExecutionControl = createValidationControlIngressReceipt({
   actualInstructionEnvelope: validationControlEnvelope(scopedExecutionPrompt, 'scoped-execution'),
+  semanticDecision: semanticDecision(validationControlEnvelope(scopedExecutionPrompt, 'scoped-execution'),
+    { action: 'confirm-current-budget', declaredChangedPathCount: 33 }),
   actualInstruction: scopedExecutionPrompt,
   executionMode: 'confirm',
   taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
@@ -240,12 +259,13 @@ const scopedExecutionControl = createValidationControlIngressReceipt({
   projectRootIdentity: validationRootIdentity
 }, { ttlMs: 60000 })
 assert.strictEqual(scopedExecutionControl.action, 'confirm-current-budget')
-assert.strictEqual(scopedExecutionControl.reason, 'intent-scoped-execution-confirmation')
+assert.strictEqual(scopedExecutionControl.reason, 'model-validation-decision')
 assert.strictEqual(scopedExecutionControl.declaredChangedPathCount, 33)
 assert.strictEqual(validateValidationControlIngressReceipt(scopedExecutionControl, null, { now: NOW }).valid, true)
 const pauseEnvelope = validationControlEnvelope('先暂停验证', 'pause')
 const pauseControl = createValidationControlIngressReceipt({
   actualInstructionEnvelope: pauseEnvelope,
+  semanticDecision: semanticDecision(pauseEnvelope, { action: 'revoke' }, 'retain-current'),
   actualInstruction: '先暂停验证',
   executionMode: 'auto',
   taskRecoveryKey: '00000000-0000-4000-8000-000000000341',
@@ -285,7 +305,8 @@ assert.strictEqual(neutralControl.action, 'none')
 assert.strictEqual(neutralControl.authorityKind, 'none')
 assert.strictEqual(neutralControl.autoAuthorityRef, null)
 assert.strictEqual(applyValidationControlIngress({}, neutralControl).validationControlIngress, neutralControl)
-assert.strictEqual(classifyValidationControlInstruction('请缩小验证范围！').action, 'revoke')
+assert.strictEqual(classifyValidationControlInstruction('请缩小验证范围！').action, 'none')
+assert.strictEqual(classifyValidationControlInstruction({ action: 'revoke' }).action, 'revoke')
 assert.strictEqual(classifyValidationControlInstruction(null).action, 'none')
 
 const taskAutoGrant = createTaskScopedAutoContinuationGrant({

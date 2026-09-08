@@ -31,6 +31,8 @@ devcodex runtime maintenance --apply --json
 
 ## 收敛用户级安装 runtime generation
 
+升级并刷新受管宿主配置后，新连接使用当前安装代；已经运行的 MCP 在结束前继续使用原代。运行时会验证旧计划的来源身份与兼容范围：路由定义未变、只是注册表来源更新时可迁移；定义改变或身份校验失败时会提示刷新连接。安装成功不能证明已打开的连接已经切换版本。
+
 各宿主用户目录中的 `devcodex/runtime-*` 是不可变安装代次，不是 `.devcodex/.memory/hooks` 的任务恢复 JSON。新版本对 Profile/Memory 长驻 MCP 和 global-host activation 使用每进程/角色一个稳定 lease，默认 30 秒心跳、120 秒 TTL；当前 generation、活动 lease、本机首次采用后的 24 小时宽限、PID 身份不明、权限错误、reparse point、清单不完整或并发 claim 都会失败关闭。宽限来自固定 `generationAdoptions`，不会因安装旧 release 而沿用早已过去的发布日期。
 
 ```bash
@@ -68,6 +70,8 @@ npm uninstall -g devcodex
 ```
 
 顺序不能反：先卸载 npm 包会让安全清理命令消失。清理只针对 receipt-owned 资产；用户自己的配置、指令、Hook 与原生 Skill 保留。所有权或内容漂移无法验证时会失败关闭。
+
+`devcodex uninstall` 清理受管的全局安装资产，保留项目 `.devcodex` 中的历史，也不会替你卸载 npm 包。仍被进程使用的运行代次、归属不明的残留，以及其他宿主还在使用的共享文件会保留，并报告 `cleanup-incomplete`。关闭相关旧连接或完成残留对账后，重新预览并应用即可继续；清理回执会保留重试依据。升级前留下的配置按其原安装回执核对，用户修改过的内容不会被当前包配置覆盖。
 
 ## 何时停止
 

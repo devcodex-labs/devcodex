@@ -851,8 +851,13 @@ assert.deepStrictEqual(
   buildS15HostResultSchema(true).required.includes('activatedConditionId'),
   false
 )
-assert.strictEqual(buildS15HostResultSchema(true).properties.loadedStages.minItems, 2)
-assert.strictEqual(buildS15HostResultSchema().properties.loadedStages.minItems, 3)
+for (const rebind of [true, false]) {
+  const schema = buildS15HostResultSchema(rebind)
+  assert.deepStrictEqual(schema.properties.status.enum, ['PASS', 'FAIL'])
+  assert(schema.required.includes('error'))
+  assert(schema.properties.planDigest.type.includes('null'))
+  assert.strictEqual(schema.properties.loadedStages.minItems, 0, 'a failed run must be able to report no delivered stages')
+}
 const validRebindOrder = validateContextRebindOrder({
   contributionLedger: {
     items: [

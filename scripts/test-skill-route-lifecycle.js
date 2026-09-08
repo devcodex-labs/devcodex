@@ -693,14 +693,14 @@ function readLifecycleState (fixture, sessionId, options = {}) {
     payload: {},
     requireBusiness: true
   })
-  assert.strictEqual(businessStop.required, true)
-  assert.strictEqual(businessStop.envelope.status, 'action-required')
-  assert.strictEqual(businessStop.envelope.nextOp, 'satisfy_business')
+  assert.strictEqual(businessStop.required, false)
+  assert.strictEqual(businessStop.envelope.status, 'retired')
+  assert.strictEqual(businessStop.envelope.nextOp, null)
   assert.strictEqual(
     businessStop.envelope.mustReplyCore,
-    'Deliver the selected business result.'
+    null
   )
-  assert.strictEqual(businessStop.envelope.recovery.action, 'reply-selected-business-core')
+  assert.strictEqual(businessStop.envelope.recovery.action, 'retire-and-rebootstrap-next-user-prompt')
 }
 
 {
@@ -889,7 +889,10 @@ function readLifecycleState (fixture, sessionId, options = {}) {
       prompt: '请检查这个项目并保持中文'
     })
     const languageBefore = readLifecycleState(fixture, languageSession)
-    assert.strictEqual(languageBefore.languageContext.primaryLanguage, 'zh-CN')
+    assert.strictEqual(languageBefore.languageContext.source, 'model-language-decision-pending')
+    // A raw prompt cannot persist a locale before the model's bound decision.
+    // The real Hook/Profile semantic roundtrip is covered by ingress-continuity.
+    assert.strictEqual(languageBefore.languageContext.durableProvisional, true)
     runLifecycle(fixture, {
       hookEventName: 'UserPromptSubmit',
       session_id: languageSession,

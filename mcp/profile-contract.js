@@ -1,5 +1,9 @@
 'use strict'
 
+const fs = require('fs')
+const path = require('path')
+const crypto = require('crypto')
+
 const PROFILE_TIERS = new Set(['profile-lite', 'profile-standard', 'profile-closed-loop'])
 const PROFILE_BASE_FILES = ['README.md', '01-项目信息.md', '02-架构约束.md', '03-代码风格.md']
 const PROFILE_STANDARD_FILES = [...PROFILE_BASE_FILES, '04-测试规范.md', '05-发布规范.md', '06-功能清单.md']
@@ -149,7 +153,7 @@ function parseMarkdownTables(markdown) {
     let cursor = index + 2
     while (cursor < lines.length) {
       const cells = splitMarkdownRow(lines[cursor])
-      if (!cells.length || cells.length !== headers.length) break
+      if (!cells.length) break
       rows.push(cells)
       cursor++
     }
@@ -200,7 +204,75 @@ function projectFeatureInventoryState(schemaVersion, rows) {
   }
 }
 
-function inspectFeatureInventoryDocument(markdown, { requireV1 = false, requireV2 = false } = {}) {
+function observeFeatureSourceEvidence(source, options = {}) {
+  const fsImpl = options.fs || fs
+  const tokens = new Set([
+    ...Array.from(String(source || '').matchAll(/`([^`]+)`/g), match => match[1]),
+    ...Array.from(String(source || '').matchAll(/\[[^\]]+\]\(<?([^)>]+)>?\)/g), match => match[1]),
+    ...String(source || '').split(/[;\s；、,]+/)
+  ].map(value => value.replace(/^[`(<]+|[`)>。]+$/g, ''))
+    .filter(value => /^(?![a-z]+:\/\/)[^\s`<>]+\.[A-Za-z0-9]{1,12}(?:#[^\s]+|:\d+(?::\d+)?)?$/.test(value)))
+  if (!options.projectRoot) return { status: 'unverified', reason: 'project-root-unbound', references: [...tokens] }
+  if (!tokens.size || tokens.size > 32) return { status: 'unverified', reason: 'source-reference-unresolved', references: [...tokens] }
+  const observations = []
+  const root = fsImpl.realpathSync(options.projectRoot)
+  let totalBytes = 0
+  for (const ref of tokens) {
+    try {
+      const parts = ref.match(/^(.+?)(?:#(.+)|:(\d+)(?::\d+)?)?$/)
+      const relative = parts[1]
+      const anchor = parts[2] || (parts[3] ? 'L' + parts[3] : '')
+      if (path.isAbsolute(relative) || relative.split(/[\\/]/).includes('..')) throw new Error('outside-project')
+      const file = path.resolve(root, relative)
+      const physical = fsImpl.realpathSync(file)
+      const physicalRelative = path.relative(root, physical)
+      if (!physicalRelative || path.isAbsolute(physicalRelative) || physicalRelative === '..' ||
+          physicalRelative.startsWith('..' + path.sep)) throw new Error('outside-project')
+      const before = fsImpl.lstatSync(file)
+      if (!before.isFile() || before.isSymbolicLink() || before.size > 2 * 1024 * 1024) throw new Error('source-not-bounded-file')
+      totalBytes += before.size
+      if (totalBytes > 8 * 1024 * 1024) throw new Error('source-byte-budget')
+      const bytes = fsImpl.readFileSync(file)
+      const after = fsImpl.lstatSync(file)
+      if (before.size !== bytes.length || before.ino !== after.ino || before.mtimeMs !== after.mtimeMs ||
+          before.ctimeMs !== after.ctimeMs) throw new Error('source-changed')
+      const content = bytes.toString('utf8')
+      if (anchor) {
+        const line = anchor.match(/^L(\d+)(?:-L(\d+))?$/)
+        if (line) {
+          const end = Number(line[2] || line[1])
+          if (Number(line[1]) < 1 || end < Number(line[1]) || end > content.split(/\r?\n/).length) throw new Error('anchor-missing')
+        } else if (/\.json$/i.test(relative)) {
+          let value = JSON.parse(content)
+          const keys = anchor.startsWith('/')
+            ? anchor.slice(1).split('/').map(key => key.replace(/~1/g, '/').replace(/~0/g, '~'))
+            : anchor.split('.')
+          for (const key of keys) {
+            if (!value || typeof value !== 'object' || !Object.prototype.hasOwnProperty.call(value, key)) throw new Error('anchor-missing')
+            value = value[key]
+          }
+        } else if (/\.md$/i.test(relative)) {
+          const slug = value => value.trim().toLowerCase().replace(/[^\p{L}\p{N}_\s-]/gu, '').replace(/\s+/g, '-')
+          const headings = Array.from(content.matchAll(/^#{1,6}[ \t]+(.+)$/gm), match => slug(match[1]))
+          if (!headings.includes(decodeURIComponent(anchor))) throw new Error('anchor-missing')
+        } else {
+          throw new Error('anchor-unverified')
+        }
+      }
+      observations.push({ ref, status: 'observed', digest: crypto.createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length })
+    } catch (error) {
+      observations.push({ ref, status: 'unverified', reason: error.code || error.message })
+    }
+  }
+  return {
+    status: observations.every(item => item.status === 'observed') ? 'source-backed' : 'unverified',
+    reason: observations.some(item => item.status !== 'observed') ? 'source-evidence-unverified' : null,
+    references: observations
+  }
+}
+
+function inspectFeatureInventoryDocument(markdown, options = {}) {
+  const { requireV1 = false, requireV2 = false } = options
   const text = String(markdown || '')
   const tables = parseMarkdownTables(text)
   const v1Labels = FEATURE_INVENTORY_V1_COLUMNS.map(key => FEATURE_INVENTORY_COLUMN_LABELS[key])
@@ -226,10 +298,10 @@ function inspectFeatureInventoryDocument(markdown, { requireV1 = false, requireV
     ]
     const legacyTable = tables.find(candidate => legacyHeaderGroups.every(pattern => candidate.headers.some(header => pattern.test(header))))
     if (!legacyTable && !errors.length) errors.push('feature inventory requires a structured Markdown table with capability, public surface, consumers and validation route columns')
-    const validRows = legacyTable
-      ? legacyTable.rows.filter(cells => cells.every(value => value.trim()) && !cells.some(value => /^(待补充|待维护者补充|todo|tbd)$/i.test(value.trim())))
-      : []
-    if (legacyTable && !validRows.length) errors.push('feature inventory requires at least one non-placeholder row')
+    const legacyRows = legacyTable?.rows || []
+    const validRows = legacyRows.filter(cells => cells.length === legacyTable.headers.length && cells.every(value => value.trim()))
+    if (legacyTable && !legacyRows.length) errors.push('feature inventory requires at least one row')
+    if (legacyRows.length !== validRows.length) errors.push('legacy feature inventory has incomplete rows')
     return {
       schemaVersion: declaresV2 ? FEATURE_INVENTORY_SCHEMA_VERSION : (declaresV1 ? FEATURE_INVENTORY_LEGACY_SCHEMA_VERSION : 'legacy'),
       valid: !!legacyTable && errors.length === 0,
@@ -237,42 +309,58 @@ function inspectFeatureInventoryDocument(markdown, { requireV1 = false, requireV
       rows: legacyTable ? legacyTable.rows : [],
       validRows,
       errors,
-      projection: projectFeatureInventoryState('legacy', validRows)
+      inputRowCount: legacyRows.length,
+      outputRowCount: legacyRows.length,
+      projection: { ...projectFeatureInventoryState('legacy', legacyRows), authority: 'structure-only', intentSatisfaction: 'UNVERIFIED' }
     }
   }
 
   const columns = schemaVersion === FEATURE_INVENTORY_SCHEMA_VERSION ? FEATURE_INVENTORY_COLUMNS : FEATURE_INVENTORY_V1_COLUMNS
   const rows = table.rows.map(cells => Object.fromEntries(columns.map(key => [key, cells[table.headers.indexOf(FEATURE_INVENTORY_COLUMN_LABELS[key])] || ''])))
-  const validRows = rows.filter(row => {
-    const values = Object.values(row).map(value => value.trim())
-    if (values.some(value => !value)) return false
-    if (/^(待补充|待维护者补充|todo|tbd)$/i.test(row.featureId)) return false
-    if (!/package\.json|plugin\.json|scripts\/|mcp\/|hooks\/|skills\/|instructions\/|prompts\/|changelogs\/|index\.js|README\.md|website\/|unverified|待人工确认/i.test(row.sourceEvidence)) return false
+  const rowDiagnostics = rows.map((row, index) => {
+    const issues = []
+    if (table.rows[index].length !== table.headers.length) issues.push('column-count-mismatch')
+    for (const [key, value] of Object.entries(row)) if (!value.trim()) issues.push('missing-field:' + key)
     if (schemaVersion === FEATURE_INVENTORY_SCHEMA_VERSION) {
-      if (!FEATURE_LIFECYCLE_STATES.has(row.lifecycleState)) return false
-      if (!FEATURE_EVIDENCE_STATES.has(row.evidenceState)) return false
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(row.asOf)) return false
-      if (!row.evidenceRefs.trim()) return false
+      if (!FEATURE_LIFECYCLE_STATES.has(row.lifecycleState)) issues.push('invalid lifecycleState: ' + row.lifecycleState)
+      if (!FEATURE_EVIDENCE_STATES.has(row.evidenceState)) issues.push('invalid evidenceState: ' + row.evidenceState)
+      const date = Date.parse(row.asOf + 'T00:00:00.000Z')
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(row.asOf) || !Number.isFinite(date) ||
+          new Date(date).toISOString().slice(0, 10) !== row.asOf) issues.push('invalid asOf: ' + row.asOf)
     }
-    return true
+    const sourceObservation = observeFeatureSourceEvidence(row.sourceEvidence, options)
+    if (options.projectRoot && sourceObservation.status !== 'source-backed' && row.evidenceState !== 'unverified') {
+      issues.push('source-evidence-unverified')
+    }
+    return {
+      row: index + 1, featureId: row.featureId, valid: issues.length === 0, issues,
+      declaredEvidenceState: row.evidenceState || 'unverified', sourceObservation,
+      observedEvidenceState: issues.length === 0 ? sourceObservation.status : 'unverified'
+    }
   })
-  if (!validRows.length) errors.push('feature inventory requires at least one non-placeholder row with source evidence')
-  if (schemaVersion === FEATURE_INVENTORY_SCHEMA_VERSION) {
-    rows.forEach((row, index) => {
-      if (!FEATURE_LIFECYCLE_STATES.has(row.lifecycleState)) errors.push(`feature inventory row ${index + 1} has invalid lifecycleState: ${row.lifecycleState || '(missing)'}`)
-      if (!FEATURE_EVIDENCE_STATES.has(row.evidenceState)) errors.push(`feature inventory row ${index + 1} has invalid evidenceState: ${row.evidenceState || '(missing)'}`)
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(row.asOf)) errors.push(`feature inventory row ${index + 1} has invalid asOf: ${row.asOf || '(missing)'}`)
-      if (!row.evidenceRefs.trim()) errors.push(`feature inventory row ${index + 1} is missing evidenceRefs`)
-    })
-  }
+  rowDiagnostics.forEach(item => item.issues.forEach(issue => errors.push('feature inventory row ' + item.row + ': ' + issue)))
+  const validRows = rows.filter((row, index) => rowDiagnostics[index].valid)
+  if (!rows.length) errors.push('feature inventory requires at least one non-placeholder row with source evidence')
+  const observedRows = rows.map((row, index) => ({
+    ...row,
+    lifecycleState: FEATURE_LIFECYCLE_STATES.has(row.lifecycleState) ? row.lifecycleState : 'unknown',
+    evidenceState: rowDiagnostics[index].observedEvidenceState
+  }))
   return {
     schemaVersion,
     valid: errors.length === 0,
     headers: table.headers,
     rows,
     validRows,
+    rowDiagnostics,
+    inputRowCount: table.rows.length,
+    outputRowCount: rows.length,
     errors,
-    projection: projectFeatureInventoryState(schemaVersion, validRows)
+    projection: {
+      ...projectFeatureInventoryState(schemaVersion, observedRows),
+      authority: 'observed-source-presence',
+      intentSatisfaction: 'UNVERIFIED'
+    }
   }
 }
 
@@ -298,11 +386,11 @@ function hasProfileLifecycle(corpus) {
   return inspectProfileLifecycle(corpus).valid
 }
 
-function inspectProfileContract(tier, availableFiles, corpus = '', documents = {}) {
+function inspectProfileContract(tier, availableFiles, corpus = '', documents = {}, options = {}) {
   const normalized = normalizeProfileTier(tier)
   const files = availableFiles instanceof Set ? availableFiles : new Set(availableFiles || [])
   const inventory = documents['06-功能清单.md']
-    ? inspectFeatureInventoryDocument(documents['06-功能清单.md'])
+    ? inspectFeatureInventoryDocument(documents['06-功能清单.md'], options)
     : null
   const requiredChecks = PROFILE_BASE_FILES.map(file => ({ key: file, pass: files.has(file) }))
   const semanticChecks = [{ key: 'tier-declaration', pass: new Set(extractProfileTierDeclarations(corpus)).size === 1 }]
@@ -315,7 +403,7 @@ function inspectProfileContract(tier, availableFiles, corpus = '', documents = {
   if (normalized === 'profile-closed-loop') {
     requiredChecks.push({ key: '06-功能清单.md', pass: files.has('06-功能清单.md') })
     requiredChecks.push({ key: '07-用户文档与契约规范.md', pass: files.has('07-用户文档与契约规范.md') })
-    semanticChecks.push({ key: 'feature-inventory-schema', pass: inspectFeatureInventoryDocument(documents['06-功能清单.md'] || '', { requireV1: true }).valid })
+    semanticChecks.push({ key: 'feature-inventory-schema', pass: inspectFeatureInventoryDocument(documents['06-功能清单.md'] || '', { ...options, requireV1: true }).valid })
     semanticChecks.push({ key: 'profile-lifecycle', pass: hasProfileLifecycle(corpus) })
   }
 

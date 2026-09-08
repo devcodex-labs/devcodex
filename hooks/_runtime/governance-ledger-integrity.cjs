@@ -31,6 +31,7 @@ function inspectGovernanceLedgerBuffer (buffer, options = {}) {
     ? escapeRegExp(expectedPrefix.slice(0, -1))
     : '(?:PI|PF|VL|GR|ISSUE)'
   const tablePattern = new RegExp(`^\\|\\s*(${prefixPattern}-\\d{3,})\\s*\\|\\s*\\d{4}-\\d{2}-\\d{2}(?:\\s+\\d{2}:\\d{2})?\\s*\\|`, 'i')
+  const tableCandidatePattern = new RegExp(`^\\|\\s*(${prefixPattern}-\\d{3,})\\s*\\|`, 'i')
   const exactHeadingLevel = Number.isInteger(options.exactHeadingLevel) && options.exactHeadingLevel >= 1 && options.exactHeadingLevel <= 6
     ? options.exactHeadingLevel
     : null
@@ -39,6 +40,10 @@ function inspectGovernanceLedgerBuffer (buffer, options = {}) {
   const tableIds = []
   const headingIds = []
   const lines = text.split(/\r?\n/)
+  const cells = line => String(line).trim().replace(/^\||\|$/g, '').replace(/\\\|/g, '\u0000')
+    .split('|').map(value => value.replace(/\u0000/g, '|').trim())
+  const dateLabels = new Set(['日期', '登记时间', '发现时间', 'date', 'recordedAt', 'createdAt'])
+  let dateColumn = 1
   const registrationHeading = lines.findIndex(line => /^##\s+登记表\s*$/.test(line.trim()))
   let registrationEnd = lines.length
   if (registrationHeading >= 0) {
@@ -47,9 +52,16 @@ function inspectGovernanceLedgerBuffer (buffer, options = {}) {
   }
   for (const [index, line] of lines.entries()) {
     const tableMatch = line.match(tablePattern)
+    if (line.trim().startsWith('|') && cells(line).every(value => /^:?-{3,}:?$/.test(value))) {
+      const declaredDateColumn = cells(lines[index - 1] || '').findIndex(value => dateLabels.has(value))
+      dateColumn = declaredDateColumn >= 0 ? declaredDateColumn : 1
+    }
     const headingMatch = line.match(headingPattern)
     const inRegistrationTable = registrationHeading < 0 || (index > registrationHeading && index < registrationEnd)
-    if (tableMatch && inRegistrationTable) tableIds.push(tableMatch[1].toUpperCase())
+    const tableCandidate = line.match(tableCandidatePattern)
+    const datedRow = tableCandidate && /^\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2})?$/.test(cells(line)[dateColumn] || '')
+    if (inRegistrationTable && tableCandidate && !tableMatch && !datedRow) issues.push('primary-table-row-invalid')
+    if ((tableMatch || datedRow) && inRegistrationTable) tableIds.push((tableMatch || tableCandidate)[1].toUpperCase())
     if (headingMatch) headingIds.push(headingMatch[1].toUpperCase())
   }
   const primaryIds = [...new Set([...tableIds, ...headingIds])]
@@ -60,8 +72,9 @@ function inspectGovernanceLedgerBuffer (buffer, options = {}) {
   if (duplicateIds.length) issues.push('duplicate-primary-id')
 
   const sequences = primaryIds
-    .filter(id => /-\d{3}$/.test(id))
+    .filter(id => /-\d{3,}$/.test(id))
     .map(id => Number(id.match(/\d+$/)[0]))
+  if (sequences.some(value => !Number.isSafeInteger(value) || value >= Number.MAX_SAFE_INTEGER)) issues.push('primary-sequence-out-of-range')
   const maxSequence = sequences.length ? Math.max(...sequences) : 0
   const actualPrefix = expectedPrefix || (primaryIds[0]?.match(/^[A-Z]+-/)?.[0] || '')
   const lastNonEmptyLine = text.split(/\r?\n/).filter(line => line.trim()).at(-1) || ''
@@ -78,6 +91,9 @@ function inspectGovernanceLedgerBuffer (buffer, options = {}) {
     primaryRecordCount: primaryIds.length,
     primaryIds,
     duplicateIds,
+    // Legacy headings also carry supplements and cross-references. Expose the
+    // ambiguity for review; do not rename historical records from prose alone.
+    duplicateHeadingIds: [...new Set(headingIds.filter((id, index) => headingIds.indexOf(id) !== index))],
     maxSequence,
     nextId: actualPrefix ? `${actualPrefix}${String(maxSequence + 1).padStart(3, '0')}` : null,
     headSentinel: primaryIds[0] || null,

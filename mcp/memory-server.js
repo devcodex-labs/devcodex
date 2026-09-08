@@ -178,6 +178,7 @@ const {
   projectArtifactTemplateBinding,
   qualifyArtifactContent,
   qualifyArtifactFile,
+  renderArtifactTemplate,
   renderArtifactTemplateQualification,
   validateArtifactTemplateQualification
 } = require('../hooks/_runtime/artifact-template-contract.cjs')
@@ -982,14 +983,18 @@ function summaryProjectLabel(args = {}) {
 }
 
 function summaryHeader(agent, args = {}) {
-  return [
-    `# Agent SUMMARY — ${agent || DEFAULT_AGENT}`,
-    '',
-    `> 项目：${summaryProjectLabel(args)}`,
-    '',
-    '| 日期 | 会话 | 类型 | 摘要 | 关联报告 | 关联记忆 | 状态 |',
-    '|------|:----:|------|------|---------|---------|:----:|'
-  ].join('\n') + '\n'
+  return renderArtifactTemplate({
+    templateRef: 'content/prompts/agent-summary.prompt.md', blockId: 'summary-header',
+    producer: 'memory-summary-append', values: { agent: agent || DEFAULT_AGENT, project: summaryProjectLabel(args) }
+  })
+}
+
+function renderSummaryRow(cells) {
+  const keys = ['date', 'sessionId', 'type', 'summary', 'report', 'memory', 'status']
+  return renderArtifactTemplate({
+    templateRef: 'content/prompts/agent-summary.prompt.md', blockId: 'summary-row',
+    producer: 'memory-summary-append', values: Object.fromEntries(keys.map((key, index) => [key, escapeSummaryCell(cells[index])]))
+  })
 }
 
 function taskSessionsPath(kind, requirement, args = {}) {
@@ -1554,6 +1559,9 @@ function releaseMemoryLock(lock) {
 function withMemoryTransaction(target, filePath, operation, options = {}) {
   const lock = acquireMemoryLock(target, filePath)
   const startedAt = new Date().toISOString()
+  const templateContent = content => options.templateContext?.selectContent
+    ? options.templateContext.selectContent(content)
+    : content
   try {
     const reconcileIdentity = String(options.reconcileIdentity || '')
     const operationFingerprint = crypto.createHash('sha256').update(JSON.stringify({
@@ -1572,10 +1580,11 @@ function withMemoryTransaction(target, filePath, operation, options = {}) {
         if (options.templateContext) {
           const qualification = qualifyArtifactContent(
             options.templateContext.binding,
-            normalized.content,
+            templateContent(normalized.content),
             {
               slotId: 'project-memory',
               target: options.templateContext.logicalTarget,
+              artifactScope: options.templateContext.artifactScope?.(),
               readbackVerified: false,
               requireReadback: false
             }
@@ -1598,10 +1607,11 @@ function withMemoryTransaction(target, filePath, operation, options = {}) {
       const persisted = readFile(filePath)
       const qualification = qualifyArtifactContent(
         options.templateContext.binding,
-        persisted,
+        templateContent(persisted),
         {
           slotId: 'project-memory',
           target: options.templateContext.logicalTarget,
+          artifactScope: options.templateContext.artifactScope?.(),
           readbackVerified: true,
           requireReadback: true
         }
@@ -1718,6 +1728,16 @@ function parseDailySessionBlocks(content) {
       digest: fileDigest(raw)
     }
   })
+}
+
+function boundMemoryTemplateContent(content, binding) {
+  const matches = parseDailySessionBlocks(content).filter(block => block.sessionId === binding.sessionId)
+  if (matches.length !== 1 || !binding.sessionBinding || matches[0].binding !== binding.sessionBinding) {
+    throw memoryQueryError('Template verification requires exactly one allocated memory session.',
+      'Use the current allocation binding and reconcile duplicate or changed session blocks.',
+      'MEMORY_TEMPLATE_SESSION_BINDING_INVALID')
+  }
+  return matches[0].raw
 }
 
 function normalizeMemorySessionWriteBinding(args) {
@@ -3421,6 +3441,8 @@ function handleMemorySessionWrite(args) {
   })
   const templateContext = createMemoryTemplateContext(target, memoryTemplateLogicalTarget('session', args))
   let sessionWriteReceipt = null
+  templateContext.selectContent = content => boundMemoryTemplateContent(content, binding)
+  templateContext.artifactScope = () => ({ kind: 'memory-session', sessionId: binding.sessionId })
   const receipt = withMemoryTransaction(target, p, existing => {
     const rendered = insertMemorySessionContent(existing, renderedContent, binding)
     sessionWriteReceipt = rendered.receipt
@@ -3486,6 +3508,11 @@ function handleMemorySessionAllocate(args) {
   const templateContext = createMemoryTemplateContext(target, memoryTemplateLogicalTarget('session', args))
   let allocatedId = null
   let sessionBinding = crypto.randomBytes(32).toString('hex')
+  let templateProduction = null
+  templateContext.selectContent = content => boundMemoryTemplateContent(content, {
+    sessionId: allocatedId, sessionBinding
+  })
+  templateContext.artifactScope = () => ({ kind: 'memory-session', sessionId: allocatedId })
   const ownerKey = currentMemorySessionOwnerKey(target)
   const receipt = withMemoryTransaction(target, p, existing => {
     const prior = ownerKey ? parseDailySessionBlocks(existing).filter(block => block.ownerKey === ownerKey && block.binding) : []
@@ -3512,26 +3539,17 @@ function handleMemorySessionAllocate(args) {
       intent = intentCheck.normalized
     }
     const sourceMessage = normalizeMemoryAllocationLine(input.sourceMessage, '—', 'sourceMessage', 300)
-    const block = [
-      `## 会话 ${allocatedId} — ${title}`,
-      '',
-      `- **时间**：${formatLocalDateTime()}`,
-      `- **意图**：${intent}`,
-      '- **状态**：🔄 reserved / awaiting content',
-      `- **sourceMessage**：${sourceMessage}`,
-      memorySessionBindingMarker(allocatedId, sessionBinding),
-      ...(ownerKey ? [`<!-- devcodex:memory-session-owner v1 key=${ownerKey} -->`] : []),
-      '',
-      '### 🎯 任务摘要',
-      '',
-      `- ${title}`,
-      '',
-      '### 📨 对话记录',
-      '',
-      '| 轮次 | 👤 用户消息 | 🤖 AI执行 | 状态 |',
-      '|:----:|-----------|----------|:----:|',
-      ''
-    ].join('\n')
+    const rendered = renderArtifactTemplate({
+      templateRef: 'content/prompts/memory-session.prompt.md', blockId: 'memory-session',
+      producer: 'memory-session-allocate',
+      values: {
+        sessionId: allocatedId, title, timestamp: formatLocalDateTime(), intent, sourceMessage,
+        bindingMarker: memorySessionBindingMarker(allocatedId, sessionBinding),
+        ownerMarker: ownerKey ? `<!-- devcodex:memory-session-owner v1 key=${ownerKey} -->` : ''
+      }
+    })
+    const block = rendered.content
+    templateProduction = rendered.production
     const separator = existing ? '\n\n' : ''
     const appendText = separator + block
     return { content: existing + appendText, appendText }
@@ -3546,6 +3564,12 @@ function handleMemorySessionAllocate(args) {
     templateContext
   })
   receipt.indexReceipt = refreshDailyMemoryIndex(target, p, input.date)
+  if (templateProduction) {
+    receipt.templateProduction = templateProduction
+    receipt.templateProductionScope = { kind: 'memory-session', sessionId: allocatedId }
+    receipt.templateProductionReadback = templateProduction.artifactDigest === receipt.templateQualification.artifactDigest
+      ? 'PASS' : 'UNVERIFIED'
+  }
   const allocation = {
     schemaVersion: 'MemorySessionAllocationReceiptV1',
     sessionId: allocatedId,
@@ -4619,6 +4643,8 @@ function handleMemorySummaryRead(args) {
 
 function handleMemorySummaryAppend(args) {
   validateMemoryWriterArgs(args, MEMORY_SUMMARY_APPEND_FIELDS, 'memory_summary_append')
+  let rowProduction = null
+  let headerProduction = null
   if (args.entry && args.row) throw memoryQueryError('Pass either a structured entry or a legacy row, not both.')
   if (args.entry) {
     const entry = args.entry
@@ -4634,7 +4660,9 @@ function handleMemorySummaryAppend(args) {
     validateDate(date)
     const sessionId = entry.sessionId || recoverMemorySessionWriteBinding({ ...args, date }, target).sessionId
     const day = `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`
-    args = { ...args, row: `| ${[day, sessionId, type, entry.summary, '—', '—', entry.status].map(escapeSummaryCell).join(' | ')} |` }
+    const rendered = renderSummaryRow([day, sessionId, type, entry.summary, '—', '—', entry.status])
+    rowProduction = rendered.production
+    args = { ...args, row: rendered.content.trimEnd() }
   }
   if (!args.row) throw new Error('row is required')
   if (typeof args.row !== 'string' || args.row !== args.row.trim() || /[\r\n]/.test(args.row)) {
@@ -4687,9 +4715,12 @@ function handleMemorySummaryAppend(args) {
     cells[5] = memoryArtifact ? (projectedById.get(memoryArtifact.id) || '—') : cells[5]
   }
   // Preserve the legacy row byte shape when no normalization or structured projection is needed.
-  const finalRow = String(cells[2] || '').trim() === normalizedType && !artifactInputs.length
-    ? args.row
-    : `| ${cells.map((cell, index) => escapeSummaryCell(index === 2 ? normalizedType : cell)).join(' | ')} |`
+  let finalRow = args.row
+  if (String(cells[2] || '').trim() !== normalizedType || artifactInputs.length) {
+    const rendered = renderSummaryRow(cells.map((cell, index) => index === 2 ? normalizedType : cell))
+    finalRow = rendered.content.trimEnd()
+    rowProduction = rendered.production
+  }
   const localLinkValidation = validateMarkdownLocalLinks({
     activeRoot: target.activeRoot,
     documentPath,
@@ -4697,15 +4728,17 @@ function handleMemorySummaryAppend(args) {
   })
   const templateContext = createMemoryTemplateContext(target, memoryTemplateLogicalTarget('summary', args))
   const receipt = withMemoryTransaction(target, p, existing => {
-    const appendText = existing
-      ? finalRow + '\n'
-      : summaryHeader(args.agent || target.agent, args) + finalRow + '\n'
+    const header = existing ? null : summaryHeader(args.agent || target.agent, args)
+    headerProduction = header?.production || null
+    const appendText = (header?.content || '') + finalRow + '\n'
     return { content: existing + appendText, appendText }
   }, {
     reconcileIdentity: memoryOperationIdentity('summary-append', target, { row: finalRow }),
     templateContext
   })
   receipt.indexReceipt = refreshSummaryMemoryIndex(target, p)
+  receipt.templateProductions = [headerProduction, rowProduction].filter(Boolean)
+  receipt.rowProductionMode = rowProduction ? 'template-rendered' : 'legacy-caller-row'
   const parsed = parseSummaryRows(readFile(p))
   const appended = parsed.rows[parsed.rows.length - 1]
   if (!appended || appended.day !== day || appended.sessionId !== normalizeSessionId(cells[1])) {

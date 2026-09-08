@@ -30,6 +30,11 @@ function executeGlobalHostTransaction(operations, options = {}) {
 }
 function cleanup() {
   if (cleaned) return
+  if (process.env.DEVCODEX_TEST_KEEP_TEMP === '1') {
+    console.log('Retained global removal fixture:', tmp)
+    cleaned = true
+    return
+  }
   fs.rmSync(tmp, { recursive: true, force: true })
   cleaned = true
 }
@@ -182,16 +187,23 @@ function fakeGrokUninstall() {
   const cursorTarget = targets.find(item => item.host === 'cursor')
   const legacyRuntime = path.join(cursorTarget.runtimeBaseRoot, 'runtime-legacy-removal-fixture')
   fs.cpSync(cursorTarget.runtimeRoot, legacyRuntime, { recursive: true })
+  const legacyManifestFile = path.join(legacyRuntime, 'runtime-generation.json')
+  const legacyManifest = JSON.parse(fs.readFileSync(legacyManifestFile, 'utf8'))
+  legacyManifest.generationId = 'legacy-removal-fixture'
+  fs.writeFileSync(legacyManifestFile, JSON.stringify(legacyManifest, null, 2) + '\n')
   const legacyReceipt = JSON.parse(fs.readFileSync(cursorTarget.receiptFile, 'utf8'))
   const remapLegacy = file => path.resolve(file).startsWith(path.resolve(cursorTarget.runtimeRoot) + path.sep)
     ? path.join(legacyRuntime, path.relative(cursorTarget.runtimeRoot, path.resolve(file))).replace(/\\/g, '/')
     : String(file).replace(/\\/g, '/')
   legacyReceipt.runtimeRoot = legacyRuntime.replace(/\\/g, '/')
+  legacyReceipt.runtimeGeneration = legacyManifest
+  legacyReceipt.skillsRuntimeRoot = path.join(legacyRuntime, 'skills').replace(/\\/g, '/')
   legacyReceipt.managedPaths = legacyReceipt.managedPaths.map(remapLegacy)
   legacyReceipt.configFiles = legacyReceipt.configFiles.map(remapLegacy)
   legacyReceipt.managedFileDigests = Object.fromEntries(
     Object.entries(legacyReceipt.managedFileDigests).map(([file, digest]) => [remapLegacy(file), digest])
   )
+  legacyReceipt.managedFileDigests[legacyManifestFile.replace(/\\/g, '/')] = digestText(fs.readFileSync(legacyManifestFile))
   delete legacyReceipt.managedArtifacts
   delete legacyReceipt.retainedManagedArtifacts
   delete legacyReceipt.retainedRuntimeRoots

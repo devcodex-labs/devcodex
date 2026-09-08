@@ -47,9 +47,11 @@ const {
   observeTurnEvent,
   prepareTaskOperationRecord,
   settleTaskOperationRecord,
-  startToolLease
+  startToolLease,
+  taskOperationTerminalSnapshot
 } = require('./lifecycle-turn-liveness.cjs')
 const { buildLifecycleVisibleReplyUtils } = require('./lifecycle-visible-reply.cjs')
+const { validateIntentSemanticDecision } = require('./intent-semantic-decision.cjs')
 const {
   formatLanguageContextInstruction,
   formatLanguagePreferenceDiagnostic,
@@ -791,37 +793,17 @@ function initializeWorkflowIngress(
 }
 
 function deriveWorkflowPlanFacts(state, prompt = '', plan = null) {
-  const value = String(prompt || '')
-  const changeTypes = Array.isArray(plan?.changeTypes) ? plan.changeTypes.map(item => String(item).toLowerCase()) : []
-  const combined = `${value}\n${changeTypes.join(' ')}`
-  const publicContract = /公共|公开|public|api|cli|契约|contract/i.test(combined)
-  const schemaChange = /schema|规范|配置项|config/i.test(combined)
-  const sharedState = /共享状态|shared[- ]state|owner|lease|上下文|context/i.test(combined)
-  const migration = /迁移|兼容|migration|compatib/i.test(combined)
-  const recovery = /恢复|续接|recovery|resume/i.test(combined)
-  const securitySensitive = /安全|权限|凭据|security|permission|secret/i.test(combined)
-  const packageBoundary = /安装包|打包|package|npm/i.test(combined)
-  const releaseRequested = /发布|release|publish/i.test(combined)
-  const externalSideEffect = /推送|提交|部署|发送|push|commit|deploy/i.test(combined)
+  const changes = new Set(plan?.changeTypes || [])
+  const facts = plan?.semanticDecision?.workflowFacts || {}
   const targetKnown = Boolean(plan?.identity?.project || state?.activeProject || state?.activeScope === 'workspace')
-  const crossModule = changeTypes.length > 1 || /多模块|跨模块|cross[- ]module/i.test(combined)
   return {
+    ...facts,
     targetKnown,
-    changedFileCount: null,
-    consumerCount: null,
-    publicContract,
-    schemaChange,
-    sharedState,
-    migration,
-    recovery,
-    securitySensitive,
-    packageBoundary,
-    releaseRequested,
-    externalSideEffect,
-    fullAuditRequested: /全量验证|全面审计|full\s+(?:validation|audit)/i.test(value),
-    crossModule,
-    multipleConsumers: /多消费者|多个消费者|multiple consumers/i.test(combined),
-    scopeExpanded: Boolean(plan && (crossModule || publicContract || schemaChange || packageBoundary)),
+    publicContract: facts.publicContract === true || changes.has('public-contract'),
+    schemaChange: facts.schemaChange === true || changes.has('config'),
+    securitySensitive: facts.securitySensitive === true || changes.has('security'),
+    releaseRequested: facts.releaseRequested === true || changes.has('release'),
+    crossModule: facts.crossModule === true || changes.size > 1,
     unknownScope: !targetKnown
   }
 }
@@ -897,17 +879,39 @@ function bindWorkflowRouteFromObservedPlan(state) {
     if (!String(plan.planId || '') || !String(plan.planContentId || '')) {
       throw workflowRouteUnresolvedError('context-plan-identity-missing')
     }
+    const semantic = validateIntentSemanticDecision(plan.semanticDecision, {
+      contextEpoch: state.contextAcquisition?.contextEpoch,
+      envelope, requireSource: plan.semanticDecision !== undefined,
+      hostSessionDigest: crypto.createHash('sha256').update(String(state.contextAcquisition?.hostSessionId || '')).digest('hex')
+    })
+    if (!semantic.valid) throw workflowRouteUnresolvedError('semantic-source-invalid', semantic.errors.join(', '))
     state.workItemSet = reboundWorkItemSet
     state.workflowRouteDecision = decision
     state.workflowResumeTargetDecision = null
     state.workflowRoutePlanBinding = buildWorkflowRoutePlanBinding(state, plan, decision)
     state.workflowPlanDecision = buildWorkflowPlanDecision({
       phase: 'post-context',
-      userIntent: state.workflowPlanDecision?.userIntent,
+      userIntent: semantic.value?.workflowPreference,
       config: plan.baselineContext?.effectiveConfig?.extensions?.devcodex?.workflowRouting,
       facts: deriveWorkflowPlanFacts(state, '', plan),
       previousDecision: state.workflowPlanDecision
     })
+    if (semantic.value?.languageDecision) {
+      state.languageContext = resolveLanguageContext({
+        languageDecision: semantic.value.languageDecision,
+        taskContext: state.languageContext,
+        workspacePreference: LAYOUT.enabled
+          ? readJsonFile(getWorkspaceProfileConfigPath())?.extensions?.devcodex?.language : undefined,
+        projectPreference: plan.baselineContext?.effectiveConfig?.extensions?.devcodex?.language,
+        projectBound: Boolean(state.activeProject)
+      })
+    }
+    if (semantic.value?.executionDecision) {
+      state.executionMode = detectExecutionMode({ session_id: state.contextAcquisition.hostSessionId }, state, {
+        activeProject: state.activeProject, activeScope: state.activeScope
+      })
+    }
+    if (semantic.value) observeValidationControlIngress(state)
     state.workflowRoutePending = null
     state.workflowIngressError = null
     return { ok: true, decision }
@@ -2134,6 +2138,7 @@ function observeValidationControlIngress(state, prompt) {
       const intent = createValidationControlIngressIntent({
         actualInstructionEnvelope: envelope,
         actualInstruction: prompt,
+        semanticDecision: state.contextAcquisition?.plan?.semanticDecision,
         executionMode: state.executionMode,
         project,
         projectRootIdentity: validationProjectRootIdentity(projectRoot)
@@ -2158,6 +2163,7 @@ function observeValidationControlIngress(state, prompt) {
     const receipt = createValidationControlIngressReceipt({
       actualInstructionEnvelope: envelope,
       actualInstruction: prompt,
+      semanticDecision: state.contextAcquisition?.plan?.semanticDecision,
       executionMode: validationExecutionExcluded ? EXECUTION_MODE.CONFIRM : state.executionMode,
       taskRecoveryKey: task.taskId,
       project: task.project,
@@ -2372,6 +2378,9 @@ function transitionLifecycleOwner(state, operation, options = {}) {
       state.fencedWriteOwner = refreshed.owner
       state.admissionTransaction = refreshed.transaction
     }
+    // Carry the revision produced by this transition, never a later unrelated
+    // read's revision. The final state commit must still reject concurrent edits.
+    if (result.commitFence) state.taskRecoveryCommitFence = result.commitFence
     state.lifecycleOwnerTransitionError = null
     return { status: 'committed', result }
   } catch (error) {
@@ -3629,6 +3638,7 @@ function evaluateCurrentProgressiveSkillRoute (state, payload, platform, trigger
     shouldEnforceProgressiveSkillRouteStop
   } = require('./skill-route-tool.cjs')
   const routeStop = evaluateProgressiveSkillRouteStop({
+    trigger,
     project: state.contextAcquisition.project,
     contextEpoch: state.contextAcquisition.contextEpoch,
     hostSessionId: state.contextAcquisition.hostSessionId,
@@ -3649,7 +3659,7 @@ function evaluateCurrentProgressiveSkillRoute (state, payload, platform, trigger
     : {
         ...routeStop,
         processComplete: true,
-        businessSatisfied: true,
+        businessSatisfied: null,
         complete: true
       }
   const coordination = reconcileProgressiveSkillRoute(state, effectiveRouteStop, {
@@ -3748,9 +3758,9 @@ async function main() {
   const eventName = getEventName(payload)
   const platform = detectPlatform(payload)
   const prompt = eventName === 'UserPromptSubmit' ? extractUserPrompt(payload) : ''
-  const continuationCommand = eventName === 'UserPromptSubmit'
-    ? parseContinuationCommand(prompt)
-    : null
+  // Natural-language recovery is resolved by the model through memory_task_resolve.
+  // The legacy text command parser is not a UserPromptSubmit authority.
+  const continuationCommand = null
   const detectedProjectCandidate = eventName === 'UserPromptSubmit'
     ? detectProjectCandidate(prompt, payload)
     : { project: '', source: '' }
@@ -3892,7 +3902,7 @@ async function main() {
     state.workflowPlanDecision = buildWorkflowPlanDecision({
       phase: 'precheck',
       prompt,
-      userIntent: priorWorkflowPlanDecision?.userIntent,
+      userIntent: undefined,
       config: workflowRoutingConfig,
       facts: deriveWorkflowPlanFacts(state, prompt)
     })
@@ -4052,7 +4062,7 @@ async function main() {
     let continuationWorkspaceNotice = ''
     const hasWorkspaceProfile = fs.existsSync(getWorkspaceProfileConfigPath())
     if (!hasWorkspaceProfile && isMultiProjectWorkspace()) {
-      if (!hasMultiProjectExemption(prompt) && !state.activeProject) {
+      if (!hasMultiProjectExemption(prompt, state) && !state.activeProject) {
         if (!shouldSuppressMultiProjectWarning(state, payload)) {
           if (continuationCommand) {
             continuationWorkspaceNotice = `multi-project-workspace advisory: ${buildMultiProjectBlockMessage()} task-continuation=provisional；当前分析与只读恢复继续，既有任务 mutationAuthority=false。`
@@ -4063,7 +4073,7 @@ async function main() {
               : `${buildMultiProjectBlockMessage()} Prompt allowed in safety-only mode.`
             const output = buildInterceptionOutput(
               state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'multi-project-workspace',
-              'multi-project-workspace', detail, 'Specify the target project or use a workspace-level exemption keyword.'
+              'multi-project-workspace', detail, 'Bind the intended project or workspace scope through profile_context_plan.'
             )
             saveState(state)
             writeStdout(output)
@@ -4620,36 +4630,16 @@ async function main() {
       }
     }
 
-    // 4. Auto path policy is a final execution boundary, never a source of
-    // task, owner, CP or mutation authority.  It is evaluated only after the
-    // formal workflow gates above so an allowlisted path cannot skip process.
-    const autoWhitelist = simpleTaskFastPathAuthority?.valid === true
-      ? null
-      : checkAutoWhitelist(payload, platform, state)
-    if (autoWhitelist && !autoWhitelist.allowed) {
-      const autoBoundaryOutput = buildInterceptionOutput(
-        state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION, 'auto-whitelist-boundary',
-        'auto-whitelist-boundary',
-        isStrictEnforcement()
-          ? `${autoWhitelist.reason} — 请切回确认模式，或先把变更范围收敛到白名单路径。`
-          : `${autoWhitelist.reason} Tool allowed in safety-only mode after formal workflow authorization.`,
-        'Switch back to confirm mode or keep the mutation within the auto whitelist.'
-      )
-      state.lastReason = isStrictEnforcement()
-        ? 'auto-non-whitelist-block'
-        : 'auto-non-whitelist-warning'
-      if (isStrictEnforcement()) {
-        saveState(state)
-        writeStdout(autoBoundaryOutput)
-        return
+    // Legacy path categories remain diagnostic. The exact task/owner/CP checks
+    // above own workflow validity; an allowlist cannot grant or revoke permission.
+    const autoWhitelist = checkAutoWhitelist(payload, platform, state)
+    if (autoWhitelist) {
+      state.autoPathObservation = {
+        schemaVersion: 'AutoPathCategoryObservationV1',
+        category: autoWhitelist.allowed ? 'legacy-listed' : 'legacy-unlisted',
+        reason: autoWhitelist.reason || null,
+        authority: 'advisory-only'
       }
-      if (contextGateOutput?.systemMessage && autoBoundaryOutput?.systemMessage) {
-        contextGateOutput = mergeContinueOutputs(contextGateOutput, autoBoundaryOutput)
-      } else {
-        contextGateOutput = autoBoundaryOutput
-      }
-    } else if (autoWhitelist?.allowed) {
-      state.lastReason = 'auto-whitelist-authorized'
     }
 
     updateArtifactTouches(state, payload, platform)
@@ -4722,7 +4712,9 @@ async function main() {
     const workflowTaskTerminalReceipt = observeWorkflowTaskTerminalReceipt(state, payload)
     if (workflowTaskTerminalReceipt) {
       state.workflowTaskTerminalReceipt = workflowTaskTerminalReceipt
-      state.turnLiveness = applyWorkflowTaskTerminalReceipt(state.turnLiveness, workflowTaskTerminalReceipt)
+      state.turnLiveness = applyWorkflowTaskTerminalReceipt(state.turnLiveness, workflowTaskTerminalReceipt, {
+        retireCompletedTaskOperations: true
+      })
       if (validateTaskScopedAutoContinuationGrant(state.taskScopedAutoContinuationGrant).valid &&
           state.taskScopedAutoContinuationGrant.status !== 'terminal-consumed') {
         state.taskScopedAutoContinuationGrant = transitionTaskScopedAutoContinuationGrant(
@@ -5056,6 +5048,10 @@ async function main() {
         }
       }
     }
+    const observedPlanContext = ['plan', 'plan-refresh'].includes(observedContextKind) && routeBinding.ok
+      ? [buildWorkflowIngressContextMessage(state), formatLanguageContextInstruction(state.languageContext)]
+          .filter(Boolean).join('\n\n')
+      : ''
     if (contextPost?.targetRebound) {
       try {
         const contextPlanInput = payload.tool_input || payload.toolInput || {}
@@ -5103,7 +5099,7 @@ async function main() {
         writeStdout(contextMessageOutput(
           'PostToolUse',
           [
-            buildWorkflowIngressContextMessage(state),
+            observedPlanContext,
             bootstrapAlreadyDelivered ? '' : (route.injectionText || '')
           ].filter(Boolean).join('\n\n')
         ))
@@ -5136,10 +5132,7 @@ async function main() {
       ].includes(observedKind)) {
         state.lastReason = 'progressive-skill-route-next-action'
         saveState(state, postSaveOptions)
-        const ingressContext = ['plan', 'plan-refresh'].includes(observedKind) && routeBinding.ok
-          ? buildWorkflowIngressContextMessage(state)
-          : ''
-        writeStdout(buildProgressiveSkillRouteContextOutput('PostToolUse', routeCoordination, ingressContext))
+        writeStdout(buildProgressiveSkillRouteContextOutput('PostToolUse', routeCoordination, observedPlanContext))
         return
       }
     } catch (error) {
@@ -5161,9 +5154,6 @@ async function main() {
       ))
       return
     }
-    const routeBoundIngressContext = ['plan', 'plan-refresh'].includes(observedContextKind) && routeBinding.ok
-      ? buildWorkflowIngressContextMessage(state)
-      : ''
     writeStdout(artifactNeedsReconcile
       ? buildInterceptionOutput(
           state, platform, eventName, INTERCEPTION_ACTION.REQUIRE_COMPLETION,
@@ -5175,8 +5165,8 @@ async function main() {
           ].join(', ')}`,
           `Call memory_artifact_mutation_reconcile_v1 with operationId=${state.turnLiveness.lastMutationCloseout?.operationId || 'unknown'} and expectedCloseoutDigest=${state.turnLiveness.lastMutationCloseout?.artifactCloseout?.closeoutDigest || state.turnLiveness.lastMutationCloseout?.observation?.closeout?.closeoutDigest || 'unknown'}; no new user confirmation is required.`
         )
-      : (routeBoundIngressContext
-          ? contextMessageOutput('PostToolUse', routeBoundIngressContext)
+      : (observedPlanContext
+          ? contextMessageOutput('PostToolUse', observedPlanContext)
           : noopOutput()))
     return
   }
@@ -5292,14 +5282,29 @@ async function main() {
       }
       state.stopContinuationCount = 0
 
-      if (!stopHardBlocked) {
-        if (taskRecoveryBindingFresh) state.lastStopOwnerRelease = transitionLifecycleOwner(state, 'release')
+      const operationTerminal = taskOperationTerminalSnapshot(state.turnLiveness)
+      if (!operationTerminal.terminalReady) {
+        // Preserve the unresolved operation and its owner before releasing anything.
+        // A host Stop is not evidence that an unknown file effect has settled.
+        state.lastStopOwnerRelease = { status: 'skipped', reasonCode: 'TASK_OPERATION_UNSETTLED' }
+        state.turnLiveness.state = 'awaiting-continuation'
+        state.enforcementHonesty.processGaps = [...new Set([
+          ...state.enforcementHonesty.processGaps, 'task-operation-unsettled'
+        ])]
+        output = mergeContinueOutputs(output, buildInterceptionOutput(
+          state, platform, eventName, INTERCEPTION_ACTION.WARN_CONTINUE,
+          'TASK_OPERATION_UNSETTLED', 'Task operation requires reconciliation',
+          `Operation ${operationTerminal.unresolvedOperationId || 'unknown'} remains ${operationTerminal.unresolvedPhase || 'unverified'}.`,
+          'Reconcile the recorded file effects before marking this turn complete.'
+        ))
+      } else if (!stopHardBlocked) {
         const failed = payload.success === false || payload.is_error === true || payload.isError === true || !!payload.error
         state.turnLiveness = markTurnTerminal(
           state.turnLiveness,
           failed ? 'error' : 'completed',
           failed ? 'stop-event-error' : 'stop-event-completed'
         )
+        if (taskRecoveryBindingFresh) state.lastStopOwnerRelease = transitionLifecycleOwner(state, 'release')
       } else {
         state.lastStopOwnerRelease = { status: 'skipped', reasonCode: 'stop-hard-blocked' }
       }

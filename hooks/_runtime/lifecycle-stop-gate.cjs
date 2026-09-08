@@ -11,6 +11,8 @@
 
 const path = require('path')
 const fs = require('fs')
+const crypto = require('crypto')
+const { evaluateEvidenceSaturation, createReviewStateSnapshot } = require('./review-execution-contract.cjs')
 const { evaluatePortableTaskIdentityBinding, validateTaskIdentity } = require('./task-continuation-contract.cjs')
 
 let analyzeFinalValidationSummarySample
@@ -151,14 +153,12 @@ function findActiveTaskRoot (state) {
   }
 }
 
-/** Minimum UTF-8 bytes for a substantive PR-1 review body (blocks two-line green). */
-const PR1_MIN_BODY_BYTES = 1200
+// PR-1 has no minimum prose length; evidence identities drive its diagnostic.
 
 /**
  * F-04 / SkillsDeployMode PR-1 strengthen:
  * When 02-技术方案 exists, require an independent 03 review file with
- * pass signal AND substance (mapping/contract/CodeTruth/blocker/root-cause).
- * Rejects: open-blocker-only, table-only PR-1 ✅, sessions-only with 02 present.
+ * candidate/report digests and observed evidence identities. Prose is not proof.
  */
 function findPr1ReviewFileName (taskRoot) {
   if (!taskRoot || !fs.existsSync(taskRoot)) return null
@@ -175,73 +175,68 @@ function findPr1ReviewFileName (taskRoot) {
   }
 }
 
-function controlPlaneHint (taskRoot) {
+// The report is explanatory text. Only its candidate-bound ReviewState and
+// read-back evidence may support PR-1; prose, headings and examples are not votes.
+function pr1ReviewBodyOk (body, taskRoot) {
+  return pr1EvidenceOk(taskRoot, { reviewBody: String(body || '') })
+}
+
+function pr1EvidenceOk (taskRoot, options = {}) {
+  if (!taskRoot) return false
   try {
-    const tech = findDesignArtifactPath(taskRoot)
-    if (!tech) return false
-    const text = fs.readFileSync(tech, 'utf8')
-    return /hook|lifecycle|skillsDeploy|applyGlobalHost|control.?plane|控制面|global-host-config|pr1EvidenceOk/i.test(text)
+    const root = fs.realpathSync(taskRoot)
+    let readBytes = 0
+    const readOwned = relative => {
+      if (typeof relative !== 'string' || !relative || path.isAbsolute(relative)) throw new Error('review-path')
+      const file = path.resolve(root, relative)
+      const physical = fs.realpathSync(file)
+      const inside = path.relative(root, physical)
+      const stat = fs.lstatSync(file)
+      if (!inside || inside === '..' || inside.startsWith('..' + path.sep) || path.isAbsolute(inside) ||
+          !stat.isFile() || stat.isSymbolicLink() || stat.size > 2 * 1024 * 1024) throw new Error('review-boundary')
+      readBytes += stat.size
+      if (readBytes > 8 * 1024 * 1024) throw new Error('review-budget')
+      const bytes = fs.readFileSync(file)
+      const after = fs.lstatSync(file)
+      if (after.ino !== stat.ino || after.size !== stat.size || after.mtimeMs !== stat.mtimeMs ||
+          after.ctimeMs !== stat.ctimeMs || bytes.length !== after.size || fs.realpathSync(file) !== physical) {
+        throw new Error('review-read-raced')
+      }
+      return { content: bytes.toString('utf8'), digest: crypto.createHash('sha256').update(bytes).digest('hex') }
+    }
+    const evidence = JSON.parse(readOwned('.memory/review-execution-pr1.json').content)
+    if (evidence.schemaVersion !== 'ReviewExecutionEvidenceV1') return false
+    const design = findDesignArtifactPath(taskRoot)
+    const review = findPr1ReviewFileName(taskRoot)
+    if (!design || !review || evidence.candidate?.path !== path.relative(taskRoot, design).replace(/\\/g, '/') ||
+        evidence.review?.path !== review) return false
+    const candidate = readOwned(evidence.candidate.path)
+    const report = readOwned(evidence.review.path)
+    if (candidate.digest !== evidence.candidate.digest || report.digest !== evidence.review.digest ||
+        (options.reviewBody !== undefined && options.reviewBody !== report.content)) return false
+    const { plan, receipts, saturationInput, snapshot } = evidence
+    if (!plan || !Array.isArray(receipts) || receipts.length < 1 || receipts.length > 128 ||
+        plan.candidateDigest !== candidate.digest || plan.stage !== 'pre-confirmation' ||
+        !Array.isArray(evidence.artifacts) || evidence.artifacts.length > 128) return false
+    const observed = new Map()
+    for (const item of evidence.artifacts) {
+      if (!item.ref || observed.has(item.ref) || readOwned(item.path).digest !== item.digest) return false
+      observed.set(item.ref, item.digest)
+    }
+    if (receipts.some(receipt => !Array.isArray(receipt.evidenceRefs) || receipt.evidenceRefs.length === 0 ||
+        receipt.evidenceRefs.some(ref => !observed.has(ref)))) return false
+    const saturation = evaluateEvidenceSaturation(plan, { ...saturationInput, receipts })
+    const expected = createReviewStateSnapshot(plan, {
+      saturation, receiptDigests: saturation.freshReceiptDigests,
+      open: saturationInput?.openCount, blocker: saturationInput?.blockerCount,
+      stale: receipts.length - saturation.freshReceiptDigests.length,
+      unreviewed: saturation.unboundedRelatedCount,
+      dirtyBoundary: saturationInput?.dirtyBoundaryMatches === true ? 'matched' : 'unverified'
+    })
+    return expected.nextAction === 'accept' && expected.snapshotDigest === snapshot?.snapshotDigest
   } catch {
     return false
   }
-}
-
-function countPr1Substance (body) {
-  let substance = 0
-  if (/BlockerSnapshot|阻断项|blockerId/i.test(body)) substance += 1
-  if (/验收映射|需求[^\n]{0,12}映射|产品事实源|§0\.5/i.test(body)) substance += 1
-  if (/契约矩阵|ContractMatrix|Current\s*→\s*Target|runtimeOwners/i.test(body)) substance += 1
-  if (/CodeTruth|currentBehavior|negativeProbe|repoPath/i.test(body)) substance += 1
-  if (/根因|Root\s*cause|假绿|pr1EvidenceOk/i.test(body)) substance += 1
-  return substance
-}
-
-function pr1ReviewBodyOk (body, taskRoot) {
-  const text = String(body || '')
-  if (!/PR-1/i.test(text)) return false
-  if (/PR-1[^\n]{0,40}(?:不通过|阻断|fail|❌)/i.test(text)) return false
-  if (Buffer.byteLength(text, 'utf8') < PR1_MIN_BODY_BYTES) return false
-
-  const hasPass =
-    /open\s*blocker\s*=\s*0|zero\s*blocker|blockers?\s*=\s*0/i.test(text) ||
-    /PR-1[^\n]{0,40}(?:✅\s*通过|通过\s*✅|=\s*pass|:\s*pass)/i.test(text) ||
-    /阶段一[^\n]{0,30}PR-1[^\n]{0,30}✅/i.test(text)
-  // Bare "| PR-1 | ✅ |" table rows alone are NOT a pass signal (thin-green).
-  if (!hasPass) return false
-
-  const substance = countPr1Substance(text)
-  const minSubstance = controlPlaneHint(taskRoot) ? 2 : 2
-  return substance >= minSubstance
-}
-
-function pr1EvidenceOk (taskRoot) {
-  if (!taskRoot || !fs.existsSync(taskRoot)) return false
-  try {
-    const hasTech = hasTechDesign(taskRoot)
-    const review = findPr1ReviewFileName(taskRoot)
-
-    // With a tech design, sessions-only is never enough — require independent 03 review.
-    if (hasTech) {
-      if (!review) return false
-      const body = fs.readFileSync(path.join(taskRoot, review), 'utf8')
-      return pr1ReviewBodyOk(body, taskRoot)
-    }
-
-    if (review) {
-      const body = fs.readFileSync(path.join(taskRoot, review), 'utf8')
-      return pr1ReviewBodyOk(body, taskRoot)
-    }
-
-    // Legacy: no 02 present — sessions row may still count for non-CP2 callers.
-    const sessions = path.join(taskRoot, '.memory', 'sessions.md')
-    if (fs.existsSync(sessions)) {
-      const s = fs.readFileSync(sessions, 'utf8')
-      if (/PR-1\s*[|：:]*\s*✅|PR-1\s*=\s*pass|PR-1（CP2 前）\s*\|\s*✅/i.test(s)) return true
-    }
-  } catch {
-    /* ignore */
-  }
-  return false
 }
 
 function hasTechDesign (taskRoot) {
@@ -442,11 +437,8 @@ module.exports = {
   hasFinalValidationSummary,
   pr1EvidenceOk,
   pr1ReviewBodyOk,
-  countPr1Substance,
   findPr1ReviewFileName,
-  controlPlaneHint,
   findDesignArtifactPath,
-  PR1_MIN_BODY_BYTES,
   completionClaimed,
   hasEntryCheck,
   hasCompletionCheck,

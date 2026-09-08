@@ -99,6 +99,25 @@ function portfolioDependencies (skill) {
   return parseDependencyList(value)
 }
 
+// Exact reads and the progressive route share the same declared topology.
+function skillTopology (frontmatter = {}, portfolioSkill, layer = 'project') {
+  const index = layer === 'global' ? (portfolioSkill?.skillIndex || {}) : {}
+  const declared = parseDependencyList(frontmatter.requires || frontmatter.dependencies)
+  const conflicts = parseDependencyList(frontmatter.conflictsWith || frontmatter.conflicts)
+  return {
+    requires: [...new Set([
+      ...(layer === 'global' ? portfolioDependencies(portfolioSkill) : []), ...declared
+    ])].sort(),
+    conflicts: [...new Set([
+      ...(layer === 'global' ? parseDependencyList(index.conflictsWith || portfolioSkill?.conflicts) : []),
+      ...conflicts
+    ])].sort(),
+    priority: Number.isFinite(Number(frontmatter.priority ?? index.priority))
+      ? Number(frontmatter.priority ?? index.priority)
+      : (layer === 'global' ? 100 : 50)
+  }
+}
+
 function metadataForSkill (skillId, preferredLayer, topology, options = {}) {
   const fsImpl = options.fs || fs
   const resolved = resolveSkillRead(skillId, {
@@ -131,12 +150,9 @@ function metadataForSkill (skillId, preferredLayer, topology, options = {}) {
     })
   }
   const parsed = parseFrontmatter(resolved.content)
-  const declared = parseDependencyList(
-    parsed.frontmatter.requires || parsed.frontmatter.dependencies
-  )
-  const dependencies = trace.selectedLayer === 'global'
-    ? [...new Set([...portfolioDependencies(topology.byId.get(skillId)), ...declared])].sort()
-    : declared
+  const dependencies = skillTopology(
+    parsed.frontmatter, topology.byId.get(skillId), trace.selectedLayer
+  ).requires
   const intentPath = path.join(path.dirname(trace.selectedPath), 'intent.json')
   return {
     skillId,
@@ -431,6 +447,7 @@ module.exports = {
   encodeExactCursor,
   decodeExactCursor,
   parseDependencyList,
+  skillTopology,
   buildMetadataClosure,
   hydrateExactSkill,
   splitUtf8Pages,

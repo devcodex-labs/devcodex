@@ -1200,6 +1200,20 @@ function applyWorkflowTaskTerminalReceipt(raw, receipt = {}, options = {}) {
     receiptDigest: String(receipt.receiptDigest || '').trim().toLowerCase(),
     observedAt: toIso(nowMs)
   }
+  if (options.retireCompletedTaskOperations === true) {
+    const snapshot = taskOperationTerminalSnapshot(state)
+    if (!snapshot.terminalReady || snapshot.settledSetDigest !== receipt.settledSetDigest) {
+      throw new TaskOperationRecordError('TASK_TERMINAL_OPERATION_SET_MISMATCH',
+        'terminal observation must match the fully settled task operation set', snapshot)
+    }
+    // The canonical terminal task keeps its complete history. The now-taskless
+    // session carries only its receipt-bound reference into the next task.
+    state.workflowTaskTerminal.settledSetDigest = snapshot.settledSetDigest
+    state.workflowTaskTerminal.settledCount = snapshot.settledCount
+    state.taskOperationSet = normalizeTaskOperationSet(null)
+    state.lastTaskOperationRecord = null
+    state.lastMutationCloseout = null
+  }
   return state
 }
 

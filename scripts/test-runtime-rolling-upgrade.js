@@ -42,6 +42,12 @@ const {
 
 const PACKAGE_ROOT = path.resolve(__dirname, '..')
 const REGISTRY_MODE = process.argv.includes('--registry')
+const registryVersionArg = process.argv.find(arg => arg.startsWith('--registry-version='))
+const REGISTRY_VERSION = registryVersionArg ? registryVersionArg.slice('--registry-version='.length) : '1.16.2'
+assert(/^[0-9]+\.[0-9]+\.[0-9]+$/.test(REGISTRY_VERSION), 'registry version must be an exact stable version')
+const COMPATIBILITY_STATUSES = REGISTRY_MODE
+  ? ['exact', 'migrated-route-registry', 'legacy-n-1', 'migrated-n-1']
+  : ['legacy-n-1', 'migrated-n-1']
 
 function digestBuffer (value) {
   return crypto.createHash('sha256').update(value).digest('hex')
@@ -85,6 +91,10 @@ function safeTempCleanup (root) {
   const target = path.resolve(root)
   assert(target.startsWith(temp + path.sep))
   assert(path.basename(target).startsWith('devcodex-runtime-rolling-upgrade-'))
+  if (process.env.DEVCODEX_TEST_KEEP_TEMP === '1') {
+    process.stdout.write(`Retained rolling upgrade fixture: ${target}\n`)
+    return
+  }
   fs.rmSync(target, { recursive: true, force: true })
 }
 
@@ -119,6 +129,9 @@ function downgradePlanToN1 (current) {
     'docs-mutation', 'source-mutation', 'release', 'dangerous'
   ].includes(action))
   legacy.identityInputs.intent.actionEnvelope = JSON.parse(JSON.stringify(legacy.actionEnvelope))
+  // The actual registry N-1 producer predates this optional identity field.
+  delete legacy.profile.routeLoadRecipe
+  delete legacy.identityInputs.resolution.profileRouteLoadRecipe
   legacy.planContentId = `plan-content-${stableDigest(legacy.identityInputs)}`
   legacy.planId = `plan-${stableDigest({
     planContentId: legacy.planContentId,
@@ -386,7 +399,7 @@ async function main () {
       const installRoot = path.join(tempRoot, 'registry-old')
       const install = spawnSync('npm', [
         'install', '--ignore-scripts', '--no-audit', '--no-fund',
-        '--prefix', installRoot, 'devcodex@1.16.2'
+        '--prefix', installRoot, `devcodex@${REGISTRY_VERSION}`
       ], { encoding: 'utf8', timeout: 120000 })
       assert.strictEqual(install.status, 0, install.stderr || install.stdout)
       const oldPackage = path.join(installRoot, 'node_modules', 'devcodex')
@@ -544,7 +557,7 @@ async function main () {
     }, hookEnv, planArgs.contextEpoch)
     const extracted = extractContextPlanBody(response.result)
     assert.strictEqual(extracted.error, null, JSON.stringify(extracted.error))
-    assert(['legacy-n-1', 'migrated-n-1'].includes(extracted.compatibilityReceipt.status))
+    assert(COMPATIBILITY_STATUSES.includes(extracted.compatibilityReceipt.status))
     assert.strictEqual(validateContextReadPlan(extracted.plan).valid, true)
     assert(extracted.plan.actionEnvelope.allowedActionClasses.includes('workflow-closeout'))
     assert.strictEqual(oldProcess.exitCode, null)
@@ -558,7 +571,7 @@ async function main () {
       JSON.stringify(lifecycleState.state.contextAcquisition, null, 2)
     )
     assert.strictEqual(lifecycleState.state.contextAcquisition.plan.schemaVersion, 'ContextReadPlanV2')
-    assert(['legacy-n-1', 'migrated-n-1'].includes(
+    assert(COMPATIBILITY_STATUSES.includes(
       lifecycleState.state.contextAcquisition.runtimeCompatibility.status
     ))
     assert.strictEqual(lifecycleState.state.contextAcquisition.targetResolved, true)
@@ -571,7 +584,7 @@ async function main () {
 
     console.log(JSON.stringify({
       schemaVersion: 'RuntimeRollingUpgradeReceiptV1',
-      mode: REGISTRY_MODE ? 'registry-v1.16.2' : 'deterministic-legacy-fixture',
+      mode: REGISTRY_MODE ? `registry-v${REGISTRY_VERSION}` : 'deterministic-legacy-fixture',
       oldPid,
       oldRuntimeRoot: oldTarget.runtimeRoot.replace(/\\/g, '/'),
       newRuntimeRoot: newTarget.runtimeRoot.replace(/\\/g, '/'),

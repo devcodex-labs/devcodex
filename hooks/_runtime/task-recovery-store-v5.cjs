@@ -4094,6 +4094,7 @@ function compactTurnLivenessForEphemeral (raw) {
     state: raw.state,
     turnKey: raw.turnKey,
     ...(raw.taskOperationSet ? { taskOperationSet: cloneRecoveryValue(raw.taskOperationSet) } : {}),
+    ...(raw.workflowTaskTerminal ? { workflowTaskTerminal: cloneRecoveryValue(raw.workflowTaskTerminal) } : {}),
     inFlightOperation: operation?.mutating === true ? {
       operationId: operation.operationId,
       toolName: operation.toolName,
@@ -4263,6 +4264,7 @@ function buildTasklessAuthorityEphemeralStub(state) {
       state: boundedRecoveryString(turn.state, 64),
       turnKey: boundedRecoveryString(turn.turnKey, 256),
       ...(turn.taskOperationSet ? { taskOperationSet: cloneRecoveryValue(turn.taskOperationSet) } : {}),
+      ...(turn.workflowTaskTerminal ? { workflowTaskTerminal: cloneRecoveryValue(turn.workflowTaskTerminal) } : {}),
       inFlightOperation: null,
       checkpoint: turn.checkpoint ? {
         phase: boundedRecoveryString(turn.checkpoint.phase, 96)
@@ -4441,6 +4443,7 @@ function buildMinimalEphemeralStub (state) {
       state: boundedRecoveryString(turn.state, 64),
       turnKey: boundedRecoveryString(turn.turnKey, 256),
       ...(turn.taskOperationSet ? { taskOperationSet: cloneRecoveryValue(turn.taskOperationSet) } : {}),
+      ...(turn.workflowTaskTerminal ? { workflowTaskTerminal: cloneRecoveryValue(turn.workflowTaskTerminal) } : {}),
       inFlightOperation: operation ? {
         operationId: boundedRecoveryString(operation.operationId, 256),
         toolName: boundedRecoveryString(operation.toolName, 128),
@@ -4480,6 +4483,16 @@ function buildMinimalEphemeralStub (state) {
     memoryTouched: state?.memoryTouched === true,
     recoveryKind: 'ephemeral-resume-stub',
     recoveryCompaction: 'minimal-budget'
+  }
+  if (ingressRecovery) {
+    // Omit absent derived projections before discarding exact ingress. Preserve
+    // explicit null task/lease authority fields and every present closeout.
+    for (const key of [
+      'autoCheckpointDecision', 'workflowOperationalWriteLeaseCloseout',
+      'simpleTaskFastPathLeaseCloseout', 'progressiveSkillRoute', 'progressiveSkillRouteStop'
+    ]) {
+      if (stub[key] === null) delete stub[key]
+    }
   }
   if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES && ingressRecovery) {
     stub.actualInstructionEnvelope = compactInstructionEnvelopeResumeIdentity(state.actualInstructionEnvelope)

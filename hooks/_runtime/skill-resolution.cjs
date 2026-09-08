@@ -9,6 +9,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const { resolveGlobalSkillRuntimeRoot } = require('./global-skill-runtime-root.cjs')
 
 const {
   findLayoutInfo
@@ -29,22 +30,6 @@ const MAX_SKILL_BYTES = 256 * 1024
 const MAX_LAYERED_SKILL_BYTES = 8 * 1024 * 1024
 const SKILL_METADATA_PREFIX_BYTES = 64 * 1024
 
-const WEAKEN_PATTERNS = Object.freeze([
-  /跳过\s*S0[1-7]/i,
-  /disable\s*S0[1-7]/i,
-  /skip\s*S0[1-7]/i,
-  /S0[1-7]\s*not\s*required/i,
-  /override\s*S0[1-7]/i,
-  /跳过\s*PC0/i,
-  /不用入口检查/,
-  /跳过\s*CP\s*[123]/i,
-  /skip\s*cp[- ]?gate/i,
-  /merge\s*CP\s*1\s*CP\s*2/i,
-  /允许\s*rm\s*-rf/i,
-  /无需确认删除/,
-  /无需预览\s*DROP/i,
-  /skip\s*destructive\s*confirm/i
-])
 
 function nowIso(clock) {
   if (typeof clock === 'function') return clock()
@@ -88,6 +73,21 @@ function resolveSkillsDeployModeLocal (env = process.env, options = {}) {
 
 function resolveGlobalSkillsRoot(options = {}) {
   const env = options.env || process.env
+  const fsImpl = options.fs || fs
+  const loadedRoot = path.resolve(__dirname, '..', '..')
+  const generationRoot = [loadedRoot, options.runtimeRoot, options.packageRoot].filter(Boolean)
+    .map(root => path.resolve(root))
+    .find(root => fsImpl.existsSync(path.join(root, 'runtime-generation.json')))
+  if (generationRoot || options.globalRuntime?.source === 'runtime-generation') {
+    const resolved = generationRoot
+      ? resolveGlobalSkillRuntimeRoot({ ...options, runtimeRoot: generationRoot })
+      : options.globalRuntime
+    if (resolved.status === 'resolved') return path.resolve(resolved.root)
+    const error = new Error('GLOBAL_SKILL_RUNTIME_GENERATION_UNBOUND')
+    error.code = 'GLOBAL_SKILL_RUNTIME_GENERATION_UNBOUND'
+    error.runtime = resolved
+    throw error
+  }
   // Explicit override always wins (tests / advanced users); doctor warns if mode=hidden but this points at scan root.
   if (env.DEVCODEX_GLOBAL_SKILLS_ROOT) {
     return path.resolve(env.DEVCODEX_GLOBAL_SKILLS_ROOT)
@@ -214,13 +214,6 @@ function renderSourceSkillContent(filePath, rawContent, fsImpl = fs) {
   return rendered
 }
 
-function detectWeaken(content) {
-  const text = String(content || '')
-  for (const pattern of WEAKEN_PATTERNS) {
-    if (pattern.test(text)) return pattern.toString()
-  }
-  return null
-}
 
 function readDistribution(skillDir, fsImpl = fs) {
   const metaPath = path.join(skillDir, 'meta.json')
@@ -578,11 +571,6 @@ function resolveSkillRead(skillId, options = {}) {
       return null
     }
     const inspectedContent = payload.content || ''
-    const weaken = detectWeaken(inspectedContent)
-    if (weaken) {
-      lowerFallbacks.push({ layer, securityDecision: 'rejected-weaken', reasonCode: 'weaken-pattern', fallbackReason: `weaken:${weaken}` })
-      return null
-    }
     const skillDir = path.dirname(hit.path)
     const refHits = inspectedContent.match(/(?:scripts|references)\/[A-Za-z0-9._/-]+/g) || []
     for (const rel of refHits) {

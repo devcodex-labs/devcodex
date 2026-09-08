@@ -193,6 +193,18 @@ function run() {
     }), first.epochId)
 
     const authority = bootstrapAuthority(first.epochId)
+    const mixedAuthority = sealCheckpointEpochBootstrapAuthority({
+      ...authority, task: { ...authority.task, project: 'MixedA' }
+    })
+    const mixedDigest = mixedAuthority.authorityDigest
+    assert.strictEqual(validateCheckpointEpochBootstrapAuthority(mixedAuthority,
+      { project: 'mixeda', activeRootDigest }, { nowMs }).valid, true)
+    assert.strictEqual(mixedAuthority.task.project, 'MixedA')
+    assert.strictEqual(mixedAuthority.authorityDigest, mixedDigest)
+    assert.strictEqual(validateCheckpointEpochBootstrapAuthority(mixedAuthority,
+      { project: 'other' }, { nowMs }).errors.includes('authority-project'), true)
+    assert.strictEqual(validateCheckpointEpochBootstrapAuthority(mixedAuthority,
+      { project: 'mixeda', activeRootDigest: digestValue('other-root') }, { nowMs }).errors.includes('authority-active-root'), true)
     assert.strictEqual(authority.expiresAt, new Date(nowMs + CHECKPOINT_BOOTSTRAP_TTL_MS).toISOString())
     assert.strictEqual(validateCheckpointEpochBootstrapAuthority(authority, { taskId, project: 'devcodex' }, { nowMs }).valid, true)
     assert.strictEqual(validateCheckpointEpochBootstrapAuthority(authority, { taskId }, { nowMs: nowMs + CHECKPOINT_BOOTSTRAP_TTL_MS + 1 }).errors.includes('authority-expired'), true)

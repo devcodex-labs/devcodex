@@ -122,8 +122,10 @@ function testKillSwitchAndWeaken() {
     const envBase = { USERPROFILE: home, HOME: home, DEVCODEX_GLOBAL_SKILLS_ROOT: gRoot }
     const opts = { cwd: workspaceRoot, workspaceRoot, env: envBase }
     const weakened = resolveSkillRead('custom', opts)
-    assert.strictEqual(weakened.trace.selectedLayer, 'global')
-    assert.strictEqual(weakened.trace.securityDecision, 'rejected-weaken')
+    assert.strictEqual(weakened.trace.selectedLayer, 'workspace')
+    assert.strictEqual(weakened.trace.securityDecision, 'accepted')
+    // Loading text does not approve it. Semantic review belongs to the model;
+    // path containment and reserved IDs remain enforced by this resolver.
 
     const killed = resolveSkillRead('custom', {
       ...opts,

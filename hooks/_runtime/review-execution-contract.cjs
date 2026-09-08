@@ -128,6 +128,9 @@ function createReviewEvidenceReceipt(input) {
   for (const field of ['command', 'environment', 'runId']) if (!text(input?.[field])) errors.push(`${field}-required`)
   if (!RECEIPT_RESULTS.has(input?.result)) errors.push('result-invalid')
   if (!textList(input?.evidenceRefs)) errors.push('evidence-refs-invalid')
+  for (const field of ['blockerCount', 'openCount']) {
+    if (input?.[field] !== undefined && (!Number.isSafeInteger(input[field]) || input[field] < 0)) errors.push(`${field}-invalid`)
+  }
   const core = {
     schemaVersion: 'ReviewEvidenceReceiptV1',
     ...Object.fromEntries(FRESHNESS_FIELDS.map(field => [field, input?.[field] || ''])),
@@ -147,6 +150,7 @@ function createReviewEvidenceReceipt(input) {
 
 function evaluateReceiptFreshness(receipt, binding) {
   const reasons = []
+  if (!receipt || createReviewEvidenceReceipt(receipt).receiptDigest !== receipt.receiptDigest) reasons.push('receipt-digest-invalid')
   if (!receipt?.validation?.valid) reasons.push('receipt-invalid')
   if (receipt?.result !== 'passed') reasons.push('receipt-not-passed')
   if (!receipt?.reuseEligibility) reasons.push('receipt-not-reusable')
@@ -180,6 +184,7 @@ function exclusionIsBounded(item) {
 
 function evaluateEvidenceSaturation(plan, input) {
   const reasons = []
+  if (!plan || createReviewExecutionPlan(plan).planId !== plan.planId) reasons.push('plan-digest-invalid')
   if (!plan?.validation?.valid) reasons.push('plan-invalid')
   const receipts = input?.receipts || []
   const freshReceipts = receipts.filter(receipt => {
@@ -192,6 +197,7 @@ function evaluateEvidenceSaturation(plan, input) {
     binding.riskDigest = plan?.riskDigest
     return evaluateReceiptFreshness(receipt, binding).fresh
   })
+  if (freshReceipts.length !== receipts.length) reasons.push('stale-or-failed-receipts-remain')
   const dimensions = new Set(freshReceipts.map(item => item.dimension))
   const claims = new Set(freshReceipts.map(item => item.claim))
   const evidenceRefs = new Set(freshReceipts.flatMap(item => item.evidenceRefs || []))
@@ -241,7 +247,9 @@ function createReviewStateSnapshot(plan, input) {
     unreviewed: input?.unreviewed || 0,
     saturation: saturation?.status || 'full-required',
     dirtyBoundary: input?.dirtyBoundary || 'unverified',
-    nextAction: saturation?.status === 'passed' && !input?.open && !input?.blocker && !input?.stale && !input?.unreviewed
+    nextAction: plan?.validation?.valid && saturation?.status === 'passed' &&
+      input?.dirtyBoundary === 'matched' && ['open', 'blocker', 'stale', 'unreviewed'].every(key => input?.[key] === 0) &&
+      Array.isArray(input?.receiptDigests) && input.receiptDigests.length > 0
       ? 'accept'
       : 'full-required'
   }

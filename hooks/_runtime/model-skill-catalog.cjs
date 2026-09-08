@@ -188,7 +188,6 @@ function shortlistSkillCards (cards, prompt, entries = [], limit = DEFAULT_SHORT
         card.skillId,
         card.name,
         card.whenToUse,
-        card.avoidWhen,
         ...(card.domains || [])
       ].join(' ').normalize('NFKC').toLowerCase()
       let score = 0

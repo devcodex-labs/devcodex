@@ -9,8 +9,7 @@ const {
   buildRuntimeSkillIdentityIndex
 } = require('./runtime-skill-identity-index.cjs')
 const {
-  buildUnifiedSkillCatalog,
-  shortlistSkillCards
+  buildUnifiedSkillCatalog
 } = require('./model-skill-catalog.cjs')
 const {
   byteLength,
@@ -1057,20 +1056,8 @@ function collectExpiredTurns (activeRoot, options = {}) {
   }
 }
 
-function parseExplicitSkillId (prompt) {
-  const text = String(prompt || '')
-  if (/(?:不要|别|无需|不需要|禁止|拒绝)\s*(?:使用|用|加载|执行)/i.test(text)) {
-    return null
-  }
-  if (/(?:为什么|为何|怎么|如何|误触发|触发到|截图|日志|报告|提到|讨论|说明).{0,32}(?:workspace\s+)?skill/i.test(text)) {
-    return null
-  }
-  const match =
-    text.match(/(?:使用|用|加载|执行)\s+(?:workspace\s+)?skill\s*[:=]?\s*([A-Za-z0-9][A-Za-z0-9._-]*)/i) ||
-    text.match(/(?:使用|用|加载|执行)\s+([A-Za-z0-9][A-Za-z0-9._-]*)\s+(?:skill\b|技能)/i) ||
-    text.match(/\b(?:workspace\s+)?skill\s*[:=]\s*([A-Za-z0-9][A-Za-z0-9._-]*)\b/i)
-  return match ? match[1] : null
-}
+/** Raw user prose is interpreted by the model; explicitSkillId is a structured input. */
+function parseExplicitSkillId () { return null }
 
 function bootstrapSkillRoute (input, options = {}) {
   const {
@@ -1109,18 +1096,10 @@ function bootstrapSkillRoute (input, options = {}) {
     packageRoot: options.packageRoot,
     env: options.env
   })
-  const shortlist = shortlistSkillCards(
-    index.cards,
-    input.prompt,
-    index.entries,
-    input.shortlistLimit
-  )
   const catalog = buildUnifiedSkillCatalog(index, {
     project,
     turnBinding,
     contextEpoch
-  }, {
-    cards: shortlist
   })
   const explicitSkillId = Object.prototype.hasOwnProperty.call(input, 'explicitSkillId')
     ? (String(input.explicitSkillId || '').trim() || null)
@@ -1286,6 +1265,38 @@ function loadEnvelope (activeRoot, turnBinding, options = {}) {
   }
   hydrateCatalogProgress(envelope, paths, options)
   return { envelope, paths }
+}
+
+function bindExplicitSkillRequest (input, options = {}) {
+  const requested = String(input.skillId || '').trim() || null
+  return transactEnvelope(input.activeRoot, input.turnBinding, {
+    op: 'bind_explicit', project: input.project, contextEpoch: input.contextEpoch,
+    skillId: requested
+  }, envelope => {
+    const state = envelope.state
+    if (state.project !== input.project || state.activeRoot !== portable(input.activeRoot) ||
+        state.contextEpoch !== input.contextEpoch) {
+      throw Object.assign(new Error('CONTEXT_BINDING_MISMATCH'), { code: 'CONTEXT_BINDING_MISMATCH' })
+    }
+    const prior = state.explicit?.requestedSkillId || null
+    if (prior !== requested && (state.decision || state.plan || prior)) {
+      throw Object.assign(new Error('BOOTSTRAP_IDENTITY_COLLISION'), { code: 'BOOTSTRAP_IDENTITY_COLLISION' })
+    }
+    const entry = requested
+      ? state.index.entries.find(item => item.skillId === requested && item.lifecycle === 'green')
+      : null
+    state.explicit = {
+      requestedSkillId: requested,
+      status: requested ? (entry ? 'ready' : 'rejected') : 'none',
+      skillId: entry?.skillId || null
+    }
+    state.bootstrap.explicitStatus = state.explicit.status
+    state.bootstrap.explicitSkillId = state.explicit.skillId
+    state.bootstrap.nextOp = entry ? 'commit' : 'catalog'
+    const { bootstrapDigest: _digest, ...material } = state.bootstrap
+    state.bootstrap.bootstrapDigest = sha256(material)
+    return { envelope, response: { bootstrap: state.bootstrap } }
+  }, options).envelope
 }
 
 function transactEnvelope (activeRoot, turnBinding, request, mutation, options = {}) {
@@ -1622,6 +1633,7 @@ module.exports = {
   atomicWriteJson,
   parseExplicitSkillId,
   bootstrapSkillRoute,
+  bindExplicitSkillRequest,
   loadEnvelope,
   transactEnvelope,
   transactCatalogProgress,

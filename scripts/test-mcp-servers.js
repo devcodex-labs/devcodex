@@ -133,7 +133,7 @@ function assertMemoryProjectionIdentity(value, toolName) {
   assert(['persisted', 'degraded', 'skipped'].includes(value.contextObservation.status))
 }
 
-function runServer(script, requests, cwd = ROOT, env = {}) {
+function runServer(script, requests, cwd = ROOT, env = {}, followToolPages = true) {
   const input = requests.concat('').join('\n')
   // Neutralize ambient host signals (e.g. developer GROK_AGENT) so identity is test-controlled.
   // Default pin DEVCODEX_AGENT=claude-code for suite stability; callers may override or clear.
@@ -163,7 +163,25 @@ function runServer(script, requests, cwd = ROOT, env = {}) {
     throw new Error((result.stderr || result.stdout || `${script} exited with failure`).trim())
   }
 
-  return result.stdout.trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line))
+  const responses = result.stdout.trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line))
+  if (followToolPages) {
+    for (const response of responses.filter(item => item.result?.tools)) {
+      response.wirePages = [JSON.parse(JSON.stringify(response))]
+      let cursor = response.result.nextCursor
+      const seen = new Set()
+      while (cursor) {
+        assert(!seen.has(cursor) && seen.size < 16, 'tools/list pagination must terminate')
+        seen.add(cursor)
+        const [page] = runServer(script, [rpcRequest(response.id, 'tools/list', { cursor })], cwd, env, false)
+        assert.ifError(page.error)
+        response.wirePages.push(page)
+        response.result.tools.push(...page.result.tools)
+        cursor = page.result.nextCursor
+      }
+      delete response.result.nextCursor
+    }
+  }
+  return responses
 }
 
 const GOVERNED_CONTEXT_READ_TOOLS = new Set([
@@ -244,7 +262,7 @@ function compactDateInTimeZone(timeZone, date = new Date()) {
   return `${values.year}${values.month}${values.day}`
 }
 
-function runConfiguredServer(server, requests, cwd = ROOT) {
+function runConfiguredServer(server, requests, cwd = ROOT, followToolPages = true) {
   const command = server.command === 'node' ? process.execPath : server.command
   const input = requests.concat('').join('\n')
   const result = spawnSync(command, server.args || [], {
@@ -259,7 +277,23 @@ function runConfiguredServer(server, requests, cwd = ROOT) {
     throw new Error((result.stderr || result.stdout || `${server.command} exited with failure`).trim())
   }
 
-  return result.stdout.trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line))
+  const responses = result.stdout.trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line))
+  if (followToolPages) {
+    for (const response of responses.filter(item => item.result?.nextCursor && item.result?.tools)) {
+      const seen = new Set()
+      let cursor = response.result.nextCursor
+      while (cursor) {
+        assert(!seen.has(cursor) && seen.size < 16, 'configured tools/list pagination must terminate')
+        seen.add(cursor)
+        const [page] = runConfiguredServer(server, [rpcRequest(response.id, 'tools/list', { cursor })], cwd, false)
+        assert.ifError(page.error)
+        response.result.tools.push(...page.result.tools)
+        cursor = page.result.nextCursor
+      }
+      delete response.result.nextCursor
+    }
+  }
+  return responses
 }
 
 function runProfileServerWithReadTrace(requests, cwd) {
@@ -418,7 +452,8 @@ function assertTemplateQualified(receipt, label) {
   assert.strictEqual(receipt.templateQualification?.schemaVersion, 'ArtifactTemplateQualificationV1', `${label} qualification`)
   assert.strictEqual(receipt.templateQualification?.status, 'qualified', `${label} status`)
   assert.strictEqual(receipt.templateQualification?.readbackVerified, true, `${label} readback`)
-  assert.strictEqual(receipt.templateStatus, '模板资格：通过（已读回）', `${label} human status`)
+  assert.strictEqual(receipt.templateQualification.assessment, 'structure-only', `${label} assessment scope`)
+  assert.strictEqual(receipt.templateQualification.intentSatisfaction, 'UNVERIFIED', `${label} semantic honesty`)
 }
 
 function allocateMemorySession(cwd, argumentsValue, env = {}) {
@@ -1981,6 +2016,15 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   const autoLifecycleProjection = JSON.parse(fs.readFileSync(autoContextObservation.statePath, 'utf8'))
   const autoControlIntent = createValidationControlIngressIntent({
     actualInstructionEnvelope: autoResumeIngress.actualInstructionEnvelope,
+    semanticDecision: {
+      schemaVersion: 'IntentSemanticDecisionV1',
+      sourceRef: {
+        envelopeId: autoResumeIngress.actualInstructionEnvelope.envelopeId,
+        envelopeDigest: autoResumeIngress.actualInstructionEnvelope.envelopeDigest,
+        contextEpoch: autoResumeIngress.actualInstructionEnvelope.contextEpoch
+      },
+      executionDecision: 'enable-auto'
+    },
     actualInstruction: '@rocky 采纳建议',
     executionMode: 'auto',
     project,
@@ -4507,11 +4551,27 @@ function testContextReadBindingContract() {
   ], TEMP_ROOT)
   const listedResult = resultById(profileResponses, 2)
   const listed = listedResult.tools
-  const toolsListBytes = Buffer.byteLength(JSON.stringify({
-    jsonrpc: '2.0',
-    id: 2,
-    result: listedResult
-  }))
+  const listPages = profileResponses.find(item => item.id === 2).wirePages
+  assert(listPages.length > 1, 'complete Profile schemas must cross the bounded wire pages')
+  assert.strictEqual(new Set(listed.map(tool => tool.name)).size, listed.length)
+  const codexCatalog = resultById(runServer('mcp/profile-server.js', [rpcRequest(306, 'tools/list')],
+    TEMP_ROOT, { DEVCODEX_AGENT: 'codex' }, false), 306)
+  assert.strictEqual(codexCatalog.nextCursor, undefined, 'Codex must discover the complete current catalog from its initial list response')
+  assert.deepStrictEqual(codexCatalog.tools, listed, 'host transport budgets must preserve every tool and its full schema')
+  const firstPage = listPages[0].result
+  const badCursor = Buffer.from(JSON.stringify(['0'.repeat(64), 1])).toString('base64url')
+  const cursorChecks = runServer('mcp/profile-server.js', [
+    rpcRequest(301, 'tools/list', { cursor: 'unknown-cursor' }),
+    rpcRequest(302, 'tools/list', { cursor: badCursor }),
+    rpcRequest(303, 'tools/list', { cursor: null }),
+    rpcRequest(304, 'tools/list', { _meta: { 'test/client': true } }),
+    rpcRequest(305, 'tools/list', { cursor: firstPage.nextCursor })
+  ], TEMP_ROOT, {}, false)
+  for (const id of [301, 302, 303]) assert.strictEqual(cursorChecks.find(item => item.id === id).error.code, -32602)
+  assert.deepStrictEqual(resultById(cursorChecks, 304), firstPage)
+  assert.deepStrictEqual(resultById(cursorChecks, 305), listPages[1].result)
+  const toolsListBytes = Math.max(...profileResponses.find(item => item.id === 2).wirePages
+    .map(page => Buffer.byteLength(JSON.stringify(page))))
   assert(
     toolsListBytes <= 8 * 1024,
     `profile tools/list exceeds the 8 KiB Grok local-stdio wire budget: ${toolsListBytes} bytes`

@@ -30,6 +30,10 @@ assert.deepStrictEqual(inspectGovernanceLedgerBuffer(withNul, { expectedPrefix: 
 
 const duplicate = Buffer.from('| PF-001 | 2026-08-03 | open |\n| PF-001 | 2026-08-04 | closed |\n')
 assert(inspectGovernanceLedgerBuffer(duplicate, { expectedPrefix: 'PF-' }).issues.includes('duplicate-primary-id'))
+assert.strictEqual(inspectGovernanceLedgerBuffer(Buffer.from('## PI-1000\n'), { expectedPrefix: 'PI-' }).nextId, 'PI-1001')
+assert.deepStrictEqual(inspectGovernanceLedgerBuffer(Buffer.from('## PI-001\n## PI-001\n'), { expectedPrefix: 'PI-' }).duplicateHeadingIds, ['PI-001'])
+assert.strictEqual(inspectGovernanceLedgerBuffer(Buffer.from('| 编号 | 标题 | 发现时间 |\n|---|---|---|\n| ISSUE-1000 | issue | 2026-09-08 |\n'), { expectedPrefix: 'ISSUE-' }).nextId, 'ISSUE-1001')
+assert(inspectGovernanceLedgerBuffer(Buffer.from('| PI-999 | missing-date |\n'), { expectedPrefix: 'PI-' }).issues.includes('primary-table-row-invalid'))
 
 const invalidUtf8 = Buffer.from([0xc3, 0x28])
 assert(inspectGovernanceLedgerBuffer(invalidUtf8, { expectedPrefix: 'PI-' }).issues.includes('invalid-utf8'))

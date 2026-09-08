@@ -125,6 +125,7 @@ function inspectGovernanceLedgerManifest (activeRoot, manifest, options = {}) {
   const issues = []
   const documents = []
   const recordsById = new Map()
+  const nextSequenceFloors = {}
 
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
     return { schemaVersion: 'GovernanceLedgerManifestInspectionV1', valid: false, issues: ['manifest-not-object'], documents: [] }
@@ -144,7 +145,11 @@ function inspectGovernanceLedgerManifest (activeRoot, manifest, options = {}) {
     if (family.kind !== definition.kind) issues.push(`ledger-kind-mismatch:${definition.kind}`)
     if (family.prefix !== definition.prefix) issues.push(`ledger-prefix-mismatch:${definition.kind}`)
     if (portable(family.activePath) !== definition.activePath) issues.push(`ledger-active-path-mismatch:${definition.kind}`)
-    if (!Number.isInteger(family.nextSequence) || family.nextSequence < 1) issues.push(`ledger-next-sequence-invalid:${definition.kind}`)
+    if (!Number.isSafeInteger(family.nextSequence) || family.nextSequence < 1) issues.push(`ledger-next-sequence-invalid:${definition.kind}`)
+    if (family.allocationHighWatermark !== undefined &&
+        (!Number.isSafeInteger(family.allocationHighWatermark) || family.allocationHighWatermark < 0)) {
+      issues.push(`ledger-allocation-high-watermark-invalid:${definition.kind}`)
+    }
     if (!Array.isArray(family.shards)) issues.push(`ledger-shards-invalid:${definition.kind}`)
     if (!Array.isArray(family.reopenedOverlays)) issues.push(`ledger-overlays-invalid:${definition.kind}`)
 
@@ -221,7 +226,8 @@ function inspectGovernanceLedgerManifest (activeRoot, manifest, options = {}) {
       documents.push({ ...document, file, digest, integrity: effectiveIntegrity })
     }
 
-    if (Number.isInteger(family.nextSequence) && family.nextSequence <= familyMaxSequence) {
+    nextSequenceFloors[definition.kind] = Math.max(familyMaxSequence, family.allocationHighWatermark || 0) + 1
+    if (Number.isInteger(family.nextSequence) && family.nextSequence < nextSequenceFloors[definition.kind]) {
       issues.push(`ledger-next-sequence-not-monotonic:${definition.kind}`)
     }
   }
@@ -258,6 +264,7 @@ function inspectGovernanceLedgerManifest (activeRoot, manifest, options = {}) {
     manifestDigest: manifestDigest(manifest),
     documentCount: documents.length,
     recordCount: recordsById.size,
+    nextSequenceFloors,
     documents
   }
 }
@@ -287,7 +294,9 @@ function loadGovernanceLedgerManifest (activeRoot, options = {}) {
     throw wrapped
   }
   const inspection = inspectGovernanceLedgerManifest(activeRoot, manifest, { fs: fsImpl, requireAll: true })
-  if (!inspection.valid) {
+  const sequenceOnly = inspection.issues.length > 0 && inspection.issues.every(issue =>
+    /^ledger-next-sequence-not-monotonic:(PI|PF|VL|GR|ISSUE)$/.test(issue))
+  if (!inspection.valid && !(options.allowSequenceReconciliation === true && sequenceOnly)) {
     const error = new Error(`GOVERNANCE_LEDGER_MANIFEST_INVALID: ${inspection.issues.join(', ')}`)
     error.code = 'GOVERNANCE_LEDGER_MANIFEST_INVALID'
     error.inspection = inspection
@@ -391,7 +400,16 @@ function initializeGovernanceLedgerManifest (activeRoot, options = {}) {
   try {
     const file = governanceLedgerPaths(activeRoot).manifest
     if (fileExists(file, fsImpl)) {
-      const loaded = loadGovernanceLedgerManifest(activeRoot, { fs: fsImpl })
+      const loaded = loadGovernanceLedgerManifest(activeRoot, { fs: fsImpl, allowSequenceReconciliation: true })
+      if (!loaded.inspection.valid) {
+        const manifest = JSON.parse(JSON.stringify(loaded.manifest))
+        const recovered = reconcileSequenceFloors(manifest, loaded.inspection)
+        manifest.manifestRevision += 1
+        const written = writeGovernanceLedgerManifestAtomic(activeRoot, manifest, {
+          fs: fsImpl, expectedDigest: loaded.inspection.manifestDigest
+        })
+        return { status: 'reconciled', ...written, manifest, recovered }
+      }
       return { status: 'existing', file, manifestDigest: loaded.inspection.manifestDigest, manifest: loaded.manifest }
     }
     const manifest = createLegacyEquivalentManifest(activeRoot, { fs: fsImpl })
@@ -400,6 +418,18 @@ function initializeGovernanceLedgerManifest (activeRoot, options = {}) {
   } finally {
     lock.release()
   }
+}
+
+function reconcileSequenceFloors (manifest, inspection) {
+  const recovered = []
+  for (const [kind, floor] of Object.entries(inspection.nextSequenceFloors)) {
+    const family = manifest.ledgerFamilies[kind]
+    if (family.nextSequence < floor) {
+      recovered.push({ kind, before: family.nextSequence, after: floor })
+      family.nextSequence = floor
+    }
+  }
+  return recovered
 }
 
 function allocateGovernanceRecordId (activeRoot, kind, options = {}) {
@@ -412,17 +442,24 @@ function allocateGovernanceRecordId (activeRoot, kind, options = {}) {
   }
   const lock = acquireManifestLock(activeRoot, { fs: fsImpl })
   try {
-    const loaded = loadGovernanceLedgerManifest(activeRoot, { fs: fsImpl, allowLegacyFallback: false })
+    const loaded = loadGovernanceLedgerManifest(activeRoot, { fs: fsImpl, allowLegacyFallback: false, allowSequenceReconciliation: true })
     if (options.expectedManifestDigest && loaded.inspection.manifestDigest !== options.expectedManifestDigest) {
       const error = new Error('GOVERNANCE_LEDGER_MANIFEST_STALE: allocation digest mismatch')
       error.code = 'GOVERNANCE_LEDGER_MANIFEST_STALE'
       throw error
     }
     const manifest = JSON.parse(JSON.stringify(loaded.manifest))
+    const sequenceRecovery = reconcileSequenceFloors(manifest, loaded.inspection)
     const family = manifest.ledgerFamilies[normalizedKind]
     const sequence = family.nextSequence
+    if (!Number.isSafeInteger(sequence + 1)) {
+      const error = new Error('GOVERNANCE_LEDGER_SEQUENCE_EXHAUSTED: next allocation exceeds safe integer range')
+      error.code = 'GOVERNANCE_LEDGER_SEQUENCE_EXHAUSTED'
+      throw error
+    }
     const id = `${family.prefix}${String(sequence).padStart(3, '0')}`
     family.nextSequence += 1
+    family.allocationHighWatermark = Math.max(family.allocationHighWatermark || 0, sequence)
     manifest.manifestRevision += 1
     const written = writeGovernanceLedgerManifestAtomic(activeRoot, manifest, {
       fs: fsImpl,
@@ -434,6 +471,7 @@ function allocateGovernanceRecordId (activeRoot, kind, options = {}) {
       id,
       sequence,
       manifestRevision: manifest.manifestRevision,
+      sequenceRecovery,
       manifestDigest: written.manifestDigest
     }
   } finally {

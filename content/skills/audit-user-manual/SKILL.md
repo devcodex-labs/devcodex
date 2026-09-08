@@ -36,7 +36,7 @@ description: 用户侧文档专项审查聚合入口 — 用于审查最终用�
 | 菜单导航 | `SidebarPageRoleMaterializationProbe` / `SidebarGroupSemanticModelProbe`、`pageRoleMatrix`、`sidebarSemanticModel`、route / label 真相源、相邻页面职责、前两组导航是否服务用户主路径 |
 | 受众与渲染顺序 | `DocsAudienceRoleAndRenderedSequenceProbe`：pageRole 分布、首屏前三信息块、前两组 sidebar、current quick start 距离、manual TOC 与 generated outline 重复数 |
 | 内容可懂 | 功能完整性、配置易懂性、术语首次解释、字段/参数/状态/错误解释、示例真实度 |
-| 认知高度 / 任务语言 | guide/readme 是否 Task→Concept；是否函数清单当快速开始；`classifyUserDocsCognitiveAltitudeSample`；唯一推荐路径是否存在；错误是否含恢复 |
+| 认知高度 / 任务语言 | 模型审查 guide/readme 能否帮助目标读者完成任务；以当前正文摘要绑定的内容审查与实际使用证据为准，函数或短语数量不决定通过 |
 | 专家型产物质量 | `ExpertOutputQualityGate`、`ProductionRecommendedPathGate`、`FrameworkNativeCapabilityFirstGate`、`FixtureBoundaryDisclosureGate`、`AntiPatternContrastGate`、`ExpertEvidenceMatrixGate`，区分生产推荐路径、fixture/mock/demo 边界和反模式 |
 | 真实工作流 | quick start、队列/异步/批处理、导入导出、失败重试、幂等和观测是否是业务主路径；完整声明必须有 `ScenarioCoverageMatrixProbe`，持久化批处理追加 `DurableBatchOrchestrationProbe` |
 | 生成与运行态 | `GeneratedSiteGate`；命中文档站主题、搜索、代码高亮、移动端、暗色/亮色或交互变化时执行 `DocsThemeRuntimeVisualProbeGate` |

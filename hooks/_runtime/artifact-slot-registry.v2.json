@@ -380,7 +380,7 @@
       "taskKinds": [],
       "artifactClass": "report",
       "stage": "any",
-      "projectRelativePatterns": ["^reports/(?:analysis/|audit/|dev/|fix/|self-fix/|chat/|resume/|other/)?[^/]+/[0-9]{8}/[0-9]{2}--[^/]+\\.md$"],
+      "projectRelativePatterns": ["^reports/(?:analysis/|audit/|dev/|requirements/|fix/|bugs/|optimizations/|scenario-tests/|self-fix/|chat/|resume/|other/)?[^/]+/[0-9]{8}/[0-9]{2}--[^/]+\\.md$"],
       "alternativeGroup": null,
       "templateRef": "content/prompts/{workflow}.prompt.md",
       "templateResolver": "report-workflow",

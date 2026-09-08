@@ -52,7 +52,7 @@ description: 维护者/贡献者开发站点文档写作 Owner — 本地开发�
 
 ## 完成前自检
 
-- 运行 `classifyDocsAudienceDriftSample('maintainer-dev', body)` 语义等价检查：须有 dev 路径。  
+- 模型检查维护者是否能按文档完成开发任务，再将绑定正文摘要、理由和来源引用的 `DocsContentReviewV1` 交给 `classifyDocsAudienceDriftSample('maintainer-dev', body, review)`；未审查为 unverified，不依赖 clone/test 等词判定通过。  
 - 与 `package.json` scripts / README 开发段不矛盾。  
 - 审查：`audit-document` 维护者站维；用户侧污染检查不适用于主路径。
 
@@ -61,7 +61,7 @@ description: 维护者/贡献者开发站点文档写作 Owner — 本地开发�
 - `user-manual-authoring`：用户站；受众正交。  
 - `dev-docs`：架构/API 技术文可联动；**不**替代本 Skill 的维护者站入口。  
 - `document-sync`：consumerMap 标注 `audience=maintainer-dev`。  
-- `DocsAudienceIntentGate`：`scripts/lib/docs-audience-intent.js`。
+- `DocsAudienceIntentGate`：模型语义判定；`scripts/lib/docs-audience-intent.js` 仅验证结构和当前正文摘要。协议测试不能替代内容审查。
 
 ## 验证
 

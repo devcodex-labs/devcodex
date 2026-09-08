@@ -365,9 +365,10 @@ const businessOnly = retireUnexecutableRoute({
   businessSatisfied: false,
   mustReplyCore: 'BUDGET_BUSINESS_REPLY'
 })
-assert.strictEqual(businessOnly.nextOp, 'satisfy_business')
+assert.strictEqual(businessOnly.nextOp, null)
 assert.strictEqual(businessOnly.nextCall, null)
-assert.strictEqual(businessOnly.recovery.automatic, false)
+assert.strictEqual(businessOnly.recovery.automatic, true)
+assert.strictEqual(businessOnly.businessSatisfied, null)
 
 const packagedLayoutRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-packaged-skill-route-'))
 try {

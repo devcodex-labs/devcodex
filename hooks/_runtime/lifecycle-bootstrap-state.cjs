@@ -23,6 +23,7 @@ const {
   compactLifecycleStateV5
 } = require('./lifecycle-state-projection-v5.cjs')
 const { resolveVisibleLocale } = require('./visible-output-contract.cjs')
+const { validateActualInstructionEnvelope } = require('./actual-instruction-envelope.cjs')
 
 function renderGrokS07Assist(input = {}) {
   const locale = resolveVisibleLocale(input.languageContext)
@@ -931,7 +932,21 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const probe = buildDefaultState(modeHint)
     const hintedProject = String(recoveryHint?.project || '').trim()
     const workspaceHint = hintedProject.toLowerCase() === 'workspace'
-    const projectedProject = workspaceHint
+    // A taskless workspace turn is newer than its session's old project route.
+    // Preserve the complete ingress until the model binds its target; adopting
+    // only its context would join a new epoch to an old envelope and lease.
+    const pendingWorkspaceIngress = LAYOUT.enabled && options.userIngress !== true &&
+      !hintedProject && !CONTEXT_PROJECT && !String(recoveryHint?.taskId || '').trim() &&
+      !String(metaProjection?.taskRecoveryBinding?.taskId || '').trim() &&
+      !String(metaProjection?.activeProject || '').trim() &&
+      metaProjection?.activeScope === 'workspace' && Boolean(sessionKey) &&
+      metaProjection?.contextAcquisition?.hostSessionId === sessionKey &&
+      metaProjection?.actualInstructionEnvelope?.contextEpoch === metaProjection?.contextAcquisition?.contextEpoch &&
+      metaProjection?.actualInstructionEnvelope?.hostSessionDigest ===
+        crypto.createHash('sha256').update(sessionKey).digest('hex') &&
+      metaProjection?.actualInstructionEnvelope?.provenanceLevel === 'trusted-host-event' &&
+      validateActualInstructionEnvelope(metaProjection?.actualInstructionEnvelope).valid
+    const projectedProject = workspaceHint || pendingWorkspaceIngress
       ? ''
       : String(
           hintedProject || CONTEXT_PROJECT || routeHintedProject || metaTurnProject ||

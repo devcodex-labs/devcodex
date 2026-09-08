@@ -42,6 +42,8 @@ description: 复审清单整理与审查规范 — 创建、冻结、证据执�
 
 `ReviewExecutionPlanV1`、`ReviewEvidenceReceiptV1`、`ReviewStateSnapshotV1`、`EvidenceSaturationResultV1` 与 `StageTimingV1` 的确定性行为由 `hooks/_runtime/review-execution-contract.cjs` 拥有。本 Skill 负责人读清单与流程；checklist、report、memory、progress 和 final 状态只能投影同一个 snapshotDigest，不得分别手写状态。
 
+PR-1 的机器投影写入任务内 `.memory/review-execution-pr1.json`（`ReviewExecutionEvidenceV1`），包含 `plan`、`receipts[]`、`saturationInput`、`snapshot`，以及 `candidate:{path,digest}`、`review:{path,digest}`、`artifacts:[{ref,path,digest}]`。路径均相对唯一 task-root，摘要来自实际文件回读；candidate 绑定当前 02 方案，review 绑定独立 03 复审。先完成实际语义复审、写入报告与证据，再由上述 owner 函数生成 plan/receipt/saturation/snapshot；不得用示例值、历史结论或自填通过状态替代实际复审。Stop 验证所有摘要、回执及相关证据；正文长度、固定章节词和通过字样不产生资格。未知或陈旧状态继续诊断为 UNVERIFIED，保持 advisory。
+
 - `ReviewChecklistPrecreationGate`：正式复审前先创建清单文件或明确复用已有清单。
 - `ChecklistFreezeFileGate`：开始执行前冻结清单范围、维度和来源锚点；新增项只能追加，不得静默改写已冻结项。
 - `ReviewChecklistCompletenessGate`：每个清单项都要有状态、证据或 skipReason。

@@ -635,7 +635,12 @@
         "process-enforcement-e2e",
         "delivery-honesty",
         "ecr-closure",
-        "stop-gate-hook-matrix"
+        "stop-gate-hook-matrix",
+        "hooks-ingress-continuity",
+        "intent-skill-obligations",
+        "global-runtime-continuity",
+        "memory-template-production",
+        "feature-inventory-evidence"
       ]
     },
     "changed": {
@@ -7007,6 +7012,233 @@
         "workflow-observations-never-force-stop"
       ],
       "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 120000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "hooks-ingress-continuity",
+      "owner": "context-acquisition",
+      "command": "node",
+      "args": [
+        "scripts/test-hooks-ingress-continuity.js",
+        "--all"
+      ],
+      "dependencies": [
+        "context-read"
+      ],
+      "inputs": [
+        "scripts/test-hooks-ingress-continuity.js",
+        "hooks/_runtime/actual-instruction-envelope.cjs",
+        "hooks/_runtime/intent-semantic-decision.cjs",
+        "hooks/_runtime/lifecycle-bootstrap-state.cjs",
+        "hooks/_runtime/lifecycle-project-target.cjs",
+        "hooks/_runtime/language-context.cjs",
+        "scripts/lib/test-hooks-runtime-fixtures.js",
+        "mcp/profile-server.js"
+      ],
+      "consumers": [
+        "hooks-runtime",
+        "mcp-servers"
+      ],
+      "invariants": [
+        "same-session-ingress-preserved",
+        "foreign-session-ingress-isolated",
+        "semantic-decision-source-bound"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 600000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "intent-skill-obligations",
+      "owner": "progressive-skill-route",
+      "command": "node",
+      "args": [
+        "scripts/test-intent-skill-obligations.js"
+      ],
+      "dependencies": [
+        "skill-route-contracts"
+      ],
+      "inputs": [
+        "scripts/test-intent-skill-obligations.js",
+        "hooks/_runtime/skill-route-tool.cjs",
+        "hooks/_runtime/skill-route-state.cjs",
+        "hooks/_runtime/layered-skill-resolver-v1.cjs",
+        "hooks/_runtime/runtime-skill-identity-index.cjs",
+        "scripts/lib/skill-route-test-fixture.js"
+      ],
+      "consumers": [
+        "skill-route-stage-b",
+        "mcp-servers"
+      ],
+      "invariants": [
+        "catalog-observed-completely",
+        "exact-read-credit-complete",
+        "read-obligation-not-business-completion"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 180000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "global-runtime-continuity",
+      "owner": "global-host-config",
+      "command": "node",
+      "args": [
+        "scripts/test-global-runtime-continuity.js"
+      ],
+      "dependencies": [
+        "runtime-generation-retention"
+      ],
+      "inputs": [
+        "scripts/test-global-runtime-continuity.js",
+        "scripts/lib/global-host-config.js",
+        "scripts/lib/global-host-removal.js",
+        "scripts/lib/global-host-grok-recovery.js",
+        "scripts/lib/runtime-generation.js",
+        "hooks/_runtime/runtime-generation-lease.cjs",
+        "hooks/_runtime/global-skill-runtime-root.cjs"
+      ],
+      "consumers": [
+        "global-host-config",
+        "global-host-removal"
+      ],
+      "invariants": [
+        "live-generation-retained",
+        "cleanup-retry-owned",
+        "recorded-config-ownership",
+        "shared-host-consumer-preserved"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 300000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "memory-template-production",
+      "owner": "task-admission-authority",
+      "command": "node",
+      "args": [
+        "scripts/test-memory-template-production.js"
+      ],
+      "dependencies": [
+        "task-admission-authority"
+      ],
+      "inputs": [
+        "scripts/test-memory-template-production.js",
+        "content/prompts/memory-session.prompt.md",
+        "content/prompts/agent-summary.prompt.md",
+        "content/prompts/requirement-session.prompt.md",
+        "hooks/_runtime/artifact-template-contract.cjs",
+        "mcp/memory-server.js",
+        "mcp/task-admission-authority.cjs"
+      ],
+      "consumers": [
+        "mcp-servers"
+      ],
+      "invariants": [
+        "template-change-changes-output",
+        "fragment-qualified",
+        "current-session-evidence-required"
+      ],
+      "riskClass": "high",
+      "cachePolicy": "never",
+      "writeScopes": [
+        "isolated-temp"
+      ],
+      "timeoutMs": 180000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "feature-inventory-evidence",
+      "owner": "profile-governance",
+      "command": "node",
+      "args": [
+        "scripts/test-feature-inventory-evidence.js"
+      ],
+      "dependencies": [
+        "content-identity"
+      ],
+      "inputs": [
+        "scripts/test-feature-inventory-evidence.js",
+        "mcp/profile-contract.js",
+        "scripts/validate-profile.js"
+      ],
+      "consumers": [
+        "profile-governance",
+        "mcp-servers"
+      ],
+      "invariants": [
+        "feature-row-conservation",
+        "source-and-anchor-observed",
+        "declared-validation-not-proof"
+      ],
+      "riskClass": "high",
       "cachePolicy": "never",
       "writeScopes": [
         "isolated-temp"

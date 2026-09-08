@@ -345,6 +345,9 @@ function runHooksRuntimeVisibilityScenarios(context) {
     entry.code === 'operation-risk-advisory' && entry.action === 'warn_continue' && entry.effective === false))
   assert.ok(!interceptionEntries.some(entry => /dangerous-command-(?:confirmed|approved)/.test(entry.code || '')))
 
+  // PreCompact invalidated the earlier receipt; refresh the real context before
+  // measuring duplicate closure output so route recovery is not a second cause.
+  runBootstrapReads(TEST_AGENT)
   const missingPrecheckReminder = run({
     hookEventName: 'Stop',
     assistantMessage: 'All work is complete.'

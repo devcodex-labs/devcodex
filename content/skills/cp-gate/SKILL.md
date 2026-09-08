@@ -31,11 +31,11 @@ CP1 前后必须使用 `workflow-plan-decision.v1.schema.json` 与 `hooks/_runti
 > 当用户选择 `@devcodex-auto`、全局默认 `@rocky`、Profile 配置的 auto 替换别名，或在文本宿主中明确自然语言授权 auto（如“进入 auto 模式执行”“全自动继续”“run in auto mode”）时：
 
 - Auto v1.1 正式入口包括显式 `@devcodex-auto`、全局默认 `@rocky`、项目 Profile `extensions.devcodex.autoAliases` 替换别名与明确自然语言 auto 授权；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；模糊提及、询问 auto 规则、普通“继续”或未生效昵称不等价于 auto 授权
-- **Sticky Auto（v1.2）**：有效入口命中后写入会话级 `stickyAuto`（TTL 与 sticky 项目同量级）；后续同 session 无别名的“确认/继续/补充”**保持** `executionMode=auto`，直到显式退出（`退出 auto` / `关闭自动模式` / `exit auto mode` / `切回确认模式`）或 sticky 过期/换会话
-- **别名匹配**：允许中文/标点贴靠（如 `请@rocky执行`、`（@rocky）`）；拒绝与标识符粘连（如 `ok@rocky`）
-- **模型可见回执**：`UserPromptSubmit` 注入 `ExecutionModeV1: auto|confirm`（含 sticky/source/authorityRef 与 CP auto-pass 提示）；白名单边界**不**因 sticky 扩大
+- **语义决定**：模型根据当前真实用户回答与上下文提交来源绑定的 `IntentSemanticDecisionV1.executionDecision`；别名配置提供可选入口含义，引用、问题文本或示例不构成授权。Hook 不按原文词组生成启用或退出决定。
+- **Sticky Auto（v1.2）**：有效语义授权后保留同 session 的 `stickyAuto`；后续追问、确认和补充按当前意图保留已有授权，明确退出或有效期/会话边界变化才更新状态。正式任务的持久授权由 task owner 校验。
+- **模型可见回执**：`ExecutionModeV1: auto|confirm` 包含 sticky/source/authorityRef 与 CP auto-pass 提示；已有授权和精确任务范围决定后续行为。
 - **流程/authority 分离**：CP 自动通过只免除人工等待；Agent 仍须建立正式任务、写入 canonical CP 产物、持久化并回读 digest confirmation，随后取得 active fenced owner、单次 mutation lease 与 V5 prewrite。Auto 白名单不是 task、CP 或 mutation authority，也不能绕过 implement-start/CP gate
-- `hook-enforced` 宿主下，完成上述流程后，白名单路径形成无额外 Auto 边界提醒通过；非白名单路径在默认 `safety-only` 下提醒后继续已获正式授权的 mutation，在 `strict` 模式下回确认并硬拦截
+- `hook-enforced` 宿主下，路径白名单仅提供 advisory 分类，不产生允许、拒绝或额外确认；完成正式流程后继续已获授权的任务，任何 enforcement 配置都不得把旧分类升级成操作权限。
 - `instruction-fallback` 宿主（如 JetBrains / Cursor）只同步 auto 规则说明，不承诺 runtime 级 CP 行为；支持 Hook 的宿主由 `DEVCODEX_HOOK_ENFORCEMENT` 决定提醒或硬拦截
 - `auto:` / `/auto` / profile `executionMode` 不属于本轮正式入口
 - CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认，但必须生成并回读对应产物/receipt）
@@ -91,9 +91,9 @@ CP1 前后必须使用 `workflow-plan-decision.v1.schema.json` 与 `hooks/_runti
 
 > **R12 顺序索引**：方案 → PR-1 → **确认 CP2** → PR-2~PR-7 → CP3 → 编码。交叉：`dev-plan-review` R9（确认 CP2 前须 PR-1 证据）；lifecycle R10（控制面写复用 `checkCpGate`，默认 safety-only 放行时 Honesty 披露 `cp2-unconfirmed-write`）。
 >
-> **R9 现状（F-05）**：Hook 在 **Stop** 上对「请确认 CP2 / 确认技术方案」等话术做 `pr1-skipped` 硬续（有 `02-技术方案` 且无**强** PR-1 证据时）。**不是**「用户点确认按钮前」的 UI 硬拦；模型仍须在**呈确认前**自检 PR-1。**强证据**须为独立 `03-*方案复审*`：`open blocker = 0`（或明确 PR-1 通过句）**且**实质章节（映射/契约/CodeTruth/Blocker/根因等 ≥2），正文达到最小长度；**禁止**仅 thin `open blocker = 0`、仅表格 `PR-1 | ✅`、或有 02 时仅 sessions 一行。禁止「某某通过」假绿。
+> **R9 证据契约**：呈交 CP2 前完成 PR-1 语义复审，消费当前候选摘要绑定的 `ReviewStateSnapshotV1` 与真实证据结论。独立 `03-*方案复审*` 保存分析，`.memory/review-execution-pr1.json` 保存同一复审的机器投影；示例、历史说明、通过字样、章节数量或字节长度均不能产生本次通过结论。Stop 仅报告 `pr1-skipped` 诊断，不凭固定话术强制续轮，也不改变宿主权限。
 >
-> **R10 现状（F-06）**：控制面写路径复用 `checkCpGate`。`DEVCODEX_HOOK_ENFORCEMENT=strict` → PreTool **deny**；默认 **safety-only** → 提醒放行 + Honesty `cp2-unconfirmed-write`。控制面任务推荐 strict。
+> **R10 权限边界**：控制面写路径复用既有 CP 身份、任务范围与状态校验；`cp2-unconfirmed-write` 如实披露。DevCodex 不按风险分类签发权限，不覆盖宿主允许或拒绝；精确目标或确认状态不满足时按 typed workflow-invalid 处理。
 
 1. **严格按序**：CP1 → CP2 → CP3，不得跳过中间步骤
 2. **禁止合并**：不得将 CP1+CP2 合并为一次输出

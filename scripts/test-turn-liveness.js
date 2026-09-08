@@ -4,6 +4,7 @@
 const assert = require('assert')
 const {
   DEFAULT_THRESHOLDS,
+  applyWorkflowTaskTerminalReceipt,
   classifyTurnLiveness,
   completeToolLease,
   createTurnLivenessState,
@@ -312,6 +313,22 @@ function main() {
     'the target-set digest must be derived from the full exact target list'
   )
   const operationTerminal = markTurnTerminal(reconciled, 'completed', 'settled', { nowMs: at(2700) })
+  const terminalReceipt = {
+    taskId: '00000000-0000-4000-8000-000000000001', receiptDigest: 'a'.repeat(64),
+    settledSetDigest: operationTerminal.taskOperationSet.settledSetDigest, terminalStatus: 'completed'
+  }
+  assert.throws(() => applyWorkflowTaskTerminalReceipt(operationTerminal, {
+    ...terminalReceipt, settledSetDigest: 'b'.repeat(64)
+  }, { retireCompletedTaskOperations: true }), error => error.code === 'TASK_TERMINAL_OPERATION_SET_MISMATCH')
+  assert.throws(() => applyWorkflowTaskTerminalReceipt(unknownEffect, terminalReceipt, {
+    retireCompletedTaskOperations: true
+  }), error => error.code === 'TASK_TERMINAL_OPERATION_SET_MISMATCH')
+  const tasklessProjection = applyWorkflowTaskTerminalReceipt(operationTerminal, terminalReceipt, {
+    retireCompletedTaskOperations: true
+  })
+  assert.strictEqual(tasklessProjection.taskOperationSet.settled.length, 0)
+  assert.strictEqual(tasklessProjection.workflowTaskTerminal.settledSetDigest, terminalReceipt.settledSetDigest)
+  assert(operationTerminal.taskOperationSet.settled.length > 0, 'the canonical history input is immutable')
   assert.throws(
     () => markTaskOperationObserved(operationTerminal, 'operation-dispatched', {}, { nowMs: at(2800) }),
     error => error.code === 'TASK_OPERATION_CAS_MISMATCH',

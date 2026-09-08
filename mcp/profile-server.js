@@ -18,7 +18,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { execFileSync } = require('child_process')
-const { assertSingleSegment, resolveInside } = require('./path-guard')
+const { assertSingleSegment, resolveInside, resolveExistingRegularFileInside } = require('./path-guard')
 const { createJsonLineServer } = require('./stdio-jsonrpc.cjs')
 const {
   PROFILE_BASE_FILES,
@@ -64,6 +64,7 @@ const {
 } = require('../hooks/_runtime/skill-route-tool.cjs')
 const {
   deriveTurnBinding,
+  bindExplicitSkillRequest,
   loadEnvelope
 } = require('../hooks/_runtime/skill-route-state.cjs')
 const { getBootRuntimeContractDigest } = require('../hooks/_runtime/skill-route-mode.cjs')
@@ -75,6 +76,7 @@ const {
   readRuntimeGenerationStatus
 } = require('../hooks/_runtime/runtime-generation-identity.cjs')
 const { resolveLanguageContext } = require('../hooks/_runtime/language-context.cjs')
+const { SEMANTIC_DECISION_SCHEMA, validateIntentSemanticDecision } = require('../hooks/_runtime/intent-semantic-decision.cjs')
 const { buildWorkflowPlanDecision } = require('../hooks/_runtime/workflow-plan-decision-v1.cjs')
 const {
   createEntryCheckModelV3,
@@ -285,6 +287,7 @@ const TOOLS = [
           type: 'string',
           minLength: 1
         },
+        semanticDecision: SEMANTIC_DECISION_SCHEMA,
         risk: { type: 'string', enum: CONTEXT_READ_CONTRACT.risks },
         confidence: { type: 'number', minimum: 0, maximum: 1 },
         profileSelectors: {
@@ -934,7 +937,7 @@ function resolveConfigFile(projectName, options = {}) {
 const CONTEXT_PLAN_ARG_FIELDS = new Set([
   'intent', 'changeTypes', 'routeKey', 'subtype', 'stage', 'contextEpoch', 'project', 'scope', 'host', 'explicitSkillId', 'risk', 'confidence',
   'profileSelectors', 'baselineDigest', 'explicitFull', 'fullReadReason',
-  'configLocalRequested', 'crossService'
+  'configLocalRequested', 'crossService', 'semanticDecision'
 ])
 const CONTEXT_PLAN_ROUTE_FIELDS = Object.freeze(['routeKey', 'subtype', 'stage'])
 const CONTEXT_PLAN_EPOCHS = new Map()
@@ -1650,7 +1653,7 @@ function contextPlanSkillRouteBootstrap(plan, target, args = {}) {
   const contextEpoch = String(plan.contextBinding?.contextEpoch || '').trim()
   const host = String(args.host || process.env.DEVCODEX_HOST_PLATFORM || DEFAULT_AGENT).trim().toLowerCase()
   const hasExplicitSkillId = Object.prototype.hasOwnProperty.call(args, 'explicitSkillId')
-  const explicitSkillId = hasExplicitSkillId ? String(args.explicitSkillId || '').trim() : null
+  const explicitSkillId = hasExplicitSkillId ? (String(args.explicitSkillId || '').trim() || null) : null
   if (!contextEpoch || !host || host === 'unknown-agent') return null
   try {
     const turnBinding = deriveTurnBinding(target.project, target.activeRoot, contextEpoch)
@@ -1658,9 +1661,10 @@ function contextPlanSkillRouteBootstrap(plan, target, args = {}) {
       const existing = loadEnvelope(target.activeRoot, turnBinding)
       const existingExplicitSkillId = existing.envelope.state?.explicit?.requestedSkillId || null
       if (hasExplicitSkillId && existingExplicitSkillId !== explicitSkillId) {
-        const mismatch = new Error('BOOTSTRAP_IDENTITY_COLLISION')
-        mismatch.code = 'BOOTSTRAP_IDENTITY_COLLISION'
-        throw mismatch
+        existing.envelope = bindExplicitSkillRequest({
+          activeRoot: target.activeRoot, project: target.project,
+          turnBinding, contextEpoch, skillId: explicitSkillId
+        })
       }
       if (existing.envelope.state?.decision) {
         return {
@@ -1715,6 +1719,32 @@ function contextPlanSkillRouteBootstrap(plan, target, args = {}) {
       errorCode: String(error.code || error.message || 'SKILL_ROUTE_BOOTSTRAP_FAILED')
     }
   }
+}
+
+/** Read only the current project's and workspace's bounded ingress projections. */
+function verifyContextPlanSemanticSource(value, target, contextEpoch) {
+  const shape = validateIntentSemanticDecision(value, { contextEpoch })
+  if (!shape.valid || value === undefined) return shape
+  const candidates = [{ root: target.activeRoot, key: LAYOUT.enabled ? target.project : 'legacy' }]
+  if (LAYOUT.enabled && target.project !== WORKSPACE_CONTEXT_PROJECT) {
+    candidates.push({ root: namespaceRootPath(LAYOUT.workspaceRoot, 'workspace'), key: 'workspace' })
+  }
+  for (const candidate of candidates) {
+    try {
+      const file = resolveExistingRegularFileInside(candidate.root,
+        path.posix.join('.memory', 'hooks', candidate.key, 'lifecycle-state.json'))
+      const observed = readBoundedTextFileSync(file, { maxBytes: 2 * 1024 * 1024 })
+      const state = JSON.parse(observed.content)
+      const acquisition = state.contextAcquisition || {}
+      if (acquisition.contextEpoch !== contextEpoch || !acquisition.hostSessionId) continue
+      const result = validateIntentSemanticDecision(value, {
+        contextEpoch, requireSource: true, envelope: state.actualInstructionEnvelope,
+        hostSessionDigest: crypto.createHash('sha256').update(acquisition.hostSessionId).digest('hex')
+      })
+      if (result.valid) return result
+    } catch {}
+  }
+  return { valid: false, errors: ['No matching current trusted host ingress for semanticDecision'], value: null }
 }
 
 function handleProfileContextPlan(args = {}) {
@@ -1870,6 +1900,8 @@ function handleProfileContextPlan(args = {}) {
   }
 
   const startedAt = process.hrtime.bigint()
+  const semantic = verifyContextPlanSemanticSource(args.semanticDecision, target, epoch.contextEpoch)
+  if (!semantic.valid) return contextPlanResult(buildContextReadError('CONTEXT_PLAN_INVALID', semantic.errors.join('; ')))
   try {
     const inputs = collectProfilePlanInputs(target)
     const latencyMs = Number(process.hrtime.bigint() - startedAt) / 1e6
@@ -1883,6 +1915,7 @@ function handleProfileContextPlan(args = {}) {
       },
       changeTypes,
       workflowRoute,
+      ...(semantic.value !== undefined ? { semanticDecision: semantic.value } : {}),
       baselineContext: inputs.baselineContext,
       profileSelectors: args.profileSelectors,
       baselineDigest: args.baselineDigest,
@@ -2775,6 +2808,9 @@ function handlePromptsGet(args) {
 
 // ─── MCP JSON-RPC dispatcher ──────────────────────────────────────────────────
 
+const listToolsPage = require('./list-tools-page.cjs').createToolsPager(TOOLS,
+  DEFAULT_AGENT === 'codex' ? 32 * 1024 : 6 * 1024)
+
 function dispatch(method, params) {
   switch (method) {
     case 'initialize':
@@ -2785,7 +2821,7 @@ function dispatch(method, params) {
       }
 
     case 'tools/list':
-      return { tools: TOOLS }
+      return listToolsPage(params)
 
     case 'tools/call': {
       const name = params?.name
@@ -2825,6 +2861,7 @@ function dispatch(method, params) {
               ? false
               : resolvedConfig.projectConfig !== null
             const languageContext = resolveLanguageContext({
+              languageDecision: entry.languageDecision,
               prompt: entry.prompt,
               taskContext: entry.languageContext || entry.taskLanguageContext,
               conversationContext: entry.conversationLanguageContext,
@@ -2837,7 +2874,7 @@ function dispatch(method, params) {
             const english = localeDecision.renderedLanguage === 'en'
             const workflowRouting = resolvedConfig.config?.extensions?.devcodex?.workflowRouting
             const precheckDecision = buildWorkflowPlanDecision({
-              phase: 'precheck', prompt: entry.prompt, config: workflowRouting, facts: entry.facts
+              phase: 'precheck', userIntent: entry.workflowPreference, config: workflowRouting, facts: entry.facts
             })
             const postContextDecision = entry.postContextFacts
               ? buildWorkflowPlanDecision({

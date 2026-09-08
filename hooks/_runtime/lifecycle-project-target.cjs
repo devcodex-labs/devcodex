@@ -2,7 +2,8 @@
 
 const crypto = require('crypto')
 const { digestSessionRef } = require('./workspace-session-route-index-v1.cjs')
-const { separateEmbeddedEvidence } = require('./actual-instruction-envelope.cjs')
+const { rawInstructionFromPayload } = require('./actual-instruction-envelope.cjs')
+const { validateIntentSemanticDecision } = require('./intent-semantic-decision.cjs')
 const {
   createTaskScopedAutoContinuationGrant,
   transitionTaskScopedAutoContinuationGrant,
@@ -56,85 +57,29 @@ function buildLifecycleProjectTargetUtils({
   }
 
   function extractUserPrompt(payload) {
-    return String(
-      payload.prompt || payload.user_prompt || payload.userPrompt ||
-      payload.message || payload.text || ''
-    )
+    return rawInstructionFromPayload(payload)
   }
 
-  /**
-   * Treat a nearby explicit negation as authoritative for an otherwise positive
-   * mode/scope token. This keeps keyword aliases from overriding user intent.
-   * @param {string} text
-   * @param {number} matchIndex
-   * @returns {boolean}
-   */
-  function isIntentMatchNegated(text, matchIndex) {
-    const prefix = String(text || '').slice(Math.max(0, matchIndex - 64), matchIndex)
-    return /(?:不要|别|勿|禁止|无需|不(?:要|再|需|应|可|想)?|do\s+not|don['’]?t|dont|never|without|not|no)\s*(?:(?:进入|启用|开启|使用|切换(?:到)?|扫描|处理|覆盖|面向|针对|扩大(?:到)?|执行|继续|调用|采用)|(?:enter|enable|use|switch(?:\s+to)?|scan|process|cover|target|expand(?:\s+to)?|run|continue))?\s*$/i.test(prefix)
-  }
-
-  function hasUnnegatedRegexMatch(text, pattern) {
-    const source = pattern instanceof RegExp ? pattern.source : String(pattern || '')
-    const flags = pattern instanceof RegExp ? pattern.flags.replace(/g/g, '') : 'i'
-    const re = new RegExp(source, `${flags}g`)
-    let match
-    while ((match = re.exec(String(text || ''))) !== null) {
-      if (!isIntentMatchNegated(text, match.index)) return true
-      if (match[0].length === 0) re.lastIndex += 1
-    }
-    return false
-  }
-
-  function hasMultiProjectExemption(prompt) {
-    if (!prompt) return false
-    const text = String(prompt)
-    return MULTI_PROJECT_EXEMPTION_KEYWORDS.some(keyword => {
-      const escaped = escapeRegExp(String(keyword || ''))
-      if (!escaped) return false
-      return hasUnnegatedRegexMatch(text, new RegExp(escaped, 'i'))
+  function currentSemanticDecision(state) {
+    const value = state?.contextAcquisition?.plan?.semanticDecision
+    if (!value) return null
+    const result = validateIntentSemanticDecision(value, {
+      contextEpoch: state.contextAcquisition.contextEpoch,
+      envelope: state.actualInstructionEnvelope,
+      requireSource: true
     })
+    return result.valid ? result.value : null
   }
 
-  function detectProjectFromPrompt(prompt) {
-    if (!prompt) return ''
-    const matches = detectPromptProjectMentions(prompt)
-    return matches.length === 1 ? matches[0] : ''
+  function hasMultiProjectExemption(prompt, state) {
+    const plan = state?.contextAcquisition?.plan
+    return Boolean(plan && plan.identity?.project === 'workspace' &&
+      plan.identity.contextEpoch === state?.actualInstructionEnvelope?.contextEpoch)
   }
 
-  function detectPromptProjectMentions(prompt) {
-    if (!prompt) return []
-    const projects = listWorkspaceProjects()
-    const matches = []
-    const aliases = [...new Set(projects.flatMap(projectName => {
-      const leaf = String(projectName).split('/').filter(Boolean).at(-1)
-      return leaf && leaf.toLowerCase() !== String(projectName).toLowerCase()
-        ? [projectName, leaf]
-        : [projectName]
-    }))]
-    for (const alias of aliases) {
-      const escaped = escapeRegExp(alias)
-      const boundary = '(?=$|[\\s,.;:，。；：])'
-      const patterns = [
-        new RegExp(`\\bin\\s+${escaped}(?:[\\\\/]|${boundary})`, 'i'),
-        new RegExp(`\\bfor\\s+${escaped}(?:[\\\\/]|${boundary})`, 'i'),
-        new RegExp(`对\\s*${escaped}\\s*项目`, 'i'),
-        new RegExp(`项目\\s*${escaped}${boundary}`, 'i'),
-        new RegExp(`project\\s+${escaped}${boundary}`, 'i'),
-        new RegExp(`${escaped}\\s*(?:项目|的|中|里|下)`, 'i'),
-        new RegExp(`${escaped}\\s+project\\b`, 'i'),
-        new RegExp(`${escaped}(?:/|\\\\)`, 'i')
-      ]
-      if (!patterns.some(pattern => pattern.test(prompt))) continue
-      try {
-        const resolved = resolveWorkspaceProjectTarget(WORKSPACE_ROOT, alias)
-        matches.push(resolved.namespace)
-      } catch (error) {
-        if (error?.code === 'PROFILE_TARGET_AMBIGUOUS') matches.push(...(error.candidates || []))
-      }
-    }
-    return [...new Set(matches)]
-  }
+  // Compatibility helpers expose no authoritative target from raw prose.
+  function detectProjectFromPrompt() { return '' }
+  function detectPromptProjectMentions() { return [] }
 
   function detectProjectFromPayload(payload) {
     const strings = collectProjectPayloadStrings(payload).map(normalizeText).filter(Boolean)
@@ -148,15 +93,12 @@ function buildLifecycleProjectTargetUtils({
   }
 
   function detectProjectCandidate(prompt, payload) {
-    const promptProject = detectProjectFromPrompt(prompt)
-    if (promptProject) return { project: promptProject, source: 'prompt' }
     const payloadProject = detectProjectFromPayload(payload)
-    if (payloadProject) return { project: payloadProject, source: 'payload' }
-    return { project: '', source: '' }
+    return payloadProject ? { project: payloadProject, source: 'payload' } : { project: '', source: '' }
   }
 
   function detectProjectMentions(prompt, payload) {
-    const matches = new Set(detectPromptProjectMentions(prompt))
+    const matches = new Set()
     const strings = collectProjectPayloadStrings(payload).map(normalizeText).filter(Boolean)
     for (const projectName of listWorkspaceProjects()) {
       if (strings.some(value => payloadValueMatchesProject(value, projectName))) {
@@ -508,7 +450,7 @@ function buildLifecycleProjectTargetUtils({
     if (projectCandidate.project) {
       return { activeProject: projectCandidate.project, activeScope: 'project', source: projectCandidate.source || 'explicit' }
     }
-    if (hasMultiProjectExemption(prompt)) {
+    if (hasMultiProjectExemption(prompt, previousState)) {
       return { activeProject: '', activeScope: LAYOUT.enabled ? 'workspace' : 'project', source: 'workspace-exemption', clearSticky: true }
     }
     if (CONTEXT_PROJECT) {
@@ -589,93 +531,6 @@ function buildLifecycleProjectTargetUtils({
     return !['@devcodex', '@devcodex-auto', '@auto'].includes(lower)
   }
 
-  function hasMentionToken(prompt, alias) {
-    const escaped = escapeRegExp(alias)
-    // Loose token boundary: allow CJK/punctuation adjacency (请@rocky执行 / （@rocky）),
-    // but reject alias glued to other identifier chars (ok@rocky / @rockyish).
-    return new RegExp(`(?:^|[^A-Za-z0-9_@])${escaped}(?=$|[^A-Za-z0-9_-])`, 'i').test(String(prompt || ''))
-  }
-
-  /** Return the punctuation-bounded clause that owns one authorization candidate. */
-  function autoIntentClauseAt(text, matchIndex, matchLength) {
-    const source = String(text || '')
-    const isBoundary = value => /[\r\n。！？!?；;，,]/.test(value)
-    let start = Math.max(0, matchIndex)
-    let end = Math.min(source.length, matchIndex + Math.max(0, matchLength))
-    while (start > 0 && !isBoundary(source[start - 1])) start -= 1
-    while (end < source.length && !isBoundary(source[end])) end += 1
-    const rawClause = source.slice(start, end)
-    const leadingWhitespace = rawClause.length - rawClause.trimStart().length
-    return {
-      text: rawClause.trim(),
-      matchOffset: Math.max(0, matchIndex - start - leadingWhitespace),
-      terminator: source[end] || ''
-    }
-  }
-
-  /** Keep quoted/code examples outside the authorization channel. */
-  function autoIntentMatchIsQuoted(text, matchIndex) {
-    const source = String(text || '')
-    const pairedQuotes = [['“', '”'], ['‘', '’'], ['「', '」'], ['『', '』']]
-    for (const [open, close] of pairedQuotes) {
-      if (source.lastIndexOf(open, matchIndex) > source.lastIndexOf(close, matchIndex) &&
-          source.indexOf(close, matchIndex) >= 0) return true
-    }
-    for (const quote of ['`', '"', "'"]) {
-      const before = source.slice(0, matchIndex)
-      const count = before.split(quote).length - 1
-      if (count % 2 === 1 && source.indexOf(quote, matchIndex) >= 0) return true
-    }
-    return false
-  }
-
-  /**
-   * Decide one candidate locally so a question cannot authorize, while an
-   * independent later clause can still carry an explicit command.
-   */
-  function autoIntentMatchIsActionable(text, matchIndex, matchLength, options = {}) {
-    if (isIntentMatchNegated(text, matchIndex) || autoIntentMatchIsQuoted(text, matchIndex)) return false
-    const clause = autoIntentClauseAt(text, matchIndex, matchLength)
-    const before = clause.text.slice(0, Math.max(0, clause.matchOffset)).trim()
-    const after = clause.text.slice(Math.max(0, clause.matchOffset) + matchLength).trim()
-    const questionOrReference = /(?:为什么|为何|怎么|如何|是否|是不是|能否|可否|会不会|有没有|有无|什么意思|\b(?:what|why|how|whether)\b|\bcan\s+(?:we|you|it)\b|\bcould\s+(?:we|you|it)\b|\bwould\s+(?:we|you|it)\b)/i
-    if (questionOrReference.test(clause.text)) return false
-    if (/[？?]/.test(clause.terminator) || /(?:吗|呢|么)\s*$/.test(clause.text)) return false
-    const referenceLead = /(?:检查|核实|验证|测试|分析|审查|评估|讨论|解释|说明|提到|引用|截图|报告|文档|字符串|示例|复现|调查|排查|关于|有关|check|verify|test|analy[sz]e|review|inspect|explain|discuss|quote|mention|document|example)(?:\s*(?:一下|下|过|了|这个|该|当前|有关|关于|the|this))?\s*[:：]?\s*$/i
-    if (referenceLead.test(before)) return false
-    if (options.kind === 'mention' && /^(?:别名|模式|功能|机制|行为|配置|字符串|示例|是指|是什么意思)/i.test(after)) return false
-    if (options.kind === 'natural-language') {
-      const commandLead = /^(?:(?:请(?:你)?|麻烦|现在|接下来|然后|随后|直接|马上|立即|好的?|那|就|并|完成(?:检查|修复|验证)?后|根据(?:你的|上述)?建议|按(?:你的|上述)?建议|采纳(?:你的|上述)?建议并?|我(?:确认|同意|授权|要求|决定))\s*)*$/i
-      if (!commandLead.test(before)) return false
-      if (/^(?:模式|功能|机制|行为|逻辑|实现|问题|bug|缺陷|状态)/i.test(after)) return false
-    }
-    return true
-  }
-
-  function findActionableMentionToken(prompt, alias) {
-    const escaped = escapeRegExp(alias)
-    const re = new RegExp(`(?:^|[^A-Za-z0-9_@])(${escaped})(?=$|[^A-Za-z0-9_-])`, 'ig')
-    const text = String(prompt || '')
-    let match
-    while ((match = re.exec(text)) !== null) {
-      const aliasOffset = match[0].lastIndexOf(match[1])
-      const matchIndex = match.index + Math.max(aliasOffset, 0)
-      if (autoIntentMatchIsActionable(text, matchIndex, match[1].length, { kind: 'mention' })) return true
-    }
-    return false
-  }
-
-  function hasActionableAutoPattern(text, pattern) {
-    const source = pattern instanceof RegExp ? pattern.source : String(pattern || '')
-    const flags = pattern instanceof RegExp ? pattern.flags.replace(/g/g, '') : 'i'
-    const re = new RegExp(source, `${flags}g`)
-    let match
-    while ((match = re.exec(String(text || ''))) !== null) {
-      if (autoIntentMatchIsActionable(text, match.index, match[0].length, { kind: 'natural-language' })) return true
-      if (match[0].length === 0) re.lastIndex += 1
-    }
-    return false
-  }
 
   const DEFAULT_AUTO_ALIASES = ['@rocky']
 
@@ -712,47 +567,19 @@ function buildLifecycleProjectTargetUtils({
     return validAliases
   }
 
-  function resolveAutoAuthorization(prompt, state, target) {
-    let text
-    try {
-      text = separateEmbeddedEvidence(String(prompt || '')).instruction
-    } catch {
-      return { authorized: false, source: '', kind: '' }
-    }
-    if (hasMentionToken(text, '@devcodex-auto') && findActionableMentionToken(text, '@devcodex-auto')) {
-      return { authorized: true, source: '@devcodex-auto', kind: 'explicit' }
-    }
-    for (const alias of getConfiguredAutoAliases(state, target)) {
-      if (hasMentionToken(text, alias) && findActionableMentionToken(text, alias)) {
-        return { authorized: true, source: alias, kind: 'alias' }
-      }
-    }
-    const normalized = text.replace(/[^\S\r\n]+/g, ' ').replace(/\r\n?/g, '\n').trim()
-    const naturalLanguageAutoPatterns = [
-      /(?:进入|启用|开启|使用|切换到)\s*(?:auto|自动|全自动)\s*(?:模式|执行|推进|处理)?/i,
-      /(?:开始|继续)\s*(?:以|按|使用)?\s*(?:auto|自动|全自动)\s*(?:模式|执行|推进|处理)?/i,
-      /(?:auto|自动|全自动)\s*(?:模式)?\s*(?:开始|继续|执行|推进|处理|修复|实施)/i,
-      /(?:run|continue|proceed)\s+(?:in\s+)?auto\s+mode/i
-    ]
-    if (naturalLanguageAutoPatterns.some(pattern => hasActionableAutoPattern(normalized, pattern))) {
-      return { authorized: true, source: 'natural-language', kind: 'nl' }
-    }
-    return { authorized: false, source: '', kind: '' }
+  function resolveAutoAuthorization(prompt, state) {
+    const decision = currentSemanticDecision(state)
+    return decision?.executionDecision === 'enable-auto'
+      ? { authorized: true, source: 'model-semantic-user-intent', kind: 'explicit' }
+      : { authorized: false, source: '', kind: '' }
   }
 
   function hasAutoAuthorizationPrompt(prompt, state, target) {
     return resolveAutoAuthorization(prompt, state, target).authorized === true
   }
 
-  function hasAutoExitPrompt(prompt) {
-    const normalized = String(prompt || '').replace(/\s+/g, ' ').trim()
-    if (!normalized) return false
-    const exitPatterns = [
-      /(?:退出|关闭|停用|结束)\s*(?:auto|自动|全自动)\s*(?:模式)?/i,
-      /(?:exit|leave|disable|turn\s+off)\s+(?:auto\s+mode|auto)\b/i,
-      /(?:切回|切换到)\s*确认模式/i
-    ]
-    return exitPatterns.some(pattern => pattern.test(normalized))
+  function hasAutoExitPrompt(prompt, state) {
+    return ['disable-auto', 'confirm'].includes(currentSemanticDecision(state)?.executionDecision)
   }
 
   function getValidStickyAuto(state, payload) {
@@ -773,7 +600,8 @@ function buildLifecycleProjectTargetUtils({
     const sessionKey = getPayloadSessionKey(payload)
     const now = Date.now()
     const authorityRef = `auto:${source || 'unknown'}:${sessionKey || 'turn-only'}:${now}`
-    const sourceMessageDigest = crypto.createHash('sha256').update(extractUserPrompt(payload)).digest('hex')
+    const sourceMessageDigest = state.actualInstructionEnvelope?.actualInstructionDigest ||
+      crypto.createHash('sha256').update(extractUserPrompt(payload)).digest('hex')
     if (!sessionKey) {
       state.stickyAuto = {
         ...emptyStickyAuto('missing-session'),
@@ -997,7 +825,10 @@ function buildLifecycleProjectTargetUtils({
 
   function detectExecutionMode(payload, state, target) {
     const prompt = extractUserPrompt(payload)
-    if (hasAutoExitPrompt(prompt)) {
+    // A new turn must be interpreted before it can change or reuse execution mode.
+    const decision = currentSemanticDecision(state)
+    if (!decision?.executionDecision) return EXECUTION_MODE.CONFIRM
+    if (hasAutoExitPrompt(prompt, state)) {
       revokeTaskScopedAuto(state, 'user-exit')
       clearStickyAuto(state, 'user-exit')
       return EXECUTION_MODE.CONFIRM
@@ -1050,7 +881,7 @@ function buildLifecycleProjectTargetUtils({
             '自动续批：已读取当前正式任务的 TaskScopedAutoContinuationGrantV1；授权不依赖 session 或 TTL。',
             `grantDigest=${grant.grantDigest}`,
             '每个 CP 仍须独立冻结候选并生成 AutoCheckpointDecisionV1；只有范围未扩张、风险未增加、无排除副作用且 R3/R4 复审通过才可自动确认。',
-            '删除、E 盘修复、验证执行、安装、commit/push/tag、Release、npm publish、权限或 breaking contract 变化必须重新确认；宿主权限不受本授权影响。',
+            '按当前任务已确认的目标、范围和排除项继续；未获授权的范围扩张才需确认。既有删除、验证、安装或发布授权继续有效；宿主权限不受本授权影响。',
             '可用“退出自动模式”撤销。'
           ].join(' | ')
         : [
@@ -1065,7 +896,9 @@ function buildLifecycleProjectTargetUtils({
         `ExecutionModeV1: auto`,
         `sticky=${stickyActive ? 'true' : 'false'}`,
         `source=${source}${authority}`,
-        'CP1/CP2/CP3 auto-pass; do not wait for per-gate user confirmation; S01/S03-S07/C01/C10/C18 not waived; auto whitelist boundary unchanged; exit with 退出auto / exit auto mode'
+        zh
+          ? '各 CP 仍按序落盘并回读，已有自动授权范围内不重复等待人工确认；精确任务和宿主权限边界不变。退出意图由当前语义决策提交。'
+          : 'Persist and verify each CP in sequence without repeating approval inside the authorized scope; exact task and host boundaries remain. Submit exit intent through the current semantic decision.'
       ].join(' | ')
     }
     if (grant && grant.status !== 'active') {
@@ -1078,7 +911,9 @@ function buildLifecycleProjectTargetUtils({
       'ExecutionModeV1: confirm',
       'sticky=false',
       'source=none',
-      'confirm mode: wait for explicit CP confirmation'
+      zh
+        ? '解释当前用户意图及已有授权，通过 profile_context_plan.semanticDecision 提交 executionDecision 后继续。'
+        : 'Interpret current user intent and existing authorization; commit executionDecision through profile_context_plan.semanticDecision before automatic continuation.'
     ].join(' | ')
   }
 
@@ -1090,9 +925,9 @@ function buildLifecycleProjectTargetUtils({
     return [
       '⚠️ Multi-project workspace detected.',
       `检测到当前工作区包含多个项目且未在工作区根配置 ${profilePath}。`,
-      '请在提示词中明确指定目标项目（如“in cacheHub/”或“对 payment 项目”）后重发。',
+      '由模型结合当前请求选择唯一项目，再通过 profile_context_plan 的 project/scope 绑定；仅缺少无法推断的目标时询问用户。',
       `当前布局期望的 workspace profile 配置为 ${profileConfigPath}；可在工作区根运行 devcodex profile init 生成。`,
-      '豁免词：workspace / monorepo / 全工作区 / all projects / 所有项目。'
+      '跨项目读取范围由已提交的 workspace 目标与任务边界决定；原始措辞不产生豁免。'
     ].join(' ')
   }
 

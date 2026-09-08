@@ -4,9 +4,12 @@ const assert = require('assert')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const crypto = require('crypto')
 const {
   resolveGlobalSkillRuntimeRoot
 } = require('../hooks/_runtime/global-skill-runtime-root.cjs')
+const { resolveGlobalSkillsRoot } = require('../hooks/_runtime/skill-resolution.cjs')
+const { buildRuntimeSkillIdentityIndex } = require('../hooks/_runtime/runtime-skill-identity-index.cjs')
 
 const packageRoot = path.resolve(__dirname, '..')
 
@@ -79,7 +82,47 @@ const packageRoot = path.resolve(__dirname, '..')
   assert.strictEqual(blocked.status, 'blocked')
   assert.strictEqual(blocked.errorCode, 'GLOBAL_SKILL_RUNTIME_ROOT_UNRESOLVED')
 
-  fs.rmSync(home, { recursive: true, force: true })
+  // Two installed generations keep independent Skill bytes after a receipt
+  // switch; even an explicit shared-root environment cannot mix their sources.
+  const makeGeneration = (generationId, text) => {
+    const root = path.join(hostRoot, 'devcodex', `runtime-${generationId}`)
+    const skills = path.join(root, 'skills')
+    fs.mkdirSync(skills, { recursive: true })
+    fs.writeFileSync(path.join(skills, 'portfolio.json'), text)
+    const digest = crypto.createHash('sha256').update(text).digest('hex')
+    fs.writeFileSync(path.join(root, 'runtime-generation.json'), JSON.stringify({
+      schemaVersion: 'RuntimeGenerationManifestV1', generationId,
+      sourceDigest: digest, immutable: true, runtimeRoot: '.',
+      skillsRuntimeRoot: 'skills', skillsPortfolioDigest: digest
+    }))
+    return root
+  }
+  const oldRoot = makeGeneration('fixture-old', '{"generation":"old"}')
+  const newRoot = makeGeneration('fixture-new', '{"generation":"new"}')
+  fs.writeFileSync(path.join(hostRoot, 'devcodex', 'global-host-receipt.json'), JSON.stringify({
+    schemaVersion: 'GlobalHostConfigReceiptV1', result: 'committed', packageName: 'devcodex',
+    runtimeRoot: newRoot, skillsRuntimeRoot: path.join(newRoot, 'skills')
+  }))
+  for (const [root, expected] of [[oldRoot, 'old'], [newRoot, 'new']]) {
+    const result = resolveGlobalSkillRuntimeRoot({
+      runtimeRoot: root, home, env: { DEVCODEX_GLOBAL_SKILLS_RUNTIME: skillsRoot }
+    })
+    assert.strictEqual(result.source, 'runtime-generation')
+    assert.strictEqual(result.identityStatus, 'PASS')
+    assert.strictEqual(JSON.parse(fs.readFileSync(result.portfolioPath)).generation, expected)
+    assert.strictEqual(resolveGlobalSkillsRoot({ runtimeRoot: root, env: {} }), path.join(root, 'skills'))
+  }
+  fs.writeFileSync(path.join(oldRoot, 'skills', 'portfolio.json'), '{"generation":"wrong"}')
+  assert.strictEqual(resolveGlobalSkillRuntimeRoot({ runtimeRoot: oldRoot, home, env: {} }).status, 'blocked')
+  assert.throws(() => resolveGlobalSkillsRoot({ runtimeRoot: oldRoot, home, env: {} }),
+    error => error.code === 'GLOBAL_SKILL_RUNTIME_GENERATION_UNBOUND')
+  assert.throws(() => buildRuntimeSkillIdentityIndex({ runtimeRoot: oldRoot, home, env: {}, cwd: home }),
+    error => error.code === 'GLOBAL_SKILL_RUNTIME_GENERATION_UNBOUND')
+  fs.unlinkSync(path.join(newRoot, 'skills', 'portfolio.json'))
+  assert.strictEqual(resolveGlobalSkillRuntimeRoot({ runtimeRoot: newRoot, home, env: {} }).status, 'blocked')
+
+  if (process.env.DEVCODEX_TEST_KEEP_TEMP !== '1') fs.rmSync(home, { recursive: true, force: true })
+  else console.log('Retained generation identity fixture:', home)
 }
 
 console.log('test-global-skill-runtime-root: ok')

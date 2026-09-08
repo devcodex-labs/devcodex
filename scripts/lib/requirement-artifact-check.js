@@ -57,10 +57,6 @@ function artifactRegistryFailure(error) {
   }
 }
 
-function hasText(filePath, needle) {
-  return fs.readFileSync(filePath, 'utf8').includes(needle)
-}
-
 function hasAnyText(filePath, needles) {
   const text = fs.readFileSync(filePath, 'utf8')
   return needles.some(needle => text.includes(needle))
@@ -91,17 +87,11 @@ function collectInventoryIssues(inventory, relDir) {
   for (const conflict of inventory.conflicts) {
     issues.push(`${relDir} conflicting truth sources for ${conflict.alternativeGroup}: ${conflict.paths.join(', ')}`)
   }
-  if (inventory.overflow) issues.push(`${relDir} artifact inventory exceeded bounded scan; split or reduce derived artifacts`)
   const classes = new Set(inventory.artifacts.map(item => item.slot.artifactClass))
   if ((classes.has('cp2') || classes.has('cp3-plan') || classes.has('progress')) && !classes.has('overview') && !classes.has('cp1')) {
     issues.push(`${relDir} missing intake truth before CP2/CP3 artifacts`)
   }
   return issues
-}
-
-function hasFormalTemplateQualificationClaim(filePath) {
-  const head = fs.readFileSync(filePath, 'utf8').slice(0, 8192)
-  return /(?:templateBindingStatus:\s*qualified-v1|ArtifactTemplateBindingV1)/i.test(head)
 }
 
 function sha256File(filePath) {
@@ -285,104 +275,31 @@ function checkArtifactTemplateFile({ slot, filePath, intent = null }) {
   }
 }
 
-function collectBoundTemplateIssues(dirPath, inventory, relDir) {
-  const issues = []
+// A retrospective scan cannot recover the producer's historical template bytes.
+// Diagnose current structure without minting generation or semantic evidence.
+function collectTemplateObservations(dirPath, inventory, relDir) {
   const disposition = validateHistoricalTemplateDispositions(dirPath, inventory)
-  for (const issue of disposition.issues) issues.push(`${relDir}/${HISTORICAL_TEMPLATE_DISPOSITION_PATH} ${issue}`)
+  const issues = disposition.issues.map(issue => `${relDir}/${HISTORICAL_TEMPLATE_DISPOSITION_PATH} ${issue}`)
+  const observations = []
   for (const artifact of inventory.artifacts) {
     if (!artifact.slot?.templateRef || !['canonical', 'versioned-candidate'].includes(artifact.matchType)) continue
     const filePath = path.join(dirPath, artifact.relativePath)
-    if (!fs.existsSync(filePath)) continue
-    const isCurrentHead = disposition.currentHead === artifact.relativePath
-    const dispositionEntry = disposition.entries.get(artifact.relativePath)
-    const mustValidate = artifact.slot.slotId === 'plan-review-pr1' || isCurrentHead ||
-      Boolean(dispositionEntry) || hasFormalTemplateQualificationClaim(filePath)
-    if (!mustValidate) continue // historical/unbound artifacts remain read-only; runtime receipts govern new writes
     const result = checkArtifactTemplateFile({ slot: artifact.slot, filePath })
-    if (result.passed) continue
-    if (artifact.matchType === 'versioned-candidate' && !isCurrentHead && disposition.valid && dispositionEntry) continue
-    for (const issue of result.issues) issues.push(`${relDir}/${artifact.relativePath} template qualification ${issue}`)
+    observations.push({
+      schemaVersion: 'ArtifactTemplateRetrospectiveObservationV1',
+      path: `${relDir}/${artifact.relativePath}`,
+      slotId: artifact.slot.slotId,
+      artifactDigest: sha256File(filePath),
+      comparedTemplateRef: result.binding?.templateRef || artifact.slot.templateRef,
+      comparedTemplateDigest: result.binding?.templateDigest || null,
+      generationEvidence: 'UNVERIFIED',
+      intentSatisfaction: 'UNVERIFIED',
+      structureStatus: result.passed ? 'PASS' : 'WARN',
+      structureIssues: result.issues,
+      historicalDisposition: disposition.valid ? disposition.entries.get(artifact.relativePath)?.disposition || null : null
+    })
   }
-  return issues
-}
-
-function checkPlanAndProgressFiles(dirPath, relDir, issues) {
-  const planFile = path.join(dirPath, '04-实施计划.md')
-  const progressFile = path.join(dirPath, '05-实施进度.md')
-
-  if (fs.existsSync(planFile)) {
-    if (!hasText(planFile, '## 目录导航')) {
-      issues.push(`${relDir}/04-实施计划.md missing "## 目录导航"`)
-    }
-    if (!hasText(planFile, '计划模式')) {
-      issues.push(`${relDir}/04-实施计划.md missing plan mode`)
-    }
-    if (!hasAnyText(planFile, ['验证路线', '独立验证方式', '验证方式'])) {
-      issues.push(`${relDir}/04-实施计划.md missing validation section`)
-    }
-    if (!hasAnyText(planFile, ['回滚摘要', '回滚触发', '回滚方案'])) {
-      issues.push(`${relDir}/04-实施计划.md missing rollback section`)
-    }
-  }
-
-  if (fs.existsSync(progressFile)) {
-    const requiredNeedles = [
-      '当前轮次',
-      '当前 CP',
-      '当前批次',
-      '## 目录导航',
-      '进度总览',
-      '支撑产物状态',
-      '本轮验证结果',
-      '阻塞与恢复',
-      '下一步',
-      '变更记录'
-    ]
-    for (const needle of requiredNeedles) {
-      if (!hasText(progressFile, needle)) {
-        issues.push(`${relDir}/05-实施进度.md missing "${needle}"`)
-      }
-    }
-  }
-}
-
-function checkRequirementDir(dirPath) {
-  const issues = []
-  const relDir = path.basename(dirPath)
-
-  for (const fileName of ['00-需求概况.md', '00-需求变更概况.md']) {
-    const filePath = path.join(dirPath, fileName)
-    if (fs.existsSync(filePath) && !hasText(filePath, '## 目录导航')) {
-      issues.push(`${relDir}/${fileName} missing "## 目录导航"`)
-    }
-  }
-
-  for (const fileName of ['01-需求确认.md', '01-产品需求.md', '01-需求变更确认.md', '01-需求概述.md']) {
-    const filePath = path.join(dirPath, fileName)
-    if (fs.existsSync(filePath) && !hasText(filePath, '## 目录导航')) {
-      issues.push(`${relDir}/${fileName} missing "## 目录导航"`)
-    }
-  }
-
-  checkPlanAndProgressFiles(dirPath, relDir, issues)
-
-  return issues
-}
-
-function checkBugDir(dirPath) {
-  const issues = []
-  const relDir = path.basename(dirPath)
-
-  for (const fileName of ['00-问题概况.md', '01-问题确认.md']) {
-    const filePath = path.join(dirPath, fileName)
-    if (fs.existsSync(filePath) && !hasText(filePath, '## 目录导航')) {
-      issues.push(`${relDir}/${fileName} missing "## 目录导航"`)
-    }
-  }
-
-  checkPlanAndProgressFiles(dirPath, relDir, issues)
-
-  return issues
+  return { issues, observations }
 }
 
 function hasSimpleTaskFastPathMarker(dirPath) {
@@ -431,106 +348,72 @@ function checkActualCandidateEvidence({
   return { passed: issues.length === 0, issues, verification }
 }
 
-function collectRecentRequirementArtifactIssues({
+function collectRecentTaskArtifactIssues({
   activeRoot,
   project,
   registry,
+  taskKinds,
   recentDays = RECENT_REQUIREMENT_ARTIFACT_DAYS,
   nowMs = Date.now()
 }) {
-  const requirementsRoot = path.join(activeRoot, 'requirements')
   const checkedDirs = []
   const issues = []
-
-  if (!fs.existsSync(requirementsRoot)) {
-    return { checkedDirs, issues }
-  }
-
+  const warnings = []
+  const templateObservations = []
+  const scanCoverage = []
   let registryContext
   try {
     registryContext = resolveConsumerArtifactRegistry(activeRoot, project, registry)
   } catch (error) {
-    return artifactRegistryFailure(error)
+    return { ...artifactRegistryFailure(error), warnings, templateObservations, scanCoverage }
   }
-
-  for (const entry of fs.readdirSync(requirementsRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue
-    const dirPath = path.join(requirementsRoot, entry.name)
-    if (hasSimpleTaskFastPathMarker(dirPath)) continue
-    const inventory = enumerateTaskArtifacts({
-      taskRoot: dirPath,
-      taskKind: 'requirements',
-      fs,
-      activeRoot,
-      project: registryContext.project,
-      registry: registryContext.registry
-    })
-    if (!inventory.artifacts.length && !inventory.unknownFormal.length) continue
-    if (!hasRecentInventoryArtifact(dirPath, inventory, nowMs, recentDays)) continue
-    checkedDirs.push(entry.name)
-    issues.push(...collectInventoryIssues(inventory, entry.name))
-    issues.push(...checkRequirementDir(dirPath))
-    issues.push(...collectBoundTemplateIssues(dirPath, inventory, entry.name))
+  let visited = 0
+  for (const taskKind of taskKinds) {
+    const tasksRoot = path.join(activeRoot, taskKind)
+    if (!fs.existsSync(tasksRoot)) continue
+    for (const entry of fs.readdirSync(tasksRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue
+      if (++visited > 256) {
+        warnings.push(`${taskKind}: task inventory exceeds 256-directory budget; remaining coverage UNVERIFIED`)
+        break
+      }
+      const dirPath = path.join(tasksRoot, entry.name)
+      // Narrative fast-path markers never suppress observation of real files.
+      const inventory = enumerateTaskArtifacts({
+        taskRoot: dirPath, taskKind, fs, activeRoot,
+        project: registryContext.project, registry: registryContext.registry
+      })
+      if (!inventory.artifacts.length && !inventory.unknownFormal.length && !inventory.overflow) continue
+      if (!inventory.overflow && !hasRecentInventoryArtifact(dirPath, inventory, nowMs, recentDays)) continue
+      const relDir = taskKind === 'optimizations' ? `optimizations/${entry.name}` : entry.name
+      checkedDirs.push(relDir)
+      scanCoverage.push({ task: `${taskKind}/${entry.name}`, status: inventory.overflow ? 'UNVERIFIED' : 'PASS',
+        strategy: inventory.overflow ? 'sampled+deep-read' : 'single-pass', observedArtifacts: inventory.artifacts.length })
+      if (inventory.overflow) warnings.push(`${relDir}: bounded artifact inventory is partial; unsampled coverage UNVERIFIED`)
+      issues.push(...collectInventoryIssues(inventory, relDir))
+      const observed = collectTemplateObservations(dirPath, inventory, relDir)
+      issues.push(...observed.issues)
+      templateObservations.push(...observed.observations)
+    }
   }
-
+  const differences = templateObservations.filter(item => item.structureStatus === 'WARN')
+  if (templateObservations.length) warnings.push(
+    `retrospective template observations=${templateObservations.length}, current-structure differences=${differences.length}; historical generation and intent satisfaction UNVERIFIED; new writes use producer-bound current contracts`
+  )
   return {
-    checkedDirs,
-    issues,
+    checkedDirs, issues, warnings, templateObservations, scanCoverage,
     registryErrorCode: null,
     mergedRegistryDigest: registryContext.registry.mergedRegistryDigest,
     registrySlotCount: registryContext.registry.slots.length
   }
 }
 
-function collectRecentBugArtifactIssues({
-  activeRoot,
-  project,
-  registry,
-  recentDays = RECENT_REQUIREMENT_ARTIFACT_DAYS,
-  nowMs = Date.now()
-}) {
-  const bugsRoot = path.join(activeRoot, 'bugs')
-  const checkedDirs = []
-  const issues = []
+function collectRecentRequirementArtifactIssues(input) {
+  return collectRecentTaskArtifactIssues({ ...input, taskKinds: ['requirements', 'optimizations'] })
+}
 
-  if (!fs.existsSync(bugsRoot)) {
-    return { checkedDirs, issues }
-  }
-
-  let registryContext
-  try {
-    registryContext = resolveConsumerArtifactRegistry(activeRoot, project, registry)
-  } catch (error) {
-    return artifactRegistryFailure(error)
-  }
-
-  for (const entry of fs.readdirSync(bugsRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue
-    const dirPath = path.join(bugsRoot, entry.name)
-    if (hasSimpleTaskFastPathMarker(dirPath)) continue
-    const inventory = enumerateTaskArtifacts({
-      taskRoot: dirPath,
-      taskKind: 'bugs',
-      fs,
-      activeRoot,
-      project: registryContext.project,
-      registry: registryContext.registry
-    })
-    if (!inventory.artifacts.length && !inventory.unknownFormal.length) continue
-    if (!hasRecentInventoryArtifact(dirPath, inventory, nowMs, recentDays)) continue
-    checkedDirs.push(entry.name)
-    issues.push(...collectInventoryIssues(inventory, entry.name))
-    issues.push(...checkBugDir(dirPath))
-    issues.push(...collectBoundTemplateIssues(dirPath, inventory, entry.name))
-  }
-
-  return {
-    checkedDirs,
-    issues,
-    registryErrorCode: null,
-    mergedRegistryDigest: registryContext.registry.mergedRegistryDigest,
-    registrySlotCount: registryContext.registry.slots.length
-  }
+function collectRecentBugArtifactIssues(input) {
+  return collectRecentTaskArtifactIssues({ ...input, taskKinds: ['bugs'] })
 }
 
 module.exports = {
@@ -542,8 +425,6 @@ module.exports = {
   HISTORICAL_TEMPLATE_DISPOSITION_PATH,
   HISTORICAL_TEMPLATE_DISPOSITION_SCHEMA,
   checkArtifactTemplateFile,
-  checkBugDir,
-  checkRequirementDir,
   checkActualCandidateEvidence,
   collectInventoryIssues,
   validateHistoricalTemplateDispositions,

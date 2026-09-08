@@ -68,7 +68,7 @@ description: 通用文档审查维度 DA-1~DA-6 — README/架构文档/开发�
 | DA-M1 可执行 dev 路径 | 具备 clone/环境/依赖安装与 test 或 build 命令之一；不得仅产品介绍 |
 | DA-M2 受众一致 | 主叙事服务维护者；不得伪装成用户安装手册却无用户第一次成功路径 |
 | DA-M3 命令可信 | 关键命令与 `package.json`/仓库脚本不矛盾，或标明 N/A 理由 |
-| DA-M4 漂移 | `classifyDocsAudienceDriftSample('maintainer-dev', body)` 不得为 `drift-no-dev-path` |
+| DA-M4 漂移 | 模型按维护者实际任务审查正文，形成与正文摘要绑定的 review；`classifyDocsAudienceDriftSample('maintainer-dev', body, review)` 只校验绑定并投影结论，unverified 不代表通过 |
 
 用户站审查仍优先 `audit-user-manual`；本维不替代用户站聚合入口。
 

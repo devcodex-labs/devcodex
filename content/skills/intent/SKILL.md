@@ -6,8 +6,8 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 
 | 检查 | 条件 | 意图 |
 |------|------|------|
-| 是否按任务名恢复？ | 完整消息符合 `继续<任务名>任务` 或 `继续 <任务名>` | 先调用 `memory_task_resolve`；仅 `resolved-active` 进入 `resume`，其余状态按最小消歧/完成说明/stale CP 处理 |
-| 是否恢复中断？ | 用户说"继续"/"恢复"，**且**今日/昨日任务文件（daily file）中存在状态为 🔄 的会话（SUMMARY 索引表的状态列不作为判断依据，见 `15-memory` §新会话 🔄 检测）| `resume` → 直接路由，跳过三问 |
+| 是否按任务名恢复？ | 根据完整对话判断用户要续接哪项已有任务，提取任务定位信息 | 先调用 `memory_task_resolve`；仅 `resolved-active` 进入 `resume`，其余状态按最小消歧/完成说明/stale CP 处理 |
+| 是否恢复中断？ | 当前消息在上下文中表达续接目的，且当前会话的任务恢复证据仍有效；短回答或特定词本身不决定路由 | `resume` → 定向复水化，保留已确认范围与授权 |
 | 是否纯问答？ | 仅提问/求解释，无文件变更或任务执行意图 | `chat` → 直接路由，跳过三问 |
 
 ### chat 子类标签（仅用于回答策略，不新增工作流）
@@ -33,6 +33,8 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 
 > ⛔ 意图识别基于用户消息的**语义目的**，不依赖关键词匹配。
 
+先理解当前真实用户消息与已有任务，再通过 `profile_context_plan` 提交结构化结论：路由沿用 `intent`、`routeKey`、`changeTypes`；可选 `semanticDecision` 使用 `IntentSemanticDecisionV1`，其 `sourceRef` 必须引用当前可信入口的 envelopeId、envelopeDigest 与 contextEpoch。按实际意图填写 workflowPreference、workflowFacts、executionDecision、languageDecision，不能从昵称、中文字符占比、代码/引用或宿主问答包装推断这些字段。语言明确要求及持续偏好优先；临时回复语言使用 scope=turn，持续任务偏好使用 scope=task。宿主结构化问答只把 answer 作为用户回复，question 保留为上下文。模型选择明确指定的 Skill 时提交 `explicitSkillId`；精确引用或示例不自动激活 Skill。缺少必要信息时先定向读取，只有确实影响下一步的歧义才向用户询问。
+
 | 问题 | 指向变更 | 指向分析 |
 |------|---------|---------|
 | Q1：最终目的是产生变更（代码/配置/规范文件），还是获得结论/报告？ | 变更 | 结论 |
@@ -44,6 +46,8 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 - 三问全指向分析 → 区分 `analyze` vs `audit`
 
 ## 意图类型路由
+
+验证的暂停、缩小范围或确认同样由模型解释，通过当前来源绑定的 `semanticDecision.validationDecision` 提交 action（none、revoke、confirm-current-budget）；确认可附 requestedBudgetDigest 与 declaredChangedPathCount。执行模式和验证范围是不同决定，不因回复出现“暂停”“确认”或 @ 别名自动变更。运行时继续校验验证卡、任务、项目、候选和单轮屏障。任务恢复使用既有 `memory_task_resolve` 的精确查询与恢复证据，不把自然语言的“继续……”直接当历史任务名。
 
 | 意图 | 说明 |
 |------|------|
@@ -95,16 +99,16 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 
 当用户意图涉及**编写/改写** README、文档站、website docs、用户手册、contributing、API 参考或模糊「写文档」时：
 
-1. **必须**先运行 DocsAudienceIntent（`scripts/lib/docs-audience-intent.js` / Skill 语义等价），得到 `docsAudience` + `docsSurface`。  
-2. **必须**在用户可见回复中写出锁定结果（或 ambiguous 阻断 + **唯一推荐**消歧）；不得静默开写。  
+1. **必须**由模型根据用户目标、预期读者与现有文档判定 `docsAudience` + `docsSurface`；`scripts/lib/docs-audience-intent.js` 仅校验 `DocsAudienceDecisionV1` 的结构，不从文字或目录名判定受众。  
+2. 说明采用的受众；信息不足时先读取相关上下文，必要的消歧须给出有依据的推荐，不因缺少固定词自动阻断。  
 3. 路由：  
    - `public-user` → `user-manual-authoring`（+ 条件 `readme-authoring`）  
    - `maintainer-dev` → `maintainer-docs-site-authoring`  
-   - `ambiguous` → fail closed，推荐置首  
-   - `multi-audience` → 拆任务  
+   - `ambiguous` → 补充上下文，仍无法确定且影响产物时再消歧  
+   - `multi-audience` → 按读者组织相应交付物，沿用用户已确认的任务范围  
 4. 完成前做受众漂移检查；失败不得宣称文档任务完成。  
-5. 验证：`npm run test:docs-audience`。  
-6. 用户站 guide 完成前须过认知高度：`classifyUserDocsCognitiveAltitudeSample`（禁止 function-inventory-as-guide）。
+5. `npm run test:docs-audience` 只证明结构与摘要绑定；真实文档须经模型内容审查和实际用户路径验证。  
+6. 可读性、受众漂移等结论必须绑定当前正文摘要，包含理由与来源引用；没有 `DocsContentReviewV1` 的辅助函数结果为 unverified，不得冒充内容验收通过。
 
 ### 问题驱动场景延展（强制 · PI-20260724-proactive-scenario-extension）
 

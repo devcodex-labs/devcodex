@@ -189,6 +189,13 @@ try {
   )
   assert.strictEqual(legacyP0Requirement.slot?.slotId, 'requirement-cp1')
   assert.strictEqual(legacyP0Requirement.matchType, 'legacy-read')
+  const extendedOverview = classifyRelativeTarget('optimizations/整改/00-需求概况.md', layered)
+  assert.strictEqual(extendedOverview.slot?.slotId, 'extended-task-overview')
+  assert.strictEqual(extendedOverview.matchType, 'canonical')
+  const conflictingSlot = { ...extendedOverview.slot, slotId: 'different-owner' }
+  assert.strictEqual(classifyRelativeTarget('optimizations/整改/00-需求概况.md', {
+    ...layered, slots: [...layered.slots, conflictingSlot]
+  }).matchType, 'ambiguous-slot')
   const baseRegistry = JSON.parse(fs.readFileSync(
     path.join(__dirname, '..', 'hooks', '_runtime', 'artifact-slot-registry.v2.json'),
     'utf8'

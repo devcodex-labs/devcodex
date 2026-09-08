@@ -31,6 +31,7 @@
         "prefix": { "enum": ["PI-", "PF-", "VL-", "GR-", "ISSUE-"] },
         "activePath": { "type": "string", "pattern": "^data/[A-Za-z0-9._/-]+\\.md$" },
         "nextSequence": { "type": "integer", "minimum": 1 },
+        "allocationHighWatermark": { "type": "integer", "minimum": 0 },
         "shards": {
           "type": "array",
           "items": { "$ref": "#/$defs/shard" }

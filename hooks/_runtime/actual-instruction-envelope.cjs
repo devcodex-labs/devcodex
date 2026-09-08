@@ -211,11 +211,36 @@ function separateEmbeddedEvidence (rawInstruction) {
   return { instruction: instruction.trim(), segments }
 }
 
+/**
+ * Decode only the host's complete question-reply transport. Questions remain
+ * quoted context; answers are the user's instruction, with no language guess.
+ */
+function normalizeHostUserMessage (payload) {
+  const raw = String(payload?.prompt ?? payload?.user_prompt ?? payload?.userPrompt ??
+    payload?.message ?? payload?.text ?? '')
+  const text = raw.trim()
+  const open = '<send_user_message_question_reply>'
+  const close = '</send_user_message_question_reply>'
+  if (!text.startsWith(open) || !text.endsWith(close) || byteLength(raw) > MAX_INSTRUCTION_BYTES) {
+    return { instruction: raw, questions: [] }
+  }
+  let rows
+  try { rows = JSON.parse(text.slice(open.length, -close.length).trim()) } catch {
+    return { instruction: raw, questions: [] }
+  }
+  if (!Array.isArray(rows) || !rows.length || rows.length > MAX_WORK_ITEMS || rows.some(row =>
+    !row || typeof row !== 'object' || Array.isArray(row) ||
+    typeof row.questionItemId !== 'string' || typeof row.question !== 'string' || typeof row.answer !== 'string')) {
+    return { instruction: raw, questions: [] }
+  }
+  return {
+    instruction: rows.map(row => row.answer).join('\n\n'),
+    questions: rows.map(row => ({ questionItemId: row.questionItemId, question: row.question }))
+  }
+}
+
 function rawInstructionFromPayload (payload) {
-  return String(
-    payload?.prompt ?? payload?.user_prompt ?? payload?.userPrompt ??
-    payload?.message ?? payload?.text ?? ''
-  )
+  return normalizeHostUserMessage(payload).instruction
 }
 
 function directSourceEventId (payload) {
@@ -328,7 +353,9 @@ function buildActualInstructionEnvelope (payload = {}, options = {}) {
   const quotedDocuments = combineBoundedSegments(
     'quotedDocuments',
     collectStructuredSegments(payload, 'quotedDocuments'),
-    separated.segments.quotedDocuments
+    separated.segments.quotedDocuments,
+    normalizeHostUserMessage(payload).questions.map((question, index) =>
+      segmentDescriptor('quotedDocuments', question, 'question-reply.question', index))
   )
   const ambientState = combineBoundedSegments(
     'ambientState',
@@ -619,6 +646,8 @@ module.exports = {
   buildActualInstructionEnvelope,
   buildWorkItemSet,
   digest,
+  normalizeHostUserMessage,
+  rawInstructionFromPayload,
   separateEmbeddedEvidence,
   validateActualInstructionEnvelope,
   validateWorkItemSet

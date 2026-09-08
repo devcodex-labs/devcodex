@@ -11,6 +11,26 @@ function buildTestHooksRuntimeFixtures({
   STATE_FILE,
   TEST_AGENT
 }) {
+  let retainedSequence = 0
+  function resetFixtureRoot() {
+    if (!fs.existsSync(TEMP_ROOT)) return
+    const source = path.resolve(TEMP_ROOT)
+    const parent = path.dirname(source)
+    if (source === parent) throw new Error('Fixture root cannot be a filesystem root')
+    if (process.env.DEVCODEX_TEST_KEEP_TEMP !== '1') {
+      fs.rmSync(source, { recursive: true, force: true })
+      return
+    }
+    const archive = path.join(parent, path.basename(source) + '-retained')
+    const target = path.join(archive, `${Date.now()}-${process.pid}-${++retainedSequence}`)
+    const relative = path.relative(parent, target)
+    if (!relative || relative.startsWith('..') || path.isAbsolute(relative) || fs.existsSync(target)) {
+      throw new Error('Retained fixture target is outside its owned parent or already exists')
+    }
+    fs.mkdirSync(archive, { recursive: true })
+    fs.renameSync(source, target)
+  }
+
   function formatDateStamp(date) {
     const year = String(date.getFullYear())
     const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -90,6 +110,7 @@ function buildTestHooksRuntimeFixtures({
     const mode = payload?.fixtureContextBinding
     const prepared = { ...(payload || {}) }
     delete prepared.fixtureContextBinding
+    delete prepared.fixtureSemanticDecision
     const inputKey = ['tool_input', 'toolInput', 'input', 'arguments']
       .find(key => Object.prototype.hasOwnProperty.call(prepared, key))
     if (inputKey && prepared[inputKey] && typeof prepared[inputKey] === 'object' && !Array.isArray(prepared[inputKey])) {
@@ -157,7 +178,36 @@ function buildTestHooksRuntimeFixtures({
       throw new Error(`${preparedPayload.hookEventName || preparedPayload.hook_event_name}: ${result.stderr}`)
     }
 
-    return JSON.parse(result.stdout || '{}')
+    const output = JSON.parse(result.stdout || '{}')
+    if (payload.fixtureSemanticDecision) {
+      return bindSemanticFixture(payload.fixtureSemanticDecision, cwd, payload.session_id, env)
+    }
+    return output
+  }
+
+  // Protocol fixtures supply an explicit model decision, never a prompt matcher.
+  // Real model interpretation is exercised separately by probe-intent-outcomes.
+  function bindSemanticFixture(fields, cwd = TEMP_ROOT, sessionId, env = {}) {
+    const state = JSON.parse(fs.readFileSync(getRuntimeStatePath(cwd), 'utf8'))
+    const envelope = state.actualInstructionEnvelope
+    if (!envelope?.envelopeDigest) throw new Error('Semantic fixture requires observed ingress')
+    const args = {
+      intent: fields.intent || 'chat',
+      ...(fields.changeTypes ? { changeTypes: fields.changeTypes } : {}),
+      contextEpoch: envelope.contextEpoch,
+      ...(state.contextAcquisition.project ? { project: state.contextAcquisition.project } : {}),
+      semanticDecision: {
+        schemaVersion: 'IntentSemanticDecisionV1',
+        sourceRef: { envelopeId: envelope.envelopeId, envelopeDigest: envelope.envelopeDigest, contextEpoch: envelope.contextEpoch },
+        ...Object.fromEntries(Object.entries(fields).filter(([key]) => !['intent', 'changeTypes'].includes(key)))
+      }
+    }
+    const callId = `semantic-${envelope.contextEpoch}`
+    const common = { session_id: sessionId, tool_use_id: callId, tool_name: 'devcodex-profile/profile_context_plan', tool_input: args }
+    run({ ...common, hookEventName: 'PreToolUse' }, cwd, env)
+    const result = callProfileTool(cwd, 'profile_context_plan', args)
+    if (result.isError) throw new Error(`Semantic fixture rejected (${sessionId || 'missing-session'}): ` + result.content?.[0]?.text)
+    return run({ ...common, hookEventName: 'PostToolUse', tool_response: result }, cwd, env)
   }
 
   function callProfileTool(cwd, name, args) {
@@ -198,27 +248,53 @@ function buildTestHooksRuntimeFixtures({
   function runStructuredContext(agent, cwd, intent = 'chat', changeTypes = []) {
     const statePath = getRuntimeStatePath(cwd)
     const state = JSON.parse(fs.readFileSync(statePath, 'utf8'))
+    const sessionId = state.contextAcquisition?.hostSessionId || undefined
+    const runInContext = (payload, targetCwd) => {
+      const output = run({ ...payload, session_id: sessionId }, targetCwd)
+      if (process.env.DEVCODEX_TEST_TRACE_CONTEXT === '1') {
+        const current = JSON.parse(fs.readFileSync(statePath, 'utf8')).contextAcquisition
+        fs.appendFileSync(path.join(TEMP_ROOT, 'structured-context-trace.jsonl'), JSON.stringify({
+          event: payload.hookEventName, tool: payload.tool_name, callId: payload.tool_use_id,
+          hostSessionId: current.hostSessionId, epoch: current.contextEpoch,
+          planId: current.plan?.planId, inFlight: current.inFlight,
+          receiptStatus: current.receipt?.status, lastError: current.receipt?.lastError,
+          output
+        }) + '\n')
+      }
+      return output
+    }
     const planArgs = {
       intent,
       contextEpoch: state.contextAcquisition.contextEpoch,
+      ...(state.contextAcquisition.plan?.semanticDecision?.sourceRef?.contextEpoch === state.contextAcquisition.contextEpoch
+        ? { semanticDecision: state.contextAcquisition.plan.semanticDecision } : {}),
       ...(changeTypes.length ? { changeTypes } : {}),
       ...(state.contextAcquisition.project ? { project: state.contextAcquisition.project } : {})
     }
-    const planCallId = `plan-${state.contextAcquisition.contextEpoch}`
-    run({
-      hookEventName: 'PreToolUse',
-      tool_use_id: planCallId,
-      tool_name: 'devcodex-profile/profile_context_plan',
-      tool_input: planArgs
-    }, cwd)
-    const planResult = callProfileTool(cwd, 'profile_context_plan', planArgs)
-    run({
-      hookEventName: 'PostToolUse',
-      tool_use_id: planCallId,
-      tool_name: 'devcodex-profile/profile_context_plan',
-      tool_input: planArgs,
-      tool_response: planResult
-    }, cwd)
+    const installedPlan = state.contextAcquisition.plan
+    const reuseInstalledPlan = installedPlan &&
+      state.contextAcquisition.receipt?.status !== 'stale' &&
+      installedPlan.identityInputs?.intent?.finalIntent === intent &&
+      JSON.stringify([...(installedPlan.changeTypes || [])].sort()) === JSON.stringify([...changeTypes].sort())
+    // A semantic fixture may already have installed and observed this plan.
+    // Read its selected sources instead of submitting the same plan twice.
+    if (!reuseInstalledPlan) {
+      const planCallId = `plan-${state.contextAcquisition.contextEpoch}`
+      runInContext({
+        hookEventName: 'PreToolUse',
+        tool_use_id: planCallId,
+        tool_name: 'devcodex-profile/profile_context_plan',
+        tool_input: planArgs
+      }, cwd)
+      const planResult = callProfileTool(cwd, 'profile_context_plan', planArgs)
+      runInContext({
+        hookEventName: 'PostToolUse',
+        tool_use_id: planCallId,
+        tool_name: 'devcodex-profile/profile_context_plan',
+        tool_input: planArgs,
+        tool_response: planResult
+      }, cwd)
+    }
 
     let plannedState = JSON.parse(fs.readFileSync(statePath, 'utf8'))
     const selectedProfileFiles = plannedState.contextAcquisition?.plan?.profile?.selectedFiles || []
@@ -230,14 +306,14 @@ function buildTestHooksRuntimeFixtures({
         maxBytes: 200000
       }
       const profileCallId = `profile-${plannedState.contextAcquisition.contextEpoch}`
-      run({
+      runInContext({
         hookEventName: 'PreToolUse',
         tool_use_id: profileCallId,
         tool_name: 'devcodex-profile/profile_load',
         tool_input: profileArgs
       }, cwd)
       const profileResult = callProfileTool(cwd, 'profile_load', profileArgs)
-      run({
+      runInContext({
         hookEventName: 'PostToolUse',
         tool_use_id: profileCallId,
         tool_name: 'devcodex-profile/profile_load',
@@ -251,13 +327,13 @@ function buildTestHooksRuntimeFixtures({
       ...(plannedState.contextAcquisition.project ? { project: plannedState.contextAcquisition.project } : {})
     }
     const memoryCallId = `memory-${plannedState.contextAcquisition.contextEpoch}`
-    run({
+    runInContext({
       hookEventName: 'PreToolUse',
       tool_use_id: memoryCallId,
       tool_name: 'devcodex-memory/memory_status',
       tool_input: memoryArgs
     }, cwd)
-    run({
+    runInContext({
       hookEventName: 'PostToolUse',
       tool_use_id: memoryCallId,
       tool_name: 'devcodex-memory/memory_status',
@@ -362,9 +438,7 @@ function buildTestHooksRuntimeFixtures({
   }
 
   function cleanState(profileConfig = { mode: 'dev', agent: TEST_AGENT }) {
-    if (fs.existsSync(TEMP_ROOT)) {
-      fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
-    }
+    resetFixtureRoot()
     fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'profile'), { recursive: true })
     fs.writeFileSync(path.join(TEMP_ROOT, 'package.json'), '{}')
     writeProfileFixture(path.join(TEMP_ROOT, '.devcodex', 'profile'))
@@ -378,9 +452,7 @@ function buildTestHooksRuntimeFixtures({
     workspaceProfileConfig = { mode: 'prod', agent: TEST_AGENT },
     projectProfileConfig = { mode: 'dev' }
   ) {
-    if (fs.existsSync(TEMP_ROOT)) {
-      fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
-    }
+    resetFixtureRoot()
     fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, '.devcodex', 'chat', 'profile'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, 'chat'), { recursive: true })
@@ -401,9 +473,7 @@ function buildTestHooksRuntimeFixtures({
   }
 
   function cleanMultiProjectState() {
-    if (fs.existsSync(TEMP_ROOT)) {
-      fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
-    }
+    resetFixtureRoot()
     fs.mkdirSync(path.join(TEMP_ROOT, 'devcodex'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, 'payment'), { recursive: true })
     fs.writeFileSync(path.join(TEMP_ROOT, 'devcodex', 'package.json'), '{}')
@@ -411,9 +481,7 @@ function buildTestHooksRuntimeFixtures({
   }
 
   function cleanLayoutMultiProjectState({ workspaceProfile = false } = {}) {
-    if (fs.existsSync(TEMP_ROOT)) {
-      fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
-    }
+    resetFixtureRoot()
     fs.mkdirSync(path.join(TEMP_ROOT, 'devcodex'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, 'payment'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, 'user'), { recursive: true })
@@ -463,9 +531,7 @@ function buildTestHooksRuntimeFixtures({
   }
 
   function cleanNestedLayoutMultiProjectState({ workspaceProfile = false } = {}) {
-    if (fs.existsSync(TEMP_ROOT)) {
-      fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
-    }
+    resetFixtureRoot()
     fs.mkdirSync(path.join(TEMP_ROOT, 'packages', 'app-a'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, 'packages', 'app-b'), { recursive: true })
     fs.mkdirSync(path.join(TEMP_ROOT, 'tools'), { recursive: true })
@@ -547,6 +613,8 @@ function buildTestHooksRuntimeFixtures({
     getLayoutCaptureLog,
     getWorkspaceLayoutStateFile,
     callProfileTool,
+    bindSemanticFixture,
+    writeProfileFixture,
     runBootstrapReads,
     runLayoutBootstrapReads,
     cleanState,

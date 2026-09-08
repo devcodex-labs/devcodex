@@ -70,6 +70,11 @@ function executeGlobalHostTransaction(operations, options = {}) {
 }
 function cleanupTempFixture() {
   if (tempCleaned) return
+  if (process.env.DEVCODEX_TEST_KEEP_TEMP === '1' || process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1') {
+    tempCleaned = true
+    console.log(`Global host config artifacts retained: ${tmp}`)
+    return
+  }
   fs.rmSync(tmp, { recursive: true, force: true })
   tempCleaned = true
 }
@@ -409,11 +414,11 @@ assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.
 assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.cursor', 'devcodex', 'plugins', 'devcodex-workspace', '.cursor-plugin', 'plugin.json'))))
 assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.cursor', 'devcodex', 'plugins', 'devcodex-workspace', 'mcp.json'))))
 assert.ok(plan.operations.some(operation => operation.path.endsWith(path.join('.agents', 'devcodex', 'instructions.full.md'))))
-// Default skillsDeployMode=hidden → G_RUNTIME under .agents/devcodex/skills (not L1 scan roots)
+// Hidden Skills travel with each immutable runtime generation.
 assert.ok(
-  plan.operations.some(operation =>
-    operation.path.endsWith(path.join('.agents', 'devcodex', 'skills', 'routing', 'SKILL.md'))
-  ),
+  targets.every(target => plan.operations.some(operation =>
+    operation.path === path.join(target.runtimeRoot, 'skills', 'routing', 'SKILL.md')
+  )),
   'hidden mode must deploy active skills to G_RUNTIME'
 )
 assert.ok(
@@ -775,7 +780,7 @@ for (const target of targets) {
 }
 assert.strictEqual(fs.existsSync(path.join(home, '.agents', 'devcodex', 'instructions.full.md')), true)
 assert.strictEqual(
-  fs.existsSync(path.join(home, '.agents', 'devcodex', 'skills', 'routing', 'SKILL.md')),
+  fs.existsSync(path.join(targets.find(target => target.host === 'codex').runtimeRoot, 'skills', 'routing', 'SKILL.md')),
   true,
   'hidden apply must materialize skills under G_RUNTIME'
 )
@@ -1116,7 +1121,7 @@ const sourceRuntimeContractDigest = sourceSkillRouteMode.getRuntimeContractDiges
 const installedRuntimeContractDigest = installedSkillRouteMode.getRuntimeContractDigest({
   globalRuntime: {
     status: 'resolved',
-    root: codexTarget.shared.skillsRuntime
+    root: path.join(codexTarget.runtimeRoot, 'skills')
   }
 })
 assert.strictEqual(installedRuntimeContractDigest, sourceRuntimeContractDigest)

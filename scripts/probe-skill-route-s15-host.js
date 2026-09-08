@@ -6,6 +6,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
+const { readObservedCodexModelSettings } = require('./lib/real-codex-host-probe')
 
 const {
   getRuntimeContractDigest,
@@ -231,6 +232,7 @@ function resultSchema (exerciseContextRebind = false) {
     additionalProperties: false,
     required: [
       'status',
+      'error',
       'contextReceiptStatus',
       'catalogDigest',
       'catalogPages',
@@ -244,29 +246,30 @@ function resultSchema (exerciseContextRebind = false) {
       'observedMarker'
     ],
     properties: {
-      status: { type: 'string', enum: ['PASS'] },
-      contextReceiptStatus: { type: 'string', enum: ['relevant-complete'] },
-      catalogDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
-      catalogPages: { type: 'integer', minimum: 1 },
-      decisionSkillId: { type: 'string' },
-      planDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
-      planGeneration: { type: 'integer', minimum: 1 },
+      status: { type: 'string', enum: ['PASS', 'FAIL'] },
+      error: { type: ['string', 'null'] },
+      contextReceiptStatus: { type: ['string', 'null'], enum: ['relevant-complete', null] },
+      catalogDigest: { type: ['string', 'null'], pattern: '^[a-f0-9]{64}$' },
+      catalogPages: { type: 'integer', minimum: 0 },
+      decisionSkillId: { type: ['string', 'null'] },
+      planDigest: { type: ['string', 'null'], pattern: '^[a-f0-9]{64}$' },
+      planGeneration: { type: ['integer', 'null'], minimum: 1 },
       ...(exerciseContextRebind
-        ? { rebindObserved: { type: 'boolean', const: true } }
+        ? { rebindObserved: { type: 'boolean' } }
         : {
             activatedConditionId: {
-              type: 'string',
-              enum: ['test-validation']
+              type: ['string', 'null'],
+              enum: ['test-validation', null]
             }
           }),
       loadedStages: {
         type: 'array',
-        minItems: exerciseContextRebind ? 2 : 3,
+        minItems: 0,
         items: { type: 'string' }
       },
       processComplete: { type: 'boolean' },
-      entryBodyDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
-      observedMarker: { type: 'string', pattern: '^S15_BODY_[A-F0-9-]+$' }
+      entryBodyDigest: { type: ['string', 'null'], pattern: '^[a-f0-9]{64}$' },
+      observedMarker: { type: ['string', 'null'], pattern: '^S15_BODY_[A-F0-9-]+$' }
     }
   }
 }
@@ -309,8 +312,10 @@ function buildPrompt ({ contextEpoch, hostId, project, skillId, exerciseContextR
     'You MUST make the MCP tool calls below before producing any final answer.',
     'A JSON-only answer without actual tool calls is a failed probe, even if it matches the schema.',
     'Every final field is independently compared with persisted MCP state; never estimate, shorten, or invent a digest, stage id, marker, or receipt.',
+    'If a required call fails or evidence is unavailable, return status=FAIL and the observed error. Use null for unobserved identities, zero catalogPages, empty loadedStages, and false completion/rebind flags. Return status=PASS and error=null only after every required observation succeeds.',
     'Do not read the filesystem and do not infer any Skill body content.',
     'Use only the devcodex-profile and devcodex-memory MCP tools for the workflow below.',
+    'Use the host tool catalog and its discovery mechanism to resolve the actual callable tool names before invoking them. Discovery is permitted. A server display name is not a JavaScript method name; never guess a tools namespace. Follow the host tool instructions for direct calls or code-mode orchestration.',
     'First call profile_context_plan with:',
     JSON.stringify({
       intent: 'dev',
@@ -340,12 +345,14 @@ function buildPrompt ({ contextEpoch, hostId, project, skillId, exerciseContextR
   ].join('\n')
 }
 
-function hostArgs (hostId, prompt, schemaPath, outputPath) {
+function hostArgs (hostId, prompt, schemaPath, outputPath, modelSettings = []) {
   if (hostId === 'codex') {
     return [
       '-a', 'never',
       '-s', 'workspace-write',
-      '-c', 'model_reasoning_effort="medium"',
+      ...modelSettings.flatMap(setting => ['-c', setting]),
+      '-c', 'mcp_servers.devcodex-profile.required=true',
+      '-c', 'mcp_servers.devcodex-memory.required=true',
       '--dangerously-bypass-hook-trust',
       'exec',
       '--skip-git-repo-check',
@@ -829,7 +836,8 @@ function main () {
     })
     const modelArgs = [
       ...executable.prefix,
-      ...hostArgs(hostId, prompt, schemaPath, outputPath)
+      ...hostArgs(hostId, prompt, schemaPath, outputPath,
+        hostId === 'codex' ? readObservedCodexModelSettings(process.env) : [])
     ]
     hostInvocation = buildHostInvocationEvidence({
       host: descriptor.lifecycleHost,
@@ -898,6 +906,12 @@ function main () {
     }
 
     const final = parseHostResult(hostId, modelRun, outputPath)
+    if (final.status !== 'PASS') {
+      const error = new Error(String(final.error || 'Model did not complete the required S15 observations'))
+      error.code = 'S15_MODEL_REPORTED_FAILURE'
+      throw error
+    }
+    assert.strictEqual(final.error, null, 'successful S15 result must not carry an error')
     const located = findEnvelope(fixture, {
       planDigest: final.planDigest,
       planGeneration: final.planGeneration,

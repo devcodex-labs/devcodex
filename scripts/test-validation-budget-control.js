@@ -78,7 +78,7 @@ function countFiles(root) {
   return count
 }
 
-function controlReceipt({ prompt, mode, sessionKey, taskId, contextEpoch, suffix, nowMs = NOW, ttlMs = null }) {
+function controlReceipt({ prompt, mode, sessionKey, taskId, contextEpoch, suffix, nowMs = NOW, ttlMs = null, decision = { action: 'none' } }) {
   const envelope = buildActualInstructionEnvelope({
     prompt,
     sourceEventId: `validation-budget-control-${suffix}`,
@@ -95,12 +95,18 @@ function controlReceipt({ prompt, mode, sessionKey, taskId, contextEpoch, suffix
   })
   return createValidationControlIngressReceipt({
     actualInstructionEnvelope: envelope,
+    semanticDecision: {
+      schemaVersion: 'IntentSemanticDecisionV1',
+      sourceRef: { envelopeId: envelope.envelopeId, envelopeDigest: envelope.envelopeDigest, contextEpoch },
+      validationDecision: decision,
+      executionDecision: mode === 'auto' ? 'enable-auto' : 'confirm'
+    },
     actualInstruction: prompt,
     executionMode: mode,
     taskRecoveryKey: taskId,
     project: 'devcodex',
     projectRootIdentity: validationProjectRootIdentity(REPO_ROOT)
-  })
+  }, { now: nowMs })
 }
 
 function fixturePlan(taskId, contextEpoch, suffix = 'root', overrides = {}) {
@@ -2244,6 +2250,7 @@ function main() {
     }), 'VALIDATION_INDEPENDENT_V3_AUTHORITY_REQUIRED')
 
     const pauseControl = controlReceipt({
+      decision: { action: 'revoke' },
       prompt: '先暂停验证',
       mode: 'auto',
       sessionKey: autoSession,
@@ -2329,6 +2336,7 @@ function main() {
       authorityContext: ordinaryContext, activeRoot, execute: true
     }), 'VALIDATION_BUDGET_APPROVAL_REQUIRED')
     const mismatchedDigestControl = controlReceipt({
+      decision: { action: 'confirm-current-budget', requestedBudgetDigest: 'f'.repeat(64) },
       prompt: `确认当前验证卡 ${'f'.repeat(64)}`,
       mode: 'confirm',
       sessionKey: confirmSession,
@@ -2372,6 +2380,7 @@ function main() {
       execute: true
     }), 'VALIDATION_CONFIRMED_BUDGET_DIGEST_MISMATCH')
     const confirmControl = controlReceipt({
+      decision: { action: 'confirm-current-budget', requestedBudgetDigest: confirmPlan.budgetCard.digest },
       prompt: `\`确认当前验证卡 ${confirmPlan.budgetCard.digest}\``,
       mode: 'confirm',
       sessionKey: confirmSession,
@@ -2457,6 +2466,7 @@ function main() {
       execute: true
     }), 'VALIDATION_BUDGET_APPROVAL_REQUIRED')
     const bareIntentControl = controlReceipt({
+      decision: { action: 'confirm-current-budget' },
       prompt: '确认',
       mode: 'confirm',
       sessionKey: intentSession,
@@ -2492,6 +2502,7 @@ function main() {
     const expiredPlanPriorControlSession = 'validation-expired-plan-only-prior-session'
     const expiredPlanEpoch = 'context-expired-plan-only'
     const expiredPlanControl = controlReceipt({
+      decision: { action: 'confirm-current-budget' },
       prompt: '确认当前验证卡，然后继续修复',
       mode: 'confirm',
       sessionKey: expiredPlanPriorControlSession,
@@ -2541,6 +2552,7 @@ function main() {
       execute: true
     }), 'VALIDATION_AI_CONTROL_INGRESS_REQUIRED')
     const freshExpiredPlanControl = controlReceipt({
+      decision: { action: 'confirm-current-budget' },
       prompt: '确认',
       mode: 'confirm',
       sessionKey: expiredPlanSession,
@@ -2572,6 +2584,7 @@ function main() {
     assert.strictEqual(freshExpiredPlanConfirmation.decision, 'user-confirmed')
     assert.strictEqual(freshExpiredPlanConfirmation.authority.authorityKind, 'user-confirmation')
     const rootReplayMismatchControl = controlReceipt({
+      decision: { action: 'confirm-current-budget', requestedBudgetDigest: 'e'.repeat(64) },
       prompt: `确认当前验证卡 ${'e'.repeat(64)}`,
       mode: 'confirm',
       sessionKey: confirmSession,
@@ -2630,6 +2643,7 @@ function main() {
 
     const confirmationEpoch = 'context-cross-turn-confirm'
     const crossTurnConfirmControl = controlReceipt({
+      decision: { action: 'confirm-current-budget' },
       prompt: '这是阻断问题，要一起修复，确认当前验证卡，然后继续复核',
       mode: 'confirm',
       sessionKey: crossTurnSession,
@@ -2745,6 +2759,7 @@ function main() {
     })
     const driftConfirmationEpoch = 'context-stale-card-confirm'
     const driftConfirmControl = controlReceipt({
+      decision: { action: 'confirm-current-budget' },
       prompt: '确认当前验证卡',
       mode: 'confirm',
       sessionKey: driftSession,
@@ -2814,6 +2829,7 @@ function main() {
     }), 'VALIDATION_FRESH_BUDGET_CONFIRMATION_REQUIRED')
     const freshDriftConfirmationEpoch = 'context-stale-card-fresh-confirm'
     const freshDriftControl = controlReceipt({
+      decision: { action: 'confirm-current-budget', requestedBudgetDigest: driftNewPlan.budgetCard.digest },
       prompt: `确认当前验证卡 ${driftNewPlan.budgetCard.digest}`,
       mode: 'confirm',
       sessionKey: driftSession,
@@ -2903,6 +2919,7 @@ function main() {
     })
     const successorConfirmEpoch = 'context-successor-confirm'
     const successorConfirmControl = controlReceipt({
+      decision: { action: 'confirm-current-budget' },
       prompt: '确认当前验证卡，并继续同范围修复后的验证',
       mode: 'confirm',
       sessionKey: successorSession,
@@ -3077,6 +3094,7 @@ function main() {
       })
       const confirmEpoch = `context-successor-negative-confirm-${index}`
       const confirmControl = controlReceipt({
+        decision: { action: 'confirm-current-budget' },
         prompt: '确认当前验证卡',
         mode: 'confirm',
         sessionKey,
@@ -3189,6 +3207,7 @@ function main() {
     assert(['committed', 'semantic-noop'].includes(legacyMutation.status), JSON.stringify(legacyMutation))
     const legacyConfirmEpoch = 'context-successor-legacy-confirm'
     const legacyConfirmControl = controlReceipt({
+      decision: { action: 'confirm-current-budget' },
       prompt: '确认当前验证卡',
       mode: 'confirm',
       sessionKey: legacySuccessorSession,

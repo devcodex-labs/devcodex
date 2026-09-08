@@ -152,7 +152,7 @@ function buildRouteStateFingerprint (routeStop = {}, input = {}) {
     nextCall: routeStop.nextCall || null,
     selectedBusinessSkillId: routeStop.selectedBusinessSkillId || null,
     mustReplyCore: routeStop.mustReplyCore || null,
-    businessSatisfied: routeStop.businessSatisfied !== false
+    businessSatisfied: null
   })
 }
 
@@ -263,8 +263,7 @@ function isBudgetTerminalRoute (routeStop) {
 function hasExecutableRouteAction (routeStop) {
   if (!routeStop || routeStop.complete === true || routeStop.retired === true) return false
   if (isBudgetTerminalRoute(routeStop)) {
-    return routeStop.businessSatisfied === false &&
-      typeof routeStop.mustReplyCore === 'string' && routeStop.mustReplyCore.trim().length > 0
+    return false
   }
   if (routeStop.nextCall && typeof routeStop.nextCall === 'object' &&
       typeof routeStop.nextCall.op === 'string' && routeStop.nextCall.op.trim()) {
@@ -274,14 +273,31 @@ function hasExecutableRouteAction (routeStop) {
       typeof routeStop.recovery.action === 'string' && routeStop.recovery.action.trim()) {
     return true
   }
-  return routeStop.businessSatisfied === false &&
-    typeof routeStop.mustReplyCore === 'string' && routeStop.mustReplyCore.trim().length > 0
+  return false
 }
 
 function retireUnexecutableRoute (routeStop) {
+  if (routeStop?.present) {
+    const legacyReplyGate = routeStop.nextOp === 'satisfy_business' ||
+      routeStop.recovery?.action === 'reply-selected-business-core'
+    routeStop = {
+      ...routeStop,
+      businessSatisfied: null,
+      businessEvaluation: 'UNVERIFIED',
+      mustReplyCore: null,
+      ...(legacyReplyGate ? {
+        complete: routeStop.retired === true || routeStop.processComplete === true,
+        nextOp: null,
+        nextCall: null,
+        recovery: routeStop.retired ? {
+          schemaVersion: 'SkillRouteRetirementRecoveryV1', automatic: true,
+          action: 'retire-and-rebootstrap-next-user-prompt', rebootstrapOnNextUserPrompt: true
+        } : null
+      } : {})
+    }
+  }
   if (routeStop?.present && isBudgetTerminalRoute(routeStop)) {
-    const businessActionRequired = routeStop.businessSatisfied === false &&
-      typeof routeStop.mustReplyCore === 'string' && routeStop.mustReplyCore.trim().length > 0
+    const businessActionRequired = false
     const reason = routeStop.errorCode || routeStop.retirementReason || 'BUDGET_BLOCKED'
     return {
       ...routeStop,
@@ -363,7 +379,7 @@ function isTerminalToolErrorCode (errorCode) {
 }
 
 function terminalRouteProjection (routeStop, terminal) {
-  const businessPending = routeStop?.businessSatisfied === false
+  const businessPending = false
   return {
     ...routeStop,
     complete: !businessPending,
@@ -493,7 +509,8 @@ function buildNextActionEnvelope (routeStop, input = {}) {
     retired: routeStop?.retired === true,
     retirementReason: routeStop?.retirementReason || null,
     completionDisposition: routeStop?.completionDisposition || null,
-    businessSatisfied: routeStop?.businessSatisfied !== false,
+    businessSatisfied: null,
+    businessEvaluation: 'UNVERIFIED',
     mustReplyCore: routeStop?.mustReplyCore || null,
     errorCode: routeStop?.errorCode || null,
     pendingStageIds: routeStop?.pendingStageIds || [],
@@ -511,11 +528,11 @@ function reconcileProgressiveSkillRoute (state, routeStop, input = {}) {
   const fingerprint = buildRouteStateFingerprint(routeStop, {
     sessionKey: input.sessionKey || ''
   })
-  const requiresBusiness = input.requireBusiness === true
+  // Task outcome validation belongs to workflow completion, not this loader.
   const processPending = !!routeStop?.present &&
     routeStop.retired !== true &&
     routeStop.processComplete !== true
-  const businessPending = requiresBusiness && routeStop?.businessSatisfied === false
+  const businessPending = false
   const required = processPending || businessPending
   const expected = isExpectedRouteAction(routeStop, input.payload || {}, input.contextPost)
   const duplicate = !!hookRunId && hookRunId === coordinator.lastHookRunId &&

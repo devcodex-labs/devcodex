@@ -1,6 +1,7 @@
 'use strict'
 
 const path = require('path')
+const { validateIntentSemanticDecision } = require('./intent-semantic-decision.cjs')
 
 const {
   buildJsonContentIdentity,
@@ -126,104 +127,31 @@ function validationProjectRootIdentity(root) {
   return Object.freeze({ ...core, digest: digest(core) })
 }
 
-function normalizeValidationControlInstruction(value) {
-  let normalized = String(value || '')
-    .normalize('NFKC')
-    .trim()
-  const inlineCode = normalized.match(/^`([^`\r\n]+)`$/)
-  if (inlineCode) normalized = inlineCode[1].trim()
-  return normalized.replace(/\s+/g, ' ')
-}
-
-function validationControlClauses(value) {
-  return String(value || '')
-    .split(/[，,；;\r\n]+/)
-    .map(clause => clause.trim().replace(/[。！!]+$/g, '').trim())
-    .filter(Boolean)
-}
-
-function directConfirmationClause(value) {
-  return String(value || '')
-    .replace(/^(?:(?:好的?|是的|可以|同意|收到|没问题|行|我|现在|这里)\s*)+/i, '')
-    .trim()
-}
-
-function declaredValidationPathCount(value) {
-  const match = String(value || '').match(
-    /(?:当前\s*)?冻结(?:的)?\s*(\d{1,3})\s*(?:个|条|路)?\s*(?:路径|paths?)/i
-  )
-  if (!match) return null
-  const count = Number(match[1])
-  return Number.isInteger(count) && count > 0 ? count : null
-}
-
+// Compatibility projection for a model decision, never a prose classifier.
 function classifyValidationControlInstruction(value) {
-  const normalized = normalizeValidationControlInstruction(value)
-  const compact = normalized.replace(/[。！!]+$/g, '').trim()
-  if (/^(?:先)?(?:暂停|别急|停止|先停一下|pause|stop)(?:\b|下|一下|验证|执行|当前)/i.test(compact) ||
-      /^(?:请)?缩小(?:验证)?范围/i.test(compact)) {
-    return { action: 'revoke', reason: 'user-pause-stop-or-scope-reduction' }
+  if (!value || typeof value !== 'object' ||
+      !['none', 'revoke', 'confirm-current-budget'].includes(value.action)) {
+    return { action: 'none', reason: 'model-validation-decision-pending', requestedBudgetDigest: null }
   }
-
-  // Classification recognizes intent only. Pending-card freshness, task/session/candidate
-  // identity, digest equality and the one-turn barrier remain server-side authority gates.
-  if (/(?:不要|别|不必|无需|尚未|未|没有|没|拒绝|取消)\s*(?:再|立即|现在)?\s*确认/i.test(compact) ||
-      /(?:如果|若|假如|是否|能否|可否|怎么|如何|何时|为什么)\s*(?:要|会|能|可)?\s*确认/i.test(compact) ||
-      /(?:请回复|请回答|请输入|请说|例如|示例|引用|他说|她说|用户说)[^，,；;\r\n]*确认/i.test(compact)) {
-    return { action: 'none', reason: 'non-direct-or-negated-confirmation-intent', requestedBudgetDigest: null }
+  return {
+    action: value.action, reason: 'model-validation-decision',
+    requestedBudgetDigest: value.requestedBudgetDigest || null,
+    ...(Number.isInteger(value.declaredChangedPathCount) ? { declaredChangedPathCount: value.declaredChangedPathCount } : {})
   }
-
-  for (const rawClause of validationControlClauses(compact)) {
-    const clause = directConfirmationClause(rawClause)
-    if (/^(?:确认|confirm)(?:一下)?$/i.test(clause)) {
-      return {
-        action: 'confirm-current-budget',
-        reason: 'contextual-current-budget-confirmation',
-        requestedBudgetDigest: null
-      }
-    }
-    const confirmation = clause.match(
-      /^(?:确认|confirm)(?:一下)?(?:当前|现在)(?:的)?\s*(?:验证卡|budget\s*card)(?:\s+([a-f0-9]{64}))?$/i
-    )
-    if (confirmation) {
-      return {
-        action: 'confirm-current-budget',
-        reason: confirmation[1]
-          ? 'intent-current-budget-confirmation-with-digest'
-          : 'intent-current-budget-confirmation',
-        requestedBudgetDigest: confirmation[1] ? confirmation[1].toLowerCase() : null
-      }
-    }
-    const scopedExecutionConfirmation = clause.match(
-      /^(?:确认|confirm)(?:一下)?\s*(?:执行|按(?:照)?|采用|采纳|继续)\s+(.+)$/i
-    )
-    if (scopedExecutionConfirmation &&
-        !/(?:吗|呢)\s*[?？]?$|[?？]$/i.test(scopedExecutionConfirmation[1])) {
-      return {
-        action: 'confirm-current-budget',
-        reason: 'intent-scoped-execution-confirmation',
-        requestedBudgetDigest: null,
-        declaredChangedPathCount: declaredValidationPathCount(compact)
-      }
-    }
-  }
-  return { action: 'none', reason: 'no-validation-control-instruction', requestedBudgetDigest: null }
 }
 
-function validationControlClassification(actualInstruction, executionMode) {
-  const classified = classifyValidationControlInstruction(actualInstruction)
+function validationControlClassification(decision, executionMode) {
+  const classified = classifyValidationControlInstruction(decision?.validationDecision)
   const mode = executionMode === 'auto' ? 'auto' : 'confirm'
+  const autoSelected = ['enable-auto', 'retain-current'].includes(decision?.executionDecision)
   const action = classified.action === 'revoke'
     ? 'revoke'
     : (classified.action === 'confirm-current-budget'
         ? 'confirm-current-budget'
-        : (mode === 'auto' ? 'auto-authorize' : 'none'))
+        : (mode === 'auto' && autoSelected ? 'auto-authorize' : 'none'))
   return {
-    classified,
-    executionMode: mode,
-    action,
-    authorityKind: action === 'confirm-current-budget'
-      ? 'user-confirmation'
+    classified, executionMode: mode, action,
+    authorityKind: action === 'confirm-current-budget' ? 'user-confirmation'
       : (action === 'auto-authorize' ? 'auto' : 'none')
   }
 }
@@ -305,11 +233,18 @@ function createValidationControlIngressIntent(input = {}, options = {}) {
   if (envelope.authorityScope !== 'trusted-host-workflow-ingress' || envelope.instructionAuthority !== true) {
     throw new WorkflowCompletionError('VALIDATION_CONTROL_ENVELOPE_UNTRUSTED', 'validation control requires the current trusted host user-instruction event')
   }
-  const separated = separateEmbeddedEvidence(input.actualInstruction)
-  if (actualInstructionDigest(separated.instruction) !== envelope.actualInstructionDigest) {
-    throw new WorkflowCompletionError('VALIDATION_CONTROL_INSTRUCTION_MISMATCH', 'validation control text does not match the current ActualInstructionEnvelope')
+  const semantic = validateIntentSemanticDecision(input.semanticDecision, {
+    envelope, requireSource: input.semanticDecision !== undefined, contextEpoch: envelope.contextEpoch,
+    nowMs: options.now
+  })
+  requireValid(semantic, 'VALIDATION_CONTROL_SEMANTIC_SOURCE_INVALID', 'validation decision requires the current model source binding')
+  if (input.actualInstruction !== undefined || semantic.value === undefined) {
+    const separated = separateEmbeddedEvidence(input.actualInstruction)
+    if (actualInstructionDigest(separated.instruction) !== envelope.actualInstructionDigest) {
+      throw new WorkflowCompletionError('VALIDATION_CONTROL_INSTRUCTION_MISMATCH', 'validation control text does not match the current ActualInstructionEnvelope')
+    }
   }
-  const control = validationControlClassification(separated.instruction, input.executionMode)
+  const control = validationControlClassification(semantic.value, input.executionMode)
   const projectRoot = input.projectRootIdentity || validationProjectRootIdentity(input.projectRoot)
   const issuedAt = input.issuedAt || envelope.issuedAt
   const requestedTtlMs = Number.isFinite(options.ttlMs) ? Math.max(1000, options.ttlMs) : 15 * 60 * 1000

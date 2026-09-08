@@ -445,6 +445,15 @@ function inspectRuntimeGenerationLeases (runtimeBaseRoot, generationId, options 
   if (!fsImpl.existsSync(root)) {
     return { root: portable(root), complete: true, live: [], dead: [], unknown: [], transient: [], claims: [] }
   }
+  try {
+    for (const directory of [path.join(path.resolve(runtimeBaseRoot), LEASE_ROOT_NAME), root]) {
+      const stat = fsImpl.lstatSync(directory)
+      if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('lease-root-not-plain-directory')
+    }
+  } catch (error) {
+    return { root: portable(root), complete: false, live: [], dead: [], transient: [], claims: [],
+      unknown: [{ path: portable(root), reasonCode: error.code || error.message }] }
+  }
   let entries
   try { entries = fsImpl.readdirSync(root, { withFileTypes: true }) } catch (error) {
     return {
@@ -494,7 +503,7 @@ function inspectRuntimeGenerationLeases (runtimeBaseRoot, generationId, options 
       continue
     }
     const parsed = readJsonBounded(file, fsImpl)
-    const validation = validateLease(parsed, { generationId })
+    const validation = validateLease(parsed, { generationId, runtimeRoot: options.runtimeRoot })
     if (!validation.valid) {
       result.complete = false
       result.unknown.push({ path: portable(file), reasonCode: validation.reasonCode })

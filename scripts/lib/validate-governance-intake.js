@@ -251,7 +251,7 @@ function buildGovernanceIntakeChecks(ctx) {
       return
     }
 
-    const { checkedDirs, issues } = collectRecentRequirementArtifactIssues({
+    const { checkedDirs, issues, warnings = [] } = collectRecentRequirementArtifactIssues({
       activeRoot: ACTIVE_DEVCODEX_ROOT,
       recentDays: RECENT_REQUIREMENT_ARTIFACT_DAYS
     })
@@ -262,6 +262,7 @@ function buildGovernanceIntakeChecks(ctx) {
 
     for (const issue of issues) err(`[V41] ${issue}`)
     for (const issue of bugResult.issues) err(`[V41] ${issue}`)
+    for (const warning of [...warnings, ...(bugResult.warnings || [])]) console.log(`[V41] WARN ${warning}`)
 
     // Dual-Track M2 (PF-173): recent completed dev/fix reports need substance ECR evidence
     let ecrChecked = 0

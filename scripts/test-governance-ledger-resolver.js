@@ -49,6 +49,24 @@ try {
   assert.strictEqual(freshInitialized.status, 'initialized')
   assert.strictEqual(loadGovernanceLedgerManifest(freshRoot).inspection.recordCount, 0)
   assert.deepStrictEqual(buildGovernanceLedgerIndex(freshRoot).records, [])
+  const reserved = allocateGovernanceRecordId(freshRoot, 'PF')
+  assert.strictEqual(reserved.id, 'PF-001')
+  const lagging = loadGovernanceLedgerManifest(freshRoot).manifest
+  lagging.ledgerFamilies.PF.nextSequence = 1
+  write('fresh-empty/data/governance-ledger-manifest.json', JSON.stringify(lagging))
+  write('fresh-empty/data/process-improvements.md', '| PI-017 | 2026-09-08 | open |\n')
+  const reconciled = initializeGovernanceLedgerManifest(freshRoot)
+  assert.strictEqual(reconciled.status, 'reconciled')
+  assert.deepStrictEqual(reconciled.recovered, [
+    { kind: 'PI', before: 1, after: 18 }, { kind: 'PF', before: 1, after: 2 }
+  ])
+  assert.strictEqual(allocateGovernanceRecordId(freshRoot, 'PF').id, 'PF-002', 'reserved but unwritten ID is not reused')
+  assert.strictEqual(allocateGovernanceRecordId(freshRoot, 'PI').id, 'PI-018')
+  const duplicateBefore = fs.readFileSync(path.join(freshRoot, 'data', 'governance-ledger-manifest.json'), 'utf8')
+  write('fresh-empty/data/process-improvements.md', '| PI-017 | 2026-09-08 | open |\n| PI-017 | 2026-09-08 | open |\n')
+  expectCode(() => allocateGovernanceRecordId(freshRoot, 'PI'), 'GOVERNANCE_LEDGER_MANIFEST_INVALID')
+  assert.strictEqual(fs.readFileSync(path.join(freshRoot, 'data', 'governance-ledger-manifest.json'), 'utf8'), duplicateBefore,
+    'duplicate IDs must not be repaired by overwriting the counter or records')
 
   write('data/process-improvements.md', '| PI-001 | 2026-08-01 | open |\n')
   write('data/pending-fixes.md', '| PF-001 | 2026-08-01 | open |\n')
@@ -203,5 +221,7 @@ try {
 
   console.log('governance ledger resolver, manifest, allocation, migration, index and rollback tests passed')
 } finally {
-  fs.rmSync(root, { recursive: true, force: true })
+  if (process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1' || process.env.DEVCODEX_TEST_KEEP_TEMP === '1') {
+    console.log(`Governance ledger fixture retained: ${root}`)
+  } else fs.rmSync(root, { recursive: true, force: true })
 }

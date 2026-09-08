@@ -27,7 +27,7 @@ function createWorkspace(projectInfo) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-validate-profile-'))
     TEMP_ROOTS.push(root)
 
-    writeFile(root, 'package.json', JSON.stringify({ name: PACKAGE_NAME }, null, 2))
+    writeFile(root, 'package.json', JSON.stringify({ name: PACKAGE_NAME, bin: { devcodex: 'index.js' } }, null, 2))
     writeFile(root, '.devcodex/profile/README.md', '# README\n\n- Profile 档位：profile-lite。\n- `config.local.json`：本地私有 overlay。\n- `extensions.<namespace>`：扩展位需在 Profile 中说明。\n')
     writeFile(root, '.devcodex/profile/02-架构约束.md', '# 02\n')
     writeFile(root, '.devcodex/profile/03-代码风格.md', '# 03\n')
@@ -109,7 +109,7 @@ function createWorkspaceNamespaceWorkspace(projectInfo) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-validate-profile-ws-'))
     TEMP_ROOTS.push(root)
 
-    writeFile(root, 'package.json', JSON.stringify({ name: PACKAGE_NAME }, null, 2))
+    writeFile(root, 'package.json', JSON.stringify({ name: PACKAGE_NAME, bin: { devcodex: 'index.js' } }, null, 2))
     writeFile(root, '.devcodex/layout.json', JSON.stringify({ version: 1, mode: 'workspace-namespace' }, null, 2))
     writeFile(root, '.devcodex/workspace/profile/README.md', '# README\n\n- Profile 档位：profile-lite。\n')
     writeFile(root, '.devcodex/workspace/profile/02-架构约束.md', '# 02\n')
@@ -121,6 +121,7 @@ function createWorkspaceNamespaceWorkspace(projectInfo) {
     }, null, 2))
     writeFile(root, '.devcodex/workspace/profile/01-项目信息.md', projectInfo)
     fs.mkdirSync(path.join(root, 'chat'), { recursive: true })
+    writeFile(root, 'chat/package.json', JSON.stringify({ name: 'chat', bin: { devcodex: 'index.js' } }, null, 2))
 
     return root
 }
@@ -615,7 +616,7 @@ function main() {
             { overrides: { lifecycleState: 'published-by-doc' }, expected: /invalid lifecycleState/ },
             { overrides: { evidenceState: 'claimed' }, expected: /invalid evidenceState/ },
             { overrides: { asOf: 'today' }, expected: /invalid asOf/ },
-            { overrides: { evidenceRefs: '' }, expected: /missing evidenceRefs/ }
+            { overrides: { evidenceRefs: '' }, expected: /missing-field:evidenceRefs/ }
         ]) {
             const invalidV2Root = createClosedLoopWorkspace('stable baseline / living document / conditional-required local docs')
             writeFile(invalidV2Root, '.devcodex/profile/06-功能清单.md', featureInventoryDocument(invalidV2.overrides))
@@ -698,7 +699,7 @@ function main() {
         const placeholderOnlyResult = runValidate(placeholderOnlyRoot)
         const placeholderOnlyOutput = `${placeholderOnlyResult.stdout}\n${placeholderOnlyResult.stderr}`
         assert.strictEqual(placeholderOnlyResult.status, 1, placeholderOnlyOutput)
-        assert.match(placeholderOnlyOutput, /at least one non-placeholder row with source evidence/)
+        assert.match(placeholderOnlyOutput, /source-evidence-unverified/)
 
         const fakeSourceRoot = createWorkspace(currentProjectInfo())
         writeFile(fakeSourceRoot, '.devcodex/profile/README.md', '# README\n\n- Profile 档位：profile-standard。\n- Feature inventory source: `missing/features.md`\n')

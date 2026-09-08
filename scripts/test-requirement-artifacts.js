@@ -163,7 +163,7 @@ try {
     'Recovery, concurrency and observable write results were reviewed.'
   ].join('\n'))
 
-  const { checkedDirs, issues, mergedRegistryDigest, registrySlotCount } = collectRecentRequirementArtifactIssues({
+  const { checkedDirs, issues, warnings, templateObservations, mergedRegistryDigest, registrySlotCount } = collectRecentRequirementArtifactIssues({
     activeRoot: tempRoot,
     recentDays: RECENT_REQUIREMENT_ARTIFACT_DAYS
   })
@@ -185,20 +185,27 @@ try {
   assert(checkedDirs.includes('bad-template-pr1'))
   assert(checkedDirs.includes('good-template-pr1'))
   assert(!checkedDirs.includes('old-requirement'))
-  assert(!checkedDirs.includes('simple-fast-path'))
+  assert(checkedDirs.includes('simple-fast-path'))
   assert(hasSimpleTaskFastPathMarker(path.join(requirementsRoot, 'simple-fast-path')))
-  assert(issues.some(item => item.includes('bad-requirement/00-需求概况.md missing "## 目录导航"')))
-  assert(issues.some(item => item.includes('bad-requirement/01-需求确认.md missing "## 目录导航"')))
-  assert(issues.some(item => item.includes('bad-product-requirement/01-产品需求.md missing "## 目录导航"')))
-  assert(issues.some(item => item.includes('bad-change/00-需求变更概况.md missing "## 目录导航"')))
-  assert(issues.some(item => item.includes('bad-change/01-需求变更确认.md missing "## 目录导航"')))
-  assert(issues.some(item => item.includes('bad-requirement/04-实施计划.md missing plan mode')))
-  assert(issues.some(item => item.includes('bad-requirement/04-实施计划.md missing rollback section')))
-  assert(issues.some(item => item.includes('bad-requirement/05-实施进度.md missing "支撑产物状态"')))
-  assert(issues.some(item => item.includes('bad-template-pr1/03-方案复审-PR1.md template qualification artifact-template-required-semantic-missing:')))
-  assert(!issues.some(item => item.includes('good-requirement')), JSON.stringify(issues.filter(item => item.includes('good-requirement'))))
-  assert(!issues.some(item => item.includes('good-product-requirement')))
-  assert(!issues.some(item => item.includes('good-template-pr1')))
+  assert.strictEqual(issues.length, 0, 'retrospective formatting cannot claim current producer failure')
+  assert(warnings.some(item => item.includes('historical generation and intent satisfaction UNVERIFIED')))
+  const badObservation = templateObservations.find(item => item.path === 'bad-template-pr1/03-方案复审-PR1.md')
+  assert.strictEqual(badObservation.structureStatus, 'WARN')
+  assert.strictEqual(badObservation.generationEvidence, 'UNVERIFIED')
+  assert.strictEqual(badObservation.intentSatisfaction, 'UNVERIFIED')
+  assert.match(badObservation.artifactDigest, /^[a-f0-9]{64}$/)
+  assert(templateObservations.find(item => item.path === 'good-template-pr1/03-方案复审-PR1.md').structureStatus === 'PASS')
+  assert.strictEqual(templateObservations.find(item => item.path === 'good-template-pr1/03-方案复审-PR1.md').generationEvidence, 'UNVERIFIED',
+    'matching current structure cannot reconstruct historical generation evidence')
+  write(path.join(requirementsRoot, 'simple-fast-path', '02-功能清单.md'), '# unknown formal artifact\n')
+  const noNarrativeBypass = collectRecentRequirementArtifactIssues({ activeRoot: tempRoot })
+  assert(noNarrativeBypass.checkedDirs.includes('simple-fast-path'))
+  assert(noNarrativeBypass.issues.some(item => item.includes('simple-fast-path/02-功能清单.md unknown formal artifact slot')))
+  const optimizationPlan = path.join(tempRoot, 'optimizations', 'optimization-coverage', '01-需求确认.md')
+  write(optimizationPlan, '# historical optimization\n')
+  const optimizationResult = collectRecentRequirementArtifactIssues({ activeRoot: tempRoot })
+  assert(optimizationResult.checkedDirs.includes('optimizations/optimization-coverage'))
+  assert(optimizationResult.templateObservations.some(item => item.path.startsWith('optimizations/optimization-coverage/')))
 
   const pr1Slot = baseRegistry.slots.find(slot => slot.slotId === 'plan-review-pr1')
   const invalidPr1Path = path.join(requirementsRoot, 'bad-template-pr1', '03-方案复审-PR1.md')
@@ -314,10 +321,9 @@ try {
   assert(bugResult.checkedDirs.includes('good-bug'))
   assert(bugResult.checkedDirs.includes('bad-bug'))
   assert(bugResult.checkedDirs.includes('unknown-only-bug'))
-  assert(!bugResult.checkedDirs.includes('simple-fast-path-bug'))
+  assert(bugResult.checkedDirs.includes('simple-fast-path-bug'))
   assert(hasSimpleTaskFastPathMarker(path.join(bugsRoot, 'simple-fast-path-bug')))
-  assert(bugResult.issues.some(item => item.includes('bad-bug/00-问题概况.md missing "## 目录导航"')))
-  assert(bugResult.issues.some(item => item.includes('bad-bug/01-问题确认.md missing "## 目录导航"')))
+  assert(bugResult.templateObservations.some(item => item.path === 'bad-bug/00-问题概况.md' && item.structureStatus === 'WARN'))
   assert(bugResult.issues.some(item => item.includes('unknown-only-bug/02-功能清单.md unknown formal artifact slot')))
   assert(!bugResult.issues.some(item => item.includes('good-bug')), JSON.stringify(bugResult.issues.filter(item => item.includes('good-bug'))))
 

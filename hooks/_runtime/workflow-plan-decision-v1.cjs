@@ -36,32 +36,16 @@ function explicitAxis(value, allowed) {
   return allowed.has(normalized) ? normalized : null
 }
 
+/** Consume the current model decision; arbitrary prose never overrides it. */
 function parseExplicitWorkflowPreference(input = {}) {
-  const text = String(input.prompt || input.text || '')
   const structured = input.userIntent && typeof input.userIntent === 'object' && !Array.isArray(input.userIntent)
-    ? input.userIntent
-    : {}
-  let ceremonyTier = null
-  let designDepth = null
-  let assuranceLevel = null
-
-  if (!ceremonyTier && /(?:默认|采用|走|使用|按)?\s*(?:简单|轻量|精简|快速)流程|simple\s+(?:flow|ceremony)/i.test(text)) ceremonyTier = 'simple'
-  if (!ceremonyTier && /(?:默认|采用|走|使用|按)?\s*(?:标准|完整|复杂)流程|standard\s+(?:flow|ceremony)/i.test(text)) ceremonyTier = 'standard'
-  if (!designDepth && /(?:最小|最简|够用)\s*(?:技术)?方案|minimal\s+(?:technical\s+)?design/i.test(text)) designDepth = 'minimal'
-  if (!designDepth && /标准\s*(?:技术)?方案|standard\s+(?:technical\s+)?design/i.test(text)) designDepth = 'standard'
-  if (!assuranceLevel && /(?:只|仅)?\s*(?:定向|针对性|相关)验证|targeted\s+(?:test|validation)/i.test(text)) assuranceLevel = 'targeted'
-  if (!assuranceLevel && /(?:受影响|影响范围)验证|affected\s+(?:test|validation)/i.test(text)) assuranceLevel = 'affected'
-  if (!assuranceLevel && /(?:全量|完整|全面)验证|full\s+(?:test|validation|audit)/i.test(text)) assuranceLevel = 'full'
-
-  ceremonyTier ||= explicitAxis(structured.ceremonyTier, CEREMONY_TIERS)
-  designDepth ||= explicitAxis(structured.designDepth, DESIGN_DEPTHS)
-  assuranceLevel ||= explicitAxis(structured.assuranceLevel, ASSURANCE_LEVELS)
-
+    ? input.userIntent : {}
+  const ceremonyTier = explicitAxis(structured.ceremonyTier, CEREMONY_TIERS)
+  const designDepth = explicitAxis(structured.designDepth, DESIGN_DEPTHS)
+  const assuranceLevel = explicitAxis(structured.assuranceLevel, ASSURANCE_LEVELS)
   return {
-    ceremonyTier,
-    designDepth,
-    assuranceLevel,
-    evidence: text.trim() ? ['current-user-message'] : []
+    ceremonyTier, designDepth, assuranceLevel,
+    evidence: ceremonyTier || designDepth || assuranceLevel ? ['model-semantic-decision'] : []
   }
 }
 

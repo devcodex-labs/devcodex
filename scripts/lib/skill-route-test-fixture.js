@@ -205,7 +205,7 @@ function createSkillRouteFixture (options = {}) {
     env: {}
   }
   fixture.cleanup = () => {
-    if (process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1') {
+    if (process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1' || process.env.DEVCODEX_TEST_KEEP_TEMP === '1') {
       process.stderr.write(`[skill-route-test-fixture] retained ${root}\n`)
       return
     }

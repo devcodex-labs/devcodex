@@ -74,6 +74,9 @@ function resolveCurrentAdapter (host, options = {}) {
   const baseRoot = path.resolve(options.baseRoot || __dirname)
   const receiptFile = path.join(baseRoot, 'global-host-receipt.json')
   const receipt = readJson(receiptFile, 'global host receipt', fsImpl)
+  if (receipt.removal?.schemaVersion === 'GlobalHostRemovalStateV1') {
+    throw launcherError('GLOBAL_HOST_LAUNCHER_REMOVAL_PENDING', receiptFile)
+  }
   if (receipt.schemaVersion !== RECEIPT_SCHEMA ||
       receipt.result !== 'committed' ||
       receipt.host !== normalizedHost) {

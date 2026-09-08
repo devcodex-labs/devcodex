@@ -96,12 +96,6 @@
       "reason": "完整 instructions 与安全模块共享同一 S02 默认策略。"
     },
     {
-      "id": "DP-014",
-      "candidateIds": ["exact-7e32f7357215"],
-      "decision": "must-retain",
-      "reason": "一个是索引模板、一个是 Skill 输出示例，局部角色不同且需保持单文件完整。"
-    },
-    {
       "id": "DP-015",
       "candidateIds": ["exact-904be7e09270"],
       "decision": "extract",

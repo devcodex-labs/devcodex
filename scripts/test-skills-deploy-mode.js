@@ -44,7 +44,8 @@ assert.strictEqual(resolveSkillsDeployMode({}, { skillsDeployMode: 'legacy' }), 
     resolveGlobalSkillsRoot({ env: { ...env, DEVCODEX_GLOBAL_SKILLS_ROOT: override }, home }),
     path.resolve(override)
   )
-  fs.rmSync(home, { recursive: true, force: true })
+  if (process.env.DEVCODEX_TEST_KEEP_TEMP !== '1') fs.rmSync(home, { recursive: true, force: true })
+  else console.log('Retained skills deploy fixture:', home)
 }
 
 {
@@ -97,14 +98,14 @@ assert.strictEqual(resolveSkillsDeployMode({}, { skillsDeployMode: 'legacy' }), 
 
   const plan = buildGlobalHostConfigPlan({ packageRoot, env, home })
   assert.strictEqual(plan.skillsDeployMode, 'hidden')
-  assert.ok(plan.operations.some(op =>
-    String(op.path).includes(path.join('.agents', 'devcodex', 'skills', 'routing'))
-  ))
+  assert.ok(plan.targets.every(target => plan.operations.some(op =>
+    op.path === path.join(target.runtimeRoot, 'skills', 'routing', 'SKILL.md')
+  )))
 
   const applied = applyGlobalHostConfig({ packageRoot, env, home })
   assert.strictEqual(applied.transaction.status, 'committed')
   assert.strictEqual(
-    fs.existsSync(path.join(home, '.agents', 'devcodex', 'skills', 'routing', 'SKILL.md')),
+    fs.existsSync(path.join(plan.targets[0].runtimeRoot, 'skills', 'routing', 'SKILL.md')),
     true
   )
   assert.strictEqual(fs.readFileSync(path.join(home, '.agents', 'skills', 'routing', 'SKILL.md'), 'utf8'), userContent)

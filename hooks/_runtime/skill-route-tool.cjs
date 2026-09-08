@@ -1112,8 +1112,11 @@ function handleCommit (input, target, options) {
         error.code = 'FREE_WITH_EXPLICIT'
         throw error
       }
-      if (!explicitReady &&
-          state.servedCatalogPages.length !== state.catalog.pages.length) {
+      const catalogComplete = state.servedCatalogPages.length === state.catalog.pages.length
+      const choiceObserved = input.skillId !== null && state.servedCatalogPages.some(pageIndex =>
+        state.catalog.pages[pageIndex]?.cards.some(card => card.skillId === input.skillId)
+      )
+      if (!explicitReady && !catalogComplete && !choiceObserved) {
         const error = new Error('CATALOG_PAGE_INCOMPLETE')
         error.code = 'CATALOG_PAGE_INCOMPLETE'
         throw error
@@ -1263,6 +1266,7 @@ function handleCommit (input, target, options) {
       state.trustedContextBindingDigest = trustedContext.bindingDigest
       state.hostSessionId = trustedContext.hostSessionId || state.hostSessionId || ''
       if (budgetReservation) state.bodyChargeLedger = budgetReservation.ledger
+      chargeExactReads(envelope)
       state.obligationLedger = buildObligationLedger(plan, state.stageProgress)
       const summary = summarizePlan(plan)
       const response = bindResponseToTransaction(plan.status === 'complete'
@@ -1478,7 +1482,7 @@ function handleRebind (input, target, options) {
       state.hostSessionId = trustedContext.hostSessionId || state.hostSessionId || ''
       state.bodyChargeLedger = budgetReservation.ledger
       state.obligationLedger = buildObligationLedger(plan, state.stageProgress)
-      const pendingStageIds = (state.obligationLedger.requiredStageIds || []).filter(stageId =>
+      const pendingStageIds = dueStageIds(state).filter(stageId =>
         state.stageProgress[stageId]?.status !== 'loaded'
       )
       const response = bindResponseToTransaction(successResponse('rebind', {
@@ -1523,7 +1527,7 @@ function handleRebind (input, target, options) {
 }
 
 function stageItems (plan, stageId) {
-  return plan.baseResolution.selected.filter(item => item.loadStage === stageId)
+  return (plan?.baseResolution?.selected || []).filter(item => item.loadStage === stageId)
 }
 
 function stageIdentityKeys (plan, stageId) {
@@ -1596,6 +1600,88 @@ function assertReplanProgressCompatible (priorPlan, nextPlan, progress = {}, opt
   }
 }
 
+function exactReadKey (item, epoch) {
+  return `${item.skillId}|${item.effectiveLayer}|${item.bodyDigest}|${epoch}`
+}
+
+function exactReadKeys (state) {
+  const selected = state.plan?.baseResolution?.selected || []
+  return new Set(selected.filter(item => {
+    const read = state.exactReadLedger?.[exactReadKey(item, state.contextEpoch)]
+    return read && read.totalPages > 0 && read.pages.length === read.totalPages &&
+      read.pages.every((page, index) => page === index + 1)
+  }).map(item => exactReadKey(item, state.contextEpoch)))
+}
+
+function stageReadSatisfied (state, stageId) {
+  if (state.stageProgress?.[stageId]?.status === 'loaded') return true
+  const items = stageItems(state.plan, stageId)
+  const keys = exactReadKeys(state)
+  return items.length > 0 && items.every(item => keys.has(exactReadKey(item, state.contextEpoch)))
+}
+
+function chargeExactReads (envelope) {
+  const keys = exactReadKeys(envelope.state)
+  const items = (envelope.state.plan?.baseResolution?.selected || [])
+    .filter(item => keys.has(exactReadKey(item, envelope.state.contextEpoch)))
+  if (!items.length) return
+  const charged = applyBodyCharges(envelope, items, { scope: 'exact-read-observation' })
+  envelope.state.bodyChargeLedger = charged.ledger
+  envelope.state.budget = charged.budget
+}
+
+// The exact reader stays stateless. Only this route owner may consume a read
+// for an already selected obligation; reference-only calls never create a route.
+function observeExactRouteRead (input, target, response, options) {
+  let existing
+  try { existing = loadEnvelope(target.activeRoot, input.turnBinding, options).envelope.state } catch (error) {
+    if (['TURN_NOT_FOUND', 'TURN_EXPIRED'].includes(error.code)) return response
+    throw error
+  }
+  const accepts = state => (state.plan?.baseResolution?.selected || []).some(item => item.skillId === input.skillId) ||
+    (!state.plan && state.explicit?.status === 'ready' && state.explicit.skillId === input.skillId)
+  if (!accepts(existing)) return response
+  const transaction = transactEnvelope(target.activeRoot, input.turnBinding, {
+    op: 'observe_exact', project: input.project, contextEpoch: input.contextEpoch,
+    skillId: input.skillId, cursor: input.cursor || null, evidenceDigest: response.receipt.receiptDigest
+  }, envelope => {
+    const state = envelope.state
+    assertEnvelopeBinding(state, input, target, options)
+    if (!accepts(state) || terminalRouteRetirement(state)) {
+      return { envelope, response: { accepted: false } }
+    }
+    state.exactReadLedger = state.exactReadLedger || {}
+    const acceptedKeys = []
+    for (const chunk of response.bodyChunks) {
+      const selected = state.plan?.baseResolution?.selected?.find(item => item.skillId === chunk.skillId)
+      if (state.plan && (!selected || selected.effectiveLayer !== chunk.effectiveLayer ||
+          selected.bodyDigest !== chunk.bodyDigest)) continue
+      const key = exactReadKey(chunk, state.contextEpoch)
+      const prior = state.exactReadLedger[key]
+      if (prior && prior.totalPages !== chunk.skillTotalPages) {
+        throw Object.assign(new Error('SKILL_EXACT_READ_DRIFT'), { code: 'SKILL_EXACT_READ_DRIFT' })
+      }
+      const read = prior || { totalPages: chunk.skillTotalPages, pages: [], receipts: [], deliveredBytes: 0 }
+      if (!read.pages.includes(chunk.skillPage)) {
+        read.pages.push(chunk.skillPage)
+        read.pages.sort((a, b) => a - b)
+        read.receipts.push(response.receipt.receiptDigest)
+        read.deliveredBytes += chunk.bytes
+      }
+      state.exactReadLedger[key] = read
+      acceptedKeys.push(key)
+    }
+    chargeExactReads(envelope)
+    return { envelope, response: {
+      accepted: true, acceptedKeys, contextEpoch: state.contextEpoch,
+      planDigest: state.plan?.planDigest || null, businessEvaluation: 'UNVERIFIED'
+    } }
+  }, options)
+  response.routeObservation = transaction.response
+  response.stateChanged = !transaction.replayed
+  return finalizeResponse(response, 64 * 1024)
+}
+
 function buildLoadStageNextCall (state, stageId) {
   const servedPageCount = state.stageProgress[stageId]?.servedPages?.length || 0
   return {
@@ -1639,7 +1725,12 @@ function summarizeStageProgress (stageProgress = {}) {
 
 function buildStagePages (state, stageId, options = {}) {
   const fsImpl = options.fs || fs
-  const items = stageItems(state.plan, stageId)
+  const allItems = stageItems(state.plan, stageId)
+  const observed = state.stageProgress[stageId]
+    ? new Set(state.stageProgress[stageId].exactReadKeys || [])
+    : exactReadKeys(state)
+  const items = allItems.filter(item => !observed.has(exactReadKey(item, state.contextEpoch)))
+  if (allItems.length && !items.length) return [[]]
   if (!items.length) {
     const error = new Error('STAGE_NOT_FOUND')
     error.code = 'STAGE_NOT_FOUND'
@@ -1864,7 +1955,7 @@ function handleLoadStage (input, target, options) {
         throw error
       }
       const unfinishedDependencies = (stage.dependsOn || []).filter(dependency =>
-        state.stageProgress[dependency]?.status !== 'loaded'
+        !stageReadSatisfied(state, dependency)
       )
       if (unfinishedDependencies.length) {
         const error = new Error('STAGE_ORDER_VIOLATION')
@@ -1929,7 +2020,10 @@ function handleLoadStage (input, target, options) {
       const progress = state.stageProgress[stageId] || {
         status: 'loading',
         servedPages: [],
-        loadedKeys: []
+        exactReadKeys: [...exactReadKeys(state)],
+        loadedKeys: [...exactReadKeys(state)].filter(key =>
+          stageItems(state.plan, stageId).some(item => exactReadKey(item, state.contextEpoch) === key)
+        )
       }
       if (!progress.servedPages.includes(pageIndex)) progress.servedPages.push(pageIndex)
       for (const key of loadedKeys) {
@@ -2024,10 +2118,12 @@ function handleStatus (input, target, options) {
     : null
   const requiredStageIds = state.obligationLedger?.requiredStageIds || []
   const satisfiedStageIds = requiredStageIds.filter(stageId =>
-    state.stageProgress[stageId]?.status === 'loaded'
+    stageReadSatisfied(state, stageId)
   )
-  const pendingStageIds = requiredStageIds.filter(stageId =>
-    state.stageProgress[stageId]?.status !== 'loaded'
+  const due = dueStageIds(state)
+  const deferredStageIds = requiredStageIds.filter(id => !due.includes(id))
+  const pendingStageIds = due.filter(stageId =>
+    !stageReadSatisfied(state, stageId)
   )
   const budgetResult = routeRetirement
     ? { projection: null }
@@ -2042,7 +2138,7 @@ function handleStatus (input, target, options) {
     : null
   let contextErrorCode = null
   let contextRecovery = null
-  if (!routeRetirement && !budgetErrorCode && state.plan && pendingStageIds.length) {
+  if (!routeRetirement && !budgetErrorCode && state.plan) {
     try {
       validateRouteContextPrecondition(state, target, options)
     } catch (error) {
@@ -2067,7 +2163,7 @@ function handleStatus (input, target, options) {
     !routeRetirement &&
     !budgetErrorCode &&
     !contextErrorCode &&
-    requiredStageIds.length === satisfiedStageIds.length
+    pendingStageIds.length === 0
   const nextOp = routeRetirement
     ? null
     : (budgetErrorCode
@@ -2107,6 +2203,8 @@ function handleStatus (input, target, options) {
       schemaVersion: 'ObligationStatusV1',
       requiredStageIds,
       satisfiedStageIds,
+      deferredStageIds,
+      allStagesLoaded: requiredStageIds.length === satisfiedStageIds.length,
       processComplete,
       selectedBusiness
     },
@@ -2181,25 +2279,26 @@ const TRUSTED_BUSINESS_RETIREMENT_ERRORS = new Set([
  * @param {object} state persisted route state
  * @param {object} input lifecycle Stop input
  * @param {object} [options] trust controls for a misbound envelope
- * @returns {{pendingStageIds: string[], business: object|null, businessSatisfied: boolean}}
+ * @returns {{pendingStageIds: string[], business: object|null, businessSatisfied: null}}
  */
+function dueStageIds (state, trigger = 'PostToolUse') {
+  const required = state.obligationLedger?.requiredStageIds || []
+  const closeoutStarted = ['loading', 'loaded'].includes(state.stageProgress?.closeout?.status)
+  return required.filter(id => id !== 'closeout' || trigger === 'Stop' || closeoutStarted)
+}
+
 function summarizeStopObligations (state, input, options = {}) {
-  const requiredStageIds = state.obligationLedger?.requiredStageIds || []
-  const stageProgress = state.stageProgress || {}
-  const pendingStageIds = requiredStageIds.filter(stageId =>
-    stageProgress[stageId]?.status !== 'loaded'
+  const pendingStageIds = dueStageIds(state, input.trigger || 'Stop').filter(stageId =>
+    !stageReadSatisfied(state, stageId)
   )
   const business = options.trustBusiness === false
     ? null
     : (state.obligationLedger?.items?.find(item =>
         item.skillId === state.obligationLedger.selectedBusinessSkillId
       ) || null)
-  const mustReplyCore = String(business?.mustReplyCore || '')
-  const businessSatisfied = !business || (
-    mustReplyCore.length > 0 &&
-    String(input.assistantText || '').includes(mustReplyCore)
-  )
-  return { pendingStageIds, business, businessSatisfied }
+  // This owner proves delivery of Skill instructions, not the task's outcome.
+  // Quoted reply phrases and assistant self-report cannot verify business work.
+  return { pendingStageIds, business, businessSatisfied: null }
 }
 
 function buildBudgetRetiredRouteStop (
@@ -2213,7 +2312,7 @@ function buildBudgetRetiredRouteStop (
     state,
     input
   )
-  const businessActionRequired = businessSatisfied === false
+  const businessActionRequired = false
   const budgetProjection = budgetResult?.projection || null
   return {
     schemaVersion: 'ProgressiveSkillRouteStopV1',
@@ -2272,7 +2371,7 @@ function buildRetiredRouteStop (state, input, turnBinding, error) {
     input,
     { trustBusiness }
   )
-  const businessActionRequired = businessSatisfied === false
+  const businessActionRequired = false
   return {
     schemaVersion: 'ProgressiveSkillRouteStopV1',
     present: true,
@@ -2289,7 +2388,7 @@ function buildRetiredRouteStop (state, input, turnBinding, error) {
     mustReplyCore: business?.mustReplyCore || null,
     businessSatisfied,
     businessEvaluation: trustBusiness
-      ? 'trusted-bound-route'
+      ? 'UNVERIFIED'
       : 'not-applicable-untrusted-route-identity',
     errorCode,
     nextOp: businessActionRequired ? 'satisfy_business' : null,
@@ -2326,7 +2425,7 @@ function buildPersistedRetiredRouteStop (state, turnBinding, retirement) {
     pendingStageIds,
     selectedBusinessSkillId: null,
     mustReplyCore: null,
-    businessSatisfied: true,
+    businessSatisfied: null,
     businessEvaluation: 'not-applicable-semantic-drift',
     errorCode: retirement.reasonCode,
     nextOp: null,
@@ -2384,7 +2483,7 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
       retirementReason: error.code || 'SKILL_ROUTE_STOP_READ_FAILED',
       completionDisposition: 'retired-unreadable-route',
       pendingStageIds: [],
-      businessSatisfied: true,
+      businessSatisfied: null,
       errorCode: error.code || 'SKILL_ROUTE_STOP_READ_FAILED',
       nextOp: null,
       nextCall: null,
@@ -2425,7 +2524,7 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
     return {
       schemaVersion: 'ProgressiveSkillRouteStopV1',
       present: true,
-      complete: businessSatisfied,
+      complete: true,
       turnBinding,
       contextEpoch: state.contextEpoch,
       planDigest: state.plan?.planDigest || null,
@@ -2438,14 +2537,12 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
       mustReplyCore: business?.mustReplyCore || null,
       businessSatisfied,
       errorCode: error.code || 'SKILL_ROUTE_STOP_BINDING_FAILED',
-      nextOp: businessSatisfied ? null : 'satisfy_business',
+      nextOp: null,
       nextCall: null,
       recovery: {
         schemaVersion: 'SkillRouteRetirementRecoveryV1',
-        automatic: businessSatisfied,
-        action: businessSatisfied
-          ? 'retire-and-rebootstrap-next-user-prompt'
-          : 'reply-selected-business-core',
+        automatic: true,
+        action: 'retire-and-rebootstrap-next-user-prompt',
         mustReplyCore: business?.mustReplyCore || null,
         rebootstrapOnNextUserPrompt: true
       }
@@ -2487,7 +2584,7 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
   }
   let contextErrorCode = null
   let contextRecovery = null
-  if (state.plan && pendingStageIds.length) {
+  if (state.plan) {
     try {
       validateRouteContextPrecondition(state, target, options)
     } catch (error) {
@@ -2517,7 +2614,7 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
     return {
       schemaVersion: 'ProgressiveSkillRouteStopV1',
       present: true,
-      complete: businessSatisfied,
+      complete: true,
       turnBinding,
       contextEpoch: state.contextEpoch,
       planDigest: state.plan.planDigest || null,
@@ -2530,14 +2627,12 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
       mustReplyCore: business?.mustReplyCore || null,
       businessSatisfied,
       errorCode: 'ROOT_PLAN_BLOCKED',
-      nextOp: businessSatisfied ? null : 'satisfy_business',
+      nextOp: null,
       nextCall: null,
       recovery: {
         schemaVersion: 'SkillRouteRetirementRecoveryV1',
-        automatic: businessSatisfied,
-        action: businessSatisfied
-          ? 'retire-and-rebootstrap-next-user-prompt'
-          : 'reply-selected-business-core',
+        automatic: true,
+        action: 'retire-and-rebootstrap-next-user-prompt',
         mustReplyCore: business?.mustReplyCore || null,
         rebootstrapOnNextUserPrompt: true
       }
@@ -2550,7 +2645,7 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
     ? 'rebind'
     : (pendingStageIds.length
         ? 'load_stage'
-        : (!state.plan ? planMissingNextOp : (!businessSatisfied ? 'satisfy_business' : null)))
+        : (!state.plan ? planMissingNextOp : null))
   const nextCall = nextOp === 'rebind' && state.plan
     ? {
         op: 'rebind',
@@ -2584,7 +2679,10 @@ function evaluateProgressiveSkillRouteStop (input, options = {}) {
   return {
     schemaVersion: 'ProgressiveSkillRouteStopV1',
     present: true,
-    complete: processComplete && businessSatisfied,
+    complete: processComplete,
+    completionScope: 'skill-instruction-delivery',
+    businessEvaluation: 'UNVERIFIED',
+    businessEvidenceOwner: 'workflow-completion',
     turnBinding,
     contextEpoch: state.contextEpoch,
     planDigest: state.plan?.planDigest || null,
@@ -2654,7 +2752,8 @@ function handleSkillRoute (input, options = {}) {
         error.code = 'TURN_BINDING_MISMATCH'
         throw error
       }
-      return resolveExactSkillPage(input, target, options)
+      const response = resolveExactSkillPage(input, target, options)
+      return observeExactRouteRead(input, target, response, options)
     }
     if (input.op === 'catalog') return handleCatalog(input, target, options)
     if (input.op === 'commit') return handleCommit(input, target, options)
@@ -2694,8 +2793,9 @@ function formatSkillRouteBootstrapInjection (bootstrap, options = {}) {
     ...hostToolContract,
     'When the observed ContextRead plan includes `profile.routeLoadRecipe`, call `profile_load` with that exact `contextBinding` and executionOptimization but omit `files` and `sectionSelectors`; the server applies the plan-owned bounded recipe.',
     `Use the local \`${routeTool}\` Tool. For an explicitly named Skill, call \`resolve_exact\` with its exact id and follow only its returned body cursor; do not read the catalog first.`,
-    'For a non-explicit task, read the bounded metadata shortlist pages before one `commit` choice (`skillId` is one shortlisted id or null).',
+    'For a non-explicit task, inspect paged Skill metadata and choose one Skill or null from the actual user intent. The full catalog remains available; text overlap is not a selection or exclusion decision.',
     'For the first `catalog` call, omit `cursor` entirely; never send `cursor:null`. Add `cursor` only when the preceding catalog page returns a non-empty `nextCursor`.',
+    'Commit a matching Skill after observing its catalog card. Continue discovery when needed; choosing null requires observing the complete catalog.',
     'There is no `replan` operation. Activate a ready late condition with another `op:"commit"` call using the current `previousPlanDigest`, `lateConditionId`, and fresh `ContextReadBindingV1` before loading that conditional stage.',
     'A quoted, negated, diagnostic, screenshot, log, report, or explanatory mention of a skill id is not an invocation. Choose null unless the user positively asks to use that skill or its intent clearly matches the actual task.',
     'Do not infer workflow roots, paths, dependencies, or body content. After a complete plan, call `load_stage` only when entering that stage.',
@@ -2768,6 +2868,8 @@ module.exports = {
   validateRequestShape,
   finalizeResponse,
   handleSkillRoute,
+  dueStageIds,
+  summarizeStopObligations,
   evaluateProgressiveSkillRouteStop,
   shouldEnforceProgressiveSkillRouteStop,
   formatSkillRouteBootstrapInjection,

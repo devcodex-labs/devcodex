@@ -1159,7 +1159,7 @@ function featureInventorySourceDeclaration(combined) {
 }
 
 function validateFeatureInventoryText(text, label, requireV1) {
-  const result = inspectFeatureInventoryDocument(text, { requireV1 })
+  const result = inspectFeatureInventoryDocument(text, { requireV1, projectRoot: cwd })
   for (const message of result.errors) err(`[profile] ${label}: ${message}`)
   return result
 }

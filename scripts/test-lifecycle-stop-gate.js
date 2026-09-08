@@ -8,6 +8,9 @@ const assert = require('assert')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const crypto = require('crypto')
+const { createReviewExecutionPlan, createReviewEvidenceReceipt, evaluateEvidenceSaturation, createReviewStateSnapshot } =
+  require('../hooks/_runtime/review-execution-contract.cjs')
 const KEEP_TEST_ARTIFACTS = process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1'
 
 function cleanupTestRoot (root) {
@@ -25,11 +28,11 @@ const {
   hasCompletionCheck,
   pr1EvidenceOk,
   findActiveTaskRoot,
-  PR1_MIN_BODY_BYTES
+  findDesignArtifactPath
 } = require('../hooks/_runtime/lifecycle-stop-gate.cjs')
 const { createTaskIdentityV2 } = require('../mcp/task-admission-authority.cjs')
 
-/** Substantive PR-1 body that meets length + pass + substance ≥2 */
+/** Quoted old passing example: it is never current review evidence by itself. */
 function makeStrongPr1Body () {
   const core = [
     '# 方案复审 PR-1',
@@ -58,11 +61,49 @@ function makeStrongPr1Body () {
     '**PR-1 ✅ 通过**（作者自审）',
     ''
   ].join('\n')
-  // Pad to satisfy PR1_MIN_BODY_BYTES without inventing false claims
+  // The legacy implementation accepted this padded example. Keep the negative.
   const pad = '\n<!-- pad for substantive review body length -->\n'
   let body = core
-  while (Buffer.byteLength(body, 'utf8') < PR1_MIN_BODY_BYTES) body += pad
+  while (Buffer.byteLength(body, 'utf8') < 1200) body += pad
   return body
+}
+
+function writeBoundPr1Evidence(taskRoot) {
+  const hash = value => crypto.createHash('sha256').update(value).digest('hex')
+  const candidatePath = path.relative(taskRoot, findDesignArtifactPath(taskRoot)).replace(/\\/g, '/')
+  const candidateDigest = hash(fs.readFileSync(path.join(taskRoot, candidatePath)))
+  const reviewPath = '03-方案复审-PR1.md'
+  const plan = createReviewExecutionPlan({
+    workflow: 'dev', stage: 'pre-confirmation', userIntent: '测试当前方案证据绑定', candidateDigest,
+    changedSet: [candidatePath], affectedClosure: [candidatePath], risk: { class: 'normal', flags: [] },
+    claims: ['candidate-reviewed'], dimensions: ['contract'], freshEvidence: ['fixture-observation'], staleEvidence: [], exclusions: []
+  })
+  const observation = 'isolated review fixture observation\n'
+  fs.mkdirSync(path.join(taskRoot, '.memory'), { recursive: true })
+  fs.writeFileSync(path.join(taskRoot, '.memory', 'pr1-observation.txt'), observation)
+  const receipt = createReviewEvidenceReceipt({
+    planId: plan.planId, candidateDigest, stage: plan.stage, scopeDigest: plan.scopeDigest,
+    dimension: 'contract', claim: 'candidate-reviewed', lens: 'fixture', ruleVersion: 'rules-v1', skillVersion: 'review-v1',
+    probeVersion: 'binding-v1', impactGraphDigest: 'fixture-impact', environmentDigest: 'fixture-env',
+    intentDigest: plan.intentDigest, riskDigest: plan.riskDigest, dependencyDigest: 'fixture-deps', consumerDigest: 'fixture-consumer',
+    command: 'unit fixture', environment: 'isolated filesystem', runId: 'test-pr1', result: 'passed', evidenceRefs: ['fixture-observation'],
+    blockerCount: 0, openCount: 0
+  })
+  const saturationInput = {
+    unreviewedRelatedSet: [], openCount: 0, blockerCount: 0, independentEvidencePassed: true,
+    negativeEvidencePassed: true, fallbackEvidencePassed: true, dirtyBoundaryMatches: true, zeroFindingRounds: 1
+  }
+  const saturation = evaluateEvidenceSaturation(plan, { ...saturationInput, receipts: [receipt] })
+  const snapshot = createReviewStateSnapshot(plan, {
+    saturation, receiptDigests: saturation.freshReceiptDigests, open: 0, blocker: 0, stale: 0, unreviewed: 0, dirtyBoundary: 'matched'
+  })
+  const evidence = {
+    schemaVersion: 'ReviewExecutionEvidenceV1', plan, receipts: [receipt], saturationInput, snapshot,
+    candidate: { path: candidatePath, digest: candidateDigest },
+    review: { path: reviewPath, digest: hash(fs.readFileSync(path.join(taskRoot, reviewPath))) },
+    artifacts: [{ ref: 'fixture-observation', path: '.memory/pr1-observation.txt', digest: hash(observation) }]
+  }
+  fs.writeFileSync(path.join(taskRoot, '.memory', 'review-execution-pr1.json'), JSON.stringify(evidence, null, 2) + '\n')
 }
 const { buildLifecycleHookOutput } = require('../hooks/_runtime/lifecycle-hook-output.cjs')
 const { buildLifecyclePayloadUtils } = require('../hooks/_runtime/lifecycle-payload-utils.cjs')
@@ -329,6 +370,8 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
     fs.mkdirSync(taskRoot, { recursive: true })
     fs.writeFileSync(path.join(taskRoot, '02-技术方案.md'), '# plan\n控制面 lifecycle\n', 'utf8')
     fs.writeFileSync(path.join(taskRoot, '03-方案复审-PR1.md'), makeStrongPr1Body(), 'utf8')
+    assert.strictEqual(pr1EvidenceOk(taskRoot), false, 'padded quoted passing example cannot count as current review')
+    writeBoundPr1Evidence(taskRoot)
     assert.strictEqual(pr1EvidenceOk(taskRoot), true)
     const r = evaluateStopCompletionGate({
       mode: 'dev',
@@ -336,6 +379,11 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
       taskRoot
     })
     assert.ok(!r.gaps.includes('pr1-skipped'), `gaps=${r.gaps.join(',')}`)
+    fs.appendFileSync(path.join(taskRoot, '.memory', 'pr1-observation.txt'), 'changed')
+    assert.strictEqual(pr1EvidenceOk(taskRoot), false, 'changed evidence invalidates the review')
+    writeBoundPr1Evidence(taskRoot)
+    fs.appendFileSync(path.join(taskRoot, '02-技术方案.md'), 'changed candidate')
+    assert.strictEqual(pr1EvidenceOk(taskRoot), false, 'stale candidate invalidates the review')
   } finally {
     cleanupTestRoot(tmp)
   }
@@ -355,6 +403,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
     fs.writeFileSync(path.join(taskRoot, '02-修复方案.md'), '# bound bug design\n控制面 lifecycle\n', 'utf8')
     fs.writeFileSync(path.join(decoyRoot, '02-技术方案.md'), '# decoy design\n控制面 lifecycle\n', 'utf8')
     fs.writeFileSync(path.join(decoyRoot, '03-方案复审-PR1.md'), makeStrongPr1Body(), 'utf8')
+    writeBoundPr1Evidence(decoyRoot)
     const portableIdentity = createTaskIdentityV2({
       taskId,
       displayName: 'bound-bug',
@@ -397,6 +446,7 @@ assert.ok(!hasCompletionCheck('已完成但没有标题'))
     assert(!boundResult.gaps.includes('pr1-task-binding-missing'))
 
     fs.writeFileSync(path.join(taskRoot, '03-方案复审-PR1.md'), makeStrongPr1Body(), 'utf8')
+    writeBoundPr1Evidence(taskRoot)
     const reviewed = evaluateStopCompletionGate({
       mode: 'fix',
       lastAssistantMessage: '请确认修复方案（确认 CP2）。',

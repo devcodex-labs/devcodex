@@ -38,6 +38,7 @@ const {
   parseCodexJsonl,
   partitionInstalledRuntimeEffects,
   readLedgerJson,
+  readObservedCodexModelSettings,
   readWindowsAclProjection,
   runH0,
   runOwnedChild,
@@ -92,6 +93,15 @@ function finalizeFixturePass(attemptRef) {
 }
 
 async function main() {
+  const modelConfigFs = {
+    existsSync: () => true, statSync: () => ({ size: 160 }),
+    readFileSync: () => 'model = "configured-model"\nmodel_reasoning_effort = "high"\napi_key = "fixture-only"\n[mcp_servers.example]\nmodel = "nested-ignored"\n'
+  }
+  assert.deepStrictEqual(readObservedCodexModelSettings({ CODEX_HOME: '/fixture-codex' }, modelConfigFs), [
+    'model="configured-model"', 'model_reasoning_effort="high"'
+  ])
+  assert.deepStrictEqual(readObservedCodexModelSettings({}, { existsSync: () => false }), [])
+  assert.deepStrictEqual(readObservedCodexModelSettings({}, { ...modelConfigFs, statSync: () => ({ size: 2 * 1024 * 1024 }) }), [])
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-real-host-probe-test-'))
   const sourceRoot = path.join(tmp, 'source')
   const evidenceRoot = path.join(tmp, 'evidence')
@@ -2055,9 +2065,11 @@ async function main() {
 
     console.log('real Codex host probe tests passed identity=1 topology=1 runtimeVersion=bound customAuth=1 detachedEnv=1 argv=legacy+auto-review+stage-bound capabilityProbe=bounded jsonl=1 pwshWrapper=exact wrapperConcat=closed nativeDenial=bound ownedHome=mutable-safe installedRoots=strict effects=1 ledger=1 runJsonTamper=closed authorizationTamper=closed missingReceipt=closed retry=1 h3Retry=bound nonterminal=bound predecessorRetry=1 extraCommand=closed fakeAllowed=1 fakeForbidden=1 forbiddenPolicy=trusted-only forbiddenEligibility=acl+ambient+owner+reparse forbiddenPreauth=5 zeroConsumption=1 forbiddenDrift=closed dualRootCleanup=1 deferred=1 deferredTamper=closed turnCleanup=closed helperChild=1 timeoutCleanup=1 boundedCleanup=1 callbackCleanup=1 setupCleanup=1 realCodex=0')
   } finally {
-    fs.rmSync(tmp, { recursive: true, force: true })
+    if (process.env.DEVCODEX_TEST_KEEP_TEMP === '1') console.log('Retained real-host unit fixture:', tmp)
+    else fs.rmSync(tmp, { recursive: true, force: true })
   }
-  assert.strictEqual(fs.existsSync(tmp), false, 'real-host probe unit fixture must be removed')
+  assert.strictEqual(fs.existsSync(tmp), process.env.DEVCODEX_TEST_KEEP_TEMP === '1',
+    'real-host probe unit fixture must follow the retention policy')
 }
 
 main().catch(error => {

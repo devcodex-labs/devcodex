@@ -57,6 +57,7 @@ const { validateTaskCheckpointEpochSet } = require('../hooks/_runtime/task-check
 const { parseCurrentEpochMarker } = require('../hooks/_runtime/task-checkpoint-projection-v1.cjs')
 const { taskOperationTerminalSnapshot } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 const { createMemoryFileTransaction, sha256 } = require('./memory-file-transaction.cjs')
+const { renderArtifactTemplate } = require('../hooks/_runtime/artifact-template-contract.cjs')
 
 const ADMISSION_POLICY_REVISION = 'TaskAdmissionPolicyV1@1'
 const FORMAL_ADMISSION_RECEIPT_SCHEMA = 'FormalTaskAdmissionReceiptV2'
@@ -737,7 +738,12 @@ function compactFileReceipt(receipt) {
     route: receipt.route,
     afterDigest: receipt.afterDigest,
     afterBytes: receipt.afterBytes,
-    readback: receipt.durability?.readback?.status || 'UNVERIFIED'
+    readback: receipt.durability?.readback?.status || 'UNVERIFIED',
+    ...(receipt.templateProduction ? {
+      templateProduction: receipt.templateProduction,
+      templateProductionScope: receipt.templateProductionScope,
+      templateIncludes: receipt.templateIncludes || []
+    } : {})
   }
 }
 
@@ -749,31 +755,27 @@ function createExact(fileTransaction, filePath, content, activeRoot) {
   })
 }
 
-function pendingCpBlock() {
-  return [
-    '### CP 确认记录',
-    '',
-    '| CP | 状态 | artifactPath | version | sha256 | sourceMessage | confirmedAt |',
-    '|:--:|:----:|--------------|---------|--------|---------------|-------------|',
-    '| CP1 | ⏳ | — | — | — | — | — |',
-    '| CP2 | ⏹️ | — | — | — | — | — |',
-    '| CP3 | ⏹️ | — | — | — | — | — |',
-    ''
-  ].join('\n')
+function pendingCpBlock(options = {}) {
+  return renderArtifactTemplate({
+    templateRef: 'content/prompts/requirement-session.prompt.md',
+    blockId: 'pending-cp', values: {}, producer: 'task-admission'
+  }, options)
 }
 
-function initialSessionsContent(transaction) {
-  return [
-    `# ${transaction.displayName} — 工作流状态`,
-    '',
-    '> **当前状态**: 🔄 active',
-    `> **TaskIdentity**: \`${transaction.taskId}\``,
-    `> **Admission**: \`${transaction.admissionId}\``,
-    `> **Route**: \`${transaction.routeKey}\``,
-    `> **Project**: \`${transaction.project}\``,
-    '',
-    pendingCpBlock()
-  ].join('\n')
+function initialSessionsContent(transaction, options = {}) {
+  const cp = pendingCpBlock(options)
+  const rendered = renderArtifactTemplate({
+    templateRef: 'content/prompts/requirement-session.prompt.md',
+    blockId: 'task-session', producer: 'task-admission',
+    values: {
+      displayName: String(transaction.displayName).replace(/[\r\n]/g, ' '),
+      date: new Date(options.nowMs ?? Date.now()).toISOString().slice(0, 10),
+      taskId: transaction.taskId, admissionId: transaction.admissionId,
+      routeKey: transaction.routeKey, project: transaction.project,
+      taskKind: transaction.taskKind, cpTable: cp.content.trimEnd()
+    }
+  }, options)
+  return { ...rendered, templateIncludes: [cp.production] }
 }
 
 function observeExistingCpConfirmation(cpCells, sessionsPath, activeRoot, fsImpl = fs, options = {}) {
@@ -882,15 +884,20 @@ function verifyExistingCp1Confirmation(cp1Cells, sessionsPath, activeRoot, fsImp
 function ensurePendingCpState(fileTransaction, sessionsPath, transaction, activeRoot, options = {}) {
   const snapshot = fileTransaction.readSnapshot(sessionsPath)
   if (!snapshot.exists) {
+    const rendered = initialSessionsContent(transaction, options)
     return {
-      ...createExact(fileTransaction, sessionsPath, initialSessionsContent(transaction), activeRoot),
+      ...createExact(fileTransaction, sessionsPath, rendered.content, activeRoot),
+      templateProduction: rendered.production,
+      templateProductionScope: 'whole-document',
+      templateIncludes: rendered.templateIncludes,
       cp1Confirmed: false
     }
   }
   const observed = observeExistingCpState(snapshot, sessionsPath, transaction, activeRoot, options)
   if (observed.status === 'complete') return observed.receipt
   const newline = snapshot.content.includes('\r\n') ? '\r\n' : '\n'
-  const appendText = `${snapshot.content.trimEnd() ? `${newline}${newline}` : ''}${pendingCpBlock().replace(/\n/g, newline)}`
+  const rendered = pendingCpBlock(options)
+  const appendText = `${snapshot.content.trimEnd() ? `${newline}${newline}` : ''}${rendered.content.replace(/\n/g, newline)}`
   return {
     ...fileTransaction.commit({
       filePath: sessionsPath,
@@ -899,6 +906,8 @@ function ensurePendingCpState(fileTransaction, sessionsPath, transaction, active
       content: snapshot.content + appendText,
       appendText
     }),
+    templateProduction: rendered.production,
+    templateProductionScope: 'appended-cp-block-lf',
     cp1Confirmed: false
   }
 }
@@ -1676,6 +1685,8 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
       assertExistingAncestorsSafe(input.activeRoot, taskRoot, fsImpl)
       const cpReceipt = ensurePendingCpState(fileTransaction, sessionsPath, transaction, input.activeRoot, {
         fs: fsImpl,
+        nowMs: Date.parse(transaction.createdAt),
+        runtimeRoot: options.runtimeRoot,
         allowLegacyRecord: plan.legacyCpCompatibility === true
       })
       faultInjector('after-cp-state-effect', { transaction: clone(transaction), sessionsPath })

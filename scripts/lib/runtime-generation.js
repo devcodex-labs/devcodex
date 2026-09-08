@@ -107,6 +107,7 @@ function buildRuntimeGeneration (packageRoot, fsImpl = fs) {
   const skillRoot = resolveControlAsset(root, 'skills', fsImpl)
   const instructionEntry = resolveControlAsset(root, 'instructions.md', fsImpl)
   const promptAssets = collectRuntimePromptAssets(root, fsImpl)
+  const skillsPortfolioDigest = hash(fsImpl.readFileSync(path.join(skillRoot, 'portfolio.json')))
   const closureFiles = collectRuntimeScriptDeps(root, { fs: fsImpl })
     .map(relative => path.join(root, ...relative.split('/')))
   const files = [...new Set([
@@ -144,6 +145,8 @@ function buildRuntimeGeneration (packageRoot, fsImpl = fs) {
     runtimeContractDigest,
     filesDigest,
     promptAssetsDigest: promptAssets.digest,
+    skillsRuntimeRoot: 'skills',
+    skillsPortfolioDigest,
     createdAt
   }))
   const generationId = `${safeVersion(packageJson.version)}-${sourceDigest.slice(0, 16)}`
@@ -156,6 +159,8 @@ function buildRuntimeGeneration (packageRoot, fsImpl = fs) {
     runtimeRetentionProtocolVersion: RUNTIME_RETENTION_PROTOCOL_VERSION,
     runtimeContractDigest,
     promptAssets,
+    skillsRuntimeRoot: 'skills',
+    skillsPortfolioDigest,
     sourceDigest,
     filesDigest,
     fileCount: sourceEntries.length,

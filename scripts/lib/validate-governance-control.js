@@ -353,7 +353,7 @@ function buildGovernanceControlChecks(ctx) {
       { file: 'instructions/12-audit.instructions.md', needle: '阻断/非阻断分流' },
       { file: 'instructions/12-audit.instructions.md', needle: 'data/pending-issues.md' },
       { file: 'data/README.md', needle: 'pending-issues.md' },
-      { file: 'data/templates/pending-issues.md', needle: 'ISSUE-000' },
+      { file: 'data/templates/pending-issues.md', needle: '| 编号 |' },
       { file: 'README.md', needle: '六宿主一个入口' },
       { file: 'README.md', needle: 'CLI_HOST_CONFIG_GLOBAL_ONLY' },
       { file: 'README.md', needle: 'npm install -g devcodex' },

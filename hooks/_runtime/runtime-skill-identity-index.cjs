@@ -2,6 +2,7 @@
 
 const fs = require('fs')
 const path = require('path')
+const { skillTopology } = require('./layered-skill-resolver-v1.cjs')
 
 const {
   MAX_LAYERED_SKILL_BYTES,
@@ -191,7 +192,7 @@ function buildRuntimeSkillIdentityIndex (options = {}) {
   })
   const globalRoot = resolvedGlobalRuntime.status === 'resolved'
     ? resolvedGlobalRuntime.root
-    : resolveGlobalSkillsRoot(options)
+    : resolveGlobalSkillsRoot({ ...options, globalRuntime: resolvedGlobalRuntime })
   const globalRuntime = resolvedGlobalRuntime.status === 'resolved'
     ? resolvedGlobalRuntime
     : {
@@ -295,9 +296,8 @@ function buildRuntimeSkillIdentityIndex (options = {}) {
     coverage.effective += 1
     const layer = trace.selectedLayer
     const portfolioSkill = portfolioById.get(skillId)
-    const topology = layer === 'global'
-      ? topologyForPortfolioSkill(portfolioSkill)
-      : { requires: [], conflicts: [], priority: 50 }
+    const parsed = parseFrontmatter(resolved.content)
+    const topology = skillTopology(parsed.frontmatter, portfolioSkill, layer)
     const lifecycle = layer === 'global'
       ? String(portfolioSkill?.lifecycleState || (portfolioAvailable ? 'gray' : 'active'))
       : 'active'
@@ -305,7 +305,6 @@ function buildRuntimeSkillIdentityIndex (options = {}) {
     if (reserved) coverage.reserved += 1
     if (lifecycle !== 'active') coverage.gray += 1
 
-    const parsed = parseFrontmatter(resolved.content)
     const intent = readIntent(skillId, trace.selectedPath, fsImpl)
     const intentInvalid = intent.exists && !intent.ok
     const cardResult = intentInvalid

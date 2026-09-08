@@ -199,7 +199,10 @@ function executeLifecycleTaskWriteOwner(rawInput = {}, options = {}) {
     (operation === 'renew' && currentOwner.status === 'active') ||
     (operation === 'release' && currentOwner.status === 'released')
   ) && ownerTransitionReplayMatches(currentOwner, operation, input)
-  if (replayed) return lifecycleOwnerReceipt(operation, transaction, currentOwner, true, nowMs)
+  if (replayed) return {
+    ...lifecycleOwnerReceipt(operation, transaction, currentOwner, true, nowMs),
+    commitFence: ownerRead.state?.taskRecoveryCommitFence || null
+  }
   if (!exactOwnerRefMatches(currentOwner, input.expectedOwner)) {
     throw new FencedTaskWriteOwnerError('TASK_WRITE_OWNER_CAS_MISMATCH', 'stale owner generation, nonce, revision or digest')
   }
@@ -274,7 +277,10 @@ function executeLifecycleTaskWriteOwner(rawInput = {}, options = {}) {
   if (!['committed', 'semantic-noop'].includes(commit.status)) {
     throw new FencedTaskWriteOwnerError(commit.errorCode || 'TASK_WRITE_OWNER_COMMIT_FAILED', commit.message || 'lifecycle owner transition failed', commit)
   }
-  return lifecycleOwnerReceipt(operation, transaction, nextOwner, false, nowMs)
+  return {
+    ...lifecycleOwnerReceipt(operation, transaction, nextOwner, false, nowMs),
+    commitFence: commit.commitFence
+  }
 }
 
 module.exports = {

@@ -339,7 +339,9 @@ function classifyRelativeTarget(relative, registry, rootClass = 'active-root') {
       matches.push({ slot, matchType: 'bounded', taskKind: null, taskName: null, taskRelative: slash(relative), rootClass })
     }
   }
-  const unique = matches.filter((item, index, all) => all.findIndex(other => other.slot.slotId === item.slot.slotId && other.matchType === item.matchType) === index)
+  // Canonical and candidate matches precede legacy aliases for each slot.
+  // Multiple spellings of one slot do not create multiple artifact owners.
+  const unique = matches.filter((item, index, all) => all.findIndex(other => other.slot.slotId === item.slot.slotId) === index)
   if (unique.length === 1) return unique[0]
   if (unique.length > 1) {
     const reportAlternatives = unique.filter(item => item.matchType === 'report-alternative')

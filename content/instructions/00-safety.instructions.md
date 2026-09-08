@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 安全底线与输出语言规则，定义 S01~S07、违规处理与不可豁免边界
 priority: P2
-version: 1.20.1
+version: 1.20.2
 ---
 # 安全底线规范（S01~S07）
 
@@ -32,11 +32,11 @@ version: 1.20.1
 |--------|----------|----------------|
 | 1 | 当前轮明确语言要求 | 使用明确要求的语言 |
 | 2 | 有效项目/workspace 固定配置、用户明确的任务长期语言要求 | 固定配置优先于推断；明确长期要求持续有效，当前轮明确要求可覆盖本轮 |
-| 3 | 当前未引用的实质用户消息 | `LanguageContextV3` 更新本轮与任务推断语言；旧的推断 carrier 不覆盖当前实质语言 |
+| 3 | 当前可信指令绑定的模型语义判断 | 用 `IntentSemanticDecisionV1.languageDecision` 提交 replyLocale、artifactLocale、scope 和 action；字符比例、固定语言短语、引文及包装标签不作为切换依据 |
 | 4 | 历史任务/conversation carrier、宿主/终端 locale | 短确认、路径、版本、代码和引用不单独切换语言；缺当前语言证据时继承 |
 | 5 | 无法判断 | English fallback，且不得声称观察到用户语言 |
 
-人类可读回复、标题、报告/需求/问题正文、记忆摘要、closeout 与操作说明必须使用同一轮决策。协议 key、CLI 参数、JSON 字段、schema/gate/skill ID 与默认 canonical 文件名始终保持 English；只有用户明确要求本地化磁盘文件名时才可创建兼容 alias。无 raw prompt 的 MCP/CLI 只能使用 carrier 或 `und/en` fallback，不得伪报语言来源。
+人类可读回复、标题、报告/需求/问题正文、记忆摘要、closeout 与操作说明必须使用同一轮决策。宿主结构化问答中只有 answer 是实际回复，question 是引用上下文；无明确切换时保留用户已确认的持续偏好，scope=turn 只改变本轮。协议 key、CLI 参数、JSON 字段、schema/gate/skill ID 与默认 canonical 文件名始终保持 English；只有用户明确要求本地化磁盘文件名时才可创建兼容 alias。无当前语义决策的 MCP/CLI 使用已有 carrier、有效固定配置或低置信 fallback，不得伪报观察到当前语言切换。
 
 ## 任务连续性与质量提示
 

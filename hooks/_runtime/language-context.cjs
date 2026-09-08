@@ -10,13 +10,6 @@ const LANGUAGE_CONFIDENCE = new Set(['high', 'medium', 'low'])
 const FULL_LOCALES = new Set(['zh-CN', 'en-US'])
 const PARTIAL_LOCALES = new Set(['ja', 'ko', 'ru', 'ar'])
 
-const LANGUAGE_RULES = [
-  ['ja', /[\u3040-\u30ff]/u],
-  ['ko', /[\uac00-\ud7af]/u],
-  ['zh-CN', /[\u3400-\u9fff]/u],
-  ['ru', /[\u0400-\u04ff]/u],
-  ['ar', /[\u0600-\u06ff]/u]
-]
 
 function normalizeLanguageTag(value) {
   const raw = String(value || '').trim().replace(/_/g, '-')
@@ -30,49 +23,6 @@ function normalizeLanguageTag(value) {
   return /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(raw) ? raw : ''
 }
 
-function maskQuotedLanguageExamples(text) {
-  return String(text || '')
-    .replace(/^\s*>[^\r\n]*/gm, match => ' '.repeat(match.length))
-    .replace(/```[\s\S]*?```/g, match => ' '.repeat(match.length))
-    .replace(/`[^`\r\n]*`/g, match => ' '.repeat(match.length))
-    .replace(/[“\"][^”\"\r\n]*[”\"]/g, match => ' '.repeat(match.length))
-    .replace(/[‘'][^’'\r\n]*[’']/g, match => ' '.repeat(match.length))
-}
-
-function directiveIsNegatedOrDiscussed(value, index) {
-  const before = value.slice(0, index)
-  const clause = before.split(/[，,。；;！？!?\r\n]/u).pop().trim().toLowerCase()
-  if (/(?:不要|不再|不是|并非|别|勿|禁止|无需|无须).{0,8}$/u.test(clause)) return true
-  if (/(?:do\s+not|don't|dont|not|never|stop).{0,18}$/i.test(clause)) return true
-  if (/(?:为什么|为何|怎么|怎会|是否|检查|分析|解释|排查|验证|谁让你).{0,10}$/u.test(clause)) return true
-  if (/(?:why|how|whether|check|verify|analy[sz]e|explain|diagnose).{0,24}$/i.test(clause)) return true
-  return false
-}
-
-function explicitLanguage(text) {
-  const value = maskQuotedLanguageExamples(text)
-  const definitions = [
-    ['zh-CN', /(?:用|使用|改用|切换(?:为|到)?|回复|回答|输出)\s*(?:中文|汉语)|(?:respond|reply|write|output)(?:\s+to\s+me)?\s+in\s+(?:chinese|zh(?:-cn)?)/giu],
-    ['en-US', /(?:用|使用|改用|切换(?:为|到)?|回复|回答|输出)\s*(?:英文|英语)|(?:respond|reply|write|output)(?:\s+to\s+me)?\s+in\s+(?:english|en(?:-us)?)/giu],
-    ['ja', /(?:用|使用|改用|切换(?:为|到)?|回复|回答|输出)\s*(?:日文|日语)|(?:respond|reply|write|output)(?:\s+to\s+me)?\s+in\s+(?:japanese|ja)/giu],
-    ['ko', /(?:用|使用|改用|切换(?:为|到)?|回复|回答|输出)\s*(?:韩文|韩语)|(?:respond|reply|write|output)(?:\s+to\s+me)?\s+in\s+(?:korean|ko)/giu],
-    ['ru', /(?:用|使用|改用|切换(?:为|到)?|回复|回答|输出)\s*(?:俄文|俄语)|(?:respond|reply|write|output)(?:\s+to\s+me)?\s+in\s+(?:russian|ru)/giu],
-    ['ar', /(?:用|使用|改用|切换(?:为|到)?|回复|回答|输出)\s*(?:阿拉伯文|阿拉伯语)|(?:respond|reply|write|output)(?:\s+to\s+me)?\s+in\s+(?:arabic|ar)/giu]
-  ]
-  const candidates = []
-  for (const match of value.matchAll(/(中文|汉语|英文|英语|日文|日语|韩文|韩语|俄文|俄语|阿拉伯文|阿拉伯语)\s*(?:回答|回复|沟通|交流|输出)/gu)) {
-    const locale = /中文|汉语/.test(match[1]) ? 'zh-CN' : /英文|英语/.test(match[1]) ? 'en-US'
-      : /日文|日语/.test(match[1]) ? 'ja' : /韩文|韩语/.test(match[1]) ? 'ko' : /俄文|俄语/.test(match[1]) ? 'ru' : 'ar'
-    if (!directiveIsNegatedOrDiscussed(value, match.index)) candidates.push({ locale, index: match.index })
-  }
-  for (const [locale, pattern] of definitions) {
-    for (const match of value.matchAll(pattern)) {
-      if (!directiveIsNegatedOrDiscussed(value, match.index)) candidates.push({ locale, index: match.index })
-    }
-  }
-  candidates.sort((left, right) => left.index - right.index)
-  return candidates.at(-1)?.locale || ''
-}
 
 function stableValue(value) {
   if (Array.isArray(value)) return value.map(stableValue)
@@ -195,10 +145,6 @@ function resolveLanguagePreference(input = {}) {
   return { ...decision, preferenceDigest: digest(decision) }
 }
 
-function persistentLanguageOverride(text) {
-  const value = maskQuotedLanguageExamples(text)
-  return /(?:本任务|这个任务|当前任务|后续|以后|接下来|始终|一直).{0,20}(?:用|使用|回复|回答|输出)|(?:from\s+now\s+on|for\s+this\s+task|throughout\s+this\s+task|always).{0,30}(?:respond|reply|write|output)/i.test(value)
-}
 
 function primaryFromContext(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return ''
@@ -262,179 +208,60 @@ function languageContextIntegrityErrors(value) {
   return errors
 }
 
-function classifyLanguageTurn(text) {
-  const value = String(text || '').trim()
-  if (!value) return 'neutral'
-  const withoutMention = value.replace(/^@[\w.-]+\s*/u, '').trim()
-  if (/^(?:yes|no|y|n|ok|okay|confirm(?:ed)?|continue|proceed|accept(?:ed)?|确认|继续|是|否|好|好的|可以|同意|采纳)(?:\s+(?:cp\d+|v?\d+(?:\.\d+){1,3}(?:-[\w.-]+)?|[\w.-]+))?[`'"“”]*[.!。！]?$/iu.test(withoutMention)) {
-    return 'neutral'
-  }
-  if (/^(?:确认|继续|采纳)\s+(?:cp\d+|v?\d+(?:\.\d+){1,3}(?:-[\w.-]+)?|[\w.-]+)$/iu.test(withoutMention)) {
-    return 'neutral'
-  }
-  if (/^(?:`{3}[\s\S]*`{3}|`[^`]+`|[A-Za-z]:[\\/][^\r\n]+|\/{1,2}[^\r\n]+|v?\d+(?:\.\d+){1,3}(?:-[\w.-]+)?|[A-Fa-f0-9]{7,64})$/u.test(value)) {
-    return 'code'
-  }
-  const lines = value.split(/\r?\n/).filter(Boolean)
-  if (lines.length > 0 && lines.every(line => /^\s*>/.test(line) || /^\s*["“][\s\S]*["”]\s*$/.test(line))) {
-    return 'quoted'
-  }
-  if (explicitLanguage(value)) return 'explicit-switch'
-  return 'substantive'
+/** Classify an interpreted decision, never arbitrary words or scripts. */
+function classifyLanguageTurn(decision) {
+  if (!decision || typeof decision !== 'object') return 'neutral'
+  return decision.kind === 'explicit' ? 'explicit-switch'
+    : decision.kind === 'infer' ? 'substantive' : 'neutral'
 }
 
-function languageFromText(text) {
-  const value = String(text || '')
-  for (const [language, pattern] of LANGUAGE_RULES) {
-    if (pattern.test(value)) return language
-  }
-  if (/[A-Za-z]/.test(value)) return 'en-US'
-  return ''
-}
-
-/** Resolve one task-bound locale decision. Neutral/code/quoted turns never replace the durable carrier. */
+/**
+ * Project a model-owned language decision. The caller validates its current
+ * instruction/epoch binding. An absent decision preserves the carrier as a hint.
+ */
 function resolveLanguageContext(input = {}) {
-  const prompt = String(input.prompt || '')
-  const currentTurnClass = classifyLanguageTurn(prompt)
-  const explicit = currentTurnClass === 'explicit-switch'
-    ? explicitLanguage(prompt)
-    : ''
+  const choice = input.languageDecision || null
+  if (choice && (!['retain', 'infer', 'explicit'].includes(choice.kind) ||
+      !['turn', 'task'].includes(choice.scope) || !normalizeLanguageTag(choice.replyLocale) ||
+      (choice.artifactLocale !== undefined && !normalizeLanguageTag(choice.artifactLocale)))) {
+    const error = new Error('Invalid structured language decision')
+    error.code = 'LANGUAGE_DECISION_INVALID'
+    throw error
+  }
   const preference = resolveLanguagePreference({
     workspacePreference: input.workspacePreference,
     projectPreference: input.projectPreference,
     projectBound: input.projectBound === true
   })
-  const taskContext = input.taskContext || input.taskLanguageContext
-  const conversationContext = input.conversationContext || input.carrier
-  const taskPrimary = primaryFromContext(taskContext)
-  const conversationPrimary = primaryFromContext(conversationContext)
-  const priorDurable = taskPrimary || conversationPrimary
-  const persistentOverride = Boolean(explicit && persistentLanguageOverride(prompt))
-  const substantiveLanguage = currentTurnClass === 'substantive'
-    ? languageFromText(maskQuotedLanguageExamples(prompt))
-    : ''
-
-  let responseLanguage = ''
-  let source = ''
-  let confidence = 'low'
-  let durablePrimaryLocale = priorDurable
-  let durableProvisional = false
-  let durableSource = String(
-    taskContext?.durableSource || taskContext?.source ||
-    conversationContext?.durableSource || conversationContext?.source || ''
-  )
-  let durableConfidence = LANGUAGE_CONFIDENCE.has(taskContext?.durableConfidence)
-    ? taskContext.durableConfidence
-    : (LANGUAGE_CONFIDENCE.has(conversationContext?.durableConfidence)
-        ? conversationContext.durableConfidence
-        : (priorDurable ? 'high' : 'low'))
-  let durableUpdatedAt = String(
-    taskContext?.durableUpdatedAt || taskContext?.updatedAt ||
-    conversationContext?.durableUpdatedAt || conversationContext?.updatedAt || ''
-  )
-
-  if (explicit) {
-    responseLanguage = explicit
-    source = 'explicit-current-turn'
-    confidence = 'high'
-    if (persistentOverride) {
-      durablePrimaryLocale = explicit
-      durableProvisional = false
-      durableSource = 'explicit-task-persistent'
-      durableConfidence = 'high'
-    }
-  } else if (preference.effectiveMode === 'fixed' && preference.fixedLocale) {
-    responseLanguage = preference.fixedLocale
-    source = preference.source
-    confidence = 'high'
-    durablePrimaryLocale = preference.fixedLocale
-    durableProvisional = false
-    durableSource = preference.source
-    durableConfidence = 'high'
-  } else if (priorDurable && durableSource === 'explicit-task-persistent') {
-    responseLanguage = priorDurable
-    source = 'explicit-task-persistent'
-    confidence = 'high'
-  } else if (substantiveLanguage) {
-    responseLanguage = substantiveLanguage
-    durablePrimaryLocale = responseLanguage
-    durableProvisional = false
-    durableSource = priorDurable ? 'current-substantive-user-message' : 'first-substantive-user-message'
-    durableConfidence = 'high'
-    source = durableSource
-    confidence = 'high'
-  } else if (taskPrimary) {
-    responseLanguage = taskPrimary
-    source = 'task-primary-language'
-    confidence = 'high'
-  } else if (conversationPrimary) {
-    responseLanguage = conversationPrimary
-    source = 'conversation-primary-language'
-    confidence = 'high'
-  } else if (currentTurnClass === 'substantive') {
-    responseLanguage = languageFromText(prompt)
-    if (responseLanguage) {
-      durablePrimaryLocale = responseLanguage
-      durableProvisional = false
-      durableSource = 'first-substantive-user-message'
-      durableConfidence = 'high'
-      source = durableSource
-      confidence = 'high'
-    }
-  }
-
-  const hostLocale = normalizeLanguageTag(input.locale)
-  if (!responseLanguage && hostLocale) {
-    responseLanguage = hostLocale
-    source = 'host-or-terminal-locale'
-    confidence = 'low'
-  }
-  if (!responseLanguage) {
-    responseLanguage = 'en-US'
-    source = 'und-en-fallback'
-    confidence = 'low'
-  }
-  if (!durablePrimaryLocale && !['explicit-current-turn', 'host-or-terminal-locale', 'und-en-fallback'].includes(source)) {
-    durablePrimaryLocale = responseLanguage
-    durableProvisional = false
-    durableSource = source
-    durableConfidence = confidence
-  }
-  if (!durablePrimaryLocale) {
-    durablePrimaryLocale = responseLanguage
-    durableSource = `provisional:${source}`
-    durableConfidence = 'low'
-    durableProvisional = true
-  }
-
-  const durableChanged = !durableProvisional && (durablePrimaryLocale !== priorDurable ||
-    (durableSource && durableSource !== String(taskContext?.durableSource || conversationContext?.durableSource || ''))
-  )
-  if (durableChanged || !durableUpdatedAt) durableUpdatedAt = new Date().toISOString()
-  const durableSourceDigest = digest({
-    durablePrimaryLocale,
-    durableProvisional,
-    durableSource,
-    durableConfidence,
-    preferenceDigest: preference.preferenceDigest
-  })
+  const prior = input.taskContext || input.taskLanguageContext || input.conversationContext || input.carrier
+  const priorPrimary = primaryFromContext(prior)
+  const fixed = preference.effectiveMode === 'fixed' ? preference.fixedLocale : ''
+  const explicit = choice?.kind === 'explicit'
+  const selected = choice && choice.kind !== 'retain' ? normalizeLanguageTag(choice.replyLocale) : ''
+  const responseLanguage = (explicit && selected) || fixed || selected || priorPrimary ||
+    normalizeLanguageTag(input.locale) || 'en-US'
+  const source = choice ? `model-language-${choice.scope}-${choice.kind}`
+    : (fixed ? preference.source : 'model-language-decision-pending')
+  const persistChoice = choice && choice.scope === 'task' && choice.kind !== 'retain'
+  const durablePrimaryLocale = persistChoice ? responseLanguage : (fixed || priorPrimary || responseLanguage)
+  const durableProvisional = !persistChoice && !fixed && !priorPrimary
+  const durableSource = persistChoice ? source : (fixed ? preference.source : prior?.durableSource ||
+    prior?.source || 'provisional:model-language-decision-pending')
+  const durableConfidence = durableProvisional ? 'low' : (persistChoice || fixed ? 'high' : prior?.durableConfidence || 'medium')
+  const updatedPrimary = !durableProvisional && (durablePrimaryLocale !== priorPrimary || durableSource !== prior?.durableSource)
+  const artifactLanguage = choice ? normalizeLanguageTag(choice.artifactLocale) || responseLanguage : responseLanguage
   return {
     schemaVersion: LANGUAGE_CONTEXT_SCHEMA,
-    durablePrimaryLocale,
-    durableProvisional,
-    durableSource: durableSource || source,
-    durableConfidence,
-    durableSourceDigest,
-    durableUpdatedAt,
-    primaryLanguage: responseLanguage,
-    responseLanguage,
-    artifactLanguage: responseLanguage,
-    currentTurnClass,
-    source,
-    confidence,
-    updatedPrimary: durableChanged,
-    turnOverride: explicit || null,
-    persistentOverride,
+    durablePrimaryLocale, durableProvisional, durableSource, durableConfidence,
+    durableSourceDigest: digest({ durablePrimaryLocale, durableProvisional, durableSource,
+      durableConfidence, preferenceDigest: preference.preferenceDigest }),
+    durableUpdatedAt: updatedPrimary ? new Date().toISOString() : String(prior?.durableUpdatedAt || ''),
+    primaryLanguage: responseLanguage, responseLanguage, artifactLanguage,
+    currentTurnClass: classifyLanguageTurn(choice), source,
+    confidence: choice || fixed ? 'high' : 'low',
+    updatedPrimary,
+    turnOverride: explicit ? responseLanguage : null,
+    persistentOverride: Boolean(explicit && choice.scope === 'task'),
     preferenceDigest: preference.preferenceDigest,
     preferenceSource: preference.source,
     localeCapability: localeCapability(responseLanguage),
@@ -443,6 +270,17 @@ function resolveLanguageContext(input = {}) {
 }
 
 function formatLanguageContextInstruction(context) {
+  if (!context || context.source === 'model-language-decision-pending') {
+    return [
+      '### DevCodex · LanguageContextV3',
+      context?.durableProvisional === false && normalizeLanguageTag(context?.durablePrimaryLocale)
+        ? `Retained task reply language: ${context.durablePrimaryLocale}. Continue using the established task preference unless the current user intent changes it.`
+        : '',
+      'Language is pending model interpretation. Determine reply and artifact languages from the actual user request and established conversation intent, including structured question answers.',
+      'Transport fields, quoted examples, code, tool output and confirmation wrappers are not language-change instructions. Do not switch languages because they contain English or another script.',
+      'Commit languageDecision through profile_context_plan.semanticDecision. Any retained or terminal locale is a hint, never an instruction overriding the user.'
+    ].filter(Boolean).join('\n')
+  }
   const language = String(context?.responseLanguage || context?.primaryLanguage || context?.language || 'en-US')
   const artifactLanguage = String(context?.artifactLanguage || language)
   const source = String(context?.source || 'und-en-fallback')

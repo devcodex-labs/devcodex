@@ -713,6 +713,32 @@ try {
   assert.strictEqual(digestBoundRecovery.status, 'fresh')
   assert.strictEqual(digestBoundRecovery.identity.taskId, first.taskId)
   const beforeReplay = readTaskAdmissionTransaction({ metaDir, identity: recoveryIdentity })
+  const producedSession = beforeReplay.transaction.effects.cpState.file
+  assert.strictEqual(producedSession.templateProduction.schemaVersion, 'ArtifactTemplateProductionV1')
+  assert.strictEqual(producedSession.templateProductionScope, 'whole-document')
+  assert.strictEqual(producedSession.templateProduction.artifactDigest,
+    crypto.createHash('sha256').update(sessions).digest('hex'))
+  assert.strictEqual(producedSession.templateIncludes[0].blockId, 'pending-cp')
+
+  // Exercise the real admission producer against changed template bytes; a
+  // matching heading or a declared binding alone cannot satisfy this proof.
+  const templateRoot = path.join(TEMP_ROOT, 'template-runtime')
+  const templatePath = path.join(templateRoot, 'content', 'prompts', 'requirement-session.prompt.md')
+  fs.mkdirSync(path.dirname(templatePath), { recursive: true })
+  const templateSource = fs.readFileSync(path.join(__dirname, '..', 'content', 'prompts', 'requirement-session.prompt.md'), 'utf8')
+  const templateDelta = `模板变更传播 ${crypto.randomUUID()}`
+  fs.writeFileSync(templatePath, templateSource.replace('{{cpTable}}', `{{cpTable}}\n\n${templateDelta}`))
+  const templateInput = admissionInput(setupRoot('template-production'), 'template-production')
+  const templateAdmission = run(templateInput, { runtimeRoot: templateRoot })
+  assert.strictEqual(templateAdmission.phase, 'cp-state-written')
+  const changedSessions = fs.readFileSync(path.join(taskRootFor(templateInput, templateAdmission), '.memory', 'sessions.md'), 'utf8')
+  assert(changedSessions.includes(templateDelta), 'actual producer must use changed template body')
+  const changedJournal = readTaskAdmissionTransaction({
+    metaDir: resolveTaskRecoveryMetaDir({ activeRoot: templateInput.activeRoot, project: templateInput.project }),
+    identity: { activeRoot: templateInput.activeRoot, project: templateInput.project, taskId: templateAdmission.taskId }
+  })
+  assert.notStrictEqual(changedJournal.transaction.effects.cpState.file.templateProduction.templateDigest,
+    producedSession.templateProduction.templateDigest)
   assert.strictEqual(beforeReplay.status, 'fresh')
   assert.strictEqual(beforeReplay.transaction.phase, 'cp-state-written')
   const beforeSequence = beforeReplay.envelope.sequence

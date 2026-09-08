@@ -92,7 +92,7 @@ description: 开源/公开用户站点与最终用户手册写作 Owner — guid
 - `expert-output-quality`：负责专家型产物质量，避免文档把 fixture/mock/demo 或低阶重复写法包装成生产推荐路径。
 - `test-router`：选择生成站点、链接、用户路径、Browser/截图或代码级替代验证。
 - `document-sync`：按 `consumerMap`（含 `audience=public-user`）检查当前消费者和部署副本。
-- `DocsAudienceIntentGate`：`scripts/lib/docs-audience-intent.js` + `npm run test:docs-audience`。
+- `DocsAudienceIntentGate`：模型判定受众，`scripts/lib/docs-audience-intent.js` 校验结构化决策；`npm run test:docs-audience` 仅验证契约接线。
 
 ## 认知高度与任务语言（L3 · 强制）
 
@@ -110,7 +110,7 @@ description: 开源/公开用户站点与最终用户手册写作 Owner — guid
 
 1. **唯一推荐路径**：quick start 只推广一条 `productionRecommendedPath`；底层装配标「高级/扩展」。  
 2. **先任务后符号**：目录与标题优先任务名（「发消息」），不是 `MessageDispatcher`。  
-3. **guide ≠ API inventory**：快速开始若以 ≥3 个未解释的函数调用链为主且无任务句 → **完成失败**。  
+3. **用户任务为主线**：模型审查快速开始能否帮助目标读者完成第一次实际使用；不能用函数调用数量或是否出现某个任务词代替可读性判断。  
 4. **渐进披露**：5 分钟会用 → 30 分钟会选 → 查表 reference；禁止一篇写穿全部 public 函数当使用文档。  
 5. **术语**：内部名首次出现必须白话；配置先默认与选择建议再字段表。  
 6. **reference**：符号可密，每项至少「用途一句话 + 与推荐路径关系/何时不用」。
@@ -132,10 +132,10 @@ description: 开源/公开用户站点与最终用户手册写作 Owner — guid
 ### 完成前漂移自检
 
 - 锁定 `docsAudience=public-user` 后，正文不得以 release checklist / monorepo 内部 / ADR 列表 / 内部台账为**首屏主叙事**。  
-- `classifyDocsAudienceDriftSample('public-user', body)` 不得为 `drift-maintainer-on-user`。  
-- **`classifyUserDocsCognitiveAltitudeSample(body, { surface })` 不得为 `function-inventory-as-guide` 或 `concept-dump-no-task`**（guide/readme/quick start）。  
+- 模型审查读者任务、叙事顺序与可读性，形成绑定正文摘要的 `DocsContentReviewV1`（kind、conclusion、rationale、evidenceRefs，受众漂移追加 audience）；适配函数只投影该结论，没有审查时为 unverified。  
+- `classifyDocsAudienceDriftSample('public-user', body, review)` 与 `classifyUserDocsCognitiveAltitudeSample(body, { surface, review })` 必须使用相应 kind 的当前审查记录；修改正文后重新审查。  
 - 无安装/第一次成功路径不得宣称用户站完成。  
-- 验证：`npm run test:docs-audience`。
+- 验证：模型内容审查、实际用户路径；`npm run test:docs-audience` 仅证明协议正确，不能证明某份文档可用。
 
 ## 禁止
 

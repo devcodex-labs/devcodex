@@ -82,7 +82,7 @@ resume、ECR 或 ContextRead 的已发布依赖，也不能据其状态要求用
 
 ## 工作流 overlay 与条件段
 
-跨工作流稳定字段、条件段和各 workflow overlay 的机器可读事实源为同目录 `report-schema.json`。生成报告时先写 `baseFields`，再按最终 workflow 合并一个 overlay；不得在本 Skill、Prompt 或模板中复制完整 Gate 目录。
+跨工作流稳定字段、条件段和各 workflow overlay 的机器可读事实源为同目录 `report-schema.json`。生成前实际读取本次 workflow 对应 Prompt 正文及 schema，以其字段和扩展点组织当前任务内容；记录 templateRef/templateDigest 与生成依据。先写 `baseFields`，再按最终 workflow 合并一个 overlay；不得在本 Skill、Prompt 或模板中复制完整 Gate 目录。仅在 prewrite 自动绑定模板、结构检查通过或碰巧出现相同标题，均不能证明内容由模板生成。历史报告保留原依据，无法证明时写 UNVERIFIED，不补造生成回执。生成后的语义审阅核对本次请求、已执行动作、证据和结论，不把无关正文或通过话术当作任务完成。
 
 | workflow | overlay 重点 |
 |----------|--------------|

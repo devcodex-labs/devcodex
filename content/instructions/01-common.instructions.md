@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.20.1
+version: 1.20.2
 ---
 # 通用规范
 
@@ -150,11 +150,10 @@ version: 1.20.1
 - Auto v1.1 正式入口包括显式 `@devcodex-auto`、全局默认 `@rocky`、项目 Profile 配置的 `extensions.devcodex.autoAliases` 替换别名与明确自然语言 auto 授权；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；模糊提及、追问 auto 规则、普通“继续”或未生效昵称不等价于 auto 授权
 - **Sticky Auto**：有效入口命中后会话级保持 `executionMode=auto`（与 sticky 项目同量级 TTL）；后续无别名的确认/继续/补充不掉回 confirm；显式 `退出 auto` / `关闭自动模式` / `exit auto mode` / `切回确认模式` 或 sticky 过期/换会话后回到 confirm
 - **验证预算边界**：Auto 只可为当前 formal task 的 exact V0～V2 `BudgetCardV1` 签发 server-owned 根授权。失败后的 root-relative 续权只接受三类证明：完整 mutation observation；stable/clean candidate 的严格 Git 后继 `committed-repair-diff`（父 changed scope 未截断且为当前子集、完整 commit diff 落在当前显式 changed scope）；或同 HEAD、无新增 dirty 路径/节点/预算的 `same-scope-retry`。三类合计最多两次且始终相对原 root，禁止 child-to-child 复利或换根清零。前两类仍须保持 task/project/root/session/purpose/boundary/heavy/side-effect/revocation 一致或收窄；新增节点不超过 `min(3,max(1,ceil(root*5%)))`，estimated 增量不超过 `min(60000ms,ceil(root*5%))`，hard-timeout 增量不超过 `min(600000ms,ceil(root*5%))`，log 增量不超过 `min(65536B,ceil(root*5%))`，不得新增 release consumer；same-scope retry 的四项增量仍必须为零。若父运行已终态、无 live lease、父 candidate HEAD 是当前已提交 HEAD 的严格 Git 祖先，且 task/project/root/session/revocation 一致，当前 level、purpose、节点、boundary、heavy、副作用与时间/hard/log 预算和父根逐项完全相等，则可创建带父 root/terminal digest 的新不可变根：沿用原 context/AutoRef 时记为 `strict-descendant-same-scope`；当前 fresh server-owned Auto 完整校验通过时允许重绑 context/AutoRef，并记为 `strict-descendant-exact-scope-current-auto-rebind`。它不是 child retry，也不得扩到 V3/full/release。已提交修复必须显式绑定冻结的 changed files，clean working tree 不得把计划收窄为零变更；范围扩大或收窄都以 `auto-root-rollover-scope-changed` 失败关闭。plan-only 必须调用与真实执行相同的续权/根滚动预检，但不得持久化或消耗 child authority；预览不能显示执行阶段必然拒绝的“可续权”。Auto ingress 超过 TTL 时只可继续既有 root，或在原 context/AutoRef 仍精确一致时执行上述严格后继 exact-scope 根滚动；其他创建/替换 root 需要当前 fresh control。confirm 模式只确认服务端唯一 pending card，不要求用户反复复制 digest；pause/stop/缩小范围立即撤销 pending/continuation/lease。
-- **标准流程与写权边界**：Auto 只免除 CP 确认处的人工等待，不免除正式任务准入、问题/需求概况与 canonical CP 产物落盘、digest-bound confirmation、`FencedTaskWriteOwnerLeaseV2`、单次 mutation lease 和 V5 prewrite。白名单只能决定上述前提全部满足后的 Auto 路径提醒/拦截，不能创建 task/owner、伪造 CP 或提前放行 mutation。
-- **别名匹配**：允许中文/标点贴靠（`请@rocky执行`）；`UserPromptSubmit` 注入 `ExecutionModeV1` 供模型消费；**白名单不因 sticky 扩大**
-- 仅在 `hook-enforced` 宿主中，治理文件 / `.devcodex/` 产物 / README / auto 专属回归脚本等**白名单路径**在完成正式流程与写权校验后无额外 Auto 边界提醒；白名单路径不得绕过 implement-start 或 CP gate
-- 非白名单路径在默认 `safety-only` 下提醒后继续已获正式授权的 mutation，在 `strict` 下切回确认并拦截；不承诺“所有源码任务自动执行”
-- `instruction-fallback` 宿主（如 JetBrains / Cursor）只保留 auto 规则语义，不承诺 runtime 级行为；支持 Hook 的宿主默认采用 `safety-only`：非白名单边界输出提醒，`strict` 模式下才形成 runtime 硬拦截
+- **标准流程与写权边界**：Auto 只免除 CP 确认处的人工等待，不免除正式任务准入、问题/需求概况与 canonical CP 产物落盘、digest-bound confirmation、`FencedTaskWriteOwnerLeaseV2`、单次 mutation lease 和 V5 prewrite。路径分类不能创建 task/owner、伪造 CP、提前放行或撤销既有授权。
+- **意图提交**：模型结合完整对话判断用户是否以有效别名或自然语言授予自动推进，在当前可信入口绑定的 `IntentSemanticDecisionV1.executionDecision` 中提交；别名引用、规则提问或短确认本身不生成/撤销授权。
+- 旧路径白名单只保留为 advisory 分类，不生成允许、拒绝或额外确认；执行始终由已确认意图、精确 task/root/owner/CP 状态和宿主权限决定。分类不绕过 implement-start，也不覆盖已有源码、安装或发布授权。
+- `instruction-fallback` 宿主只保留 auto 规则语义，不承诺 runtime 级行为；宿主能力按实际入口证据判断，不由宿主名称推测已安装 Hook。
 - CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认），含义是 Agent 仍须生成、持久化并回读对应产物与确认 receipt，只是不再停下来索要人工确认；它本身不授予源码写权
 - 以下约束**不可豁免**：S01（宿主权限归属与工作流有效性分离）/ S02 用户 / 项目敏感信息策略 / S03~S07 / C01 / C10 / C18。S02 不阻断明文、硬编码或真实秘密写入；它只禁止 AI 未经用户 / 项目要求自行加严、改成 env、`secretRef`、secret manager、`config.local.json` 或占位符。
 - 可恢复失败：重试 ≤ 2 次；不可恢复失败：切换回确认模式并通知用户 ⚠️

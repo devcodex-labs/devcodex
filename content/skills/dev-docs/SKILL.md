@@ -9,10 +9,10 @@ description: 文档开发子类型规范 — 技术文档/API文档/README 编�
 用户要求编写/更新**技术类**文档：API/契约说明、架构文档、开发指南、迁移**实现**说明、通用技术 Markdown 等。
 
 > ⛔ **入口分流（DocsAudienceIntent，强制）**  
-> 写文档任务须先判定 `docsAudience` + `docsSurface`（`scripts/lib/docs-audience-intent.js` / registry `docs-audience-intent`）：  
+> 写文档任务由模型依据用户目的与预期读者判定 `docsAudience` + `docsSurface`；`scripts/lib/docs-audience-intent.js` 只校验结构化决策，不依据关键词选择：  
 > - `public-user`（用户使用站 / README / 用户手册 / 用户向 changelog·operations·reference）→ **必须 handoff** `user-manual-authoring`（+ 条件 `readme-authoring`），**不得**以本 Skill 为主写作入口。  
 > - `maintainer-dev`（维护者开发站 / contributing / 发版 runbook / ADR 站）→ **必须 handoff** `maintainer-docs-site-authoring`。  
-> - `ambiguous` / `multi-audience` → **阻断**；ambiguous 须唯一推荐消歧；multi 须拆任务。  
+> - `ambiguous` → 先补上下文，确实影响交付时再消歧；`multi-audience` → 按读者组织交付物，保留已确认任务范围。  
 > - 仅当受众已是技术读者且 surface 为契约/架构/通用技术文时，本 Skill 才作为主入口（light-api / frontend-api / general-doc）。
 
 ## 豁免项

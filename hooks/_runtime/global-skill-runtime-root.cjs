@@ -3,6 +3,8 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const crypto = require('crypto')
+const { readGenerationManifest } = require('./runtime-generation-lease.cjs')
 
 const RECEIPT_SCHEMA = 'GlobalHostConfigReceiptV1'
 
@@ -89,7 +91,7 @@ function validateReceipt (receipt, receiptPath, runtimeRoot, fsImpl = fs) {
     ok: true,
     root,
     receiptPath,
-    sourceDigest: receipt.sourceDigest || null,
+    sourceDigest: receipt.runtimeGeneration?.sourceDigest || null,
     packageVersion: receipt.packageVersion || null
   }
 }
@@ -104,6 +106,44 @@ function resolveGlobalSkillRuntimeRoot (options = {}) {
   )
   const packageRoot = path.resolve(options.packageRoot || runtimeRoot)
   const attempts = []
+
+  // A loaded immutable runtime owns its Skill source independently of the
+  // current launcher receipt. Repointing that receipt must not mix generations.
+  const generation = readGenerationManifest(runtimeRoot, fsImpl)
+  const manifestExists = fsImpl.existsSync(path.join(runtimeRoot, 'runtime-generation.json'))
+  if (generation.status === 'resolved' || manifestExists) {
+    const root = path.join(runtimeRoot, 'skills')
+    const manifest = generation.manifest
+    let portfolioDigest = null
+    try {
+      const portfolio = path.join(root, 'portfolio.json')
+      const relative = path.relative(fsImpl.realpathSync(runtimeRoot), fsImpl.realpathSync(portfolio))
+      if (!relative.startsWith('..') && !path.isAbsolute(relative) &&
+          !fsImpl.lstatSync(root).isSymbolicLink() &&
+          !fsImpl.lstatSync(portfolio).isSymbolicLink() && hasPortfolio(root, fsImpl)) {
+        portfolioDigest = crypto.createHash('sha256').update(fsImpl.readFileSync(portfolio)).digest('hex')
+      }
+    } catch {}
+    const bound = manifest?.skillsRuntimeRoot === 'skills' &&
+      /^[a-f0-9]{64}$/.test(String(manifest?.skillsPortfolioDigest || '')) &&
+      portfolioDigest === manifest.skillsPortfolioDigest
+    return {
+      schemaVersion: 'GlobalSkillRuntimeRootV1',
+      status: bound ? 'resolved' : 'blocked',
+      source: 'runtime-generation',
+      errorCode: bound ? null : 'GLOBAL_SKILL_RUNTIME_GENERATION_UNBOUND',
+      root: bound ? portable(root) : null,
+      portfolioPath: bound ? portable(path.join(root, 'portfolio.json')) : null,
+      companionRoot: bound ? portable(root) : null,
+      generationId: manifest?.generationId || null,
+      sourceDigest: manifest?.sourceDigest || null,
+      portfolioDigest,
+      packageVersion: manifest?.packageVersion || null,
+      receiptPath: null,
+      identityStatus: bound ? 'PASS' : 'UNVERIFIED',
+      attempts
+    }
+  }
 
   const explicitRoot = options.globalSkillsRoot ||
     env.DEVCODEX_GLOBAL_SKILLS_ROOT ||
@@ -162,6 +202,7 @@ function resolveGlobalSkillRuntimeRoot (options = {}) {
       receiptPath: portable(receiptPath),
       sourceDigest: receiptResult.sourceDigest,
       packageVersion: receiptResult.packageVersion,
+      identityStatus: 'UNVERIFIED',
       attempts
     }
   }
@@ -173,7 +214,7 @@ function resolveGlobalSkillRuntimeRoot (options = {}) {
   })
 
   const inferred = inferredManagedRoot({ ...options, env })
-  if (hasPortfolio(inferred, fsImpl)) {
+  if (receiptResult.reasonCode !== 'receipt-runtime-mismatch' && hasPortfolio(inferred, fsImpl)) {
     return {
       schemaVersion: 'GlobalSkillRuntimeRootV1',
       status: 'resolved',

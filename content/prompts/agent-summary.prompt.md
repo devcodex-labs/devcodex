@@ -12,15 +12,24 @@ applyTo: .devcodex/**/.memory/**
 
 ## 核心格式（必须，首次创建时用此表头，之后只追加行）
 
+<!-- BEGIN DEVCODEX TEMPLATE: summary-header -->
 ```markdown
-# Agent SUMMARY — [agent-id]
+# Agent SUMMARY — {{agent}}
 
-> 项目：[项目名]
+> 项目：{{project}}
 
 | 日期 | 会话 | 类型 | 摘要 | 关联报告 | 关联记忆 | 状态 |
 |------|:----:|------|------|---------|---------|:----:|
-| YYYY-MM-DD HH:MM | NN | dev/fix/... | [50~100字摘要，含关键数字/结果] | [NN--简述.md](workspace相对路径/NN--简述.md) | [YYYYMMDD.md §NN](workspace相对路径/YYYYMMDD.md) | ✅/🔄 |
 ```
+<!-- END DEVCODEX TEMPLATE: summary-header -->
+
+<!-- BEGIN DEVCODEX TEMPLATE: summary-row -->
+```markdown
+| {{date}} | {{sessionId}} | {{type}} | {{summary}} | {{report}} | {{memory}} | {{status}} |
+```
+<!-- END DEVCODEX TEMPLATE: summary-row -->
+
+首次创建表头和结构化 entry/链接扩展后的行均由 writer 读取这些模板块生成，并保存摘要；legacy row 保留调用者原字节，回执明确为兼容输入，不声称模板驱动。writer 负责字段、转义、目标会话与实际写入读回；摘要是否符合本次任务及状态是否属实，由语义审阅判断。
 
 ### 字段规则
 

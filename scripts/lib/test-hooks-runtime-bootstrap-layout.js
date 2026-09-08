@@ -322,7 +322,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.match(pendingPrompt.systemMessage || '', /SkillRouteBootstrapPendingV1/)
   const pendingState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
   assert.strictEqual(pendingState.contextAcquisition.targetResolved, false)
-  assert.strictEqual(pendingState.progressiveSkillRoute.pending.explicitSkillId, 'audit-project')
+  assert.strictEqual(pendingState.progressiveSkillRoute.pending.explicitSkillId, null, 'raw Skill text is pending model interpretation')
   assert.strictEqual(
     pendingState.progressiveSkillRoute.pending.schemaVersion,
     'SkillRoutePendingEnvelopeV1'
@@ -350,14 +350,14 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     pendingNextCall?.host,
     'codex-cli/exec-user-global-local-stdio'
   )
-  assert.strictEqual(pendingNextCall?.explicitSkillId, 'audit-project')
+  assert.strictEqual(pendingNextCall?.explicitSkillId || null, null)
   const pendingArgs = {
     intent: 'audit',
     changeTypes: ['testing'],
     contextEpoch: pendingState.contextAcquisition.contextEpoch,
     project: 'devcodex',
     host: pendingNextCall.host,
-    explicitSkillId: pendingNextCall.explicitSkillId
+    explicitSkillId: 'audit-project'
   }
   const pendingCallId = 'pending-project-plan'
   run({
@@ -1458,7 +1458,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   })
   assert.strictEqual(bareProjectPrompt.continue, true)
   multiProjectState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
-  assert.strictEqual(multiProjectState.activeProject, 'devcodex')
+  assert.strictEqual(multiProjectState.activeProject, '', 'project words alone await model target binding')
 
   cleanLayoutMultiProjectState()
   const workspaceAmbiguity = run({
@@ -1634,7 +1634,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     currentFile: path.join(TEMP_ROOT, 'profileless', 'package.json')
   })
   assert.strictEqual(firstProfilelessLifecycle.continue, true)
-  assert.match(firstProfilelessLifecycle.systemMessage || '', /Profile 尚未生成/)
+  assert.match(firstProfilelessLifecycle.systemMessage || '', /Profile 尚未生成|Profile is missing/)
   const repeatedProfilelessLifecycle = run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'profileless-notice-session',
@@ -1642,7 +1642,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     currentFile: path.join(TEMP_ROOT, 'profileless', 'package.json')
   })
   assert.strictEqual(repeatedProfilelessLifecycle.continue, true)
-  assert.ok(!/Profile 尚未生成/.test(repeatedProfilelessLifecycle.systemMessage || ''))
+  assert.doesNotMatch(repeatedProfilelessLifecycle.systemMessage || '', /Profile 尚未生成|Profile is missing/)
 
   const profileBackedRoot = path.join(TEMP_ROOT, 'blank')
   fs.mkdirSync(profileBackedRoot, { recursive: true })
@@ -1664,7 +1664,8 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   const profileBackedLifecycle = run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'profile-backed-empty-session',
-    prompt: '检查 blank 项目'
+    prompt: '检查 blank 项目',
+    currentFile: path.join(TEMP_ROOT, 'blank')
   })
   assert.strictEqual(profileBackedLifecycle.continue, true)
   const profileBackedState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
@@ -1689,7 +1690,8 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   const layoutExplicitProject = run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'sticky-session',
-    prompt: '继续 devcodex 的修复'
+    prompt: '继续 devcodex 的修复',
+    currentFile: path.join(TEMP_ROOT, 'devcodex', 'package.json')
   })
   assert.strictEqual(layoutExplicitProject.continue, true)
   assert.ok(!/multi-project-workspace/.test(layoutExplicitProject.systemMessage || ''))
@@ -1712,7 +1714,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.strictEqual(workspaceLayoutState.stickyProject.observedSessionRef, '')
   assert.strictEqual(workspaceLayoutState.stickyProject.sessionKey, '')
   assert.ok(workspaceLayoutState.stickyProject.expiresAtMs > workspaceLayoutState.stickyProject.validatedAtMs)
-  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'prompt')
+  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'payload')
   assert.ok(fs.existsSync(getLayoutStateFile('devcodex')))
 
   const stickyFollowup = run({
@@ -1775,26 +1777,28 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.strictEqual(workspaceExemption.continue, true)
   assert.ok(!/multi-project-workspace/.test(workspaceExemption.systemMessage || ''))
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
-  assert.strictEqual(workspaceLayoutState.activeProject, '')
-  assert.strictEqual(workspaceLayoutState.activeScope, 'workspace')
-  assert.strictEqual(workspaceLayoutState.stickyProject.project, '')
+  assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex', 'raw workspace wording cannot change the active target')
+  assert.strictEqual(workspaceLayoutState.activeScope, 'project')
+  assert.strictEqual(workspaceLayoutState.stickyProject.project, 'devcodex')
 
   const explicitProjectWithWorkspaceToken = run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'explicit-workspace-token-session',
-    prompt: 'Project devcodex. Use workspace-s15-probe.'
+    prompt: 'Project devcodex. Use workspace-s15-probe.',
+    currentFile: path.join(TEMP_ROOT, 'devcodex', 'package.json')
   })
   assert.strictEqual(explicitProjectWithWorkspaceToken.continue, true)
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
   assert.strictEqual(workspaceLayoutState.activeProject, 'devcodex')
   assert.strictEqual(workspaceLayoutState.activeScope, 'project')
-  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'prompt')
+  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'payload')
 
   cleanLayoutMultiProjectState()
   run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'old-session',
-    prompt: '修复 devcodex 项目'
+    prompt: '修复 devcodex 项目',
+    currentFile: path.join(TEMP_ROOT, 'devcodex', 'package.json')
   })
   const newSessionFollowup = run({
     hookEventName: 'UserPromptSubmit',
@@ -1810,7 +1814,8 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'aged-sticky-session',
-    prompt: '修复 devcodex 项目'
+    prompt: '修复 devcodex 项目',
+    currentFile: path.join(TEMP_ROOT, 'devcodex', 'package.json')
   })
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
   workspaceLayoutState.stickyProject.expiresAtMs = 1
@@ -1829,7 +1834,8 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   cleanLayoutMultiProjectState()
   run({
     hookEventName: 'UserPromptSubmit',
-    prompt: '修复 devcodex 项目'
+    prompt: '修复 devcodex 项目',
+    currentFile: path.join(TEMP_ROOT, 'devcodex', 'package.json')
   })
   const noSessionFollowup = run({
     hookEventName: 'UserPromptSubmit',
@@ -1843,7 +1849,8 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   cleanLayoutMultiProjectState()
   run({
     hookEventName: 'UserPromptSubmit',
-    prompt: '修复 devcodex 项目'
+    prompt: '修复 devcodex 项目',
+    currentFile: path.join(TEMP_ROOT, 'devcodex', 'package.json')
   })
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
   workspaceLayoutState.stickyProject.expiresAtMs = 1
@@ -1859,7 +1866,8 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'layout-drift-session',
-    prompt: '修复 devcodex 项目'
+    prompt: '修复 devcodex 项目',
+    currentFile: path.join(TEMP_ROOT, 'devcodex', 'package.json')
   })
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
   workspaceLayoutState.stickyProject.layoutIdentity = '0'.repeat(64)
@@ -1877,17 +1885,19 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'explicit-conflict-session',
-    prompt: '修复 devcodex 项目'
+    prompt: '修复 devcodex 项目',
+    currentFile: path.join(TEMP_ROOT, 'devcodex', 'package.json')
   })
   const explicitConflictFollowup = run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'explicit-conflict-session',
-    prompt: '切换到 payment 项目'
+    prompt: '切换到 payment 项目',
+    currentFile: path.join(TEMP_ROOT, 'payment', 'package.json')
   })
   assert.ok(!/multi-project-workspace/.test(explicitConflictFollowup.systemMessage || ''))
   workspaceLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
   assert.strictEqual(workspaceLayoutState.activeProject, 'payment')
-  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'prompt')
+  assert.strictEqual(workspaceLayoutState.activeProjectSource, 'payload')
   assert.strictEqual(workspaceLayoutState.stickyProject.project, 'payment')
 
   cleanLayoutState()
@@ -1946,13 +1956,14 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   const nestedLeafProject = run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'nested-leaf-session',
-    prompt: '检查 app-a 项目'
+    prompt: '检查 app-a 项目',
+    currentFile: path.join(TEMP_ROOT, 'packages', 'app-a', 'package.json')
   })
   assert.strictEqual(nestedLeafProject.continue, true)
   assert.ok(!/multi-project-workspace/.test(nestedLeafProject.systemMessage || ''))
   let nestedLayoutState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
   assert.strictEqual(nestedLayoutState.activeProject, 'packages/app-a')
-  assert.strictEqual(nestedLayoutState.activeProjectSource, 'prompt')
+  assert.strictEqual(nestedLayoutState.activeProjectSource, 'payload')
 
   cleanNestedLayoutMultiProjectState()
   fs.mkdirSync(path.join(TEMP_ROOT, 'services', 'app-a'), { recursive: true })
@@ -1994,13 +2005,14 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   const toolingSiblingPrompt = run({
     hookEventName: 'UserPromptSubmit',
     session_id: 'tooling-sibling-session',
-    prompt: '继续 app 的修复'
+    prompt: '继续 app 的修复',
+    currentFile: path.join(TEMP_ROOT, 'app', 'package.json')
   })
   assert.strictEqual(toolingSiblingPrompt.continue, true)
   assert.ok(!/multi-project-workspace/.test(toolingSiblingPrompt.systemMessage || ''))
   const toolingSiblingState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
   assert.strictEqual(toolingSiblingState.activeProject, 'app')
-  assert.strictEqual(toolingSiblingState.activeProjectSource, 'prompt')
+  assert.strictEqual(toolingSiblingState.activeProjectSource, 'payload')
 }
 
 module.exports = {

@@ -1157,7 +1157,7 @@ function testProfileInitAndStatusShareTierContract() {
       '',
       '| 能力 ID | 能力组 | 公开面 | 配置入口 | 主要消费者 | 文档入口 | 验证路线 | 事实来源 | 维护责任 | 发布状态 |',
       '|---|---|---|---|---|---|---|---|---|---|',
-      '| cli-main | CLI | `devcodex` | 命令参数 | CLI 用户 | `README.md` | `node test.js` | package.json#bin.devcodex | 项目维护者 | unverified |',
+      '| cli-main | CLI | `devcodex` | 命令参数 | CLI 用户 | `README.md` | `node test.js` | package.json#scripts.test | 项目维护者 | unverified |',
       ''
     ].join('\n')
   )

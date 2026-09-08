@@ -386,7 +386,7 @@ const { cmdInitWorkspaceRuntime, cmdInitHost, cmdUninstallHost } = buildCliInsta
 
 // ─── Profile bootstrap (v1.9.2+) ──────────────────────────────────────────────
 
-function inspectProfileState(profileDir) {
+function inspectProfileState(profileDir, options = {}) {
   let availableFiles = []
   try { availableFiles = fs.readdirSync(profileDir).filter(file => fs.statSync(path.join(profileDir, file)).isFile()) } catch { }
   const documents = Object.fromEntries(availableFiles.filter(file => file.endsWith('.md')).map(file => {
@@ -396,7 +396,7 @@ function inspectProfileState(profileDir) {
   let tier = 'profile-lite'
   let error = null
   try { tier = detectProfileTier(corpus) } catch (err) { error = err.message }
-  const state = inspectProfileContract(tier, availableFiles, corpus, documents)
+  const state = inspectProfileContract(tier, availableFiles, corpus, documents, options)
   const configExists = fs.existsSync(path.join(profileDir, 'config.json'))
   return { ...state, complete: !error && state.complete, configExists, error }
 }

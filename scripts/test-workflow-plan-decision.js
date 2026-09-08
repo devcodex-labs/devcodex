@@ -13,6 +13,7 @@ const {
 const simple = buildWorkflowPlanDecision({
   phase: 'precheck',
   prompt: '这是单文件修改，走简单流程并使用最小技术方案，只做定向验证',
+  userIntent: { ceremonyTier: 'simple', designDepth: 'minimal', assuranceLevel: 'targeted' },
   config: { mode: 'standard', showPlan: true },
   facts: { targetKnown: true, changedFileCount: 1, consumerCount: 1 }
 })
@@ -23,6 +24,7 @@ assert.strictEqual(simple.axes.assuranceLevel.value, 'targeted')
 
 const publicContract = buildWorkflowPlanDecision({
   prompt: '走简单流程',
+  userIntent: { ceremonyTier: 'simple' },
   config: { mode: 'adaptive', showPlan: true },
   facts: { targetKnown: true, publicContract: true, schemaChange: true, consumerCount: 3 }
 })

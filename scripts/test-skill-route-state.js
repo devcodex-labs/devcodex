@@ -353,6 +353,37 @@ try {
   partialLockFixture.cleanup()
 }
 
+const observedChoiceFixture = createSkillRouteFixture({ project: 'observed-catalog-choice' })
+try {
+  const contextEpoch = 'ctx-observed-catalog-choice'
+  const contextBinding = writeContextBindingState(observedChoiceFixture, contextEpoch, 'dev')
+  const boot = bootstrapSkillRoute({
+    project: observedChoiceFixture.project, activeRoot: observedChoiceFixture.activeRoot,
+    contextEpoch, prompt: 'Run the workspace route probe', mode: 'unified', cwd: observedChoiceFixture.projectRoot
+  }, observedChoiceFixture.runtimeOptions)
+  const binding = { project: observedChoiceFixture.project, contextEpoch, turnBinding: boot.bootstrap.turnBinding }
+  const first = handleSkillRoute({ op: 'catalog', ...binding }, observedChoiceFixture.runtimeOptions)
+  assert.strictEqual(first.ok, true)
+  assert(first.receipt.pageCount > 1)
+  const envelope = JSON.parse(fs.readFileSync(boot.paths.envelope, 'utf8'))
+  const unseenSkill = envelope.state.catalog.pages[1].cards[0].skillId
+  const commit = skillId => handleSkillRoute({
+    op: 'commit', ...binding, catalogDigest: first.receipt.catalogDigest, contextBinding, skillId
+  }, observedChoiceFixture.runtimeOptions)
+  assert.strictEqual(commit(unseenSkill).errorCode, 'CATALOG_PAGE_INCOMPLETE',
+    'unseen metadata cannot become an observed model choice')
+  assert.strictEqual(commit(null).errorCode, 'CATALOG_PAGE_INCOMPLETE',
+    'no-match requires complete discovery')
+  const selected = commit(first.receipt.cards[0].skillId)
+  assert.strictEqual(selected.ok, true, JSON.stringify(selected))
+  const progress = JSON.parse(fs.readFileSync(boot.paths.catalogProgress, 'utf8'))
+  assert.deepStrictEqual(progress.servedCatalogPages, [0], 'a seen choice must not claim unseen pages were served')
+  const next = handleSkillRoute({ op: 'catalog', ...binding, cursor: first.receipt.nextCursor }, observedChoiceFixture.runtimeOptions)
+  assert.strictEqual(next.ok, true, 'remaining catalog discovery stays available')
+} finally {
+  observedChoiceFixture.cleanup()
+}
+
 const fixture = createSkillRouteFixture()
 
 try {
@@ -371,8 +402,8 @@ try {
     'utf8'
   )
   assert.strictEqual(parseExplicitSkillId('使用 report 生成报告'), null)
-  assert.strictEqual(parseExplicitSkillId('使用 report Skill'), 'report')
-  assert.strictEqual(parseExplicitSkillId('skill:report'), 'report')
+  assert.strictEqual(parseExplicitSkillId('使用 report Skill'), null)
+  assert.strictEqual(parseExplicitSkillId('skill:report'), null)
 
   // Acceptance R02 / T01: invalid identities fail before any route mutation.
   const invalidProject = handleSkillRoute({
@@ -405,7 +436,7 @@ try {
   }, fixture.runtimeOptions)
   assert.strictEqual(boot.reused, false)
   assert.strictEqual(boot.bootstrap.mode, 'unified')
-  assert(boot.bootstrap.candidateCount <= 8)
+  assert.strictEqual(boot.bootstrap.candidateCount, boot.bootstrap.availableCandidateCount)
   assert(boot.bootstrap.availableCandidateCount > 70)
 
   const missingContextBinding = handleSkillRoute({
@@ -461,13 +492,13 @@ try {
   assert.strictEqual(skippedCatalogPage.ok, false)
   assert.strictEqual(
     skippedCatalogPage.errorCode,
-    'CATALOG_CURSOR_INVALID'
+    'CATALOG_CURSOR_OUT_OF_SEQUENCE'
   )
 
   const catalogPaths = turnPaths(fixture.activeRoot, boot.bootstrap.turnBinding)
   const envelopeBeforeCatalog = fs.readFileSync(catalogPaths.envelope, 'utf8')
   const pages = requestCatalogAll(fixture, boot.bootstrap)
-  assert(pages.length <= 1, `expected metadata shortlist to fit in one page, got ${pages.length}`)
+  assert(pages.length > 1, 'the full fixture catalog must remain paged and visible')
   assert.strictEqual(fs.readFileSync(catalogPaths.envelope, 'utf8'), envelopeBeforeCatalog)
   const catalogProgress = JSON.parse(fs.readFileSync(catalogPaths.catalogProgress, 'utf8'))
   assert.deepStrictEqual(
@@ -781,8 +812,8 @@ try {
     contextEpoch: mcpObservationEpoch
   }, fixture.runtimeOptions)
   assert.strictEqual(recoveredStatusAfterOverwrite.ok, true, JSON.stringify(recoveredStatusAfterOverwrite))
-  assert.strictEqual(recoveredStatusAfterOverwrite.receipt.nextAction.nextOp, 'load_stage')
-  assert.strictEqual(recoveredStatusAfterOverwrite.receipt.nextAction.nextCall.stageId, 'closeout')
+  assert.strictEqual(recoveredStatusAfterOverwrite.receipt.nextAction.nextOp, null)
+  assert(recoveredStatusAfterOverwrite.receipt.obligations.deferredStageIds.includes('closeout'))
 
   const writerStaleLifecycle = JSON.parse(fs.readFileSync(lifecyclePath, 'utf8'))
   writerStaleLifecycle.contextAcquisition.receipt.status = 'stale'
@@ -802,7 +833,7 @@ try {
     contextEpoch: mcpObservationEpoch
   }, fixture.runtimeOptions)
   assert.strictEqual(writerRecoveredStatus.ok, true, JSON.stringify(writerRecoveredStatus))
-  assert.strictEqual(writerRecoveredStatus.receipt.nextAction.nextOp, 'load_stage')
+  assert.strictEqual(writerRecoveredStatus.receipt.nextAction.nextOp, null)
   assert.strictEqual(writerRecoveredStatus.receipt.nextAction.errorCode, null)
   const writerRecoveredLifecycle = JSON.parse(fs.readFileSync(lifecyclePath, 'utf8'))
   assert.strictEqual(writerRecoveredLifecycle.contextAcquisition.receipt.status, 'relevant-complete')
@@ -1246,13 +1277,13 @@ try {
   assert.strictEqual(staleBusinessStop.retired, true)
   assert.strictEqual(staleBusinessStop.processComplete, false)
   assert(staleBusinessStop.pendingStageIds.length > 0)
-  assert.strictEqual(staleBusinessStop.businessSatisfied, false)
-  assert.strictEqual(staleBusinessStop.complete, false)
-  assert.strictEqual(staleBusinessStop.nextOp, 'satisfy_business')
+  assert.strictEqual(staleBusinessStop.businessSatisfied, null)
+  assert.strictEqual(staleBusinessStop.complete, true)
+  assert.strictEqual(staleBusinessStop.nextOp, null)
   assert.strictEqual(staleBusinessStop.nextCall, null)
   assert.strictEqual(
     staleBusinessStop.recovery.action,
-    'reply-selected-business-core'
+    'retire-and-allow-stop'
   )
   const satisfiedStaleBusinessStop = evaluateProgressiveSkillRouteStop({
     project: fixture.project,
@@ -1264,7 +1295,7 @@ try {
     capabilityPath: alternateCapabilityPath
   })
   assert.strictEqual(satisfiedStaleBusinessStop.retired, true)
-  assert.strictEqual(satisfiedStaleBusinessStop.businessSatisfied, true)
+  assert.strictEqual(satisfiedStaleBusinessStop.businessSatisfied, null)
   assert.strictEqual(satisfiedStaleBusinessStop.complete, true)
   assert.strictEqual(satisfiedStaleBusinessStop.processComplete, false)
   assert.strictEqual(satisfiedStaleBusinessStop.nextOp, null)
@@ -1299,7 +1330,7 @@ try {
   assert.strictEqual(expiredPendingStop.retirementReason, 'TURN_EXPIRED')
   assert.strictEqual(expiredPendingStop.processComplete, false)
   assert(expiredPendingStop.pendingStageIds.length > 0)
-  assert.strictEqual(expiredPendingStop.businessSatisfied, true)
+  assert.strictEqual(expiredPendingStop.businessSatisfied, null)
   assert.strictEqual(expiredPendingStop.complete, true)
   assert.strictEqual(expiredPendingStop.nextOp, null)
   assert.strictEqual(
@@ -1544,7 +1575,7 @@ try {
   )
   assert.strictEqual(persisted.envelope.state.stageProgress.closeout.status, 'loaded')
 
-  // Acceptance P11: process completion and must-reply are both required.
+  // Skill instruction delivery cannot certify business results from reply text.
   const missingBusinessReply = evaluateProgressiveSkillRouteStop({
     project: fixture.project,
     contextEpoch,
@@ -1552,8 +1583,8 @@ try {
   }, fixture.runtimeOptions)
   assert.strictEqual(missingBusinessReply.present, true)
   assert.strictEqual(missingBusinessReply.processComplete, true)
-  assert.strictEqual(missingBusinessReply.businessSatisfied, false)
-  assert.strictEqual(missingBusinessReply.complete, false)
+  assert.strictEqual(missingBusinessReply.businessSatisfied, null)
+  assert.strictEqual(missingBusinessReply.complete, true)
   const completedStop = evaluateProgressiveSkillRouteStop({
     project: fixture.project,
     contextEpoch,
@@ -2185,6 +2216,7 @@ try {
       activeRoot: explicitFixture.activeRoot,
       contextEpoch: explicitEpoch,
       prompt: 'skill: workspace-probe',
+      explicitSkillId: 'workspace-probe',
       mode: 'unified',
       cwd: explicitFixture.projectRoot
     }, explicitFixture.runtimeOptions)

@@ -264,6 +264,9 @@ function skillsDeployDestination (target) {
 function addSharedRuntime(operations, target, packageRoot, fsImpl = fs) {
   if (!target.shared || target.sharedRuntimeOwner !== true) return
   addInstructionRoot(operations, target.host, packageRoot, target.shared.fullFallback, fsImpl)
+  // Hidden Skills are versioned with each runtime. Keep any old shared tree as
+  // a retained compatibility asset; mutating it would change live old readers.
+  if ((target.skillsDeployMode || 'hidden') === 'hidden') return
   const skillsDest = skillsDeployDestination(target)
   if (!skillsDest) return
   addSkillRuntimeTree(operations, target.host, packageRoot, skillsDest, fsImpl)
@@ -284,6 +287,7 @@ function addCommonRuntime(operations, target, packageRoot, fsImpl = fs) {
   addSourceTree(operations, target.host, path.join(packageRoot, 'hooks', '_runtime'), path.join(runtime, 'hooks', '_runtime'), fsImpl)
   addSourceTree(operations, target.host, path.join(packageRoot, 'mcp'), path.join(runtime, 'mcp'), fsImpl)
   addPromptRuntimeTree(operations, target.host, packageRoot, path.join(runtime, 'prompts'), fsImpl)
+  addSkillRuntimeTree(operations, target.host, packageRoot, path.join(runtime, 'skills'), fsImpl)
   for (const relative of MCP_RUNTIME_DEPS) {
     addSourceFile(
       operations,
@@ -1067,6 +1071,7 @@ function buildManagedArtifact (operation, target) {
     path: portable(operation.path),
     ...ownership,
     managedDigest: digestText(managed),
+    ...(ownership.ownershipKind === 'codex-toml-block' ? { managedContent: String(managed) } : {}),
     ...(ownership.ownershipKind === 'whole-file'
       ? { contentDigest: digestText(operation.content) }
       : {})
@@ -1393,9 +1398,11 @@ function buildGlobalHostConfigPlan(options = {}) {
     const retainPreviousRuntime = previousRuntimeRoot &&
       !samePath(previousRuntimeRoot, target.runtimeRoot) &&
       pathIsInside(target.runtimeBaseRoot, previousRuntimeRoot)
-    const generationSafeStaleManagedPaths = retainPreviousRuntime
-      ? allStaleManagedPaths.filter(file => !pathIsInside(previousRuntimeRoot, file))
-      : allStaleManagedPaths
+    const legacySharedSkillsRoot = target.shared?.skillsRuntime
+    const generationSafeStaleManagedPaths = allStaleManagedPaths.filter(file =>
+      !(retainPreviousRuntime && pathIsInside(previousRuntimeRoot, file)) &&
+      !(legacySharedSkillsRoot && pathIsInside(legacySharedSkillsRoot, file))
+    )
     hostPlan.retainedRuntimeRoots = Array.from(new Set([
       ...(Array.isArray(previousReceipt?.retainedRuntimeRoots)
         ? previousReceipt.retainedRuntimeRoots
@@ -1408,7 +1415,7 @@ function buildGlobalHostConfigPlan(options = {}) {
       .sort()
     hostPlan.retainedManagedArtifacts = retainedManagedArtifacts(
       previousReceipt,
-      hostPlan.retainedRuntimeRoots
+      [...hostPlan.retainedRuntimeRoots, ...(legacySharedSkillsRoot ? [legacySharedSkillsRoot] : [])]
     )
     const nativeStaleByRoot = new Map()
     hostPlan.nativeStaleFileDigests = {}
@@ -1491,9 +1498,7 @@ function buildGlobalHostConfigPlan(options = {}) {
       mode: GLOBAL_HOST_CONFIG_SCHEMA,
       workspaceCleanMode: 'GlobalOnlyWorkspaceCleanModeV1',
       skillsDeployMode,
-      skillsRuntimeRoot: target.shared && target.shared.skillsRuntime
-        ? portable(target.shared.skillsRuntime)
-        : null,
+      skillsRuntimeRoot: portable(path.join(target.runtimeRoot, 'skills')),
       host: target.host,
       support: target.support,
       evidenceCeiling: target.evidenceCeiling,
@@ -1890,8 +1895,8 @@ function inspectGlobalHostConfiguration(options = {}) {
       if (target.shared.fullFallback) sharedEntrypoints.push(target.shared.fullFallback)
       if (modeForInspect === 'legacy') {
         if (target.shared.skills) sharedEntrypoints.push(target.shared.skills)
-      } else if (target.shared.skillsRuntime) {
-        sharedEntrypoints.push(target.shared.skillsRuntime)
+      } else {
+        sharedEntrypoints.push(path.join(target.runtimeRoot, 'skills', 'portfolio.json'))
       }
     }
     const fileEntrypoints = Object.entries(target.files || {})
@@ -1935,6 +1940,7 @@ function inspectGlobalHostConfiguration(options = {}) {
       Array.isArray(receipt.pendingStaleManagedPaths) &&
       Object.prototype.hasOwnProperty.call(receipt, 'previousStateRef') &&
       receipt.result === 'committed' &&
+      !receipt.removal &&
       typeof receipt.updatedAt === 'string'
     const receiptMatchesCurrent = Boolean(expectedReceipt) &&
       receipt?.packageName === expectedReceipt.packageName &&
@@ -1964,6 +1970,7 @@ function inspectGlobalHostConfiguration(options = {}) {
       sameStringArray(receipt?.pendingStaleManagedPaths, expectedReceipt.pendingStaleManagedPaths)
     const stale = Boolean(receipt) && (!receiptFieldsComplete || !receiptMatchesCurrent)
     const configured = Boolean(receipt) &&
+      !receipt.removal &&
       configFiles.length > 0 &&
       managedPaths.length > 0 &&
       runtimeDeclared

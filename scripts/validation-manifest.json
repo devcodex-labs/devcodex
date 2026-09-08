@@ -1713,6 +1713,8 @@
         "scripts/test-host-skill-route-capability.js",
         "scripts/lib/narrative-markdown-policy.js",
         "scripts/fixtures/skill-route-closure-trace.v1.json",
+        "scripts/validation-manifest.json",
+        "scripts/lib/validation-dag.js",
         "scripts/test-skill-route-closure.js"
       ],
       "consumers": [
@@ -1722,7 +1724,7 @@
       ],
       "invariants": [
         "requirement-trace-complete",
-        "terminal-contract-consistent",
+        "suite-executors-selected-for-full-validation",
         "legacy-active-consumers-zero",
         "current-s15-capability"
       ],

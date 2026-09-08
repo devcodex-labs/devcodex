@@ -15,18 +15,9 @@ const {
   getGrokLauncherAdapterDigest
 } = require('./lib/grok-workspace-launcher')
 const { isNarrativeMarkdownPath } = require('./lib/narrative-markdown-policy')
+const { readValidationManifest } = require('./lib/validation-dag')
 
 const ROOT = path.resolve(__dirname, '..')
-const REQUIREMENTS_ROOT = process.env.DEVCODEX_SKILL_ROUTE_REQUIREMENTS_ROOT
-  ? path.resolve(process.env.DEVCODEX_SKILL_ROUTE_REQUIREMENTS_ROOT)
-  : path.resolve(
-      ROOT,
-      '..',
-      '.devcodex',
-      'devcodex',
-      'requirements',
-      '工作区Skill意图结构化与路由增强'
-    )
 const TRACE_FILE = path.join(
   __dirname,
   'fixtures',
@@ -92,48 +83,57 @@ for (const [acceptanceId, testIds] of Object.entries(trace.acceptanceLinks)) {
     assert(trace.testCases[testId], `${acceptanceId} -> ${testId} missing`)
   }
 }
-for (const [testId, evidence] of Object.entries(trace.testCases)) {
-  assert.strictEqual(isNarrativeMarkdownPath(evidence.owner), false, `${testId} must use a machine/control owner`)
-  const owner = path.join(ROOT, evidence.owner)
-  assert(fs.existsSync(owner), `${testId} owner missing: ${evidence.owner}`)
-  assert(
-    read(owner).includes(evidence.anchor),
-    `${testId} anchor missing from ${evidence.owner}: ${evidence.anchor}`
-  )
-}
-
-const requirementFile = path.join(REQUIREMENTS_ROOT, '00-需求概况.md')
-const designFile = path.join(REQUIREMENTS_ROOT, '02-技术方案.md')
-const sourceDocsAvailable = fs.existsSync(requirementFile) && fs.existsSync(designFile)
-if (sourceDocsAvailable) {
-  const requirement = read(requirementFile)
-  const design = read(designFile)
-  for (const id of expectedRequirements) {
-    assert(new RegExp(`\\| ${id} \\|`).test(requirement), `00 missing ${id}`)
-  }
-  for (const id of expectedAcceptance) {
-    assert(new RegExp(`\\| \\*\\*?${id}\\*\\*? \\||\\| ${id} \\|`).test(requirement), `00 missing ${id}`)
-  }
-  for (const id of expectedTests) {
-    assert(new RegExp(`\\| ${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\|`).test(design), `02 missing ${id}`)
-  }
-
-  const terminalSection = design.slice(design.indexOf('## 8. SkillRouteModeV2'))
-  for (const forbidden of [
-    '当前 BLOCK',
-    '默认仍 legacy',
-    'SkillRouteModeV1',
-    'sample:skill-route:retirement'
-  ]) {
-    assert.strictEqual(
-      terminalSection.includes(forbidden),
-      false,
-      `terminal design retains superseded contract: ${forbidden}`
-    )
-  }
-}
-
 const packageJson = JSON.parse(read(path.join(ROOT, 'package.json')))
+const manifest = readValidationManifest(path.join(__dirname, 'validation-manifest.json'), { repoRoot: ROOT })
+const fullNodeIds = new Set(manifest.routes.full.nodes)
+
+// Historical case IDs register suite coverage. Only the current validation
+// execution receipt can establish that those suites actually passed.
+function commandLeaves (command, scripts = packageJson.scripts, stack = []) {
+  return String(command).split('&&').flatMap(part => {
+    const normalized = part.trim().replace(/\s+/g, ' ')
+    const nested = /^npm run ([A-Za-z0-9:_-]+)$/.exec(normalized)
+    if (!nested) return [normalized]
+    const name = nested[1]
+    assert(scripts[name] && !stack.includes(name), `invalid or cyclic npm executor: ${name}`)
+    return commandLeaves(scripts[name], scripts, [...stack, name])
+  })
+}
+
+function assertSuiteRegistration (testId, evidence, nodes = manifest.nodes, selected = fullNodeIds) {
+  assert.strictEqual(isNarrativeMarkdownPath(evidence.owner), false, `${testId} must use an executable suite owner`)
+  assert(fs.existsSync(path.join(ROOT, evidence.owner)), `${testId} owner missing: ${evidence.owner}`)
+  const node = nodes.find(item => item.id === evidence.validationNode)
+  assert(node, `${testId} validation node missing: ${evidence.validationNode}`)
+  assert(selected.has(node.id), `${testId} suite is absent from full validation: ${node.id}`)
+  const leaves = commandLeaves([node.command, ...node.args].join(' '))
+  assert(leaves.includes(`node ${evidence.owner}`), `${testId} node does not execute its declared suite: ${node.id}`)
+}
+
+assert.strictEqual(trace.coverageKind, 'suite-registration')
+assert.strictEqual(trace.executionAuthority, 'ValidationExecutionReceiptV3')
+for (const [testId, evidence] of Object.entries(trace.testCases)) {
+  if (testId === 'M05') {
+    assert.strictEqual(evidence.hostVariant, 'codex-cli/exec-user-global-local-stdio')
+    assert.strictEqual(evidence.owner, 'scripts/probe-skill-route-s15-host.js')
+    assert(commandLeaves('npm run probe:skill-route:s15:host').includes(`node ${evidence.owner}`))
+  } else {
+    assertSuiteRegistration(testId, evidence)
+  }
+}
+
+// A source comment, an unselected node, or a command merely mentioning a
+// script cannot turn an absent executor into registered or passed coverage.
+const registration = trace.testCases.P11
+assert.throws(() => assertSuiteRegistration('P11', { ...registration, validationNode: 'missing-node' }), /validation node missing/)
+assert.throws(() => assertSuiteRegistration('P11', registration, manifest.nodes, new Set()), /absent from full validation/)
+assert.throws(() => assertSuiteRegistration('P11', registration, [{
+  id: registration.validationNode,
+  command: 'echo',
+  args: ['node', registration.owner]
+}]), /does not execute/)
+assert.throws(() => commandLeaves('npm run loop', { loop: 'npm run loop' }), /cyclic npm executor/)
+
 assert.match(packageJson.scripts['test:skill-route'], /test:skill-route-closure/)
 const packagedFiles = JSON.stringify(packageJson.files || [])
 assert.doesNotMatch(packagedFiles, /retired-workspace-skill-route/)
@@ -216,6 +216,7 @@ assert.strictEqual(grokCapability.defaultEligible, false)
 
 console.log(
   `test-skill-route-closure: ok requirements=${expectedRequirements.length} ` +
-  `acceptance=${expectedAcceptance.length} executable=${expectedTests.length} ` +
-  `sourceDocs=${sourceDocsAvailable ? 'checked' : 'not-packaged'}`
+  `acceptance=${expectedAcceptance.length} registeredCases=${expectedTests.length} ` +
+  `suiteExecutionAuthority=${trace.executionAuthority} ` +
+  `currentHostEvidence=${pass.length} historicalNarrative=non-authoritative`
 )

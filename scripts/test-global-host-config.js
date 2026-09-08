@@ -61,6 +61,7 @@ const { listControlDeliveryEntries } = require('./lib/control-content-delivery.j
 const packageRoot = path.resolve(__dirname, '..')
 const cliEntry = path.join(packageRoot, 'index.js')
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-global-host config with spaces-'))
+const keepTempFixture = process.env.DEVCODEX_TEST_KEEP_TEMP === '1' || process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1'
 let tempCleaned = false
 function executeGlobalHostTransaction(operations, options = {}) {
   return executeGlobalHostTransactionRaw(operations, {
@@ -70,7 +71,7 @@ function executeGlobalHostTransaction(operations, options = {}) {
 }
 function cleanupTempFixture() {
   if (tempCleaned) return
-  if (process.env.DEVCODEX_TEST_KEEP_TEMP === '1' || process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1') {
+  if (keepTempFixture) {
     tempCleaned = true
     console.log(`Global host config artifacts retained: ${tmp}`)
     return
@@ -1943,5 +1944,5 @@ for (const forbidden of fixture.workspaceForbidden) {
 }
 
 cleanupTempFixture()
-assert.strictEqual(fs.existsSync(tmp), false, 'global host config temporary fixture must be removed before success')
-console.log(`global host config tests passed hosts=${GLOBAL_HOST_IDS.length} operations=${plan.operations.length} idempotent=1 rollback=1 workspaceHostDirs=0 tempCleanup=1`)
+assert.strictEqual(fs.existsSync(tmp), keepTempFixture, 'global host config fixture must match the requested retention mode before success')
+console.log(`global host config tests passed hosts=${GLOBAL_HOST_IDS.length} operations=${plan.operations.length} idempotent=1 rollback=1 workspaceHostDirs=0 tempCleanup=${Number(!keepTempFixture)} tempRetained=${Number(keepTempFixture)}`)

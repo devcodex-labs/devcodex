@@ -101,13 +101,14 @@ function commandLeaves (command, scripts = packageJson.scripts, stack = []) {
 }
 
 function assertSuiteRegistration (testId, evidence, nodes = manifest.nodes, selected = fullNodeIds) {
-  assert.strictEqual(isNarrativeMarkdownPath(evidence.owner), false, `${testId} must use an executable suite owner`)
+  assert.strictEqual(isNarrativeMarkdownPath(evidence.owner), false, `${testId} must use a machine/control owner`)
   assert(fs.existsSync(path.join(ROOT, evidence.owner)), `${testId} owner missing: ${evidence.owner}`)
   const node = nodes.find(item => item.id === evidence.validationNode)
   assert(node, `${testId} validation node missing: ${evidence.validationNode}`)
   assert(selected.has(node.id), `${testId} suite is absent from full validation: ${node.id}`)
   const leaves = commandLeaves([node.command, ...node.args].join(' '))
-  assert(leaves.includes(`node ${evidence.owner}`), `${testId} node does not execute its declared suite: ${node.id}`)
+  const executor = evidence.executor || evidence.owner
+  assert(leaves.includes(`node ${executor}`), `${testId} node does not execute its declared suite: ${node.id}`)
 }
 
 assert.strictEqual(trace.coverageKind, 'suite-registration')

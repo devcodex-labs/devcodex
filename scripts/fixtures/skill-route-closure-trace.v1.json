@@ -90,10 +90,10 @@
     "M04": {"owner": "scripts/test-global-host-config.js", "validationNode": "global-host-config"},
     "M05": {"owner": "scripts/probe-skill-route-s15-host.js", "hostVariant": "codex-cli/exec-user-global-local-stdio"},
     "M06": {"owner": "scripts/test-global-install-smoke.js", "validationNode": "global-install-smoke"},
-    "M07": {"owner": "scripts/test-cli-behavior.js", "validationNode": "cli-behavior"},
+    "M07": {"owner": "scripts/lib/global-adapter-refresh-guidance.js", "executor": "scripts/test-cli-behavior.js", "validationNode": "cli-behavior"},
     "M08": {"owner": "scripts/test-skill-route-state.js", "validationNode": "skill-route-state"},
     "M08a": {"owner": "scripts/test-skill-route-lifecycle.js", "validationNode": "skill-route-lifecycle"},
-    "M08b": {"owner": "scripts/test-hooks-runtime.js", "validationNode": "hooks-runtime"},
+    "M08b": {"owner": "scripts/lib/test-hooks-runtime-bootstrap-layout.js", "executor": "scripts/test-hooks-runtime.js", "validationNode": "hooks-runtime"},
     "M09": {"owner": "scripts/test-global-install-smoke.js", "validationNode": "global-install-smoke"},
     "M10": {"owner": "scripts/test-skill-route-state.js", "validationNode": "skill-route-state"}
   }

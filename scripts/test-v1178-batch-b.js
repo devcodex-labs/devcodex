@@ -24,7 +24,8 @@ const {
 } = require('../mcp/bounded-text-reader.cjs')
 const {
   executeGlobalHostTransaction,
-  operationDigest
+  operationDigest,
+  recoverIndexedTransactions
 } = require('./lib/global-host-config-transaction.js')
 const { mergeVscodeUserMcpContent } = require('./lib/global-host-config.js')
 
@@ -463,6 +464,64 @@ function testObservationFoldDeterminism() {
 }
 
 function testGlobalConfigJournalRecovery() {
+  for (const phase of ['staged', 'backed-up', 'installed', 'verified']) {
+    const crashFs = new MemoryFs()
+    const root = path.resolve(`C:/global-host-${phase}`)
+    const transactionRoot = path.join(root, 'transactions')
+    const files = ['first', 'second'].map(name => path.join(root, `${name}.txt`))
+    for (const file of files) crashFs.setFile(file, 'old')
+    const operations = files.map(file => ({ host: 'test', action: 'write', kind: 'text',
+      path: file, content: 'new', expectedDigest: operationDigest('old') }))
+    const options = { fs: crashFs, allowedRoots: [root], safetyRoots: [root],
+      allowedByHost: { test: { allowedRoots: [root], allowedFiles: [], safetyRoots: [root] } }, transactionRoot }
+    assert.throws(() => executeGlobalHostTransaction(operations, { ...options,
+      transactionId: `crash-${phase}`, crashAfterPhase: `${phase}:0` }), error => error.code === 'GLOBAL_HOST_TEST_SIMULATED_CRASH')
+    const journal = JSON.parse(crashFs.readFileSync(path.join(transactionRoot, 'journals', `crash-${phase}.json`), 'utf8'))
+    assert.strictEqual(journal.phase, 'prepared', 'recovery must work from the durable write-ahead snapshot')
+    const resumed = executeGlobalHostTransaction(operations, { ...options, transactionId: `resume-${phase}` })
+    assert.strictEqual(resumed.status, 'committed')
+    assert.strictEqual(resumed.recoveredTransactions[0].status, 'recovered-rolled-back')
+    for (const file of files) assert.strictEqual(crashFs.readFileSync(file, 'utf8'), 'new')
+  }
+  for (const action of ['write', 'remove']) {
+    for (const atEnd of [false, true]) {
+      const crashFs = new MemoryFs()
+      const root = path.resolve(`C:/global-host-${action}-${atEnd}`)
+      const transactionRoot = path.join(root, 'transactions')
+      const files = ['first', 'second'].map(name => path.join(root, `${name}.txt`))
+      for (const file of files) crashFs.setFile(file, 'old')
+      const operations = files.map(file => ({ host: 'test', action, kind: 'text', path: file,
+        ...(action === 'write' ? { content: 'new' } : {}), expectedDigest: operationDigest('old') }))
+      const boundaries = { allowedRoots: [root], allowedFiles: [], safetyRoots: [root] }
+      assert.throws(() => executeGlobalHostTransaction(operations, { ...boundaries, fs: crashFs,
+        allowedByHost: { test: boundaries }, transactionRoot, transactionId: 'crash',
+        crashAfterPhase: `installed:${atEnd ? 1 : 0}` }), error => error.code === 'GLOBAL_HOST_TEST_SIMULATED_CRASH')
+      if (!atEnd && action === 'write') {
+        crashFs.setFile(files[0], 'external-change')
+        assert.throws(() => recoverIndexedTransactions(transactionRoot, boundaries, crashFs), error =>
+          error.code === 'GLOBAL_HOST_RECOVERY_DRIFT')
+        assert.strictEqual(crashFs.readFileSync(files[0], 'utf8'), 'external-change')
+        assert.strictEqual(crashFs.readFileSync(files[1], 'utf8'), 'old')
+        continue
+      }
+      const recovered = recoverIndexedTransactions(transactionRoot, boundaries, crashFs)
+      assert.strictEqual(recovered[0].status, atEnd ? 'recovered-committed' : 'recovered-rolled-back')
+      for (const file of files) {
+        if (action === 'remove' && atEnd) assert.strictEqual(crashFs.existsSync(file), false)
+        else assert.strictEqual(crashFs.readFileSync(file, 'utf8'), atEnd ? 'new' : 'old')
+      }
+    }
+  }
+  const largeFs = new MemoryFs()
+  const largeRoot = path.resolve('C:/global-host-journal-cost')
+  let durableWrites = 0
+  largeFs.fsyncSync = () => { durableWrites++ }
+  const largeOperations = Array.from({ length: 40 }, (_, index) => ({ host: 'test', action: 'write', kind: 'text',
+    path: path.join(largeRoot, `${index}.txt`), content: 'new', expectAbsent: true }))
+  executeGlobalHostTransaction(largeOperations, { fs: largeFs, allowedRoots: [largeRoot], safetyRoots: [largeRoot],
+    allowedByHost: { test: { allowedRoots: [largeRoot], allowedFiles: [], safetyRoots: [largeRoot] } },
+    transactionRoot: path.join(largeRoot, 'transactions') })
+  assert.ok(durableWrites >= 2 && durableWrites < 12, 'durable write-ahead and commit must remain bounded for a multi-file transaction')
   const memory = new MemoryFs()
   const root = path.resolve('C:/global-host')
   const config = path.join(root, 'config.json')

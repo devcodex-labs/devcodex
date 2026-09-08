@@ -7,8 +7,18 @@
     { "id": "node18-linux", "os": "ubuntu-latest", "node": "18.17.0", "kind": "compatibility", "command": "test:supported-runtime-control-plane" },
     { "id": "node22-linux", "os": "ubuntu-latest", "node": "22.x", "kind": "compatibility", "command": "test:supported-runtime-control-plane" },
     { "id": "node26-linux", "os": "ubuntu-latest", "node": "26.x", "kind": "compatibility", "command": "test:supported-runtime-control-plane" },
-    { "id": "node18-windows", "os": "windows-latest", "node": "18.17.0", "kind": "compatibility", "command": "test:windows-control-plane" },
-    { "id": "node24-windows", "os": "windows-latest", "node": "24.17.0", "kind": "compatibility", "command": "test:windows-control-plane" }
+    { "id": "node18-windows", "os": "windows-latest", "node": "18.17.0", "kind": "compatibility", "command": "test:windows-control-plane", "shards": [
+      { "id": "control", "command": "test:supported-runtime-control-plane" },
+      { "id": "host-config", "command": "test:windows-host-config" },
+      { "id": "host-skills", "command": "test:windows-host-skills" },
+      { "id": "host-runtime", "command": "test:windows-host-runtime" }
+    ] },
+    { "id": "node24-windows", "os": "windows-latest", "node": "24.17.0", "kind": "compatibility", "command": "test:windows-control-plane", "shards": [
+      { "id": "control", "command": "test:supported-runtime-control-plane" },
+      { "id": "host-config", "command": "test:windows-host-config" },
+      { "id": "host-skills", "command": "test:windows-host-skills" },
+      { "id": "host-runtime", "command": "test:windows-host-runtime" }
+    ] }
   ],
   "narrativeMarkdownExclusions": [
     "README.md",

@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 713,
     "consumerInventoryDigest": "424ec22febd792e124b514f3a668703849b8d4dee64719c8a7d670f49499c2ca",
-    "consumerProjectionDigest": "888ebbd8cf584f95025396c95e9df15412e81148b8ce7afdabf7758eba7b84b1",
-    "portfolioInputDigest": "bc5a2bdbccfe1a0d3612bb8d7f2efd88093b58bc0f93f8e4f91d0a6fe0b7ce9f"
+    "consumerProjectionDigest": "a4f4e30ac928408457dc7ce28437695613dd163be0d1ebf7f6297de9c38d38c0",
+    "portfolioInputDigest": "65fd1000c4271e76177408af9d9d62b0868dcf281ee13bede753c449a09b6876"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -12248,6 +12248,10 @@
         },
         {
           "path": "scripts/lib/global-host-config-merge.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/lib/global-host-config-transaction.js",
           "role": "current"
         },
         {

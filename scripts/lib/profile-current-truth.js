@@ -257,11 +257,11 @@ function extractWorkflowCurrentTruth(workflowText, validationManifest = null) {
   const plannerDriven = /scripts\/plan-ci-validation\.js/.test(String(workflowText || ''))
   const control = workflowJobBlock(workflowText, 'supported-control-plane')
   const supportedControlPlane = plannerDriven
-    ? (validationManifest?.ciCompatibilityMatrix || []).map(item => ({
+    ? (validationManifest?.ciCompatibilityMatrix || []).flatMap(item => (item.shards || [item]).map(shard => ({
         os: String(item.os || ''),
         node: String(item.node || ''),
-        route: String(item.command || '')
-      }))
+        route: String(shard.command || '')
+      })))
     : []
   if (!plannerDriven) {
     const lanePattern = /^\s*- os:\s*(\S+)\s*\n\s*node:\s*(\S+)\s*\n\s*route:\s*(\S+)\s*$/gm

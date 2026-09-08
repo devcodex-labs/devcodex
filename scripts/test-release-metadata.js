@@ -62,7 +62,7 @@ expect(lock.packages?.['']?.engines?.node === pkg.engines.node, 'package-lock �
 const compatibility = compatibilityMatrix(validationManifest)
 expect(compatibility.some(item => item.node === '18.17.0'), 'nightly/manual full matrix 必须验证精确最低 Node 18.17.0')
 expect(compatibility.some(item => item.node === '26.x'), 'nightly/manual full matrix 必须验证前瞻 Node 26 current compatibility')
-expect(compatibility.some(item => item.os === 'windows-latest' && item.command === 'test:windows-control-plane'), 'nightly/manual full matrix 必须在 Windows 运行控制面路线')
+expect(compatibility.some(item => item.os === 'windows-latest' && item.sourceCommand === 'test:windows-control-plane'), 'nightly/manual full matrix 必须在 Windows 完整执行分组后的控制面路线')
 expect(publicCi.includes('name: Full quality (Node 24.17)'), '公共 CI 全量质量门必须使用发布 Node 24.17')
 expect(publicCi.includes('name: Package boundary (Node 24.17)'), '公共 CI package job 必须只声明实际执行的 package boundary')
 expect(publicCi.includes('npm run release:dry-run:all -- --allow-existing-version'), '公共 CI package job 必须显式接受精确已发布版本冲突，正式 dry-run 默认仍保持严格')

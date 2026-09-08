@@ -26,6 +26,7 @@ const {
   initializeAttemptLedger,
   isNonterminalH3SafePartial,
   readCodexVersion,
+  readObservedCodexModelSettings,
   resolveCodexExecutable,
   validateEvidenceRoot
 } = require('./lib/real-codex-host-probe')
@@ -34,11 +35,6 @@ const NPM_COMMAND_TIMEOUT_MS = 180000
 const PACKAGE_PACK_TIMEOUT_MS = 600000
 const packageRoot = path.resolve(__dirname, '..')
 const packageJson = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'))
-const INSTALLED_REAL_CODEX_CONFIG_OVERRIDES = Object.freeze([
-  'model_reasoning_effort="medium"',
-  'mcp_servers.devcodex-profile.default_tools_approval_mode="approve"',
-  'mcp_servers.devcodex-memory.default_tools_approval_mode="approve"'
-])
 
 function parseSmokeArguments(argv) {
   const options = {
@@ -92,7 +88,14 @@ function parseSmokeArguments(argv) {
 }
 
 const smokeOptions = parseSmokeArguments(process.argv.slice(2))
+const observedModelSettings = smokeOptions.realCodex ? readObservedCodexModelSettings(process.env) : []
+const INSTALLED_REAL_CODEX_CONFIG_OVERRIDES = Object.freeze([
+  ...observedModelSettings,
+  'mcp_servers.devcodex-profile.default_tools_approval_mode="approve"',
+  'mcp_servers.devcodex-memory.default_tools_approval_mode="approve"'
+])
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-global-install-smoke-'))
+const keepTempFixture = process.env.DEVCODEX_TEST_KEEP_TEMP === '1' || process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1'
 const packDir = path.join(tmp, 'pack')
 const cacheDir = path.join(tmp, 'npm-cache')
 const globalHome = path.join(tmp, 'global-home')
@@ -109,6 +112,11 @@ let realHostIdentity = null
 
 function cleanupTempFixture() {
   if (tempCleaned) return
+  if (keepTempFixture) {
+    tempCleaned = true
+    console.log(`Global install smoke artifacts retained: ${tmp}`)
+    return
+  }
   fs.rmSync(tmp, { recursive: true, force: true })
   tempCleaned = true
 }
@@ -145,7 +153,7 @@ fs.mkdirSync(consumer, { recursive: true })
 fs.mkdirSync(path.join(globalHome, '.codex'), { recursive: true })
 fs.writeFileSync(path.join(globalHome, '.codex', 'AGENTS.md'), '# User Codex instruction\n')
 const codexConfigSentinel = smokeOptions.realCodex
-  ? '# isolated real Codex validation config\n'
+  ? ['# isolated real Codex validation config', ...observedModelSettings, ''].join('\n')
   : 'model = "user-model"\n'
 fs.writeFileSync(path.join(globalHome, '.codex', 'config.toml'), codexConfigSentinel)
 if (smokeOptions.realCodex) {
@@ -570,6 +578,7 @@ for (const host of ['.copilot', '.claude', '.codex', path.join('gemini-cli-home'
   )
 }
 
+const installedSkillRoots = []
 for (const host of ['.copilot', '.claude', '.codex', path.join('gemini-cli-home', '.gemini'), '.grok', '.cursor']) {
   const file = receiptPath(globalHome, host)
   assert.ok(fs.existsSync(file), `${host} receipt missing after real global install`)
@@ -580,6 +589,17 @@ for (const host of ['.copilot', '.claude', '.codex', path.join('gemini-cli-home'
   assert.ok(Array.isArray(receipt.managedPaths), `${host} receipt missing managedPaths`)
   assert.deepStrictEqual(receipt.pendingStaleManagedPaths, [])
   assert.strictEqual(receipt.workspaceCleanMode, 'GlobalOnlyWorkspaceCleanModeV1')
+  const runtimeRoot = path.resolve(receipt.runtimeRoot)
+  const skillsRoot = path.join(runtimeRoot, 'skills')
+  const generation = JSON.parse(fs.readFileSync(path.join(runtimeRoot, 'runtime-generation.json'), 'utf8'))
+  assert.strictEqual(path.resolve(receipt.skillsRuntimeRoot), skillsRoot, `${host} Skill root must belong to its installed runtime`)
+  assert.strictEqual(generation.generationId, receipt.runtimeGeneration.generationId)
+  assert.strictEqual(generation.packageVersion, packageJson.version)
+  assert.strictEqual(generation.skillsRuntimeRoot, 'skills')
+  assert.strictEqual(sha256File(path.join(skillsRoot, 'portfolio.json')), generation.skillsPortfolioDigest,
+    `${host} installed Skill portfolio must match its generation manifest`)
+  assert.strictEqual(fs.existsSync(path.join(skillsRoot, 'routing', 'SKILL.md')), true)
+  installedSkillRoots.push(skillsRoot)
 }
 const installedGrokGlobalHooks = JSON.parse(fs.readFileSync(
   path.join(globalHome, '.grok', 'hooks', 'devcodex.json'),
@@ -614,11 +634,10 @@ assert.strictEqual(fs.existsSync(path.join(installedCursorPlugin, 'mcp.json')), 
 assert.strictEqual(fs.existsSync(path.join(installedCursorPlugin, 'hooks')), false)
 assert.strictEqual(fs.existsSync(path.join(globalHome, '.agents', 'devcodex', 'instructions.full.md')), true)
 assert.strictEqual(
-  fs.existsSync(path.join(globalHome, '.agents', 'devcodex', 'skills', 'portfolio.json')),
-  true,
-  'shared Skill runtime must include portfolio.json for installed SkillRoute bootstrap'
+  fs.existsSync(path.join(globalHome, '.agents', 'devcodex', 'skills')),
+  false,
+  'new installed runtimes must not depend on a shared mutable Skill directory'
 )
-assert.strictEqual(fs.existsSync(path.join(globalHome, '.agents', 'devcodex', 'skills', 'routing', 'SKILL.md')), true)
 assert.strictEqual(
   fs.existsSync(path.join(globalHome, '.agents', 'skills', 'routing', 'SKILL.md')),
   false,
@@ -626,11 +645,10 @@ assert.strictEqual(
 )
 const skillPortfolio = JSON.parse(fs.readFileSync(resolveControlAsset(packageRoot, 'skills/portfolio.json'), 'utf8'))
 for (const graySkill of skillPortfolio.skills.filter(skill => skill.lifecycleState === 'gray')) {
-  assert.strictEqual(
-    fs.existsSync(path.join(globalHome, '.agents', 'devcodex', 'skills', graySkill.id)),
-    false,
-    `gray Skill must not deploy to shared user-global skills: ${graySkill.id}`
-  )
+  for (const skillsRoot of installedSkillRoots) {
+    assert.strictEqual(fs.existsSync(path.join(skillsRoot, graySkill.id)), false,
+      `gray Skill must not deploy to an installed runtime: ${graySkill.id}`)
+  }
   assert.strictEqual(
     fs.existsSync(path.join(globalHome, '.claude', 'skills', graySkill.id)),
     false,
@@ -1465,10 +1483,10 @@ assert.strictEqual(fs.existsSync(binPath), false, 'global devcodex bin remained 
 assert.strictEqual(fs.existsSync(installedPackageRoot), false, 'global package remained after npm uninstall')
 
 cleanupTempFixture()
-assert.strictEqual(fs.existsSync(tmp), false, 'global install smoke temporary fixture must be removed before success')
+assert.strictEqual(fs.existsSync(tmp), keepTempFixture, 'global install smoke fixture must match the requested retention mode before success')
 if (smokeOptions.tarball) {
   assert.strictEqual(fs.existsSync(tarball), true, 'external exact tarball was removed with the smoke fixture')
   assert.strictEqual(fs.statSync(tarball).size, tarballBefore.bytes, 'external exact tarball byte count changed')
   assert.strictEqual(sha256File(tarball), tarballBefore.sha256, 'external exact tarball digest changed')
 }
-console.log(`global install smoke passed pack=${packCount} externalTarball=${smokeOptions.tarball ? 1 : 0} tarballBytes=${tarballBefore.bytes} tarballSha256=${tarballBefore.sha256} realGlobalInstall=1 installedPromptManifest=1 installedFormalWriter=1 templateMissingZeroWrite=1 installedAdmissionNegatives=${installedAdmissionNegativesPassed ? 1 : 0} realCodex=${realCodexEvidence ? 1 : 0} realCodexH1=${realCodexEvidence?.h1Status === 'PASS' ? 1 : 0} realCodexH1Status=${realCodexEvidence?.h1Status || 'N/A'} realCodexG1=${realCodexEvidence?.g1AdmissionGeneration || 0} realCodexFinalGeneration=${realCodexEvidence?.finalAdmissionGeneration || 0} realCodexTerminal=${realCodexEvidence?.terminalStatus === 'completed' ? 1 : 0} managedRemove=1 npmUninstall=1 idempotent=1 userContent=1 layeredStatus=1 grokNative=${grokAvailable ? 1 : 0} workspaceNoHostDirs=1 tempCleanup=1 version=${packageJson.version}`)
+console.log(`global install smoke passed pack=${packCount} externalTarball=${smokeOptions.tarball ? 1 : 0} tarballBytes=${tarballBefore.bytes} tarballSha256=${tarballBefore.sha256} realGlobalInstall=1 installedPromptManifest=1 installedFormalWriter=1 templateMissingZeroWrite=1 installedAdmissionNegatives=${installedAdmissionNegativesPassed ? 1 : 0} realCodex=${realCodexEvidence ? 1 : 0} realCodexH1=${realCodexEvidence?.h1Status === 'PASS' ? 1 : 0} realCodexH1Status=${realCodexEvidence?.h1Status || 'N/A'} realCodexG1=${realCodexEvidence?.g1AdmissionGeneration || 0} realCodexFinalGeneration=${realCodexEvidence?.finalAdmissionGeneration || 0} realCodexTerminal=${realCodexEvidence?.terminalStatus === 'completed' ? 1 : 0} managedRemove=1 npmUninstall=1 idempotent=1 userContent=1 layeredStatus=1 grokNative=${grokAvailable ? 1 : 0} workspaceNoHostDirs=1 tempCleanup=${Number(!keepTempFixture)} tempRetained=${Number(keepTempFixture)} version=${packageJson.version}`)

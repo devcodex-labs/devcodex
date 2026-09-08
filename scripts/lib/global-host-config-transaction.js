@@ -620,7 +620,11 @@ function executeGlobalHostTransaction(operations, options = {}) {
 
   function markOperationPhase(journalOperation, phase) {
     journalOperation.phase = phase
-    updateJournal(journalFile, journal, fsImpl, `${phase}:${journalOperation.index}`)
+    // The durable prepared V1 journal already contains every preimage, target,
+    // and sidecar. Recovery checks those actual bytes, never phase text. Keep
+    // progress in memory; rewriting the whole journal at each step is quadratic.
+    // Commit/rollback still persist and read back the complete journal.
+    journal.phase = `${phase}:${journalOperation.index}`
     if (options.crashAfterPhase === `${phase}:${journalOperation.index}` || options.crashAfterPhase === phase) {
       const error = new Error(`GLOBAL_HOST_TEST_SIMULATED_CRASH: ${phase}:${journalOperation.index}`)
       error.code = 'GLOBAL_HOST_TEST_SIMULATED_CRASH'

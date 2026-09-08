@@ -8,7 +8,8 @@ const { readValidationManifest } = require('./lib/validation-dag')
 const {
   CiValidationPlanError,
   aggregateCiValidation,
-  buildCiValidationPlan
+  buildCiValidationPlan,
+  compatibilityMatrix
 } = require('./plan-ci-validation')
 
 const ROOT = path.resolve(__dirname, '..')
@@ -42,8 +43,26 @@ assert.ok(packagePlan.impact.affectedBoundaries.includes('package'))
 
 const nightly = plan([], { event: 'schedule' })
 assert.strictEqual(nightly.jobs.fullQuality, true)
-assert.strictEqual(nightly.matrix.include.length, 5)
+assert.strictEqual(nightly.matrix.include.length, 11)
+for (const node of ['18.17.0', '24.17.0']) {
+  const windows = nightly.matrix.include.filter(item => item.os === 'windows-latest' && item.node === node)
+  assert.strictEqual(windows.length, 4)
+  assert.ok(windows.every(item => item.sourceCommand === 'test:windows-control-plane'))
+}
 assert.ok(nightly.fullReasonCodes.includes('nightly'))
+
+const shardedFixture = { ciCompatibilityMatrix: [{ id: 'fixture', os: 'windows-latest', node: '18.17.0',
+  kind: 'compatibility', command: 'all', shards: [{ id: 'first', command: 'first' }, { id: 'second', command: 'second' }] }] }
+const fixtureScripts = { all: 'npm run first && npm run second', first: 'node first.js', second: 'node second.js' }
+assert.strictEqual(compatibilityMatrix(shardedFixture, fixtureScripts).length, 2)
+for (const shards of [[{ id: 'first', command: 'first' }],
+  [{ id: 'first', command: 'first' }, { id: 'duplicate', command: 'first' }]]) {
+  const invalid = { ciCompatibilityMatrix: [{ ...shardedFixture.ciCompatibilityMatrix[0], shards }] }
+  assert.throws(() => compatibilityMatrix(invalid, fixtureScripts), error =>
+    error.code === 'CI_PLAN_COMPATIBILITY_COVERAGE_MISMATCH')
+}
+assert.throws(() => compatibilityMatrix(shardedFixture, { ...fixtureScripts, first: 'npm run all' }), error =>
+  error.code === 'CI_PLAN_SCRIPT_GRAPH_INVALID')
 
 const manualFull = plan([], { event: 'workflow_dispatch', manualScope: 'full' })
 assert.strictEqual(manualFull.jobs.fullQuality, true)

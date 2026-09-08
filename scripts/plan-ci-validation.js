@@ -101,13 +101,24 @@ function resolveCiChangedFiles({ repoRoot = ROOT, base = null, head = 'HEAD', ex
   }
 }
 
-function compatibilityMatrix(manifest) {
+function npmScriptLeaves(name, scripts, stack = []) {
+  if (stack.includes(name) || typeof scripts?.[name] !== 'string' || !scripts[name].trim()) {
+    throw new CiValidationPlanError('CI_PLAN_SCRIPT_GRAPH_INVALID', `missing or cyclic npm script: ${[...stack, name].join(' -> ')}`)
+  }
+  return scripts[name].split('&&').flatMap(part => {
+    const command = part.trim()
+    const nested = /^npm run ([A-Za-z0-9:_.-]+)$/.exec(command)
+    return nested ? npmScriptLeaves(nested[1], scripts, [...stack, name]) : [command]
+  })
+}
+
+function compatibilityMatrix(manifest, scripts = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).scripts) {
   const matrix = manifest?.ciCompatibilityMatrix
   if (!Array.isArray(matrix) || matrix.length === 0) {
     throw new CiValidationPlanError('CI_PLAN_COMPATIBILITY_MATRIX_MISSING', 'validation manifest must define ciCompatibilityMatrix')
   }
   const ids = new Set()
-  return matrix.map((entry, index) => {
+  return matrix.flatMap((entry, index) => {
     const value = {
       id: String(entry?.id || ''),
       os: String(entry?.os || ''),
@@ -119,7 +130,25 @@ function compatibilityMatrix(manifest) {
       throw new CiValidationPlanError('CI_PLAN_COMPATIBILITY_MATRIX_INVALID', `invalid compatibility entry at index ${index}`)
     }
     ids.add(value.id)
-    return value
+    const expectedLeaves = npmScriptLeaves(value.command, scripts).sort()
+    if (entry.shards == null) return [value]
+    if (!Array.isArray(entry.shards) || entry.shards.length === 0) {
+      throw new CiValidationPlanError('CI_PLAN_COMPATIBILITY_SHARDS_INVALID', `empty or invalid shards: ${value.id}`)
+    }
+    const expanded = entry.shards.map(shard => {
+      if (!/^[a-z0-9-]+$/.test(String(shard?.id || '')) || !shard?.command) {
+        throw new CiValidationPlanError('CI_PLAN_COMPATIBILITY_SHARDS_INVALID', `invalid shard: ${value.id}`)
+      }
+      const id = `${value.id}-${shard.id}`
+      if (ids.has(id)) throw new CiValidationPlanError('CI_PLAN_COMPATIBILITY_SHARDS_INVALID', `duplicate shard: ${id}`)
+      ids.add(id)
+      return { ...value, id, command: String(shard.command), sourceCommand: value.command }
+    })
+    const actualLeaves = expanded.flatMap(shard => npmScriptLeaves(shard.command, scripts)).sort()
+    if (JSON.stringify(expectedLeaves) !== JSON.stringify(actualLeaves)) {
+      throw new CiValidationPlanError('CI_PLAN_COMPATIBILITY_COVERAGE_MISMATCH', `shards must execute every source route leaf exactly as registered: ${value.id}`)
+    }
+    return expanded
   })
 }
 
@@ -376,6 +405,7 @@ module.exports = {
   appendGithubOutputs,
   buildCiValidationPlan,
   compatibilityMatrix,
+  npmScriptLeaves,
   parseExecutionResults,
   resolveCiChangedFiles
 }

@@ -5,6 +5,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const { resolveControlAsset } = require('./lib/control-content-delivery')
 const {
   buildActualInstructionEnvelope,
   buildWorkItemSet,
@@ -725,7 +726,9 @@ try {
   const templateRoot = path.join(TEMP_ROOT, 'template-runtime')
   const templatePath = path.join(templateRoot, 'content', 'prompts', 'requirement-session.prompt.md')
   fs.mkdirSync(path.dirname(templatePath), { recursive: true })
-  const templateSource = fs.readFileSync(path.join(__dirname, '..', 'content', 'prompts', 'requirement-session.prompt.md'), 'utf8')
+  const templateSource = fs.readFileSync(resolveControlAsset(
+    path.resolve(__dirname, '..'), 'prompts/requirement-session.prompt.md'
+  ), 'utf8')
   const templateDelta = `模板变更传播 ${crypto.randomUUID()}`
   fs.writeFileSync(templatePath, templateSource.replace('{{cpTable}}', `{{cpTable}}\n\n${templateDelta}`))
   const templateInput = admissionInput(setupRoot('template-production'), 'template-production')

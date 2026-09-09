@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 713,
     "consumerInventoryDigest": "424ec22febd792e124b514f3a668703849b8d4dee64719c8a7d670f49499c2ca",
-    "consumerProjectionDigest": "8aabeb2fab97a794d9466c147f9cd6e4e12c5fda6e00fb16f34a992e03672b60",
-    "portfolioInputDigest": "6995725b163c1867fe27b23ea3795b928b83530a1f3d4e6cb2e66447c220b15c"
+    "consumerProjectionDigest": "85b244ec1e17d08170852a48b07d174e2c451345c2a0b5178ed3ec5cc1eb9bee",
+    "portfolioInputDigest": "b6c0a807b09bed8ac8bcaf87fbc273502348c9e6181b1883bec87f73be39b5a2"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -16867,6 +16867,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-global-install-smoke.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-global-runtime-continuity.js",
           "role": "current"
         },
@@ -17030,6 +17034,7 @@
         "scripts/test-external-review-claim-verification.js",
         "scripts/test-git-execution-context.js",
         "scripts/test-global-host-removal.js",
+        "scripts/test-global-install-smoke.js",
         "scripts/test-global-runtime-continuity.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-adapters.js",
@@ -17131,6 +17136,7 @@
           "scripts/test-external-review-claim-verification.js",
           "scripts/test-git-execution-context.js",
           "scripts/test-global-host-removal.js",
+          "scripts/test-global-install-smoke.js",
           "scripts/test-global-runtime-continuity.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-adapters.js",

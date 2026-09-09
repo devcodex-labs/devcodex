@@ -970,17 +970,17 @@ assert.strictEqual(
 )
 
 assert.strictEqual(fs.existsSync(path.join(installedPackageRoot, 'package.json')), true, 'installed package root missing')
-if (smokeOptions.tarball) {
-  const installedAdmissionSuite = runCommand(process.execPath, [
-    path.join(installedPackageRoot, 'scripts', 'test-task-admission-authority.js')
-  ], {
-    cwd: workspace,
-    env: installedEnv,
-    timeout: 300000
-  })
-  assert.match(installedAdmissionSuite.stdout, /"passed":true/)
-  installedAdmissionNegativesPassed = true
-}
+// Both locally packed and externally qualified artifacts must exercise the
+// installed producer and its negative cases before reporting installation pass.
+const installedAdmissionSuite = runCommand(process.execPath, [
+  path.join(installedPackageRoot, 'scripts', 'test-task-admission-authority.js')
+], {
+  cwd: workspace,
+  env: installedEnv,
+  timeout: 300000
+})
+assert.match(installedAdmissionSuite.stdout, /"passed":true/)
+installedAdmissionNegativesPassed = true
 
 if (smokeOptions.realCodex) {
   for (const relative of [

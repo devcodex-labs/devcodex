@@ -38,7 +38,7 @@ version: 1.20.2
 
 | 项 | 内容（人话；禁止进度缩写 · 六宿主同源） |
 |----|----------------------------------------|
-| PC0 | 上下文：项目 · 语言 · ContextReadPlan [已形成/降级] · 必要来源回执 [verified/partial/missing] |
+| PC0 | 版本与上下文：installed package · 活动 runtime generation · 可选源码候选 · alignment；项目 · 语言 · ContextReadPlan [已形成/降级] · 必要来源回执 [verified/partial/missing] |
 | PC1 | 意图：语义初判 → 扩展后工作流（有修正须写明） |
 | PC2 | 会话：第 N 轮 · Token 防护 · 待跟进 ✅无 / ⚠️简述 |
 | PC3 | 执行准备：唯一项目 · 未完成任务 · 产物落点（禁止「写报告 02」式施工日志） |
@@ -46,6 +46,9 @@ version: 1.20.2
 | PC5 | 宿主：名称 + Full/Partial · 用户级 adapter/receipt 或 legacy 父链诊断 |
 | PC6 | 工作区：git dirty 范围 · 任务目录 requirements/… 或 bugs/… |
 | PC7 | 续接：首条须 memory_status + 有界 query；非首条可 N/A |
+| PC8 | 流程与方案：WorkflowPlanDecisionV1 二次判断 · 合理性评估 · 已确认范围与自动继续边界 |
+| PC9 | 验证计划：适用检查 · 实际验证范围 · 预计耗时；未运行或受外部条件限制时明确标注 |
+| PC10 | 后续动作：当前阶段 · 下一阶段 · 自动继续或需要用户决策的具体事项 |
 
 下一步：[一句人话]
 ```

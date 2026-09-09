@@ -150,7 +150,7 @@ const {
   renderTaskContinuityViewHuman
 } = require('../hooks/_runtime/task-continuity-view-v1.cjs')
 const { normalizeLanguageTag } = require('../hooks/_runtime/language-context.cjs')
-const { createLinkCapabilityDecision } = require('../hooks/_runtime/visible-output-contract.cjs')
+const { createLinkCapabilityDecision, EVIDENCE_STATES } = require('../hooks/_runtime/visible-output-contract.cjs')
 const {
   createWorkspaceSessionRouteIndex,
   digestSessionRef
@@ -324,7 +324,7 @@ const LINK_CAPABILITY_DECISION_SCHEMA = Object.freeze({
   properties: {
     schemaVersion: { const: 'LinkCapabilityDecisionV1' },
     surface: { type: 'string', minLength: 1 },
-    evidenceState: { type: 'string', enum: ['verified', 'inferred', 'failed'] },
+    evidenceState: { type: 'string', enum: [...EVIDENCE_STATES] },
     mode: { type: 'string', enum: ['clickable', 'portable', 'plain', 'failed'] },
     workspaceRoot: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     targetRelation: { type: 'string', enum: ['workspace', 'external', 'ambiguous'] },

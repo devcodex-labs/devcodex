@@ -6621,6 +6621,14 @@ function testMemoryArtifactLinkProjectionAndWriterIntegration() {
     targetPath: 'reports/Report One.md',
     purpose: 'dedupe probe'
   }
+  const unverifiedCapability = createLinkCapabilityDecision({
+    surface: 'unverified-memory-mcp-test',
+    evidenceState: 'unverified',
+    supportsMarkdown: true,
+    workspaceRoot: activeRoot,
+    targetRelation: 'workspace'
+  })
+  assert.strictEqual(unverifiedCapability.validation.valid, true)
   const projected = runServer('mcp/memory-server.js', [
     rpcRequest(1, 'tools/list'),
     rpcRequest(2, 'tools/call', {
@@ -6631,12 +6639,34 @@ function testMemoryArtifactLinkProjectionAndWriterIntegration() {
         artifacts: [reportArtifact, duplicateArtifact],
         linkCapability: capability
       }
+    }),
+    rpcRequest(20, 'tools/call', {
+      name: 'memory_artifact_link_project',
+      arguments: {
+        documentPath: dailyDocument,
+        artifacts: [reportArtifact],
+        linkCapability: unverifiedCapability
+      }
     })
   ], projectRoot)
   const listedTools = resultById(projected, 1).tools
   const projectionSchema = findToolSchema(listedTools, 'memory_artifact_link_project')
   assert.deepStrictEqual(projectionSchema.required, ['documentPath', 'artifacts', 'linkCapability'])
   assert.deepStrictEqual(projectionSchema.properties.operation.enum, ['project', 'validate-existing'])
+  const declaredEvidenceStates = projectionSchema.properties.linkCapability.properties.evidenceState.enum
+  assert(declaredEvidenceStates.includes(unverifiedCapability.evidenceState), 'tools/list must accept the producer unverified fallback')
+  for (const evidenceState of declaredEvidenceStates) {
+    const decision = createLinkCapabilityDecision({
+      surface: 'declared-memory-mcp-state', evidenceState, supportsMarkdown: true,
+      workspaceRoot: activeRoot, targetRelation: 'workspace', evidenceRefs: ['test:canonical-containment']
+    })
+    assert.strictEqual(decision.validation.valid, true, `tools/list declares an unsupported state: ${evidenceState}`)
+  }
+  const portableProjection = toolJson(resultById(projected, 20))
+  assert.strictEqual(portableProjection.capability.evidenceState, 'unverified')
+  assert.strictEqual(portableProjection.capability.mode, 'portable')
+  assert.strictEqual(portableProjection.capability.absolutePathFallback, false)
+  assert.strictEqual(portableProjection.links[0].markdown, '[Report One](<../../../../reports/Report One.md>)')
   const projection = toolJson(resultById(projected, 2))
   assert.strictEqual(projection.schemaVersion, 'ArtifactLinkProjectionSetV1')
   assert.strictEqual(projection.dedupe.inputCount, 2)

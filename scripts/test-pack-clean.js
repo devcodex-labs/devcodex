@@ -304,6 +304,11 @@ if (!fs.existsSync(installedManifestPath)) {
 }
 const installedManifest = JSON.parse(fs.readFileSync(installedManifestPath, 'utf8'))
 const installedValidation = validatePublishedPackageManifest(installedRoot, installedManifest)
+const { getRuntimeContractDigest: sourceRuntimeDigest } = require('../hooks/_runtime/skill-route-mode.cjs')
+const { getRuntimeContractDigest: installedRuntimeDigest } = require(path.join(installedRoot, 'hooks/_runtime/skill-route-mode.cjs'))
+if (sourceRuntimeDigest({ env: npmEnv }) !== installedRuntimeDigest({ env: npmEnv })) {
+  throw new Error('INSTALLED_PACKAGE_RUNTIME_CONTRACT_DIGEST_MISMATCH')
+}
 runChecked(process.execPath, [path.join(installedRoot, 'scripts', 'validate-installed-package.js')], {
   cwd: installedRoot,
   env: npmEnv,

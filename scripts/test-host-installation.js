@@ -783,8 +783,14 @@ console.log(`host installation tests passed selectors=6 dryRunWrites=0 collision
   assert.strictEqual(codexReceipt.skillsDeployMode, 'hidden')
   assert.strictEqual(
     path.resolve(codexReceipt.skillsRuntimeRoot),
-    path.resolve(home, '.agents', 'devcodex', 'skills')
+    path.resolve(codexReceipt.runtimeRoot, 'skills')
   )
+  const generationSkills = require('../hooks/_runtime/global-skill-runtime-root.cjs').resolveGlobalSkillRuntimeRoot({
+    runtimeRoot: codexReceipt.runtimeRoot, packageRoot: ROOT, env
+  })
+  assert.strictEqual(generationSkills.status, 'resolved')
+  assert.strictEqual(generationSkills.source, 'runtime-generation')
+  assert.strictEqual(path.resolve(generationSkills.root), path.resolve(codexReceipt.skillsRuntimeRoot))
   assert.ok(fs.existsSync(path.join(codexReceipt.skillsRuntimeRoot, 'routing', 'SKILL.md')))
   assert.strictEqual(
     fs.existsSync(path.join(home, '.agents', 'skills', 'routing', 'SKILL.md')),

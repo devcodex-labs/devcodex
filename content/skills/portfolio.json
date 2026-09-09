@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 713,
     "consumerInventoryDigest": "424ec22febd792e124b514f3a668703849b8d4dee64719c8a7d670f49499c2ca",
-    "consumerProjectionDigest": "a4f4e30ac928408457dc7ce28437695613dd163be0d1ebf7f6297de9c38d38c0",
-    "portfolioInputDigest": "65fd1000c4271e76177408af9d9d62b0868dcf281ee13bede753c449a09b6876"
+    "consumerProjectionDigest": "8aabeb2fab97a794d9466c147f9cd6e4e12c5fda6e00fb16f34a992e03672b60",
+    "portfolioInputDigest": "6995725b163c1867fe27b23ea3795b928b83530a1f3d4e6cb2e66447c220b15c"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -11016,6 +11016,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-global-skill-runtime-root.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-governance-intake.js",
           "role": "current"
         },
@@ -11166,6 +11170,7 @@
         "scripts/test-docs-audience-intent.js",
         "scripts/test-execution-chain-evolution.js",
         "scripts/test-feature-inventory-evidence.js",
+        "scripts/test-global-skill-runtime-root.js",
         "scripts/test-governance-intake.js",
         "scripts/test-hooks-ingress-continuity.js",
         "scripts/test-hooks-runtime.js",
@@ -11279,6 +11284,7 @@
           "scripts/test-docs-audience-intent.js",
           "scripts/test-execution-chain-evolution.js",
           "scripts/test-feature-inventory-evidence.js",
+          "scripts/test-global-skill-runtime-root.js",
           "scripts/test-governance-intake.js",
           "scripts/test-hooks-ingress-continuity.js",
           "scripts/test-hooks-runtime.js",

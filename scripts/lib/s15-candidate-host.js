@@ -9,6 +9,7 @@ const {
   applyGlobalHostConfig
 } = require('./global-host-config')
 const { resolveGlobalHostTarget } = require('./global-host-target')
+const { resolveGlobalSkillRuntimeRoot, samePath: sameSkillPath } = require('../../hooks/_runtime/global-skill-runtime-root.cjs')
 const {
   getLifecycleHostAdapterDigest
 } = require('../../hooks/_runtime/host-adapter-identity.cjs')
@@ -178,14 +179,6 @@ function bindInstalledProductionRuntime (options = {}) {
     `S15 installed ${hostId} production runtime escapes the managed host root`
   )
   const skillsRuntime = path.resolve(String(receipt.skillsRuntimeRoot || ''))
-  assert(
-    receipt.skillsRuntimeRoot && isPathInside(target.shared.root, skillsRuntime),
-    `S15 installed ${hostId} production skills runtime escapes the managed shared root`
-  )
-  assert(
-    fsImpl.existsSync(skillsRuntime),
-    `S15 installed ${hostId} production skills runtime is missing`
-  )
   const generationFile = path.join(runtimeRoot, 'runtime-generation.json')
   assert(fsImpl.existsSync(generationFile), `S15 installed ${hostId} production generation is missing`)
   const generation = JSON.parse(fsImpl.readFileSync(generationFile, 'utf8'))
@@ -198,6 +191,15 @@ function bindInstalledProductionRuntime (options = {}) {
     generation.runtimeContractDigest,
     expectedRuntimeDigest,
     `S15 installed ${hostId} production runtime does not match current source`
+  )
+  const skillsBinding = resolveGlobalSkillRuntimeRoot({ runtimeRoot, packageRoot, env: baseEnv, fs: fsImpl })
+  assert(
+    skillsBinding.status === 'resolved' && skillsBinding.source === 'runtime-generation',
+    `S15 installed ${hostId} production Skill generation or portfolio is invalid`
+  )
+  assert(
+    receipt.skillsRuntimeRoot && sameSkillPath(skillsRuntime, skillsBinding.root),
+    `S15 installed ${hostId} production Skill receipt does not match its runtime generation`
   )
   const installedHostAdapterDigest = readAdapterDigest(hostId, {
     entrySurface: options.entrySurface,
@@ -332,6 +334,11 @@ function prepareCandidateHostRuntime (options = {}) {
     /^[a-f0-9]{64}$/,
     `S15 candidate ${hostId} runtime digest missing`
   )
+  const skillsBinding = resolveGlobalSkillRuntimeRoot({ runtimeRoot: installedTarget.runtimeRoot, packageRoot, env, fs: fsImpl })
+  assert(
+    skillsBinding.status === 'resolved' && skillsBinding.source === 'runtime-generation',
+    `S15 candidate ${hostId} Skill generation or portfolio is invalid`
+  )
   const nativeRegistration = hostId === 'grok'
     ? syncGrok({
         pluginPath: installedTarget.files.plugin,
@@ -354,7 +361,7 @@ function prepareCandidateHostRuntime (options = {}) {
     hostId,
     home,
     env,
-    target: installedTarget,
+    target: { ...installedTarget, shared: { ...installedTarget.shared, skillsRuntime: skillsBinding.root } },
     generation,
     credentialFiles,
     nativeRegistration: nativeRegistration

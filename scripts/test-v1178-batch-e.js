@@ -72,6 +72,10 @@ function candidateRecord(overrides = {}) {
   return currentRecord({
     sourceVersion: '1.17.9',
     releaseState: 'candidate / local-qualification / external-pending',
+    sourceCandidate: {
+      ...currentRecord().sourceCandidate,
+      status: 'LOCAL_PENDING'
+    },
     candidate: {
       targetVersion: '1.17.9',
       targetTag: 'v1.17.9',
@@ -136,6 +140,39 @@ probe('ProfileCurrentTruthV1 strict generic schema', () => {
   const missing = currentRecord()
   delete missing.publishRun
   assert(parseProfileCurrentTruth(recordMarkdown(missing)).errors.some(item => item.includes('publishRun')))
+})
+
+probe('Profile lifecycle consumes structured state independently of display language', () => {
+  const validate = record => validateDevCodexCurrentTruth({
+    releaseProfileText: recordMarkdown(record),
+    overviewProfileText: PROFILE_CURRENT_TRUTH_REF,
+    testProfileText: PROFILE_CURRENT_TRUTH_REF,
+    docsProfileText: PROFILE_CURRENT_TRUTH_REF,
+    packageVersion: record.sourceVersion,
+    workflowText: read('.github/workflows/ci.yml'),
+    validationManifest: JSON.parse(read('scripts/validation-manifest.json'))
+  })
+  for (const releaseState of ['候选尚待验证，生产版本保持不变', 'released 是引用示例；本次还在准备', 'Préparation en cours']) {
+    assert.deepStrictEqual(validate(candidateRecord({ releaseState })).errors, [])
+  }
+  assert.deepStrictEqual(validate(currentRecord({ releaseState: '已发布，版本与实际发行证据一致' })).errors, [])
+  const invalid = candidateRecord({ releaseState: 'released / all passed' })
+  invalid.sourceCandidate.status = 'UNKNOWN'
+  assert.strictEqual(validate(invalid).valid, false, 'display text cannot create a lifecycle state')
+  const unbound = candidateRecord({ releaseState: 'released / all passed' })
+  delete unbound.candidate
+  assert.strictEqual(validate(unbound).valid, false, 'display text cannot replace candidate evidence')
+  const legacy = candidateRecord({ releaseState: '旧格式候选' })
+  delete legacy.sourceCandidate
+  assert.deepStrictEqual(validate(legacy).errors, [])
+  const legacyReleased = currentRecord({ releaseState: '旧格式发行事实' })
+  delete legacyReleased.sourceCandidate
+  assert.deepStrictEqual(validate(legacyReleased).errors, [])
+  const legacyUnbound = candidateRecord({ releaseState: 'released' })
+  delete legacyUnbound.sourceCandidate
+  delete legacyUnbound.candidate
+  assert.strictEqual(validate(legacyUnbound).valid, false)
+  assert.strictEqual(validate(currentRecord({ releaseState: '  ' })).valid, false)
 })
 
 probe('Profile current truth matches package, workflow, release, and refs', () => {
@@ -342,5 +379,5 @@ probe('machine consumers use the repaired contracts', () => {
   assert.doesNotMatch(read('scripts/lib/validate-optimization-controls.js'), /ProfileLoadReceiptV2/)
 })
 
-assert.strictEqual(passed, 6)
-console.log('v1.17.8+ Batch E tests passed: 6/6 (Profile CAS/current truth candidate/released/consumers)')
+assert.strictEqual(passed, 7)
+console.log('v1.17.8+ Batch E tests passed: 7/7 (Profile CAS/current truth lifecycle/language/consumers)')

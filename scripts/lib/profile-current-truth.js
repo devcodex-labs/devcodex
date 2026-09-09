@@ -60,7 +60,7 @@ function validateObservedObject(value, label, identityField, errors) {
 
 function validateCandidateObject(value, errors) {
   if (!isPlainObject(value)) {
-    errors.push('candidate must be an object when releaseState is candidate')
+    errors.push('candidate must be an object for a source candidate')
     return
   }
   if (!/^\d+\.\d+\.\d+$/.test(String(value.targetVersion || ''))) {
@@ -165,6 +165,19 @@ function compareSemver(left, right) {
   return 0
 }
 
+function currentTruthLifecycle(record) {
+  if (Object.prototype.hasOwnProperty.call(record, 'sourceCandidate')) {
+    const status = record.sourceCandidate?.status
+    if (!SOURCE_CANDIDATE_STATUSES.has(status)) return null
+    return status === 'RELEASED' ? 'released' : 'candidate'
+  }
+  // Read-only compatibility for records predating SourceCandidateTruthV1.
+  // Display prose never grants a state; the existing evidence is still checked.
+  if (Object.prototype.hasOwnProperty.call(record, 'candidate')) return 'candidate'
+  return record.sourceVersion === record.npmLatest &&
+    record.githubRelease?.tag === `v${record.sourceVersion}` ? 'released' : null
+}
+
 function validateTruthRecord(record) {
   const errors = []
   if (!isPlainObject(record)) return { valid: false, errors: ['record must be a JSON object'] }
@@ -182,7 +195,8 @@ function validateTruthRecord(record) {
   if (typeof record.releaseState !== 'string' || !record.releaseState.trim()) {
     errors.push('releaseState must be a non-empty string')
   }
-  if (/^candidate\b/i.test(String(record.releaseState || ''))) {
+  if (currentTruthLifecycle(record) === 'candidate' ||
+      Object.prototype.hasOwnProperty.call(record, 'candidate')) {
     validateCandidateObject(record.candidate, errors)
   }
   if (!/^[0-9a-f]{40}$/i.test(String(record.gitHead || ''))) {
@@ -315,8 +329,9 @@ function validateDevCodexCurrentTruth(input = {}) {
   const errors = [...parsed.errors]
   const record = parsed.record
   if (record) {
-    const released = /^released\b/i.test(record.releaseState)
-    const candidate = /^candidate\b/i.test(record.releaseState)
+    const lifecycle = currentTruthLifecycle(record)
+    const released = lifecycle === 'released'
+    const candidate = lifecycle === 'candidate'
     if (input.packageVersion && record.sourceVersion !== input.packageVersion) {
       errors.push(`sourceVersion drift: ${record.sourceVersion} != ${input.packageVersion}`)
     }
@@ -335,7 +350,7 @@ function validateDevCodexCurrentTruth(input = {}) {
       errors.push(`sourceCandidate.candidateId drift: ${record.sourceCandidate?.candidateId} != ${input.candidateId}`)
     }
     if (!released && !candidate) {
-      errors.push(`releaseState must describe a released source or an authorized candidate: ${record.releaseState}`)
+      errors.push('current lifecycle requires a valid sourceCandidate status or legacy candidate/release evidence')
     } else if (released) {
       if (input.packageVersion && record.npmLatest !== input.packageVersion) {
         errors.push(`npmLatest drift: ${record.npmLatest} != ${input.packageVersion}`)

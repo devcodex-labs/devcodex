@@ -40,13 +40,19 @@ function hasPortfolio (root, fsImpl = fs) {
 function sourceSkillsRoot (packageRoot, fsImpl = fs) {
   const packageJson = readJson(path.join(packageRoot, 'package.json'), fsImpl)
   const contentRoot = path.join(packageRoot, 'content', 'skills')
+  // The published package materializes content/skills as skills/. An existing
+  // source tree stays authoritative even when its portfolio is incomplete.
+  const skillsRoot = fsImpl.existsSync(contentRoot) ||
+    fsImpl.existsSync(path.join(packageRoot, 'content', 'manifest.json'))
+    ? contentRoot
+    : path.join(packageRoot, 'skills')
   if (
     packageJson?.name !== 'devcodex' ||
-    !hasPortfolio(contentRoot, fsImpl)
+    !hasPortfolio(skillsRoot, fsImpl)
   ) return null
   return {
-    root: contentRoot,
-    portfolioPath: path.join(contentRoot, 'portfolio.json')
+    root: skillsRoot,
+    portfolioPath: path.join(skillsRoot, 'portfolio.json')
   }
 }
 

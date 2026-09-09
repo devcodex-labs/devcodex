@@ -101,6 +101,9 @@ const cacheDir = path.join(tmp, 'npm-cache')
 const globalHome = path.join(tmp, 'global-home')
 const workspaceHome = path.join(tmp, 'workspace-home')
 const globalPrefix = path.join(tmp, 'global-prefix')
+const installedPackageRoot = process.platform === 'win32'
+  ? path.join(globalPrefix, 'node_modules', packageJson.name)
+  : path.join(globalPrefix, 'lib', 'node_modules', packageJson.name)
 const workspace = path.join(tmp, 'workspace')
 const consumer = path.join(workspace, 'consumer')
 const isolatedRoots = [packDir, cacheDir, globalHome, workspaceHome, globalPrefix, workspace]
@@ -600,6 +603,23 @@ for (const host of ['.copilot', '.claude', '.codex', path.join('gemini-cli-home'
     `${host} installed Skill portfolio must match its generation manifest`)
   assert.strictEqual(fs.existsSync(path.join(skillsRoot, 'routing', 'SKILL.md')), true)
   installedSkillRoots.push(skillsRoot)
+  if (['codex', 'grok'].includes(receipt.host)) {
+    const { bindInstalledProductionRuntime } = require(path.join(installedPackageRoot, 'scripts/lib/s15-candidate-host.js'))
+    const { getRuntimeContractDigest } = require(path.join(installedPackageRoot, 'hooks/_runtime/skill-route-mode.cjs'))
+    const identity = require(path.join(installedPackageRoot, 'hooks/_runtime/host-adapter-identity.cjs'))
+    const baseEnv = isolatedHostEnv(globalHome)
+    const entrySurface = identity.HOST_ENTRY_SURFACES[receipt.host]
+    const bound = bindInstalledProductionRuntime({
+      hostId: receipt.host, home: globalHome, packageRoot: installedPackageRoot, baseEnv, entrySurface,
+      expectedPackageVersion: packageJson.version,
+      expectedRuntimeDigest: getRuntimeContractDigest({ env: baseEnv }),
+      expectedHostAdapterDigest: identity.getLifecycleHostAdapterDigest(receipt.host, {
+        entrySurface, env: baseEnv
+      })
+    })
+    assert.strictEqual(bound.source, 'installed-production-receipt')
+    assert.strictEqual(path.resolve(bound.target.shared.skillsRuntime), skillsRoot)
+  }
 }
 const installedGrokGlobalHooks = JSON.parse(fs.readFileSync(
   path.join(globalHome, '.grok', 'hooks', 'devcodex.json'),
@@ -949,9 +969,6 @@ assert.strictEqual(
   'installed template was not restored after the negative probe'
 )
 
-const installedPackageRoot = process.platform === 'win32'
-  ? path.join(globalPrefix, 'node_modules', packageJson.name)
-  : path.join(globalPrefix, 'lib', 'node_modules', packageJson.name)
 assert.strictEqual(fs.existsSync(path.join(installedPackageRoot, 'package.json')), true, 'installed package root missing')
 if (smokeOptions.tarball) {
   const installedAdmissionSuite = runCommand(process.execPath, [

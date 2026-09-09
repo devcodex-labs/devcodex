@@ -10,6 +10,8 @@ const {
 } = require('../hooks/_runtime/global-skill-runtime-root.cjs')
 const { resolveGlobalSkillsRoot } = require('../hooks/_runtime/skill-resolution.cjs')
 const { buildRuntimeSkillIdentityIndex } = require('../hooks/_runtime/runtime-skill-identity-index.cjs')
+const { resolveControlAsset } = require('./lib/control-content-delivery')
+const { getRuntimeContractDigest } = require('../hooks/_runtime/skill-route-mode.cjs')
 
 const packageRoot = path.resolve(__dirname, '..')
 
@@ -21,13 +23,37 @@ const packageRoot = path.resolve(__dirname, '..')
   })
   assert.strictEqual(result.status, 'resolved')
   assert.strictEqual(result.source, 'source-package')
-  assert.ok(result.root.endsWith('/content/skills'))
-  assert.ok(result.portfolioPath.endsWith('/content/skills/portfolio.json'))
-  assert.ok(result.companionRoot.endsWith('/content/skills'))
+  const expectedSkills = resolveControlAsset(packageRoot, 'skills')
+  assert.strictEqual(path.resolve(result.root), path.resolve(expectedSkills))
+  assert.strictEqual(path.resolve(result.portfolioPath), path.join(expectedSkills, 'portfolio.json'))
+  assert.strictEqual(path.resolve(result.companionRoot), path.resolve(expectedSkills))
 }
 
 {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-global-skill-root-'))
+  const packedRoot = path.join(home, 'published-package')
+  const packedSkills = path.join(packedRoot, 'skills')
+  fs.mkdirSync(path.join(packedSkills, '_schemas'), { recursive: true })
+  fs.writeFileSync(path.join(packedRoot, 'package.json'), JSON.stringify({ name: 'devcodex' }))
+  fs.writeFileSync(path.join(packedSkills, 'portfolio.json'), '{"schemaVersion":"fixture"}\n')
+  const schema = 'skill-intent.v1.schema.json'
+  fs.writeFileSync(path.join(packedSkills, '_schemas', schema), '{"title":"published"}\n')
+  const packedOptions = { packageRoot: packedRoot, env: { HOME: home, USERPROFILE: home } }
+  const packed = resolveGlobalSkillRuntimeRoot(packedOptions)
+  assert.strictEqual(packed.status, 'resolved', 'published packages must resolve their own skills/ assets')
+  assert.strictEqual(path.resolve(packed.root), packedSkills)
+  const packedDigest = getRuntimeContractDigest(packedOptions)
+  assert.strictEqual(packedDigest, getRuntimeContractDigest({
+    ...packedOptions, globalRuntime: { status: 'resolved', root: packedSkills, companionRoot: packedSkills }
+  }), 'package digest must include the same Schema bytes as the generation producer')
+  fs.writeFileSync(path.join(packedSkills, '_schemas', schema), '{"title":"changed"}\n')
+  assert.notStrictEqual(getRuntimeContractDigest(packedOptions), packedDigest)
+  fs.mkdirSync(path.join(packedRoot, 'content', 'skills'), { recursive: true })
+  assert.strictEqual(resolveGlobalSkillRuntimeRoot(packedOptions).status, 'blocked',
+    'an incomplete source tree must not silently consume a stale published projection')
+  fs.writeFileSync(path.join(packedRoot, 'package.json'), '{"name":"another-package"}\n')
+  assert.strictEqual(resolveGlobalSkillRuntimeRoot(packedOptions).status, 'blocked')
+
   const hostRoot = path.join(home, '.claude')
   const runtimeRoot = path.join(hostRoot, 'devcodex', 'runtime')
   const skillsRoot = path.join(home, '.agents', 'devcodex', 'skills')

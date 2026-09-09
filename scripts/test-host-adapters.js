@@ -2,6 +2,7 @@
 'use strict'
 
 const assert = require('assert')
+const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -62,6 +63,21 @@ const {
   credentialJsonHasRefreshToken,
   prepareCandidateHostRuntime
 } = require('./lib/s15-candidate-host')
+
+function writeInstalledGenerationFixture(runtimeRoot, expectedDigest) {
+  const skillsRuntime = path.join(runtimeRoot, 'skills')
+  const portfolio = '{"fixture":true}\n'
+  fs.mkdirSync(skillsRuntime, { recursive: true })
+  fs.writeFileSync(path.join(skillsRuntime, 'portfolio.json'), portfolio)
+  fs.writeFileSync(path.join(runtimeRoot, 'runtime-generation.json'), `${JSON.stringify({
+    schemaVersion: 'RuntimeGenerationManifestV1',
+    generationId: path.basename(runtimeRoot).slice('runtime-'.length),
+    sourceDigest: expectedDigest, runtimeRoot: '.', immutable: true,
+    packageVersion: require('../package.json').version, runtimeContractDigest: expectedDigest,
+    skillsRuntimeRoot: 'skills', skillsPortfolioDigest: crypto.createHash('sha256').update(portfolio).digest('hex')
+  })}\n`)
+  return skillsRuntime
+}
 
 function hostAdapterDigestFixture (wrapperContent) {
   const files = new Map([
@@ -393,10 +409,7 @@ try {
       assert.deepStrictEqual(options.hosts, ['codex'])
       assert.strictEqual(options.ignoreExistingReceipts, true)
       const runtimeRoot = path.join(options.env.CODEX_HOME, 'devcodex', 'runtime-fixture')
-      fs.mkdirSync(runtimeRoot, { recursive: true })
-      fs.writeFileSync(path.join(runtimeRoot, 'runtime-generation.json'), `${JSON.stringify({
-        runtimeContractDigest: expectedDigest
-      })}\n`)
+      writeInstalledGenerationFixture(runtimeRoot, expectedDigest)
       return {
         transaction: { status: 'committed' },
         targets: [{ host: 'codex', runtimeRoot }]
@@ -406,6 +419,7 @@ try {
   assert.strictEqual(prepared.source, 'isolated-source-candidate')
   assert.deepStrictEqual(prepared.credentialFiles, ['auth.json'])
   assert.strictEqual(prepared.generation.runtimeContractDigest, expectedDigest)
+  assert.strictEqual(path.resolve(prepared.target.shared.skillsRuntime), path.join(prepared.target.runtimeRoot, 'skills'))
   assert.strictEqual(
     fs.readFileSync(path.join(prepared.env.CODEX_HOME, 'auth.json'), 'utf8'),
     '{"fixture":true}\n'
@@ -413,7 +427,6 @@ try {
 
   const packageVersion = require('../package.json').version
   const sharedRoot = path.join(sourceHome, '.agents')
-  const installedSkillsRuntime = path.join(sharedRoot, 'devcodex', 'skills')
   const installedSourceReceiptFile = path.join(
     sourceCodex,
     'devcodex',
@@ -424,12 +437,7 @@ try {
     'devcodex',
     'runtime-installed-source'
   )
-  fs.mkdirSync(installedRuntimeRoot, { recursive: true })
-  fs.mkdirSync(installedSkillsRuntime, { recursive: true })
-  fs.writeFileSync(path.join(installedRuntimeRoot, 'runtime-generation.json'), `${JSON.stringify({
-    packageVersion,
-    runtimeContractDigest: expectedDigest
-  })}\n`)
+  const installedSkillsRuntime = writeInstalledGenerationFixture(installedRuntimeRoot, expectedDigest)
   fs.writeFileSync(installedSourceReceiptFile, `${JSON.stringify({
     schemaVersion: 'GlobalHostConfigReceiptV1',
     host: 'codex',
@@ -490,12 +498,7 @@ try {
     'runtime-source-line-endings'
   )
   const productionReceiptFile = installedSourceReceiptFile
-  fs.mkdirSync(installedProductionRoot, { recursive: true })
-  fs.mkdirSync(installedSkillsRuntime, { recursive: true })
-  fs.writeFileSync(path.join(installedProductionRoot, 'runtime-generation.json'), `${JSON.stringify({
-    packageVersion,
-    runtimeContractDigest: expectedDigest
-  })}\n`)
+  const productionSkillsRuntime = writeInstalledGenerationFixture(installedProductionRoot, expectedDigest)
   fs.writeFileSync(productionReceiptFile, `${JSON.stringify({
     schemaVersion: 'GlobalHostConfigReceiptV1',
     host: 'codex',
@@ -503,7 +506,7 @@ try {
     packageVersion,
     result: 'committed',
     runtimeRoot: installedProductionRoot,
-    skillsRuntimeRoot: installedSkillsRuntime
+    skillsRuntimeRoot: productionSkillsRuntime
   })}\n`)
   const productionTarget = {
     root: sourceCodex,
@@ -531,8 +534,31 @@ try {
   assert.notStrictEqual(installedProduction.target.runtimeRoot, recomputedSourceRoot)
   assert.strictEqual(
     installedProduction.target.shared.skillsRuntime,
-    installedSkillsRuntime
+    productionSkillsRuntime
   )
+  const productionBindingOptions = {
+    hostId: 'codex', home: sourceHome, packageRoot: path.resolve(__dirname, '..'), baseEnv,
+    expectedPackageVersion: packageVersion, expectedRuntimeDigest: expectedDigest,
+    expectedHostAdapterDigest: expectedAdapterDigest,
+    resolveGlobalHostTarget: () => productionTarget,
+    getLifecycleHostAdapterDigest: () => expectedAdapterDigest
+  }
+  const validProductionReceipt = fs.readFileSync(productionReceiptFile, 'utf8')
+  for (const foreignSkills of [path.join(sharedRoot, 'devcodex', 'skills'), installedSkillsRuntime]) {
+    fs.writeFileSync(productionReceiptFile, JSON.stringify({ ...JSON.parse(validProductionReceipt), skillsRuntimeRoot: foreignSkills }))
+    assert.throws(() => bindInstalledProductionRuntime(productionBindingOptions), /Skill receipt does not match its runtime generation/)
+  }
+  fs.writeFileSync(productionReceiptFile, validProductionReceipt)
+  const productionPortfolio = path.join(productionSkillsRuntime, 'portfolio.json')
+  const validPortfolio = fs.readFileSync(productionPortfolio)
+  fs.writeFileSync(productionPortfolio, '{"tampered":true}\n')
+  assert.throws(() => bindInstalledProductionRuntime(productionBindingOptions), /Skill generation or portfolio is invalid/)
+  fs.writeFileSync(productionPortfolio, validPortfolio)
+  const generationPath = path.join(installedProductionRoot, 'runtime-generation.json')
+  const validGeneration = fs.readFileSync(generationPath, 'utf8')
+  fs.writeFileSync(generationPath, JSON.stringify({ ...JSON.parse(validGeneration), skillsRuntimeRoot: '../skills' }))
+  assert.throws(() => bindInstalledProductionRuntime(productionBindingOptions), /Skill generation or portfolio is invalid/)
+  fs.writeFileSync(generationPath, validGeneration)
   fs.writeFileSync(productionReceiptFile, `${JSON.stringify({
     schemaVersion: 'GlobalHostReceiptV0',
     host: 'codex',
@@ -540,7 +566,7 @@ try {
     packageVersion,
     result: 'committed',
     runtimeRoot: installedProductionRoot,
-    skillsRuntimeRoot: installedSkillsRuntime
+    skillsRuntimeRoot: productionSkillsRuntime
   })}\n`)
   assert.throws(
     () => bindInstalledProductionRuntime({
@@ -563,7 +589,7 @@ try {
     packageVersion,
     result: 'committed',
     runtimeRoot: installedProductionRoot,
-    skillsRuntimeRoot: installedSkillsRuntime
+    skillsRuntimeRoot: productionSkillsRuntime
   })}\n`)
   assert.throws(
     () => bindInstalledProductionRuntime({
@@ -586,7 +612,7 @@ try {
     packageVersion,
     result: 'committed',
     runtimeRoot: path.join(candidateFixture, 'escaped-runtime'),
-    skillsRuntimeRoot: installedSkillsRuntime
+    skillsRuntimeRoot: productionSkillsRuntime
   })}\n`)
   assert.throws(
     () => bindInstalledProductionRuntime({
@@ -653,10 +679,7 @@ try {
   const expectedDigest = 'b'.repeat(64)
   const fakeApply = options => {
     const runtimeRoot = path.join(options.env.GROK_HOME, 'devcodex', 'runtime-fixture')
-    fs.mkdirSync(runtimeRoot, { recursive: true })
-    fs.writeFileSync(path.join(runtimeRoot, 'runtime-generation.json'), `${JSON.stringify({
-      runtimeContractDigest: expectedDigest
-    })}\n`)
+    writeInstalledGenerationFixture(runtimeRoot, expectedDigest)
     return {
       transaction: { status: 'committed' },
       targets: [{
@@ -699,6 +722,7 @@ try {
   assert.strictEqual(persistentPrepared.source, 'persistent-isolated-source-candidate')
   assert.deepStrictEqual(persistentPrepared.credentialFiles, ['auth.json:existing'])
   assert.strictEqual(persistentPrepared.generation.runtimeContractDigest, expectedDigest)
+  assert.strictEqual(path.resolve(persistentPrepared.target.shared.skillsRuntime), path.join(persistentPrepared.target.runtimeRoot, 'skills'))
 
   const apiKeyPrepared = prepareCandidateHostRuntime({
     hostId: 'grok',

@@ -310,11 +310,13 @@ function buildRuntimeSkillIdentityIndex (options = {}) {
     const cardResult = intentInvalid
       ? { ok: false, reasonCode: intent.reasonCode }
       : modelCardFromSources(skillId, parsed.frontmatter, intent)
+    const stableMetadataDigest = trace.metadataOnly
+      ? sha256(resolved.content || '')
+      : (trace.metadataDigest || trace.digest)
     const sourceIdentity = sha256({
       skillId,
       layer,
-      metadataDigest: trace.metadataDigest || trace.digest,
-      fileIdentity: trace.fileIdentity || null,
+      metadataDigest: stableMetadataDigest,
       intentDigest: intent.digest,
       topology,
       lifecycle,
@@ -325,9 +327,9 @@ function buildRuntimeSkillIdentityIndex (options = {}) {
       effectiveLayer: layer,
       resolvedPath: portable(trace.selectedPath),
       sourceIdentity,
-      metadataDigest: trace.metadataDigest || trace.digest,
+      metadataDigest: stableMetadataDigest,
       fileIdentity: trace.fileIdentity || null,
-      bodyDigest: trace.digest,
+      bodyDigest: stableMetadataDigest,
       bodyDigestKind: 'metadata',
       intentDigest: intent.digest,
       topologyDigest: sha256(topology),
@@ -384,7 +386,11 @@ function buildRuntimeSkillIdentityIndex (options = {}) {
   )
   coverage.rejected = rejections.length
   const semanticEntries = entries.map(entry => {
-    const { resolvedPath: _resolvedPath, ...semantic } = entry
+    const { resolvedPath: _resolvedPath, fileIdentity: _fileIdentity, ...semantic } = entry
+    return semantic
+  })
+  const semanticRejections = rejections.map(rejection => {
+    const { sourceKey: _sourceKey, detailDigest: _detailDigest, ...semantic } = rejection
     return semantic
   })
   const index = {
@@ -408,7 +414,7 @@ function buildRuntimeSkillIdentityIndex (options = {}) {
   index.indexDigest = sha256({
     entries: semanticEntries,
     cards: index.cards,
-    rejections,
+    rejections: semanticRejections,
     warnings,
     coverage,
     resolverPolicyVersion: INDEX_POLICY_VERSION

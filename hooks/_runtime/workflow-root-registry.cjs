@@ -196,7 +196,14 @@ function validateWorkflowPolicyV2 (intent, policy) {
   if (!hasOnlyKeys(policy.artifactPolicy, ['primaryArtifacts', 'writePolicy']) ||
       !Array.isArray(policy.artifactPolicy.primaryArtifacts) || policy.artifactPolicy.primaryArtifacts.length > 16 ||
       policy.artifactPolicy.primaryArtifacts.some(value => typeof value !== 'string' || !value.trim()) ||
-      policy.artifactPolicy.writePolicy !== policy.mutationPolicy) return false
+      !['allowed-after-confirmation', 'forbidden', 'inherited', 'workflow-artifacts'].includes(policy.artifactPolicy.writePolicy)) return false
+  if (policy.mutationPolicy === 'allowed-after-confirmation' &&
+      policy.artifactPolicy.writePolicy !== 'allowed-after-confirmation') return false
+  if (policy.mutationPolicy === 'inherited' && policy.artifactPolicy.writePolicy !== 'inherited') return false
+  if (policy.mutationPolicy === 'forbidden' &&
+      policy.artifactPolicy.writePolicy === 'allowed-after-confirmation') return false
+  if (!policy.artifactPolicy.primaryArtifacts.length &&
+      policy.artifactPolicy.writePolicy === 'workflow-artifacts') return false
   if (!hasOnlyKeys(policy.verificationPolicy, ['mode', 'executionAuthorityRequired']) ||
       !['affected-v0-v2', 'read-only', 'inherited-after-rehydrate'].includes(policy.verificationPolicy.mode) ||
       typeof policy.verificationPolicy.executionAuthorityRequired !== 'boolean') return false
@@ -412,6 +419,9 @@ function routeKeyForContext (intent, changeTypes = []) {
   if (intent === 'analyze') return 'analyze.default'
   if (intent === 'audit') {
     if (typeSet.has('release')) return 'audit.发布前审查'
+    if (['source-code', 'testing', 'config', 'architecture', 'security', 'destructive'].some(type => typeSet.has(type))) {
+      return 'audit.项目工程'
+    }
     if (typeSet.has('docs') || typeSet.has('public-contract')) return 'audit.通用文档'
     return 'audit.项目工程'
   }

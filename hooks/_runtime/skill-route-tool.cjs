@@ -80,13 +80,19 @@ const ACCEPTED_CONTEXT_RECEIPT_STATUSES = new Set([
 const PROJECT_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const CONDITION_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
 const STAGE_ID_RE = /^(entry|closeout|execution:[A-Za-z0-9][A-Za-z0-9._-]{0,63})$/
-const CONTEXT_BINDING_FIELDS = new Set([
+const CONTEXT_BINDING_REQUEST_FIELDS = [
   'schemaVersion',
   'contextEpoch',
   'planId',
   'planContentId',
   'activeRoot',
   'project'
+]
+const CONTEXT_BINDING_FIELDS = new Set(CONTEXT_BINDING_REQUEST_FIELDS)
+const CONTEXT_BINDING_ROUNDTRIP_FIELDS = new Set([
+  ...CONTEXT_BINDING_REQUEST_FIELDS,
+  'bindingStatus',
+  'verificationMode'
 ])
 const SKILL_ROUTE_FIELDS_BY_OP = Object.freeze({
   resolve_exact: [
@@ -388,7 +394,9 @@ function validateTrustedContextBinding (binding, target, options = {}) {
   if (!binding ||
       typeof binding !== 'object' ||
       Array.isArray(binding) ||
-      Object.keys(binding).some(key => !CONTEXT_BINDING_FIELDS.has(key)) ||
+      Object.keys(binding).some(key => !CONTEXT_BINDING_ROUNDTRIP_FIELDS.has(key)) ||
+      (binding.bindingStatus !== undefined && binding.bindingStatus !== 'verified') ||
+      (binding.verificationMode !== undefined && binding.verificationMode !== 'request-bound') ||
       binding.schemaVersion !== 'ContextReadBindingV1' ||
       !isBoundedText(binding.contextEpoch, 256) ||
       !isBoundedText(binding.planId, 256) ||
@@ -402,6 +410,9 @@ function validateTrustedContextBinding (binding, target, options = {}) {
       { binding, target }
     )
   }
+  const stableBinding = Object.fromEntries(
+    CONTEXT_BINDING_REQUEST_FIELDS.map(field => [field, binding[field]])
+  )
   const statePath = lifecycleStatePath(target)
   let lifecycle = readJson(statePath, options.fs || fs)
   if (!lifecycle || typeof lifecycle !== 'object') lifecycle = {}
@@ -409,7 +420,7 @@ function validateTrustedContextBinding (binding, target, options = {}) {
     lifecycle.contextAcquisition = {}
   }
 
-  const rebound = tryRebindLifecycleFromPlanObservation(binding, target, lifecycle, options)
+  const rebound = tryRebindLifecycleFromPlanObservation(stableBinding, target, lifecycle, options)
   lifecycle = rebound.lifecycle
   const acquisition = lifecycle?.contextAcquisition
   const plan = acquisition?.plan
@@ -418,7 +429,7 @@ function validateTrustedContextBinding (binding, target, options = {}) {
     const replayed = replayMcpContextSourceObservations(receipt, plan, {
       activeRoot: target.activeRoot,
       project: target.project,
-      contextBinding: binding,
+      contextBinding: stableBinding,
       hostSessionId: acquisition.hostSessionId
     }, options)
     if (replayed.status === 'replayed') {
@@ -437,15 +448,15 @@ function validateTrustedContextBinding (binding, target, options = {}) {
     )
   }
   const identityMatches =
-    binding.contextEpoch === acquisition.contextEpoch &&
-    binding.contextEpoch === plan.identity?.contextEpoch &&
-    binding.planId === plan.planId &&
-    binding.planContentId === plan.planContentId &&
-    path.resolve(binding.activeRoot) === path.resolve(target.activeRoot) &&
-    binding.project === target.project &&
-    receipt.contextEpoch === binding.contextEpoch &&
-    receipt.planId === binding.planId &&
-    receipt.planContentId === binding.planContentId
+    stableBinding.contextEpoch === acquisition.contextEpoch &&
+    stableBinding.contextEpoch === plan.identity?.contextEpoch &&
+    stableBinding.planId === plan.planId &&
+    stableBinding.planContentId === plan.planContentId &&
+    path.resolve(stableBinding.activeRoot) === path.resolve(target.activeRoot) &&
+    stableBinding.project === target.project &&
+    receipt.contextEpoch === stableBinding.contextEpoch &&
+    receipt.planId === stableBinding.planId &&
+    receipt.planContentId === stableBinding.planContentId
   if (!identityMatches) {
     throw contextBindingErrorForSkillRoute(
       'CONTEXT_BINDING_MISMATCH',
@@ -489,9 +500,9 @@ function validateTrustedContextBinding (binding, target, options = {}) {
   }
   const semanticBinding = {
     schemaVersion: 'TrustedContextBindingV1',
-    contextEpoch: binding.contextEpoch,
-    planId: binding.planId,
-    planContentId: binding.planContentId,
+    contextEpoch: stableBinding.contextEpoch,
+    planId: stableBinding.planId,
+    planContentId: stableBinding.planContentId,
     activeRoot: portable(target.activeRoot),
     project: target.project,
     finalIntent: plan.identity?.finalIntent,
@@ -506,7 +517,7 @@ function validateTrustedContextBinding (binding, target, options = {}) {
   const semanticCore = buildTrustedContextSemanticCore({
     plan,
     receipt,
-    contextEpoch: binding.contextEpoch,
+    contextEpoch: stableBinding.contextEpoch,
     activeRoot: target.activeRoot,
     project: target.project,
     hostSessionId: acquisition.hostSessionId

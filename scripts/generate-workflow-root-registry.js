@@ -231,6 +231,9 @@ function workflowPolicy (workflow) {
   const verificationMode = workflow.id === 'resume'
     ? 'inherited-after-rehydrate'
     : (workflow.mutation === 'allowed-after-confirmation' ? 'affected-v0-v2' : 'read-only')
+  const artifactWritePolicy = workflow.mutation === 'forbidden' && workflow.primaryArtifacts.length
+    ? 'workflow-artifacts'
+    : workflow.mutation
   return {
     mutationPolicy: workflow.mutation,
     cpPolicy: {
@@ -241,7 +244,7 @@ function workflowPolicy (workflow) {
     },
     artifactPolicy: {
       primaryArtifacts: workflow.primaryArtifacts,
-      writePolicy: workflow.mutation
+      writePolicy: artifactWritePolicy
     },
     verificationPolicy: {
       mode: verificationMode,

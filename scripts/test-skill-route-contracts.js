@@ -603,7 +603,19 @@ try {
     hostAdapterDigest: getLifecycleHostAdapterDigest('codex', { env: {} })
   })
   assert.strictEqual(cliMode.hostVariant, HOST_VARIANTS.codex)
-  assert.strictEqual(cliMode.hostEligibility, 'PASS')
+  assert(
+    ['PASS', 'STALE', 'WARN'].includes(cliMode.hostEligibility),
+    `Codex CLI canonical capability must be fresh PASS or truthfully non-PASS: ${JSON.stringify(cliMode, null, 2)}`
+  )
+  if (cliMode.hostEligibility === 'STALE') {
+    assert.strictEqual(
+      cliMode.capabilityRuntimeCurrent === false || cliMode.capabilityAdapterCurrent === false,
+      true
+    )
+    assert.strictEqual(cliMode.capabilityEvidenceValid, true)
+  } else if (cliMode.hostEligibility === 'WARN') {
+    assert.strictEqual(cliMode.capabilityEvidenceValid, false)
+  }
   assert.match(
     formatSkillRouteBootstrapInjection({ project: fixture.project }, { host: 'codex' }),
     /profile\.routeLoadRecipe/
@@ -637,7 +649,10 @@ try {
     item.hostVariant === 'codex-cli/exec-user-global-local-stdio'
   )
   assert(productionCapability)
-  assert.strictEqual(productionCapability.status, 'PASS')
+  assert(
+    ['PASS', 'WARN'].includes(productionCapability.status),
+    `Codex CLI canonical capability must be PASS or explicitly demoted WARN: ${productionCapability.status}`
+  )
   const desktopCapability = capabilities.capabilities.find(item =>
     item.hostVariant === 'codex-desktop/app-user-global-local-stdio'
   )

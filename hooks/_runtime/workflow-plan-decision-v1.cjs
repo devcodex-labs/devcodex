@@ -123,10 +123,27 @@ function chooseAxis({ explicit, configured, adaptive, fallback, configuredSource
   return { value: fallback, source: 'fallback', reason: '证据不足时采用可预测回退值' }
 }
 
-function plannedStages(axes, obligations) {
+function normalizeWorkflowKind(input = {}) {
+  const value = String(input.workflow || input.intent || input.topIntent || input.routeKey || '').trim()
+  if (value.startsWith('audit')) return 'audit'
+  if (value.startsWith('analyze')) return 'analyze'
+  if (value.startsWith('self-fix')) return 'self-fix'
+  if (value.startsWith('fix')) return 'fix'
+  if (value.startsWith('dev')) return 'dev'
+  return 'mutation'
+}
+
+function plannedStages(axes, obligations, workflow = 'mutation') {
   const stages = ['entry-check', 'intent-and-context']
-  if (axes.ceremonyTier.value === 'standard') stages.push('requirements', 'technical-design', 'implementation-plan')
-  else stages.push('scoped-implementation')
+  if (workflow === 'audit') {
+    stages.push('audit-scope', 'evidence-review', 'pcv')
+  } else if (workflow === 'analyze') {
+    stages.push('analysis-scope', 'evidence-synthesis')
+  } else if (axes.ceremonyTier.value === 'standard') {
+    stages.push('requirements', 'technical-design', 'implementation-plan')
+  } else {
+    stages.push('scoped-implementation')
+  }
   stages.push(`validation:${axes.assuranceLevel.value}`)
   if (obligations.includes('release-safety-gate')) stages.push('release-safety')
   stages.push('report-memory-ecr')
@@ -136,6 +153,7 @@ function plannedStages(axes, obligations) {
 function buildWorkflowPlanDecision(input = {}) {
   const phase = PHASES.has(input.phase) ? input.phase : 'precheck'
   const config = normalizeWorkflowRoutingConfig(input.config)
+  const workflow = normalizeWorkflowKind(input)
   const explicit = parseExplicitWorkflowPreference(input)
   const facts = normalizeFacts(input.facts)
   const legacyDepth = explicit.designDepth ? null : legacyDesignDepth(input)
@@ -182,7 +200,7 @@ function buildWorkflowPlanDecision(input = {}) {
     facts,
     axes,
     mandatoryObligations: obligations,
-    plannedStages: plannedStages(axes, obligations),
+    plannedStages: plannedStages(axes, obligations, workflow),
     change: { changedFromPrecheck, changedAxes, reason: changeReason }
   }
   return {

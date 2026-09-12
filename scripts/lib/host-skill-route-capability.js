@@ -168,15 +168,23 @@ function validateRawS15Evidence (raw, options = {}) {
   if (!raw || raw.schemaVersion !== 'SkillRouteS15EvidenceV1' || raw.status !== 'PASS') {
     fail('HOST_SKILL_ROUTE_RAW_EVIDENCE_INVALID', 'a PASS SkillRouteS15EvidenceV1 document is required')
   }
+  const probeRunId = String(raw.probeRunId || '')
+  const isolatedProbe = /^s15-codex-probe-[a-f0-9-]{36}$/.test(probeRunId)
+  const productionProbe = /^s15-codex-production-[a-f0-9-]{36}$/.test(probeRunId)
   if (raw.host !== CODEX_HOST || raw.hostVariant !== CODEX_VARIANT ||
       raw.protocolVersion !== PROTOCOL_VERSION ||
-      !/^s15-codex-probe-[a-f0-9-]{36}$/.test(String(raw.probeRunId || '')) ||
+      (!isolatedProbe && !productionProbe) ||
       !String(raw.testedVersion || '').trim()) {
-    fail('HOST_SKILL_ROUTE_RAW_IDENTITY_MISMATCH', 'raw evidence must identify the Codex CLI S15 probe')
+    fail('HOST_SKILL_ROUTE_RAW_IDENTITY_MISMATCH', 'raw evidence must identify the Codex CLI S15 probe or production promotion probe')
   }
-  if (raw.authorizationSource !== 'isolated-probe-authority' ||
-      raw.runtimeBinding?.source !== 'isolated-source-candidate') {
-    fail('HOST_SKILL_ROUTE_RAW_AUTHORITY_INVALID', 'source-candidate evidence must use isolated probe authority')
+  if (isolatedProbe) {
+    if (raw.authorizationSource !== 'isolated-probe-authority' ||
+        raw.runtimeBinding?.source !== 'isolated-source-candidate') {
+      fail('HOST_SKILL_ROUTE_RAW_AUTHORITY_INVALID', 'source-candidate evidence must use isolated probe authority')
+    }
+  } else if (raw.authorizationSource !== 'capability-pass' ||
+      raw.runtimeBinding?.source !== 'installed-production-receipt') {
+    fail('HOST_SKILL_ROUTE_RAW_AUTHORITY_INVALID', 'production evidence must use capability-pass authority and installed production runtime binding')
   }
   if (raw.runtimeDigest !== bindings.runtimeContractDigest ||
       raw.runtimeBinding.expectedDigest !== bindings.runtimeContractDigest ||
@@ -189,9 +197,17 @@ function validateRawS15Evidence (raw, options = {}) {
     fail('HOST_SKILL_ROUTE_ADAPTER_DIGEST_MISMATCH', 'raw evidence is stale for the current Codex host adapter')
   }
   if (raw.routeActivation?.requested !== 'unified' ||
-      raw.routeActivation.effective !== 'unified' ||
-      raw.routeActivation.probeAuthorityUsed !== true) {
-    fail('HOST_SKILL_ROUTE_ACTIVATION_INVALID', 'raw evidence did not exercise the unified route under probe authority')
+      raw.routeActivation.effective !== 'unified') {
+    fail('HOST_SKILL_ROUTE_ACTIVATION_INVALID', 'raw evidence did not exercise the unified route')
+  }
+  if (isolatedProbe && raw.routeActivation.probeAuthorityUsed !== true) {
+    fail('HOST_SKILL_ROUTE_ACTIVATION_INVALID', 'isolated evidence did not exercise the unified route under probe authority')
+  }
+  if (productionProbe && (raw.routeActivation.probeAuthorityUsed !== false ||
+      raw.routeActivation.hostEligibility !== 'PASS' ||
+      raw.routeActivation.capabilityRuntimeCurrent !== true ||
+      raw.routeActivation.capabilityAdapterCurrent !== true)) {
+    fail('HOST_SKILL_ROUTE_ACTIVATION_INVALID', 'production evidence must exercise the unified route through current PASS capability eligibility')
   }
   validateHostInvocation(raw.hostInvocation, bindings)
   const observedOps = new Set(Array.isArray(raw.observedOps) ? raw.observedOps : [])

@@ -6,17 +6,17 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "ef3f2df53458f0fba2b51ea5b6341d5d9019f9709bc5b7bb52447da54513e650",
+    "sourceDigest": "86232aca0bd3932f73c4ea39859a0e84ca33cf6bb3f897dce5bd3377ae43b0f5",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "6ffdd7a19b8b0c09aaab71a6974e4b17fa5c59052f809cf79c0590173d36fced",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
     "publicTaxonomyDigest": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 713,
-    "consumerInventoryDigest": "424ec22febd792e124b514f3a668703849b8d4dee64719c8a7d670f49499c2ca",
-    "consumerProjectionDigest": "0d9f91faf07596c5a7b0ad8e4deffb56a151cbac95b374fd13030436fbd8e655",
-    "portfolioInputDigest": "c74f30c3fe32e0eb43e14882c5ee36bcbcbc04392903a3fdf83eb9d97cc6c010"
+    "consumerInventoryFileCount": 717,
+    "consumerInventoryDigest": "8f0d4c2acceabffbd12b9e2aac56cceb30f1bee66f2dfacfa4c8ce404ac42328",
+    "consumerProjectionDigest": "2a9023e04a434de68bc88eac365e483307cabfb5f768bbb85151cd24376e34e4",
+    "portfolioInputDigest": "2d2770a415a868fdf770ac6e68ba2717c9c8f479756c8a0880fb98adb977e82e"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -5279,8 +5279,8 @@
         "content/skills/cp-gate/SKILL.md"
       ],
       "source": "content/skills/cp-gate/SKILL.md",
-      "hash": "b967b88d64a89ae6c412d4837208f7d53f3d8fcc473305a4a7aa1ee37d8fcfdb",
-      "sourceBytes": 32902,
+      "hash": "fada873d78602d9e003dab0e4968c4c3a6d2b3a74a3c3ac38006fec3438d62a3",
+      "sourceBytes": 33537,
       "version": "1.20.2",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -10872,6 +10872,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/s15-candidate-host.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/skill-route-test-fixture.js",
           "role": "current"
         },
@@ -11156,6 +11160,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-workflow-plan-decision.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validate-profile.js",
           "role": "current"
         },
@@ -11215,6 +11223,7 @@
         "scripts/test-visible-output-contract.js",
         "scripts/test-workflow-capabilities.js",
         "scripts/test-workflow-completion-contract.js",
+        "scripts/test-workflow-plan-decision.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
@@ -11330,6 +11339,7 @@
           "scripts/test-visible-output-contract.js",
           "scripts/test-workflow-capabilities.js",
           "scripts/test-workflow-completion-contract.js",
+          "scripts/test-workflow-plan-decision.js",
           "scripts/validate-profile.js",
           "scripts/validate.js"
         ],
@@ -12099,6 +12109,10 @@
           "role": "current"
         },
         {
+          "path": "mcp/hot-reload-supervisor.cjs",
+          "role": "current"
+        },
+        {
           "path": "mcp/memory-server.js",
           "role": "current"
         },
@@ -12615,6 +12629,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-task-delivery-manifest.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-task-write-continuity.js",
           "role": "current"
         },
@@ -12648,6 +12666,10 @@
         },
         {
           "path": "scripts/test-workflow-completion-contract.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-workflow-plan-decision.js",
           "role": "current"
         },
         {
@@ -12708,6 +12730,7 @@
         "scripts/test-skills-deploy-mode.js",
         "scripts/test-task-admission-authority.js",
         "scripts/test-task-continuation.js",
+        "scripts/test-task-delivery-manifest.js",
         "scripts/test-task-write-continuity.js",
         "scripts/test-v1178-batch-b.js",
         "scripts/test-v1178-batch-d.js",
@@ -12717,6 +12740,7 @@
         "scripts/test-validation-dag.js",
         "scripts/test-workflow-capabilities.js",
         "scripts/test-workflow-completion-contract.js",
+        "scripts/test-workflow-plan-decision.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
       ],
@@ -12807,6 +12831,7 @@
           "scripts/test-skills-deploy-mode.js",
           "scripts/test-task-admission-authority.js",
           "scripts/test-task-continuation.js",
+          "scripts/test-task-delivery-manifest.js",
           "scripts/test-task-write-continuity.js",
           "scripts/test-v1178-batch-b.js",
           "scripts/test-v1178-batch-d.js",
@@ -12816,6 +12841,7 @@
           "scripts/test-validation-dag.js",
           "scripts/test-workflow-capabilities.js",
           "scripts/test-workflow-completion-contract.js",
+          "scripts/test-workflow-plan-decision.js",
           "scripts/validate-profile.js",
           "scripts/validate.js"
         ],
@@ -17015,7 +17041,15 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-workflow-capabilities.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-workflow-completion-contract.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-workflow-plan-decision.js",
           "role": "current"
         },
         {
@@ -17086,7 +17120,9 @@
         "scripts/test-validation-budget-control.js",
         "scripts/test-validation-dag.js",
         "scripts/test-visible-output-contract.js",
+        "scripts/test-workflow-capabilities.js",
         "scripts/test-workflow-completion-contract.js",
+        "scripts/test-workflow-plan-decision.js",
         "scripts/test-workspace-temp.js",
         "scripts/test-worktree-lifecycle.js",
         "scripts/validate-profile.js",
@@ -17188,7 +17224,9 @@
           "scripts/test-validation-budget-control.js",
           "scripts/test-validation-dag.js",
           "scripts/test-visible-output-contract.js",
+          "scripts/test-workflow-capabilities.js",
           "scripts/test-workflow-completion-contract.js",
+          "scripts/test-workflow-plan-decision.js",
           "scripts/test-workspace-temp.js",
           "scripts/test-worktree-lifecycle.js",
           "scripts/validate-profile.js",
@@ -21254,8 +21292,8 @@
         "content/skills/user-visible-output-contract/SKILL.md"
       ],
       "source": "content/skills/user-visible-output-contract/SKILL.md",
-      "hash": "775fc5f43c43744a842a5996e93e388a204df391c829485468dc65e4ace54eca",
-      "sourceBytes": 25249,
+      "hash": "2ee305a0947717245628bd8555f321d3e798ec8937875025e540f08cb02bfdf2",
+      "sourceBytes": 25428,
       "version": "1.20.2",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",

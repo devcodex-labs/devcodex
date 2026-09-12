@@ -128,6 +128,9 @@ function downgradePlanToN1 (current) {
   legacy.actionEnvelope.mutationExpected = legacy.actionEnvelope.allowedActionClasses.some(action => [
     'docs-mutation', 'source-mutation', 'release', 'dangerous'
   ].includes(action))
+  delete legacy.actionEnvelope.sourceMutationExpected
+  delete legacy.actionEnvelope.artifactWriteExpected
+  delete legacy.actionEnvelope.closeoutWriteExpected
   legacy.identityInputs.intent.actionEnvelope = JSON.parse(JSON.stringify(legacy.actionEnvelope))
   // The actual registry N-1 producer predates this optional identity field.
   delete legacy.profile.routeLoadRecipe

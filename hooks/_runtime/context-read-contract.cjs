@@ -927,9 +927,15 @@ function deriveActionEnvelope(intent, changeTypes, riskHint) {
   if (sourceMutation) allowed.add('source-mutation')
   if (changeTypes.includes('release')) allowed.add('release')
   if (changeTypes.includes('destructive')) allowed.add('dangerous')
+  const sourceMutationExpected = allowed.has('docs-mutation') || allowed.has('source-mutation') ||
+    allowed.has('release') || allowed.has('dangerous')
+  const closeoutWriteExpected = allowed.has('workflow-closeout')
   return {
     allowedActionClasses: [...allowed].sort(),
-    mutationExpected: allowed.has('docs-mutation') || allowed.has('source-mutation') || allowed.has('workflow-closeout') || allowed.has('release') || allowed.has('dangerous'),
+    mutationExpected: sourceMutationExpected,
+    sourceMutationExpected,
+    artifactWriteExpected: sourceMutationExpected || closeoutWriteExpected,
+    closeoutWriteExpected,
     riskCeiling: riskHint
   }
 }
@@ -1441,6 +1447,42 @@ function legacyN1ActionEnvelope (plan) {
   }
 }
 
+function legacyN1ActionEnvelopeCandidates (plan) {
+  const current = deriveActionEnvelope(
+    plan.identity.finalIntent,
+    uniqueSorted(plan.changeTypes, CHANGE_TYPES),
+    plan.identity.intentSeed?.riskHint
+  )
+  const sourceMutationActions = [
+    'docs-mutation',
+    'source-mutation',
+    'release',
+    'dangerous'
+  ]
+  const candidates = [legacyN1ActionEnvelope(plan)]
+  const allowedActionClasses = current.allowedActionClasses
+  candidates.push({
+    allowedActionClasses,
+    mutationExpected: allowedActionClasses.some(item => [
+      ...sourceMutationActions,
+      'workflow-closeout'
+    ].includes(item)),
+    riskCeiling: current.riskCeiling
+  })
+  candidates.push({
+    allowedActionClasses,
+    mutationExpected: allowedActionClasses.some(item => sourceMutationActions.includes(item)),
+    riskCeiling: current.riskCeiling
+  })
+  const seen = new Set()
+  return candidates.filter(candidate => {
+    const id = stableDigest(candidate)
+    if (seen.has(id)) return false
+    seen.add(id)
+    return true
+  })
+}
+
 function rebuildContextPlanIdentity (plan) {
   plan.identityInputs = buildPlanIdentityInputs(plan)
   plan.planContentId = `plan-content-${stableDigest(plan.identityInputs)}`
@@ -1549,15 +1591,15 @@ function normalizeCompatibleContextReadPlan (raw, options = {}) {
       }
     }
   }
-  let legacyEnvelope = null
+  let legacyEnvelopeCandidates = []
   try {
-    legacyEnvelope = raw && typeof raw === 'object' && raw.identity?.intentSeed
-      ? legacyN1ActionEnvelope(raw)
-      : null
+    legacyEnvelopeCandidates = raw && typeof raw === 'object' && raw.identity?.intentSeed
+      ? legacyN1ActionEnvelopeCandidates(raw)
+      : []
   } catch {}
   const onlyRegisteredEnvelopeDifference = exact.errors.length === 1 &&
     exact.errors[0] === 'actionEnvelope is not derived from intent scope' &&
-    stableDigest(raw.actionEnvelope) === stableDigest(legacyEnvelope)
+    legacyEnvelopeCandidates.some(candidate => stableDigest(raw.actionEnvelope) === stableDigest(candidate))
   if (!onlyRegisteredEnvelopeDifference) {
     return {
       valid: false,

@@ -10,6 +10,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 本模板只承接任务拆分、实施顺序、前置依赖、验证方式与回滚策略，不重复需求背景或技术方案中的设计论证。
 > ⚠️ 生成的 Markdown 实施计划文档必须在头部后补 `## 目录导航`。
 > ⚠️ SimpleTaskFastPath、docs/init/plan-review 子类型豁免或其他合法 CP3 豁免场景，可将 `04-实施计划.md` 标为 `N/A + skipReason`；不得用本模板“补文书”覆盖已确认的轻路径或子类型豁免。
+> ⚠️ 创建或更新 `04-实施计划.md` 表示任务至少已进入 CP3 候选/确认链；必须同步同一任务目录中 `00/01/02` 的当前阶段状态投影，不能让上游文首/状态行继续停留在“待 CP2 / CP2 候选 / 等待用户确认”等旧阶段。
 > ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，计划中必须列出 ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / ContextAcquisition / 05-实施进度.md 的触发状态与证据。
 > ⚠️ 项目/目录扫描计划必须先写 `ProjectArtifactScaleRoutingGate`、ScaleDecisionRecord、exclusion、batch/checkpoint、invalid-run 与 V91；不得把“全量 inventory”默认等同“逐字读取所有文件”。
 > ⚠️ 若本轮任务或批次直接来源于 `data/*.md` 的 open/partial 项，计划中必须显式写出 Backlog Intake 真相复核和台账状态回写闭环：先分类 `pure-open / residual-tail / already-fixed / misclassified`，再说明本轮范围是否缩减以及回写证据如何产出。

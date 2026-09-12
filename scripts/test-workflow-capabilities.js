@@ -22,6 +22,7 @@ const {
 } = require('../hooks/_runtime/workflow-route-decision-v2.cjs')
 const {
   EXPECTED_V2_ROUTE_KEYS,
+  routeKeyForContext,
   validateWorkflowRootRegistry,
   validateWorkflowRootRegistryV2
 } = require('../hooks/_runtime/workflow-root-registry.cjs')
@@ -168,6 +169,20 @@ assert.deepStrictEqual(registryV2, buildRegistryV2())
 assert.deepStrictEqual(registryV2.routes.map(route => route.routeKey), EXPECTED_V2_ROUTE_KEYS)
 assert.strictEqual(registryV2.routes.length, 24)
 assert.strictEqual(registryV2.routes.filter(route => route.disposition === 'active').length, 24)
+assert.strictEqual(
+  registryV2.workflowPolicies.audit.artifactPolicy.writePolicy,
+  'workflow-artifacts',
+  'audit must remain source read-only while allowing audit artifacts'
+)
+assert.strictEqual(registryV2.workflowPolicies.audit.mutationPolicy, 'forbidden')
+assert.strictEqual(
+  registryV2.workflowPolicies.analyze.artifactPolicy.writePolicy,
+  'workflow-artifacts',
+  'analyze must remain source read-only while allowing report/memory artifacts'
+)
+assert.strictEqual(routeKeyForContext('audit', ['docs', 'public-contract']), 'audit.通用文档')
+assert.strictEqual(routeKeyForContext('audit', ['source-code', 'docs', 'public-contract']), 'audit.项目工程')
+assert.strictEqual(routeKeyForContext('audit', ['release', 'source-code', 'docs']), 'audit.发布前审查')
 assert.strictEqual(new Set(registryV2.routes.map(route => route.routeKey)).size, 24)
 
 const ingressOptions = {

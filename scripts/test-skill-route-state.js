@@ -384,6 +384,38 @@ try {
   observedChoiceFixture.cleanup()
 }
 
+const contextBindingRoundtripFixture = createSkillRouteFixture({ project: 'context-binding-roundtrip' })
+try {
+  const contextEpoch = 'ctx-context-binding-roundtrip'
+  const contextBinding = writeContextBindingState(contextBindingRoundtripFixture, contextEpoch, 'dev')
+  const boot = bootstrapSkillRoute({
+    project: contextBindingRoundtripFixture.project,
+    activeRoot: contextBindingRoundtripFixture.activeRoot,
+    contextEpoch,
+    prompt: 'Run the workspace route probe',
+    mode: 'unified',
+    cwd: contextBindingRoundtripFixture.projectRoot
+  }, contextBindingRoundtripFixture.runtimeOptions)
+  requestCatalogAll(contextBindingRoundtripFixture, boot.bootstrap)
+  const verifiedResponseBinding = {
+    ...contextBinding,
+    bindingStatus: 'verified',
+    verificationMode: 'request-bound'
+  }
+  const roundtripContextBinding = handleSkillRoute({
+    op: 'commit',
+    project: contextBindingRoundtripFixture.project,
+    turnBinding: boot.bootstrap.turnBinding,
+    contextEpoch,
+    catalogDigest: boot.bootstrap.catalogDigest,
+    skillId: 'workspace-probe',
+    contextBinding: verifiedResponseBinding
+  }, contextBindingRoundtripFixture.runtimeOptions)
+  assert.strictEqual(roundtripContextBinding.ok, true, JSON.stringify(roundtripContextBinding))
+} finally {
+  contextBindingRoundtripFixture.cleanup()
+}
+
 const fixture = createSkillRouteFixture()
 
 try {

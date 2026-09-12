@@ -18,7 +18,7 @@
           "analysis-report",
           "convergence-evidence"
         ],
-        "writePolicy": "forbidden"
+        "writePolicy": "workflow-artifacts"
       },
       "verificationPolicy": {
         "mode": "read-only",
@@ -43,7 +43,7 @@
           "review-checklist",
           "audit-report"
         ],
-        "writePolicy": "forbidden"
+        "writePolicy": "workflow-artifacts"
       },
       "verificationPolicy": {
         "mode": "read-only",
@@ -139,7 +139,7 @@
         "primaryArtifacts": [
           "plan"
         ],
-        "writePolicy": "forbidden"
+        "writePolicy": "workflow-artifacts"
       },
       "verificationPolicy": {
         "mode": "read-only",
@@ -1093,6 +1093,6 @@
     }
   ],
   "sourceDigest": "8a1a132679325d3f0a5ca031b010e7191fab676164017ef3b12af01c56801ff2",
-  "routeRevision": "cd86a6045a9fc8cd72b094254bc68bef4210e0bb4639a7c2d755f8368aa3310b",
-  "registryDigest": "fce2cae2f0f20c035331bae237072f0a4df84cd2eaa4bbb235da35f62368755d"
+  "routeRevision": "700cd472a40e0408b0b3211d7b0a94ad7a7fad05cecfaecc5e8f4ed3166e4641",
+  "registryDigest": "3ad16f85297b98ec323fcef3d6a27e46c2d132a77e9401060f8fba9c0ea3cab1"
 }

@@ -225,6 +225,10 @@ assert(devPlan.selectedSources.some(source => source.sourceId === 'profile:confi
 assert.deepStrictEqual(devPlan.memory.requiredQueries, ['memory_status'])
 assert(devPlan.actionEnvelope.allowedActionClasses.includes('source-mutation'))
 assert(devPlan.actionEnvelope.allowedActionClasses.includes('workflow-closeout'))
+assert.strictEqual(devPlan.actionEnvelope.mutationExpected, true)
+assert.strictEqual(devPlan.actionEnvelope.sourceMutationExpected, true)
+assert.strictEqual(devPlan.actionEnvelope.artifactWriteExpected, true)
+assert.strictEqual(devPlan.actionEnvelope.closeoutWriteExpected, true)
 assert.strictEqual(devPlan.catalogCoverage.unclassifiedIds.length, 0)
 const forgedContextBindingPlan = clone(devPlan)
 forgedContextBindingPlan.contextBinding.planId = 'plan-forged'
@@ -319,6 +323,37 @@ function legacyN1PlanFrom (current, extraRemovedAction = null) {
   legacy.actionEnvelope.mutationExpected = legacy.actionEnvelope.allowedActionClasses.some(action => [
     'docs-mutation', 'source-mutation', 'release', 'dangerous'
   ].includes(action))
+  delete legacy.actionEnvelope.sourceMutationExpected
+  delete legacy.actionEnvelope.artifactWriteExpected
+  delete legacy.actionEnvelope.closeoutWriteExpected
+  legacy.identityInputs.intent.actionEnvelope = clone(legacy.actionEnvelope)
+  legacy.planContentId = `plan-content-${stableDigest(legacy.identityInputs)}`
+  legacy.planId = `plan-${stableDigest({
+    planContentId: legacy.planContentId,
+    contextEpoch: legacy.identity.contextEpoch,
+    invocationNonce: legacy.identity.invocationNonce
+  }).slice(0, 24)}`
+  legacy.contextBinding.planId = legacy.planId
+  legacy.contextBinding.planContentId = legacy.planContentId
+  let observed = 0
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    legacy.stageTiming.plannerResponseBytes = observed
+    const next = Buffer.byteLength(JSON.stringify(legacy, null, 2), 'utf8')
+    if (next === observed) break
+    observed = next
+  }
+  legacy.stageTiming.plannerResponseBytes = Buffer.byteLength(JSON.stringify(legacy, null, 2), 'utf8')
+  return legacy
+}
+
+function legacyN1CloseoutMutationPlanFrom (current) {
+  const legacy = clone(current)
+  legacy.actionEnvelope.mutationExpected = legacy.actionEnvelope.allowedActionClasses.some(action => [
+    'docs-mutation', 'source-mutation', 'workflow-closeout', 'release', 'dangerous'
+  ].includes(action))
+  delete legacy.actionEnvelope.sourceMutationExpected
+  delete legacy.actionEnvelope.artifactWriteExpected
+  delete legacy.actionEnvelope.closeoutWriteExpected
   legacy.identityInputs.intent.actionEnvelope = clone(legacy.actionEnvelope)
   legacy.planContentId = `plan-content-${stableDigest(legacy.identityInputs)}`
   legacy.planId = `plan-${stableDigest({
@@ -350,6 +385,12 @@ assert.strictEqual(compatibleLegacy.receipt.legacyProducerAssumed, true)
 assert.strictEqual(validateContextReadPlan(compatibleLegacy.plan).valid, true)
 assert(compatibleLegacy.plan.actionEnvelope.allowedActionClasses.includes('workflow-closeout'))
 assert.notStrictEqual(compatibleLegacy.plan.planId, legacyN1Plan.planId)
+const legacyN1CloseoutMutationPlan = legacyN1CloseoutMutationPlanFrom(devPlan)
+const compatibleCloseoutLegacy = normalizeCompatibleContextReadPlan(legacyN1CloseoutMutationPlan)
+assert.strictEqual(compatibleCloseoutLegacy.valid, true)
+assert.strictEqual(compatibleCloseoutLegacy.status, 'legacy-n-1')
+assert.strictEqual(validateContextReadPlan(compatibleCloseoutLegacy.plan).valid, true)
+assert.strictEqual(compatibleCloseoutLegacy.plan.actionEnvelope.closeoutWriteExpected, true)
 
 const unknownLegacy = normalizeCompatibleContextReadPlan(
   legacyN1PlanFrom(devPlan, 'analysis-read')
@@ -486,6 +527,10 @@ assert.strictEqual(buildContextReadPlan(makeInput('chat', [], { baseline: missin
 const analyzeDocsPlan = assertPlan(buildContextReadPlan(makeInput('analyze', ['docs']), { nowMs: BASE_MS }))
 assert(!analyzeDocsPlan.actionEnvelope.allowedActionClasses.includes('docs-mutation'), 'analysis intent must remain read-only')
 assert(analyzeDocsPlan.actionEnvelope.allowedActionClasses.includes('workflow-closeout'), 'non-chat workflows must be able to close report and memory obligations')
+assert.strictEqual(analyzeDocsPlan.actionEnvelope.mutationExpected, false, 'analysis closeout must not imply source/docs mutation')
+assert.strictEqual(analyzeDocsPlan.actionEnvelope.sourceMutationExpected, false)
+assert.strictEqual(analyzeDocsPlan.actionEnvelope.artifactWriteExpected, true)
+assert.strictEqual(analyzeDocsPlan.actionEnvelope.closeoutWriteExpected, true)
 
 const lowConfidencePlan = assertPlan(buildContextReadPlan(makeInput('dev', [], { confidence: 0.4 }), { nowMs: BASE_MS }))
 assert.strictEqual(lowConfidencePlan.fullRead, true)

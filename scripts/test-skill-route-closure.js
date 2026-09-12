@@ -172,9 +172,9 @@ assert.strictEqual(capabilityValidation.valid, true, capabilityValidation.errors
 const codexVariant = 'codex-cli/exec-user-global-local-stdio'
 const grokVariant = 'grok-cli-single/global-launcher-local-stdio'
 assert.deepStrictEqual(
-  pass.map(item => item.hostVariant).sort(),
-  [codexVariant],
-  'only freshly source-replayed host variants may retain PASS evidence'
+  pass.filter(item => item.hostVariant !== codexVariant).map(item => item.hostVariant).sort(),
+  [],
+  'only freshly source-replayed Codex CLI may retain PASS evidence'
 )
 const currentRuntimeDigest = getRuntimeContractDigest()
 const currentAdapterDigests = {

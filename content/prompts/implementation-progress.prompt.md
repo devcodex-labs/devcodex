@@ -10,6 +10,7 @@ applyTo: .devcodex/**/{requirements,bugs}/**; .devcodex/**/fix/**
 > ⚠️ 条件触发：任务跨多轮/多阶段、存在明确阻塞、用户要求持续跟踪、多批次执行、预计修改 ≥10 文件、控制面任务、模板-示例-校验链或部署同步联动时启用；默认前提是已存在 `04-实施计划.md`，docs/init/plan-review 等 CP3 豁免场景可使用已确认文档大纲、任务切片或 ContextHandoffCard 作为等价计划锚点。
 > ⚠️ 进度文档必须引用 ArtifactDecisionMatrix 的当前状态，说明 `05-实施进度.md` 本身为何是 `create` / `update`，以及其他关键产物的 `skip` / `N/A` 是否仍成立。
 > ⚠️ 生成的 Markdown 实施进度文档必须在头部后补 `## 目录导航`。
+> ⚠️ 启用或更新 `05-实施进度.md` 时，必须同步同一任务目录中 `00/01/02/04` 的当前阶段状态投影；已进入 CP3/执行/ECR 后，上游文首/状态行不得仍写“待 CP2 / CP2 候选 / 等待用户确认 / 待 CP3”。历史候选可保留，但状态必须标为 `historical / superseded / 已确认后进入实施` 等非当前态。
 > ⚠️ 若本轮任务或批次来源于 `data/*.md` open/partial 项，进度中必须持续记录 Backlog Intake 真相复核分类结果，以及台账状态回写闭环是否已完成。
 
 ---

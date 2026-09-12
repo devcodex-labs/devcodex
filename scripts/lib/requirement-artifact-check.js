@@ -33,6 +33,31 @@ const HISTORICAL_TEMPLATE_DISPOSITION_PATH = '.memory/artifact-template-disposit
 const HISTORICAL_TEMPLATE_DISPOSITIONS = new Set(['superseded-confirmed', 'abandoned-unconfirmed'])
 const SHA256_RE = /^[a-f0-9]{64}$/i
 const MAX_HISTORICAL_TEMPLATE_DISPOSITION_BYTES = 256 * 1024
+const ARTIFACT_PHASE_ORDER = Object.freeze({
+  overview: 0,
+  cp1: 1,
+  cp2: 2,
+  'cp3-plan': 3,
+  progress: 4
+})
+const STATUS_PROJECTION_LINE_RE = /(?:状态|status|当前\s*CP|CP\s*状态|next-action|blocked-reason|下一步)/i
+const STALE_PHASE_STATUS_PATTERNS = Object.freeze({
+  cp1: [
+    /CP1\s*(?:未确认|待确认|待用户确认)/i,
+    /(?:待|等待)(?:用户)?确认\s*(?:CP1|需求确认|问题确认)?/i
+  ],
+  cp2: [
+    /待\s*CP2/i,
+    /等待\s*CP2/i,
+    /CP2\s*(?:未确认|待确认|待用户确认|待用户决策|候选|未进入)/i,
+    /(?:待|等待)用户确认\s*(?:CP2|技术方案|修复方案)?/i
+  ],
+  cp3: [
+    /待\s*CP3/i,
+    /等待\s*CP3/i,
+    /CP3\s*(?:未确认|待确认|待用户确认|候选)/i
+  ]
+})
 
 function resolveConsumerArtifactRegistry(activeRoot, project, registry = null) {
   const resolvedRoot = path.resolve(activeRoot)
@@ -92,6 +117,58 @@ function collectInventoryIssues(inventory, relDir) {
     issues.push(`${relDir} missing intake truth before CP2/CP3 artifacts`)
   }
   return issues
+}
+
+function statusProjectionLines(filePath) {
+  const text = fs.readFileSync(filePath, 'utf8')
+  return text
+    .split(/\r?\n/u)
+    .map((line, index) => ({ line: line.trim(), number: index + 1 }))
+    .filter(item => {
+      if (item.number > 80 || !item.line || !STATUS_PROJECTION_LINE_RE.test(item.line)) return false
+      if (!item.line.startsWith('|')) return true
+      const firstCell = item.line.replace(/^\|/, '').split('|')[0].trim()
+      return STATUS_PROJECTION_LINE_RE.test(firstCell)
+    })
+    .filter(item => !/(?:历史|historical|superseded|不表示当前|按摘要保留|保留为历史)/i.test(item.line))
+}
+
+function stalePhaseMatches(line, requiredPhase) {
+  return (STALE_PHASE_STATUS_PATTERNS[requiredPhase] || [])
+    .filter(pattern => pattern.test(line))
+    .map(pattern => String(pattern))
+}
+
+function collectStatusProjectionIssues(dirPath, inventory, relDir) {
+  const issues = []
+  const phaseArtifacts = inventory.artifacts
+    .filter(artifact => Object.prototype.hasOwnProperty.call(ARTIFACT_PHASE_ORDER, artifact.slot?.artifactClass))
+    .filter(artifact => artifact.matchType === 'canonical')
+  const highestPhase = phaseArtifacts.reduce((highest, artifact) => {
+    return Math.max(highest, ARTIFACT_PHASE_ORDER[artifact.slot.artifactClass])
+  }, -1)
+  if (highestPhase < ARTIFACT_PHASE_ORDER.cp2) return issues
+
+  for (const artifact of phaseArtifacts) {
+    const artifactPhase = ARTIFACT_PHASE_ORDER[artifact.slot.artifactClass]
+    const filePath = path.join(dirPath, artifact.relativePath)
+    if (!fs.existsSync(filePath)) continue
+    const checks = []
+    if (highestPhase >= ARTIFACT_PHASE_ORDER.cp2 && artifactPhase < ARTIFACT_PHASE_ORDER.cp2) checks.push('cp1')
+    if (highestPhase >= ARTIFACT_PHASE_ORDER['cp3-plan'] && artifactPhase < ARTIFACT_PHASE_ORDER['cp3-plan']) checks.push('cp2')
+    if (highestPhase >= ARTIFACT_PHASE_ORDER.progress && artifactPhase < ARTIFACT_PHASE_ORDER.progress) checks.push('cp3')
+    if (!checks.length) continue
+    for (const statusLine of statusProjectionLines(filePath)) {
+      for (const phase of checks) {
+        const matches = stalePhaseMatches(statusLine.line, phase)
+        if (!matches.length) continue
+        issues.push(
+          `${relDir}/${artifact.relativePath}:${statusLine.number} stale ${phase.toUpperCase()} status projection after later-phase artifact exists: ${statusLine.line}`
+        )
+      }
+    }
+  }
+  return [...new Set(issues)]
 }
 
 function sha256File(filePath) {
@@ -391,6 +468,7 @@ function collectRecentTaskArtifactIssues({
         strategy: inventory.overflow ? 'sampled+deep-read' : 'single-pass', observedArtifacts: inventory.artifacts.length })
       if (inventory.overflow) warnings.push(`${relDir}: bounded artifact inventory is partial; unsampled coverage UNVERIFIED`)
       issues.push(...collectInventoryIssues(inventory, relDir))
+      issues.push(...collectStatusProjectionIssues(dirPath, inventory, relDir))
       const observed = collectTemplateObservations(dirPath, inventory, relDir)
       issues.push(...observed.issues)
       templateObservations.push(...observed.observations)
@@ -409,7 +487,7 @@ function collectRecentTaskArtifactIssues({
 }
 
 function collectRecentRequirementArtifactIssues(input) {
-  return collectRecentTaskArtifactIssues({ ...input, taskKinds: ['requirements', 'optimizations'] })
+  return collectRecentTaskArtifactIssues({ ...input, taskKinds: ['requirements', 'optimizations', 'scenario-tests'] })
 }
 
 function collectRecentBugArtifactIssues(input) {
@@ -427,6 +505,7 @@ module.exports = {
   checkArtifactTemplateFile,
   checkActualCandidateEvidence,
   collectInventoryIssues,
+  collectStatusProjectionIssues,
   validateHistoricalTemplateDispositions,
   hasSimpleTaskFastPathMarker,
   collectRecentBugArtifactIssues,

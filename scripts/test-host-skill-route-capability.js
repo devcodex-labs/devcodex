@@ -169,6 +169,25 @@ function rawEvidence () {
   })
 }
 
+function productionRawEvidence () {
+  const raw = JSON.parse(JSON.stringify(rawEvidence()))
+  raw.probeRunId = `s15-codex-production-${crypto.randomUUID()}`
+  raw.testedVersion = 'codex-cli fixture / production fixture'
+  raw.authorizationSource = 'capability-pass'
+  raw.runtimeBinding.source = 'installed-production-receipt'
+  raw.routeActivation = {
+    requested: 'unified',
+    source: 'source-default',
+    effective: 'unified',
+    reason: 'unified-default',
+    hostEligibility: 'PASS',
+    capabilityRuntimeCurrent: true,
+    capabilityAdapterCurrent: true,
+    probeAuthorityUsed: false
+  }
+  return withDigest(raw)
+}
+
 function preparePackageRoot (tempRoot) {
   for (const relative of [CAPABILITY_REF, EVIDENCE_REF]) {
     const source = path.join(ROOT, ...relative.split('/'))
@@ -200,9 +219,32 @@ function run () {
     assert.strictEqual(validateCapabilityDocument(capability, { packageRoot: positiveRoot }).valid, true)
     checks++
 
+    const productionRoot = path.join(tempRoot, 'production-positive')
+    preparePackageRoot(productionRoot)
+    const productionReceipt = promoteCodexSkillRouteCapability(productionRawEvidence(), {
+      packageRoot: productionRoot,
+      runtimePackageRoot: ROOT,
+      completedAt: '2026-08-31T00:00:03.000Z',
+      transactionId: 'fixture-production-positive'
+    })
+    assert.strictEqual(productionReceipt.status, 'committed')
+    const productionCapability = JSON.parse(fs.readFileSync(path.join(productionRoot, ...CAPABILITY_REF.split('/')), 'utf8'))
+    assert.strictEqual(validateCapabilityDocument(productionCapability, { packageRoot: productionRoot }).valid, true)
+    assert.strictEqual(productionCapability.capabilities.find(item => item.hostVariant === CODEX_VARIANT).status, 'PASS')
+    checks++
+
     const wrongHost = withDigest({ ...raw, host: 'grok' })
     expectCode('HOST_SKILL_ROUTE_RAW_IDENTITY_MISMATCH', () =>
       promoteCodexSkillRouteCapability(wrongHost, {
+        packageRoot: positiveRoot,
+        runtimePackageRoot: ROOT
+      }))
+    checks++
+
+    const productionWithProbeAuthority = JSON.parse(JSON.stringify(productionRawEvidence()))
+    productionWithProbeAuthority.routeActivation.probeAuthorityUsed = true
+    expectCode('HOST_SKILL_ROUTE_ACTIVATION_INVALID', () =>
+      promoteCodexSkillRouteCapability(withDigest(productionWithProbeAuthority), {
         packageRoot: positiveRoot,
         runtimePackageRoot: ROOT
       }))

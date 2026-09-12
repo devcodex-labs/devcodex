@@ -65,6 +65,40 @@ assert.strictEqual(unknown.axes.ceremonyTier.value, 'standard')
 assert.strictEqual(unknown.axes.designDepth.value, 'standard')
 assert.strictEqual(unknown.axes.assuranceLevel.value, 'affected')
 
+const semanticUnknownScope = buildWorkflowPlanDecision({
+  config: { mode: 'adaptive' },
+  facts: { targetKnown: true, unknownScope: true, changedFileCount: 1, consumerCount: 1 }
+})
+assert.strictEqual(semanticUnknownScope.facts.unknownScope, true)
+assert.strictEqual(semanticUnknownScope.axes.ceremonyTier.value, 'standard')
+
+const auditPlan = buildWorkflowPlanDecision({
+  workflow: 'audit',
+  facts: { targetKnown: true, fullAuditRequested: true, publicContract: true }
+})
+assert.deepStrictEqual(auditPlan.plannedStages, [
+  'entry-check',
+  'intent-and-context',
+  'audit-scope',
+  'evidence-review',
+  'pcv',
+  'validation:full',
+  'report-memory-ecr'
+])
+
+const analyzePlan = buildWorkflowPlanDecision({
+  workflow: 'analyze',
+  facts: { targetKnown: true, publicContract: true }
+})
+assert.deepStrictEqual(analyzePlan.plannedStages, [
+  'entry-check',
+  'intent-and-context',
+  'analysis-scope',
+  'evidence-synthesis',
+  'validation:affected',
+  'report-memory-ecr'
+])
+
 const expanded = buildWorkflowPlanDecision({
   phase: 'post-context',
   previousDecision: buildWorkflowPlanDecision({ facts: { targetKnown: true, changedFileCount: 1, consumerCount: 1 } }),

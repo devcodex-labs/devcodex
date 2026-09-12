@@ -65,6 +65,7 @@ function parseGlobalAdaptersArgv(argv = []) {
     json: false,
     home: null,
     skillsDeployMode: null,
+    runtimeSourceMode: null,
     errors: []
   }
   for (let i = 0; i < args.length; i++) {
@@ -94,9 +95,22 @@ function parseGlobalAdaptersArgv(argv = []) {
       }
     } else if (arg.startsWith('--mode=')) {
       options.skillsDeployMode = arg.slice('--mode='.length)
+    } else if (arg === '--runtime-source') {
+      const value = args[i + 1]
+      if (!value || String(value).startsWith('-')) {
+        options.errors.push('--runtime-source requires auto|immutable-generation')
+      } else {
+        options.runtimeSourceMode = value
+        i++
+      }
+    } else if (arg.startsWith('--runtime-source=')) {
+      options.runtimeSourceMode = arg.slice('--runtime-source='.length)
     } else {
       options.errors.push(`unsupported option: ${arg}`)
     }
+  }
+  if (options.runtimeSourceMode && !['auto', 'immutable-generation'].includes(options.runtimeSourceMode)) {
+    options.errors.push('--runtime-source must be auto|immutable-generation')
   }
   return options
 }
@@ -171,7 +185,7 @@ function buildHandler(deps = {}) {
         COMMAND,
         'CLI_GLOBAL_ADAPTERS_BAD_ARGS',
         parsed.errors.join('; '),
-        'Use: devcodex global-adapters apply [--mode=hidden|legacy] [--dry-run] [--json] [--home <dir>] or devcodex global-adapters remove [--dry-run|--apply] [--json] [--home <dir>]',
+        'Use: devcodex global-adapters apply [--mode=hidden|legacy] [--runtime-source=auto|immutable-generation] [--dry-run] [--json] [--home <dir>] or devcodex global-adapters remove [--dry-run|--apply] [--json] [--home <dir>]',
         cliMetadata
       )
       if (parsed.json) printCliJson(consoleImpl, envelope)
@@ -188,7 +202,7 @@ function buildHandler(deps = {}) {
         COMMAND,
         'CLI_GLOBAL_ADAPTERS_UNKNOWN_SUBCOMMAND',
         `Unknown global-adapters subcommand: ${parsed.subcommand || '(none)'}`,
-        'Use: devcodex global-adapters apply [--mode=hidden|legacy] [--dry-run] [--json] or devcodex global-adapters remove [--dry-run|--apply] [--json]',
+        'Use: devcodex global-adapters apply [--mode=hidden|legacy] [--runtime-source=auto|immutable-generation] [--dry-run] [--json] or devcodex global-adapters remove [--dry-run|--apply] [--json]',
         cliMetadata
       )
       if (parsed.json) printCliJson(consoleImpl, envelope)
@@ -203,7 +217,8 @@ function buildHandler(deps = {}) {
     const removalArgErrors = parsed.subcommand === 'remove'
       ? [
           ...(parsed.apply && parsed.dryRun ? ['--apply and --dry-run are mutually exclusive'] : []),
-          ...(parsed.skillsDeployMode ? ['--mode is only supported by global-adapters apply'] : [])
+          ...(parsed.skillsDeployMode ? ['--mode is only supported by global-adapters apply'] : []),
+          ...(parsed.runtimeSourceMode ? ['--runtime-source is only supported by global-adapters apply'] : [])
         ]
       : (parsed.apply ? ['--apply is only supported by global-adapters remove'] : [])
     if (removalArgErrors.length) {
@@ -213,7 +228,7 @@ function buildHandler(deps = {}) {
         removalArgErrors.join('; '),
         parsed.subcommand === 'remove'
           ? 'Use: devcodex global-adapters remove [--dry-run|--apply] [--json] [--home <dir>]'
-          : 'Use: devcodex global-adapters apply [--mode=hidden|legacy] [--dry-run] [--json] [--home <dir>]',
+          : 'Use: devcodex global-adapters apply [--mode=hidden|legacy] [--runtime-source=auto|immutable-generation] [--dry-run] [--json] [--home <dir>]',
         cliMetadata
       )
       if (parsed.json) printCliJson(consoleImpl, envelope)
@@ -355,7 +370,8 @@ function buildHandler(deps = {}) {
         home: parsed.home || undefined,
         fs: fsImpl,
         env: applyEnv,
-        skillsDeployMode: parsed.skillsDeployMode || undefined
+        skillsDeployMode: parsed.skillsDeployMode || undefined,
+        runtimeSourceMode: parsed.runtimeSourceMode || undefined
       })
     } catch (error) {
       const envelope = createCliFailure(

@@ -210,6 +210,22 @@ try {
   ), 'the registry may route templates but must not duplicate their semantic truth')
   const cp2TemplateSlot = baseRegistry.slots.find(slot => slot.slotId === 'bug-cp2')
   const reportTemplateSlot = baseRegistry.slots.find(slot => slot.slotId === 'task-report')
+  for (const slot of baseRegistry.slots.filter(item => item.templateRef && Array.isArray(item.canonicalNames) && item.taskKinds?.length)) {
+    for (const taskKind of slot.taskKinds) {
+      const generatedTaskName = `template-gate-${slot.slotId}-${taskKind}`
+      const generatedTarget = path.join(activeRoot, taskKind, generatedTaskName, slot.canonicalNames[0])
+      const intent = taskKind === 'bugs' ? 'fix' : 'dev'
+      const gateDecision = decisionFor(
+        { tool_name: 'Write', tool_input: { file_path: generatedTarget } },
+        { taskKind, taskName: generatedTaskName, intent }
+      )
+      assert.strictEqual(gateDecision.decision.decisionStatus, 'allow',
+        `${slot.slotId}/${taskKind}: ${JSON.stringify(gateDecision.decision.errorCodes)}`)
+      assert.strictEqual(gateDecision.decision.templateBindings.length, 1,
+        `${slot.slotId}/${taskKind} must create exactly one prewrite template binding`)
+      assert.strictEqual(gateDecision.decision.templateBindings[0].slotId, slot.slotId)
+    }
+  }
   const reviewReportBinding = createArtifactTemplateBinding({
     slot: reportTemplateSlot,
     target: path.join(taskRoot, 'reports', 'codex', '20260831', '06--Stage-A全面独立复审与Stage-B需求核对.md'),

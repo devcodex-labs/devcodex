@@ -105,6 +105,7 @@ try {
   for (const invalidArgs of [
     ['remove', '--apply', '--dry-run', '--json'],
     ['remove', '--mode=hidden', '--json'],
+    ['remove', '--runtime-source=immutable-generation', '--json'],
     ['apply', '--apply', '--json']
   ]) {
     fakeProcess.exitCode = 0
@@ -182,10 +183,18 @@ try {
     packageJson: require('../package.json'),
     applyGlobalHostConfig: plannedResult
   })
-  const scoped = scopedCmd(['apply', '--dry-run', '--json', '--home', isolatedHome])
+  const scoped = scopedCmd([
+    'apply',
+    '--dry-run',
+    '--json',
+    '--home',
+    isolatedHome,
+    '--runtime-source=immutable-generation'
+  ])
   assert.strictEqual(scoped.ok, true, JSON.stringify(scoped))
   assert.ok(scopedApplyOptions)
   assert.strictEqual(scopedApplyOptions.home, isolatedHome)
+  assert.strictEqual(scopedApplyOptions.runtimeSourceMode, 'immutable-generation')
   assert.strictEqual(scopedApplyOptions.env.DEVCODEX_TEST_PRESERVED, 'yes')
   for (const key of EXPLICIT_HOME_PATH_OVERRIDE_KEYS) {
     assert.strictEqual(Object.prototype.hasOwnProperty.call(scopedApplyOptions.env, key), false, key)

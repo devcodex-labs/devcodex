@@ -18,6 +18,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，方案中必须说明是否触发 `execution-contract`、`test-router`、`audit-release`、`release-verification`、`source-consumer-sync`、`host-contract-verification`、`user-visible-output-contract` 与 `05-实施进度.md`。
 > ⚠️ 项目/目录分析、审查或扫描必须在 broad scan 前填写 `ProjectArtifactScaleRoutingGate` / `ScaleDecisionRecord`：项目/root、六项规模指标、single-pass/batched/sampled+deep-read/blocked、排除策略、batch/checkpoint、invalid-run 与 V91。
 > ⚠️ 若本方案触发或豁免任何关键产物，必须在 §1 或 §8 写出 ArtifactDecisionMatrix：`artifact`、`state(create/update/skip/N/A)`、`reason`、`trigger`、`upgradeTrigger`、`targetArtifact`。
+> ⚠️ CP2 被确认、进入 CP3 或后续生成 `04-实施计划.md` / `05-实施进度.md` 后，必须同步同一任务目录上游 `00/01` 与当前 `02` 的阶段状态投影；历史候选可以保留，但当前文首/状态行不得继续写“待 CP2 / CP2 候选 / 等待用户确认”。
 > ⚠️ 若本方案承接了用户可见“意图扩展摘要”，必须在 §0 或 §1 说明语义初判、项目现实扩展后路由、关键风险、验证路线与备选路径如何落到方案中。
 > ⚠️ 新增/升级依赖、框架、SDK、平台 API 或外部模块时，§4 必须填写 `OfficialDocsEvidence`：官方文档来源、版本/日期、关键用法、限制、兼容性与降级来源。
 > ⚠️ dev/fix 项目事实变化时，必须填写 `ProfileImpactCheck`：是否更新 Profile、目标文件与 `skipReason`。

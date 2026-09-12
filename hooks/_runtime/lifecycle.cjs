@@ -804,7 +804,7 @@ function deriveWorkflowPlanFacts(state, prompt = '', plan = null) {
     securitySensitive: facts.securitySensitive === true || changes.has('security'),
     releaseRequested: facts.releaseRequested === true || changes.has('release'),
     crossModule: facts.crossModule === true || changes.size > 1,
-    unknownScope: !targetKnown
+    unknownScope: facts.unknownScope === true || !targetKnown
   }
 }
 
@@ -891,6 +891,7 @@ function bindWorkflowRouteFromObservedPlan(state) {
     state.workflowRoutePlanBinding = buildWorkflowRoutePlanBinding(state, plan, decision)
     state.workflowPlanDecision = buildWorkflowPlanDecision({
       phase: 'post-context',
+      workflow: state.workflowRouteDecision?.topIntent || plan.identity?.finalIntent,
       userIntent: semantic.value?.workflowPreference,
       config: plan.baselineContext?.effectiveConfig?.extensions?.devcodex?.workflowRouting,
       facts: deriveWorkflowPlanFacts(state, '', plan),
@@ -3902,6 +3903,7 @@ async function main() {
     state.workflowPlanDecision = buildWorkflowPlanDecision({
       phase: 'precheck',
       prompt,
+      workflow: state.workflowRouteDecision?.topIntent,
       userIntent: undefined,
       config: workflowRoutingConfig,
       facts: deriveWorkflowPlanFacts(state, prompt)

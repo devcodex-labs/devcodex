@@ -442,9 +442,10 @@ assert.strictEqual(codexDesktopEnvelope.artifactDeliveryAttempts[0].status, 'rea
 const codexDesktopRendered = renderVisibleEnvelope(codexDesktopEnvelope, {
   tier: 'rich-markdown', languageContext: ZH_LANGUAGE_CONTEXT
 })
-assert.match(codexDesktopRendered, /\| 检查项 \| 当前结果 \|/)
+assert.match(codexDesktopRendered, /\| 项 \| 结论 \|/)
 assert.match(codexDesktopRendered, /\|---\|---\|/)
-assert.match(codexDesktopRendered, /\| PC0 \|/)
+assert.match(codexDesktopRendered, /\| PC0 · PASS \|/)
+assert.match(codexDesktopRendered, /\| PC5 · WARN \|/)
 assert.strictEqual(analyzeEntryCheckCompleteness(codexDesktopRendered, { mode: 'dev' }).complete, true)
 const paragraphEntryCheck = [
   '### DevCodex · 入口检查',
@@ -526,8 +527,11 @@ for (const output of [richText, portableText, plainText]) {
   if (output === plainText) {
     for (const check of envelope.checks) assert.match(output, new RegExp(`${check.id} \\[${check.status.replace('/', '\\/')}\\]`))
   } else {
-    assert.match(output, /\| 检查项 \| 当前结果 \|/)
-    for (const check of envelope.checks) assert.match(output, new RegExp(`\\| ${check.id} \\|`))
+    assert.match(output, /\| 项 \| 结论 \|/)
+    for (const check of envelope.checks) {
+      const status = check.status.replace('/', '\\/')
+      assert.match(output, new RegExp(`\\| ${check.id} · ${status} \\|`))
+    }
   }
   for (const item of entrySet.items) assert.match(output, new RegExp(item.displayName))
   assert.doesNotMatch(output, /主要产物|本次会话全部产物/)

@@ -75,8 +75,8 @@ const ACTION_HEADINGS = Object.freeze({
   'completion-check': '完成交付文件'
 })
 const ENTRY_CHECK_TABLE_HEADERS = Object.freeze({
-  'zh-CN': Object.freeze(['检查项', '当前结果']),
-  en: Object.freeze(['Check', 'Current result'])
+  'zh-CN': Object.freeze(['项', '结论']),
+  en: Object.freeze(['Item', 'Decision'])
 })
 const VISIBLE_LOCALE_CATALOGS = Object.freeze({
   'zh-CN': Object.freeze({
@@ -2282,7 +2282,7 @@ function renderEntryCheckTable(checks, localeDecision) {
   ]
   for (const check of checks) {
     const action = check.requiredAction ? `${sep}${localeDecision.catalog.checkAction}${colon}${check.requiredAction}` : ''
-    rows.push(`| ${escapeMarkdownTableCell(check.id)} | ${escapeMarkdownTableCell(`${check.summary}${action}`)} |`)
+    rows.push(`| ${escapeMarkdownTableCell(`${check.id} · ${check.status}`)} | ${escapeMarkdownTableCell(`${check.summary}${action}`)} |`)
   }
   return rows
 }

@@ -622,40 +622,44 @@ function composeEntryCheckBlock(options = {}) {
     ? locale.catalog.localeFallback(locale.requestedLanguage, locale.fallbackReason)
     : null
   // UserVisibleReplyLayoutV1: plain-language table shared by all six hosts.
-  // Cell keeps "PC4 [STATUS] …" so parsers matching /PC4 \[STATUS\]/ still work.
-  const pc4Cell = composePc4Line({ ...options, languageContext: options.languageContext }).replace(/^- /, '').trim()
+  // Keep the first cell compact as "PCx · STATUS" so narrow Markdown panels do not wrap PC and status separately.
+  const pc4Line = composePc4Line({ ...options, languageContext: options.languageContext }).replace(/^- /, '').trim()
+  const pc4Match = pc4Line.match(/^PC4\s+\[([^\]]+)\]\s*(.*)$/)
+  const pc4Status = pc4Match ? pc4Match[1] : 'UNVERIFIED'
+  const pc4Cell = pc4Match ? pc4Match[2] : pc4Line
+  const pcRow = (id, status, text) => `| ${id} · ${status} | ${text} |`
   const zhRows = [
-    `| PC0 | 版本与运行代际：installed=${version.installedPackageVersion}；active=${runtime}；configured=${configuredRuntime}；source=${source}；alignment=${version.alignment}；需要重启=${restartRequired}；原因=${version.restartReason} |`,
-    '| PC1 | 意图：语义初判 → 扩展后工作流 |',
-    '| PC2 | 会话：轮次、Token 防护与待跟进项 |',
-    '| PC3 | 执行准备：唯一项目、连续性与产物落点 |',
-    `| PC4 | ${pc4Cell} |`,
-    '| PC5 | 宿主：部署、同步与加载证据（Grok 仅在 Full 启动器下可判 Full） |',
-    '| PC6 | 工作区：Git 改动状态与当前活动任务 |',
-    '| PC7 | 续接：新会话或 resume 的有界检测 |',
-    `| PC8 | 流程与方案：初判=${precheck.ceremonyTier}/${precheck.designDepth}；二次=${post}；差异=${differences} |`,
-    `| PC9 | 验证：${validation.assuranceLevel}；定向=${validation.targetedCount}，受影响=${validation.affectedCount}，全量=${validation.fullCount}；CI=${validation.ciRequired}，打包=${validation.packageRequired}，安装=${validation.installRequired}，发布=${validation.releaseRequired}；预计时长=${validation.estimatedDuration} |`,
-    `| PC10 | 下一阶段=${continuation.nextStage}；自动继续=${continuation.automatic}；用户动作=${continuation.userAction}；修正提示=${continuation.correctionHint} |`
+    pcRow('PC0', version.alignment === 'runtime-mismatch' ? 'WARN' : 'PASS', `版本与运行代际：installed=${version.installedPackageVersion}；active=${runtime}；configured=${configuredRuntime}；source=${source}；alignment=${version.alignment}；需要重启=${restartRequired}；原因=${version.restartReason}`),
+    pcRow('PC1', 'PASS', '意图：语义初判 → 扩展后工作流'),
+    pcRow('PC2', 'PASS', '会话：轮次、Token 防护与待跟进项'),
+    pcRow('PC3', 'PASS', '执行准备：唯一项目、连续性与产物落点'),
+    pcRow('PC4', pc4Status, pc4Cell),
+    pcRow('PC5', 'UNVERIFIED', '宿主：部署、同步与加载证据（Grok 仅在 Full 启动器下可判 Full）'),
+    pcRow('PC6', 'UNVERIFIED', '工作区：Git 改动状态与当前活动任务'),
+    pcRow('PC7', 'PASS', '续接：新会话或 resume 的有界检测'),
+    pcRow('PC8', 'PASS', `流程与方案：初判=${precheck.ceremonyTier}/${precheck.designDepth}；二次=${post}；差异=${differences}`),
+    pcRow('PC9', 'PASS', `验证：${validation.assuranceLevel}；定向=${validation.targetedCount}，受影响=${validation.affectedCount}，全量=${validation.fullCount}；CI=${validation.ciRequired}，打包=${validation.packageRequired}，安装=${validation.installRequired}，发布=${validation.releaseRequired}；预计时长=${validation.estimatedDuration}`),
+    pcRow('PC10', 'PASS', `下一阶段=${continuation.nextStage}；自动继续=${continuation.automatic}；用户动作=${continuation.userAction}；修正提示=${continuation.correctionHint}`)
   ]
   const enRows = [
-    `| PC0 | Version and runtime generation: installed=${version.installedPackageVersion}; active=${runtime}; configured=${configuredRuntime}; source=${source}; alignment=${version.alignment}; restart required=${restartRequired}; reason=${version.restartReason} |`,
-    '| PC1 | Intent: semantic precheck → expanded workflow |',
-    '| PC2 | Session: turn count, token guard, and follow-ups |',
-    '| PC3 | Execution readiness: unique project, continuity, and artifact destinations |',
-    `| PC4 | ${pc4Cell} |`,
-    '| PC5 | Host: deployment, synchronization, and load evidence (Grok is Full only through the Full launcher) |',
-    '| PC6 | Workspace: Git change state and active task |',
-    '| PC7 | Continuation: bounded detection for a new session or resume |',
-    `| PC8 | Workflow and design: precheck=${precheck.ceremonyTier}/${precheck.designDepth}; reassessment=${post}; differences=${differences} |`,
-    `| PC9 | Validation: ${validation.assuranceLevel}; targeted=${validation.targetedCount}, affected=${validation.affectedCount}, full=${validation.fullCount}; CI=${validation.ciRequired}, package=${validation.packageRequired}, install=${validation.installRequired}, release=${validation.releaseRequired}; estimate=${validation.estimatedDuration} |`,
-    `| PC10 | Next stage=${continuation.nextStage}; automatic=${continuation.automatic}; user action=${continuation.userAction}; correction hint=${continuation.correctionHint} |`
+    pcRow('PC0', version.alignment === 'runtime-mismatch' ? 'WARN' : 'PASS', `Version and runtime generation: installed=${version.installedPackageVersion}; active=${runtime}; configured=${configuredRuntime}; source=${source}; alignment=${version.alignment}; restart required=${restartRequired}; reason=${version.restartReason}`),
+    pcRow('PC1', 'PASS', 'Intent: semantic precheck → expanded workflow'),
+    pcRow('PC2', 'PASS', 'Session: turn count, token guard, and follow-ups'),
+    pcRow('PC3', 'PASS', 'Execution readiness: unique project, continuity, and artifact destinations'),
+    pcRow('PC4', pc4Status, pc4Cell),
+    pcRow('PC5', 'UNVERIFIED', 'Host: deployment, synchronization, and load evidence (Grok is Full only through the Full launcher)'),
+    pcRow('PC6', 'UNVERIFIED', 'Workspace: Git change state and active task'),
+    pcRow('PC7', 'PASS', 'Continuation: bounded detection for a new session or resume'),
+    pcRow('PC8', 'PASS', `Workflow and design: precheck=${precheck.ceremonyTier}/${precheck.designDepth}; reassessment=${post}; differences=${differences}`),
+    pcRow('PC9', 'PASS', `Validation: ${validation.assuranceLevel}; targeted=${validation.targetedCount}, affected=${validation.affectedCount}, full=${validation.fullCount}; CI=${validation.ciRequired}, package=${validation.packageRequired}, install=${validation.installRequired}, release=${validation.releaseRequired}; estimate=${validation.estimatedDuration}`),
+    pcRow('PC10', 'PASS', `Next stage=${continuation.nextStage}; automatic=${continuation.automatic}; user action=${continuation.userAction}; correction hint=${continuation.correctionHint}`)
   ]
   return [
     english ? '### DevCodex · Entry check' : '### DevCodex · 入口检查',
     `\`${overall}\` · \`${project}\``,
     fallbackLine,
     '',
-    english ? '| Check | Human-readable decision |' : '| 检查项 | 人类可读判定 |',
+    english ? '| Item | Decision |' : '| 项 | 结论 |',
     '|---|---|',
     ...(english ? enRows : zhRows),
     '',

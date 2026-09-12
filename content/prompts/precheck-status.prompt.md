@@ -13,19 +13,19 @@ applyTo: "**"
 ### DevCodex · 入口检查
 `[PASS/WARN/BLOCK/UNVERIFIED]` · `[项目名/未识别]`
 
-| 项 | 内容（人话；禁止进度缩写） |
+| 项 | 结论（人话；禁止进度缩写） |
 |----|----------------------------|
-| PC0 | 版本：已安装 package version · 活动 runtime generation · 当前配置 runtime generation · 是否需要重启 · 可选源码候选 `{packageVersion, shortHead, dirty}` · alignment |
-| PC1 | 意图：语义初判 → 项目现实扩展后的最终路由/工作流 |
-| PC2 | 会话：轮次/Token · 待跟进 |
-| PC3 | 执行准备：唯一项目 · 连续性 · 产物落点（禁止「写报告 02」式施工日志） |
-| PC4 | 规范雷达：dev 完整；非 dev=`N/A` + skipReason |
-| PC5 | 宿主：名称 + Full/Partial · 部署/同步证据（legacy 诊断可覆盖 `.github/`、`.claude/`、根 `AGENTS.md`、`.agents/`、`.codex/`；GlobalOnly 以 doctor/receipt 为准） |
-| PC6 | 工作区：git dirty 范围 · 任务目录 |
-| PC7 | 续接：新会话/resume 有界检测 |
-| PC8 | 流程与方案：初判/二次判断的 ceremonyTier、designDepth 及差异原因 |
-| PC9 | 验证计划：assuranceLevel · targeted/affected/full 数量 · CI/package/install/release · 预计时长 |
-| PC10 | 后续动作：下一阶段 · 是否自动继续 · 用户当前动作 · 如何修正判断 |
+| PC0 · PASS | 版本：已安装 package version · 活动 runtime generation · 当前配置 runtime generation · 是否需要重启 · 可选源码候选 `{packageVersion, shortHead, dirty}` · alignment |
+| PC1 · PASS | 意图：语义初判 → 项目现实扩展后的最终路由/工作流 |
+| PC2 · PASS | 会话：轮次/Token · 待跟进 |
+| PC3 · PASS | 执行准备：唯一项目 · 连续性 · 产物落点（禁止「写报告 02」式施工日志） |
+| PC4 · N/A | 规范雷达：dev 完整；非 dev=`N/A` + skipReason |
+| PC5 · UNVERIFIED | 宿主：名称 + Full/Partial · 部署/同步证据（legacy 诊断可覆盖 `.github/`、`.claude/`、根 `AGENTS.md`、`.agents/`、`.codex/`；GlobalOnly 以 doctor/receipt 为准） |
+| PC6 · PASS | 工作区：git dirty 范围 · 任务目录 |
+| PC7 · PASS | 续接：新会话/resume 有界检测 |
+| PC8 · PASS | 流程与方案：初判/二次判断的 ceremonyTier、designDepth 及差异原因 |
+| PC9 · PASS | 验证计划：assuranceLevel · targeted/affected/full 数量 · CI/package/install/release · 预计时长 |
+| PC10 · PASS | 后续动作：下一阶段 · 是否自动继续 · 用户当前动作 · 如何修正判断 |
 
 下一步：[仅当存在已核实的主动作时输出一句人话；否则省略]
 ```
@@ -50,7 +50,7 @@ applyTo: "**"
 - 待跟进事项：来自记忆中的 `⚠️ 待跟进`
 - 产物落点：仅输出状态（已确定 / 无需产物 / 待确定），不要直接输出内部 filePath
 - PC0：必须区分已安装包、当前进程加载的 active runtime generation、宿主回执中的 configured runtime generation 与可选源码候选；active/configured 不一致时写 `runtime-mismatch` 并用人话明确“需要重启”及原因。只有可证明同一构建身份时才写 `aligned`，仅版本相同写 `version-only`，源码 dirty/版本领先写 `source-ahead`，证据不足写 `unverified`
-- PC 表必须**分列 PC0~PC10**（表格或列表）；禁止折叠区间；单元格写人话，禁止施工进度缩写
+- PC 表必须**逐项显示 PC0~PC10**（推荐两列表格 `PCx · STATUS | 结论`，也可用列表 `- PCx [STATUS] ...`）；禁止折叠区间；单元格写人话，禁止施工进度缩写
 - PC5~PC7：与 `instructions/17-compliance.instructions.md` 保持一致；无法执行时必须标注 N/A 或 ⚠️ 原因，禁止省略
 - PC5 部署面：GlobalOnly 优先 doctor/receipt；legacy 父链诊断须能覆盖 `.github/`、`.claude/`、根 `AGENTS.md`、`.agents/` 与 `.codex/`（只检查某一宿主副本不得写「全部同步」）；须写当前宿主 Full/Partial 诚实上限
 - PC7 新会话首步 resume 强制检测：新任务、compact/summary 恢复或 `继续<任务名>任务` 首次响应必须重建 bounded continuation，并核对文件真相源后再继续

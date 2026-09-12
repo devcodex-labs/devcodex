@@ -3,9 +3,28 @@
   "contractVersion": "2",
   "registryId": "devcodex-shipped-base-v2",
   "projectMutationCoverageContract": "tracked-product-surfaces-v1",
-  "rootClasses": ["active-root", "project-root", "logical"],
-  "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
-  "formalRoots": ["requirements", "bugs", "optimizations", "scenario-tests", "reports", ".memory", ".audit-state", "data", "profile"],
+  "rootClasses": [
+    "active-root",
+    "project-root",
+    "logical"
+  ],
+  "taskKinds": [
+    "requirements",
+    "bugs",
+    "optimizations",
+    "scenario-tests"
+  ],
+  "formalRoots": [
+    "requirements",
+    "bugs",
+    "optimizations",
+    "scenario-tests",
+    "reports",
+    ".memory",
+    ".audit-state",
+    "data",
+    "profile"
+  ],
   "protectedConstraints": {
     "activeRootContainment": true,
     "projectRootContainment": true,
@@ -21,26 +40,45 @@
       "slotId": "task-identity",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+      "taskKinds": [
+        "requirements",
+        "bugs",
+        "optimizations",
+        "scenario-tests"
+      ],
       "artifactClass": "task-identity",
       "stage": "admission",
-      "canonicalNames": [".memory/task.json"],
+      "canonicalNames": [
+        ".memory/task.json"
+      ],
       "alternativeGroup": "task-identity-truth",
       "writePolicy": "create-only",
       "owner": "task-admission",
       "mutability": "immutable",
       "protected": true,
-      "destructivePolicy": "forbid"
+      "destructivePolicy": "forbid",
+      "contentContract": {
+        "kind": "schema",
+        "ref": "TaskIdentityV2",
+        "reason": "server-owned immutable task identity JSON"
+      }
     },
     {
       "slotId": "requirement-overview",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["requirements"],
+      "taskKinds": [
+        "requirements"
+      ],
       "artifactClass": "overview",
       "stage": "intake",
-      "canonicalNames": ["00-需求概况.md", "00-需求变更概况.md"],
-      "legacyReadPatterns": ["^00-需求概述\\.md$"],
+      "canonicalNames": [
+        "00-需求概况.md",
+        "00-需求变更概况.md"
+      ],
+      "legacyReadPatterns": [
+        "^00-需求概述\\.md$"
+      ],
       "alternativeGroup": "requirement-overview-truth",
       "templateRef": "content/prompts/{workflow}.prompt.md",
       "templateResolver": "overview-artifact",
@@ -56,12 +94,23 @@
       "slotId": "requirement-cp1",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["requirements"],
+      "taskKinds": [
+        "requirements"
+      ],
       "artifactClass": "cp1",
       "stage": "CP1",
-      "canonicalNames": ["01-需求确认.md", "01-产品需求.md", "01-需求变更确认.md"],
-      "candidatePatterns": ["^01-(?:需求确认|产品需求|需求变更确认)-v[^/]+\\.md$"],
-      "legacyReadPatterns": ["^01-需求概述\\.md$", "^01-P[0-3][^/]*需求确认\\.md$"],
+      "canonicalNames": [
+        "01-需求确认.md",
+        "01-产品需求.md",
+        "01-需求变更确认.md"
+      ],
+      "candidatePatterns": [
+        "^01-(?:需求确认|产品需求|需求变更确认)-v[^/]+\\.md$"
+      ],
+      "legacyReadPatterns": [
+        "^01-需求概述\\.md$",
+        "^01-P[0-3][^/]*需求确认\\.md$"
+      ],
       "alternativeGroup": "requirement-cp1-truth",
       "templateRef": "content/prompts/{cp1-kind}.prompt.md",
       "templateResolver": "cp1-artifact",
@@ -77,14 +126,22 @@
       "slotId": "requirement-cp2",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["requirements"],
+      "taskKinds": [
+        "requirements"
+      ],
       "artifactClass": "cp2",
       "stage": "CP2",
-      "canonicalNames": ["02-技术方案.md"],
-      "candidatePatterns": ["^02-技术方案-v[^/]+\\.md$"],
+      "canonicalNames": [
+        "02-技术方案.md"
+      ],
+      "candidatePatterns": [
+        "^02-技术方案-v[^/]+\\.md$"
+      ],
       "alternativeGroup": "requirement-cp2-truth",
       "templateRef": "content/prompts/technical-design.prompt.md",
-      "templateAliases": ["prompts/technical-design.prompt.md"],
+      "templateAliases": [
+        "prompts/technical-design.prompt.md"
+      ],
       "templateProducer": "task-owner",
       "templateValidator": "artifact-template-contract",
       "writePolicy": "canonical-or-versioned-candidate",
@@ -97,14 +154,22 @@
       "slotId": "bug-overview",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["bugs"],
+      "taskKinds": [
+        "bugs"
+      ],
       "artifactClass": "overview",
       "stage": "intake",
-      "canonicalNames": ["00-问题概况.md"],
-      "legacyReadPatterns": ["^00-问题概述\\.md$"],
+      "canonicalNames": [
+        "00-问题概况.md"
+      ],
+      "legacyReadPatterns": [
+        "^00-问题概述\\.md$"
+      ],
       "alternativeGroup": "bug-overview-truth",
       "templateRef": "content/prompts/bug-overview.prompt.md",
-      "templateAliases": ["prompts/bug-overview.prompt.md"],
+      "templateAliases": [
+        "prompts/bug-overview.prompt.md"
+      ],
       "templateProducer": "task-admission",
       "templateValidator": "artifact-template-contract",
       "writePolicy": "canonical-only",
@@ -117,15 +182,25 @@
       "slotId": "bug-cp1",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["bugs"],
+      "taskKinds": [
+        "bugs"
+      ],
       "artifactClass": "cp1",
       "stage": "CP1",
-      "canonicalNames": ["01-问题确认.md"],
-      "candidatePatterns": ["^01-问题确认-v[^/]+\\.md$"],
-      "reportReadPatterns": ["^01--.*CP1.*\\.md$"],
+      "canonicalNames": [
+        "01-问题确认.md"
+      ],
+      "candidatePatterns": [
+        "^01-问题确认-v[^/]+\\.md$"
+      ],
+      "reportReadPatterns": [
+        "^01--.*CP1.*\\.md$"
+      ],
       "alternativeGroup": "bug-cp1-truth",
       "templateRef": "content/prompts/problem-analysis.prompt.md",
-      "templateAliases": ["prompts/problem-analysis.prompt.md"],
+      "templateAliases": [
+        "prompts/problem-analysis.prompt.md"
+      ],
       "templateProducer": "task-owner",
       "templateValidator": "artifact-template-contract",
       "writePolicy": "canonical-or-versioned-candidate",
@@ -138,15 +213,26 @@
       "slotId": "bug-cp2",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["bugs"],
+      "taskKinds": [
+        "bugs"
+      ],
       "artifactClass": "cp2",
       "stage": "CP2",
-      "canonicalNames": ["02-修复方案.md", "02-技术方案.md"],
-      "candidatePatterns": ["^02-修复方案-v[^/]+\\.md$"],
-      "reportReadPatterns": ["^02--.*CP2.*\\.md$"],
+      "canonicalNames": [
+        "02-修复方案.md",
+        "02-技术方案.md"
+      ],
+      "candidatePatterns": [
+        "^02-修复方案-v[^/]+\\.md$"
+      ],
+      "reportReadPatterns": [
+        "^02--.*CP2.*\\.md$"
+      ],
       "alternativeGroup": "bug-cp2-truth",
       "templateRef": "content/prompts/technical-design.prompt.md",
-      "templateAliases": ["prompts/technical-design.prompt.md"],
+      "templateAliases": [
+        "prompts/technical-design.prompt.md"
+      ],
       "templateProducer": "task-owner",
       "templateValidator": "artifact-template-contract",
       "writePolicy": "canonical-or-versioned-candidate",
@@ -159,14 +245,23 @@
       "slotId": "extended-task-overview",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["optimizations", "scenario-tests"],
+      "taskKinds": [
+        "optimizations",
+        "scenario-tests"
+      ],
       "artifactClass": "overview",
       "stage": "intake",
-      "canonicalNames": ["00-需求概况.md"],
-      "legacyReadPatterns": ["^00-.*概况\\.md$"],
+      "canonicalNames": [
+        "00-需求概况.md"
+      ],
+      "legacyReadPatterns": [
+        "^00-.*概况\\.md$"
+      ],
       "alternativeGroup": "extended-task-overview-truth",
       "templateRef": "content/prompts/requirement-overview.prompt.md",
-      "templateAliases": ["prompts/requirement-overview.prompt.md"],
+      "templateAliases": [
+        "prompts/requirement-overview.prompt.md"
+      ],
       "templateProducer": "task-admission",
       "templateValidator": "artifact-template-contract",
       "writePolicy": "canonical-only",
@@ -179,15 +274,26 @@
       "slotId": "extended-task-cp1",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["optimizations", "scenario-tests"],
+      "taskKinds": [
+        "optimizations",
+        "scenario-tests"
+      ],
       "artifactClass": "cp1",
       "stage": "CP1",
-      "canonicalNames": ["01-需求确认.md"],
-      "candidatePatterns": ["^01-需求确认-v[^/]+\\.md$"],
-      "legacyReadPatterns": ["^01-需求概述\\.md$"],
+      "canonicalNames": [
+        "01-需求确认.md"
+      ],
+      "candidatePatterns": [
+        "^01-需求确认-v[^/]+\\.md$"
+      ],
+      "legacyReadPatterns": [
+        "^01-需求概述\\.md$"
+      ],
       "alternativeGroup": "extended-task-cp1-truth",
       "templateRef": "content/prompts/requirement.prompt.md",
-      "templateAliases": ["prompts/requirement.prompt.md"],
+      "templateAliases": [
+        "prompts/requirement.prompt.md"
+      ],
       "templateProducer": "task-owner",
       "templateValidator": "artifact-template-contract",
       "writePolicy": "canonical-or-versioned-candidate",
@@ -200,14 +306,23 @@
       "slotId": "extended-task-cp2",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["optimizations", "scenario-tests"],
+      "taskKinds": [
+        "optimizations",
+        "scenario-tests"
+      ],
       "artifactClass": "cp2",
       "stage": "CP2",
-      "canonicalNames": ["02-技术方案.md"],
-      "candidatePatterns": ["^02-技术方案-v[^/]+\\.md$"],
+      "canonicalNames": [
+        "02-技术方案.md"
+      ],
+      "candidatePatterns": [
+        "^02-技术方案-v[^/]+\\.md$"
+      ],
       "alternativeGroup": "extended-task-cp2-truth",
       "templateRef": "content/prompts/technical-design.prompt.md",
-      "templateAliases": ["prompts/technical-design.prompt.md"],
+      "templateAliases": [
+        "prompts/technical-design.prompt.md"
+      ],
       "templateProducer": "task-owner",
       "templateValidator": "artifact-template-contract",
       "writePolicy": "canonical-or-versioned-candidate",
@@ -220,14 +335,25 @@
       "slotId": "plan-review-pr1",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+      "taskKinds": [
+        "requirements",
+        "bugs",
+        "optimizations",
+        "scenario-tests"
+      ],
       "artifactClass": "plan-review",
       "stage": "PR1",
-      "canonicalNames": ["03-方案复审-PR1.md"],
-      "candidatePatterns": ["^03-方案复审-PR1-v[^/]+\\.md$"],
+      "canonicalNames": [
+        "03-方案复审-PR1.md"
+      ],
+      "candidatePatterns": [
+        "^03-方案复审-PR1-v[^/]+\\.md$"
+      ],
       "alternativeGroup": "plan-review-pr1-truth",
       "templateRef": "content/prompts/plan-review.prompt.md",
-      "templateAliases": ["prompts/plan-review.prompt.md"],
+      "templateAliases": [
+        "prompts/plan-review.prompt.md"
+      ],
       "templateProducer": "task-owner",
       "templateValidator": "artifact-template-contract",
       "writePolicy": "canonical-or-versioned-candidate",
@@ -240,14 +366,25 @@
       "slotId": "implementation-plan",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+      "taskKinds": [
+        "requirements",
+        "bugs",
+        "optimizations",
+        "scenario-tests"
+      ],
       "artifactClass": "cp3-plan",
       "stage": "CP3",
-      "canonicalNames": ["04-实施计划.md"],
-      "candidatePatterns": ["^04-实施计划-v[^/]+\\.md$"],
+      "canonicalNames": [
+        "04-实施计划.md"
+      ],
+      "candidatePatterns": [
+        "^04-实施计划-v[^/]+\\.md$"
+      ],
       "alternativeGroup": "implementation-plan-truth",
       "templateRef": "content/prompts/implementation-plan.prompt.md",
-      "templateAliases": ["prompts/implementation-plan.prompt.md"],
+      "templateAliases": [
+        "prompts/implementation-plan.prompt.md"
+      ],
       "templateProducer": "task-owner",
       "templateValidator": "artifact-template-contract",
       "writePolicy": "canonical-or-versioned-candidate",
@@ -260,13 +397,22 @@
       "slotId": "implementation-progress",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+      "taskKinds": [
+        "requirements",
+        "bugs",
+        "optimizations",
+        "scenario-tests"
+      ],
       "artifactClass": "progress",
       "stage": "implementation",
-      "canonicalNames": ["05-实施进度.md"],
+      "canonicalNames": [
+        "05-实施进度.md"
+      ],
       "alternativeGroup": "implementation-progress-truth",
       "templateRef": "content/prompts/implementation-progress.prompt.md",
-      "templateAliases": ["prompts/implementation-progress.prompt.md"],
+      "templateAliases": [
+        "prompts/implementation-progress.prompt.md"
+      ],
       "templateProducer": "task-owner",
       "templateValidator": "artifact-template-contract",
       "writePolicy": "canonical-only",
@@ -279,70 +425,125 @@
       "slotId": "task-source-material",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+      "taskKinds": [
+        "requirements",
+        "bugs",
+        "optimizations",
+        "scenario-tests"
+      ],
       "artifactClass": "source-material",
       "stage": "any",
-      "relativePatterns": ["^03-(?:产品原文|需求原文|问题原文|变更说明)[^/]*\\.md$"],
+      "relativePatterns": [
+        "^03-(?:产品原文|需求原文|问题原文|变更说明)[^/]*\\.md$"
+      ],
       "alternativeGroup": null,
       "writePolicy": "bounded-path",
       "owner": "task-owner",
       "mutability": "mutable",
       "protected": false,
-      "destructivePolicy": "confirm"
+      "destructivePolicy": "confirm",
+      "contentContract": {
+        "kind": "raw-source",
+        "ref": "SourceMaterialRawInputV1",
+        "reason": "preserves user/source text without template rewriting"
+      }
     },
     {
       "slotId": "task-decision",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+      "taskKinds": [
+        "requirements",
+        "bugs",
+        "optimizations",
+        "scenario-tests"
+      ],
       "artifactClass": "decision",
       "stage": "any",
-      "relativePatterns": ["^(?:capability-surface-decisions|decisions)/[^/]+\\.(?:md|json)$"],
+      "relativePatterns": [
+        "^(?:capability-surface-decisions|decisions)/[^/]+\\.(?:md|json)$"
+      ],
       "alternativeGroup": null,
       "writePolicy": "bounded-path",
       "owner": "task-owner",
       "mutability": "mutable",
       "protected": false,
-      "destructivePolicy": "confirm"
+      "destructivePolicy": "confirm",
+      "contentContract": {
+        "kind": "schema-or-template",
+        "ref": "DecisionArtifactV1",
+        "reason": "decision artifacts are validated as typed JSON or bound markdown decision files"
+      }
     },
     {
       "slotId": "task-evidence",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+      "taskKinds": [
+        "requirements",
+        "bugs",
+        "optimizations",
+        "scenario-tests"
+      ],
       "artifactClass": "evidence",
       "stage": "any",
-      "relativePatterns": ["^(?:evidence|audit|checkpoints)/[^/]+(?:/[^/]+)*\\.(?:md|json|txt|log)$"],
+      "relativePatterns": [
+        "^(?:evidence|audit|checkpoints)/[^/]+(?:/[^/]+)*\\.(?:md|json|txt|log)$"
+      ],
       "alternativeGroup": null,
       "writePolicy": "bounded-path",
       "owner": "task-owner",
       "mutability": "mutable",
       "protected": false,
-      "destructivePolicy": "confirm"
+      "destructivePolicy": "confirm",
+      "contentContract": {
+        "kind": "schema-or-receipt",
+        "ref": "EvidenceReceiptV1",
+        "reason": "evidence artifacts are machine receipts, logs or bounded markdown evidence"
+      }
     },
     {
       "slotId": "task-script",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+      "taskKinds": [
+        "requirements",
+        "bugs",
+        "optimizations",
+        "scenario-tests"
+      ],
       "artifactClass": "script",
       "stage": "implementation",
-      "relativePatterns": ["^(?:scripts|services)/[^/]+(?:/[^/]+)*\\.(?:cjs|mjs|js|ts|ps1|sh|http)$"],
+      "relativePatterns": [
+        "^(?:scripts|services)/[^/]+(?:/[^/]+)*\\.(?:cjs|mjs|js|ts|ps1|sh|http)$"
+      ],
       "alternativeGroup": null,
       "writePolicy": "bounded-path",
       "owner": "task-owner",
       "mutability": "mutable",
       "protected": false,
-      "destructivePolicy": "confirm"
+      "destructivePolicy": "confirm",
+      "contentContract": {
+        "kind": "source-code",
+        "ref": "TaskScriptArtifactV1",
+        "reason": "implementation script validated by source/test route instead of narrative template"
+      }
     },
     {
       "slotId": "task-report",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+      "taskKinds": [
+        "requirements",
+        "bugs",
+        "optimizations",
+        "scenario-tests"
+      ],
       "artifactClass": "report",
       "stage": "any",
-      "relativePatterns": ["^reports/(?:analysis/|audit/|dev/|fix/|self-fix/|chat/|resume/|other/)?[^/]+/[0-9]{8}/[0-9]{2}--[^/]+\\.md$"],
+      "relativePatterns": [
+        "^reports/(?:analysis/|audit/|dev/|fix/|self-fix/|chat/|resume/|other/)?[^/]+/[0-9]{8}/[0-9]{2}--[^/]+\\.md$"
+      ],
       "alternativeGroup": null,
       "templateRef": "content/prompts/{workflow}.prompt.md",
       "templateResolver": "report-workflow",
@@ -358,13 +559,22 @@
       "slotId": "task-memory",
       "rootClass": "active-root",
       "scope": "task",
-      "taskKinds": ["requirements", "bugs", "optimizations", "scenario-tests"],
+      "taskKinds": [
+        "requirements",
+        "bugs",
+        "optimizations",
+        "scenario-tests"
+      ],
       "artifactClass": "memory",
       "stage": "any",
-      "relativePatterns": ["^\\.memory/(?:sessions\\.md|(?!task\\.json$)[^/]+\\.(?:md|json))$"],
+      "relativePatterns": [
+        "^\\.memory/(?:sessions\\.md|(?!task\\.json$)[^/]+\\.(?:md|json))$"
+      ],
       "alternativeGroup": null,
       "templateRef": "content/prompts/requirement-session.prompt.md",
-      "templateAliases": ["prompts/requirement-session.prompt.md"],
+      "templateAliases": [
+        "prompts/requirement-session.prompt.md"
+      ],
       "templateProducer": "workflow-owner",
       "templateValidator": "artifact-template-contract",
       "writePolicy": "workflow-owner",
@@ -380,7 +590,9 @@
       "taskKinds": [],
       "artifactClass": "report",
       "stage": "any",
-      "projectRelativePatterns": ["^reports/(?:analysis/|audit/|dev/|requirements/|fix/|bugs/|optimizations/|scenario-tests/|self-fix/|chat/|resume/|other/)?[^/]+/[0-9]{8}/[0-9]{2}--[^/]+\\.md$"],
+      "projectRelativePatterns": [
+        "^reports/(?:analysis/|audit/|dev/|requirements/|fix/|bugs/|optimizations/|scenario-tests/|self-fix/|chat/|resume/|other/)?[^/]+/[0-9]{8}/[0-9]{2}--[^/]+\\.md$"
+      ],
       "alternativeGroup": null,
       "templateRef": "content/prompts/{workflow}.prompt.md",
       "templateResolver": "report-workflow",
@@ -399,7 +611,9 @@
       "taskKinds": [],
       "artifactClass": "memory",
       "stage": "any",
-      "projectRelativePatterns": ["^\\.memory/(?:clients|shared)/.+\\.(?:md|json)$"],
+      "projectRelativePatterns": [
+        "^\\.memory/(?:clients|shared)/.+\\.(?:md|json)$"
+      ],
       "alternativeGroup": null,
       "templateRef": "content/prompts/{memory-kind}.prompt.md",
       "templateResolver": "memory-kind",
@@ -418,7 +632,9 @@
       "taskKinds": [],
       "artifactClass": "memory",
       "stage": "any",
-      "logicalSchemes": ["devcodex-memory"],
+      "logicalSchemes": [
+        "devcodex-memory"
+      ],
       "alternativeGroup": null,
       "templateRef": "content/prompts/{memory-kind}.prompt.md",
       "templateResolver": "memory-kind",
@@ -437,13 +653,20 @@
       "taskKinds": [],
       "artifactClass": "governance",
       "stage": "any",
-      "projectRelativePatterns": ["^data/(?:process-improvements|pending-fixes|pending-issues|gap-registry|violations)\\.md$"],
+      "projectRelativePatterns": [
+        "^data/(?:process-improvements|pending-fixes|pending-issues|gap-registry|violations)\\.md$"
+      ],
       "alternativeGroup": null,
       "writePolicy": "dedicated-owner",
       "owner": "governance-owner",
       "mutability": "append-only",
       "protected": true,
-      "destructivePolicy": "forbid"
+      "destructivePolicy": "forbid",
+      "contentContract": {
+        "kind": "append-only-ledger",
+        "ref": "GovernanceLedgerV1",
+        "reason": "dedicated owner append-only governance ledger"
+      }
     },
     {
       "slotId": "runtime-operational-state",
@@ -452,13 +675,20 @@
       "taskKinds": [],
       "artifactClass": "operational-state",
       "stage": "runtime",
-      "projectRelativePatterns": ["^(?:\\.memory/(?:hooks|locks|state|projections)/|\\.audit-state/).+\\.(?:json|jsonl|ndjson|lock|bin)$"],
+      "projectRelativePatterns": [
+        "^(?:\\.memory/(?:hooks|locks|state|projections)/|\\.audit-state/).+\\.(?:json|jsonl|ndjson|lock|bin)$"
+      ],
       "alternativeGroup": null,
       "writePolicy": "dedicated-owner",
       "owner": "runtime-owner",
       "mutability": "mutable",
       "protected": true,
-      "destructivePolicy": "forbid"
+      "destructivePolicy": "forbid",
+      "contentContract": {
+        "kind": "runtime-state",
+        "ref": "RuntimeOperationalStateV1",
+        "reason": "runtime state owned by hook/mcp lifecycle writers"
+      }
     },
     {
       "slotId": "project-profile",
@@ -467,13 +697,20 @@
       "taskKinds": [],
       "artifactClass": "profile",
       "stage": "any",
-      "projectRelativePatterns": ["^profile/[^/]+(?:/[^/]+)*\\.(?:md|json|yaml|yml)$"],
+      "projectRelativePatterns": [
+        "^profile/[^/]+(?:/[^/]+)*\\.(?:md|json|yaml|yml)$"
+      ],
       "alternativeGroup": null,
       "writePolicy": "dedicated-owner",
       "owner": "profile-owner",
       "mutability": "mutable",
       "protected": true,
-      "destructivePolicy": "forbid"
+      "destructivePolicy": "forbid",
+      "contentContract": {
+        "kind": "profile-contract",
+        "ref": "ProjectProfileClosedLoopV1",
+        "reason": "profile files follow profile validator and profile section contracts"
+      }
     },
     {
       "slotId": "project-source",
@@ -492,7 +729,12 @@
       "owner": "task-owner",
       "mutability": "mutable",
       "protected": true,
-      "destructivePolicy": "confirm"
+      "destructivePolicy": "confirm",
+      "contentContract": {
+        "kind": "source-code",
+        "ref": "ProjectSourceMutationV1",
+        "reason": "project source is validated by code/test/public contract routes"
+      }
     },
     {
       "slotId": "project-package-config",
@@ -501,13 +743,20 @@
       "taskKinds": [],
       "artifactClass": "package-config",
       "stage": "implementation",
-      "projectRelativePatterns": ["^(?:package(?:-lock)?\\.json|public-site/package(?:-lock)?\\.json|pnpm-lock\\.yaml|yarn\\.lock|tsconfig[^/]*\\.json|eslint[^/]*\\.(?:js|cjs|mjs|json)|\\.github/[^/]+(?:/[^/]+)*\\.(?:yml|yaml|json)|\\.(?:gitattributes|gitignore|npmignore|npmrc)|plugin\\.json|public-product-expression\\.json)$"],
+      "projectRelativePatterns": [
+        "^(?:package(?:-lock)?\\.json|public-site/package(?:-lock)?\\.json|pnpm-lock\\.yaml|yarn\\.lock|tsconfig[^/]*\\.json|eslint[^/]*\\.(?:js|cjs|mjs|json)|\\.github/[^/]+(?:/[^/]+)*\\.(?:yml|yaml|json)|\\.(?:gitattributes|gitignore|npmignore|npmrc)|plugin\\.json|public-product-expression\\.json)$"
+      ],
       "alternativeGroup": null,
       "writePolicy": "task-owned",
       "owner": "task-owner",
       "mutability": "mutable",
       "protected": true,
-      "destructivePolicy": "confirm"
+      "destructivePolicy": "confirm",
+      "contentContract": {
+        "kind": "package-config",
+        "ref": "PackageConfigContractV1",
+        "reason": "package and workflow config validated by package/control-plane tests"
+      }
     },
     {
       "slotId": "project-host-governance",
@@ -533,7 +782,12 @@
       "owner": "task-owner",
       "mutability": "mutable",
       "protected": true,
-      "destructivePolicy": "confirm"
+      "destructivePolicy": "confirm",
+      "contentContract": {
+        "kind": "host-governance",
+        "ref": "HostAdapterGovernanceV1",
+        "reason": "host adapter files validated by host projection and adapter tests"
+      }
     },
     {
       "slotId": "project-public-docs",
@@ -542,13 +796,20 @@
       "taskKinds": [],
       "artifactClass": "public-docs",
       "stage": "delivery",
-      "projectRelativePatterns": ["^(?:README[^/]*\\.md|CHANGELOG[^/]*\\.md|(?:RULES|SECURITY)\\.md|LICENSE|codex/README\\.md|changelogs/[^/]+(?:/[^/]+)*\\.md|docs/[^/]+(?:/[^/]+)*\\.mdx?|website/[^/]+(?:/[^/]+)*\\.mdx?|public-site/docs/[^/]+(?:/[^/]+)*\\.mdx?|data/(?:README\\.md|templates/[^/]+(?:/[^/]+)*\\.md)|assets/[^/]+(?:/[^/]+)*/README\\.md)$"],
+      "projectRelativePatterns": [
+        "^(?:README[^/]*\\.md|CHANGELOG[^/]*\\.md|(?:RULES|SECURITY)\\.md|LICENSE|codex/README\\.md|changelogs/[^/]+(?:/[^/]+)*\\.md|docs/[^/]+(?:/[^/]+)*\\.mdx?|website/[^/]+(?:/[^/]+)*\\.mdx?|public-site/docs/[^/]+(?:/[^/]+)*\\.mdx?|data/(?:README\\.md|templates/[^/]+(?:/[^/]+)*\\.md)|assets/[^/]+(?:/[^/]+)*/README\\.md)$"
+      ],
       "alternativeGroup": null,
       "writePolicy": "task-owned",
       "owner": "task-owner",
       "mutability": "mutable",
       "protected": true,
-      "destructivePolicy": "confirm"
+      "destructivePolicy": "confirm",
+      "contentContract": {
+        "kind": "public-docs",
+        "ref": "PublicDocsContractV1",
+        "reason": "public docs follow documentation contract and public text tests"
+      }
     },
     {
       "slotId": "project-assets",
@@ -557,13 +818,20 @@
       "taskKinds": [],
       "artifactClass": "asset",
       "stage": "implementation",
-      "projectRelativePatterns": ["^(?:assets/[^/]+(?:/[^/]+)*|public-site/docs/public/[^/]+(?:/[^/]+)*)\\.(?:png|svg|jpg|jpeg|webp|ico)$"],
+      "projectRelativePatterns": [
+        "^(?:assets/[^/]+(?:/[^/]+)*|public-site/docs/public/[^/]+(?:/[^/]+)*)\\.(?:png|svg|jpg|jpeg|webp|ico)$"
+      ],
       "alternativeGroup": null,
       "writePolicy": "task-owned",
       "owner": "task-owner",
       "mutability": "mutable",
       "protected": true,
-      "destructivePolicy": "confirm"
+      "destructivePolicy": "confirm",
+      "contentContract": {
+        "kind": "asset",
+        "ref": "ProjectAssetArtifactV1",
+        "reason": "binary/static assets use asset integrity instead of markdown template"
+      }
     },
     {
       "slotId": "project-audit-evidence",
@@ -572,13 +840,20 @@
       "taskKinds": [],
       "artifactClass": "audit-evidence",
       "stage": "verification",
-      "projectRelativePatterns": ["^\\.audit-state/[^/]+(?:/[^/]+)*\\.(?:json|jsonl|ndjson|md|txt|log)$"],
+      "projectRelativePatterns": [
+        "^\\.audit-state/[^/]+(?:/[^/]+)*\\.(?:json|jsonl|ndjson|md|txt|log)$"
+      ],
       "alternativeGroup": null,
       "writePolicy": "task-owned",
       "owner": "task-owner",
       "mutability": "mutable",
       "protected": true,
-      "destructivePolicy": "confirm"
+      "destructivePolicy": "confirm",
+      "contentContract": {
+        "kind": "audit-evidence",
+        "ref": "AuditEvidenceReceiptV1",
+        "reason": "audit receipts/logs are schema or raw evidence"
+      }
     },
     {
       "slotId": "project-release-artifact",
@@ -587,13 +862,20 @@
       "taskKinds": [],
       "artifactClass": "release",
       "stage": "release",
-      "projectRelativePatterns": ["^(?:release/|dist/|artifacts/).+"],
+      "projectRelativePatterns": [
+        "^(?:release/|dist/|artifacts/).+"
+      ],
       "alternativeGroup": null,
       "writePolicy": "release-owner",
       "owner": "release-owner",
       "mutability": "versioned",
       "protected": true,
-      "destructivePolicy": "confirm"
+      "destructivePolicy": "confirm",
+      "contentContract": {
+        "kind": "release-artifact",
+        "ref": "ReleaseArtifactV1",
+        "reason": "release outputs are versioned package artifacts"
+      }
     }
   ]
 }

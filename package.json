@@ -147,7 +147,7 @@
     "benchmark:validation-executor": "node scripts/benchmark-validation-executor.js",
     "test:ci-validation-plan": "node scripts/test-ci-validation-plan.js",
     "test:validation-authority": "node scripts/test-validation-execution-authority.js && node scripts/test-validation-budget-control.js && node scripts/test-validation-convergence.js",
-    "test:artifact-authority": "node scripts/test-artifact-mutation-authority.js",
+    "test:artifact-authority": "node scripts/test-artifact-mutation-authority.js && npm run test:artifact-slot-template-coverage",
     "test:changed": "node scripts/run-validation.js --route changed",
     "test:delivery": "node scripts/run-validation.js --route delivery",
     "test:boundary": "node scripts/run-validation.js --route boundary",
@@ -189,6 +189,7 @@
     "test:content-root-isolation": "node scripts/test-content-root-isolation.js",
     "prepublishOnly": "node scripts/verify-release-validation-receipt.js",
     "test:executable-absorption-gates": "node scripts/test-executable-absorption-gates.js",
+    "test:mcp-hot-reload": "node scripts/test-mcp-hot-reload-supervisor.js",
     "test:mcp-runtime-closure": "node scripts/test-mcp-runtime-closure.js",
     "test:mcp-runtime-closure:package": "node scripts/test-mcp-runtime-closure.js --packlist-only",
     "test:skill-resolve": "node scripts/test-skill-resolve.js && node scripts/test-skill-resolution-hook-paths.js",
@@ -196,7 +197,9 @@
     "test:process-enforcement-e2e": "node scripts/test-process-enforcement-e2e.js && node scripts/test-implement-start-gate.js",
     "test:docs-surface-inventory": "node scripts/test-docs-surface-inventory.js",
     "test:delivery-honesty": "node scripts/test-delivery-honesty.js",
-    "test:ecr-closure": "node scripts/test-ecr-closure.js"
+    "test:ecr-closure": "node scripts/test-ecr-closure.js",
+    "test:task-delivery-manifest": "node scripts/test-task-delivery-manifest.js",
+    "test:artifact-slot-template-coverage": "node scripts/validate-artifact-slot-template-coverage.js"
   },
   "keywords": [
     "ai-coding",

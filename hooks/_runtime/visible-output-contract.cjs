@@ -74,6 +74,10 @@ const ACTION_HEADINGS = Object.freeze({
   'entry-check': '本批交付文件',
   'completion-check': '完成交付文件'
 })
+const ENTRY_CHECK_TABLE_HEADERS = Object.freeze({
+  'zh-CN': Object.freeze(['检查项', '当前结果']),
+  en: Object.freeze(['Check', 'Current result'])
+})
 const VISIBLE_LOCALE_CATALOGS = Object.freeze({
   'zh-CN': Object.freeze({
     languageName: '中文',
@@ -2261,6 +2265,28 @@ function classifyFinalValidationSummarySample(sample, options = {}) {
   return analyzeFinalValidationSummarySample(sample, options).classification
 }
 
+function escapeMarkdownTableCell(value) {
+  return String(value || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\r?\n/g, '<br>')
+}
+
+function renderEntryCheckTable(checks, localeDecision) {
+  const headers = ENTRY_CHECK_TABLE_HEADERS[localeDecision.renderedLanguage] || ENTRY_CHECK_TABLE_HEADERS.en
+  const sep = localeDecision.renderedLanguage === 'zh-CN' ? '；' : '; '
+  const colon = localeDecision.renderedLanguage === 'zh-CN' ? '：' : ': '
+  const rows = [
+    `| ${headers[0]} | ${headers[1]} |`,
+    '|---|---|'
+  ]
+  for (const check of checks) {
+    const action = check.requiredAction ? `${sep}${localeDecision.catalog.checkAction}${colon}${check.requiredAction}` : ''
+    rows.push(`| ${escapeMarkdownTableCell(check.id)} | ${escapeMarkdownTableCell(`${check.summary}${action}`)} |`)
+  }
+  return rows
+}
+
 function renderVisibleEnvelope(envelope, {
   tier = null,
   compact = false,
@@ -2306,12 +2332,14 @@ function renderVisibleEnvelope(envelope, {
     const attention = envelope.checks.filter(check => !['PASS', 'N/A'].includes(check.status))
     renderedChecks = attention.length ? attention : envelope.checks
   }
-  const checkLines = renderedChecks.map(check => {
-    const action = check.requiredAction ? `${sep}${catalog.checkAction}${colon}${check.requiredAction}` : ''
-    return audience === 'audit' || envelope.messageKind === 'entry-check'
-      ? `- ${check.id} [${check.status}] ${check.summary}${action}`
-      : `- [${check.status}] ${check.summary}${action}`
-  })
+  const checkLines = envelope.messageKind === 'entry-check' && effectiveTier !== 'plain-text'
+    ? renderEntryCheckTable(renderedChecks, localeDecision)
+    : renderedChecks.map(check => {
+        const action = check.requiredAction ? `${sep}${catalog.checkAction}${colon}${check.requiredAction}` : ''
+        return audience === 'audit' || envelope.messageKind === 'entry-check'
+          ? `- ${check.id} [${check.status}] ${check.summary}${action}`
+          : `- [${check.status}] ${check.summary}${action}`
+      })
   const decisionLines = envelope.decision ? [
     '', `${catalog.confirm}${colon}${envelope.decision.question || envelope.decision.fallbackText || ''}`,
     `${catalog.recommend}${colon}${envelope.decision.recommendedOption || primaryLabel || 'N/A'}`

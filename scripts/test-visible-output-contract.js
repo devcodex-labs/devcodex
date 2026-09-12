@@ -35,6 +35,7 @@ const {
   shouldUseCompact
 } = require('../hooks/_runtime/visible-output-contract.cjs')
 const { renderGrokS07Assist } = require('../hooks/_runtime/lifecycle-bootstrap-state.cjs')
+const { analyzeEntryCheckCompleteness } = require('../hooks/_runtime/lifecycle-visible-reply.cjs')
 const ROOT = path.resolve(__dirname, '..')
 const WORKSPACE = path.dirname(ROOT)
 const ZH_LANGUAGE_CONTEXT = Object.freeze({
@@ -86,12 +87,19 @@ function manifest(entries, overrides = {}) {
 }
 
 function checks(localizedSuffix = '') {
+  const summaries = {
+    0: `版本 aligned runtime generation installed source${localizedSuffix}`,
+    4: `规范雷达 Profile Skill TestRoute 完整${localizedSuffix}`,
+    8: `流程方案 standard design precheck${localizedSuffix}`,
+    9: `验证计划 targeted CI duration${localizedSuffix}`,
+    10: `下一步 continue 自动修正${localizedSuffix}`
+  }
   return Array.from({ length: 11 }, (_, ordinal) => ({
     id: `PC${ordinal}`,
     ordinal,
     status: ordinal === 5 ? 'WARN' : ordinal === 7 ? 'N/A' : 'PASS',
     summaryKey: `pc${ordinal}-summary`,
-    summary: `PC${ordinal} 可见摘要${localizedSuffix}`,
+    summary: summaries[ordinal] || `PC${ordinal} 可见摘要${localizedSuffix}`,
     evidenceState: ordinal === 5 ? 'unverified' : 'verified',
     evidenceRefs: [`receipt-pc${ordinal}`],
     requiredAction: ordinal === 5 ? '保留 portable fallback' : null
@@ -434,6 +442,27 @@ assert.strictEqual(codexDesktopEnvelope.artifactDeliveryAttempts[0].status, 'rea
 const codexDesktopRendered = renderVisibleEnvelope(codexDesktopEnvelope, {
   tier: 'rich-markdown', languageContext: ZH_LANGUAGE_CONTEXT
 })
+assert.match(codexDesktopRendered, /\| 检查项 \| 当前结果 \|/)
+assert.match(codexDesktopRendered, /\|---\|---\|/)
+assert.match(codexDesktopRendered, /\| PC0 \|/)
+assert.strictEqual(analyzeEntryCheckCompleteness(codexDesktopRendered, { mode: 'dev' }).complete, true)
+const paragraphEntryCheck = [
+  '### DevCodex · 入口检查',
+  'PC0: 版本 aligned runtime generation installed',
+  'PC1: 意图 fix',
+  'PC2: 会话 ready',
+  'PC3: 执行准备 ready',
+  'PC4: 规范雷达 Profile Skill 完整',
+  'PC5: 宿主 ready',
+  'PC6: 工作区 ready',
+  'PC7: 续接 ready',
+  'PC8: 流程方案 standard design precheck',
+  'PC9: 验证计划 targeted CI duration',
+  'PC10: 下一步 continue 自动修正'
+].join('\n')
+const paragraphAnalysis = analyzeEntryCheckCompleteness(paragraphEntryCheck, { mode: 'dev' })
+assert.strictEqual(paragraphAnalysis.complete, false)
+assert(paragraphAnalysis.missingItems.includes('pc-columns-incomplete'))
 assert.match(codexDesktopRendered, /\[.+\]\([^)]+\)/)
 assert.doesNotMatch(codexDesktopRendered, /使用 Codex 文件面板打开/)
 const vscodeLink = createHostLinkCapabilityDecisionV2({
@@ -494,7 +523,12 @@ const plainText = renderVisibleEnvelope(envelope, {
 })
 for (const output of [richText, portableText, plainText]) {
   assert.match(output, new RegExp(envelope.semanticDigest))
-  for (const check of envelope.checks) assert.match(output, new RegExp(`${check.id} \\[${check.status.replace('/', '\\/')}\\]`))
+  if (output === plainText) {
+    for (const check of envelope.checks) assert.match(output, new RegExp(`${check.id} \\[${check.status.replace('/', '\\/')}\\]`))
+  } else {
+    assert.match(output, /\| 检查项 \| 当前结果 \|/)
+    for (const check of envelope.checks) assert.match(output, new RegExp(`\\| ${check.id} \\|`))
+  }
   for (const item of entrySet.items) assert.match(output, new RegExp(item.displayName))
   assert.doesNotMatch(output, /主要产物|本次会话全部产物/)
   assert.doesNotMatch(output, /核心文件|路径列表/)

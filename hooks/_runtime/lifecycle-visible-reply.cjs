@@ -61,8 +61,9 @@ function analyzeEntryCheckCompleteness(text, options = {}) {
   const presentPcs = []
   for (let i = 0; i <= lastOrdinal; i++) {
     // Separate line/bullet/table cell for this PC (not only inside a folded range token)
+    const rowPrefix = legacyReadOnly ? '(?:[-*]\\s*)?(?:\\|\\s*)?' : '(?:[-*]\\s+|\\|\\s*)'
     const lineRe = new RegExp(
-      `(?:^|\\n)\\s*(?:[-*]\\s*)?(?:\\|\\s*)?PC${i}\\b(?!\\s*[-–—~～至到])`,
+      `(?:^|\\n)\\s*${rowPrefix}PC${i}\\b(?!\\s*[-–—~～至到])`,
       'i'
     )
     if (lineRe.test(body)) presentPcs.push(`PC${i}`)
@@ -75,7 +76,8 @@ function analyzeEntryCheckCompleteness(text, options = {}) {
   if (missingPcs.length) missingItems.push('pc-columns-incomplete')
 
   // Legacy V1/V2 PC0 carried context. V3 PC0 carries installed/runtime/source version facts and alignment.
-  const pc0Line = body.match(/(?:^|\n)\s*(?:[-*]\s*)?(?:\|\s*)?PC0\b[^\n]{0,200}/i)
+  const currentRowPrefix = legacyReadOnly ? '(?:[-*]\\s*)?(?:\\|\\s*)?' : '(?:[-*]\\s+|\\|\\s*)'
+  const pc0Line = body.match(new RegExp(`(?:^|\\n)\\s*${currentRowPrefix}PC0\\b[^\\n]{0,200}`, 'i'))
   if (pc0Line) {
     const content = pc0Line[0]
     const hasContext = (legacyReadOnly
@@ -94,13 +96,13 @@ function analyzeEntryCheckCompleteness(text, options = {}) {
       ['PC10', /下一|next|自动|用户|动作|修正|correction|continue/i, 'pc10-continuation-thin']
     ]
     for (const [id, evidence, errorCode] of semanticChecks) {
-      const line = body.match(new RegExp(`(?:^|\\n)\\s*(?:[-*]\\s*)?(?:\\|\\s*)?${id}\\b[^\\n]{0,260}`, 'i'))
+      const line = body.match(new RegExp(`(?:^|\\n)\\s*${currentRowPrefix}${id}\\b[^\\n]{0,260}`, 'i'))
       if (!line || !evidence.test(line[0])) missingItems.push(errorCode)
     }
   }
 
   // PC4: in dev, N/A without skip/reason is invalid; bare "PC4 N/A" alone is thin
-  const pc4Line = body.match(/(?:^|\n)\s*(?:[-*]\s*)?(?:\|\s*)?PC4\b[^\n]{0,220}/i)
+  const pc4Line = body.match(new RegExp(`(?:^|\\n)\\s*${currentRowPrefix}PC4\\b[^\\n]{0,220}`, 'i'))
   if (pc4Line) {
     const line = pc4Line[0]
     const isNa = /\bN\/A\b|不适用/i.test(line)

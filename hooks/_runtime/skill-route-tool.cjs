@@ -351,10 +351,18 @@ function buildContextRecoveryDetails (reasonCode, input = {}) {
       planId: plan?.planId || null,
       planContentId: plan?.planContentId || null,
       receiptStatus: receipt?.status || null,
+      // Preserve the cause before a later failed operation replaces acquisition.lastError.
+      invalidation: receipt?.status === 'stale' && Array.isArray(receipt.escalations) && receipt.escalations.length
+        ? {
+            trigger: receipt.escalations[receipt.escalations.length - 1].trigger || null,
+            reason: receipt.escalations[receipt.escalations.length - 1].reason || null,
+            observedAt: receipt.escalations[receipt.escalations.length - 1].observedAt || null
+          }
+        : null,
       missingSourceIds,
       satisfiedSourceIds: uniqueSorted(receipt?.satisfiedSourceIds || []),
       mandatorySourceIds: uniqueSorted(plan?.mandatorySourceIds || []),
-      lastError: acquisition.lastError || null
+      lastError: receipt?.lastError || acquisition.lastError || null
     },
     nextOperation: {
       refreshContext: [

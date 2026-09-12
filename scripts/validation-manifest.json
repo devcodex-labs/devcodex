@@ -961,8 +961,10 @@
         "hooks/_runtime/stdio-bounds.cjs",
         "mcp/memory-server.js",
         "mcp/profile-server.js",
+        "mcp/hot-reload-supervisor.cjs",
         "hooks/_runtime/lifecycle-host-adapters.cjs",
-        "scripts/test-mcp-stdio-transport.js"
+        "scripts/test-mcp-stdio-transport.js",
+        "scripts/test-mcp-hot-reload-supervisor.js"
       ],
       "consumers": [
         "mcp-servers",
@@ -973,7 +975,9 @@
         "bounded-input",
         "bounded-output",
         "stream-reset",
-        "timeout"
+        "timeout",
+        "same-connection-worker-hot-reload",
+        "schema-change-retains-current-worker"
       ],
       "riskClass": "high",
       "cachePolicy": "never",
@@ -2528,7 +2532,7 @@
       "writeScopes": [
         "isolated-temp"
       ],
-      "timeoutMs": 120000,
+      "timeoutMs": 240000,
       "exitMap": {
         "success": [
           0

@@ -131,7 +131,11 @@ const semanticCache = new Map()
 const AUTO_GRANT_DIGEST_RE = /^[a-f0-9]{64}$/
 const AUTO_GRANT_TASK_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const AUTO_GRANT_RISK_RANK = Object.freeze({ R1: 1, R2: 2, R3: 3, R4: 4 })
-const AUTO_GRANT_STATUSES = new Set(['active', 'reconfirm-required', 'revoked', 'terminal-consumed'])
+const AUTO_GRANT_REEVALUATION_STATUS = 'intent-reevaluation-required'
+const LEGACY_AUTO_GRANT_RECONFIRM_STATUS = 'reconfirm-required'
+const AUTO_GRANT_STATUSES = new Set([
+  'active', AUTO_GRANT_REEVALUATION_STATUS, LEGACY_AUTO_GRANT_RECONFIRM_STATUS, 'revoked', 'terminal-consumed'
+])
 const DEFAULT_AUTO_GRANT_EXCLUSIONS = Object.freeze([
   'breaking-contract',
   'delete',
@@ -591,12 +595,12 @@ function createTaskScopedAutoContinuationGrant(input = {}, options = {}) {
 
 function transitionTaskScopedAutoContinuationGrant(grant, status, options = {}) {
   const validation = validateTaskScopedAutoContinuationGrant(grant)
-  const allowedTransition = status === 'reconfirm-required'
+  const allowedTransition = status === AUTO_GRANT_REEVALUATION_STATUS
     ? grant?.status === 'active'
     : (status === 'revoked'
-        ? ['active', 'reconfirm-required'].includes(grant?.status)
+        ? ['active', AUTO_GRANT_REEVALUATION_STATUS, LEGACY_AUTO_GRANT_RECONFIRM_STATUS].includes(grant?.status)
         : (status === 'terminal-consumed'
-            ? ['active', 'reconfirm-required'].includes(grant?.status)
+            ? ['active', AUTO_GRANT_REEVALUATION_STATUS, LEGACY_AUTO_GRANT_RECONFIRM_STATUS].includes(grant?.status)
             : false))
   if (!validation.valid || !allowedTransition) {
     throw new TaskRecoveryStoreV5Error('TASK_SCOPED_AUTO_GRANT_TRANSITION_INVALID', 'task-scoped Auto grant transition is invalid', {
@@ -632,7 +636,7 @@ function validateAutoCheckpointDecision(value, expected = null) {
   for (const field of ['newCandidateDigest', 'candidateScopeDigest', 'decisionDigest']) {
     if (!AUTO_GRANT_DIGEST_RE.test(String(value[field] || ''))) errors.push(`auto-checkpoint-${field}-invalid`)
   }
-  if (!['auto-pass', 'reconfirm-required'].includes(value.decision)) errors.push('auto-checkpoint-decision-invalid')
+  if (!['auto-pass', 'intent-reevaluation-required', 'reconfirm-required'].includes(value.decision)) errors.push('auto-checkpoint-decision-invalid')
   if (!['none', 'expanded'].includes(value.scopeDelta)) errors.push('auto-checkpoint-scope-delta-invalid')
   if (!Object.hasOwn(AUTO_GRANT_RISK_RANK, value.riskClass)) errors.push('auto-checkpoint-risk-class-invalid')
   if (!['none', 'increased'].includes(value.riskDelta)) errors.push('auto-checkpoint-risk-delta-invalid')
@@ -668,7 +672,9 @@ function validateAutoCheckpointDecision(value, expected = null) {
       AUTO_GRANT_RISK_RANK[review?.grade] < AUTO_GRANT_RISK_RANK.R3 || value.excludedSideEffects?.length)) {
     errors.push('auto-checkpoint-pass-review-inconsistent')
   }
-  if (value.decision === 'reconfirm-required' && !value.reasons?.length) errors.push('auto-checkpoint-reconfirm-reason-required')
+  if (['intent-reevaluation-required', 'reconfirm-required'].includes(value.decision) && !value.reasons?.length) {
+    errors.push('auto-checkpoint-reevaluation-reason-required')
+  }
   if (AUTO_GRANT_DIGEST_RE.test(String(value.decisionDigest || '')) && autoCheckpointDecisionDigest(value) !== value.decisionDigest) {
     errors.push('auto-checkpoint-digest-mismatch')
   }
@@ -719,7 +725,7 @@ function createAutoCheckpointDecision(input = {}, options = {}) {
     reasons.push('review-grade-below-r3')
   }
   if (blockers.length) reasons.push('open-blockers')
-  const decision = reasons.length ? 'reconfirm-required' : 'auto-pass'
+  const decision = reasons.length ? 'intent-reevaluation-required' : 'auto-pass'
   const semantic = {
     schemaVersion: AUTO_CHECKPOINT_DECISION_SCHEMA,
     grantDigest: grant.grantDigest,

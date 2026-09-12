@@ -349,10 +349,14 @@ const taskAutoBlock = createAutoCheckpointDecision({
   reviewGradeCard: { grade: 'R4', status: 'PASS', openBlockers: 0 }
 }, { nowMs: NOW })
 const taskAutoBlockProjection = projectAutoCheckpointDecision(taskAutoBlock, { responseLanguage: 'zh-CN' })
-assert.strictEqual(taskAutoBlockProjection.status, 'BLOCK')
-assert.strictEqual(taskAutoBlockProjection.automatic, false)
-assert.match(taskAutoBlockProjection.message, /不能自动续批/)
-assert.strictEqual(projectAutoCheckpointDecision({}).decisionDigest, null)
+  assert.strictEqual(taskAutoBlockProjection.status, 'BLOCK')
+  assert.strictEqual(taskAutoBlockProjection.automatic, false)
+  assert.match(taskAutoBlockProjection.message, /结构化意图重算/)
+  assert.doesNotMatch(taskAutoBlockProjection.message + taskAutoBlockProjection.nextAction, /重新确认|等待用户确认/)
+  const invalidAutoProjection = projectAutoCheckpointDecision({}, { responseLanguage: 'zh-CN' })
+  assert.strictEqual(invalidAutoProjection.decisionDigest, null)
+  assert.match(invalidAutoProjection.nextAction, /结构化意图重算/)
+  assert.doesNotMatch(invalidAutoProjection.message + invalidAutoProjection.nextAction, /重新确认|等待用户确认/)
 
 function invalidValidationControlIntent(overrides = {}, binding = null, options = {}) {
   const intent = { ...clone(tasklessAutoIntent), ...overrides }

@@ -387,9 +387,21 @@ function runR2BTaskOwnerLifecycleScenarios() {
     boundAt: new Date().toISOString()
   }
   const admissionRead = readFencedTaskWriteOwner({ metaDir, identity: recoveryIdentity })
+  const admittedRecovery = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
   state.admissionTransaction = admissionRead.transaction
   state.fencedWriteOwner = null
-  state.taskRecoveryCommitFence = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).commitFence
+  for (const field of [
+    'taskCanonicalRevision',
+    'taskCheckpointEpochSet',
+    'checkpointEpochBootstrapAuthority',
+    'checkpointEpochOperation',
+    'checkpointEpochProjectionTransaction'
+  ]) {
+    if (admittedRecovery.state?.[field]) {
+      state[field] = JSON.parse(JSON.stringify(admittedRecovery.state[field]))
+    }
+  }
+  state.taskRecoveryCommitFence = admittedRecovery.commitFence
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
   assert.strictEqual(commitTaskRecoveryState({
     metaDir,
@@ -406,6 +418,15 @@ function runR2BTaskOwnerLifecycleScenarios() {
     fixtureSemanticDecision: { executionDecision: 'retain-current', validationDecision: { action: 'none' } }
   })
   const postResetState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  if (preResetState.taskCheckpointEpochSet) {
+    assert.strictEqual(
+      postResetState.taskCheckpointEpochSet?.currentEpochId,
+      preResetState.taskCheckpointEpochSet.currentEpochId,
+      'UserPromptSubmit must preserve the current task checkpoint epoch while resetting turn-scoped state'
+    )
+    assert.strictEqual(postResetState.promptCount, 1,
+      'an epoch-aware task must accept the next UserPromptSubmit instead of leaving the prior state unchanged')
+  }
   assert.strictEqual(postResetState.executionMode, 'auto',
     'an explicit retain-current decision may reuse same-session authorization')
   assert.strictEqual(postResetState.validationControlIngress?.action, 'none',
@@ -2354,11 +2375,11 @@ function main() {
     prompt: '继续',
     session_id: 'formal-auto-session-c'
   }, rootDriftState, null), 'confirm')
-  assert.strictEqual(rootDriftState.taskScopedAutoContinuationGrant.status, 'reconfirm-required')
+  assert.strictEqual(rootDriftState.taskScopedAutoContinuationGrant.status, 'intent-reevaluation-required')
   assert.match(formalAutoUtils.buildExecutionModeContextMessage({
     ...rootDriftState,
     executionMode: 'confirm'
-  }), /自动续批需要重新确认/)
+  }), /需要重新结构化意图/)
 
   const revokedFormalState = JSON.parse(JSON.stringify(formalAutoState))
   bindUnitSemanticState(revokedFormalState, 'disable-auto', 'formal-auto-session-b')

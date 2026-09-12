@@ -39,7 +39,8 @@ const {
   mergeGrokPluginRegistration
 } = require('./host-adapter-scope.js')
 const {
-  describeGlobalAdapterRefreshForPackageRoot
+  describeGlobalAdapterRefreshForPackageRoot,
+  isDevCodexSourceCheckout
 } = require('./global-adapter-refresh-guidance.js')
 const {
   collectRuntimeScriptDeps
@@ -128,6 +129,31 @@ function shellCommand(filePath, host, args = []) {
 
 function stableHostHookLauncher(target) {
   return path.join(target.runtimeBaseRoot, 'host-hook-launcher.cjs')
+}
+
+function stableMcpSupervisor(runtimeRoot) {
+  return path.join(path.dirname(runtimeRoot), 'mcp-hot-reload-supervisor.cjs')
+}
+
+function runtimeSourceDescriptor(packageRoot, fsImpl = fs, requestedMode = 'auto') {
+  if (requestedMode === 'immutable-generation') {
+    return {
+      schemaVersion: 'McpRuntimeSourceV1',
+      mode: 'immutable-generation',
+      sourceRoot: null
+    }
+  }
+  return isDevCodexSourceCheckout(packageRoot, fsImpl, path)
+    ? {
+        schemaVersion: 'McpRuntimeSourceV1',
+        mode: 'live-source-checkout',
+        sourceRoot: portable(packageRoot)
+      }
+    : {
+        schemaVersion: 'McpRuntimeSourceV1',
+        mode: 'immutable-generation',
+        sourceRoot: null
+      }
 }
 
 function readText(file, fsImpl = fs) {
@@ -282,6 +308,13 @@ function addCommonRuntime(operations, target, packageRoot, fsImpl = fs) {
     stableHostHookLauncher(target),
     fsImpl
   )
+  addSourceFile(
+    operations,
+    target.host,
+    path.join(packageRoot, 'mcp', 'hot-reload-supervisor.cjs'),
+    stableMcpSupervisor(runtime),
+    fsImpl
+  )
   addInstructionRoot(operations, target.host, packageRoot, path.join(runtime, 'instructions.full.md'), fsImpl)
   addSourceFile(operations, target.host, path.join(packageRoot, 'host-projections', 'AGENTS.md'), path.join(runtime, 'AGENTS.md'), fsImpl)
   addSourceTree(operations, target.host, path.join(packageRoot, 'hooks', '_runtime'), path.join(runtime, 'hooks', '_runtime'), fsImpl)
@@ -411,12 +444,12 @@ function buildMcpServers(runtimeRoot, options = {}) {
   return {
     'devcodex-memory': {
       ...base,
-      args: [portable(path.join(runtimeRoot, 'mcp', 'memory-server.js')), inputRoot],
+      args: [portable(stableMcpSupervisor(runtimeRoot)), 'memory', inputRoot],
       ...(env ? { env } : {})
     },
     'devcodex-profile': {
       ...base,
-      args: [portable(path.join(runtimeRoot, 'mcp', 'profile-server.js')), inputRoot],
+      args: [portable(stableMcpSupervisor(runtimeRoot)), 'profile', inputRoot],
       ...(env ? { env } : {})
     }
   }
@@ -1462,6 +1495,11 @@ function buildGlobalHostConfigPlan(options = {}) {
     hostPlan.pruneManagedSkillRoots = (hostPlan.pruneManagedSkillRequests || [])
       .map(request => request.root)
     const pendingStaleManagedPaths = hostPlan.staleManagedPaths.map(portable)
+    const runtimeSource = runtimeSourceDescriptor(
+      packageRoot,
+      fsImpl,
+      options.runtimeSourceMode || 'auto'
+    )
     const previousEquivalent = previousReceipt &&
       previousReceipt.schemaVersion === GLOBAL_HOST_RECEIPT_SCHEMA &&
       previousReceipt.host === target.host &&
@@ -1492,6 +1530,7 @@ function buildGlobalHostConfigPlan(options = {}) {
         previousReceipt.preservedNativeSkillCollisions || [],
         hostPlan.preservedNativeSkillCollisions || []
       ) &&
+      isDeepStrictEqual(previousReceipt.runtimeSource || null, runtimeSource) &&
       previousReceipt.result === 'committed'
     const receipt = {
       schemaVersion: GLOBAL_HOST_RECEIPT_SCHEMA,
@@ -1521,6 +1560,7 @@ function buildGlobalHostConfigPlan(options = {}) {
         durableIdentity: true,
         authority: 'RuntimeGenerationManifestV1'
       },
+      runtimeSource,
       runtimeRoot: portable(target.runtimeRoot),
       managedPaths,
       managedFileDigests,
@@ -1927,6 +1967,11 @@ function inspectGlobalHostConfiguration(options = {}) {
       receipt.runtimeRetention?.protocolVersion === RUNTIME_RETENTION_PROTOCOL_VERSION &&
       receipt.runtimeRetention?.gcPlanSchema === RUNTIME_GENERATION_GC_PLAN_SCHEMA &&
       receipt.runtimeRetention?.gcPolicy === 'preview-digest-explicit-apply' &&
+      receipt.runtimeSource?.schemaVersion === 'McpRuntimeSourceV1' &&
+      ['live-source-checkout', 'immutable-generation'].includes(receipt.runtimeSource?.mode) &&
+      (receipt.runtimeSource.mode === 'live-source-checkout'
+        ? typeof receipt.runtimeSource.sourceRoot === 'string' && receipt.runtimeSource.sourceRoot.length > 0
+        : receipt.runtimeSource.sourceRoot === null) &&
       samePath(receipt.runtimeRoot, target.runtimeRoot) &&
       typeof receipt.sourceDigest === 'string' &&
       typeof receipt.planDigest === 'string' &&
@@ -1958,6 +2003,7 @@ function inspectGlobalHostConfiguration(options = {}) {
         receipt?.managedArtifacts || [],
         expectedReceipt.managedArtifacts || []
       ) &&
+      isDeepStrictEqual(receipt?.runtimeSource || null, expectedReceipt.runtimeSource || null) &&
       isDeepStrictEqual(
         receipt?.retainedManagedArtifacts || [],
         expectedReceipt.retainedManagedArtifacts || []
@@ -2137,5 +2183,6 @@ module.exports = {
   inspectGlobalHostConfiguration,
   portable,
   shellCommand,
+  stableMcpSupervisor,
   walkFiles
 }

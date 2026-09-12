@@ -222,8 +222,17 @@ function buildTestHooksRuntimeFixtures({
       cwd,
       input: `${JSON.stringify(request)}\n`,
       encoding: 'utf8',
-      env: { ...process.env, DEVCODEX_AGENT: 'claude-code' }
+      env: { ...process.env, DEVCODEX_AGENT: 'claude-code' },
+      timeout: 30000,
+      windowsHide: true
     })
+    if (result.error) {
+      throw new Error([
+        result.error.message,
+        result.stdout ? `stdout=${result.stdout}` : '',
+        result.stderr ? `stderr=${result.stderr}` : ''
+      ].filter(Boolean).join('\n'))
+    }
     if (result.status !== 0) throw new Error((result.stderr || result.stdout || 'profile MCP failed').trim())
     const response = String(result.stdout || '').trim().split(/\r?\n/).filter(Boolean).map(line => JSON.parse(line))[0]
     if (!response?.result) throw new Error(`profile MCP returned no result: ${result.stdout}`)

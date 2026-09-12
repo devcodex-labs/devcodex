@@ -1281,6 +1281,16 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       'admissionTransaction',
       'previousAdmissionTransaction',
       'fencedWriteOwner',
+      'previousFencedWriteOwner',
+      'taskCanonicalRevision',
+      'taskCheckpointEpochSet',
+      'checkpointEpochBootstrapAuthority',
+      'checkpointEpochOperation',
+      'checkpointEpochProjectionTransaction',
+      'taskTerminalLineage',
+      'taskResumeAudit',
+      'resumeIngressCapabilityRef',
+      'admissionIngressWarning',
       'workflowTaskTerminalReceipt',
       'validationExecution'
     ]) {

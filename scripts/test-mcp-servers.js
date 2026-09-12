@@ -63,6 +63,7 @@ const {
   executeWorkflowTaskTerminal,
   readFormalTaskExecutionReadiness
 } = require('../mcp/task-admission-authority.cjs')
+const { sealOwner } = require('../hooks/_runtime/fenced-task-write-owner.cjs')
 const {
   commitTaskRecoveryState,
   createTaskScopedAutoContinuationGrant,
@@ -71,6 +72,7 @@ const {
   resolveTaskRecoveryMetaDir,
   storePaths,
   updateTaskRecoveryState,
+  validateTaskScopedAutoContinuationGrant,
   writeEmergencyCloseout
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const { readBoundedTextFileSync } = require('../mcp/bounded-text-reader.cjs')
@@ -795,12 +797,12 @@ function setupDevCodexRouteRecipeWorkspace() {
     JSON.stringify({ mode: 'dev', agent: 'codex' }, null, 2)
   )
   const routeSections = {
-    '01-项目信息.md': ['完整开发需求验证链速查', '当前开发重点'],
+    '01-项目信息.md': ['项目定位：结构化意图驱动', '完整开发需求验证链速查', '当前开发重点'],
     '02-架构约束.md': ['执行链派生状态与回滚边界', '控制面内容物化边界'],
     '03-代码风格.md': ['JavaScript', 'Markdown规范文件', '禁止事项'],
     '04-测试规范.md': ['基本原则', '控制面内容验证', 'Profile专项'],
     '05-发布规范.md': ['发布流程'],
-    '06-功能清单.md': ['近期发布增量', '公开面维护规则', '全项目Profile校验'],
+    '06-功能清单.md': ['公开面维护规则', '全项目Profile校验'],
     '07-用户文档与契约规范.md': ['用户文档主面', '写作与审查原则', '控制面内容契约']
   }
   const catalogRows = Object.keys(routeSections).map(file => `| [\`${file}\`](${file}) | fixture | ✅ |`)
@@ -1327,6 +1329,22 @@ function testMemoryTaskAdmissionV2Contract() {
     expiresAtMs: nowMs + 60 * 60 * 1000
   }
   const projectTargetLease = { ...leaseCore, leaseDigest: computeProjectTargetLeaseDigest(leaseCore) }
+  const validationControlIngressIntent = createValidationControlIngressIntent({
+    actualInstructionEnvelope: envelope,
+    semanticDecision: {
+      schemaVersion: 'IntentSemanticDecisionV1',
+      sourceRef: {
+        envelopeId: envelope.envelopeId,
+        envelopeDigest: envelope.envelopeDigest,
+        contextEpoch: envelope.contextEpoch
+      },
+      executionDecision: 'enable-auto'
+    },
+    actualInstruction: '修复 MCP task admission',
+    executionMode: 'auto',
+    project,
+    projectRootIdentity: validationProjectRootIdentity(TEMP_ROOT)
+  }, { now: nowMs })
   const lifecycleStatePath = path.join(activeRoot, '.memory', 'hooks', 'legacy', 'lifecycle-state.json')
   fs.mkdirSync(path.dirname(lifecycleStatePath), { recursive: true })
   const lifecycleState = {
@@ -1337,6 +1355,20 @@ function testMemoryTaskAdmissionV2Contract() {
     workItemSet,
     workflowRouteDecision: route,
     stickyProject: projectTargetLease,
+    validationControlIngress: null,
+    validationControlIngressIntent,
+    executionMode: 'auto',
+    stickyAuto: {
+      active: true,
+      source: '@rocky',
+      kind: 'alias',
+      sessionKey: 'mcp-admission-session',
+      updatedAt: new Date(nowMs).toISOString(),
+      updatedAtMs: nowMs,
+      authorityRef: `auto:@rocky:mcp-admission-session:${nowMs}`,
+      sourceMessageDigest: envelope.actualInstructionDigest,
+      reason: ''
+    },
     contextAcquisition: {
       contextEpoch: envelope.contextEpoch,
       hostSessionId: 'mcp-admission-session',
@@ -1484,11 +1516,40 @@ function testMemoryTaskAdmissionV2Contract() {
   assert.deepStrictEqual(admittedState.state.stickyProject, projectTargetLease)
   assert.strictEqual(admittedState.state.contextAcquisition.contextEpoch, envelope.contextEpoch)
   assert.strictEqual(admittedState.state.contextAcquisition.hostSessionId, 'mcp-admission-session')
+  assert.strictEqual(admitted.structuredContent.authorityHandoff?.status, 'committed', JSON.stringify({
+    authorityHandoff: admitted.structuredContent.authorityHandoff,
+    authorityHandoffWarning: admitted.structuredContent.authorityHandoffWarning,
+    owner: admitted.structuredContent.ownerAcquisition?.owner,
+    recoveryControl: admittedState.state.validationControlIngress,
+    recoveryGrant: admittedState.state.taskScopedAutoContinuationGrant
+  }))
+  assert.strictEqual(admittedState.state.validationControlIngress.action, 'auto-authorize')
+  assert.strictEqual(admittedState.state.validationControlIngress.taskRecoveryKey, admitted.structuredContent.taskId)
+  assert.strictEqual(admittedState.state.executionMode, 'auto')
+  assert.strictEqual(admittedState.state.stickyAuto.authorityRef, lifecycleState.stickyAuto.authorityRef)
+  assert.strictEqual(validateTaskScopedAutoContinuationGrant(
+    admittedState.state.taskScopedAutoContinuationGrant,
+    {
+      taskId: admitted.structuredContent.taskId,
+      project,
+      projectRootIdentityDigest: projectTargetLease.rootIdentityDigest
+    }
+  ).valid, true, 'same-turn MCP admission must durably bind the task-scoped Auto grant')
   const replay = resultById(responses, 3)
   assert.strictEqual(replay.isError, false)
   assert.strictEqual(replay.structuredContent.admissionId, admitted.structuredContent.admissionId)
   assert.strictEqual(replay.structuredContent.replayed, true)
   assert.strictEqual(replay.structuredContent.ownerAcquisition.replayed, true)
+  assert.strictEqual(replay.structuredContent.authorityHandoff.status, 'semantic-noop')
+  const replayedState = readTaskRecoveryState({
+    metaDir: resolveTaskRecoveryMetaDir({ activeRoot, project }),
+    identity: { activeRoot, project, taskId: admitted.structuredContent.taskId, taskStatus: 'active' }
+  })
+  assert.strictEqual(
+    replayedState.state.taskScopedAutoContinuationGrant.grantDigest,
+    admittedState.state.taskScopedAutoContinuationGrant.grantDigest,
+    'idempotent admission replay must preserve the original task-scoped Auto grant'
+  )
   assert.strictEqual(resultById(responses, 4).isError, true)
   assert.match(resultById(responses, 4).content[0].text, /TASK_ADMISSION_IDEMPOTENCY_CONFLICT/)
   assert.strictEqual(resultById(responses, 5).isError, false)
@@ -1517,7 +1578,11 @@ function testMemoryTaskAdmissionV2Contract() {
       requirement: admitted.structuredContent.taskRootRelative.split('/').at(-1), kind: 'bugs',
       phase: 'CP1', artifactPath: firstCpPath,
       artifactSha256: crypto.createHash('sha256').update(firstCpText).digest('hex'),
-      artifactVersion: 'v0.1.0', sourceMessage: '确认当前问题定义，继续原任务。'
+      artifactVersion: 'v0.1.0', sourceMessage: '确认当前问题定义，继续原任务。',
+      autoDecisionEvidence: {
+        riskClass: 'R3', sideEffectCategories: [], blockers: [],
+        reviewGradeCard: { grade: 'R3', status: 'PASS', openBlockers: 0 }
+      }
     }
   })], TEMP_ROOT)
   assert.notStrictEqual(resultById(firstCp, 9).isError, true, resultById(firstCp, 9).content?.[0]?.text)
@@ -2146,6 +2211,14 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   ).valid, true)
   assert.strictEqual(autoResumeState.state.stickyAuto.sourceMessageDigest, autoResumeIngress.actualInstructionEnvelope.actualInstructionDigest)
   assert.strictEqual(autoResumeState.state.executionMode, 'auto')
+  assert.strictEqual(validateTaskScopedAutoContinuationGrant(
+    autoResumeState.state.taskScopedAutoContinuationGrant,
+    {
+      taskId: priorAdmission.taskId,
+      project,
+      projectRootIdentityDigest: autoResumeIngress.projectTargetLease.rootIdentityDigest
+    }
+  ).valid, true, 'same-turn finalized resume must durably bind the task-scoped Auto grant')
 }
 
 function testMemoryOwnerFencedCrashResumeContract() {
@@ -2648,6 +2721,9 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
     settledSetDigest: operationSnapshot.settledSetDigest,
     evidence
   }
+  // The mutable lifecycle projection may disappear after a restart. The exact
+  // task and its immutable ingress snapshot must still support terminal replay.
+  fs.unlinkSync(path.join(activeRoot, '.memory', 'hooks', 'legacy', 'lifecycle-state.json'))
   const terminalResponses = runServer('mcp/memory-server.js', [
     rpcRequest(7, 'tools/call', { name: 'memory_task_terminal_v1', arguments: terminalArgs }),
     rpcRequest(8, 'tools/call', { name: 'memory_task_terminal_v1', arguments: terminalArgs }),
@@ -3341,7 +3417,7 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
     project,
     projectRootIdentityDigest: admittedState.state.admissionTransaction.projectRootIdentityDigest,
     authorityRef: 'user-message:@rocky:cp-auto-decision',
-    sourceMessageDigest: 'a'.repeat(64),
+    sourceMessageDigest: ingress.actualInstructionEnvelope.actualInstructionDigest,
     allowedScope: {
       scopeClass: 'same-formal-task',
       taskRootRelative: admission.taskRootRelative,
@@ -3353,6 +3429,18 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
   }, { nowMs })
   const grantCommit = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
     ...state,
+    executionMode: 'auto',
+    stickyAuto: {
+      active: true,
+      source: '@rocky',
+      kind: 'alias',
+      sessionKey: 'mcp-task-authority-cp-auto-decision',
+      updatedAt: new Date(nowMs).toISOString(),
+      updatedAtMs: nowMs,
+      authorityRef: grant.authorityRef,
+      sourceMessageDigest: ingress.actualInstructionEnvelope.actualInstructionDigest,
+      reason: ''
+    },
     taskScopedAutoContinuationGrant: grant,
     autoCheckpointDecision: null,
     autoCheckpointDecisions: []
@@ -3429,10 +3517,10 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
     })
   ], TEMP_ROOT), 3)
   assert.strictEqual(shallowReview.isError, true)
-  assert.match(shallowReview.content?.[0]?.text || '', /MEMORY_CP_AUTO_RECONFIRM_REQUIRED.*review-grade-below-r3/s)
+  assert.match(shallowReview.content?.[0]?.text || '', /MEMORY_CP_AUTO_INTENT_REEVALUATION_REQUIRED.*review-grade-below-r3/s)
   assert.strictEqual(fs.readFileSync(sessionsPath, 'utf8'), sessionsBefore, 'R2 review must not confirm a task Auto checkpoint')
   const rejectedState = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
-  assert.strictEqual(rejectedState.state.autoCheckpointDecision.decision, 'reconfirm-required')
+  assert.strictEqual(rejectedState.state.autoCheckpointDecision.decision, 'intent-reevaluation-required')
   assert(rejectedState.state.autoCheckpointDecision.reasons.includes('review-grade-below-r3'))
 
   const accepted = resultById(runServer('mcp/memory-server.js', [
@@ -3468,6 +3556,76 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
   assert.strictEqual(acceptedState.state.taskCheckpointEpochSet.projection.status, 'current')
   assert.strictEqual(parseCpSessions(fs.readFileSync(sessionsPath, 'utf8')).CP2.confirmed, true)
   assert.match(fs.readFileSync(sessionsPath, 'utf8'), /devcodex:current-epoch E\d{4,}-[a-f0-9]{12} projectionDigest=[a-f0-9]{64}/)
+
+  const revisedArtifact = `${fs.readFileSync(artifactPath, 'utf8')}\n同一 Auto 任务修订后恢复过期 owner。\n`
+  fs.writeFileSync(artifactPath, revisedArtifact, 'utf8')
+  const revisedArtifactSha256 = crypto.createHash('sha256').update(revisedArtifact).digest('hex')
+  const beforeRecovery = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+  const expiredOwner = sealOwner({
+    ...beforeRecovery.fencedWriteOwner,
+    leaseRevision: beforeRecovery.fencedWriteOwner.leaseRevision + 1,
+    issuedAt: new Date(nowMs - 120_000).toISOString(),
+    expiresAt: new Date(nowMs - 60_000).toISOString()
+  })
+  const expireCommit = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
+    ...state,
+    fencedWriteOwner: expiredOwner
+  }), { nowMs, force: true, reason: 'mcp-cp-auto-expired-owner-fixture' })
+  assert(['committed', 'semantic-noop'].includes(expireCommit.status), JSON.stringify(expireCommit))
+  writeTaskAuthorityLifecycleState(activeRoot, project, ingress, {
+    executionMode: 'auto',
+    stickyAuto: {
+      active: true,
+      authorityRef: grant.authorityRef,
+      sourceMessageDigest: ingress.actualInstructionEnvelope.actualInstructionDigest
+    },
+    contextAcquisition: {
+      contextEpoch: ingress.actualInstructionEnvelope.contextEpoch,
+      hostSessionId: 'mcp-task-authority-cp-auto-decision',
+      activeRoot,
+      plan: {
+        semanticDecision: {
+          schemaVersion: 'IntentSemanticDecisionV1',
+          sourceRef: {
+            envelopeId: ingress.actualInstructionEnvelope.envelopeId,
+            envelopeDigest: ingress.actualInstructionEnvelope.envelopeDigest,
+            contextEpoch: ingress.actualInstructionEnvelope.contextEpoch
+          },
+          executionDecision: 'enable-auto'
+        }
+      }
+    }
+  })
+  const recoveryArguments = {
+    ...baseArguments,
+    artifactSha256: revisedArtifactSha256,
+    artifactVersion: 'v0.1.1-owner-recovery',
+    autoDecisionEvidence: {
+      riskClass: 'R3', sideEffectCategories: [], blockers: [],
+      reviewGradeCard: { grade: 'R3', status: 'PASS', openBlockers: 0 }
+    }
+  }
+  const sessionsBeforeWrongSession = fs.readFileSync(sessionsPath, 'utf8')
+  const wrongSessionRecovery = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(25, 'tools/call', { name: 'memory_cp_confirm', arguments: recoveryArguments })
+  ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: 'different-cp-owner-session' }), 25)
+  assert.strictEqual(wrongSessionRecovery.isError, true)
+  assert.match(wrongSessionRecovery.content?.[0]?.text || '', /MEMORY_CP_AUTO_OWNER_RECOVERY_INVALID/)
+  assert.strictEqual(fs.readFileSync(sessionsPath, 'utf8'), sessionsBeforeWrongSession,
+    'a different session must not recover or confirm the expired task writer')
+
+  const recoveredConfirmation = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(26, 'tools/call', { name: 'memory_cp_confirm', arguments: recoveryArguments })
+  ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: 'mcp-task-authority-cp-auto-decision' }), 26)
+  assert.notStrictEqual(recoveredConfirmation.isError, true,
+    JSON.stringify(recoveredConfirmation) || 'same-session structured Auto owner recovery failed')
+  const recoveredState = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+  assert(recoveredState.fencedWriteOwner.leaseRevision > expiredOwner.leaseRevision)
+  assert(Date.parse(recoveredState.fencedWriteOwner.expiresAt) > nowMs)
+  assert.strictEqual(
+    parseCpSessions(fs.readFileSync(sessionsPath, 'utf8')).CP2.artifactSha256,
+    revisedArtifactSha256.toUpperCase()
+  )
 
   const languageCommit = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
     ...state,
@@ -3532,6 +3690,7 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
       arguments: {
         ...baseArguments,
         phase: 'CP3',
+        artifactSha256: revisedArtifactSha256,
         autoDecisionEvidence: {
           riskClass: 'R3',
           sideEffectCategories: [],
@@ -3566,10 +3725,10 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
     })
   ], TEMP_ROOT), 5)
   assert.strictEqual(excludedEffect.isError, true)
-  assert.match(excludedEffect.content?.[0]?.text || '', /MEMORY_CP_AUTO_RECONFIRM_REQUIRED.*explicit-exclusion/s)
+  assert.match(excludedEffect.content?.[0]?.text || '', /MEMORY_CP_AUTO_INTENT_REEVALUATION_REQUIRED.*explicit-exclusion/s)
   const finalState = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
   assert.strictEqual(finalState.state.autoCheckpointDecision.checkpoint, 'CP3')
-  assert.strictEqual(finalState.state.autoCheckpointDecision.decision, 'reconfirm-required')
+  assert.strictEqual(finalState.state.autoCheckpointDecision.decision, 'intent-reevaluation-required')
   assert.strictEqual(finalState.state.autoCheckpointDecisions.length, 2)
   assert.strictEqual(parseCpSessions(fs.readFileSync(sessionsPath, 'utf8')).CP3.confirmed, false)
 
@@ -4936,7 +5095,9 @@ function testDevCodexBoundedRouteRecipe() {
       }
     })
   ], projectRoot)
-  const plan = toolJson(resultById(planned.responses, 80))
+  const plannedResult = resultById(planned.responses, 80)
+  assert.notStrictEqual(plannedResult.isError, true, JSON.stringify(plannedResult))
+  const plan = toolJson(plannedResult)
   const recipe = plan.profile.routeLoadRecipe
   assert(recipe, 'devcodex source-code plan must provide a bounded route recipe')
   assert.strictEqual(recipe.schemaVersion, 'ProfileRouteLoadRecipeV2')
@@ -4993,6 +5154,7 @@ function testDevCodexBoundedRouteRecipe() {
   const loadedResult = resultById(loaded, 81)
   assert.notStrictEqual(loadedResult.isError, true, loadedResult.content?.[0]?.text || '')
   const loadedText = loadedResult.content?.[0]?.text || ''
+  assert.match(loadedText, /项目定位：结构化意图驱动/)
   assert.match(loadedText, /完整开发需求验证链速查/)
   assert.match(loadedText, /控制面内容契约/)
   const receipt = JSON.parse(/<!-- profile_load_budget (\{[^\n]+\}) -->/.exec(loadedText)[1])
@@ -5482,9 +5644,11 @@ function testProfileContextPlanContract() {
   assert.deepStrictEqual(planTool.inputSchema.required, ['intent'])
   assert.deepStrictEqual(planTool.inputSchema.properties.intent.enum, CONTEXT_READ_CONTRACT.intents)
   assert.deepStrictEqual(planTool.inputSchema.properties.explicitSkillId, { type: 'string', minLength: 1 })
-  assert.deepStrictEqual(planTool.inputSchema.properties.routeKey, { type: 'string', minLength: 1, maxLength: 128 })
-  assert.deepStrictEqual(planTool.inputSchema.properties.subtype, { type: 'string', minLength: 1, maxLength: 128 })
-  assert.deepStrictEqual(planTool.inputSchema.properties.stage, { type: 'string', minLength: 1, maxLength: 64 })
+  for (const [field, maxLength] of [['routeKey', 128], ['subtype', 128], ['stage', 64]]) {
+    const { description, ...constraints } = planTool.inputSchema.properties[field]
+    assert.deepStrictEqual(constraints, { type: 'string', minLength: 1, maxLength })
+    assert.match(description, /全部省略/)
+  }
   assert(tools.some(tool => tool.name === 'profile_load'))
   assert(tools.some(tool => tool.name === 'profile_skill_plan'))
   assert(tools.some(tool => tool.name === 'profile_get_mode'))

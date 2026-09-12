@@ -87,6 +87,22 @@ function candidateRecord(overrides = {}) {
   })
 }
 
+function workingRecord(overrides = {}) {
+  const gitHead = 'b'.repeat(40)
+  return currentRecord({
+    releaseState: 'working source / version undecided',
+    gitHead,
+    sourceCandidate: {
+      ...currentRecord().sourceCandidate,
+      status: 'LOCAL_PENDING',
+      localQualification: { status: 'UNVERIFIED', runId: 'not-qualified', observedAt: '2026-08-16T13:47:39Z' },
+      remoteCi: { status: 'UNVERIFIED', runId: 'not-pushed', head: gitHead, observedAt: '2026-08-16T13:47:39Z' },
+      releaseAuthorized: false
+    },
+    ...overrides
+  })
+}
+
 function recordMarkdown(record = currentRecord()) {
   return `# Release\n\n## ProfileCurrentTruthV1\n\`\`\`json\n${JSON.stringify(record, null, 2)}\n\`\`\`\n`
 }
@@ -173,6 +189,10 @@ probe('Profile lifecycle consumes structured state independently of display lang
   delete legacyUnbound.candidate
   assert.strictEqual(validate(legacyUnbound).valid, false)
   assert.strictEqual(validate(currentRecord({ releaseState: '  ' })).valid, false)
+  assert.deepStrictEqual(validate(workingRecord()).errors, [])
+  const unauthorizedWorking = workingRecord()
+  unauthorizedWorking.sourceCandidate.releaseAuthorized = true
+  assert(validate(unauthorizedWorking).errors.some(item => item.includes('must not be release-authorized')))
 })
 
 probe('Profile current truth matches package, workflow, release, and refs', () => {

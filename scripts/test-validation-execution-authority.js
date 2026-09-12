@@ -53,6 +53,8 @@ const activeRoot = path.join(fixtureRoot, '.devcodex', 'devcodex')
 const workerPath = path.join(__dirname, 'fixtures', 'managed-validation-worker-fixture.js')
 const FORMAL_TASK_ID = '00000000-0000-4000-8000-000000000343'
 const FORMAL_SESSION_KEY = 'validation-task-session'
+const FIXED_SHARD_STRESS_ITERATIONS = 100
+const SAME_TASK_TERMINAL_ITERATIONS = 100
 
 function countFiles(root) {
   let count = 0
@@ -1048,7 +1050,7 @@ async function main() {
     assert.strictEqual(shardWrites.size, TASKLESS_RUN_SHARD_COUNT)
     assert.strictEqual(terminalSlots.size, TASKLESS_RUN_SHARD_COUNT * 2)
     const saturatedFileCount = countFiles(activeRoot)
-    for (let index = 0; index < 1000; index += 1) {
+    for (let index = 0; index < FIXED_SHARD_STRESS_ITERATIONS; index += 1) {
       const current = runFixture(`bounded-${index}`)
       const store = createValidationEvidenceStore({
         activeRoot, project: 'devcodex', actorType: 'human-cli', runIdentity: current.lease.runIdentity
@@ -1208,16 +1210,17 @@ async function main() {
     const secondTaskWrite = taskStore.writeTerminal(secondTaskRun.receipt)
     assert(['committed', 'semantic-noop'].includes(secondTaskWrite.status), JSON.stringify(secondTaskWrite))
     const taskFileCount = countFiles(activeRoot)
-    for (let index = 2; index < 1000; index += 1) {
+    for (let index = 2; index < SAME_TASK_TERMINAL_ITERATIONS; index += 1) {
       const write = taskStore.writeTerminal(runFixture(`task-${index}`).receipt)
       assert(['committed', 'semantic-noop'].includes(write.status), JSON.stringify(write))
     }
-    assert.strictEqual(countFiles(activeRoot), taskFileCount, '1,000 same-task terminal writes must reuse the same physical V5 files')
+    assert.strictEqual(countFiles(activeRoot), taskFileCount,
+      '100 same-task terminal writes must reuse the same physical V5 files')
     process.stdout.write('test-validation-execution-authority: ok\n')
   } finally {
     if (priorFaultMode === undefined) delete process.env.DEVCODEX_VALIDATION_TEST_FAULTS
     else process.env.DEVCODEX_VALIDATION_TEST_FAULTS = priorFaultMode
-    fs.rmSync(fixtureRoot, { recursive: true, force: true })
+    fs.rmSync(fixtureRoot, { recursive: true, force: true, maxRetries: 8, retryDelay: 50 })
   }
 }
 

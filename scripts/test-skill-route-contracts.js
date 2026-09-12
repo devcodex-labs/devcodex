@@ -256,6 +256,9 @@ try {
     }
   }
   assert.strictEqual(resolveCatalogPageIndex(catalog, turnIdentity, null), 0)
+  assert.match(catalog.pages[0].nextCursor, /^sc1\.[0-9a-z]+\.[a-f0-9]{24}$/)
+  assert(catalog.pages[0].nextCursor.length <= 32)
+  assert.strictEqual(resolveCatalogPageIndex(catalog, turnIdentity, catalog.pages[0].nextCursor), 1)
   const tampered = `${catalog.pages[0].nextCursor}x`
   assert.strictEqual(resolveCatalogPageIndex(catalog, turnIdentity, tampered), -1)
 

@@ -30,7 +30,8 @@ const ROOT_ROLLOVER_REASONS = new Set([
   'strict-descendant-exact-scope-current-auto-rebind',
   'strict-descendant-current-auto-rescope',
   'same-head-dirty-current-auto-rebind',
-  'same-head-dirty-same-auto-exact-scope'
+  'same-head-dirty-same-auto-exact-scope',
+  'same-head-dirty-same-auto-task-scope'
 ])
 const VALIDATION_SUCCESSOR_REASONS = new Set(['pre-execution-same-scope-refresh'])
 const VALIDATION_RISK_CLASSES = new Set(['normal', 'high', 'release', 'security', 'destructive'])
@@ -507,7 +508,7 @@ function createValidationBudgetSuccessorDecision(input = {}, options = {}) {
     sourceMessageDigest: String(control?.sourceMessageDigest || ''),
     revocationEpoch: Number.isInteger(input.revocationEpoch) ? input.revocationEpoch : 0,
     reason: 'pre-execution-same-scope-refresh',
-    decision: uniqueBlockers.length === 0 ? 'auto-pass' : 'reconfirm-required',
+    decision: uniqueBlockers.length === 0 ? 'auto-pass' : 'intent-reevaluation-required',
     blockers: uniqueBlockers,
     decidedAt: new Date(nowMs).toISOString()
   }
@@ -596,7 +597,8 @@ function validateBudgetConfirmationReceipt(receipt, binding = null) {
           receipt.rootRolloverOrdinal > MAX_CONTINUATION_RETRIES)) {
       errors.push('budget-confirmation-rollover-ordinal-invalid')
     }
-    if (receipt.rootRolloverReason === 'same-head-dirty-same-auto-exact-scope' &&
+    if (['same-head-dirty-same-auto-exact-scope', 'same-head-dirty-same-auto-task-scope']
+      .includes(receipt.rootRolloverReason) &&
         !Number.isInteger(receipt.rootRolloverOrdinal)) {
       errors.push('budget-confirmation-rollover-ordinal-required')
     }

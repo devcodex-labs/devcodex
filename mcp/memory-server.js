@@ -61,6 +61,7 @@ const {
   resolveTaskRecoveryMetaDir,
   sameIdentity,
   updateTaskRecoveryState,
+  createTaskScopedAutoContinuationGrant,
   validateAutoCheckpointDecision,
   validateTaskScopedAutoContinuationGrant,
   writeAdmissionIngressSnapshot,
@@ -69,6 +70,7 @@ const {
 const {
   buildActualInstructionEnvelope,
   buildWorkItemSet,
+  digest: digestInstructionIdentity,
   validateActualInstructionEnvelope,
   validateWorkItemSet
 } = require('../hooks/_runtime/actual-instruction-envelope.cjs')
@@ -1772,6 +1774,10 @@ function normalizeMemorySessionWriteBinding(args) {
   }
 }
 
+/**
+ * Scope implicit memory recovery to the observed request, while keeping retries
+ * and MCP restarts within that request idempotent. Explicit old bindings remain valid.
+ */
 function currentMemorySessionOwnerKey(target) {
   let state = {}
   try { state = readServerOwnedLifecycleProjection(target).state || {} } catch { }
@@ -1779,7 +1785,12 @@ function currentMemorySessionOwnerKey(target) {
     state.contextAcquisition?.receipt?.identity?.hostSessionId
   if (!hostSessionId) return null
   const observedSession = state.contextAcquisition?.hostSessionId || state.contextAcquisition?.receipt?.identity?.hostSessionId
-  return fileDigest(JSON.stringify([String(hostSessionId), observedSession === hostSessionId ? state.taskRecoveryBinding?.taskId || null : null]))
+  const sameSession = observedSession === hostSessionId
+  const identity = [String(hostSessionId), sameSession ? state.taskRecoveryBinding?.taskId || null : null]
+  // Do not borrow another host's epoch, or change legacy callers without an observed epoch.
+  const contextEpoch = sameSession ? state.contextAcquisition?.contextEpoch : null
+  if (typeof contextEpoch === 'string' && contextEpoch.trim()) identity.push(contextEpoch)
+  return fileDigest(JSON.stringify(identity))
 }
 
 function recoverMemorySessionWriteBinding(args, target) {
@@ -1973,10 +1984,11 @@ function validateSince(value) {
   }
 }
 
-function memoryQueryError(message, nextStep, code = 'MEMORY_QUERY_INVALID') {
+function memoryQueryError(message, nextStep, code = 'MEMORY_QUERY_INVALID', details = null) {
   const error = new Error(message)
   error.contextReadCode = code
   error.nextStep = nextStep || 'Correct the bounded memory query and retry once.'
+  if (details && typeof details === 'object' && !Array.isArray(details)) error.details = details
   return error
 }
 
@@ -3792,8 +3804,8 @@ function prepareCpAutoCheckpointDecision({ args, target, sessionsPath, taskDir, 
   if (decision.decision !== 'auto-pass') {
     throw memoryQueryError(
       `Task-scoped Auto cannot confirm ${args.phase}: ${decision.reasons.join(', ')}.`,
-      'Resolve the reported scope/risk/review delta or obtain one fresh explicit confirmation for this candidate.',
-      'MEMORY_CP_AUTO_RECONFIRM_REQUIRED'
+      'Resolve the reported scope/risk/review delta, then return to structured intent evaluation. Ask the user only if the new semantic decision is confirm.',
+      'MEMORY_CP_AUTO_INTENT_REEVALUATION_REQUIRED'
     )
   }
   return {
@@ -3851,7 +3863,120 @@ function checkpointEpochAuthority(state) {
   }
 }
 
-function cpEpochRecoveryContext({ target, taskDir, identity, recoverOwner = true }) {
+/**
+ * Recover an expired or released checkpoint writer only when the persisted
+ * task Auto decision, current lifecycle ingress and host session are exact.
+ *
+ * @param {object} input Exact task, recovery and checkpoint state.
+ * @returns {object} The renewed or reacquired fenced writer receipt.
+ * @throws {Error} When any structured-intent, task, lease or session binding differs.
+ */
+function recoverAutoCheckpointWriteOwner({ target, taskDir, identity, recoveryIdentity, metaDir,
+  state, transaction, owner, taskId, taskRootRelative, autoCheckpoint }) {
+  const decision = autoCheckpoint?.decision || null
+  const persistedDecision = state.autoCheckpointDecision || null
+  const grant = state.taskScopedAutoContinuationGrant || null
+  const grantValidation = validateTaskScopedAutoContinuationGrant(grant, {
+    taskId,
+    project: target.project,
+    projectRootIdentityDigest: transaction.projectRootIdentityDigest
+  })
+  const decisionValidation = validateAutoCheckpointDecision(persistedDecision, {
+    grantDigest: grant?.grantDigest,
+    checkpoint: decision?.checkpoint,
+    newCandidateDigest: decision?.newCandidateDigest,
+    candidateScopeDigest: decision?.candidateScopeDigest
+  })
+  const lifecycle = readServerOwnedLifecycleProjection(target).state || {}
+  const semantic = lifecycle.contextAcquisition?.plan?.semanticDecision || null
+  const envelope = lifecycle.actualInstructionEnvelope || null
+  const routeDecision = lifecycle.workflowRouteDecision || null
+  const projectTargetLease = lifecycle.stickyProject || null
+  const hostSessionId = String(process.env.DEVCODEX_HOST_SESSION_ID || '').trim()
+  const hostSessionDigest = hostSessionId ? digestInstructionIdentity(hostSessionId) : null
+  const sessionAuthorityDigest = hostSessionId ? digestSessionRef(hostSessionId) : null
+  const leaseValidation = validateProjectTargetLease(projectTargetLease, {
+    project: target.project,
+    activeRoot: target.activeRoot,
+    physicalRoot: currentPhysicalProjectRoot(target),
+    contextEpoch: envelope?.contextEpoch,
+    routeRevision: routeDecision?.routeRevision
+  }, { nowMs: Date.now() })
+  const operationSnapshot = taskOperationTerminalSnapshot(state.turnLiveness)
+  const liveMutation = state.turnLiveness?.inFlightOperation?.mutating === true &&
+    Date.parse(String(state.turnLiveness.inFlightOperation.leaseExpiresAt || '')) > Date.now()
+  const exactSemanticSource = semantic?.schemaVersion === 'IntentSemanticDecisionV1' &&
+    semantic.executionDecision === 'enable-auto' &&
+    semantic.sourceRef?.envelopeId === envelope?.envelopeId &&
+    semantic.sourceRef?.envelopeDigest === envelope?.envelopeDigest &&
+    semantic.sourceRef?.contextEpoch === envelope?.contextEpoch
+  const exactLifecycleIngress = !!envelope && !!routeDecision && !!projectTargetLease &&
+    routeDecision.envelopeDigest === envelope.envelopeDigest &&
+    projectTargetLease.contextEpoch === envelope.contextEpoch &&
+    projectTargetLease.routeRevision === routeDecision.routeRevision
+  const exactTaskAuto = grantValidation.valid && grant?.status === 'active' &&
+    grant.allowedScope?.actionClasses?.includes('checkpoint-confirmation') &&
+    grant.allowedScope?.checkpointPhases?.includes(decision?.checkpoint) &&
+    grant.allowedScope?.taskRootRelative === taskRootRelative &&
+    decisionValidation.valid && decision?.decision === 'auto-pass' &&
+    persistedDecision?.decisionDigest === decision?.decisionDigest &&
+    state.executionMode === 'auto' && state.stickyAuto?.active === true &&
+    state.stickyAuto?.authorityRef === grant?.authorityRef &&
+    grant?.sourceMessageDigest === envelope?.actualInstructionDigest
+  const exactSession = !!hostSessionId && hostSessionDigest === envelope?.hostSessionDigest &&
+    sessionAuthorityDigest === owner?.sessionDigest &&
+    sessionAuthorityDigest === projectTargetLease?.authorityDigest
+  if (!exactSemanticSource || !exactLifecycleIngress || !exactTaskAuto || !exactSession ||
+      !leaseValidation.valid || !operationSnapshot.terminalReady || liveMutation) {
+    const reasonCodes = [
+      ...(!exactSemanticSource ? ['semantic-source-mismatch'] : []),
+      ...(!exactLifecycleIngress ? ['lifecycle-ingress-mismatch'] : []),
+      ...(!exactTaskAuto ? ['task-auto-mismatch'] : []),
+      ...(!exactSession ? ['host-session-mismatch'] : []),
+      ...(!leaseValidation.valid ? leaseValidation.errors.map(item => `project-lease:${item}`) : []),
+      ...(!operationSnapshot.terminalReady ? operationSnapshot.errors.map(item => `operation:${item}`) : []),
+      ...(operationSnapshot.unresolvedOperationId ? ['operation:unresolved'] : []),
+      ...(liveMutation ? ['operation:live-mutation'] : [])
+    ]
+    throw memoryQueryError(
+      'The expired checkpoint writer cannot be recovered from the current structured Auto intent.',
+      'Refresh the exact task/session/context binding and retry; no user confirmation is implied.',
+      'MEMORY_CP_AUTO_OWNER_RECOVERY_INVALID',
+      { reasonCodes }
+    )
+  }
+  const operation = owner.status === 'released' ? 'acquire' : 'renew'
+  const result = executeTaskWriteOwner({
+    operation,
+    taskId,
+    admissionId: transaction.admissionId,
+    expectedOwner: {
+      ownerGeneration: owner.ownerGeneration,
+      ownerNonce: owner.ownerNonce,
+      leaseRevision: owner.leaseRevision,
+      leaseDigest: owner.leaseDigest
+    },
+    ingressState: taskOwnerIngressState(target, {
+      actualInstructionEnvelope: envelope,
+      workItemSet: lifecycle.workItemSet,
+      workflowRouteDecision: routeDecision,
+      projectTargetLease,
+      lifecycleState: lifecycle
+    }),
+    expectedCommitFence: state.taskRecoveryCommitFence,
+    actualInstructionEnvelope: envelope,
+    workItemSet: lifecycle.workItemSet,
+    workflowRouteDecision: routeDecision,
+    projectTargetLease,
+    serverRuntime: MEMORY_RUNTIME_IDENTITY,
+    activeRoot: target.activeRoot,
+    project: target.project,
+    metaDir
+  }, { fs, checkpointCandidateRecovery: true })
+  return result
+}
+
+function cpEpochRecoveryContext({ target, taskDir, identity, recoverOwner = true, autoCheckpoint = null }) {
   if (!identity || identity.schemaVersion !== 'TaskIdentityV2') return null
   const taskId = String(identity.taskId || '').trim().toLowerCase()
   const recoveryIdentity = {
@@ -3895,11 +4020,9 @@ function cpEpochRecoveryContext({ target, taskDir, identity, recoverOwner = true
   const owner = state.fencedWriteOwner
   if (recoverOwner && owner?.taskId === taskId && owner.projectRootIdentity === transaction.projectRootIdentityDigest &&
       ((owner.status === 'active' && Date.parse(String(owner.expiresAt || '')) <= Date.now()) || owner.status === 'released')) {
-    handleMemoryTaskWriteOwner({ scope: 'project', project: target.project,
-      operation: owner.status === 'released' ? 'acquire' : 'renew', taskId, admissionId: transaction.admissionId,
-      expectedOwner: { ownerGeneration: owner.ownerGeneration, ownerNonce: owner.ownerNonce,
-        leaseRevision: owner.leaseRevision, leaseDigest: owner.leaseDigest } })
-    return cpEpochRecoveryContext({ target, taskDir, identity, recoverOwner: false })
+    recoverAutoCheckpointWriteOwner({ target, taskDir, identity, recoveryIdentity, metaDir,
+      state, transaction, owner, taskId, taskRootRelative, autoCheckpoint })
+    return cpEpochRecoveryContext({ target, taskDir, identity, recoverOwner: false, autoCheckpoint })
   }
   if (!owner || owner.status !== 'active' || Date.parse(String(owner.expiresAt || '')) <= Date.now() ||
       owner.taskId !== taskId || owner.projectRootIdentity !== transaction.projectRootIdentityDigest) {
@@ -3910,12 +4033,16 @@ function cpEpochRecoveryContext({ target, taskDir, identity, recoverOwner = true
     )
   }
   try {
-    readFinalizedResumeCanonicalEvidence(transaction, target.activeRoot, fs, { state })
+    readFinalizedResumeCanonicalEvidence(transaction, target.activeRoot, fs, {
+      state,
+      pendingCheckpointCandidate: autoCheckpoint?.decision || null
+    })
   } catch (error) {
     throw memoryQueryError(
       `The current canonical task lineage is not stable: ${error.message}`,
       'Continue read-only and repair the exact canonical/CP lineage before retrying this mutation.',
-      error.code || 'MEMORY_CP_EPOCH_CANONICAL_INVALID'
+      error.code || 'MEMORY_CP_EPOCH_CANONICAL_INVALID',
+      error.details || null
     )
   }
   return { identity, recoveryIdentity, metaDir, recoveryRead, state, transaction, owner, taskId, taskRootRelative }
@@ -4445,7 +4572,9 @@ function handleMemoryCpConfirm(args) {
   const taskDir = path.dirname(path.dirname(p))
   const formalIdentity = readCpFormalTaskIdentity(taskDir)
   if (formalIdentity?.schemaVersion === 'TaskIdentityV2') {
-    const epochContext = cpEpochRecoveryContext({ target, taskDir, identity: formalIdentity })
+    const epochContext = cpEpochRecoveryContext({
+      target, taskDir, identity: formalIdentity, autoCheckpoint
+    })
     if (epochContext) epochContext.target = target
     if (epochContext) {
     if (epochContext.state.checkpointEpochOperation &&
@@ -4526,7 +4655,8 @@ function handleMemoryCpConfirm(args) {
     return {
       content: [{
         type: 'text',
-        text: `已确认 ${args.phase}，当前任务代际 ${epochReceipt.epochId} 已完成机器状态、会话投影与读回对账。`
+        text: `已确认 ${args.phase}，当前任务代际 ${epochReceipt.epochId} 已完成机器状态、会话投影与读回对账。\n` +
+          renderArtifactTemplateQualification(artifactTemplate.qualification, 'zh-CN')
       }],
       structuredContent: confirmation
     }
@@ -4625,7 +4755,9 @@ function handleMemoryCpConfirm(args) {
     transaction
   }
   return {
-    content: [{ type: 'text', text: `已在 sessions.md 记录 ${args.phase} ✅ (${time})${hasDigest ? ' digest-bound' : ''}\n${JSON.stringify(confirmation)}` }],
+    content: [{ type: 'text', text: `已在 sessions.md 记录 ${args.phase} ✅ (${time})${hasDigest ? ' digest-bound' : ''}\n` +
+      (artifactTemplate ? `${renderArtifactTemplateQualification(artifactTemplate.qualification, 'zh-CN')}\n` : '') +
+      JSON.stringify(confirmation) }],
     structuredContent: confirmation
   }
 }
@@ -6246,10 +6378,165 @@ function handleMemoryTaskAdmitV2(args) {
   }
   admission.ownerGeneration = admission.ownerAcquisition?.owner?.ownerGeneration || null
   admission.leaseRevision = admission.ownerAcquisition?.owner?.leaseRevision || null
+  const authorityHandoff = buildTaskAdmissionAuthorityHandoff(target, verifiedIngress, admission)
+  if (authorityHandoff) {
+    const authorityCommit = commitTaskAdmissionAuthorityHandoff(target, verifiedIngress, admission, authorityHandoff)
+    admission.authorityHandoff = authorityCommit
+    if (!['committed', 'semantic-noop'].includes(authorityCommit.status)) {
+      admission.authorityHandoffWarning = authorityCommit.errorCode || 'TASK_ADMISSION_AUTHORITY_HANDOFF_FAILED'
+    }
+  }
   return {
     content: [{ type: 'text', text: JSON.stringify(admission, null, 2) }],
     structuredContent: admission,
     isError: ['needs-reconcile', 'aborted'].includes(admission.status) || admission.routeBindingRequired
+  }
+}
+
+function buildTaskAdmissionAuthorityHandoff(target, ingress, admission, nowMs = Date.now()) {
+  let lifecycleState = ingress?.lifecycleState || {}
+  const envelope = ingress?.actualInstructionEnvelope || {}
+  const taskId = String(admission?.taskId || '').trim().toLowerCase()
+  if (!taskId || admission?.finalized !== true || !admission?.ownerAcquisition?.owner) return null
+  // Immutable admission snapshots deliberately contain only route identity.
+  // Recover current control metadata only from the still-current lifecycle
+  // projection with the exact same envelope, route, project lease and session.
+  try {
+    const current = readServerOwnedLifecycleProjection(target).state || {}
+    if (current.activeProject === target.project && current.activeScope === 'project' &&
+        current.actualInstructionEnvelope?.envelopeDigest === envelope.envelopeDigest &&
+        current.actualInstructionEnvelope?.actualInstructionDigest === envelope.actualInstructionDigest &&
+        current.actualInstructionEnvelope?.hostSessionDigest === envelope.hostSessionDigest &&
+        current.workflowRouteDecision?.decisionDigest === ingress.workflowRouteDecision?.decisionDigest &&
+        current.stickyProject?.leaseDigest === ingress.projectTargetLease?.leaseDigest) {
+      lifecycleState = current
+    }
+  } catch { }
+  const projectRootIdentity = validationProjectRootIdentity(currentPhysicalProjectRoot(target))
+  let validationControlIngress = null
+  const currentControl = lifecycleState.validationControlIngress
+  if (currentControl && validateValidationControlIngressReceipt(currentControl, {
+    hostSessionDigest: envelope.hostSessionDigest,
+    contextEpoch: envelope.contextEpoch,
+    taskRecoveryKey: taskId,
+    project: target.project,
+    projectRootIdentity
+  }, { now: nowMs }).valid) {
+    validationControlIngress = currentControl
+  }
+  const intent = lifecycleState.validationControlIngressIntent
+  if (!validationControlIngress && intent &&
+      validateValidationControlIngressIntent(intent, null, { now: nowMs }).valid) {
+    try {
+      validationControlIngress = bindValidationControlIngressIntent(intent, {
+        actualInstructionEnvelope: envelope,
+        taskRecoveryKey: taskId,
+        project: target.project,
+        projectRootIdentity
+      }, { now: nowMs })
+    } catch { }
+  }
+  if (!validationControlIngress) return null
+  const observedStickyAuto = lifecycleState.stickyAuto || null
+  const stickyAutoCurrent = validationControlIngress.action === 'auto-authorize' &&
+    lifecycleState.executionMode === 'auto' && observedStickyAuto?.active === true &&
+    String(observedStickyAuto.authorityRef || '').trim() &&
+    observedStickyAuto.sourceMessageDigest === envelope.actualInstructionDigest &&
+    crypto.createHash('sha256').update(String(observedStickyAuto.sessionKey || '')).digest('hex') === envelope.hostSessionDigest &&
+    Number.isFinite(Number(observedStickyAuto.updatedAtMs)) &&
+    nowMs - Number(observedStickyAuto.updatedAtMs) >= 0 && nowMs - Number(observedStickyAuto.updatedAtMs) <= 30 * 60 * 1000
+  let taskScopedAutoContinuationGrant = null
+  if (stickyAutoCurrent) {
+    try {
+      taskScopedAutoContinuationGrant = createTaskScopedAutoContinuationGrant({
+        taskId,
+        project: target.project,
+        projectRootIdentityDigest: ingress.projectTargetLease.rootIdentityDigest,
+        authorityRef: observedStickyAuto.authorityRef,
+        sourceMessageDigest: observedStickyAuto.sourceMessageDigest,
+        allowedScope: {
+          scopeClass: 'same-formal-task',
+          taskRootRelative: admission.taskRootRelative,
+          pathPrefixes: [admission.taskRootRelative],
+          actionClasses: ['checkpoint-confirmation', 'same-task-continuation'],
+          checkpointPhases: ['CP1', 'CP2', 'CP3']
+        },
+        riskCeiling: 'R3'
+      }, { nowMs })
+    } catch { }
+  }
+  return {
+    validationControlIngress,
+    stickyAuto: taskScopedAutoContinuationGrant ? observedStickyAuto : null,
+    executionMode: taskScopedAutoContinuationGrant ? 'auto' : 'confirm',
+    taskScopedAutoContinuationGrant
+  }
+}
+
+function commitTaskAdmissionAuthorityHandoff(target, ingress, admission, handoff) {
+  const owner = admission.ownerAcquisition?.owner
+  const identity = { activeRoot: target.activeRoot, project: target.project, taskId: admission.taskId, taskStatus: 'active' }
+  const metaDir = resolveTaskRecoveryMetaDir(identity)
+  try {
+    return updateTaskRecoveryState({
+      metaDir,
+      identity,
+      hostSessionDigest: ingress.actualInstructionEnvelope.hostSessionDigest
+    }, state => {
+      const transaction = state.admissionTransaction
+      const currentOwner = state.fencedWriteOwner
+      if (!transaction || transaction.admissionId !== admission.admissionId ||
+          transaction.admissionGeneration !== admission.admissionGeneration ||
+          !currentOwner || currentOwner.leaseDigest !== owner.leaseDigest ||
+          currentOwner.ownerGeneration !== owner.ownerGeneration ||
+          currentOwner.leaseRevision !== owner.leaseRevision || currentOwner.status !== 'active') {
+        throw taskAdmissionIngressError(
+          'TASK_ADMISSION_AUTHORITY_HANDOFF_CAS_MISMATCH',
+          'task admission authority handoff no longer matches the finalized admission and fenced owner'
+        )
+      }
+      state.validationControlIngress = JSON.parse(JSON.stringify(handoff.validationControlIngress))
+      state.validationControlIngressIntent = null
+      if (handoff.taskScopedAutoContinuationGrant) {
+        const grantValidation = validateTaskScopedAutoContinuationGrant(handoff.taskScopedAutoContinuationGrant, {
+          taskId: admission.taskId,
+          project: target.project,
+          projectRootIdentityDigest: ingress.projectTargetLease.rootIdentityDigest
+        })
+        if (!grantValidation.valid) {
+          throw taskAdmissionIngressError(
+            'TASK_ADMISSION_AUTO_GRANT_INVALID',
+            'task-scoped Auto grant does not bind the admitted task',
+            { errors: grantValidation.errors }
+          )
+        }
+        const existingGrant = validateTaskScopedAutoContinuationGrant(state.taskScopedAutoContinuationGrant, {
+          taskId: admission.taskId,
+          project: target.project,
+          projectRootIdentityDigest: ingress.projectTargetLease.rootIdentityDigest
+        }).valid && state.taskScopedAutoContinuationGrant.status === 'active' &&
+          state.taskScopedAutoContinuationGrant.authorityRef === handoff.taskScopedAutoContinuationGrant.authorityRef &&
+          state.taskScopedAutoContinuationGrant.sourceMessageDigest === handoff.taskScopedAutoContinuationGrant.sourceMessageDigest
+          ? state.taskScopedAutoContinuationGrant
+          : null
+        state.stickyAuto = JSON.parse(JSON.stringify(handoff.stickyAuto))
+        state.executionMode = 'auto'
+        state.taskScopedAutoContinuationGrant = JSON.parse(JSON.stringify(existingGrant || handoff.taskScopedAutoContinuationGrant))
+        state.taskScopedAutoStatus = {
+          status: 'active',
+          source: handoff.stickyAuto.source || 'explicit',
+          reason: 'same-turn-task-admission-handoff'
+        }
+      }
+      return state
+    }, { fs, reason: 'task-admission-authority-handoff', touchSessionMapping: true })
+  } catch (error) {
+    return {
+      status: 'error',
+      errorCode: error.code || 'TASK_ADMISSION_AUTHORITY_HANDOFF_FAILED',
+      message: error.message,
+      details: error.details
+    }
   }
 }
 
@@ -6673,7 +6960,9 @@ function handleMemoryTaskTerminalV1(args) {
   if (target.scope !== 'project' || !target.project) {
     throw taskAdmissionIngressError('TASK_TERMINAL_PROJECT_REQUIRED', 'workflow task terminal closeout requires one exact project scope')
   }
-  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef, { allowSnapshot: true })
+  // The terminal request already owns an exact task identity. Do not require a
+  // disposable lifecycle projection before trying its durable ingress evidence.
+  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef, { allowSnapshot: true, taskId: args.taskId })
   const result = executeWorkflowTaskTerminal({
     taskId: args.taskId,
     admissionId: args.admissionId,
@@ -6710,7 +6999,7 @@ function handleMemoryTaskCloseoutReconcileV1(args) {
   if (target.scope !== 'project' || !target.project) {
     throw taskAdmissionIngressError('TASK_TERMINAL_PROJECT_REQUIRED', 'workflow task closeout reconciliation requires one exact project scope')
   }
-  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef, { allowSnapshot: true })
+  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef, { allowSnapshot: true, taskId: args.taskId })
   const result = reconcileWorkflowTaskTerminal({
     activeRoot: target.activeRoot,
     project: target.project,
@@ -6801,6 +7090,9 @@ function dispatch(method, params) {
               message: err.message,
               nextStep,
               ...(inputContract ? { inputContract } : {}),
+              ...(Array.isArray(err.details?.reasonCodes) ? { reasonCodes: err.details.reasonCodes } : {}),
+              ...(err.details?.cause ? { causeCode: String(err.details.cause) } : {}),
+              ...(err.details?.causeMessage ? { causeMessage: String(err.details.causeMessage) } : {}),
               ...(err.details?.conflictReceipt
                 ? { conflictReceipt: err.details.conflictReceipt }
                 : {})

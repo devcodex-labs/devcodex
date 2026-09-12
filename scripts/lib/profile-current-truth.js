@@ -154,6 +154,24 @@ function validateSourceCandidateObject(value, record, errors) {
       errors.push(`RELEASED sourceCandidate requires releaseCommit == gitHead: ${record.releaseCommit} != ${record.gitHead}`)
     }
   }
+  const releaseCandidatePresent = isPlainObject(record.candidate)
+  if (value.status !== 'RELEASED' && !releaseCandidatePresent) {
+    if (value.status !== 'LOCAL_PENDING') {
+      errors.push('sourceCandidate without candidate release identity must remain LOCAL_PENDING')
+    }
+    if (record.sourceVersion !== record.npmLatest) {
+      errors.push('working source without candidate release identity must retain npmLatest version')
+    }
+    if (value.localQualification?.status !== 'UNVERIFIED' || value.remoteCi?.status !== 'UNVERIFIED') {
+      errors.push('working source without candidate release identity must keep qualification and CI UNVERIFIED')
+    }
+    if (value.remoteCi?.head !== record.gitHead) {
+      errors.push(`working source remoteCi.head drift: ${value.remoteCi?.head} != ${record.gitHead}`)
+    }
+    if (value.releaseAuthorized !== false) {
+      errors.push('working source without candidate release identity must not be release-authorized')
+    }
+  }
 }
 
 function compareSemver(left, right) {
@@ -195,8 +213,7 @@ function validateTruthRecord(record) {
   if (typeof record.releaseState !== 'string' || !record.releaseState.trim()) {
     errors.push('releaseState must be a non-empty string')
   }
-  if (currentTruthLifecycle(record) === 'candidate' ||
-      Object.prototype.hasOwnProperty.call(record, 'candidate')) {
+  if (Object.prototype.hasOwnProperty.call(record, 'candidate')) {
     validateCandidateObject(record.candidate, errors)
   }
   if (!/^[0-9a-f]{40}$/i.test(String(record.gitHead || ''))) {
@@ -362,14 +379,19 @@ function validateDevCodexCurrentTruth(input = {}) {
         errors.push('released Profile must not retain candidate state')
       }
     } else {
-      if (compareSemver(record.sourceVersion, record.npmLatest) <= 0) {
-        errors.push(`candidate sourceVersion must be newer than npmLatest: ${record.sourceVersion} <= ${record.npmLatest}`)
-      }
-      if (record.candidate?.targetVersion !== record.sourceVersion) {
-        errors.push(`candidate.targetVersion drift: ${record.candidate?.targetVersion} != ${record.sourceVersion}`)
-      }
-      if (record.candidate?.targetTag !== `v${record.sourceVersion}`) {
-        errors.push(`candidate.targetTag drift: ${record.candidate?.targetTag} != v${record.sourceVersion}`)
+      const releaseCandidatePresent = isPlainObject(record.candidate)
+      if (releaseCandidatePresent) {
+        if (compareSemver(record.sourceVersion, record.npmLatest) <= 0) {
+          errors.push(`candidate sourceVersion must be newer than npmLatest: ${record.sourceVersion} <= ${record.npmLatest}`)
+        }
+        if (record.candidate.targetVersion !== record.sourceVersion) {
+          errors.push(`candidate.targetVersion drift: ${record.candidate.targetVersion} != ${record.sourceVersion}`)
+        }
+        if (record.candidate.targetTag !== `v${record.sourceVersion}`) {
+          errors.push(`candidate.targetTag drift: ${record.candidate.targetTag} != v${record.sourceVersion}`)
+        }
+      } else if (record.sourceVersion !== record.npmLatest) {
+        errors.push(`working sourceVersion must equal npmLatest until a release candidate is selected: ${record.sourceVersion} != ${record.npmLatest}`)
       }
       if (record.githubRelease?.tag !== `v${record.npmLatest}`) {
         errors.push(`candidate previous githubRelease.tag drift: ${record.githubRelease?.tag} != v${record.npmLatest}`)

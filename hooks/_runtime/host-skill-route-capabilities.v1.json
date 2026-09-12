@@ -11,12 +11,12 @@
     {
       "hostVariant": "codex-cli/exec-user-global-local-stdio",
       "status": "PASS",
-      "testedVersion": "codex-cli 0.153.4",
+      "testedVersion": "codex-cli 0.145.0",
       "protocol": "MCP 2024-11-05",
-      "runtimeContractDigest": "8c2ad999d19e8e3510e7d65f01e2dc42eea2eb388a30a3189fc905191475824c",
-      "hostAdapterDigest": "1095efd90a80d223c5990a70a8503f5cbbe818e4d2f5253b944bce92536873a3",
+      "runtimeContractDigest": "a6e35bb0e5fd4199185c9ad646f56bb0c24c52b7fbb9386bea48b069fe9391ee",
+      "hostAdapterDigest": "e7c92e875c6b9c76c2cea8756f4bdc5892bb0b08af9699ecae854845339a0016",
       "evidenceRef": "hooks/_runtime/evidence/codex-skill-route-pass.v1.json",
-      "evidenceDigest": "1e798a5d4f0d5b5a2eeed3e15a76c7503f613233ac44ffe8da0be475b4dae324",
+      "evidenceDigest": "40a802e37e95e76efb5b4b7ec4616de045ccbb5f23f6ddb67a877bdc0acfc57b",
       "entrySurface": "codex exec --ephemeral",
       "bootstrapDelivery": "stable user-global Hook launcher UserPromptSubmit or profile_context_plan fallback",
       "defaultEligible": true

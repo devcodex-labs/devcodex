@@ -37,7 +37,9 @@ const {
   taskAdmissionTransactionDigest,
   taskAdmissionReconciliationReceiptDigest,
   validateTaskAdmissionTransaction,
+  validateAutoCheckpointDecision,
   validateTaskCanonicalRevision,
+  validateTaskScopedAutoContinuationGrant,
   validateBoundedResumeIngressCapability,
   validateAdmissionContinuationLease,
   workflowTaskTerminalReceiptDigest
@@ -1745,14 +1747,18 @@ function observedCpState(transaction, activeRoot, fsImpl = fs, options = {}) {
   }
   const epochSet = options.state?.taskCheckpointEpochSet || null
   const epochValidation = epochSet ? validateTaskCheckpointEpochSet(epochSet) : { valid: false, errors: [] }
+  const pendingCheckpointCandidate = options.pendingCheckpointCandidate || null
+  const pendingCheckpointValidation = validateAutoCheckpointDecision(pendingCheckpointCandidate)
   let cp1Confirmed
   let confirmationObservations
   let projection = null
+  let checkpointSuccessor = false
   if (epochSet && epochValidation.valid) {
     const current = epochSet.epochs.find(item => item.epochId === epochSet.currentEpochId)
     if (!current || current.status !== 'current') {
       throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'machine checkpoint state has no current epoch')
     }
+    checkpointSuccessor = current.ordinal > 1 && !!current.parentEpochId
     cp1Confirmed = current.phases.CP1?.state === 'confirmed'
     confirmationObservations = ['CP1', 'CP2', 'CP3'].flatMap(phase => {
       const slot = current.phases[phase]
@@ -1766,6 +1772,15 @@ function observedCpState(transaction, activeRoot, fsImpl = fs, options = {}) {
         `current ${phase} artifact`,
         fsImpl
       )
+      const pendingReplacement = pendingCheckpointValidation.valid &&
+        pendingCheckpointCandidate.decision === 'auto-pass' &&
+        pendingCheckpointCandidate.checkpoint === phase &&
+        pendingCheckpointCandidate.newCandidateDigest === artifact.digest &&
+        pendingCheckpointCandidate.newCandidateDigest !== binding.artifactSha256
+      const pendingTargetPhase = Number(String(pendingCheckpointCandidate?.checkpoint || '').slice(2)) || 0
+      const pendingInvalidation = pendingCheckpointValidation.valid &&
+        pendingCheckpointCandidate.decision === 'auto-pass' && pendingTargetPhase > 0 &&
+        Number(phase.slice(2)) > pendingTargetPhase
       return [{
         phase,
         version: binding.artifactVersion,
@@ -1774,7 +1789,9 @@ function observedCpState(transaction, activeRoot, fsImpl = fs, options = {}) {
         confirmedAt: binding.confirmedAt,
         sourceMessage: binding.confirmationSourceDigest,
         artifactVerified: artifact.digest === binding.artifactSha256,
-        observedArtifactDigest: artifact.digest
+        observedArtifactDigest: artifact.digest,
+        pendingReplacement,
+        pendingInvalidation
       }]
     })
     const marker = parseCurrentEpochMarker(sessions)
@@ -1837,7 +1854,8 @@ function observedCpState(transaction, activeRoot, fsImpl = fs, options = {}) {
   }
   const confirmedEvidence = confirmationObservations.map(cpConfirmationEvidenceSnapshot)
   const latestConfirmedHead = confirmationObservations[confirmationObservations.length - 1] || null
-  if (confirmationObservations.length && !latestConfirmedHead?.artifactVerified) {
+  if (confirmationObservations.length && !latestConfirmedHead?.artifactVerified &&
+      !latestConfirmedHead?.pendingReplacement && !latestConfirmedHead?.pendingInvalidation) {
     throw new TaskAdmissionError(
       'TASK_ADMISSION_CP_STATE_CONFLICT',
       'latest confirmed CP head no longer matches its digest-bound artifact'
@@ -1853,6 +1871,12 @@ function observedCpState(transaction, activeRoot, fsImpl = fs, options = {}) {
     const current = confirmedEvidence.find(item => item.phase === prior.phase)
     const observation = confirmationObservations.find(item => item.phase === prior.phase)
     if (!current) {
+      const pendingPhase = Number(String(pendingCheckpointCandidate?.checkpoint || '').slice(2)) || 0
+      const priorPhase = Number(String(prior.phase || '').slice(2)) || 0
+      if (checkpointSuccessor && pendingCheckpointValidation.valid &&
+          pendingCheckpointCandidate.decision === 'auto-pass' && pendingPhase > 0 && priorPhase >= pendingPhase) {
+        continue
+      }
       throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'confirmed CP evidence rolled back or changed outside its admission lineage')
     }
     if (sameCpConfirmationEvidence(current, prior)) {
@@ -1864,6 +1888,7 @@ function observedCpState(transaction, activeRoot, fsImpl = fs, options = {}) {
       }
       continue
     }
+    if (observation?.pendingReplacement || observation?.pendingInvalidation) continue
     const isDigestBoundSuccessor = observation?.artifactVerified === true &&
       current.version !== prior.version && current.artifactDigest !== prior.artifactDigest &&
       String(current.confirmedAt || '').trim() && String(current.sourceMessage || '').trim()
@@ -1881,6 +1906,9 @@ function observedCpState(transaction, activeRoot, fsImpl = fs, options = {}) {
   for (const current of confirmedEvidence) {
     if (priorByPhase.has(current.phase)) continue
     const observation = confirmationObservations.find(item => item.phase === current.phase)
+    // The old binding for the phase currently being atomically replaced is
+    // neither a newly confirmed phase nor canonical evolution evidence.
+    if (observation?.pendingReplacement || observation?.pendingInvalidation) continue
     const phaseNumber = Number(String(current.phase || '').slice(2)) || 0
     if (phaseNumber <= priorMaxPhase || observation?.artifactVerified !== true) {
       throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'confirmed CP evidence was inserted behind the finalized admission frontier')
@@ -1893,6 +1921,11 @@ function observedCpState(transaction, activeRoot, fsImpl = fs, options = {}) {
     })
   }
   for (const stale of historicalStaleConfirmations) {
+    const pendingReplacement = confirmationObservations.find(item =>
+      item.phase === stale.phase)?.pendingReplacement === true
+    const pendingInvalidation = confirmationObservations.find(item =>
+      item.phase === stale.phase)?.pendingInvalidation === true
+    if (pendingReplacement || pendingInvalidation) continue
     const stalePhaseNumber = Number(String(stale.phase || '').slice(2)) || 0
     const superseded = confirmationObservations.some(observation =>
       observation.artifactVerified === true &&
@@ -2018,7 +2051,11 @@ function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = 
     throw new TaskAdmissionError(
       'FINALIZED_TASK_RESUME_CP_DRIFT',
       'digest-bound CP confirmation no longer matches the finalized admission',
-      { ...finalizedResumeFailureDetails('FINALIZED_TASK_RESUME_CP_DRIFT'), cause: error.code || error.message }
+      {
+        ...finalizedResumeFailureDetails('FINALIZED_TASK_RESUME_CP_DRIFT'),
+        cause: error.code || error.message,
+        causeMessage: error.message
+      }
     )
   }
   // Identity recovery precedes the first CP1 confirmation. Stage consumers
@@ -2910,6 +2947,41 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
   let transaction = admissionRead.transaction
   const ownerRead = readFencedTaskWriteOwner({ metaDir, identity }, { fs: fsImpl })
   let currentOwner = ownerRead.status === 'fresh' ? ownerRead.owner : null
+  if (options.checkpointCandidateRecovery === true) {
+    const recoveryState = ownerRead.state || {}
+    const recoveryGrant = recoveryState.taskScopedAutoContinuationGrant || null
+    const recoveryDecision = recoveryState.autoCheckpointDecision || null
+    const operationSnapshot = taskOperationTerminalSnapshot(recoveryState.turnLiveness)
+    const grantValidation = validateTaskScopedAutoContinuationGrant(recoveryGrant, {
+      taskId: input.taskId,
+      project: input.project,
+      projectRootIdentityDigest: transaction.projectRootIdentityDigest
+    })
+    const decisionValidation = validateAutoCheckpointDecision(recoveryDecision, {
+      grantDigest: recoveryGrant?.grantDigest
+    })
+    const ownerRecoverable = (operation === 'renew' && currentOwner?.status === 'active' &&
+      Date.parse(String(currentOwner.expiresAt || '')) <= nowMs) ||
+      (operation === 'acquire' && currentOwner?.status === 'released')
+    const recoveryValid = ownerRecoverable && grantValidation.valid && recoveryGrant?.status === 'active' &&
+      decisionValidation.valid && recoveryDecision?.decision === 'auto-pass' &&
+      recoveryGrant.allowedScope?.actionClasses?.includes('checkpoint-confirmation') &&
+      recoveryGrant.allowedScope?.checkpointPhases?.includes(recoveryDecision.checkpoint) &&
+      recoveryState.executionMode === 'auto' && recoveryState.stickyAuto?.active === true &&
+      recoveryState.stickyAuto?.authorityRef === recoveryGrant.authorityRef &&
+      recoveryGrant.sourceMessageDigest === input.actualInstructionEnvelope.actualInstructionDigest &&
+      input.workflowRouteDecision.envelopeDigest === input.actualInstructionEnvelope.envelopeDigest &&
+      input.projectTargetLease.contextEpoch === input.actualInstructionEnvelope.contextEpoch &&
+      input.projectTargetLease.routeRevision === input.workflowRouteDecision.routeRevision &&
+      currentOwner?.sessionDigest === input.projectTargetLease.authorityDigest &&
+      operationSnapshot.terminalReady
+    if (!recoveryValid) {
+      throw new TaskAdmissionError(
+        'TASK_WRITE_OWNER_CHECKPOINT_RECOVERY_INVALID',
+        'checkpoint candidate recovery requires one exact active task Auto decision and a quiescent expired/released owner'
+      )
+    }
+  }
   validateOwnerContinuation(transaction, input, operation, nowMs, {
     releasedReacquire: currentOwner?.status === 'released'
   })
@@ -2937,7 +3009,9 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
     if (transaction.phase !== 'finalized' || !exactOwnerRefMatches(currentOwner, input.expectedOwner)) {
       throw new TaskAdmissionError('TASK_WRITE_OWNER_CAS_MISMATCH', 'reacquire requires the exact released owner ref and finalized admission')
     }
-    transaction = refreshFinalizedCpObservation(transaction, input.activeRoot, nowMs, fsImpl, ownerRead.state)
+    if (options.checkpointCandidateRecovery !== true) {
+      transaction = refreshFinalizedCpObservation(transaction, input.activeRoot, nowMs, fsImpl, ownerRead.state)
+    }
     const issuedAt = new Date(nowMs).toISOString()
     const nextOwner = sealOwner({
       ...currentOwner,
@@ -3077,7 +3151,9 @@ function executeTaskWriteOwner(rawInput = {}, options = {}) {
   if (transaction.phase !== 'finalized') {
     throw new TaskAdmissionError('TASK_WRITE_OWNER_ADMISSION_NOT_FINALIZED', 'owner transition requires finalized admission')
   }
-  transaction = refreshFinalizedCpObservation(transaction, input.activeRoot, nowMs, fsImpl, ownerRead.state)
+  if (options.checkpointCandidateRecovery !== true) {
+    transaction = refreshFinalizedCpObservation(transaction, input.activeRoot, nowMs, fsImpl, ownerRead.state)
+  }
   const issuedAt = new Date(nowMs).toISOString()
   let nextOwner
   let transition = operation

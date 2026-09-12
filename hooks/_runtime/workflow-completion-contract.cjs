@@ -460,8 +460,8 @@ function projectAutoCheckpointDecision(decision, languageContext = null) {
       status: 'BLOCK',
       automatic: false,
       decisionDigest: null,
-      message: zh ? '自动续批凭据无效，当前检查点必须重新确认。' : 'The automatic checkpoint receipt is invalid; reconfirmation is required.',
-      nextAction: zh ? '修复并重新生成当前候选的 AutoCheckpointDecisionV1。' : 'Repair and regenerate AutoCheckpointDecisionV1 for the current candidate.',
+      message: zh ? '自动续批凭据无效，当前检查点已停止。' : 'The automatic checkpoint receipt is invalid and the checkpoint is stopped.',
+      nextAction: zh ? '修复凭据并返回结构化意图重算；不得直接要求用户确认。' : 'Repair the receipt and return to structured intent reevaluation; do not directly request user confirmation.',
       mutationAuthority: false,
       hostPermissionAuthority: false
     })
@@ -477,13 +477,13 @@ function projectAutoCheckpointDecision(decision, languageContext = null) {
     message: zh
       ? (automatic
           ? `${decision.checkpoint} 已通过同任务、同范围与风险增量复核，将自动续批。`
-          : `${decision.checkpoint} 不能自动续批：${reason}。`)
+          : `${decision.checkpoint} 已暂停自动续批并返回结构化意图重算：${reason}。`)
       : (automatic
           ? `${decision.checkpoint} passed same-task scope and risk review and may continue automatically.`
-          : `${decision.checkpoint} requires reconfirmation: ${reason}.`),
+          : `${decision.checkpoint} paused automatic continuation and requires structured intent reevaluation: ${reason}.`),
     nextAction: automatic
       ? (zh ? '由既有 CP writer 绑定当前候选摘要并记录确认。' : 'Let the existing CP writer bind and confirm the current candidate digest.')
-      : (zh ? '只确认本次增量，或先收敛范围/风险后重新复审。' : 'Confirm only this delta, or narrow the scope/risk and review again.'),
+      : (zh ? '重新结构化当前意图；仍在既有 Auto 任务边界内时继续，只有语义决定为 confirm 才询问用户。' : 'Reevaluate the current intent; continue within the existing Auto task boundary and ask the user only when the semantic decision is confirm.'),
     mutationAuthority: false,
     hostPermissionAuthority: false
   })

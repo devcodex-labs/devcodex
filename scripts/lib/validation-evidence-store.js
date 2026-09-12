@@ -239,6 +239,19 @@ function liveShardPayload(slot, nowMs) {
     Date.parse(String(payload.hardDeadlineAt || '')) > nowMs
 }
 
+function liveTaskExecutionPayload(kind, payload, nowMs = Date.now()) {
+  if (!payload || typeof payload !== 'object') return false
+  if (kind === 'authority') {
+    return payload.status === 'active' &&
+      Date.parse(String(payload.hardDeadlineAt || payload.expiresAt || '')) > nowMs
+  }
+  if (kind === 'runner') {
+    return ['starting', 'running', 'observing', 'reconciling'].includes(payload.phase) &&
+      Date.parse(String(payload.hardDeadlineAt || '')) > nowMs
+  }
+  return true
+}
+
 function readRunShardPayload({ activeRoot, project, runIdentityDigest, kind }) {
   const shard = runShardIndex(runIdentityDigest)
   const match = readRunShardSlots(activeRoot, project, shard, kind)
@@ -828,7 +841,9 @@ function createValidationEvidenceStore(options = {}) {
             throw evidenceBindingError('VALIDATION_BUDGET_CONFIRMATION_CAS_CONFLICT', 'root BudgetCard confirmation CAS conflicted')
           }
           const rootChanged = Boolean(existing && existing.receiptDigest !== payload.receiptDigest)
-          if (rootChanged && (currentExecution.currentLease || currentExecution.runnerState)) {
+          const liveLease = liveTaskExecutionPayload('authority', currentExecution.currentLease, nowMs)
+          const liveRunner = liveTaskExecutionPayload('runner', currentExecution.runnerState, nowMs)
+          if (rootChanged && (liveLease || liveRunner)) {
             throw evidenceBindingError(
               'VALIDATION_BUDGET_CONFIRMATION_CAS_CONFLICT',
               'a live validation lease or runner must reach a durable terminal state before root replacement'
@@ -1051,7 +1066,12 @@ function createValidationEvidenceStore(options = {}) {
   }
 
   function readLeaseInternal(runIdentityDigest = configuredRunIdentityDigest) {
-    if (taskBound) return readTaskField('currentLease', runIdentityDigest, 'lease')
+    if (taskBound) {
+      const read = readTaskField('currentLease', runIdentityDigest, 'lease')
+      return read.status === 'fresh' && !liveTaskExecutionPayload('authority', read.lease)
+        ? { ...read, status: 'stale' }
+        : read
+    }
     if (DIGEST_RE.test(runIdentityDigest)) {
       const read = readRunShardPayload({ activeRoot, project, runIdentityDigest, kind: 'authority' })
       const { payload, ...projection } = read
@@ -1067,7 +1087,12 @@ function createValidationEvidenceStore(options = {}) {
     if (!DIGEST_RE.test(runIdentityDigest)) {
       return { status: 'missing', runnerState: null, errorCode: 'VALIDATION_RUN_IDENTITY_REQUIRED', stateOwner: taskBound ? 'task-recovery-v5' : 'taskless-run-fixed-shard' }
     }
-    if (taskBound) return readTaskField('runnerState', runIdentityDigest, 'runnerState')
+    if (taskBound) {
+      const read = readTaskField('runnerState', runIdentityDigest, 'runnerState')
+      return read.status === 'fresh' && !liveTaskExecutionPayload('runner', read.runnerState)
+        ? { ...read, status: 'stale' }
+        : read
+    }
     const read = readRunShardPayload({ activeRoot, project, runIdentityDigest, kind: 'runner' })
     const { payload, ...projection } = read
     return { ...projection, runnerState: payload }

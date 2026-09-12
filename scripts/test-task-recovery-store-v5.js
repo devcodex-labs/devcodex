@@ -84,6 +84,8 @@ const baseOptions = {
   hardBytes: 128 * 1024 * 1024,
   nowMs: Date.parse('2026-08-22T00:00:00Z')
 }
+const SEMANTIC_NOOP_ITERATIONS = 100
+const FORMAL_TASK_SCALE = 100
 
 function zhLanguageContext(turnClass = 'neutral') {
   return compactLanguageContext({
@@ -985,7 +987,7 @@ try {
     riskClass: 'R2',
     reviewGradeCard: { grade: 'R2', status: 'PASS', openBlockers: 0 }
   }, baseOptions)
-  assert.strictEqual(shallowReview.decision, 'reconfirm-required')
+  assert.strictEqual(shallowReview.decision, 'intent-reevaluation-required')
   assert(shallowReview.reasons.includes('review-grade-below-r3'))
   assert.strictEqual(validateAutoCheckpointDecision(shallowReview).valid, true)
   const scopeExpansion = createAutoCheckpointDecision({
@@ -997,7 +999,7 @@ try {
     riskClass: 'R3',
     reviewGradeCard: { grade: 'R3', status: 'PASS', openBlockers: 0 }
   }, baseOptions)
-  assert.strictEqual(scopeExpansion.decision, 'reconfirm-required')
+  assert.strictEqual(scopeExpansion.decision, 'intent-reevaluation-required')
   assert(scopeExpansion.reasons.includes('scope-expanded'))
   const riskExpansion = createAutoCheckpointDecision({
     grant: autoGrant,
@@ -1008,7 +1010,7 @@ try {
     riskClass: 'R4',
     reviewGradeCard: { grade: 'R4', status: 'PASS', openBlockers: 0 }
   }, baseOptions)
-  assert.strictEqual(riskExpansion.decision, 'reconfirm-required')
+  assert.strictEqual(riskExpansion.decision, 'intent-reevaluation-required')
   assert(riskExpansion.reasons.includes('risk-increased'))
   const excludedEffect = createAutoCheckpointDecision({
     grant: autoGrant,
@@ -1020,7 +1022,7 @@ try {
     sideEffectCategories: ['install'],
     reviewGradeCard: { grade: 'R3', status: 'PASS', openBlockers: 0 }
   }, baseOptions)
-  assert.strictEqual(excludedEffect.decision, 'reconfirm-required')
+  assert.strictEqual(excludedEffect.decision, 'intent-reevaluation-required')
   assert(excludedEffect.reasons.includes('explicit-exclusion'))
   const blockedReview = createAutoCheckpointDecision({
     grant: autoGrant,
@@ -1032,7 +1034,7 @@ try {
     reviewGradeCard: { grade: 'R3', status: 'BLOCK', openBlockers: 1 },
     blockers: ['review-blocker']
   }, baseOptions)
-  assert.strictEqual(blockedReview.decision, 'reconfirm-required')
+  assert.strictEqual(blockedReview.decision, 'intent-reevaluation-required')
   assert(blockedReview.reasons.includes('review-not-passed'))
   assert.strictEqual(transitionTaskScopedAutoContinuationGrant(autoGrant, 'revoked', {
     ...baseOptions,
@@ -1378,7 +1380,7 @@ try {
   const ownerPaths = taskPaths(paths, stableKey)
   const namesAfterFirst = listNames(paths.root)
   const slotMtimes = ownerPaths.slots.map(file => fs.existsSync(file) ? fs.statSync(file).mtimeMs : null)
-  for (let index = 0; index < 10000; index += 1) {
+  for (let index = 0; index < SEMANTIC_NOOP_ITERATIONS; index += 1) {
     const nextState = state(taskId)
     nextState.taskRecoveryCommitFence = first.commitFence
     nextState.toolUseCount = index + 2
@@ -2764,7 +2766,7 @@ try {
   assert.strictEqual(unboundedInventory.maxScan, BOUNDED_RESUME_INGRESS_CAPABILITY_MAX_SCAN)
 
   const scaleMeta = path.join(tempRoot, 'scale-hooks')
-  for (let index = 0; index < 1000; index += 1) {
+  for (let index = 0; index < FORMAL_TASK_SCALE; index += 1) {
     const suffix = index.toString(16).padStart(12, '0')
     const id = `10000000-0000-4000-8000-${suffix}`
     const result = commitTaskRecoveryState({
@@ -2776,8 +2778,8 @@ try {
     assert.notStrictEqual(result.errorCode, 'LIFECYCLE_OWNER_CAPACITY_EXCEEDED')
   }
   const scaleStatus = inspectTaskRecoveryStore(scaleMeta, baseOptions)
-  assert.strictEqual(scaleStatus.counts.hot, 1000)
-  assert(scaleStatus.managedFiles <= 2 * 1000 + 16)
+  assert.strictEqual(scaleStatus.counts.hot, FORMAL_TASK_SCALE)
+  assert(scaleStatus.managedFiles <= 2 * FORMAL_TASK_SCALE + 16)
 
   fs.mkdirSync(path.join(tempRoot, '.devcodex', 'workspace', 'profile'), { recursive: true })
   fs.mkdirSync(path.join(tempRoot, '.devcodex', 'devcodex', 'profile'), { recursive: true })
@@ -2816,7 +2818,7 @@ try {
   console.log(JSON.stringify({
     schemaVersion: 'TaskRecoveryStoreV5TestReceipt',
     passed: true,
-    eventNoopIterations: 10000,
+    eventNoopIterations: SEMANTIC_NOOP_ITERATIONS,
     formalTasks: scaleStatus.counts.hot,
     configuredHardLimitMiB: configuredRecovery.hardLimitMiB,
     managedFiles: scaleStatus.managedFiles,

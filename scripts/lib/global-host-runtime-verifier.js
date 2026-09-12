@@ -391,14 +391,15 @@ function grokStaticContract(target, options = {}) {
 
   const mcpFile = path.join(target.files.plugin, '.mcp.json')
   const mcp = readJson(mcpFile, options.fs)
+  const supervisorPath = path.join(target.runtimeBaseRoot, 'mcp-hot-reload-supervisor.cjs')
   const expectedServers = {
-    'devcodex-memory': path.join(target.runtimeRoot, 'mcp', 'memory-server.js'),
-    'devcodex-profile': path.join(target.runtimeRoot, 'mcp', 'profile-server.js')
+    'devcodex-memory': 'memory',
+    'devcodex-profile': 'profile'
   }
   let mcpStatus = 'passed'
-  for (const [name, serverPath] of Object.entries(expectedServers)) {
+  for (const [name, role] of Object.entries(expectedServers)) {
     const args = mcp?.mcpServers?.[name]?.args || []
-    if (!options.fs.existsSync(serverPath) || !args.some(value => samePath(String(value), serverPath))) {
+    if (!options.fs.existsSync(supervisorPath) || !samePath(String(args[0] || ''), supervisorPath) || args[1] !== role) {
       mcpStatus = 'failed'
       issues.push(probeIssue(
         'GROK_MCP_CONTRACT_FAILED',
@@ -555,21 +556,23 @@ function cursorStaticContract(target, options = {}) {
 
   const mcpFile = path.join(target.files.plugin, 'mcp.json')
   const mcp = readJson(mcpFile, fsImpl)
+  const supervisorPath = path.join(target.runtimeBaseRoot, 'mcp-hot-reload-supervisor.cjs')
   const expectedServers = {
-    'devcodex-memory': path.join(target.runtimeRoot, 'mcp', 'memory-server.js'),
-    'devcodex-profile': path.join(target.runtimeRoot, 'mcp', 'profile-server.js')
+    'devcodex-memory': 'memory',
+    'devcodex-profile': 'profile'
   }
   let mcpStatus = true
-  for (const [name, serverPath] of Object.entries(expectedServers)) {
+  for (const [name, role] of Object.entries(expectedServers)) {
     const server = mcp?.mcpServers?.[name]
     const args = Array.isArray(server?.args) ? server.args : []
     if (
       server?.type !== 'stdio' ||
       !samePath(server?.command || '', canonicalNodeExecutable({ fs: fsImpl })) ||
       server?.env?.DEVCODEX_AGENT !== 'cursor' ||
-      !fsImpl.existsSync(serverPath) ||
-      !args.some(value => samePath(String(value), serverPath)) ||
-      args[1] !== '${workspaceFolder}'
+      !fsImpl.existsSync(supervisorPath) ||
+      !samePath(String(args[0] || ''), supervisorPath) ||
+      args[1] !== role ||
+      args[2] !== '${workspaceFolder}'
     ) {
       mcpStatus = false
       issues.push(probeIssue(

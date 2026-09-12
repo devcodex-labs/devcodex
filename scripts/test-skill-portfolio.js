@@ -535,7 +535,8 @@ assert(unknownMandatory.blockers.some(item => item.code === 'unknown'))
 const hostFallback = buildBundleDecisionV2(first, {
   candidateIds: ['intent'],
   hostCapability: 'unsupported',
-  maxTokens: 1
+  maxTokens: 1,
+  applySkillResolution: false
 })
 assert.strictEqual(hostFallback.completion, 'fallback-full')
 assert.strictEqual(hostFallback.fallback.route, 'full-skill-read')

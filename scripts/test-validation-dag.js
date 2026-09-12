@@ -13,6 +13,11 @@ const {
   parseAndClassifyAuditStateDocument
 } = require('./lib/validate-audit-state-compatibility')
 const { buildContentIdentity, sha256, stableStringify } = require('../hooks/_runtime/content-identity.cjs')
+const { buildActualInstructionEnvelope } = require('../hooks/_runtime/actual-instruction-envelope.cjs')
+const {
+  createValidationControlIngressReceipt,
+  validationProjectRootIdentity
+} = require('../hooks/_runtime/workflow-completion-contract.cjs')
 const {
   ValidationDagError,
   NARRATIVE_MARKDOWN_EXCLUSIONS,
@@ -48,7 +53,9 @@ const {
 } = require('../hooks/_runtime/skill-route-mode.cjs')
 const {
   detectedActorType,
+  assessAutoRootRollover,
   expectedCiPolicyDigest,
+  openRepairBatchForCommand,
   parseArgs,
   projectValidationExecutionForCli,
   resolveValidationAuthorityContext,
@@ -493,6 +500,185 @@ function run() {
     assert.strictEqual(aiAuthority.sessionKey, 'fixture-thread')
     assert.strictEqual(aiAuthority.contextEpoch, 'ctx-fixture-current')
     assert.match(aiAuthority.authoritySourceRef, /^ai-hook:codex:fixture-thread:task:/)
+    const semanticPrompt = '已授权自动推进当前验证，不需要重复确认'
+    const semanticEnvelope = buildActualInstructionEnvelope({
+      prompt: semanticPrompt,
+      sourceEventId: 'validation-semantic-observation',
+      issuedAt: new Date().toISOString()
+    }, {
+      actualInstruction: semanticPrompt,
+      hostVariant: 'codex',
+      hostSessionId: 'fixture-thread',
+      turnId: 'validation-semantic-observation-turn',
+      contextEpoch: 'ctx-fixture-current',
+      trustedHostEvent: true
+    })
+    const neutralControl = createValidationControlIngressReceipt({
+      actualInstructionEnvelope: semanticEnvelope,
+      actualInstruction: semanticPrompt,
+      executionMode: 'confirm',
+      taskRecoveryKey: aiAuthority.taskRecoveryKey,
+      project: 'devcodex',
+      projectRootIdentity: validationProjectRootIdentity(tempRoot)
+    })
+    const requestedBudgetDigest = 'b'.repeat(64)
+    const semanticAuthority = resolveValidationAuthorityContext({
+      actorType: 'ai-hook',
+      options: { contextEpoch: 'ctx-fixture-current' },
+      activeRoot: tempRoot,
+      env: { CODEX_THREAD_ID: 'fixture-thread' },
+      readTaskState: () => ({
+        status: 'fresh',
+        identity: {
+          activeRoot: tempRoot,
+          project: 'devcodex',
+          taskId: aiAuthority.taskRecoveryKey,
+          taskStatus: 'active'
+        },
+        state: {
+          actualInstructionEnvelope: semanticEnvelope,
+          validationControlIngress: neutralControl
+        }
+      }),
+      readContextObservation: () => ({
+        status: 'fresh',
+        originalPlan: {
+          semanticDecision: {
+            schemaVersion: 'IntentSemanticDecisionV1',
+            sourceRef: {
+              contextEpoch: semanticEnvelope.contextEpoch,
+              envelopeId: semanticEnvelope.envelopeId,
+              envelopeDigest: semanticEnvelope.envelopeDigest
+            },
+            executionDecision: 'enable-auto',
+            validationDecision: {
+              action: 'confirm-current-budget',
+              requestedBudgetDigest,
+              declaredChangedPathCount: 18
+            }
+          }
+        }
+      })
+    })
+    assert.strictEqual(semanticAuthority.validationControlIngress.action, 'confirm-current-budget')
+    assert.strictEqual(semanticAuthority.validationControlIngress.requestedBudgetDigest, requestedBudgetDigest)
+    assert.strictEqual(semanticAuthority.validationControlIngress.sourceMessageDigest,
+      semanticEnvelope.actualInstructionDigest)
+    const priorUserRoot = {
+      authorityKind: 'user-confirmation',
+      receiptDigest: '1'.repeat(64),
+      sourceMessageDigest: '2'.repeat(64),
+      taskRecoveryKey: aiAuthority.taskRecoveryKey,
+      project: 'devcodex',
+      hostSessionDigest: '3'.repeat(64),
+      projectRootIdentity: { digest: '4'.repeat(64) },
+      contextEpoch: 'ctx-prior-user-root',
+      revocationEpoch: 0,
+      maxLevel: 'V2',
+      purpose: 'delivery'
+    }
+    const freshAutoControl = {
+      action: 'auto-authorize',
+      autoAuthorityRef: 'validation-auto:' + '5'.repeat(64),
+      sourceMessageDigest: '6'.repeat(64),
+      hostSessionDigest: priorUserRoot.hostSessionDigest,
+      projectRootIdentity: priorUserRoot.projectRootIdentity,
+      issuedAt: '2026-09-12T02:00:00.000Z'
+    }
+    const rolloverCandidate = {
+      candidateId: 'validation-candidate-' + '7'.repeat(64),
+      head: '8'.repeat(40),
+      stable: true,
+      changedFiles: ['scripts/a.js', 'scripts/b.js'],
+      dirtyIdentities: [{ path: 'scripts/a.js' }, { path: 'scripts/b.js' }]
+    }
+    const rolloverPlan = {
+      verificationLevel: 'V2', verificationPurpose: 'delivery',
+      affectedBoundaries: ['validation-control-plane'],
+      selectedNodes: [{ id: 'validation-dag' }], selectedNodeCount: 1,
+      budgetCard: {
+        heavyNodeIds: [], sideEffectCategories: [],
+        estimatedDurationMs: 1000, hardTimeoutUpperBoundMs: 5000, logBudgetBytes: 1024
+      }
+    }
+    const rollover = assessAutoRootRollover({
+      store: {
+        readLease: () => ({ status: 'missing', lease: null }),
+        readTerminal: () => ({ status: 'fresh', receipt: {
+          terminalStatus: 'failed',
+          completedAt: '2026-09-12T01:00:00.000Z',
+          authoritySourceRef: `budget-confirmation:${priorUserRoot.receiptDigest}`,
+          terminalDigest: '9'.repeat(64),
+          candidateHead: rolloverCandidate.head,
+          candidateId: 'validation-candidate-' + 'a'.repeat(64),
+          candidateChangedFiles: ['scripts/a.js'],
+          candidateChangedFilesTruncated: false,
+          runIdentity: { candidateDigest: 'b'.repeat(64) }
+        } }),
+        readRootBudgetProjection: () => ({ status: 'fresh', rootBudgetProjection: {
+          affectedBoundaries: [], selectedNodeIds: [], heavyNodeIds: [],
+          sideEffectCategories: [], selectedNodeCount: 0,
+          estimatedDurationMs: 0, hardTimeoutUpperBoundMs: 0, logBudgetBytes: 0
+        } }),
+        readContinuationAuthorization: () => ({ status: 'missing', continuationAuthorization: null })
+      },
+      currentRoot: { status: 'fresh', rootBudgetConfirmation: priorUserRoot },
+      plan: rolloverPlan,
+      candidate: rolloverCandidate,
+      control: freshAutoControl,
+      controlValidation: { valid: false, errors: ['validation-control-ingress-expired'] },
+      authorityContext: {
+        taskRecoveryKey: aiAuthority.taskRecoveryKey,
+        contextEpoch: 'ctx-current-auto-root',
+        taskState: { validationExecution: { revocationEpoch: 0 } }
+      },
+      repoRoot: tempRoot
+    })
+    assert.strictEqual(rollover.eligible, true)
+    assert.strictEqual(rollover.reasonCode, 'same-head-dirty-current-auto-rebind')
+    const persistedAutoRoot = {
+      ...priorUserRoot,
+      authorityKind: 'auto',
+      autoAuthorityRef: freshAutoControl.autoAuthorityRef,
+      sourceMessageDigest: freshAutoControl.sourceMessageDigest,
+      contextEpoch: 'ctx-current-auto-root'
+    }
+    const persistedAutoRollover = assessAutoRootRollover({
+      store: {
+        readLease: () => ({ status: 'missing', lease: null }),
+        readTerminal: () => ({ status: 'fresh', receipt: {
+          terminalStatus: 'completed',
+          completedAt: '2026-09-12T01:00:00.000Z',
+          authoritySourceRef: `budget-confirmation:${persistedAutoRoot.receiptDigest}`,
+          terminalDigest: 'c'.repeat(64),
+          candidateHead: rolloverCandidate.head,
+          candidateId: 'validation-candidate-' + 'd'.repeat(64),
+          candidateChangedFiles: ['scripts/a.js'],
+          candidateChangedFilesTruncated: false,
+          runIdentity: { candidateDigest: 'e'.repeat(64) }
+        } }),
+        readRootBudgetProjection: () => ({ status: 'fresh', rootBudgetProjection: {
+          affectedBoundaries: ['validation-control-plane'],
+          selectedNodeIds: ['checked-command'],
+          heavyNodeIds: [], sideEffectCategories: [], selectedNodeCount: 1,
+          estimatedDurationMs: 500, hardTimeoutUpperBoundMs: 5000, logBudgetBytes: 1024
+        } }),
+        readContinuationAuthorization: () => ({ status: 'missing', continuationAuthorization: null })
+      },
+      currentRoot: { status: 'fresh', rootBudgetConfirmation: persistedAutoRoot },
+      plan: rolloverPlan,
+      candidate: rolloverCandidate,
+      control: freshAutoControl,
+      controlValidation: { valid: false, errors: ['validation-control-ingress-expired'] },
+      authorityContext: {
+        taskRecoveryKey: aiAuthority.taskRecoveryKey,
+        contextEpoch: persistedAutoRoot.contextEpoch,
+        taskState: { validationExecution: { revocationEpoch: 0 } }
+      },
+      repoRoot: tempRoot
+    })
+    assert.strictEqual(persistedAutoRollover.eligible, true)
+    assert.strictEqual(persistedAutoRollover.reasonCode, 'same-head-dirty-same-auto-task-scope')
     assert.throws(() => resolveValidationAuthorityContext({
       actorType: 'ai-hook',
       options: {},
@@ -1007,6 +1193,10 @@ function run() {
         dependencies: ['repair-failure-seed']
       })
     ])
+    repairSeedManifest.nodeVerificationPolicies.overrides['repair-failure-seed'] = {
+      consumerEdgeType: 'releaseConsumer',
+      minimumLevel: 'V2'
+    }
     const repairSeedPlan = planValidation({
       manifest: repairSeedManifest,
       route: 'changed',
@@ -1040,6 +1230,31 @@ function run() {
       candidateId: 'fixture-repair-unknown',
       forcedNodeIds: ['missing-repair-node']
     }), error => error instanceof ValidationDagError && error.code === 'VALIDATION_REPAIR_NODE_UNKNOWN')
+
+    const reopenedFromTerminal = openRepairBatchForCommand({
+      candidate: {
+        stable: true,
+        candidateId: 'fixture-repair-current',
+        head: 'a'.repeat(40),
+        dirtyIdentities: []
+      },
+      convergenceState: null,
+      priorBaseline: {
+        stable: true,
+        candidateId: 'fixture-repair-baseline',
+        head: 'a'.repeat(40),
+        dirtyIdentities: []
+      },
+      durableTerminal: {
+        terminalStatus: 'failed',
+        nativeExitCode: 1,
+        failedNodes: ['repair-failure-seed'],
+        abortedNodes: ['repair-consumer']
+      },
+      issueIds: ['fixture-issue']
+    })
+    assert.deepStrictEqual(reopenedFromTerminal.failedNodeIds, ['repair-consumer', 'repair-failure-seed'])
+    assert.deepStrictEqual(reopenedFromTerminal.issueIds, ['fixture-issue'])
 
     const unresolvedBoundaryManifest = fixtureManifest([
       fixtureNode('unresolved-boundary-owner', { inputs: ['outside-boundary/**'] })

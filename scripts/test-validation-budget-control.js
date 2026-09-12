@@ -637,8 +637,8 @@ function main() {
     const planOnly = resolveAiBudgetAuthority({
       options: {}, plan: autoPlan, candidate, authorityContext: autoContext, activeRoot, execute: false
     })
-    assert.strictEqual(planOnly.decision, 'auto-ready-plan-only')
-    assert.strictEqual(planOnly.authority, null)
+    assert.strictEqual(planOnly.decision, 'auto-authorized-plan-only')
+    assert.strictEqual(planOnly.authority.authorityKind, 'auto')
     const autoStore = createValidationEvidenceStore({
       activeRoot,
       project: 'devcodex',
@@ -647,12 +647,12 @@ function main() {
       taskRecoveryKey: autoTaskId,
       sessionKey: autoSession
     })
-    assert.strictEqual(autoStore.readPendingBudgetCard().status, 'fresh')
-    assert.strictEqual(autoStore.readRootBudgetConfirmation().status, 'missing')
+    assert.strictEqual(autoStore.readPendingBudgetCard().status, 'missing')
+    assert.strictEqual(autoStore.readRootBudgetConfirmation().status, 'fresh')
     const autoExecution = resolveAiBudgetAuthority({
       options: {}, plan: autoPlan, candidate, authorityContext: autoContext, activeRoot, execute: true
     })
-    assert.strictEqual(autoExecution.decision, 'auto-authorized')
+    assert.strictEqual(autoExecution.decision, 'root-replay-or-reconcile')
     assert.strictEqual(autoExecution.plan.budgetCard.status, 'approved')
     assert.strictEqual(autoExecution.authority.authorityKind, 'auto')
     assert.strictEqual(autoStore.readPendingBudgetCard().status, 'missing')
@@ -950,6 +950,87 @@ function main() {
       authorityContext: thirdRepairContext, activeRoot, execute: true
     }), 'VALIDATION_CONTINUATION_RETRY_EXHAUSTED')
 
+    const staleOwnerTaskId = '00000000-0000-4000-8000-000000000345'
+    const staleOwnerSession = 'validation-stale-owner-session'
+    const staleOwnerControl = controlReceipt({
+      prompt: '@rocky 自动推进并回收过期验证所有者',
+      mode: 'auto',
+      sessionKey: staleOwnerSession,
+      taskId: staleOwnerTaskId,
+      contextEpoch,
+      suffix: 'stale-owner'
+    })
+    const staleOwnerSeed = seedTask({
+      activeRoot,
+      taskId: staleOwnerTaskId,
+      sessionKey: staleOwnerSession,
+      control: staleOwnerControl
+    })
+    const staleOwnerPlan = fixturePlan(staleOwnerTaskId, contextEpoch, 'stale-owner-root')
+    const staleOwnerCandidate = fixtureCandidate('stale-owner-root')
+    const staleOwnerExecution = resolveAiBudgetAuthority({
+      options: {},
+      plan: staleOwnerPlan,
+      candidate: staleOwnerCandidate,
+      authorityContext: authorityContext({
+        identity: staleOwnerSeed.identity,
+        sessionKey: staleOwnerSession,
+        contextEpoch,
+        control: staleOwnerControl
+      }),
+      activeRoot,
+      execute: true
+    })
+    const staleOwnerStore = createValidationEvidenceStore({
+      activeRoot,
+      project: 'devcodex',
+      actorType: 'ai-hook',
+      taskIdentity: staleOwnerSeed.identity,
+      taskRecoveryKey: staleOwnerTaskId,
+      sessionKey: staleOwnerSession
+    })
+    const expiredOwnerLease = createVerificationExecutionLease({
+      actorType: 'ai-hook',
+      authorityClass: 'scoped',
+      actorIdentityEvidence: { fixtureActor: 'ai-hook' },
+      repoRoot: REPO_ROOT,
+      plan: staleOwnerExecution.plan,
+      candidate: staleOwnerCandidate,
+      project: 'devcodex',
+      taskRecoveryKey: staleOwnerTaskId,
+      contextEpoch,
+      authoritySourceRef: `budget-confirmation:${staleOwnerExecution.authority.receiptDigest}`,
+      sourceMessageDigest: staleOwnerControl.sourceMessageDigest,
+      revocationEpoch: 0
+    }, { nowMs: NOW - 2000000 })
+    assert(['committed', 'semantic-noop'].includes(staleOwnerStore.writeLease(expiredOwnerLease).status))
+    assert.strictEqual(staleOwnerStore.readLease().status, 'stale')
+    const staleReplacementPlan = fixturePlan(staleOwnerTaskId, contextEpoch, 'stale-owner-replacement')
+    const staleReplacementCandidate = fixtureCandidate('stale-owner-replacement')
+    const staleReplacementPending = createPendingBudgetCardBinding({
+      plan: staleReplacementPlan,
+      candidate: staleReplacementCandidate,
+      repoRoot: REPO_ROOT,
+      project: 'devcodex',
+      taskRecoveryKey: staleOwnerTaskId,
+      hostSessionDigest: staleOwnerControl.hostSessionDigest,
+      contextEpoch,
+      stateRevision: 1
+    })
+    assert(['committed', 'semantic-noop'].includes(staleOwnerStore.writePendingBudgetCard(staleReplacementPending).status))
+    const staleReplacementReceipt = createBudgetConfirmationReceipt({
+      pendingBudgetCard: staleReplacementPending,
+      authorityKind: 'auto',
+      autoAuthorityRef: staleOwnerControl.autoAuthorityRef,
+      revocationEpoch: 0
+    }, { serverOwnedAutoAuthorityRef: staleOwnerControl.autoAuthorityRef })
+    const staleReplacementWrite = staleOwnerStore.writeRootBudgetConfirmation(staleReplacementReceipt, {
+      expectedRootReceiptDigest: staleOwnerExecution.authority.receiptDigest,
+      rootBudgetProjection: planBudgetProjection(staleReplacementPlan)
+    })
+    assert(['committed', 'semantic-noop'].includes(staleReplacementWrite.status), JSON.stringify(staleReplacementWrite))
+    assert.strictEqual(staleOwnerStore.readLease().status, 'missing')
+
     // A terminal failed root remains immutable, but a later committed strict
     // descendant may start one new same-scope Auto root.  This is the bounded
     // long-task rollover path: no live lease, no branch rewrite, no V2 scope or
@@ -1071,7 +1152,7 @@ function main() {
       execute: false,
       gitRepoRoot: rolloverGitRoot
     })
-    assert.strictEqual(rolloverPreview.decision, 'auto-root-rollover-plan-only')
+    assert.strictEqual(rolloverPreview.decision, 'auto-root-rollover-authorized-plan-only')
     const rolloverExecution = resolveAiBudgetAuthority({
       options: { nowMs: NOW + 2000 },
       plan: rolloverNextPlan,
@@ -1081,7 +1162,7 @@ function main() {
       execute: true,
       gitRepoRoot: rolloverGitRoot
     })
-    assert.strictEqual(rolloverExecution.decision, 'auto-root-rollover-authorized')
+    assert.strictEqual(rolloverExecution.decision, 'root-replay-or-reconcile')
     assert.strictEqual(rolloverExecution.authority.parentRootReceiptDigest, rolloverRoot.authority.receiptDigest)
     assert.match(rolloverExecution.authority.parentTerminalDigest, /^[a-f0-9]{64}$/)
     assert.strictEqual(rolloverExecution.authority.rootRolloverReason, 'strict-descendant-same-scope')
@@ -1123,7 +1204,7 @@ function main() {
       execute: false,
       gitRepoRoot: rolloverGitRoot
     })
-    assert.strictEqual(completedRolloverPreview.decision, 'auto-root-rollover-plan-only')
+    assert.strictEqual(completedRolloverPreview.decision, 'auto-root-rollover-authorized-plan-only')
     const completedRolloverExecution = resolveAiBudgetAuthority({
       options: { nowMs: NOW + 3000 },
       plan: completedRolloverPlan,
@@ -1133,7 +1214,7 @@ function main() {
       execute: true,
       gitRepoRoot: rolloverGitRoot
     })
-    assert.strictEqual(completedRolloverExecution.decision, 'auto-root-rollover-authorized')
+    assert.strictEqual(completedRolloverExecution.decision, 'root-replay-or-reconcile')
     assert.strictEqual(completedRolloverExecution.authority.parentRootReceiptDigest,
       rolloverExecution.authority.receiptDigest)
     assert.match(completedRolloverExecution.authority.parentTerminalDigest, /^[a-f0-9]{64}$/)
@@ -1235,7 +1316,7 @@ function main() {
       execute: false,
       gitRepoRoot: rolloverGitRoot
     })
-    assert.strictEqual(reboundPreview.decision, 'auto-root-rollover-plan-only')
+    assert.strictEqual(reboundPreview.decision, 'auto-root-rollover-authorized-plan-only')
     const reboundExecution = resolveAiBudgetAuthority({
       options: { nowMs: NOW + 1500 },
       plan: reboundNextPlan,
@@ -1245,7 +1326,7 @@ function main() {
       execute: true,
       gitRepoRoot: rolloverGitRoot
     })
-    assert.strictEqual(reboundExecution.decision, 'auto-root-rollover-authorized')
+    assert.strictEqual(reboundExecution.decision, 'root-replay-or-reconcile')
     assert.strictEqual(
       reboundExecution.authority.rootRolloverReason,
       'strict-descendant-exact-scope-current-auto-rebind'
@@ -1401,7 +1482,7 @@ function main() {
       execute: false,
       gitRepoRoot: rolloverGitRoot
     })
-    assert.strictEqual(rescopePreview.decision, 'auto-root-rollover-plan-only')
+    assert.strictEqual(rescopePreview.decision, 'auto-root-rollover-authorized-plan-only')
     const rescopeExecution = resolveAiBudgetAuthority({
       options: { nowMs: NOW + 2000 },
       plan: currentRescopePlan,
@@ -1411,7 +1492,7 @@ function main() {
       execute: true,
       gitRepoRoot: rolloverGitRoot
     })
-    assert.strictEqual(rescopeExecution.decision, 'auto-root-rollover-authorized')
+    assert.strictEqual(rescopeExecution.decision, 'root-replay-or-reconcile')
     assert.strictEqual(rescopeExecution.authority.rootRolloverReason, 'strict-descendant-current-auto-rescope')
     assert.strictEqual(rescopeExecution.authority.parentRootReceiptDigest, rescopeRoot.authority.receiptDigest)
     assert.notStrictEqual(rescopeExecution.authority.autoAuthorityRef, rescopeRoot.authority.autoAuthorityRef)
@@ -1662,7 +1743,7 @@ function main() {
       execute: false,
       gitRepoRoot: rolloverGitRoot
     })
-    assert.strictEqual(sameHeadPreview.decision, 'auto-root-rollover-plan-only')
+    assert.strictEqual(sameHeadPreview.decision, 'auto-root-rollover-authorized-plan-only')
     const sameHeadExecution = resolveAiBudgetAuthority({
       options: { nowMs: NOW + 2000 },
       plan: currentSameHeadPlan,
@@ -1672,7 +1753,7 @@ function main() {
       execute: true,
       gitRepoRoot: rolloverGitRoot
     })
-    assert.strictEqual(sameHeadExecution.decision, 'auto-root-rollover-authorized')
+    assert.strictEqual(sameHeadExecution.decision, 'root-replay-or-reconcile')
     assert.strictEqual(sameHeadExecution.authority.rootRolloverReason, 'same-head-dirty-current-auto-rebind')
     assert.strictEqual(sameHeadExecution.authority.rootRolloverOrdinal, 1)
     assert.strictEqual(sameHeadExecution.authority.parentRootReceiptDigest, sameHeadRoot.authority.receiptDigest)
@@ -1869,7 +1950,7 @@ function main() {
       execute: false,
       gitRepoRoot: rolloverGitRoot
     })
-    assert.strictEqual(sameAutoPreview.decision, 'auto-root-rollover-plan-only')
+    assert.strictEqual(sameAutoPreview.decision, 'auto-root-rollover-authorized-plan-only')
     let sameAutoExecution = resolveAiBudgetAuthority({
       options: { nowMs: NOW + (20 * 60 * 1000) },
       plan: sameAutoExactPlan,
@@ -1879,7 +1960,7 @@ function main() {
       execute: true,
       gitRepoRoot: rolloverGitRoot
     })
-    assert.strictEqual(sameAutoExecution.decision, 'auto-root-rollover-authorized')
+    assert.strictEqual(sameAutoExecution.decision, 'root-replay-or-reconcile')
     assert.strictEqual(sameAutoExecution.authority.rootRolloverReason,
       'same-head-dirty-same-auto-exact-scope')
     assert.strictEqual(sameAutoExecution.authority.rootRolloverOrdinal, 1)
@@ -1896,6 +1977,19 @@ function main() {
     }
     assert(validateBudgetConfirmationReceipt(sameAutoMissingOrdinal).errors
       .includes('budget-confirmation-rollover-ordinal-required'))
+    const sameAutoTaskScopeSemantic = {
+      ...sameAutoExecution.authority,
+      rootRolloverReason: 'same-head-dirty-same-auto-task-scope'
+    }
+    delete sameAutoTaskScopeSemantic.confirmationId
+    delete sameAutoTaskScopeSemantic.receiptDigest
+    const sameAutoTaskScopeDigest = sha256(stableStringify(sameAutoTaskScopeSemantic))
+    const sameAutoTaskScopeReceipt = {
+      ...sameAutoTaskScopeSemantic,
+      receiptDigest: sameAutoTaskScopeDigest,
+      confirmationId: `budget-confirmation-${sameAutoTaskScopeDigest}`
+    }
+    assert.strictEqual(validateBudgetConfirmationReceipt(sameAutoTaskScopeReceipt).valid, true)
 
     let sameAutoChainPaths = sameAutoChildPaths
     let sameAutoChainCandidate = sameAutoChildCandidate

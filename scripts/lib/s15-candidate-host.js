@@ -316,6 +316,10 @@ function prepareCandidateHostRuntime (options = {}) {
     env,
     home,
     hosts: [hostId],
+    // Candidate evidence must exercise one immutable generation end to end.
+    // A live source overlay would let MCP workers observe the source checkout
+    // while the patched candidate Hook intentionally executes the generation.
+    runtimeSourceMode: 'immutable-generation',
     ignoreExistingReceipts: true,
     fs: fsImpl
   })

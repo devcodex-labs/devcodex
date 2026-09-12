@@ -688,7 +688,7 @@ function buildLifecycleProjectTargetUtils({
       return grant
     } catch (error) {
       state.taskScopedAutoStatus = {
-        status: 'reconfirm-required',
+        status: 'intent-reevaluation-required',
         reason: String(error.code || 'task-scoped-auto-grant-invalid')
       }
       return null
@@ -700,7 +700,7 @@ function buildLifecycleProjectTargetUtils({
     if (!grant) return null
     const base = validateTaskScopedAutoContinuationGrant(grant)
     if (!base.valid) {
-      state.taskScopedAutoStatus = { status: 'reconfirm-required', reason: 'grant-invalid' }
+      state.taskScopedAutoStatus = { status: 'intent-reevaluation-required', reason: 'grant-invalid' }
       return null
     }
     const binding = formalTaskAutoBinding(state)
@@ -711,13 +711,13 @@ function buildLifecycleProjectTargetUtils({
       if (grant.status === 'active') {
         state.taskScopedAutoContinuationGrant = transitionTaskScopedAutoContinuationGrant(
           grant,
-          'reconfirm-required',
+          'intent-reevaluation-required',
           { reason: expected.errors.join(',') || 'task-root-binding-drift' }
         )
       }
       state.autoCheckpointDecision = null
       state.taskScopedAutoStatus = {
-        status: 'reconfirm-required',
+        status: 'intent-reevaluation-required',
         reason: expected.errors.join(',') || 'task-root-binding-drift'
       }
       return null
@@ -880,15 +880,15 @@ function buildLifecycleProjectTargetUtils({
             'ExecutionModeV1: auto',
             '自动续批：已读取当前正式任务的 TaskScopedAutoContinuationGrantV1；授权不依赖 session 或 TTL。',
             `grantDigest=${grant.grantDigest}`,
-            '每个 CP 仍须独立冻结候选并生成 AutoCheckpointDecisionV1；只有范围未扩张、风险未增加、无排除副作用且 R3/R4 复审通过才可自动确认。',
-            '按当前任务已确认的目标、范围和排除项继续；未获授权的范围扩张才需确认。既有删除、验证、安装或发布授权继续有效；宿主权限不受本授权影响。',
+            '每个 CP 仍须独立冻结候选并生成 AutoCheckpointDecisionV1；变化先返回结构化意图重算，任何下游检查都不能直接要求用户重复确认。',
+            '按当前任务已确认的目标、范围和排除项继续；重算后仍在任务授权内则继续，新增外部动作按结构化意图与动作授权处理。宿主权限不受本授权影响。',
             '可用“退出自动模式”撤销。'
           ].join(' | ')
         : [
             'ExecutionModeV1: auto',
             'Task-scoped automatic continuation is active from TaskScopedAutoContinuationGrantV1 and is independent of session TTL.',
             `grantDigest=${grant.grantDigest}`,
-            'Each CP still requires a distinct AutoCheckpointDecisionV1; scope/risk growth or excluded side effects require reconfirmation, and host permissions are unchanged.'
+            'Each CP still requires a distinct AutoCheckpointDecisionV1; scope or risk changes return to structured intent evaluation and cannot directly request user reconfirmation. Host permissions are unchanged.'
           ].join(' | ')
     }
     if (mode === EXECUTION_MODE.AUTO) {
@@ -904,8 +904,8 @@ function buildLifecycleProjectTargetUtils({
     if (grant && grant.status !== 'active') {
       const reason = state?.taskScopedAutoStatus?.reason || grant.statusReason || grant.status
       return zh
-        ? `ExecutionModeV1: confirm | 自动续批需要重新确认：${reason}。当前授权不会自动覆盖任务/root、范围、风险或排除项变化。`
-        : `ExecutionModeV1: confirm | Task-scoped automatic continuation requires reconfirmation: ${reason}.`
+        ? `ExecutionModeV1: confirm | 自动续批已暂停并需要重新结构化意图：${reason}。本状态不构成用户确认请求。`
+        : `ExecutionModeV1: confirm | Automatic continuation is paused pending structured intent reevaluation: ${reason}. This is not a user confirmation request.`
     }
     return [
       'ExecutionModeV1: confirm',

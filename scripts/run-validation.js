@@ -44,7 +44,6 @@ const {
   buildQualificationIdentity,
   canCompleteRepairQualification,
   completeRepairBatch,
-  createSuccessfulQualification,
   freezeRepairBatch,
   openRepairBatch,
   qualificationReuseDecision,
@@ -58,15 +57,20 @@ const {
 const {
   resolveActiveRuntimeRoot
 } = require('../hooks/_runtime/workspace-layout.cjs')
+const {
+  readContextPlanObservation
+} = require('../hooks/_runtime/context-plan-observation.cjs')
 const { digestSessionRef } = require('../hooks/_runtime/workspace-session-route-index-v1.cjs')
 const { resolveExecutionFeatureDecisionForCwd } = require('../hooks/_runtime/execution-optimization-routing.cjs')
 const {
   readTaskRecoveryState,
-  resolveTaskRecoveryMetaDir
+  resolveTaskRecoveryMetaDir,
+  validateTaskScopedAutoContinuationGrant
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const {
   VERIFICATION_LEVELS,
   VERIFICATION_PURPOSES,
+  createValidationControlIngressReceipt,
   validateValidationControlIngressReceipt,
   validationProjectRootIdentity
 } = require('../hooks/_runtime/workflow-completion-contract.cjs')
@@ -502,8 +506,66 @@ function directActorIdentityEvidence(actorType, env = process.env) {
   }
 }
 
+function resolveObservedSemanticValidationControl({
+  activeRoot,
+  contextEpoch,
+  recovered,
+  currentControl,
+  readContextObservation = readContextPlanObservation,
+  nowMs = Date.now()
+}) {
+  if (currentControl?.action === 'revoke') return currentControl
+  const envelope = recovered.state?.actualInstructionEnvelope
+  if (!envelope || envelope.contextEpoch !== contextEpoch) return currentControl
+  let observed
+  try {
+    observed = readContextObservation({
+      activeRoot,
+      project: 'devcodex',
+      contextEpoch,
+      nowMs
+    })
+  } catch {
+    return currentControl
+  }
+  if (observed?.status !== 'fresh') return currentControl
+  const semanticDecision = (observed.originalPlan || observed.plan)?.semanticDecision
+  if (!semanticDecision) return currentControl
+  const projectRootIdentity = currentControl?.projectRootIdentity ||
+    recovered.state?.stickyProject?.projectRootIdentity || null
+  if (!projectRootIdentity) return currentControl
+  const taskGrant = recovered.state?.taskScopedAutoContinuationGrant || null
+  const taskGrantValidation = validateTaskScopedAutoContinuationGrant(taskGrant, {
+    taskId: recovered.identity.taskId,
+    project: 'devcodex',
+    projectRootIdentityDigest: recovered.state?.admissionTransaction?.projectRootIdentityDigest
+  })
+  const executionDecision = semanticDecision.executionDecision
+  const durableTaskAuto = taskGrantValidation.valid && taskGrant?.status === 'active' &&
+    !['disable-auto', 'confirm'].includes(executionDecision)
+  const executionMode = executionDecision === 'enable-auto' || durableTaskAuto
+    ? 'auto'
+    : (executionDecision === 'disable-auto' || executionDecision === 'confirm'
+        ? 'confirm'
+        : (currentControl?.executionMode || 'confirm'))
+  try {
+    return createValidationControlIngressReceipt({
+      actualInstructionEnvelope: envelope,
+      semanticDecision,
+      executionMode,
+      taskRecoveryKey: recovered.identity.taskId,
+      project: 'devcodex',
+      projectRootIdentity,
+      ...(durableTaskAuto ? { issuedAt: new Date(nowMs).toISOString() } : {})
+    }, { now: nowMs })
+  } catch {
+    return currentControl
+  }
+}
+
 function resolveValidationAuthorityContext({ actorType, options, activeRoot, env = process.env,
-  readTaskState = readTaskRecoveryState }) {
+  readTaskState = readTaskRecoveryState, readContextObservation = readContextPlanObservation,
+  nowMs = Date.now() }) {
   const context = {
     authoritySourceRef: options.authoritySourceRef || env.DEVCODEX_VALIDATION_AUTHORITY_SOURCE || null,
     contextEpoch: options.contextEpoch || env.DEVCODEX_CONTEXT_EPOCH || null,
@@ -563,7 +625,14 @@ function resolveValidationAuthorityContext({ actorType, options, activeRoot, env
   context.taskRecoveryKey = resolvedTaskKey
   context.taskIdentity = recovered.identity
   context.taskState = recovered.state || null
-  context.validationControlIngress = recovered.state?.validationControlIngress || null
+  context.validationControlIngress = resolveObservedSemanticValidationControl({
+    activeRoot,
+    contextEpoch: context.contextEpoch,
+    recovered,
+    currentControl: recovered.state?.validationControlIngress || null,
+    readContextObservation,
+    nowMs
+  })
   const control = context.validationControlIngress
   if (control?.sourceMessageDigest) {
     if (context.sourceMessageDigest && context.sourceMessageDigest !== control.sourceMessageDigest) {
@@ -633,7 +702,7 @@ function resolvePendingBudgetPlanIdentity({ actorType, authorityContext, candida
 function formalTaskPreflightNextAction(error) {
   const code = String(error?.code || '')
   if (code.includes('CP_DRIFT')) {
-    return '重新读取当前 CP2/CP3 产物，修复或重新确认漂移的 CP 摘要后，再生成验证卡。'
+    return '重新读取当前 CP2/CP3 产物，修复漂移并返回结构化意图重算后，再生成验证卡。'
   }
   if (code.includes('PROJECT_ROOT') || code.includes('TASK_BINDING') || code.includes('IDENTITY')) {
     return '重新解析并绑定唯一正式任务及当前项目根，然后再生成验证卡。'
@@ -912,18 +981,24 @@ function assessAutoRootRollover({
   repoRoot = ROOT
 }) {
   const root = currentRoot?.rootBudgetConfirmation
-  if (!root || control?.action !== 'auto-authorize' || root.authorityKind !== 'auto') {
+  if (!root || control?.action !== 'auto-authorize') {
     return { eligible: false, reasonCode: 'auto-root-rollover-authority-missing' }
   }
-  const sameAutoBinding = root.autoAuthorityRef === control.autoAuthorityRef &&
+  const sameAutoBinding = root.authorityKind === 'auto' &&
+    root.autoAuthorityRef === control.autoAuthorityRef &&
     root.contextEpoch === authorityContext.contextEpoch
-  const freshCurrentAutoRebind = controlValidation?.valid === true
+  const currentAutoRebind = controlValidation?.valid === true ||
+    (Array.isArray(controlValidation?.errors) && controlValidation.errors.length === 1 &&
+      controlValidation.errors[0] === 'validation-control-ingress-expired')
+  if (root.authorityKind !== 'auto' && !currentAutoRebind) {
+    return { eligible: false, reasonCode: 'auto-root-rollover-authority-missing' }
+  }
   if (root.taskRecoveryKey !== authorityContext.taskRecoveryKey ||
       root.project !== 'devcodex' ||
       root.hostSessionDigest !== control.hostSessionDigest ||
       root.projectRootIdentity?.digest !== control.projectRootIdentity?.digest ||
       root.revocationEpoch !== currentValidationRevocationEpoch(authorityContext) ||
-      (!sameAutoBinding && !freshCurrentAutoRebind)) {
+      (!sameAutoBinding && !currentAutoRebind)) {
     return { eligible: false, reasonCode: 'auto-root-rollover-binding-mismatch' }
   }
   const lease = store.readLease()
@@ -951,9 +1026,11 @@ function assessAutoRootRollover({
   const controlIssuedAtMs = Date.parse(String(control.issuedAt || ''))
   const terminalCompletedAtMs = Date.parse(String(terminal.completedAt || ''))
   // A distinct user Auto turn after the parent terminal is new exact-card
-  // authority, not a continuation.  It may bind the current V2 impact scope;
-  // same/expired Auto authority remains constrained to the immutable root.
-  const currentAutoRescope = freshCurrentAutoRebind && !sameAutoBinding &&
+  // authority, not a continuation. It may bind the current V2 impact scope.
+  // A persisted task Auto root may also follow a bounded, content-proven repair
+  // successor after the ingress TTL expires; the task/root/revocation and V2
+  // boundary contract still remain immutable.
+  const currentAutoRescope = currentAutoRebind && !sameAutoBinding &&
     control.autoAuthorityRef !== root.autoAuthorityRef &&
     control.sourceMessageDigest !== root.sourceMessageDigest &&
     authorityContext.contextEpoch !== root.contextEpoch &&
@@ -972,8 +1049,12 @@ function assessAutoRootRollover({
     Number(budget.estimatedDurationMs || 0) === Number(projection.estimatedDurationMs || 0) &&
     Number(budget.hardTimeoutUpperBoundMs || 0) === Number(projection.hardTimeoutUpperBoundMs || 0) &&
     Number(budget.logBudgetBytes || 0) === Number(projection.logBudgetBytes || 0)
+  const sameTaskScope = plan.verificationLevel === root.maxLevel &&
+    plan.verificationPurpose === root.purpose &&
+    isSameSet(plan.affectedBoundaries, projection.affectedBoundaries) &&
+    isSubset(budget.sideEffectCategories || [], projection.sideEffectCategories || [])
   const strictGitDescendant = isStrictGitDescendant(repoRoot, terminal.candidateHead, candidate.head)
-  if (!strictGitDescendant && sameAutoBinding && !exactScope) {
+  if (!strictGitDescendant && sameAutoBinding && !sameTaskScope) {
     return { eligible: false, reasonCode: 'auto-root-rollover-scope-changed' }
   }
   const sameHeadSuccessor = !strictGitDescendant && (currentAutoRescope || sameAutoBinding)
@@ -984,14 +1065,14 @@ function assessAutoRootRollover({
     Math.max(1, Math.ceil(sameHeadSuccessor.parentChangedFiles.length / 4))
   )
   const sameHeadCurrentAutoSuccessor = currentAutoRescope && sameHeadSuccessor.proven
-  const sameHeadSameAutoSuccessor = sameAutoBinding && exactScope && sameHeadSuccessor.proven &&
+  const sameHeadSameAutoSuccessor = sameAutoBinding && sameTaskScope && sameHeadSuccessor.proven &&
     sameHeadSuccessor.addedFiles.length > 0 &&
     sameHeadSuccessor.addedFiles.length <= sameAutoAddedPathLimit
   if (!strictGitDescendant && !sameHeadCurrentAutoSuccessor && !sameHeadSameAutoSuccessor) {
     let reasonCode = 'auto-root-rollover-head-not-descendant'
-    if (currentAutoRescope || (sameAutoBinding && exactScope)) {
+    if (currentAutoRescope || (sameAutoBinding && sameTaskScope)) {
       reasonCode = 'auto-root-rollover-same-head-candidate-unproven'
-      if (sameHeadSuccessor.proven && sameAutoBinding && exactScope) {
+      if (sameHeadSuccessor.proven && sameAutoBinding && sameTaskScope) {
         reasonCode = sameHeadSuccessor.addedFiles.length === 0
           ? 'auto-root-rollover-same-auto-path-delta-required'
           : 'auto-root-rollover-same-auto-path-delta-exceeded'
@@ -999,7 +1080,7 @@ function assessAutoRootRollover({
     }
     return { eligible: false, reasonCode }
   }
-  if (!exactScope && !currentAutoRescope) {
+  if (!exactScope && !currentAutoRescope && !sameHeadSameAutoSuccessor) {
     return { eligible: false, reasonCode: 'auto-root-rollover-scope-changed' }
   }
   const parentRolloverOrdinal = Number.isInteger(root.rootRolloverOrdinal)
@@ -1014,7 +1095,9 @@ function assessAutoRootRollover({
   return {
     eligible: true,
     reasonCode: sameHeadSameAutoSuccessor
-      ? 'same-head-dirty-same-auto-exact-scope'
+      ? (exactScope
+          ? 'same-head-dirty-same-auto-exact-scope'
+          : 'same-head-dirty-same-auto-task-scope')
       : (sameHeadCurrentAutoSuccessor
           ? 'same-head-dirty-current-auto-rebind'
       : (exactScope
@@ -1594,13 +1677,34 @@ function resolveAiBudgetAuthority({
         throw new ValidationDagError(previewWrite.errorCode || 'VALIDATION_BUDGET_CONFIRMATION_CAS_CONFLICT',
           'failed to persist the exact Auto BudgetCard preview', previewWrite)
       }
+      const receipt = createBudgetConfirmationReceipt({
+        pendingBudgetCard: previewPending,
+        authorityKind: 'auto',
+        autoAuthorityRef: control.autoAuthorityRef,
+        ...(rootRollover.eligible
+          ? {
+              parentRootReceiptDigest: rootRollover.parentRootReceiptDigest,
+              parentTerminalDigest: rootRollover.parentTerminalDigest,
+              rootRolloverReason: rootRollover.reasonCode,
+              rootRolloverOrdinal: rootRollover.rootRolloverOrdinal
+            }
+          : {}),
+        revocationEpoch
+      }, { serverOwnedAutoAuthorityRef: control.autoAuthorityRef })
+      const rootWrite = store.writeRootBudgetConfirmation(receipt, {
+        expectedRootReceiptDigest: currentRoot.rootBudgetConfirmation?.receiptDigest || null,
+        rootBudgetProjection: planBudgetProjection(plan)
+      })
+      if (!acceptedValidationStateWrite(rootWrite.status)) {
+        throw new ValidationDagError(rootWrite.errorCode || 'VALIDATION_BUDGET_CONFIRMATION_CAS_CONFLICT',
+          'failed to persist and read back the server-owned Auto BudgetCard receipt', rootWrite)
+      }
       return {
-        plan,
-        authority: null,
+        plan: approvePlanFromBudgetAuthority(plan, receipt),
+        authority: receipt,
         store,
         control,
-        pending: previewPending,
-        decision: rootRollover.eligible ? 'auto-root-rollover-plan-only' : 'auto-ready-plan-only'
+        decision: rootRollover.eligible ? 'auto-root-rollover-authorized-plan-only' : 'auto-authorized-plan-only'
       }
     }
     const continuation = currentRoot.status === 'fresh'
@@ -1807,6 +1911,42 @@ function readConvergenceValue(store, method, valueKey) {
   return { read, value: read.status === 'fresh' ? read[valueKey] : null }
 }
 
+function recoverExecutedQualification({ store, executionReceipt, candidate, plan, nowMs = Date.now() }) {
+  const runIdentityDigest = String(
+    executionReceipt?.runIdentityDigest || executionReceipt?.runIdentity?.runIdentityDigest || ''
+  )
+  if (!store || !DIGEST_RE.test(runIdentityDigest)) {
+    throw new ValidationConvergenceError(
+      'VALIDATION_QUALIFICATION_TERMINAL_READBACK_INVALID',
+      'successful qualification requires a task-bound terminal readback'
+    )
+  }
+  const terminalRead = store.readTerminal(runIdentityDigest)
+  const terminal = terminalRead.status === 'fresh' ? terminalRead.receipt : null
+  if (!terminal || terminal.runIdentityDigest !== runIdentityDigest ||
+      terminal.runId !== executionReceipt.runId) {
+    throw new ValidationConvergenceError(
+      'VALIDATION_QUALIFICATION_TERMINAL_READBACK_INVALID',
+      'persisted terminal does not match the completed validation execution',
+      { terminalStatus: terminalRead.status, runIdentityDigest }
+    )
+  }
+  const recovered = recoverQualificationFromSuccessfulTerminal({
+    candidate,
+    plan,
+    terminal,
+    nowMs
+  })
+  if (!recovered.recoverable) {
+    throw new ValidationConvergenceError(
+      'VALIDATION_QUALIFICATION_TERMINAL_READBACK_INVALID',
+      'persisted terminal cannot qualify the completed validation execution',
+      { reasonCode: recovered.reasonCode, runIdentityDigest }
+    )
+  }
+  return recovered.qualification
+}
+
 function assertConvergenceWrite(write, fallbackCode) {
   if (!acceptedValidationStateWrite(write?.status)) {
     throw new ValidationDagError(write?.errorCode || fallbackCode, 'failed to persist validation repair convergence state', write)
@@ -1829,6 +1969,27 @@ function convergenceProjection(state, qualification = null) {
     qualificationDigest: qualification?.qualificationDigest || state?.qualificationDigest || null,
     qualificationExpiresAt: qualification?.expiresAt || null
   }
+}
+
+function openRepairBatchForCommand({ candidate, convergenceState, priorBaseline, durableTerminal, issueIds = [] }) {
+  const failedTerminal = durableTerminal &&
+    durableTerminal.terminalStatus !== 'completed' &&
+    durableTerminal.nativeExitCode !== 0
+  if (failedTerminal) {
+    return reopenRepairBatchAfterFailure({
+      state: convergenceState,
+      candidate,
+      receipt: durableTerminal,
+      baselineCandidate: priorBaseline,
+      issueIds
+    })
+  }
+  return openRepairBatch({
+    candidate,
+    baselineCandidate: priorBaseline,
+    priorState: convergenceState?.phase === 'batch-open' ? convergenceState : null,
+    issueIds
+  })
 }
 
 /** Keeps every non-open repair phase bound to the exact frozen repair frontier. */
@@ -2027,10 +2188,11 @@ async function main(argv = process.argv.slice(2)) {
       : (usableConvergenceState?.frozenCandidate ||
           (qualificationValidation.valid ? lastSuccessfulQualification.candidateSnapshot : candidate))
     if (options.repairBatchAction === 'open') {
-      const nextState = openRepairBatch({
+      const nextState = openRepairBatchForCommand({
         candidate,
-        baselineCandidate: priorBaseline,
-        priorState: usableConvergenceState?.phase === 'batch-open' ? usableConvergenceState : null,
+        convergenceState: usableConvergenceState,
+        priorBaseline,
+        durableTerminal,
         issueIds: options.repairIssues
       })
       const write = assertConvergenceWrite(convergenceStore.writeRepairConvergence(nextState, {
@@ -2296,8 +2458,8 @@ async function main(argv = process.argv.slice(2)) {
         if (plan.budgetCard.nextStep) process.stdout.write('Budget next: ' + plan.budgetCard.nextStep + '\n')
         if (budgetAuthorityResolution.decision === 'validation-successor-authorized-plan-only') {
           process.stdout.write('Budget authorization: the confirmed scope was safely carried forward to the refreshed card; planning executed no validation nodes.\n')
-        } else if (budgetAuthorityResolution.successorDecision?.decision === 'reconfirm-required') {
-          process.stdout.write('Budget authorization: the refreshed card needs confirmation because ' +
+        } else if (['intent-reevaluation-required', 'reconfirm-required'].includes(budgetAuthorityResolution.successorDecision?.decision)) {
+          process.stdout.write('Budget authorization: the refreshed card requires structured intent reevaluation because ' +
             budgetAuthorityResolution.successorDecision.blockers.join(', ') + '.\n')
         }
         if (plan.executionBlockers.length) process.stdout.write('Blockers: ' +
@@ -2393,11 +2555,11 @@ async function main(argv = process.argv.slice(2)) {
         convergenceState = reopened
         qualificationDecision = 'repair-batch-reopened'
       } else {
-        const qualificationIdentity = buildQualificationIdentity({ candidate, plan })
-        const qualification = createSuccessfulQualification({
-          identity: qualificationIdentity,
+        const qualification = recoverExecutedQualification({
+          store: convergenceStore,
+          executionReceipt: execution.receipt,
           candidate,
-          receipt: execution.receipt
+          plan
         })
         if (canCompleteRepairQualification(currentState, plan.verificationLevel)) {
           const completedState = completeRepairBatch({ state: currentState, qualification })
@@ -2477,14 +2639,18 @@ module.exports = {
   envelope,
   expectedCiPolicyDigest,
   main,
+  openRepairBatchForCommand,
   parseArgs,
   projectValidationExecutionForCli,
+  recoverExecutedQualification,
   resolveAiBudgetAuthority,
+  assessAutoRootRollover,
   resolvePendingBudgetPlanIdentity,
   resolveFormalTaskExecutionPreflight,
   resolveValidationBudgetAuthority,
   resolveValidationConvergenceDecision,
   resolveRepairPlanScope,
+  resolveObservedSemanticValidationControl,
   resolveValidationAuthorityContext,
   resolveActorType,
   validationExecutionError

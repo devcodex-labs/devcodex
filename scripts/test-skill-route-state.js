@@ -1658,6 +1658,14 @@ try {
       fs.readFileSync(rebindLifecyclePath, 'utf8')
     )
     staleLifecycle.contextAcquisition.receipt.status = 'stale'
+    staleLifecycle.contextAcquisition.receipt.escalations = [{
+      trigger: 'compact', reason: 'compact', observedAt: new Date().toISOString(), action: 'replan-required'
+    }]
+    staleLifecycle.contextAcquisition.receipt.lastError = {
+      schemaVersion: 'ContextReadErrorV1', errorCode: 'CONTEXT_PLAN_INVALID',
+      message: 'Context receipt is stale: compact.', nextStep: 'Refresh context.'
+    }
+    staleLifecycle.contextAcquisition.lastError = { message: 'A later operation requires a completed receipt.' }
     fs.writeFileSync(
       rebindLifecyclePath,
       `${JSON.stringify(staleLifecycle, null, 2)}\n`,
@@ -1677,6 +1685,9 @@ try {
     assert.strictEqual(recoverableStop.nextCall.planDigest, firstCommit.receipt.plan.planDigest)
     assert.strictEqual(recoverableStop.recovery.schemaVersion, 'SkillRouteContextRecoveryV1')
     assert.strictEqual(recoverableStop.recovery.reasonCode, 'receipt-status-stale')
+    assert.strictEqual(recoverableStop.recovery.observed.invalidation.trigger, 'compact')
+    assert.strictEqual(recoverableStop.recovery.observed.invalidation.reason, 'compact')
+    assert.strictEqual(recoverableStop.recovery.observed.lastError.message, 'Context receipt is stale: compact.')
     assert.strictEqual(recoverableStop.recovery.nextOperation.rebind.op, 'rebind')
     const foreignSessionStop = evaluateProgressiveSkillRouteStop({
       project: rebindFixture.project,

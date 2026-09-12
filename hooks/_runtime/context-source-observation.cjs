@@ -259,11 +259,12 @@ function authorizeContextRead(input = {}, options = {}) {
     )
   }
 
-  const expectedBinding = normalizeVerifiedBinding(
-    observed.originalContextBinding || observed.plan.contextBinding,
-    target
-  )
-  if (!expectedBinding || stableDigest(expectedBinding) !== stableDigest(binding)) {
+  // A registered compatibility migration may give the same observed plan a
+  // normalized identity. Both identities belong to the same durable plan.
+  const compatibleBindings = [observed.originalContextBinding, observed.plan.contextBinding]
+    .map(candidate => normalizeVerifiedBinding(candidate, target))
+    .filter(Boolean)
+  if (!compatibleBindings.some(candidate => stableDigest(candidate) === stableDigest(binding))) {
     return contextAuthorizationFailure(
       'CONTEXT_BINDING_PLAN_MISMATCH',
       'plan-binding-mismatch',

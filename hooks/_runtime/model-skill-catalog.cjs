@@ -32,10 +32,25 @@ function decodeCursor (cursor) {
   }
 }
 
+function encodeCatalogCursor (payload) {
+  const pageIndex = Number(payload?.pageIndex)
+  if (!Number.isInteger(pageIndex) || pageIndex < 0) return null
+  return `sc1.${pageIndex.toString(36)}.${sha256(payload).slice(0, 24)}`
+}
+
+function decodeCatalogCursor (cursor, expected) {
+  const match = /^sc1\.([0-9a-z]+)\.([a-f0-9]{24})$/.exec(String(cursor || ''))
+  if (!match) return null
+  const pageIndex = Number.parseInt(match[1], 36)
+  if (!Number.isSafeInteger(pageIndex) || pageIndex < 0) return null
+  const payload = { ...expected, pageIndex }
+  return encodeCatalogCursor(payload) === cursor ? payload : null
+}
+
 function buildPageReceipt (catalog, pageIndex, cards, turnIdentity) {
   const pageCount = catalog.pageCards.length
   const nextCursor = pageIndex + 1 < pageCount
-    ? encodeCursor({
+    ? encodeCatalogCursor({
       schemaVersion: 'SkillCatalogCursorV1',
       project: turnIdentity.project,
       turnBinding: turnIdentity.turnBinding,
@@ -208,7 +223,16 @@ function shortlistSkillCards (cards, prompt, entries = [], limit = DEFAULT_SHORT
 
 function resolveCatalogPageIndex (catalog, turnIdentity, cursor) {
   if (!cursor) return 0
-  const parsed = decodeCursor(cursor)
+  const expected = {
+    schemaVersion: 'SkillCatalogCursorV1',
+    project: turnIdentity.project,
+    turnBinding: turnIdentity.turnBinding,
+    contextEpoch: turnIdentity.contextEpoch,
+    catalogDigest: catalog.catalogDigest
+  }
+  // Accept the prior verbose format for in-flight turns created before this
+  // runtime update, while new pages emit compact opaque cursors.
+  const parsed = decodeCatalogCursor(cursor, expected) || decodeCursor(cursor)
   if (!parsed ||
       parsed.schemaVersion !== 'SkillCatalogCursorV1' ||
       parsed.project !== turnIdentity.project ||
@@ -232,6 +256,8 @@ module.exports = {
   buildUnifiedSkillCatalog,
   shortlistSkillCards,
   resolveCatalogPageIndex,
+  encodeCatalogCursor,
+  decodeCatalogCursor,
   encodeCursor,
   decodeCursor,
   measureWrappedPage

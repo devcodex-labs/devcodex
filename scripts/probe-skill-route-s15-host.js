@@ -520,9 +520,21 @@ function readLifecycleSnapshot (fixture) {
   )
   if (!fs.existsSync(file)) return null
   const state = JSON.parse(fs.readFileSync(file, 'utf8'))
+  const envelope = state.actualInstructionEnvelope
   return {
     progressiveSkillRoute: state.progressiveSkillRoute || null,
     contextAcquisition: state.contextAcquisition || null,
+    actualInstructionEnvelope: envelope ? {
+      schemaVersion: envelope.schemaVersion || null,
+      envelopeId: envelope.envelopeId || null,
+      envelopeDigest: envelope.envelopeDigest || null,
+      contextEpoch: envelope.contextEpoch || null,
+      hostSessionDigest: envelope.hostSessionDigest || null,
+      provenanceLevel: envelope.provenanceLevel || null,
+      instructionAuthority: envelope.instructionAuthority === true,
+      issuedAt: envelope.issuedAt || null,
+      expiresAt: envelope.expiresAt || null
+    } : null,
     lastReason: state.lastReason || null
   }
 }

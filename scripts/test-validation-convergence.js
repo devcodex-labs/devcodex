@@ -40,7 +40,11 @@ const {
   validateRepairConvergenceState,
   validateSuccessfulQualification
 } = require('./lib/validation-convergence-state')
-const { resolveRepairPlanScope, resolveValidationConvergenceDecision } = require('./run-validation')
+const {
+  recoverExecutedQualification,
+  resolveRepairPlanScope,
+  resolveValidationConvergenceDecision
+} = require('./run-validation')
 
 function candidate(id, entries) {
   const dirtyIdentities = Object.entries(entries).map(([file, content]) => ({
@@ -232,6 +236,50 @@ function run() {
     receipt: terminal,
     nowMs: nowMs + 2000
   })
+  const runIdentityDigest = sha256('completed-execution')
+  const persistedExecutionTerminal = {
+    ...terminal,
+    runId: 'validation-run-completed-execution',
+    runIdentityDigest
+  }
+  let requestedTerminalDigest = null
+  const recoveredExecutionQualification = recoverExecutedQualification({
+    store: {
+      readTerminal(requestedDigest) {
+        requestedTerminalDigest = requestedDigest
+        return { status: 'fresh', receipt: persistedExecutionTerminal }
+      }
+    },
+    executionReceipt: {
+      runId: persistedExecutionTerminal.runId,
+      runIdentityDigest,
+      nativeExitCode: 0,
+      terminalStatus: 'completed'
+    },
+    candidate: repaired,
+    plan: planValue,
+    nowMs: nowMs + 3000
+  })
+  assert.strictEqual(requestedTerminalDigest, runIdentityDigest)
+  assert.strictEqual(recoveredExecutionQualification.terminalDigest, terminal.terminalDigest)
+  assert.throws(() => recoverExecutedQualification({
+    store: {
+      readTerminal: () => ({
+        status: 'fresh',
+        receipt: { ...persistedExecutionTerminal, runId: 'validation-run-stale' }
+      })
+    },
+    executionReceipt: {
+      runId: persistedExecutionTerminal.runId,
+      runIdentityDigest,
+      nativeExitCode: 0,
+      terminalStatus: 'completed'
+    },
+    candidate: repaired,
+    plan: planValue,
+    nowMs: nowMs + 3000
+  }), error => error instanceof ValidationConvergenceError &&
+    error.code === 'VALIDATION_QUALIFICATION_TERMINAL_READBACK_INVALID')
   assert.throws(() => createSuccessfulQualification({
     identity,
     candidate: repaired,

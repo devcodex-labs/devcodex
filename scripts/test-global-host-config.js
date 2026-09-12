@@ -718,8 +718,9 @@ for (const name of ['devcodex-memory', 'devcodex-profile']) {
   assert.strictEqual(cursorMcp.mcpServers[name].type, 'stdio')
   assert.strictEqual(path.resolve(cursorMcp.mcpServers[name].command), trustedNodeExecutable)
   assert.strictEqual(cursorMcp.mcpServers[name].env.DEVCODEX_AGENT, 'cursor')
-  assert.ok(cursorMcp.mcpServers[name].args.some(value => /mcp[\\/](?:memory|profile)-server\.js$/i.test(value)))
-  assert.strictEqual(cursorMcp.mcpServers[name].args[1], '${workspaceFolder}')
+  assert.ok(String(cursorMcp.mcpServers[name].args[0]).includes('mcp-hot-reload-supervisor.cjs'))
+  assert.strictEqual(cursorMcp.mcpServers[name].args[1], name.replace('devcodex-', ''))
+  assert.strictEqual(cursorMcp.mcpServers[name].args[2], '${workspaceFolder}')
 }
 const promptEventByHost = {
   copilot: 'userPromptTransformed',
@@ -821,14 +822,10 @@ assert.ok(vscodeMcp.servers, 'VS Code mcp.json must have servers')
 for (const name of ['devcodex-memory', 'devcodex-profile']) {
   assert.ok(vscodeMcp.servers[name], `VS Code servers missing ${name}`)
   assert.strictEqual(path.resolve(vscodeMcp.servers[name].command), trustedNodeExecutable)
-  assert.ok(
-    String(vscodeMcp.servers[name].args[0]).includes('memory-server.js') ||
-    String(vscodeMcp.servers[name].args[0]).includes('profile-server.js') ||
-    name === 'devcodex-memory' || name === 'devcodex-profile'
-  )
+  assert.ok(String(vscodeMcp.servers[name].args[0]).includes('mcp-hot-reload-supervisor.cjs'))
 }
-assert.ok(String(vscodeMcp.servers['devcodex-memory'].args[0]).replace(/\\/g, '/').includes('/mcp/memory-server.js'))
-assert.ok(String(vscodeMcp.servers['devcodex-profile'].args[0]).replace(/\\/g, '/').includes('/mcp/profile-server.js'))
+assert.strictEqual(vscodeMcp.servers['devcodex-memory'].args[1], 'memory')
+assert.strictEqual(vscodeMcp.servers['devcodex-profile'].args[1], 'profile')
 // preserve non-DevCodex keys on re-apply
 fs.writeFileSync(vscodeMcpPath, JSON.stringify({
   inputs: [{ id: 'KEEP_ME', type: 'promptString' }],
@@ -841,11 +838,12 @@ assert.strictEqual(applyGlobalHostConfig({ packageRoot, env, home }).transaction
 const vscodeMerged = JSON.parse(fs.readFileSync(vscodeMcpPath, 'utf8'))
 assert.strictEqual(vscodeMerged.inputs[0].id, 'KEEP_ME')
 assert.strictEqual(vscodeMerged.servers.custom.command, 'echo')
-assert.ok(String(vscodeMerged.servers['devcodex-memory'].args[0]).includes('memory-server.js'))
+assert.ok(String(vscodeMerged.servers['devcodex-memory'].args[0]).includes('mcp-hot-reload-supervisor.cjs'))
 for (const name of ['devcodex-memory', 'devcodex-profile']) {
   assert.strictEqual(copilotMcp.mcpServers[name].type, 'local')
   assert.deepStrictEqual(copilotMcp.mcpServers[name].tools, ['*'])
-  assert.ok(copilotMcp.mcpServers[name].args.some(value => /mcp\/(?:memory|profile)-server\.js$/i.test(value)))
+  assert.ok(String(copilotMcp.mcpServers[name].args[0]).includes('mcp-hot-reload-supervisor.cjs'))
+  assert.strictEqual(copilotMcp.mcpServers[name].args[1], name.replace('devcodex-', ''))
   assert.strictEqual(copilotMcp.mcpServers[name].env?.DEVCODEX_AGENT, 'copilot')
 }
 
@@ -858,9 +856,8 @@ for (const name of ['devcodex-memory', 'devcodex-profile']) {
     Object.keys(geminiSettings.mcpServers[name]).sort(),
     ['args', 'command', 'type']
   )
-  assert.ok(geminiSettings.mcpServers[name].args.some(value =>
-    /mcp\/(?:memory|profile)-server\.js$/i.test(value.replace(/\\/g, '/'))
-  ))
+  assert.ok(String(geminiSettings.mcpServers[name].args[0]).includes('mcp-hot-reload-supervisor.cjs'))
+  assert.strictEqual(geminiSettings.mcpServers[name].args[1], name.replace('devcodex-', ''))
 }
 
 const claudeSettings = JSON.parse(fs.readFileSync(path.join(home, '.claude', 'settings.json'), 'utf8'))

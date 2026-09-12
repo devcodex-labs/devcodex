@@ -1033,7 +1033,7 @@ function planValidation({ manifest, route = 'changed', changedFiles = [], change
       'repair convergence referenced unknown validation nodes: ' + unknownForcedNodeIds.join(','))
   }
   const levelConflictedForcedNodeIds = normalizedForcedNodeIds.filter(id =>
-    byId.has(id) && !nodeEligibleForImpact(manifest, id, verificationLevel)
+    byId.has(id) && LEVEL_RANK[nodeMinimumLevel(manifest, id)] > LEVEL_RANK[verificationLevel]
   )
   if (levelConflictedForcedNodeIds.length) {
     throw new ValidationDagError(

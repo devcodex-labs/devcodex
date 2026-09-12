@@ -262,7 +262,7 @@ const TOOLS = [
   },
   {
     name: 'profile_context_plan',
-    description: '生成上下文读取计划。',
+    description: '生成上下文读取计划。routeKey/subtype/stage 必须全部省略（使用 registry 默认）或完整提供；压缩恢复后先刷新计划并完成读取，再 rebind 已有 Skill 计划。',
     inputSchema: {
       type: 'object',
       required: ['intent'],
@@ -276,9 +276,12 @@ const TOOLS = [
           uniqueItems: true,
           items: { type: 'string', enum: CONTEXT_READ_CONTRACT.changeTypes }
         },
-        routeKey: { type: 'string', minLength: 1, maxLength: 128 },
-        subtype: { type: 'string', minLength: 1, maxLength: 128 },
-        stage: { type: 'string', minLength: 1, maxLength: 64 },
+        routeKey: { type: 'string', minLength: 1, maxLength: 128,
+          description: '仅使用 registry 返回的路由标识；与 subtype、stage 一起提供，或三者全部省略。' },
+        subtype: { type: 'string', minLength: 1, maxLength: 128,
+          description: '与 routeKey、stage 一起提供，或三者全部省略。' },
+        stage: { type: 'string', minLength: 1, maxLength: 64,
+          description: '路由身份的一部分，不能单独用作当前工作阶段；与 routeKey、subtype 一起提供，或三者全部省略。' },
         contextEpoch: { type: 'string', minLength: 1 },
         project: { type: 'string' },
         scope: { type: 'string', enum: ['project', 'workspace'] },
@@ -1166,7 +1169,7 @@ const DEV_CODEX_ROUTE_LOAD_MAX_BYTES = 40 * 1024
 const DEV_CODEX_ROUTE_LOAD_MINIMUM_HEADROOM_BYTES = 1024
 const DEV_CODEX_ROUTE_LOAD_ENTRIES = Object.freeze({
   '01-项目信息.md': Object.freeze({
-    headingQueries: ['完整开发需求验证链速查', '当前开发重点'],
+    headingQueries: ['完整开发需求验证链速查', '当前开发重点', '项目定位：结构化意图驱动'],
     maxBytes: 8192
   }),
   '02-架构约束.md': Object.freeze({
@@ -1182,8 +1185,8 @@ const DEV_CODEX_ROUTE_LOAD_ENTRIES = Object.freeze({
     maxBytes: 4096
   }),
   '06-功能清单.md': Object.freeze({
-    headingQueries: ['全项目Profile校验', '公开面维护规则', '近期发布增量'],
-    maxBytes: 12 * 1024
+    headingQueries: ['全项目Profile校验', '公开面维护规则'],
+    maxBytes: 4 * 1024
   }),
   '07-用户文档与契约规范.md': Object.freeze({
     headingQueries: ['写作与审查原则', '控制面内容契约', '用户文档主面'],
@@ -1729,6 +1732,7 @@ function verifyContextPlanSemanticSource(value, target, contextEpoch) {
   if (LAYOUT.enabled && target.project !== WORKSPACE_CONTEXT_PROJECT) {
     candidates.push({ root: namespaceRootPath(LAYOUT.workspaceRoot, 'workspace'), key: 'workspace' })
   }
+  const diagnostics = []
   for (const candidate of candidates) {
     try {
       const file = resolveExistingRegularFileInside(candidate.root,
@@ -1736,15 +1740,35 @@ function verifyContextPlanSemanticSource(value, target, contextEpoch) {
       const observed = readBoundedTextFileSync(file, { maxBytes: 2 * 1024 * 1024 })
       const state = JSON.parse(observed.content)
       const acquisition = state.contextAcquisition || {}
-      if (acquisition.contextEpoch !== contextEpoch || !acquisition.hostSessionId) continue
+      if (acquisition.contextEpoch !== contextEpoch) {
+        diagnostics.push(`${candidate.key}: context epoch mismatch`)
+        continue
+      }
+      if (!acquisition.hostSessionId) {
+        diagnostics.push(`${candidate.key}: host session missing`)
+        continue
+      }
       const result = validateIntentSemanticDecision(value, {
         contextEpoch, requireSource: true, envelope: state.actualInstructionEnvelope,
         hostSessionDigest: crypto.createHash('sha256').update(acquisition.hostSessionId).digest('hex')
       })
       if (result.valid) return result
-    } catch {}
+      const envelope = state.actualInstructionEnvelope
+      diagnostics.push(`${candidate.key}: ${result.errors.join(', ')} (${envelope
+        ? `envelope=${envelope.envelopeId || 'missing-id'}`
+        : 'instruction envelope missing'})`)
+    } catch (error) {
+      diagnostics.push(`${candidate.key}: ${String(error.code || error.message || 'lifecycle ingress read failed')}`)
+    }
   }
-  return { valid: false, errors: ['No matching current trusted host ingress for semanticDecision'], value: null }
+  return {
+    valid: false,
+    errors: [
+      'No matching current trusted host ingress for semanticDecision',
+      ...diagnostics
+    ],
+    value: null
+  }
 }
 
 function handleProfileContextPlan(args = {}) {

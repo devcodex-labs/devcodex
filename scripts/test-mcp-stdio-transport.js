@@ -10,6 +10,7 @@ const {
   MCP_STDIO_REQUEST_TIMEOUT_MS,
   createJsonLineServer
 } = require('../mcp/stdio-jsonrpc.cjs')
+const { main: runHotReloadProbe } = require('./test-mcp-hot-reload-supervisor.js')
 
 function harness(options = {}) {
   const input = new PassThrough()
@@ -130,7 +131,8 @@ async function main() {
   assert.strictEqual(endAware.responses()[0].id, 6)
   endAware.server.close()
 
-  console.log('✓ bounded MCP stdio frame/message/reset/timeout tests passed')
+  await runHotReloadProbe()
+  console.log('✓ bounded MCP stdio frame/message/reset/timeout and worker hot-reload tests passed')
 }
 
 main().catch(error => {

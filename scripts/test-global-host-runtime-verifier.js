@@ -201,15 +201,17 @@ fs.mkdirSync(path.join(grokRuntime, 'mcp'), { recursive: true })
 for (const name of ['memory-server.js', 'profile-server.js']) {
   fs.writeFileSync(path.join(grokRuntime, 'mcp', name), 'process.stdin.resume()\n', 'utf8')
 }
+const grokSupervisor = path.join(grokTarget.runtimeBaseRoot, 'mcp-hot-reload-supervisor.cjs')
+fs.writeFileSync(grokSupervisor, 'process.stdin.resume()\n', 'utf8')
 fs.writeFileSync(path.join(canonicalPlugin, '.mcp.json'), JSON.stringify({
   mcpServers: {
     'devcodex-memory': {
       command: trustedNodeExecutable,
-      args: [path.join(grokRuntime, 'mcp', 'memory-server.js'), '.']
+      args: [grokSupervisor, 'memory', '.']
     },
     'devcodex-profile': {
       command: trustedNodeExecutable,
-      args: [path.join(grokRuntime, 'mcp', 'profile-server.js'), '.']
+      args: [grokSupervisor, 'profile', '.']
     }
   }
 }, null, 2), 'utf8')
@@ -237,6 +239,8 @@ for (const name of ['memory-server.js', 'profile-server.js']) {
   fs.mkdirSync(path.dirname(serverPath), { recursive: true })
   fs.writeFileSync(serverPath, 'process.stdin.resume()\n', 'utf8')
 }
+const cursorSupervisor = path.join(cursorTarget.runtimeBaseRoot, 'mcp-hot-reload-supervisor.cjs')
+fs.writeFileSync(cursorSupervisor, 'process.stdin.resume()\n', 'utf8')
 const cursorRuntimeEntry = path.join(cursorTarget.runtimeBaseRoot, 'host-hook-launcher.cjs')
 const cursorCommand = buildHostHookCommand(cursorRuntimeEntry, [
   'cursor',
@@ -255,7 +259,7 @@ fs.writeFileSync(path.join(cursorTarget.files.plugin, 'mcp.json'), JSON.stringif
     {
       type: 'stdio',
       command: trustedNodeExecutable,
-      args: [path.join(cursorTarget.runtimeRoot, 'mcp', `${name}-server.js`), '${workspaceFolder}'],
+      args: [cursorSupervisor, name, '${workspaceFolder}'],
       env: { DEVCODEX_AGENT: 'cursor' }
     }
   ]))

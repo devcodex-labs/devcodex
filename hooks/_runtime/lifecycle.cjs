@@ -2037,14 +2037,14 @@ function bindTaskRecoveryState(state, task, options = {}) {
       } else {
         const baseValidation = validateTaskScopedAutoContinuationGrant(durableGrant)
         state.taskScopedAutoContinuationGrant = baseValidation.valid && durableGrant.status === 'active'
-          ? transitionTaskScopedAutoContinuationGrant(durableGrant, 'reconfirm-required', {
+          ? transitionTaskScopedAutoContinuationGrant(durableGrant, 'intent-reevaluation-required', {
               reason: grantValidation.errors.join(',') || 'task-root-binding-drift'
             })
           : null
         state.autoCheckpointDecision = null
         state.autoCheckpointDecisions = []
         state.taskScopedAutoStatus = {
-          status: 'reconfirm-required',
+          status: 'intent-reevaluation-required',
           reason: grantValidation.errors.join(',') || 'task-root-binding-drift'
         }
       }

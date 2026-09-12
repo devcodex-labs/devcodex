@@ -39,7 +39,7 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 7. **返工价值复核**：候选声称降低返工、补复审遗漏或提升首次通过率时，执行 `ReworkReductionValueGate`；文本出现次数不能替代可执行 owner 和效果证据。
 8. **可执行吸纳与探针必要性**：对拟 absorb 项执行 `ExecutableAbsorptionEffectivenessGate` + `ProbeNecessityDecisionGate`；缺执行面或「该探针却无探针计划」→ 不得进入最终 absorb 清单。
 9. **分层归属**：形成 `LayeredAbsorptionDecision`，判定 `global-invariant / existing-skill-subgate / new-skill-required / docs-only / case-evidence-only / project-local / already-covered`。
-10. **确认清单**：仅输出仍需吸纳项（含探针档位与影响）+ 并列 **可关账/已覆盖** 清单，等待用户确认。
+10. **阶段清单**：仅输出仍需吸纳项（含探针档位与影响）+ 并列 **可关账/已覆盖** 清单；confirm 等待用户，Auto 持久化当前决定后继续。
 11. **实施同步**：确认后同步 commonInstruction、Skill、promptTemplate、executionConsumer、**validationProbe（按探针决策）**、publicDocs、deployCopy；禁止只改 Markdown 正文。
 12. **验证回写**：执行 targeted test、`node scripts/validate.js`、必要的 `npm test` / website / release 验证；回写 PI / PF / GAP / VL / ISSUE 状态；**无探针/无消费者的不得写 absorbed**。
 13. **报告记忆**：报告必须引用候选矩阵、SourceExistence、ProbeNecessity、LayeredAbsorptionDecision、验证证据、台账状态和部署副本同步。

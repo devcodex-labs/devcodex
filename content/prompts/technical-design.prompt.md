@@ -283,7 +283,7 @@ applyTo: .devcodex/**/requirements/**
 
 #### 偏移触发器
 
-> 满足以下任一情况，说明实施阶段需要回到 CP2 或 CP1 重新确认：
+> 满足以下任一情况，说明实施阶段需要停止当前 mutation、重新结构化意图并回到 CP2 或 CP1；是否等待由 executionDecision 决定：
 
 -
 

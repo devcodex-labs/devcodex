@@ -29,11 +29,11 @@ version: 1.20.2
 
 ## C12 合理性评估（必须执行）
 
-- 执行 `ProactiveBetterAlternativeGate`：有更低风险、更完整、更易维护或更符合项目现实的方案 → 提出取舍并等待确认后再执行
+- 执行 `ProactiveBetterAlternativeGate`：有更低风险、更完整、更易维护或更符合项目现实的方案 → 提出取舍并写回结构化意图；Auto 且在已授权任务边界内时采用唯一推荐继续
 - 明显不合理 → 先指出问题再等用户澄清
 - 用户给出判断或引用已有设计 → AI 须独立验证合理性，不得直接顺从论证
 - 若用户给出的目录结构、实施顺序或方案本身经验证已是当前最优，可明确说明依据后直接采纳；禁止为了表现“独立思考”而机械反对
-- 架构边界检查：逐项确认每条需求是否依赖项目当前已实现的能力；若某项需求的前提能力（上游功能/平台特性）尚未存在，须在 CP1 前主动标注为"预留候选"并建议移出本期范围，等待用户确认后再决定取舍
+- 架构边界检查：逐项确认每条需求是否依赖项目当前已实现的能力；若某项需求的前提能力（上游功能/平台特性）尚未存在，须在 CP1 前主动标注为“预留候选”并建议移出本期范围，将取舍写回结构化意图；confirm 才等待用户
 - 不得在 C12 前直接开始编码
 
 ## 任务切换与提交护栏
@@ -69,16 +69,16 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
 
 1. **严格按序**：CP1 → CP2 → CP3，不得跳过中间步骤
 2. **禁止合并**：不得将 CP1+CP2 合并为一次输出
-3. **每个 CP 独立确认**：输出后必须等待用户明确响应
+3. **每个 CP 独立形成决定**：输出后消费当前 `IntentSemanticDecisionV1.executionDecision`；confirm 等待用户，Auto 持久化并回读 CP receipt 后继续
 4. **CP3 内容边界**：CP3 只确认实施计划，不重复技术方案中的架构决策、接口论证和兼容性主说明；必须显式覆盖任务拆分、顺序、依赖、验证方式与回滚策略
 5. **产物文件前置创建**：默认 CP1 必须先做入口类型分类；纯新需求 → `00-需求概况.md` + `01-需求确认.md` + `<需求>/.memory/sessions.md`；产品完整需求 → `00-需求概况.md`（仅来源/映射概况）+ 原样 `01-产品需求.md` + `<需求>/.memory/sessions.md`，AI / 研发缺口检查记录在 00、CP1 摘要、`02-技术方案.md` 或报告中，不改写 01；需求变更 → `00-需求变更概况.md` + `01-需求变更确认.md` + 回写目标 `01-需求确认.md` / `01-产品需求.md` / 正式需求文件 / website requirement；Bug 问题 → 切换 fix 工作流，使用 `bugs/<问题>/00-问题概况.md` 和问题确认产物。历史 `01-需求概述.md` 仅作兼容；CP2 → `02-技术方案.md`（有架构/接口/设计决策时，否则跳过）；CP3 → `04-实施计划.md`。若命中有效 `SimpleTaskFastPathLeaseV1`，可用回复内联 CP1 摘要 + 报告/记忆替代需求目录，并将未触发的 00/01/04 产物记为 `N/A + skipReason`；但命中 ExistingRequirementArtifactOverride 时必须先更新已有需求真相源。
 6. **ArtifactDecisionMatrix / ArtifactLifecycleState**：CP1/CP2/CP3/ECR 必须按任务规模列出关键产物 `create` / `update` / `skip` / `N/A` 状态，至少覆盖入口类型、`00-需求概况.md`、`00-需求变更概况.md`、`01-需求确认.md`、`01-产品需求.md`、`01-需求变更确认.md`、`02-技术方案.md`、`04-实施计划.md`、`05-实施进度.md`、`06-关键决策.md`、目标文档、报告、记忆；每项写明 `reason`、`trigger`、`upgradeTrigger`、`targetArtifact`。判定优先级：已有真相源回写 > 任务触发条件 > SimpleTaskFastPath > 子类型豁免。
 7. **进度文档触发**：`05-实施进度.md` 不是小任务默认必产物；但当任务跨 2 轮以上会话、存在明确阻塞、用户要求持续跟踪、CP3 计划拆分为多批次、预计修改 ≥10 文件或命中控制面/模板/validate/部署副本联动时，必须在执行前创建并在每批完成后更新。默认前提是已存在 `04-实施计划.md`；docs/init 等 CP3 豁免场景可使用已确认文档大纲、任务切片或 ContextHandoffCard 作为等价计划锚点。
-8. **无 Hooks 宿主软门禁**（v1.9.6+）：当运行宿主为 `jetbrains-copilot`、`cursor` 或其他 `instruction-fallback` 客户端时，`lifecycle.cjs` CP gate 不可执行。AI 必须在每个 CP 输出末尾显式追加 `⏸ 等待用户确认（CP{N}）— 收到"好/继续/ok"前不得进入下一阶段或写源码`，并在用户未明确回复前禁止 source mutation 工具调用。
+8. **无 Hooks 宿主软门禁**（v1.9.6+）：当运行宿主为 `jetbrains-copilot`、`cursor` 或其他 `instruction-fallback` 客户端时，`lifecycle.cjs` CP gate 不可执行。AI 仍消费结构化意图：confirm 才输出 `⏸ 等待用户确认（CP{N}）`；Auto 落盘并回读 receipt 后继续，宿主能力不足不得覆盖 executionDecision。
 9. **CP3 豁免记录**：docs/init/plan-review 子类型被规则明确豁免 CP3 时，须在需求级记忆或报告中记录 `CP3: N/A（<子类型> 子类型豁免）`，供 hook/fallback 区分合法豁免与漏确认。
-10. **确认后前置复审**（C19 / `PostConfirmationReviewScopeGate`）：每次用户明确确认 CP1 / CP2 / CP3 后、进入下一阶段前，必须先输出 **ReviewGradeCard**（`reviewClass` + `c19Label` + `riskClass`/`riskFlags` + `contentPack` + `result`）并按风险执行：默认 **R2（标准）**；低风险单文件/纯文案/SimpleTaskFastPath 可降 **R1（轻量）** 且必须写 `skipReason`；命中控制面/公共契约/多模块/多真相源/package·adapter/文档消费者/安全/用户要求全面/多轮收敛 → **R3（全面）** + `review-checklist`（CP2 复用 PR-2~PR-7）；security/release/`claims` 含 full → **R4**。控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链必须追加交叉验证；发现阻断性问题则先修正当前产物、告知用户并重新确认，无阻断问题方可推进。不得因文件少压低控制面/契约/安全/发布风险。
+10. **确认后前置复审**（C19 / `PostConfirmationReviewScopeGate`）：每次显式或 Auto CP 决定后、进入下一阶段前，必须先输出 **ReviewGradeCard**（`reviewClass` + `c19Label` + `riskClass`/`riskFlags` + `contentPack` + `result`）并按风险执行：默认 **R2（标准）**；低风险单文件/纯文案/SimpleTaskFastPath 可降 **R1（轻量）** 且必须写 `skipReason`；命中控制面/公共契约/多模块/多真相源/package·adapter/文档消费者/安全/用户要求全面/多轮收敛 → **R3（全面）** + `review-checklist`（CP2 复用 PR-2~PR-7）；security/release/`claims` 含 full → **R4**。控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链必须追加交叉验证；阻断项修正后返回结构化意图重算，不得由复审器直接要求重复确认。
 11. **Intent Expansion 可见性**：dev 模式下，CP1 / 需求确认前默认向用户展示完整 Intent Expansion Card；这会覆盖旧的“意图扩展摘要”默认行为，但当命中控制面或宿主能力差异、跨会话 resume、prod、instruction-fallback 宿主或低风险轻任务时，仍允许退化为 3~5 行意图扩展摘要。
-12. **执行期 CP3 回退**：若 N5 执行过程中实际变更范围扩展到 CP3 门槛（如文件数从 <5 增至 ≥5、临时引入高风险操作、命中控制面/模板/validate/部署副本联动），必须暂停执行，回到 N4 / CP3 补做实施计划确认后再继续。
+12. **执行期 CP3 回退**：若 N5 执行过程中实际变更范围扩展到 CP3 门槛（如文件数从 <5 增至 ≥5、临时引入高风险操作、命中控制面/模板/validate/部署副本联动），必须暂停当前 mutation，重新结构化意图并回到 N4 / CP3；Auto 且仍在授权边界内时自动确认后继续。
 13. **backlog 来源前置真相复核**：若本轮需求、批次或范围直接来源于 `data/*.md` 的 open/partial 项，CP1 前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正范围口径，禁止直接按旧 open 计数开做。
 14. **OfficialDocsEvidence**：新增/升级依赖、框架、SDK、平台 API 或外部模块时，CP2 前必须读取官方使用文档/官方参考资料；CP2 记录文档来源、版本/日期、关键用法、限制和兼容性，缺失证据不得进入 PR-2 通过态。
 15. **ProfileImpactCheck**：项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 变化时，CP2/CP3 必须判定并同步 Profile；不需要同步时写明 `skipReason`。
@@ -238,7 +238,7 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
 | ✅ 确认 | 进入下一阶段 |
 | ✏️ 修正 | 应用修正后重新输出当前 CP，等待再次确认 |
 | ❌ 拒绝 | 回退到当前 CP 重新分析 |
-| ？追问 | 回答后重新输出当前 CP，等待确认 |
+| ？追问 | 回答后重新输出当前 CP，并按结构化 executionDecision 处理 |
 | 🔀 模糊 | **不得推进**，必须明确询问再等待显式响应 |
 
 ### 确认后前置复审（C19 / PostConfirmationReviewScopeGate）
@@ -267,7 +267,7 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
   3. 相关真相源、联动规则或校验探针
 - **处理规则**：
   - 无阻断问题：显式输出 ReviewGradeCard（含 `c19Label`/`reviewClass`）与“前置复审结果：✅ 无阻断，可进入下一阶段”后再推进
-  - 发现阻断问题：停止推进，先修正当前产物并告知用户，再回到对应 CP 重新确认
+  - 发现阻断问题：停止当前阶段，先修正当前产物并回到结构化意图重算；只有结果为 confirm 才等待用户
   - 连续 2 次前置复审仍发现新的阻断问题：提示升级为定向 `audit` 或扩大扫描范围
 - **边界**：作者自审不得标为独立审查；机器 `selectReviewClass` 细节见 `hooks/_runtime/review-execution-contract.cjs`（lifecycle 未强制接线前仍由 Agent 按本表执行）
 
@@ -282,7 +282,7 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
 
 ## plan-review 质量门禁（两阶段强制）
 
-> 非 docs/plan-review/scenario-test 子类型必须执行。PR-1 在 CP2 前做 AI 内部自检；PR-2~PR-7 在 CP2→CP3 之间执行。🔴 阻断项进入 `BlockerAggregationGate`：同一阶段继续完成所有安全独立检查，形成完整 `BlockerSnapshot` 后回 CP2 重确认；只有 invalid premise、破坏性副作用、证据污染或外部前置不可用时才 fail-fast，并记录 `stopReason / skippedChecks / recoveryEntry`。
+> 非 docs/plan-review/scenario-test 子类型必须执行。PR-1 在 CP2 前做 AI 内部自检；PR-2~PR-7 在 CP2→CP3 之间执行。🔴 阻断项进入 `BlockerAggregationGate`：同一阶段继续完成所有安全独立检查，形成完整 `BlockerSnapshot` 后回 CP2 并重算结构化意图；只有 invalid premise、破坏性副作用、证据污染或外部前置不可用时才 fail-fast，并记录 `stopReason / skippedChecks / recoveryEntry`。
 
 ### PR-1 需求完整性 🔴
 - 方案覆盖 CP1 确认的所有需求点
@@ -332,8 +332,8 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
 | 级别 | 描述 | 处理方式 |
 |:----:|------|---------|
 | 🟢 微调 | 仅实现细节变化，不影响已确认的接口/行为/范围 | 继续执行，记录偏离原因 |
-| 🟡 扩展 | 在已确认范围内追加新功能点或调整非核心接口 | 回 CP2 补充确认后继续 |
-| 🔴 重大 | 影响已确认的核心接口/数据模型/范围边界 | 必须回 CP1 重新确认，不得继续当前实施 |
+| 🟡 扩展 | 在已确认范围内追加新功能点或调整非核心接口 | 重算结构化意图并回 CP2；Auto 在授权边界内自动通过 |
+| 🔴 重大 | 影响已确认的核心接口/数据模型/范围边界 | 停止当前 mutation，重算结构化意图并回 CP1；是否等待由 executionDecision 决定 |
 
 ### CP 通过后变更处理（F-08）
 

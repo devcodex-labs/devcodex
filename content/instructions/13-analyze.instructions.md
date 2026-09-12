@@ -114,7 +114,7 @@ version: 1.20.2
 - 分析发现规范吸纳、完整吸纳补强、历史长清单迁移、复审遗漏、用户文档、前端运行态、发布门禁、Profile/service 规范或自我进化控制面问题时，不在 instructions 展开 Gate 长清单；必须引用 `skills/spec-governance/SKILL.md` 的 `GovernanceGateRegistry`。
 - 分析返工率、兼容/迁移、配置复杂度或交互语义时，分别引用 `rework-prevention`、`contract-release-authority`、`configuration-ergonomics`、`interactive-semantics`；分析结论不得把历史基线、未发布草稿、实现字段存在或截图当作效果/权威/易用/可访问性完成证据。
 - 分析完整 Agent 平台、文档受众渲染顺序、跨仓消费者验证或逐模块性能维护时，分别引用 `agent-capability-completeness`、`docs-audience-render-sequence`、`consumer-validation`、`module-performance-maintenance`；结论必须受声明对象、运行态/身份链、适用分母与新鲜度约束。
-- 分析报告只写 `gateGroup / ownerSkill / trigger / evidence / validationRoute / skipReason`。分析阶段保持只读，等待用户确认后再切换 dev/fix/self-fix 实施。
+- 分析报告只写 `gateGroup / ownerSkill / trigger / evidence / validationRoute / skipReason`。分析阶段保持只读；后续消息先重新结构化意图，只有结果切到 dev/fix/self-fix 才实施，Auto 无需机械追加确认。
 
 ### 收敛后汇总验证（PCV）
 

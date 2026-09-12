@@ -35,7 +35,7 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 
 **最小实现守门（F-27）**：执行阶段必须按 CP1/CP2/CP3 的 `WorkflowPlanDecisionV1.designDepth` 与复杂度预算落地；`minimal` 只做满足已确认产品事实源和技术验证项的局部最小实现，`standard` 必须有真实消费者、公共契约、迁移/恢复或演进边界证据。`ceremonyTier` 与 `assuranceLevel` 不得反向扩大实现；禁止无计划新增抽象、通用配置、预留扩展点或未确认防御分支。若确需超出预算，先暂停并回 CP2/CP3。旧复杂度字段只读兼容，不得新写入。
 
-**开发偏移守门（F-28A / `DevelopmentDriftGate`）**：进入编码前必须对照 CP1/CP2/CP3、ExecutionContract、TestRoute、消费者同步和当前 dirty 边界做一次偏移检查。至少列出 `allowedFirstBatch`、`blockedScope`、`noGoItems`、`driftTriggers`、`validationRoute` 和 `consumerSync`；若实施中触达排除范围、扩大 package/API/配置/文档消费者、引入新依赖、改变验证路线或污染工作区，先暂停并回 CP2/CP3 重新确认，不能把后续阶段能力直接并入当前批次。
+**开发偏移守门（F-28A / `DevelopmentDriftGate`）**：进入编码前必须对照 CP1/CP2/CP3、ExecutionContract、TestRoute、消费者同步和当前 dirty 边界做一次偏移检查。至少列出 `allowedFirstBatch`、`blockedScope`、`noGoItems`、`driftTriggers`、`validationRoute` 和 `consumerSync`；若实施中触达排除范围、扩大 package/API/配置/文档消费者、引入新依赖、改变验证路线或污染工作区，先暂停当前 mutation、重算结构化意图并回 CP2/CP3，不能把后续阶段能力直接并入当前批次。
 
 **必要注释守门（F-28）**：非显然业务规则、状态转换、不变量、兼容约束、安全边界、外部契约映射或反直觉权衡必须保留短注释；JavaScript / Node.js 中命中必要注释的导出函数、核心业务函数、类、复杂对象契约、参数/返回/异常说明必须使用标准 JSDoc；禁止逐行解释、重复代码含义、临时 TODO 或调试注释。
 
@@ -89,7 +89,7 @@ dev 工作流未匹配其他子类型时的默认路径，适用于：新功能�
 ## 关键规则
 
 - **强制顺序（R12）**：方案 → **PR-1 自检** → 确认 CP2 → PR-2~PR-7 → CP3 → 编码。禁止跳过 PR-1 直接请确认 CP2（Stop gap `pr1-skipped` / R9）；禁止 CP2 未确认就改 `hooks/`/`skills/`/`instructions/`/`host-projections/` 等控制面（R10 复用 `checkCpGate`，strict deny / safety-only 披露 `cp2-unconfirmed-write`）。
-- 三个 CP 必须按序获得用户确认，禁止合并跳过（[C02](../../instructions/01-common.instructions.md)）
+- 三个 CP 必须按序形成显式或 Auto 决定，禁止合并跳过；是否等待只由结构化 executionDecision 决定（[C02](../../instructions/01-common.instructions.md)）
 - PR-1 在 CP2 前做 AI 内部自检，PR-2~PR-7 在 CP2→CP3 之间做详细验证（`dev-plan-review` 两阶段流程）
 - 执行阶段结束后触发：`api-verification`（若涉及接口）→ `document-sync` → **ECR 执行闭环复审**（N6，内部包含方案一致性验证和 ECR-1~ECR-7）
 - Auto、控制面、多批次、预计 ≥10 文件或发布类任务，执行前必须调用 `execution-contract`；测试路线复杂或跨模块时调用 `test-router`

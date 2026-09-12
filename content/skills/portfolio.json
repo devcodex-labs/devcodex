@@ -6,7 +6,7 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "90d516f0dba882fc0b12b46ef7dcc472536a63cfae9d2503a8b8b3a67e20240a",
+    "sourceDigest": "ef3f2df53458f0fba2b51ea5b6341d5d9019f9709bc5b7bb52447da54513e650",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "6ffdd7a19b8b0c09aaab71a6974e4b17fa5c59052f809cf79c0590173d36fced",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
     "consumerInventoryFileCount": 713,
     "consumerInventoryDigest": "424ec22febd792e124b514f3a668703849b8d4dee64719c8a7d670f49499c2ca",
-    "consumerProjectionDigest": "85b244ec1e17d08170852a48b07d174e2c451345c2a0b5178ed3ec5cc1eb9bee",
-    "portfolioInputDigest": "b6c0a807b09bed8ac8bcaf87fbc273502348c9e6181b1883bec87f73be39b5a2"
+    "consumerProjectionDigest": "0d9f91faf07596c5a7b0ad8e4deffb56a151cbac95b374fd13030436fbd8e655",
+    "portfolioInputDigest": "c74f30c3fe32e0eb43e14882c5ee36bcbcbc04392903a3fdf83eb9d97cc6c010"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -30,7 +30,7 @@
     "conflictReviewedCount": 86,
     "operationalEvidenceCompleteCount": 86,
     "triggerPrecisionMeasuredCount": 3,
-    "instructionBudgetP95Bytes": 28698,
+    "instructionBudgetP95Bytes": 28738,
     "triggerQuality": "mixed",
     "sidecarPresentCount": 0,
     "publicCategoryCounts": {
@@ -5279,8 +5279,8 @@
         "content/skills/cp-gate/SKILL.md"
       ],
       "source": "content/skills/cp-gate/SKILL.md",
-      "hash": "151633359b770dd5c0ae36dadb06ef45c5de31d82b50921dbb732ee5624bd27b",
-      "sourceBytes": 32118,
+      "hash": "b967b88d64a89ae6c412d4837208f7d53f3d8fcc473305a4a7aa1ee37d8fcfdb",
+      "sourceBytes": 32902,
       "version": "1.20.2",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -6070,8 +6070,8 @@
         "content/skills/dev-default/SKILL.md"
       ],
       "source": "content/skills/dev-default/SKILL.md",
-      "hash": "33c485ecc9e68ef8e0297ec7aa8232be7920414d350e871cff36056c0422c3b6",
-      "sourceBytes": 15968,
+      "hash": "b697237413bf1bdcfa31ddc166645eefe06202913381c4e21ffa3075ae280e2b",
+      "sourceBytes": 16058,
       "version": "1.20.2",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -8396,8 +8396,8 @@
         "content/skills/execution-contract/SKILL.md"
       ],
       "source": "content/skills/execution-contract/SKILL.md",
-      "hash": "ab09c41bc9bd46e439ebcf3682323b14f3540ef862c36d1abd523c3021e725c8",
-      "sourceBytes": 24692,
+      "hash": "aa4a2fe7fc1e5d38628f9124e8bfbf235da29c1f3826ebe5fc4346707bc21df4",
+      "sourceBytes": 24748,
       "version": "1.20.2",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -9003,8 +9003,8 @@
         "content/skills/fix-default/SKILL.md"
       ],
       "source": "content/skills/fix-default/SKILL.md",
-      "hash": "f0f06a1bea765315fdd9034d32d1839c9e91f6219f0b664a6ba4f31625741392",
-      "sourceBytes": 9384,
+      "hash": "f3f88293996f57b42573a604a496cf821210e5847b1aef369db7b6d539b4a5c5",
+      "sourceBytes": 9440,
       "version": "1.20.2",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -9690,8 +9690,8 @@
         "content/skills/host-capability-routing/SKILL.md"
       ],
       "source": "content/skills/host-capability-routing/SKILL.md",
-      "hash": "42f03fbba286ffabfff91a6e27f047499ab1104c821ec397afde56c19565b7b1",
-      "sourceBytes": 10925,
+      "hash": "e9c80ad733cdb6f0cbe0b4b8eee810a1bc976003b0790333577f84dc271b9a6f",
+      "sourceBytes": 11087,
       "version": "1.20.2",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -10584,8 +10584,8 @@
         "content/skills/intent/SKILL.md"
       ],
       "source": "content/skills/intent/SKILL.md",
-      "hash": "6bd65a6c4c2d15e62e1a513b351a2c64777e3437321c5fb15d72e2b34c56eea0",
-      "sourceBytes": 14515,
+      "hash": "f1bb63365a00e09b3f0a1bf820e5fa2616726e0a5b5953a9a4a2bfc97b9f0005",
+      "sourceBytes": 14554,
       "version": "1.20.2",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -10709,6 +10709,10 @@
         },
         {
           "path": "hooks/_runtime/skill-route-tool.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/task-recovery-store-v5.cjs",
           "role": "current"
         },
         {
@@ -10944,6 +10948,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validation-execution-authority.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/plan-absorption-candidates.js",
           "role": "current"
         },
@@ -11124,6 +11132,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-task-recovery-store-v5.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-validation-budget-control.js",
           "role": "current"
         },
@@ -11197,6 +11209,7 @@
         "scripts/test-skill-route-lifecycle.js",
         "scripts/test-skill-route-stage-b.js",
         "scripts/test-skill-route-state.js",
+        "scripts/test-task-recovery-store-v5.js",
         "scripts/test-validation-budget-control.js",
         "scripts/test-validation-dag.js",
         "scripts/test-visible-output-contract.js",
@@ -11311,6 +11324,7 @@
           "scripts/test-skill-route-lifecycle.js",
           "scripts/test-skill-route-stage-b.js",
           "scripts/test-skill-route-state.js",
+          "scripts/test-task-recovery-store-v5.js",
           "scripts/test-validation-budget-control.js",
           "scripts/test-validation-dag.js",
           "scripts/test-visible-output-contract.js",
@@ -11749,8 +11763,8 @@
         "content/skills/memory/SKILL.md"
       ],
       "source": "content/skills/memory/SKILL.md",
-      "hash": "badf85e46500adcfb207a68bab41b7e8e634bc2f28725cfea4aacb3b21c0a261",
-      "sourceBytes": 33960,
+      "hash": "143f7289ad24790e6b21447772e55d327ecb048218715efcf44c1d8ab4974a99",
+      "sourceBytes": 33996,
       "version": "1.20.2",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -13027,8 +13041,8 @@
         "content/skills/plan/SKILL.md"
       ],
       "source": "content/skills/plan/SKILL.md",
-      "hash": "394d7d46d5d560036fc086bae37a69a5ebb882e10dd66bd8440dc05dcab81e2b",
-      "sourceBytes": 1658,
+      "hash": "85497a582a446fe41f63e8892cf0f0453fd767f18ec6513d65c057e43d00600c",
+      "sourceBytes": 1683,
       "version": "1.20.2",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -14120,6 +14134,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-memory-template-production.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-migrate-layout.js",
           "role": "current"
         },
@@ -14349,6 +14367,7 @@
         "scripts/test-lifecycle-stop-gate.js",
         "scripts/test-markdown-structure.js",
         "scripts/test-mcp-servers.js",
+        "scripts/test-memory-template-production.js",
         "scripts/test-migrate-layout.js",
         "scripts/test-npm-lifecycle-adapter.js",
         "scripts/test-package-compatibility-projection.js",
@@ -14482,6 +14501,7 @@
           "scripts/test-lifecycle-stop-gate.js",
           "scripts/test-markdown-structure.js",
           "scripts/test-mcp-servers.js",
+          "scripts/test-memory-template-production.js",
           "scripts/test-migrate-layout.js",
           "scripts/test-npm-lifecycle-adapter.js",
           "scripts/test-package-compatibility-projection.js",
@@ -19195,8 +19215,8 @@
         "content/skills/spec-absorption/SKILL.md"
       ],
       "source": "content/skills/spec-absorption/SKILL.md",
-      "hash": "d8c24015565b5c81642b30b0c077d4fba327bf74c680290e77b222a3cd549f83",
-      "sourceBytes": 28698,
+      "hash": "4e60c78e7bfd169993012d8998da252f28bef914b5c165c670e201cb7ee104d8",
+      "sourceBytes": 28738,
       "version": "1.20.2",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",

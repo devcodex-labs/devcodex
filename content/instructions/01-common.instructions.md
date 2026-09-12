@@ -59,7 +59,7 @@ version: 1.20.2
 | C09 | 文件编码安全 | 禁止终端命令批量修改中文 .md 文件（`Set-Content`/`sed -i` 会破坏 UTF-8 编码），必须使用编辑器工具逐文件修改 | — |
 | C10 | 危险操作分类不得拥有权限 | 同 S06，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md)；只允许 advisory + typed workflow-validity gate | 🔒 S06 |
 | C11 | 关联文件同步 | 修改/新建/重命名文件后检查所有引用处并同步（SC4 🔴 阻塞性检查） | — |
-| C12 | 合理性评估 | **意图识别后、CP1 前**必须评估请求合理性：有更好建议先提出并等待确认再执行。**扩展覆盖**：用户给出判断、目录结构或引用已有设计时，AI 须独立验证其合理性，不得直接顺从论证；若经核验用户方案已是当前最优，可明确说明依据后直接采纳，禁止为了表现“独立”而机械唱反调 | — |
+| C12 | 合理性评估 | **意图识别后、CP1 前**必须评估请求合理性：有更好建议须提出并写回 `IntentSemanticDecisionV1`；Auto 且仍在已授权任务边界内时采用唯一推荐继续，只有结构化意图选择 confirm 或新增动作未授权时才等待。**扩展覆盖**：用户给出判断、目录结构或引用已有设计时，AI 须独立验证其合理性，不得直接顺从论证；若经核验用户方案已是当前最优，可明确说明依据后直接采纳，禁止为了表现“独立”而机械唱反调 | — |
 | C18 | 全模式入口检查不可跳过 | 同 S07，完整规则见 [`00-safety.instructions.md`](./00-safety.instructions.md) | 🔒 S07 |
 
 ## 🟡 执行约束（必须执行）
@@ -71,7 +71,7 @@ version: 1.20.2
 | C15 | 架构质量视角 | dev/fix 的需求/问题定义、代码设计或架构决策须以**架构师与平台工程师**双重视角评估：消费者范围、共享契约边界、模块职责、可扩展性、可维护性、易上手性。模块化只在真实复用者、演进边界或跨模块共享契约存在时成立；任意维度未达标须说明原因并记录改善方向 |
 | C16 | 规模判断与批量分批 + 扫描卫生 + TTFV | 分析、审查、扫描或批量操作前必须先识别唯一项目/root，并调用 `skill-gap-analysis` 的 `ProjectArtifactScaleRoutingGate` 做 bounded inventory；根据文件数、可解析字节、最大文件、目录集中度、派生产物比例和消费者扩散面决定 `single-pass / batched / sampled+deep-read / blocked`。≥10 文件 mutation 或非 small corpus 必须分批并写 checkpoint；**禁止先无界扫描超时后再补分批**。**WorkspaceRootScanHygiene（防复发·PI-20260724-01）**：项目名/路径已可知时不得把 monorepo/workspace 根递归 inventory 作为默认方案；inventory 必须显式排除 `node_modules`/`dist`/构建缓存并优先项目直达。Hook 只提示范围/成本，执行权限由宿主决定。**TimeToFirstValueGate**：非 chat 在 PC0~PC10 与最小 ContextReadPlan 之后，同一用户可见回复周期内必须交付范围卡 / 首批 finding·结论 / 明确阻断之一，禁止整轮只做全量 Skill 预读或全库扫描 |
 | C17 | 过程改进记录 | 每条非空用户消息先登记中性治理候选，完成合理性评估和上下文归因后再按语义形成 `GovernanceIntakeDecision`；关键词不得作为权威触发/分类依据。用户建议的执行策略经 AI 确认更优，或揭示规范未定义/不完整且可泛化时，必须立即走 Improvement Intake：写入 `data/process-improvements.md`（优化清单，PI）；若同时暴露规范缺口，再联动 `data/pending-fixes.md`（PF）。复合意图逐项 all-of 验证；不得询问是否记录；所有模式命中后都必须回执 `已记录 PI-xxx / PF-xxx`。PI/PF 记录不能替代当前需求修订：未闭环需求实施前或实施中复现的相关缺陷必须执行 `InFlightIssueRequirementBindingGate`，先绑定当前需求并提醒纳入决定；阻断项优先修复 |
-| C19 | 确认后前置复审 | 每次用户明确确认后、进入下一阶段前，必须执行 `PostConfirmationReviewScopeGate` 并输出 **ReviewGradeCard**：映射 **轻量=R1**（须 `skipReason`）、**标准=R2**（默认）、**全面=R3**（高风险+冻结清单）、**发布安全=R4**；命中控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链必须追加交叉验证；阻断项先修正并重确认，无阻断时必须显式输出结果。ECR 默认 R2，禁止「永远轻量」口径 |
+| C19 | 确认后前置复审 | 每次显式或 Auto CP 决定后、进入下一阶段前，必须执行 `PostConfirmationReviewScopeGate` 并输出 **ReviewGradeCard**：映射 **轻量=R1**（须 `skipReason`）、**标准=R2**（默认）、**全面=R3**（高风险+冻结清单）、**发布安全=R4**；命中控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链必须追加交叉验证；阻断项先修正并回到结构化意图重算，不得由复审器直接要求重复确认。ECR 默认 R2，禁止「永远轻量」口径 |
 | C20 | 官方文档证据前置 | 新增/升级依赖、框架、SDK、平台 API 或外部模块前必须形成 `OfficialDocsEvidence`；缺失证据不得进入编码 |
 | C21 | Profile 联动判定 | dev/fix 项目事实变化后必须执行 `ProfileImpactCheck`：更新 Profile 或写明跳过理由 |
 | C22 | AI 自启动服务清理（ServiceLifecycleCleanup） | AI 为验证启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server、压测 target 等长运行进程时，必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或中断收尾前主动停止仅由 AI 启动的服务并核验端口释放；不得杀用户既有进程；用户明确要求保留时记录保留原因、PID/端口和关闭方式 |
@@ -148,15 +148,15 @@ version: 1.20.2
 当用户选择 `@devcodex-auto`、全局默认 `@rocky`、Profile `config.json` 的 `extensions.devcodex.autoAliases` 替换别名，或在文本宿主中明确自然语言授权 auto（如“进入 auto 模式执行”“全自动继续”“run in auto mode”）时：
 
 - Auto v1.1 正式入口包括显式 `@devcodex-auto`、全局默认 `@rocky`、项目 Profile 配置的 `extensions.devcodex.autoAliases` 替换别名与明确自然语言 auto 授权；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；模糊提及、追问 auto 规则、普通“继续”或未生效昵称不等价于 auto 授权
-- **Sticky Auto**：有效入口命中后会话级保持 `executionMode=auto`（与 sticky 项目同量级 TTL）；后续无别名的确认/继续/补充不掉回 confirm；显式 `退出 auto` / `关闭自动模式` / `exit auto mode` / `切回确认模式` 或 sticky 过期/换会话后回到 confirm
-- **验证预算边界**：Auto 只可为当前 formal task 的 exact V0～V2 `BudgetCardV1` 签发 server-owned 根授权。失败后的 root-relative 续权只接受三类证明：完整 mutation observation；stable/clean candidate 的严格 Git 后继 `committed-repair-diff`（父 changed scope 未截断且为当前子集、完整 commit diff 落在当前显式 changed scope）；或同 HEAD、无新增 dirty 路径/节点/预算的 `same-scope-retry`。三类合计最多两次且始终相对原 root，禁止 child-to-child 复利或换根清零。前两类仍须保持 task/project/root/session/purpose/boundary/heavy/side-effect/revocation 一致或收窄；新增节点不超过 `min(3,max(1,ceil(root*5%)))`，estimated 增量不超过 `min(60000ms,ceil(root*5%))`，hard-timeout 增量不超过 `min(600000ms,ceil(root*5%))`，log 增量不超过 `min(65536B,ceil(root*5%))`，不得新增 release consumer；same-scope retry 的四项增量仍必须为零。若父运行已终态、无 live lease、父 candidate HEAD 是当前已提交 HEAD 的严格 Git 祖先，且 task/project/root/session/revocation 一致，当前 level、purpose、节点、boundary、heavy、副作用与时间/hard/log 预算和父根逐项完全相等，则可创建带父 root/terminal digest 的新不可变根：沿用原 context/AutoRef 时记为 `strict-descendant-same-scope`；当前 fresh server-owned Auto 完整校验通过时允许重绑 context/AutoRef，并记为 `strict-descendant-exact-scope-current-auto-rebind`。它不是 child retry，也不得扩到 V3/full/release。已提交修复必须显式绑定冻结的 changed files，clean working tree 不得把计划收窄为零变更；范围扩大或收窄都以 `auto-root-rollover-scope-changed` 失败关闭。plan-only 必须调用与真实执行相同的续权/根滚动预检，但不得持久化或消耗 child authority；预览不能显示执行阶段必然拒绝的“可续权”。Auto ingress 超过 TTL 时只可继续既有 root，或在原 context/AutoRef 仍精确一致时执行上述严格后继 exact-scope 根滚动；其他创建/替换 root 需要当前 fresh control。confirm 模式只确认服务端唯一 pending card，不要求用户反复复制 digest；pause/stop/缩小范围立即撤销 pending/continuation/lease。
+- **Sticky Auto**：有效入口先结构化为 `executionDecision=enable-auto`；会话级 sticky 用于未正式准入阶段，正式任务授权由 `TaskScopedAutoContinuationGrantV1` 持续承接且不受 session/TTL 撤销。后续确认、继续、补充和同任务修复均消费当前结构化意图；仅显式退出、任务终态或结构化意图判定为新任务才结束
+- **验证预算边界**：Auto 只可为当前 formal task 的 exact V0～V2 `BudgetCardV1` 签发 server-owned 根授权。失败后的 root-relative 续权只接受三类证明：完整 mutation observation；stable/clean candidate 的严格 Git 后继 `committed-repair-diff`（父 changed scope 未截断且为当前子集、完整 commit diff 落在当前显式 changed scope）；或同 HEAD、无新增 dirty 路径/节点/预算的 `same-scope-retry`。三类合计最多两次且始终相对原 root，禁止 child-to-child 复利或换根清零。前两类仍须保持 task/project/root/purpose/boundary/heavy/side-effect/revocation 一致或收窄；新增节点不超过 `min(3,max(1,ceil(root*5%)))`，estimated 增量不超过 `min(60000ms,ceil(root*5%))`，hard-timeout 增量不超过 `min(600000ms,ceil(root*5%))`，log 增量不超过 `min(65536B,ceil(root*5%))`，不得新增 release consumer；same-scope retry 的四项增量仍必须为零。若父运行已终态、无 live lease、父 candidate HEAD 是当前已提交 HEAD 的严格 Git 祖先，且 task/project/root/revocation 一致，当前 level、purpose、节点、boundary、heavy、副作用与时间/hard/log 预算和父根逐项完全相等，则可创建带父 root/terminal digest 的新不可变根；当前结构化 Auto 决定允许重绑 context/AutoRef。范围变化必须返回 `StructuredIntentSingleAuthorityGate` 重算，不能直接转为用户确认。plan-only 必须调用与真实执行相同的续权/根滚动预检，但不得持久化或消耗 child authority；Auto ingress TTL 只保护入口重放，任务级 Auto 可在同任务精确 identity 下重绑新 root。confirm 模式只确认服务端唯一 pending card，不要求用户反复复制 digest；pause/stop/缩小范围立即撤销 pending/continuation/lease。
 - **标准流程与写权边界**：Auto 只免除 CP 确认处的人工等待，不免除正式任务准入、问题/需求概况与 canonical CP 产物落盘、digest-bound confirmation、`FencedTaskWriteOwnerLeaseV2`、单次 mutation lease 和 V5 prewrite。路径分类不能创建 task/owner、伪造 CP、提前放行或撤销既有授权。
 - **意图提交**：模型结合完整对话判断用户是否以有效别名或自然语言授予自动推进，在当前可信入口绑定的 `IntentSemanticDecisionV1.executionDecision` 中提交；别名引用、规则提问或短确认本身不生成/撤销授权。
 - 旧路径白名单只保留为 advisory 分类，不生成允许、拒绝或额外确认；执行始终由已确认意图、精确 task/root/owner/CP 状态和宿主权限决定。分类不绕过 implement-start，也不覆盖已有源码、安装或发布授权。
 - `instruction-fallback` 宿主只保留 auto 规则语义，不承诺 runtime 级行为；宿主能力按实际入口证据判断，不由宿主名称推测已安装 Hook。
 - CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认），含义是 Agent 仍须生成、持久化并回读对应产物与确认 receipt，只是不再停下来索要人工确认；它本身不授予源码写权
 - 以下约束**不可豁免**：S01（宿主权限归属与工作流有效性分离）/ S02 用户 / 项目敏感信息策略 / S03~S07 / C01 / C10 / C18。S02 不阻断明文、硬编码或真实秘密写入；它只禁止 AI 未经用户 / 项目要求自行加严、改成 env、`secretRef`、secret manager、`config.local.json` 或占位符。
-- 可恢复失败：重试 ≤ 2 次；不可恢复失败：切换回确认模式并通知用户 ⚠️
+- 可恢复失败：重试 ≤ 2 次；不可恢复失败：停止当前动作并通知用户，由下一份结构化意图决定恢复方式，禁止自动切换确认模式 ⚠️
 
 ## 设计原则
 
@@ -241,7 +241,7 @@ version: 1.20.2
 
 | 影响点 | `prod`（默认）| `dev` |
 |--------|:------------:|:-----:|
-| CP 门控 | 🔴 强制等待用户确认 | 🔴 强制等待用户确认 |
+| CP 门控 | 由 `IntentSemanticDecisionV1.executionDecision` 驱动：confirm 等待，Auto 自动通过并回读 receipt | 由 `IntentSemanticDecisionV1.executionDecision` 驱动：confirm 等待，Auto 自动通过并回读 receipt |
 | 合规检查 | 不执行（规范已验证） | 全量 FC1~FC7 + SC1~SC16 + RC1~RC4 + T1~T13 |
 | 入口检查输出 | 输出 PC0~PC10 基础状态；PC4 标注 N/A（dev 扩展诊断未启用）| 输出 PC0~PC10；PC4 执行完整三轴诊断：Axis A 认知锚点 / Axis B 对话轨迹 / Axis C 用户满足度；PC5~PC10 见 `17-compliance.instructions.md` |
 | 合规状态块 | 不输出 | 输出全量状态块（chat 豁免此块；但 chat 仍须输出入口检查块）|

@@ -135,7 +135,7 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 | 场景 | status | errorCode | 处理 |
 |---|---|---|---|
 | refs/phase/confidence 一致 | `matched` | `null` | 允许进入已确认转换 |
-| proposal 或 requirement 状态缺失 | `clarify` | `INTENT_STATE_MISSING` | 恢复当前引用后重新确认 |
+| proposal 或 requirement 状态缺失 | `clarify` | `INTENT_STATE_MISSING` | 恢复当前引用后重算结构化意图；无法唯一化时才澄清 |
 | requirement 不匹配 | `blocked` | `INTENT_REQUIREMENT_MISMATCH` | 重载 active requirement |
 | phase 不匹配 | `blocked` | `INTENT_PHASE_MISMATCH` | 返回预期阶段或刷新阶段证据 |
 | confidence 低于执行阈值 | `clarify` | `INTENT_LOW_CONFIDENCE` | 澄清语义，不猜测转换 |

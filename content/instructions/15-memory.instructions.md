@@ -156,7 +156,7 @@ V5 只保存 admission、fenced owner、`TaskRecoveryCommitFenceV1`、`TaskOpera
 
 命中 `host-capability-routing` 时，daily tasks、需求级 sessions、summary source 与 `ContextHandoffCard` 必须引用同一个 compact identity：`instructionRefId / decisionId / authority / digestStrength / selectedPortableDecision / nativeEligibility.status / fallback.reasonCode`。只保存 `OriginalInstructionRefV1.controlledSummary` 的 bounded projection，不复制完整用户原文、附件正文或 catalog row。
 
-confirm、compact、resume、host/session/task 变化后必须重新核验 instruction authority；`compat/none`、仅 conversation-visible、readback 未验证或 digest mismatch 均不能单独授权跨轮 mutation。应优先回绑 digest-bound CP/task artifact；无法回绑时停止 mutation，并请求重述或重新确认。Agent `SUMMARY.md` 仍只保存索引，不写这些字段的自由文本副本。
+confirm、compact、resume、host/session/task 变化后必须重新核验 instruction authority；`compat/none`、仅 conversation-visible、readback 未验证或 digest mismatch 均不能单独授权跨轮 mutation。应优先回绑 digest-bound CP/task artifact；无法回绑时停止 mutation并返回结构化意图重算，仍无法唯一化才请求重述。Agent `SUMMARY.md` 仍只保存索引，不写这些字段的自由文本副本。
 
 ## 触发规则
 

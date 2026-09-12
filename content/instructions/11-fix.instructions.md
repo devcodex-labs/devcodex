@@ -86,7 +86,7 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
   3. 相关真相源、联动规则或校验探针
 - **处理规则**：
   - 无阻断问题：显式输出 ReviewGradeCard 与“前置复审结果：✅ 无阻断，可进入下一阶段”后再推进
-  - 发现阻断问题：停止推进，先修正当前产物并告知用户，再回到对应 CP 重新确认
+  - 发现阻断问题：停止当前阶段，先修正当前产物并回到结构化意图重算；只有结果为 confirm 才等待用户
   - 连续 2 次前置复审仍发现新的阻断问题：提示升级为定向 `audit` 或扩大扫描范围
 
 **高风险操作**：DDL 变更 / 共享配置文件、`package.json`、CI 或生产配置变更 / 文件删除 / 直接影响生产环境。env、`secretRef`、secret manager 或 `config.local.json` 仅在用户 / 项目明确指定时作为连接配置入口。
@@ -240,7 +240,7 @@ ActualInstructionEnvelope/RouteDecision → 正式任务 TaskAdmissionTransactio
 - 所有 fix 在 accepted 前均须由 `RepairPreventionAssessmentGate` 判定 `existing-control-restored / new-control-provisional / no-new-control / emergency-active`；当前事件测试只证明 immediate closure，长期有效性必须来自后续可比较样本
 - 修复必须附带回归测试，禁止无测试的 hotfix（emergency 除外）
 - 修复范围不得超出问题边界（禁止顺手重构）
-- CP1 问题确认必须给出 `WorkflowPlanDecisionV1` 的三个独立轴和强制义务；修复默认 `designDepth=minimal`，只修确认根因和影响范围。用户当前明确意图优先于 Profile 配置与智能识别；若 AI 判断任一轴需要升级，先列证据、开发周期、难度、维护成本和取舍并等待用户确认。旧 `ImplementationComplexityLevel` / `ImplementationComplexityPreference` 只读兼容并只映射到 `designDepth`
+- CP1 问题确认必须给出 `WorkflowPlanDecisionV1` 的三个独立轴和强制义务；修复默认 `designDepth=minimal`，只修确认根因和影响范围。用户当前明确意图优先于 Profile 配置与智能识别；若 AI 判断任一轴需要升级，先列证据、开发周期、难度、维护成本和取舍并写回结构化意图，Auto 在已授权边界内继续，confirm 才等待用户。旧 `ImplementationComplexityLevel` / `ImplementationComplexityPreference` 只读兼容并只映射到 `designDepth`
 - 修复默认采用最小实现，禁止无计划新增抽象、通用配置、预留扩展点或未确认防御分支
 - 修复涉及字段/配置/接口文档/验证产物/数据脚本/跨环境写入/启动性能时，必须沿用 dev 的 `ExistingDomainContractAudit`、`ConfigOwnershipMatrix`、`ApiDocVerificationSync`、`DataMutationPlan`、`StartupPhaseTrace` 等通用工程吸纳守门；无关时写 `N/A + skipReason`
 - 必要注释必须覆盖非显然根因、兼容约束、安全边界、状态转换或反直觉修复取舍；禁止逐行解释、重复代码含义或保留临时 TODO

@@ -39,4 +39,4 @@ description: 制定结构化执行计划。当用户请求不匹配任何已有�
 - **禁止 source mutation** — `workflow-capabilities.json` 将 other 定义为只读规划；明确文档撰写、环境配置或其他文件变更必须路由到 dev/docs、dev/default、fix 或 self-fix
 - **无 CP 强制要求** — other 路由不强制 CP1→CP2→CP3，但多步复杂任务时建议分步确认
 - **不跳过记忆与报告边界** — C05 要求任务记忆和报告自动写入；合规入口/收尾按 `compliance` Skill 执行
-- **[C12](../../instructions/01-common.instructions.md) 合理性评估** — 有更好方案先提出并等待确认，明显不合理时先指出问题
+- **[C12](../../instructions/01-common.instructions.md) 合理性评估** — 有更好方案先提出并写回结构化意图；Auto 在授权边界内继续，confirm 才等待

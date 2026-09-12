@@ -31,8 +31,8 @@ CP1 前后必须使用 `workflow-plan-decision.v1.schema.json` 与 `hooks/_runti
 > 当用户选择 `@devcodex-auto`、全局默认 `@rocky`、Profile 配置的 auto 替换别名，或在文本宿主中明确自然语言授权 auto（如“进入 auto 模式执行”“全自动继续”“run in auto mode”）时：
 
 - Auto v1.1 正式入口包括显式 `@devcodex-auto`、全局默认 `@rocky`、项目 Profile `extensions.devcodex.autoAliases` 替换别名与明确自然语言 auto 授权；配置了 `autoAliases` 时该列表替换全局默认别名，空数组表示关闭默认别名；模糊提及、询问 auto 规则、普通“继续”或未生效昵称不等价于 auto 授权
-- **语义决定**：模型根据当前真实用户回答与上下文提交来源绑定的 `IntentSemanticDecisionV1.executionDecision`；别名配置提供可选入口含义，引用、问题文本或示例不构成授权。Hook 不按原文词组生成启用或退出决定。
-- **Sticky Auto（v1.2）**：有效语义授权后保留同 session 的 `stickyAuto`；后续追问、确认和补充按当前意图保留已有授权，明确退出或有效期/会话边界变化才更新状态。正式任务的持久授权由 task owner 校验。
+- **结构化意图单一权威**：模型根据当前真实用户回答与上下文提交来源绑定的 `IntentSemanticDecisionV1.executionDecision`；它是 CP、Auto、复审和验证的唯一语义决定。别名配置提供可选入口含义，引用、问题文本或示例不构成授权；Hook/MCP/CLI/receipt 只校验结构和工作流有效性，不能重新解释原始文本或产生另一套确认结论。
+- **Sticky Auto（v1.2）**：有效语义授权后在未准入阶段保留 `stickyAuto`，正式任务由 `TaskScopedAutoContinuationGrantV1` 持续承接且不受 session/TTL 撤销；后续追问、确认、补充、修复和验证按当前结构化意图保留已有授权。明确退出、任务终态或结构化意图判定为新任务才更新状态。
 - **模型可见回执**：`ExecutionModeV1: auto|confirm` 包含 sticky/source/authorityRef 与 CP auto-pass 提示；已有授权和精确任务范围决定后续行为。
 - **流程/authority 分离**：CP 自动通过只免除人工等待；Agent 仍须建立正式任务、写入 canonical CP 产物、持久化并回读 digest confirmation，随后取得 active fenced owner、单次 mutation lease 与 V5 prewrite。Auto 白名单不是 task、CP 或 mutation authority，也不能绕过 implement-start/CP gate
 - `hook-enforced` 宿主下，路径白名单仅提供 advisory 分类，不产生允许、拒绝或额外确认；完成正式流程后继续已获授权的任务，任何 enforcement 配置都不得把旧分类升级成操作权限。
@@ -41,7 +41,7 @@ CP1 前后必须使用 `workflow-plan-decision.v1.schema.json` 与 `hooks/_runti
 - CP1 / CP2 / CP3 确认**自动通过**（不等待用户确认，但必须生成并回读对应产物/receipt）
 - 以下约束**不可豁免**：[S01](../../instructions/00-safety.instructions.md)（宿主拥有操作权限，DevCodex 只校验范围与工作流）/ S02 用户 / 项目敏感信息策略 / S03~S07 / [C01](../../instructions/01-common.instructions.md) / [C10](../../instructions/01-common.instructions.md) / [C18](../../instructions/00-safety.instructions.md)。S02 不阻断明文、硬编码或真实秘密写入；它只禁止 AI 未经用户 / 项目要求自行加严、改成 env、`secretRef`、secret manager、`config.local.json` 或占位符。
 - 可恢复失败：重试 ≤ 2 次
-- 不可恢复失败：切换回确认模式并通知用户 ⚠️
+- 不可恢复失败：停止当前动作并通知用户，由下一份结构化意图决定恢复方式；禁止组件自行切换确认模式 ⚠️
 
 ## OriginalInstructionAuthorityGate
 
@@ -49,7 +49,7 @@ CP1 前后必须使用 `workflow-plan-decision.v1.schema.json` 与 `hooks/_runti
 
 - 当前 CP 的最终 authority 仍是 digest-bound CP artifact 与 `memory_cp_confirm` readback；受控摘要、宿主 mode、plan 文件和 UI approval 不能替代。
 - `auto_authorized` 必须带非空 `autoAuthorityRef`，且只能引用现有有效 Auto alias/自然语言授权证据；本 Gate 和宿主 mode 都不能创建授权。
-- `compat/none`、conversation-visible turn-bound、readback 未验证或 digest mismatch 不能授权跨轮 mutation；优先回绑已确认 CP/task artifact，失败则停止并要求重述/重新确认。
+- `compat/none`、conversation-visible turn-bound、readback 未验证或 digest mismatch 不能授权跨轮 mutation；优先回绑已确认 CP/task artifact，失败则停止当前 mutation 并回到结构化意图重算，不得由本 Gate 自行要求用户确认。
 - native lever 的 enter/approve/exit 不改变 CP1→CP2→条件 CP3 顺序，也不降低 S01～S07/C01/C10/C18。
 - Phase 1 只消费 portable decision；MCP 缺失不影响 CP，记录 `MCP_NOT_REQUIRED`。
 
@@ -97,7 +97,7 @@ CP1 前后必须使用 `workflow-plan-decision.v1.schema.json` 与 `hooks/_runti
 
 1. **严格按序**：CP1 → CP2 → CP3，不得跳过中间步骤
 2. **禁止合并**：不得将 CP1+CP2 合并为一次输出
-3. **每个 CP 独立确认**：输出后必须等待用户明确响应
+3. **每个 CP 独立形成决定**：输出后消费当前 `IntentSemanticDecisionV1.executionDecision`；confirm 等待用户，Auto 持久化并回读 CP receipt 后继续
 4. **用户请求 ≠ CP 确认**：用户说"帮我做X"不等于 CP1 已通过
 5. **"继续" ≠ CP3/写入授权**：任务名续接、stable taskId、Hook/MCP/CLI resolver 或 `WorkspaceSessionRouteIndexV1` 命中都只定位任务；必须从 exact route/project/task binding、sessions 与绑定 artifact digest 复证 CP，并重新取得当前 owner/mutation lease。缺失/漂移返回 `stale-confirmation` 或 `needs-reconcile` 并回对应阶段，不能把 `继续<任务名>任务` 当作新确认、自动重开或写权
 6. **跨轮次状态保持**：CP 确认状态不因后续轮次消息重置
@@ -105,7 +105,7 @@ CP1 前后必须使用 `workflow-plan-decision.v1.schema.json` 与 `hooks/_runti
 8. **产物文件前置创建**：输出 CP 确认请求前，对应产物文件必须已写入磁盘。正式任务由 `TaskAdmissionTransactionV1` 单写者先 create-if-absent 并回读 identity、canonical overview/问题概况和 CP pending，禁止先手工拼目录再补准入。dev/requirements 必须先判定入口类型：纯新需求且无产品角色 → `00-需求概况.md` + `01-需求确认.md` + `<任务>/.memory/sessions.md`；有产品角色直接提供完整需求 → `00-需求概况.md`（仅来源/映射概况）+ 原样 `01-产品需求.md` + `<任务>/.memory/sessions.md`，产品正文只给产品填写完整 PRD，AI / 研发缺口 / 冲突检查记录在 00、CP1 摘要、`02-技术方案.md` 或报告中，不改写 01；需求变更 → `00-需求变更概况.md` + `01-需求变更确认.md` + 回写目标需求真相源；历史目录的 `01-需求概述.md` 仅作兼容。fix/bugs → `00-问题概况.md` + `01-问题确认.md`，也允许使用 `01--问题确认与CP1.md`、`02--技术方案与CP2.md` 这类报告等价承载 CP1/CP2；CP3 → `04-实施计划.md`。命中有效 `SimpleTaskFastPathLeaseV1` 时，允许不创建需求/bug 目录，用内联 CP 摘要 + 报告/记忆替代，但必须记录 `N/A + skipReason` 和升级回退条件；若命中 ExistingRequirementArtifactOverride，则必须先增量编辑已有真相源，回复内联摘要不得替代文件回写。所有场景必须用 ArtifactDecisionMatrix 说明每个产物是 `create`、`update`、`skip` 还是 `N/A`。
 9. **进度文档触发**：`05-实施进度.md` 不是小任务默认必产物；当任务跨 2 轮以上会话、存在明确阻塞、用户要求持续跟踪、CP3 计划拆为多批次、预计修改 ≥10 文件或命中控制面/模板/validate/部署副本联动时，必须在执行前创建并在每批完成后更新。默认前提是已存在 `04-实施计划.md`；docs/init/plan-review 等 CP3 豁免场景可使用已确认文档大纲、任务切片或 ContextHandoffCard 作为等价计划锚点。
 10. **CP3 豁免记录**：docs/init/plan-review 等被工作流规则明确豁免 CP3 时，必须写入 `CP3: N/A（<子类型> 子类型豁免）`，让 hook/fallback 能区分“合法豁免”和“遗漏确认”。
-11. **确认后前置复审分级**（C19 / `PostConfirmationReviewScopeGate`）：每次用户明确确认后、进入下一阶段前，必须先判定复审强度。低风险单文件、纯文案或 SimpleTaskFastPath 可做轻量复审；命中公共 API/配置、跨模块注册链、运行时安全能力、package/adapter、文档消费者、控制面、多真相源同步、用户要求全面复审或预计多轮收敛时，必须升级为冻结清单驱动的全面复审，复用 `review-checklist` 文件、`dev-plan-review` PR-2~PR-7、ReviewCoverageDelta / ReviewDimensionDeltaGate 和状态新鲜度检查；命中控制面、多文件联动、多真相源同步或模板-示例-校验链时必须追加交叉验证；发现阻断性问题则先修正并回到对应 CP 重新确认，无阻断问题方可推进并显式输出结果。低风险降级必须写 `skipReason`。
+11. **确认后前置复审分级**（C19 / `PostConfirmationReviewScopeGate`）：每次显式或 Auto CP 决定后、进入下一阶段前，必须先判定复审强度。低风险单文件、纯文案或 SimpleTaskFastPath 可做轻量复审；命中公共 API/配置、跨模块注册链、运行时安全能力、package/adapter、文档消费者、控制面、多真相源同步、用户要求全面复审或预计多轮收敛时，必须升级为冻结清单驱动的全面复审，复用 `review-checklist` 文件、`dev-plan-review` PR-2~PR-7、ReviewCoverageDelta / ReviewDimensionDeltaGate 和状态新鲜度检查；命中控制面、多文件联动、多真相源同步或模板-示例-校验链时必须追加交叉验证。阻断项先修正并回到结构化意图重算，不得由复审器直接要求重复确认。低风险降级必须写 `skipReason`。
 12. **审计问题清单转修复的 CP1 映射**：当 fix 源自 audit/analyze 的问题清单时，CP1 必须建立问题 ID 映射，逐项标注 `本轮修复 / 已关闭 / 延后 / 另起任务`，并把验收口径写入 CP1 产物；禁止只列新增问题而漏掉用户已指出或上轮已确认的问题。
 13. **执行期 CP3 回退**：若执行过程中实际变更范围触达 CP3 门槛（≥5 文件、高风险、控制面联动），必须暂停执行、补做或重开 CP3，再继续后续修改与验证。
 14. **backlog 来源前置真相复核**：当 CP1/问题确认直接来源于 `data/*.md` 的 open/partial 项时，进入正式确认前必须先把候选项分类为 `pure-open` / `residual-tail` / `already-fixed` / `misclassified`；非 `pure-open` 项须先回写状态并修正本轮范围，不得把 stale-open 条目继续按纯 open 统计。
@@ -121,10 +121,10 @@ CP1 前后必须使用 `workflow-plan-decision.v1.schema.json` 与 `hooks/_runti
 | 用户响应 | 处理方式 |
 |---------|---------|
 | ✅ 确认（"可以"/"没问题"/"确认"） | 进入下一阶段 |
-| ✏️ 修正（"X 部分改为 Y"） | 应用修正后重新输出当前 CP，等待再次确认 |
+| ✏️ 修正（"X 部分改为 Y"） | 应用修正并重新结构化意图；confirm 等待，Auto 回读新候选后继续 |
 | ❌ 拒绝（"不对"/"重来"） | 回退到当前 CP 重新分析 |
-| ？追问 | 回答后重新输出当前 CP，等待确认 |
-| 🔀 模糊（含批评/情绪/意图不明）| **不得推进**，必须明确询问再等待显式响应 |
+| ？追问 | 回答后重新输出当前 CP，并按结构化 executionDecision 处理 |
+| 🔀 模糊（含批评/情绪/意图不明）| 停止当前 mutation，补足意图证据后重算；无法唯一化时才最小澄清 |
 
 ## 确认后前置复审分级
 
@@ -161,14 +161,14 @@ CP1 前后必须使用 `workflow-plan-decision.v1.schema.json` 与 `hooks/_runti
   3. 相关真相源、联动规则或校验探针
 - **处理规则**：
   - 无阻断问题：显式输出 ReviewGradeCard + “前置复审结果：✅ 无阻断，可进入下一阶段”后再推进
-  - 发现阻断问题：停止推进，修正当前产物，告知用户，再回到对应 CP 重新确认
+  - 发现阻断问题：停止当前阶段，修正当前产物并回到结构化意图重算；只有结果为 confirm 才等待用户
   - 连续 2 次仍发现新的阻断问题：提示升级为定向 `audit` 或扩大扫描范围
 - **边界**：作者自审不得标为独立审查；文件少不得压低控制面/公共契约/安全/发布风险
 
 ## ConfirmBindingGate / ClosureEvidenceGate（控制面确认绑定）
 
 > 🔴 **ConfirmBindingGate**：控制面、多文件、Hook/MCP/CLI/分发、或用户要求 digest 绑定时，CP 确认必须绑定 **确认前** 产物全文 `artifactPath + version + artifactSha256`。  
-> 🔴 **禁止**确认后仅改产物头部/状态字段再刷新 hash 仍保持同一 ✅（必须标 `stale` 并重确认）。  
+> 🔴 **禁止**确认后仅改产物头部/状态字段再刷新 hash 仍保持同一 ✅（必须标 `stale` 并返回结构化意图重算；是否等待由 executionDecision 决定）。  
 > 🔴 **ClosureEvidenceGate**：宣称 closed / 可确认下一 CP / 可实施 时，每条 P0 须双列 `designEvidence` + `runtimeOwners(writer|reader|schema|probe)`；仅有设计段落 → 最高 `partial`，禁止写「可确认 CP3 / 可实施」。  
 > 🔴 **ReReviewRuntimeFirstGate**：用户说「已调整 / 再审」时，先绑 hash、先问 runtime 假绿，再做旧 finding 打勾。
 
@@ -207,7 +207,7 @@ CP1 前后必须使用 `workflow-plan-decision.v1.schema.json` 与 `hooks/_runti
 | CP3 | ⏹️   | —     |
 ```
 
-- `✅` 已确认 · `⏳` 等待确认 · `⏹️` 未开始 · `stale` 正文已变须重确认
+- `✅` 已确认 · `⏳` confirm 模式等待 · `⏹️` 未开始 · `stale` 正文已变须重算结构化意图
 - 推荐：使用 MCP 工具 `memory_cp_confirm`（控制面带 digest 字段）
 - 无 MCP 时：用 Edit 工具追加/更新此表格
 - **禁止**：用 Bash/shell 命令修改此文件（C09：破坏 UTF-8 编码）
@@ -232,8 +232,8 @@ CP1 前后必须使用 `workflow-plan-decision.v1.schema.json` 与 `hooks/_runti
 | 变更级别 | 判断条件 | 处理方式 |
 |:--------:|---------|---------|
 | 🟢 微调 | 不影响已确认的接口/行为/范围 | 继续执行，记录偏离原因 |
-| 🟡 扩展 | 追加功能点或调整非核心接口 | 回 CP2 补充确认后继续 |
-| 🔴 重大 | 影响核心接口/数据模型/范围边界 | 必须回 CP1 重新确认 |
+| 🟡 扩展 | 追加功能点或调整非核心接口 | 重算结构化意图并回 CP2；Auto 在授权任务边界内自动通过 |
+| 🔴 重大 | 影响核心接口/数据模型/范围边界 | 停止当前 mutation，重算结构化意图并回 CP1；是否等待由 executionDecision 决定 |
 
 ## 模板引用
 

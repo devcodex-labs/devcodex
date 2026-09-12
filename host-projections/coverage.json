@@ -1,12 +1,12 @@
 {
   "schemaVersion": "HostInstructionCoverageReceiptV1",
   "sourceFile": "content/instructions.md",
-  "sourceDigest": "3212f4d036498788ca80d23b4d1536829d2cf68e6b9e29a5d19c5a4dda209259",
+  "sourceDigest": "1c5ccfee693f856248aa044ef85c3bc26da907f8e5048b9943406593131b7fc6",
   "configDigest": "2e0942dff1261d7d67093d3af00a9d754a2d66c0bd9648f4246fefbf7aee632d",
   "mode": "kernel",
   "fallback": {
     "destination": "user://agents/devcodex/instructions.full.md",
-    "sourceDigest": "3212f4d036498788ca80d23b4d1536829d2cf68e6b9e29a5d19c5a4dda209259",
+    "sourceDigest": "1c5ccfee693f856248aa044ef85c3bc26da907f8e5048b9943406593131b7fc6",
     "available": true
   },
   "budgets": {
@@ -305,14 +305,14 @@
   },
   "outputs": {
     "host-projections/AGENTS.md": {
-      "bytes": 11948,
+      "bytes": 11913,
       "lines": 91,
-      "digest": "766a68fcef2b310d2aa1b1e49a8d81357a6f57a4ae6ab64783ef182674ae2438"
+      "digest": "9229a9e610f1450ce37d8b5ac29a5c48eb995172da1160cb0219d7c3ea0311ab"
     },
     "host-projections/copilot-instructions.md": {
-      "bytes": 11973,
+      "bytes": 11938,
       "lines": 91,
-      "digest": "cf45c4f924a900b251b090292fbf3a91d304339087a2f3c1c3b606ab3ef255f2"
+      "digest": "5b8458c3e36226e33eb39668a9a5310d9ab6b8d29526766566534c8dbd48c523"
     },
     "host-projections/CLAUDE.md": {
       "bytes": 510,
@@ -330,5 +330,5 @@
     "valid": true,
     "errors": []
   },
-  "receiptId": "host-instruction-coverage-b7686c60fa77454e11b543940f7d2a046ba97680b16c67c6614b28d3b6eb69d8"
+  "receiptId": "host-instruction-coverage-90212d2943dd911126057291881bfa93162083b4d2b529b6fe5353a85ad0ff17"
 }

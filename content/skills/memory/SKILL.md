@@ -195,7 +195,7 @@ mismatch 错误含 nextStep：改完 rehash 再 confirm。Grok 状态条因此�
 | 🧾 Governance Intake | candidate IDs、assessmentVerdict、generalizationScope、existingRuleState、复合 record intents、target ledgers、write requirement/evidence、verification state；只存最小锚点，不复制完整 prompt |
 | 🔎 ReviewState | planId、snapshotDigest、stage、reviewClass、open/blocker/stale/unreviewed、saturation、nextAction；正文以 review checklist/runtime 为准 |
 
-`HostCapabilityRoutingRef` 不得复制完整用户原文、附件正文或 catalog row。confirm、compact、resume、host/session/task 变化后，若只剩 compat/none、conversation-visible 或 readback 未验证 authority，停止自动 mutation 并优先回绑 digest-bound CP/task artifact；无法回绑时请求重述或重新确认。Agent SUMMARY 仍保持纯索引。
+`HostCapabilityRoutingRef` 不得复制完整用户原文、附件正文或 catalog row。confirm、compact、resume、host/session/task 变化后，若只剩 compat/none、conversation-visible 或 readback 未验证 authority，停止当前 mutation 并优先回绑 digest-bound CP/task artifact；无法回绑时返回结构化意图重算，仍无法唯一化才请求重述。Agent SUMMARY 仍保持纯索引。
 
 ## 格式选择
 

@@ -37,7 +37,7 @@ description: 执行契约规范 — 为长流程、多文件、Auto 或控制面
 | `deviationPolicy` | ✅ | 绿色/黄色/红色偏离分级与处理方式 |
 | `driftTriggers` | 条件 | `DevelopmentDriftGate` 触发器：范围扩张、包/API/配置/文档消费者变化、新依赖、验证路线改变、dirty 污染或用户新确认 |
 | `deviationLog` | 条件 | 多批次或发生绿色/黄色偏离时，记录实际新增消费者、探针、同步副本与理由 |
-| `rollbackPlan` | ✅ | 失败恢复路径、回滚锚点或重新确认条件 |
+| `rollbackPlan` | ✅ | 失败恢复路径、回滚锚点或结构化意图重算条件 |
 | `progressArtifact` | 条件 | 多批次、预计 ≥10 文件、跨轮次或用户要求持续跟踪时必须写 `05-实施进度.md` |
 | `safetyInterruptionRecovery` | 条件 | 授权本地安全审查出现宿主安全提示/内容不可见时，引用 `AuthorizedLocalSecurityAuditPresentationGate` 的 SafetyInterruptionCard、last checkpoint 与 resume evidence |
 | `publisherCredentialTopology` | 条件 | 首次发布或发布身份/仓库/package/registry/auth topology 变化时，引用 `PublisherCredentialTopologyGate`；只记录身份、scope/access/permission/ownership/成功证据，不含 secret value |
@@ -124,7 +124,7 @@ permission-core 等业务任务级 baseline 只能作样板，不得替代 DevCo
 
 ### InstructionAuthorityContract
 
-命中 `host-capability-routing` 时，ExecutionContract 只绑定 compact identity，不保存完整用户原文或 catalog row。`compat/none`、conversation-visible、readback 未验证或 digest mismatch 不能单独支持跨轮 mutation；应优先回绑 digest-bound CP/task artifact，失败则进入 StopSnapshot/重述/重新确认。portable decision 不改变 `allowedPaths`、CP、Auto 或安全确认，Phase 1 也不得新增 native/MCP/CLI/Hook recovery action。
+命中 `host-capability-routing` 时，ExecutionContract 只绑定 compact identity，不保存完整用户原文或 catalog row。`compat/none`、conversation-visible、readback 未验证或 digest mismatch 不能单独支持跨轮 mutation；应优先回绑 digest-bound CP/task artifact，失败则进入 StopSnapshot 并返回结构化意图重算，仍无法唯一化才请求重述。portable decision 不改变 `allowedPaths`、CP、Auto 或安全确认，Phase 1 也不得新增 native/MCP/CLI/Hook recovery action。
 
 ## OwnIntroducedRegressionSelfFixGate / SharedStateMutationGate（PI-119）
 

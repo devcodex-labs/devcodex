@@ -30,7 +30,7 @@ Native lever、MCP Tool/Resource、CLI 和 Hook 接线属于 Phase 2。Phase 1 �
 
 - 普通闲聊且不进入 DevCodex 工作流；
 - 工作流意图尚未确定：先回 `intent`；
-- 原始指令 authority 缺失或跨轮仅剩 compat/none：停止自动 mutation，请求重述或重新确认；
+- 原始指令 authority 缺失或跨轮仅剩 compat/none：停止当前 mutation，优先回绑任务事实并返回结构化意图重算；仍无法唯一化时才请求重述；
 - catalog 缺失、重复、过期、variant 未知或 matrix identity 不一致：使用 portable fallback，不猜 native；
 - Cursor、chatgpt-plain：标记 unsupported，使用手工全文/普通提示词路径。
 
@@ -111,7 +111,7 @@ Authority 强度从高到低：
 - 不持久化完整用户原文；`controlledSummary` 只是 ≤512 Unicode 字符的 projection。
 - `projectionDigest` 只证明受控摘要，不证明原始消息。
 - `compat/none` 不能单独授权跨轮 mutation。
-- source missing/mismatch/unverified 且没有强 CP/task authority 时，`stopMutation=true`，请求重述或重新确认。
+- source missing/mismatch/unverified 且没有强 CP/task authority 时，`stopMutation=true`，优先恢复强事实并重算结构化意图；仍无法唯一化时才请求重述。
 - 附件只保存宿主 locator 或内容 digest。
 
 ## Catalog 与 native truth ceiling
@@ -144,7 +144,7 @@ Phase 1 即使 evidence 为 fresh，也必须因 runtime 未接线而返回 `NAT
 | `NATIVE_NOT_PHASE1` | 正常 portable 路径 |
 | `AUTO_AUTHORITY_MISSING` | 不允许 `auto_authorized` |
 | `INSTRUCTION_SOURCE_MISSING` | 停止自动 mutation，请求重述 |
-| `INSTRUCTION_DIGEST_MISMATCH` | 停止并重新确认 |
+| `INSTRUCTION_DIGEST_MISMATCH` | 停止当前 mutation，恢复来源并重算结构化意图 |
 | `INSTRUCTION_AUTHORITY_TOO_WEAK` | 回绑强 CP/task authority |
 | `HOST_UNSUPPORTED` | manual/plain fallback |
 | `MCP_NOT_REQUIRED` | Phase 1 继续；不把 MCP 缺失当故障 |

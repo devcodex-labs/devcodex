@@ -58,14 +58,14 @@
 | C09 | 文件编码安全 | 禁止用 Bash `Set-Content`/`sed -i` 批量修改中文 .md（破坏 UTF-8），必须用 Edit 工具逐文件修改 |
 | C10 | 危险操作分类不得拥有权限 | 同 S06；只允许 advisory + typed workflow-validity gate |
 | C11 | 关联文件同步 | 修改/新建/重命名后检查所有引用处并同步 |
-| C12 | 合理性评估 | 意图识别后、CP1 前必须评估合理性并执行 `ProactiveBetterAlternativeGate`：有更低风险、更完整、更易维护或更符合项目现实的建议时必须先提出取舍并等待确认；用户给出判断、目录结构或已有设计时 AI 须独立验证，不得顺从论证；若经核验用户方案已最优，可明确说明依据后直接采纳，禁止为了表现“独立”而机械唱反调 |
+| C12 | 合理性评估 | 意图识别后、CP1 前必须评估合理性并执行 `ProactiveBetterAlternativeGate`：有更低风险、更完整、更易维护或更符合项目现实的建议时必须提出取舍，并把选择写回当前 `IntentSemanticDecisionV1`；`executionDecision=enable-auto|retain-current` 且建议仍在已授权任务边界内时直接采用唯一推荐继续，只有结构化意图选择 confirm 或新增动作超出既有授权时才等待确认。用户给出判断、目录结构或已有设计时 AI 须独立验证，不得顺从论证；若经核验用户方案已最优，可明确说明依据后直接采纳，禁止为了表现“独立”而机械唱反调 |
 | C13 | 规范资产文件分拆 | AI 新建 DevCodex 规范资产 `.md`（instructions / skills / prompts / templates / 规范源等）超 500 行必须拆分（已有文件豁免）；业务项目需求、技术方案、报告和正式项目文档不因 C13 强制拆分，按项目自身规范、可读性和用户要求判断 |
 | C14 | 多任务检查点 | ≥2 个独立任务：每完成一个追加进度到记忆 + 输出进度快照 |
 | C15 | 架构质量视角 | dev/fix 的需求/问题定义与代码设计须从架构师+平台工程师双视角评估：消费者范围、共享契约边界、模块职责、可扩展性、可维护性、易上手性；模块化只在真实复用者、演进边界或跨模块共享契约存在时成立 |
 | C16 | 规模判断与批量分批 | 分析、审查、扫描或批量操作前必须先识别唯一项目/root，并执行 `ProjectArtifactScaleRoutingGate` 的 bounded inventory，按文件数、可解析字节、最大文件、目录集中度、派生产物比例和消费者扩散面决定 `single-pass / batched / sampled+deep-read / blocked`；≥10 文件 mutation 或非 small corpus 必须分批并写 checkpoint，禁止先无界扫描超时后再补分批 |
 | C17 | 过程改进记录 | 每条非空用户消息先登记中性治理候选，完成合理性评估和上下文归因后再按语义形成 `GovernanceIntakeDecision`；关键词不得作为权威触发/分类依据。用户建议的策略经确认更优，或揭示规范未定义/不完整且可泛化时，必须走 Improvement Intake：将策略写入 `data/process-improvements.md`（优化清单，PI）；若同时暴露规范缺口，再联动 `data/pending-fixes.md`（PF）。复合意图逐项 all-of 验证；不得询问是否记录；所有模式命中后都必须显式回执已记录的 `PI-xxx / PF-xxx`。PI/PF 记录不能替代当前需求修订：未闭环需求实施前或实施中复现的相关缺陷必须执行 `InFlightIssueRequirementBindingGate`，先绑定当前需求并提醒纳入决定；阻断项优先修复 |
 | C18 | 全模式入口检查不可跳过 | 同 S07 |
-| C19 | 确认后前置复审 | 每次用户明确确认后、进入下一阶段前，必须执行 `PostConfirmationReviewScopeGate` 并输出 **ReviewGradeCard**：映射 **轻量=R1**（低风险单文件/纯文案，须 `skipReason`）、**标准=R2**（默认）、**全面=R3**（高风险/多模块/公共 API·配置/安全/package·adapter/文档消费者/控制面/多真相源 + 冻结清单）、**发布安全=R4**；命中控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链须追加交叉验证；阻断项先修正并重确认。ECR 默认 R2，不得钉死为「永远轻量」 |
+| C19 | 确认后前置复审 | 每次显式或 Auto CP 决定后、进入下一阶段前，必须执行 `PostConfirmationReviewScopeGate` 并输出 **ReviewGradeCard**：映射 **轻量=R1**（低风险单文件/纯文案，须 `skipReason`）、**标准=R2**（默认）、**全面=R3**（高风险/多模块/公共 API·配置/安全/package·adapter/文档消费者/控制面/多真相源 + 冻结清单）、**发布安全=R4**；命中控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链须追加交叉验证。阻断项先修正并回到结构化意图重算；不得把复审失败、receipt 过期或同任务范围变化自行投影成重复确认。ECR 默认 R2，不得钉死为「永远轻量」 |
 | C20 | 官方文档证据前置 | 新增/升级第三方依赖、框架、SDK、平台 API 或外部模块前，必须先读取官方使用文档/官方参考资料并形成 `OfficialDocsEvidence`；缺失证据时不得进入编码 |
 | C21 | Profile 联动判定 | dev/fix 修改项目技术栈、目录边界、脚本、测试/发布路线、分发面、配置项、长期连接或本地 overlay schema 时，必须执行 `ProfileImpactCheck`：更新 Profile 或写明跳过理由 |
 | C22 | AI 自启动服务清理（ServiceLifecycleCleanup） | AI 为验证启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server、压测 target 等长运行进程时，必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或中断收尾前主动停止仅由 AI 启动的服务并核验端口释放；不得杀用户既有进程；用户明确要求保留时记录保留原因、PID/端口和关闭方式 |
@@ -114,6 +114,8 @@
 ### 项目现实扩展
 
 执行顺序必须为：`用户消息语义初判（IntentSeedV1）→ 目标项目识别 → ContextReadPlanV2 → 定向读取 + ContextReadReceiptV2 → 项目现实扩展 → 最终意图与工作流路由`。
+
+- **StructuredIntentSingleAuthorityGate**：项目现实扩展完成后必须形成来源绑定的 `IntentSemanticDecisionV1`，它是本轮项目、路由、Skill、Auto/确认、准入、执行与验证的单一语义决策来源。下游只能验证结构、identity、范围、状态和证据，不得重读原始 prompt 后另行生成意图或确认结论；任何范围、风险、候选、root 或 receipt 变化先返回本 Gate 重算。短时 receipt 的 TTL 只约束入口重放/绑定新鲜度，不能撤销任务级 Auto，也不能单独要求用户再次确认。
 
 - 项目现实扩展必须结合目标项目的技术栈、目录结构、当前需求/bug 产物、测试/发布约束，修正或确认最终工作流/子类型。
 - 项目未识别时，不得为了扩展意图而无界扫描工作区；必须先询问用户。
@@ -169,7 +171,7 @@
 
 ### ConfirmationRequest 与按钮降级
 
-用户确认语义必须先表示为宿主无关的 `ConfirmationRequest`（`id/kind/severity/question/options/recommendedOption/evidence/fallbackText/auditLogRequired`），再由宿主适配层选择按钮、权限提示、Hook 阻断或文本 fallback。该抽象是语义层契约，不要求 runtime 产物逐字输出名为 `ConfirmationRequest` 的对象；Claude Code SDK / VS Code Chat Extension 等明确支持结构化按钮时可使用按钮；Codex/Claude/Copilot Hooks 以阻断原因和下一步为主；Cursor/JetBrains/repository instructions 使用文本确认 fallback。禁止把按钮 UI 写成全宿主能力。
+只有当前 `IntentSemanticDecisionV1` 明确选择 confirm，或结构化意图识别出尚未授权的外部共享/发布动作时，才可生成宿主无关的 `ConfirmationRequest`（`id/kind/severity/question/options/recommendedOption/evidence/fallbackText/auditLogRequired`），再由宿主适配层选择按钮、权限提示、Hook 阻断或文本 fallback。下游适配层、凭据过期和状态漂移均不能自行创建确认。该抽象是语义层契约，不要求 runtime 产物逐字输出名为 `ConfirmationRequest` 的对象；Claude Code SDK / VS Code Chat Extension 等明确支持结构化按钮时可使用按钮；Codex/Claude/Copilot Hooks 以阻断原因和下一步为主；Cursor/JetBrains/repository instructions 使用文本确认 fallback。禁止把按钮 UI 写成全宿主能力。
 
 ---
 
@@ -241,7 +243,7 @@ CP2 / 技术方案 / 报告必须记录 `LayeredAbsorptionDecision`：`candidate
 
 ### ProactiveBetterAlternativeGate（主动更优建议门禁）
 
-在需求确认、规范吸纳、CP2 技术方案、复审清单冻结和发布前检查前，AI 必须主动比较用户方案与至少一种项目现实可行的替代路径。若发现更低风险、更完整、更符合长期维护或更易验证的方案，必须先提出建议、收益、代价与影响范围，再让用户确认；不得因用户已给出方向就只做顺从式记录或执行。若用户方案已经最优，必须记录依据，例如真相源证据、消费者范围、验证成本、迁移风险或用户明确约束。
+在需求确认、规范吸纳、CP2 技术方案、复审清单冻结和发布前检查前，AI 必须主动比较用户方案与至少一种项目现实可行的替代路径。若发现更低风险、更完整、更符合长期维护或更易验证的方案，必须提出建议、收益、代价与影响范围，并将唯一推荐写回当前结构化意图；Auto 且仍在已授权任务边界内时继续执行，confirm 模式或新增未授权动作才等待用户。不得因用户已给出方向就只做顺从式记录或执行。若用户方案已经最优，必须记录依据，例如真相源证据、消费者范围、验证成本、迁移风险或用户明确约束。
 
 ### ConfirmedAbsorptionCompletenessGates（确认吸纳完整性补强）
 
@@ -394,7 +396,7 @@ SCV 结果必须写入报告；控制面任务的 ECR-7 必须引用 SCV 证据�
 
 | 影响点 | `prod`（默认）| `dev` |
 |--------|:------------:|:-----:|
-| CP 门控 | 🔴 强制等待用户确认 | 🔴 强制等待用户确认 |
+| CP 门控 | 由 `IntentSemanticDecisionV1.executionDecision` 驱动：confirm 等待，Auto 自动通过并回读 receipt | 由 `IntentSemanticDecisionV1.executionDecision` 驱动：confirm 等待，Auto 自动通过并回读 receipt |
 | 合规检查 | 不执行 | 全量 FC1~FC7 + SC1~SC16 + RC1~RC4 + T1~T13 |
 | 入口检查输出 | 输出 PC0~PC10 基础状态，PC4 标注 N/A | 输出 PC0~PC10，PC4 执行完整规范雷达 |
 | 合规状态块 | 不输出 | 输出全量状态块（chat 豁免合规块，但仍须预检查）|
@@ -422,8 +424,8 @@ SCV 结果必须写入报告；控制面任务的 ECR-7 必须引用 SCV 证据�
 CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施确认）→ 执行
 ```
 
-- **CP1**：先判定入口类型：纯新需求且无产品角色时使用 `00-需求概况.md → 01-需求确认.md`；有产品角色并由产品直接提供完整需求时，`00-需求概况.md` 只保存来源、范围与映射概况，`01-产品需求.md` 保存用户提供的原始产品真相且 AI 不得改写，AI / 研发缺口 / 冲突检查只能记录在 CP1 摘要、`02-技术方案.md` 或报告中；需求变更使用 `00-需求变更概况.md → 01-需求变更确认.md` 并回写目标需求真相源；Bug 使用 `bugs/<问题>/00-问题概况.md → 01-问题确认.md` 并走 fix。随后输出完整需求理解（目标/边界/风险）和 `WorkflowPlanDecisionV1`：流程仪式 `ceremonyTier=simple|standard`、方案深度 `designDepth=minimal|standard`、验证等级 `assuranceLevel=targeted|affected|full` 与独立的 `mandatoryObligations` → 等待用户确认
-- **CP2**：按已确认的 `designDepth` 输出最小充分或标准技术方案（架构/文件清单/依赖），不得用流程档位反推方案复杂度；新增/升级依赖、框架、SDK 或平台 API 时必须附 `OfficialDocsEvidence`，涉及项目事实变化时必须附 `ProfileImpactCheck` → 等待用户确认
+- **CP1**：先判定入口类型：纯新需求且无产品角色时使用 `00-需求概况.md → 01-需求确认.md`；有产品角色并由产品直接提供完整需求时，`00-需求概况.md` 只保存来源、范围与映射概况，`01-产品需求.md` 保存用户提供的原始产品真相且 AI 不得改写，AI / 研发缺口 / 冲突检查只能记录在 CP1 摘要、`02-技术方案.md` 或报告中；需求变更使用 `00-需求变更概况.md → 01-需求变更确认.md` 并回写目标需求真相源；Bug 使用 `bugs/<问题>/00-问题概况.md → 01-问题确认.md` 并走 fix。随后输出完整需求理解（目标/边界/风险）和 `WorkflowPlanDecisionV1`：流程仪式 `ceremonyTier=simple|standard`、方案深度 `designDepth=minimal|standard`、验证等级 `assuranceLevel=targeted|affected|full` 与独立的 `mandatoryObligations`；是否等待由当前 `IntentSemanticDecisionV1.executionDecision` 唯一决定
+- **CP2**：按已确认的 `designDepth` 输出最小充分或标准技术方案（架构/文件清单/依赖），不得用流程档位反推方案复杂度；新增/升级依赖、框架、SDK 或平台 API 时必须附 `OfficialDocsEvidence`，涉及项目事实变化时必须附 `ProfileImpactCheck`；confirm 模式等待，Auto 模式落盘并回读后继续
 - **plan-review**：评估计划可行性（CP2 后、CP3 前）
 - **CP3**：条件触发。default/refactor/database/optimization/scenario-test 必须执行；docs/init/plan-review 按子类型规则豁免，并记录 `CP3: N/A（<子类型> 子类型豁免）`。实施计划必须消费 `WorkflowPlanDecisionV1` 三个独立轴和强制义务，不得用其中一个轴替代另两个轴。
 - **WorkflowPlanDecisionV1**：入口先根据用户当前消息与 `extensions.devcodex.workflowRouting` 形成 precheck 初判，完成唯一项目和有界项目事实读取后形成 post-context 二次判断；只有真实范围扩张才形成 scope-expansion 第三次判断。优先级固定为“用户当前任务明确意图 > Profile 配置 > 智能识别 > 回退”。配置只为流程仪式提供默认值；公共契约、状态连续性、迁移、安全、package、发布和外部副作用等 `mandatoryObligations` 独立执行，任何 simple/minimal/targeted 选择都不能省略。旧 `ImplementationComplexityLevel` / `ImplementationComplexityPreference` 仅允许读取兼容并映射到 `designDepth`，禁止新生产者继续写入，也不得影响 `ceremonyTier` 或 `assuranceLevel`。
@@ -434,10 +436,10 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 - **ConvergenceFirstValidationV1**：同一正式任务发现多个相关问题，或任务进入发布收口时，必须先形成有界 inventory 并冻结完整 issue set，再按依赖批量修复；批次中只允许语法/格式/identity 等 edit-time check，禁止逐问题重复执行 affected/heavy/full。全部修复完成后统一执行一次 affected V2；候选 identity 冻结后只执行一次 release V3/full。验证失败应一次收集同批失败集、统一修复后再续跑，禁止恢复为“一问题一重测”。
 - **ExistingRequirementArtifactOverride**：当用户表达“调整/修改/补充/变更需求或问题”且已存在 `00-需求概况.md`、`00-需求变更概况.md`、`01-需求确认.md`、`01-产品需求.md`、`01-需求变更确认.md`、历史 `01-需求概述.md`、`00-问题概况.md`、`01-问题确认.md`、bug CP 产物、Profile 声明的正式需求文件或 website requirement 时，SimpleTaskFastPath 只能跳过**新建**完整产物，不能跳过**更新已有真相源**；必须先增量编辑对应文件，用户回复只作为摘要。若无法定位既有产物，先按项目 Profile/当前任务线索定位，仍无法确认时再最小澄清，禁止静默只在回复中变更口径。
 - **ArtifactDecisionMatrix / ArtifactLifecycleState**：CP1/CP2/CP3/ECR 必须按需列出关键产物状态：`create` / `update` / `skip` / `N/A`，并写明 `reason`、`trigger`、`upgradeTrigger`、`targetArtifact`。判定优先级固定为：已有真相源回写 > 任务触发条件 > SimpleTaskFastPath 轻路径豁免 > 子类型豁免。该矩阵覆盖入口类型、00/01/02/04/05/06、目标文档、报告和记忆；禁止用模板中的“必填/必选”口径压过条件触发或豁免规则。
-- 若执行过程中新增范围触发 CP3 条件（例如最初判断 <5 文件但实际扩展到 ≥5 文件，或新增高风险操作/控制面联动），必须暂停执行，回补或重开 CP3 后再继续。
+- 若执行过程中新增范围触发 CP3 条件（例如最初判断 <5 文件但实际扩展到 ≥5 文件，或新增高风险操作/控制面联动），必须暂停当前 mutation，重新结构化意图并回补或重开 CP3；仍为 Auto 且在授权任务边界内时自动确认后继续。
 - **ECR**：执行完成后、宣告完成前必须执行 ECR 执行闭环复审，覆盖 CP1/CP2/CP3、报告、daily tasks、SUMMARY、diff/commit、测试/探针、AI 自启动服务清理证据与 dirty 边界。
 
-> **无 Hooks 宿主软门禁**（v1.9.6+）：当宿主为 `jetbrains-copilot`、`cursor` 或其他 `instruction-fallback` 模式时，`lifecycle.cjs` CP gate 不强制。AI 必须在每个 CP 输出末尾显式追加 `⏸ 等待用户确认（CP{N}）`，收到明确回复前禁止 source mutation 工具调用。
+> **无 Hooks 宿主软门禁**（v1.9.6+）：当宿主为 `jetbrains-copilot`、`cursor` 或其他 `instruction-fallback` 模式时，`lifecycle.cjs` CP gate 不强制。AI 仍先消费当前 `IntentSemanticDecisionV1`：confirm 模式在 CP 末尾输出 `⏸ 等待用户确认（CP{N}）`；Auto 模式持久化并回读 CP receipt 后继续，不得因宿主缺少 Hook 改回确认模式。
 
 **高风险操作**：DDL 变更 / 共享配置、`package.json`、CI 配置或生产配置变更 / 文件删除 / 直接影响生产环境
 
@@ -464,7 +466,7 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 | 用户响应 | 处理 |
 |---------|------|
 | 明确确认（"ok"/"好"/"继续"）| 进入下一阶段 |
-| 修正方案 | 更新方案后等待重新确认 |
+| 修正方案 | 更新方案并重新结构化意图；confirm 模式等待，Auto 模式回读新候选后继续 |
 | 拒绝 | 停止，说明原因，询问新方向 |
 | 追问 | 回答后保持当前 CP 状态 |
 | 模糊 | 主动确认（"您的意思是...？"）|
@@ -476,7 +478,7 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 - **标准 = R2**：**默认**确认后强度。
 - **全面 = R3**：高风险、多模块、公共 API/配置、安全、package/adapter、文档消费者、控制面或多真相源同步 → 冻结清单驱动；CP2 复用 PR-2~PR-7；命中控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链时必须追加交叉验证。
 - **发布安全 = R4**：security/release 或强声称 full。
-- 若发现阻断项，必须先修正当前产物并重新确认，不得继续推进。
+- 若发现阻断项，必须先修正当前产物并回到 `StructuredIntentSingleAuthorityGate` 重算；只有重算结果为 confirm 才等待用户，不得由复审器直接要求重复确认。
 - 机器 `selectReviewClass` 见 `review-execution-contract.cjs`；lifecycle 未接线前仍以本表与 Skill 为准。
 
 ### Skill 按需读取（仅读对应子类型 Skill）
@@ -512,8 +514,8 @@ CP1（需求确认）→ CP2（方案确认）→ [plan-review] → CP3（实施
 CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 执行 → 三步扫描 → RepairPreventionAssessment → ECR
 ```
 
-- **CP1**：先确认这是 Bug / 异常 / 已承诺行为与实际不一致，而不是纯新需求或需求变更；报告方输入优先落 `bugs/<问题>/00-问题概况.md`，AI / 研发据此输出 `01-问题确认.md` 或等价问题分析报告（根因 + 影响范围）→ 等待确认
-- **CP2**：输出修复方案；若修复涉及依赖/框架/SDK/平台 API 变更必须附 `OfficialDocsEvidence`，涉及项目事实变化时必须附 `ProfileImpactCheck` → 等待确认
+- **CP1**：先确认这是 Bug / 异常 / 已承诺行为与实际不一致，而不是纯新需求或需求变更；报告方输入优先落 `bugs/<问题>/00-问题概况.md`，AI / 研发据此输出 `01-问题确认.md` 或等价问题分析报告（根因 + 影响范围）；是否等待由当前结构化意图唯一决定
+- **CP2**：输出修复方案；若修复涉及依赖/框架/SDK/平台 API 变更必须附 `OfficialDocsEvidence`，涉及项目事实变化时必须附 `ProfileImpactCheck`；confirm 模式等待，Auto 模式落盘并回读后继续
 - **CP3**：≥5 文件变更 或 含高风险操作时，**在执行前**触发确认；与 `11-fix` 一致为「触发时 `[CP3] → 执行`」，**禁止**写成「执行后再补 CP3 框」误导顺序
 - 若执行过程中新增范围触发 CP3 条件（例如实际修改文件数扩展到 ≥5，或修复途中引入高风险/控制面联动），必须暂停执行，先补做 CP3，再继续修复
 - **RepairPreventionAssessmentGate**：所有 repair task 在 accepted 前必须由 active `repair-prevention-assessment` 形成有效 `RepairPreventionAssessmentV1`；当前修复重跑只证明 immediate closure，`no-new-control` 必须有标准 reason/evidence，repeat/high-risk 使用 full；gray `rework-prevention-engineering` 不得成为 mandatory dependency。
@@ -523,7 +525,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 
 - fix 工作流在 CP1 / CP2 / CP3 确认后、进入下一阶段前，同样执行 `PostConfirmationReviewScopeGate`（C19↔R：轻量=R1 / 标准=R2 / 全面=R3 / 发布安全=R4，输出 ReviewGradeCard）。
 - 当问题涉及控制面规则、多文件联动、真相源同步、模板/示例/校验链联动时，必须追加交叉验证。
-- 若发现阻断项，先修正当前产物并重新确认，再继续推进。
+- 若发现阻断项，先修正当前产物并重新结构化意图；只有重算结果为 confirm 才等待用户。
 
 ### 修复三步必做（执行后立即扫描，不可省略）
 

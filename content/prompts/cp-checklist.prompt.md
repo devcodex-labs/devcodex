@@ -30,7 +30,7 @@ applyTo: "**"
 - [ ] **去重决策**已填（matchResult + candidates 路径 + decision；禁止静默 duplicate）
 - [ ] 用户可见产物表含 **路径列**（PF-175；禁止仅「文件\|内容」短名）
 
-**等待用户确认：** → 用户回复"确认"/"通过"/"OK" 后进入 CP2
+**阶段决定：** → confirm 等待用户确认；Auto 持久化并回读 CP1 receipt 后进入 CP2
 
 ---
 
@@ -46,7 +46,7 @@ applyTo: "**"
 - [ ] 测试策略明确
 - [ ] 技术方案文档已按模板创建（`technical-design.prompt.md`）
 
-**等待用户确认：** → 用户回复"确认"后进入 plan-review（PR-2~PR-7 详细验证）
+**阶段决定：** → confirm 等待用户确认；Auto 持久化并回读 CP2 receipt 后进入 plan-review（PR-2~PR-7 详细验证）
 
 ---
 
@@ -62,7 +62,7 @@ applyTo: "**"
 - [ ] 实施计划与 CP2 方案对应
 - [ ] 实施计划文档已按模板创建（`implementation-plan.prompt.md`）
 
-**等待用户确认：** → 用户回复"确认"后开始执行
+**阶段决定：** → confirm 等待用户确认；Auto 持久化并回读 CP3 receipt 后开始执行
 
 ---
 

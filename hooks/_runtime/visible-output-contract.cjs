@@ -75,8 +75,36 @@ const ACTION_HEADINGS = Object.freeze({
   'completion-check': '完成交付文件'
 })
 const ENTRY_CHECK_TABLE_HEADERS = Object.freeze({
-  'zh-CN': Object.freeze(['项', '结论']),
-  en: Object.freeze(['Item', 'Decision'])
+  'zh-CN': Object.freeze(['检查项', '状态', '结论']),
+  en: Object.freeze(['Check item', 'Status', 'Decision'])
+})
+const ENTRY_CHECK_LABELS = Object.freeze({
+  'zh-CN': Object.freeze([
+    '中断处理',
+    '当前意图',
+    '项目绑定',
+    '确认边界',
+    '规范雷达',
+    '本轮范围',
+    'Dirty 边界',
+    '上下文',
+    '风险等级',
+    '验证',
+    '下一步'
+  ]),
+  en: Object.freeze([
+    'Interruption',
+    'Intent',
+    'Project',
+    'Boundary',
+    'Spec radar',
+    'Scope',
+    'Dirty boundary',
+    'Context',
+    'Risk',
+    'Validation',
+    'Next'
+  ])
 })
 const VISIBLE_LOCALE_CATALOGS = Object.freeze({
   'zh-CN': Object.freeze({
@@ -2274,15 +2302,17 @@ function escapeMarkdownTableCell(value) {
 
 function renderEntryCheckTable(checks, localeDecision) {
   const headers = ENTRY_CHECK_TABLE_HEADERS[localeDecision.renderedLanguage] || ENTRY_CHECK_TABLE_HEADERS.en
+  const labels = ENTRY_CHECK_LABELS[localeDecision.renderedLanguage] || ENTRY_CHECK_LABELS.en
   const sep = localeDecision.renderedLanguage === 'zh-CN' ? '；' : '; '
   const colon = localeDecision.renderedLanguage === 'zh-CN' ? '：' : ': '
   const rows = [
-    `| ${headers[0]} | ${headers[1]} |`,
-    '|---|---|'
+    `| ${headers[0]} | ${headers[1]} | ${headers[2]} |`,
+    '|---|---|---|'
   ]
   for (const check of checks) {
     const action = check.requiredAction ? `${sep}${localeDecision.catalog.checkAction}${colon}${check.requiredAction}` : ''
-    rows.push(`| ${escapeMarkdownTableCell(`${check.id} · ${check.status}`)} | ${escapeMarkdownTableCell(`${check.summary}${action}`)} |`)
+    const label = labels[check.ordinal] || ''
+    rows.push(`| ${escapeMarkdownTableCell(`${check.id} ${label}`.trim())} | \`${escapeMarkdownTableCell(check.status)}\` | ${escapeMarkdownTableCell(`${check.summary}${action}`)} |`)
   }
   return rows
 }

@@ -2474,6 +2474,74 @@ try {
     snapshotFixture.cleanup()
   }
 
+  // Acceptance T01b: a stale bootstrap envelope that has never served catalog,
+  // committed a route, or loaded any stage may be replaced by the current
+  // runtime identity for the same turn. Once the turn has been consumed, the
+  // existing identity collision guard must remain strict.
+  const staleBootstrapReplacementFixture = createSkillRouteFixture({ project: 'stale-bootstrap-replacement' })
+  try {
+    const staleRuntimeDigest = '1'.repeat(64)
+    const replacementEpoch = 'ctx-stale-bootstrap-replacement'
+    const staleBoot = bootstrapSkillRoute({
+      project: staleBootstrapReplacementFixture.project,
+      activeRoot: staleBootstrapReplacementFixture.activeRoot,
+      contextEpoch: replacementEpoch,
+      prompt: 'Run stale bootstrap replacement probe',
+      mode: 'unified',
+      cwd: staleBootstrapReplacementFixture.projectRoot,
+      runtimeContractDigest: staleRuntimeDigest
+    }, staleBootstrapReplacementFixture.runtimeOptions)
+    assert.strictEqual(staleBoot.reused, false)
+    assert.strictEqual(staleBoot.bootstrap.runtimeContractDigest, staleRuntimeDigest)
+
+    const replacementBoot = bootstrapSkillRoute({
+      project: staleBootstrapReplacementFixture.project,
+      activeRoot: staleBootstrapReplacementFixture.activeRoot,
+      contextEpoch: replacementEpoch,
+      prompt: 'Run stale bootstrap replacement probe',
+      mode: 'unified',
+      cwd: staleBootstrapReplacementFixture.projectRoot
+    }, staleBootstrapReplacementFixture.runtimeOptions)
+    assert.strictEqual(replacementBoot.reused, false)
+    assert.strictEqual(replacementBoot.replaced, true)
+    assert.notStrictEqual(replacementBoot.bootstrap.runtimeContractDigest, staleRuntimeDigest)
+    assert.strictEqual(
+      replacementBoot.envelope.state.contributionLedger.items[0].outcome,
+      'replaced-unconsumed-stale-bootstrap'
+    )
+    requestCatalogAll(staleBootstrapReplacementFixture, replacementBoot.bootstrap)
+  } finally {
+    staleBootstrapReplacementFixture.cleanup()
+  }
+
+  const consumedBootstrapCollisionFixture = createSkillRouteFixture({ project: 'consumed-bootstrap-collision' })
+  try {
+    const consumedEpoch = 'ctx-consumed-bootstrap-collision'
+    const consumedBoot = bootstrapSkillRoute({
+      project: consumedBootstrapCollisionFixture.project,
+      activeRoot: consumedBootstrapCollisionFixture.activeRoot,
+      contextEpoch: consumedEpoch,
+      prompt: 'Run consumed bootstrap collision probe',
+      mode: 'unified',
+      cwd: consumedBootstrapCollisionFixture.projectRoot
+    }, consumedBootstrapCollisionFixture.runtimeOptions)
+    requestCatalogAll(consumedBootstrapCollisionFixture, consumedBoot.bootstrap)
+    assert.throws(
+      () => bootstrapSkillRoute({
+        project: consumedBootstrapCollisionFixture.project,
+        activeRoot: consumedBootstrapCollisionFixture.activeRoot,
+        contextEpoch: consumedEpoch,
+        prompt: 'Run consumed bootstrap collision probe',
+        mode: 'unified',
+        cwd: consumedBootstrapCollisionFixture.projectRoot,
+        runtimeContractDigest: '2'.repeat(64)
+      }, consumedBootstrapCollisionFixture.runtimeOptions),
+      error => error && error.code === 'BOOTSTRAP_IDENTITY_COLLISION'
+    )
+  } finally {
+    consumedBootstrapCollisionFixture.cleanup()
+  }
+
   const replayBudgetFixture = createSkillRouteFixture({ project: 'replay-budget' })
   try {
     const replayBoot = bootstrapSkillRoute({

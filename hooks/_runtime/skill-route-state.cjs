@@ -740,6 +740,37 @@ function pressureReclaimReason (envelope, entryName, options, now) {
   return null
 }
 
+function canReplaceUnconsumedBootstrapEnvelope (existing, expected = {}) {
+  const state = existing?.state
+  if (!state || state.project !== expected.project ||
+      state.activeRoot !== portable(expected.activeRoot) ||
+      state.turnBinding !== expected.turnBinding ||
+      state.contextEpoch !== expected.contextEpoch) {
+    return false
+  }
+  if (expected.hostSessionId && state.hostSessionId &&
+      state.hostSessionId !== expected.hostSessionId) {
+    return false
+  }
+  if (expected.paths) {
+    const progress = readCatalogProgress(expected.paths, existing, expected.fs || fs)
+    if (progress.status === 'invalid') return false
+    if (Array.isArray(progress.progress?.servedCatalogPages) &&
+        progress.progress.servedCatalogPages.length) {
+      return false
+    }
+  } else if (Array.isArray(state.servedCatalogPages) && state.servedCatalogPages.length) {
+    return false
+  }
+  if (state.decision || state.plan || state.routeRetirement) return false
+  if (state.stageProgress && Object.keys(state.stageProgress).length) return false
+  if (Array.isArray(state.bodyChargeLedger?.items) && state.bodyChargeLedger.items.length) return false
+  if (Number(state.bodyChargeLedger?.unattributedBodyBytes || 0) > 0) return false
+  if (Array.isArray(state.obligationLedger?.requiredStageIds) &&
+      state.obligationLedger.requiredStageIds.length) return false
+  return true
+}
+
 function collectExpiredTurns (activeRoot, options = {}) {
   const fsImpl = options.fs || fs
   const routeRoot = routeRootForActiveRoot(activeRoot)
@@ -1168,9 +1199,91 @@ function bootstrapSkillRoute (input, options = {}) {
         existing.state?.catalog?.catalogDigest === catalog.catalogDigest &&
         existing.state?.bootstrap?.bootstrapDigest === bootstrap.bootstrapDigest
       if (!sameIdentity) {
-        const error = new Error('BOOTSTRAP_IDENTITY_COLLISION')
-        error.code = 'BOOTSTRAP_IDENTITY_COLLISION'
-        throw error
+        const replaceable = canReplaceUnconsumedBootstrapEnvelope(existing, {
+          project,
+          activeRoot,
+          turnBinding,
+          contextEpoch,
+          hostSessionId,
+          paths,
+          fs: fsImpl
+        })
+        if (!replaceable) {
+          const error = new Error('BOOTSTRAP_IDENTITY_COLLISION')
+          error.code = 'BOOTSTRAP_IDENTITY_COLLISION'
+          throw error
+        }
+        const replacementNow = options.now == null ? new Date() : new Date(options.now)
+        const replacement = {
+          ...existing,
+          version: Number(existing.version || 1) + 1,
+          state: {
+            project,
+            activeRoot: portable(activeRoot),
+            turnBinding,
+            contextEpoch,
+            hostSessionId,
+            mode: input.mode,
+            modeReceipt,
+            runtimeContractDigest,
+            bootstrap,
+            index,
+            catalog,
+            explicit: {
+              requestedSkillId: explicitSkillId,
+              status: explicitStatus,
+              skillId: explicitEntry?.skillId || null
+            },
+            servedCatalogPages: [],
+            decision: null,
+            plan: null,
+            stageProgress: {},
+            budget: {
+              bodyBytesConsumed: 0,
+              bodyLimitBytes: TURN_BODY_LIMIT_BYTES
+            },
+            bodyChargeLedger: {
+              schemaVersion: 'SkillRouteBodyChargeLedgerV1',
+              items: [],
+              unattributedBodyBytes: 0
+            },
+            contributionLedger: {
+              schemaVersion: 'ContributionLedgerV1',
+              items: [{
+                channel: 'runtime-bootstrap',
+                observedAt: replacementNow.toISOString(),
+                outcome: 'replaced-unconsumed-stale-bootstrap',
+                priorRuntimeContractDigest: existing.state?.runtimeContractDigest || null,
+                runtimeContractDigest
+              }]
+            },
+            obligationLedger: {
+              schemaVersion: 'ObligationLedgerV1',
+              items: [],
+              selectedBusinessSkillId: null,
+              requiredStageIds: [],
+              satisfiedStageIds: []
+            }
+          },
+          updatedAt: replacementNow.toISOString(),
+          expiresAt: new Date(replacementNow.getTime() + (options.turnTtlMs || TURN_TTL_MS)).toISOString()
+        }
+        assertProjectedCapacity(paths, replacement, fsImpl)
+        atomicWriteJson(paths.envelope, replacement, fsImpl)
+        const readBack = readJson(paths.envelope, fsImpl)
+        if (!readBack || readBack.state?.bootstrap?.bootstrapDigest !== bootstrap.bootstrapDigest) {
+          const error = new Error('TURN_ENVELOPE_READBACK_FAILED')
+          error.code = 'TURN_ENVELOPE_READBACK_FAILED'
+          throw error
+        }
+        return {
+          bootstrap,
+          envelope: readBack,
+          reused: false,
+          replaced: true,
+          paths,
+          retention
+        }
       }
       return {
         bootstrap,
@@ -1633,6 +1746,7 @@ module.exports = {
   atomicWriteJson,
   parseExplicitSkillId,
   bootstrapSkillRoute,
+  canReplaceUnconsumedBootstrapEnvelope,
   bindExplicitSkillRequest,
   loadEnvelope,
   transactEnvelope,

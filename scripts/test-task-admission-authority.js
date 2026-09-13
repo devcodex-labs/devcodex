@@ -74,6 +74,21 @@ const TEST_RUNTIME = {
   runtimeDigest: 'a'.repeat(64)
 }
 
+function removeReparseEntryNoFollow(entryPath) {
+  let stat
+  try {
+    stat = fs.lstatSync(entryPath)
+  } catch (error) {
+    if (error?.code === 'ENOENT') return
+    throw error
+  }
+  if (stat.isSymbolicLink()) {
+    fs.unlinkSync(entryPath)
+    return
+  }
+  fs.rmSync(entryPath, { recursive: true, force: true })
+}
+
 function setupRoot(name) {
   const physicalRoot = path.join(TEMP_ROOT, name)
   const activeRoot = path.join(physicalRoot, '.devcodex')
@@ -2787,7 +2802,7 @@ try {
   const reparseInput = admissionInput(reparseRoot, 'reparse')
   assert.strictEqual(run(reparseInput).status, 'needs-reconcile')
   assert.strictEqual(fs.readdirSync(outside).length, 0)
-  fs.rmSync(path.join(reparseRoot.activeRoot, 'bugs', '任务-reparse'), { recursive: true, force: true })
+  removeReparseEntryNoFollow(path.join(reparseRoot.activeRoot, 'bugs', '任务-reparse'))
   const reparseRecovered = run(reparseInput)
   assert.strictEqual(reparseRecovered.phase, 'cp-state-written', 'zero-effect precondition failure must recover after the unsafe path is removed')
 

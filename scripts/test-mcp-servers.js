@@ -158,7 +158,8 @@ function runServer(script, requests, cwd = ROOT, env = {}, followToolPages = tru
     cwd: ROOT,
     input,
     encoding: 'utf8',
-    env: mergedEnv
+    env: mergedEnv,
+    maxBuffer: 64 * 1024 * 1024
   })
 
   if (result.status !== 0) {
@@ -4701,6 +4702,11 @@ function testContextReadBindingContract() {
     activeRoot: plan.identity.activeRoot,
     project: plan.identity.project
   }
+  const roundTripBinding = {
+    ...binding,
+    bindingStatus: 'verified',
+    verificationMode: 'request-bound'
+  }
 
   const profileResponses = runServer('mcp/profile-server.js', [
     rpcRequest(2, 'tools/list'),
@@ -4723,6 +4729,17 @@ function testContextReadBindingContract() {
     rpcRequest(7, 'tools/call', {
       name: 'skill_route',
       arguments: { op: 'catalog' }
+    }),
+    rpcRequest(8, 'tools/call', {
+      name: 'profile_load',
+      arguments: { files: ['01-项目信息.md'], contextBinding: roundTripBinding }
+    }),
+    rpcRequest(9, 'tools/call', {
+      name: 'profile_load',
+      arguments: {
+        files: ['01-项目信息.md'],
+        contextBinding: { ...binding, bindingStatus: 'pending' }
+      }
     })
   ], TEMP_ROOT)
   const listedResult = resultById(profileResponses, 2)
@@ -4823,6 +4840,10 @@ function testContextReadBindingContract() {
   )
   assert.strictEqual(resultById(profileResponses, 6).isError, true)
   assert.strictEqual(unboundProfile.errorCode, 'CONTEXT_BINDING_REQUIRED')
+  assert.strictEqual(resultById(profileResponses, 8).isError, undefined)
+  const invalidProfileRoundTrip = toolJson(resultById(profileResponses, 9))
+  assert.strictEqual(resultById(profileResponses, 9).isError, true)
+  assert.strictEqual(invalidProfileRoundTrip.errorCode, 'CONTEXT_BINDING_INVALID')
 
   const skillRouteTracePath = path.join(TEMP_ROOT, 'skill-route-call-trace.ndjson')
   runServer('mcp/profile-server.js', [
@@ -4861,6 +4882,14 @@ function testContextReadBindingContract() {
     rpcRequest(11, 'tools/call', {
       name: 'memory_status',
       arguments: { contextBinding: { ...binding, unsupported: true } }
+    }),
+    rpcRequest(12, 'tools/call', {
+      name: 'memory_status',
+      arguments: { contextBinding: roundTripBinding }
+    }),
+    rpcRequest(13, 'tools/call', {
+      name: 'memory_status',
+      arguments: { contextBinding: { ...binding, verificationMode: 'legacy' } }
     })
   ], TEMP_ROOT)
   assert.ok(resultById(memoryResponses, 7).tools
@@ -4880,6 +4909,12 @@ function testContextReadBindingContract() {
   const invalidMemory = toolJson(resultById(memoryResponses, 11))
   assert.strictEqual(resultById(memoryResponses, 11).isError, true)
   assert.strictEqual(invalidMemory.errorCode, 'CONTEXT_BINDING_INVALID')
+  const roundTripMemory = toolJson(resultById(memoryResponses, 12))
+  assert.strictEqual(roundTripMemory.contextBinding.bindingStatus, 'verified')
+  assert.strictEqual(roundTripMemory.contextBinding.verificationMode, 'request-bound')
+  const invalidMemoryRoundTrip = toolJson(resultById(memoryResponses, 13))
+  assert.strictEqual(resultById(memoryResponses, 13).isError, true)
+  assert.strictEqual(invalidMemoryRoundTrip.errorCode, 'CONTEXT_BINDING_INVALID')
 }
 
 function testContextReadAuthorizationNegativePaths() {

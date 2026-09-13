@@ -278,16 +278,33 @@ const PROJECT_NAMESPACE_INPUT_SCHEMA = Object.freeze({
   pattern: PROJECT_NAMESPACE_SCHEMA_PATTERN
 })
 
+const CONTEXT_READ_BINDING_REQUEST_FIELDS = Object.freeze([
+  'schemaVersion',
+  'contextEpoch',
+  'planId',
+  'planContentId',
+  'activeRoot',
+  'project'
+])
+const CONTEXT_READ_BINDING_ROUNDTRIP_FIELDS = Object.freeze([
+  ...CONTEXT_READ_BINDING_REQUEST_FIELDS,
+  'bindingStatus',
+  'verificationMode'
+])
+const CONTEXT_READ_BINDING_ROUNDTRIP_FIELD_SET = new Set(CONTEXT_READ_BINDING_ROUNDTRIP_FIELDS)
+
 const CONTEXT_READ_BINDING_SCHEMA = {
   type: 'object',
-  required: ['schemaVersion', 'contextEpoch', 'planId', 'planContentId', 'activeRoot', 'project'],
+  required: CONTEXT_READ_BINDING_REQUEST_FIELDS,
   properties: {
     schemaVersion: { const: 'ContextReadBindingV1' },
     contextEpoch: { type: 'string', minLength: 1 },
     planId: { type: 'string', minLength: 1 },
     planContentId: { type: 'string', minLength: 1 },
     activeRoot: { type: 'string', minLength: 1 },
-    project: { type: 'string' }
+    project: { type: 'string' },
+    bindingStatus: { type: 'string', enum: ['verified'] },
+    verificationMode: { type: 'string', enum: ['request-bound'] }
   },
   additionalProperties: false
 }
@@ -640,7 +657,7 @@ const TOOLS = [
         limit: { type: 'integer', minimum: 1, maximum: 20, description: '最多返回会话数，默认 1' },
         handoffOnly: { type: 'boolean', description: '仅返回 ContextHandoffCard' },
         maxChars: { type: 'integer', minimum: 1, maximum: 50000, description: '正文总字符预算，默认 12000' },
-        cursor: { type: 'string', minLength: 1, maxLength: 8192, description: '上一页返回的 opaque MemoryCursorV1；必须与同一 tool/target/context/query/source 完全匹配' },
+        cursor: { type: 'string', minLength: 1, maxLength: 8192 },
         contextBinding: CONTEXT_READ_BINDING_SCHEMA
       }
     }
@@ -659,7 +676,7 @@ const TOOLS = [
         status: { type: 'string', enum: ['active', 'completed', 'blocked', 'unresolved', 'all'], description: '默认 active' },
         limit: { type: 'integer', minimum: 1, maximum: 50, description: '最多返回行数，默认 5，最大 50' },
         since: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: '只返回该日期及之后的行' },
-        cursor: { type: 'string', minLength: 1, maxLength: 8192, description: '上一页返回的 opaque MemoryCursorV1；必须与同一 tool/target/context/query/source 完全匹配' },
+        cursor: { type: 'string', minLength: 1, maxLength: 8192 },
         contextBinding: CONTEXT_READ_BINDING_SCHEMA
       }
     }
@@ -2158,15 +2175,16 @@ function resolveContextReadBinding(binding, target, sourceId) {
       'CONTEXT_BINDING_INVALID'
     )
   }
-  const allowed = new Set(['schemaVersion', 'contextEpoch', 'planId', 'planContentId', 'activeRoot', 'project'])
-  const unknown = Object.keys(binding).filter(key => !allowed.has(key))
+  const unknown = Object.keys(binding).filter(key => !CONTEXT_READ_BINDING_ROUNDTRIP_FIELD_SET.has(key))
   const requiredStrings = ['contextEpoch', 'planId', 'planContentId', 'activeRoot']
   if (unknown.length || binding.schemaVersion !== 'ContextReadBindingV1' ||
       requiredStrings.some(field => typeof binding[field] !== 'string' || !binding[field].trim()) ||
-      typeof binding.project !== 'string') {
+      typeof binding.project !== 'string' ||
+      (binding.bindingStatus !== undefined && binding.bindingStatus !== 'verified') ||
+      (binding.verificationMode !== undefined && binding.verificationMode !== 'request-bound')) {
     throw memoryQueryError(
       'contextBinding does not match the published ContextReadBindingV1 request schema.',
-      'Pass only schemaVersion/contextEpoch/planId/planContentId/activeRoot/project from the current plan.',
+      'Pass the current ContextReadBindingV1. Verified round-trip metadata is accepted; arbitrary extra fields are not.',
       'CONTEXT_BINDING_INVALID'
     )
   }

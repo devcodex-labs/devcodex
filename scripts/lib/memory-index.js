@@ -12,6 +12,7 @@ const {
 const {
   currentActiveSessionIds,
   foldSummaryRows,
+  isCurrentProjectableRow,
   rowsByCurrentState,
   summaryStateConflicts
 } = require('./memory-summary-state.js')
@@ -164,7 +165,9 @@ function buildSummaryPartitions(document, parsed) {
     latestRows: rows.slice(-STATUS_WINDOW),
     activeSessionIds: currentActiveSessionIds(rows).slice(0, STATUS_LIST_SENTINEL),
     conflicts: summaryStateConflicts(rows).slice(0, STATUS_LIST_SENTINEL),
-    nonCanonicalActiveCount: foldSummaryRows(rows).filter(row => row.state === 'active' && !row.sessionIdCanonical).length,
+    nonCanonicalActiveCount: foldSummaryRows(rows).filter(row =>
+      row.state === 'active' && !isCurrentProjectableRow(row)
+    ).length,
     warnings
   }
   const months = new Map()

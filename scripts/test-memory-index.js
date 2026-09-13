@@ -91,7 +91,9 @@ const summaryRows = [
   row('2026-07-22', '02', 'active', 5),
   row('2026-07-23', '02', 'blocked', 6),
   row('2026-07-23', '03', 'active', 7),
-  row('2026-07-23', '03', 'completed', 8)
+  row('2026-07-23', '03', 'completed', 8),
+  { ...row('2026-07-24', '04', 'active', 9), type: '04' },
+  { ...row('2026-07-24', '2026-07-24', 'active', 10), sessionIdCanonical: false }
 ]
 const summaryRefresh = refreshSummaryIndex({
   target,
@@ -106,6 +108,8 @@ assert.equal(status.status, 'fresh')
 assert.equal(status.latestRows.length, 2)
 assert.equal(status.activeSessionIds[0], '2026-07-22#02')
 assert.ok(!status.activeSessionIds.includes('2026-07-23#03'))
+assert.ok(!status.activeSessionIds.includes('2026-07-24#04'))
+assert.equal(status.nonCanonicalActiveCount, 2)
 assert.deepEqual(status.conflicts, [])
 assert.equal(status.warnings[0], 'fixture-warning')
 assert.deepEqual(
@@ -142,6 +146,18 @@ const currentActive = querySummaryIndex({
   limit: 10
 })
 assert.deepEqual(currentActive.rows.map(item => `${item.day}#${item.sessionId}`), ['2026-07-22#02'])
+assert.equal(currentActive.totalMatched, 1)
+
+const allSummary = querySummaryIndex({
+  target,
+  sourcePath: summaryPath,
+  status: 'all',
+  limit: 20
+})
+assert.ok(
+  allSummary.rows.some(item => item.type === '04'),
+  'non-canonical historical rows remain readable in all-history queries'
+)
 
 const since = querySummaryIndex({
   target,

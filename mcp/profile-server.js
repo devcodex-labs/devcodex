@@ -182,9 +182,24 @@ const EXECUTION_OPTIMIZATION_BINDING_SCHEMA = {
   description: 'Copy the exact ExecutionOptimizationPlanBindingV1 returned by the plan.'
 }
 
+const CONTEXT_READ_BINDING_REQUEST_FIELDS = Object.freeze([
+  'schemaVersion',
+  'contextEpoch',
+  'planId',
+  'planContentId',
+  'activeRoot',
+  'project'
+])
+const CONTEXT_READ_BINDING_ROUNDTRIP_FIELDS = Object.freeze([
+  ...CONTEXT_READ_BINDING_REQUEST_FIELDS,
+  'bindingStatus',
+  'verificationMode'
+])
+const CONTEXT_READ_BINDING_ROUNDTRIP_FIELD_SET = new Set(CONTEXT_READ_BINDING_ROUNDTRIP_FIELDS)
+
 const CONTEXT_READ_BINDING_SCHEMA = {
   type: 'object',
-  required: ['schemaVersion', 'contextEpoch', 'planId', 'planContentId', 'activeRoot', 'project'],
+  required: CONTEXT_READ_BINDING_REQUEST_FIELDS,
   properties: {
     schemaVersion: { const: 'ContextReadBindingV1' },
     contextEpoch: { type: 'string', minLength: 1, maxLength: 256 },
@@ -196,7 +211,9 @@ const CONTEXT_READ_BINDING_SCHEMA = {
       minLength: 1,
       maxLength: 255,
       pattern: PROJECT_NAMESPACE_SCHEMA_PATTERN
-    }
+    },
+    bindingStatus: { type: 'string', enum: ['verified'] },
+    verificationMode: { type: 'string', enum: ['request-bound'] }
   },
   additionalProperties: false
 }
@@ -1586,12 +1603,13 @@ function resolveContextReadAuthorization(binding, target, requested = {}) {
   if (typeof binding !== 'object' || Array.isArray(binding)) {
     throw contextBindingError('CONTEXT_BINDING_INVALID', 'contextBinding must be an object.')
   }
-  const allowed = new Set(['schemaVersion', 'contextEpoch', 'planId', 'planContentId', 'activeRoot', 'project'])
-  const unknown = Object.keys(binding).filter(key => !allowed.has(key))
+  const unknown = Object.keys(binding).filter(key => !CONTEXT_READ_BINDING_ROUNDTRIP_FIELD_SET.has(key))
   const requiredStrings = ['contextEpoch', 'planId', 'planContentId', 'activeRoot']
   if (unknown.length || binding.schemaVersion !== 'ContextReadBindingV1' ||
       requiredStrings.some(field => typeof binding[field] !== 'string' || !binding[field].trim()) ||
-      typeof binding.project !== 'string') {
+      typeof binding.project !== 'string' ||
+      (binding.bindingStatus !== undefined && binding.bindingStatus !== 'verified') ||
+      (binding.verificationMode !== undefined && binding.verificationMode !== 'request-bound')) {
     throw contextBindingError('CONTEXT_BINDING_INVALID', 'contextBinding does not match the published ContextReadBindingV1 request schema.')
   }
   if (comparableActiveRoot(binding.activeRoot) !== comparableActiveRoot(target.activeRoot) ||

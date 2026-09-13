@@ -305,6 +305,20 @@ function assertCodexAdapterState(root) {
   )
 }
 
+function assertCodexPreCompactHookConfig(hooks) {
+  const preCompactEntries = hooks.hooks?.PreCompact || []
+  assert.ok(Array.isArray(preCompactEntries) && preCompactEntries.length > 0, 'missing Codex hook event: PreCompact')
+  const commands = JSON.stringify(preCompactEntries)
+  assert.ok(
+    commands.includes('lifecycle.cjs') && (commands.includes('.codex') || commands.includes('codex')),
+    'unexpected hook command for PreCompact'
+  )
+  assert.ok(
+    commands.includes('manual|auto'),
+    'Codex PreCompact hook must match manual and auto compaction triggers'
+  )
+}
+
 function assertClaudeMergeState(root, { claudeMdManaged }) {
   const settings = readJson(root, '.claude/settings.json')
   const mcp = readJson(root, '.mcp.json')
@@ -1036,6 +1050,10 @@ function testCodexInitBootstrapsWorkspaceNamespaceData() {
   fs.rmSync(root, { recursive: true, force: true })
 }
 
+function testCodexPreCompactAdapterSmoke() {
+  assertCodexPreCompactHookConfig(JSON.parse(fs.readFileSync(path.join(ROOT, 'codex', 'hooks.json'), 'utf8')))
+}
+
 function testCodexInitBacksUpManagedFiles() {
   const root = createTempRoot('devcodex-cli-codex-init-')
   writeFile(root, 'package.json', '{ "name": "tmp-codex-init" }\n')
@@ -1633,4 +1651,9 @@ function main() {
   process.stdout.write('cli behavior test passed\n')
 }
 
-main()
+if (process.argv.includes('--codex-precompact-smoke')) {
+  testCodexPreCompactAdapterSmoke()
+  process.stdout.write('cli Codex PreCompact adapter smoke passed\n')
+} else {
+  main()
+}

@@ -666,7 +666,13 @@ function buildGovernanceIntakeChecks(ctx) {
       console.log('[V52] cli-behavior executable suite delegated to validation DAG; static Codex adapter probes retained')
     } else {
       try {
-        execSync('node scripts/test-cli-behavior.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+        execSync('node scripts/test-cli-behavior.js --codex-precompact-smoke', {
+          cwd: ROOT,
+          stdio: 'pipe',
+          encoding: 'utf8',
+          timeout: 45000
+        })
+        console.log('[V52] bounded Codex PreCompact adapter smoke passed')
       } catch (e) {
         const detail = String((e.stderr || e.stdout || e.message || '')).trim().split('\n').slice(0, 8).join(' | ')
         err(`[V52] test-cli-behavior failed${detail ? `: ${detail}` : ''}`)

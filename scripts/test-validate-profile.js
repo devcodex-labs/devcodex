@@ -105,6 +105,13 @@ function runValidateAll(workspaceRoot) {
     })
 }
 
+function runValidateCurrent(workspaceRoot) {
+    return spawnSync(process.execPath, [ALL_SCRIPT, '--workspace', workspaceRoot, '--current-only'], {
+        cwd: workspaceRoot,
+        encoding: 'utf8'
+    })
+}
+
 function createWorkspaceNamespaceWorkspace(projectInfo) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-validate-profile-ws-'))
     TEMP_ROOTS.push(root)
@@ -1245,6 +1252,26 @@ function main() {
 
         assert.strictEqual(allProfilesResult.status, 0, allProfilesOutput)
         assert.match(allProfilesOutput, /checked=2/)
+
+        const currentOnlyRoot = createWorkspaceNamespaceWorkspace(currentProjectInfo())
+        writeFile(currentOnlyRoot, '.devcodex/devcodex/profile/01-项目信息.md', currentProjectInfo())
+        writeFile(currentOnlyRoot, '.devcodex/chat/profile/01-项目信息.md', [
+            currentProjectInfo(),
+            '',
+            '- Profile 档位：profile-standard。'
+        ].join('\n'))
+        const currentOnlyResult = runValidateCurrent(currentOnlyRoot)
+        const currentOnlyOutput = `${currentOnlyResult.stdout}\n${currentOnlyResult.stderr}`
+        assert.strictEqual(currentOnlyResult.status, 0, currentOnlyOutput)
+        assert.match(currentOnlyOutput, /\[profile-current\] current-project=devcodex checked=1 errors=0 warnings=0/)
+        assert.doesNotMatch(currentOnlyOutput, /workspace-debt/)
+
+        const workspaceDebtResult = runValidateAll(currentOnlyRoot)
+        const workspaceDebtOutput = `${workspaceDebtResult.stdout}\n${workspaceDebtResult.stderr}`
+        assert.strictEqual(workspaceDebtResult.status, 1, workspaceDebtOutput)
+        assert.match(workspaceDebtOutput, /\[profile-all\] current-project=devcodex checked=1 errors=0 warnings=0/)
+        assert.match(workspaceDebtOutput, /\[profile-all\] workspace-debt checked=2 errors=1 warnings=0/)
+        assert.match(workspaceDebtOutput, /profile-standard requires 04-测试规范\.md/)
         const batchEResult = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'test-v1178-batch-e.js')], {
             cwd: ROOT,
             encoding: 'utf8'

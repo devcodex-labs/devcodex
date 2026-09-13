@@ -28,6 +28,7 @@ function samePath(a, b) {
 
 const workspaceRoot = path.resolve(argValue('--workspace') || path.dirname(ROOT))
 const strictWarnings = args.includes('--strict-warnings')
+const currentOnly = args.includes('--current-only')
 const devcodexRoot = path.join(workspaceRoot, '.devcodex')
 const workspaceProfile = path.join(devcodexRoot, 'workspace', 'profile')
 const sourceProjectRoot = path.join(workspaceRoot, path.basename(ROOT))
@@ -136,6 +137,17 @@ const workspaceDebt = results.filter(result => result.namespace !== sourceNamesp
 const currentCounts = countKinds(currentProject)
 const workspaceCounts = countKinds(workspaceDebt)
 const allCounts = countKinds(results)
+
+if (currentOnly) {
+  console.log(`[profile-current] current-project=${sourceNamespace} checked=${currentProject.length} errors=${currentCounts.error} warnings=${currentCounts.warning} strictWarnings=${strictWarnings}`)
+  for (const result of currentProject) printResult(result, '[profile-current]')
+  if (!currentProject.length) {
+    console.error(`[profile-current] missing current project profile namespace: ${sourceNamespace}`)
+    process.exit(1)
+  }
+  if (currentCounts.error || (strictWarnings && currentCounts.warning)) process.exit(1)
+  process.exit(0)
+}
 
 console.log(`[profile-all] current-project=${sourceNamespace} checked=${currentProject.length} errors=${currentCounts.error} warnings=${currentCounts.warning}`)
 for (const result of currentProject) printResult(result, '[profile-all][current-project]')

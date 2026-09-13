@@ -2166,11 +2166,13 @@ function run() {
     assert(!aggregateInvocations.includes('aggregate-dependent'))
 
     const packageJson = require('../package.json')
-    assert.strictEqual(packageJson.scripts.test, 'node scripts/run-validation.js --route changed')
+    assert.strictEqual(packageJson.scripts.test, 'node scripts/run-validation.js --route changed --actor human-cli --plan')
     assert.strictEqual(packageJson.scripts['test:fast'], 'node scripts/run-validation.js --route fast')
     assert.strictEqual(packageJson.scripts['test:full'], 'node scripts/run-validation.js --route full')
     assert.strictEqual(packageJson.scripts['test:delivery'], 'node scripts/run-validation.js --route delivery')
     assert.strictEqual(packageJson.scripts['test:boundary'], 'node scripts/run-validation.js --route boundary')
+    assert.strictEqual(packageJson.scripts['test:changed'], 'node scripts/run-validation.js --route changed --actor human-cli --plan')
+    assert.strictEqual(packageJson.scripts['test:changed:ai'], 'node scripts/run-validation.js --route changed --actor ai-hook')
     assert.strictEqual(packageJson.scripts['test:actual-candidate-evidence'], 'node scripts/test-actual-candidate-evidence.js')
     assert.strictEqual(packageJson.scripts['test:dangerous-command-context'], 'node scripts/test-dangerous-command-context.js')
     assert.strictEqual(packageJson.scripts['test:session-route-consumers'], 'node scripts/test-session-route-consumers.js')
@@ -2242,6 +2244,33 @@ function run() {
     assert.strictEqual(planEnvelope.data.plan.selectedNodeCount, 0)
     assert.strictEqual(planEnvelope.data.plan.javascriptCommandCount, 0)
     assert.strictEqual(planEnvelope.data.plan.fullFallback, null)
+
+    const aiPlanOnlyEnv = {
+      ...cliHumanEnv,
+      CODEX_THREAD_ID: 'fixture-ai-thread'
+    }
+    const aiHostHumanPlan = spawnSync(process.execPath, [
+      'scripts/run-validation.js',
+      '--route', 'changed',
+      '--changed', 'README.md',
+      '--actor', 'human-cli',
+      '--plan',
+      '--json'
+    ], { cwd: ROOT, encoding: 'utf8', windowsHide: true, env: aiPlanOnlyEnv })
+    assert.strictEqual(aiHostHumanPlan.status, 0, aiHostHumanPlan.stderr)
+    const aiHostHumanPlanEnvelope = JSON.parse(aiHostHumanPlan.stdout)
+    assert.strictEqual(aiHostHumanPlanEnvelope.ok, true)
+    assert.strictEqual(aiHostHumanPlanEnvelope.data.plan.routeResolved, 'changed')
+
+    const aiHostHumanExecute = spawnSync(process.execPath, [
+      'scripts/run-validation.js',
+      '--route', 'changed',
+      '--actor', 'human-cli',
+      '--json'
+    ], { cwd: ROOT, encoding: 'utf8', windowsHide: true, env: aiPlanOnlyEnv })
+    assert.strictEqual(aiHostHumanExecute.status, 2)
+    const aiHostHumanExecuteEnvelope = JSON.parse(aiHostHumanExecute.stdout)
+    assert.strictEqual(aiHostHumanExecuteEnvelope.error.code, 'VALIDATION_ACTOR_SPOOF_REJECTED')
 
     const highHookPlan = spawnSync(process.execPath, [
       'scripts/run-validation.js',

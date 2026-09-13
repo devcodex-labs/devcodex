@@ -35,7 +35,7 @@ DevCodex 同时支持六宿主的用户级加载路径，规则语义保持一�
 
 ## 正式需求与执行模板边界
 
-- **正式需求信源**：当前项目内的正式需求写在 `website/docs/versions/v1/<active-version>/requirements/`。
+- **正式需求信源**：当前执行中的 dev/fix/audit 任务以 workspace active-root 下的 `.devcodex/<project>/{requirements,bugs,optimizations,scenario-tests}/...` 产物为准；维护者本地完整 `website/docs/versions/v1/<active-version>/requirements/` 存在时可作为版本化需求源站/历史文档，不存在时不得把 `website` 缺省误判为需求缺失。
 - **执行模板职责**：`prompts/*.prompt.md` 负责约束 CP1 / CP2 / CP3 产物结构，是默认执行模板，不替代当前项目的正式 requirement 入口。
 - **项目规则优先**：如果项目已经定义自定义 requirement 规范，则项目规范优先，prompt 只提供通用骨架。
 - **阶段边界**：CP1 看需求目标、用户交互与业务结果；CP2 看实现流程、公共契约、兼容性与边界问题；CP3 看实施顺序、验证、风险与回滚。

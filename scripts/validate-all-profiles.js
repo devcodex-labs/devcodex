@@ -101,26 +101,48 @@ if (!targets.length) {
   process.exit(0)
 }
 
-let errorCount = 0
-let warningCount = 0
 const results = targets.map(runTarget)
+const sourceNamespace = path.basename(ROOT)
 
-for (const result of results) {
+function resultKind(result) {
+  if (result.status === 1) return 'error'
+  if (result.status === 2) return 'warning'
+  return 'ok'
+}
+
+function countKinds(items) {
+  return items.reduce((acc, result) => {
+    acc[resultKind(result)] += 1
+    return acc
+  }, { ok: 0, warning: 0, error: 0 })
+}
+
+function printResult(result, prefix = '[profile-all]') {
   if (result.status === 1) {
-    errorCount += 1
-    console.error(`[profile-all] ${result.namespace}: error`)
+    console.log(`${prefix} ${result.namespace}: error`)
     const detail = indent(result.output)
-    if (detail) console.error(detail)
+    if (detail) console.log(detail)
   } else if (result.status === 2) {
-    warningCount += 1
-    console.warn(`[profile-all] ${result.namespace}: warning`)
+    console.log(`${prefix} ${result.namespace}: warning`)
     const detail = indent(result.output)
-    if (detail) console.warn(detail)
+    if (detail) console.log(detail)
   } else {
-    console.log(`[profile-all] ${result.namespace}: ok`)
+    console.log(`${prefix} ${result.namespace}: ok`)
   }
 }
 
-console.log(`[profile-all] checked=${results.length} errors=${errorCount} warnings=${warningCount} strictWarnings=${strictWarnings}`)
-if (errorCount || (strictWarnings && warningCount)) process.exit(1)
+const currentProject = results.filter(result => result.namespace === sourceNamespace)
+const workspaceDebt = results.filter(result => result.namespace !== sourceNamespace)
+const currentCounts = countKinds(currentProject)
+const workspaceCounts = countKinds(workspaceDebt)
+const allCounts = countKinds(results)
+
+console.log(`[profile-all] current-project=${sourceNamespace} checked=${currentProject.length} errors=${currentCounts.error} warnings=${currentCounts.warning}`)
+for (const result of currentProject) printResult(result, '[profile-all][current-project]')
+
+console.log(`[profile-all] workspace-debt checked=${workspaceDebt.length} errors=${workspaceCounts.error} warnings=${workspaceCounts.warning}`)
+for (const result of workspaceDebt) printResult(result, '[profile-all][workspace-debt]')
+
+console.log(`[profile-all] checked=${results.length} errors=${allCounts.error} warnings=${allCounts.warning} strictWarnings=${strictWarnings}`)
+if (allCounts.error || (strictWarnings && allCounts.warning)) process.exit(1)
 process.exit(0)

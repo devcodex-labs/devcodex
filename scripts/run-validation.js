@@ -241,6 +241,7 @@ function printHelp() {
     '  --release-authorized        Compatibility request flag; never grants execution authority',
     '  --approve-plan <digest>     Confirm the exact BudgetCardV1 digest',
     '  --actor <type>              ai-hook|human-cli|trusted-ci|release-pipeline',
+    '                              With --plan, human-cli may be requested from an AI host for zero-execution local planning.',
     '  --authority-source <ref>    Current message, TTY attestation, CI policy or release policy reference',
     '  --source-message-digest <d> Required for ai-hook authority',
     '  --policy-digest <digest>    Required for trusted-ci and release-pipeline authority',
@@ -443,8 +444,11 @@ function detectedActorType(env = process.env) {
   return 'human-cli'
 }
 
-function resolveActorType(requested, env = process.env) {
+function resolveActorType(requested, env = process.env, options = {}) {
   const detected = detectedActorType(env)
+  if (options.allowPlanOnlyDowngrade && requested === 'human-cli' && detected === 'ai-hook') {
+    return 'human-cli'
+  }
   if (requested && requested !== detected) {
     throw new ValidationDagError(
       'VALIDATION_ACTOR_SPOOF_REJECTED',
@@ -2106,7 +2110,9 @@ async function main(argv = process.argv.slice(2)) {
       return 0
     }
     const manifest = readValidationManifest(options.manifestPath)
-    const actorType = resolveActorType(options.actorType)
+    const actorType = resolveActorType(options.actorType, process.env, {
+      allowPlanOnlyDowngrade: options.planOnly
+    })
     const activeRoot = process.env.DEVCODEX_VALIDATION_ACTIVE_ROOT
       ? path.resolve(process.env.DEVCODEX_VALIDATION_ACTIVE_ROOT)
       : resolveActiveRuntimeRoot(ROOT)

@@ -12,7 +12,10 @@ const {
   refreshDailyIndex,
   refreshSummaryIndex
 } = require('./lib/memory-index.js')
-const { summaryStateConflicts } = require('./lib/memory-summary-state.js')
+const {
+  summarizeSummaryCurrentProjection,
+  summaryStateConflicts
+} = require('./lib/memory-summary-state.js')
 
 function document(filePath) {
   const stat = fs.statSync(filePath)
@@ -110,8 +113,21 @@ assert.equal(status.activeSessionIds[0], '2026-07-22#02')
 assert.ok(!status.activeSessionIds.includes('2026-07-23#03'))
 assert.ok(!status.activeSessionIds.includes('2026-07-24#04'))
 assert.equal(status.nonCanonicalActiveCount, 2)
+assert.deepEqual(status.summaryCurrentProjection, {
+  schemaVersion: 'MemorySummaryCurrentProjectionStatsV1',
+  semantics: 'append-only SUMMARY history; current projection is the last canonical row per day/session',
+  sourceRowCount: 7,
+  projectableRowCount: 5,
+  currentRowCount: 4,
+  historicalProjectableRowCount: 1,
+  rawActiveRowCount: 4,
+  currentActiveRowCount: 1,
+  historicalActiveRowCount: 1,
+  nonCanonicalActiveRowCount: 2
+})
 assert.deepEqual(status.conflicts, [])
 assert.equal(status.warnings[0], 'fixture-warning')
+assert.equal(summarizeSummaryCurrentProjection(summaryRows).currentActiveRowCount, 1)
 assert.deepEqual(
   summaryStateConflicts([
     row('2026-07-24', '05', 'completed', 1),

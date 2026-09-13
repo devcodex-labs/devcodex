@@ -27,13 +27,21 @@ const executed = []
 function checkV4() { executed.push('V4') }
 function checkV5() { executed.push('V5') }
 const runnerIds = []
+const beforeRunnerIds = []
 runProbeRegistry(createProbeRegistry([{ owner: 'runner', checks: [checkV5, checkV4] }]), {
+  beforeRun: descriptor => beforeRunnerIds.push(`${descriptor.id}:before`),
   afterRun: descriptor => runnerIds.push(descriptor.id)
 })
 assert.deepStrictEqual(executed, ['V4', 'V5'])
+assert.deepStrictEqual(beforeRunnerIds, ['V4:before', 'V5:before'])
 assert.deepStrictEqual(runnerIds, ['V4', 'V5'])
 
 const invalidCases = [
+  {
+    name: 'invalid beforeRun callback',
+    run: () => runProbeRegistry(registry, { beforeRun: true }),
+    pattern: /beforeRun must be a function/
+  },
   {
     name: 'invalid afterRun callback',
     run: () => runProbeRegistry(registry, { afterRun: true }),

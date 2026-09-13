@@ -71,11 +71,33 @@ function currentActiveSessionIds(rows = []) {
     .map(row => summarySessionKey(row))
 }
 
+function summarizeSummaryCurrentProjection(rows = []) {
+  const sourceRows = Array.isArray(rows) ? rows : []
+  const projectableRows = sourceRows.filter(isCurrentProjectableRow)
+  const currentRows = foldSummaryRows(projectableRows)
+  const projectableActiveRows = projectableRows.filter(row => row.state === 'active')
+  const currentActiveRows = currentRows.filter(row => row.state === 'active')
+  const nonCanonicalActiveRows = sourceRows.filter(row => row.state === 'active' && !isCurrentProjectableRow(row))
+  return {
+    schemaVersion: 'MemorySummaryCurrentProjectionStatsV1',
+    semantics: 'append-only SUMMARY history; current projection is the last canonical row per day/session',
+    sourceRowCount: sourceRows.length,
+    projectableRowCount: projectableRows.length,
+    currentRowCount: currentRows.length,
+    historicalProjectableRowCount: Math.max(0, projectableRows.length - currentRows.length),
+    rawActiveRowCount: sourceRows.filter(row => row.state === 'active').length,
+    currentActiveRowCount: currentActiveRows.length,
+    historicalActiveRowCount: Math.max(0, projectableActiveRows.length - currentActiveRows.length),
+    nonCanonicalActiveRowCount: nonCanonicalActiveRows.length
+  }
+}
+
 module.exports = {
   currentActiveSessionIds,
   foldSummaryRows,
   isCurrentProjectableRow,
   rowsByCurrentState,
+  summarizeSummaryCurrentProjection,
   summarySessionKey,
   summaryStateConflicts
 }

@@ -86,11 +86,15 @@ function createProbeRegistry(groups, { expectedIds = null } = {}) {
   return Object.freeze(ordered)
 }
 
-function runProbeRegistry(registry, { afterRun = null } = {}) {
+function runProbeRegistry(registry, { beforeRun = null, afterRun = null } = {}) {
+  if (beforeRun !== null && typeof beforeRun !== 'function') {
+    throw new TypeError('beforeRun must be a function')
+  }
   if (afterRun !== null && typeof afterRun !== 'function') {
     throw new TypeError('afterRun must be a function')
   }
   for (const descriptor of registry) {
+    if (beforeRun) beforeRun(descriptor)
     descriptor.run()
     if (afterRun) afterRun(descriptor)
   }

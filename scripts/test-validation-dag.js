@@ -2166,20 +2166,28 @@ function run() {
     assert(!aggregateInvocations.includes('aggregate-dependent'))
 
     const packageJson = require('../package.json')
-    assert.strictEqual(packageJson.scripts.test, 'node scripts/run-validation.js --route changed --actor human-cli --plan')
-    assert.strictEqual(packageJson.scripts['test:fast'], 'node scripts/run-validation.js --route fast --actor human-cli --plan')
+    assert.strictEqual(packageJson.scripts.test, 'npm run test:changed')
+    assert.strictEqual(packageJson.scripts['test:plan'], 'npm run test:changed:plan')
+    assert.strictEqual(packageJson.scripts['test:fast'], 'node scripts/run-validation.js --route fast')
+    assert.strictEqual(packageJson.scripts['test:fast:plan'], 'node scripts/run-validation.js --route fast --actor human-cli --plan')
     assert.strictEqual(packageJson.scripts['test:fast:ai'], 'node scripts/run-validation.js --route fast --actor ai-hook')
-    assert.strictEqual(packageJson.scripts['test:full'], 'node scripts/run-validation.js --route full --actor human-cli --plan')
+    assert.strictEqual(packageJson.scripts['test:full'], 'node scripts/run-validation.js --route full')
+    assert.strictEqual(packageJson.scripts['test:full:plan'], 'node scripts/run-validation.js --route full --actor human-cli --plan')
     assert.strictEqual(packageJson.scripts['test:full:ai'], 'node scripts/run-validation.js --route full --actor ai-hook')
-    assert.strictEqual(packageJson.scripts['test:delivery'], 'node scripts/run-validation.js --route delivery --actor human-cli --plan')
+    assert.strictEqual(packageJson.scripts['test:delivery'], 'node scripts/run-validation.js --route delivery')
+    assert.strictEqual(packageJson.scripts['test:delivery:plan'], 'node scripts/run-validation.js --route delivery --actor human-cli --plan')
     assert.strictEqual(packageJson.scripts['test:delivery:ai'], 'node scripts/run-validation.js --route delivery --actor ai-hook')
-    assert.strictEqual(packageJson.scripts['test:boundary'], 'node scripts/run-validation.js --route boundary --actor human-cli --plan')
+    assert.strictEqual(packageJson.scripts['test:boundary'], 'node scripts/run-validation.js --route boundary')
+    assert.strictEqual(packageJson.scripts['test:boundary:plan'], 'node scripts/run-validation.js --route boundary --actor human-cli --plan')
     assert.strictEqual(packageJson.scripts['test:boundary:ai'], 'node scripts/run-validation.js --route boundary --actor ai-hook')
-    assert.strictEqual(packageJson.scripts['test:changed'], 'node scripts/run-validation.js --route changed --actor human-cli --plan')
+    assert.strictEqual(packageJson.scripts['test:changed'], 'node scripts/run-validation.js --route changed')
+    assert.strictEqual(packageJson.scripts['test:changed:plan'], 'node scripts/run-validation.js --route changed --actor human-cli --plan')
     assert.strictEqual(packageJson.scripts['test:changed:ai'], 'node scripts/run-validation.js --route changed --actor ai-hook')
-    assert.strictEqual(packageJson.scripts['test:profile-deploy'], 'node scripts/run-validation.js --route profile-deploy --actor human-cli --plan')
+    assert.strictEqual(packageJson.scripts['test:profile-deploy'], 'node scripts/run-validation.js --route profile-deploy')
+    assert.strictEqual(packageJson.scripts['test:profile-deploy:plan'], 'node scripts/run-validation.js --route profile-deploy --actor human-cli --plan')
     assert.strictEqual(packageJson.scripts['test:profile-deploy:ai'], 'node scripts/run-validation.js --route profile-deploy --actor ai-hook')
-    assert.strictEqual(packageJson.scripts['test:package-release'], 'node scripts/run-validation.js --route package-release --actor human-cli --plan')
+    assert.strictEqual(packageJson.scripts['test:package-release'], 'node scripts/run-validation.js --route package-release')
+    assert.strictEqual(packageJson.scripts['test:package-release:plan'], 'node scripts/run-validation.js --route package-release --actor human-cli --plan')
     assert.strictEqual(packageJson.scripts['test:package-release:ai'], 'node scripts/run-validation.js --route package-release --actor ai-hook')
     assert.strictEqual(packageJson.scripts['profile-current:refresh'], 'node scripts/refresh-profile-current-truth.js')
     assert.strictEqual(packageJson.scripts['test:actual-candidate-evidence'], 'node scripts/test-actual-candidate-evidence.js')
@@ -2223,6 +2231,20 @@ function run() {
       'scripts/test-validation-convergence.js',
       'scripts/refresh-profile-current-truth.js'
     ]) assert(packageJson.files.includes(file), 'package files missing ' + file)
+    assert(manifest.verificationBoundaries.profile.inputs.includes('scripts/refresh-profile-current-truth.js'),
+      'profile boundary must include profile current truth refresh script')
+    assert(manifest.nodes.find(node => node.id === 'profile-governance').inputs.includes('scripts/refresh-profile-current-truth.js'),
+      'profile-governance must include profile current truth refresh script')
+    const refreshProfilePlan = planValidation({
+      manifest,
+      route: 'changed',
+      changedFiles: ['scripts/refresh-profile-current-truth.js'],
+      candidateId: 'fixture-profile-current-refresh'
+    })
+    assert(refreshProfilePlan.affectedBoundaries.includes('profile'),
+      'refresh-profile-current-truth.js must select the profile boundary')
+    assert(refreshProfilePlan.selectedNodes.some(node => node.id === 'profile-governance'),
+      'refresh-profile-current-truth.js must select profile-governance')
     assert.strictEqual(packageJson.scripts['test:validation-convergence'],
       'node scripts/test-validation-convergence.js')
     assert(manifest.nodes.find(node => node.id === 'mcp-servers').inputs.includes('hooks/_runtime/context-source-observation.cjs'),

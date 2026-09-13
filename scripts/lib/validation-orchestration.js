@@ -26,7 +26,8 @@ function createValidationOrchestration({
       runCommand('node scripts/test-instruction-fallback-check.js', {
         cwd: root,
         stdio: 'pipe',
-        encoding: 'utf8'
+        encoding: 'utf8',
+        timeout: 45000
       })
       logger.log('[V7b] instruction-fallback smoke test passed')
     } catch (error) {

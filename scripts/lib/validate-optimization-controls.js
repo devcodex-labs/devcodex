@@ -91,12 +91,22 @@ function buildOptimizationControlChecks(ctx) {
     ]) {
       if (!pkg.scripts?.[script]) err(`[V92] missing package script: ${script}`)
     }
-    if (pkg.scripts?.test !== 'node scripts/run-validation.js --route changed --actor human-cli --plan' ||
-        pkg.scripts?.['test:fast'] !== 'node scripts/run-validation.js --route fast --actor human-cli --plan' ||
-        pkg.scripts?.['test:full'] !== 'node scripts/run-validation.js --route full --actor human-cli --plan' ||
-        pkg.scripts?.['test:delivery'] !== 'node scripts/run-validation.js --route delivery --actor human-cli --plan' ||
-        pkg.scripts?.['test:boundary'] !== 'node scripts/run-validation.js --route boundary --actor human-cli --plan') {
-      err('[V92] stable test entry points must route through the canonical validation manifest as human-safe plan entries')
+    if (pkg.scripts?.test !== 'npm run test:changed' ||
+        pkg.scripts?.['test:fast'] !== 'node scripts/run-validation.js --route fast' ||
+        pkg.scripts?.['test:full'] !== 'node scripts/run-validation.js --route full' ||
+        pkg.scripts?.['test:changed'] !== 'node scripts/run-validation.js --route changed' ||
+        pkg.scripts?.['test:delivery'] !== 'node scripts/run-validation.js --route delivery' ||
+        pkg.scripts?.['test:boundary'] !== 'node scripts/run-validation.js --route boundary') {
+      err('[V92] stable test entry points must be execution-oriented validation manifest entries')
+    }
+    for (const route of ['fast', 'full', 'changed', 'delivery', 'boundary', 'profile-deploy', 'package-release']) {
+      const planScript = route === 'changed' ? 'test:changed:plan' : `test:${route}:plan`
+      if (pkg.scripts?.[planScript] !== `node scripts/run-validation.js --route ${route} --actor human-cli --plan`) {
+        err(`[V92] missing explicit plan-only validation entry point: ${planScript}`)
+      }
+    }
+    if (pkg.scripts?.['test:plan'] !== 'npm run test:changed:plan') {
+      err('[V92] missing canonical default plan-only validation entry point: test:plan')
     }
     for (const route of ['fast', 'full', 'changed', 'delivery', 'boundary', 'profile-deploy', 'package-release']) {
       const aiScript = `test:${route}:ai`

@@ -116,6 +116,7 @@ const {
 const {
   currentActiveSessionIds,
   rowsByCurrentState,
+  summarizeSummaryCurrentProjection,
   summaryStateConflicts
 } = require('../scripts/lib/memory-summary-state.js')
 const {
@@ -3107,6 +3108,7 @@ function handleMemoryStatus(args) {
         latestRows: indexed.latestRows,
         activeSessionIds,
         conflicts,
+        summaryCurrentProjection: indexed.summaryCurrentProjection || null,
         warnings: [...boundWarnings, ...indexed.warnings].slice(0, 20),
         indexReceipt: indexed.envelope.receipt,
         coverage: indexed.envelope.coverage,
@@ -3154,6 +3156,7 @@ function handleMemoryStatus(args) {
       latestRows,
       activeSessionIds,
       conflicts,
+      summaryCurrentProjection: summarizeSummaryCurrentProjection(parsed.rows),
       warnings: [...boundWarnings, ...parsed.warnings].slice(0, 20),
       indexReceipt: memoryIndexFallbackReceipt('summary', indexed),
       coverage: {

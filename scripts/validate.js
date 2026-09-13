@@ -303,6 +303,19 @@ const closureEvidenceChecks = buildClosureEvidenceControlChecks({ ROOT, fs, path
 const executionChainChecks = buildExecutionChainControlChecks({ ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console })
 const visibleOutputChecks = buildVisibleOutputControlChecks({ ROOT, fs, path, read, err, console })
 const hostInstructionChecks = buildHostInstructionControlChecks({ ROOT, fs, path, read, err, console }), workflowCompletionChecks = buildWorkflowCompletionControlChecks({ ROOT, ACTIVE_DEVCODEX_ROOT, fs, path, read, err, console }), expectedProbeIds = Array.from({ length: 104 }, (_, index) => `V${index + 1}`)
+const validateStartedAt = Date.now()
+const validateProbeStarts = new Map()
+function formatValidateElapsed(startedAtMs = validateStartedAt) {
+  return `${Date.now() - startedAtMs}ms`
+}
+function writeValidateHeartbeat(descriptor, phase) {
+  const startedAtMs = phase === 'done'
+    ? (validateProbeStarts.get(descriptor.id) || validateStartedAt)
+    : Date.now()
+  if (phase === 'start') validateProbeStarts.set(descriptor.id, startedAtMs)
+  const durationPart = phase === 'done' ? ` duration=${formatValidateElapsed(startedAtMs)}` : ''
+  console.log(`[validate heartbeat] ${phase} ${descriptor.id} owner=${descriptor.owner} elapsed=${formatValidateElapsed()}${durationPart}`)
+}
 const probeRegistry = createProbeRegistry([
   { owner: 'core-contract', checks: Object.values(coreChecks) },
   { owner: 'package-deployment', checks: Object.values(packageChecks) },
@@ -330,7 +343,9 @@ const probeRegistry = createProbeRegistry([
   { owner: 'workflow-completion-controls', checks: Object.values(workflowCompletionChecks), dependencies: { V104: ['V96', 'V100', 'V101', 'V102', 'V103'] } }
 ], { expectedIds: expectedProbeIds })
 runProbeRegistry(probeRegistry, {
+  beforeRun: descriptor => writeValidateHeartbeat(descriptor, 'start'),
   afterRun: descriptor => {
+    writeValidateHeartbeat(descriptor, 'done')
     if (descriptor.id === 'V7') validationOrchestration.runInstructionFallbackProbe()
   }
 })

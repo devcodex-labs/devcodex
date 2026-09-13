@@ -284,11 +284,34 @@ function buildLifecycleVisibleReplyUtils(ctx) {
       state.visible.workflowCompletion = projectWorkflowCompletionVisibleState(completionProjection)
     }
     const evidence = getVisibleReplyEvidence(payload)
+    const visibleObservedAt = new Date().toISOString()
+    state.visible.observedPromptCount = Number(state.promptCount || 0)
+    state.visible.observedEventName = eventName
+    state.visible.observedAt = visibleObservedAt
+    state.visible.sampleFreshness = 'current'
+    state.visible.staleReason = ''
     state.visible.replyEvidence = evidence.observed ? 'verified-present' : 'unverified'
     state.visible.replySource = evidence.source || ''
     state.visible.artifactEvidenceSource = evidence.source || ''
     if (!evidence.observed) {
       // PF-163: unobserved payload cannot invent delivery; still surface semantic-artifact gap for completion evidence
+      state.visible.payloadObserved = false
+      state.visible.precheck = false
+      state.visible.precheckStatus = 'unverified'
+      state.visible.precheckMissingItems = []
+      state.visible.entryCheckCompleteness = {
+        claimed: false,
+        complete: false,
+        status: 'not-claimed',
+        missingPcs: [],
+        missingItems: [],
+        foldedRanges: [],
+        presentPcs: [],
+        sourceSchemaVersion: null,
+        migrationStatus: 'not-claimed'
+      }
+      state.visible.sampleFreshness = 'unverified'
+      state.visible.staleReason = 'visible-payload-unobserved'
       state.visible.artifactStatus = 'unverified'
       state.visible.artifactMissingItems = ['visible-payload-unobserved', 'semantic-artifact-items']
       state.visible.finalValidationSummaryStatus = 'unverified'
@@ -436,7 +459,29 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     if (eventName === 'Stop') fs.unlinkSync(statePaths.finalPayloadFlag)
   }
 
+  function getVisibleReplyFreshness(state) {
+    const visible = state?.visible
+    if (!visible || visible.payloadObserved !== true) return { status: 'unverified', reason: 'no-visible-payload' }
+    const currentPromptCount = Number(state.promptCount || 0)
+    const observedPromptCount = Number(visible.observedPromptCount || 0)
+    if (!observedPromptCount || observedPromptCount !== currentPromptCount) {
+      visible.sampleFreshness = 'stale'
+      visible.staleReason = 'prompt-count-mismatch'
+      return {
+        status: 'stale',
+        reason: 'prompt-count-mismatch',
+        observedPromptCount,
+        currentPromptCount
+      }
+    }
+    visible.sampleFreshness = 'current'
+    visible.staleReason = ''
+    return { status: 'current', reason: '' }
+  }
+
   function getPrecheckEvidenceStatus(state) {
+    const freshness = getVisibleReplyFreshness(state)
+    if (freshness.status === 'stale') return 'unverified'
     if (state.visible?.precheck) return 'verified-present'
     if (state.visible?.precheckStatus === 'verified-missing') return 'verified-missing'
     if (state.visible?.payloadObserved) return 'verified-missing'
@@ -488,7 +533,11 @@ function buildLifecycleVisibleReplyUtils(ctx) {
         items.push('entry check block 未输出（S07/C18：首条用户可见回复必须含 PC0~PC10 入口检查块）')
       }
     } else if (eventName === 'Stop' && precheckStatus === 'unverified') {
-      items.push(`无法验证最终用户可见回复是否包含入口检查块（Stop/PreCompact 未提供可解析 assistant 内容；如需取证请创建 ${getStatePaths(state).finalPayloadFlag} 后重试）`)
+      const freshness = getVisibleReplyFreshness(state)
+      const reason = freshness.status === 'stale'
+        ? `可见回复样本已过期（${freshness.reason}，observedPromptCount=${freshness.observedPromptCount || 0}, currentPromptCount=${freshness.currentPromptCount || 0}）`
+        : `Stop/PreCompact 未提供可解析 assistant 内容；如需取证请创建 ${getStatePaths(state).finalPayloadFlag} 后重试`
+      items.push(`无法验证最终用户可见回复是否包含入口检查块（${reason}）`)
     }
     settleS07OrderStatus(state, eventName)
     if (eventName === 'Stop' && state.visible?.s07OrderStatus === 'late') {
@@ -573,6 +622,7 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     analyzeEntryCheckCompleteness,
     updateVisibleReplyState,
     captureFinalPayloadSample,
+    getVisibleReplyFreshness,
     getPrecheckEvidenceStatus,
     settleS07OrderStatus,
     buildClosureReminder,

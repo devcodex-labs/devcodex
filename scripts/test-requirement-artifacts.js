@@ -10,12 +10,14 @@ const path = require('path')
 
 const {
   RECENT_REQUIREMENT_ARTIFACT_DAYS,
+  HISTORICAL_ARTIFACT_ISSUE_DISPOSITION_SCHEMA,
   HISTORICAL_TEMPLATE_DISPOSITION_SCHEMA,
   checkArtifactTemplateFile,
   checkActualCandidateEvidence,
   hasSimpleTaskFastPathMarker,
   collectRecentBugArtifactIssues,
   collectRecentRequirementArtifactIssues,
+  validateHistoricalArtifactIssueDispositions,
   validateHistoricalTemplateDispositions
 } = require('./lib/requirement-artifact-check')
 const { buildActualCandidateEvidenceReceipt } = require('./lib/actual-candidate-evidence')
@@ -345,6 +347,37 @@ try {
   assert(bugResult.issues.some(item => item.includes('stale-status-bug/01-问题确认.md') && item.includes('stale CP2 status projection')))
   assert(bugResult.issues.some(item => item.includes('stale-status-bug/02-修复方案.md') && item.includes('stale CP2 status projection')))
   assert(!bugResult.issues.some(item => item.includes('good-bug')), JSON.stringify(bugResult.issues.filter(item => item.includes('good-bug'))))
+
+  const unknownFormalPath = path.join(bugsRoot, 'unknown-only-bug', '02-功能清单.md')
+  write(path.join(bugsRoot, 'unknown-only-bug', '.memory', 'artifact-issue-dispositions.json'), `${JSON.stringify({
+    schemaVersion: HISTORICAL_ARTIFACT_ISSUE_DISPOSITION_SCHEMA,
+    entries: [{
+      relativePath: '02-功能清单.md',
+      artifactSha256: crypto.createHash('sha256').update(fs.readFileSync(unknownFormalPath)).digest('hex'),
+      issueCode: 'unknown-formal-artifact-slot',
+      disposition: 'retained-renamed-artifact',
+      reasonCode: 'historical-renamed-artifact'
+    }]
+  }, null, 2)}\n`)
+  const staleOverviewPath = path.join(staleBugRoot, '00-问题概况.md')
+  write(path.join(staleBugRoot, '.memory', 'artifact-issue-dispositions.json'), `${JSON.stringify({
+    schemaVersion: HISTORICAL_ARTIFACT_ISSUE_DISPOSITION_SCHEMA,
+    entries: [{
+      relativePath: '00-问题概况.md',
+      artifactSha256: crypto.createHash('sha256').update(fs.readFileSync(staleOverviewPath)).digest('hex'),
+      issueCode: 'stale-status-projection',
+      disposition: 'accepted-historical-debt',
+      reasonCode: 'historical-status-projection'
+    }]
+  }, null, 2)}\n`)
+  assert.strictEqual(validateHistoricalArtifactIssueDispositions(staleBugRoot).valid, true)
+  const disposedBugResult = collectRecentBugArtifactIssues({
+    activeRoot: tempRoot,
+    recentDays: RECENT_REQUIREMENT_ARTIFACT_DAYS
+  })
+  assert(!disposedBugResult.issues.some(item => item.includes('unknown-only-bug/02-功能清单.md unknown formal artifact slot')))
+  assert(!disposedBugResult.issues.some(item => item.includes('stale-status-bug/00-问题概况.md') && item.includes('stale CP2 status projection')))
+  assert(disposedBugResult.issues.some(item => item.includes('stale-status-bug/01-问题确认.md') && item.includes('stale CP2 status projection')))
 
   const mismatchedOverlay = collectRecentRequirementArtifactIssues({
     activeRoot: tempRoot,

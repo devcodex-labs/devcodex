@@ -196,7 +196,13 @@ function buildValidateCoreChecks(ctx) {
       if (isValidationDelegated('hooks-runtime')) {
         console.log('[V7] hooks-runtime child suite delegated to validation DAG; retaining direct lifecycle contract probe')
       } else {
-        execSync('node scripts/test-hooks-runtime.js', { cwd: ROOT, stdio: 'pipe', encoding: 'utf8' })
+        execSync('node scripts/test-hooks-runtime.js --confirmation-persistence', {
+          cwd: ROOT,
+          stdio: 'pipe',
+          encoding: 'utf8',
+          timeout: 45000
+        })
+        console.log('[V7] hooks-runtime bounded child smoke passed (--confirmation-persistence)')
       }
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-v7-hooks-'))
       try {

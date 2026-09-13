@@ -288,11 +288,16 @@ function buildGovernanceIntakeChecks(ctx) {
     const testRouter = read(path.join(ROOT, 'content', 'skills', 'test-router', 'SKILL.md'))
 
     const scriptExpectations = [
-      ['test', 'node scripts/run-validation.js --route changed --actor human-cli --plan'],
-      ['test:fast', 'node scripts/run-validation.js --route fast --actor human-cli --plan'],
-      ['test:full', 'node scripts/run-validation.js --route full --actor human-cli --plan'],
-      ['test:delivery', 'node scripts/run-validation.js --route delivery --actor human-cli --plan'],
-      ['test:boundary', 'node scripts/run-validation.js --route boundary --actor human-cli --plan'],
+      ['test', 'npm run test:changed'],
+      ['test:plan', 'npm run test:changed:plan'],
+      ['test:fast', 'node scripts/run-validation.js --route fast'],
+      ['test:fast:plan', 'node scripts/run-validation.js --route fast --actor human-cli --plan'],
+      ['test:full', 'node scripts/run-validation.js --route full'],
+      ['test:full:plan', 'node scripts/run-validation.js --route full --actor human-cli --plan'],
+      ['test:delivery', 'node scripts/run-validation.js --route delivery'],
+      ['test:delivery:plan', 'node scripts/run-validation.js --route delivery --actor human-cli --plan'],
+      ['test:boundary', 'node scripts/run-validation.js --route boundary'],
+      ['test:boundary:plan', 'node scripts/run-validation.js --route boundary --actor human-cli --plan'],
       ['test:validation-dag', 'node scripts/test-validation-dag.js'],
       ['test:all', 'npm run test:full'],
       ['test:all:with-audit', 'npm run test:audit'],

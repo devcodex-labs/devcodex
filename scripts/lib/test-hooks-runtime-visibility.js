@@ -833,6 +833,15 @@ function runHooksRuntimeVisibilityScenarios(context) {
   assert.ok(!/entry check block 未输出|entry-check-missing/i.test(contentPartsStop.systemMessage || ''))
   let visibleState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert.strictEqual(visibleState.visible.precheckStatus, 'verified-present')
+  assert.strictEqual(visibleState.visible.sampleFreshness, 'current')
+  assert.strictEqual(visibleState.visible.observedPromptCount, visibleState.promptCount)
+
+  const staleSampleStop = run({ hookEventName: 'Stop' })
+  assert.match(staleSampleStop.systemMessage || '', /无法验证最终用户可见回复/)
+  visibleState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  assert.strictEqual(visibleState.visible.precheckStatus, 'unverified')
+  assert.strictEqual(visibleState.visible.precheck, false)
+  assert.strictEqual(visibleState.visible.sampleFreshness, 'unverified')
 
   cleanState()
   run({

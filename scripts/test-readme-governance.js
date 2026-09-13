@@ -92,6 +92,7 @@ if (pkg.scripts['test:readme-governance'] !== 'node scripts/test-readme-governan
 }
 const testAllScript = pkg.scripts['test:all'] || ''
 const testScript = pkg.scripts.test || ''
+const testPlanScript = pkg.scripts['test:plan'] || ''
 const validationManifest = JSON.parse(read('scripts/validation-manifest.json'))
 try {
   assertNarrativeMarkdownPolicy(validationManifest.narrativeMarkdownExclusions)
@@ -141,7 +142,8 @@ const readmeGovernanceNode = validationManifest.nodes.find(node => node.id === '
 const fullRouteNodes = validationManifest.routes.full && validationManifest.routes.full.nodes
 const readmeGovernanceCovered = Boolean(
   testAllScript.trim() === 'npm run test:full' &&
-  testScript === 'node scripts/run-validation.js --route changed --actor human-cli --plan' &&
+  testScript === 'npm run test:changed' &&
+  testPlanScript === 'npm run test:changed:plan' &&
   readmeGovernanceNode &&
   readmeGovernanceNode.command === 'node' &&
   Array.isArray(readmeGovernanceNode.args) &&

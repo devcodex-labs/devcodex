@@ -31,8 +31,13 @@ const SIMPLE_TASK_FAST_PATH_MARKERS = ['SimpleTaskFastPath', '简单任务轻路
 const HISTORICAL_TEMPLATE_DISPOSITION_SCHEMA = 'HistoricalArtifactTemplateDispositionV1'
 const HISTORICAL_TEMPLATE_DISPOSITION_PATH = '.memory/artifact-template-dispositions.json'
 const HISTORICAL_TEMPLATE_DISPOSITIONS = new Set(['superseded-confirmed', 'abandoned-unconfirmed'])
+const HISTORICAL_ARTIFACT_ISSUE_DISPOSITION_SCHEMA = 'HistoricalArtifactIssueDispositionV1'
+const HISTORICAL_ARTIFACT_ISSUE_DISPOSITION_PATH = '.memory/artifact-issue-dispositions.json'
+const HISTORICAL_ARTIFACT_ISSUE_DISPOSITIONS = new Set(['accepted-historical-debt', 'retained-renamed-artifact'])
+const HISTORICAL_ARTIFACT_ISSUE_CODES = new Set(['unknown-formal-artifact-slot', 'stale-status-projection', 'conflicting-truth-source'])
 const SHA256_RE = /^[a-f0-9]{64}$/i
 const MAX_HISTORICAL_TEMPLATE_DISPOSITION_BYTES = 256 * 1024
+const MAX_HISTORICAL_ARTIFACT_ISSUE_DISPOSITION_BYTES = 256 * 1024
 const ARTIFACT_PHASE_ORDER = Object.freeze({
   overview: 0,
   cp1: 1,
@@ -108,10 +113,17 @@ function hasRecentInventoryArtifact(dirPath, inventory, nowMs, recentDays) {
   return hasRecentArtifact(dirPath, nowMs, recentDays, inventoryFiles(inventory))
 }
 
-function collectInventoryIssues(inventory, relDir) {
+function collectInventoryIssues(inventory, relDir, disposition = null) {
   const issues = []
-  for (const relative of inventory.unknownFormal) issues.push(`${relDir}/${relative} unknown formal artifact slot`)
+  for (const relative of inventory.unknownFormal) {
+    if (disposition?.entries?.has(`${relative}#unknown-formal-artifact-slot`)) continue
+    issues.push(`${relDir}/${relative} unknown formal artifact slot`)
+  }
   for (const conflict of inventory.conflicts) {
+    if (
+      conflict.paths.length &&
+      conflict.paths.every(relative => disposition?.entries?.has(`${relative}#conflicting-truth-source`))
+    ) continue
     issues.push(`${relDir} conflicting truth sources for ${conflict.alternativeGroup}: ${conflict.paths.join(', ')}`)
   }
   const classes = new Set(inventory.artifacts.map(item => item.slot.artifactClass))
@@ -141,7 +153,7 @@ function stalePhaseMatches(line, requiredPhase) {
     .map(pattern => String(pattern))
 }
 
-function collectStatusProjectionIssues(dirPath, inventory, relDir) {
+function collectStatusProjectionIssues(dirPath, inventory, relDir, disposition = null) {
   const issues = []
   const phaseArtifacts = inventory.artifacts
     .filter(artifact => Object.prototype.hasOwnProperty.call(ARTIFACT_PHASE_ORDER, artifact.slot?.artifactClass))
@@ -164,6 +176,7 @@ function collectStatusProjectionIssues(dirPath, inventory, relDir) {
       for (const phase of checks) {
         const matches = stalePhaseMatches(statusLine.line, phase)
         if (!matches.length) continue
+        if (disposition?.entries?.has(`${artifact.relativePath}#stale-status-projection`)) continue
         issues.push(
           `${relDir}/${artifact.relativePath}:${statusLine.number} stale ${phase.toUpperCase()} status projection after later-phase artifact exists: ${statusLine.line}`
         )
@@ -318,6 +331,54 @@ function validateHistoricalTemplateDispositions(dirPath, inventory) {
   return { exists: true, valid: issues.length === 0, entries, issues: [...new Set(issues)], currentHead }
 }
 
+function validateHistoricalArtifactIssueDispositions(dirPath) {
+  const sidecarPath = path.join(dirPath, HISTORICAL_ARTIFACT_ISSUE_DISPOSITION_PATH)
+  if (!fs.existsSync(sidecarPath)) return { exists: false, valid: true, entries: new Map(), issues: [] }
+  const issues = []
+  let value = null
+  try {
+    const stats = fs.statSync(sidecarPath)
+    if (!stats.isFile()) issues.push('sidecar-not-file')
+    else if (stats.size > MAX_HISTORICAL_ARTIFACT_ISSUE_DISPOSITION_BYTES) issues.push('sidecar-too-large')
+    else value = JSON.parse(fs.readFileSync(sidecarPath, 'utf8'))
+  } catch (error) {
+    issues.push(`sidecar-invalid-json:${error.message}`)
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) issues.push('sidecar-invalid-shape')
+  else {
+    if (value.schemaVersion !== HISTORICAL_ARTIFACT_ISSUE_DISPOSITION_SCHEMA) issues.push('sidecar-schema-invalid')
+    if (!Array.isArray(value.entries)) issues.push('sidecar-entries-invalid')
+    if (!Object.keys(value).every(field => ['schemaVersion', 'entries'].includes(field))) issues.push('sidecar-fields-invalid')
+  }
+  const entries = new Map()
+  for (const [index, entry] of (Array.isArray(value?.entries) ? value.entries : []).entries()) {
+    const prefix = `entry-${index + 1}`
+    const fields = ['relativePath', 'artifactSha256', 'issueCode', 'disposition', 'reasonCode']
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry) ||
+        !fields.every(field => Object.prototype.hasOwnProperty.call(entry, field)) ||
+        !Object.keys(entry).every(field => fields.includes(field))) {
+      issues.push(`${prefix}:fields-invalid`)
+      continue
+    }
+    const relativePath = normalizedTaskRelativePath(dirPath, entry.relativePath)
+    const issueCode = String(entry.issueCode || '')
+    const key = `${relativePath || entry.relativePath}#${issueCode}`
+    if (!relativePath) issues.push(`${prefix}:relative-path-invalid`)
+    if (!HISTORICAL_ARTIFACT_ISSUE_CODES.has(issueCode)) issues.push(`${prefix}:issue-code-invalid`)
+    if (!HISTORICAL_ARTIFACT_ISSUE_DISPOSITIONS.has(entry.disposition)) issues.push(`${prefix}:disposition-invalid`)
+    if (!/^[a-z0-9][a-z0-9-]{2,95}$/.test(String(entry.reasonCode || ''))) issues.push(`${prefix}:reason-code-invalid`)
+    if (!SHA256_RE.test(String(entry.artifactSha256 || ''))) issues.push(`${prefix}:artifact-sha256-invalid`)
+    if (!relativePath || !issueCode) continue
+    if (entries.has(key)) issues.push(`${prefix}:duplicate-issue-disposition`)
+    const artifactPath = path.join(dirPath, relativePath)
+    if (!fs.existsSync(artifactPath) || sha256File(artifactPath) !== String(entry.artifactSha256).toLowerCase()) {
+      issues.push(`${prefix}:artifact-digest-mismatch`)
+    }
+    entries.set(key, entry)
+  }
+  return { exists: true, valid: issues.length === 0, entries, issues: [...new Set(issues)] }
+}
+
 function inferArtifactWorkflowIntent(filePath) {
   const head = fs.readFileSync(filePath, 'utf8').slice(0, 8192)
   const match = head.match(/(?:^|\n)(?:>\s*)?(?:\*\*)?(?:类型|type)(?:\*\*)?\s*[：:]\s*`?([a-z][a-z-]*)/i)
@@ -469,8 +530,10 @@ function collectRecentTaskArtifactIssues({
       scanCoverage.push({ task: `${taskKind}/${entry.name}`, status: inventory.overflow ? 'UNVERIFIED' : 'PASS',
         strategy: inventory.overflow ? 'sampled+deep-read' : 'single-pass', observedArtifacts: inventory.artifacts.length })
       if (inventory.overflow) warnings.push(`${relDir}: bounded artifact inventory is partial; unsampled coverage UNVERIFIED`)
-      issues.push(...collectInventoryIssues(inventory, relDir))
-      issues.push(...collectStatusProjectionIssues(dirPath, inventory, relDir))
+      const issueDisposition = validateHistoricalArtifactIssueDispositions(dirPath)
+      issues.push(...issueDisposition.issues.map(issue => `${relDir}/${HISTORICAL_ARTIFACT_ISSUE_DISPOSITION_PATH} ${issue}`))
+      issues.push(...collectInventoryIssues(inventory, relDir, issueDisposition.valid ? issueDisposition : null))
+      issues.push(...collectStatusProjectionIssues(dirPath, inventory, relDir, issueDisposition.valid ? issueDisposition : null))
       const observed = collectTemplateObservations(dirPath, inventory, relDir)
       issues.push(...observed.issues)
       templateObservations.push(...observed.observations)
@@ -504,10 +567,13 @@ module.exports = {
   inferArtifactWorkflowIntent,
   HISTORICAL_TEMPLATE_DISPOSITION_PATH,
   HISTORICAL_TEMPLATE_DISPOSITION_SCHEMA,
+  HISTORICAL_ARTIFACT_ISSUE_DISPOSITION_PATH,
+  HISTORICAL_ARTIFACT_ISSUE_DISPOSITION_SCHEMA,
   checkArtifactTemplateFile,
   checkActualCandidateEvidence,
   collectInventoryIssues,
   collectStatusProjectionIssues,
+  validateHistoricalArtifactIssueDispositions,
   validateHistoricalTemplateDispositions,
   hasSimpleTaskFastPathMarker,
   collectRecentBugArtifactIssues,

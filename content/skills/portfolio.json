@@ -13,10 +13,10 @@
     "publicTaxonomyDigest": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
-    "consumerInventoryFileCount": 718,
-    "consumerInventoryDigest": "90be8bb27ca78eb1fcd8151601ec839c087e6b8727e1f326b7d54897530c0431",
+    "consumerInventoryFileCount": 719,
+    "consumerInventoryDigest": "d16b31fa502b07accabc7e87b05930f22fbbedfa03db8f27d2e932a70ee1421f",
     "consumerProjectionDigest": "2a9023e04a434de68bc88eac365e483307cabfb5f768bbb85151cd24376e34e4",
-    "portfolioInputDigest": "c681c19b07d6611b5e4c2d04d1d27f4961e1834985e05a244048044e9408ec6a"
+    "portfolioInputDigest": "9d5e556f66f0184b7acf174b3c560ece48165e7df247225581d2b3aeb532a3d0"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {

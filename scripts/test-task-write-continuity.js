@@ -33,6 +33,38 @@ function fileIdentityProbe(root) {
   const receipt = transaction.commit({ filePath, expectedSnapshot, content: content + appended, appendText: appended })
   assert.strictEqual(fs.readFileSync(filePath, 'utf8'), content + appended)
   assert.strictEqual(receipt.durability.readback.status, 'PASS')
+  const createFallbackPath = path.join(root, 'create-fallback.md')
+  let injectedLinkDenied = false
+  let copyCreateUsed = false
+  const linkDeniedFs = {
+    ...fs,
+    linkSync(source, destination) {
+      if (destination === createFallbackPath && !injectedLinkDenied) {
+        injectedLinkDenied = true
+        const error = new Error('fixture hardlink denied')
+        error.code = 'EACCES'
+        throw error
+      }
+      return fs.linkSync(source, destination)
+    },
+    copyFileSync(source, destination, mode) {
+      if (destination === createFallbackPath) {
+        copyCreateUsed = true
+        assert.strictEqual(mode, fs.constants.COPYFILE_EXCL)
+      }
+      return fs.copyFileSync(source, destination, mode)
+    }
+  }
+  const createFallbackTransaction = createMemoryFileTransaction({ fs: linkDeniedFs })
+  const createFallbackReceipt = createFallbackTransaction.createIfAbsent({
+    filePath: createFallbackPath,
+    content: 'created by exclusive copy fallback\n'
+  })
+  assert.strictEqual(injectedLinkDenied, true)
+  assert.strictEqual(copyCreateUsed, true)
+  assert.strictEqual(createFallbackReceipt.route, 'atomic-create')
+  assert.strictEqual(createFallbackReceipt.durability.readback.scope, 'copy-create-if-absent+whole-file-exact')
+  assert.strictEqual(fs.readFileSync(createFallbackPath, 'utf8'), 'created by exclusive copy fallback\n')
   const stale = transaction.readSnapshot(filePath)
   const replacement = path.join(root, 'replacement.md')
   fs.writeFileSync(replacement, stale.content)

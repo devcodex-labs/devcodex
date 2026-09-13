@@ -436,6 +436,7 @@ function createNodeMemoryFileAdapter(options = {}) {
       faultInjector('before-create-final-cas', input)
       const finalObserved = readSnapshot(input.filePath)
       assertExpectedSnapshot(input.expected, finalObserved, input.filePath)
+      let createRoute = 'hardlink-create-if-absent'
       try {
         fsImpl.linkSync(temp, input.filePath)
       } catch (error) {
@@ -445,7 +446,12 @@ function createNodeMemoryFileAdapter(options = {}) {
             `Memory create target won by another writer: ${input.filePath}`
           )
         }
-        throw error
+        if (error?.code === 'EACCES' || error?.code === 'EPERM') {
+          fsImpl.copyFileSync(temp, input.filePath, fsImpl.constants?.COPYFILE_EXCL || 1)
+          createRoute = 'copy-create-if-absent'
+        } else {
+          throw error
+        }
       }
       const directoryFlush = flushDirectory(directory)
       const readback = readSnapshot(input.filePath)
@@ -471,7 +477,7 @@ function createNodeMemoryFileAdapter(options = {}) {
         durability: {
           fileFlush,
           directoryFlush,
-          readback: { status: 'PASS', scope: 'hardlink-create-if-absent+whole-file-exact' }
+          readback: { status: 'PASS', scope: `${createRoute}+whole-file-exact` }
         }
       }
     } finally {

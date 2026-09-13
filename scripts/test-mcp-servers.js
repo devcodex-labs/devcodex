@@ -881,6 +881,36 @@ function testProfilePromptRequiresProjectAtWorkspaceRoot() {
   assert.strictEqual(toolJson(traversalPlanTarget).errorCode, 'PROJECT_NAMESPACE_INVALID')
 }
 
+function testProfileLoadRejectsReparseProfileFile() {
+  setupLegacyWorkspace()
+  const contextBinding = createTestContextBinding(TEMP_ROOT, { intent: 'chat', explicitFull: true })
+  const profileFile = path.join(TEMP_ROOT, '.devcodex', 'profile', '01-项目信息.md')
+  const outsideRoot = path.join(TEMP_ROOT, 'outside-profile')
+  const outsideFile = path.join(outsideRoot, '01-项目信息.md')
+  fs.mkdirSync(outsideRoot, { recursive: true })
+  fs.writeFileSync(outsideFile, '# outside profile must not be read\n', 'utf8')
+  let linkCreated = false
+  try {
+    if (fs.existsSync(profileFile)) fs.unlinkSync(profileFile)
+    assert.strictEqual(fs.existsSync(profileFile), false)
+    fs.symlinkSync(outsideFile, profileFile, 'file')
+    linkCreated = true
+  } catch (error) {
+    if (!['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) throw error
+  }
+  if (!linkCreated) return
+
+  const responses = runServer('mcp/profile-server.js', [
+    rpcRequest(1, 'tools/call', {
+      name: 'profile_load',
+      arguments: { files: ['01-项目信息.md'], contextBinding }
+    })
+  ], TEMP_ROOT)
+  const result = resultById(responses, 1)
+  assert.strictEqual(result.isError, true)
+  assert.match(result.content?.[0]?.text || '', /symbolic links|reparse-point|canonical path escapes/)
+}
+
 function testMissingProfileRecoveryUsesCanonicalInitCommand() {
   setupContextPlanWorkspace()
   fs.rmSync(path.join(TEMP_ROOT, '.devcodex', 'workspace', 'profile', 'README.md'))
@@ -3859,6 +3889,50 @@ function testMemoryCpConfirmRejectsArtifactPathEscape() {
     assert.match(resultById(linked, 3).content?.[0]?.text || '', /ConfirmBindingGate.*artifactPath/i)
     assert.ok(!fs.existsSync(path.join(taskRoot, '.memory', 'sessions.md')))
   }
+}
+
+function testMemoryProductionWritesRejectReparseClientDirectory() {
+  setupLegacyWorkspace()
+  const clientsRoot = path.join(TEMP_ROOT, '.devcodex', '.memory', 'clients')
+  const outsideRoot = path.join(TEMP_ROOT, 'outside-memory-clients')
+  const linkedClient = path.join(clientsRoot, 'codex')
+  fs.mkdirSync(clientsRoot, { recursive: true })
+  fs.mkdirSync(outsideRoot, { recursive: true })
+  let linkCreated = false
+  try {
+    fs.symlinkSync(outsideRoot, linkedClient, process.platform === 'win32' ? 'junction' : 'dir')
+    linkCreated = true
+  } catch (error) {
+    if (!['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) throw error
+  }
+  if (!linkCreated) return
+
+  const responses = runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/call', {
+      name: 'memory_session_write',
+      arguments: {
+        agent: 'codex',
+        date: '20260913',
+        sessionId: '01',
+        sessionBinding: 'a'.repeat(64),
+        content: 'must not cross reparse boundary\n'
+      }
+    }),
+    rpcRequest(2, 'tools/call', {
+      name: 'memory_summary_append',
+      arguments: {
+        agent: 'codex',
+        row: '| 2026-09-13 | 01 | fix | must not cross reparse boundary | report.md | memory.md | ✅ |'
+      }
+    })
+  ], TEMP_ROOT)
+
+  assert.strictEqual(resultById(responses, 1).isError, true)
+  assert.match(resultById(responses, 1).content?.[0]?.text || '', /symbolic links|reparse-point|canonical path escapes/)
+  assert.strictEqual(resultById(responses, 2).isError, true)
+  assert.match(resultById(responses, 2).content?.[0]?.text || '', /symbolic links|reparse-point|canonical path escapes/)
+  assert.strictEqual(fs.existsSync(path.join(outsideRoot, 'tasks', '20260913.md')), false)
+  assert.strictEqual(fs.existsSync(path.join(outsideRoot, 'SUMMARY.md')), false)
 }
 
 function testMemoryCpConfirmPreservesOrdinaryTables() {
@@ -7170,6 +7244,7 @@ function testMcpJsonLaunchContract() {
 
 testProfilePrompts()
 testProfilePromptRequiresProjectAtWorkspaceRoot()
+testProfileLoadRejectsReparseProfileFile()
 testMissingProfileRecoveryUsesCanonicalInitCommand()
 testProfileTierConflictRejected()
 testProfileModeFallbackAgent()
@@ -7192,6 +7267,7 @@ testMemoryCpConfirmTaskScopedAutoDecisionContract()
 testMemoryCpConfirmForBugs()
 testMemoryCpConfirmForExtendedTaskKinds()
 testMemoryCpConfirmRejectsArtifactPathEscape()
+testMemoryProductionWritesRejectReparseClientDirectory()
 testMemoryCpConfirmPreservesOrdinaryTables()
 testMemoryCpConfirmGenericSessionIndexWithoutCpSection()
 testMemoryProjectionQueriesAndZeroWrite()

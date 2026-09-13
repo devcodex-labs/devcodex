@@ -2346,7 +2346,7 @@ function resolveMemoryTarget(args) {
 }
 
 function memoryClientPath(target, ...segments) {
-  return resolveInside(target.activeRoot, '.memory', 'clients', target.agent, ...segments)
+  return resolveWritePathInside(target.activeRoot, '.memory', 'clients', target.agent, ...segments)
 }
 
 function memoryFileMetadata(filePath) {

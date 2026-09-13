@@ -15,6 +15,38 @@ const {
   resolveGrokRuntimeRoot
 } = require('../lib/runtime-root.cjs')
 
+const STDIO_MAX_FRAME_BYTES = 4 * 1024 * 1024
+
+function byteLength(value) {
+  return Buffer.byteLength(String(value || ''), 'utf8')
+}
+
+function createBoundedTextAccumulator(options = {}) {
+  const maxBytes = options.maxBytes || STDIO_MAX_FRAME_BYTES
+  let text = ''
+  let overflowed = false
+  return {
+    push(chunk) {
+      if (overflowed) return false
+      const next = String(chunk || '')
+      if (byteLength(text) + byteLength(next) > maxBytes) {
+        text = ''
+        overflowed = true
+        return false
+      }
+      text += next
+      return true
+    },
+    snapshot() {
+      return text
+    },
+    get overflowed() {
+      return overflowed
+    },
+    maxBytes
+  }
+}
+
 function samePath(left, right) {
   const a = path.resolve(left)
   const b = path.resolve(right)
@@ -54,11 +86,20 @@ function findWorkspaceRoot(start) {
 
 function readInput() {
   return new Promise((resolve, reject) => {
-    let input = ''
+    const input = createBoundedTextAccumulator({ maxBytes: STDIO_MAX_FRAME_BYTES })
     process.stdin.setEncoding('utf8')
-    process.stdin.on('data', (chunk) => { input += chunk })
+    process.stdin.on('data', (chunk) => {
+      if (!input.push(chunk)) {
+        const error = new Error(`DevCodex Grok hook stdin exceeds ${input.maxBytes} bytes`)
+        error.code = 'DEVCODEX_GROK_HOOK_STDIN_TOO_LARGE'
+        reject(error)
+      }
+    })
     process.stdin.on('end', () => {
-      try { resolve(input.trim() ? JSON.parse(input) : {}) } catch (error) { reject(error) }
+      try {
+        const text = input.snapshot()
+        resolve(text.trim() ? JSON.parse(text) : {})
+      } catch (error) { reject(error) }
     })
   })
 }

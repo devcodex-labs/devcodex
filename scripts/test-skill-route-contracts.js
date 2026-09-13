@@ -604,7 +604,7 @@ try {
   })
   assert.strictEqual(cliMode.hostVariant, HOST_VARIANTS.codex)
   assert(
-    ['PASS', 'STALE', 'WARN'].includes(cliMode.hostEligibility),
+    ['PASS', 'STALE', 'WARN', 'UNVERIFIED'].includes(cliMode.hostEligibility),
     `Codex CLI canonical capability must be fresh PASS or truthfully non-PASS: ${JSON.stringify(cliMode, null, 2)}`
   )
   if (cliMode.hostEligibility === 'STALE') {
@@ -615,6 +615,9 @@ try {
     assert.strictEqual(cliMode.capabilityEvidenceValid, true)
   } else if (cliMode.hostEligibility === 'WARN') {
     assert.strictEqual(cliMode.capabilityEvidenceValid, false)
+  } else if (cliMode.hostEligibility === 'UNVERIFIED') {
+    assert.strictEqual(cliMode.capabilityEvidenceValid, false)
+    assert.strictEqual(cliMode.capabilityEvidenceReason, 'evidence-unavailable')
   }
   assert.match(
     formatSkillRouteBootstrapInjection({ project: fixture.project }, { host: 'codex' }),
@@ -650,8 +653,8 @@ try {
   )
   assert(productionCapability)
   assert(
-    ['PASS', 'WARN'].includes(productionCapability.status),
-    `Codex CLI canonical capability must be PASS or explicitly demoted WARN: ${productionCapability.status}`
+    ['PASS', 'WARN', 'UNVERIFIED'].includes(productionCapability.status),
+    `Codex CLI canonical capability must be PASS or truthfully non-PASS: ${productionCapability.status}`
   )
   const desktopCapability = capabilities.capabilities.find(item =>
     item.hostVariant === 'codex-desktop/app-user-global-local-stdio'

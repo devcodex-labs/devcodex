@@ -1755,6 +1755,21 @@ for (const event of ['PreToolUse', 'PostToolUse']) {
     `plugin ${event} must omit invalid matcher *`
   )
 }
+{
+  const hookPath = path.join(__dirname, '..', 'grok', 'plugins', 'devcodex-workspace', 'hooks', 'devcodex-workspace.cjs')
+  const oversizedHookInput = 'x'.repeat(STDIO_MAX_FRAME_BYTES + 1)
+  const result = spawnSync(process.execPath, [hookPath], {
+    cwd: path.join(__dirname, '..'),
+    input: oversizedHookInput,
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024,
+    windowsHide: true,
+    env: { ...process.env, GROK_PLUGIN_DATA: path.join(os.tmpdir(), `devcodex-grok-hook-test-${process.pid}`) }
+  })
+  assert.strictEqual(result.status, 0)
+  assert.deepStrictEqual(JSON.parse(result.stdout), { decision: 'allow' })
+  assert.match(result.stderr, /stdin exceeds|DEVCODEX_GROK_HOOK_STDIN_TOO_LARGE/)
+}
 
 // path-observable for grok (HostParity W2) — hostCapabilityFor exported for contract tests
 const { buildLifecycleBootstrapStateUtils } = require('../hooks/_runtime/lifecycle-bootstrap-state.cjs')

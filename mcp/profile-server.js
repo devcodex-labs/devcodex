@@ -18,7 +18,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 const { execFileSync } = require('child_process')
-const { assertSingleSegment, resolveInside, resolveExistingRegularFileInside } = require('./path-guard')
+const { assertSingleSegment, resolveInside, resolveExistingRegularFileInside, resolveWritePathInside } = require('./path-guard')
 const { createJsonLineServer } = require('./stdio-jsonrpc.cjs')
 const {
   PROFILE_BASE_FILES,
@@ -752,7 +752,7 @@ function resolveProfileFile(name, projectName, options = {}) {
   if (!LAYOUT.enabled) {
     const sourceSnapshots = []
     for (const dir of getLegacyProfileDirs(projectName)) {
-      const fullPath = resolveInside(dir, safeName)
+      const fullPath = resolveWritePathInside(dir, safeName)
       const document = readProfileTextDocument(fullPath, options)
       sourceSnapshots.push(profileSourceSnapshot(fullPath, document))
       if (document.exists) {
@@ -774,8 +774,8 @@ function resolveProfileFile(name, projectName, options = {}) {
 
   const projectDir = getProjectNamespaceProfileDir(projectName)
   const workspaceDir = getWorkspaceProfileDir()
-  const projectPath = projectDir ? resolveInside(projectDir, safeName) : null
-  const workspacePath = resolveInside(workspaceDir, safeName)
+  const projectPath = projectDir ? resolveWritePathInside(projectDir, safeName) : null
+  const workspacePath = resolveWritePathInside(workspaceDir, safeName)
   const sourceSnapshots = []
 
   if (projectPath) {
@@ -845,7 +845,7 @@ function resolveProfileSectionFile(name, projectName, options = {}) {
 
   if (!LAYOUT.enabled) {
     for (const dir of getLegacyProfileDirs(projectName)) {
-      const fullPath = resolveInside(dir, safeName)
+      const fullPath = resolveWritePathInside(dir, safeName)
       const selected = selectAt(fullPath, getLegacySourceLabel(dir, projectName))
       if (selected) return selected
     }
@@ -856,11 +856,11 @@ function resolveProfileSectionFile(name, projectName, options = {}) {
 
   const projectDir = getProjectNamespaceProfileDir(projectName)
   if (projectDir) {
-    const projectPath = resolveInside(projectDir, safeName)
+    const projectPath = resolveWritePathInside(projectDir, safeName)
     const selected = selectAt(projectPath, `项目命名空间（${resolveProjectName(projectName)}）`)
     if (selected) return selected
   }
-  const workspacePath = resolveInside(getWorkspaceProfileDir(), safeName)
+  const workspacePath = resolveWritePathInside(getWorkspaceProfileDir(), safeName)
   const selected = selectAt(workspacePath, '工作区基座（workspace）')
   return selected || (options.captureMissingSnapshots === true
     ? { exists: false, content: null, fullPath: null, sourceLabel: '未命中', sourcePaths: [], sourceSnapshots, sourceBytesRead: 0 }
@@ -893,7 +893,7 @@ function resolveConfigFile(projectName, options = {}) {
   if (!LAYOUT.enabled) {
     const sourceSnapshots = []
     for (const dir of getLegacyProfileDirs(projectName)) {
-      const fullPath = path.join(dir, 'config.json')
+      const fullPath = resolveWritePathInside(dir, 'config.json')
       const loaded = loadConfig(fullPath)
       if (loaded?.sourceSnapshot) sourceSnapshots.push(loaded.sourceSnapshot)
       if (loaded?.config !== null && loaded?.config !== undefined) {
@@ -927,8 +927,8 @@ function resolveConfigFile(projectName, options = {}) {
 
   const workspaceDir = getWorkspaceProfileDir()
   const projectDir = getProjectNamespaceProfileDir(projectName)
-  const workspacePath = path.join(workspaceDir, 'config.json')
-  const projectPath = projectDir ? path.join(projectDir, 'config.json') : null
+  const workspacePath = resolveWritePathInside(workspaceDir, 'config.json')
+  const projectPath = projectDir ? resolveWritePathInside(projectDir, 'config.json') : null
   const workspaceLoaded = loadConfig(workspacePath)
   const projectLoaded = projectPath ? loadConfig(projectPath) : null
   const workspaceConfig = workspaceLoaded?.config || null

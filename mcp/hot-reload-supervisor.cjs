@@ -321,7 +321,6 @@ async function main () {
   }
 
   async function handle (message) {
-    if (!message || typeof message !== 'object' || Array.isArray(message)) return
     if (!current) await startCurrent()
     if (message.method !== 'initialize') await maybeReload()
     if (message.id === undefined) {
@@ -343,6 +342,10 @@ async function main () {
       let message
       try { message = JSON.parse(trimmed) } catch {
         process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } })}\n`)
+        return
+      }
+      if (!message || typeof message !== 'object' || Array.isArray(message)) {
+        process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request' } })}\n`)
         return
       }
       try {

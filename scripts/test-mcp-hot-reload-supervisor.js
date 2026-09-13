@@ -31,10 +31,11 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
 `
 }
 
-function callClient (child) {
+function callClient (child, onMessage = null) {
   const pending = new Map()
   readline.createInterface({ input: child.stdout }).on('line', line => {
     const message = JSON.parse(line)
+    if (onMessage) onMessage(message)
     const waiter = pending.get(message.id)
     if (!waiter) return
     pending.delete(message.id)
@@ -121,7 +122,20 @@ async function main () {
       windowsHide: true
     })
     child.stderr.on('data', chunk => diagnostics.push(String(chunk)))
-    const call = callClient(child)
+    const observedMessages = []
+    const call = callClient(child, message => observedMessages.push(message))
+    child.stdin.write('42\n')
+    const invalidDeadline = Date.now() + 5000
+    while (
+      Date.now() < invalidDeadline &&
+      !observedMessages.some(message => message?.id === null && message?.error?.code === -32600)
+    ) {
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+    assert(
+      observedMessages.some(message => message?.id === null && message?.error?.code === -32600),
+      'supervisor must return JSON-RPC -32600 for parsed non-object frames'
+    )
     const initialized = await call('initialize', { protocolVersion: '2024-11-05', capabilities: {} })
     assert(initialized.result)
     child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} })}\n`)

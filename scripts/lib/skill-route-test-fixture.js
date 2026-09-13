@@ -209,12 +209,20 @@ function createSkillRouteFixture (options = {}) {
       process.stderr.write(`[skill-route-test-fixture] retained ${root}\n`)
       return
     }
-    fs.rmSync(root, {
-      recursive: true,
-      force: true,
-      maxRetries: 10,
-      retryDelay: 250
-    })
+    try {
+      fs.rmSync(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 250
+      })
+    } catch (error) {
+      if (error?.code === 'EPERM' || error?.code === 'EACCES') {
+        process.stderr.write(`[skill-route-test-fixture] cleanup retained ${root}: ${error.code}\n`)
+        return
+      }
+      throw error
+    }
   }
   if (options.workspaceSkill !== false) {
     writeWorkspaceSkill(root, options.skillId || 'workspace-probe')

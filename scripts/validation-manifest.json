@@ -509,7 +509,8 @@
     "syntax"
   ],
   "iterativeInvariantNodes": [
-    "validation-dag"
+    "validation-dag",
+    "skill-portfolio-current"
   ],
   "routes": {
     "fast": {

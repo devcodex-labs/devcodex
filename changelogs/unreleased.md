@@ -11,6 +11,8 @@
 - **模板与审查证据**：准入、会话记忆与 SUMMARY 由命名模板生成；结构资格、实际写入和任务完成分别记录。历史文件只记录观察和未知依据，优化任务纳入检查；正文“通过”或轻量流程示例不成为验证豁免。复审结果绑定候选、报告和实际证据摘要。
 - **恢复与验证**：未结算操作的 Stop 保留诊断，owner 转换传播本次提交 fence，正式终止后仅收缩会话投影而保留完整任务历史。新增隔离自然任务入口，业务结果以实际文件与计算核验，未完成观察保持 UNVERIFIED；实际发布和安装状态以发行证据为准。
 
+- **本地候选修复 — 派生资产新鲜度与默认验证漏检**：刷新 `content/skills/portfolio.json`，并将 `skill-portfolio-current` 纳入 changed/iterative 默认验证不变量，使 clean-tree `npm test` 计划覆盖 portfolio freshness；同步 validation DAG 断言与 Windows 中文文件名负向测试夹具，避免默认验证对派生资产 stale false-green。本项仅为本地源码候选，未 tag、未 publish、未刷新 MCP。
+
 - **v1.20.0 发布候选 — 任务连续性与工程控制面升级**：汇总 Stage A/B 的任务写入代际、合法 CP 演进续代、taskless 恢复、项目优先 Profile、多语言连续性、分层 SkillRoute、宿主原生多 Agent 编排合同、验证执行提速与修复批次收敛。完整说明见 [`changelogs/releases/v1.20.0.md`](./releases/v1.20.0.md)。正式发布事实仍只由 tag、registry、GitHub Release 与发布后安装回读共同成立。
 - **两阶段精确制品发布防护**：tag 资格阶段只生成一个正式精确 tarball，对同一制品完成隔离 consumer/HOME/prefix/cache/workspace 安装并保存；本机复用该制品完成真实 Codex G1→G2 后，才通过 `publish-qualified` 续发 npm 与 GitHub Release，避免 tag 触发后未经真实宿主验收即发生不可逆发布。
 - **A4-R22 CP 候选模板资格前置**：`memory_cp_confirm` 在写入 Auto 确认状态或 CP 会话记录前，先按分层 `ArtifactSlotRegistryV2` 校验 `artifactPath` 的任务类型、CP 阶段与权威路径匹配，再对同一稳定文件执行 canonical template binding、资格校验和读回；模板失格、阶段错位或文件漂移均以 typed error 零写入拒绝。确认回执以加法字段携带 slot、binding 与 qualification，输入契约、工具名和 CP 表格式保持不变。本项仅为本地源码候选，未生成 H0 或 tarball，未安装、未修改 Profile，未执行 Git 或发布。

@@ -111,7 +111,7 @@ try {
 
   const missingProfileActive = path.join(temp, 'missing-profile-active')
   createProfileFixture(missingProfileActive, true)
-  fs.rmSync(path.join(missingProfileActive, 'profile', '04-测试规范.md'))
+  fs.unlinkSync(path.join(missingProfileActive, 'profile', '04-测试规范.md'))
   const missingProfile = runCheck(ROOT, missingProfileActive)
   assert.ok(missingProfile.errors.some(item => item.includes('active Profile consumer missing')))
 } finally {

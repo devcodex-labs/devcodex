@@ -256,7 +256,7 @@ function run() {
     assert.ok(manifest.criticalInputs.includes('content/**'))
     assert.ok(manifest.criticalInputs.includes('hooks/_runtime/evidence/*.json'))
     assert.ok(!manifest.criticalInputs.includes('content-source/**'))
-    assert.deepStrictEqual(manifest.iterativeInvariantNodes, ['validation-dag'])
+    assert.deepStrictEqual(manifest.iterativeInvariantNodes, ['validation-dag', 'skill-portfolio-current'])
     assert.ok(manifest.iterativeEscalationInputs.includes('scripts/lib/validation-dag.js'))
     assert.ok(!manifest.iterativeEscalationInputs.includes('content/**'))
     assert.deepStrictEqual(Object.keys(manifest.verificationBoundaries).sort(),

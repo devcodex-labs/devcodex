@@ -2167,12 +2167,21 @@ function run() {
 
     const packageJson = require('../package.json')
     assert.strictEqual(packageJson.scripts.test, 'node scripts/run-validation.js --route changed --actor human-cli --plan')
-    assert.strictEqual(packageJson.scripts['test:fast'], 'node scripts/run-validation.js --route fast')
-    assert.strictEqual(packageJson.scripts['test:full'], 'node scripts/run-validation.js --route full')
-    assert.strictEqual(packageJson.scripts['test:delivery'], 'node scripts/run-validation.js --route delivery')
-    assert.strictEqual(packageJson.scripts['test:boundary'], 'node scripts/run-validation.js --route boundary')
+    assert.strictEqual(packageJson.scripts['test:fast'], 'node scripts/run-validation.js --route fast --actor human-cli --plan')
+    assert.strictEqual(packageJson.scripts['test:fast:ai'], 'node scripts/run-validation.js --route fast --actor ai-hook')
+    assert.strictEqual(packageJson.scripts['test:full'], 'node scripts/run-validation.js --route full --actor human-cli --plan')
+    assert.strictEqual(packageJson.scripts['test:full:ai'], 'node scripts/run-validation.js --route full --actor ai-hook')
+    assert.strictEqual(packageJson.scripts['test:delivery'], 'node scripts/run-validation.js --route delivery --actor human-cli --plan')
+    assert.strictEqual(packageJson.scripts['test:delivery:ai'], 'node scripts/run-validation.js --route delivery --actor ai-hook')
+    assert.strictEqual(packageJson.scripts['test:boundary'], 'node scripts/run-validation.js --route boundary --actor human-cli --plan')
+    assert.strictEqual(packageJson.scripts['test:boundary:ai'], 'node scripts/run-validation.js --route boundary --actor ai-hook')
     assert.strictEqual(packageJson.scripts['test:changed'], 'node scripts/run-validation.js --route changed --actor human-cli --plan')
     assert.strictEqual(packageJson.scripts['test:changed:ai'], 'node scripts/run-validation.js --route changed --actor ai-hook')
+    assert.strictEqual(packageJson.scripts['test:profile-deploy'], 'node scripts/run-validation.js --route profile-deploy --actor human-cli --plan')
+    assert.strictEqual(packageJson.scripts['test:profile-deploy:ai'], 'node scripts/run-validation.js --route profile-deploy --actor ai-hook')
+    assert.strictEqual(packageJson.scripts['test:package-release'], 'node scripts/run-validation.js --route package-release --actor human-cli --plan')
+    assert.strictEqual(packageJson.scripts['test:package-release:ai'], 'node scripts/run-validation.js --route package-release --actor ai-hook')
+    assert.strictEqual(packageJson.scripts['profile-current:refresh'], 'node scripts/refresh-profile-current-truth.js')
     assert.strictEqual(packageJson.scripts['test:actual-candidate-evidence'], 'node scripts/test-actual-candidate-evidence.js')
     assert.strictEqual(packageJson.scripts['test:dangerous-command-context'], 'node scripts/test-dangerous-command-context.js')
     assert.strictEqual(packageJson.scripts['test:session-route-consumers'], 'node scripts/test-session-route-consumers.js')
@@ -2211,7 +2220,8 @@ function run() {
       'scripts/test-task-admission-authority.js',
       'scripts/lib/real-codex-host-probe.js',
       'scripts/test-real-codex-host-probe.js',
-      'scripts/test-validation-convergence.js'
+      'scripts/test-validation-convergence.js',
+      'scripts/refresh-profile-current-truth.js'
     ]) assert(packageJson.files.includes(file), 'package files missing ' + file)
     assert.strictEqual(packageJson.scripts['test:validation-convergence'],
       'node scripts/test-validation-convergence.js')

@@ -12,6 +12,7 @@
 - **恢复与验证**：未结算操作的 Stop 保留诊断，owner 转换传播本次提交 fence，正式终止后仅收缩会话投影而保留完整任务历史。新增隔离自然任务入口，业务结果以实际文件与计算核验，未完成观察保持 UNVERIFIED；实际发布和安装状态以发行证据为准。
 
 - **本地候选修复 — 派生资产新鲜度与默认验证漏检**：刷新 `content/skills/portfolio.json`，并将 `skill-portfolio-current` 纳入 changed/iterative 默认验证不变量，使 clean-tree `npm test` 计划覆盖 portfolio freshness；同步 validation DAG 断言与 Windows 中文文件名负向测试夹具，避免默认验证对派生资产 stale false-green。本项仅为本地源码候选，未 tag、未 publish、未刷新 MCP。
+- **本地候选修复 — 验证入口、产物状态投影与 Profile 当前真相刷新**：收紧 active-root 产物 stale CP 状态检测，避免把“待用户确认是否提交”等非 CP 文案误判为 CP1/CP2 阻断；默认 `test:fast/full/delivery/boundary/profile-deploy/package-release` 改为 `human-cli --plan` 入口并补充 `:ai` 严格变体，避免 Codex/AI 环境缺 `contextEpoch` 时本地 plan 命令误红；新增 `profile-current:refresh` 标准命令，用于更新 active Profile `ProfileCurrentTruthV1` 的当前源码 HEAD 与 source candidate 身份。本项仅为本地源码候选，未 tag、未 publish、未刷新 MCP。
 
 - **v1.20.0 发布候选 — 任务连续性与工程控制面升级**：汇总 Stage A/B 的任务写入代际、合法 CP 演进续代、taskless 恢复、项目优先 Profile、多语言连续性、分层 SkillRoute、宿主原生多 Agent 编排合同、验证执行提速与修复批次收敛。完整说明见 [`changelogs/releases/v1.20.0.md`](./releases/v1.20.0.md)。正式发布事实仍只由 tag、registry、GitHub Release 与发布后安装回读共同成立。
 - **两阶段精确制品发布防护**：tag 资格阶段只生成一个正式精确 tarball，对同一制品完成隔离 consumer/HOME/prefix/cache/workspace 安装并保存；本机复用该制品完成真实 Codex G1→G2 后，才通过 `publish-qualified` 续发 npm 与 GitHub Release，避免 tag 触发后未经真实宿主验收即发生不可逆发布。

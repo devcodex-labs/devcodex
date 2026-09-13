@@ -91,12 +91,22 @@ function buildOptimizationControlChecks(ctx) {
     ]) {
       if (!pkg.scripts?.[script]) err(`[V92] missing package script: ${script}`)
     }
-    if (pkg.scripts?.test !== 'node scripts/run-validation.js --route changed' ||
-        pkg.scripts?.['test:fast'] !== 'node scripts/run-validation.js --route fast' ||
-        pkg.scripts?.['test:full'] !== 'node scripts/run-validation.js --route full' ||
-        pkg.scripts?.['test:delivery'] !== 'node scripts/run-validation.js --route delivery' ||
-        pkg.scripts?.['test:boundary'] !== 'node scripts/run-validation.js --route boundary') {
-      err('[V92] stable test entry points must route through the canonical validation manifest')
+    if (pkg.scripts?.test !== 'node scripts/run-validation.js --route changed --actor human-cli --plan' ||
+        pkg.scripts?.['test:fast'] !== 'node scripts/run-validation.js --route fast --actor human-cli --plan' ||
+        pkg.scripts?.['test:full'] !== 'node scripts/run-validation.js --route full --actor human-cli --plan' ||
+        pkg.scripts?.['test:delivery'] !== 'node scripts/run-validation.js --route delivery --actor human-cli --plan' ||
+        pkg.scripts?.['test:boundary'] !== 'node scripts/run-validation.js --route boundary --actor human-cli --plan') {
+      err('[V92] stable test entry points must route through the canonical validation manifest as human-safe plan entries')
+    }
+    for (const route of ['fast', 'full', 'changed', 'delivery', 'boundary', 'profile-deploy', 'package-release']) {
+      const aiScript = `test:${route}:ai`
+      if (route === 'changed') {
+        if (pkg.scripts?.[aiScript] !== 'node scripts/run-validation.js --route changed --actor ai-hook') {
+          err(`[V92] missing strict AI validation entry point: ${aiScript}`)
+        }
+      } else if (pkg.scripts?.[aiScript] !== `node scripts/run-validation.js --route ${route} --actor ai-hook`) {
+        err(`[V92] missing strict AI validation entry point: ${aiScript}`)
+      }
     }
     if (pkg.scripts?.['test:skill-portfolio:staged'] !== 'node scripts/generate-skill-portfolio.js --check-staged') {
       err('[V92] staged Skill portfolio command must target the Git index candidate')

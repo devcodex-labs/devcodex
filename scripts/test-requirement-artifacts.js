@@ -133,7 +133,7 @@ try {
   const goodBugCp2 = path.join(bugsRoot, 'good-bug', '02-修复方案.md')
   const goodBugPlan = path.join(bugsRoot, 'good-bug', '04-实施计划.md')
   const goodBugProgress = path.join(bugsRoot, 'good-bug', '05-实施进度.md')
-  write(goodBugOverview, qualifiedTemplateText(slot('bug-overview'), goodBugOverview, 'fix'))
+  write(goodBugOverview, `${qualifiedTemplateText(slot('bug-overview'), goodBugOverview, 'fix')}\n> **当前状态**: 已完成修复与 ECR，待用户确认是否提交\n`)
   write(goodBugCp1, `${qualifiedTemplateText(slot('bug-cp1'), goodBugCp1, 'fix')}\n## 目录导航\n`)
   write(goodBugCp2, qualifiedTemplateText(slot('bug-cp2'), goodBugCp2, 'fix'))
   write(goodBugPlan, `${qualifiedTemplateText(slot('implementation-plan'), goodBugPlan, 'fix')}\n> **状态**: 已确认，执行中\n`)

@@ -288,11 +288,11 @@ function buildGovernanceIntakeChecks(ctx) {
     const testRouter = read(path.join(ROOT, 'content', 'skills', 'test-router', 'SKILL.md'))
 
     const scriptExpectations = [
-      ['test', 'node scripts/run-validation.js --route changed'],
-      ['test:fast', 'node scripts/run-validation.js --route fast'],
-      ['test:full', 'node scripts/run-validation.js --route full'],
-      ['test:delivery', 'node scripts/run-validation.js --route delivery'],
-      ['test:boundary', 'node scripts/run-validation.js --route boundary'],
+      ['test', 'node scripts/run-validation.js --route changed --actor human-cli --plan'],
+      ['test:fast', 'node scripts/run-validation.js --route fast --actor human-cli --plan'],
+      ['test:full', 'node scripts/run-validation.js --route full --actor human-cli --plan'],
+      ['test:delivery', 'node scripts/run-validation.js --route delivery --actor human-cli --plan'],
+      ['test:boundary', 'node scripts/run-validation.js --route boundary --actor human-cli --plan'],
       ['test:validation-dag', 'node scripts/test-validation-dag.js'],
       ['test:all', 'npm run test:full'],
       ['test:all:with-audit', 'npm run test:audit'],
@@ -302,6 +302,12 @@ function buildGovernanceIntakeChecks(ctx) {
     for (const [scriptName, needle] of scriptExpectations) {
       const value = scripts[scriptName] || ''
       if (!value.includes(needle)) err(`[V42] package.json script ${scriptName} missing "${needle}"`)
+    }
+    for (const route of ['fast', 'full', 'changed', 'delivery', 'boundary', 'profile-deploy', 'package-release']) {
+      const scriptName = `test:${route}:ai`
+      if (!scripts[scriptName]?.includes(`--route ${route}`) || !scripts[scriptName]?.includes('--actor ai-hook')) {
+        err(`[V42] package.json script ${scriptName} missing strict AI validation actor`)
+      }
     }
     const validationManifest = JSON.parse(read(path.join(ROOT, 'scripts', 'validation-manifest.json')))
     for (const route of ['fast', 'full', 'changed', 'delivery', 'boundary', 'profile-deploy', 'package-release']) {

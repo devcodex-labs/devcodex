@@ -141,7 +141,7 @@ const readmeGovernanceNode = validationManifest.nodes.find(node => node.id === '
 const fullRouteNodes = validationManifest.routes.full && validationManifest.routes.full.nodes
 const readmeGovernanceCovered = Boolean(
   testAllScript.trim() === 'npm run test:full' &&
-  testScript === 'node scripts/run-validation.js --route changed' &&
+  testScript === 'node scripts/run-validation.js --route changed --actor human-cli --plan' &&
   readmeGovernanceNode &&
   readmeGovernanceNode.command === 'node' &&
   Array.isArray(readmeGovernanceNode.args) &&

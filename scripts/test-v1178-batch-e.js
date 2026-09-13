@@ -13,6 +13,10 @@ const {
 } = require('./lib/profile-current-truth')
 const { buildCandidateIdentity } = require('./lib/validation-dag')
 const {
+  buildRefreshedCurrentTruthRecord,
+  replaceCurrentTruthBlock
+} = require('./refresh-profile-current-truth')
+const {
   verifyProfileSourceSnapshots
 } = require('../mcp/profile-server')
 
@@ -156,6 +160,38 @@ probe('ProfileCurrentTruthV1 strict generic schema', () => {
   const missing = currentRecord()
   delete missing.publishRun
   assert(parseProfileCurrentTruth(recordMarkdown(missing)).errors.some(item => item.includes('publishRun')))
+})
+
+probe('ProfileCurrentTruth refresh keeps release facts while updating working source identity', () => {
+  const next = buildRefreshedCurrentTruthRecord(currentRecord(), {
+    packageVersion: '1.17.8',
+    gitHead: 'c'.repeat(40),
+    candidateId: `validation-candidate-${'d'.repeat(64)}`,
+    ciMatrix: extractWorkflowCurrentTruth(read('.github/workflows/ci.yml'), JSON.parse(read('scripts/validation-manifest.json'))),
+    now: '2026-09-13T08:00:00Z'
+  })
+  assert.strictEqual(next.npmLatest, '1.17.8')
+  assert.strictEqual(next.gitHead, 'c'.repeat(40))
+  assert.strictEqual(next.releaseCommit, '85f3a8eadf61b0614f88d6817d255f255de968c2')
+  assert.strictEqual(next.sourceCandidate.status, 'LOCAL_PENDING')
+  assert.strictEqual(next.sourceCandidate.remoteCi.head, 'c'.repeat(40))
+  assert.strictEqual(next.sourceCandidate.localQualification.status, 'UNVERIFIED')
+  assert.strictEqual(next.sourceCandidate.releaseAuthorized, false)
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(next, 'candidate'), false)
+
+  const refreshed = replaceCurrentTruthBlock(recordMarkdown(currentRecord()), next)
+  const parsed = parseProfileCurrentTruth(refreshed, { required: true })
+  assert.strictEqual(parsed.valid, true, JSON.stringify(parsed.errors))
+  assert.strictEqual(parsed.record.sourceCandidate.candidateId, `validation-candidate-${'d'.repeat(64)}`)
+
+  const stable = buildRefreshedCurrentTruthRecord(next, {
+    packageVersion: '1.17.8',
+    gitHead: 'c'.repeat(40),
+    candidateId: `validation-candidate-${'d'.repeat(64)}`,
+    ciMatrix: next.ciMatrix
+  })
+  assert.strictEqual(stable.asOf, next.asOf)
+  assert.strictEqual(stable.sourceCandidate.localQualification.observedAt, next.sourceCandidate.localQualification.observedAt)
 })
 
 probe('Profile lifecycle consumes structured state independently of display language', () => {
@@ -399,5 +435,5 @@ probe('machine consumers use the repaired contracts', () => {
   assert.doesNotMatch(read('scripts/lib/validate-optimization-controls.js'), /ProfileLoadReceiptV2/)
 })
 
-assert.strictEqual(passed, 7)
-console.log('v1.17.8+ Batch E tests passed: 7/7 (Profile CAS/current truth lifecycle/language/consumers)')
+assert.strictEqual(passed, 8)
+console.log('v1.17.8+ Batch E tests passed: 8/8 (Profile CAS/current truth lifecycle/language/consumers/refresh)')

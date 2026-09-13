@@ -13,7 +13,7 @@ const {
   isSourceCandidateMismatch
 } = require('./lib/cli-maintenance-commands.js')
 const { readControlInstructionRoot, resolveControlAsset } = require('./lib/control-content-delivery')
-const { inspectWorkspaceTempGovernance } = require('./lib/workspace-temp-governance.js')
+const { isGrokCliUnavailableResult } = require('./lib/host-adapter-scope.js')
 const {
   buildDevCodexReadiness,
   readCurrentSessionEvidence
@@ -123,10 +123,6 @@ function walk(root) {
     results.push(...walk(path.join(root, entry.name)))
   }
   return results
-}
-
-function findBackups(root, baseName) {
-  return walk(root).filter(file => path.basename(file).startsWith(`${baseName}.bak.`))
 }
 
 function createTempRoot(prefix) {
@@ -361,15 +357,16 @@ function testClaudeInitPreservesCustomConfig() {
   const root = createTempRoot('devcodex-cli-init-')
   buildClaudeProject(root)
 
-  runCli(['init', '--claude'], root)
-  assertClaudeMergeState(root, { claudeMdManaged: false })
-  assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
-  assertDeploymentManifest(path.join(root, '.devcodex'), 'claude')
-
-  const backupRoot = indexApi.resolveWorkspaceTempBackupRoot(root)
-  assert.strictEqual(findBackups(backupRoot, 'CLAUDE.md').length, 0)
-  assert.ok(findBackups(backupRoot, 'settings.json').length >= 1)
-  assert.ok(findBackups(backupRoot, '.mcp.json').length >= 1)
+  const before = {
+    claude: fs.readFileSync(path.join(root, 'CLAUDE.md'), 'utf8'),
+    settings: fs.readFileSync(path.join(root, '.claude', 'settings.json'), 'utf8'),
+    mcp: fs.readFileSync(path.join(root, '.mcp.json'), 'utf8')
+  }
+  assert.match(runCliFailure(['init', '--claude'], root), /CLI_HOST_CONFIG_GLOBAL_ONLY/)
+  assert.strictEqual(fs.readFileSync(path.join(root, 'CLAUDE.md'), 'utf8'), before.claude)
+  assert.strictEqual(fs.readFileSync(path.join(root, '.claude', 'settings.json'), 'utf8'), before.settings)
+  assert.strictEqual(fs.readFileSync(path.join(root, '.mcp.json'), 'utf8'), before.mcp)
+  assert.strictEqual(fs.existsSync(path.join(root, '.devcodex')), false, 'global-only rejected init must remain zero-write for runtime data')
 
   fs.rmSync(root, { recursive: true, force: true })
 }
@@ -378,15 +375,16 @@ function testClaudeUpdateBacksUpAndPreservesCustomConfig() {
   const root = createTempRoot('devcodex-cli-update-')
   buildClaudeProject(root)
 
-  runCli(['update', '--claude'], root)
-  assertClaudeMergeState(root, { claudeMdManaged: true })
-  assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
-  assertDeploymentManifest(path.join(root, '.devcodex'), 'claude')
-
-  const backupRoot = indexApi.resolveWorkspaceTempBackupRoot(root)
-  assert.ok(findBackups(backupRoot, 'CLAUDE.md').length >= 1)
-  assert.ok(findBackups(backupRoot, 'settings.json').length >= 1)
-  assert.ok(findBackups(backupRoot, '.mcp.json').length >= 1)
+  const before = {
+    claude: fs.readFileSync(path.join(root, 'CLAUDE.md'), 'utf8'),
+    settings: fs.readFileSync(path.join(root, '.claude', 'settings.json'), 'utf8'),
+    mcp: fs.readFileSync(path.join(root, '.mcp.json'), 'utf8')
+  }
+  assert.match(runCliFailure(['update', '--claude'], root), /CLI_HOST_CONFIG_GLOBAL_ONLY/)
+  assert.strictEqual(fs.readFileSync(path.join(root, 'CLAUDE.md'), 'utf8'), before.claude)
+  assert.strictEqual(fs.readFileSync(path.join(root, '.claude', 'settings.json'), 'utf8'), before.settings)
+  assert.strictEqual(fs.readFileSync(path.join(root, '.mcp.json'), 'utf8'), before.mcp)
+  assert.strictEqual(fs.existsSync(path.join(root, '.devcodex')), false, 'global-only rejected update must remain zero-write for runtime data')
 
   fs.rmSync(root, { recursive: true, force: true })
 }
@@ -1031,22 +1029,46 @@ function testGlobalOnlyHostSelectorsFailClosed() {
   fs.rmSync(root, { recursive: true, force: true })
 }
 
-function testCodexInitBootstrapsWorkspaceNamespaceData() {
+function testGrokCliEaccesIsNotUnavailable() {
+  assert.strictEqual(isGrokCliUnavailableResult({ error: { code: 'ENOENT' } }), true)
+  assert.strictEqual(isGrokCliUnavailableResult({ status: null, signal: null, stdout: '', stderr: '' }), true)
+  assert.strictEqual(
+    isGrokCliUnavailableResult({ status: null, signal: null, stdout: '', stderr: '', error: { code: 'EACCES' } }),
+    false,
+    'EACCES must surface as an execution/access failure, not as Grok CLI unavailable'
+  )
+  assert.strictEqual(
+    isGrokCliUnavailableResult({ status: 126, signal: null, stdout: '', stderr: 'permission denied', error: { code: 'EACCES' } }),
+    false,
+    'permission-denied process results must not be collapsed into unavailable'
+  )
+}
+
+function assertGlobalOnlyHostConfigFailure(result, host) {
+  assert.notStrictEqual(result.status, 0, `expected GlobalOnly failure for ${host}`)
+  const envelope = JSON.parse(result.stdout)
+  assert.strictEqual(envelope.ok, false)
+  assert.strictEqual(envelope.errorCode, 'CLI_HOST_CONFIG_GLOBAL_ONLY')
+  assert.strictEqual(envelope.details.host, host)
+  assert.strictEqual(envelope.details.workspaceCleanMode, 'GlobalOnlyWorkspaceCleanModeV1')
+  assert.strictEqual(envelope.details.workspaceHostDirectoriesWritten, false)
+  return envelope
+}
+
+function testCodexInitWorkspaceNamespaceFailsClosedGlobalOnly() {
   const root = createTempRoot('devcodex-cli-codex-data-')
   const projectRoot = path.join(root, 'packages', 'app-a')
   writeJson(root, '.devcodex/layout.json', { version: 1, mode: 'workspace-namespace' })
   writeFile(root, 'packages/app-a/package.json', '{ "name": "app-a" }\n')
 
-  runCli(['init', '--codex'], projectRoot)
+  assertGlobalOnlyHostConfigFailure(runCliResult(['init', '--codex', '--json'], projectRoot), 'codex')
 
-  assertRuntimeDataBootstrap(path.join(root, '.devcodex', 'packages', 'app-a'))
-  assertCodexAdapterState(root)
-  assertDeploymentManifest(path.join(root, '.devcodex', 'workspace'), 'codex')
   for (const relative of ['AGENTS.md', '.agents', '.codex']) {
     assert.ok(!fs.existsSync(path.join(projectRoot, relative)), `workspace child must not receive generated ${relative}`)
   }
-  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'packages', 'app-a', 'managed')), 'project active-root must not own host deployment claims')
-  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'managed')), 'workspace namespace must not create a parallel root manifest')
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'workspace')), 'GlobalOnly init must not create workspace host runtime state')
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'packages', 'app-a', 'managed')), 'GlobalOnly init must not create project deployment claims')
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'managed')), 'GlobalOnly init must not create a parallel root manifest')
   fs.rmSync(root, { recursive: true, force: true })
 }
 
@@ -1054,79 +1076,53 @@ function testCodexPreCompactAdapterSmoke() {
   assertCodexPreCompactHookConfig(JSON.parse(fs.readFileSync(path.join(ROOT, 'codex', 'hooks.json'), 'utf8')))
 }
 
-function testCodexInitBacksUpManagedFiles() {
+function testCodexInitPreservesExistingFilesWhenGlobalOnlyFailsClosed() {
   const root = createTempRoot('devcodex-cli-codex-init-')
-  writeFile(root, 'package.json', '{ "name": "tmp-codex-init" }\n')
-  writeFile(root, 'AGENTS.md', '# custom agents instructions\n')
-  writeJson(root, '.codex/hooks.json', {
+  const originalAgents = '# custom agents instructions\n'
+  const originalHooks = {
     hooks: {
       Stop: [{ hooks: [{ type: 'command', command: 'echo custom-stop' }] }]
     }
-  })
+  }
+  const originalConfig = 'sandbox_mode = "danger-full-access"\n\n[mcp_servers.user_keep]\ncommand = "echo"\n'
+  writeFile(root, 'package.json', '{ "name": "tmp-codex-init" }\n')
+  writeFile(root, 'AGENTS.md', originalAgents)
+  writeJson(root, '.codex/hooks.json', originalHooks)
   // User-owned non-managed key must survive MCP merge
-  writeFile(root, '.codex/config.toml', 'sandbox_mode = "danger-full-access"\n\n[mcp_servers.user_keep]\ncommand = "echo"\n')
+  writeFile(root, '.codex/config.toml', originalConfig)
 
-  runCli(['init', '--codex'], root)
+  assertGlobalOnlyHostConfigFailure(runCliResult(['init', '--codex', '--json'], root), 'codex')
 
-  assertCodexAdapterState(root)
-  assertRuntimeDataBootstrap(path.join(root, '.devcodex'))
-  assertDeploymentManifest(path.join(root, '.devcodex'), 'codex')
-
-  const codexConfig = fs.readFileSync(path.join(root, '.codex', 'config.toml'), 'utf8')
-  assert.ok(codexConfig.includes('sandbox_mode = "danger-full-access"'), 'user sandbox_mode must be preserved')
-  assert.ok(codexConfig.includes('mcp_servers.user_keep'), 'user mcp_servers must be preserved')
-  assert.ok(codexConfig.includes('BEGIN DEVCODEX-MCP-MANAGED'), 'managed MCP block must be appended')
-
-  // Idempotent second init
-  runCli(['init', '--codex'], root)
-  const again = fs.readFileSync(path.join(root, '.codex', 'config.toml'), 'utf8')
-  const managedCount = (again.match(/BEGIN DEVCODEX-MCP-MANAGED/g) || []).length
-  assert.strictEqual(managedCount, 1, 'managed MCP block must remain single after re-init')
-
-  const backupRoot = indexApi.resolveWorkspaceTempBackupRoot(root)
-  assert.ok(findBackups(backupRoot, 'AGENTS.md').length >= 1)
-  assert.ok(findBackups(backupRoot, 'hooks.json').length >= 1)
-  assert.ok(
-    findBackups(backupRoot, 'config.toml').length >= 1,
-    'changing existing .codex/config.toml must create a backup'
-  )
-  const tempStatus = inspectWorkspaceTempGovernance(root)
-  assert.strictEqual(tempStatus.scopes.flatMap(scope => scope.blocked)
-    .some(item => item.reasons.includes('unknown-owner')), false)
-  assert.ok(tempStatus.scopes.flatMap(scope => scope.allRecords)
-    .some(item => item.producer === 'codex-config-toml'))
-
-  const doctor = JSON.parse(runCli(['doctor', '--json'], root))
-  assert.strictEqual(doctor.ok, true)
-  assert.strictEqual(doctor.payload?.codexConfigState?.mcp?.status, 'ok', 'doctor must report Codex DevCodex MCP ok after init')
-  assert.strictEqual(doctor.payload?.codexConfigState?.mcp?.memoryServerExists, true)
-  assert.strictEqual(doctor.payload?.codexConfigState?.mcp?.profileServerExists, true)
+  assert.strictEqual(fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8'), originalAgents)
+  assert.deepStrictEqual(readJson(root, '.codex/hooks.json'), originalHooks)
+  assert.strictEqual(fs.readFileSync(path.join(root, '.codex', 'config.toml'), 'utf8'), originalConfig)
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'managed')), 'GlobalOnly failure must not create deployment manifest')
+  assert.ok(!fs.existsSync(indexApi.resolveWorkspaceTempBackupRoot(root)), 'GlobalOnly failure must not create backups')
 
   fs.rmSync(root, { recursive: true, force: true })
 }
 
-function testCodexUpdateRefreshesAdapterInWorkspaceNamespace() {
+function testCodexUpdateWorkspaceNamespaceFailsClosedGlobalOnly() {
   const root = createTempRoot('devcodex-cli-codex-update-')
   const projectRoot = path.join(root, 'packages', 'app-a')
   const staleAgents = '# stale codex agent\n'
-  writeJson(root, '.devcodex/layout.json', { version: 1, mode: 'workspace-namespace' })
-  writeFile(root, 'packages/app-a/package.json', '{ "name": "app-a" }\n')
-  writeFile(root, 'packages/app-a/AGENTS.md', staleAgents)
-  writeJson(root, 'packages/app-a/.codex/hooks.json', {
+  const staleHooks = {
     hooks: {
       UserPromptSubmit: [{ hooks: [{ type: 'command', command: 'echo stale-command' }] }]
     }
-  })
+  }
+  writeJson(root, '.devcodex/layout.json', { version: 1, mode: 'workspace-namespace' })
+  writeFile(root, 'packages/app-a/package.json', '{ "name": "app-a" }\n')
+  writeFile(root, 'packages/app-a/AGENTS.md', staleAgents)
+  writeJson(root, 'packages/app-a/.codex/hooks.json', staleHooks)
 
-  runCli(['update', '--codex'], projectRoot)
+  assertGlobalOnlyHostConfigFailure(runCliResult(['update', '--codex', '--json'], projectRoot), 'codex')
 
-  assertCodexAdapterState(root)
-  assertRuntimeDataBootstrap(path.join(root, '.devcodex', 'packages', 'app-a'))
-  assertDeploymentManifest(path.join(root, '.devcodex', 'workspace'), 'codex')
   assert.strictEqual(fs.readFileSync(path.join(projectRoot, 'AGENTS.md'), 'utf8'), staleAgents, 'unowned child artifact must be preserved for reviewed migration')
-  assert.match(fs.readFileSync(path.join(projectRoot, '.codex', 'hooks.json'), 'utf8'), /stale-command/)
-  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'packages', 'app-a', 'managed')), 'project active-root must not own host deployment claims')
-  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'managed')), 'workspace namespace must keep the host manifest under workspace runtime state')
+  assert.deepStrictEqual(readJson(root, 'packages/app-a/.codex/hooks.json'), staleHooks)
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'workspace')), 'GlobalOnly update must not create workspace host runtime state')
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'packages', 'app-a', 'managed')), 'GlobalOnly update must not create project deployment claims')
+  assert.ok(!fs.existsSync(path.join(root, '.devcodex', 'managed')), 'GlobalOnly update must not create a parallel root manifest')
 
   fs.rmSync(root, { recursive: true, force: true })
 }
@@ -1428,6 +1424,35 @@ function testCodexMcpPreventionNegatives() {
   assert.notStrictEqual(inspect.status, 'ok', 'missing memory args must not report ok')
   assert.strictEqual(inspect.memoryHasArgs, false)
 
+  const outside = createTempRoot('devcodex-cli-codex-mcp-outside-')
+  fs.writeFileSync(path.join(outside, 'memory-server.js'), '// outside memory\n')
+  fs.writeFileSync(path.join(outside, 'profile-server.js'), '// outside profile\n')
+  fs.writeFileSync(path.join(tmp, '.codex', 'config.toml'), [
+    BEGIN,
+    '[mcp_servers.devcodex-memory]',
+    'command = "node"',
+    'args = [',
+    `  "${path.join(outside, 'memory-server.js').replace(/\\/g, '/')}",`,
+    `  "${tmp.replace(/\\/g, '/')}"`,
+    ']',
+    '',
+    '[mcp_servers.devcodex-profile]',
+    'command = "node"',
+    'args = [',
+    `  "${path.join(outside, 'profile-server.js').replace(/\\/g, '/')}",`,
+    `  "${tmp.replace(/\\/g, '/')}"`,
+    ']',
+    END,
+    ''
+  ].join('\n'))
+  const outsideInspect = hostUtils.inspectCodexMcpManagedConfig(tmp)
+  assert.notStrictEqual(outsideInspect.status, 'ok', 'outside MCP server args must not report ok')
+  assert.strictEqual(outsideInspect.memoryServerExists, true)
+  assert.strictEqual(outsideInspect.profileServerExists, true)
+  assert.strictEqual(outsideInspect.memoryServerMatchesExpected, false)
+  assert.strictEqual(outsideInspect.profileServerMatchesExpected, false)
+  fs.rmSync(outside, { recursive: true, force: true })
+
   // F-007 Codex-only host identity
   assert.deepStrictEqual(hostUtils.detectInstalledHostAssets(tmp), ['codex'])
   fs.writeFileSync(path.join(tmp, 'CLAUDE.md'), '# claude\n')
@@ -1448,6 +1473,18 @@ function testCodexMcpPreventionNegatives() {
 
   fs.rmSync(tmp, { recursive: true, force: true })
   fs.rmSync(badRoot, { recursive: true, force: true })
+}
+
+function testGrokLauncherRequiresWorkspaceNamespaceLayout() {
+  const { findWorkspaceRoot } = require('./lib/grok-workspace-launcher')
+  const root = createTempRoot('devcodex-grok-launcher-layout-')
+  const child = path.join(root, 'packages', 'app')
+  fs.mkdirSync(path.join(root, '.devcodex'), { recursive: true })
+  fs.mkdirSync(child, { recursive: true })
+  assert.strictEqual(findWorkspaceRoot(child), null, 'bare .devcodex directory must not bind Grok workspace')
+  writeJson(root, '.devcodex/layout.json', { version: 1, mode: 'workspace-namespace' })
+  assert.strictEqual(findWorkspaceRoot(child), root)
+  fs.rmSync(root, { recursive: true, force: true })
 }
 
 function testInitHelpMatchesZeroWriteTargetContract() {
@@ -1627,6 +1664,8 @@ function testSharedReadinessReducerMatrix() {
 
 function main() {
   require('./test-workspace-temp.js')
+  testClaudeInitPreservesCustomConfig()
+  testClaudeUpdateBacksUpAndPreservesCustomConfig()
   testDoctorAvoidsCodexBiasInMixedHostRepo()
   testDoctorHonorsExplicitAgentBeforeAmbientHints()
   testMachineReadableDiagnosticsAndStableErrors()
@@ -1639,7 +1678,12 @@ function main() {
   testWorkspaceTempStatusAndPruneAreManifestBounded()
   testTenantSelectionIsExplicit()
   testGlobalOnlyHostSelectorsFailClosed()
+  testGrokCliEaccesIsNotUnavailable()
+  testCodexInitWorkspaceNamespaceFailsClosedGlobalOnly()
+  testCodexInitPreservesExistingFilesWhenGlobalOnlyFailsClosed()
+  testCodexUpdateWorkspaceNamespaceFailsClosedGlobalOnly()
   testCodexMcpPreventionNegatives()
+  testGrokLauncherRequiresWorkspaceNamespaceLayout()
   testInitHelpMatchesZeroWriteTargetContract()
   testSharedReadinessReducerMatrix()
   testProfileInitUsesNestedNamespaceRoot()

@@ -117,7 +117,11 @@ function findNestedGitRoot(cwd, workspaceRoot) {
 function findWorkspaceRoot(start) {
   let current = path.resolve(start)
   while (true) {
-    if (fs.existsSync(path.join(current, '.devcodex'))) return current
+    const marker = path.join(current, '.devcodex', 'layout.json')
+    try {
+      const layout = JSON.parse(fs.readFileSync(marker, 'utf8'))
+      if (String(layout.mode || '').trim() === 'workspace-namespace') return current
+    } catch { }
     const parent = path.dirname(current)
     if (parent === current) return null
     current = parent

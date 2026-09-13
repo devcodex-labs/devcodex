@@ -9,6 +9,7 @@ const RECEIPT_SCHEMA = 'GlobalHostConfigReceiptV1'
 const ROLES = new Set(['memory', 'profile'])
 const REQUEST_TIMEOUT_MS = 30_000
 const RELOAD_SETTLE_MS = 80
+const MAX_PAGED_LIST_PAGES = 128
 
 function supervisorError (code, detail) {
   const error = new Error(`${code}: ${detail}`)
@@ -44,8 +45,9 @@ function validLiveSourceRoot (candidate, role) {
   const root = path.resolve(candidate)
   try {
     const pkg = readJson(path.join(root, 'package.json'), 'live source package')
+    const gitStat = fs.statSync(path.join(root, '.git'))
     return pkg.name === 'devcodex' &&
-      fs.statSync(path.join(root, '.git')).isDirectory() &&
+      (gitStat.isDirectory() || gitStat.isFile()) &&
       fs.statSync(path.join(root, 'mcp', `${role}-server.js`)).isFile()
   } catch {
     return false
@@ -123,6 +125,7 @@ function createWorker (server, inputRoot) {
   readline.createInterface({ input: child.stdout }).on('line', line => {
     let message
     try { message = JSON.parse(line) } catch { return }
+    if (!message || typeof message !== 'object' || Array.isArray(message)) return
     const waiter = pending.get(message.id)
     if (waiter) {
       pending.delete(message.id)
@@ -180,11 +183,24 @@ function createWorker (server, inputRoot) {
 async function collectPagedList (worker, method, field) {
   const values = []
   let cursor
+  const seenCursors = new Set()
+  let pages = 0
   do {
+    pages += 1
+    if (pages > MAX_PAGED_LIST_PAGES) {
+      throw supervisorError('MCP_SUPERVISOR_PAGING_LIMIT_EXCEEDED', `${method}: exceeded ${MAX_PAGED_LIST_PAGES} pages`)
+    }
     const response = await worker.exchange(method, cursor ? { cursor } : {})
     if (response.error) throw supervisorError('MCP_SUPERVISOR_CONTRACT_READ_FAILED', `${method}: ${response.error.message}`)
     values.push(...(Array.isArray(response.result?.[field]) ? response.result[field] : []))
-    cursor = response.result?.nextCursor || null
+    const nextCursor = response.result?.nextCursor || null
+    if (nextCursor) {
+      if (seenCursors.has(nextCursor)) {
+        throw supervisorError('MCP_SUPERVISOR_PAGING_CURSOR_LOOP', `${method}: repeated nextCursor`)
+      }
+      seenCursors.add(nextCursor)
+    }
+    cursor = nextCursor
   } while (cursor)
   return values.sort((left, right) => String(left?.name || '').localeCompare(String(right?.name || '')))
 }

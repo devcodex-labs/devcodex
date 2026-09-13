@@ -6,6 +6,10 @@ const os = require('os')
 const path = require('path')
 const readline = require('readline')
 const { spawn } = require('child_process')
+const {
+  collectPagedList,
+  validLiveSourceRoot
+} = require('../mcp/hot-reload-supervisor.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 
@@ -79,6 +83,10 @@ async function main () {
     fs.writeFileSync(path.join(sourceRoot, 'package.json'), '{"name":"devcodex","version":"0.0.0"}\n')
     const worker = path.join(mcpRoot, 'profile-server.js')
     fs.writeFileSync(worker, workerSource('v1'))
+    assert.strictEqual(validLiveSourceRoot(sourceRoot, 'profile'), true)
+    fs.rmSync(path.join(sourceRoot, '.git'), { recursive: true, force: true })
+    fs.writeFileSync(path.join(sourceRoot, '.git'), 'gitdir: ../.git/worktrees/fixture\n')
+    assert.strictEqual(validLiveSourceRoot(sourceRoot, 'profile'), true)
     const supervisor = path.join(baseRoot, 'mcp-hot-reload-supervisor.cjs')
     fs.copyFileSync(path.join(ROOT, 'mcp', 'hot-reload-supervisor.cjs'), supervisor)
     fs.writeFileSync(path.join(baseRoot, 'global-host-receipt.json'), `${JSON.stringify({
@@ -93,6 +101,18 @@ async function main () {
       },
       updatedAt: new Date().toISOString()
     })}\n`)
+
+    let pagingCalls = 0
+    await assert.rejects(
+      () => collectPagedList({
+        async exchange () {
+          pagingCalls += 1
+          return { result: { tools: [], nextCursor: 'same-cursor' } }
+        }
+      }, 'tools/list', 'tools'),
+      /MCP_SUPERVISOR_PAGING_CURSOR_LOOP/
+    )
+    assert.strictEqual(pagingCalls, 2)
 
     const diagnostics = []
     child = spawn(process.execPath, [supervisor, 'profile', tempRoot], {

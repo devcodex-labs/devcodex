@@ -35,6 +35,10 @@ function withDeadline(value, timeoutMs) {
   ]).finally(() => clearTimeout(timer))
 }
 
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
 function createJsonLineServer(options = {}) {
   const input = options.input || process.stdin
   const output = options.output || process.stdout
@@ -92,6 +96,14 @@ function createJsonLineServer(options = {}) {
       request = JSON.parse(trimmed)
     } catch {
       sendError(null, -32700, 'Parse error')
+      return
+    }
+    if (!isPlainObject(request)) {
+      sendError(null, -32600, 'Invalid Request')
+      return
+    }
+    if (typeof request.method !== 'string' || !request.method.trim()) {
+      sendError(request.id === undefined ? null : request.id, -32600, 'Invalid Request')
       return
     }
     try {

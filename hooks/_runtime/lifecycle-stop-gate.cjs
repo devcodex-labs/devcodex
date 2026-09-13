@@ -34,10 +34,10 @@ try {
     classifyEcrClosure
   } = require('../../scripts/lib/process-enforcement.js'))
 } catch {
-  classifyReviewChecklistCompletion = () => ({ ok: true, code: null, gap: null })
-  classifyProcessArtifactCompleteness = () => ({ ok: true, code: null, gap: null, missing: [] })
-  classifyDeliveryHonesty = () => ({ ok: true, gaps: [], code: null, gap: null })
-  classifyEcrClosure = () => ({ ok: true, code: null, gap: null })
+  classifyReviewChecklistCompletion = () => ({ ok: false, code: 'PROCESS_ENFORCEMENT_UNAVAILABLE', gap: 'process-enforcement-unavailable' })
+  classifyProcessArtifactCompleteness = () => ({ ok: false, code: 'PROCESS_ENFORCEMENT_UNAVAILABLE', gap: 'process-enforcement-unavailable', missing: ['process-enforcement'] })
+  classifyDeliveryHonesty = () => ({ ok: false, gaps: ['process-enforcement-unavailable'], code: 'PROCESS_ENFORCEMENT_UNAVAILABLE', gap: 'process-enforcement-unavailable' })
+  classifyEcrClosure = () => ({ ok: false, code: 'PROCESS_ENFORCEMENT_UNAVAILABLE', gap: 'process-enforcement-unavailable' })
 }
 
 function extractLastAssistantMessage (payload) {

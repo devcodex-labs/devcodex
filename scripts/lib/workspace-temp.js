@@ -336,7 +336,7 @@ function atomicWriteJson(file, value) {
     try {
       fs.linkSync(temporary, file)
     } catch (error) {
-      if (!['EPERM', 'ENOTSUP', 'EOPNOTSUPP'].includes(error.code)) throw error
+      if (!['EPERM', 'EACCES', 'ENOTSUP', 'EOPNOTSUPP'].includes(error.code)) throw error
       fs.copyFileSync(temporary, file, fs.constants.COPYFILE_EXCL)
     }
   } finally {

@@ -76,6 +76,12 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
     return String(filePath || '').replace(/\\/g, '/')
   }
 
+  function sameResolvedPath(left, right) {
+    const a = path.resolve(left)
+    const b = path.resolve(right)
+    return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b
+  }
+
   /**
    * Count managed-block markers. Fail-closed requires 0 pairs (will append) or exactly one ordered pair.
    * @returns {{ begin: number, end: number, ok: boolean, code: string|null }}
@@ -262,6 +268,8 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
    *   profileServerPath: string|null,
    *   memoryServerExists: boolean,
    *   profileServerExists: boolean,
+   *   memoryServerMatchesExpected: boolean,
+   *   profileServerMatchesExpected: boolean,
    *   memoryHasArgs: boolean,
    *   profileHasArgs: boolean,
    *   status: 'missing'|'partial'|'stale'|'ok'
@@ -281,6 +289,8 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
       profileServerPath: null,
       memoryServerExists: false,
       profileServerExists: false,
+      memoryServerMatchesExpected: false,
+      profileServerMatchesExpected: false,
       memoryHasArgs: false,
       profileHasArgs: false,
       status: 'missing'
@@ -306,6 +316,8 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
     const profileCandidate = profileArgs[0] ? path.resolve(profileArgs[0]) : null
     result.memoryServerExists = Boolean(memoryCandidate && fs.existsSync(memoryCandidate))
     result.profileServerExists = Boolean(profileCandidate && fs.existsSync(profileCandidate))
+    result.memoryServerMatchesExpected = Boolean(memoryCandidate && sameResolvedPath(memoryCandidate, expectedMemory))
+    result.profileServerMatchesExpected = Boolean(profileCandidate && sameResolvedPath(profileCandidate, expectedProfile))
 
     if (
       result.hasDevcodexMemory &&
@@ -313,7 +325,9 @@ function buildCliHostUtils({ fs, path, isPlainObject, claudeMcpJson }) {
       result.memoryHasArgs &&
       result.profileHasArgs &&
       result.memoryServerExists &&
-      result.profileServerExists
+      result.profileServerExists &&
+      result.memoryServerMatchesExpected &&
+      result.profileServerMatchesExpected
     ) {
       result.status = 'ok'
     } else if (result.hasDevcodexMemory || result.hasDevcodexProfile || result.hasManagedBlock) {

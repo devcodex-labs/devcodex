@@ -32,7 +32,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { assertSingleSegment, resolveInside, resolveExistingRegularFileInside } = require('./path-guard')
+const { assertSingleSegment, resolveInside, resolveExistingRegularFileInside, resolveWritePathInside } = require('./path-guard')
 const { createJsonLineServer } = require('./stdio-jsonrpc.cjs')
 const { createMemoryFileTransaction } = require('./memory-file-transaction.cjs')
 const {
@@ -982,7 +982,7 @@ function sessionFilePath(agent, date, args = {}) {
     : assertSingleSegment(agent, 'agent')
   const safeAgent = normalizeAgent(candidate)
   if (!safeAgent) throw new Error('invalid agent')
-  return resolveInside(getActiveRoot(args), '.memory', 'clients', safeAgent, 'tasks', `${date || today()}.md`)
+  return resolveWritePathInside(getActiveRoot(args), '.memory', 'clients', safeAgent, 'tasks', `${date || today()}.md`)
 }
 
 function summaryFilePath(agent, args = {}) {
@@ -991,7 +991,7 @@ function summaryFilePath(agent, args = {}) {
     : assertSingleSegment(agent, 'agent')
   const safeAgent = normalizeAgent(candidate)
   if (!safeAgent) throw new Error('invalid agent')
-  return resolveInside(getActiveRoot(args), '.memory', 'clients', safeAgent, 'SUMMARY.md')
+  return resolveWritePathInside(getActiveRoot(args), '.memory', 'clients', safeAgent, 'SUMMARY.md')
 }
 
 function summaryProjectLabel(args = {}) {
@@ -1019,7 +1019,7 @@ function renderSummaryRow(cells) {
 }
 
 function taskSessionsPath(kind, requirement, args = {}) {
-  return resolveInside(getActiveRoot(args), kind, assertSingleSegment(requirement, 'requirement'), '.memory', 'sessions.md')
+  return resolveWritePathInside(getActiveRoot(args), kind, assertSingleSegment(requirement, 'requirement'), '.memory', 'sessions.md')
 }
 
 const CP_HEADING_RE = /^#{1,6}\s+.*CP\s*确认记录\s*$/i
@@ -1445,7 +1445,7 @@ function memoryLockDir(target, filePath) {
     .createHash('sha256')
     .update(`${canonicalMemoryPath(target.activeRoot)}\0${canonicalMemoryPath(filePath)}`)
     .digest('hex')
-  return resolveInside(resolveRuntimeStateRoot(target.activeRoot, target.project).root, 'memory-locks', key)
+  return resolveWritePathInside(resolveRuntimeStateRoot(target.activeRoot, target.project).root, 'memory-locks', key)
 }
 
 const MEMORY_LOCK_LEGACY_STALE_MS = 30 * 60 * 1000

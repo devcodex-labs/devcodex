@@ -2,6 +2,9 @@
 'use strict'
 
 const assert = require('assert')
+const fs = require('fs')
+const os = require('os')
+const path = require('path')
 const { PassThrough } = require('stream')
 const {
   ERROR_CODES,
@@ -10,6 +13,7 @@ const {
   MCP_STDIO_REQUEST_TIMEOUT_MS,
   createJsonLineServer
 } = require('../mcp/stdio-jsonrpc.cjs')
+const { resolveWritePathInside } = require('../mcp/path-guard.js')
 const { main: runHotReloadProbe } = require('./test-mcp-hot-reload-supervisor.js')
 
 function harness(options = {}) {
@@ -70,6 +74,32 @@ async function main() {
   await settle(malformed)
   assert.strictEqual(malformed.responses()[0].error.code, -32700)
   malformed.server.close()
+
+  const invalidNonObjects = harness({ dispatch: () => { throw new Error('dispatch must not run for invalid request') } })
+  invalidNonObjects.input.write('null\n')
+  invalidNonObjects.input.write('[]\n')
+  invalidNonObjects.input.write('"text"\n')
+  invalidNonObjects.input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 7 })}\n`)
+  await settle(invalidNonObjects)
+  assert.deepStrictEqual(invalidNonObjects.responses().map(item => item.error.code), [-32600, -32600, -32600, -32600])
+  assert.strictEqual(invalidNonObjects.responses()[3].id, 7)
+  invalidNonObjects.server.close()
+
+  const pathRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-path-guard-'))
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-path-guard-outside-'))
+  try {
+    const link = path.join(pathRoot, 'link')
+    fs.symlinkSync(outside, link, process.platform === 'win32' ? 'junction' : 'dir')
+    assert.throws(
+      () => resolveWritePathInside(pathRoot, 'link', 'escape.json'),
+      /symbolic links|reparse-point|canonical path escapes/
+    )
+  } catch (error) {
+    if (!['EPERM', 'EACCES', 'ENOTSUP'].includes(error.code)) throw error
+  } finally {
+    fs.rmSync(pathRoot, { recursive: true, force: true })
+    fs.rmSync(outside, { recursive: true, force: true })
+  }
 
   const notification = harness({ dispatch: () => ({ ignored: true }) })
   notification.input.write(`\n${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`)

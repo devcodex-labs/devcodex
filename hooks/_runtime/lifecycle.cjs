@@ -184,6 +184,7 @@ const CONTINUATION_TASK_MEMORY_MAX_BYTES = 16 * 1024
 const CONTINUATION_AGENT_MEMORY_MAX_BYTES = 64 * 1024
 const CONTINUATION_EVIDENCE_FILE_LIMIT = 5
 const CONTINUATION_EVIDENCE_QUERY_LIMIT = 5
+const HOOK_STDIN_MAX_BYTES = 4 * 1024 * 1024
 
 // ─── CP Gate constants ────────────────────────────────────────────────────────
 const CP3_RUNTIME_FILE_THRESHOLD = 5
@@ -224,7 +225,14 @@ function readStdin() {
   return new Promise((resolve, reject) => {
     let buf = ''
     process.stdin.setEncoding('utf8')
-    process.stdin.on('data', c => { buf += c })
+    process.stdin.on('data', c => {
+      buf += c
+      if (Buffer.byteLength(buf, 'utf8') > HOOK_STDIN_MAX_BYTES) {
+        const error = new Error(`DevCodex lifecycle stdin exceeds ${HOOK_STDIN_MAX_BYTES} bytes`)
+        error.code = 'DEVCODEX_LIFECYCLE_STDIN_TOO_LARGE'
+        reject(error)
+      }
+    })
     process.stdin.on('end', () => resolve(buf))
     process.stdin.on('error', reject)
   })

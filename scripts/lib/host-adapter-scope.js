@@ -396,7 +396,8 @@ function grokHomePath(env = process.env) {
 }
 
 function isGrokCliUnavailableResult(result) {
-  if (result?.error?.code === 'ENOENT' || result?.error?.code === 'EACCES') return true
+  if (result?.error?.code === 'ENOENT') return true
+  if (result?.error) return false
   return Boolean(result && result.status === null && !result.signal && !result.stdout && !result.stderr)
 }
 
@@ -1165,6 +1166,7 @@ module.exports = {
   grokUserConfigPath,
   grokHomePath,
   inspectGrokPluginInstallation,
+  isGrokCliUnavailableResult,
   mergeGrokPluginRegistration,
   removeGrokPluginRegistration,
   retireWorkspaceProjectHostManifest,

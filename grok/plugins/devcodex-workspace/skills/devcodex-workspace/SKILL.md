@@ -58,6 +58,6 @@ Platform facts (Grok Build hooks docs): `PreToolUse` and `Stop`/`SubagentStop` c
 | report-memory | Non-chat write report + memory |
 | honest-ceiling | No inject / forced Stop loops / Grok===Codex claims; preserve pending facts and continue available work |
 
-Machine source: `scripts/lib/host-parity-scorecard.js` (`GROK_TURN_EXECUTION_CHECKLIST`, `classifyWorkspaceRootScanSample`, `classifyTtfvOmissionSample`, `repairSteps`). Site doc: `website/docs/intro/host-parity-grok.md`.
+Machine source: `scripts/lib/host-parity-scorecard.js` (`GROK_TURN_EXECUTION_CHECKLIST`, `classifyWorkspaceRootScanSample`, `classifyTtfvOmissionSample`, `repairSteps`). Site doc: `public-site/docs/reference/hosts.md`.
 
 The plugin is a discovery adapter, not a second rules source. Its passive Hook output must never be presented as kernel-injection evidence. Do not copy `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.agents`, `.github`, `.grok`, `.codex`, `.claude`, or `.gemini` into a workspace.

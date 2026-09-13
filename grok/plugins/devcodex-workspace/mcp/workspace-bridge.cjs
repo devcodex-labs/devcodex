@@ -55,13 +55,13 @@ child.stdout.pipe(process.stdout)
 child.stderr.pipe(process.stderr)
 child.on('error', error => {
   process.stderr.write(`DevCodex Grok MCP bridge: failed to start ${kind} server: ${error.message}\n`)
-  process.exitCode = 2
+  process.exit(2)
 })
 child.on('exit', (code, signal) => {
   if (signal) {
     process.stderr.write(`DevCodex Grok MCP bridge: ${kind} server ended by ${signal}.\n`)
-    process.exitCode = 1
+    process.exit(1)
     return
   }
-  process.exitCode = Number.isInteger(code) ? code : 1
+  process.exit(Number.isInteger(code) ? code : 1)
 })

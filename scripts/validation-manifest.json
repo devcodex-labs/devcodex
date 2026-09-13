@@ -511,7 +511,8 @@
   ],
   "iterativeInvariantNodes": [
     "validation-dag",
-    "skill-portfolio-current"
+    "skill-portfolio-current",
+    "profile-current"
   ],
   "routes": {
     "fast": {
@@ -4421,6 +4422,48 @@
       "evidenceArtifacts": [
         "ValidationExecutionReceiptV1",
         "ProfileLoadReceiptV3",
+        "ProfileCurrentTruthV1"
+      ]
+    },
+    {
+      "schemaVersion": "ValidationNodeV1",
+      "id": "profile-current",
+      "owner": "profile-governance",
+      "command": "node",
+      "args": [
+        "scripts/validate-all-profiles.js",
+        "--current-only"
+      ],
+      "dependencies": [],
+      "inputs": [
+        "scripts/validate-profile.js",
+        "scripts/validate-all-profiles.js",
+        "scripts/lib/profile-current-truth.js",
+        "scripts/refresh-profile-current-truth.js",
+        ".github/workflows/ci.yml",
+        "package.json",
+        "data/templates/profile/**"
+      ],
+      "consumers": [
+        "profile-governance"
+      ],
+      "invariants": [
+        "profile-current-truth-clean-tree-post-commit",
+        "profile-current-truth-single-record"
+      ],
+      "riskClass": "normal",
+      "cachePolicy": "never",
+      "writeScopes": [],
+      "timeoutMs": 60000,
+      "exitMap": {
+        "success": [
+          0
+        ],
+        "failure": "nonzero-or-signal",
+        "timeout": "ETIMEDOUT"
+      },
+      "evidenceArtifacts": [
+        "ValidationExecutionReceiptV1",
         "ProfileCurrentTruthV1"
       ]
     },

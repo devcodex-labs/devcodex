@@ -256,7 +256,7 @@ function run() {
     assert.ok(manifest.criticalInputs.includes('content/**'))
     assert.ok(manifest.criticalInputs.includes('hooks/_runtime/evidence/*.json'))
     assert.ok(!manifest.criticalInputs.includes('content-source/**'))
-    assert.deepStrictEqual(manifest.iterativeInvariantNodes, ['validation-dag', 'skill-portfolio-current'])
+    assert.deepStrictEqual(manifest.iterativeInvariantNodes, ['validation-dag', 'skill-portfolio-current', 'profile-current'])
     assert.ok(manifest.iterativeEscalationInputs.includes('scripts/lib/validation-dag.js'))
     assert.ok(!manifest.iterativeEscalationInputs.includes('content/**'))
     assert.deepStrictEqual(Object.keys(manifest.verificationBoundaries).sort(),
@@ -2235,6 +2235,24 @@ function run() {
       'profile boundary must include profile current truth refresh script')
     assert(manifest.nodes.find(node => node.id === 'profile-governance').inputs.includes('scripts/refresh-profile-current-truth.js'),
       'profile-governance must include profile current truth refresh script')
+    const profileCurrentNode = manifest.nodes.find(node => node.id === 'profile-current')
+    assert(profileCurrentNode, 'manifest must expose lightweight profile-current node')
+    assert.deepStrictEqual(profileCurrentNode.args, ['scripts/validate-all-profiles.js', '--current-only'])
+    assert.strictEqual(profileCurrentNode.riskClass, 'normal')
+    assert.deepStrictEqual(profileCurrentNode.writeScopes, [])
+    assert(manifest.iterativeInvariantNodes.includes('profile-current'),
+      'clean-tree changed-route must include the lightweight Profile current truth invariant')
+    const cleanChangedPlan = planValidation({
+      manifest,
+      route: 'changed',
+      changedFiles: [],
+      changedSource: 'git-clean',
+      candidateId: 'fixture-clean-post-commit'
+    })
+    assert(cleanChangedPlan.selectedNodes.some(node => node.id === 'profile-current'),
+      'clean changed-route must select profile-current to catch post-commit active Profile drift')
+    assert(!cleanChangedPlan.selectedNodes.some(node => node.id === 'profile-governance'),
+      'clean changed-route must not promote every post-commit replay to the heavier profile-governance suite')
     const refreshProfilePlan = planValidation({
       manifest,
       route: 'changed',

@@ -444,6 +444,14 @@ function detectedActorType(env = process.env) {
   return 'human-cli'
 }
 
+function aiAuthorityEvidenceNextStep(reason) {
+  const prefix = reason ? `${reason}; ` : ''
+  return prefix +
+    'choose the correct validation entry: for zero-execution local planning run `npm run test:changed:plan`; ' +
+    'for AI execution run `npm run test:changed:ai` from a bound task and pass the current --context-epoch, --task-recovery-key and --source-message-digest; ' +
+    'for direct local execution run `npm test` from a real interactive human terminal outside the AI host.'
+}
+
 function resolveActorType(requested, env = process.env, options = {}) {
   const detected = detectedActorType(env)
   if (options.allowPlanOnlyDowngrade && requested === 'human-cli' && detected === 'ai-hook') {
@@ -594,7 +602,7 @@ function resolveValidationAuthorityContext({ actorType, options, activeRoot, env
     throw new ValidationDagError(
       'VALIDATION_AI_CONTEXT_EPOCH_REQUIRED',
       'AI validation planning requires the current ContextRead epoch',
-      { nextStep: 'Rebuild ContextRead, then pass its exact context epoch before generating a BudgetCard.' }
+      { nextStep: aiAuthorityEvidenceNextStep('Rebuild ContextRead, then pass its exact context epoch before generating a BudgetCard') }
     )
   }
 
@@ -1851,7 +1859,7 @@ function createCliLease({ options, plan, candidate, actorType, authorityContext,
     throw new ValidationDagError(
       'VALIDATION_AI_CONFIRMATION_EVIDENCE_REQUIRED',
       'AI validation execution requires the exact current user-confirmation message digest',
-      { nextStep: 'Pass --source-message-digest for the message that confirmed this exact BudgetCard.' }
+      { nextStep: aiAuthorityEvidenceNextStep('Pass --source-message-digest for the message that confirmed this exact BudgetCard') }
     )
   }
   if (['trusted-ci', 'release-pipeline'].includes(actorType)) {
@@ -2640,6 +2648,7 @@ module.exports = {
   compactPlan,
   convergenceProjection,
   createCliLease,
+  aiAuthorityEvidenceNextStep,
   directActorIdentityEvidence,
   detectedActorType,
   envelope,

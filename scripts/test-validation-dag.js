@@ -685,7 +685,14 @@ function run() {
       activeRoot: tempRoot,
       env: { CODEX_THREAD_ID: 'fixture-thread' },
       readTaskState: () => ({ status: 'fresh', identity: { taskId: aiAuthority.taskRecoveryKey } })
-    }), error => error instanceof ValidationDagError && error.code === 'VALIDATION_AI_CONTEXT_EPOCH_REQUIRED')
+    }), error => {
+      assert(error instanceof ValidationDagError)
+      assert.strictEqual(error.code, 'VALIDATION_AI_CONTEXT_EPOCH_REQUIRED')
+      assert.match(error.details.nextStep, /npm run test:changed:plan/)
+      assert.match(error.details.nextStep, /npm run test:changed:ai/)
+      assert.match(error.details.nextStep, /interactive human terminal/)
+      return true
+    })
     assert.throws(() => resolveValidationAuthorityContext({
       actorType: 'ai-hook',
       options: { contextEpoch: 'ctx-fixture-current', taskRecoveryKey: 'different-task' },

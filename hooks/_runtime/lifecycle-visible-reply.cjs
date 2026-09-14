@@ -25,7 +25,8 @@ function analyzeEntryCheckCompleteness(text, options = {}) {
   const sourceSchemaVersion = marker ? `DevCodexVisibleEnvelopeV${marker[1]}` : null
   const legacyReadOnly = marker && ['1', '2'].includes(marker[1])
   const lastOrdinal = legacyReadOnly ? 7 : 10
-  const claimed = /入口检查|预检查（\s*DEV|###\s*DevCodex\s*·\s*入口检查|DevCodexVisibleEnvelopeV(?:1|2|3)\s*·\s*entry-check|PC0\s*(?:上下文|版本|\[|（)|PC0\s*[：:]/i.test(body)
+  const freeTextPcLines = detectFreeTextPcLines(body, lastOrdinal)
+  const claimed = /入口检查|预检查（\s*DEV|###\s*DevCodex\s*·\s*入口检查|DevCodexVisibleEnvelopeV(?:1|2|3)\s*·\s*entry-check|PC0\s*(?:上下文|版本|\[|（)|PC0\s*[：:]/i.test(body) || freeTextPcLines.length >= 3
   if (!claimed) {
     return {
       claimed: false,
@@ -74,6 +75,9 @@ function analyzeEntryCheckCompleteness(text, options = {}) {
     if (!presentPcs.includes(id)) missingPcs.push(id)
   }
   if (missingPcs.length) missingItems.push('pc-columns-incomplete')
+  if (freeTextPcLines.length >= 3 && presentPcs.length < freeTextPcLines.length) {
+    missingItems.push('pc-free-text-lines')
+  }
 
   // Legacy V1/V2 PC0 carried context. V3 PC0 carries installed/runtime/source version facts and alignment.
   const currentRowPrefix = legacyReadOnly ? '(?:[-*]\\s*)?(?:\\|\\s*)?' : '(?:[-*]\\s+|\\|\\s*)'
@@ -137,6 +141,20 @@ function analyzeEntryCheckCompleteness(text, options = {}) {
     sourceSchemaVersion,
     migrationStatus: legacyReadOnly ? `legacy-v${marker[1]}-read-only` : 'current-v3'
   }
+}
+
+function detectFreeTextPcLines(body, lastOrdinal) {
+  const seen = []
+  for (const line of String(body || '').split(/\r?\n/u)) {
+    if (/^\s*(?:[-*]\s+|\|)/u.test(line)) continue
+    const match = line.match(/^\s*PC\s*(10|[0-9])\b(?!\s*[-–—~～至到])[^\n]*[：:]/iu)
+    if (!match) continue
+    const ordinal = Number(match[1])
+    if (!Number.isInteger(ordinal) || ordinal > lastOrdinal) continue
+    const id = `PC${ordinal}`
+    if (!seen.includes(id)) seen.push(id)
+  }
+  return seen
 }
 
 function projectWorkflowCompletionVisibleState(projection) {
@@ -337,7 +355,7 @@ function buildLifecycleVisibleReplyUtils(ctx) {
     // Accept V1/V2 as read-only compatibility; current V3 requires free-text PC0~PC10 completeness.
     const entryCompleteness = analyzeEntryCheckCompleteness(text, { mode: state.mode })
     state.visible.entryCheckCompleteness = entryCompleteness
-    if (/入口检查（|预检查（DEV 模式）|PC0 (?:上下文|版本)|###\s*DevCodex\s*·\s*入口检查|DevCodexVisibleEnvelopeV(?:1|2|3)\s*·\s*entry-check|PC0\s*[\[（]/.test(text)) {
+    if (entryCompleteness.claimed) {
       if (entryCompleteness.complete) {
         state.visible.precheck = true
         state.visible.precheckStatus = 'verified-present'

@@ -464,6 +464,24 @@ const paragraphEntryCheck = [
 const paragraphAnalysis = analyzeEntryCheckCompleteness(paragraphEntryCheck, { mode: 'dev' })
 assert.strictEqual(paragraphAnalysis.complete, false)
 assert(paragraphAnalysis.missingItems.includes('pc-columns-incomplete'))
+const colonFreeTextEntryCheck = [
+  'PC0 范围：整理 vextjs-mcp-verify 的完整博客需求，先形成可确认的产品与技术方案，不直接改代码。',
+  'PC1 目标：覆盖前台博客、后台管理、本地 MongoDB、Redis 响应缓存及必要的配套能力。',
+  'PC2 变更意图：当前阶段是需求分析与方案确认；确认后再进入实现。',
+  'PC3 项目边界：仅针对 D:\\Worker\\vextjs-mcp-verify，先检查现有结构与技术栈。',
+  'PC4 规范状态：N/A（当前不是开发执行阶段）。',
+  'PC5 数据范围：文章、分类、标签、用户/管理员、评论、媒体及缓存策略需纳入设计。',
+  'PC6 外部依赖：本地 MongoDB 与 Redis；连接方式、端口和启动约定需以项目现状为准。',
+  'PC7 风险提示：权限、缓存一致性、草稿发布、删除恢复、输入安全和后台审计需要在需求中明确。',
+  'PC8 交付物：一份分层需求清单、页面/接口/数据模型、非功能要求、验收标准和待确认项。',
+  'PC9 验证方式：读取项目现状后，检查方案是否与现有框架、脚本和目录兼容。',
+  'PC10 当前状态：准备读取项目上下文并整理需求，等待你确认后再实施。'
+].join('\n')
+const colonFreeTextAnalysis = analyzeEntryCheckCompleteness(colonFreeTextEntryCheck, { mode: 'dev' })
+assert.strictEqual(colonFreeTextAnalysis.claimed, true)
+assert.strictEqual(colonFreeTextAnalysis.complete, false)
+assert(colonFreeTextAnalysis.missingItems.includes('pc-columns-incomplete'))
+assert(colonFreeTextAnalysis.missingItems.includes('pc-free-text-lines'))
 assert.match(codexDesktopRendered, /\[.+\]\([^)]+\)/)
 assert.doesNotMatch(codexDesktopRendered, /使用 Codex 文件面板打开/)
 const vscodeLink = createHostLinkCapabilityDecisionV2({

@@ -214,6 +214,10 @@ function textList(value) {
   return Array.isArray(value) && value.every(text)
 }
 
+function canonicalArtifactIdList(value) {
+  return textList(value) ? [...value].sort((left, right) => String(left).localeCompare(String(right))) : []
+}
+
 function normalizeWorkflowAxisProjection(decision) {
   if (!decision || decision.schemaVersion !== 'WorkflowPlanDecisionV1') return null
   return {
@@ -473,10 +477,15 @@ function createArtifactDeliveryManifest(input) {
     if (!textList(input?.[field])) errors.push(`${field}-invalid`)
     else if (hasDuplicates(input[field])) errors.push(`${field}-duplicate`)
   }
+  const sourceArtifactIds = {
+    plannedArtifactIds: canonicalArtifactIdList(input?.plannedArtifactIds),
+    observedArtifactIds: canonicalArtifactIdList(input?.observedArtifactIds),
+    internalDeliveredArtifactIds: canonicalArtifactIdList(input?.internalDeliveredArtifactIds)
+  }
   const entrySet = new Set(artifactIds)
-  const planned = new Set(input?.plannedArtifactIds || [])
-  const observed = new Set(input?.observedArtifactIds || [])
-  const internalDelivered = new Set(input?.internalDeliveredArtifactIds || [])
+  const planned = new Set(sourceArtifactIds.plannedArtifactIds)
+  const observed = new Set(sourceArtifactIds.observedArtifactIds)
+  const internalDelivered = new Set(sourceArtifactIds.internalDeliveredArtifactIds)
   const reconciliation = {
     plannedCount: planned.size,
     observedCount: observed.size,
@@ -500,6 +509,7 @@ function createArtifactDeliveryManifest(input) {
     candidateIdentity: input?.candidateIdentity || null,
     generatedAt: input?.generatedAt || '',
     entries,
+    sourceArtifactIds,
     reconciliation
   }
   return {
@@ -507,6 +517,131 @@ function createArtifactDeliveryManifest(input) {
     manifestId: `artifact-manifest-${digest(core)}`,
     validation: { valid: reconciliation.status === 'verified', errors: reconciliation.conflicting }
   }
+}
+
+/**
+ * Compose the production final-result artifact delivery chain from one canonical input.
+ *
+ * The helper intentionally reuses the lower-level pure functions instead of duplicating
+ * renderer or visibility rules, so production callers cannot skip manifest reconciliation,
+ * required-hidden checks, delivery attempts, or envelope validation by hand-writing Markdown.
+ *
+ * @param {object} input Final artifact delivery inputs.
+ * @returns {object} A stable chain containing manifest, visible set, delivery attempts and envelope.
+ */
+function composeFinalArtifactDeliveryEnvelope(input = {}) {
+  const artifactManifest = createArtifactDeliveryManifest(input)
+  const userFacingArtifactSet = projectUserFacingArtifactSet(artifactManifest, {
+    scope: input.scope || 'default',
+    messageKind: 'final-result'
+  })
+  const linkCapability = input.linkCapability || createHostLinkCapabilityDecisionV2({
+    hostSurface: input.hostSurface || 'codex-cli',
+    presentationSurface: input.presentationSurface || 'terminal',
+    targetPath: userFacingArtifactSet.items?.[0]?.canonicalPath || null,
+    workspaceRoot: input.workspaceRoot || null,
+    evidenceState: input.evidenceState || 'unverified',
+    targetRelation: input.targetRelation || 'workspace',
+    evidenceRefs: input.evidenceRefs || []
+  })
+  const envelope = createVisibleEnvelope({
+    messageKind: 'final-result',
+    status: input.status || 'PASS',
+    context: input.context || null,
+    checks: input.checks || [],
+    decision: input.decision || null,
+    artifactManifest,
+    userFacingArtifactSet,
+    linkCapability,
+    artifactDeliveryAttempts: Object.prototype.hasOwnProperty.call(input, 'artifactDeliveryAttempts')
+      ? input.artifactDeliveryAttempts
+      : null,
+    postCompletionActions: input.postCompletionActions || {
+      requiredNow: [],
+      primaryAction: null,
+      conditionalActions: []
+    },
+    presentation: input.presentation || {
+      requestedTier: 'portable-markdown',
+      effectiveTier: 'portable-markdown',
+      degradationReason: null
+    }
+  })
+  return {
+    schemaVersion: 'FinalArtifactDeliveryEnvelopeCompositionV1',
+    artifactManifest,
+    userFacingArtifactSet,
+    linkCapability,
+    artifactDeliveryAttempts: envelope.artifactDeliveryAttempts,
+    envelope,
+    validation: {
+      valid: artifactManifest.validation.valid && userFacingArtifactSet.validation.valid && envelope.validation.valid,
+      errors: [
+        ...artifactManifest.validation.errors.map(error => `artifactManifest.${error}`),
+        ...userFacingArtifactSet.validation.errors.map(error => `userFacingArtifactSet.${error}`),
+        ...envelope.validation.errors.map(error => `envelope.${error}`)
+      ]
+    }
+  }
+}
+
+function taskManifestEntryToArtifactEntry(entry, options = {}) {
+  const artifactId = String(entry?.artifactId || entry?.path || '').trim()
+  const displayBase = (basenamePortable(entry?.path) || artifactId).replace(/\.[^.\\/]+$/, '')
+  const visibleIds = new Set(options.visibleArtifactIds || [])
+  const requiredIds = new Set(options.requiredArtifactIds || [])
+  const visibility = visibleIds.has(artifactId) ? (options.defaultVisibleVisibility || 'result') : 'optional-detail'
+  const deliveryRequirement = requiredIds.has(artifactId) ? 'required' : 'supporting'
+  const canonicalRoot = options.canonicalRoot || options.taskRoot || ''
+  const canonicalPath = path.resolve(canonicalRoot, ...String(entry?.path || '').split('/'))
+  return normalizeEntry({
+    artifactId,
+    canonicalPath,
+    previousPath: null,
+    lifecycleOperation: 'unchanged-evidence',
+    origin: 'task-delivery-manifest',
+    ownership: 'task-artifact',
+    artifactClass: options.artifactClass || 'deliverable',
+    deliveryRequirement,
+    visibility,
+    displayName: entry?.displayName || `任务交付产物：${displayBase}`,
+    purposeKey: entry?.purposeKey || 'task-delivery-artifact',
+    purposeText: entry?.purposeText || '任务目录交付产物',
+    userAction: entry?.userAction || '查看',
+    readingOrder: Number.isInteger(entry?.readingOrder) ? entry.readingOrder : 50,
+    contentDigest: entry?.sha256 || entry?.contentDigest || `task-entry:${artifactId}`,
+    evidenceRefs: [`task-delivery-manifest:${entry?.path || artifactId}`]
+  })
+}
+
+/**
+ * Bridge a task directory delivery manifest into the final visible-output manifest contract.
+ *
+ * `TaskArtifactDeliveryManifestV2` remains the directory-level truth source; this bridge only
+ * creates the user-visible `ArtifactDeliveryManifestV1` projection so ECR/final replies can
+ * prove which persisted task artifacts were considered for delivery.
+ *
+ * @param {object} taskManifest TaskArtifactDeliveryManifestV2.
+ * @param {object} options Projection metadata and visibility options.
+ * @returns {object} ArtifactDeliveryManifestV1.
+ */
+function createVisibleManifestFromTaskDeliveryManifest(taskManifest, options = {}) {
+  const entries = Array.isArray(taskManifest?.entries)
+    ? taskManifest.entries.map(entry => taskManifestEntryToArtifactEntry(entry, {
+      ...options,
+      taskRoot: options.taskRoot || taskManifest.taskRoot
+    }))
+    : []
+  const ids = entries.map(entry => entry.artifactId).filter(text)
+  return createArtifactDeliveryManifest({
+    taskId: options.taskId || taskManifest?.taskId || 'task-delivery-manifest',
+    candidateIdentity: options.candidateIdentity || taskManifest?.manifestId || taskManifest?.taskRoot || 'task-delivery-manifest',
+    generatedAt: options.generatedAt || taskManifest?.generatedAt || new Date(0).toISOString(),
+    entries,
+    plannedArtifactIds: options.plannedArtifactIds || ids,
+    observedArtifactIds: options.observedArtifactIds || ids,
+    internalDeliveredArtifactIds: options.internalDeliveredArtifactIds || ids
+  })
 }
 
 function artifactIsVisible(entry, scope) {
@@ -1005,20 +1140,24 @@ function artifactManifestIntegrityErrors(manifest) {
   if (!manifest || manifest.schemaVersion !== 'ArtifactDeliveryManifestV1' || !Array.isArray(manifest.entries)) {
     return ['artifactManifest-shape-invalid']
   }
-  const ids = manifest.entries.map(entry => entry?.artifactId)
+  const sourceArtifactIds = manifest.sourceArtifactIds || {}
   const expected = createArtifactDeliveryManifest({
     taskId: manifest.taskId,
     candidateIdentity: manifest.candidateIdentity,
     generatedAt: manifest.generatedAt,
     entries: manifest.entries,
-    plannedArtifactIds: ids,
-    observedArtifactIds: ids,
-    internalDeliveredArtifactIds: ids
+    plannedArtifactIds: sourceArtifactIds.plannedArtifactIds,
+    observedArtifactIds: sourceArtifactIds.observedArtifactIds,
+    internalDeliveredArtifactIds: sourceArtifactIds.internalDeliveredArtifactIds
   })
   const errors = []
   if (!hasExactKeys(manifest, [
-    'schemaVersion', 'taskId', 'candidateIdentity', 'generatedAt', 'entries', 'reconciliation', 'manifestId', 'validation'
+    'schemaVersion', 'taskId', 'candidateIdentity', 'generatedAt', 'entries', 'sourceArtifactIds', 'reconciliation',
+    'manifestId', 'validation'
   ])) errors.push('artifactManifest-sibling-fields-invalid')
+  if (!hasExactKeys(manifest.sourceArtifactIds, [
+    'plannedArtifactIds', 'observedArtifactIds', 'internalDeliveredArtifactIds'
+  ])) errors.push('artifactManifest-sourceArtifactIds-fields-invalid')
   const entryKeys = [
     'artifactId', 'canonicalPath', 'previousPath', 'lifecycleOperation', 'origin', 'ownership', 'artifactClass',
     'deliveryRequirement', 'visibility', 'displayName', 'purposeKey', 'purposeText', 'userAction', 'readingOrder',
@@ -2437,6 +2576,8 @@ module.exports = {
   classifyArtifactTruthSource,
   createArtifactAnchor,
   createArtifactDeliveryManifest,
+  composeFinalArtifactDeliveryEnvelope,
+  createVisibleManifestFromTaskDeliveryManifest,
   createLinkCapabilityDecision,
   createHostLinkCapabilityDecisionV2,
   createArtifactDeliveryAttemptV1,

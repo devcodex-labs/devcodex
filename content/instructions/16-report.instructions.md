@@ -109,7 +109,7 @@ reports/<子目录>/<agent>/YYYYMMDD/NN--<简述>.md
 - 报告必须登记到 `ArtifactDeliveryManifestV1`，最终用户面由 `UserFacingArtifactSetV1` 投影为语义链接（详见 [`02-output-paths.instructions.md`](./02-output-paths.instructions.md) §产物路径输出格式）：
   ```markdown
   #### 完成交付文件
-  - [最终执行与验证报告](capability-selected-target) — 汇总完成范围、验证结果和残余风险；操作：查看结论
+  - [最终执行与验证报告](capability-selected-target) — 汇总完成范围、验证结果和残余风险；路径：`.devcodex/.../reports/.../NN--报告.md`；操作：查看结论
   ```
   > Rich clickable 已验证时不得重复绝对路径；只有用户要求、链接失败、工作区外、歧义或无法定位时追加绝对路径 fallback。session/SUMMARY/raw ledger 默认不进入用户列表。
 - C13 只约束新建 DevCodex 规范资产 `.md`；报告不因 C13 强制压缩或拆分，超长报告按可读性、索引导航和项目规范决定是否拆分

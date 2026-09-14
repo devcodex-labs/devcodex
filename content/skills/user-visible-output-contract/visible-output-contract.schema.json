@@ -17,7 +17,8 @@
     { "$ref": "#/$defs/DevCodexVisibleEnvelopeV1" },
     { "$ref": "#/$defs/DevCodexVisibleEnvelopeV2" },
     { "$ref": "#/$defs/EntryCheckModelV3" },
-    { "$ref": "#/$defs/DevCodexVisibleEnvelopeV3" }
+    { "$ref": "#/$defs/DevCodexVisibleEnvelopeV3" },
+    { "$ref": "#/$defs/FinalArtifactDeliveryEnvelopeCompositionV1" }
   ],
   "$defs": {
     "status": {
@@ -54,8 +55,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "schemaVersion", "taskId", "candidateIdentity", "generatedAt", "entries", "reconciliation",
-        "manifestId", "validation"
+        "schemaVersion", "taskId", "candidateIdentity", "generatedAt", "entries", "sourceArtifactIds",
+        "reconciliation", "manifestId", "validation"
       ],
       "properties": {
         "schemaVersion": { "const": "ArtifactDeliveryManifestV1" },
@@ -68,6 +69,16 @@
         },
         "generatedAt": { "type": "string", "format": "date-time" },
         "entries": { "type": "array", "items": { "$ref": "#/$defs/artifactEntry" } },
+        "sourceArtifactIds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["plannedArtifactIds", "observedArtifactIds", "internalDeliveredArtifactIds"],
+          "properties": {
+            "plannedArtifactIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "observedArtifactIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+            "internalDeliveredArtifactIds": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+          }
+        },
         "reconciliation": {
           "type": "object",
           "additionalProperties": false,
@@ -113,6 +124,23 @@
         "sidecarAllowed": { "type": "boolean" },
         "canonicalFormat": { "enum": ["json", "markdown", "derived"] },
         "classificationDigest": { "type": "string", "pattern": "^artifact-truth-source-[a-f0-9]{64}$" },
+        "validation": { "$ref": "#/$defs/validation" }
+      }
+    },
+    "FinalArtifactDeliveryEnvelopeCompositionV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion", "artifactManifest", "userFacingArtifactSet", "linkCapability",
+        "artifactDeliveryAttempts", "envelope", "validation"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "FinalArtifactDeliveryEnvelopeCompositionV1" },
+        "artifactManifest": { "$ref": "#/$defs/ArtifactDeliveryManifestV1" },
+        "userFacingArtifactSet": { "$ref": "#/$defs/UserFacingArtifactSetV1" },
+        "linkCapability": { "$ref": "#/$defs/HostLinkCapabilityDecisionV2" },
+        "artifactDeliveryAttempts": { "type": "array", "items": { "$ref": "#/$defs/ArtifactDeliveryAttemptV1" } },
+        "envelope": { "$ref": "#/$defs/DevCodexVisibleEnvelopeV3" },
         "validation": { "$ref": "#/$defs/validation" }
       }
     },

@@ -6,6 +6,10 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { spawnSync } = require('child_process')
+const {
+  createVisibleManifestFromTaskDeliveryManifest,
+  projectUserFacingArtifactSet
+} = require('../hooks/_runtime/visible-output-contract.cjs')
 
 const ROOT = path.resolve(__dirname, '..')
 const SCRIPT = path.join(ROOT, 'scripts', 'refresh-task-delivery-manifest.js')
@@ -30,6 +34,17 @@ assert.strictEqual(first.refreshed, true)
 const manifest = JSON.parse(fs.readFileSync(path.join(taskRoot, 'delivery-manifest.json'), 'utf8'))
 assert.strictEqual(manifest.self.indexed, false)
 assert.deepStrictEqual(manifest.entries.map(entry => entry.path).sort(), ['.memory/sessions.md', '05-实施进度.md'])
+const visibleManifest = createVisibleManifestFromTaskDeliveryManifest(manifest, {
+  taskId: 'task-delivery-manifest-test',
+  candidateIdentity: 'candidate-task-delivery-manifest-test',
+  canonicalRoot: taskRoot,
+  visibleArtifactIds: ['05-实施进度.md'],
+  requiredArtifactIds: ['05-实施进度.md']
+})
+assert.strictEqual(visibleManifest.validation.valid, true, visibleManifest.validation.errors.join(', '))
+const visibleSet = projectUserFacingArtifactSet(visibleManifest, { messageKind: 'final-result' })
+assert.strictEqual(visibleSet.validation.valid, true, visibleSet.validation.errors.join(', '))
+assert.deepStrictEqual(visibleSet.items.map(item => item.artifactId), ['05-实施进度.md'])
 
 const clean = run(['--task-root', taskRoot, '--check', '--json'])
 assert.strictEqual(clean.ok, true)

@@ -8,7 +8,7 @@ description: 用户可见输出契约 Owner — 统一入口检查、完成检�
 
 当任务需要输出 PC0~PC10、FC/SC/RC/T、CP/危险动作确认、长任务进度、最终结果、阻断原因或文件交付列表时，本 Skill 是用户可见语义与渲染的唯一 Owner。
 
-本 Skill 只负责 `ArtifactDeliveryManifestV1 → ArtifactAnchorProjectionV1 / UserFacingArtifactSetV1 → PostCompletionActionSetV1 → EntryCheckModelV3 → DevCodexVisibleEnvelopeV3 → renderer`。它不替代 `compliance` 的检查含义、`cp-gate` 的确认状态、`report`/`memory` 的写入职责、`host-contract-verification` 的宿主 direct replay，也不判断专业内容质量。`DevCodexVisibleEnvelopeV1/V2` 只保留读取兼容，禁止新生产者继续写入。
+本 Skill 只负责 `ArtifactDeliveryManifestV1 → ArtifactAnchorProjectionV1 / UserFacingArtifactSetV1 → PostCompletionActionSetV1 → EntryCheckModelV3 → DevCodexVisibleEnvelopeV3 → renderer`。最终结果生产者优先调用 `composeFinalArtifactDeliveryEnvelope` 串起 manifest、visible set、delivery attempts 与 envelope，禁止在最终回复中手写一套“主要产物”清单绕过该链路。它不替代 `compliance` 的检查含义、`cp-gate` 的确认状态、`report`/`memory` 的写入职责、`host-contract-verification` 的宿主 direct replay，也不判断专业内容质量。`DevCodexVisibleEnvelopeV1/V2` 只保留读取兼容，禁止新生产者继续写入。
 
 确定性实现位于 `hooks/_runtime/visible-output-contract.cjs`，结构约束位于 `visible-output-contract.schema.json`。
 
@@ -37,7 +37,7 @@ description: 用户可见输出契约 Owner — 统一入口检查、完成检�
 
 ## 单向链路
 
-1. `ArtifactDeliveryManifestV1`：记录本任务所有持久化 mutation、恢复证据和审计证据；planned、observed、internalDelivered 必须精确对账。
+1. `ArtifactDeliveryManifestV1`：记录本任务所有持久化 mutation、恢复证据和审计证据；planned、observed、internalDelivered 必须精确对账，并在 `sourceArtifactIds.plannedArtifactIds / observedArtifactIds / internalDeliveredArtifactIds` 中保留原始规范化清单，供落盘后重新复算 manifestId 与 reconciliation。
 2. `ArtifactAnchorProjectionV1`：可选上下文锚点投影，只携带 canonical path、contentDigest、projectionDigest、truthSourceKind、stalePolicy 与 evidenceRefs，不复制正文。
 3. `UserFacingArtifactSetV1`：只能由 manifest 纯函数投影，禁止模型临场挑“主要产物”。
 4. `PostCompletionActionSetV1`：从已验证缺口、Profile 和用户授权边界投影“当前必做 / 唯一主动作 / 最多两个条件动作”；不得把产物文件当动作。
@@ -57,8 +57,10 @@ description: 用户可见输出契约 Owner — 统一入口检查、完成检�
 - `visibility=decision-required|result|evidence|optional-detail|internal-only`。
 - `deliveryRequirement=required|supporting|internal`；required 不得隐藏，internal 必须为 internal-only。
 - `reconciliation` 必须满足 planned=observed=entries=internalDelivered；missing/unexpected/conflicting 任一非空即 BLOCK。
+- `sourceArtifactIds` 必须保留规范化后的 planned / observed / internalDelivered 三组清单；完整性校验不得从 `entries` 自我重建三组清单来冒充原始输入已复证。
 - 同一 artifactId 或 canonicalPath 重复、`file://`、非语义 displayName、缺 digest/evidence 均为非法。
 - 根 manifest 的序列化容器不登记为自身 entry，避免 self-hash 无限递归；其 storage path 与文件 SHA256 必须由上级 ECR/validation receipt 记录。其他批次 manifest 或 raw manifest 作为普通输入时仍属于 `raw-manifest/internal-only`，不得借此例外漏记。
+- 任务目录级 `TaskArtifactDeliveryManifestV2` 不直接替代最终用户可见 manifest；需要进入最终回复或 ECR 时，必须通过 `createVisibleManifestFromTaskDeliveryManifest` 投影为 `ArtifactDeliveryManifestV1`，再继续 `UserFacingArtifactSetV1` 与 envelope 链路。
 
 ## ArtifactAnchorProjectionGate
 

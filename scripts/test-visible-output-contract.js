@@ -11,6 +11,8 @@ const {
   classifyArtifactTruthSource,
   createArtifactAnchor,
   createArtifactDeliveryManifest,
+  composeFinalArtifactDeliveryEnvelope,
+  createVisibleManifestFromTaskDeliveryManifest,
   buildSimpleGovernanceFastPathDecision,
   classifyArtifactPathColumnSample,
   createLinkCapabilityDecision,
@@ -138,6 +140,30 @@ const deliveryManifest = manifest(entries)
 assert.strictEqual(deliveryManifest.validation.valid, true, deliveryManifest.validation.errors.join(', '))
 assert.strictEqual(deliveryManifest.reconciliation.status, 'verified')
 assert.match(deliveryManifest.manifestId, /^artifact-manifest-[a-f0-9]{64}$/)
+assert.deepStrictEqual(deliveryManifest.sourceArtifactIds, {
+  plannedArtifactIds: entries.map(item => item.artifactId).sort(),
+  observedArtifactIds: entries.map(item => item.artifactId).sort(),
+  internalDeliveredArtifactIds: entries.map(item => item.artifactId).sort()
+})
+
+const tamperedManifest = {
+  ...deliveryManifest,
+  sourceArtifactIds: { ...deliveryManifest.sourceArtifactIds, observedArtifactIds: ['result'] }
+}
+assert.strictEqual(createVisibleEnvelope({
+  messageKind: 'final-result',
+  status: 'PASS',
+  context: { project: 'devcodex', taskId: 'tampered', mode: 'dev', intentRoute: 'fix.default', phase: 'ecr' },
+  checks: checks(),
+  artifactManifest: tamperedManifest,
+  userFacingArtifactSet: projectUserFacingArtifactSet(deliveryManifest, { messageKind: 'final-result' }),
+  linkCapability: createHostLinkCapabilityDecisionV2({
+    hostSurface: 'codex-cli', presentationSurface: 'terminal', evidenceState: 'unverified',
+    workspaceRoot: WORKSPACE, targetRelation: 'workspace', evidenceRefs: []
+  }),
+  postCompletionActions: { requiredNow: [], primaryAction: null, conditionalActions: [] },
+  presentation: { requestedTier: 'portable-markdown', effectiveTier: 'portable-markdown', degradationReason: null }
+}).validation.valid, false)
 
 const defaultSet = projectUserFacingArtifactSet(deliveryManifest, { messageKind: 'final-result' })
 assert.strictEqual(defaultSet.validation.valid, true)
@@ -146,6 +172,49 @@ assert.deepStrictEqual(defaultSet.counts, { listed: 3, remaining: 4, total: 7 })
 assert.strictEqual(defaultSet.heading, ACTION_HEADINGS['final-result'])
 assert.strictEqual(defaultSet.items.some(item => ['session', 'raw-ledger'].includes(item.artifactId)), false)
 assert.strictEqual(INTERNAL_ARTIFACT_CLASSES.has('session'), true)
+
+const composed = composeFinalArtifactDeliveryEnvelope({
+  taskId: 'visible-output-fixture',
+  candidateIdentity: 'candidate-visible-v1',
+  generatedAt: '2026-07-19T10:00:00.000Z',
+  entries,
+  plannedArtifactIds: entries.map(item => item.artifactId),
+  observedArtifactIds: entries.map(item => item.artifactId),
+  internalDeliveredArtifactIds: entries.map(item => item.artifactId),
+  context: {
+    project: 'devcodex', taskId: 'visible-output-fixture', mode: 'dev', intentRoute: 'fix.default',
+    phase: 'ecr', contextEpoch: 'epoch-final-composition', hostSurface: 'codex-cli'
+  },
+  checks: checks(),
+  workspaceRoot: WORKSPACE,
+  evidenceRefs: [],
+  postCompletionActions: { requiredNow: [], primaryAction: null, conditionalActions: [] }
+})
+assert.strictEqual(composed.validation.valid, true, composed.validation.errors.join(', '))
+assert.strictEqual(composed.envelope.messageKind, 'final-result')
+assert.strictEqual(composed.userFacingArtifactSet.counts.listed, 3)
+assert.strictEqual(composed.artifactDeliveryAttempts.length, 3)
+
+const bridgeTaskRoot = path.join(WORKSPACE, '.devcodex', 'devcodex', 'bugs', 'sample')
+const bridgedManifest = createVisibleManifestFromTaskDeliveryManifest({
+  schemaVersion: 'TaskArtifactDeliveryManifestV2',
+  generatedAt: '2026-07-19T10:00:00.000Z',
+  taskRoot: bridgeTaskRoot.replace(/\\/g, '/'),
+  self: { path: 'delivery-manifest.json', indexed: false, reason: 'avoid self-referential hash drift' },
+  counts: { files: 2, bytes: 100 },
+  entries: [
+    { path: '00-问题概况.md', bytes: 50, mtimeUtc: '2026-07-19T10:00:00.000Z', sha256: 'a'.repeat(64) },
+    { path: 'reports/codex/20260719/01--报告.md', bytes: 50, mtimeUtc: '2026-07-19T10:00:00.000Z', sha256: 'b'.repeat(64) }
+  ]
+}, {
+  taskId: 'task-bridge',
+  candidateIdentity: 'candidate-task-bridge',
+  canonicalRoot: bridgeTaskRoot,
+  visibleArtifactIds: ['reports/codex/20260719/01--报告.md'],
+  requiredArtifactIds: ['reports/codex/20260719/01--报告.md']
+})
+assert.strictEqual(bridgedManifest.validation.valid, true, bridgedManifest.validation.errors.join(', '))
+assert.strictEqual(projectUserFacingArtifactSet(bridgedManifest, { messageKind: 'final-result' }).counts.listed, 1)
 
 const requirementTruth = classifyArtifactTruthSource('requirement')
 assert.strictEqual(requirementTruth.schemaVersion, 'ArtifactTruthSourceClassificationV1')
@@ -781,6 +850,10 @@ assert.strictEqual(
   'missing-path-column'
 )
 assert.strictEqual(
+  classifyArtifactPathColumnSample(fs.readFileSync(path.join(ROOT, 'content', 'instructions', '16-report.instructions.md'), 'utf8')),
+  'present'
+)
+assert.strictEqual(
   classifyArtifactPathColumnSample('主要产物：\n- E:/Worker/foo.md'),
   'legacy-bare-path'
 )
@@ -1073,7 +1146,8 @@ for (const definition of [
   'DevCodexVisibleEnvelopeV1',
   'DevCodexVisibleEnvelopeV2',
   'EntryCheckModelV3',
-  'DevCodexVisibleEnvelopeV3'
+  'DevCodexVisibleEnvelopeV3',
+  'FinalArtifactDeliveryEnvelopeCompositionV1'
 ]) {
   assert.ok(schema.$defs[definition], `schema missing ${definition}`)
   assert.strictEqual(schema.$defs[definition].additionalProperties, false, `${definition} must reject sibling fields`)
@@ -1083,6 +1157,8 @@ assert.ok(schema.$defs.HostLinkCapabilityDecisionV2.required.includes('presentat
 assert.ok(schema.$defs.ArtifactDeliveryAttemptV1.required.includes('readback'))
 assert.ok(schema.$defs.DevCodexVisibleEnvelopeV3.required.includes('artifactDeliveryAttempts'))
 assert.strictEqual(schema.$defs.ArtifactDeliveryManifestV1.properties.generatedAt.format, 'date-time')
+assert.ok(schema.$defs.ArtifactDeliveryManifestV1.required.includes('sourceArtifactIds'))
+assert.ok(schema.$defs.ArtifactDeliveryManifestV1.properties.sourceArtifactIds.required.includes('plannedArtifactIds'))
 assert.strictEqual(schema.$defs.ArtifactAnchorV1.properties.generatedAt.format, 'date-time')
 assert.match(schema.$defs.ArtifactAnchorProjectionV1.properties.projectionDigest.pattern, /artifact-anchor-projection/)
 assert.ok(schema.$defs.DevCodexVisibleEnvelopeV1.required.includes('recommendedAction'))

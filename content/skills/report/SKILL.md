@@ -109,7 +109,7 @@ resume、ECR 或 ContextRead 的已发布依赖，也不能据其状态要求用
 - 正式复审/ECR 写 `ReviewExecution`：引用 `ReviewExecutionPlanV1`、fresh receipt digests、EvidenceSaturation、唯一 `ReviewStateSnapshotV1.snapshotDigest` 与 `StageTimingV1`；报告不得重新推导 review counts 或把 failed/inconclusive receipt 写成可复用。
 - **ReviewGradeCard（C19↔R）**：CP 确认后前置复审与 ECR 在报告中须记录 `c19Label`（轻量/标准/全面/发布安全）与 `reviewClass`（R0~R4）、`riskClass`/`riskFlags`、`contentPack`、`result`；默认 ECR 为 **R2（标准）**，禁止写「永远轻量一眼通过」而无 `skipReason` 的 R1 降级；R3/R4 须引用 checklist 或独立证据口径。
 
-最终回复是独立交付 surface：报告必须先登记到 `ArtifactDeliveryManifestV1`，再由 `UserFacingArtifactSetV1` 投影。默认用户面显示最终报告、直接交付物和 required evidence；session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger 默认 internal-only，但仍写入并参与 ECR。可见回复证据使用 `verified-present / verified-missing / unverified`，legacy 文本最多 `unverified-legacy`，不可观察时不得断言缺失。
+最终回复是独立交付 surface：报告必须先登记到 `ArtifactDeliveryManifestV1`，再由 `UserFacingArtifactSetV1` 投影；生产代码优先调用 `composeFinalArtifactDeliveryEnvelope` 串起 manifest、visible set、delivery attempts 与 envelope，任务目录 `delivery-manifest.json` 需要对外可见时先经 `createVisibleManifestFromTaskDeliveryManifest` 投影，不得直接手写最终清单。默认用户面显示最终报告、直接交付物和 required evidence；session/daily/SUMMARY/task/checkpoint/raw receipt/manifest/ledger 默认 internal-only，但仍写入并参与 ECR。可见回复证据使用 `verified-present / verified-missing / unverified`，legacy 文本最多 `unverified-legacy`，不可观察时不得断言缺失。
 
 ## 输出规则
 

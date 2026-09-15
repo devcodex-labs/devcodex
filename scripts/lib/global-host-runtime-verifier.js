@@ -1072,7 +1072,7 @@ function verifyGlobalHostRuntime(options = {}) {
     spawnSync: spawn,
     env,
     depth,
-    timeoutMs: options.timeoutMs || 15000,
+    timeoutMs: options.timeoutMs || 3000,
     platform: options.platform || process.platform,
     nativeSpawnInjected: typeof options.spawnSync === 'function',
     resolveWindowsCommand: options.resolveWindowsCommand === true
@@ -1115,7 +1115,16 @@ function verifyGlobalHostRuntime(options = {}) {
       fs: fsImpl
     })
     const configured = configurationHost.ready === true || configurationHost.configured === true
-    const adapter = adapterContractProbe(configurationHost.host, configurationHost.runtimeEntry, hostCommon)
+    const adapter = depth === 'deep'
+      ? adapterContractProbe(configurationHost.host, configurationHost.runtimeEntry, hostCommon)
+      : {
+          status: 'unverified',
+          evidence: {
+            runtimeEntry: configurationHost.runtimeEntry || null,
+            reason: 'status-light-probe'
+          },
+          issues: []
+        }
     let contractStatus = adapter.status
     const configurationIssues = Array.isArray(configurationHost.configurationIssues)
       ? configurationHost.configurationIssues

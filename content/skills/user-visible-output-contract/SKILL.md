@@ -262,7 +262,7 @@ dev / fix / self-fix 的 `completion-check` 或 dev 模式合规块宣告完成�
 
 | 规则 | 说明 |
 |------|------|
-| 分列必齐 | 须能识别 **PC0…PC10 各自独立** 行/单元格（推荐表格行示例：<code>| PC0 中断处理 | `PASS` | … |</code>，兼容旧表格 `| PC0 · PASS | … |`、`| PC0 | … |` 或列表 `- PC0 …`）；缺任一 → incomplete |
+| 分列必齐 | 须能识别 **PC0…PC10 各自独立** 行/单元格（推荐表格行含检查项、状态、结论三列，例如 `PC0 中断处理 / PASS / …`，兼容旧表格与列表形式）；缺任一 → incomplete |
 | 禁止折叠 | `PC2–PC10` / `PC2-10` / `PC2~PC10` 等合并范围 → `pc-folded-range`，precheck=`verified-missing` |
 | 禁止施工日志 | PC3/PC6 等单元格禁止「写报告 02 / 见下清单 / 只读+复现」等进度缩写冒充语义 |
 | PC0 版本 | PC0 行须区分 installed package、活动 runtime generation、可选源码候选与 alignment；仅版本号相同不得写 `aligned` |

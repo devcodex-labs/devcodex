@@ -316,15 +316,16 @@ assert.strictEqual(healthy.schemaVersion, 'GlobalHostRuntimeVerificationV2')
 assert.strictEqual(healthy.nodeRuntime.schemaVersion, 'NodeRuntimeReadinessV1')
 assert.strictEqual(healthy.ready, false)
 assert.strictEqual(healthy.overallState, 'degraded')
-assert(healthy.hosts.every(host => host.adapterReady))
+assert(healthy.hosts.every(host => host.adapterReady === false))
 assert(healthy.hosts.every(host => host.ready === false))
 assert(healthy.hosts.every(host => host.operationalState === 'unverified'))
-assert.strictEqual(healthy.hosts.find(host => host.host === 'copilot').contractStatus, 'passed')
+assert(healthy.hosts.every(host => host.adapterContractStatus === 'unverified'))
+assert.strictEqual(healthy.hosts.find(host => host.host === 'copilot').contractStatus, 'unverified')
 assert(healthy.hosts.every(host => host.probes.runtimeTemplates.promptCount === runtimeGeneration.promptAssets.count))
 assert.strictEqual(healthy.hosts.find(host => host.host === 'copilot').nativeStatus, 'unverified')
 const healthyGrok = healthy.hosts.find(host => host.host === 'grok')
 assert.strictEqual(healthyGrok.nativeStatus, 'unverified')
-assert.strictEqual(healthyGrok.contractStatus, 'passed')
+assert.strictEqual(healthyGrok.contractStatus, 'unverified')
 assert.strictEqual(healthyGrok.probes.grokStatic.lifecycleOwnerStatus, 'passed')
 for (const topology of Object.values(healthyGrok.probes.grokStatic.lifecycleOwnerTopology.events)) {
   assert.deepStrictEqual(topology, {
@@ -336,7 +337,7 @@ for (const topology of Object.values(healthyGrok.probes.grokStatic.lifecycleOwne
   })
 }
 const healthyCursor = healthy.hosts.find(host => host.host === 'cursor')
-assert.strictEqual(healthyCursor.contractStatus, 'passed')
+assert.strictEqual(healthyCursor.contractStatus, 'unverified')
 assert.strictEqual(healthyCursor.nativeStatus, 'unverified')
 assert.strictEqual(healthyCursor.probes.cursorStatic.skillContractStatus, true)
 assert.deepStrictEqual(healthyCursor.probes.cursorStatic.missingSkillAnchors, [])
@@ -571,6 +572,7 @@ const permissionIsolated = verifyGlobalHostRuntime({
   env,
   home,
   fs: deniedCodexFs,
+  depth: 'deep',
   spawnSync: (command, args) => {
     if (command === process.execPath && args.includes('--contract-probe')) {
       assert.notStrictEqual(args[1], 'codex')
@@ -602,12 +604,13 @@ const missingGrokRegistry = verifyGlobalHostRuntime({
   env,
   home,
   fs,
+  depth: 'deep',
   spawnSync: spawnProbe
 })
 const missingRegistryGrok = missingGrokRegistry.hosts.find(host => host.host === 'grok')
 assert.strictEqual(missingRegistryGrok.adapterReady, true)
 assert.strictEqual(missingRegistryGrok.contractStatus, 'passed')
-assert.strictEqual(missingRegistryGrok.nativeStatus, 'unverified')
+assert.strictEqual(missingRegistryGrok.nativeStatus, 'unavailable')
 assert(missingRegistryGrok.issues.some(issue => issue.code === 'GROK_PLUGIN_REGISTRY_UNVERIFIED'))
 fs.writeFileSync(missingRegistryFile, missingRegistryContent, 'utf8')
 
@@ -890,6 +893,7 @@ const adapterFailure = verifyGlobalHostRuntime({
   env,
   home,
   fs,
+  depth: 'deep',
   spawnSync: (command, args) => {
     if (command === process.execPath && args[1] === 'codex') {
       return { status: 2, stdout: '', stderr: 'unsupported codex adapter' }
@@ -913,6 +917,7 @@ const staleConfigurationWithAdapterFailure = verifyGlobalHostRuntime({
   env,
   home,
   fs,
+  depth: 'deep',
   spawnSync: (command, args) => {
     if (command === process.execPath && args[1] === 'codex') {
       return { status: 2, stdout: '', stderr: 'unsupported codex adapter' }

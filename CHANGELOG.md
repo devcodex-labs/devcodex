@@ -1,9 +1,9 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要；历史版本见对应详细变更文件。
-> **最新版本详细变更文档**: [`changelogs/releases/v1.20.2.md`](./changelogs/releases/v1.20.2.md)
-> **最后更新**: 2026-09-08
-> **当前源码版本**: v1.20.2，修复意图与回复语言连续性、Skill 加载、升级与卸载、模板产物和验证证据。版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
+> **最新版本详细变更文档**: [`changelogs/releases/v1.20.3.md`](./changelogs/releases/v1.20.3.md)
+> **最后更新**: 2026-09-15
+> **当前源码版本**: v1.20.3，收敛当前治理台账遗留项，并刷新发布候选身份与 release 级验证回执。版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
 
 ---
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.20.3](./changelogs/releases/v1.20.3.md) | 2026-09-15 | 批量关闭当前治理台账未闭合记录，补齐固定修复回执；同步 package/plugin/Profile/release notes 身份，并重新取得 prepublishOnly 所需 release 终态验证回执 | [查看](./changelogs/releases/v1.20.3.md) |
 | [v1.20.2](./changelogs/releases/v1.20.2.md) | 2026-09-08 | 根据意图保持任务与回复语言，补齐 Skill/MCP 实际加载链；隔离运行时升级与卸载残留，区分模板结构、实际生成和业务验收证据 | [查看](./changelogs/releases/v1.20.2.md) |
 | [v1.20.1](./changelogs/releases/v1.20.1.md) | 2026-09-07 | 修复首次 CP、过期入口和 owner 恢复、Windows 文件身份、记忆追加、报告草稿修补、晚到工具结果与 Stop 连续性；记忆会话可自动补齐，安装与加载状态分开说明 | [查看](./changelogs/releases/v1.20.1.md) |
 | [v1.20.0](./changelogs/releases/v1.20.0.md) | 2026-09-06 | 🚀 **任务连续性与工程控制面升级**：合法 CP 演进可跨会话续代；无 taskId 与异常恢复不再形成永久死锁；项目优先 Profile 与 workspace fallback、多语言连续性、分层 SkillRoute、多 Agent 隔离编排及修复批次收敛进入统一合同；发布采用同一精确制品的两阶段资格化、真实宿主验收与续发 | [查看](./changelogs/releases/v1.20.0.md) |

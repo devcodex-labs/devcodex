@@ -1839,6 +1839,8 @@ function inspectGlobalHostConfiguration(options = {}) {
   const packageRoot = path.resolve(options.packageRoot || path.join(__dirname, '..', '..'))
   const packageJson = readPackage(packageRoot, fsImpl)
   const runtimeGeneration = buildRuntimeGeneration(packageRoot, fsImpl)
+  const depth = options.depth === 'deep' ? 'deep' : 'status'
+  const lightInspection = depth !== 'deep'
   const requestedHosts = options.hosts || GLOBAL_HOST_IDS
   const targetResults = requestedHosts.map(host => {
     try {
@@ -1866,13 +1868,15 @@ function inspectGlobalHostConfiguration(options = {}) {
   const sharedRuntimeOwnerHost = requestedHosts.includes('codex')
     ? 'codex'
     : requestedHosts[0]
-  const expectedPlan = buildGlobalHostConfigPlan({
-    ...options,
-    fs: fsImpl,
-    packageRoot,
-    [INSPECTION_RESOLVED_TARGETS]: targets,
-    [INSPECTION_SHARED_RUNTIME_OWNER]: sharedRuntimeOwnerHost
-  })
+  const expectedPlan = lightInspection
+    ? { hostPlans: [] }
+    : buildGlobalHostConfigPlan({
+        ...options,
+        fs: fsImpl,
+        packageRoot,
+        [INSPECTION_RESOLVED_TARGETS]: targets,
+        [INSPECTION_SHARED_RUNTIME_OWNER]: sharedRuntimeOwnerHost
+      })
   const hosts = targetResults.map(result => {
     if (!result.target) {
       return buildUnverifiedHostInspection(result.host, result.issue)
@@ -1987,33 +1991,35 @@ function inspectGlobalHostConfiguration(options = {}) {
       receipt.result === 'committed' &&
       !receipt.removal &&
       typeof receipt.updatedAt === 'string'
-    const receiptMatchesCurrent = Boolean(expectedReceipt) &&
-      receipt?.packageName === expectedReceipt.packageName &&
-      receipt?.packageVersion === expectedReceipt.packageVersion &&
-      receipt?.runtimeGeneration?.generationId === expectedReceipt.runtimeGeneration?.generationId &&
-      samePath(receipt?.runtimeRoot, expectedReceipt.runtimeRoot) &&
-      receipt?.sourceDigest === expectedReceipt.sourceDigest &&
-      receipt?.planDigest === receipt?.sourceDigest &&
-      sameStringArray(receipt?.managedPaths, expectedReceipt.managedPaths) &&
-      isDeepStrictEqual(
-        receipt?.managedFileDigests || {},
-        expectedReceipt.managedFileDigests || {}
-      ) &&
-      isDeepStrictEqual(
-        receipt?.managedArtifacts || [],
-        expectedReceipt.managedArtifacts || []
-      ) &&
-      isDeepStrictEqual(receipt?.runtimeSource || null, expectedReceipt.runtimeSource || null) &&
-      isDeepStrictEqual(
-        receipt?.retainedManagedArtifacts || [],
-        expectedReceipt.retainedManagedArtifacts || []
-      ) &&
-      isDeepStrictEqual(
-        receipt?.runtimeRetention || null,
-        expectedReceipt.runtimeRetention || null
-      ) &&
-      sameStringArray(receipt?.retainedRuntimeRoots || [], expectedReceipt.retainedRuntimeRoots || []) &&
-      sameStringArray(receipt?.pendingStaleManagedPaths, expectedReceipt.pendingStaleManagedPaths)
+    const receiptMatchesCurrent = lightInspection
+      ? receiptFieldsComplete
+      : Boolean(expectedReceipt) &&
+        receipt?.packageName === expectedReceipt.packageName &&
+        receipt?.packageVersion === expectedReceipt.packageVersion &&
+        receipt?.runtimeGeneration?.generationId === expectedReceipt.runtimeGeneration?.generationId &&
+        samePath(receipt?.runtimeRoot, expectedReceipt.runtimeRoot) &&
+        receipt?.sourceDigest === expectedReceipt.sourceDigest &&
+        receipt?.planDigest === receipt?.sourceDigest &&
+        sameStringArray(receipt?.managedPaths, expectedReceipt.managedPaths) &&
+        isDeepStrictEqual(
+          receipt?.managedFileDigests || {},
+          expectedReceipt.managedFileDigests || {}
+        ) &&
+        isDeepStrictEqual(
+          receipt?.managedArtifacts || [],
+          expectedReceipt.managedArtifacts || []
+        ) &&
+        isDeepStrictEqual(receipt?.runtimeSource || null, expectedReceipt.runtimeSource || null) &&
+        isDeepStrictEqual(
+          receipt?.retainedManagedArtifacts || [],
+          expectedReceipt.retainedManagedArtifacts || []
+        ) &&
+        isDeepStrictEqual(
+          receipt?.runtimeRetention || null,
+          expectedReceipt.runtimeRetention || null
+        ) &&
+        sameStringArray(receipt?.retainedRuntimeRoots || [], expectedReceipt.retainedRuntimeRoots || []) &&
+        sameStringArray(receipt?.pendingStaleManagedPaths, expectedReceipt.pendingStaleManagedPaths)
     const stale = Boolean(receipt) && (!receiptFieldsComplete || !receiptMatchesCurrent)
     const configured = Boolean(receipt) &&
       !receipt.removal &&

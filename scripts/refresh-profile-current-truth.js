@@ -76,6 +76,33 @@ function buildRefreshedCurrentTruthRecord(record, input) {
     return next
   }
 
+  const activeCandidate = record.candidate && typeof record.candidate === 'object'
+  if (activeCandidate) {
+    next.candidate = { ...record.candidate }
+    next.releaseState = record.releaseState || `${packageVersion} 已进入发布候选；npm latest 保持 ${npmLatest}，发布完成后回写 RELEASED`
+    next.sourceCandidate = {
+      schemaVersion: 'SourceCandidateTruthV1',
+      ...(record.sourceCandidate || {}),
+      candidateId,
+      status: record.sourceCandidate?.status && record.sourceCandidate.status !== 'RELEASED'
+        ? record.sourceCandidate.status
+        : 'LOCAL_PENDING',
+      localQualification: identityMatches
+        ? (record.sourceCandidate?.localQualification || { status: 'UNVERIFIED', runId: 'pending-release-validation', observedAt: now })
+        : { status: 'UNVERIFIED', runId: 'pending-release-validation', observedAt: now },
+      remoteCi: {
+        status: identityMatches ? (record.sourceCandidate?.remoteCi?.status || 'UNVERIFIED') : 'UNVERIFIED',
+        runId: identityMatches ? (record.sourceCandidate?.remoteCi?.runId || 'not-pushed') : 'not-pushed',
+        head: gitHead,
+        observedAt: identityMatches
+          ? (record.sourceCandidate?.remoteCi?.observedAt || now)
+          : now
+      },
+      releaseAuthorized: record.candidate.releaseAuthorized === true
+    }
+    return next
+  }
+
   delete next.candidate
   next.releaseState = `${npmLatest}发行事实保持有效；当前HEAD及工作区为尚未选定下一版本的本地工作态，资格与远端CI待验证`
   next.sourceCandidate = {

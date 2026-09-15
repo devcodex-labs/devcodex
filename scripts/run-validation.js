@@ -92,6 +92,8 @@ const DIGEST_RE = /^[a-f0-9]{64}$/
 const GIT_OBJECT_RE = /^[a-f0-9]{40,64}$/
 const MAX_COMMITTED_REPAIR_PATHS = 512
 const MAX_SAME_HEAD_AUTO_ADDED_PATHS = 8
+const AUTO_ROOT_ROLLOVER_PLAN_ONLY_DECISION = 'auto-root-rollover-plan-only'
+const AUTO_ROOT_ROLLOVER_AUTHORIZED_PLAN_ONLY_DECISION = 'auto-root-rollover-authorized-plan-only'
 
 function parseArgs(argv) {
   const options = {
@@ -1716,7 +1718,7 @@ function resolveAiBudgetAuthority({
         authority: receipt,
         store,
         control,
-        decision: rootRollover.eligible ? 'auto-root-rollover-authorized-plan-only' : 'auto-authorized-plan-only'
+        decision: rootRollover.eligible ? AUTO_ROOT_ROLLOVER_AUTHORIZED_PLAN_ONLY_DECISION : 'auto-authorized-plan-only'
       }
     }
     const continuation = currentRoot.status === 'fresh'

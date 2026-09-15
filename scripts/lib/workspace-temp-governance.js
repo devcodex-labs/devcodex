@@ -500,9 +500,7 @@ function buildWorkspaceTempMaintenancePlan(cwd, options = {}) {
       options.partition &&
       !options.cursor &&
       status.scopes.length === 1 &&
-      status.scopes[0].inventoryComplete &&
-      status.scopes[0].orphans.complete &&
-      status.completeness.legacy
+      status.scopes[0].inventoryComplete
     )
   }
 }

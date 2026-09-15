@@ -52,6 +52,7 @@ const HOST_ENV_SCRUB = {
 }
 const indexApi = require('../index.js')
 const { CODEX_HOOK_COMMAND } = indexApi
+const CLI_SPAWN_TIMEOUT_MS = 60000
 
 for (const legacyWriter of ['cmdInit', 'cmdInitClaude', 'cmdInitCodex', 'cmdInitGemini', 'cmdInitGrok']) {
   assert.strictEqual(indexApi[legacyWriter], undefined, `${legacyWriter} must not be exported in GlobalOnlyHostConfigModeV1`)
@@ -74,10 +75,14 @@ function runCli(args, cwd, envOverrides = {}) {
   const result = spawnSync(process.execPath, [CLI, ...args], {
     cwd,
     encoding: 'utf8',
-    env: { ...process.env, ...HOST_ENV_SCRUB, ...envOverrides }
+    env: { ...process.env, ...HOST_ENV_SCRUB, ...envOverrides },
+    timeout: CLI_SPAWN_TIMEOUT_MS
   })
+  if (result.error) {
+    throw new Error(`CLI ${args.join(' ')} failed to finish: ${result.error.message}`)
+  }
   if (result.status !== 0) {
-    throw new Error(stripAnsi((result.stderr || result.stdout || 'CLI exited with failure').trim()))
+    throw new Error(stripAnsi((result.stderr || result.stdout || `CLI ${args.join(' ')} exited with failure`).trim()))
   }
   return stripAnsi(`${result.stdout || ''}${result.stderr || ''}`)
 }
@@ -86,8 +91,10 @@ function runCliFailure(args, cwd, envOverrides = {}) {
   const result = spawnSync(process.execPath, [CLI, ...args], {
     cwd,
     encoding: 'utf8',
-    env: { ...process.env, ...HOST_ENV_SCRUB, ...envOverrides }
+    env: { ...process.env, ...HOST_ENV_SCRUB, ...envOverrides },
+    timeout: CLI_SPAWN_TIMEOUT_MS
   })
+  assert.ifError(result.error)
   assert.notStrictEqual(result.status, 0, `expected CLI failure: ${args.join(' ')}`)
   return stripAnsi(`${result.stdout || ''}${result.stderr || ''}`)
 }
@@ -96,7 +103,8 @@ function runCliResult(args, cwd, envOverrides = {}) {
   return spawnSync(process.execPath, [CLI, ...args], {
     cwd,
     encoding: 'utf8',
-    env: { ...process.env, ...HOST_ENV_SCRUB, ...envOverrides }
+    env: { ...process.env, ...HOST_ENV_SCRUB, ...envOverrides },
+    timeout: CLI_SPAWN_TIMEOUT_MS
   })
 }
 
@@ -502,7 +510,19 @@ function testMachineReadableDiagnosticsAndStableErrors() {
   assert.strictEqual(doctor.payload.governanceSummary.gateLifecycle.readOnly, true)
   assert.strictEqual(doctor.payload.governanceSummary.ledgers.mutationAllowed, false)
   assert.strictEqual(doctor.payload.readiness.schemaVersion, 'DevCodexReadinessV1')
-  assert.deepStrictEqual(doctor.payload.readiness, status.payload.readiness)
+  assert.deepStrictEqual(doctor.payload.readiness.workspace, status.payload.readiness.workspace)
+  assert.deepStrictEqual(doctor.payload.readiness.profile, status.payload.readiness.profile)
+  const statusManagedConfigDrift = status.payload.readiness.managedConfigDrift
+  const doctorManagedConfigDrift = doctor.payload.readiness.managedConfigDrift
+  assert.strictEqual(doctorManagedConfigDrift.status, statusManagedConfigDrift.status)
+  assert.strictEqual(doctorManagedConfigDrift.value, statusManagedConfigDrift.value)
+  assert.deepStrictEqual(doctorManagedConfigDrift.driftHosts, statusManagedConfigDrift.driftHosts)
+  assert.strictEqual(doctorManagedConfigDrift.inspectionUnverified, statusManagedConfigDrift.inspectionUnverified)
+  for (const issueCode of statusManagedConfigDrift.issueCodes) {
+    assert.ok(doctorManagedConfigDrift.issueCodes.includes(issueCode), `doctor readiness must retain status issue code: ${issueCode}`)
+  }
+  assert.match(doctor.payload.readiness.codexAdapterContractReady.status, /^(?:PASS|BLOCK)$/)
+  assert.strictEqual(status.payload.readiness.codexAdapterContractReady.status, 'UNVERIFIED')
   assert.deepStrictEqual(doctor.payload.capabilityBoundary, {
     localOnly: true,
     hookEvidence: 'event-dependent',
@@ -1663,35 +1683,39 @@ function testSharedReadinessReducerMatrix() {
 }
 
 function main() {
-  require('./test-workspace-temp.js')
-  testClaudeInitPreservesCustomConfig()
-  testClaudeUpdateBacksUpAndPreservesCustomConfig()
-  testDoctorAvoidsCodexBiasInMixedHostRepo()
-  testDoctorHonorsExplicitAgentBeforeAmbientHints()
-  testMachineReadableDiagnosticsAndStableErrors()
-  testDefaultInitBootstrapsActiveRootData()
-  testInitBootstrapsWorkspaceProfileAndOneNamedProject()
-  testExplicitProfileTargetsAndDryRunStayPhysicalAndZeroWrite()
-  testDefaultInitLayoutOwnershipGuards()
-  testUpdateNeverCreatesOrUpgradesProfiles()
-  testRuntimeStatusAndPruneAreBounded()
-  testWorkspaceTempStatusAndPruneAreManifestBounded()
-  testTenantSelectionIsExplicit()
-  testGlobalOnlyHostSelectorsFailClosed()
-  testGrokCliEaccesIsNotUnavailable()
-  testCodexInitWorkspaceNamespaceFailsClosedGlobalOnly()
-  testCodexInitPreservesExistingFilesWhenGlobalOnlyFailsClosed()
-  testCodexUpdateWorkspaceNamespaceFailsClosedGlobalOnly()
-  testCodexMcpPreventionNegatives()
-  testGrokLauncherRequiresWorkspaceNamespaceLayout()
-  testInitHelpMatchesZeroWriteTargetContract()
-  testSharedReadinessReducerMatrix()
-  testProfileInitUsesNestedNamespaceRoot()
-  testProfileInitAndStatusShareTierContract()
-  testProfilePlanAndTierTransitionsAreSafe()
-  testProfileInitRejectsInvalidArguments()
-  testSkillPlanHumanJsonFallbackAndNativeExitCodes()
-  testTaskResolveHumanJsonAndNativeExitCodes()
+  const run = (name, fn) => {
+    if (process.env.DEVCODEX_TEST_PROGRESS === '1') process.stderr.write(`[test-cli-behavior] ${name}\n`)
+    fn()
+  }
+  run('workspace-temp', () => require('./test-workspace-temp.js'))
+  run('claude-init-preserves-custom-config', testClaudeInitPreservesCustomConfig)
+  run('claude-update-backs-up-and-preserves-custom-config', testClaudeUpdateBacksUpAndPreservesCustomConfig)
+  run('doctor-avoids-codex-bias-in-mixed-host-repo', testDoctorAvoidsCodexBiasInMixedHostRepo)
+  run('doctor-honors-explicit-agent-before-ambient-hints', testDoctorHonorsExplicitAgentBeforeAmbientHints)
+  run('machine-readable-diagnostics-and-stable-errors', testMachineReadableDiagnosticsAndStableErrors)
+  run('default-init-bootstraps-active-root-data', testDefaultInitBootstrapsActiveRootData)
+  run('init-bootstraps-workspace-profile-and-one-named-project', testInitBootstrapsWorkspaceProfileAndOneNamedProject)
+  run('explicit-profile-targets-and-dry-run-stay-physical-and-zero-write', testExplicitProfileTargetsAndDryRunStayPhysicalAndZeroWrite)
+  run('default-init-layout-ownership-guards', testDefaultInitLayoutOwnershipGuards)
+  run('update-never-creates-or-upgrades-profiles', testUpdateNeverCreatesOrUpgradesProfiles)
+  run('runtime-status-and-prune-are-bounded', testRuntimeStatusAndPruneAreBounded)
+  run('workspace-temp-status-and-prune-are-manifest-bounded', testWorkspaceTempStatusAndPruneAreManifestBounded)
+  run('tenant-selection-is-explicit', testTenantSelectionIsExplicit)
+  run('global-only-host-selectors-fail-closed', testGlobalOnlyHostSelectorsFailClosed)
+  run('grok-cli-eacces-is-not-unavailable', testGrokCliEaccesIsNotUnavailable)
+  run('codex-init-workspace-namespace-fails-closed-global-only', testCodexInitWorkspaceNamespaceFailsClosedGlobalOnly)
+  run('codex-init-preserves-existing-files-when-global-only-fails-closed', testCodexInitPreservesExistingFilesWhenGlobalOnlyFailsClosed)
+  run('codex-update-workspace-namespace-fails-closed-global-only', testCodexUpdateWorkspaceNamespaceFailsClosedGlobalOnly)
+  run('codex-mcp-prevention-negatives', testCodexMcpPreventionNegatives)
+  run('grok-launcher-requires-workspace-namespace-layout', testGrokLauncherRequiresWorkspaceNamespaceLayout)
+  run('init-help-matches-zero-write-target-contract', testInitHelpMatchesZeroWriteTargetContract)
+  run('shared-readiness-reducer-matrix', testSharedReadinessReducerMatrix)
+  run('profile-init-uses-nested-namespace-root', testProfileInitUsesNestedNamespaceRoot)
+  run('profile-init-and-status-share-tier-contract', testProfileInitAndStatusShareTierContract)
+  run('profile-plan-and-tier-transitions-are-safe', testProfilePlanAndTierTransitionsAreSafe)
+  run('profile-init-rejects-invalid-arguments', testProfileInitRejectsInvalidArguments)
+  run('skill-plan-human-json-fallback-and-native-exit-codes', testSkillPlanHumanJsonFallbackAndNativeExitCodes)
+  run('task-resolve-human-json-and-native-exit-codes', testTaskResolveHumanJsonAndNativeExitCodes)
   process.stdout.write('cli behavior test passed\n')
 }
 

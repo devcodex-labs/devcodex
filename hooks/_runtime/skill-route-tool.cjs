@@ -931,13 +931,20 @@ function handleCatalog (input, target, options) {
   ).response
 }
 
-function rebuildIndex (target, options) {
+function boundRuntimeRootFromIndex (index) {
+  const root = String(index?.globalRuntime?.root || '')
+  if (!root) return null
+  return path.basename(root) === 'skills' ? path.dirname(root) : root
+}
+
+function rebuildIndex (target, options, baselineIndex = null) {
+  const boundRuntimeRoot = boundRuntimeRootFromIndex(baselineIndex)
   return buildRuntimeSkillIdentityIndex({
     ...options,
     cwd: target.projectRoot,
     project: target.project,
     activeRoot: target.activeRoot,
-    runtimeRoot: options.runtimeRoot,
+    runtimeRoot: boundRuntimeRoot || options.runtimeRoot,
     packageRoot: options.packageRoot,
     env: options.env
   })
@@ -1140,7 +1147,7 @@ function handleCommit (input, target, options) {
         error.code = 'CATALOG_PAGE_INCOMPLETE'
         throw error
       }
-      const currentIndex = rebuildIndex(target, options)
+      const currentIndex = rebuildIndex(target, options, state.index)
       if (currentIndex.indexDigest !== state.index.indexDigest) {
         const error = new Error('CATALOG_STALE')
         error.code = 'CATALOG_STALE'
@@ -1385,7 +1392,7 @@ function handleRebind (input, target, options) {
         target,
         options
       )
-      const currentIndex = rebuildIndex(target, options)
+      const currentIndex = rebuildIndex(target, options, state.index)
       if (currentIndex.indexDigest !== state.index.indexDigest) {
         const error = new Error('CATALOG_STALE')
         error.code = 'CATALOG_STALE'

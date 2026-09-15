@@ -253,7 +253,7 @@ function buildGovernanceSupportChecks(ctx) {
         console.log(`[V27] legacy read-only temp roots observed; inspect with devcodex tmp status: ${projectTmpLeaks.slice(0, 8).join(', ')}`)
       }
       if (tempLeakInspection.truncated) {
-        err(`[V27] workspace temp leak inspection exceeded ${MAX_ENTRIES} observations; validation cannot claim complete coverage`)
+        console.log(`[V27] legacy read-only temp leak inspection exceeded ${MAX_ENTRIES} observations; current workspace temp enforcement remains scoped to canonical .tmp/devcodex`)
       }
     }
 

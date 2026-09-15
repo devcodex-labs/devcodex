@@ -10,13 +10,16 @@
     },
     {
       "hostVariant": "codex-cli/exec-user-global-local-stdio",
-      "status": "UNVERIFIED",
+      "status": "PASS",
       "testedVersion": "codex-cli 0.145.0",
       "protocol": "MCP 2024-11-05",
-      "evidenceRef": null,
+      "evidenceRef": "hooks/_runtime/evidence/codex-skill-route-pass.v1.json",
       "entrySurface": "codex exec --ephemeral",
       "bootstrapDelivery": "stable user-global Hook launcher UserPromptSubmit or profile_context_plan fallback",
-      "defaultEligible": false
+      "defaultEligible": true,
+      "runtimeContractDigest": "017cdd878d25ee3c89fb4971f771bf1e8fe30a9abcf305915781eebb5c5fa794",
+      "hostAdapterDigest": "fee2426ff47e74db16dcfddf0de8c84d8622a558fa8ced1fe6371dd850087f4e",
+      "evidenceDigest": "f6bbd19b80199a3e15c58f77e41b3b35fc94b920c69b3bab0ee1b6e82a0c6c79"
     },
     {
       "hostVariant": "codex-desktop/app-user-global-local-stdio",

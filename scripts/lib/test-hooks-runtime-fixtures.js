@@ -205,12 +205,28 @@ function buildTestHooksRuntimeFixtures({
     const callId = `semantic-${envelope.contextEpoch}`
     const common = { session_id: sessionId, tool_use_id: callId, tool_name: 'devcodex-profile/profile_context_plan', tool_input: args }
     run({ ...common, hookEventName: 'PreToolUse' }, cwd, env)
-    const result = callProfileTool(cwd, 'profile_context_plan', args)
+    const result = callProfileTool(cwd, 'profile_context_plan', args, env)
     if (result.isError) throw new Error(`Semantic fixture rejected (${sessionId || 'missing-session'}): ` + result.content?.[0]?.text)
     return run({ ...common, hookEventName: 'PostToolUse', tool_response: result }, cwd, env)
   }
 
-  function callProfileTool(cwd, name, args) {
+  function profileToolEnv(envOverride = {}) {
+    const sourceSkillsRoot = path.join(path.dirname(path.dirname(PROFILE_SERVER)), 'content', 'skills')
+    return {
+      ...process.env,
+      ...(fs.existsSync(path.join(sourceSkillsRoot, 'portfolio.json')) &&
+        !process.env.DEVCODEX_GLOBAL_SKILLS_RUNTIME &&
+        !process.env.DEVCODEX_GLOBAL_SKILLS_ROOT &&
+        !envOverride.DEVCODEX_GLOBAL_SKILLS_RUNTIME &&
+        !envOverride.DEVCODEX_GLOBAL_SKILLS_ROOT
+        ? { DEVCODEX_GLOBAL_SKILLS_RUNTIME: sourceSkillsRoot }
+        : {}),
+      ...envOverride,
+      DEVCODEX_AGENT: 'claude-code'
+    }
+  }
+
+  function callProfileTool(cwd, name, args, envOverride = {}) {
     const boundArgs = bindFixtureArgs(name, args, cwd)
     const request = {
       jsonrpc: '2.0',
@@ -222,7 +238,7 @@ function buildTestHooksRuntimeFixtures({
       cwd,
       input: `${JSON.stringify(request)}\n`,
       encoding: 'utf8',
-      env: { ...process.env, DEVCODEX_AGENT: 'claude-code' },
+      env: profileToolEnv(envOverride),
       timeout: 30000,
       windowsHide: true
     })
@@ -380,6 +396,7 @@ function buildTestHooksRuntimeFixtures({
     }
 
     let catalogCursor = null
+    let observedCatalogDigest = bootstrap.catalogDigest
     do {
       const catalog = parseSkillRouteResult(callProfileTool(cwd, 'skill_route', {
         op: 'catalog',
@@ -388,15 +405,24 @@ function buildTestHooksRuntimeFixtures({
         contextEpoch: bootstrap.contextEpoch,
         ...(catalogCursor ? { cursor: catalogCursor } : {})
       }))
+      observedCatalogDigest = catalog.receipt.catalogDigest || observedCatalogDigest
       catalogCursor = catalog.receipt.nextCursor
     } while (catalogCursor)
+
+    const routeStatus = parseSkillRouteResult(callProfileTool(cwd, 'skill_route', {
+      op: 'status',
+      project: bootstrap.project,
+      turnBinding: bootstrap.turnBinding,
+      contextEpoch: bootstrap.contextEpoch
+    }))
+    observedCatalogDigest = routeStatus.receipt.catalog.catalogDigest || observedCatalogDigest
 
     const commit = parseSkillRouteResult(callProfileTool(cwd, 'skill_route', {
       op: 'commit',
       project: bootstrap.project,
       turnBinding: bootstrap.turnBinding,
       contextEpoch: bootstrap.contextEpoch,
-      catalogDigest: bootstrap.catalogDigest,
+      catalogDigest: observedCatalogDigest,
       skillId: null,
       contextBinding: plannedContextBinding(cwd)
     }))

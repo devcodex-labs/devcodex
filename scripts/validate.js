@@ -112,8 +112,7 @@ const { buildHostInstructionControlChecks } = require('./lib/validate-host-instr
 const { buildGovernanceSupportChecks } = require('./lib/validate-governance-support')
 const { createValidationOrchestration } = require('./lib/validation-orchestration')
 const { resolveActiveRuntimeRoot } = require('../hooks/_runtime/workspace-layout.cjs')
-const ROOT = path.resolve(__dirname, '..')
-const WORKSPACE_ROOT = path.dirname(ROOT)
+const ROOT = path.resolve(__dirname, '..'), WORKSPACE_ROOT = path.dirname(ROOT)
 const TARGET_DEPLOYMENT_RUNTIME_ROOT = resolveActiveRuntimeRoot(WORKSPACE_ROOT)
 const errors = []
 const warnings = []
@@ -148,32 +147,26 @@ function resolveActiveDevcodexRoot(repoRoot) {
     const namespacedRoot = path.join(workspaceRoot, '.devcodex', path.basename(repoRoot))
     if (fs.existsSync(namespacedRoot)) return namespacedRoot
   }
-
   const legacyLooksComplete = ['profile', 'requirements', 'bugs', '.memory'].some(name => {
     return fs.existsSync(path.join(legacyRoot, name))
   })
   if (legacyLooksComplete) return legacyRoot
-
   return legacyRoot
 }
-
 const ACTIVE_DEVCODEX_ROOT = resolveValidationActiveRoot(ROOT, { resolveActiveRoot: resolveActiveDevcodexRoot })
 const validationOrchestration = createValidationOrchestration({ root: ROOT, reportError: err })
 const isValidationDelegated = validationOrchestration.isDelegated
 function activePath(...segments) {
   return path.join(ACTIVE_DEVCODEX_ROOT, ...segments)
 }
-
 // ── V1: frontmatter schema ──────────────────────────────────────────────────
 // ── V2: relative links ──────────────────────────────────────────────────────
 // ── V3: five-place sync ─────────────────────────────────────────────────────
 // ── V4: version consistency ─────────────────────────────────────────────────
 // ── V5: PC4 format single source ────────────────────────────────────────────
 // V6 moved to scripts/lib/validate-governance-package-deployment.js
-
 // ── V7: hooks runtime bootstrap smoke test ─────────────────────────────────
 // V8 moved to scripts/lib/validate-governance-package-deployment.js
-
 // ── V9: date format consistency (YYYY-MM-DD or YYYY-MM-DD HH:MM) ─────────
 // ── V10: regression probes on audit-state.findings[status=fixed] ────────────
 // ── V11: AskUserQuestion / decision-point format (FC7) ──────────────────────
@@ -182,12 +175,10 @@ function mustInclude(file, needle, label) { if (isNarrativeMarkdownPath(file)) r
   const content = read(path.join(ROOT, file))
   if (!content.includes(needle) && !hasValidCanonicalContract(ROOT, file, content, needle)) err(`[V13] ${label || file} missing required text: ${needle}`)
 }
-
 function mustNotInclude(file, needle, label) { if (isNarrativeMarkdownPath(file)) return
   const content = read(path.join(ROOT, file))
   if (String(content).includes(needle)) err(`[V13] ${label || file} contains forbidden legacy text: ${needle}`)
 }
-
 const coreChecks = buildValidateCoreChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -213,7 +204,6 @@ const coreChecks = buildValidateCoreChecks({
   mustNotInclude,
   isValidationDelegated
 })
-
 const tailChecks = buildGovernanceTailChecks({
   ROOT,
   ACTIVE_DEVCODEX_ROOT,
@@ -228,7 +218,6 @@ const tailChecks = buildGovernanceTailChecks({
   mustInclude,
   isValidationDelegated
 })
-
 const midChecks = buildGovernanceMidChecks({
   ROOT,
   fs,
@@ -236,7 +225,6 @@ const midChecks = buildGovernanceMidChecks({
   read,
   err
 })
-
 const controlChecks = buildGovernanceControlChecks({
   ROOT,
   fs,
@@ -247,7 +235,6 @@ const controlChecks = buildGovernanceControlChecks({
   activePath,
   isValidationDelegated
 })
-
 const supportChecks = buildGovernanceSupportChecks({
   ROOT,
   fs,
@@ -260,14 +247,12 @@ const supportChecks = buildGovernanceSupportChecks({
   mustInclude,
   isValidationDelegated
 })
-
 const promptChecks = buildGovernancePromptChecks({
   mustInclude,
   mustNotInclude,
   console,
   isValidationDelegated
 })
-
 const packageChecks = buildGovernancePackageDeploymentChecks({
   ROOT,
   fs,

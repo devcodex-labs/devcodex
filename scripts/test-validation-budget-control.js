@@ -1,6 +1,9 @@
 'use strict'
 
 const assert = require('assert')
+
+const AUTO_ROOT_ROLLOVER_PLAN_ONLY_DECISION = 'auto-root-rollover-plan-only'
+const AUTO_ROOT_ROLLOVER_AUTHORIZED_PLAN_ONLY_DECISION = 'auto-root-rollover-authorized-plan-only'
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -1152,7 +1155,7 @@ function main() {
       execute: false,
       gitRepoRoot: rolloverGitRoot
     })
-    assert.strictEqual(rolloverPreview.decision, 'auto-root-rollover-authorized-plan-only')
+    assert.strictEqual(rolloverPreview.decision, AUTO_ROOT_ROLLOVER_AUTHORIZED_PLAN_ONLY_DECISION)
     const rolloverExecution = resolveAiBudgetAuthority({
       options: { nowMs: NOW + 2000 },
       plan: rolloverNextPlan,

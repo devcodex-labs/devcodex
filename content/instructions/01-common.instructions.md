@@ -2,7 +2,7 @@
 applyTo: "**"
 description: 通用规范总则，覆盖优先级、意图路由、Profile/active-root、宿主适配与治理总线
 priority: P5
-version: 1.20.2
+version: 1.20.3
 ---
 # 通用规范
 
@@ -293,7 +293,7 @@ version: 1.20.2
 
 - 新需求切换、Commit Subject 简洁化、未发布变更与提交边界、自我进化与问题池、官方文档优先级、`OfficialDocsEvidence` 与 `ProfileImpactCheck` 的完整规则已移动到 [`01b-record-router.instructions.md`](./01b-record-router.instructions.md)。
 - 当本次开发/修复形成已验证批次且未明确要求 release / publish 时，默认更新 `changelogs/unreleased.md`。
-- `commit` 默认**不自动执行**，但一旦执行必须按**语义批次**提交。
+- `commit` 默认**不自动执行**，但一旦执行必须按**语义批次**提交，并在用户可见回复中显式输出结果、commit id 与验证状态。
 - 所有模式下，每条非空用户消息都先登记中性 `ContextualCandidateSet` 候选；完成合理性评估后执行 `Improvement Intake（优化清单）` 语义判定，关键词只作检索线索。
 - 仅业务局部诉求、一次性偏好或不可泛化想法，不写 PI/PF；命中后必须显式回执 `已记录 PI-xxx`、`已记录 PF-xxx` 或 `已记录 PI-xxx / PF-xxx`。
 

@@ -5,24 +5,24 @@
   "hostVariant": "codex-cli/exec-user-global-local-stdio",
   "testedVersion": "codex-cli 0.145.0",
   "protocol": "MCP 2024-11-05",
-  "runtimeContractDigest": "d60c401ae9041d6bfd4607d19be8bf64e92b3093d325692b6c1454e8fe849ae8",
-  "hostAdapterDigest": "03d2476cd269a40e9ada285cc50de5eaf34857ef1805401aeee715c3ee13e8fe",
-  "sourceEvidenceDigest": "b5c85bface943a67f782f68aaabe28d5eebc27a502c1a1af9f1b5c51f54383ab",
+  "runtimeContractDigest": "017cdd878d25ee3c89fb4971f771bf1e8fe30a9abcf305915781eebb5c5fa794",
+  "hostAdapterDigest": "fee2426ff47e74db16dcfddf0de8c84d8622a558fa8ced1fe6371dd850087f4e",
+  "sourceEvidenceDigest": "73873ebee6efb523cbd7e08b953574e312f6121c6cf96b3a8fce59c794d3cd66",
   "sourceProbe": {
     "schemaVersion": "SkillRouteS15EvidenceV1",
-    "probeRunId": "s15-codex-production-30242f65-e8a0-4477-ac3f-407891a18ed4",
-    "authorizationSource": "capability-pass",
+    "probeRunId": "s15-codex-probe-25246d53-8a36-4d83-9227-949bc0c18414",
+    "authorizationSource": "isolated-probe-authority",
     "contextSource": "host-hooks",
     "observationMode": "hook-post-history",
     "receiptStatus": "relevant-complete",
-    "completedAt": "2026-09-12T16:59:06.770Z"
+    "completedAt": "2026-09-15T12:06:23.167Z"
   },
   "runtimeBinding": {
-    "source": "installed-production-receipt",
-    "expectedDigest": "d60c401ae9041d6bfd4607d19be8bf64e92b3093d325692b6c1454e8fe849ae8",
-    "generationDigest": "d60c401ae9041d6bfd4607d19be8bf64e92b3093d325692b6c1454e8fe849ae8",
-    "modeReceiptDigest": "d60c401ae9041d6bfd4607d19be8bf64e92b3093d325692b6c1454e8fe849ae8",
-    "routeEnvelopeDigest": "d60c401ae9041d6bfd4607d19be8bf64e92b3093d325692b6c1454e8fe849ae8"
+    "source": "isolated-source-candidate",
+    "expectedDigest": "017cdd878d25ee3c89fb4971f771bf1e8fe30a9abcf305915781eebb5c5fa794",
+    "generationDigest": "017cdd878d25ee3c89fb4971f771bf1e8fe30a9abcf305915781eebb5c5fa794",
+    "modeReceiptDigest": "017cdd878d25ee3c89fb4971f771bf1e8fe30a9abcf305915781eebb5c5fa794",
+    "routeEnvelopeDigest": "017cdd878d25ee3c89fb4971f771bf1e8fe30a9abcf305915781eebb5c5fa794"
   },
   "probe": {
     "schemaVersion": "SkillRouteProbeSummaryV1",

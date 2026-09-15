@@ -90,7 +90,7 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     const state = readLegacyState()
     const bootstrap = state.progressiveSkillRoute?.bootstrap
     assert(bootstrap, 'SkillRoute bootstrap must exist before completing the route')
-    const options = { inputRoot: TEMP_ROOT }
+    const options = { inputRoot: TEMP_ROOT, packageRoot: path.resolve(__dirname, '..', '..') }
     let cursor = null
     do {
       const page = handleSkillRoute({

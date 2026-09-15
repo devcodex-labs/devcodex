@@ -194,6 +194,26 @@ probe('ProfileCurrentTruth refresh keeps release facts while updating working so
   assert.strictEqual(stable.sourceCandidate.localQualification.observedAt, next.sourceCandidate.localQualification.observedAt)
 })
 
+probe('ProfileCurrentTruth refresh preserves active release candidate identity', () => {
+  const next = buildRefreshedCurrentTruthRecord(candidateRecord(), {
+    packageVersion: '1.17.9',
+    gitHead: 'e'.repeat(40),
+    candidateId: `validation-candidate-${'f'.repeat(64)}`,
+    ciMatrix: extractWorkflowCurrentTruth(read('.github/workflows/ci.yml'), JSON.parse(read('scripts/validation-manifest.json'))),
+    now: '2026-09-13T09:00:00Z'
+  })
+  assert.strictEqual(next.sourceVersion, '1.17.9')
+  assert.strictEqual(next.npmLatest, '1.17.8')
+  assert.strictEqual(next.gitHead, 'e'.repeat(40))
+  assert.strictEqual(next.sourceCandidate.candidateId, `validation-candidate-${'f'.repeat(64)}`)
+  assert.strictEqual(next.sourceCandidate.remoteCi.head, 'e'.repeat(40))
+  assert.strictEqual(next.sourceCandidate.localQualification.status, 'UNVERIFIED')
+  assert.strictEqual(next.sourceCandidate.releaseAuthorized, true)
+  assert.strictEqual(next.candidate.targetVersion, '1.17.9')
+  const parsed = parseProfileCurrentTruth(recordMarkdown(next), { required: true })
+  assert.strictEqual(parsed.valid, true, JSON.stringify(parsed.errors))
+})
+
 probe('Profile lifecycle consumes structured state independently of display language', () => {
   const validate = record => validateDevCodexCurrentTruth({
     releaseProfileText: recordMarkdown(record),
@@ -435,5 +455,5 @@ probe('machine consumers use the repaired contracts', () => {
   assert.doesNotMatch(read('scripts/lib/validate-optimization-controls.js'), /ProfileLoadReceiptV2/)
 })
 
-assert.strictEqual(passed, 8)
-console.log('v1.17.8+ Batch E tests passed: 8/8 (Profile CAS/current truth lifecycle/language/consumers/refresh)')
+assert.strictEqual(passed, 9)
+console.log('v1.17.8+ Batch E tests passed: 9/9 (Profile CAS/current truth lifecycle/language/consumers/refresh)')

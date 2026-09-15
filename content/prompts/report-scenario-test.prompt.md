@@ -24,6 +24,17 @@ applyTo: .devcodex/**/reports/scenario-tests/**
 > **支撑产物**: ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / CliDiagnosticContract / CheckpointValidation / LocalTaskTrace / TurnLivenessRecovery / 05-实施进度.md（按触发状态填写）
 ```
 
+## 目录导航
+
+- [§1 执行摘要](#1-执行摘要)
+- [§2 测试场景](#2-测试场景)
+- [§3 负载测试配置](#3-负载测试配置)
+- [§4 测试结果](#4-测试结果)
+- [§5 场景验证结果](#5-场景验证结果)
+- [§6 测试数据说明](#6-测试数据说明)
+- [§7 发现的问题](#7-发现的问题)
+- [§8 结论与建议](#8-结论与建议)
+
 ## §1 执行摘要
 
 > 一段话描述本次场景测试的目标和结论。

@@ -332,6 +332,17 @@ function buildGovernancePromptChecks(ctx) {
     mustInclude('prompts/general-doc.prompt.md', '**文档类型**', 'general doc prompt')
     mustInclude('prompts/general-doc.prompt.md', '## 4. 核心内容', 'general doc prompt')
 
+    for (const promptName of [
+      'report-analysis.prompt.md',
+      'report-audit.prompt.md',
+      'report-dev.prompt.md',
+      'report-fix.prompt.md',
+      'report-optimization.prompt.md',
+      'report-scenario-test.prompt.md'
+    ]) {
+      mustInclude(`prompts/${promptName}`, '## 目录导航', `${promptName} navigation`)
+    }
+
     mustInclude('skills/dev-docs/SKILL.md', 'general-doc', 'dev docs skill')
     mustInclude('skills/dev-docs/SKILL.md', '长篇独立 Markdown 默认包含 `## 目录导航`', 'dev docs conditional navigation rule')
     mustInclude('skills/dev-docs/SKILL.md', '自动生成 outline/侧栏已覆盖导航', 'dev docs generated navigation exception')

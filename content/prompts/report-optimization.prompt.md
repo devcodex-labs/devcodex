@@ -25,6 +25,17 @@ applyTo: .devcodex/**/reports/optimizations/**
 > **支撑产物**: ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / TaskResolutionV1 / CliDiagnosticContract / CheckpointValidation / LocalTaskTrace / ProjectKnowledge / ExecutionAttemptLedger / TurnLivenessRecovery / 05-实施进度.md（按触发状态填写）
 ```
 
+## 目录导航
+
+- [§1 执行摘要](#1-执行摘要)
+- [§2 基准数据（优化前）](#2-基准数据优化前)
+- [§3 优化内容](#3-优化内容)
+- [§4 优化后数据](#4-优化后数据)
+- [§5 接口行为一致性](#5-接口行为一致性)
+- [§6 测试验证](#6-测试验证)
+- [§7 遗留问题](#7-遗留问题)
+- [§8 后续建议](#8-后续建议)
+
 ## §1 执行摘要
 
 > 一段话描述本次性能优化的核心内容和结果。

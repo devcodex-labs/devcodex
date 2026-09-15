@@ -237,6 +237,8 @@ try {
   const reportSlot = baseRegistry.slots.find(slot => slot.slotId === 'task-report')
   const auditReportPath = path.join(requirementsRoot, 'good-requirement', 'reports', 'codex', '20260831', '09--独立复审报告.md')
   const auditBinding = createArtifactTemplateBinding({ slot: reportSlot, target: auditReportPath, intent: 'audit' })
+  assert(auditBinding.requiredSemanticIds.includes('heading:目录导航'),
+    'formal report artifacts must require a directory navigation section from the report template')
   const auditLines = auditBinding.requiredSemanticIds.map(semanticId => {
     if (semanticId === 'document-title') return '# 独立复审报告\n\n> **类型**：audit'
     return semanticId.startsWith('heading:') ? `## ${semanticId.slice('heading:'.length).replace(/-/g, ' ')}` : ''

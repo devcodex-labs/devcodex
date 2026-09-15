@@ -29,6 +29,16 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 > **控制面证据**: Concept Sync Map / HostContractVerification / CliDiagnosticContract / CheckpointValidation / LocalTaskTrace / TurnLivenessRecovery / SCV / 新增探针 / 黄色偏离 / 部署同步（按适用填写）
 ```
 
+## 目录导航
+
+- [§1 审查轮次摘要](#1-审查轮次摘要)
+- [§2 执行维度清单](#2-执行维度清单)
+- [§3 问题清单](#3-问题清单)
+- [§4 通过项汇总](#4-通过项汇总)
+- [§5 风险与限制](#5-风险与限制)
+- [§6 结论](#6-结论)
+- [§7 附录](#7-附录)
+
 当审查范围包含修复验证时，清单必须核对 `RepairPreventionAssessmentReviewGate`：当前修复 closure 与长期 prospective evidence 分列；缺 assessment、无理由 `no-new-control`、repeat escape 未升级或 current rerun 晋级 prevention 均记为 blocker。
 
 每轮 audit 报告必须引用 candidate-bound `ReviewExecutionPlanV1`、fresh `ReviewEvidenceReceiptV1`、EvidenceSaturation、唯一 `ReviewStateSnapshotV1.snapshotDigest` 与 `StageTimingV1`；targeted 两轮、full/security/release 三轮门禁不因复用而减少。

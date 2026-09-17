@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "SkillIntentV1",
+  "skillId": "architecture-design",
+  "intents": [
+    {
+      "id": "primary",
+      "label": "架构设计文档编排",
+      "include": [
+        "ADR",
+        "Review",
+        "system-design",
+        "任务拆分",
+        "技术架构",
+        "架构设计",
+        "概要设计",
+        "系统设计"
+      ]
+    }
+  ],
+  "examples": {
+    "positive": [
+      "架构设计文档编排领域任务",
+      "架构设计文档编排专项审查"
+    ],
+    "negative": [
+      "无关闲聊或通用问答",
+      "由其他领域 Skill 明确负责的任务"
+    ]
+  },
+  "summary": "架构设计文档编排 Owner — 当用户要求架构设计、系统设计、技术架构或可指导开发、Review 与任务拆分的完整方案时使用；要求从业务流程反推节点、状态、数据、一致性、异常补偿、ADR 与实施任务。"
+}

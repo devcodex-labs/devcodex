@@ -2,7 +2,7 @@
   "schemaVersion": "ControlContentManifestV1",
   "sourceRoot": "content",
   "sharedRoot": "shared",
-  "expectedMarkdownEntries": 136,
+  "expectedMarkdownEntries": 137,
   "selectors": [
     {
       "source": "instructions.md",

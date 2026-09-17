@@ -63,6 +63,7 @@
     { "skillId": "analyze-research", "publicCategory": "workflow-routing" },
     { "skillId": "api-contract-architecture", "publicCategory": "domain-architecture" },
     { "skillId": "api-verification", "publicCategory": "quality-delivery" },
+    { "skillId": "architecture-design", "publicCategory": "domain-architecture" },
     { "skillId": "audit-common", "publicCategory": "workflow-routing" },
     { "skillId": "audit-dimensions", "publicCategory": "quality-delivery" },
     { "skillId": "audit-document", "publicCategory": "quality-delivery" },

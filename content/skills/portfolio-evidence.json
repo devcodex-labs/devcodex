@@ -24,6 +24,20 @@
     }
   },
   "skills": {
+    "architecture-design": {
+      "triggerTerms": ["架构设计", "系统设计", "技术架构", "概要设计", "详细设计", "ADR", "任务拆分", "system-design"],
+      "triggerPositive": [
+        { "fixture": "architecture-design-complete-doc", "input": "输出一份可以指导后续开发、Review 和任务拆分的完整架构设计文档" },
+        { "fixture": "architecture-design-system-plan", "input": "为这个新模块做系统设计，先从业务流程和状态机开始，再拆 API、数据模型和实施任务" },
+        { "fixture": "architecture-design-adr", "input": "这个方案需要补技术架构、ADR、异常补偿和一致性设计" }
+      ],
+      "triggerNegative": [
+        { "fixture": "architecture-design-single-bug", "input": "这个按钮点击报错，直接修复" },
+        { "fixture": "architecture-design-audit-only", "input": "只审查当前技术方案有哪些问题，不要输出新的架构设计" }
+      ],
+      "stateRationale": "registered architecture design orchestration skill with semantic positive/negative routing examples",
+      "promotionCriteria": "expand measured trigger precision after enough real architecture-design WorkUnits are available"
+    },
     "intent": {
       "triggerTerms": ["意图", "三问", "resume", "workflowIntent"],
       "triggerPositive": [

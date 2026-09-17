@@ -31,22 +31,22 @@ const publicProjection = buildPublicProductProjection({ root: ROOT })
 
 assert.deepStrictEqual(validatePublicSkillTaxonomy(taxonomy, plugin.skills), [])
 assert.deepStrictEqual(validatePortfolio(portfolio), [])
-assert.strictEqual(plugin.skills.length, 86)
-assert.strictEqual(taxonomy.assignments.length, 86)
-assert.strictEqual(new Set(taxonomy.assignments.map(item => item.skillId)).size, 86)
+assert.strictEqual(plugin.skills.length, 87)
+assert.strictEqual(taxonomy.assignments.length, 87)
+assert.strictEqual(new Set(taxonomy.assignments.map(item => item.skillId)).size, 87)
 assert.deepStrictEqual(
   taxonomy.categories.map(category => ({ id: category.id, label: category.label })),
   PUBLIC_SKILL_CATEGORY_DEFINITIONS
 )
 assert.deepStrictEqual(publicCategoryCounts(portfolio.skills, taxonomy.categories), {
   'workflow-routing': 20,
-  'domain-architecture': 21,
+  'domain-architecture': 22,
   'quality-delivery': 28,
   'runtime-governance': 17
 })
 assert.deepStrictEqual(portfolio.summary.publicCategoryCounts, {
   'workflow-routing': 20,
-  'domain-architecture': 21,
+  'domain-architecture': 22,
   'quality-delivery': 28,
   'runtime-governance': 17
 })
@@ -75,9 +75,9 @@ assert.strictEqual(portfolio.generatedFrom.publicTaxonomyDigest, expectedTaxonom
 assert.match(portfolio.generatedFrom.portfolioInputDigest, /^[a-f0-9]{64}$/)
 assert.doesNotThrow(() => indexPublicSkillTaxonomy(taxonomy, plugin.skills))
 assert.deepStrictEqual(validatePublicSkillCatalog(portfolio, taxonomy, expectedTaxonomyDigest), [])
-assert.strictEqual(publicProjection.skills.catalog.length, 86)
+assert.strictEqual(publicProjection.skills.catalog.length, 87)
 assert.deepStrictEqual(publicProjection.skills.categoryCounts, portfolio.summary.publicCategoryCounts)
-assert.deepStrictEqual(publicProjection.skills.categories.map(category => category.count), [20, 21, 28, 17])
+assert.deepStrictEqual(publicProjection.skills.categories.map(category => category.count), [20, 22, 28, 17])
 assert(publicProjection.skills.categories.every(category =>
   category.representativeSkills.length > 0 &&
   category.representativeSkills.every(skill => skill.lifecycleState === 'active')

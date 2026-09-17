@@ -294,14 +294,14 @@ try {
   fs.rmSync(nonGitFixtureRoot, { recursive: true, force: true })
 }
 assert.strictEqual(canonicalizeTextForDigest('a\r\nb\rc\n'), 'a\nb\nc\n', 'portfolio digests must canonicalize CRLF/CR/LF')
-assert.strictEqual(first.summary.skillCount, 86)
+assert.strictEqual(first.summary.skillCount, 87)
 assert.strictEqual(first.schemaVersion, 2)
-assert.strictEqual(first.summary.registeredSkillCount, 86)
-assert.strictEqual(first.summary.activeSkillCount, 83)
+assert.strictEqual(first.summary.registeredSkillCount, 87)
+assert.strictEqual(first.summary.activeSkillCount, 84)
 assert.strictEqual(first.summary.graySkillCount, 3)
 assert.deepStrictEqual(first.summary.publicCategoryCounts, {
   'workflow-routing': 20,
-  'domain-architecture': 21,
+  'domain-architecture': 22,
   'quality-delivery': 28,
   'runtime-governance': 17
 })
@@ -326,8 +326,8 @@ assert.ok(['structural-only', 'mixed', 'measured'].includes(first.summary.trigge
 assert.ok(first.summary.dependencyEdgeCount >= 3, 'dependency graph must retain mandatory-read edges')
 assert.ok(first.summary.dependencyEdgeCount >= 20, 'CR-01 expanded mandatory-language deps should increase edge count')
 assert.strictEqual(first.summary.dependencyCycleCount, 0)
-assert.strictEqual(first.summary.conflictReviewedCount, 86)
-assert.strictEqual(first.summary.operationalEvidenceCompleteCount, 86)
+assert.strictEqual(first.summary.conflictReviewedCount, 87)
+assert.strictEqual(first.summary.operationalEvidenceCompleteCount, 87)
 assert.ok(first.summary.triggerPrecisionMeasuredCount >= 3, 'kernel skills should carry measured trigger samples via portfolio-evidence')
 assert.strictEqual(first.summary.triggerQuality, 'mixed')
 // Core historical edges must remain

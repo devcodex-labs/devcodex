@@ -6,36 +6,36 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "bf0b6be30829fb8c84256991e92d0b9d339dd40563a45c06611224d07d6f60ed",
+    "sourceDigest": "d78fc7801bbbb331c0b3e7b06110530fd5bd489f92b1a5ff2fb35f678304cb49",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
-    "pluginDigest": "0451361ac7ad90468636012b7691a2e225f4570c9fa269dcdcc8a4bbb0c0e618",
+    "pluginDigest": "640602cba1277c499a8b6091784f101872e163e615a726e949920632848b4222",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
-    "publicTaxonomyDigest": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030",
+    "publicTaxonomyDigest": "d8f3a3e9728cd04929750e8858e100fd60a4a0afc095b0217ac0877b02f0a7f2",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
-    "portfolioEvidenceDigest": "8364a73c66ed2ec9787cdb9300223278d128a45b689a2b8deda0d1f03189f42b",
+    "portfolioEvidenceDigest": "fddc547986599fe20672364d6432633edabeb60ee6c5f3da5f9ca083daed6e1e",
     "consumerInventoryFileCount": 720,
     "consumerInventoryDigest": "3a514c6c14811f3d969bbf7d04b4ea47e615cbf0febb4bdbc9afdca6863b66cf",
-    "consumerProjectionDigest": "2a9023e04a434de68bc88eac365e483307cabfb5f768bbb85151cd24376e34e4",
-    "portfolioInputDigest": "1bcf5bb93ae21876c2c92a1e08a0c2253713290b6d74c8597c9a7a57cd44c9b9"
+    "consumerProjectionDigest": "cb3966b052529325be62fade2d92be64c15cc3cf75538b49e5d0dcdd8b6766b0",
+    "portfolioInputDigest": "ac609086dbf64e7bd03848c0d94e1baaf030cf1a8ea2e02a33cd9dcec10a7593"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
-    "skillCount": 86,
-    "registeredSkillCount": 86,
-    "activeSkillCount": 83,
+    "skillCount": 87,
+    "registeredSkillCount": 87,
+    "activeSkillCount": 84,
     "graySkillCount": 3,
     "orphanActiveCount": 0,
     "dependencyCycleCount": 0,
     "dependencyEdgeCount": 22,
-    "conflictReviewedCount": 86,
-    "operationalEvidenceCompleteCount": 86,
+    "conflictReviewedCount": 87,
+    "operationalEvidenceCompleteCount": 87,
     "triggerPrecisionMeasuredCount": 3,
     "instructionBudgetP95Bytes": 28738,
     "triggerQuality": "mixed",
     "sidecarPresentCount": 0,
     "publicCategoryCounts": {
       "workflow-routing": 20,
-      "domain-architecture": 21,
+      "domain-architecture": 22,
       "quality-delivery": 28,
       "runtime-governance": 17
     }
@@ -107,6 +107,7 @@
       "analyze-research",
       "api-contract-architecture",
       "api-verification",
+      "architecture-design",
       "audit-common",
       "audit-dimensions",
       "audit-document",
@@ -606,7 +607,7 @@
   "health": {
     "orphanActive": [],
     "lifecycleMutationAllowed": false,
-    "evidenceNote": "Operational evidence complete; trigger precision mixed (3/86 measured via portfolio-evidence.json)."
+    "evidenceNote": "Operational evidence complete; trigger precision mixed (3/87 measured via portfolio-evidence.json)."
   },
   "skills": [
     {
@@ -1817,6 +1818,172 @@
         "lifecycleAuthorization": "plugin.json#skills[].lifecycleState",
         "stateRationale": "registered source, current consumer and operational fixtures are present",
         "promotionCriteria": "trigger precision requires real comparable work units; structural evidence alone cannot promote lifecycle state"
+      }
+    },
+    {
+      "id": "architecture-design",
+      "name": "architecture-design",
+      "description": "架构设计文档编排 Owner — 当用户要求架构设计、系统设计、技术架构或可指导开发、Review 与任务拆分的完整方案时使用；要求从业务流程反推节点、状态、数据、一致性、异常补偿、ADR 与实施任务。",
+      "owner": "architecture-design",
+      "triggers": {
+        "terms": [
+          "ADR",
+          "Owner",
+          "Review",
+          "architecture-design",
+          "system-design",
+          "任务拆分",
+          "技术架构",
+          "架构设计",
+          "概要设计",
+          "系统设计",
+          "详细设计"
+        ],
+        "positive": [
+          {
+            "fixture": "architecture-design-complete-doc",
+            "input": "输出一份可以指导后续开发、Review 和任务拆分的完整架构设计文档"
+          },
+          {
+            "fixture": "architecture-design-system-plan",
+            "input": "为这个新模块做系统设计，先从业务流程和状态机开始，再拆 API、数据模型和实施任务"
+          },
+          {
+            "fixture": "architecture-design-adr",
+            "input": "这个方案需要补技术架构、ADR、异常补偿和一致性设计"
+          }
+        ],
+        "negative": [
+          {
+            "fixture": "architecture-design-single-bug",
+            "input": "这个按钮点击报错，直接修复"
+          },
+          {
+            "fixture": "architecture-design-audit-only",
+            "input": "只审查当前技术方案有哪些问题，不要输出新的架构设计"
+          }
+        ],
+        "ambiguous": []
+      },
+      "ownedArtifacts": [
+        "content/skills/architecture-design/SKILL.md"
+      ],
+      "source": "content/skills/architecture-design/SKILL.md",
+      "hash": "a21adb43bfeba8bd616dbee9faad51f09d11101233f53ab373b05b89c19fcab5",
+      "sourceBytes": 8235,
+      "version": "1.20.3",
+      "lifecycleState": "active",
+      "publicCategory": "domain-architecture",
+      "dependencies": [],
+      "references": [],
+      "conflicts": [],
+      "conflictReview": {
+        "status": "reviewed-none",
+        "evidence": "scripts/test-skill-portfolio.js#explicit-conflict-review"
+      },
+      "consumers": [
+        {
+          "path": "plugin.json",
+          "role": "current"
+        }
+      ],
+      "validationProfile": [
+        "scripts/test-skill-portfolio.js",
+        "scripts/validate.js"
+      ],
+      "lastEvidenceAt": "2026-07-24",
+      "skillIndex": {
+        "id": "architecture-design",
+        "type": "skill",
+        "workflow": [],
+        "phase": [],
+        "domains": [],
+        "triggers": {
+          "terms": [
+            "ADR",
+            "Owner",
+            "Review",
+            "architecture-design",
+            "system-design",
+            "任务拆分",
+            "技术架构",
+            "架构设计",
+            "概要设计",
+            "系统设计",
+            "详细设计"
+          ],
+          "positive": [
+            {
+              "fixture": "architecture-design-complete-doc",
+              "input": "输出一份可以指导后续开发、Review 和任务拆分的完整架构设计文档"
+            },
+            {
+              "fixture": "architecture-design-system-plan",
+              "input": "为这个新模块做系统设计，先从业务流程和状态机开始，再拆 API、数据模型和实施任务"
+            },
+            {
+              "fixture": "architecture-design-adr",
+              "input": "这个方案需要补技术架构、ADR、异常补偿和一致性设计"
+            }
+          ],
+          "negative": [
+            {
+              "fixture": "architecture-design-single-bug",
+              "input": "这个按钮点击报错，直接修复"
+            },
+            {
+              "fixture": "architecture-design-audit-only",
+              "input": "只审查当前技术方案有哪些问题，不要输出新的架构设计"
+            }
+          ],
+          "ambiguous": []
+        },
+        "requires": [],
+        "conflictsWith": [],
+        "priority": 100,
+        "visibility": "agent",
+        "maxTokens": null,
+        "fixtures": [
+          {
+            "kind": "positive",
+            "ref": "scripts/test-skill-portfolio.js#frontmatter-description-resolves"
+          },
+          {
+            "kind": "negative",
+            "ref": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected"
+          }
+        ],
+        "evolvableUnitRef": "skill:architecture-design",
+        "probeSuiteRefs": [
+          "scripts/test-skill-portfolio.js",
+          "scripts/validate.js"
+        ],
+        "exitCondition": "work-unit-complete-or-workflow-transition",
+        "evidenceState": "source-backed"
+      },
+      "sidecar": null,
+      "evidence": {
+        "registration": "plugin.json",
+        "operationalReadiness": {
+          "state": "complete",
+          "currentConsumer": "plugin.json",
+          "positiveFixture": "scripts/test-skill-portfolio.js#frontmatter-description-resolves",
+          "negativeFixture": "scripts/test-skill-portfolio.js#empty-or-unregistered-trigger-rejected",
+          "rollbackToGray": "plugin.json lifecycleState active->gray after failed operational evidence or unresolved conflict",
+          "lastEvidenceAt": "2026-07-24"
+        },
+        "triggerPrecision": {
+          "state": "structural-only",
+          "sampleCount": 5,
+          "precision": null,
+          "falsePositiveRate": null,
+          "falseNegativeRate": null,
+          "manualCorrectionRate": null,
+          "lastMeasuredAt": "2026-07-24"
+        },
+        "lifecycleAuthorization": "plugin.json#skills[].lifecycleState",
+        "stateRationale": "registered architecture design orchestration skill with semantic positive/negative routing examples",
+        "promotionCriteria": "expand measured trigger precision after enough real architecture-design WorkUnits are available"
       }
     },
     {

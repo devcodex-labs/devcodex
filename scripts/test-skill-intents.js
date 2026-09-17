@@ -22,6 +22,8 @@ const {
 } = require('./generate-skill-intents')
 
 const ROOT = path.resolve(__dirname, '..')
+const skillRoot = resolveSkillRoot()
+const portfolio = JSON.parse(fs.readFileSync(path.join(skillRoot, 'portfolio.json'), 'utf8'))
 const activeSkills = loadActiveSkills()
 
 assert.deepStrictEqual(
@@ -58,7 +60,7 @@ assert.strictEqual(validateSkillIntent({
   intents: [{ ...semanticFallback.intents[0], label: '|' }]
 }, { skillId: 'semantic-fallback' }).ok, false)
 
-assert.strictEqual(activeSkills.length, 83)
+assert.strictEqual(activeSkills.length, portfolio.summary.activeSkillCount)
 for (const skill of activeSkills) {
   const target = intentPath(skill.id)
   assert(fs.existsSync(target), `missing intent sidecar: ${skill.id}`)
@@ -86,8 +88,8 @@ try {
 }
 
 const check = processSkillIntents()
-assert.strictEqual(check.activeCount, 83)
-assert.strictEqual(check.selectedCount, 83)
+assert.strictEqual(check.activeCount, activeSkills.length)
+assert.strictEqual(check.selectedCount, activeSkills.length)
 assert.strictEqual(check.mismatchCount, 0)
 assert.strictEqual(check.written, 0)
 

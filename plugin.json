@@ -296,6 +296,11 @@
       "tier": "free"
     },
     {
+      "id": "architecture-design",
+      "file": "skills/architecture-design/SKILL.md",
+      "tier": "free"
+    },
+    {
       "id": "developer-experience-architecture",
       "file": "skills/developer-experience-architecture/SKILL.md",
       "tier": "free"

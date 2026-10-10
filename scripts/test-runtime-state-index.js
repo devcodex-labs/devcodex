@@ -47,7 +47,32 @@ try {
     '',
     '### PF-080 状态回写',
     '- 状态：✅ closed',
-    '| PF-082 | 消费者漂移 | ✅ closed |'
+    '| PF-082 | 消费者漂移 | ✅ closed |',
+    '### PF-090 正文不能闭合',
+    '- 状态：open',
+    '- 验收要求：修复后必须返回 completed 回执。',
+    'PF-090 的 future completed 仅是正文。',
+    '### PF-091 否定状态',
+    '- 状态：not completed',
+    '',
+    '| ID | Status | Description |',
+    '| PF-092 | open | completed 后再验收 |',
+    '',
+    '| ID | Description |',
+    '| PF-093 | completed receipt is required |',
+    '',
+    '| PF-094 | 等待 completed receipt |',
+    '| PF-095 | completed receipt is required |',
+    '- PF-095 completed receipt is required',
+    '### PF-096 Markdown 状态',
+    '- **状态：** **open**；completed 回执待生成',
+    '',
+    '| ID | **状态** | Description |',
+    '| PF-097 | **closed** | 已明确关闭 |',
+    '| PF-098 | open | 问题 |',
+    '| PF-099 | closed | 真实关闭 |',
+    '',
+    '| PF-100 | 旧格式 | ✅ |'
   ].join('\n'))
   write('data/violations.md', '| VL-020 | Agent SUMMARY missing | ✅ closed |\n')
   write('.memory/clients/codex/tasks/20260713.md', '- PF-080 已关闭\n- PF-082 open\n- VL-020 已关闭\n')
@@ -77,6 +102,17 @@ try {
   assert.strictEqual(normalizeStatus('状态：延期'), 'deferred')
   assert.strictEqual(normalizeStatus('🟡 residual-tail'), 'partial')
   assert.strictEqual(normalizeStatus('no state'), 'unknown')
+  assert.strictEqual(normalizeStatus('not completed'), 'open')
+  assert.strictEqual(normalizeStatus('open; completed receipt required'), 'open')
+  assert.strictEqual(normalizeStatus('closed; reopen only with new evidence'), 'closed')
+  for (const id of ['PF-090', 'PF-091', 'PF-092']) {
+    assert.strictEqual(index.records.find(record => record.recordId === id).normalizedStatus, 'open', id)
+  }
+  for (const id of ['PF-093', 'PF-094', 'PF-095']) {
+    assert.strictEqual(index.records.find(record => record.recordId === id).normalizedStatus, 'unknown', id)
+  }
+  for (const id of ['PF-096', 'PF-098']) assert.strictEqual(index.records.find(record => record.recordId === id).normalizedStatus, 'open', id)
+  for (const id of ['PF-097', 'PF-099', 'PF-100']) assert.strictEqual(index.records.find(record => record.recordId === id).normalizedStatus, 'closed', id)
 
   const output = writeDerivedIndex(root, index)
   assert.ok(fs.existsSync(output))
@@ -107,7 +143,8 @@ try {
   assert.ok(fallback.index.records.some(record => record.recordId === 'PF-083'))
   assert.deepStrictEqual(treeSnapshot(runtimeStateRoot), beforeQuery, 'fallback reads must remain zero-write')
 
-  console.log('✓ runtime-state transitions, compact projection, stale fallback and zero-write fixtures passed')
+  require('./lib/audit-bug-regression-fixtures').runAuditBugRegressionFixtures()
+  console.log('✓ runtime-state transitions, bounded inventory, layout, bootstrap and physical recovery fixtures passed')
 } finally {
   fs.rmSync(root, { recursive: true, force: true })
 }

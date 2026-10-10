@@ -327,4 +327,6 @@ try {
   fixture.cleanup()
 }
 
-assert.strictEqual(fs.existsSync(fixtureRoot), false, 'Stage B SkillRoute fixture must be cleaned exactly')
+const retainFixture = process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1' || process.env.DEVCODEX_TEST_KEEP_TEMP === '1'
+assert.strictEqual(fs.existsSync(fixtureRoot), retainFixture,
+  retainFixture ? 'Stage B SkillRoute evidence must be retained when requested' : 'Stage B SkillRoute fixture must be cleaned exactly')

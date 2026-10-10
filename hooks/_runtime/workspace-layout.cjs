@@ -169,6 +169,13 @@ function findLayoutInfo(startDir) {
   while (true) {
     const markerPath = path.join(current, '.devcodex', 'layout.json')
     const marker = readJsonFile(markerPath)
+    // A present invalid marker owns the nearest boundary; never silently inherit an ancestor.
+    if (fs.existsSync(markerPath) && (!marker || typeof marker !== 'object' || Array.isArray(marker) ||
+        String(marker.mode || '').trim() !== 'workspace-namespace')) {
+      const error = new Error(`workspace layout marker is invalid: ${markerPath}`)
+      error.code = 'WORKSPACE_LAYOUT_INVALID'
+      throw error
+    }
     if (marker && String(marker.mode || '').trim() === 'workspace-namespace') {
       return {
         enabled: true,

@@ -64,7 +64,7 @@ function createJsonLineServer(options = {}) {
       error: {
         code,
         message,
-        ...(errorCode ? { data: { errorCode, ...data } } : {})
+        ...(errorCode || Object.keys(data).length ? { data: { ...(errorCode ? { errorCode } : {}), ...data } } : {})
       }
     })
   }
@@ -108,7 +108,7 @@ function createJsonLineServer(options = {}) {
     }
     try {
       const result = await withDeadline(
-        Promise.resolve().then(() => dispatch(request.method, request.params)),
+        Promise.resolve().then(() => dispatch(request.method, request.params, request)),
         requestTimeoutMs
       )
       if (request.id !== undefined) sendResponse(request.id, result)
@@ -120,7 +120,7 @@ function createJsonLineServer(options = {}) {
           Number.isInteger(error?.code) ? error.code : -32603,
           error?.message || 'Internal error',
           errorCode,
-          errorCode ? { requestTimeoutMs } : {}
+          errorCode ? { requestTimeoutMs } : (isPlainObject(error?.data) ? error.data : {})
         )
       }
     }

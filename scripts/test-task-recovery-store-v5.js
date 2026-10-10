@@ -683,6 +683,69 @@ function taskReadLockTrackingFs(metaDir) {
 }
 
 function runTasklessIngressRecoveryScenario() {
+  // A real host input must survive before context selects a route or project lease.
+  const pendingIngress = tasklessIngressState()
+  pendingIngress.workflowRouteDecision = null
+  pendingIngress.workflowRoutePlanBinding = null
+  pendingIngress.stickyProject = null
+  pendingIngress.contextAcquisition.targetResolved = false
+  pendingIngress.contextAcquisition.plan = null
+  pendingIngress.contextAcquisition.receipt = null
+  const pendingStopDecision = { eventName: 'Stop', hardEnforcement: false, reasonCode: 'codex-operation-advisory' }
+  pendingIngress.progressiveSkillRouteEnforcement = {
+    schemaVersion: 'ProgressiveSkillRouteEnforcementStateV1',
+    decisions: { Stop: pendingStopDecision }, lastDecision: pendingStopDecision
+  }
+  for (const compacted of [false, true]) {
+    const fixture = JSON.parse(JSON.stringify(pendingIngress))
+    fixture.progressiveSkillRoute = compacted ? { diagnosticBody: 'x'.repeat(100000) } : null
+    const pendingMeta = path.join(tempRoot, `pending-ingress-${compacted ? 'minimal' : 'normal'}`)
+    assert.strictEqual(commitTaskRecoveryState({
+      metaDir: pendingMeta, sessionKey: 'taskless-ingress-session', state: fixture
+    }, baseOptions).status, 'ephemeral-stub')
+    const recovered = readTaskRecoveryState({
+      metaDir: pendingMeta, sessionKey: 'taskless-ingress-session'
+    }, baseOptions)
+    assert.strictEqual(recovered.status, 'ephemeral-stub')
+    assert.deepStrictEqual(recovered.state.actualInstructionEnvelope, pendingIngress.actualInstructionEnvelope)
+    assert.deepStrictEqual(recovered.state.workItemSet, pendingIngress.workItemSet)
+    assert.strictEqual(recovered.state.workflowRouteDecision, null)
+    assert.strictEqual(recovered.state.workflowRoutePlanBinding, null)
+    assert.strictEqual(recovered.state.workflowOperationalWriteLease, null)
+    assert(!recovered.state.fencedWriteOwner)
+    assert.strictEqual(recovered.state.progressiveSkillRouteEnforcement.decisions.Stop.hardEnforcement, false,
+      'minimal input retention must preserve the existing bounded Stop enforcement decision')
+    assert.notStrictEqual(recovered.ingressRecovery?.authority, true,
+      'pending host input retention must not grant taskless recovery authority')
+    const ringFiles = storePaths(pendingMeta).ephemeral
+    const ring = ringFiles.filter(file => fs.existsSync(file))
+      .map(file => JSON.parse(fs.readFileSync(file, 'utf8')))
+      .sort((left, right) => right.sequence - left.sequence)[0]
+    assert(ring.entries.every(entry => jsonBytes(entry) <= EPHEMERAL_ENTRY_MAX_BYTES))
+  }
+  const invalidPendingCases = [
+    ['wrong-session', fixture => { fixture.contextAcquisition.hostSessionId = 'other-session' }],
+    ['wrong-epoch', fixture => { fixture.contextAcquisition.contextEpoch = 'other-epoch' }],
+    ['envelope-digest', fixture => { fixture.actualInstructionEnvelope.envelopeDigest = '0'.repeat(64) }],
+    ['work-item-digest', fixture => { fixture.workItemSet.setDigest = '0'.repeat(64) }],
+    ['untrusted-event', fixture => { fixture.actualInstructionEnvelope.provenanceLevel = 'fixture-replay' }],
+    ['no-authority', fixture => { fixture.actualInstructionEnvelope.instructionAuthority = false }]
+  ]
+  for (const [label, invalidate] of invalidPendingCases) {
+    const fixture = JSON.parse(JSON.stringify(pendingIngress))
+    invalidate(fixture)
+    const pendingMeta = path.join(tempRoot, `pending-ingress-invalid-${label}`)
+    assert.strictEqual(commitTaskRecoveryState({
+      metaDir: pendingMeta, sessionKey: 'taskless-ingress-session', state: fixture
+    }, baseOptions).status, 'ephemeral-stub')
+    const recovered = readTaskRecoveryState({
+      metaDir: pendingMeta, sessionKey: 'taskless-ingress-session'
+    }, baseOptions)
+    assert.strictEqual(recovered.state.actualInstructionEnvelope, null, label)
+    assert.strictEqual(recovered.state.workItemSet, null, label)
+    assert.notStrictEqual(recovered.ingressRecovery?.authority, true, label)
+  }
+
   const tasklessIngressMeta = path.join(tempRoot, 'taskless-ingress-hooks')
   const tasklessIngress = tasklessIngressState()
   const tasklessIngressCommit = commitTaskRecoveryState({

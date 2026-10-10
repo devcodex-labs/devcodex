@@ -745,6 +745,9 @@ function testDefaultInitLayoutOwnershipGuards() {
   assert.strictEqual(child.payload.workspaceRoot, parentRoot)
   assert.strictEqual(child.payload.runtimeRoot, path.join(parentRoot, '.devcodex', 'packages', 'app-a'))
   assert.strictEqual(fs.existsSync(path.join(childRoot, '.devcodex', 'layout.json')), false)
+  writeFile(childRoot, '.devcodex/layout.json', '{ invalid nested json }\n')
+  const invalidNested = JSON.parse(runCliFailure(['init', '--dry-run', '--json'], childRoot))
+  assert.strictEqual(invalidNested.errorCode, 'WORKSPACE_LAYOUT_INVALID', 'nearest invalid marker must reject ancestor inheritance')
   assertRuntimeDataBootstrap(path.join(parentRoot, '.devcodex', 'packages', 'app-a'))
 
   const invalidRoot = createTempRoot('devcodex-cli-runtime-invalid-layout-')

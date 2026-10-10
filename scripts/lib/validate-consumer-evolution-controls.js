@@ -124,8 +124,8 @@ function buildConsumerEvolutionControlChecks(ctx) {
     if (registration?.lifecycleState !== 'gray') err('[V95] consumer validation skill must remain gray')
 
     const portfolio = JSON.parse(read(path.join(ROOT, 'skills/portfolio.json')))
-    if (portfolio.summary.skillCount !== 86 || portfolio.summary.activeSkillCount !== 83 || portfolio.summary.graySkillCount !== 3) {
-      err('[V95] portfolio must be 86 skills = 83 active + 3 gray')
+    if (portfolio.summary.skillCount !== 87 || portfolio.summary.activeSkillCount !== 84 || portfolio.summary.graySkillCount !== 3) {
+      err('[V95] portfolio must be 87 skills = 84 active + 3 gray')
     }
     console.log('[V95] agent/docs/consumer/module-performance completeness controls checked')
   }

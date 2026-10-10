@@ -1920,6 +1920,7 @@
       ],
       "inputs": [
         "scripts/lib/runtime-state-index.js",
+        "scripts/lib/audit-bug-regression-fixtures.js",
         "scripts/test-runtime-state-index.js",
         "scripts/check-runtime-state.js"
       ],

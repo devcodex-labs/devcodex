@@ -1678,30 +1678,21 @@ function contextPlanSkillRouteBootstrap(plan, target, args = {}) {
   if (!contextEpoch || !host || host === 'unknown-agent') return null
   try {
     const turnBinding = deriveTurnBinding(target.project, target.activeRoot, contextEpoch)
+    let hadDecision = false
+    let effectiveExplicitSkillId = explicitSkillId
+    let hadEnvelope = false
     try {
       const existing = loadEnvelope(target.activeRoot, turnBinding)
+      hadEnvelope = true
       const existingExplicitSkillId = existing.envelope.state?.explicit?.requestedSkillId || null
+      if (!hasExplicitSkillId) effectiveExplicitSkillId = existingExplicitSkillId
       if (hasExplicitSkillId && existingExplicitSkillId !== explicitSkillId) {
         existing.envelope = bindExplicitSkillRequest({
           activeRoot: target.activeRoot, project: target.project,
           turnBinding, contextEpoch, skillId: explicitSkillId
         })
       }
-      if (existing.envelope.state?.decision) {
-        return {
-          status: 'reused-active-route',
-          source: 'existing-route-envelope',
-          bootstrap: existing.envelope.state.bootstrap,
-          injectionText: ''
-        }
-      }
-      const bootstrap = existing.envelope.state?.bootstrap
-      return {
-        status: 'ready',
-        source: 'existing-route-envelope',
-        bootstrap,
-        injectionText: formatSkillRouteBootstrapInjection(bootstrap, { host })
-      }
+      hadDecision = Boolean(existing.envelope.state?.decision)
     } catch (error) {
       if (error.code !== 'TURN_NOT_FOUND') throw error
     }
@@ -1711,7 +1702,7 @@ function contextPlanSkillRouteBootstrap(plan, target, args = {}) {
       contextEpoch,
       host,
       cwd: INPUT_ROOT,
-      ...(hasExplicitSkillId ? { explicitSkillId } : {})
+      ...(hasExplicitSkillId || hadEnvelope ? { explicitSkillId: effectiveExplicitSkillId } : {})
     }, {
       inputRoot: INPUT_ROOT,
       env: process.env,
@@ -1722,10 +1713,12 @@ function contextPlanSkillRouteBootstrap(plan, target, args = {}) {
       runtimeRole: 'profile-mcp'
     })
     return {
-      status: route.active === true ? 'ready' : 'inactive',
+      // The bootstrap owner compares runtime, capability and catalog identity.
+      // It replaces only unconsumed stale envelopes; consumed drift fails closed.
+      status: route.active === true ? (hadDecision ? 'reused-active-route' : 'ready') : 'inactive',
       source: 'profile-context-plan-fallback',
       bootstrap: route.bootstrap,
-      injectionText: route.injectionText || ''
+      injectionText: hadDecision ? '' : (route.injectionText || '')
     }
   } catch (error) {
     return {
@@ -1735,7 +1728,10 @@ function contextPlanSkillRouteBootstrap(plan, target, args = {}) {
       injectionText: [
         '### DevCodex · SkillRouteBootstrapErrorV1',
         `errorCode: ${String(error.code || error.message || 'SKILL_ROUTE_BOOTSTRAP_FAILED')}`,
-        'Do not invent a turnBinding or claim that Skill routing completed.'
+        'Do not invent a turnBinding or claim that Skill routing completed.',
+        error.code === 'BOOTSTRAP_IDENTITY_COLLISION'
+          ? 'Refresh ContextRead in a new host-owned context epoch, then rebind the existing Skill plan; the consumed envelope is preserved.'
+          : 'Restore the reported bootstrap prerequisite, then retry ContextRead.'
       ].join('\n'),
       errorCode: String(error.code || error.message || 'SKILL_ROUTE_BOOTSTRAP_FAILED')
     }
@@ -3017,6 +3013,7 @@ if (require.main === module) {
 
 module.exports = {
   buildProfileSectionCoverage,
+  contextPlanSkillRouteBootstrap,
   dispatch,
   handleProfileLoad,
   profileSourceSnapshot,

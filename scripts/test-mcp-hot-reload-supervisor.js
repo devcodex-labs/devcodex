@@ -81,6 +81,9 @@ async function main () {
     fs.mkdirSync(baseRoot, { recursive: true })
     fs.mkdirSync(path.join(sourceRoot, '.git'), { recursive: true })
     fs.mkdirSync(mcpRoot, { recursive: true })
+    fs.mkdirSync(path.join(sourceRoot, 'hooks', '_runtime'), { recursive: true })
+    fs.copyFileSync(path.join(ROOT, 'mcp', 'stdio-jsonrpc.cjs'), path.join(mcpRoot, 'stdio-jsonrpc.cjs'))
+    fs.copyFileSync(path.join(ROOT, 'hooks', '_runtime', 'stdio-bounds.cjs'), path.join(sourceRoot, 'hooks', '_runtime', 'stdio-bounds.cjs'))
     fs.writeFileSync(path.join(sourceRoot, 'package.json'), '{"name":"devcodex","version":"0.0.0"}\n')
     const worker = path.join(mcpRoot, 'profile-server.js')
     fs.writeFileSync(worker, workerSource('v1'))
@@ -146,6 +149,26 @@ async function main () {
     const second = await waitForVersion(call, 'v2')
     assert.notStrictEqual(second.pid, first.pid, 'worker PID must change while supervisor connection stays open')
 
+    child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 999, method: 'tools/call', params: { value: 'x'.repeat(4 * 1024 * 1024) } })}\n`)
+    const oversizedDeadline = Date.now() + 2000
+    while (!observedMessages.some(message => message.error?.data?.errorCode === 'MCP_STDIO_FRAME_TOO_LARGE') && Date.now() < oversizedDeadline) {
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+    assert(observedMessages.some(message => message.error?.data?.errorCode === 'MCP_STDIO_FRAME_TOO_LARGE'), 'oversize must fail immediately')
+    const nearLimitRequest = { jsonrpc: '2.0', id: 1000, method: 'tools/call', params: { value: '' } }
+    nearLimitRequest.params.value = 'x'.repeat(4 * 1024 * 1024 - Buffer.byteLength(JSON.stringify(nearLimitRequest)) - 1)
+    child.stdin.write(`${JSON.stringify(nearLimitRequest)}\n`)
+    const forwardedDeadline = Date.now() + 2000
+    while (!observedMessages.some(message => message.id === 1000) && Date.now() < forwardedDeadline) {
+      await new Promise(resolve => setTimeout(resolve, 10))
+    }
+    assert.strictEqual(observedMessages.find(message => message.id === 1000)?.error?.data?.errorCode, 'MCP_STDIO_FRAME_TOO_LARGE', 'internal id expansion must not produce a worker timeout')
+    assert.strictEqual(toolValue(await call('tools/call')).version, 'v2')
+    process.kill(second.pid)
+    await new Promise(resolve => setTimeout(resolve, 100))
+    const restarted = toolValue(await call('tools/call'))
+    assert.strictEqual(restarted.version, 'v2', 'same contract crash recovery must work')
+
     fs.writeFileSync(worker, workerSource('v3', 'changed_schema'))
     await new Promise(resolve => setTimeout(resolve, 150))
     const afterSchemaChange = toolValue(await call('tools/call', { name: 'fixture_version', arguments: {} }))
@@ -154,6 +177,12 @@ async function main () {
     const diagnosticText = diagnostics.join('')
     assert.match(diagnosticText, /"status":"switched"/)
     assert.match(diagnosticText, /"status":"restart-required"/)
+
+    process.kill(restarted.pid)
+    await new Promise(resolve => setTimeout(resolve, 100))
+    const incompatibleRestart = await call('tools/call')
+    assert.strictEqual(incompatibleRestart.error?.data?.errorCode, 'MCP_SCHEMA_RESTART_REQUIRED')
+    assert.strictEqual((await call('tools/list')).error?.data?.errorCode, 'MCP_SCHEMA_RESTART_REQUIRED', 'rejected crash worker cannot serve the changed contract')
 
     console.log(JSON.stringify({
       schemaVersion: 'McpHotReloadProbeV1',

@@ -3661,7 +3661,7 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
     fencedWriteOwner: expiredOwner
   }), { nowMs, force: true, reason: 'mcp-cp-auto-expired-owner-fixture' })
   assert(['committed', 'semantic-noop'].includes(expireCommit.status), JSON.stringify(expireCommit))
-  writeTaskAuthorityLifecycleState(activeRoot, project, ingress, {
+  const recoveryLifecyclePath = writeTaskAuthorityLifecycleState(activeRoot, project, ingress, {
     executionMode: 'auto',
     stickyAuto: {
       active: true,
@@ -3703,9 +3703,33 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
   assert.strictEqual(fs.readFileSync(sessionsPath, 'utf8'), sessionsBeforeWrongSession,
     'a different session must not recover or confirm the expired task writer')
 
+  const recoveryLifecycle = JSON.parse(fs.readFileSync(recoveryLifecyclePath, 'utf8'))
+  const ownerBeforeSessionNegatives = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state.fencedWriteOwner
+  for (const [contextSession, receiptSession] of [
+    ['mcp-task-authority-cp-auto-decision', 'different-receipt-session'],
+    ['different-context-session', 'mcp-task-authority-cp-auto-decision']
+  ]) {
+    const conflictingLifecycle = JSON.parse(JSON.stringify(recoveryLifecycle))
+    conflictingLifecycle.contextAcquisition.hostSessionId = contextSession
+    conflictingLifecycle.contextAcquisition.receipt = { identity: { hostSessionId: receiptSession } }
+    fs.writeFileSync(recoveryLifecyclePath, JSON.stringify(conflictingLifecycle, null, 2) + '\n')
+    const conflict = resultById(runServer('mcp/memory-server.js', [
+      rpcRequest(28, 'tools/call', { name: 'memory_cp_confirm', arguments: recoveryArguments })
+    ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: 'mcp-task-authority-cp-auto-decision' }), 28)
+    assert.strictEqual(conflict.isError, true)
+    assert.match(conflict.content?.[0]?.text || '', /MEMORY_CP_AUTO_OWNER_RECOVERY_INVALID/)
+    assert(conflict.structuredContent?.reasonCodes?.includes('context-session-conflict'),
+      JSON.stringify(conflict.structuredContent) || 'structured session-conflict reason missing')
+    assert.strictEqual(fs.readFileSync(sessionsPath, 'utf8'), sessionsBeforeWrongSession,
+      'conflicting ContextRead identities must have zero CP write effect even with correct env')
+    assert.deepStrictEqual(readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state.fencedWriteOwner,
+      ownerBeforeSessionNegatives, 'conflicting identities must not renew the writer')
+  }
+  fs.writeFileSync(recoveryLifecyclePath, JSON.stringify(recoveryLifecycle, null, 2) + '\n')
+
   const recoveredConfirmation = resultById(runServer('mcp/memory-server.js', [
     rpcRequest(26, 'tools/call', { name: 'memory_cp_confirm', arguments: recoveryArguments })
-  ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: 'mcp-task-authority-cp-auto-decision' }), 26)
+  ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: '' }), 26)
   assert.notStrictEqual(recoveredConfirmation.isError, true,
     JSON.stringify(recoveredConfirmation) || 'same-session structured Auto owner recovery failed')
   const recoveredState = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
@@ -3715,6 +3739,28 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
     parseCpSessions(fs.readFileSync(sessionsPath, 'utf8')).CP2.artifactSha256,
     revisedArtifactSha256.toUpperCase()
   )
+
+  const receiptOnlyOwner = sealOwner({
+    ...recoveredState.fencedWriteOwner,
+    leaseRevision: recoveredState.fencedWriteOwner.leaseRevision + 1,
+    issuedAt: new Date(nowMs - 120_000).toISOString(),
+    expiresAt: new Date(nowMs - 60_000).toISOString()
+  })
+  const receiptOnlyExpire = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
+    ...state, fencedWriteOwner: receiptOnlyOwner
+  }), { nowMs, force: true, reason: 'mcp-cp-receipt-only-expired-owner-fixture' })
+  assert(['committed', 'semantic-noop'].includes(receiptOnlyExpire.status), JSON.stringify(receiptOnlyExpire))
+  const receiptOnlyLifecycle = JSON.parse(JSON.stringify(recoveryLifecycle))
+  receiptOnlyLifecycle.contextAcquisition.hostSessionId = ''
+  receiptOnlyLifecycle.contextAcquisition.receipt = { identity: { hostSessionId: 'mcp-task-authority-cp-auto-decision' } }
+  fs.writeFileSync(recoveryLifecyclePath, JSON.stringify(receiptOnlyLifecycle, null, 2) + '\n')
+  const receiptOnlyRecovery = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(29, 'tools/call', { name: 'memory_cp_confirm', arguments: {
+      ...recoveryArguments, artifactVersion: 'v0.1.1-receipt-only-recovery'
+    } })
+  ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: '' }), 29)
+  assert.notStrictEqual(receiptOnlyRecovery.isError, true, JSON.stringify(receiptOnlyRecovery))
+  assert(readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state.fencedWriteOwner.leaseRevision > receiptOnlyOwner.leaseRevision)
 
   const languageCommit = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
     ...state,
@@ -5917,7 +5963,8 @@ function testProfileContextPlanContract() {
   assert.strictEqual(devBootstrapResult._meta.devcodexSkillRouteBootstrap.status, 'ready')
   assert.strictEqual(
     repeatedBootstrapResult._meta?.devcodexSkillRouteBootstrap?.source,
-    'existing-route-envelope'
+    'profile-context-plan-fallback',
+    'repeated ContextRead must recheck its bootstrap through the owner before reuse'
   )
   assert.strictEqual(
     repeatedBootstrapResult._meta.devcodexSkillRouteBootstrap.turnBinding,

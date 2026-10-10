@@ -10,6 +10,7 @@ const { sha256, stableStringify } = require('../../hooks/_runtime/content-identi
 const {
   assertVerificationExecutionLease,
   leaseBindingFromPlan,
+  renewVerificationExecutionLease,
   transitionLease,
   validateVerificationExecutionLease
 } = require('./validation-execution-authority')
@@ -511,7 +512,7 @@ async function runManagedValidation(input = {}) {
     candidate,
     repoRoot,
     activeRoot,
-    lease,
+    lease: initialLease,
     actorType = null,
     project = plan?.verificationIntent?.project || 'devcodex',
     taskRecoveryKey = plan?.verificationIntent?.taskRecoveryKey || null,
@@ -524,6 +525,7 @@ async function runManagedValidation(input = {}) {
     onHeartbeat = null,
     onNode = null
   } = input
+  let lease = initialLease
   const binding = leaseBindingFromPlan({
     plan,
     candidate,
@@ -924,13 +926,33 @@ async function runManagedValidation(input = {}) {
     }
 
     poll = setInterval(() => {
+      if (terminalClaimed) return
       const observed = evidenceStore.readLease()
       const validation = validateVerificationExecutionLease(observed.lease, binding)
-      if (!validation.valid) terminateAndFinish({
-        code: 'VALIDATION_AUTHORITY_REVOKED',
-        stateOwner: observed.stateOwner,
-        errors: validation.errors
-      })
+      if (!validation.valid) {
+        terminateAndFinish({
+          code: 'VALIDATION_AUTHORITY_REVOKED', stateOwner: observed.stateOwner, errors: validation.errors
+        })
+        return
+      }
+      lease = observed.lease
+      const nowMs = Date.now()
+      if (Date.parse(lease.expiresAt) < Date.parse(lease.hardDeadlineAt) &&
+          Date.parse(lease.expiresAt) - nowMs <= lease.leaseWindowMs / 2) {
+        try {
+          const renewed = renewVerificationExecutionLease(lease, { nowMs })
+          const persistence = evidenceStore.writeLease(renewed, { expectedLeaseDigest: lease.authorityDigest })
+          if (!acceptedActivePersistence(persistence.status)) {
+            terminateAndFinish({ code: 'VALIDATION_LEASE_RENEWAL_FAILED', persistence }, 'blocked', 2)
+            return
+          }
+          lease = renewed
+          if (checkpoint) checkpoint = buildRunCheckpoint({ lease, plan, candidate, manifest, results })
+          if (!persistProgress('lease-renewed')) return
+        } catch (error) {
+          terminateAndFinish({ code: error.code || 'VALIDATION_LEASE_RENEWAL_FAILED', message: error.message }, 'blocked', 2)
+        }
+      }
     }, pollIntervalMs)
     const hardDelayMs = Math.max(1, hardDeadlineMs - Date.now())
     function armHardTimer() {

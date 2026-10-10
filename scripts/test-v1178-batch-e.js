@@ -246,6 +246,39 @@ probe('Profile lifecycle consumes structured state independently of display lang
   assert.strictEqual(validate(legacyUnbound).valid, false)
   assert.strictEqual(validate(currentRecord({ releaseState: '  ' })).valid, false)
   assert.deepStrictEqual(validate(workingRecord()).errors, [])
+  const workingWithFailedHistory = workingRecord()
+  workingWithFailedHistory.ciRun.status = 'BLOCK'
+  assert.deepStrictEqual(validate(workingWithFailedHistory).errors, [], 'working source preserves observed failed historical CI without claiming release qualification')
+  const releasedWithFailedCi = currentRecord()
+  releasedWithFailedCi.ciRun.status = 'BLOCK'
+  assert.strictEqual(validate(releasedWithFailedCi).valid, false, 'active RELEASED qualification still requires passing CI')
+  const candidateWithFailedCi = candidateRecord()
+  candidateWithFailedCi.ciRun.status = 'BLOCK'
+  assert.strictEqual(validate(candidateWithFailedCi).valid, false, 'active release candidate retains prior qualification guard')
+  const candidateWithMatchedHistory = candidateRecord()
+  candidateWithMatchedHistory.ciRun.status = 'BLOCK'
+  candidateWithMatchedHistory.ciRun.head = candidateWithMatchedHistory.releaseCommit
+  candidateWithMatchedHistory.publishRun.head = candidateWithMatchedHistory.releaseCommit
+  assert.deepStrictEqual(validate(candidateWithMatchedHistory).errors, [],
+    'a candidate preserves a failed historical CI bound to the same successful prior distribution')
+  for (const mutate of [
+    record => { delete record.ciRun.head },
+    record => { record.ciRun.head = 'c'.repeat(40) },
+    record => { record.publishRun.head = 'c'.repeat(40) },
+    record => { record.publishRun.status = 'BLOCK' },
+    record => { record.githubRelease.tag = 'v1.17.7' },
+    record => { record.githubRelease.status = 'BLOCK' }
+  ]) {
+    const driftedHistory = JSON.parse(JSON.stringify(candidateWithMatchedHistory))
+    mutate(driftedHistory)
+    assert.strictEqual(validate(driftedHistory).valid, false,
+      'unknown, mismatched or failed distribution evidence cannot excuse historical CI failure')
+  }
+  const newCandidateFailedCi = JSON.parse(JSON.stringify(candidateWithMatchedHistory))
+  newCandidateFailedCi.sourceCandidate.status = 'CI_PASS'
+  newCandidateFailedCi.sourceCandidate.remoteCi.status = 'BLOCK'
+  assert.strictEqual(validate(newCandidateFailedCi).valid, false,
+    'preserving historical CI must not relax the new candidate remote CI qualification')
   const unauthorizedWorking = workingRecord()
   unauthorizedWorking.sourceCandidate.releaseAuthorized = true
   assert(validate(unauthorizedWorking).errors.some(item => item.includes('must not be release-authorized')))

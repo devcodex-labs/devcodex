@@ -10,6 +10,7 @@ const ROLES = new Set(['memory', 'profile'])
 const REQUEST_TIMEOUT_MS = 30_000
 const RELOAD_SETTLE_MS = 80
 const MAX_PAGED_LIST_PAGES = 128
+const MAX_FRAME_BYTES = 4 * 1024 * 1024
 
 function supervisorError (code, detail) {
   const error = new Error(`${code}: ${detail}`)
@@ -147,6 +148,11 @@ function createWorker (server, inputRoot) {
   function exchange (method, params) {
     if (exited) return Promise.reject(supervisorError('MCP_SUPERVISOR_WORKER_UNAVAILABLE', server))
     const id = `devcodex-supervisor-${process.pid}-${++sequence}`
+    const frame = JSON.stringify({ jsonrpc: '2.0', id, method, ...(params === undefined ? {} : { params }) })
+    // Internal ids can make an otherwise bounded client frame exceed the worker limit.
+    if (Buffer.byteLength(frame, 'utf8') > MAX_FRAME_BYTES) {
+      return Promise.reject(supervisorError('MCP_STDIO_FRAME_TOO_LARGE', 'forwarded request exceeds the worker frame limit'))
+    }
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         pending.delete(id)
@@ -154,7 +160,7 @@ function createWorker (server, inputRoot) {
       }, REQUEST_TIMEOUT_MS)
       timer.unref?.()
       pending.set(id, { resolve, reject, timer })
-      child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, ...(params === undefined ? {} : { params }) })}\n`)
+      child.stdin.write(`${frame}\n`)
     })
   }
 
@@ -233,9 +239,9 @@ async function main () {
   let currentTarget = null
   let initializeParams = null
   let initializeResult = null
+  let negotiatedContract = null
   let initializedParams = null
   let watchers = []
-  let queue = Promise.resolve()
 
   const markDirty = () => {
     revision += 1
@@ -267,10 +273,20 @@ async function main () {
       if (current) await current.close()
       await startCurrent()
       if (initializeParams) {
-        const response = await current.exchange('initialize', initializeParams)
-        if (response.error) throw supervisorError('MCP_SUPERVISOR_RESTART_INITIALIZE_FAILED', response.error.message)
-        initializeResult = response.result
-        if (initializedParams !== null) current.notify('notifications/initialized', initializedParams)
+        try {
+          const response = await current.exchange('initialize', initializeParams)
+          if (response.error) throw supervisorError('MCP_SUPERVISOR_RESTART_INITIALIZE_FAILED', response.error.message)
+          if (initializedParams !== null) current.notify('notifications/initialized', initializedParams)
+          const contract = await readContract(current, response.result)
+          if (negotiatedContract === null || stableJson(contract) !== negotiatedContract) {
+            throw supervisorError('MCP_SCHEMA_RESTART_REQUIRED', 'restarted worker contract differs from the negotiated connection')
+          }
+          initializeResult = response.result
+        } catch (error) {
+          await current.close()
+          writeDiagnostic({ schemaVersion: 'McpHotReloadEventV1', status: 'restart-required', errorCode: error.code, role, message: error.message })
+          throw error
+        }
       }
       return
     }
@@ -285,11 +301,8 @@ async function main () {
       const initialized = await candidate.exchange('initialize', initializeParams)
       if (initialized.error) throw supervisorError('MCP_SUPERVISOR_CANDIDATE_INITIALIZE_FAILED', initialized.error.message)
       if (initializedParams !== null) candidate.notify('notifications/initialized', initializedParams)
-      const [activeContract, candidateContract] = await Promise.all([
-        readContract(current, initializeResult),
-        readContract(candidate, initialized.result)
-      ])
-      if (stableJson(activeContract) !== stableJson(candidateContract)) {
+      const candidateContract = await readContract(candidate, initialized.result)
+      if (stableJson(candidateContract) !== negotiatedContract) {
         throw supervisorError('MCP_SCHEMA_RESTART_REQUIRED', 'worker tools/prompts contract changed')
       }
       const previous = current
@@ -330,40 +343,46 @@ async function main () {
     }
     if (message.method === 'initialize') initializeParams = message.params ?? {}
     const response = await current.exchange(message.method, message.params)
-    if (message.method === 'initialize' && !response.error) initializeResult = response.result
-    process.stdout.write(`${JSON.stringify({ ...response, id: message.id })}\n`)
+    if (message.method === 'initialize' && !response.error) {
+      initializeResult = response.result
+      negotiatedContract = stableJson(await readContract(current, initializeResult))
+    }
+    if (response.error) {
+      const error = new Error(response.error.message)
+      error.code = response.error.code
+      error.data = response.error.data
+      throw error
+    }
+    return response.result
   }
 
-  const lines = readline.createInterface({ input: process.stdin })
-  lines.on('line', line => {
-    queue = queue.then(async () => {
-      const trimmed = line.trim()
-      if (!trimmed) return
-      let message
-      try { message = JSON.parse(trimmed) } catch {
-        process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } })}\n`)
-        return
-      }
-      if (!message || typeof message !== 'object' || Array.isArray(message)) {
-        process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request' } })}\n`)
-        return
-      }
-      try {
-        await handle(message)
-      } catch (error) {
-        if (message.id !== undefined) {
-          process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: message.id, error: { code: -32603, message: error.message, data: { errorCode: error.code || 'MCP_SUPERVISOR_FAILURE' } } })}\n`)
-        }
-      }
-    })
-  })
-  lines.on('close', () => queue.finally(async () => {
+  // The deployed supervisor is a standalone file; read its bounded transport
+  // from the receipt-selected runtime rather than a relative checkout path.
+  const target = resolveWorkerTarget(baseRoot, role)
+  const { createJsonLineServer } = require(path.join(target.root, 'mcp', 'stdio-jsonrpc.cjs'))
+  const cleanup = async () => {
     for (const watcher of watchers) watcher.close()
     if (current) await current.close()
-  }))
+  }
+  const transport = createJsonLineServer({
+    async dispatch (method, params, message) {
+      try {
+        return await handle(message)
+      } catch (error) {
+        if (!Number.isInteger(error.code)) {
+          error.data = { errorCode: error.code || 'MCP_SUPERVISOR_FAILURE' }
+          error.code = -32603
+        }
+        throw error
+      }
+    },
+    onEnd: cleanup
+  })
   for (const signal of ['SIGINT', 'SIGTERM']) {
     process.on(signal, () => {
-      lines.close()
+      transport.close()
+      process.stdin.pause()
+      transport.idle().finally(cleanup)
     })
   }
 }

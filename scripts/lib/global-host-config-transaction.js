@@ -141,8 +141,12 @@ function releaseJournalLock(lock, fsImpl = fs) {
   try {
     retryTransientWindowsFs(() => fsImpl.unlinkSync(lock.file), lock.retryOptions)
     if (typeof fsImpl.rmdirSync === 'function') {
-      try { fsImpl.rmdirSync(path.join(path.dirname(lock.file), 'journals')) } catch { }
-      try { fsImpl.rmdirSync(path.dirname(lock.file)) } catch { }
+      for (const directory of [path.join(path.dirname(lock.file), 'journals'), path.dirname(lock.file)]) {
+        try {
+          const stat = fsImpl.lstatSync(directory)
+          if (stat.isDirectory() && !stat.isSymbolicLink()) fsImpl.rmdirSync(directory)
+        } catch { }
+      }
     }
     return true
   } catch {
@@ -365,7 +369,8 @@ function uniqueOperations(operations) {
   })
 }
 
-function recoverJournal(journal, journalFile, boundaries, fsImpl) {
+/** Validate every recovery path before observing or modifying transaction effects. */
+function validateRecoveryJournal(journal, journalFile, boundaries, fsImpl) {
   if (journal?.schemaVersion !== GLOBAL_HOST_JOURNAL_SCHEMA ||
       typeof journal.transactionId !== 'string' || !Array.isArray(journal.operations)) {
     const error = new Error(`GLOBAL_HOST_JOURNAL_INVALID: ${journalFile}`)
@@ -386,8 +391,21 @@ function recoverJournal(journal, journalFile, boundaries, fsImpl) {
     validatePathBoundary(operation.backup, boundaries.allowedRoots, boundaries.allowedFiles, fsImpl, {
       sidecarOf: operation.path
     })
+    for (const candidate of [operation.path, operation.staged, operation.backup]) {
+      assertOperationPathSafe({
+        path: candidate,
+        action: 'write',
+        allowedRoots: boundaries.allowedRoots,
+        // Sidecars have already passed their exact lexical boundary above.
+        allowedFiles: [...boundaries.allowedFiles, candidate],
+        safetyRoots: boundaries.safetyRoots || boundaries.allowedRoots
+      }, fsImpl)
+    }
   }
+}
 
+function recoverJournal(journal, journalFile, boundaries, fsImpl) {
+  validateRecoveryJournal(journal, journalFile, boundaries, fsImpl)
   const allAtTarget = journal.operations.every(operation => (
     stateMatches(fileState(operation.path, fsImpl), operation.targetState)
   ))
@@ -441,6 +459,12 @@ function recoverJournal(journal, journalFile, boundaries, fsImpl) {
 
 function recoverIndexedTransactions(transactionRoot, boundaries, fsImpl) {
   const indexFile = journalIndexFile(transactionRoot)
+  const assertMetadataSafe = candidate => assertOperationPathSafe({
+    path: candidate, action: 'write', allowedRoots: [transactionRoot], allowedFiles: [],
+    safetyRoots: boundaries.safetyRoots || boundaries.allowedRoots
+  }, fsImpl)
+  assertMetadataSafe(indexFile)
+  assertMetadataSafe(`${indexFile}.next.tmp`)
   if (!fsImpl.existsSync(indexFile)) return []
   const index = jsonObject(indexFile, fsImpl)
   if (index?.schemaVersion !== GLOBAL_HOST_JOURNAL_INDEX_SCHEMA || !Array.isArray(index.entries)) {
@@ -450,6 +474,7 @@ function recoverIndexedTransactions(transactionRoot, boundaries, fsImpl) {
   }
   const journalRoot = path.join(transactionRoot, 'journals')
   const recovered = []
+  const journals = []
   for (const entry of index.entries) {
     const journalFile = path.resolve(String(entry?.journalFile || ''))
     if (!entry?.transactionId || !isUnder(journalRoot, journalFile) ||
@@ -458,7 +483,15 @@ function recoverIndexedTransactions(transactionRoot, boundaries, fsImpl) {
       error.code = 'GLOBAL_HOST_JOURNAL_INDEX_INVALID'
       throw error
     }
+    assertMetadataSafe(journalFile)
+    assertMetadataSafe(`${journalFile}.next.tmp`)
     const journal = jsonObject(journalFile, fsImpl)
+    validateRecoveryJournal(journal, journalFile, boundaries, fsImpl)
+    journals.push({ entry, journalFile, journal })
+  }
+  // Validate the entire indexed set first, so a later unsafe journal cannot
+  // cause partial recovery of earlier entries.
+  for (const { entry, journalFile, journal } of journals) {
     const status = recoverJournal(journal, journalFile, boundaries, fsImpl)
     recovered.push({ transactionId: entry.transactionId, status, journalFile })
     cleanupCommittedJournal(transactionRoot, journalFile, entry.transactionId, fsImpl)

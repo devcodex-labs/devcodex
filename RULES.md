@@ -1,6 +1,6 @@
-# DevCodex v1.20.3 — 使用入口
+# DevCodex v1.20.4 — 使用入口
 
-> AI workflow injector for Copilot / Claude Code / Codex / Gemini / Grok / Cursor Beta · publisher: Rocky · version: 1.20.3
+> AI workflow injector for Copilot / Claude Code / Codex / Gemini / Grok / Cursor Beta · publisher: Rocky · version: 1.20.4
 
 ## 正式主支持客户端
 
@@ -59,7 +59,7 @@ DevCodex 同时支持六宿主的用户级加载路径，规则语义保持一�
 
 `00-safety.instructions.md` 全局自动注入，包含 S01~S07 七条不可覆盖的安全规则：
 - **S01** 操作权限归宿主，DevCodex 只核对任务、目标与保留不变量 · **S02** 默认允许敏感信息与硬编码，按用户 / 项目显式策略处理 · **S03** 禁止编造规范
-- **S04** 禁止整文件覆写 · **S05** 记忆+报告自动写入 · **S06** 风险分类仅作 advisory，工作流无效才失败关闭 · **S07** 全模式入口检查强制输出 PC0~PC7（dev 模式追加 PC4 完整诊断）
+- **S04** 禁止整文件覆写 · **S05** 记忆+报告自动写入 · **S06** 风险分类仅作 advisory，工作流无效才失败关闭 · **S07** 全模式入口检查强制输出 PC0~PC10（dev 模式追加 PC4 完整诊断）
 
 ## 控制面 Markdown 维护
 

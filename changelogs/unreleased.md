@@ -3,6 +3,17 @@
 > **用途**: 记录尚未正式发版的实现级变更。
 > **当前**: 本次治理台账收敛与发布门禁刷新已归档至 [v1.20.3 版本说明](releases/v1.20.3.md)。是否已发布以 npm registry、Git tag 与 GitHub Release 为准；下方摘要和旧候选条目保留追踪上下文，不能作为当前发行资格证明。
 
+## 全项目审查问题修复
+
+- MCP supervisor 固定客户端已协商的 tools/prompts 契约；worker 崩溃后先复核候选，schema 漂移返回明确的重启错误。外层 stdin 使用共享有界 JSONL reader，超大帧拒绝后仍能处理合法请求。
+- 修复 10,000 文件 inventory 的截断判定、损坏 layout marker 的静默回退、普通正文及否定状态被误判为关闭，以及事务恢复对 journal/index/destination/staged/backup 的物理路径校验。
+- ContextRead bootstrap 通过既有 owner 核对 runtime/capability/catalog 身份，仅更新未消费的旧 envelope；已消费的身份冲突保留原状态并给出刷新与 rebind 指引。audit 默认三轮收敛，明确单批窄范围可采用两轮。
+- 同步 PC0~PC10 入口和当前 87 Skill / 84 active / 3 gray 的文档、网站生成数据与消费者校验。此处记录本地源码修改，不代表已提交、发布或获得发行资格。
+- 验证期间发现 managed runner 未续租 estimate 派生短 lease，导致早于已批准 hard deadline 中止；现在通过 task/shard owner 的精确 CAS 续租并同步 checkpoint 身份，保持原 hard deadline，拒绝过期、撤销、换代或冲突 authority。
+- 发布检查发现 taskless pending ingress 在路由选择前被 V5 缓存丢弃；现在普通和最小压缩投影保留经会话、epoch、信封与工作项校验的原始输入，并保留有界 Stop 决策。不授予路由、owner 或执行权限；错误来源与摘要仍拒绝，正式发行资格另行验证。
+- 自动检查点恢复在宿主未传入会话环境变量时复用服务器已观察的 ContextRead 身份；显式环境身份仍优先，ContextRead 与回执身份冲突时拒绝续租和 CP 写入。回归补充无环境变量、回执单来源和冲突场景，运行时资格以实际验证回执为准。
+- 新发行候选保留历史失败 CI 事实：只有旧 CI、成功 Publish 与旧版本 Release 能按同一旧提交对账时可继续准备新候选；未知或漂移身份、失败发布、当前候选 CI 和最终 RELEASED 门禁仍严格校验。
+
 ## v1.20.3 归档摘要
 
 - **治理台账收敛**：当前 active-root 的 220 条未闭合治理记录已统一写入固定关闭回执，原始条目保留，派生索引已重建。

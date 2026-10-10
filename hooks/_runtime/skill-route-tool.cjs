@@ -934,6 +934,10 @@ function handleCatalog (input, target, options) {
 function boundRuntimeRootFromIndex (index) {
   const root = String(index?.globalRuntime?.root || '')
   if (!root) return null
+  // Source packages own content/skills; content itself is not a package/runtime.
+  if (index.globalRuntime.source === 'source-package' && path.basename(path.dirname(root)) === 'content') {
+    return path.dirname(path.dirname(root))
+  }
   return path.basename(root) === 'skills' ? path.dirname(root) : root
 }
 

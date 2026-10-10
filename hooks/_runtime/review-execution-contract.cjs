@@ -84,9 +84,16 @@ function createReviewExecutionPlan(input) {
   if ((input?.claims || []).length === 0 && input?.workflow !== 'chat') errors.push('claims-required')
   if ((input?.dimensions || []).length === 0 && input?.workflow !== 'chat') errors.push('dimensions-required')
 
+  const narrowAudit = input?.workflow === 'audit' && routing.reviewClass !== 'R4' &&
+    input?.auditConvergence?.explicitNarrowScope === true &&
+    input?.auditConvergence?.scaleDecision === 'single-pass' &&
+    input?.auditConvergence?.crossHostControlPlane === false &&
+    input?.auditConvergence?.multipleConsumers === false &&
+    !(input?.risk?.flags || []).some(flag => ['control-plane', 'multi-module', 'multi-source'].includes(flag))
   const requiredZeroFindingRounds = routing.reviewClass === 'R4'
     ? 3
-    : (input?.workflow === 'audit' || input?.workflow === 'analyze') ? 2 : routing.reviewClass === 'R0' ? 0 : 1
+    : input?.workflow === 'audit' ? (narrowAudit ? 2 : 3)
+      : input?.workflow === 'analyze' ? 2 : routing.reviewClass === 'R0' ? 0 : 1
   const core = {
     schemaVersion: 'ReviewExecutionPlanV1',
     workflow: input?.workflow || 'unknown',
@@ -112,6 +119,13 @@ function createReviewExecutionPlan(input) {
     },
     exit: {
       requiredZeroFindingRounds,
+      ...(input?.workflow === 'audit' ? { auditConvergence: {
+        mode: narrowAudit ? 'narrow-2' : 'default-3',
+        explicitNarrowScope: input?.auditConvergence?.explicitNarrowScope === true,
+        scaleDecision: input?.auditConvergence?.scaleDecision || null,
+        crossHostControlPlane: input?.auditConvergence?.crossHostControlPlane ?? null,
+        multipleConsumers: input?.auditConvergence?.multipleConsumers ?? null
+      } } : {}),
       requireIndependentEvidence: ['R3', 'R4'].includes(routing.reviewClass),
       requireNegativeEvidence: !['R0', 'R1'].includes(routing.reviewClass),
       requireFallbackEvidence: ['R3', 'R4'].includes(routing.reviewClass),

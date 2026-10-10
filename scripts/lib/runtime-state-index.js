@@ -25,7 +25,11 @@ const CANONICAL_LEDGER_BY_KIND = Object.freeze(Object.fromEntries(
 ))
 
 function normalizeStatus(text) {
-  const value = String(text || '').toLowerCase()
+  let value = String(text || '').toLowerCase().trim()
+  const prefix = value.replace(/^(?:状态|status|state)\s*[:：]\s*/, '').replace(/^[*`✅🟡⏹️🔄⚠️]+\s*/, '')
+    .match(/^(?:not|never)\s+(?:yet\s+)?(?:closed|fixed|resolved|completed?|accepted)\b|^(?:closed|fixed|resolved|completed?|accepted|deferred|postponed|partial|residual-tail|pending|in-progress|executing|blocked|open|todo|not-started)\b|^(?:尚未|未|已)(?:关闭|修复|完成)|^(?:延后|延期|部分|进行中|待确认|待处理|未开始)/)
+  if (prefix) value = prefix[0]
+  if (/\b(?:not|never)\s+(?:yet\s+)?(?:closed|fixed|resolved|complete|completed|accepted)\b|未(?:关闭|修复|完成)|尚未(?:关闭|修复|完成)/.test(value)) return 'open'
   if (/\b(?:closed|fixed|resolved|complete|completed|accepted)\b|已关闭|已修复|已完成|✅/.test(value)) return 'closed'
   if (/\b(?:deferred|postponed)\b|延后|延期/.test(value)) return 'deferred'
   if (/\b(?:partial|residual-tail|pending|in-progress|executing|blocked)\b|部分|进行中|待确认|🔄|⚠️/.test(value)) return 'partial'
@@ -33,11 +37,23 @@ function normalizeStatus(text) {
   return 'unknown'
 }
 
-function statusTextForLine(line) {
+function statusTextForLine(line, statusColumn = null) {
   const trimmed = String(line || '').trim()
-  if (!trimmed.startsWith('|')) return trimmed
-  const cells = trimmed.split('|').map(cell => cell.trim()).filter(Boolean)
-  return cells.length ? cells[cells.length - 1] : trimmed
+  if (trimmed.startsWith('|')) {
+    const cells = trimmed.split('|').slice(1, -1).map(cell => cell.trim())
+    if (statusColumn === -1) return ''
+    const value = cells[statusColumn === null ? cells.length - 1 : statusColumn] || ''
+    // Headerless legacy ledgers may use a final state cell. A sentence in that
+    // position is still prose, even when it mentions a completion receipt.
+    const plain = value.replace(/^[*`]+|[*`]+$/g, '')
+    if (statusColumn === null && !/^(?:✅\s*)?(?:(?:not|never)\s+(?:yet\s+)?(?:closed|fixed|resolved|completed?|accepted)|closed|fixed|resolved|completed?|accepted|deferred|postponed|partial|residual-tail|pending|in-progress|executing|blocked|open|todo|not-started|已关闭|已修复|已完成|未关闭|未修复|未完成|尚未完成|待处理|未开始|延期)\s*(?:$|[;:：，,（(—–·/])|^(?:✅|🔄|⚠️|⏹️)$/i.test(plain)) return ''
+    return value
+  }
+  const field = trimmed.match(/^(?:[-*]\s*)?(?:\*\*)?(?:状态|status|state)(?:\*\*)?\s*[:：]\s*(?:\*\*)?\s*(.+)$/i)
+  if (field) return field[1]
+  // Retain legacy explicit ID/state events, but never infer a state from narrative prose.
+  const event = trimmed.match(/^(?:[-*]\s*)?(?:(?:PI|PF|VL|GR|ISSUE)-\d+)\s+((?:✅\s*)?(?:closed|fixed|resolved|completed?|accepted|deferred|postponed|partial|residual-tail|pending|in-progress|executing|blocked|open|todo|not-started)\b|已关闭|已修复|已完成|待处理|未开始)(?=\s*(?:$|[;:：，,（(—–·/]))/i)
+  return event ? event[1] : ''
 }
 
 function classifySource(activeRoot, file) {
@@ -122,9 +138,16 @@ function extractClaims(activeRoot, source, content) {
   const lines = content.split(/\r?\n/)
   const claims = []
   let headingRecordIds = []
+  let statusColumn = null
   lines.forEach((line, index) => {
     const ids = Array.from(new Set(Array.from(line.matchAll(RECORD_PATTERN), match => match[0])))
-    const normalizedStatus = normalizeStatus(statusTextForLine(line))
+    if (line.trim().startsWith('|')) {
+      const columns = line.trim().split('|').slice(1, -1).map(cell => cell.trim())
+      const column = columns.findIndex(cell => /^(?:状态|status|state)$/i.test(cell.replace(/^[*`]+|[*`]+$/g, '')))
+      if (!ids.length && column !== -1) statusColumn = column
+      else if (!ids.length && columns.some(cell => /^(?:ID|编号|问题|描述|description|说明)$/i.test(cell))) statusColumn = -1
+    } else statusColumn = null
+    const normalizedStatus = normalizeStatus(statusTextForLine(line, statusColumn))
     if (/^#{1,6}\s/.test(line)) headingRecordIds = ids
     const claimIds = ids.length ? ids : (normalizedStatus !== 'unknown' ? headingRecordIds : [])
     if (!claimIds.length) return

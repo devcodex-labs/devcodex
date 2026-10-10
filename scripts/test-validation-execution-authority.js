@@ -632,6 +632,64 @@ async function main() {
     assert.deepStrictEqual(nodeStarts.map(node => node.nodeId), ['fixture'])
     assert(heartbeats.some(item => item.schemaVersion === 'ValidationRunHeartbeatV1' && item.totalNodeCount === 1))
 
+    const slowCandidate = { ...candidate, candidateId: 'validation-candidate-renewal-fixture', runnerFault: 'slow' }
+    const shortLease = fixtureLease({ candidate: slowCandidate, leaseWindowMs: 1200 })
+    const renewalStore = createValidationEvidenceStore({
+      activeRoot, project: 'devcodex', actorType: 'human-cli', runIdentity: shortLease.runIdentity
+    })
+    const checkpointLeaseMismatches = []
+    const slowRun = await runManagedValidation({
+      manifest: {}, plan, candidate: slowCandidate, repoRoot: fixtureRoot, activeRoot,
+      lease: shortLease, actorType: 'human-cli', project: 'devcodex', workerPath,
+      pollIntervalMs: 100, heartbeatIntervalMs: 100,
+      onHeartbeat: () => {
+        const current = renewalStore.readLease().lease
+        const state = renewalStore.readRunnerState(shortLease.runIdentityDigest).runnerState
+        if (state?.checkpoint && state.checkpoint.leaseDigest !== current?.authorityDigest) {
+          checkpointLeaseMismatches.push(state.checkpoint.leaseDigest)
+        }
+      }
+    })
+    assert.strictEqual(slowRun.receipt.terminalStatus, 'completed', JSON.stringify(slowRun))
+    assert.strictEqual(slowRun.receipt.nativeExitCode, 0)
+    assert(Date.parse(slowRun.runner.completedAt) > Date.parse(shortLease.expiresAt),
+      'a healthy run must outlive its initial short lease through owner renewal')
+    assert.deepStrictEqual(checkpointLeaseMismatches, [], 'renewed runner/checkpoint identities must stay recoverable')
+    const terminalLease = renewalStore.readLease().lease
+    assert(terminalLease.renewalCount > 0)
+    assert.strictEqual(terminalLease.hardDeadlineAt, shortLease.hardDeadlineAt)
+    assert.strictEqual(terminalLease.runIdentityDigest, shortLease.runIdentityDigest)
+    assert.strictEqual(terminalLease.planDigest, shortLease.planDigest)
+    assert.strictEqual(terminalLease.budgetDigest, shortLease.budgetDigest)
+
+    const casLease = fixtureLease({ candidate: { ...candidate, candidateId: 'validation-candidate-renewal-cas' } })
+    const casStore = createValidationEvidenceStore({
+      activeRoot, project: 'devcodex', actorType: 'human-cli', runIdentity: casLease.runIdentity
+    })
+    assert.strictEqual(casStore.writeLease(casLease).status, 'persisted')
+    const casNow = Date.now()
+    const casRenewed = renewVerificationExecutionLease(casLease, { nowMs: casNow })
+    assert.strictEqual(casStore.writeLease(casRenewed, { expectedLeaseDigest: sha256('wrong') }).errorCode,
+      'VALIDATION_LEASE_RENEWAL_CAS_CONFLICT')
+    assert.strictEqual(casStore.writeLease(casRenewed, { expectedLeaseDigest: casLease.authorityDigest }).status, 'persisted')
+    assert.strictEqual(casStore.writeLease(casRenewed, { expectedLeaseDigest: casLease.authorityDigest }).errorCode,
+      'VALIDATION_LEASE_RENEWAL_CAS_CONFLICT')
+    const revoked = transitionLease(casRenewed, 'revoked')
+    assert.strictEqual(casStore.writeLease(revoked).status, 'persisted')
+    assert.strictEqual(casStore.writeLease(casRenewed, { expectedLeaseDigest: revoked.authorityDigest }).errorCode,
+      'VALIDATION_LEASE_RENEWAL_DENIED')
+    assert.strictEqual(casStore.readLease().lease.authorityDigest, revoked.authorityDigest)
+
+    const expiredLease = fixtureLease({ candidate: { ...candidate, candidateId: 'validation-candidate-renewal-expired' } })
+    const expiredStore = createValidationEvidenceStore({
+      activeRoot, project: 'devcodex', actorType: 'human-cli', runIdentity: expiredLease.runIdentity
+    })
+    assert.strictEqual(expiredStore.writeLease(expiredLease).status, 'persisted')
+    assert.strictEqual(expiredStore.writeLease(renewVerificationExecutionLease(expiredLease), {
+      expectedLeaseDigest: expiredLease.authorityDigest, nowMs: Date.parse(expiredLease.expiresAt)
+    }).errorCode, 'VALIDATION_LEASE_RENEWAL_DENIED')
+    assert.strictEqual(expiredStore.readLease().lease.authorityDigest, expiredLease.authorityDigest)
+
     const driftAwareRepo = path.join(fixtureRoot, 'candidate-reconciliation-repo')
     fs.mkdirSync(driftAwareRepo, { recursive: true })
     fs.writeFileSync(path.join(driftAwareRepo, 'tracked.js'), 'module.exports = 1\n')
@@ -1202,6 +1260,20 @@ async function main() {
     assert.strictEqual(taskStore.readLease().status, 'missing')
     assert.strictEqual(taskStore.readContinuationAuthorization().continuationAuthorization.schemaVersion,
       'ValidationContinuationTerminalLineageV1')
+    const taskCasLease = fixtureLease({
+      candidate: { ...candidate, candidateId: 'validation-candidate-task-renewal-cas' },
+      actorType: 'ai-hook', taskRecoveryKey: taskIdentity.taskId, contextEpoch: 'ctx-task-renewal',
+      sourceMessageDigest: sha256('task-renewal-user'), authoritySourceRef: 'fixture:task-renewal'
+    })
+    assert.strictEqual(taskStore.writeLease(taskCasLease).status, 'committed')
+    const taskRenewed = renewVerificationExecutionLease(taskCasLease)
+    assert.strictEqual(taskStore.writeLease(taskRenewed, { expectedLeaseDigest: taskCasLease.authorityDigest }).status, 'committed')
+    assert.strictEqual(taskStore.writeLease(taskRenewed, { expectedLeaseDigest: taskCasLease.authorityDigest }).errorCode,
+      'VALIDATION_LEASE_RENEWAL_CAS_CONFLICT')
+    assert.strictEqual(taskStore.revokeValidationExecution().status, 'committed')
+    assert.strictEqual(taskStore.writeLease(taskRenewed, { expectedLeaseDigest: taskRenewed.authorityDigest }).errorCode,
+      'VALIDATION_LEASE_RENEWAL_CAS_CONFLICT')
+    assert.strictEqual(taskStore.readLease().status, 'missing', 'renewal must not recreate revoked task authority')
     const firstTaskRun = runFixture('task-0')
     const firstTaskWrite = taskStore.writeTerminal(firstTaskRun.receipt)
     assert(['committed', 'semantic-noop'].includes(firstTaskWrite.status), JSON.stringify(firstTaskWrite))
@@ -1220,7 +1292,11 @@ async function main() {
   } finally {
     if (priorFaultMode === undefined) delete process.env.DEVCODEX_VALIDATION_TEST_FAULTS
     else process.env.DEVCODEX_VALIDATION_TEST_FAULTS = priorFaultMode
-    fs.rmSync(fixtureRoot, { recursive: true, force: true, maxRetries: 8, retryDelay: 50 })
+    if (process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1' || process.env.DEVCODEX_KEEP_TEMP_ARTIFACTS === '1') {
+      process.stdout.write(`[test-validation-execution-authority] retained ${fixtureRoot}\n`)
+    } else {
+      fs.rmSync(fixtureRoot, { recursive: true, force: true, maxRetries: 8, retryDelay: 50 })
+    }
   }
 }
 

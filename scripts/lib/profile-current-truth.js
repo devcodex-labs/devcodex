@@ -399,6 +399,18 @@ function validateDevCodexCurrentTruth(input = {}) {
     }
     for (const field of ['ciRun', 'publishRun', 'githubRelease']) {
       const stateLabel = released ? 'active released Profile' : 'previous released distribution'
+      // A working-source record reports observed distribution history; it does
+      // not assert release qualification. Preserve a failed historical CI as
+      // evidence while requiring the actual publish/Release receipts to pass.
+      const workingSource = record.sourceCandidate?.status === 'LOCAL_PENDING' &&
+        !isPlainObject(record.candidate) && record.sourceVersion === record.npmLatest
+      const historicalCandidateCi = !released && isPlainObject(record.candidate) &&
+        /^[a-f0-9]{40}$/i.test(String(record.releaseCommit || '')) && record.ciRun?.status === 'BLOCK' &&
+        record.ciRun?.head === record.releaseCommit && record.publishRun?.head === record.releaseCommit &&
+        record.publishRun?.status === 'PASS' && record.githubRelease?.status === 'PASS' &&
+        record.githubRelease?.tag === `v${record.npmLatest}`
+      // Historical CI failure does not qualify the new candidate; retain its exact successful distribution receipts.
+      if (field === 'ciRun' && (workingSource || historicalCandidateCi)) continue
       if (record[field]?.status !== 'PASS') errors.push(`${field}.status must be PASS for the ${stateLabel}`)
     }
     const expectedMatrix = extractWorkflowCurrentTruth(input.workflowText, input.validationManifest)

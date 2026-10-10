@@ -19,6 +19,7 @@ const {
   BUDGET_CONFIRMATION_SCHEMA,
   CONTINUATION_AUTHORIZATION_SCHEMA,
   PENDING_BUDGET_SCHEMA,
+  renewVerificationExecutionLease,
   transitionValidationContinuation,
   validateBudgetConfirmationReceipt,
   validatePendingBudgetCardBinding,
@@ -261,7 +262,24 @@ function readRunShardPayload({ activeRoot, project, runIdentityDigest, kind }) {
     : { status: 'missing', payload: null, shard, stateOwner: 'taskless-run-fixed-shard' }
 }
 
-function writeRunShardPayload({ activeRoot, project, runIdentityDigest, kind, payload, nowMs = Date.now() }) {
+function assertLeaseRenewal(current, next, expectedLeaseDigest, nowMs) {
+  if (!DIGEST_RE.test(String(expectedLeaseDigest || '')) ||
+      current?.authorityDigest !== expectedLeaseDigest) {
+    throw evidenceBindingError('VALIDATION_LEASE_RENEWAL_CAS_CONFLICT', 'lease renewal requires the exact current authority')
+  }
+  // Validate inside the writer transaction; a prior read cannot authorize
+  // reviving a lease that was revoked, replaced or expired before the write.
+  renewVerificationExecutionLease(current, { nowMs: Math.max(nowMs, Date.now()) })
+  const renewed = renewVerificationExecutionLease(current, {
+    nowMs: Date.parse(next.lastRenewedAt), maxLevel: next.maxLevel, leaseWindowMs: next.leaseWindowMs
+  })
+  if (Date.parse(next.lastRenewedAt) > nowMs || renewed.authorityDigest !== next.authorityDigest) {
+    throw evidenceBindingError('VALIDATION_LEASE_RENEWAL_INVALID', 'renewal must preserve the current run and hard deadline')
+  }
+}
+
+function writeRunShardPayload({ activeRoot, project, runIdentityDigest, kind, payload, nowMs = Date.now(),
+  expectedLeaseDigest = null }) {
   if (!RUN_KINDS.has(kind)) return { status: 'error', errorCode: 'VALIDATION_RUN_SHARD_KIND_INVALID' }
   let shard
   try { shard = runShardIndex(runIdentityDigest) } catch (error) {
@@ -275,6 +293,9 @@ function writeRunShardPayload({ activeRoot, project, runIdentityDigest, kind, pa
     const coordination = writer.update(current => {
       const slots = readRunShardSlots(activeRoot, project, shard, kind)
       const sameRun = slots.find(slot => slot.runIdentityDigest === runIdentityDigest)
+      if (kind === 'authority' && expectedLeaseDigest !== null) {
+        assertLeaseRenewal(sameRun?.payload, payload, expectedLeaseDigest, nowMs)
+      }
       const payloadDigest = digest(payload)
       if (sameRun && sameRun.payloadDigest === payloadDigest) {
         semanticNoop = sameRun
@@ -689,7 +710,7 @@ function createValidationEvidenceStore(options = {}) {
     })
   }
 
-  function updateTask(kind, payload, nowMs = Date.now()) {
+  function updateTask(kind, payload, nowMs = Date.now(), expectedLeaseDigest = null) {
     const input = {
       metaDir,
       ...taskSelector,
@@ -702,6 +723,12 @@ function createValidationEvidenceStore(options = {}) {
     const commit = updateTaskRecoveryState(input, state => {
       const currentExecution = state.validationExecution || {}
       const existing = currentExecution[field]
+      if (kind === 'authority' && expectedLeaseDigest !== null) {
+        assertLeaseRenewal(existing, payload, expectedLeaseDigest, nowMs)
+        if (Number(currentExecution.revocationEpoch || 0) !== payload.revocationEpoch) {
+          throw evidenceBindingError('VALIDATION_CONTINUATION_REVOKED', 'lease renewal cannot cross a revocation epoch')
+        }
+      }
       if (kind === 'terminal' && existing?.runIdentityDigest === payload.runIdentityDigest) {
         if (existing.terminalDigest !== payload.terminalDigest) {
           const error = new Error('the validation run already has a different task-bound terminal receipt')
@@ -1128,15 +1155,15 @@ function createValidationEvidenceStore(options = {}) {
       : latest
   }
 
-  function primaryWrite(kind, payload, runIdentityDigest, nowMs) {
+  function primaryWrite(kind, payload, runIdentityDigest, nowMs = Date.now(), expectedLeaseDigest = null) {
     try {
       if (kind === 'terminal' && remainingPrimaryTerminalFailures > 0) {
         remainingPrimaryTerminalFailures -= 1
         return { status: 'error', errorCode: 'VALIDATION_TEST_PRIMARY_TERMINAL_WRITE_FAILED' }
       }
       return taskBound
-        ? updateTask(kind, payload, nowMs)
-        : writeRunShardPayload({ activeRoot, project, runIdentityDigest, kind, payload, nowMs })
+        ? updateTask(kind, payload, nowMs, expectedLeaseDigest)
+        : writeRunShardPayload({ activeRoot, project, runIdentityDigest, kind, payload, nowMs, expectedLeaseDigest })
     } catch (error) {
       return { status: 'error', errorCode: error.code || 'VALIDATION_EVIDENCE_WRITE_FAILED', message: error.message }
     }
@@ -1208,7 +1235,8 @@ function createValidationEvidenceStore(options = {}) {
     writeLease(lease, writeOptions = {}) {
       const runIdentityDigest = String(lease?.runIdentityDigest || configuredRunIdentityDigest)
       if (!DIGEST_RE.test(runIdentityDigest)) return { status: 'error', errorCode: 'VALIDATION_RUN_IDENTITY_REQUIRED' }
-      return primaryWrite('authority', lease, runIdentityDigest, writeOptions.nowMs)
+      return primaryWrite('authority', lease, runIdentityDigest, writeOptions.nowMs,
+        writeOptions.expectedLeaseDigest === undefined ? null : writeOptions.expectedLeaseDigest)
     },
     writeRunnerState(runnerState, writeOptions = {}) {
       const runIdentityDigest = String(runnerState?.runIdentityDigest || configuredRunIdentityDigest)

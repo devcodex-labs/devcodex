@@ -17,9 +17,9 @@
       "entrySurface": "codex exec --ephemeral",
       "bootstrapDelivery": "stable user-global Hook launcher UserPromptSubmit or profile_context_plan fallback",
       "defaultEligible": true,
-      "runtimeContractDigest": "017cdd878d25ee3c89fb4971f771bf1e8fe30a9abcf305915781eebb5c5fa794",
+      "runtimeContractDigest": "ca61908e554aef941e77a2e0f59f895d39a6006c4845af351be361845becf3bd",
       "hostAdapterDigest": "fee2426ff47e74db16dcfddf0de8c84d8622a558fa8ced1fe6371dd850087f4e",
-      "evidenceDigest": "f6bbd19b80199a3e15c58f77e41b3b35fc94b920c69b3bab0ee1b6e82a0c6c79"
+      "evidenceDigest": "6e1041565c719102bdc85202199f77a76485032c01601ec51f2ae750e0f3e208"
     },
     {
       "hostVariant": "codex-desktop/app-user-global-local-stdio",

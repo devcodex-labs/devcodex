@@ -3913,7 +3913,13 @@ function recoverAutoCheckpointWriteOwner({ target, taskDir, identity, recoveryId
   const envelope = lifecycle.actualInstructionEnvelope || null
   const routeDecision = lifecycle.workflowRouteDecision || null
   const projectTargetLease = lifecycle.stickyProject || null
-  const hostSessionId = String(process.env.DEVCODEX_HOST_SESSION_ID || '').trim()
+  const contextHostSessionId = String(lifecycle.contextAcquisition?.hostSessionId || '').trim()
+  const receiptHostSessionId = String(lifecycle.contextAcquisition?.receipt?.identity?.hostSessionId || '').trim()
+  const contextSessionMatches = !contextHostSessionId || !receiptHostSessionId ||
+    contextHostSessionId === receiptHostSessionId
+  // Explicit host identity takes precedence; ContextRead is the existing trusted fallback.
+  const hostSessionId = String(process.env.DEVCODEX_HOST_SESSION_ID || '').trim() ||
+    contextHostSessionId || receiptHostSessionId
   const hostSessionDigest = hostSessionId ? digestInstructionIdentity(hostSessionId) : null
   const sessionAuthorityDigest = hostSessionId ? digestSessionRef(hostSessionId) : null
   const leaseValidation = validateProjectTargetLease(projectTargetLease, {
@@ -3944,7 +3950,7 @@ function recoverAutoCheckpointWriteOwner({ target, taskDir, identity, recoveryId
     state.executionMode === 'auto' && state.stickyAuto?.active === true &&
     state.stickyAuto?.authorityRef === grant?.authorityRef &&
     grant?.sourceMessageDigest === envelope?.actualInstructionDigest
-  const exactSession = !!hostSessionId && hostSessionDigest === envelope?.hostSessionDigest &&
+  const exactSession = contextSessionMatches && !!hostSessionId && hostSessionDigest === envelope?.hostSessionDigest &&
     sessionAuthorityDigest === owner?.sessionDigest &&
     sessionAuthorityDigest === projectTargetLease?.authorityDigest
   if (!exactSemanticSource || !exactLifecycleIngress || !exactTaskAuto || !exactSession ||
@@ -3953,6 +3959,7 @@ function recoverAutoCheckpointWriteOwner({ target, taskDir, identity, recoveryId
       ...(!exactSemanticSource ? ['semantic-source-mismatch'] : []),
       ...(!exactLifecycleIngress ? ['lifecycle-ingress-mismatch'] : []),
       ...(!exactTaskAuto ? ['task-auto-mismatch'] : []),
+      ...(!contextSessionMatches ? ['context-session-conflict'] : []),
       ...(!exactSession ? ['host-session-mismatch'] : []),
       ...(!leaseValidation.valid ? leaseValidation.errors.map(item => `project-lease:${item}`) : []),
       ...(!operationSnapshot.terminalReady ? operationSnapshot.errors.map(item => `operation:${item}`) : []),

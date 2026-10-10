@@ -217,8 +217,8 @@ function scanDocsSurfaceInventory (root) {
 function assertDocsSurfaceInventory (inv) {
   const failures = []
 
-  if (inv.skillDirs !== 86) failures.push(`skills dirs expected 86 got ${inv.skillDirs}`)
-  if (inv.pluginSkillIds !== 86) failures.push(`plugin skills expected 86 got ${inv.pluginSkillIds}`)
+  if (inv.skillDirs !== 87) failures.push(`skills dirs expected 87 got ${inv.skillDirs}`)
+  if (inv.pluginSkillIds !== 87) failures.push(`plugin skills expected 87 got ${inv.pluginSkillIds}`)
   if (inv.skillWithMd !== inv.skillDirs) {
     failures.push(`SKILL.md missing for some skill dirs (${inv.skillWithMd}/${inv.skillDirs})`)
   }

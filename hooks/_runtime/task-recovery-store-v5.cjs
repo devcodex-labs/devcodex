@@ -4332,6 +4332,23 @@ function buildTasklessAuthorityEphemeralStub(state) {
   return stub
 }
 
+/**
+ * Preserve a verified host instruction before context has selected a route.
+ * Retaining this input grants no task, mutation or release authority.
+ * @param {object} state Current lifecycle state.
+ * @returns {boolean} Whether the pending instruction matches this context/session.
+ */
+function hasPendingWorkflowIngress(state) {
+  const envelope = state?.actualInstructionEnvelope
+  const context = state?.contextAcquisition || {}
+  return !state?.taskRecoveryBinding && !state?.workflowRouteDecision &&
+    envelope?.provenanceLevel === 'trusted-host-event' && envelope.instructionAuthority === true &&
+    envelope.contextEpoch === context.contextEpoch && Boolean(context.hostSessionId) &&
+    envelope.hostSessionDigest === rawHostSessionDigest(context.hostSessionId) &&
+    validateActualInstructionEnvelope(envelope).valid &&
+    validateWorkItemSet(state.workItemSet, envelope).valid
+}
+
 function buildMinimalEphemeralStub (state) {
   const context = state?.contextAcquisition || {}
   const route = state?.progressiveSkillRoute || {}
@@ -4346,6 +4363,7 @@ function buildMinimalEphemeralStub (state) {
     : null
   const handoff = context.plan || context.handoff || {}
   const ingressRecovery = buildTasklessWorkflowIngressRecovery(state, 'exact')
+  const pendingIngress = hasPendingWorkflowIngress(state)
   const formalTaskBinding = state?.taskRecoveryBinding || null
   const stub = {
     version: state?.version,
@@ -4380,10 +4398,10 @@ function buildMinimalEphemeralStub (state) {
       issuedAtMs: sticky.issuedAtMs,
       expiresAtMs: sticky.expiresAtMs
     } : null,
-    actualInstructionEnvelope: ingressRecovery
+    actualInstructionEnvelope: (ingressRecovery || pendingIngress)
       ? cloneRecoveryValue(state.actualInstructionEnvelope)
       : (state?.workflowOperationalWriteLease ? compactInstructionEnvelopeIdentity(envelope) : null),
-    workItemSet: ingressRecovery ? cloneRecoveryValue(state.workItemSet) : null,
+    workItemSet: (ingressRecovery || pendingIngress) ? cloneRecoveryValue(state.workItemSet) : null,
     workflowRouteDecision: ingressRecovery
       ? compactWorkflowRouteIdentity(state.workflowRouteDecision)
       : (state?.workflowOperationalWriteLease ? compactWorkflowRouteIdentity(workflowRoute) : null),
@@ -4393,6 +4411,9 @@ function buildMinimalEphemeralStub (state) {
           ? compactWorkflowRoutePlanBindingIdentity(state.workflowRoutePlanBinding)
           : null),
     workflowIngressRecovery: ingressRecovery,
+    progressiveSkillRouteEnforcement: compactEnforcementStateForEphemeral(
+      state?.progressiveSkillRouteEnforcement
+    ),
     workflowOperationalWriteLease: state?.workflowOperationalWriteLease
       ? JSON.parse(JSON.stringify(state.workflowOperationalWriteLease))
       : null,
@@ -4532,6 +4553,7 @@ function buildEphemeralStub(state) {
   const context = state?.contextAcquisition || {}
   const sticky = state?.stickyProject || {}
   const ingressRecovery = buildTasklessWorkflowIngressRecovery(state, 'exact')
+  const pendingIngress = hasPendingWorkflowIngress(state)
   const stub = {
     version: state?.version,
     mode: state?.mode,
@@ -4577,10 +4599,10 @@ function buildEphemeralStub(state) {
     simpleTaskFastPathLeaseCloseout: compactSimpleTaskFastPathLeaseCloseout(
       state?.simpleTaskFastPathLeaseCloseout
     ),
-    actualInstructionEnvelope: ingressRecovery
+    actualInstructionEnvelope: (ingressRecovery || pendingIngress)
       ? cloneRecoveryValue(state.actualInstructionEnvelope)
       : (state?.workflowOperationalWriteLease ? compactInstructionEnvelopeIdentity(state.actualInstructionEnvelope) : null),
-    workItemSet: ingressRecovery ? cloneRecoveryValue(state.workItemSet) : null,
+    workItemSet: (ingressRecovery || pendingIngress) ? cloneRecoveryValue(state.workItemSet) : null,
     workflowRouteDecision: ingressRecovery
       ? cloneRecoveryValue(state.workflowRouteDecision)
       : (state?.workflowOperationalWriteLease ? compactWorkflowRouteIdentity(state.workflowRouteDecision) : null),

@@ -100,6 +100,17 @@ const saturationInput = {
   oracle
 }
 const saturation = evaluateEvidenceSaturation(highSmall, saturationInput)
+const audit = plan({ workflow: 'audit', stage: 'audit' })
+const auditReceipt = receipt(audit)
+const auditInput = { ...saturationInput, receipts: [auditReceipt], oracle: evaluateStableReceiptOracle([auditReceipt], { [auditReceipt.receiptDigest]: 'passed' }) }
+assert.strictEqual(audit.exit.requiredZeroFindingRounds, 3)
+assert.notStrictEqual(evaluateEvidenceSaturation(audit, { ...auditInput, zeroFindingRounds: 2 }).status, 'passed')
+assert.strictEqual(evaluateEvidenceSaturation(audit, { ...auditInput, zeroFindingRounds: 3 }).status, 'passed')
+const narrowFacts = { explicitNarrowScope: true, scaleDecision: 'single-pass', crossHostControlPlane: false, multipleConsumers: false }
+const narrow = plan({ workflow: 'audit', stage: 'audit', risk: { class: 'normal', flags: [] }, auditConvergence: narrowFacts })
+assert.strictEqual(narrow.exit.requiredZeroFindingRounds, 2)
+assert.strictEqual(plan({ workflow: 'audit', stage: 'audit', auditConvergence: narrowFacts }).exit.requiredZeroFindingRounds, 3)
+assert.strictEqual(plan({ workflow: 'audit', stage: 'audit', risk: { class: 'normal', flags: [] }, auditConvergence: { ...narrowFacts, explicitNarrowScope: false } }).exit.requiredZeroFindingRounds, 3)
 assert.strictEqual(saturation.status, 'passed', saturation.reasons.join(', '))
 assert.strictEqual(evaluateEvidenceSaturation(highSmall, { ...saturationInput, dirtyBoundaryMatches: false }).status, 'full-required')
 assert.strictEqual(evaluateEvidenceSaturation(highSmall, { ...saturationInput, receipts: [] }).status, 'full-required')

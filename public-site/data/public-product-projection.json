@@ -1,8 +1,8 @@
 {
   "schemaVersion": "PublicProductProjectionV2",
-  "generatedAt": "2026-09-15T07:09:58.281Z",
+  "generatedAt": "2026-10-10T11:31:11.818Z",
   "release": {
-    "version": "1.20.3"
+    "version": "1.20.4"
   },
   "expression": {
     "schemaVersion": "PublicProductExpressionV2",
@@ -309,13 +309,13 @@
     }
   },
   "skills": {
-    "total": 86,
-    "active": 83,
+    "total": 87,
+    "active": 84,
     "gray": 3,
     "bucket": "80+",
     "categoryCounts": {
       "workflow-routing": 20,
-      "domain-architecture": 21,
+      "domain-architecture": 22,
       "quality-delivery": 28,
       "runtime-governance": 17
     },
@@ -362,8 +362,8 @@
         "id": "domain-architecture",
         "label": "Domain & Architecture",
         "description": "Provides product, experience, system, data, security, and operational architecture expertise.",
-        "count": 21,
-        "active": 20,
+        "count": 22,
+        "active": 21,
         "gray": 1,
         "representativeSkills": [
           {
@@ -522,6 +522,13 @@
         "description": "接口验证规范 — 双产物（.http + .cjs）生成 + 自动化执行脚本",
         "lifecycleState": "active",
         "publicCategory": "quality-delivery"
+      },
+      {
+        "id": "architecture-design",
+        "name": "architecture-design",
+        "description": "架构设计文档编排 Owner — 当用户要求架构设计、系统设计、技术架构或可指导开发、Review 与任务拆分的完整方案时使用；要求从业务流程反推节点、状态、数据、一致性、异常补偿、ADR 与实施任务。",
+        "lifecycleState": "active",
+        "publicCategory": "domain-architecture"
       },
       {
         "id": "audit-common",
@@ -1184,10 +1191,10 @@
     }
   ],
   "sourceIdentities": {
-    "package": "29a76b5e7e06ec0e2d44f321a9f7ac144bdfa430e4d229fd3486b240bf2647f4",
+    "package": "300515260d15b4b90a1c05f110170ad2b54a367762f3b80da7cbdd94a82776b8",
     "expression": "60e525d34e5531e6b4bbbb77f8b34bb93c9ca9ebee5df4fe2812749232175c3c",
     "workflows": "d9eb7086866fe3c3815f673957ed978c1594079261009ac775bf3e1336ad44fd",
-    "portfolio": "e7806ab2607b0f1a05f0568e5051a2b55273563617b9d8400f80f10236089130",
-    "taxonomy": "b673f27fa58c2d7a57b9aa906562faed2aca094a727c8686d941c39a5490f030"
+    "portfolio": "ccc282fc1caec348531363f6acf0edd53afd6ff3a65f32c3b79a3d5e2e273a85",
+    "taxonomy": "d8f3a3e9728cd04929750e8858e100fd60a4a0afc095b0217ac0877b02f0a7f2"
   }
 }

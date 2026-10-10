@@ -126,5 +126,5 @@ process.once('message', message => {
   }
   setTimeout(() => {
     send('result', { execution: { receipt: receiptFor(input) } }, true)
-  }, 25)
+  }, fault === 'slow' ? 3000 : 25)
 })

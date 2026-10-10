@@ -61,19 +61,21 @@ assert.deepStrictEqual(projection.workflows.routeLayers.auditTargets, [
   'audit.报告', 'audit.通用文档', 'audit.发布前审查'
 ])
 assert.deepStrictEqual(validateRoutePresentation(sourceWorkflow.routePresentation), [])
-assert.strictEqual(projection.skills.total, 86)
-assert.strictEqual(projection.skills.active, 83)
+assert.strictEqual(projection.skills.total, 87)
+assert.strictEqual(projection.skills.active, 84)
 assert.strictEqual(projection.skills.gray, 3)
 assert.strictEqual(projection.skills.bucket, '80+')
 assert.deepStrictEqual(projection.skills.categoryCounts, {
   'workflow-routing': 20,
-  'domain-architecture': 21,
+  'domain-architecture': 22,
   'quality-delivery': 28,
   'runtime-governance': 17
 })
 assert.strictEqual(projection.skills.categories.length, 4)
-assert.strictEqual(projection.skills.catalog.length, 86)
-assert.strictEqual(new Set(projection.skills.catalog.map(skill => skill.id)).size, 86)
+assert.strictEqual(projection.skills.catalog.length, 87)
+assert.strictEqual(new Set(projection.skills.catalog.map(skill => skill.id)).size, 87)
+assert(projection.skills.catalog.some(skill => skill.id === 'architecture-design'))
+assert(fs.readFileSync(path.join(ROOT, 'RULES.md'), 'utf8').includes('PC0~PC10'))
 assert(projection.skills.catalog.every(skill => typeof skill.publicCategory === 'string'))
 assert(projection.skills.categories.every(category =>
   category.representativeSkills.length > 0 &&
@@ -106,7 +108,7 @@ for (const needle of [
   "import { SkillCatalog } from '../../components/SkillCatalog'",
   '<SkillCatalog />',
   '不进入 bundled assignments',
-  '不进入 86/83/3 分母'
+  '不进入 87/84/3 分母'
 ]) assert(skillReference.includes(needle), needle)
 for (const needle of [
   'filterSkillCatalog',

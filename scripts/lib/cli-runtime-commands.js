@@ -58,22 +58,26 @@ function walkBounded(root, { excludedTopLevel = [] } = {}) {
   const excluded = new Set(excludedTopLevel)
   const pending = [{ dir: root, depth: 0 }]
   const entries = []
+  let unfinishedChildren = false
   while (pending.length && entries.length < MAX_ENTRIES) {
     const { dir: current, depth } = pending.pop()
     let children
     try { children = fs.readdirSync(current, { withFileTypes: true }) } catch { continue }
-    for (const child of children) {
+    for (const [index, child] of children.entries()) {
       const absolute = path.join(current, child.name)
       if (child.isDirectory() && !(depth === 0 && excluded.has(child.name))) pending.push({ dir: absolute, depth: depth + 1 })
       else if (child.isFile()) {
         let stats
         try { stats = fs.statSync(absolute) } catch { continue }
         entries.push({ path: absolute, bytes: stats.size, modifiedMs: stats.mtimeMs })
-        if (entries.length >= MAX_ENTRIES) break
+        if (entries.length >= MAX_ENTRIES) {
+          unfinishedChildren = index + 1 < children.length
+          break
+        }
       }
     }
   }
-  return { entries, truncated: pending.length > 0 }
+  return { entries, truncated: unfinishedChildren || pending.length > 0 }
 }
 
 function runtimeCategory (root, file) {

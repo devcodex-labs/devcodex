@@ -10,13 +10,13 @@
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "7b4042b10fc27cb70440fef64151bc50662a2f871274749925ea0e88f38388f4",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
-    "publicTaxonomyDigest": "d8f3a3e9728cd04929750e8858e100fd60a4a0afc095b0217ac0877b02f0a7f2",
+    "publicTaxonomyDigest": "7f6ee8c30f5484b8881e27099af72c69625b73a7cf3b53fe51c8c0c147d4f124",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "fddc547986599fe20672364d6432633edabeb60ee6c5f3da5f9ca083daed6e1e",
     "consumerInventoryFileCount": 722,
     "consumerInventoryDigest": "915e197c2e882223da7e45eb7f12b6c07054fc461945ae123e363170c489ec3e",
     "consumerProjectionDigest": "09e046eaea5934acc8a041c61c4b69dd9bc2e43e062395832a1d438bcc33bc28",
-    "portfolioInputDigest": "0413ef6be47fd178f3de8b9700d27f95ea0621ff335e6f63eeeef28e48a9d0fa"
+    "portfolioInputDigest": "e6c6fa9855f782f044a8c1f808ab6a186bbaf11e942bd17812e105dc13f4aeb3"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -49,7 +49,7 @@
       "assignmentScope": "bundled-registered-only",
       "includedInAssignments": false,
       "includedInBundledCounts": false,
-      "description": "Workspace Skills are project-scoped extensions. They are explained separately and never enter bundled Skill assignments or the 86/83/3 denominators."
+      "description": "Workspace Skills are project-scoped extensions. They are explained separately and never enter bundled Skill assignments or the 87/84/3 denominators."
     },
     "categories": [
       {

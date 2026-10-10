@@ -1,6 +1,6 @@
 {
   "schemaVersion": "PublicProductProjectionV2",
-  "generatedAt": "2026-10-10T11:31:11.818Z",
+  "generatedAt": "2026-10-10T16:48:17.854Z",
   "release": {
     "version": "1.20.4"
   },
@@ -1089,7 +1089,7 @@
       "assignmentScope": "bundled-registered-only",
       "includedInAssignments": false,
       "includedInBundledCounts": false,
-      "description": "Workspace Skills are project-scoped extensions. They are explained separately and never enter bundled Skill assignments or the 86/83/3 denominators."
+      "description": "Workspace Skills are project-scoped extensions. They are explained separately and never enter bundled Skill assignments or the 87/84/3 denominators."
     }
   },
   "capabilityScenarios": [
@@ -1194,7 +1194,7 @@
     "package": "300515260d15b4b90a1c05f110170ad2b54a367762f3b80da7cbdd94a82776b8",
     "expression": "60e525d34e5531e6b4bbbb77f8b34bb93c9ca9ebee5df4fe2812749232175c3c",
     "workflows": "d9eb7086866fe3c3815f673957ed978c1594079261009ac775bf3e1336ad44fd",
-    "portfolio": "ccc282fc1caec348531363f6acf0edd53afd6ff3a65f32c3b79a3d5e2e273a85",
-    "taxonomy": "d8f3a3e9728cd04929750e8858e100fd60a4a0afc095b0217ac0877b02f0a7f2"
+    "portfolio": "3d0fd37ac5a964a077c160983998a54ce9c23a929e3783db65023f999e112cfc",
+    "taxonomy": "7f6ee8c30f5484b8881e27099af72c69625b73a7cf3b53fe51c8c0c147d4f124"
   }
 }

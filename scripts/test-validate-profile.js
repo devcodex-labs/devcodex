@@ -105,10 +105,11 @@ function runValidateAll(workspaceRoot) {
     })
 }
 
-function runValidateCurrent(workspaceRoot) {
+function runValidateCurrent(workspaceRoot, env = process.env) {
     return spawnSync(process.execPath, [ALL_SCRIPT, '--workspace', workspaceRoot, '--current-only'], {
         cwd: workspaceRoot,
-        encoding: 'utf8'
+        encoding: 'utf8',
+        env
     })
 }
 
@@ -1272,6 +1273,23 @@ function main() {
         assert.match(workspaceDebtOutput, /\[profile-all\] current-project=devcodex checked=1 errors=0 warnings=0/)
         assert.match(workspaceDebtOutput, /\[profile-all\] workspace-debt checked=2 errors=1 warnings=0/)
         assert.match(workspaceDebtOutput, /profile-standard requires 04-测试规范\.md/)
+        const bareSourceRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-profile-source-'))
+        TEMP_ROOTS.push(bareSourceRoot)
+        const sourceEnv = { ...process.env, DEVCODEX_VALIDATION_SCOPE: 'source' }
+        const sourceWithoutWorkspace = runValidateCurrent(bareSourceRoot, sourceEnv)
+        assert.strictEqual(sourceWithoutWorkspace.status, 0, sourceWithoutWorkspace.stderr)
+        assert.match(sourceWithoutWorkspace.stdout, /\[profile-current\] N\/A: source checkout has no deployed workspace Profile/)
+        const localWithoutWorkspace = runValidateCurrent(bareSourceRoot, { ...process.env, DEVCODEX_VALIDATION_SCOPE: 'workspace' })
+        assert.strictEqual(localWithoutWorkspace.status, 1)
+        assert.match(localWithoutWorkspace.stderr, /missing \.devcodex directory/)
+        const deployedWithoutCurrent = runValidateCurrent(allProfilesRoot, sourceEnv)
+        assert.strictEqual(deployedWithoutCurrent.status, 1)
+        assert.doesNotMatch(deployedWithoutCurrent.stdout, /N\/A/)
+        writeFile(currentOnlyRoot, '.devcodex/devcodex/profile/01-项目信息.md', [currentProjectInfo(), '', '- Profile 档位：profile-standard。'].join('\n'))
+        const invalidDeployedCurrent = runValidateCurrent(currentOnlyRoot, sourceEnv)
+        assert.strictEqual(invalidDeployedCurrent.status, 1)
+        assert.match(invalidDeployedCurrent.stdout, /profile-standard requires 04-测试规范\.md/)
+        assert.doesNotMatch(invalidDeployedCurrent.stdout, /N\/A/)
         const batchEResult = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'test-v1178-batch-e.js')], {
             cwd: ROOT,
             encoding: 'utf8'

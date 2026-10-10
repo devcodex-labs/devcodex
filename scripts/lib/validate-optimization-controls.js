@@ -247,16 +247,16 @@ function buildOptimizationControlChecks(ctx) {
 
     const portfolio = buildPortfolio(ROOT)
     const portfolioErrors = validatePortfolio(portfolio)
-    if (portfolio.summary.skillCount !== 86) err(`[V92] expected 86 skills, got ${portfolio.summary.skillCount}`)
+    if (portfolio.summary.skillCount !== 87) err(`[V92] expected 87 skills, got ${portfolio.summary.skillCount}`)
     if (portfolio.summary.graySkillCount !== 3) err(`[V92] expected three gray skills, got ${portfolio.summary.graySkillCount}`)
     if (JSON.stringify(portfolio.summary.publicCategoryCounts) !== JSON.stringify({
       'workflow-routing': 20,
-      'domain-architecture': 21,
+      'domain-architecture': 22,
       'quality-delivery': 28,
       'runtime-governance': 17
     })) err('[V92] public Skill category counts drifted')
     if (portfolio.summary.dependencyEdgeCount < 1) err('[V92] explicit Skill dependency graph has no edges')
-    if (portfolio.summary.operationalEvidenceCompleteCount !== 86) err('[V92] operational lifecycle evidence is incomplete')
+    if (portfolio.summary.operationalEvidenceCompleteCount !== 87) err('[V92] operational lifecycle evidence is incomplete')
     if (portfolio.summary.triggerQuality !== 'mixed') err('[V92] trigger precision must reflect measured kernel samples')
     if (!Number.isInteger(portfolio.generatedFrom.consumerInventoryFileCount) || portfolio.generatedFrom.consumerInventoryFileCount < 50) {
       err('[V92] portfolio consumer inventory is missing or unexpectedly small')
@@ -275,7 +275,7 @@ function buildOptimizationControlChecks(ctx) {
     if (committedText !== serializePortfolio(portfolio)) err('[V92] committed Skill portfolio is stale')
 
     if (process.env.DEVCODEX_VALIDATION_SCOPE === 'source') {
-      console.log('[V92] optimization source controls checked: skills=86 gray=3; deployed runtime index deferred to profile-deploy')
+      console.log('[V92] optimization source controls checked: skills=87 gray=3; deployed runtime index deferred to profile-deploy')
       return
     }
     const runtimeState = buildRuntimeStateIndex(ACTIVE_DEVCODEX_ROOT)
@@ -286,7 +286,7 @@ function buildOptimizationControlChecks(ctx) {
       err('[V92] runtime-state index must expose transition and consumer-drift diagnostics')
     }
 
-    console.log(`[V92] optimization controls checked: skills=86 gray=3 runtimeAlerts=${runtimeState.summary.alertCount}`)
+    console.log(`[V92] optimization controls checked: skills=87 gray=3 runtimeAlerts=${runtimeState.summary.alertCount}`)
   }
 
   return { checkV92 }

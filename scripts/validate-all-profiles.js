@@ -35,6 +35,10 @@ const sourceProjectRoot = path.join(workspaceRoot, path.basename(ROOT))
 
 function collectProfileTargets() {
   if (!fs.existsSync(devcodexRoot)) {
+    if (currentOnly && process.env.DEVCODEX_VALIDATION_SCOPE === 'source') {
+      console.log(`[profile-current] N/A: source checkout has no deployed workspace Profile: ${devcodexRoot}`)
+      process.exit(0)
+    }
     console.error(`[profile-all] missing .devcodex directory: ${devcodexRoot}`)
     process.exit(1)
   }

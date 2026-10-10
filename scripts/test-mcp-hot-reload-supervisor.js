@@ -31,7 +31,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
 `
 }
 
-function callClient (child, onMessage = null) {
+function callClient (child, onMessage = null, diagnosticContext = () => ({})) {
   const pending = new Map()
   readline.createInterface({ input: child.stdout }).on('line', line => {
     const message = JSON.parse(line)
@@ -46,7 +46,7 @@ function callClient (child, onMessage = null) {
     const requestId = ++id
     const timer = setTimeout(() => {
       pending.delete(requestId)
-      reject(new Error(`timeout: ${method}`))
+      reject(new Error(`timeout: ${method}; requestId=${requestId}; childPid=${child.pid}; childExitCode=${child.exitCode}; context=${JSON.stringify(diagnosticContext())}`))
     }, 5000)
     pending.set(requestId, message => {
       clearTimeout(timer)
@@ -126,7 +126,12 @@ async function main () {
     })
     child.stderr.on('data', chunk => diagnostics.push(String(chunk)))
     const observedMessages = []
-    const call = callClient(child, message => observedMessages.push(message))
+    let phase = 'initialize'
+    const call = callClient(child, message => observedMessages.push(message), () => ({
+      phase,
+      diagnostics: diagnostics.join('').slice(-4000),
+      lastResponseIds: observedMessages.slice(-5).map(message => message.id)
+    }))
     child.stdin.write('42\n')
     const invalidDeadline = Date.now() + 5000
     while (
@@ -142,10 +147,12 @@ async function main () {
     const initialized = await call('initialize', { protocolVersion: '2024-11-05', capabilities: {} })
     assert(initialized.result)
     child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} })}\n`)
+    phase = 'initial-worker-call'
     const first = toolValue(await call('tools/call', { name: 'fixture_version', arguments: {} }))
     assert.strictEqual(first.version, 'v1')
 
     fs.writeFileSync(worker, workerSource('v2'))
+    phase = 'implementation-hot-reload'
     const second = await waitForVersion(call, 'v2')
     assert.notStrictEqual(second.pid, first.pid, 'worker PID must change while supervisor connection stays open')
 
@@ -163,14 +170,17 @@ async function main () {
       await new Promise(resolve => setTimeout(resolve, 10))
     }
     assert.strictEqual(observedMessages.find(message => message.id === 1000)?.error?.data?.errorCode, 'MCP_STDIO_FRAME_TOO_LARGE', 'internal id expansion must not produce a worker timeout')
+    phase = 'after-frame-rejection'
     assert.strictEqual(toolValue(await call('tools/call')).version, 'v2')
     process.kill(second.pid)
     await new Promise(resolve => setTimeout(resolve, 100))
+    phase = 'same-contract-crash-recovery'
     const restarted = toolValue(await call('tools/call'))
     assert.strictEqual(restarted.version, 'v2', 'same contract crash recovery must work')
 
     fs.writeFileSync(worker, workerSource('v3', 'changed_schema'))
     await new Promise(resolve => setTimeout(resolve, 150))
+    phase = 'changed-contract-hot-reload'
     const afterSchemaChange = toolValue(await call('tools/call', { name: 'fixture_version', arguments: {} }))
     assert.strictEqual(afterSchemaChange.version, 'v2', 'schema change must keep the compatible worker serving')
     await new Promise(resolve => setTimeout(resolve, 50))
@@ -180,6 +190,7 @@ async function main () {
 
     process.kill(restarted.pid)
     await new Promise(resolve => setTimeout(resolve, 100))
+    phase = 'changed-contract-crash-recovery'
     const incompatibleRestart = await call('tools/call')
     assert.strictEqual(incompatibleRestart.error?.data?.errorCode, 'MCP_SCHEMA_RESTART_REQUIRED')
     assert.strictEqual((await call('tools/list')).error?.data?.errorCode, 'MCP_SCHEMA_RESTART_REQUIRED', 'rejected crash worker cannot serve the changed contract')

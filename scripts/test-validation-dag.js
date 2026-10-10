@@ -2245,6 +2245,7 @@ function run() {
     const profileCurrentNode = manifest.nodes.find(node => node.id === 'profile-current')
     assert(profileCurrentNode, 'manifest must expose lightweight profile-current node')
     assert.deepStrictEqual(profileCurrentNode.args, ['scripts/validate-all-profiles.js', '--current-only'])
+    assert.deepStrictEqual(profileCurrentNode.environment, { DEVCODEX_VALIDATION_SCOPE: 'source' })
     assert.strictEqual(profileCurrentNode.riskClass, 'normal')
     assert.deepStrictEqual(profileCurrentNode.writeScopes, [])
     assert(manifest.iterativeInvariantNodes.includes('profile-current'),

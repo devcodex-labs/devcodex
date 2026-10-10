@@ -4435,6 +4435,9 @@
         "scripts/validate-all-profiles.js",
         "--current-only"
       ],
+      "environment": {
+        "DEVCODEX_VALIDATION_SCOPE": "source"
+      },
       "dependencies": [],
       "inputs": [
         "scripts/validate-profile.js",

@@ -86,7 +86,10 @@ function watchTree (root, onChange) {
   const watchers = []
   const attach = (directory, recursive) => {
     try {
-      const watcher = fs.watch(directory, { recursive }, () => onChange())
+      // Windows notifications use the physical long path. A short-name or
+      // junction alias can otherwise trigger an uncatchable libuv assertion.
+      const watchDirectory = path.normalize(fs.realpathSync.native(directory))
+      const watcher = fs.watch(watchDirectory, { recursive }, () => onChange())
       watcher.on('error', () => onChange())
       watchers.push(watcher)
       return true

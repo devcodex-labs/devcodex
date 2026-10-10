@@ -75,6 +75,7 @@ async function main () {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-mcp-hot-reload-'))
   const baseRoot = path.join(tempRoot, 'managed')
   const sourceRoot = path.join(tempRoot, 'source')
+  const sourceAlias = path.join(tempRoot, 'source-alias')
   const mcpRoot = path.join(sourceRoot, 'mcp')
   let child
   try {
@@ -91,6 +92,9 @@ async function main () {
     fs.rmSync(path.join(sourceRoot, '.git'), { recursive: true, force: true })
     fs.writeFileSync(path.join(sourceRoot, '.git'), 'gitdir: ../.git/worktrees/fixture\n')
     assert.strictEqual(validLiveSourceRoot(sourceRoot, 'profile'), true)
+    fs.symlinkSync(sourceRoot, sourceAlias, process.platform === 'win32' ? 'junction' : 'dir')
+    assert.strictEqual(validLiveSourceRoot(sourceAlias, 'profile'), true)
+    assert.strictEqual(fs.realpathSync.native(sourceAlias), fs.realpathSync.native(sourceRoot))
     const supervisor = path.join(baseRoot, 'mcp-hot-reload-supervisor.cjs')
     fs.copyFileSync(path.join(ROOT, 'mcp', 'hot-reload-supervisor.cjs'), supervisor)
     fs.writeFileSync(path.join(baseRoot, 'global-host-receipt.json'), `${JSON.stringify({
@@ -101,7 +105,7 @@ async function main () {
       runtimeSource: {
         schemaVersion: 'McpRuntimeSourceV1',
         mode: 'live-source-checkout',
-        sourceRoot
+        sourceRoot: sourceAlias
       },
       updatedAt: new Date().toISOString()
     })}\n`)
@@ -202,6 +206,7 @@ async function main () {
       newWorkerPid: second.pid,
       implementationHotReload: 'PASS',
       schemaChangeFallback: 'PASS',
+      physicalWatchPath: 'PASS',
       result: 'PASS'
     }))
   } finally {

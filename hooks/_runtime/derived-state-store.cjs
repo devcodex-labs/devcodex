@@ -429,7 +429,13 @@ function createDerivedStateStore({
     }
   }
 
-  return Object.freeze({ filePath, lockPath, read, write, update })
+  function withLock(callback) {
+    const lock = acquireLock()
+    if (!lock) throw new DerivedStateStoreError('DERIVED_STATE_LOCK_TIMEOUT', 'timed out waiting for the derived-state owner')
+    try { return callback() } finally { releaseLock(lock) }
+  }
+
+  return Object.freeze({ filePath, lockPath, read, write, update, withLock })
 }
 
 module.exports = {

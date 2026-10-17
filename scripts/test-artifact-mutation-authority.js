@@ -201,6 +201,14 @@ try {
     'utf8'
   ))
   assert.strictEqual(baseRegistry.projectMutationCoverageContract, 'tracked-product-surfaces-v1')
+  for (const taskKind of ['requirements', 'bugs', 'optimizations', 'scenario-tests']) {
+    for (const extension of ['http', 'cjs']) {
+      const apiScript = classifyRelativeTarget(`${taskKind}/接口测试/计数服务-接口验证.${extension}`, baseRegistry)
+      assert.strictEqual(apiScript.slot?.slotId, 'task-script')
+      assert.strictEqual(apiScript.slot?.owner, 'task-owner')
+    }
+    assert.strictEqual(classifyRelativeTarget(`${taskKind}/接口测试/arbitrary.cjs`, baseRegistry).matchType, 'unknown-formal')
+  }
   assert.strictEqual(baseRegistry.protectedConstraints.operationPermissionOwner, 'host')
   assert(baseRegistry.slots.find(slot => slot.slotId === 'bug-cp2')?.canonicalNames.includes('02-技术方案.md'))
   assert(baseRegistry.slots.find(slot => slot.slotId === 'plan-review-pr1')?.canonicalNames.includes('03-方案复审-PR1.md'))

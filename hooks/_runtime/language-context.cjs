@@ -158,7 +158,20 @@ function primaryFromContext(value) {
   return ''
 }
 
+// Positional metadata is used only by byte-constrained ephemeral recovery.
+// Keep locale decisions and true provisional flags visible to older readers.
+const RECOVERY_LANGUAGE_METADATA_KEYS = Object.freeze([
+  'durableSource', 'durableConfidence', 'durableSourceDigest', 'durableUpdatedAt',
+  'preferenceDigest', 'preferenceSource', 'diagnostics', 'updatedPrimary', 'durableProvisional'
+])
+
 function compactLanguageContext(value) {
+  if (Array.isArray(value?.recoveryMetadataV1) &&
+      value.recoveryMetadataV1.length === RECOVERY_LANGUAGE_METADATA_KEYS.length) {
+    value = { ...value, ...Object.fromEntries(RECOVERY_LANGUAGE_METADATA_KEYS.map(
+      (key, index) => [key, value.recoveryMetadataV1[index]]
+    )) }
+  }
   const durableProvisional = value?.schemaVersion === LANGUAGE_CONTEXT_SCHEMA && value?.durableProvisional === true
   const primaryLanguage = primaryFromContext(value) || (durableProvisional
     ? normalizeLanguageTag(value?.primaryLanguage || value?.responseLanguage || value?.durablePrimaryLocale)
@@ -191,6 +204,16 @@ function compactLanguageContext(value) {
     localeCapability: localeCapability(responseLanguage),
     diagnostics: Array.isArray(value?.diagnostics) ? value.diagnostics.map(String).slice(0, 8) : []
   }
+}
+
+function packRecoveryLanguageContext(value) {
+  const language = compactLanguageContext(value)
+  if (!language) return null
+  const packed = { ...language, recoveryMetadataV1: RECOVERY_LANGUAGE_METADATA_KEYS.map(key => language[key]) }
+  for (const key of RECOVERY_LANGUAGE_METADATA_KEYS) {
+    if (!['updatedPrimary', 'durableProvisional'].includes(key) || language[key] !== true) delete packed[key]
+  }
+  return packed
 }
 
 function languageContextIntegrityErrors(value) {
@@ -307,6 +330,7 @@ module.exports = {
   LANGUAGE_CONTEXT_SCHEMA,
   classifyLanguageTurn,
   compactLanguageContext,
+  packRecoveryLanguageContext,
   formatLanguageContextInstruction,
   formatLanguagePreferenceDiagnostic,
   languageContextIntegrityErrors,

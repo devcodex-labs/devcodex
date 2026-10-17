@@ -271,7 +271,7 @@ description: D1~D25 规范文件审查维度总览 — 规范库/specs 文件专
 |:-:|---------|
 | 1 | `README.md` 或官网首页是否给出 Client Support Matrix（明示 Copilot/Claude Code/Cursor/Codex 各等级）|
 | 2 | 矩阵描述与实际分发链路（`SOURCES` vs `CLAUDE_SOURCES`）一致 |
-| 3 | 未支持客户端（如 Codex）是否明示"无适配"而非默认隐瞒 |
+| 3 | 未支持客户端是否明确标注适配边界；已支持客户端的能力等级是否与当前支持矩阵及实际安装链路一致 |
 
 **D25 记忆/报告 `<agent>` 字段 🔴**
 

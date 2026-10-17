@@ -1382,6 +1382,40 @@ const childSuccess = runHostAdapter('codex', { hookEventName: 'UserPromptSubmit'
 })
 assert.strictEqual(childSuccess.status, 0)
 assert.deepStrictEqual(childSuccess.output, {})
+const childDiagnostic = runHostAdapter('codex', { hookEventName: 'PostToolUse' }, {
+  spawnSync: () => ({ status: 0, stdout: '{"continue":true}', stderr: 'bookkeeping diagnostic\n' })
+})
+assert.strictEqual(childDiagnostic.diagnostics, 'bookkeeping diagnostic\n')
+const concurrentHookRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-hook-events-'))
+try {
+  const fakeLifecycle = path.join(concurrentHookRoot, 'slow-lifecycle.cjs')
+  fs.writeFileSync(path.join(concurrentHookRoot, 'package.json'), '{}')
+  fs.writeFileSync(path.join(concurrentHookRoot, 'counter.json'), '0')
+  fs.writeFileSync(fakeLifecycle, `const fs = require('fs');
+    const count = JSON.parse(fs.readFileSync('counter.json', 'utf8'));
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 40);
+    fs.writeFileSync('counter.json', JSON.stringify(count + 1));
+    process.stdout.write('{"continue":true}');`)
+  const adapterPath = require.resolve('../hooks/_runtime/lifecycle-host-adapters.cjs')
+  const worker = `const { runHostAdapter } = require(${JSON.stringify(adapterPath)});
+    const result = runHostAdapter('codex', { hookEventName: 'PostToolUse', cwd: process.cwd(),
+      session_id: 'parallel-tools' }, { lifecycle: ${JSON.stringify(fakeLifecycle)} });
+    if (result.status !== 0) { process.stderr.write(result.error); process.exit(1); }`
+  const coordinator = `const { spawn } = require('child_process');
+    Promise.all(Array.from({length: 6}, () => new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, ['-e', ${JSON.stringify(worker)}], { stdio: ['ignore', 'ignore', 'pipe'] });
+      let stderr = ''; child.stderr.on('data', data => stderr += data);
+      child.on('error', reject); child.on('exit', code => code === 0 ? resolve() : reject(new Error(stderr)));
+    }))).catch(error => { process.stderr.write(error.message); process.exitCode = 1; });`
+  const concurrent = spawnSync(process.execPath, ['-e', coordinator], {
+    cwd: concurrentHookRoot, encoding: 'utf8', timeout: 10000
+  })
+  assert.strictEqual(concurrent.status, 0, concurrent.stderr)
+  assert.strictEqual(JSON.parse(fs.readFileSync(path.join(concurrentHookRoot, 'counter.json'), 'utf8')), 6,
+    'parallel tool hooks must not overwrite another hook transaction')
+  const lockRoot = path.join(concurrentHookRoot, '.devcodex/.memory/hooks/event-locks')
+  assert.deepStrictEqual(fs.readdirSync(lockRoot), [], 'successful event transactions must release their locks')
+} finally { fs.rmSync(concurrentHookRoot, { recursive: true, force: true }) }
 let observedLifecycleCwd = null
 let observedLifecycleTimeout = null
 const childWithPayloadCwd = runHostAdapter('copilot', {

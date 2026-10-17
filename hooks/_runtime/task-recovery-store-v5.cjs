@@ -36,7 +36,7 @@ const {
   isTransientWindowsFsError,
   retryTransientWindowsFs
 } = require('./windows-fs-retry.cjs')
-const { compactLanguageContext } = require('./language-context.cjs')
+const { compactLanguageContext, packRecoveryLanguageContext } = require('./language-context.cjs')
 const {
   validateActualInstructionEnvelope,
   validateWorkItemSet
@@ -3227,6 +3227,9 @@ function applyMutationOwnerAuthorityRecovery(state, ownerState) {
 
 function materializeEphemeralMutationState(raw) {
   const state = JSON.parse(JSON.stringify(raw || {}))
+  if (state.languageContext?.recoveryMetadataV1) {
+    state.languageContext = compactLanguageContext(state.languageContext)
+  }
   delete state.dangerousApprovals
   delete state.dangerousApprovalRecovery
   const operation = state.turnLiveness?.inFlightOperation
@@ -4343,6 +4346,9 @@ function buildTasklessAuthorityEphemeralStub(state, maxBytes = EPHEMERAL_STUB_TA
   if (jsonBytes(stub) > maxBytes) {
     stub.progressiveSkillRoute = null
     stub.progressiveSkillRouteStop = null
+  }
+  if (jsonBytes(stub) > maxBytes) {
+    stub.languageContext = packRecoveryLanguageContext(stub.languageContext)
   }
   return stub
 }

@@ -515,7 +515,8 @@
       "artifactClass": "script",
       "stage": "implementation",
       "relativePatterns": [
-        "^(?:scripts|services)/[^/]+(?:/[^/]+)*\\.(?:cjs|mjs|js|ts|ps1|sh|http)$"
+        "^(?:scripts|services)/[^/]+(?:/[^/]+)*\\.(?:cjs|mjs|js|ts|ps1|sh|http)$",
+        "^[^/]+-接口验证\\.(?:http|cjs)$"
       ],
       "alternativeGroup": null,
       "writePolicy": "bounded-path",

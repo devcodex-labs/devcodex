@@ -5346,6 +5346,13 @@ async function main() {
 
 main().catch(err => {
   process.stderr.write(`DevCodex hook error: ${process.env.DEVCODEX_TEST_TRACE_HOOK_ERRORS === '1' ? err.stack : err.message}\n`)
+  if (process.env.DEVCODEX_TEST_TRACE_HOOK_ERRORS === '1' && err.details) {
+    process.stderr.write(`DevCodex hook commit diagnostics: ${JSON.stringify({
+      event: activeHookEvent, errorCode: err.code,
+      expectedCommitFence: err.details.expectedCommitFence,
+      observedCommitFence: err.details.observedCommitFence
+    })}\n`)
+  }
   // Internal bookkeeping failure must not cancel the host's original task.
   // No write success or host permission is inferred from this fallback.
   const message =

@@ -2541,6 +2541,33 @@ function testMemoryWorkflowOperationalWriteLeaseContract() {
   assert.match(resultById(responses, 5).content[0].text, /WORKFLOW_OPERATIONAL_TARGET_INVALID/)
   assert.strictEqual(resultById(responses, 6).isError, false)
   assert.deepStrictEqual(resultById(responses, 6).structuredContent.lease.relativeTargets, [reportTarget])
+  const statePath = path.join(activeRoot, '.memory/hooks/legacy/lifecycle-state.json')
+  const fullState = JSON.parse(fs.readFileSync(statePath, 'utf8'))
+  const compactState = JSON.parse(JSON.stringify(fullState))
+  compactState.actualInstructionEnvelope = {
+    schemaVersion: ingress.actualInstructionEnvelope.schemaVersion,
+    envelopeId: ingress.actualInstructionEnvelope.envelopeId,
+    envelopeDigest: ingress.actualInstructionEnvelope.envelopeDigest,
+    contextEpoch: ingress.actualInstructionEnvelope.contextEpoch,
+    expiresAt: ingress.actualInstructionEnvelope.expiresAt
+  }
+  compactState.workflowIngressRecovery = { authorityMode: 'identity-only' }
+  const requestLease = () => resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(1, 'tools/call', { name: 'memory_workflow_operational_write_lease', arguments: args })
+  ], TEMP_ROOT), 1)
+  fs.writeFileSync(statePath, JSON.stringify(compactState))
+  const restored = requestLease()
+  assert.strictEqual(restored.isError, false, JSON.stringify(restored))
+  assert.deepStrictEqual(restored.structuredContent.lease.relativeTargets, [reportTarget])
+  assert.strictEqual(restored.structuredContent.lease.productMutationAuthority, false)
+  for (const invalid of [
+    { ...compactState, stickyProject: { ...compactState.stickyProject, leaseDigest: 'f'.repeat(64) } },
+    { ...compactState, contextAcquisition: { ...compactState.contextAcquisition, hostSessionId: 'another-session' } }
+  ]) {
+    fs.writeFileSync(statePath, JSON.stringify(invalid))
+    assert.strictEqual(requestLease().isError, true, 'immutable ingress must not replace a different live lease or session')
+  }
+  fs.writeFileSync(statePath, JSON.stringify(fullState))
 }
 
 function testMemoryAdmissionPreservesObservedTurn() {

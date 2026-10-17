@@ -5,6 +5,8 @@ const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
 const { spawnSync } = require('child_process')
+const { createDerivedStateStore } = require('./derived-state-store.cjs')
+const { resolveActiveRuntimeRoot } = require('./workspace-layout.cjs')
 const {
   STDIO_CHILD_TIMEOUT_MS,
   STDIO_MAX_FRAME_BYTES,
@@ -919,7 +921,7 @@ function runHostAdapter(host, input, options = {}) {
       return undefined
     }
   })()
-  const child = spawn(process.execPath, [lifecycle], {
+  const invokeLifecycle = () => spawn(process.execPath, [lifecycle], {
     input: JSON.stringify(normalized.payload),
     encoding: 'utf8',
     maxBuffer: 8 * 1024 * 1024,
@@ -927,6 +929,23 @@ function runHostAdapter(host, input, options = {}) {
     ...(lifecycleCwd ? { cwd: lifecycleCwd } : {}),
     env: { ...(options.env || process.env), DEVCODEX_HOST_PLATFORM: host }
   })
+  let child
+  try {
+    const sessionKey = normalized.payload.session_id || normalized.payload.sessionId || normalized.payload.thread_id
+    if (lifecycleCwd && sessionKey) {
+      // Parallel host tools can run their hooks concurrently. Serialize each
+      // session's load/observe/save transaction, while retaining the task CAS
+      // against independent MCP writers. This lock never covers the tool itself.
+      const sessionDigest = crypto.createHash('sha256').update(String(sessionKey)).digest('hex')
+      const store = createDerivedStateStore({
+        root: resolveActiveRuntimeRoot(lifecycleCwd),
+        relativePath: `.memory/hooks/event-locks/${sessionDigest}`
+      })
+      child = store.withLock(invokeLifecycle)
+    } else child = invokeLifecycle()
+  } catch (error) {
+    return { status: 1, error: `HOST_LIFECYCLE_EVENT_LOCK_FAILED: ${error.code || error.message}`, output: null }
+  }
   if (child.error) {
     const reasonCode = child.error.code === 'ETIMEDOUT'
       ? 'HOST_LIFECYCLE_TIMEOUT'
@@ -948,6 +967,7 @@ function runHostAdapter(host, input, options = {}) {
   const result = {
     status: 0,
     error: '',
+    ...(child.stderr ? { diagnostics: String(child.stderr).slice(0, 8192) } : {}),
     output: adaptHostOutput(host, normalized.originalEvent, output, input, options)
   }
   appendAdapterTrace(host, 'output', input, normalized, result, options.env || process.env)
@@ -1066,6 +1086,7 @@ if (require.main === module) {
       payload.hookEventName = process.env.DEVCODEX_HOST_EVENT
     }
     const result = runHostAdapter(host, payload)
+    if (result.diagnostics) process.stderr.write(result.diagnostics)
     if (result.status !== 0) {
       process.stderr.write(`${result.error}\n`)
       process.exit(result.status)

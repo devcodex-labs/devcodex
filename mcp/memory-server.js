@@ -501,7 +501,7 @@ const TOOLS = [
   },
   {
     name: 'memory_workflow_operational_write_lease',
-    description: '为精确 operational slot 签发一次性窄写租约。',
+    description: '仅授权报告/记忆/审查状态，targets 为 active-root 相对路径。CP/方案/源码/接口脚本应由 formal task fenced owner 原生写入。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -5444,7 +5444,35 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
       }
     }
   }
-  const { state, statePath, raw } = readServerOwnedLifecycleProjection(target)
+  const projection = readServerOwnedLifecycleProjection(target)
+  const { statePath, raw } = projection
+  let state = projection.state
+  if (options.restoreExactOperationalIngress === true &&
+      state?.workflowIngressRecovery?.authorityMode === 'identity-only') {
+    // The compact identity grants no authority. Recover the omitted input only
+    // from its independently verified immutable snapshot and the exact same
+    // live lease/session; never substitute a previous context or renewed lease.
+    const exact = readAdmissionIngressSnapshot({
+      metaDir: ingressMetaDir, ingressRef: ref, project: target.project, activeRoot: target.activeRoot
+    }, { fs, nowMs: Date.now() })
+    const snapshot = exact.snapshot
+    const hostSessionId = process.env.DEVCODEX_HOST_SESSION_ID || state.contextAcquisition?.hostSessionId
+    if (exact.status !== 'fresh' || !hostSessionId ||
+        snapshot.projectTargetLease.leaseDigest !== state.stickyProject?.leaseDigest ||
+        snapshot.actualInstructionEnvelope.hostSessionDigest !== crypto.createHash('sha256').update(hostSessionId).digest('hex') ||
+        snapshot.actualInstructionEnvelope.contextEpoch !== state.contextAcquisition?.contextEpoch ||
+        state.actualInstructionEnvelope?.envelopeDigest !== ref.envelopeDigest ||
+        state.workflowRouteDecision?.decisionDigest !== ref.decisionDigest) {
+      throw taskAdmissionIngressError('WORKFLOW_OPERATIONAL_INGRESS_RECOVERY_REQUIRED',
+        'restore the exact current ContextRead ingress; compact identity alone cannot authorize an operational write')
+    }
+    state = { ...state,
+      actualInstructionEnvelope: snapshot.actualInstructionEnvelope,
+      workItemSet: snapshot.workItemSet,
+      workflowRouteDecision: snapshot.workflowRouteDecision,
+      workflowIngressRecovery: null
+    }
+  }
   const envelope = state?.actualInstructionEnvelope
   const workItemSet = state?.workItemSet
   const decision = state?.workflowRouteDecision
@@ -6809,7 +6837,10 @@ function resolveCurrentTaskIngress(target, args, options = {}) {
   let lastError
   for (const ref of args.ingressRef ? [args.ingressRef, null] : [null]) {
     try {
-      const ingress = readServerOwnedAdmissionIngress(target, ref, { allowSnapshot: options.allowSnapshot !== false, taskId })
+      const ingress = readServerOwnedAdmissionIngress(target, ref, {
+        allowSnapshot: options.allowSnapshot !== false, taskId,
+        restoreExactOperationalIngress: options.restoreExactOperationalIngress === true
+      })
       ingress.ingressWarnings = [...warnings, ...(ingress.ingressWarnings || [])]
       return ingress
     } catch (error) {
@@ -6939,7 +6970,9 @@ function handleMemoryWorkflowOperationalWriteLease(args) {
       'workflow operational authority requires one exact project scope'
     )
   }
-  const ingress = resolveCurrentTaskIngress(target, args, { allowSnapshot: false })
+  const ingress = resolveCurrentTaskIngress(target, args, {
+    allowSnapshot: false, restoreExactOperationalIngress: true
+  })
   const lease = createWorkflowOperationalWriteLease({
     state: { ...ingress.lifecycleState, activeProject: target.project, activeScope: 'project',
       actualInstructionEnvelope: ingress.actualInstructionEnvelope, workItemSet: ingress.workItemSet,

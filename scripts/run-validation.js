@@ -55,7 +55,9 @@ const {
   validationLevelRequiresConvergence
 } = require('./lib/validation-convergence-state')
 const {
-  resolveActiveRuntimeRoot
+  resolveActiveRuntimeRoot,
+  resolveRuntimeStateRoot,
+  resolveHostWorkspaceBinding
 } = require('../hooks/_runtime/workspace-layout.cjs')
 const {
   readContextPlanObservation
@@ -520,6 +522,19 @@ function directActorIdentityEvidence(actorType, env = process.env) {
   }
 }
 
+function validationProjectNamespace(activeRoot) {
+  const runtime = resolveRuntimeStateRoot(activeRoot)
+  if (runtime.project) return runtime.project
+  const binding = resolveHostWorkspaceBinding({ cwd: path.dirname(activeRoot) })
+  if (binding.status === 'resolved' && binding.activeRoot &&
+      path.resolve(binding.activeRoot) === path.resolve(activeRoot)) return binding.projectNamespace
+  return 'devcodex'
+}
+
+function validationAuthorityProject(context) {
+  return context?.taskIdentity?.project || context?.project || 'devcodex'
+}
+
 function resolveObservedSemanticValidationControl({
   activeRoot,
   contextEpoch,
@@ -535,7 +550,7 @@ function resolveObservedSemanticValidationControl({
   try {
     observed = readContextObservation({
       activeRoot,
-      project: 'devcodex',
+      project: recovered.identity.project,
       contextEpoch,
       nowMs
     })
@@ -551,7 +566,7 @@ function resolveObservedSemanticValidationControl({
   const taskGrant = recovered.state?.taskScopedAutoContinuationGrant || null
   const taskGrantValidation = validateTaskScopedAutoContinuationGrant(taskGrant, {
     taskId: recovered.identity.taskId,
-    project: 'devcodex',
+    project: recovered.identity.project,
     projectRootIdentityDigest: recovered.state?.admissionTransaction?.projectRootIdentityDigest
   })
   const executionDecision = semanticDecision.executionDecision
@@ -568,7 +583,7 @@ function resolveObservedSemanticValidationControl({
       semanticDecision,
       executionMode,
       taskRecoveryKey: recovered.identity.taskId,
-      project: 'devcodex',
+      project: recovered.identity.project,
       projectRootIdentity,
       ...(durableTaskAuto ? { issuedAt: new Date(nowMs).toISOString() } : {})
     }, { now: nowMs })
@@ -581,6 +596,7 @@ function resolveValidationAuthorityContext({ actorType, options, activeRoot, env
   readTaskState = readTaskRecoveryState, readContextObservation = readContextPlanObservation,
   nowMs = Date.now() }) {
   const context = {
+    project: validationProjectNamespace(activeRoot),
     authoritySourceRef: options.authoritySourceRef || env.DEVCODEX_VALIDATION_AUTHORITY_SOURCE || null,
     contextEpoch: options.contextEpoch || env.DEVCODEX_CONTEXT_EPOCH || null,
     sessionKey: options.sessionKey || env.DEVCODEX_VALIDATION_SESSION_KEY || null,
@@ -608,11 +624,11 @@ function resolveValidationAuthorityContext({ actorType, options, activeRoot, env
     )
   }
 
-  const metaDir = resolveTaskRecoveryMetaDir({ activeRoot, project: 'devcodex' })
+  const metaDir = resolveTaskRecoveryMetaDir({ activeRoot, project: context.project })
   const recovered = readTaskState({
     metaDir,
     sessionKey: context.sessionKey,
-    expectedIdentity: { activeRoot, project: 'devcodex' }
+    expectedIdentity: { activeRoot, project: context.project }
   })
   if (recovered.status !== 'fresh' || !recovered.identity?.taskId) {
     throw new ValidationDagError(
@@ -624,6 +640,11 @@ function resolveValidationAuthorityContext({ actorType, options, activeRoot, env
         nextStep: 'Restore or admit the exact formal task for this session before generating a BudgetCard.'
       }
     )
+  }
+  if (recovered.identity.project !== context.project ||
+      path.resolve(recovered.identity.activeRoot) !== path.resolve(activeRoot)) {
+    throw new ValidationDagError('VALIDATION_AI_TASK_BINDING_MISMATCH',
+      'the recovered task does not belong to the current project partition')
   }
   const resolvedTaskKey = String(recovered.identity.taskId).trim().toLowerCase()
   if (context.taskRecoveryKey && String(context.taskRecoveryKey).trim().toLowerCase() !== resolvedTaskKey) {
@@ -675,7 +696,7 @@ function exactPendingMatchesPlan(pending, plan, candidate, projectRoot) {
       plan,
       candidate,
       repoRoot: ROOT,
-      project: 'devcodex',
+      project: pending.project,
       taskRecoveryKey: pending.taskRecoveryKey,
       hostSessionDigest: pending.hostSessionDigest,
       contextEpoch: pending.contextEpoch,
@@ -699,7 +720,7 @@ function resolvePendingBudgetPlanIdentity({ actorType, authorityContext, candida
   const projectRoot = validationProjectRootIdentity(repoRoot)
   const validation = validatePendingBudgetCardBinding(pending, {
     taskRecoveryKey: authorityContext.taskRecoveryKey,
-    project: 'devcodex',
+    project: validationAuthorityProject(authorityContext),
     projectRootIdentity: projectRoot,
     hostSessionDigest: control.hostSessionDigest,
     candidateId: candidate.candidateId,
@@ -746,7 +767,7 @@ function resolveFormalTaskExecutionPreflight({ authorityContext, plan, candidate
   const validationRoot = validationProjectRootIdentity(repoRoot)
   const expected = {
     taskId: authorityContext.taskRecoveryKey,
-    project: 'devcodex',
+    project: validationAuthorityProject(authorityContext),
     validationProjectRootDigest: validationRoot.digest,
     candidateId: candidate.candidateId,
     candidateDigest: candidateBinding(candidate).candidateDigest,
@@ -775,7 +796,7 @@ function resolveFormalTaskExecutionPreflight({ authorityContext, plan, candidate
   try {
     authorityRead = readFormalTaskExecutionReadiness({
       activeRoot,
-      project: 'devcodex',
+      project: validationAuthorityProject(authorityContext),
       taskId: authorityContext.taskRecoveryKey,
       taskState: authorityContext.taskState,
       projectRootIdentityDigest: authorityContext.taskState?.admissionTransaction?.projectRootIdentityDigest,
@@ -787,7 +808,7 @@ function resolveFormalTaskExecutionPreflight({ authorityContext, plan, candidate
     const blocked = createFormalTaskExecutionPreflight({
       status: 'BLOCK',
       taskId: authorityContext.taskRecoveryKey,
-      project: 'devcodex',
+      project: validationAuthorityProject(authorityContext),
       validationProjectRootDigest: validationRoot.digest,
       candidate,
       plan,
@@ -1332,7 +1353,7 @@ function tryResolveAutoContinuation({ plan, candidate, authorityContext, store, 
       parentTerminal: terminal,
       originalAuthorityRef: terminal.authoritySourceRef,
       taskRecoveryKey: authorityContext.taskRecoveryKey,
-      project: 'devcodex',
+      project: validationAuthorityProject(authorityContext),
       projectRootIdentity: root.projectRootIdentity,
       hostSessionDigest: root.hostSessionDigest,
       oldContextEpoch: terminal.runIdentity?.contextEpoch,
@@ -1399,7 +1420,7 @@ function resolveAiBudgetAuthority({
   const control = authorityContext.validationControlIngress
   const store = createValidationEvidenceStore({
     activeRoot,
-    project: 'devcodex',
+    project: validationAuthorityProject(authorityContext),
     actorType: 'ai-hook',
     taskIdentity: authorityContext.taskIdentity,
     taskRecoveryKey: authorityContext.taskRecoveryKey,
@@ -1410,7 +1431,7 @@ function resolveAiBudgetAuthority({
   const revocationEpoch = currentValidationRevocationEpoch(authorityContext)
   const controlValidation = validateValidationControlIngressReceipt(control, {
     taskRecoveryKey: authorityContext.taskRecoveryKey,
-    project: 'devcodex',
+    project: validationAuthorityProject(authorityContext),
     projectRootIdentity: projectRoot,
     contextEpoch: authorityContext.contextEpoch
   }, { now: Number.isFinite(options.nowMs) ? options.nowMs : Date.now() })
@@ -1532,7 +1553,7 @@ function resolveAiBudgetAuthority({
     candidate,
     repoRoot: ROOT,
     projectRootIdentity: projectRoot,
-    project: 'devcodex',
+    project: validationAuthorityProject(authorityContext),
     taskRecoveryKey: authorityContext.taskRecoveryKey,
     hostSessionDigest: currentAiHostSessionDigest(authorityContext),
     contextEpoch: authorityContext.contextEpoch,
@@ -1895,7 +1916,7 @@ function createCliLease({ options, plan, candidate, actorType, authorityContext,
     repoRoot: ROOT,
     plan,
     candidate,
-    project: 'devcodex',
+    project: validationAuthorityProject(executionContext),
     taskRecoveryKey: executionContext.taskRecoveryKey,
     contextEpoch: executionContext.contextEpoch,
     authoritySourceRef,
@@ -1911,7 +1932,7 @@ function createTaskConvergenceStore({ actorType, authorityContext, activeRoot })
   if (actorType !== 'ai-hook' || !authorityContext?.taskIdentity || !authorityContext?.sessionKey) return null
   return createValidationEvidenceStore({
     activeRoot,
-    project: 'devcodex',
+    project: validationAuthorityProject(authorityContext),
     actorType,
     taskIdentity: authorityContext.taskIdentity,
     taskRecoveryKey: authorityContext.taskRecoveryKey,
@@ -2291,7 +2312,7 @@ async function main(argv = process.argv.slice(2)) {
       releaseAuthorized: options.releaseAuthorized,
       explicitFullAudit: options.explicitFullAudit,
       requesterClass: actorType,
-      project: 'devcodex',
+      project: validationAuthorityProject(authorityContext),
       taskRecoveryKey: authorityContext.taskRecoveryKey,
       approvePlanDigest: options.approvePlanDigest,
       forcedNodeIds: repairPlanScope.forcedNodeIds,
@@ -2534,7 +2555,7 @@ async function main(argv = process.argv.slice(2)) {
       activeRoot,
       lease,
       actorType,
-      project: 'devcodex',
+      project: validationAuthorityProject(authorityContext),
       taskRecoveryKey: authorityContext.taskRecoveryKey || plan.verificationIntent.taskRecoveryKey,
       contextEpoch: authorityContext.contextEpoch || plan.verificationIntent.contextEpoch,
       taskIdentity: authorityContext.taskIdentity,

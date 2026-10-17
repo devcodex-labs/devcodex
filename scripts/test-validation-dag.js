@@ -500,6 +500,27 @@ function run() {
     assert.strictEqual(aiAuthority.sessionKey, 'fixture-thread')
     assert.strictEqual(aiAuthority.contextEpoch, 'ctx-fixture-current')
     assert.match(aiAuthority.authoritySourceRef, /^ai-hook:codex:fixture-thread:task:/)
+    const aliasWorkspace = path.join(tempRoot, 'alias-workspace')
+    const aliasActiveRoot = path.join(aliasWorkspace, '.devcodex', 'lab')
+    fs.mkdirSync(aliasActiveRoot, { recursive: true })
+    fs.writeFileSync(path.join(aliasWorkspace, '.devcodex', 'layout.json'), JSON.stringify({ mode: 'workspace-namespace' }))
+    const aliasRead = project => input => {
+      assert.strictEqual(input.expectedIdentity.project, 'lab')
+      assert.strictEqual(input.metaDir, path.join(aliasActiveRoot, '.memory', 'hooks', 'lab'))
+      assert.strictEqual(input.sessionKey, 'alias-thread')
+      return { status: 'fresh', identity: { ...aiAuthority.taskIdentity, activeRoot: aliasActiveRoot, project } }
+    }
+    const aliasAuthorityInput = {
+      actorType: 'ai-hook', options: { contextEpoch: 'alias-epoch' },
+      activeRoot: aliasActiveRoot, env: { CODEX_THREAD_ID: 'alias-thread' }
+    }
+    const aliasAuthority = resolveValidationAuthorityContext({ ...aliasAuthorityInput, readTaskState: aliasRead('lab') })
+    assert.strictEqual(aliasAuthority.taskIdentity.project, 'lab')
+    assert.throws(() => resolveValidationAuthorityContext({ ...aliasAuthorityInput, readTaskState: aliasRead('devcodex') }),
+      error => error.code === 'VALIDATION_AI_TASK_BINDING_MISMATCH')
+    assert.throws(() => resolveValidationAuthorityContext({ ...aliasAuthorityInput,
+      readTaskState: () => ({ status: 'identity-mismatch', errorCode: 'LIFECYCLE_STATE_IDENTITY_MISMATCH' }) }),
+    error => error.code === 'VALIDATION_AI_TASK_BINDING_REQUIRED')
     const semanticPrompt = '已授权自动推进当前验证，不需要重复确认'
     const semanticEnvelope = buildActualInstructionEnvelope({
       prompt: semanticPrompt,

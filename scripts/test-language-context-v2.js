@@ -4,6 +4,8 @@
 const assert = require('assert')
 const {
   classifyLanguageTurn,
+  compactLanguageContext,
+  packRecoveryLanguageContext,
   formatLanguageContextInstruction,
   languageContextIntegrityErrors,
   normalizeLanguageTag,
@@ -48,6 +50,14 @@ assert.strictEqual(classifyLanguageTurn('D:\\Worker\\devcodex'), 'neutral')
 assert.strictEqual(classifyLanguageTurn('> please reply in English'), 'neutral')
 
 const switched = resolveLanguageContext({ languageDecision: decision('en-US', 'task', 'explicit'), prompt: '后续请用英文回复', carrier: first })
+for (const context of [first, switched, resolveLanguageContext({ languageDecision: decision('en-US', 'turn', 'explicit') })]) {
+  const packed = packRecoveryLanguageContext(context)
+  assert.deepStrictEqual(compactLanguageContext(packed), compactLanguageContext(context),
+    'ephemeral packing must preserve every language metadata field and provisional decision')
+  assert.deepStrictEqual(languageContextIntegrityErrors(packed), [])
+  if (context.durableProvisional) assert.strictEqual(packed.durableProvisional, true)
+  assert(Buffer.byteLength(JSON.stringify(packed)) < Buffer.byteLength(JSON.stringify(compactLanguageContext(context))))
+}
 assert.strictEqual(switched.primaryLanguage, 'en-US')
 assert.strictEqual(switched.durablePrimaryLocale, 'en-US')
 assert.strictEqual(switched.currentTurnClass, 'explicit-switch')

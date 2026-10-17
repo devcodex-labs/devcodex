@@ -1870,14 +1870,51 @@ function observedCpState(transaction, activeRoot, fsImpl = fs, options = {}) {
   const priorByPhase = new Map(priorEvidence.map(item => [item.phase, item]))
   const evolutionChanges = []
   const historicalStaleConfirmations = []
+  const currentEpoch = epochValidation.valid
+    ? epochSet.epochs.find(item => item.epochId === epochSet.currentEpochId)
+    : null
+  const retainedBindingMatches = (binding, evidence) => !!binding && !!evidence &&
+    sameCpConfirmationEvidence({ phase: binding.phase, version: binding.artifactVersion,
+      artifactDigest: binding.artifactSha256, artifactPath: binding.artifactPath,
+      confirmedAt: binding.confirmedAt, sourceMessage: binding.confirmationSourceDigest }, evidence)
+  const parentEpoch = currentEpoch?.parentEpochId
+    ? epochSet.epochs.find(item => item.epochId === currentEpoch.parentEpochId && item.status === 'superseded')
+    : null
+  const parentRetains = evidence => !!parentEpoch &&
+    [parentEpoch.phases[evidence.phase]?.currentBinding, ...(parentEpoch.phases[evidence.phase]?.history || [])]
+      .some(binding => retainedBindingMatches(binding, evidence))
   for (const prior of priorEvidence) {
     const current = confirmedEvidence.find(item => item.phase === prior.phase)
     const observation = confirmationObservations.find(item => item.phase === prior.phase)
     if (!current) {
+      if (['CP2', 'CP3'].includes(prior.phase) && parentRetains(prior) &&
+          parentRetains(priorByPhase.get('CP1') || {}) &&
+          currentEpoch.phases[prior.phase].state === 'unstarted') {
+        evolutionChanges.push({ kind: 'invalidated', phase: prior.phase,
+          from: cpConfirmationEvidenceSnapshot(prior), to: null,
+          cause: { epochId: currentEpoch.epochId, parentEpochId: parentEpoch.epochId } })
+        continue
+      }
       const pendingPhase = Number(String(pendingCheckpointCandidate?.checkpoint || '').slice(2)) || 0
       const priorPhase = Number(String(prior.phase || '').slice(2)) || 0
       if (checkpointSuccessor && pendingCheckpointValidation.valid &&
           pendingCheckpointCandidate.decision === 'auto-pass' && pendingPhase > 0 && priorPhase >= pendingPhase) {
+        continue
+      }
+      // The checkpoint Owner replaces CP2 and invalidates CP3 atomically in
+      // the same epoch. Both exact prior bindings must remain in sealed history;
+      // a missing row or a bare unstarted slot is never sufficient authority.
+      const priorCp2 = priorByPhase.get('CP2')
+      const nextCp2 = confirmedEvidence.find(item => item.phase === 'CP2')
+      const cp2Observation = confirmationObservations.find(item => item.phase === 'CP2')
+      if (prior.phase === 'CP3' && currentEpoch?.phases.CP3.state === 'unstarted' &&
+          currentEpoch.phases.CP3.history.some(binding => retainedBindingMatches(binding, prior)) &&
+          priorCp2 && nextCp2 && cp2Observation?.artifactVerified === true &&
+          nextCp2.version !== priorCp2.version && nextCp2.artifactDigest !== priorCp2.artifactDigest &&
+          currentEpoch.phases.CP2.history.some(binding => retainedBindingMatches(binding, priorCp2))) {
+        evolutionChanges.push({ kind: 'invalidated', phase: 'CP3',
+          from: cpConfirmationEvidenceSnapshot(prior), to: null,
+          cause: { phase: 'CP2', artifactDigest: nextCp2.artifactDigest } })
         continue
       }
       throw new TaskAdmissionError('TASK_ADMISSION_CP_STATE_CONFLICT', 'confirmed CP evidence rolled back or changed outside its admission lineage')
@@ -1892,6 +1929,11 @@ function observedCpState(transaction, activeRoot, fsImpl = fs, options = {}) {
       continue
     }
     if (observation?.pendingReplacement || observation?.pendingInvalidation) continue
+    if (prior.phase === 'CP1' && parentRetains(prior) && observation?.artifactVerified === true) {
+      evolutionChanges.push({ kind: 'stage-advanced', phase: 'CP1',
+        from: cpConfirmationEvidenceSnapshot(prior), to: cpConfirmationEvidenceSnapshot(current) })
+      continue
+    }
     const isDigestBoundSuccessor = observation?.artifactVerified === true &&
       current.version !== prior.version && current.artifactDigest !== prior.artifactDigest &&
       String(current.confirmedAt || '').trim() && String(current.sourceMessage || '').trim()

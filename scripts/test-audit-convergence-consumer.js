@@ -46,3 +46,15 @@ const narrowSession = { convergenceMode: 'narrow-2', reviewExecutionPlan: narrow
 }
 
 console.log('audit convergence V15 consumer passed')
+
+// These current consumers previously contradicted the Owner and V15. Keep the
+// bounded exception explicit without making a targeted label lower the gate.
+{
+  const fs = require('fs'), path = require('path')
+  for (const relative of ['content/prompts/report-audit.prompt.md', 'content/instructions/16-report.instructions.md',
+    'content/instructions/13-analyze.instructions.md', 'content/skills/intent/SKILL.md', 'content/skills/audit-execution-guide/SKILL.md']) {
+    const body = fs.readFileSync(path.join(__dirname, '..', relative), 'utf8')
+    assert(body.includes('audit-session') && body.includes('narrow-2'), relative)
+    assert(!/所有(?:子|审查)类型统一，不区分定向\/全面/.test(body), relative)
+  }
+}

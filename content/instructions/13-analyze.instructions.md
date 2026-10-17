@@ -52,7 +52,7 @@ version: 1.20.4
 
 > ℹ️ **analyze vs audit 的差异**：  
 > - `analyze` — 聚焦**特定问题/结论**，不使用维度框架，轻量多轮（≥3 轮，连续 2 轮无新发现后收敛）  
-> - `audit` — 使用**完整维度框架**（G1~G5 + 专属维度），覆盖范围更广；收敛条件：连续 3 轮有效零发现（仍须满足连续 3 轮零发现，并核验 `ReviewCoverageDelta`；不区分定向/全面，见 `12-audit §多轮收敛规则`）
+> - `audit` — 使用**完整维度框架**（G1~G5 + 专属维度），覆盖范围更广；收敛条件：连续 R 轮有效零发现；R按 audit-session/Owner 计划，默认3，完整有效 narrow-2 为2，full/security/release为3，并核验 `ReviewCoverageDelta`（见 `12-audit §多轮收敛规则`）
 
 ### analyze → audit 升级触发
 当 analyze 执行过程中出现以下任意情形时，**必须主动建议用户升级为 audit 工作流**：

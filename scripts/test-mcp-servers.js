@@ -2620,6 +2620,24 @@ function testMemoryTasklessCurrentReportRecovery() {
   assert.strictEqual(recovered.state.taskRecoveryBinding, null)
   assert.strictEqual(recovered.state.turnLiveness.taskOperationSet.unresolved, null)
   assert.strictEqual(recovered.state.turnLiveness.taskOperationSet.settled.at(-1).effect, 'accepted-current-state')
+
+  // The real host starts a new Hook process after the MCP reply. Its older
+  // rich lifecycle projection must not resurrect the already accepted unknown.
+  const hook = spawnSync(process.execPath, [path.join(ROOT, 'hooks/_runtime/lifecycle.cjs')], {
+    cwd: TEMP_ROOT, encoding: 'utf8', timeout: 30000,
+    input: JSON.stringify({ hookEventName: 'PostToolUse', session_id: hostSessionId,
+      tool_name: 'mcp__devcodex-memory__memory_artifact_mutation_reconcile_v1',
+      tool_input: args, tool_response: accepted.structuredContent }),
+    env: { ...process.env, DEVCODEX_HOST_PLATFORM: 'codex', DEVCODEX_HOST_SESSION_ID: hostSessionId }
+  })
+  assert.strictEqual(hook.status, 0, hook.stderr)
+  const afterHook = readTaskRecoveryState({ metaDir, hostSessionDigest: ingress.actualInstructionEnvelope.hostSessionDigest,
+    expectedIdentity: { activeRoot, project, taskStatus: 'active' } })
+  assert.strictEqual(afterHook.state.turnLiveness.taskOperationSet.unresolved, null,
+    'a real PostToolUse Hook must preserve the canonical current-report recovery')
+  assert(afterHook.state.turnLiveness.taskOperationSet.settled.some(value =>
+    value.operationId === 'taskless-missing-closeout' && value.currentStateRecovery?.recoveryDigest === accepted.structuredContent.receipt.recoveryDigest))
+  assert.strictEqual(fs.readFileSync(target, 'utf8'), '# bounded current report\n')
 }
 
 function testMemoryAdmissionPreservesObservedTurn() {
@@ -3028,6 +3046,38 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
   assert.strictEqual(terminalContinuity.canonical.status, 'current')
   assert.strictEqual(terminalContinuity.task.taskId, admitted.taskId)
   assert.strictEqual(terminalContinuity.mutationAuthority, false)
+
+  const reopenIngress = buildTaskAuthorityIngress({ activeRoot, project, suffix: 'terminal-reopen' })
+  writeTaskAuthorityLifecycleState(activeRoot, project, reopenIngress, { contextAcquisition: {
+    activeRoot, project, hostSessionId: 'mcp-task-authority-terminal-reopen',
+    contextEpoch: reopenIngress.actualInstructionEnvelope.contextEpoch, targetResolved: true
+  } })
+  const reopenArgs = { operation: 'bind', ingressRef: reopenIngress.ingressRef,
+    task: { taskId: admitted.taskId, taskKind: 'bugs', entryVariant: 'reopen', taskRootRelative: admitted.taskRootRelative },
+    overview: admissionArgs.overview }
+  const preparedReopen = resultById(runServer('mcp/memory-server.js', [rpcRequest(14, 'tools/call', {
+    name: 'memory_task_admit_v2', arguments: reopenArgs
+  })], TEMP_ROOT), 14)
+  assert.strictEqual(preparedReopen.isError, false, JSON.stringify(preparedReopen))
+  assert.strictEqual(preparedReopen.structuredContent.admissionGeneration, admitted.admissionGeneration + 1)
+  assert.strictEqual(preparedReopen.structuredContent.ownerReopenRequired, true)
+  assert.strictEqual(preparedReopen.structuredContent.mutationAuthority, false)
+  assert.strictEqual(preparedReopen.structuredContent.nextRequiredPhase, 'owner-reopen')
+  const terminalOwner = terminalOwnerRead.owner
+  const exactTerminalRef = { ownerGeneration: terminalOwner.ownerGeneration, ownerNonce: terminalOwner.ownerNonce,
+    leaseRevision: terminalOwner.leaseRevision, leaseDigest: terminalOwner.leaseDigest }
+  const reopened = resultById(runServer('mcp/memory-server.js', [rpcRequest(15, 'tools/call', {
+    name: 'memory_task_write_owner', arguments: { ...preparedReopen.structuredContent.nextCall.arguments, expectedOwner: exactTerminalRef }
+  })], TEMP_ROOT), 15)
+  assert.strictEqual(reopened.isError, false, JSON.stringify(reopened))
+  assert.strictEqual(reopened.structuredContent.operation, 'reopen')
+  assert.strictEqual(reopened.structuredContent.status, 'active')
+  assert(reopened.structuredContent.owner.ownerGeneration > terminalOwner.ownerGeneration)
+  const afterReopen = resultById(runServer('mcp/memory-server.js', [rpcRequest(16, 'tools/call', {
+    name: 'memory_task_continuity_view_v1', arguments: { taskId: admitted.taskId }
+  })], TEMP_ROOT), 16)
+  assert.strictEqual(afterReopen.isError, false, JSON.stringify(afterReopen))
+  assert.notStrictEqual(afterReopen.structuredContent.status, 'terminal', 'historical terminal must not label a successfully reopened task terminal')
 }
 
 function testMemoryArtifactMutationReconciliationContract() {
@@ -4129,6 +4179,80 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
   assert.strictEqual(nearTitleAccepted.structuredContent.artifactTemplateQualification.readbackVerified, true)
   assert.strictEqual(parseCpSessions(fs.readFileSync(sessionsPath, 'utf8')).CP3.confirmed, true,
     'real confirmation and readback must continue despite a template heading diagnostic')
+  // Reopened writers must establish a successor CP1; a CP2 targeting the old
+  // terminal epoch must fail before preparing, and old impossible preparations
+  // must be sealed abandoned without claiming a machine/projection commit.
+  const epochOwner = require('../hooks/_runtime/task-checkpoint-epoch-v1.cjs')
+  const projectionOwner = require('../hooks/_runtime/task-checkpoint-projection-v1.cjs')
+  const closed = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => {
+    state.taskCheckpointEpochSet = epochOwner.closeCurrentTaskCheckpointEpoch({
+      epochSet: state.taskCheckpointEpochSet, terminalStatus: 'completed' }).epochSet
+    return state
+  }, { force: true, reason: 'isolated-terminal-checkpoint-regression-fixture' })
+  assert(['committed', 'semantic-noop'].includes(closed.status))
+  const terminalEpoch = closed.state.taskCheckpointEpochSet.epochs.find(
+    item => item.epochId === closed.state.taskCheckpointEpochSet.currentEpochId)
+  const rejectedTerminal = resultById(runServer('mcp/memory-server.js', [rpcRequest(40, 'tools/call', {
+    name: 'memory_cp_confirm', arguments: recoveryArguments
+  })], TEMP_ROOT), 40)
+  assert.strictEqual(rejectedTerminal.isError, true)
+  assert.match(rejectedTerminal.content?.[0]?.text || '', /MEMORY_CP_EPOCH_SUCCESSOR_CP1_REQUIRED/)
+  const afterRejected = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+  assert.deepStrictEqual(afterRejected.checkpointEpochOperation, closed.state.checkpointEpochOperation)
+  const stranded = projectionOwner.sealCheckpointEpochOperation({
+    ...projectionOwner.createCheckpointEpochOperation({ taskId: admission.taskId, phase: 'CP2',
+      stageKey: terminalEpoch.stageKey, bindingDigest: terminalEpoch.phases.CP2.currentBinding.bindingDigest,
+      expectedStateSequence: 0, expectedWriterGeneration: 0,
+      expectedOwnerLeaseDigest: afterRejected.fencedWriteOwner.leaseDigest, confirmationMode: 'task-scoped-auto' }),
+    epochId: terminalEpoch.epochId })
+  const seeded = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => {
+    state.checkpointEpochOperation = stranded
+    state.checkpointEpochCandidateBinding = { schemaVersion: 'CheckpointEpochCandidateBindingV1',
+      binding: terminalEpoch.phases.CP2.currentBinding, sourceMessage: 'isolated stranded preparation' }
+    return state
+  }, { force: true, reason: 'isolated-old-runtime-preparation-fixture' })
+  assert(['committed', 'semantic-noop'].includes(seeded.status))
+  const recoveredPreparation = resultById(runServer('mcp/memory-server.js', [rpcRequest(41, 'tools/call', {
+    name: 'memory_cp_confirm', arguments: recoveryArguments
+  })], TEMP_ROOT), 41)
+  assert.strictEqual(recoveredPreparation.isError, true)
+  assert.match(recoveredPreparation.content?.[0]?.text || '', /MEMORY_CP_EPOCH_SUCCESSOR_CP1_REQUIRED/)
+  const abandoned = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+  assert.strictEqual(abandoned.checkpointEpochOperation.status, 'abandoned')
+  assert.strictEqual(abandoned.checkpointEpochOperation.operationId, stranded.operationId)
+  assert.strictEqual(abandoned.checkpointEpochOperation.machineCommittedAt, null)
+  assert.strictEqual(abandoned.checkpointEpochOperation.projectionCommittedAt, null)
+  assert.deepStrictEqual(abandoned.checkpointEpochCandidateBinding, seeded.state.checkpointEpochCandidateBinding)
+  const cp1Binding = terminalEpoch.phases.CP1.currentBinding
+  const successor = resultById(runServer('mcp/memory-server.js', [rpcRequest(42, 'tools/call', {
+    name: 'memory_cp_confirm', arguments: { ...baseArguments, phase: 'CP1',
+      artifactPath: cp1Binding.artifactPath, artifactVersion: cp1Binding.artifactVersion,
+      artifactSha256: cp1Binding.artifactSha256, stageKey: 'explicit-reopened-stage',
+      sourceMessage: 'explicit same-task successor CP1 isolated MCP test',
+      autoDecisionEvidence: { riskClass: 'R3', sideEffectCategories: [], blockers: [],
+        reviewGradeCard: { grade: 'R3', status: 'PASS', openBlockers: 0 } } }
+  })], TEMP_ROOT), 42)
+  assert.notStrictEqual(successor.isError, true, JSON.stringify(successor))
+  const successorState = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+  assert.notStrictEqual(successorState.taskCheckpointEpochSet.currentEpochId, terminalEpoch.epochId)
+  const historicalTerminal = successorState.taskCheckpointEpochSet.epochs.find(item => item.epochId === terminalEpoch.epochId)
+  assert.strictEqual(historicalTerminal.status, 'superseded')
+  assert.strictEqual(historicalTerminal.terminalStatus, 'completed')
+  const currentStage = successorState.taskCheckpointEpochSet.epochs.find(
+    item => item.epochId === successorState.taskCheckpointEpochSet.currentEpochId)
+  assert.strictEqual(currentStage.terminalStatus, null)
+  assert.strictEqual(currentStage.phases.CP2.state, 'unstarted')
+  assert.strictEqual(currentStage.phases.CP3.state, 'unstarted')
+  const currentWriter = successorState.fencedWriteOwner
+  const renewedStage = resultById(runServer('mcp/memory-server.js', [rpcRequest(43, 'tools/call', {
+    name: 'memory_task_write_owner', arguments: { operation: 'renew', project, taskId: admission.taskId,
+      admissionId: admission.admissionId, ingressRef: ingress.ingressRef,
+      expectedOwner: { ownerGeneration: currentWriter.ownerGeneration, ownerNonce: currentWriter.ownerNonce,
+        leaseRevision: currentWriter.leaseRevision, leaseDigest: currentWriter.leaseDigest } }
+  })], TEMP_ROOT), 43)
+  assert.strictEqual(renewedStage.isError, false, JSON.stringify(renewedStage))
+  assert.strictEqual(renewedStage.structuredContent.status, 'active')
+
 }
 
 function testMemoryCpConfirmForBugs() {

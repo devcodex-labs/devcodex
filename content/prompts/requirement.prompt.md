@@ -462,7 +462,7 @@ flowchart TD
 | 字段 | 内容 / 证据 | 状态 |
 |------|-------------|------|
 | phaseKind | CP1 | required |
-| RQMatrix | RQ-1~RQ-8 每维 status/evidence/gap/disposition/skipReason | |
+| RQMatrix | 按 [audit-requirements](../skills/audit-requirements/SKILL.md) 的 RQ-1~RQ-8 原定义逐维填 status/evidence/gap/disposition/skipReason；ID不按需求章节顺序改义，N/A须符合该维条件 | |
 | DomainRealityMatrix | sourceTruth / packageChannel / licensePolicy / commandSurface / runtimeCapability / phaseKind 的 currentReality/repoEvidence/consumer/decision/negativeProbe/skipReason | |
 | ClaimEvidenceMatrix | 关键需求主张 → 原始输入 / 产品事实源 / Profile 或仓库证据 / UNVERIFIED 边界 | |
 | EscapeAbsorptionQueue | 外部审查或复审发现 → localEvidence → disposition → targetArtifact → status | |

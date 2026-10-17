@@ -1749,6 +1749,45 @@ try {
     assert.throws(() => observeCurrentReportState(projectInput), error => error.code === 'TASK_OPERATION_RECOVERY_SNAPSHOT_MISMATCH')
     fs.writeFileSync(projectReport, changedProjectReport)
 
+    const { restoreTasklessReportRecoveryFromCanonical } = require('../hooks/_runtime/task-operation-current-state-recovery.cjs')
+    const { digest: instructionDigest } = require('../hooks/_runtime/actual-instruction-envelope.cjs')
+    const projection = projectState()
+    projection.contextAcquisition = { activeRoot, hostSessionId: 'recovery-test-host' }
+    projection.actualInstructionEnvelope = { hostSessionDigest: instructionDigest('recovery-test-host') }
+    const durableReceipt = observeCurrentReportState({ ...projectInput, state: projection,
+      expectedOperationDigest: projection.turnLiveness.taskOperationSet.unresolved.recordDigest,
+      hostSessionDigest: projection.actualInstructionEnvelope.hostSessionDigest })
+    const durable = applyCurrentReportStateRecovery(JSON.parse(JSON.stringify(projection)), durableReceipt)
+    // Generic taskless recovery deliberately has no full instruction envelope.
+    durable.actualInstructionEnvelope = null
+    const merged = restoreTasklessReportRecoveryFromCanonical(JSON.parse(JSON.stringify(projection)), durable)
+    assert.strictEqual(merged.turnLiveness.taskOperationSet.unresolved, null)
+    assert.strictEqual(merged.turnLiveness.taskOperationSet.settled.at(-1).currentStateRecovery.recoveryDigest, durableReceipt.recoveryDigest)
+    assert.strictEqual(merged.taskRecoveryBinding, null)
+    const historyOnly = JSON.parse(JSON.stringify(projection))
+    historyOnly.turnLiveness.taskOperationSet = { schemaVersion: 'TaskOperationSetV1', unresolved: null, settled: [], settledSetDigest: live.taskOperationSettledSetDigest([]) }
+    restoreTasklessReportRecoveryFromCanonical(historyOnly, durable)
+    assert.strictEqual(historyOnly.turnLiveness.taskOperationSet.settled.length, 1)
+    for (const change of [
+      { activeProject: 'foreign' }, { taskRecoveryBinding: { taskId } },
+      { stickyProject: { rootIdentityDigest: 'f'.repeat(64) } },
+      { contextAcquisition: { activeRoot: path.join(activeRoot, 'foreign'), hostSessionId: 'recovery-test-host' } },
+      { contextAcquisition: { activeRoot, hostSessionId: 'other-host' } }
+    ]) {
+      const wrong = { ...JSON.parse(JSON.stringify(projection)), ...change }
+      restoreTasklessReportRecoveryFromCanonical(wrong, durable)
+      assert.strictEqual(wrong.turnLiveness.taskOperationSet.unresolved.operationId, 'missing-closeout')
+    }
+    const other = JSON.parse(JSON.stringify(projection))
+    let otherTurn = live.prepareTaskOperationRecord({}, { operationId: 'unrelated-unknown', writerGeneration: 1,
+      expectedStateSequence: 1, kind: 'create-or-update', exactTargets: [projectReport] })
+    other.turnLiveness = live.markTaskOperationDispatched(otherTurn, 'unrelated-unknown')
+    restoreTasklessReportRecoveryFromCanonical(other, durable)
+    assert.strictEqual(other.turnLiveness.taskOperationSet.unresolved.operationId, 'unrelated-unknown')
+    assert.strictEqual(other.turnLiveness.taskOperationSet.settled.length, 1)
+    assert(live.validateTaskOperationSet(other.turnLiveness.taskOperationSet).valid)
+
+
   }
   process.stdout.write('test-artifact-mutation-authority: ok\n')
 } finally {

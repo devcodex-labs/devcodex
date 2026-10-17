@@ -54,7 +54,7 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 | `dev` | 新功能开发、重构、优化、迁移 |
 | `fix` | Bug 修复、报错处理 |
 | `analyze` | 多轮收敛分析，≥3 轮，输出结论（analyze）|
-| `audit` | 多轮深度审查，≥3 轮，直至收敛 |
+| `audit` | 多轮深度审查，按 audit-session/Owner 默认3轮，完整有效 narrow-2 为2轮，直至收敛 |
 | `self-fix` | 规范文件自修复 |
 | `chat` | 问答、解释（无文件变更）|
 | `resume` | 恢复上次中断的任务 |
@@ -147,7 +147,7 @@ description: 识别用户意图类型（dev/fix/analyze/audit/self-fix/chat/resu
 | 维度 | analyze | audit |
 |------|---------|-------|
 | 过程类型 | 多轮收敛分析（≥3 轮，连续 2 轮无新发现后收敛）| 多轮深度审查，直至收敛 |
-| 结束条件 | 最少 3 轮，连续 2 轮无新发现；轮末输出收敛状态 | 连续 3 轮有效零发现（仍须满足连续 3 轮零发现，并核验 `ReviewCoverageDelta`；不区分定向/全面，见 `12-audit §多轮收敛规则`）|
+| 结束条件 | 最少 3 轮，连续 2 轮无新发现；轮末输出收敛状态 | 连续 R 轮有效零发现；按 audit-session/Owner 默认3，完整有效 narrow-2 为2，full/security/release为3，并核验 `ReviewCoverageDelta`（见 `12-audit §多轮收敛规则`）|
 | 典型表述 | "分析/看看/评估/对比/解读" | "深度审查/全面体检/逐项检查/走查" |
 
 **边界词处理**："检查"/"review"/"评审" 倾向 audit，但以**覆盖范围和收敛期望**为准。

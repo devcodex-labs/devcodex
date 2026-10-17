@@ -9,6 +9,7 @@ const {
 } = require('./lifecycle-turn-liveness.cjs')
 const { inspectTarget, readLayeredArtifactSlotRegistry } = require('./artifact-slot-decision.cjs')
 const { currentStateRecoveryDigest, validateCurrentStateRecoveryReceipt } = require('./task-operation-current-state-receipt.cjs')
+const { digest: instructionDigest } = require('./actual-instruction-envelope.cjs')
 
 function fail(code, message) {
   const error = new Error(message)
@@ -154,4 +155,54 @@ function applyCurrentReportStateRecovery(state, receipt) {
   return state
 }
 
-module.exports = { inspectCurrentReportState, observeCurrentReportState, applyCurrentReportStateRecovery }
+// Rich lifecycle files are derived projections. Carry only already validated,
+// same-project/session recovery receipts from canonical V5 into a stale view;
+// never discard an unrelated unknown or manufacture a successful old effect.
+function restoreTasklessReportRecoveryFromCanonical(state, canonical) {
+  if (!state || !canonical || state.taskRecoveryBinding || canonical.taskRecoveryBinding ||
+      state.admissionTransaction || canonical.admissionTransaction || state.fencedWriteOwner || canonical.fencedWriteOwner) return state
+  const project = state.activeProject
+  const rootDigest = state.stickyProject?.rootIdentityDigest
+  const sessionId = String(state.contextAcquisition?.hostSessionId || '').trim()
+  const canonicalSessionId = String(canonical.contextAcquisition?.hostSessionId || '').trim()
+  const sessionDigest = sessionId ? instructionDigest(sessionId) : ''
+  const root = state.contextAcquisition?.activeRoot
+  const canonicalRoot = canonical.contextAcquisition?.activeRoot
+  if (!project || project !== canonical.activeProject || !rootDigest ||
+      rootDigest !== canonical.stickyProject?.rootIdentityDigest || !sessionDigest ||
+      sessionId !== canonicalSessionId ||
+      (state.actualInstructionEnvelope?.hostSessionDigest && state.actualInstructionEnvelope.hostSessionDigest !== sessionDigest) ||
+      (canonical.actualInstructionEnvelope?.hostSessionDigest && canonical.actualInstructionEnvelope.hostSessionDigest !== sessionDigest) ||
+      !root || !canonicalRoot ||
+      path.resolve(root) !== path.resolve(canonicalRoot)) return state
+  if (state.turnLiveness?.taskOperationSet?.schemaVersion !== 'TaskOperationSetV1' ||
+      canonical.turnLiveness?.taskOperationSet?.schemaVersion !== 'TaskOperationSetV1') return state
+  const source = validateTaskOperationSet(canonical.turnLiveness.taskOperationSet)
+  if (!source.valid || !validateTaskOperationSet(state.turnLiveness.taskOperationSet).valid) return state
+  for (const ref of source.set.settled) {
+    const receipt = ref.currentStateRecovery
+    if (ref.effect !== 'accepted-current-state' || receipt?.schemaVersion !== 'TaskOperationCurrentReportStateReceiptV2' ||
+        receipt.hostSessionDigest !== sessionDigest || !validateCurrentStateRecoveryReceipt(receipt, {
+          taskId: null, project, projectRootIdentityDigest: rootDigest, operationId: ref.operationId
+        }).valid) continue
+    const current = validateTaskOperationSet(state.turnLiveness.taskOperationSet).set
+    if (current.unresolved?.operationId === ref.operationId) {
+      if (current.unresolved.recordDigest !== receipt.priorRecordDigest || state.turnLiveness.inFlightOperation) continue
+      applyCurrentReportStateRecovery(state, receipt)
+      continue
+    }
+    const existing = current.settled.find(item => item.operationId === ref.operationId)
+    if (existing) {
+      if (existing.recordDigest !== ref.recordDigest) {
+        fail('TASK_OPERATION_RECOVERY_PROJECTION_CONFLICT', 'derived operation history conflicts with canonical recovery')
+      }
+      continue
+    }
+    current.settled = [...current.settled, ref].slice(-64)
+    current.settledSetDigest = taskOperationSettledSetDigest(current.settled)
+    state.turnLiveness.taskOperationSet = current
+  }
+  return state
+}
+
+module.exports = { inspectCurrentReportState, observeCurrentReportState, applyCurrentReportStateRecovery, restoreTasklessReportRecoveryFromCanonical }

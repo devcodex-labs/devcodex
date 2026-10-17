@@ -24,6 +24,7 @@ const {
 } = require('./lifecycle-state-projection-v5.cjs')
 const { resolveVisibleLocale } = require('./visible-output-contract.cjs')
 const { validateActualInstructionEnvelope } = require('./actual-instruction-envelope.cjs')
+const { restoreTasklessReportRecoveryFromCanonical } = require('./task-operation-current-state-recovery.cjs')
 
 function renderGrokS07Assist(input = {}) {
   const locale = resolveVisibleLocale(input.languageContext)
@@ -1000,7 +1001,9 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     let sessionState = recovered.status === 'fresh'
       ? recovered.state
       : (recovered.status === 'ephemeral-stub'
-          ? (activeProjection || rehydrateEphemeralRecoveryState(recovered.state, expected, sessionKey))
+          ? (activeProjection
+              ? restoreTasklessReportRecoveryFromCanonical(activeProjection, recovered.state)
+              : rehydrateEphemeralRecoveryState(recovered.state, expected, sessionKey))
           : null)
     if (!sessionState && activeProjection) sessionState = activeProjection
     let committed = { status: 'missing' }
@@ -1140,6 +1143,12 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const activePaths = getStatePaths(state)
     const sessionKey = String(state.contextAcquisition?.hostSessionId || state.turnLiveness?.turnKey || '').trim()
     const identity = recoveryIdentityForState(state)
+    // A control tool may have committed after this Hook loaded its rich view.
+    // Preserve its exact durable recovery before any derived view can write V5.
+    if (!identity.taskId && sessionKey) {
+      const latest = readTaskRecoveryState({ metaDir: activePaths.dir, sessionKey, expectedIdentity: identity }, { fs })
+      if (latest.status === 'ephemeral-stub') restoreTasklessReportRecoveryFromCanonical(state, latest.state)
+    }
     const recoveryConfig = typeof resolveTaskRecoveryConfigForCwd === 'function'
       ? resolveTaskRecoveryConfigForCwd(CONTEXT_ROOT, identity.project)
       : null

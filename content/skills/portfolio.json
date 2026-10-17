@@ -6,7 +6,7 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "6001a27441b013eb96b75268ba378c4879c40bc0222f47eec2fab26b41a14eab",
+    "sourceDigest": "ba71185a2db5337d100ad2946640ffec04f517dcdf452622b738b3809928ae71",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "7b4042b10fc27cb70440fef64151bc50662a2f871274749925ea0e88f38388f4",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "cfd709b1248855c06c56373d1bcfe4798acefd7f1e0c11555b26cfd8caa1e8a6",
     "consumerInventoryFileCount": 726,
     "consumerInventoryDigest": "3c1441a972d18606f5fcf0a342d0aa0636f50f70b110e51733dbf36896625c10",
-    "consumerProjectionDigest": "4fea3f80dba23308e6b4067421d8bdff8896dd8acad3e30878019a86f549b58e",
-    "portfolioInputDigest": "3af53c203d480d7aee9760495783510685ff8bea60ca4f761d2ad1afa55cd5b6"
+    "consumerProjectionDigest": "cc398f03a57a8a543e9f8e7881d563138bc2e01c3889ae5169737da203bd440f",
+    "portfolioInputDigest": "d6f705c2ca91d3f6df5529ce38ccd66fafc8c925a6c1bb08645c27db5556a6c3"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -2662,8 +2662,8 @@
         "content/skills/audit-execution-guide/SKILL.md"
       ],
       "source": "content/skills/audit-execution-guide/SKILL.md",
-      "hash": "0454552c9cea0e80195c7b03c28fa6c97d6d3a00e68eebdf921fb6380ec83867",
-      "sourceBytes": 7444,
+      "hash": "1ed1ecca589364f9874c208b46eebd97b3ebe8b9f898eb0e7ca215dea2c95a62",
+      "sourceBytes": 7559,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",
@@ -2747,6 +2747,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-audit-convergence-consumer.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-readme-governance.js",
           "role": "current"
         },
@@ -2756,6 +2760,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-audit-convergence-consumer.js",
         "scripts/test-readme-governance.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
@@ -2802,6 +2807,7 @@
         ],
         "evolvableUnitRef": "skill:audit-execution-guide",
         "probeSuiteRefs": [
+          "scripts/test-audit-convergence-consumer.js",
           "scripts/test-readme-governance.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
@@ -3933,11 +3939,16 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-audit-convergence-consumer.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validate-profile.js",
           "role": "current"
         }
       ],
       "validationProfile": [
+        "scripts/test-audit-convergence-consumer.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate-profile.js",
         "scripts/validate.js"
@@ -3989,6 +4000,7 @@
         ],
         "evolvableUnitRef": "skill:audit-session",
         "probeSuiteRefs": [
+          "scripts/test-audit-convergence-consumer.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate-profile.js",
           "scripts/validate.js"
@@ -10836,8 +10848,8 @@
         "content/skills/intent/SKILL.md"
       ],
       "source": "content/skills/intent/SKILL.md",
-      "hash": "f1bb63365a00e09b3f0a1bf820e5fa2616726e0a5b5953a9a4a2bfc97b9f0005",
-      "sourceBytes": 14554,
+      "hash": "296bac50be5f5e00ba58358d2951ea1bca8f1050be329b9a940a153b50d22dd8",
+      "sourceBytes": 14642,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -11240,6 +11252,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-audit-convergence-consumer.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-cli-behavior.js",
           "role": "current"
         },
@@ -11432,6 +11448,7 @@
         "scripts/test-always-on-governance.js",
         "scripts/test-artifact-link-projection.js",
         "scripts/test-artifact-mutation-authority.js",
+        "scripts/test-audit-convergence-consumer.js",
         "scripts/test-cli-behavior.js",
         "scripts/test-cli-command-registry.js",
         "scripts/test-completion-report-ecr-check.js",
@@ -11548,6 +11565,7 @@
           "scripts/test-always-on-governance.js",
           "scripts/test-artifact-link-projection.js",
           "scripts/test-artifact-mutation-authority.js",
+          "scripts/test-audit-convergence-consumer.js",
           "scripts/test-cli-behavior.js",
           "scripts/test-cli-command-registry.js",
           "scripts/test-completion-report-ecr-check.js",
@@ -12043,8 +12061,8 @@
         "content/skills/memory/SKILL.md"
       ],
       "source": "content/skills/memory/SKILL.md",
-      "hash": "143f7289ad24790e6b21447772e55d327ecb048218715efcf44c1d8ab4974a99",
-      "sourceBytes": 33996,
+      "hash": "8938ec960f737eeeca8c2cf5fe10eeb3cd4fa87397742bff69754d7f672fe4b9",
+      "sourceBytes": 34722,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -17167,6 +17185,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-audit-convergence-consumer.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-candidate-review-bundle.js",
           "role": "current"
         },
@@ -17382,6 +17404,7 @@
       "validationProfile": [
         "scripts/test-artifact-link-projection.js",
         "scripts/test-artifact-mutation-authority.js",
+        "scripts/test-audit-convergence-consumer.js",
         "scripts/test-candidate-review-bundle.js",
         "scripts/test-cli-behavior.js",
         "scripts/test-client-contracts.js",
@@ -17487,6 +17510,7 @@
         "probeSuiteRefs": [
           "scripts/test-artifact-link-projection.js",
           "scripts/test-artifact-mutation-authority.js",
+          "scripts/test-audit-convergence-consumer.js",
           "scripts/test-candidate-review-bundle.js",
           "scripts/test-cli-behavior.js",
           "scripts/test-client-contracts.js",
@@ -17743,8 +17767,8 @@
         "content/skills/review-checklist/SKILL.md"
       ],
       "source": "content/skills/review-checklist/SKILL.md",
-      "hash": "6c9142c94b1c6945712466a4eb089a175fda4ce938978c7fed7fc2d6ca73244a",
-      "sourceBytes": 17716,
+      "hash": "e8b71c81cae07452cbb7b2d05c6144e410ed7ff136a2a37cb946b5250ae6ce7a",
+      "sourceBytes": 18318,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",

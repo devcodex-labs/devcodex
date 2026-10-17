@@ -22,7 +22,7 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 > **状态**: 进行中 / 已完成
 > **审查目标类型**: 规范文件(D1~D25) / 技术方案(TD-1~TD-13) / 需求文档(RQ-1~RQ-8) / 项目工程(PE-1~PE-12) / 报告(RA-1~RA-6) / 通用文档(DA-1~DA-6) / 发布前审查(RL-1~RL-10)
 > **审查范围**: 全面体检 / 定向深度 / 修复验证
-> **收敛**: 连续 3 轮有效零发现（仍须满足连续 3 轮零发现；所有子类型统一，不区分定向/全面）
+> **收敛**: 连续 R 轮有效零发现；R 由 audit-session 的候选绑定 Owner 计划确定，默认3，完整有效 narrow-2 为2；targeted 标签本身不降档，full/security/release仍为3
 > **ReviewCoverageDelta**: ✅已核验 / ⚠️缺失 / N/A（说明）
 > **ReviewDimensionDeltaGate**: ✅已核验 / ⚠️缺失 / N/A（说明）
 > **PCV状态**: ✅已完成 / 🔄进行中
@@ -41,7 +41,7 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 
 当审查范围包含修复验证时，清单必须核对 `RepairPreventionAssessmentReviewGate`：当前修复 closure 与长期 prospective evidence 分列；缺 assessment、无理由 `no-new-control`、repeat escape 未升级或 current rerun 晋级 prevention 均记为 blocker。
 
-每轮 audit 报告必须引用 candidate-bound `ReviewExecutionPlanV1`、fresh `ReviewEvidenceReceiptV1`、EvidenceSaturation、唯一 `ReviewStateSnapshotV1.snapshotDigest` 与 `StageTimingV1`；targeted 两轮、full/security/release 三轮门禁不因复用而减少。
+每轮 audit 报告必须引用 candidate-bound `ReviewExecutionPlanV1`、fresh `ReviewEvidenceReceiptV1`、EvidenceSaturation、唯一 `ReviewStateSnapshotV1.snapshotDigest` 与 `StageTimingV1`；按 `audit-session` 的 `requiredAuditZeroFindingRounds(state)` 取得 R（默认3，完整有效 narrow-2 为2；full/security/release为3），门禁不因复用或 targeted 标签而减少。
 
 审查用户可见输出时追加 `VisibleOutputContract`：分别核对内部 `ArtifactDeliveryManifestV1` 完整性、`UserFacingArtifactSetV1` required hidden 与计数守恒、`PostCompletionActionSetV1` 的适用性/证据/授权边界、`EntryCheckModelV3`、`DevCodexVisibleEnvelopeV3.semanticDigest`、capability evidence 和 renderer parity。Hook 未观察 assistant payload 时只能判 `unverified`；V1/V2 旧格式只读兼容，不能作为新写入或升级为通过。
 
@@ -130,8 +130,8 @@ applyTo: ".devcodex/**/reports/audit/**, .devcodex/**/reports/self-fix/**"
 - [ ] CRS ✅（关联文件扫描完成，无新发现文件）
 - [ ] 所有 🔴 级问题已解决
 - [ ] 所有 🟡 级问题已处理或标注 N/A
-- [ ] 达到收敛条件：连续 3 轮有效零发现（仍须满足连续 3 轮零发现；所有审查类型统一，不区分定向/全面，见 `12-audit §多轮收敛规则`）
-- [ ] `ReviewCoverageDelta` 已核验：最近 3 次有效零发现均有新增覆盖，或有证据化 `NoNewSurfaceReason`，未用机械重复同一批已读内容凑数
-- [ ] `ReviewDimensionDeltaGate` 已核验：最近 3 次有效零发现均有新增/轮换/补强的维度焦点，或有证据化 `RepeatedDimensionReason`，未用机械重复同一组维度凑数
+- [ ] 达到收敛条件：连续 R 轮有效零发现（按 audit-session/Owner：默认3，完整有效 narrow-2 为2；full/security/release为3，见 `12-audit §多轮收敛规则`）
+- [ ] `ReviewCoverageDelta` 已核验：最近 R 次有效零发现均有新增覆盖，或有证据化 `NoNewSurfaceReason`，未用机械重复同一批已读内容凑数
+- [ ] `ReviewDimensionDeltaGate` 已核验：最近 R 次有效零发现均有新增/轮换/补强的维度焦点，或有证据化 `RepeatedDimensionReason`，未用机械重复同一组维度凑数
 
 **最终结论**：✅ 已收敛 / ⚠️ 未收敛（需继续审查）

@@ -675,6 +675,89 @@ function rewriteAsLegacyOwnerlessFinalizedState(fixture, nowMs) {
 }
 
 try {
+  // A real CP2 replacement clears current CP3 but retains both exact bindings
+  // in sealed phase history. The following owner renewal must observe that
+  // transition rather than classify it as an unauthorized checkpoint rollback.
+  {
+    const fixture = createFinalizedResumeFixture('cp2-replacement-invalidates-cp3')
+    const root = taskRootFor(fixture.input, fixture.admission)
+    const metaDir = resolveTaskRecoveryMetaDir({ activeRoot: fixture.root.activeRoot, project: fixture.root.project })
+    const identity = { activeRoot: fixture.root.activeRoot, project: fixture.root.project, taskId: fixture.admission.taskId, taskStatus: 'active' }
+    const seed = readTaskRecoveryState({ metaDir, identity }, { nowMs: NOW_MS })
+    const originalCp1 = readFinalizedResumeCanonicalEvidence(seed.state.admissionTransaction,
+      fixture.root.activeRoot, fs, { state: seed.state }).confirmedCpEvidence[0]
+    const binding = (phase, artifactPath, artifactVersion, content) => {
+      fs.writeFileSync(path.join(root, artifactPath), content)
+      return sealCheckpointPhaseBinding({ phase, role: 'primary', artifactPath, artifactVersion,
+        artifactSha256: crypto.createHash('sha256').update(content).digest('hex'),
+        templateQualificationDigest: '4'.repeat(64), confirmationSourceDigest: digest({ phase, artifactVersion }),
+        confirmedAt: new Date(NOW_MS).toISOString(), confirmationMode: 'explicit' })
+    }
+    const cp1 = sealCheckpointPhaseBinding({ phase: 'CP1', role: 'primary',
+      artifactPath: originalCp1.artifactPath, artifactSha256: originalCp1.artifactDigest,
+      artifactVersion: originalCp1.version, templateQualificationDigest: '4'.repeat(64),
+      confirmationSourceDigest: digest('fixture CP1'), confirmedAt: originalCp1.confirmedAt, confirmationMode: 'explicit' })
+    const cp2 = binding('CP2', '02-old.md', 'v1.0.0', '# original design\n')
+    const cp3 = binding('CP3', '04-old.md', 'v1.0.0', '# original plan\n')
+    const phases = Object.fromEntries([cp1, cp2, cp3].map(item => [item.phase,
+      sealCheckpointPhaseSlot({ phase: item.phase, state: 'confirmed', slotSequence: 1, currentBinding: item })]))
+    const at = new Date(NOW_MS).toISOString()
+    const epoch = sealTaskCheckpointEpoch({ ordinal: 1, parentEpochId: null, stageKey: 'cp2-replacement', status: 'current',
+      task: { taskId: fixture.admission.taskId, taskKind: 'bugs', project: fixture.root.project,
+        activeRootDigest: seed.state.admissionTransaction.projectRootIdentityDigest, admissionId: fixture.admission.admissionId },
+      owner: seed.state.fencedWriteOwner, phases,
+      lineage: { canonicalRevision: 1, canonicalHeadDigest: seed.state.taskCanonicalRevision.currentOverviewDigest, scopeDigest: seed.state.admissionTransaction.workItemDigest },
+      runtime: { stateSchemaVersion: 'TaskRecoveryStateV5', packageVersion: require('../package.json').version,
+        mcpProtocolVersion: '2024-11-05', sourceHead: 'cp2-replacement-regression', epochCapability: 1 },
+      createdAt: at, activatedAt: at, trigger: 'test-fixture' })
+    const epochSet = sealTaskCheckpointEpochSet({ taskId: fixture.admission.taskId, currentEpochId: epoch.epochId,
+      nextOrdinal: 2, stateSequence: seed.commitFence.stateSequence, writerGeneration: seed.commitFence.writerGeneration,
+      migration: { migrationId: '1'.repeat(64), from: 'test-fixture', status: 'not-required' },
+      projection: { desiredDigest: '2'.repeat(64), observedDigest: '2'.repeat(64), status: 'current', sequence: 0 }, epochs: [epoch], archiveRefs: [] })
+    const snapshot = value => ({ phase: value.phase, version: value.artifactVersion, artifactDigest: value.artifactSha256,
+      artifactPath: value.artifactPath, confirmedAt: value.confirmedAt, sourceMessage: value.confirmationSourceDigest })
+    seed.state.admissionTransaction.effects.cpState.confirmedCpEvidence = [cp1, cp2, cp3].map(snapshot)
+    seed.state.admissionTransaction.transactionDigest = taskAdmissionTransactionDigest(seed.state.admissionTransaction)
+    const nextCp2 = binding('CP2', '02-new.md', 'v1.1.0', '# revised design\n')
+    const revised = require('../hooks/_runtime/task-checkpoint-epoch-v1.cjs').confirmTaskCheckpointPhase({
+      epochSet, phase: 'CP2', binding: nextCp2 })
+    seed.state.taskCheckpointEpochSet = revised.epochSet
+    const observe = value => readFinalizedResumeCanonicalEvidence(value.admissionTransaction, fixture.root.activeRoot, fs, { state: value })
+    const current = observe(seed.state)
+    assert.deepStrictEqual(current.confirmedCpEvidence.map(item => item.phase), ['CP1', 'CP2'])
+    for (const phase of ['CP2', 'CP3']) {
+      const bad = JSON.parse(JSON.stringify(seed.state))
+      const e = bad.taskCheckpointEpochSet.epochs[0]
+      e.phases[phase] = sealCheckpointPhaseSlot({ ...e.phases[phase], history: [] })
+      bad.taskCheckpointEpochSet = sealTaskCheckpointEpochSet({ ...bad.taskCheckpointEpochSet,
+        epochs: [sealTaskCheckpointEpoch(e)] })
+      assert.throws(() => observe(bad), error => error.code === 'FINALIZED_TASK_RESUME_CP_DRIFT',
+        `missing exact ${phase} history must not authorize losing CP3`)
+    }
+    const epochOwner = require('../hooks/_runtime/task-checkpoint-epoch-v1.cjs')
+    const nextCp1 = sealCheckpointPhaseBinding({ ...cp1,
+      confirmationSourceDigest: digest('same task new stage CP1'), confirmedAt: new Date(NOW_MS + 1000).toISOString() })
+    const preparedStage = epochOwner.prepareTaskCheckpointEpochSuccessor({ epochSet,
+      stageKey: 'reopened-stage', cp1Binding: nextCp1 }, { nowMs: NOW_MS + 1000 })
+    const activatedStage = epochOwner.activateTaskCheckpointEpochSuccessor({
+      epochSet: preparedStage.epochSet, epochId: preparedStage.epoch.epochId }, { nowMs: NOW_MS + 1000 })
+    const stageState = { ...seed.state, taskCheckpointEpochSet: activatedStage.epochSet }
+    assert.deepStrictEqual(observe(stageState).confirmedCpEvidence.map(item => item.phase), ['CP1'])
+    const lostHistory = JSON.parse(JSON.stringify(stageState))
+    const parent = lostHistory.taskCheckpointEpochSet.epochs.find(item => item.status === 'superseded')
+    parent.phases.CP3 = emptyCheckpointPhaseSlot('CP3')
+    lostHistory.taskCheckpointEpochSet = sealTaskCheckpointEpochSet({ ...lostHistory.taskCheckpointEpochSet,
+      epochs: lostHistory.taskCheckpointEpochSet.epochs.map(item => sealTaskCheckpointEpoch(item)) })
+    assert.throws(() => observe(lostHistory), error => error.code === 'FINALIZED_TASK_RESUME_CP_DRIFT')
+    const persisted = commitTaskRecoveryState({ metaDir, identity, state: seed.state }, {
+      nowMs: NOW_MS, force: true, ...STORE_OPTIONS })
+    assert.strictEqual(persisted.status, 'committed')
+    const renewed = runOwner(ownerInput(fixture.input, fixture.admission, 'renew', {
+      expectedOwner: ownerRef(fixture.owner) }), NOW_MS + 1000)
+    assert.strictEqual(renewed.status, 'active')
+    assert.strictEqual(renewed.finalized, true)
+  }
+
   const baseRoot = setupRoot('base')
   const baseInput = admissionInput(baseRoot)
   const leaseBinding = {

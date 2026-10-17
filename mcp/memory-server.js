@@ -393,7 +393,7 @@ const TASK_WRITE_OWNER_REF_SCHEMA = Object.freeze({
 const TOOLS = [
   {
     name: 'memory_task_admit_v2',
-    description: '正式任务准入/恢复并原子获取 fenced owner。传入 operation、task 对象和 overview.content 原文；新建用 admit，task 内提供 taskKind、entryVariant、displayName，续办用 bind/adopt。通常省略 ingressRef 和 resumeContextBinding，由服务端恢复当前入口；如显式提供则二者互斥。写权限取决于 CP。',
+    description: '正式任务准入/恢复并获取 fenced owner；reopen先准备新代准入，再以terminal CAS显式重开。传入 operation、task 对象和 overview.content 原文；新建用 admit，task 内提供 taskKind、entryVariant、displayName，续办用 bind/adopt。通常省略 ingressRef 和 resumeContextBinding，由服务端恢复当前入口；如显式提供则二者互斥。写权限取决于 CP。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -4215,12 +4215,21 @@ function prepareCheckpointEpochOperation(context, input) {
   if (existing?.status === 'complete' && existing.requestDigest === prospective.requestDigest) {
     return context.recoveryRead
   }
-  if (existing && existing.status !== 'complete') {
+  if (existing && !['complete', 'abandoned'].includes(existing.status)) {
     if (existing.requestDigest === prospective.requestDigest) return context.recoveryRead
     throw memoryQueryError(
       'Another checkpoint operation must be reconciled before this candidate can start.',
       'Retry once; the server will finish the earlier machine/projection operation first.',
       'MEMORY_CP_EPOCH_RECONCILE_REQUIRED'
+    )
+  }
+  const activeEpoch = state.taskCheckpointEpochSet?.epochs?.find(
+    item => item.epochId === state.taskCheckpointEpochSet.currentEpochId)
+  if (activeEpoch?.terminalStatus && input.phase !== 'CP1') {
+    throw memoryQueryError(
+      'The historical checkpoint epoch is terminal; no new operation was prepared.',
+      'After explicit owner reopen, confirm the current task CP1 with a new stageKey before revising CP2/CP3.',
+      'MEMORY_CP_EPOCH_SUCCESSOR_CP1_REQUIRED'
     )
   }
   return commitCheckpointEpochState(context, next => {
@@ -4452,12 +4461,25 @@ function completeCheckpointEpochOperation(context) {
 function reconcileCheckpointEpochOperation(context, sessionsPath, templateContext, requirement) {
   for (let attempt = 0; attempt < 4; attempt += 1) {
     const operation = context.state.checkpointEpochOperation
-    if (!operation || operation.status === 'complete') {
+    if (!operation || ['complete', 'abandoned'].includes(operation.status)) {
       return operation?.status === 'complete'
         ? createCheckpointEpochReceipt({ operation, epochSet: context.state.taskCheckpointEpochSet })
         : null
     }
     if (operation.status === 'prepared') {
+      const targetEpoch = context.state.taskCheckpointEpochSet?.epochs?.find(item => item.epochId === operation.epochId)
+      if (targetEpoch?.terminalStatus && operation.phase !== 'CP1' &&
+          !operation.machineCommittedAt && !operation.projectionCommittedAt &&
+          operation.taskId === context.taskId) {
+        // An earlier runtime persisted a preparation that the terminal epoch
+        // could never commit. Use the existing sealed abandoned transition;
+        // retain the operation/candidate evidence and grant no confirmation.
+        commitCheckpointEpochState(context, next => {
+          next.checkpointEpochOperation = advanceCheckpointEpochOperation(operation, 'abandoned')
+          return next
+        }, 'checkpoint-terminal-preparation-abandon')
+        return null
+      }
       machineCommitCheckpointEpochOperation(context)
       continue
     }
@@ -6449,7 +6471,22 @@ function handleMemoryTaskAdmitV2(args) {
   admission.ingressRef = admission.ingressRef || currentIngressRef(ingress)
   admission.activeVersion = MEMORY_RUNTIME_IDENTITY.activeVersion
   admission.runtimeGeneration = MEMORY_RUNTIME_IDENTITY.generationId
-  if (!admission.atomicOwnerAcquired && !admission.routeBindingRequired && !['needs-reconcile', 'aborted'].includes(admission.status)) {
+  const explicitReopen = args.task.entryVariant === 'reopen'
+  if (explicitReopen && !admission.finalized && !['needs-reconcile', 'aborted'].includes(admission.status)) {
+    // A terminal fence cannot be acquired as a new owner. Preserve the prepared
+    // generation and require the existing explicit, exact-terminal-CAS API.
+    admission.ownerReopenRequired = true
+    admission.nextRequiredPhase = 'owner-reopen'
+    admission.mutationAuthority = false
+    admission.nextCall = {
+      tool: 'memory_task_write_owner',
+      arguments: { project: target.project, operation: 'reopen', taskId: admission.taskId,
+        admissionId: admission.admissionId, ingressRef: admission.ingressRef },
+      requiredArguments: ['expectedOwner'],
+      expectedOwnerSource: 'exact terminal owner ref from the public task continuity view'
+    }
+  }
+  if (!explicitReopen && !admission.atomicOwnerAcquired && !admission.routeBindingRequired && !['needs-reconcile', 'aborted'].includes(admission.status)) {
     const owner = executeTaskWriteOwner({
       operation: 'acquire',
       taskId: admission.taskId,

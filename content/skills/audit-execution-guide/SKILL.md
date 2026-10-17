@@ -82,8 +82,8 @@ audit 每轮先形成 `ReviewExecutionPlanV1`，按 stage+risk+claims/dimensions
 ReviewCoverageDelta：R2+ 先列 ReviewedSet / UnreviewedRelatedSet / NewlyReadThisRound / RepeatReadReason / NoNewSurfaceReason，优先补读此前未审查但相关的代码、配置、测试、文档、部署副本和消费者链
 ReviewDimensionDeltaGate：R2+ 同步列 PreviousDimensionSet / CurrentDimensionFocus / NewDimensionRationale / RepeatedDimensionReason，避免每轮机械重复同一组维度；重复维度只允许阻断项回归、高风险锚点、新证据或抽样
 ReviewStateSnapshotV1：每批更新同一个 plan/candidate/stage snapshot；报告、记忆、进度和最终结论只投影其 snapshotDigest
-重启轮次：所有批次完成、本轮无新发现，且 ReviewCoverageDelta + ReviewDimensionDeltaGate 合格 → 有效零发现计数 +1 → 连续 3 轮有效零发现则进入 CRS 门禁（仍须满足连续 3 轮零发现）
-CRS 收敛门禁：连续 3 轮有效零发现后执行全库关键词扫描（见 audit-common §关联文件发现）
+重启轮次：所有批次完成、本轮无新发现，且 ReviewCoverageDelta + ReviewDimensionDeltaGate 合格 → 有效零发现计数 +1 → 达到 audit-session/Owner 计划的连续 R 轮有效零发现则进入 CRS 门禁（默认3，完整有效 narrow-2 为2，full/security/release为3）
+CRS 收敛门禁：达到同一 audit-session/Owner 计划要求的连续 R 轮有效零发现后执行全库关键词扫描（见 audit-common §关联文件发现）
 PCV：CRS ✅ 后执行 PCV（见 audit-common §收敛后汇总验证）→ 最终报告
 ```
 

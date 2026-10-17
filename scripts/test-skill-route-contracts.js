@@ -282,6 +282,20 @@ try {
   const registryWithUnsupportedAuthority = JSON.parse(JSON.stringify(loadedRegistry.registry))
   registryWithUnsupportedAuthority.conditionals[0].activationAuthority = 'runtime-event'
   assert.strictEqual(validateWorkflowRootRegistry(registryWithUnsupportedAuthority).valid, false)
+  // All routes, including internal plan-review, retain the same hard budgets.
+  for (const route of loadedRegistry.registry.routes) {
+    const finalIntent = route.routeKey === 'self-fix' ? 'self-fix' : route.routeKey.split('.')[0]
+    const routeWorkflow = resolveWorkflowRoots({ finalIntent, routeKey: route.routeKey })
+    const routePlan = buildProgressiveSkillPlan({
+      project: fixture.project, turnBinding: turnIdentity.turnBinding,
+      contextEpoch: turnIdentity.contextEpoch, generation: 0,
+      catalogDigest: catalog.catalogDigest, decisionDigest: 'a'.repeat(64),
+      contextBindingDigest: 'b'.repeat(64), workflowResolution: routeWorkflow, index
+    })
+    assert.strictEqual(routePlan.status, 'complete', route.routeKey + ': ' + JSON.stringify(routePlan.budget))
+    assert(routePlan.budget.maximumStageBytes <= STAGE_BODY_BUDGET_BYTES, route.routeKey)
+    assert(routePlan.budget.worstCaseBytes <= TURN_BODY_BUDGET_BYTES, route.routeKey)
+  }
   const workflow = resolveWorkflowRoots({
     finalIntent: 'dev',
     changeTypes: []

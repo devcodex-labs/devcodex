@@ -3240,6 +3240,25 @@ function applyMutationOwnerAuthorityRecovery(state, ownerState) {
 
 function materializeEphemeralMutationState(raw) {
   const state = JSON.parse(JSON.stringify(raw || {}))
+  if (state.tasklessAuthorityRecordsV1 !== undefined) {
+    const packed = state.tasklessAuthorityRecordsV1
+    const records = expandMutationRecoveryPayload(packed)
+    const marker = state.turnLiveness?.taskOperationSet
+    if (!records || records.kind !== 'taskless-authority-records' ||
+        jsonBytes(records) > 16 * 1024 || !state.turnLiveness ||
+        (records.operationSet && !validateTaskOperationSet(records.operationSet).valid) ||
+        marker?.schemaVersion !== 'TasklessAuthorityRecordsRecoveryV1' ||
+        marker?.settledSetDigest !== `packed:${packed.d}` ||
+        Object.keys(marker).length !== 2) {
+      throw new TaskRecoveryStoreV5Error('LIFECYCLE_EPHEMERAL_AUTHORITY_RECORDS_INVALID',
+        'taskless recovery records must decode exactly; unresolved operations cannot be discarded')
+    }
+    if (records.operationSet) state.turnLiveness.taskOperationSet = records.operationSet
+    else delete state.turnLiveness.taskOperationSet
+    state.workflowOperationalWriteLeaseCloseout = records.operationalCloseout
+    state.simpleTaskFastPathLeaseCloseout = records.simpleCloseout
+    delete state.tasklessAuthorityRecordsV1
+  }
   if (state.languageContext?.recoveryMetadataV1) {
     state.languageContext = compactLanguageContext(state.languageContext)
   }
@@ -4362,6 +4381,29 @@ function buildTasklessAuthorityEphemeralStub(state, maxBytes = EPHEMERAL_STUB_TA
   }
   if (jsonBytes(stub) > maxBytes) {
     stub.languageContext = packRecoveryLanguageContext(stub.languageContext)
+  }
+  if (jsonBytes(stub) > maxBytes) {
+    // Pack bounded operational records without dropping unresolved effects.
+    const records = {
+      v: 2, kind: 'taskless-authority-records',
+      operationSet: stub.turnLiveness.taskOperationSet || null,
+      operationalCloseout: stub.workflowOperationalWriteLeaseCloseout,
+      simpleCloseout: stub.simpleTaskFastPathLeaseCloseout
+    }
+    if (jsonBytes(records) <= 16 * 1024) {
+      const packed = compactMutationRecoveryPayload(records)
+      if (packed.v === 3 && jsonBytes(packed) < jsonBytes(records)) {
+        stub.tasklessAuthorityRecordsV1 = packed
+        // Existing readers preserve this invalid digest through normalization,
+        // so their mutation and terminal gates reject unsupported packed state.
+        stub.turnLiveness.taskOperationSet = {
+          schemaVersion: 'TasklessAuthorityRecordsRecoveryV1',
+          settledSetDigest: `packed:${packed.d}`
+        }
+        delete stub.workflowOperationalWriteLeaseCloseout
+        delete stub.simpleTaskFastPathLeaseCloseout
+      }
+    }
   }
   return stub
 }

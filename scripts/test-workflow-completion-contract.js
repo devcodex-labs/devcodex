@@ -1573,13 +1573,16 @@ assert.strictEqual(invalidDerivedState.errorCode, 'WORKFLOW_DERIVED_STATE_SCOPE_
   }
   let verifyProjection = committedProjection
   let riskCalls = 0
+  let currentResolution = taskResolution
+  let terminalReadRequested = false
+  let verifyPersist = null
   const cli = buildCliExecutionCommands({
     process: fakeProcess,
     console: { log: value => logs.push(String(value)) },
     c: fakeC,
-    resolveTask: () => taskResolution,
+    resolveTask: input => { terminalReadRequested = input.allowTerminalRead === true; return currentResolution },
     resolveUniqueTask: () => taskResolution,
-    verifyCompletion: () => ({ schemaVersion: 'WorkflowCompletionCliViewV1', status: verifyProjection.workflowEvidenceState, projection: verifyProjection }),
+    verifyCompletion: input => { verifyPersist = input.persist; return { schemaVersion: 'WorkflowCompletionCliViewV1', status: verifyProjection.workflowEvidenceState, projection: verifyProjection } },
     appendRisk: input => {
       riskCalls += 1
       if (input.requirementId === 'governance.compliance') throw new WorkflowCompletionLifecycleError('RISK_REQUIREMENT_NON_WAIVABLE', 'non-waivable')
@@ -1605,6 +1608,17 @@ assert.strictEqual(invalidDerivedState.errorCode, 'WORKFLOW_DERIVED_STATE_SCOPE_
   cli.cmdTask(['risk', 'revoke', '--receipt', sha256('receipt'), '--reason', 'missing task', '--json'])
   assert.strictEqual(fakeProcess.exitCode, 2)
   assert.strictEqual(riskCalls, callsBeforeInvalid, 'invalid risk selector must be zero-write')
+  currentResolution = { ...taskResolution, status: 'completed' }
+  verifyProjection = committedProjection
+  cli.cmdTask(['verify', '--task', 'CLI Fixture', '--json'])
+  assert.strictEqual(fakeProcess.exitCode, 0)
+  assert.strictEqual(terminalReadRequested, true)
+  assert.strictEqual(verifyPersist, false, 'terminal verification must not rewrite frozen evidence')
+  cli.cmdTask(['risk', 'accept', '--task', 'CLI Fixture', '--requirement', 'requirements.coverage', '--reason', 'must not mutate a terminal task', '--json'])
+  assert.strictEqual(fakeProcess.exitCode, 2)
+  assert.strictEqual(terminalReadRequested, false)
+  assert.strictEqual(riskCalls, callsBeforeInvalid, 'terminal inspection must not enable risk mutation')
+
 }
 
 expectNegative('source-ref-overflow-no-write', () => {

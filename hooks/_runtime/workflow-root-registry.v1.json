@@ -3,7 +3,7 @@
   "sourceEvidence": [
     {
       "ref": "content:instructions/01-common.instructions.md",
-      "digest": "6c3dded4d1ec9b1c4c99434195e353aa39360a9221d2dd6d82ea060be4377ce5"
+      "digest": "dc8b831ae625ba16d17654fa12429db06aba123192e4a22d46368c0a9e0bd66c"
     },
     {
       "ref": "content:skills/routing/SKILL.md",
@@ -14,7 +14,7 @@
       "digest": "7c46243482b4cadf24d9351f96f397f9b16550056d6e6af3bb469a8668de13ba"
     }
   ],
-  "sourceDigest": "cefcd8a93008b56905ef0a3e554affb6dbfac530fa7028c010f4cd16ec37aaad",
+  "sourceDigest": "3a2b1884ff3165c549f25b74f028def6471dba98cb2191288844727770b23c33",
   "baseBundles": {
     "chat": [],
     "resume": [
@@ -336,11 +336,6 @@
     {
       "routeKey": "dev.plan-review",
       "roots": [
-        {
-          "skillId": "audit-common",
-          "budgetClass": "hard",
-          "loadStage": "entry"
-        },
         {
           "skillId": "dev-plan-review",
           "budgetClass": "hard",
@@ -678,5 +673,5 @@
       "sourceRef": "content:skills/routing/SKILL.md#按需触发-Skills"
     }
   ],
-  "registryDigest": "629046553e0606706b486083b4d4b0d47915e46bd2c98daa3e2c612e9347555f"
+  "registryDigest": "42401b41b1119ffcf2210a8ccbe192311a6a2e0ab3e7c78fc44ab920347ea003"
 }

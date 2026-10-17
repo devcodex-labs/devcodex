@@ -1027,6 +1027,7 @@ function resolveTaskContinuation({
   budgets = {},
   persistIndex = true,
   useIndex,
+  allowTerminalRead = false,
   now = () => Date.now()
 } = {}) {
   const displayQuery = String(name || '').normalize('NFKC').trim().replace(/\s+/gu, ' ')
@@ -1064,7 +1065,7 @@ function resolveTaskContinuation({
         scan: scanReceipt(budget)
       }
     }
-    return resolveSelectedDescriptor({ base, descriptor: exact.descriptor, rootContext, budget })
+    return resolveSelectedDescriptor({ base, descriptor: exact.descriptor, rootContext, budget, allowTerminalRead })
   }
   const inventory = collectTaskInventory(rootContext, budget)
 
@@ -1138,10 +1139,10 @@ function resolveTaskContinuation({
       scan: scanReceipt(budget)
     }
   }
-  return resolveSelectedDescriptor({ base, descriptor, rootContext, budget })
+  return resolveSelectedDescriptor({ base, descriptor, rootContext, budget, allowTerminalRead })
 }
 
-function resolveSelectedDescriptor({ base, descriptor, rootContext, budget }) {
+function resolveSelectedDescriptor({ base, descriptor, rootContext, budget, allowTerminalRead = false }) {
   const selected = inspectTaskDescriptor(descriptor, budget)
   const candidate = minimalCandidate(selected)
   if (!selected.identityValid) {
@@ -1168,6 +1169,16 @@ function resolveSelectedDescriptor({ base, descriptor, rootContext, budget }) {
     }
   }
   if (selected.status === 'completed' || selected.status === 'rejected') {
+    if (allowTerminalRead) {
+      const taskRoot = path.resolve(rootContext.relativeBase, selected.relativeTaskPath)
+      if (!isInside(rootContext.relativeBase, taskRoot)) {
+        throw new TaskContinuationError('TASK_PATH_UNSAFE', 'resolved task path escaped the bounded root')
+      }
+      return { ...base, status: selected.status,
+        candidate: { ...candidate, taskRoot, relativeTaskPath: selected.relativeTaskPath },
+        nextStep: 'Inspect completed evidence without reopening; reopen only when new work is intended.',
+        scan: scanReceipt(budget) }
+    }
     return {
       ...base,
       status: selected.status,

@@ -2915,7 +2915,7 @@ function isSourceCodeMutation(payload, platform, state) {
   // Server-owned authority controls describe future mutation targets, but do
   // not themselves mutate those targets. Keep their path-shaped request data
   // out of host mutation classification.
-  if (isTaskAuthorityControlTool(payload)) return false
+  if (isTaskAuthorityControlTool(payload) || isServerOwnedMemoryTransactionTool(payload)) return false
   const adapterDecision = classifyHostToolMutation(payload, {
     hostVariant: state?.hostIdentity?.hostVariant,
     platform

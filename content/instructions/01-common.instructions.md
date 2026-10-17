@@ -201,7 +201,7 @@ version: 1.20.4
 | dev.optimization | `dev-optimization` · `cp-gate` · `dev-plan-review` |
 | dev.scenario-test | `dev-scenario-test` · `cp-gate` |
 | dev.docs | `dev-docs` · `cp-gate` |
-| dev.plan-review | `audit-common`（豁免 `dev-plan-review`，防递归）|
+| dev.plan-review | `dev-plan-review`（内部方案门禁；豁免再次调用自身，不切换为独立 audit 工作流）|
 | fix.default | `fix-default` · `cp-gate` |
 | fix.security | `fix-security` · `cp-gate` |
 | fix.incident | （Instruction 已完整，无需额外 Skill）|

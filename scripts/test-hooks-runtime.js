@@ -792,11 +792,20 @@ function runR2BTaskOwnerLifecycleScenarios({ epochAware = false } = {}) {
       tool_name: 'Read', tool_input: { file_path: file }
     })
   }
+  for (const file of ownerBackedRuntimeThresholdTargets) {
+    run({
+      hookEventName: 'PreToolUse', session_id: sessionId,
+      tool_name: 'mcp__devcodex_memory__memory_session_write',
+      tool_input: { agent: 'codex', project, sessionId: '20261017',
+        content: 'A memory note referencing an artifact, not writing that artifact.',
+        artifacts: [{ id: 'reference', targetPath: `bugs/owner-task/reports/codex/20261017/${path.basename(file, '.js')}.md` }] }
+    })
+  }
   const afterReadonlyCp3 = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   const readonlyCp3Record = Object.values(afterReadonlyCp3.cp3Runtime || {})
     .find(entry => entry && entry.name === 'R2B Hook owner task')
   assert.strictEqual(readonlyCp3Record?.trackedFiles?.length || 0, 0,
-    'read-only source paths must not advance CP3 escalation')
+    'read-only paths and memory artifact references must not advance CP3 escalation')
   ownerBackedRuntimeThresholdTargets.forEach((file, index) => {
     fs.writeFileSync(file, `module.exports = ${index}\n`)
     const operationId = `r2b-owner-runtime-threshold-${index + 1}`

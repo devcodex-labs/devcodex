@@ -161,8 +161,15 @@ try {
   assert.strictEqual(materialized.identity.taskId, 'b0cff883-e4d4-4af2-990b-797f453a04bf')
   assert.throws(() => materializeTaskIdentity({ taskRoot: legacy.candidate.taskRoot, displayName: 'legacy-only' }), /already exists/)
 
-  writeTask('alpha', 'bugs', 'completed-task', { status: 'completed', withCp: false })
+  const completedTask = writeTask('alpha', 'bugs', 'completed-task', { status: 'completed', withCp: false })
   assert.strictEqual(resolve('completed-task').status, 'completed')
+  const terminalRead = resolve('completed-task', { allowTerminalRead: true, persistIndex: false })
+  assert.strictEqual(terminalRead.status, 'completed')
+  assert(terminalRead.candidate.taskRoot.endsWith(path.join('bugs', 'completed-task')))
+  assert.strictEqual(terminalRead.mutationAuthority, false)
+  const terminalIdRead = resolve(completedTask.identity.taskId, { allowTerminalRead: true, persistIndex: false })
+  assert.strictEqual(terminalIdRead.status, 'completed')
+  assert.strictEqual(terminalIdRead.candidate.taskRoot, completedTask.taskRoot)
   writeTask('alpha', 'bugs', 'rejected-task', { status: 'rejected', withCp: false })
   assert.strictEqual(resolve('rejected-task').status, 'rejected')
 

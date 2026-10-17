@@ -19,11 +19,11 @@ const { resolveExecutionFeatureDecisionForCwd } = require('../../hooks/_runtime/
 const { createCliFailure, createCliSuccess, printCliJson } = require('./cli-json-contract.js')
 const { resolveControlAsset } = require('./control-content-delivery')
 
-function resolveCompletionTask({ cwd, task, project, resolveTask = resolveTaskContinuation, resolveUniqueTask = resolveUniqueActiveTaskContinuation }) {
+function resolveCompletionTask({ cwd, task, project, allowTerminalRead = false, resolveTask = resolveTaskContinuation, resolveUniqueTask = resolveUniqueActiveTaskContinuation }) {
   const resolution = task
-    ? resolveTask({ cwd, name: task, project })
+    ? resolveTask({ cwd, name: task, project, ...(allowTerminalRead ? { allowTerminalRead: true, persistIndex: false } : {}) })
     : resolveUniqueTask({ cwd, project })
-  if (resolution?.status === 'resolved-active' && (resolution.candidate?.legacy || !resolution.candidate?.taskId)) {
+  if ((resolution?.status === 'resolved-active' || (allowTerminalRead && ['completed', 'rejected'].includes(resolution?.status))) && (resolution.candidate?.legacy || !resolution.candidate?.taskId)) {
     return {
       ...resolution,
       status: 'stale-confirmation',
@@ -35,11 +35,13 @@ function resolveCompletionTask({ cwd, task, project, resolveTask = resolveTaskCo
   return resolution
 }
 
-function completionTaskContext(resolution) {
+function completionTaskContext(resolution, { allowTerminalRead = false } = {}) {
   const candidate = resolution?.candidate
-  if (resolution?.status !== 'resolved-active' || !candidate?.taskRoot) return null
+  const terminal = ['completed', 'rejected'].includes(resolution?.status)
+  if ((resolution?.status !== 'resolved-active' && !(allowTerminalRead && terminal)) || !candidate?.taskRoot) return null
   return {
     taskRoot: candidate.taskRoot,
+    terminal,
     activeRoot: path.resolve(candidate.taskRoot, '..', '..'),
     taskKey: `${candidate.project}:${candidate.kind}:${candidate.taskId}`,
     taskResolution: resolution
@@ -47,11 +49,11 @@ function completionTaskContext(resolution) {
 }
 
 function readCompletionForCli({ cwd, task = '', project = '', verify = false, persist = false, nowMs, resolveTask, resolveUniqueTask }) {
-  const taskResolution = resolveCompletionTask({ cwd, task, project, resolveTask, resolveUniqueTask })
-  const context = completionTaskContext(taskResolution)
+  const taskResolution = resolveCompletionTask({ cwd, task, project, allowTerminalRead: Boolean(task), resolveTask, resolveUniqueTask })
+  const context = completionTaskContext(taskResolution, { allowTerminalRead: Boolean(task) })
   if (!context) return { taskResolution, completion: null }
   const completion = verify
-    ? verifyTaskWorkflowCompletion({ ...context, persist, nowMs })
+    ? verifyTaskWorkflowCompletion({ ...context, persist: !context.terminal && persist, nowMs })
     : inspectTaskWorkflowCompletion({ ...context, nowMs })
   return { taskResolution, completion }
 }
@@ -266,19 +268,19 @@ function buildCliExecutionCommands(ctx) {
     }
     let taskResolution
     try {
-      taskResolution = resolveCompletionTask({ cwd: process.cwd(), task: options.task, project: options.project, resolveTask, resolveUniqueTask })
+      taskResolution = resolveCompletionTask({ cwd: process.cwd(), task: options.task, project: options.project, allowTerminalRead: options.action === 'verify' && Boolean(options.task), resolveTask, resolveUniqueTask })
     } catch (error) {
       if (!(error instanceof TaskContinuationError)) throw error
       renderCompletionFailure(options, operation, error.code, error.message, error.nextStep || 'Correct the task selector and retry.', null, 2)
       return null
     }
-    const context = completionTaskContext(taskResolution)
+    const context = completionTaskContext(taskResolution, { allowTerminalRead: options.action === 'verify' })
     if (!context) {
       renderCompletionFailure(options, operation, taskResolution.errorCode || 'TASK_RESOLUTION_FAILED', taskResolution.message || 'Task resolution failed.', taskResolution.nextStep || 'Choose an exact active task.', taskResolution, 2)
       return taskResolution
     }
     if (options.action === 'verify') {
-      const completion = verifyCompletion({ ...context, persist: true, full: options.full })
+      const completion = verifyCompletion({ ...context, persist: !context.terminal, full: options.full })
       const payload = { taskResolution, completion }
       const complete = completion.projection?.workflowComplete === true && completion.projection?.deliveryCommitted === true
       if (options.json) printCliJson(console, createCliSuccess(operation, payload, cliMetadata))

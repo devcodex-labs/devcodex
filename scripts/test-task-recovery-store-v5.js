@@ -2652,6 +2652,58 @@ try {
     undefined,
     'legacy DevCodex-owned operation approvals must not survive V5 projection; the host owns permission state'
   )
+  const authorityPressure = JSON.parse(JSON.stringify(ephemeralState))
+  const pressureTargets = Array.from({ length: 4 }, (_, index) =>
+    path.join(activeRoot, 'reports', 'audit', 'codex', '20260825',
+      'long-report-scope-'.repeat(18) + index + '.md'))
+  authorityPressure.workflowOperationalWriteLeaseCloseout.draftTargets = pressureTargets
+  authorityPressure.turnLiveness = prepareTaskOperationRecord(authorityPressure.turnLiveness, {
+    operationId: 'unknown-authority-pressure', writerGeneration: 1, expectedStateSequence: 1,
+    kind: 'update', exactTargets: pressureTargets,
+    targetSetDigest: taskOperationTargetSetDigest(pressureTargets), beforeDigest: '2'.repeat(64)
+  }, baseOptions)
+  authorityPressure.turnLiveness = markTaskOperationDispatched(authorityPressure.turnLiveness,
+    'unknown-authority-pressure', baseOptions)
+  const pressureMeta = path.join(tempRoot, 'authority-record-pressure-hooks')
+  const pressureWrite = commitTaskRecoveryState({ metaDir: pressureMeta,
+    identity: { activeRoot, project: 'devcodex' }, sessionKey: 'authority-record-pressure',
+    state: authorityPressure }, baseOptions)
+  assert.strictEqual(pressureWrite.status, 'ephemeral-stub', JSON.stringify(pressureWrite))
+  const pressureRead = readTaskRecoveryState({ metaDir: pressureMeta,
+    sessionKey: 'authority-record-pressure' }, baseOptions)
+  assert.deepStrictEqual(pressureRead.state.workflowOperationalWriteLease, authorityPressure.workflowOperationalWriteLease)
+  assert.deepStrictEqual(pressureRead.state.workflowOperationalWriteLeaseCloseout.draftTargets, pressureTargets)
+  assert.deepStrictEqual(pressureRead.state.turnLiveness.taskOperationSet, authorityPressure.turnLiveness.taskOperationSet)
+  assert.strictEqual(taskOperationTerminalSnapshot(pressureRead.state.turnLiveness).terminalReady, false)
+  assert.deepStrictEqual(pressureRead.state.languageContext, zhLanguageContext())
+  const pressureRingPath = storePaths(pressureMeta).ephemeral.find(file => fs.existsSync(file))
+  const pressureRingRaw = fs.readFileSync(pressureRingPath, 'utf8')
+  const pressureRing = JSON.parse(pressureRingRaw)
+  assert(jsonBytes(pressureRing.entries[0]) <= EPHEMERAL_ENTRY_MAX_BYTES)
+  const packedRecords = pressureRing.entries[0].state.tasklessAuthorityRecordsV1
+  assert.strictEqual(packedRecords?.v, 3, 'pressure fixture must exercise lossless packed records')
+  const legacyView = pressureRing.entries[0].state.turnLiveness
+  assert.strictEqual(taskOperationTerminalSnapshot(legacyView).terminalReady, false,
+    'readers without the codec must never treat packed authority records as empty')
+  assert.throws(() => prepareTaskOperationRecord(legacyView, {
+    operationId: 'unsupported-reader-write', writerGeneration: 2, expectedStateSequence: 2,
+    kind: 'update', exactTargets: pressureTargets,
+    targetSetDigest: taskOperationTargetSetDigest(pressureTargets), beforeDigest: '2'.repeat(64)
+  }, baseOptions), error => error.code === 'TASK_OPERATION_SET_INVALID',
+  'legacy normalization must preserve the unsupported-codec mutation fence')
+  packedRecords.p = '!!!!'
+  pressureRing.payloadDigest = digestValue({
+    schemaVersion: pressureRing.schemaVersion, sequence: pressureRing.sequence,
+    updatedAt: pressureRing.updatedAt, entries: pressureRing.entries
+  })
+  fs.writeFileSync(pressureRingPath, JSON.stringify(pressureRing))
+  assert.throws(() => readTaskRecoveryState({ metaDir: pressureMeta,
+    sessionKey: 'authority-record-pressure' }, baseOptions),
+  error => error.code === 'LIFECYCLE_EPHEMERAL_AUTHORITY_RECORDS_INVALID',
+  'malformed recovery payload must fail closed, never turn unknown effects into an empty set')
+  fs.writeFileSync(pressureRingPath, pressureRingRaw)
+
+
   const reconciledEphemeralMeta = path.join(tempRoot, 'reconciled-ephemeral-hooks')
   const reconciledEphemeralState = state('reconciled-ephemeral')
   reconciledEphemeralState.taskRecoveryBinding = null

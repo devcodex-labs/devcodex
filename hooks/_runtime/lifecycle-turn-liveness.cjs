@@ -1,5 +1,7 @@
 'use strict'
 
+const { validateCurrentStateRecoveryReceipt } = require('./task-operation-current-state-receipt.cjs')
+
 const path = require('path')
 const { extractMutationFootprint, MAX_TARGETS } = require('./mutation-footprint.cjs')
 
@@ -31,7 +33,7 @@ const TASK_OPERATION_PHASES = new Set([
   'prepared', 'dispatched', 'observed', 'settled', 'reconcile-required',
   'aborted-zero-effect', 'terminal-observed'
 ])
-const TASK_OPERATION_EFFECTS = new Set(['none', 'known-not-applied', 'known-applied', 'unknown'])
+const TASK_OPERATION_EFFECTS = new Set(['none', 'known-not-applied', 'known-applied', 'unknown', 'accepted-current-state'])
 
 class ExecutionAttemptLedgerError extends Error {
   constructor(code, message) {
@@ -122,6 +124,7 @@ function sealTaskOperationRecord(value = {}) {
     resultDigest: value.resultDigest ? String(value.resultDigest) : null,
     evidenceDigest: value.evidenceDigest ? String(value.evidenceDigest) : null
   }
+  if (value.currentStateRecovery) semantic.currentStateRecovery = JSON.parse(JSON.stringify(value.currentStateRecovery))
   if (!semantic.targetSetDigest) semantic.targetSetDigest = taskOperationTargetSetDigest(semantic.exactTargets)
   return { ...semantic, recordDigest: stableValueDigest(semantic) }
 }
@@ -169,6 +172,10 @@ function validateTaskOperationRecord(value) {
       errors.push(`task-operation-${field}`)
     }
   }
+  if (value.effect === 'accepted-current-state') {
+    if (value.phase !== 'settled' || !validateCurrentStateRecoveryReceipt(value.currentStateRecovery, { operationId: value.operationId }).valid ||
+        value.evidenceDigest !== value.currentStateRecovery?.recoveryDigest) errors.push('task-operation-current-state-recovery')
+  } else if (value.currentStateRecovery) errors.push('task-operation-unexpected-recovery')
   if (value.phase === 'prepared' && (value.dispatchedAt !== null || value.effect !== 'none')) {
     errors.push('task-operation-prepared-shape')
   }
@@ -197,7 +204,8 @@ function taskOperationRef(record) {
     phase: record.phase,
     effect: record.effect,
     recordDigest: record.recordDigest,
-    settledAt: record.settledAt
+    settledAt: record.settledAt,
+    ...(record.effect === 'accepted-current-state' ? { currentStateRecovery: record.currentStateRecovery } : {})
   }
 }
 
@@ -249,6 +257,10 @@ function validateTaskOperationSet(raw) {
         !/^[a-f0-9]{64}$/.test(String(item.recordDigest || '')) ||
         !Number.isFinite(Date.parse(String(item.settledAt || '')))) {
       errors.push('task-operation-settled-ref-invalid')
+    }
+    if (item.effect === 'accepted-current-state' &&
+        !validateCurrentStateRecoveryReceipt(item.currentStateRecovery, { operationId: item.operationId }).valid) {
+      errors.push('task-operation-settled-recovery-invalid')
     }
     if (seen.has(item.operationId)) errors.push('task-operation-settled-ref-duplicate')
     seen.add(item.operationId)
@@ -1253,6 +1265,8 @@ module.exports = {
   settleTaskOperationRecord,
   startToolLease,
   taskOperationRecordDigest,
+  sealTaskOperationRecord,
+  taskOperationRef,
   taskOperationTargetSetDigest,
   taskOperationSettledSetDigest,
   taskOperationTerminalSnapshot,

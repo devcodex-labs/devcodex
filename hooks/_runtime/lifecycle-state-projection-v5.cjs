@@ -1064,6 +1064,9 @@ function semanticLifecycleProjection(compactState) {
       checkpointValidation: mutating ? clone(turn.checkpointValidation) : null,
       previousTurn: terminal || turn.previousTurn ? clone(turn.previousTurn) : null,
       lastMutationCloseout: clone(turn.lastMutationCloseout),
+      taskOperationSet: clone(turn.taskOperationSet),
+      lastTaskOperationRecord: clone(turn.lastTaskOperationRecord),
+      workflowTaskTerminal: clone(turn.workflowTaskTerminal),
       executionAttemptLedger: mutating || terminal ? compactExecutionAttemptLedger(turn.executionAttemptLedger) : null,
       previousExecutionAttemptLedger: terminal ? compactExecutionAttemptLedger(turn.previousExecutionAttemptLedger) : null
     }

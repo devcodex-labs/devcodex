@@ -232,6 +232,13 @@ chat / 纯确认短答：TTFV 可 `N/A + skipReason=chat-or-ack`。
 
 ## §6 任务完成验证
 
+### 正式任务的完成输入与关闭
+
+`task verify` 返回 `workflow-input-missing` 表示作者证据输入尚未产出，应继续收尾；这不是独立的授权，也不默认交回用户。按 `compliance/workflow-completion.schema.json` 与 `hooks/_runtime/lifecycle-workflow-completion.cjs` 的 `WorkflowCompletionInputV1` 形成当前 candidate、plan、sourceRefs 和 rollout。可用 Owner 构造函数生成并校验对象；由当前 fenced owner 写入任务局部 `.memory/workflow-completion-input.json`，不得手改 V5 owner、机器回执、epoch 或终态。
+
+每个 sourceRef 只绑定实际新鲜证据，作者自审与独立复核、执行与未验证必须分开；输入文件存在不等于通过。完成报告、记忆、产物清单及实际 ECR 后，公开执行 `devcodex task verify --task <taskId> --project <namespace> --json`，由 Owner 计算完成投影。适用项全部通过后，再按公开 `memory_task_terminal_v1` 的四证据与当前 CAS 关闭、读回撤权解绑，并自然 Stop。仅真实上游证据/权限仍缺失时保留 UNVERIFIED 与精确恢复点；不得因为作者输入尚未创建就停止，也不得为通过而构造不存在的测试、独立或终态事实。
+
+
 | alias | canonical ID | 检查项 |
 |:---:|---|---|
 | T1 | `requirements.coverage` | ✅ 需求覆盖（用户所有需求点已处理） |

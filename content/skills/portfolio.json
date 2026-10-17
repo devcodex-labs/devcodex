@@ -6,17 +6,17 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "bd333dc5b059e1cdbba7a99e463b181137879596a3e09d788db7ce24fc3d36ff",
+    "sourceDigest": "ef54c40691a59fce9bb4eec68419b3ef54e0d2c6f0c39e51c4d99eec12382baa",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "7b4042b10fc27cb70440fef64151bc50662a2f871274749925ea0e88f38388f4",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
     "publicTaxonomyDigest": "7f6ee8c30f5484b8881e27099af72c69625b73a7cf3b53fe51c8c0c147d4f124",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "cfd709b1248855c06c56373d1bcfe4798acefd7f1e0c11555b26cfd8caa1e8a6",
-    "consumerInventoryFileCount": 723,
-    "consumerInventoryDigest": "b265aadf98ee55b03ae857c20bff85db987e3ff37ed7c5eade52e0517956c99c",
-    "consumerProjectionDigest": "95fe82a30919d318a0865ca449527c22e2f39ede986bb2ed9bed53cd5e5f2be5",
-    "portfolioInputDigest": "2b6254388853f76669a773a8bf7ee705dc2dc60918134a5a964d8a3813116f2c"
+    "consumerInventoryFileCount": 725,
+    "consumerInventoryDigest": "907fe133b028e0828da7374c2a9215bcfb19fcb96d8d91d79c60df14e098f3a1",
+    "consumerProjectionDigest": "d768d372de8297304703f9a3cce0c61fd6d2cce3d1562bd492c3df09b7a3a274",
+    "portfolioInputDigest": "81d4b1bdcd95bb1cc7f46b6fffea67b6e7d0e98d940c856b294b1c13c7fdbcb0"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -4922,8 +4922,8 @@
         "content/skills/compliance/SKILL.md"
       ],
       "source": "content/skills/compliance/SKILL.md",
-      "hash": "5daacb326ca0dc393c3f04e1685a627b02841561b60280e74901d6f81622fb7e",
-      "sourceBytes": 24205,
+      "hash": "be2d9b02bdc2cdd5da29595181f91526b6a900af46d4d43a62490af76c201534",
+      "sourceBytes": 25447,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -16793,6 +16793,14 @@
         },
         {
           "path": "hooks/_runtime/skill-route-tool.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/task-operation-current-state-receipt.cjs",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/task-operation-current-state-recovery.cjs",
           "role": "current"
         },
         {

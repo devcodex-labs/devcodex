@@ -2794,8 +2794,8 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
   const listedResult = resultById(admittedResponses, 1)
   const toolsListBytes = Buffer.byteLength(JSON.stringify({ jsonrpc: '2.0', id: 1, result: listedResult }))
   // Stage B adds one bounded continuity-view operation; keep the complete
-  // public surface below a still-small 26 KiB transport budget.
-  assert(toolsListBytes <= 26 * 1024, `memory tools/list exceeds 26 KiB budget: ${toolsListBytes} bytes`)
+  // public surface below a still-small 28 KiB transport budget (includes bounded current-report recovery schemas).
+  assert(toolsListBytes <= 28 * 1024, `memory tools/list exceeds 28 KiB budget: ${toolsListBytes} bytes`)
   for (const toolName of [
     'memory_task_write_owner',
     'memory_task_terminal_v1',
@@ -3173,7 +3173,8 @@ function testMemoryArtifactMutationReconciliationContract() {
     })
   ], TEMP_ROOT)
   const reconciliationSchema = findToolSchema(resultById(primaryResponses, 2).tools, 'memory_artifact_mutation_reconcile_v1')
-  assert.deepStrictEqual(reconciliationSchema.required, ['operationId', 'expectedCloseoutDigest', 'resolution'])
+  assert.deepStrictEqual(reconciliationSchema.required, ['resolution'])
+  assert.strictEqual(reconciliationSchema.anyOf.length, 3)
   assert.strictEqual(reconciliationSchema.additionalProperties, false)
   assert.strictEqual(reconciliationSchema.properties.taskId === undefined, false)
   const primaryResult = resultById(primaryResponses, 3)
@@ -3264,6 +3265,58 @@ function testMemoryArtifactMutationReconciliationContract() {
   assert.strictEqual(reserveResult.structuredContent.sourceKind, 'emergency-reserve')
   assert.strictEqual(reserveResult.structuredContent.receipt.reserveSequence, reserveWrite.sequence)
   assert.strictEqual(reserveResult.structuredContent.mutationAuthority, false)
+
+
+  const unknownTarget = path.join(taskRoot, 'reports', 'codex', '20261017', '01--missing-closeout.md')
+  fs.mkdirSync(path.dirname(unknownTarget), { recursive: true })
+  fs.writeFileSync(unknownTarget, '# current state, historical effect unknown\n')
+  let unknownTurn = prepareTaskOperationRecord({}, { operationId: 'mcp-unknown-without-closeout',
+    writerGeneration: 4, expectedStateSequence: 237, kind: 'create-or-update', exactTargets: [unknownTarget] })
+  unknownTurn = markTaskOperationDispatched(unknownTurn, 'mcp-unknown-without-closeout')
+  const unknownDigest = unknownTurn.taskOperationSet.unresolved.recordDigest
+  const seededUnknown = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
+    ...state, taskRecoveryBinding: { ...state.taskRecoveryBinding, taskRoot }, turnLiveness: unknownTurn
+  }), { force: true, reason: 'test-unknown-operation-preflight' })
+  assert(['committed', 'semantic-noop'].includes(seededUnknown.status), JSON.stringify(seededUnknown))
+  const currentArgs = { ingressRef: ingress.ingressRef, taskId: admitted.taskId,
+    operationId: 'mcp-unknown-without-closeout', expectedOperationDigest: unknownDigest,
+    resolution: 'accept-current-report-state', observations: [{ path: unknownTarget,
+      sha256: crypto.createHash('sha256').update(fs.readFileSync(unknownTarget)).digest('hex'), bytes: fs.statSync(unknownTarget).size }] }
+  const unknownBefore = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+  const inspected = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(11, 'tools/call', { name: 'memory_artifact_mutation_reconcile_v1', arguments: {
+      ingressRef: ingress.ingressRef, taskId: admitted.taskId, resolution: 'inspect-current-report-state'
+    } })
+  ], TEMP_ROOT), 11)
+  assert.strictEqual(inspected.isError, false, JSON.stringify(inspected))
+  assert.strictEqual(inspected.structuredContent.stateChanged, false)
+  assert.strictEqual(inspected.structuredContent.proposal.expectedOperationDigest, unknownDigest)
+  assert.deepStrictEqual(inspected.structuredContent.proposal.observations, currentArgs.observations)
+  const afterInspection = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(afterInspection.envelope.payloadDigest, unknownBefore.envelope.payloadDigest)
+  const currentResults = runServer('mcp/memory-server.js', [
+    rpcRequest(7, 'tools/call', { name: 'memory_artifact_mutation_reconcile_v1', arguments: { ...currentArgs, expectedOperationDigest: 'f'.repeat(64) } }),
+    rpcRequest(8, 'tools/call', { name: 'memory_artifact_mutation_reconcile_v1', arguments: currentArgs }),
+    rpcRequest(9, 'tools/call', { name: 'memory_artifact_mutation_reconcile_v1', arguments: currentArgs }),
+    rpcRequest(10, 'tools/call', { name: 'memory_artifact_mutation_reconcile_v1', arguments: { ...currentArgs, observations: [{ ...currentArgs.observations[0], sha256: 'f'.repeat(64) }] } })
+  ], TEMP_ROOT)
+  assert.strictEqual(resultById(currentResults, 7).isError, true)
+  assert.match(JSON.stringify(resultById(currentResults, 7)), /TASK_OPERATION_RECOVERY_CAS_MISMATCH/)
+  const recoveredUnknown = resultById(currentResults, 8)
+  assert.strictEqual(recoveredUnknown.isError, false, JSON.stringify(recoveredUnknown))
+  assert.strictEqual(recoveredUnknown.structuredContent.historicalEffect, 'unknown')
+  assert.strictEqual(recoveredUnknown.structuredContent.currentSnapshotRechecked, true)
+  assert.strictEqual(recoveredUnknown.structuredContent.mutationAuthority, false)
+  assert.strictEqual(recoveredUnknown.structuredContent.receipt.priorCloseoutDigest, undefined)
+  assert.strictEqual(resultById(currentResults, 9).structuredContent.replayed, true)
+  assert.strictEqual(resultById(currentResults, 9).structuredContent.currentSnapshotRechecked, false)
+  assert.strictEqual(resultById(currentResults, 10).isError, true)
+  const unknownAfter = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(taskOperationTerminalSnapshot(unknownBefore.state.turnLiveness).terminalReady, false)
+  assert.strictEqual(taskOperationTerminalSnapshot(unknownAfter.state.turnLiveness).terminalReady, true)
+  assert.strictEqual(unknownAfter.state.turnLiveness.taskOperationSet.settled[0].effect, 'accepted-current-state')
+  assert.deepStrictEqual(unknownAfter.state.fencedWriteOwner, unknownBefore.state.fencedWriteOwner)
+  assert.strictEqual(fs.readFileSync(unknownTarget, 'utf8'), '# current state, historical effect unknown\n')
 }
 
 function testMemoryServerOwnedTakeoverObservation() {

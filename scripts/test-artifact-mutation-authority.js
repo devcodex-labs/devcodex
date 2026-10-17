@@ -1625,6 +1625,82 @@ try {
   )
 
   assert(fs.existsSync(overview) && fs.existsSync(cp1))
+
+  // A missing historical closeout can only recover bounded report state; it
+  // must retain unknown historical effects and never assert a prior tool exit.
+  {
+    const live = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
+    const { observeCurrentReportState, applyCurrentReportStateRecovery } = require('../hooks/_runtime/task-operation-current-state-recovery.cjs')
+    const { validateCurrentStateRecoveryReceipt } = require('../hooks/_runtime/task-operation-current-state-receipt.cjs')
+    const target = write('reports/codex/20261017/01--unknown.md', '# accepted current report\n')
+    const taskId = '11111111-1111-4111-8111-111111111111'
+    const createState = (targets = [target]) => {
+      let turn = live.prepareTaskOperationRecord({}, { operationId: 'missing-closeout',
+        writerGeneration: 4, expectedStateSequence: 237, kind: 'create-or-update',
+        exactTargets: targets, beforeDigest: 'a'.repeat(64) })
+      turn = live.markTaskOperationDispatched(turn, 'missing-closeout')
+      return { taskRecoveryBinding: { taskId, taskRoot },
+        admissionTransaction: { taskId, taskRootRelative: path.relative(activeRoot, taskRoot).split(path.sep).join('/'), projectRootIdentityDigest: '1'.repeat(64) }, turnLiveness: turn }
+    }
+    const state = createState()
+    const input = { state, activeRoot, taskId, operationId: 'missing-closeout',
+      expectedOperationDigest: state.turnLiveness.taskOperationSet.unresolved.recordDigest,
+      projectRootIdentityDigest: '1'.repeat(64), ingressEnvelopeDigest: '2'.repeat(64), hostSessionDigest: '3'.repeat(64),
+      observations: [{ path: target, sha256: sha256(fs.readFileSync(target)), bytes: fs.statSync(target).size }] }
+    const beforeFile = fs.readFileSync(target)
+    assert.strictEqual(live.taskOperationTerminalSnapshot(state.turnLiveness).terminalReady, false)
+    for (const [override, code] of [
+      [{ expectedOperationDigest: 'f'.repeat(64) }, 'TASK_OPERATION_RECOVERY_CAS_MISMATCH'],
+      [{ taskId: '22222222-2222-4222-8222-222222222222' }, 'TASK_OPERATION_RECOVERY_TASK_MISMATCH'],
+      [{ observations: [{ ...input.observations[0], sha256: 'f'.repeat(64) }] }, 'TASK_OPERATION_RECOVERY_SNAPSHOT_MISMATCH']
+    ]) assert.throws(() => observeCurrentReportState({ ...input, ...override }), error => error.code === code)
+    const forbidden = write('.memory/sessions.md')
+    const forbiddenState = createState([forbidden])
+    assert.throws(() => observeCurrentReportState({ ...input, state: forbiddenState,
+      expectedOperationDigest: forbiddenState.turnLiveness.taskOperationSet.unresolved.recordDigest }),
+    error => error.code === 'TASK_OPERATION_RECOVERY_REPORT_ONLY')
+    const flight = JSON.parse(JSON.stringify(state));flight.turnLiveness.inFlightOperation = { operationId: 'missing-closeout' }
+    assert.throws(() => observeCurrentReportState({ ...input, state: flight }), error => error.code === 'TASK_OPERATION_RECOVERY_CLOSEOUT_REQUIRED')
+
+    const large = write('reports/codex/20261017/02--oversize.md', 'x'.repeat(256 * 1024 + 1))
+    const largeState = createState([large])
+    assert.throws(() => observeCurrentReportState({ ...input, state: largeState,
+      expectedOperationDigest: largeState.turnLiveness.taskOperationSet.unresolved.recordDigest }),
+    error => error.code === 'TASK_OPERATION_RECOVERY_SIZE')
+    const linked = path.join(taskRoot, 'reports/codex/20261017/03--symlink.md')
+    fs.symlinkSync(process.platform === 'win32' ? path.dirname(target) : target, linked,
+      process.platform === 'win32' ? 'junction' : 'file')
+    const linkState = createState([linked])
+    assert.throws(() => observeCurrentReportState({ ...input, state: linkState,
+      expectedOperationDigest: linkState.turnLiveness.taskOperationSet.unresolved.recordDigest }),
+    error => error.code === 'TASK_OPERATION_RECOVERY_SYMLINK')
+    fs.unlinkSync(linked)
+    const pendingCloseout = JSON.parse(JSON.stringify(state));pendingCloseout.turnLiveness.lastMutationCloseout = { result: 'needs-reconcile' }
+    assert.throws(() => observeCurrentReportState({ ...input, state: pendingCloseout }), error => error.code === 'TASK_OPERATION_RECOVERY_CLOSEOUT_REQUIRED')
+    const foreign = JSON.parse(JSON.stringify(state));foreign.admissionTransaction.projectRootIdentityDigest = 'f'.repeat(64)
+    assert.throws(() => observeCurrentReportState({ ...input, state: foreign }), error => error.code === 'TASK_OPERATION_RECOVERY_TASK_MISMATCH')
+    const withoutPath = JSON.parse(JSON.stringify(state));delete withoutPath.taskRecoveryBinding.taskRoot
+    assert.strictEqual(observeCurrentReportState({ ...input, state: withoutPath }).operationId, input.operationId)
+    const receipt = observeCurrentReportState(input)
+    assert.strictEqual(receipt.historicalEffect, 'unknown')
+    assert.strictEqual(receipt.mutationAuthority, false)
+    assert.strictEqual(receipt.priorCloseoutDigest, undefined)
+    assert.strictEqual(validateCurrentStateRecoveryReceipt(receipt).valid, true)
+    const settled = applyCurrentReportStateRecovery(JSON.parse(JSON.stringify(state)), receipt)
+    assert.strictEqual(live.taskOperationTerminalSnapshot(settled.turnLiveness).terminalReady, true)
+    assert.strictEqual(settled.turnLiveness.taskOperationSet.settled[0].effect, 'accepted-current-state')
+    assert.deepStrictEqual(settled.turnLiveness.taskOperationSet.settled[0].currentStateRecovery, receipt)
+    assert.strictEqual(live.validateTaskOperationRecord(settled.turnLiveness.lastTaskOperationRecord).valid, true)
+    const fake = live.sealTaskOperationRecord({ ...settled.turnLiveness.lastTaskOperationRecord, currentStateRecovery: null })
+    assert.strictEqual(live.validateTaskOperationRecord(fake).valid, false)
+    const corrupt = JSON.parse(JSON.stringify(settled));corrupt.turnLiveness.taskOperationSet.settled[0].currentStateRecovery.entries[0].sha256 = 'f'.repeat(64)
+    corrupt.turnLiveness.taskOperationSet.settledSetDigest = live.taskOperationSettledSetDigest(corrupt.turnLiveness.taskOperationSet.settled)
+    assert.strictEqual(live.taskOperationTerminalSnapshot(corrupt.turnLiveness).terminalReady, false)
+    fs.writeFileSync(target, '# changed after observation\n')
+    assert.throws(() => observeCurrentReportState(input), error => error.code === 'TASK_OPERATION_RECOVERY_SNAPSHOT_MISMATCH')
+    fs.writeFileSync(target, beforeFile)
+    assert.deepStrictEqual(fs.readFileSync(target), beforeFile)
+  }
   process.stdout.write('test-artifact-mutation-authority: ok\n')
 } finally {
   if (process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1') {

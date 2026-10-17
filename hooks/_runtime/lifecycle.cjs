@@ -5345,13 +5345,17 @@ main().catch(err => {
     process.stderr.write(`DevCodex hook commit diagnostics: ${JSON.stringify({
       event: activeHookEvent, errorCode: err.code,
       expectedCommitFence: err.details.expectedCommitFence,
-      observedCommitFence: err.details.observedCommitFence
+      observedCommitFence: err.details.observedCommitFence,
+      bytes: err.details.bytes, maxBytes: err.details.maxBytes, largestFields: err.details.largestFields
     })}\n`)
   }
   // Internal bookkeeping failure must not cancel the host's original task.
   // No write success or host permission is inferred from this fallback.
+  const sizeDiagnostic = err.code === 'LIFECYCLE_EPHEMERAL_ENTRY_EXCEEDED' &&
+    Number.isFinite(err.details?.bytes) && Number.isFinite(err.details?.maxBytes)
+    ? `Recovery payload ${err.details.bytes}/${err.details.maxBytes} bytes. ` : ''
   const message =
-    `DevCodex lifecycle bookkeeping failed (${err.code || 'LIFECYCLE_INTERNAL_ERROR'}); workflow state is unverified. ` +
+    `DevCodex lifecycle bookkeeping failed (${err.code || 'LIFECYCLE_INTERNAL_ERROR'}); workflow state is unverified. ` + sizeDiagnostic +
     'Preserve current work and recover the failed state write before claiming workflow completion. See Hook diagnostics for details.'
   writeStdout(['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'SessionStart'].includes(activeHookEvent)
     ? contextMessageOutput(activeHookEvent, message)

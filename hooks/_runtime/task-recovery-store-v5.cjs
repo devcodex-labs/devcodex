@@ -3244,7 +3244,7 @@ function materializeEphemeralMutationState(raw) {
     const packed = state.tasklessAuthorityRecordsV1
     const records = expandMutationRecoveryPayload(packed)
     const marker = state.turnLiveness?.taskOperationSet
-    if (!records || records.kind !== 'taskless-authority-records' ||
+    if (!records || !['taskless-authority-records', 'taskless-authority-records-v2'].includes(records.kind) ||
         jsonBytes(records) > 16 * 1024 || !state.turnLiveness ||
         (records.operationSet && !validateTaskOperationSet(records.operationSet).valid) ||
         marker?.schemaVersion !== 'TasklessAuthorityRecordsRecoveryV1' ||
@@ -3252,6 +3252,17 @@ function materializeEphemeralMutationState(raw) {
         Object.keys(marker).length !== 2) {
       throw new TaskRecoveryStoreV5Error('LIFECYCLE_EPHEMERAL_AUTHORITY_RECORDS_INVALID',
         'taskless recovery records must decode exactly; unresolved operations cannot be discarded')
+    }
+    if (records.kind === 'taskless-authority-records-v2') {
+      if (!['operationalLease', 'simpleLease', 'simpleUsage', 'stickyProject'].every(key =>
+        Object.prototype.hasOwnProperty.call(records, key))) {
+        throw new TaskRecoveryStoreV5Error('LIFECYCLE_EPHEMERAL_AUTHORITY_RECORDS_INVALID',
+          'packed taskless authority must retain every exact lease and project field')
+      }
+      state.workflowOperationalWriteLease = records.operationalLease
+      state.simpleTaskFastPathLease = records.simpleLease
+      state.simpleTaskFastPathUsage = records.simpleUsage
+      state.stickyProject = records.stickyProject
     }
     if (records.operationSet) state.turnLiveness.taskOperationSet = records.operationSet
     else delete state.turnLiveness.taskOperationSet
@@ -4385,7 +4396,11 @@ function buildTasklessAuthorityEphemeralStub(state, maxBytes = EPHEMERAL_STUB_TA
   if (jsonBytes(stub) > maxBytes) {
     // Pack bounded operational records without dropping unresolved effects.
     const records = {
-      v: 2, kind: 'taskless-authority-records',
+      v: 2, kind: 'taskless-authority-records-v2',
+      operationalLease: stub.workflowOperationalWriteLease,
+      simpleLease: stub.simpleTaskFastPathLease,
+      simpleUsage: stub.simpleTaskFastPathUsage,
+      stickyProject: stub.stickyProject,
       operationSet: stub.turnLiveness.taskOperationSet || null,
       operationalCloseout: stub.workflowOperationalWriteLeaseCloseout,
       simpleCloseout: stub.simpleTaskFastPathLeaseCloseout
@@ -4394,6 +4409,10 @@ function buildTasklessAuthorityEphemeralStub(state, maxBytes = EPHEMERAL_STUB_TA
       const packed = compactMutationRecoveryPayload(records)
       if (packed.v === 3 && jsonBytes(packed) < jsonBytes(records)) {
         stub.tasklessAuthorityRecordsV1 = packed
+        delete stub.workflowOperationalWriteLease
+        delete stub.simpleTaskFastPathLease
+        delete stub.simpleTaskFastPathUsage
+        delete stub.stickyProject
         // Existing readers preserve this invalid digest through normalization,
         // so their mutation and terminal gates reject unsupported packed state.
         stub.turnLiveness.taskOperationSet = {
@@ -4636,6 +4655,8 @@ function buildEphemeralStub(state, maxBytes = EPHEMERAL_STUB_TARGET_BYTES) {
       {
         bytes: jsonBytes(tasklessAuthority),
         maxBytes,
+        largestFields: Object.entries(tasklessAuthority).map(([key, value]) => ({ key, bytes: jsonBytes(value) }))
+          .sort((left, right) => right.bytes - left.bytes).slice(0, 5),
         operationalTargetCount: state.workflowOperationalWriteLease?.relativeTargets?.length || 0,
         simpleTargetCount: state.simpleTaskFastPathLease?.relativeTargets?.length || 0
       }

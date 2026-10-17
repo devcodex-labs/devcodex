@@ -578,11 +578,16 @@ const TOOLS = [
   },
   {
     name: 'memory_artifact_mutation_reconcile_v1',
-    description: '按 CAS 复证并收口 artifact closeout；不改文件。',
+    description: '只读检查或按CAS复证报告效果；不改文件、不授写权。',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
-      required: ['operationId', 'expectedCloseoutDigest', 'resolution'],
+      required: ['resolution'],
+      anyOf: [
+        { properties: { resolution: { const: 'accept-observed-effects' } }, required: ['operationId', 'expectedCloseoutDigest'] },
+        { properties: { resolution: { const: 'accept-current-report-state' } }, required: ['operationId', 'taskId', 'expectedOperationDigest', 'observations'] },
+        { properties: { resolution: { const: 'inspect-current-report-state' } }, required: ['taskId'] }
+      ],
       properties: {
         project: PROJECT_NAMESPACE_INPUT_SCHEMA,
         scope: { type: 'string', enum: ['project'] },
@@ -590,7 +595,12 @@ const TOOLS = [
         taskId: { type: 'string', pattern: '^[0-9a-fA-F-]{36}$' },
         operationId: { type: 'string', minLength: 1, maxLength: 256 },
         expectedCloseoutDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
-        resolution: { type: 'string', enum: ['accept-observed-effects'] }
+        expectedOperationDigest: { type: 'string', pattern: '^[a-f0-9]{64}$' },
+        observations: { type: 'array', minItems: 1, maxItems: 2, items: {
+          type: 'object', additionalProperties: false, required: ['path', 'sha256', 'bytes'],
+          properties: { path: { type: 'string', minLength: 1, maxLength: 1024 },
+            sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' }, bytes: { type: 'integer', minimum: 0, maximum: 262144 } } } },
+        resolution: { type: 'string', enum: ['accept-observed-effects', 'accept-current-report-state', 'inspect-current-report-state'] }
       }
     }
   },
@@ -6724,6 +6734,61 @@ function handleMemoryArtifactMutationReconcileV1(args) {
     }
     // Exact durable operation/root/CAS evidence owns reconciliation. A stale
     // route index must not prevent recording already observed effects.
+  }
+  if (['accept-current-report-state', 'inspect-current-report-state'].includes(args.resolution)) {
+    if (!identity) throw taskAdmissionIngressError('TASK_OPERATION_RECOVERY_TASK_REQUIRED', 'current report recovery requires an exact formal task')
+    const { inspectCurrentReportState, observeCurrentReportState, applyCurrentReportStateRecovery } = require('../hooks/_runtime/task-operation-current-state-recovery.cjs')
+    const input = { ...args, state: primary.state, activeRoot: target.activeRoot,
+      projectRootIdentityDigest: ingress.projectTargetLease.rootIdentityDigest,
+      ingressEnvelopeDigest: ingress.actualInstructionEnvelope.envelopeDigest, hostSessionDigest }
+    if (args.resolution === 'inspect-current-report-state') {
+      const proposal = inspectCurrentReportState(input)
+      const result = { schemaVersion: 'TaskOperationCurrentReportStateInspectionV1', status: 'inspection-only',
+        proposal, historicalEffect: 'unknown', mutationAuthority: false, stateChanged: false,
+        nextCall: { tool: 'memory_artifact_mutation_reconcile_v1', arguments: { project: target.project,
+          taskId, operationId: proposal.operationId, expectedOperationDigest: proposal.expectedOperationDigest,
+          observations: proposal.observations, resolution: 'accept-current-report-state' } } }
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result, isError: false }
+    }
+    const { validateCurrentStateRecoveryReceipt } = require('../hooks/_runtime/task-operation-current-state-receipt.cjs')
+    const operationValidation = require('../hooks/_runtime/lifecycle-turn-liveness.cjs').validateTaskOperationSet(primary.state.turnLiveness?.taskOperationSet)
+    if (!operationValidation.valid) throw taskAdmissionIngressError('TASK_OPERATION_RECOVERY_CAS_MISMATCH', 'canonical operation set is invalid')
+    const prior = operationValidation.set.settled.find(item => item.operationId === args.operationId)
+    if (prior) {
+      const receipt = prior.currentStateRecovery
+      if (prior.effect !== 'accepted-current-state' || !validateCurrentStateRecoveryReceipt(receipt, {
+        operationId: args.operationId, priorRecordDigest: args.expectedOperationDigest, taskId
+      }).valid || receipt.entries.length !== args.observations?.length ||
+          receipt.entries.some(entry => !args.observations.some(item => item && item.path === entry.path &&
+            item.sha256 === entry.sha256 && item.bytes === entry.bytes))) {
+        throw taskAdmissionIngressError('TASK_OPERATION_RECOVERY_CAS_MISMATCH', 'settled recovery replay must match the exact accepted snapshot')
+      }
+      const result = { schemaVersion: 'TaskOperationCurrentReportStateResultV1', status: 'reconciled-current-state',
+        receipt, historicalEffect: 'unknown', mutationAuthority: false, replayed: true, currentSnapshotRechecked: false }
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result, isError: false }
+    }
+    const receipt = observeCurrentReportState(input)
+    const commit = updateTaskRecoveryState(recoveryInput, state => {
+      const current = observeCurrentReportState({ ...input, state }, { nowMs: Date.parse(receipt.observedAt) })
+      if (current.recoveryDigest !== receipt.recoveryDigest) {
+        throw taskAdmissionIngressError('TASK_OPERATION_RECOVERY_CAS_MISMATCH', 'report snapshot changed before recovery commit')
+      }
+      return applyCurrentReportStateRecovery(state, receipt)
+    }, { fs, reason: 'task-operation-current-report-state-recovery', touchSessionMapping: true })
+    if (!['committed', 'semantic-noop', 'ephemeral-stub'].includes(commit.status)) {
+      throw taskAdmissionIngressError(commit.errorCode || 'TASK_OPERATION_RECOVERY_COMMIT_FAILED', 'current report recovery could not commit', commit)
+    }
+    const readback = readTaskRecoveryState(recoveryInput, { fs })
+    const readbackSet = require('../hooks/_runtime/lifecycle-turn-liveness.cjs').validateTaskOperationSet(readback.state?.turnLiveness?.taskOperationSet)
+    const settled = readbackSet.set.settled.find(item => item.operationId === args.operationId)
+    if (!['fresh', 'ephemeral-stub'].includes(readback.status) || !readbackSet.valid ||
+        readbackSet.set.unresolved?.operationId === args.operationId ||
+        settled?.effect !== 'accepted-current-state' || settled.currentStateRecovery?.recoveryDigest !== receipt.recoveryDigest) {
+      throw taskAdmissionIngressError('TASK_OPERATION_RECOVERY_READBACK_FAILED', 'canonical current-state recovery receipt was not persisted exactly')
+    }
+    const result = { schemaVersion: 'TaskOperationCurrentReportStateResultV1', status: 'reconciled-current-state',
+      receipt, historicalEffect: 'unknown', mutationAuthority: false, replayed: false, currentSnapshotRechecked: true }
+    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result, isError: false }
   }
   const reserves = identity ? readEmergencyCloseouts(metaDir, { fs }) : { records: [] }
   const source = artifactReconciliationSource({

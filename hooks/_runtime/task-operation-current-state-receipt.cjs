@@ -11,10 +11,13 @@ function currentStateRecoveryDigest(value) {
 
 function validateCurrentStateRecoveryReceipt(value, expected = {}) {
   const errors = []
-  if (!value || value.schemaVersion !== 'TaskOperationCurrentReportStateReceiptV1' ||
+  const projectScope = value?.schemaVersion === 'TaskOperationCurrentReportStateReceiptV2' &&
+    value.scope === 'project' && value.taskId === null && typeof value.project === 'string' && value.project.trim().length > 0
+  const formalScope = value?.schemaVersion === 'TaskOperationCurrentReportStateReceiptV1' &&
+    /^[a-f0-9-]{36}$/.test(String(value.taskId || ''))
+  if (!value || (!projectScope && !formalScope) ||
       value.resolution !== 'accept-current-report-state' || value.historicalEffect !== 'unknown' ||
       value.mutationAuthority !== false || !String(value.operationId || '') ||
-      !/^[a-f0-9-]{36}$/.test(String(value.taskId || '')) ||
       !Number.isFinite(Date.parse(value.observedAt))) errors.push('current-report-recovery-shape')
   for (const key of ['priorRecordDigest', 'projectRootIdentityDigest', 'ingressEnvelopeDigest', 'hostSessionDigest']) {
     if (!DIGEST.test(String(value?.[key] || ''))) errors.push(`current-report-recovery-${key}`)
@@ -25,8 +28,8 @@ function validateCurrentStateRecoveryReceipt(value, expected = {}) {
     !entry || !String(entry.path || '') || !DIGEST.test(String(entry.sha256 || '')) ||
     !Number.isSafeInteger(entry.bytes) || entry.bytes < 0 || entry.bytes > 256 * 1024) ||
     new Set(entryList.map(entry => entry?.path)).size !== entryList.length) errors.push('current-report-recovery-entries')
-  for (const key of ['operationId', 'priorRecordDigest', 'taskId']) {
-    if (expected[key] && value?.[key] !== expected[key]) errors.push(`current-report-recovery-${key}-mismatch`)
+  for (const key of ['operationId', 'priorRecordDigest', 'taskId', 'project', 'projectRootIdentityDigest']) {
+    if (Object.hasOwn(expected, key) && value?.[key] !== expected[key]) errors.push(`current-report-recovery-${key}-mismatch`)
   }
   if (!DIGEST.test(String(value?.recoveryDigest || '')) ||
       currentStateRecoveryDigest(value) !== value?.recoveryDigest) errors.push('current-report-recovery-digest')

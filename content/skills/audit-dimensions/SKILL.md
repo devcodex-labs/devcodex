@@ -259,11 +259,11 @@ description: D1~D25 规范文件审查维度总览 — 规范库/specs 文件专
 
 | # | 检查内容 |
 |:-:|---------|
-| 1 | `CLAUDE.md` 与 `index.js` `cmdInitClaude`/`CLAUDE_SOURCES`/`CLAUDE_SETTINGS_HOOKS` 是否描述同一现实（不出现"文档说 A、实现是 B"）|
-| 2 | `CLAUDE.md` 引用的 `.claude/skills/` `.claude/instructions/` 路径是否与 `index.js` 实际写入路径一致 |
+| 1 | `host-projections/CLAUDE.md`、`scripts/lib/global-host-config.js` 的 `addClaudePlan` 与实际 `GlobalHostConfigReceiptV1` 是否描述同一当前用户级安装现实；`cli-install-commands.js` 的旧 host selector 为 GlobalOnly 拒收，不把内部 legacy helper 当公开入口|
+| 2 | 用户级指令/skills/runtime 的当前物理路径及托管状态是否与 global-adapters plan/apply receipt、global-host-config 的目标映射一致；工作区旧 `.claude/` 路径只作兼容迁移核对 |
 | 3 | `hooks/_runtime/lifecycle.cjs` 对各宿主的 Bootstrap / CP gate 工作流约束与操作风险 advisory 是否对称，且 advisory 不得投影为权限 deny |
-| 4 | `.mcp.json` 与 `index.js` `CLAUDE_MCP_JSON` 是否一致 |
-| 5 | `CLAUDE.md` 是否包含 SC/RC/T 完整索引或显式跳转（避免 Claude 用户必须额外读 17-compliance）|
+| 4 | Claude 用户级 MCP 配置是否与 `global-host-config.js` 的 `addClaudePlan` / `buildMcpServers`、receipt 及实际 stdio 启动路径一致；开发用 `.mcp.json` 和保留的 legacy 常量不单独证明用户级安装生效 |
+| 5 | 当前用户级托管 `CLAUDE.md` 是否包含 SC/RC/T 完整索引或显式跳转（避免 Claude 用户必须额外读 17-compliance）|
 
 **D24 客户端支持矩阵 🔴**
 

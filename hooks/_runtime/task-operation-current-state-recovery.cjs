@@ -7,6 +7,7 @@ const {
   sealTaskOperationRecord, taskOperationRef,
   taskOperationSettledSetDigest, validateTaskOperationSet
 } = require('./lifecycle-turn-liveness.cjs')
+const { inspectTarget, readLayeredArtifactSlotRegistry } = require('./artifact-slot-decision.cjs')
 const { currentStateRecoveryDigest, validateCurrentStateRecoveryReceipt } = require('./task-operation-current-state-receipt.cjs')
 
 function fail(code, message) {
@@ -15,11 +16,19 @@ function fail(code, message) {
   throw error
 }
 
-function canonicalReportSnapshot(file, taskRoot) {
+function canonicalReportSnapshot(file, taskRoot, projectRegistry = null) {
   const relative = path.relative(taskRoot, file)
   if (path.isAbsolute(relative) || relative.startsWith(`..${path.sep}`) ||
-      !/^reports\/(?:codex|claude-code|copilot|gemini|grok|cursor)\/\d{8}\/\d{2}--[^/]+\.md$/u.test(relative.split(path.sep).join('/'))) {
+      (!projectRegistry && !/^reports\/(?:codex|claude-code|copilot|gemini|grok|cursor)\/\d{8}\/\d{2}--[^/]+\.md$/u.test(relative.split(path.sep).join('/')))) {
     fail('TASK_OPERATION_RECOVERY_REPORT_ONLY', 'current-state recovery is restricted to exact task report Markdown files')
+  }
+  if (projectRegistry) {
+    const target = inspectTarget(file, { activeRoot: taskRoot, projectRoot: taskRoot }, projectRegistry)
+    if (target.status !== 'inside' || target.classified?.slot?.slotId !== 'project-report' ||
+        target.classified?.slot?.scope !== 'project' || !relative.split(path.sep).join('/').startsWith('reports/') ||
+        !/\/\d{8}\/\d{2}--[^/]+\.md$/u.test(relative.split(path.sep).join('/'))) {
+      fail('TASK_OPERATION_RECOVERY_REPORT_ONLY', 'taskless recovery is restricted to exact project report slots')
+    }
   }
   const parts = relative.split(path.sep)
   let parent = taskRoot
@@ -70,9 +79,15 @@ function inspectCurrentReportState(input) {
   const binding = state.taskRecoveryBinding
   const admission = state.admissionTransaction
   const active = path.resolve(input.activeRoot)
-  const root = path.resolve(active, String(admission?.taskRootRelative || ''))
+  const projectScope = !input.taskId
+  const root = projectScope ? active : path.resolve(active, String(admission?.taskRootRelative || ''))
   const relative = path.relative(active, root).split(path.sep).join('/')
-  if (!binding || binding.taskId !== input.taskId || admission?.taskId !== input.taskId ||
+  if (projectScope) {
+    if (binding || admission || state.activeProject !== input.project ||
+        state.stickyProject?.rootIdentityDigest !== input.projectRootIdentityDigest) {
+      fail('TASK_OPERATION_RECOVERY_PROJECT_MISMATCH', 'taskless recovery requires the exact current project binding and no formal task')
+    }
+  } else if (!binding || binding.taskId !== input.taskId || admission?.taskId !== input.taskId ||
       (binding.taskRoot && path.resolve(binding.taskRoot) !== root) ||
       !/^(?:bugs|requirements|optimizations)\/[^/]+$/u.test(relative) ||
       admission.taskRootRelative !== relative ||
@@ -83,8 +98,9 @@ function inspectCurrentReportState(input) {
       operation.exactTargets.some(file => !path.isAbsolute(file))) {
     fail('TASK_OPERATION_RECOVERY_REPORT_ONLY', 'only one or two exact physical report targets can recover')
   }
-  const entries = operation.exactTargets.map(file => canonicalReportSnapshot(path.resolve(file), root))
-  return { schemaVersion: 'TaskOperationCurrentReportStateProposalV1', taskId: input.taskId,
+  const registry = projectScope ? readLayeredArtifactSlotRegistry({ activeRoot: active, project: input.project }) : null
+  const entries = operation.exactTargets.map(file => canonicalReportSnapshot(path.resolve(file), root, registry))
+  return { schemaVersion: 'TaskOperationCurrentReportStateProposalV1', taskId: input.taskId || null,
     operationId: operation.operationId, expectedOperationDigest: operation.recordDigest,
     observations: entries, historicalEffect: 'unknown', mutationAuthority: false }
 }
@@ -102,10 +118,11 @@ function observeCurrentReportState(input, options = {}) {
     fail('TASK_OPERATION_RECOVERY_SNAPSHOT_MISMATCH', 'caller must accept the exact current report hashes and byte counts')
   }
   const receipt = {
-    schemaVersion: 'TaskOperationCurrentReportStateReceiptV1',
+    schemaVersion: input.taskId ? 'TaskOperationCurrentReportStateReceiptV1' : 'TaskOperationCurrentReportStateReceiptV2',
+    ...(!input.taskId ? { scope: 'project', project: input.project } : {}),
     resolution: 'accept-current-report-state', operationId: proposal.operationId,
     priorRecordDigest: proposal.expectedOperationDigest, historicalEffect: 'unknown',
-    taskId: input.taskId, projectRootIdentityDigest: input.projectRootIdentityDigest,
+    taskId: input.taskId || null, projectRootIdentityDigest: input.projectRootIdentityDigest,
     ingressEnvelopeDigest: input.ingressEnvelopeDigest, hostSessionDigest: input.hostSessionDigest,
     entries, observedAt: new Date(options.nowMs ?? Date.now()).toISOString(), mutationAuthority: false
   }
@@ -117,9 +134,11 @@ function observeCurrentReportState(input, options = {}) {
 function applyCurrentReportStateRecovery(state, receipt) {
   const validation = validateTaskOperationSet(state.turnLiveness?.taskOperationSet)
   const current = validation.set.unresolved
-  if (!validation.valid || !current || !validateCurrentStateRecoveryReceipt(receipt, {
+  if ((receipt?.scope === 'project' && (state.taskRecoveryBinding || state.admissionTransaction)) ||
+      !validation.valid || !current || !validateCurrentStateRecoveryReceipt(receipt, {
     operationId: current.operationId, priorRecordDigest: current.recordDigest,
-    taskId: state.taskRecoveryBinding?.taskId
+    taskId: state.taskRecoveryBinding?.taskId || null,
+    ...(receipt?.scope === 'project' ? { project: state.activeProject, projectRootIdentityDigest: state.stickyProject?.rootIdentityDigest } : {})
   }).valid || current.effect !== 'unknown' || state.turnLiveness.inFlightOperation) {
     fail('TASK_OPERATION_RECOVERY_CAS_MISMATCH', 'unknown operation changed before recovery commit')
   }

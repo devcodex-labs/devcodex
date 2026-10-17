@@ -104,7 +104,7 @@
     "test:critical-coverage": "c8 --clean --include scripts/lib/validate-execution-chain-controls.js --include hooks/_runtime/workflow-completion-contract.cjs --include hooks/_runtime/lifecycle-workflow-completion.cjs --include scripts/lib/validate-workflow-completion-controls.js --include mcp/stdio-jsonrpc.cjs --include hooks/_runtime/stdio-bounds.cjs --reporter=text --reporter=json-summary --reports-dir coverage/critical npm run test:critical-coverage-target && node scripts/check-critical-coverage.js",
     "test:public-text-integrity": "node scripts/test-public-text-integrity.js",
     "test:repair-prevention": "node scripts/test-repair-prevention-assessment.js",
-    "test:review-execution": "node scripts/test-review-execution-contract.js",
+    "test:review-execution": "node scripts/test-review-execution-contract.js && node scripts/test-audit-convergence-consumer.js",
     "test:workflow-completion": "node scripts/test-workflow-completion-contract.js && node scripts/test-completion-report-ecr-check.js",
     "test:workflow-plan-decision": "node scripts/test-workflow-plan-decision.js",
     "test:visible-output": "node scripts/test-visible-output-contract.js",

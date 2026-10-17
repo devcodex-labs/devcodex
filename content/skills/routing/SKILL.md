@@ -25,7 +25,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 | `dev` | 开发工作流 | CP1→CP2 严格按序；CP3 条件触发并按子类型记录 required/N/A（见 `workflow-capabilities.json` 与 `10-dev.instructions.md`） |
 | `fix` | 修复工作流 | Bug 修复三步扫描（见 `11-fix.instructions.md`） |
 | `analyze` | 分析工作流 | 多轮收敛分析，≥3 轮，连续 2 轮无新发现后收敛（见 `13-analyze.instructions.md`），只读 |
-| `audit` | 审计工作流 | 多轮深度审查，≥3 轮（见 `12-audit.instructions.md`） |
+| `audit` | 审计工作流 | 多轮深度审查，默认 3 轮，合格窄范围按 Owner 为 2 轮（见 `12-audit.instructions.md`） |
 | `self-fix` | 自修复工作流 | 机械修复可简化；规范语义/控制面变化转完整 dev 路径（见 `14-self-fix.instructions.md`） |
 | `chat` | 问答工作流 | 纯问答，快速路径 |
 | `resume` | 上下文恢复 | 恢复记忆后重路由到原始工作流 |
@@ -34,7 +34,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 ## 子类型路由表
 
 > ⚠️ 本表仅供路由参考。执行时按 `01-common` §Skill 按需读取表 读取对应 Skill，禁止全量读取。
-> 子类型标识汇总：`dev.default` / `dev.docs` / `dev.refactor` / `dev.database` / `dev.init` / `dev.optimization` / `dev.scenario-test` / `dev.plan-review` / `fix.default` / `fix.security` / `fix.incident` / `analyze.default` / `analyze.research`
+> 子类型标识汇总：`dev.default` / `dev.docs` / `dev.refactor` / `dev.database` / `dev.init` / `dev.optimization` / `dev.scenario-test` / `fix.default` / `fix.security` / `fix.incident` / `analyze.default` / `analyze.research`
 > 支撑型 Skill 不作为工作流子类型；Profile 缺失、补建 Profile 或恢复 dev 模式时按需触发 `profile-bootstrap`。PC0~PC10、完成检查、确认、进度、最终结果、阻断或文件交付触发 `user-visible-output-contract`；用户文档/最终手册写作语义优先触发 `user-manual-authoring`；用户侧文档 review、项目文档审查、菜单导航或文档 IA 审查语义优先触发 `audit-user-manual`；正式复审/清单收敛语义优先触发 `review-checklist`；任何 repair task 在 accepted 前触发 active `repair-prevention-assessment#RepairPreventionAssessmentGate`，只有返工率、一次通过率、反复返修、重复逃逸或效果评估才额外进入 gray `rework-prevention-engineering#ReworkPreventionGate`；代码、文档、示例、fixture、技术方案或报告被要求具备技术专家 / 资深架构 / 领域专家质量，或用户指出“不专业 / 像初级 / 示例误导”时优先触发 `expert-output-quality`；产品策略、开发者体验、UX 交互、前端架构、后端领域架构、生产可用性、API 契约、外部集成、平台生态、AI Agent 系统、数据架构、安全威胁建模、质量策略、设计系统、无障碍/国际化、增长分析或商业模型语义分别按需叠加对应专家 Owner Skill；增长和商业为 P3 条件触发，未命中时写 `N/A + skipReason`；规范吸纳、最新可吸纳、data 吸纳清单或仍需吸纳语义优先触发 `spec-absorption`；自我进化/自动吸纳/自动优化规范或模型辅助治理语义优先触发 `evolution-governance`。
 
 | 工作流 | 子类型 | Skill 文件 |
@@ -46,7 +46,7 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 | dev | optimization | `skills/dev-optimization/SKILL.md` |
 | dev | scenario-test | `skills/dev-scenario-test/SKILL.md` |
 | dev | docs | `skills/dev-docs/SKILL.md` |
-| dev | plan-review | `skills/audit-common/SKILL.md`（豁免 `dev-plan-review`，防递归） |
+| dev（内部步骤） | plan-review | `skills/dev-plan-review/SKILL.md`（CP2 后、CP3 前；不切独立 audit，不参与子类型路由） |
 | fix | default | `skills/fix-default/SKILL.md` |
 | fix | incident | （Instruction 已完整覆盖） |
 | fix | security | `skills/fix-security/SKILL.md` |
@@ -151,4 +151,4 @@ CURRENT USER MESSAGE → ActualInstructionEnvelopeV1 → WorkspaceSessionRouteIn
 
 ### 工作流内部强制步骤
 
-dev: `plan-review`（CP2 后、CP3 前强制）为工作流内部步骤，不参与子类型路由。
+dev: `dev.plan-review` / `plan-review`（CP2 后、CP3 前强制）为工作流内部步骤，不参与子类型路由。

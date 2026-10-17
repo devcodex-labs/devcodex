@@ -1,6 +1,7 @@
 'use strict'
 
 const { isNarrativeMarkdownPath } = require('./narrative-markdown-policy')
+const { requiredAuditZeroFindingRounds } = require('../../hooks/_runtime/review-execution-contract.cjs')
 const {
   buildAuditStateCompatibilityReceipt,
   parseAndClassifyAuditStateDocument
@@ -392,11 +393,13 @@ function buildValidateCoreChecks(ctx) {
       }
 
       if (state.state === 'converged') {
-        const convergedOk = state.zeroFindingStreak >= 3 && state.crsPassed === true && state.pcvPassed === true
+        const requiredRounds = requiredAuditZeroFindingRounds(state)
+        const convergedOk = Number.isSafeInteger(state.zeroFindingStreak) && state.zeroFindingStreak >= requiredRounds &&
+          state.crsPassed === true && state.pcvPassed === true
         if (!convergedOk) {
           warn(
             `[V15] invalid converged gate in .devcodex/.audit-state/${sf}: ` +
-            `zeroFindingStreak=${state.zeroFindingStreak}, crsPassed=${state.crsPassed}, pcvPassed=${state.pcvPassed}`
+            `zeroFindingStreak=${state.zeroFindingStreak}, requiredRounds=${requiredRounds}, crsPassed=${state.crsPassed}, pcvPassed=${state.pcvPassed}`
           )
           violations++
         }

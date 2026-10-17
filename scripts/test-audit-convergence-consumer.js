@@ -1,0 +1,48 @@
+'use strict'
+
+const assert = require('assert')
+const { createReviewExecutionPlan } = require('../hooks/_runtime/review-execution-contract.cjs')
+const narrow = createReviewExecutionPlan({ workflow: 'audit', stage: 'audit', userIntent: 'explicit single-file audit fixture',
+  candidateDigest: 'unit-candidate', changedSet: ['document.md'], affectedClosure: ['document.md'],
+  risk: { class: 'normal', flags: [] }, claims: ['contract'], dimensions: ['contract'], freshEvidence: ['unit-only'],
+  staleEvidence: [], exclusions: [], auditConvergence: { explicitNarrowScope: true, scaleDecision: 'single-pass',
+    crossHostControlPlane: false, multipleConsumers: false } })
+const narrowSession = { convergenceMode: 'narrow-2', reviewExecutionPlan: narrow }
+
+// Exercise the actual V15 consumer as well as the policy helper. These are
+// isolated schema fixtures, not evidence that a real audit has converged.
+{
+  const fs = require('fs')
+  const os = require('os')
+  const path = require('path')
+  const { buildValidateCoreChecks } = require('./lib/validate-core-checks')
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-audit-convergence-'))
+  const stateDir = path.join(root, '.audit-state')
+  fs.mkdirSync(stateDir)
+  const priorScope = process.env.DEVCODEX_VALIDATION_SCOPE
+  delete process.env.DEVCODEX_VALIDATION_SCOPE
+  try {
+    for (const [overrides, pass] of [
+      [narrowSession, true], [{}, false], [{ convergenceMode: 'narrow-2' }, false],
+      [{ ...narrowSession, reviewExecutionPlan: { ...narrow, exit: { ...narrow.exit, requiredZeroFindingRounds: 1 } } }, false],
+      [{ ...narrowSession, crsPassed: false }, false], [{ ...narrowSession, pcvPassed: false }, false],
+      [{ ...narrowSession, zeroFindingStreak: '2' }, false],
+      [{ zeroFindingStreak: 3 }, true],
+      [{ ...narrowSession, findings: [{ id: 'open', status: 'open' }] }, false]
+    ]) {
+      const warnings = []
+      const state = { schemaVersion: 'AuditSessionStateV2', sessionId: 'unit-only', state: 'converged',
+        findings: [], zeroFindingStreak: 2, crsPassed: true, pcvPassed: true, ...overrides }
+      fs.writeFileSync(path.join(stateDir, 'unit.json'), JSON.stringify(state))
+      buildValidateCoreChecks({ ROOT: root, fs, path, activePath: relative => path.join(root, relative),
+        read: file => fs.readFileSync(file, 'utf8'), warn: message => warnings.push(message), err: message => warnings.push(message) }).checkV15()
+      assert.strictEqual(warnings.length === 0, pass, warnings.join('; '))
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+    if (priorScope === undefined) delete process.env.DEVCODEX_VALIDATION_SCOPE
+    else process.env.DEVCODEX_VALIDATION_SCOPE = priorScope
+  }
+}
+
+console.log('audit convergence V15 consumer passed')

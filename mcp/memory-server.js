@@ -585,8 +585,8 @@ const TOOLS = [
       required: ['resolution'],
       anyOf: [
         { properties: { resolution: { const: 'accept-observed-effects' } }, required: ['operationId', 'expectedCloseoutDigest'] },
-        { properties: { resolution: { const: 'accept-current-report-state' } }, required: ['operationId', 'taskId', 'expectedOperationDigest', 'observations'] },
-        { properties: { resolution: { const: 'inspect-current-report-state' } }, required: ['taskId'] }
+        { properties: { resolution: { const: 'accept-current-report-state' } }, required: ['operationId', 'expectedOperationDigest', 'observations'] },
+        { properties: { resolution: { const: 'inspect-current-report-state' } } }
       ],
       properties: {
         project: PROJECT_NAMESPACE_INPUT_SCHEMA,
@@ -6736,9 +6736,8 @@ function handleMemoryArtifactMutationReconcileV1(args) {
     // route index must not prevent recording already observed effects.
   }
   if (['accept-current-report-state', 'inspect-current-report-state'].includes(args.resolution)) {
-    if (!identity) throw taskAdmissionIngressError('TASK_OPERATION_RECOVERY_TASK_REQUIRED', 'current report recovery requires an exact formal task')
     const { inspectCurrentReportState, observeCurrentReportState, applyCurrentReportStateRecovery } = require('../hooks/_runtime/task-operation-current-state-recovery.cjs')
-    const input = { ...args, state: primary.state, activeRoot: target.activeRoot,
+    const input = { ...args, taskId: taskId || null, project: target.project, state: primary.state, activeRoot: target.activeRoot,
       projectRootIdentityDigest: ingress.projectTargetLease.rootIdentityDigest,
       ingressEnvelopeDigest: ingress.actualInstructionEnvelope.envelopeDigest, hostSessionDigest }
     if (args.resolution === 'inspect-current-report-state') {
@@ -6746,7 +6745,7 @@ function handleMemoryArtifactMutationReconcileV1(args) {
       const result = { schemaVersion: 'TaskOperationCurrentReportStateInspectionV1', status: 'inspection-only',
         proposal, historicalEffect: 'unknown', mutationAuthority: false, stateChanged: false,
         nextCall: { tool: 'memory_artifact_mutation_reconcile_v1', arguments: { project: target.project,
-          taskId, operationId: proposal.operationId, expectedOperationDigest: proposal.expectedOperationDigest,
+          ...(taskId ? { taskId } : {}), operationId: proposal.operationId, expectedOperationDigest: proposal.expectedOperationDigest,
           observations: proposal.observations, resolution: 'accept-current-report-state' } } }
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result, isError: false }
     }
@@ -6757,7 +6756,8 @@ function handleMemoryArtifactMutationReconcileV1(args) {
     if (prior) {
       const receipt = prior.currentStateRecovery
       if (prior.effect !== 'accepted-current-state' || !validateCurrentStateRecoveryReceipt(receipt, {
-        operationId: args.operationId, priorRecordDigest: args.expectedOperationDigest, taskId
+        operationId: args.operationId, priorRecordDigest: args.expectedOperationDigest, taskId: taskId || null,
+        ...(!taskId ? { project: target.project, projectRootIdentityDigest: ingress.projectTargetLease.rootIdentityDigest } : {})
       }).valid || receipt.entries.length !== args.observations?.length ||
           receipt.entries.some(entry => !args.observations.some(item => item && item.path === entry.path &&
             item.sha256 === entry.sha256 && item.bytes === entry.bytes))) {

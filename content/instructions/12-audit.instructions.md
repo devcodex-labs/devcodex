@@ -18,7 +18,7 @@ version: 1.20.4
 - 每轮收敛后 / Token 防护触发 / 用户中断时必须更新状态
 - `<audit-root>` 取值与 active-root 一致：旧布局为 `<项目根>/.devcodex`，集中布局单项目为 `<工作区根>/.devcodex/<project>`，全工作区为 `<工作区根>/.devcodex/workspace`
 - resume 意图须优先扫描 `<audit-root>/.audit-state/*.json`：若存在 state ∈ {paused, active, resumed} 的最新会话，提示恢复
-- 收敛门禁强制校验：`crsPassed && pcvPassed && zeroFindingStreak >= 3`
+- 收敛门禁强制校验：`crsPassed && pcvPassed && zeroFindingStreak >= R`；R 由 `audit-session` 所述 Owner 计划统一确定，默认 3，完整有效的 narrow-2 为 2
 
 ### 只读约束（绝对）
 - **audit 是只读工作流**：只允许写审计报告、audit-state、记忆和经 RecordRouter 分流的运行态台账；禁止修改或暂存被审查源码、规范、配置、测试、文档和部署副本
@@ -70,7 +70,7 @@ version: 1.20.4
          → 非阻断项：写入适当台账/问题池（如 data/pending-issues.md），状态 recorded/transferred
          → 用户显式授权？否 → audit 保持只读并完成可完成的审查范围
          → 用户显式授权？是 → 独立 fix/self-fix + CP/ExecutionContract → 产出新证据
-         → audit 恢复复审 → 连续 3 轮有效零发现 → CRS 门禁 → PCV → 收敛
+         → audit 恢复复审 → 连续 R 轮有效零发现（默认3，合格narrow-2为2） → CRS 门禁 → PCV → 收敛
 ```
 
 ## 多轮收敛规则

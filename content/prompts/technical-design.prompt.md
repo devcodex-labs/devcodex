@@ -414,7 +414,7 @@ applyTo: .devcodex/**/requirements/**
 | 字段 | 内容 / 证据 | 状态 |
 |------|-------------|------|
 | phaseKind | CP2 | required |
-| TDMatrix | TD-1~TD-13 每维 priority/status/evidence/blockerId/skipReason/negativeProbe | |
+| TDMatrix | 按 [audit-tech-design](../skills/audit-tech-design/SKILL.md) 的 TD-1~TD-13 原定义逐维填 priority/status/evidence/blockerId/skipReason/negativeProbe；ID 不按本方案章节顺序重新命名，N/A 须符合 Owner 规则 | |
 | BlockerSnapshot | stage/blockerId/evidence/affectedSurface/remediation/skippedChecks/stopReason/openBlockers | |
 | ClaimEvidenceMatrix | 方案主张 → repo path/currentBehavior/targetChange/runtimeOwner/validation/UNVERIFIED | |
 | receiptFreshness | 当前 CP2 方案 hash / source HEAD / 规则版本是否一致 | fresh / stale |

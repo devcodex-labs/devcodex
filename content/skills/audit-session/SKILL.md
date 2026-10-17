@@ -7,7 +7,7 @@ description: 审计工作流的跨会话状态机 — 在 <audit-root>/.audit-st
 
 ## 适用范围
 
-- 触发：意图为 `audit` 且预期轮次 ≥3（即所有非 chat 审计场景）
+- 触发：意图为 `audit`（包括默认 3 轮与合格 narrow-2 的 2 轮场景）
 - 不适用：analyze（仅 ≥3 轮收敛但无 audit finding 交接状态机）、chat（无审计语义）
 
 ## 状态文件路径
@@ -30,7 +30,7 @@ description: 审计工作流的跨会话状态机 — 在 <audit-root>/.audit-st
 ```text
 active ──┬─> paused (Token 防护触发 / 用户中断)
          ├─> resumed (跨会话 resume 重新进入)
-         ├─> converged (CRS + PCV 通过 + 连续3轮零发现)
+         ├─> converged (CRS + PCV 通过 + 连续 R 轮有效零发现)
          └─> closed (用户确认审计闭环)
 
 paused ──> resumed ──> active
@@ -42,8 +42,10 @@ converged ──> closed
 | `active` | 首次 audit 意图识别成功 | 任一退出条件触发 |
 | `paused` | C08 Token 防护（>15 轮）或 用户中断 | resume 意图 + 当前 session 命中 |
 | `resumed` | resume 意图 + 读取本文件 | 立即转 `active` 继续审计 |
-| `converged` | `zeroFindingStreak ≥ 3` 且 `crsPassed` 且 `pcvPassed` | 用户确认 → `closed` |
+| `converged` | `zeroFindingStreak ≥ R` 且 `crsPassed` 且 `pcvPassed` | 用户确认 → `closed` |
 | `closed` | 用户确认审计完成或放弃 | 终态（不再写入）|
+
+收敛轮数 `R` 统一由 `review-execution-contract.cjs` 的 `requiredAuditZeroFindingRounds(state)` 消费：默认 3；仅满足 [audit-common 的窄范围条件](../audit-common/SKILL.md#窄范围-audit-收敛降档sk-fix-15b--medium)，且状态保存 `convergenceMode="narrow-2"` 和完整、候选绑定、摘要有效的 `reviewExecutionPlan`（公开 Owner 的 `ReviewExecutionPlanV1` 原件，`exit.auditConvergence.mode="narrow-2"`）时为 2。缺计划、被修改的计划或 full/security/release 等不合格输入仍要求 3；不得只写标签或手改轮数降档。CRS、PCV、覆盖增量、维度增量与未解决 finding 门禁保持适用。
 
 ## 状态文件 schema
 
@@ -87,6 +89,7 @@ converged ──> closed
   "r2Probes": [{"name": "<probe>", "status": "✅|⚠️|❌"}],
   "r3Probes": [{"name": "<probe>", "status": "✅|⚠️|❌"}],
   "r4Probes": [{"name": "<probe>", "status": "✅|⚠️|❌"}],
+  "convergenceMode": "default-3",
   "zeroFindingStreak": 0,
   "crsPassed": false,
   "pcvPassed": false,
@@ -168,7 +171,7 @@ converged ──> closed
 
 | 关联点 | 说明 |
 |--------|------|
-| `instructions/12-audit.instructions.md` | 审计工作流入口须读取/创建本文件；收敛门禁须校验 `crsPassed && pcvPassed && zeroFindingStreak>=3` |
+| `instructions/12-audit.instructions.md` | 审计工作流入口须读取/创建本文件；收敛门禁须校验 `crsPassed && pcvPassed && zeroFindingStreak>=R` |
 | `instructions/15-memory.instructions.md` | tasks/YYYYMMDD.md 段落须追加 `🔗 审计会话：<session-id>` 字段，建立双向链 |
 | `intent/SKILL.md` | resume 意图识别后须在三层记忆读取之前优先扫描 `<audit-root>/.audit-state/*.json` 查找未 closed 的会话 |
 | `skills/audit-execution-guide/SKILL.md` | finding 先记录/交接；用户显式授权的独立 fix/self-fix 完成后，audit 读取新证据并重启新轮，旧轮不得在 audit 内伪造 fixed |

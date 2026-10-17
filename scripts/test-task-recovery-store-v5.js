@@ -3,6 +3,7 @@
 const assert = require('assert')
 const fs = require('fs')
 const os = require('os')
+const zlib = require('zlib')
 const path = require('path')
 const {
   appendTaskRecoveryTelemetry,
@@ -779,6 +780,88 @@ function runTasklessIngressRecoveryScenario() {
   overflowIngress.turnLiveness.lastMutationCloseout.observation.observedEffects.created.push(
     ...longTargets.map(target => target.replace('.md', '-extra.md'))
   )
+  // The formerly oversized closeout is now losslessly compressible. Include
+  // realistic tool enforcement metadata, rather than testing only host ingress.
+  const projectionIngress = JSON.parse(JSON.stringify(overflowIngress))
+  const toolDecision = { schemaVersion: 'HostEnforcementDecisionV1', eventName: 'PreToolUse',
+    hostFamily: 'codex', hostVariant: 'codex', hardEnforcement: false,
+    reasonCode: 'codex-operation-advisory', observe: true, bootstrap: false,
+    capabilityClaim: 'workflow-diagnostic', source: 'host-adapter' }
+  projectionIngress.progressiveSkillRouteEnforcement = {
+    schemaVersion: 'ProgressiveSkillRouteEnforcementStateV1',
+    decisions: { PreToolUse: toolDecision }, lastDecision: toolDecision,
+    observedAt: '2026-08-22T00:00:00.000Z'
+  }
+  const projectionMeta = path.join(tempRoot, 'complete-taskless-projection-hooks')
+  const projectionWrite = commitTaskRecoveryState({
+    metaDir: projectionMeta, sessionKey: 'complete-taskless-projection', state: projectionIngress
+  }, baseOptions)
+  assert.strictEqual(projectionWrite.status, 'ephemeral-stub', JSON.stringify(projectionWrite))
+  const projectionRead = readTaskRecoveryState({
+    metaDir: projectionMeta, sessionKey: 'complete-taskless-projection'
+  }, baseOptions)
+  assert.deepStrictEqual(projectionRead.state.actualInstructionEnvelope, projectionIngress.actualInstructionEnvelope)
+  assert.deepStrictEqual(projectionRead.state.workItemSet, projectionIngress.workItemSet)
+  assert.deepStrictEqual(projectionRead.state.turnLiveness.taskOperationSet, projectionIngress.turnLiveness.taskOperationSet)
+  assert.deepStrictEqual(projectionRead.state.turnLiveness.lastMutationCloseout.observation.observedEffects.created,
+    projectionIngress.turnLiveness.lastMutationCloseout.observation.observedEffects.created)
+  assert.strictEqual(projectionRead.state.progressiveSkillRouteEnforcement.decisions.PreToolUse.hardEnforcement, false)
+  assert.strictEqual(projectionRead.state.progressiveSkillRouteEnforcement.lastDecision.reasonCode, toolDecision.reasonCode)
+  assert.strictEqual(taskOperationTerminalSnapshot(projectionRead.state.turnLiveness).terminalReady, false)
+  assert.strictEqual(projectionRead.state.taskRecoveryBinding, null)
+  assert(!projectionRead.state.fencedWriteOwner)
+  const projectionRingPath = storePaths(projectionMeta).ephemeral.find(file => fs.existsSync(file))
+  const projectionRingRaw = fs.readFileSync(projectionRingPath, 'utf8')
+  const projectionRing = JSON.parse(projectionRingRaw)
+  const encoded = projectionRing.entries[0].state.tasklessAuthorityRecordsV1
+  const decoded = JSON.parse(zlib.inflateRawSync(Buffer.from(encoded.p, 'base64')).toString('utf8'))
+  assert.strictEqual(decoded.kind, 'taskless-ephemeral-projection-v1',
+    'this fixture must reach whole-projection packing after record-only packing')
+  assert(jsonBytes(projectionRing.entries[0]) <= EPHEMERAL_ENTRY_MAX_BYTES)
+  assert.strictEqual(taskOperationTerminalSnapshot(projectionRing.entries[0].state.turnLiveness).terminalReady, false,
+    'an unsupported reader must retain the invalid operation-set fence')
+  const corruptions = [
+    (outer, body) => { outer.activeProject = 'other-project' },
+    (outer, body) => { body.state.fencedWriteOwner = { status: 'active' } },
+    (outer, body) => { body.state.taskRecoveryBinding = { taskId: 'unsupported-formal-task' } },
+    (outer, body) => { body.state.tasklessAuthorityRecordsV1 = {} },
+    (outer, body) => { body.kind = 'unsupported-future-projection' },
+    (outer, body) => { body.state.turnLiveness.taskOperationSet.settledSetDigest = 'f'.repeat(64) }
+  ]
+  for (const corrupt of corruptions) {
+    const ring = JSON.parse(projectionRingRaw), outer = ring.entries[0].state
+    const body = JSON.parse(JSON.stringify(decoded))
+    corrupt(outer, body)
+    const raw = Buffer.from(JSON.stringify(body))
+    const packed = { v: 3, e: 'deflate-raw-base64', u: raw.length,
+      d: '~' + Buffer.from(digestValue(body), 'hex').toString('base64').replace(/=+$/, ''),
+      p: zlib.deflateRawSync(raw).toString('base64') }
+    outer.tasklessAuthorityRecordsV1 = packed
+    outer.turnLiveness.taskOperationSet.settledSetDigest = `packed:${packed.d}`
+    ring.payloadDigest = digestValue({ schemaVersion: ring.schemaVersion, sequence: ring.sequence,
+      updatedAt: ring.updatedAt, entries: ring.entries })
+    fs.writeFileSync(projectionRingPath, JSON.stringify(ring))
+    assert.throws(() => readTaskRecoveryState({ metaDir: projectionMeta,
+      sessionKey: 'complete-taskless-projection' }, baseOptions),
+    error => error.code === 'LIFECYCLE_EPHEMERAL_AUTHORITY_RECORDS_INVALID')
+  }
+  const oversizedEnvelope = JSON.parse(projectionRingRaw)
+  oversizedEnvelope.entries[0].state.tasklessAuthorityRecordsV1.u = 16 * 1024 + 1
+  oversizedEnvelope.payloadDigest = digestValue({ schemaVersion: oversizedEnvelope.schemaVersion,
+    sequence: oversizedEnvelope.sequence, updatedAt: oversizedEnvelope.updatedAt, entries: oversizedEnvelope.entries })
+  fs.writeFileSync(projectionRingPath, JSON.stringify(oversizedEnvelope))
+  assert.throws(() => readTaskRecoveryState({ metaDir: projectionMeta,
+    sessionKey: 'complete-taskless-projection' }, baseOptions),
+  error => error.code === 'LIFECYCLE_EPHEMERAL_AUTHORITY_RECORDS_INVALID')
+  fs.writeFileSync(projectionRingPath, projectionRingRaw)
+  assert.strictEqual(readTaskRecoveryState({ metaDir: projectionMeta,
+    sessionKey: 'complete-taskless-projection' }, baseOptions).status, 'ephemeral-stub')
+  // Still reject a genuinely over-budget expanded projection, keeping the
+  // previous valid slot. Compressible inputs above the old limit are valid now.
+  overflowIngress.turnLiveness.lastMutationCloseout.observation.observedEffects.modified =
+    Array.from({ length: 24 }, (_, index) => longTargets[index % longTargets.length] + '-modified-' + index)
+  overflowIngress.turnLiveness.lastMutationCloseout.observation.observedEffects.deleted =
+    Array.from({ length: 24 }, (_, index) => longTargets[index % longTargets.length] + '-deleted-' + index)
   const overflowCommit = commitTaskRecoveryState({
     metaDir: budgetMeta, sessionKey: 'long-path-resume-session', state: overflowIngress
   }, baseOptions)

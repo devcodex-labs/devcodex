@@ -147,8 +147,8 @@ R1：CRS + 输出发现的问题清单（只读）
   │   用户授权并完成独立修复 → audit 读取新证据 → 重启新一轮（**收敛计数归零**）
   │
   └── 否（零发现）→ 收敛计数 +1
-        ├── 计数 < 3 → 继续下一轮 audit
-        └── 计数 ≥ 3 → CRS 收敛门禁 → PCV → 最终报告
+        ├── 计数 < R → 继续下一轮 audit
+        └── 计数 ≥ R → CRS 收敛门禁 → PCV → 最终报告
 ```
 
 ### 关键规则
@@ -161,7 +161,7 @@ R1：CRS + 输出发现的问题清单（只读）
 | 🔴 **授权后独立修复** | 用户确认后新建/切换 fix 或 self-fix，执行其 CP/ExecutionContract；audit 不继承修复权限 |
 | 🔴 **外部修复后重启** | 独立修复完成后，audit 基于新证据重新启动完整轮次（不是在旧轮次中写 fixed）|
 | 🔴 **收敛计数规则** | 只有"有效零发现"的轮次才累加计数；发现问题的轮次不计入（修复后归零）|
-| 🔴 **至少 3 轮有效零发现** | 收敛条件：连续 **3 轮** 均零发现，且每轮满足 `ReviewCoverageDelta` 与 `ReviewDimensionDeltaGate`（所有 audit 子类型统一标准）|
+| 🔴 **达到所需有效零发现轮数 R** | 默认 R=3；仅下述合格 narrow-2 为 R=2。连续 **R 轮** 均零发现，且每轮满足 `ReviewCoverageDelta` 与 `ReviewDimensionDeltaGate`（所有 audit 子类型遵循同一 Owner 的轮数规则）|
 | 🔴 **CRS 门禁不变** | 声明收敛前仍须完成 CRS 全库关键词扫描 |
 | ⚠️ **audit 只读不变** | audit 只维护审计产物/状态/台账；被审查源的 mutation、stage、commit 全部属于独立修复工作流 |
 | 🔴 **禁止继承授权** | 用户授权 audit 不等于授权 fix/self-fix；已有 audit 上下文、模型切换或阻断严重度都不能替代显式修复确认 |
@@ -189,7 +189,7 @@ R1：CRS + 输出发现的问题清单（只读）
   - RepeatedDimensionReason：重复维度的理由（阻断项回归 / 高风险锚点 / 新证据 / 抽样）
 - 自我审视：[M1/M2/M3/M4 盲点类型，或"N/A（零发现）"]
 - 修复交接状态：[等待用户授权 / 已转独立 fix/self-fix / 已获外部修复证据 / 零发现无需交接]
-- 有效零发现计数：{n}/3（达到 3 次则收敛）
+- 有效零发现计数：{n}/R（达到 Owner 所需轮数，再通过 CRS/PCV 才收敛）
 
 🛡️ DEV 模式 | 合规检查
 FC: FC1 [✅/❌] FC2 [✅/N/A] FC3 N/A FC4 [✅/❌] FC5 [✅/❌] FC6 [✅/❌] FC7 [✅/N/A]
@@ -222,7 +222,7 @@ SC: SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实际验证后填
 
 当且仅当用户明确 **窄范围 / 单文件 / 单模块 audit**，且 ScaleDecision 为 `single-pass`、无控制面跨宿主扩散、不属于 full/security/release 审查时，可将「连续有效零发现」从 **3 轮降为 2 轮**，但必须：
 
-1. 报告写明 `convergenceMode=narrow-2` 与范围边界；
+1. 报告写明 `convergenceMode=narrow-2` 与范围边界；audit-state 同时保存该模式及完整 `reviewExecutionPlan`（Owner 生成、摘要有效且候选绑定的 `ReviewExecutionPlanV1`，`exit.auditConvergence.mode=narrow-2`）；`audit-session` 与 V15 使用同一 Owner 的 `requiredAuditZeroFindingRounds(state)`，缺失或篡改不得降档；
 2. 仍满足 CRS ✅ 与 `ReviewCoverageDelta` / `ReviewDimensionDeltaGate`；
 3. 一旦发现控制面、多消费者或范围扩大，立即恢复默认 **3 轮**。
 
@@ -363,7 +363,7 @@ R2+ 发现新问题
 | PCV-4 分级标注 | ✅已验证（有实证）/ ⚠️待验证（推断，需用户确认）/ ❌排除（证据不支持，从报告中移除）|
 | PCV-5 最终清单 | 输出过滤后的最终问题清单；❌排除 项须说明排除原因 |
 | PCV-6 回归复扫（v1.9.5+）| 对 audit-state `findings[].status=fixed` 的所有项执行 `regressionProbes[].scanCmd` 复扫，对比 `expectedMatches`；任一回归 → 切回 `status=open`，`zeroFindingStreak` 归零，重启新轮 |
-| PCV-7 收敛门禁 | 上述 6 步全过 + `crsPassed && pcvPassed && zeroFindingStreak>=3` 后方可宣告收敛 |
+| PCV-7 收敛门禁 | 上述 6 步全过 + `crsPassed && pcvPassed && zeroFindingStreak>=R（默认3，合格narrow-2为2）` 后方可宣告收敛 |
 
 ## DF 数据文件轻量检查（审查 DevCodex plugin 时执行）
 

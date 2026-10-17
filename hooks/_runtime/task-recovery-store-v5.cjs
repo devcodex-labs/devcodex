@@ -2441,15 +2441,15 @@ function compactMutationRecoveryPayload(value) {
   return jsonBytes(wrapper) < jsonBytes(value) ? wrapper : value
 }
 
-function expandMutationRecoveryPayload(value) {
+function expandMutationRecoveryPayload(value, maxBytes = MUTATION_RECOVERY_EXPANDED_MAX_BYTES) {
   if (value?.v !== 3) return value
   if (value.e !== 'deflate-raw-base64' || !Number.isInteger(value.u) || value.u < 1 ||
-      value.u > MUTATION_RECOVERY_EXPANDED_MAX_BYTES ||
-      typeof value.p !== 'string' || value.p.length > Math.ceil(MUTATION_RECOVERY_EXPANDED_MAX_BYTES * 4 / 3) + 4 ||
+      value.u > maxBytes ||
+      typeof value.p !== 'string' || value.p.length > Math.ceil(maxBytes * 4 / 3) + 4 ||
       !/^[A-Za-z0-9+/]+={0,2}$/.test(value.p)) return null
   try {
     const source = zlib.inflateRawSync(Buffer.from(value.p, 'base64'), {
-      maxOutputLength: MUTATION_RECOVERY_EXPANDED_MAX_BYTES
+      maxOutputLength: maxBytes
     })
     if (source.length !== value.u) return null
     const expanded = JSON.parse(source.toString('utf8'))
@@ -3242,9 +3242,9 @@ function materializeEphemeralMutationState(raw) {
   const state = JSON.parse(JSON.stringify(raw || {}))
   if (state.tasklessAuthorityRecordsV1 !== undefined) {
     const packed = state.tasklessAuthorityRecordsV1
-    const records = expandMutationRecoveryPayload(packed)
+    const records = expandMutationRecoveryPayload(packed, 16 * 1024)
     const marker = state.turnLiveness?.taskOperationSet
-    if (!records || !['taskless-authority-records', 'taskless-authority-records-v2'].includes(records.kind) ||
+    if (!records || !['taskless-authority-records', 'taskless-authority-records-v2', 'taskless-ephemeral-projection-v1'].includes(records.kind) ||
         jsonBytes(records) > 16 * 1024 || !state.turnLiveness ||
         (records.operationSet && !validateTaskOperationSet(records.operationSet).valid) ||
         marker?.schemaVersion !== 'TasklessAuthorityRecordsRecoveryV1' ||
@@ -3252,6 +3252,28 @@ function materializeEphemeralMutationState(raw) {
         Object.keys(marker).length !== 2) {
       throw new TaskRecoveryStoreV5Error('LIFECYCLE_EPHEMERAL_AUTHORITY_RECORDS_INVALID',
         'taskless recovery records must decode exactly; unresolved operations cannot be discarded')
+    }
+    if (records.kind === 'taskless-ephemeral-projection-v1') {
+      const projected = records.state
+      const forbidden = ['tasklessAuthorityRecordsV1', 'fencedWriteOwner', 'admissionTransaction',
+        'taskCanonicalRevision', 'dangerousApprovals', 'dangerousApprovalRecovery']
+      const identityFields = ['version', 'mode', 'activeProject', 'activeScope']
+      const contextFields = ['contextEpoch', 'activeRoot', 'project', 'hostSessionId']
+      const turnFields = ['schemaVersion', 'state', 'turnKey']
+      if (!projected || typeof projected !== 'object' || Array.isArray(projected) ||
+          projected.taskRecoveryBinding !== null || projected.taskScopedAutoContinuationGrant ||
+          projected.autoCheckpointDecision || forbidden.some(key => Object.prototype.hasOwnProperty.call(projected, key)) ||
+          !projected.turnLiveness ||
+          (projected.turnLiveness.taskOperationSet && !validateTaskOperationSet(projected.turnLiveness.taskOperationSet).valid) ||
+          identityFields.some(key => projected[key] !== state[key]) ||
+          contextFields.some(key => projected.contextAcquisition?.[key] !== state.contextAcquisition?.[key]) ||
+          turnFields.some(key => projected.turnLiveness?.[key] !== state.turnLiveness?.[key])) {
+        throw new TaskRecoveryStoreV5Error('LIFECYCLE_EPHEMERAL_AUTHORITY_RECORDS_INVALID',
+          'packed taskless projection must retain identity and cannot introduce formal authority or nesting')
+      }
+      // The forbidden nested field makes this a single bounded decode, followed
+      // by the same language/mutation materialization used for ordinary stubs.
+      return materializeEphemeralMutationState(projected)
     }
     if (records.kind === 'taskless-authority-records-v2') {
       if (!['operationalLease', 'simpleLease', 'simpleUsage', 'stickyProject'].every(key =>
@@ -4212,6 +4234,38 @@ function compactSimpleTaskFastPathLeaseCloseout(raw) {
   }
 }
 
+/** Preserve the complete existing taskless projection when record-only packing is insufficient. */
+function packTasklessRecoveryProjection(stub, maxBytes) {
+  const projected = materializeEphemeralMutationState(stub)
+  const records = { v: 2, kind: 'taskless-ephemeral-projection-v1', state: projected }
+  if (jsonBytes(records) > 16 * 1024 || projected.taskRecoveryBinding !== null ||
+      projected.fencedWriteOwner || projected.admissionTransaction) return stub
+  const packed = compactMutationRecoveryPayload(records)
+  if (packed.v !== 3) return stub
+  const turn = projected.turnLiveness || {}
+  const context = projected.contextAcquisition || {}
+  const wrapper = {
+    version: projected.version,
+    mode: projected.mode,
+    activeProject: projected.activeProject,
+    activeScope: projected.activeScope,
+    taskRecoveryBinding: null,
+    contextAcquisition: {
+      contextEpoch: context.contextEpoch, activeRoot: context.activeRoot,
+      project: context.project, hostSessionId: context.hostSessionId
+    },
+    turnLiveness: {
+      schemaVersion: turn.schemaVersion, state: turn.state, turnKey: turn.turnKey,
+      taskOperationSet: { schemaVersion: 'TasklessAuthorityRecordsRecoveryV1', settledSetDigest: `packed:${packed.d}` },
+      inFlightOperation: null
+    },
+    tasklessAuthorityRecordsV1: packed,
+    recoveryKind: 'ephemeral-resume-stub',
+    recoveryCompaction: 'packed-taskless-projection-v1'
+  }
+  return jsonBytes(wrapper) <= maxBytes ? wrapper : stub
+}
+
 /** Pack bounded taskless records for both lease and pending-host-input recovery. */
 function packTasklessRecoveryRecords(stub, maxBytes) {
   if (jsonBytes(stub) > maxBytes) {
@@ -4245,7 +4299,7 @@ function packTasklessRecoveryRecords(stub, maxBytes) {
       }
     }
   }
-  return stub
+  return jsonBytes(stub) > maxBytes ? packTasklessRecoveryProjection(stub, maxBytes) : stub
 }
 
 function buildTasklessAuthorityEphemeralStub(state, maxBytes = EPHEMERAL_STUB_TARGET_BYTES) {

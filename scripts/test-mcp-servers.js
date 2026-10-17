@@ -2570,6 +2570,58 @@ function testMemoryWorkflowOperationalWriteLeaseContract() {
   fs.writeFileSync(statePath, JSON.stringify(fullState))
 }
 
+function testMemoryTasklessCurrentReportRecovery() {
+  setupLegacyWorkspace()
+  const activeRoot = path.join(TEMP_ROOT, '.devcodex')
+  const project = path.basename(TEMP_ROOT)
+  const hostSessionId = 'mcp-taskless-report-recovery'
+  const ingress = buildTaskAuthorityIngress({ activeRoot, project, suffix: 'taskless-report', hostSessionId, routeKey: 'audit.项目工程' })
+  const target = path.join(activeRoot, 'reports/audit/codex/20261017/01--unknown.md')
+  fs.mkdirSync(path.dirname(target), { recursive: true })
+  fs.writeFileSync(target, '# bounded current report\n')
+  let turn = prepareTaskOperationRecord({}, { operationId: 'taskless-missing-closeout', writerGeneration: 1,
+    expectedStateSequence: 1, kind: 'create-or-update', exactTargets: [target] })
+  turn = markTaskOperationDispatched(turn, 'taskless-missing-closeout')
+  const statePath = writeTaskAuthorityLifecycleState(activeRoot, project, ingress, {
+    taskRecoveryBinding: null, turnLiveness: turn,
+    contextAcquisition: { activeRoot, project, hostSessionId, contextEpoch: ingress.actualInstructionEnvelope.contextEpoch, targetResolved: true }
+  })
+  const metaDir = resolveTaskRecoveryMetaDir({ activeRoot, project })
+  const committed = commitTaskRecoveryState({ metaDir, identity: { activeRoot, project }, sessionKey: hostSessionId,
+    state: JSON.parse(fs.readFileSync(statePath, 'utf8')) }, { force: true, reason: 'test-taskless-unknown-report' })
+  assert(['committed', 'ephemeral-stub', 'semantic-noop'].includes(committed.status), JSON.stringify(committed))
+  const inspect = resultById(runServer('mcp/memory-server.js', [rpcRequest(1, 'tools/call', {
+    name: 'memory_artifact_mutation_reconcile_v1', arguments: { ingressRef: ingress.ingressRef, resolution: 'inspect-current-report-state' }
+  })], TEMP_ROOT), 1)
+  assert.strictEqual(inspect.isError, false, JSON.stringify(inspect))
+  assert.strictEqual(inspect.structuredContent.stateChanged, false)
+  assert.strictEqual(inspect.structuredContent.proposal.taskId, null)
+  const args = { ...inspect.structuredContent.nextCall.arguments, ingressRef: ingress.ingressRef }
+  assert.strictEqual(args.taskId, undefined)
+  const results = runServer('mcp/memory-server.js', [
+    rpcRequest(2, 'tools/call', { name: 'memory_artifact_mutation_reconcile_v1', arguments: { ...args, expectedOperationDigest: 'f'.repeat(64) } }),
+    rpcRequest(3, 'tools/call', { name: 'memory_artifact_mutation_reconcile_v1', arguments: args }),
+    rpcRequest(4, 'tools/call', { name: 'memory_artifact_mutation_reconcile_v1', arguments: args })
+  ], TEMP_ROOT)
+  assert.strictEqual(resultById(results, 2).isError, true)
+  const accepted = resultById(results, 3)
+  assert.strictEqual(accepted.isError, false, JSON.stringify(accepted))
+  assert.strictEqual(accepted.structuredContent.receipt.schemaVersion, 'TaskOperationCurrentReportStateReceiptV2')
+  assert.strictEqual(accepted.structuredContent.receipt.project, project)
+  assert.strictEqual(accepted.structuredContent.historicalEffect, 'unknown')
+  assert.strictEqual(accepted.structuredContent.mutationAuthority, false)
+  assert.strictEqual(accepted.structuredContent.currentSnapshotRechecked, true)
+  const replay = resultById(results, 4)
+  assert.strictEqual(replay.isError, false, JSON.stringify(replay))
+  assert.strictEqual(replay.structuredContent.replayed, true)
+  assert.strictEqual(fs.readFileSync(target, 'utf8'), '# bounded current report\n')
+  const recovered = readTaskRecoveryState({ metaDir, hostSessionDigest: ingress.actualInstructionEnvelope.hostSessionDigest,
+    expectedIdentity: { activeRoot, project, taskStatus: 'active' } })
+  assert.strictEqual(recovered.state.taskRecoveryBinding, null)
+  assert.strictEqual(recovered.state.turnLiveness.taskOperationSet.unresolved, null)
+  assert.strictEqual(recovered.state.turnLiveness.taskOperationSet.settled.at(-1).effect, 'accepted-current-state')
+}
+
 function testMemoryAdmissionPreservesObservedTurn() {
   const { buildTestHooksRuntimeFixtures } = require('./lib/test-hooks-runtime-fixtures')
   const stateFile = path.join(TEMP_ROOT, '.devcodex/chat/.memory/hooks/chat/lifecycle-state.json')
@@ -7607,6 +7659,7 @@ testMemoryTaskAdmissionV2Contract()
 testMemoryFinalizedFreshResumeV3Contract()
 testMemoryOwnerFencedCrashResumeContract()
 testMemoryWorkflowOperationalWriteLeaseContract()
+testMemoryTasklessCurrentReportRecovery()
 testMemoryAdmissionPreservesObservedTurn()
 testMemorySimpleTaskFastPathLeaseContract()
 testMemoryTaskOwnerAndTerminalV1Contract()

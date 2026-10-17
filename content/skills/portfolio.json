@@ -6,17 +6,17 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "ef54c40691a59fce9bb4eec68419b3ef54e0d2c6f0c39e51c4d99eec12382baa",
+    "sourceDigest": "6001a27441b013eb96b75268ba378c4879c40bc0222f47eec2fab26b41a14eab",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "7b4042b10fc27cb70440fef64151bc50662a2f871274749925ea0e88f38388f4",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
     "publicTaxonomyDigest": "7f6ee8c30f5484b8881e27099af72c69625b73a7cf3b53fe51c8c0c147d4f124",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "cfd709b1248855c06c56373d1bcfe4798acefd7f1e0c11555b26cfd8caa1e8a6",
-    "consumerInventoryFileCount": 725,
-    "consumerInventoryDigest": "907fe133b028e0828da7374c2a9215bcfb19fcb96d8d91d79c60df14e098f3a1",
-    "consumerProjectionDigest": "d768d372de8297304703f9a3cce0c61fd6d2cce3d1562bd492c3df09b7a3a274",
-    "portfolioInputDigest": "81d4b1bdcd95bb1cc7f46b6fffea67b6e7d0e98d940c856b294b1c13c7fdbcb0"
+    "consumerInventoryFileCount": 726,
+    "consumerInventoryDigest": "3c1441a972d18606f5fcf0a342d0aa0636f50f70b110e51733dbf36896625c10",
+    "consumerProjectionDigest": "4fea3f80dba23308e6b4067421d8bdff8896dd8acad3e30878019a86f549b58e",
+    "portfolioInputDigest": "3af53c203d480d7aee9760495783510685ff8bea60ca4f761d2ad1afa55cd5b6"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -320,6 +320,10 @@
       },
       {
         "from": "audit-session",
+        "to": "audit-common"
+      },
+      {
+        "from": "audit-session",
         "to": "audit-execution-guide"
       },
       {
@@ -420,10 +424,6 @@
       },
       {
         "from": "routing",
-        "to": "audit-common"
-      },
-      {
-        "from": "routing",
         "to": "audit-dimensions"
       },
       {
@@ -497,6 +497,10 @@
       {
         "from": "routing",
         "to": "dev-optimization"
+      },
+      {
+        "from": "routing",
+        "to": "dev-plan-review"
       },
       {
         "from": "routing",
@@ -2065,8 +2069,8 @@
         "content/skills/audit-common/SKILL.md"
       ],
       "source": "content/skills/audit-common/SKILL.md",
-      "hash": "06361a960e7815f9f31ecf7c55e0c024cbd3de85937d0d9eee267d9ff59dce34",
-      "sourceBytes": 30357,
+      "hash": "40148d1b73e2d2bd6d65b27d7e436fcb6b959c0319e22ef18e180cda30e8f92f",
+      "sourceBytes": 30789,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -2316,8 +2320,8 @@
         "content/skills/audit-dimensions/SKILL.md"
       ],
       "source": "content/skills/audit-dimensions/SKILL.md",
-      "hash": "52393edffa6210066f20735852d799b24492f8c0f5d2a45ba77ebb1ea919daee",
-      "sourceBytes": 12946,
+      "hash": "d1ee196c73beca1f577bd3518201c5e574c4e9d7daebdec4f6fe74bc21524b4b",
+      "sourceBytes": 13375,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",
@@ -2658,7 +2662,7 @@
         "content/skills/audit-execution-guide/SKILL.md"
       ],
       "source": "content/skills/audit-execution-guide/SKILL.md",
-      "hash": "23b670dcd4668e3dd38ea602fa70d4c3a1ac57555d9403761f31e38e4c8b2215",
+      "hash": "0454552c9cea0e80195c7b03c28fa6c97d6d3a00e68eebdf921fb6380ec83867",
       "sourceBytes": 7444,
       "version": "1.20.4",
       "lifecycleState": "active",
@@ -3848,13 +3852,14 @@
         "content/skills/audit-session/SKILL.md"
       ],
       "source": "content/skills/audit-session/SKILL.md",
-      "hash": "bfed3381e0c765286b597006fbdd20cb626667f64239295577ad9555adf24575",
-      "sourceBytes": 9705,
+      "hash": "9cf5a920634771181472317826bb116fcbf4978c52c96d5c61b989d1e9ddcca9",
+      "sourceBytes": 10418,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
       "dependencies": [],
       "references": [
+        "audit-common",
         "audit-execution-guide"
       ],
       "conflicts": [],
@@ -8697,6 +8702,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/validate-core-checks.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/validate-governance-expert.js",
           "role": "current"
         },
@@ -8734,6 +8743,10 @@
         },
         {
           "path": "scripts/lib/validate-visible-output-controls.js",
+          "role": "current"
+        },
+        {
+          "path": "scripts/test-audit-convergence-consumer.js",
           "role": "current"
         },
         {
@@ -8786,6 +8799,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-audit-convergence-consumer.js",
         "scripts/test-client-contracts.js",
         "scripts/test-git-execution-context.js",
         "scripts/test-host-capability-routing.js",
@@ -8843,6 +8857,7 @@
         ],
         "evolvableUnitRef": "skill:execution-contract",
         "probeSuiteRefs": [
+          "scripts/test-audit-convergence-consumer.js",
           "scripts/test-client-contracts.js",
           "scripts/test-git-execution-context.js",
           "scripts/test-host-capability-routing.js",
@@ -17728,8 +17743,8 @@
         "content/skills/review-checklist/SKILL.md"
       ],
       "source": "content/skills/review-checklist/SKILL.md",
-      "hash": "ad292e4383b381c880e84978f97ba49f5efb62a214652473de72fa5b45ebdb62",
-      "sourceBytes": 16563,
+      "hash": "6c9142c94b1c6945712466a4eb089a175fda4ce938978c7fed7fc2d6ca73244a",
+      "sourceBytes": 17716,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",
@@ -18154,8 +18169,8 @@
         "content/skills/routing/SKILL.md"
       ],
       "source": "content/skills/routing/SKILL.md",
-      "hash": "034a5d9abdedbab3c3e7bfb8093d0983d81f61d8f9af035adc279706c364ad91",
-      "sourceBytes": 19657,
+      "hash": "504d76a939fdf0bec87590a91a03c93541de75d56b43b0d59a390cd3f2e2fc36",
+      "sourceBytes": 19748,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -18173,7 +18188,6 @@
         "analyze-default",
         "analyze-research",
         "api-contract-architecture",
-        "audit-common",
         "audit-dimensions",
         "audit-document",
         "audit-project",
@@ -18193,6 +18207,7 @@
         "dev-docs",
         "dev-init",
         "dev-optimization",
+        "dev-plan-review",
         "dev-refactor",
         "dev-scenario-test",
         "developer-experience-architecture",

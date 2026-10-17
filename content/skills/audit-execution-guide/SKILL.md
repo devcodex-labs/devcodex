@@ -29,7 +29,7 @@ audit 每轮先形成 `ReviewExecutionPlanV1`，按 stage+risk+claims/dimensions
 | 审查发布前准备 / release pre-review | RL-1·RL-2·RL-3·RL-4·RL-5·RL-6·RL-9 + `audit-release`（RL-1~RL-10） |
 | 用户自有/已授权的本地安全审查，或出现“无法显示此内容/额外安全检查” | PE-3 + `security-threat-modeling` 的 `AuthorizedLocalSecurityAuditPresentationGate`；可见层最小证据、隔离探针和 SafetyInterruptionCard，禁止绕过表述 |
 | 新增 spec 文件 | D1·D5·D9·D15·D17·D18 |
-| 新增子类型 spec | D5(#6)·D9·D15 — 联动 L1/L2/L3 |
+| 新增子类型 spec | D5(#1)·D9·D15 — 联动 L1/L2/L3 |
 | 新增维度/约束编号 | D5·D15·D18 + 数值引用联动 |
 | 修改了 ENV_MODE/模式行为定义 | D5·D22 — 跨文件语义传播核查 |
 | 修改了规则定义文件（字段/术语/路径等） | D5 · **CRS 全库关键词扫描**（见 `audit-common §关联文件发现`）|

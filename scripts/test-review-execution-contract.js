@@ -11,6 +11,7 @@ const {
   evaluateReceiptFreshness,
   evaluateStableReceiptOracle,
   projectReviewState,
+  requiredAuditZeroFindingRounds,
   selectReviewClass,
   stableReceiptSample
 } = require('../hooks/_runtime/review-execution-contract.cjs')
@@ -111,6 +112,80 @@ const narrow = plan({ workflow: 'audit', stage: 'audit', risk: { class: 'normal'
 assert.strictEqual(narrow.exit.requiredZeroFindingRounds, 2)
 assert.strictEqual(plan({ workflow: 'audit', stage: 'audit', auditConvergence: narrowFacts }).exit.requiredZeroFindingRounds, 3)
 assert.strictEqual(plan({ workflow: 'audit', stage: 'audit', risk: { class: 'normal', flags: [] }, auditConvergence: { ...narrowFacts, explicitNarrowScope: false } }).exit.requiredZeroFindingRounds, 3)
+for (const roundTrip of [narrow, plan({ workflow: 'audit', stage: 'audit', auditConvergence: {
+  explicitNarrowScope: false, scaleDecision: 'batched', crossHostControlPlane: true, multipleConsumers: true
+} })]) {
+  const serialized = JSON.parse(JSON.stringify(roundTrip))
+  assert.deepStrictEqual(createReviewExecutionPlan(serialized), roundTrip)
+  const roundReceipt = receipt(serialized)
+  const saturated = evaluateEvidenceSaturation(serialized, { ...saturationInput, receipts: [roundReceipt],
+    oracle: evaluateStableReceiptOracle([roundReceipt], { [roundReceipt.receiptDigest]: 'passed' }),
+    zeroFindingRounds: serialized.exit.requiredZeroFindingRounds })
+  assert.strictEqual(saturated.status, 'passed', saturated.reasons.join(', '))
+}
+const narrowSession = { convergenceMode: 'narrow-2', reviewExecutionPlan: narrow }
+assert.strictEqual(requiredAuditZeroFindingRounds(narrowSession), 2)
+assert.strictEqual(requiredAuditZeroFindingRounds({}), 3)
+assert.strictEqual(requiredAuditZeroFindingRounds({ convergenceMode: 'narrow-2' }), 3)
+assert.strictEqual(requiredAuditZeroFindingRounds({ ...narrowSession, reviewExecutionPlan: { ...narrow, exit: { ...narrow.exit, requiredZeroFindingRounds: 1 } } }), 3)
+assert.strictEqual(requiredAuditZeroFindingRounds({ ...narrowSession, reviewExecutionPlan: { ...narrow, candidateDigest: 'tampered' } }), 3)
+for (const overrides of [
+  { risk: { class: 'security', flags: [] } },
+  { risk: { class: 'release', flags: [] } },
+  { stage: 'release' }, { claims: ['full'] },
+  { risk: { class: 'normal', flags: ['control-plane'] } },
+  { risk: { class: 'normal', flags: ['multi-source'] } },
+  { risk: { class: 'normal', flags: ['security'] } },
+  { risk: { class: 'normal', flags: ['release'] } },
+  { auditConvergence: { ...narrowFacts, multipleConsumers: true } },
+  { auditConvergence: { ...narrowFacts, explicitNarrowScope: false } }
+]) {
+  const guarded = plan({ workflow: 'audit', stage: 'audit', risk: { class: 'normal', flags: [] }, auditConvergence: narrowFacts, ...overrides })
+  assert.strictEqual(requiredAuditZeroFindingRounds({ ...narrowSession, reviewExecutionPlan: guarded }), 3)
+}
+const documentPlanInput = { workflow: 'audit', stage: 'audit', changedSet: [], affectedClosure: ['requirements.md'],
+  risk: { class: 'normal', flags: ['public-contract'] },
+  claims: ['behavior-preserved', 'no-runtime-fallback-target'], dimensions: ['contract', 'fallback-applicability'] }
+function documentFallbackCase(overrides = {}, factOverrides = {}) {
+  const documentPlan = plan({ ...documentPlanInput, ...overrides })
+  const evidence = [receipt(documentPlan), receipt(documentPlan, { dimension: 'fallback-applicability', claim: 'no-runtime-fallback-target' })]
+  const facts = { schemaVersion: 'ReviewFallbackApplicabilityV1', status: 'not-applicable', kind: 'read-only-document-audit',
+    planId: documentPlan.planId, candidateDigest: documentPlan.candidateDigest, scopeDigest: documentPlan.scopeDigest,
+    implementationPresent: false, runtimeStatePresent: false, mutableConsumerStatePresent: false, sourceMutationAuthorized: false,
+    reason: 'only unconfirmed requirements drafts; no implementation or runtime state',
+    residualRisk: 'proposed future implementation remains untested', upgradeCondition: 'implementation, mutable consumers, scope or risk changes',
+    evidenceReceiptDigests: [evidence[1].receiptDigest], ...factOverrides }
+  const input = { ...saturationInput, receipts: evidence, fallbackEvidencePassed: false, fallbackApplicability: facts,
+    zeroFindingRounds: 3, oracle: evaluateStableReceiptOracle(evidence, Object.fromEntries(evidence.map(value => [value.receiptDigest, 'passed']))) }
+  return { documentPlan, input, result: evaluateEvidenceSaturation(documentPlan, input) }
+}
+const documentCase = documentFallbackCase()
+assert.strictEqual(documentCase.result.status, 'passed', documentCase.result.reasons.join(', '))
+assert.strictEqual(documentCase.result.fallbackApplicability.status, 'not-applicable')
+for (const factOverrides of [
+  { reason: '' }, { residualRisk: '' }, { upgradeCondition: '' },
+  { planId: 'foreign' }, { candidateDigest: 'foreign' }, { scopeDigest: 'foreign' },
+  { implementationPresent: true }, { runtimeStatePresent: true }, { mutableConsumerStatePresent: true },
+  { sourceMutationAuthorized: true }, { kind: 'any-audit' },
+  { evidenceReceiptDigests: [] }, { evidenceReceiptDigests: ['f'.repeat(64)] }
+]) assert(documentFallbackCase({}, factOverrides).result.reasons.includes('fallback-evidence-missing'))
+for (const overrides of [
+  { workflow: 'dev', stage: 'ecr' }, { stage: 'release' }, { claims: ['full', 'no-runtime-fallback-target'] },
+  { risk: { class: 'security', flags: [] } }, { risk: { class: 'release', flags: [] } },
+  { risk: { class: 'high', flags: ['public-contract'] } }, { risk: { class: 'normal', flags: ['control-plane'] } },
+  { risk: { class: 'normal', flags: ['security'] } }, { risk: { class: 'normal', flags: ['release'] } },
+  { risk: { class: 'normal', flags: ['unknown-future-risk'] } },
+  { changedSet: ['requirements.md'] }, { dimensions: ['contract'] }, { claims: ['behavior-preserved'] }
+]) {
+  const value = documentFallbackCase(overrides)
+  assert.strictEqual(value.result.fallbackApplicability, undefined)
+  if (value.documentPlan.exit.requireFallbackEvidence) assert(value.result.reasons.includes('fallback-evidence-missing'))
+}
+const staleFallback = documentFallbackCase()
+staleFallback.input.receipts[1].candidateDigest = 'stale'
+assert(evaluateEvidenceSaturation(staleFallback.documentPlan, staleFallback.input).reasons.includes('fallback-evidence-missing'))
+assert.strictEqual(evaluateEvidenceSaturation(documentCase.documentPlan, { ...documentCase.input, independentEvidencePassed: false }).status, 'full-required')
+assert.strictEqual(evaluateEvidenceSaturation(documentCase.documentPlan, { ...documentCase.input, zeroFindingRounds: 2 }).status, 'full-required')
 assert.strictEqual(saturation.status, 'passed', saturation.reasons.join(', '))
 assert.strictEqual(evaluateEvidenceSaturation(highSmall, { ...saturationInput, dirtyBoundaryMatches: false }).status, 'full-required')
 assert.strictEqual(evaluateEvidenceSaturation(highSmall, { ...saturationInput, receipts: [] }).status, 'full-required')

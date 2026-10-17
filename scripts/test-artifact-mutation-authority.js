@@ -1700,6 +1700,55 @@ try {
     assert.throws(() => observeCurrentReportState(input), error => error.code === 'TASK_OPERATION_RECOVERY_SNAPSHOT_MISMATCH')
     fs.writeFileSync(target, beforeFile)
     assert.deepStrictEqual(fs.readFileSync(target), beforeFile)
+
+    // Ordinary audit has no formal task. Observe only its exact report slot,
+    // preserve unknown history, and bind the result to the current project.
+    const projectReport = path.join(activeRoot, 'reports/audit/codex/20261017/01--taskless-unknown.md')
+    fs.mkdirSync(path.dirname(projectReport), { recursive: true })
+    fs.writeFileSync(projectReport, '# current project report\n')
+    function projectState(targets = [projectReport]) {
+      const value = createState(targets)
+      delete value.admissionTransaction
+      value.taskRecoveryBinding = null
+      value.activeProject = 'devcodex'
+      value.stickyProject = { rootIdentityDigest: '1'.repeat(64) }
+      return value
+    }
+    const taskless = projectState()
+    const projectInput = { ...input, state: taskless, taskId: null, project: 'devcodex',
+      expectedOperationDigest: taskless.turnLiveness.taskOperationSet.unresolved.recordDigest,
+      observations: [{ path: projectReport, sha256: sha256(fs.readFileSync(projectReport)), bytes: fs.statSync(projectReport).size }] }
+    const projectReceipt = observeCurrentReportState(projectInput)
+    assert.strictEqual(projectReceipt.schemaVersion, 'TaskOperationCurrentReportStateReceiptV2')
+    assert.strictEqual(projectReceipt.taskId, null)
+    assert.strictEqual(projectReceipt.scope, 'project')
+    assert.strictEqual(projectReceipt.historicalEffect, 'unknown')
+    assert.strictEqual(projectReceipt.mutationAuthority, false)
+    const recoveredProject = applyCurrentReportStateRecovery(JSON.parse(JSON.stringify(taskless)), projectReceipt)
+    assert.strictEqual(live.taskOperationTerminalSnapshot(recoveredProject.turnLiveness).terminalReady, true)
+    assert.strictEqual(recoveredProject.taskRecoveryBinding, null)
+    assert.deepStrictEqual(fs.readFileSync(projectReport), Buffer.from('# current project report\n'))
+    assert.strictEqual(validateCurrentStateRecoveryReceipt(projectReceipt, { taskId, project: 'devcodex' }).valid, false)
+    assert.throws(() => applyCurrentReportStateRecovery({ ...taskless, activeProject: 'foreign' }, projectReceipt),
+      error => error.code === 'TASK_OPERATION_RECOVERY_CAS_MISMATCH')
+    for (const change of [
+      { project: 'foreign' }, { projectRootIdentityDigest: 'f'.repeat(64) },
+      { state: { ...taskless, admissionTransaction: state.admissionTransaction } },
+      { state: { ...taskless, taskRecoveryBinding: state.taskRecoveryBinding } }
+    ]) assert.throws(() => observeCurrentReportState({ ...projectInput, ...change }),
+      error => error.code === 'TASK_OPERATION_RECOVERY_PROJECT_MISMATCH')
+    for (const forbiddenTarget of [target, forbidden, path.join(activeRoot, '.audit-state/session.json'),
+      path.join(activeRoot, 'reports/audit/codex/20261017/02--not-a-report.json')]) {
+      const invalidState = projectState([forbiddenTarget])
+      assert.throws(() => observeCurrentReportState({ ...projectInput, state: invalidState,
+        expectedOperationDigest: invalidState.turnLiveness.taskOperationSet.unresolved.recordDigest }),
+      error => error.code === 'TASK_OPERATION_RECOVERY_REPORT_ONLY')
+    }
+    const changedProjectReport = fs.readFileSync(projectReport)
+    fs.appendFileSync(projectReport, 'changed\n')
+    assert.throws(() => observeCurrentReportState(projectInput), error => error.code === 'TASK_OPERATION_RECOVERY_SNAPSHOT_MISMATCH')
+    fs.writeFileSync(projectReport, changedProjectReport)
+
   }
   process.stdout.write('test-artifact-mutation-authority: ok\n')
 } finally {

@@ -70,6 +70,10 @@ function selectReviewClass(input) {
  * @returns {Record<string, unknown>} ReviewExecutionPlanV1.
  */
 function createReviewExecutionPlan(input) {
+  // Canonical output stores these facts under exit. Re-reading a serialized
+  // plan must preserve the exact policy inputs before revalidating its digest.
+  const auditConvergence = input?.auditConvergence ??
+    (input?.schemaVersion === 'ReviewExecutionPlanV1' ? input.exit?.auditConvergence : undefined)
   const errors = []
   const routing = selectReviewClass(input)
   for (const field of ['userIntent', 'candidateDigest']) if (!text(input?.[field])) errors.push(`${field}-required`)
@@ -85,11 +89,11 @@ function createReviewExecutionPlan(input) {
   if ((input?.dimensions || []).length === 0 && input?.workflow !== 'chat') errors.push('dimensions-required')
 
   const narrowAudit = input?.workflow === 'audit' && routing.reviewClass !== 'R4' &&
-    input?.auditConvergence?.explicitNarrowScope === true &&
-    input?.auditConvergence?.scaleDecision === 'single-pass' &&
-    input?.auditConvergence?.crossHostControlPlane === false &&
-    input?.auditConvergence?.multipleConsumers === false &&
-    !(input?.risk?.flags || []).some(flag => ['control-plane', 'multi-module', 'multi-source'].includes(flag))
+    auditConvergence?.explicitNarrowScope === true &&
+    auditConvergence?.scaleDecision === 'single-pass' &&
+    auditConvergence?.crossHostControlPlane === false &&
+    auditConvergence?.multipleConsumers === false &&
+    !(input?.risk?.flags || []).some(flag => ['control-plane', 'multi-module', 'multi-source', 'security', 'release'].includes(flag))
   const requiredZeroFindingRounds = routing.reviewClass === 'R4'
     ? 3
     : input?.workflow === 'audit' ? (narrowAudit ? 2 : 3)
@@ -121,10 +125,10 @@ function createReviewExecutionPlan(input) {
       requiredZeroFindingRounds,
       ...(input?.workflow === 'audit' ? { auditConvergence: {
         mode: narrowAudit ? 'narrow-2' : 'default-3',
-        explicitNarrowScope: input?.auditConvergence?.explicitNarrowScope === true,
-        scaleDecision: input?.auditConvergence?.scaleDecision || null,
-        crossHostControlPlane: input?.auditConvergence?.crossHostControlPlane ?? null,
-        multipleConsumers: input?.auditConvergence?.multipleConsumers ?? null
+        explicitNarrowScope: auditConvergence?.explicitNarrowScope === true,
+        scaleDecision: auditConvergence?.scaleDecision || null,
+        crossHostControlPlane: auditConvergence?.crossHostControlPlane ?? null,
+        multipleConsumers: auditConvergence?.multipleConsumers ?? null
       } } : {}),
       requireIndependentEvidence: ['R3', 'R4'].includes(routing.reviewClass),
       requireNegativeEvidence: !['R0', 'R1'].includes(routing.reviewClass),
@@ -134,6 +138,20 @@ function createReviewExecutionPlan(input) {
     validation: { valid: errors.length === 0, errors }
   }
   return { ...core, planId: `review-plan-${digest(core)}` }
+}
+
+// Persisted audit sessions consume the same bounded plan as saturation. A label
+// or edited exit field cannot lower the default three-round requirement.
+function requiredAuditZeroFindingRounds(state = {}) {
+  const plan = state.reviewExecutionPlan
+  if (state.convergenceMode !== 'narrow-2' || !plan ||
+      plan.schemaVersion !== 'ReviewExecutionPlanV1' || plan.workflow !== 'audit') return 3
+  try {
+    const rebuilt = createReviewExecutionPlan(plan)
+    if (!rebuilt.validation.valid || rebuilt.planId !== plan.planId ||
+        digest(rebuilt) !== digest(plan) || rebuilt.exit.auditConvergence?.mode !== 'narrow-2') return 3
+    return rebuilt.exit.requiredZeroFindingRounds
+  } catch { return 3 }
 }
 
 function createReviewEvidenceReceipt(input) {
@@ -196,6 +214,28 @@ function exclusionIsBounded(item) {
   return item && text(item.item) && text(item.reason) && text(item.authority) && text(item.upgradeCondition)
 }
 
+// A read-only document audit can prove there is no runtime fallback target.
+// This is evidence-bound applicability, never a general R3/R4 waiver.
+function readOnlyDocumentFallbackNotApplicable(plan, facts, freshReceipts) {
+  const boundedText = value => text(value) && value.length <= 1024
+  if (plan?.workflow !== 'audit' || plan.stage !== 'audit' || plan.reviewClass === 'R4' ||
+      !['low', 'normal'].includes(plan.risk?.class) || !Array.isArray(plan.changedSet) || plan.changedSet.length !== 0 ||
+      !Array.isArray(plan.risk?.flags) || !Array.isArray(plan.dimensions) || !Array.isArray(plan.claims) ||
+      !(plan.risk?.flags || []).every(flag => ['public-contract', 'docs-consumer'].includes(flag)) ||
+      facts?.schemaVersion !== 'ReviewFallbackApplicabilityV1' || facts.status !== 'not-applicable' ||
+      facts.kind !== 'read-only-document-audit' || facts.planId !== plan.planId ||
+      facts.candidateDigest !== plan.candidateDigest || facts.scopeDigest !== plan.scopeDigest ||
+      facts.implementationPresent !== false || facts.runtimeStatePresent !== false ||
+      facts.mutableConsumerStatePresent !== false || facts.sourceMutationAuthorized !== false ||
+      !['reason', 'residualRisk', 'upgradeCondition'].every(key => boundedText(facts[key])) ||
+      !plan.dimensions.includes('fallback-applicability') || !plan.claims.includes('no-runtime-fallback-target')) return false
+  const refs = facts.evidenceReceiptDigests
+  return Array.isArray(refs) && refs.length > 0 && refs.length <= 8 &&
+    new Set(refs).size === refs.length && refs.every(ref => freshReceipts.some(receipt =>
+      receipt.receiptDigest === ref && receipt.dimension === 'fallback-applicability' &&
+      receipt.claim === 'no-runtime-fallback-target' && receipt.evidenceRefs.length > 0))
+}
+
 function evaluateEvidenceSaturation(plan, input) {
   const reasons = []
   if (!plan || createReviewExecutionPlan(plan).planId !== plan.planId) reasons.push('plan-digest-invalid')
@@ -229,7 +269,8 @@ function evaluateEvidenceSaturation(plan, input) {
   if ((input?.blockerCount || 0) > 0) reasons.push('blockers-remain')
   if (plan?.exit?.requireIndependentEvidence && input?.independentEvidencePassed !== true) reasons.push('independent-evidence-missing')
   if (plan?.exit?.requireNegativeEvidence && input?.negativeEvidencePassed !== true) reasons.push('negative-evidence-missing')
-  if (plan?.exit?.requireFallbackEvidence && input?.fallbackEvidencePassed !== true) reasons.push('fallback-evidence-missing')
+  const fallbackNotApplicable = readOnlyDocumentFallbackNotApplicable(plan, input?.fallbackApplicability, freshReceipts)
+  if (plan?.exit?.requireFallbackEvidence && input?.fallbackEvidencePassed !== true && !fallbackNotApplicable) reasons.push('fallback-evidence-missing')
   if (plan?.exit?.requireDirtyBoundaryMatch && input?.dirtyBoundaryMatches !== true) reasons.push('dirty-boundary-mismatch')
   if ((input?.zeroFindingRounds || 0) < (plan?.exit?.requiredZeroFindingRounds || 0)) reasons.push('zero-finding-rounds-insufficient')
   if (input?.oracle?.status === 'full-required') reasons.push('stable-oracle-mismatch')
@@ -241,6 +282,7 @@ function evaluateEvidenceSaturation(plan, input) {
     missingDimensions,
     missingClaims,
     missingEvidence,
+    ...(fallbackNotApplicable ? { fallbackApplicability: input.fallbackApplicability } : {}),
     boundedExclusionCount: unreviewed.length - unbounded.length,
     unboundedRelatedCount: unbounded.length
   }
@@ -308,6 +350,7 @@ module.exports = {
   evaluateReceiptFreshness,
   evaluateStableReceiptOracle,
   projectReviewState,
+  requiredAuditZeroFindingRounds,
   selectReviewClass,
   stableReceiptSample
 }

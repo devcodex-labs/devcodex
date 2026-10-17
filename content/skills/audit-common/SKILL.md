@@ -244,7 +244,7 @@ R2 及以后轮次必须维护复审覆盖增量，防止连续零发现退化�
 - `NewlyReadThisRound` 为空，但 `NoNewSurfaceReason` 有证据支撑，且本轮无新增问题 → 可计入 1 次有效零发现。
 - `NewlyReadThisRound` 为空且缺少 `NoNewSurfaceReason` → 本轮即使零发现，也不得增加收敛计数。
 - 重复阅读已审查范围不能替代覆盖增量；只能作为高风险回归、修复点回归、抽样或新证据复核的补充。
-- PCV 必须核验最近 3 次有效零发现的 `ReviewCoverageDelta`，确认不是用同一轮或同一批文件的机械重复凑数。
+- PCV 必须按 audit-session/Owner 的完整有效计划核验最近 R 次有效零发现（默认3，完整有效 narrow-2 为2；full/security/release为3）的 `ReviewCoverageDelta`，确认不是用同一轮或同一批文件的机械重复凑数。
 
 ### ReviewDimensionDeltaGate（复审维度增量）
 

@@ -52,9 +52,18 @@ console.log('audit convergence V15 consumer passed')
 {
   const fs = require('fs'), path = require('path')
   for (const relative of ['content/prompts/report-audit.prompt.md', 'content/instructions/16-report.instructions.md',
-    'content/instructions/13-analyze.instructions.md', 'content/skills/intent/SKILL.md', 'content/skills/audit-execution-guide/SKILL.md']) {
+    'content/instructions/13-analyze.instructions.md', 'content/skills/intent/SKILL.md', 'content/skills/audit-execution-guide/SKILL.md', 'content/skills/audit-common/SKILL.md',
+    'content/instructions/12-audit.instructions.md', 'content/instructions.md']) {
     const body = fs.readFileSync(path.join(__dirname, '..', relative), 'utf8')
     assert(body.includes('audit-session') && body.includes('narrow-2'), relative)
     assert(!/所有(?:子|审查)类型统一，不区分定向\/全面/.test(body), relative)
+    assert(!/最近\s*3\s*次有效零发现/.test(body), relative)
   }
+}
+
+{
+  const body = require('fs').readFileSync(require('path').join(__dirname, '../content/instructions.md'), 'utf8')
+  const audit = body.split('## 审计工作流（audit）')[1].split('### 审查目标类型路由')[0]
+  assert(!audit.includes('阻断项立即自我审视 + self-fix'))
+  assert(audit.includes('不在当前 audit 内穿插改源'))
 }

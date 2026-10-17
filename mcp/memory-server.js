@@ -6478,12 +6478,22 @@ function handleMemoryTaskAdmitV2(args) {
     admission.ownerReopenRequired = true
     admission.nextRequiredPhase = 'owner-reopen'
     admission.mutationAuthority = false
+    const terminalFence = readFencedTaskWriteOwner({
+      metaDir: resolveTaskRecoveryMetaDir({ activeRoot: target.activeRoot, project: target.project }),
+      identity: { activeRoot: target.activeRoot, project: target.project, taskId: admission.taskId, taskStatus: 'active' }
+    }, { fs })
+    const owner = terminalFence.status === 'fresh' && terminalFence.owner?.status === 'terminal'
+      ? terminalFence.owner : null
     admission.nextCall = {
       tool: 'memory_task_write_owner',
       arguments: { project: target.project, operation: 'reopen', taskId: admission.taskId,
-        admissionId: admission.admissionId, ingressRef: admission.ingressRef },
-      requiredArguments: ['expectedOwner'],
-      expectedOwnerSource: 'exact terminal owner ref from the public task continuity view'
+        admissionId: admission.admissionId, ingressRef: admission.ingressRef,
+        ...(owner ? { expectedOwner: { ownerGeneration: owner.ownerGeneration, ownerNonce: owner.ownerNonce,
+          leaseRevision: owner.leaseRevision, leaseDigest: owner.leaseDigest } } : {}) },
+      requiredArguments: owner ? [] : ['expectedOwner'],
+      expectedOwnerSource: owner
+        ? 'current server-owned terminal fence snapshot; exact CAS is revalidated by reopen'
+        : 'terminal fence unavailable; preserve the pending admission and recover the exact task'
     }
   }
   if (!explicitReopen && !admission.atomicOwnerAcquired && !admission.routeBindingRequired && !['needs-reconcile', 'aborted'].includes(admission.status)) {

@@ -176,6 +176,8 @@ CP1 前后必须使用 `workflow-plan-decision.v1.schema.json` 与 `hooks/_runti
 > 🔴 **RequiredCandidateEvidenceGate**：CP1/CP2 请求确认前必须检查候选审查包。CP1 要求 `CandidateReviewBundleV1 + phaseKind=CP1 + RQMatrix + DomainRealityMatrix + ClaimEvidenceMatrix + EscapeAbsorptionQueue`；CP2 要求 `CandidateReviewBundleV1 + phaseKind=CP2 + TDMatrix + BlockerSnapshot + ClaimEvidenceMatrix`。缺失、陈旧、存在 open blocker 或软确认绕过时，确认状态必须停在当前 CP 并修订产物。
 > 机器探针：`npm run test:candidate-review-bundle` / `scripts/lib/candidate-review-bundle.js`；分类为 `review-ready` 才能进入确认，`review-incomplete`、`blocked`、`stale`、`confirm-blocked` 均不得包装为用户可确认状态。
 
+候选冻结前区分内容阻断与阶段资格：`BlockerSnapshot.openBlockers` 记录候选本身尚未解决的内容问题；尚待独立意见、精确确认或后续运行证据，单列为资格依赖，由 C19 / ReviewExecution 继续阻断，不能冒称已通过。没有内容问题的候选可以 `review-ready` 并保持 `independentEvidence=pending`。不要把将随外部输入变化的待审状态写成冻结正文中的永久内容阻断；已冻结稿若确有这种混写，保留旧字节并按版本演进修订、重绑真实审查证据，不改 hash 维持旧确认，也不直接覆盖 raw classifier 的 blocked 结果。
+
 控制面推荐写入（digest 扩展表）：
 
 ```markdown

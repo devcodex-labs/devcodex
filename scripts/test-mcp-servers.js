@@ -3066,8 +3066,10 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
   const terminalOwner = terminalOwnerRead.owner
   const exactTerminalRef = { ownerGeneration: terminalOwner.ownerGeneration, ownerNonce: terminalOwner.ownerNonce,
     leaseRevision: terminalOwner.leaseRevision, leaseDigest: terminalOwner.leaseDigest }
+  assert.deepStrictEqual(preparedReopen.structuredContent.nextCall.arguments.expectedOwner, exactTerminalRef,
+    'the public prepared receipt must supply the complete terminal CAS; no private-state lookup is required')
   const reopened = resultById(runServer('mcp/memory-server.js', [rpcRequest(15, 'tools/call', {
-    name: 'memory_task_write_owner', arguments: { ...preparedReopen.structuredContent.nextCall.arguments, expectedOwner: exactTerminalRef }
+    name: 'memory_task_write_owner', arguments: preparedReopen.structuredContent.nextCall.arguments
   })], TEMP_ROOT), 15)
   assert.strictEqual(reopened.isError, false, JSON.stringify(reopened))
   assert.strictEqual(reopened.structuredContent.operation, 'reopen')

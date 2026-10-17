@@ -6,7 +6,7 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "ba71185a2db5337d100ad2946640ffec04f517dcdf452622b738b3809928ae71",
+    "sourceDigest": "d7a6055102edb3e7d6f235211a44f77845ddc955d2938feb2acd084c9c07a232",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "7b4042b10fc27cb70440fef64151bc50662a2f871274749925ea0e88f38388f4",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "cfd709b1248855c06c56373d1bcfe4798acefd7f1e0c11555b26cfd8caa1e8a6",
     "consumerInventoryFileCount": 726,
     "consumerInventoryDigest": "3c1441a972d18606f5fcf0a342d0aa0636f50f70b110e51733dbf36896625c10",
-    "consumerProjectionDigest": "cc398f03a57a8a543e9f8e7881d563138bc2e01c3889ae5169737da203bd440f",
-    "portfolioInputDigest": "d6f705c2ca91d3f6df5529ce38ccd66fafc8c925a6c1bb08645c27db5556a6c3"
+    "consumerProjectionDigest": "6c3f543e28f2904538534e8c04c241da02cebd4adb9d74ed6068a3737f61b5b3",
+    "portfolioInputDigest": "07b95d4739a784741a4d0d03e461bb0bb7a22888ceca1690d51d36fffe2014cf"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -2069,8 +2069,8 @@
         "content/skills/audit-common/SKILL.md"
       ],
       "source": "content/skills/audit-common/SKILL.md",
-      "hash": "40148d1b73e2d2bd6d65b27d7e436fcb6b959c0319e22ef18e180cda30e8f92f",
-      "sourceBytes": 30789,
+      "hash": "7870c97cad925c7569e7eb72aee13ed65bdcd3be693ac66e0cb2b87b198752c7",
+      "sourceBytes": 30904,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -2197,6 +2197,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-audit-convergence-consumer.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-client-contracts.js",
           "role": "current"
         },
@@ -2206,6 +2210,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-audit-convergence-consumer.js",
         "scripts/test-client-contracts.js",
         "scripts/test-skill-portfolio.js",
         "scripts/validate.js"
@@ -2259,6 +2264,7 @@
         ],
         "evolvableUnitRef": "skill:audit-common",
         "probeSuiteRefs": [
+          "scripts/test-audit-convergence-consumer.js",
           "scripts/test-client-contracts.js",
           "scripts/test-skill-portfolio.js",
           "scripts/validate.js"
@@ -5517,8 +5523,8 @@
         "content/skills/cp-gate/SKILL.md"
       ],
       "source": "content/skills/cp-gate/SKILL.md",
-      "hash": "3f78fe9f6e5be0b829cafa48180fec00be7321244c00fffbc3138c547bb889a1",
-      "sourceBytes": 33545,
+      "hash": "62d16599a17c0de716ecd1f79eff86d423ebc2dc8f99115060292352edd5e301",
+      "sourceBytes": 34197,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -12061,8 +12067,8 @@
         "content/skills/memory/SKILL.md"
       ],
       "source": "content/skills/memory/SKILL.md",
-      "hash": "8938ec960f737eeeca8c2cf5fe10eeb3cd4fa87397742bff69754d7f672fe4b9",
-      "sourceBytes": 34722,
+      "hash": "dbd1dcd33e47fe423210e12b8f0627259806cd4cd25ae47c57991be6a5d5067e",
+      "sourceBytes": 35129,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",

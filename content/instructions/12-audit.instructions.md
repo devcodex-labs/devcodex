@@ -164,8 +164,8 @@ R2 及以后轮次必须把复审从“同一维度反复跑一遍”改为“�
 |------|------|
 | PCV-1 汇总去重 | 汇总所有轮次发现的问题，按严重级别排序（🔴→🟡→💡），去除轮次间重复条目 |
 | PCV-2 实证核查 | 对每条问题，**重新读取**对应文件/代码位置（不得仅凭记忆），确认问题确实存在且描述准确。**若结论依赖运行时数据**（测试通过率、性能数字、API 响应等），**优先本轮实际执行**对应命令取得当前结果；无法执行时标注 ⚠️待验证（须注明来源为历史记录）；禁止将记忆文件历史数据直接标注为 ✅已验证 |
-| PCV-2a 覆盖增量核查 | 核验最近 3 次有效零发现的 `ReviewCoverageDelta`：确认 `ReviewedSet / UnreviewedRelatedSet / NewlyReadThisRound / RepeatReadReason / NoNewSurfaceReason` 完整，且不是机械重复同一批已读内容 |
-| PCV-2b 维度增量核查 | 核验最近 3 次有效零发现的 `ReviewDimensionDeltaGate`：确认 `PreviousDimensionSet / CurrentDimensionFocus / NewDimensionRationale / RepeatedDimensionReason` 完整，且不是机械重复同一组维度 |
+| PCV-2a 覆盖增量核查 | 按 audit-session/Owner 完整有效计划核验最近 R 次有效零发现（默认3，完整有效 narrow-2 为2；full/security/release为3）的 `ReviewCoverageDelta`：确认 `ReviewedSet / UnreviewedRelatedSet / NewlyReadThisRound / RepeatReadReason / NoNewSurfaceReason` 完整，且不是机械重复同一批已读内容 |
+| PCV-2b 维度增量核查 | 按 audit-session/Owner 完整有效计划核验最近 R 次有效零发现（默认3，完整有效 narrow-2 为2；full/security/release为3）的 `ReviewDimensionDeltaGate`：确认 `PreviousDimensionSet / CurrentDimensionFocus / NewDimensionRationale / RepeatedDimensionReason` 完整，且不是机械重复同一组维度 |
 | PCV-3 三列验证 | 为每条已确认问题补充：合理性（依据是什么）+ 可实施性（能否落地、前置条件）+ 收益（改善效果）|
 | PCV-4 分级标注 | 根据核查结果标注：✅已验证 / ⚠️待验证 / ❌排除 |
 | PCV-5 最终清单 | 输出过滤后的最终问题清单；❌排除 项须说明排除原因（如：已修复/有意设计/描述位置错误）|

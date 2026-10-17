@@ -238,7 +238,10 @@ function readOnlyDocumentFallbackNotApplicable(plan, facts, freshReceipts) {
 
 function evaluateEvidenceSaturation(plan, input) {
   const reasons = []
-  if (!plan || createReviewExecutionPlan(plan).planId !== plan.planId) reasons.push('plan-digest-invalid')
+  const canonicalPlan = plan ? createReviewExecutionPlan(plan) : null
+  // planId binds canonical inputs, while consumers also use derived exit and
+  // reviewClass fields. Authenticate the complete output before trusting them.
+  if (!plan || canonicalPlan.planId !== plan.planId || digest(canonicalPlan) !== digest(plan)) reasons.push('plan-digest-invalid')
   if (!plan?.validation?.valid) reasons.push('plan-invalid')
   const receipts = input?.receipts || []
   const freshReceipts = receipts.filter(receipt => {

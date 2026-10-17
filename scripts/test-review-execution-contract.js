@@ -225,3 +225,35 @@ assert.strictEqual(timing.total, 80)
 assert.strictEqual(createStageTiming({ ...timing, total: 81 }).validation.valid, false)
 
 console.log('review execution contract passed: routing/freshness/saturation/oracle/projection/timing')
+
+// Derived policy is part of the canonical plan, not editable caller input.
+{
+  const owner = require('../hooks/_runtime/review-execution-contract.cjs')
+  const plan = owner.createReviewExecutionPlan({ workflow: 'audit', stage: 'audit', userIntent: 'full control-plane audit',
+    candidateDigest: 'a'.repeat(64), changedSet: ['runtime.cjs'], affectedClosure: ['runtime.cjs'],
+    risk: { class: 'critical', flags: ['control-plane'] }, claims: ['runtime'], dimensions: ['runtime'],
+    freshEvidence: ['runtime.cjs'], staleEvidence: [], exclusions: [] })
+  const receipt = owner.createReviewEvidenceReceipt({ planId: plan.planId, candidateDigest: plan.candidateDigest,
+    stage: plan.stage, scopeDigest: plan.scopeDigest, dimension: 'runtime', claim: 'runtime', lens: 'policy-regression',
+    ruleVersion: 'rule-1', skillVersion: 'skill-1', probeVersion: 'probe-1', impactGraphDigest: 'b'.repeat(64),
+    environmentDigest: 'c'.repeat(64), intentDigest: plan.intentDigest, riskDigest: plan.riskDigest,
+    dependencyDigest: 'd'.repeat(64), consumerDigest: 'e'.repeat(64), command: 'isolated policy regression',
+    environment: 'unit', runId: 'plan-output-integrity', result: 'passed', evidenceRefs: ['runtime.cjs'] })
+  const input = { receipts: [receipt], zeroFindingRounds: 3, independentEvidencePassed: true,
+    negativeEvidencePassed: true, fallbackEvidencePassed: true, dirtyBoundaryMatches: true, unreviewedRelatedSet: [] }
+  assert.strictEqual(owner.evaluateEvidenceSaturation(JSON.parse(JSON.stringify(plan)), input).status, 'passed')
+  for (const [field, inputField] of [['requireIndependentEvidence', 'independentEvidencePassed'],
+    ['requireNegativeEvidence', 'negativeEvidencePassed'], ['requireFallbackEvidence', 'fallbackEvidencePassed'],
+    ['requireDirtyBoundaryMatch', 'dirtyBoundaryMatches']]) {
+    const tampered = JSON.parse(JSON.stringify(plan));tampered.exit[field] = false
+    const result = owner.evaluateEvidenceSaturation(tampered, { ...input, [inputField]: false })
+    assert.strictEqual(result.status, 'full-required', field)
+    assert(result.reasons.includes('plan-digest-invalid'), field)
+  }
+  for (const rounds of [0, 2]) {
+    const tampered = JSON.parse(JSON.stringify(plan));tampered.exit.requiredZeroFindingRounds = rounds
+    assert.strictEqual(owner.evaluateEvidenceSaturation(tampered, { ...input, zeroFindingRounds: rounds }).status, 'full-required')
+  }
+  const tamperedClass = { ...plan, reviewClass: 'R0' }
+  assert.strictEqual(owner.evaluateEvidenceSaturation(tamperedClass, input).status, 'full-required')
+}

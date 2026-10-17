@@ -554,10 +554,10 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 
 ## 审计工作流（audit）
 
-- 只读工作流，禁止修改文件
-- 多轮收敛：至少 3 轮，连续 **3** 轮有效零发现后才可宣告收敛（仍须满足连续 3 轮零发现）
+- 被审查源只读；仅按合法 slot 与写权更新本审计清单、状态、报告和公开记忆，不修改被审查业务或规范源
+- 多轮收敛：按 audit-session/Owner 完整有效计划核验连续 R 轮有效零发现；默认连续 **3** 轮有效零发现（连续 3 轮零发现），完整有效 narrow-2 为2，full/security/release为3，targeted 标签本身不降档
 - 复审覆盖增量：R2+ 必须输出 `ReviewCoverageDelta`（`ReviewedSet` / `UnreviewedRelatedSet` / `NewlyReadThisRound` / `RepeatReadReason` / `NoNewSurfaceReason`）与 `ReviewDimensionDeltaGate`（`PreviousDimensionSet` / `CurrentDimensionFocus` / `NewDimensionRationale` / `RepeatedDimensionReason`），优先阅读此前未审查但相关联的代码、配置、测试、文档、部署副本和消费者链，并轮换或补强审查维度；无新增阅读、无新增维度焦点且无证据化理由时，该轮零发现不得计入收敛
-- DevCodex plugin 文件发现问题 → 先做阻断/非阻断分流：阻断项立即自我审视 + self-fix，修复后重启新轮；非阻断项写入 `data/pending-issues.md`，继续下一轮
+- DevCodex plugin 文件发现问题 → 先做阻断/非阻断分流，保留证据并写入本审计发现清单；局部阻断该依赖，继续其余安全有限检查。移交独立 fix/self-fix 阶段，沿用既有且仍适用的用户授权；不在当前 audit 内穿插改源。修复后以新冻结候选重启有效轮次
 - 其他文件发现问题 → 记录 PF/VL，继续下一轮
 - 收敛前门禁：CRS（全库 grep）✅ + PCV（收敛后汇总验证）
 

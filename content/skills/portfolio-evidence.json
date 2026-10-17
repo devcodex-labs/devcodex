@@ -24,6 +24,9 @@
     }
   },
   "skills": {
+    "audit-common": {
+      "dependencies": ["skill-gap-analysis", "load-profile"]
+    },
     "architecture-design": {
       "triggerTerms": ["架构设计", "系统设计", "技术架构", "概要设计", "详细设计", "ADR", "任务拆分", "system-design"],
       "triggerPositive": [

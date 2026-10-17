@@ -144,7 +144,11 @@ function buildRegistry (rootDir = ROOT) {
       root('memory', 'closeout')
     ],
     analyze: commonBase(),
-    audit: commonBase(),
+    audit: [
+      ...commonBase(),
+      root('skill-gap-analysis', 'execution:audit-preflight'),
+      root('load-profile', 'execution:audit-preflight')
+    ],
     dev: commonBase(),
     fix: commonBase(),
     'self-fix': commonBase(),
@@ -163,6 +167,14 @@ function buildRegistry (rootDir = ROOT) {
       conditionId: 'test-validation',
       intents: ['dev', 'fix', 'self-fix'],
       roots: [root('test-router', 'execution:test-validation')],
+      activationAuthority: 'model',
+      mutualExclusionGroup: null,
+      sourceRef: 'content:skills/routing/SKILL.md#按需触发-Skills'
+    },
+    {
+      conditionId: 'api-verification',
+      intents: ['dev', 'fix', 'self-fix'],
+      roots: [root('api-verification', 'execution:api-verification')],
       activationAuthority: 'model',
       mutualExclusionGroup: null,
       sourceRef: 'content:skills/routing/SKILL.md#按需触发-Skills'

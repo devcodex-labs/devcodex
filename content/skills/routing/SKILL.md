@@ -62,6 +62,8 @@ description: 定义意图识别结果到工作流的路由映射。本 Skill 为
 
 ## 支撑型能力触发参考
 
+audit 的 G0 与 PFresh 前置 Owner 为 `skill-gap-analysis`、`load-profile`，由公开计划的 `execution:audit-preflight` 阶段交付；读取入口正文后，必须先完成此前置阶段，再执行 CRS 或内容审查。存在对外 HTTP/API 边界的开发、修复或场景测试，先激活 `api-verification` 条件阶段，完成 `.http + .cjs` 双产物验证，再进入依赖它的测试；没有该边界时记录 `N/A + boundary evidence`。
+
 | 语义 | Skill | 说明 |
 |------|-------|------|
 | 开源/公开用户站点、最终用户使用文档、README、quick start、接入手册、docs-first、用户向 reference | `skills/user-manual-authoring/SKILL.md` | 用户站写作入口（`docsAudience=public-user`）；README 继续叠加 `readme-authoring`；先跑 DocsAudienceIntent |

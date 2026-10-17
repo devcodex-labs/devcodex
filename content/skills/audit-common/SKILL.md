@@ -220,7 +220,7 @@ SC: SC4 [✅/❌] SC6 [✅/❌] ...（仅列适用项，逐项实际验证后填
 
 ### 窄范围 audit 收敛降档（SK-FIX-15b / medium）
 
-当且仅当用户明确 **窄范围 / 单文件 / 单模块 audit**，且 ScaleDecision 为 `single-pass`、无控制面跨宿主扩散时，可将「连续有效零发现」从 **3 轮降为 2 轮**，但必须：
+当且仅当用户明确 **窄范围 / 单文件 / 单模块 audit**，且 ScaleDecision 为 `single-pass`、无控制面跨宿主扩散、不属于 full/security/release 审查时，可将「连续有效零发现」从 **3 轮降为 2 轮**，但必须：
 
 1. 报告写明 `convergenceMode=narrow-2` 与范围边界；
 2. 仍满足 CRS ✅ 与 `ReviewCoverageDelta` / `ReviewDimensionDeltaGate`；

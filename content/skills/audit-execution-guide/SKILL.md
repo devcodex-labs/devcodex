@@ -18,7 +18,7 @@ description: 审查执行指南 — 维度优先级分批、定向审查子集�
 
 ## 事件驱动定向审查
 
-audit 每轮先形成 `ReviewExecutionPlanV1`，按 stage+risk+claims/dimensions 选择 R0~R4；targeted audit 仍需两个具有 coverage/dimension delta 的有效零发现轮次，full/security/release 保留三个。receipt 复用必须通过 `ReviewEvidenceFreshnessGate` 与 5% 稳定内容 oracle，unknown/mismatch 一律 full-required。
+audit 每轮先形成 `ReviewExecutionPlanV1`，按 stage+risk+claims/dimensions 选择 R0~R4；默认需要连续三个具有 coverage/dimension delta 的有效零发现轮次。只有满足 `audit-common §窄范围 audit 收敛降档` 的全部条件，才可记录 `convergenceMode=narrow-2` 并使用两轮；targeted 标签本身不构成降档依据，full/security/release 不降档。receipt 复用必须通过 `ReviewEvidenceFreshnessGate` 与 5% 稳定内容 oracle，unknown/mismatch 一律 full-required。
 
 | 触发场景 | 推荐专属维度 |
 |---------|------------|
@@ -70,11 +70,15 @@ audit 每轮先形成 `ReviewExecutionPlanV1`，按 stage+risk+claims/dimensions
 ### 分批执行模板
 
 ```text
-批次 1（🔴 核心维度A）：D1·D2·D3·D4·D5 → 输出发现 → 记录/交接（阻断项暂停结论）→ 写入记忆
-批次 2（🔴 核心维度B）：D7·D9·D10·D11·D12 → 输出发现 → 记录/交接 → 更新记忆
-批次 3（🔴 格式/语义/跨客户端）：D16·D17·D21·D22·D23·D24·D25 → 输出发现 → 记录/交接 → 更新记忆
-批次 4（🟡 建议维度）：D6·D8·D18·D19·D20 → 输出发现 → 记录/交接 → 更新记忆
-批次 5（💡 改进维度）：D13·D14·D15 → 输出发现 → 记录/交接 → 更新记忆
+批次 1（🔴 核心维度A）：D1·D2·D3 → 输出发现 → 记录/交接（阻断项暂停结论）→ 写入记忆
+批次 2（🔴 核心维度B）：D4·D5·D7 → 输出发现 → 记录/交接 → 更新记忆
+批次 3（🔴 核心维度C）：D9·D10·D11 → 输出发现 → 记录/交接 → 更新记忆
+批次 4（🔴 格式/语义A）：D12·D16·D17 → 输出发现 → 记录/交接 → 更新记忆
+批次 5（🔴 格式/语义B）：D21·D22·D23 → 输出发现 → 记录/交接 → 更新记忆
+批次 6（🔴 跨客户端）：D24·D25 → 输出发现 → 记录/交接 → 更新记忆
+批次 7（🟡 建议维度A）：D6·D8·D18 → 输出发现 → 记录/交接 → 更新记忆
+批次 8（🟡 建议维度B）：D19·D20 → 输出发现 → 记录/交接 → 更新记忆
+批次 9（💡 改进维度）：D13·D14·D15 → 输出发现 → 记录/交接 → 更新记忆
 ReviewCoverageDelta：R2+ 先列 ReviewedSet / UnreviewedRelatedSet / NewlyReadThisRound / RepeatReadReason / NoNewSurfaceReason，优先补读此前未审查但相关的代码、配置、测试、文档、部署副本和消费者链
 ReviewDimensionDeltaGate：R2+ 同步列 PreviousDimensionSet / CurrentDimensionFocus / NewDimensionRationale / RepeatedDimensionReason，避免每轮机械重复同一组维度；重复维度只允许阻断项回归、高风险锚点、新证据或抽样
 ReviewStateSnapshotV1：每批更新同一个 plan/candidate/stage snapshot；报告、记忆、进度和最终结论只投影其 snapshotDigest
@@ -83,7 +87,7 @@ CRS 收敛门禁：连续 3 轮有效零发现后执行全库关键词扫描（�
 PCV：CRS ✅ 后执行 PCV（见 audit-common §收敛后汇总验证）→ 最终报告
 ```
 
-> ℹ️ 批次1~3 均为 🔴 强制维度（与 §维度优先级分批 第一批 D1~D25 一致）；批次3 专门集中格式与语义类 🔴 维度（D16/D17/D21/D22/D23/D24/D25）。
+> ℹ️ 批次1~6 覆盖全部 🔴 强制维度，批次7~8 覆盖 🟡 建议维度，批次9 覆盖 💡 改进维度；每批最多3个主维度，不重复或遗漏 D1~D25。
 
 > ℹ️ **发现交接的含义**：每批次发现问题后先完成实证、分流和状态记录；阻断项停止受影响范围的通过结论并请求显式用户授权，非阻断项进入适当台账。audit 不修改或暂存被审查源；用户授权后的独立 fix/self-fix 完成后，audit 才读取新证据并启动回归轮次。
 

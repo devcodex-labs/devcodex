@@ -323,6 +323,31 @@ try {
   assert(plan.stages.some(stage => stage.stageId === 'entry'))
   assert(plan.stages.some(stage => stage.stageId === 'closeout'))
 
+  const auditWorkflow = resolveWorkflowRoots({ finalIntent: 'audit', changeTypes: ['docs'] })
+  const auditPlan = buildProgressiveSkillPlan({
+    project: fixture.project,
+    turnBinding: turnIdentity.turnBinding,
+    contextEpoch: turnIdentity.contextEpoch,
+    generation: 0,
+    catalogDigest: catalog.catalogDigest,
+    decisionDigest: 'a'.repeat(64),
+    contextBindingDigest: 'b'.repeat(64),
+    workflowResolution: auditWorkflow,
+    index
+  })
+  assert.strictEqual(auditPlan.status, 'complete')
+  for (const owner of ['skill-gap-analysis', 'load-profile']) {
+    assert(auditPlan.stages.some(stage => stage.stageId === 'execution:audit-preflight' &&
+      stage.skillIds.includes(owner)), `audit must deliver ${owner} before content review`)
+  }
+  assert(auditPlan.budget.maximumStageBytes <= STAGE_BODY_BUDGET_BYTES)
+  assert(auditPlan.budget.worstCaseBytes <= TURN_BODY_BUDGET_BYTES)
+  assert(workflow.availableConditionRules.some(condition => condition.conditionId === 'api-verification' &&
+    condition.roots.some(root => root.skillId === 'api-verification')),
+  'HTTP scenarios need a public API-verification activation path')
+  assert(!plan.baseResolution.selected.some(skill => skill.skillId === 'api-verification'),
+    'API verification must stay conditional for projects without an HTTP boundary')
+
   const oversizedBodyResolution = resolveRootSet({
     entries: [{
       skillId: 'oversized-body',

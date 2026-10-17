@@ -194,5 +194,5 @@
 - [`changelogs/releases/v1.9.8.md`](./changelogs/releases/v1.9.8.md) — 历史版本详细变更文档
 - [`changelogs/releases/v1.1.0.md`](./changelogs/releases/v1.1.0.md) — 历史版本详细变更文档
 - [README.md](./README.md) — 项目说明
-- [requirements/index.md](./website/docs/versions/v1/1.0.1/requirements/index.md) — 当前活动版本需求文档总览
-- [v1.0.0 requirements](./website/docs/versions/v1/1.0.0/requirements/index.md) — 历史基线需求快照
+- 历史 `website/docs/versions/v1/1.0.1/requirements/index.md` — 当前仓库未保留该需求索引，不作为当前活动版本入口
+- 历史 `website/docs/versions/v1/1.0.0/requirements/index.md` — 当前仓库未保留该需求快照；版本背景见 [v1.0.0 变更文档](./changelogs/releases/v1.0.0.md)

@@ -6,17 +6,17 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "d78fc7801bbbb331c0b3e7b06110530fd5bd489f92b1a5ff2fb35f678304cb49",
+    "sourceDigest": "e315921a86b3bab6650a3ca51f763ef224ca65cd6b6ccecb0713b1155cca9e9d",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "7b4042b10fc27cb70440fef64151bc50662a2f871274749925ea0e88f38388f4",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
     "publicTaxonomyDigest": "7f6ee8c30f5484b8881e27099af72c69625b73a7cf3b53fe51c8c0c147d4f124",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
-    "portfolioEvidenceDigest": "fddc547986599fe20672364d6432633edabeb60ee6c5f3da5f9ca083daed6e1e",
+    "portfolioEvidenceDigest": "cfd709b1248855c06c56373d1bcfe4798acefd7f1e0c11555b26cfd8caa1e8a6",
     "consumerInventoryFileCount": 722,
     "consumerInventoryDigest": "915e197c2e882223da7e45eb7f12b6c07054fc461945ae123e363170c489ec3e",
-    "consumerProjectionDigest": "3913d61c74c0cc089696b008b934519c0ee87a822e8e0263598f618bae524a2d",
-    "portfolioInputDigest": "181ee5d6d6933f656c8f8147b290a9c98c91e613eb3e26fd3d0c822a04cc77c9"
+    "consumerProjectionDigest": "a58f09078dd3db8e97b59e0087105e9517232ef1bf6a0bfcf9834b728db3fd3c",
+    "portfolioInputDigest": "63f3d9a4dfd0029d0bdf7860a63463575004ee4075b8f80e00a17631528a4373"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -26,7 +26,7 @@
     "graySkillCount": 3,
     "orphanActiveCount": 0,
     "dependencyCycleCount": 0,
-    "dependencyEdgeCount": 22,
+    "dependencyEdgeCount": 27,
     "conflictReviewedCount": 87,
     "operationalEvidenceCompleteCount": 87,
     "triggerPrecisionMeasuredCount": 3,
@@ -194,6 +194,14 @@
         "to": "load-profile"
       },
       {
+        "from": "audit-common",
+        "to": "load-profile"
+      },
+      {
+        "from": "audit-common",
+        "to": "skill-gap-analysis"
+      },
+      {
         "from": "compliance",
         "to": "intent"
       },
@@ -263,7 +271,19 @@
       },
       {
         "from": "routing",
+        "to": "api-verification"
+      },
+      {
+        "from": "routing",
         "to": "intent"
+      },
+      {
+        "from": "routing",
+        "to": "load-profile"
+      },
+      {
+        "from": "routing",
+        "to": "skill-gap-analysis"
       },
       {
         "from": "routing",
@@ -1679,6 +1699,14 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workflow-root-registry.v2.json",
+          "role": "current"
+        },
+        {
           "path": "package.json",
           "role": "current"
         },
@@ -1688,6 +1716,10 @@
         },
         {
           "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/generate-workflow-root-registry.js",
           "role": "current"
         },
         {
@@ -1731,6 +1763,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-route-contracts.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validation-manifest.json",
           "role": "current"
         }
@@ -1740,6 +1776,7 @@
         "scripts/test-cli-behavior.js",
         "scripts/test-mcp-servers.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skill-route-contracts.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-24",
@@ -1790,6 +1827,7 @@
           "scripts/test-cli-behavior.js",
           "scripts/test-mcp-servers.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skill-route-contracts.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -2027,12 +2065,15 @@
         "content/skills/audit-common/SKILL.md"
       ],
       "source": "content/skills/audit-common/SKILL.md",
-      "hash": "e9d983a7070b71ea59f3c342b455d4e4b9052c6da06f80099d9c18212947c87f",
-      "sourceBytes": 30316,
+      "hash": "06361a960e7815f9f31ecf7c55e0c024cbd3de85937d0d9eee267d9ff59dce34",
+      "sourceBytes": 30357,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
-      "dependencies": [],
+      "dependencies": [
+        "load-profile",
+        "skill-gap-analysis"
+      ],
       "references": [
         "audit-execution-guide",
         "memory"
@@ -2194,7 +2235,10 @@
           ],
           "ambiguous": []
         },
-        "requires": [],
+        "requires": [
+          "load-profile",
+          "skill-gap-analysis"
+        ],
         "conflictsWith": [],
         "priority": 100,
         "visibility": "agent",
@@ -2614,8 +2658,8 @@
         "content/skills/audit-execution-guide/SKILL.md"
       ],
       "source": "content/skills/audit-execution-guide/SKILL.md",
-      "hash": "59f578b488816efdd2faf9be0dfc8bb43e608d5ab7a00b2b29296cf53982017d",
-      "sourceBytes": 6946,
+      "hash": "23b670dcd4668e3dd38ea602fa70d4c3a1ac57555d9403761f31e38e4c8b2215",
+      "sourceBytes": 7444,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",
@@ -11648,11 +11692,23 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workflow-root-registry.v2.json",
+          "role": "current"
+        },
+        {
           "path": "plugin.json",
           "role": "current"
         },
         {
           "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/generate-workflow-root-registry.js",
           "role": "current"
         },
         {
@@ -11712,6 +11768,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-route-contracts.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validation-manifest.json",
           "role": "current"
         }
@@ -11719,6 +11779,7 @@
       "validationProfile": [
         "scripts/test-governance-intake.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skill-route-contracts.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-24",
@@ -11766,6 +11827,7 @@
         "probeSuiteRefs": [
           "scripts/test-governance-intake.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skill-route-contracts.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",
@@ -18068,13 +18130,16 @@
         "content/skills/routing/SKILL.md"
       ],
       "source": "content/skills/routing/SKILL.md",
-      "hash": "9519f99b6cb3c033aa62121afbc984afa2091a3169ca87cc20d6b1e204231085",
-      "sourceBytes": 19192,
+      "hash": "034a5d9abdedbab3c3e7bfb8093d0983d81f61d8f9af035adc279706c364ad91",
+      "sourceBytes": 19657,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
       "dependencies": [
+        "api-verification",
         "intent",
+        "load-profile",
+        "skill-gap-analysis",
         "skill-lifecycle-governance"
       ],
       "references": [
@@ -18521,7 +18586,10 @@
           "ambiguous": []
         },
         "requires": [
+          "api-verification",
           "intent",
+          "load-profile",
+          "skill-gap-analysis",
           "skill-lifecycle-governance"
         ],
         "conflictsWith": [],
@@ -18794,11 +18862,23 @@
           "role": "historical"
         },
         {
+          "path": "hooks/_runtime/workflow-root-registry.v1.json",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/workflow-root-registry.v2.json",
+          "role": "current"
+        },
+        {
           "path": "plugin.json",
           "role": "current"
         },
         {
           "path": "public-site/data/public-product-projection.json",
+          "role": "current"
+        },
+        {
+          "path": "scripts/generate-workflow-root-registry.js",
           "role": "current"
         },
         {
@@ -18808,10 +18888,15 @@
         {
           "path": "scripts/lib/validate-governance-expert.js",
           "role": "current"
+        },
+        {
+          "path": "scripts/test-skill-route-contracts.js",
+          "role": "current"
         }
       ],
       "validationProfile": [
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skill-route-contracts.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-24",
@@ -18859,6 +18944,7 @@
         "evolvableUnitRef": "skill:skill-gap-analysis",
         "probeSuiteRefs": [
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skill-route-contracts.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",

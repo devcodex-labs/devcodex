@@ -275,6 +275,16 @@
         "skillId": "memory",
         "budgetClass": "hard",
         "loadStage": "closeout"
+      },
+      {
+        "skillId": "skill-gap-analysis",
+        "budgetClass": "hard",
+        "loadStage": "execution:audit-preflight"
+      },
+      {
+        "skillId": "load-profile",
+        "budgetClass": "hard",
+        "loadStage": "execution:audit-preflight"
       }
     ],
     "dev": [
@@ -1032,6 +1042,24 @@
       "sourceRef": "content:skills/routing/SKILL.md#按需触发-Skills"
     },
     {
+      "conditionId": "api-verification",
+      "intents": [
+        "dev",
+        "fix",
+        "self-fix"
+      ],
+      "roots": [
+        {
+          "skillId": "api-verification",
+          "budgetClass": "hard",
+          "loadStage": "execution:api-verification"
+        }
+      ],
+      "activationAuthority": "model",
+      "mutualExclusionGroup": null,
+      "sourceRef": "content:skills/routing/SKILL.md#按需触发-Skills"
+    },
+    {
       "conditionId": "host-contract",
       "intents": [
         "dev",
@@ -1081,7 +1109,7 @@
     },
     {
       "ref": "content:skills/routing/SKILL.md",
-      "digest": "9519f99b6cb3c033aa62121afbc984afa2091a3169ca87cc20d6b1e204231085"
+      "digest": "034a5d9abdedbab3c3e7bfb8093d0983d81f61d8f9af035adc279706c364ad91"
     },
     {
       "ref": "content:skills/routing/workflow-capabilities.json",
@@ -1092,7 +1120,7 @@
       "digest": "7c46243482b4cadf24d9351f96f397f9b16550056d6e6af3bb469a8668de13ba"
     }
   ],
-  "sourceDigest": "355e7e279a666d718264d1e1fa7c7a76f6aa7b2794d407c75792abe936821bd8",
-  "routeRevision": "700cd472a40e0408b0b3211d7b0a94ad7a7fad05cecfaecc5e8f4ed3166e4641",
-  "registryDigest": "86cb7b66400c9da8d60f0eaf38971d8bce8f3a0eeeacb5120363f23aca5141ff"
+  "sourceDigest": "5425e730af4c1539f81c0050c728ec6ef94baa3bc28f0a74baf55dc806d769be",
+  "routeRevision": "ce54147527738f3096075b826939d949d564fe481e56b419a715bc4b76cb3fa5",
+  "registryDigest": "19d1c72abadbee1589a09470d8a09af4b5a98180a7e29d1d07ad3776f00b214c"
 }

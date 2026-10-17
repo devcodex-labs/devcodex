@@ -1386,6 +1386,32 @@ const childDiagnostic = runHostAdapter('codex', { hookEventName: 'PostToolUse' }
   spawnSync: () => ({ status: 0, stdout: '{"continue":true}', stderr: 'bookkeeping diagnostic\n' })
 })
 assert.strictEqual(childDiagnostic.diagnostics, 'bookkeeping diagnostic\n')
+const markerRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-git-markers-'))
+try {
+  const { resolveHostWorkspaceBinding } = require('../hooks/_runtime/workspace-layout.cjs')
+  const container = path.join(markerRoot, 'workspace')
+  fs.mkdirSync(path.join(markerRoot, '.git'))
+  for (const name of ['alpha', 'beta']) {
+    fs.mkdirSync(path.join(container, name), { recursive: true })
+    fs.writeFileSync(path.join(container, name, 'package.json'), '{}')
+  }
+  assert.notStrictEqual(resolveHostWorkspaceBinding({ cwd: container }).physicalRoot, markerRoot,
+    'an empty ancestor .git directory is not a repository')
+  fs.writeFileSync(path.join(markerRoot, '.git/HEAD'), 'ref: refs/heads/main\n')
+  assert.strictEqual(resolveHostWorkspaceBinding({ cwd: container }).physicalRoot, markerRoot,
+    'nested example projects must still inherit a valid parent repository')
+  assert.strictEqual(resolveHostWorkspaceBinding({ cwd: path.join(container, 'alpha') }).projectNamespace, 'alpha')
+  const worktree = path.join(markerRoot, 'linked-worktree')
+  const metadata = path.join(markerRoot, 'git-metadata')
+  fs.mkdirSync(worktree)
+  fs.mkdirSync(metadata)
+  fs.writeFileSync(path.join(metadata, 'HEAD'), 'ref: refs/heads/work\n')
+  fs.writeFileSync(path.join(worktree, '.git'), 'gitdir: ../git-metadata\n')
+  assert.strictEqual(resolveHostWorkspaceBinding({ cwd: worktree }).physicalRoot, worktree,
+    'valid gitdir files must retain linked worktree identity')
+  fs.writeFileSync(path.join(worktree, '.git'), 'not a gitdir file\n')
+  assert.notStrictEqual(resolveHostWorkspaceBinding({ cwd: worktree }).physicalRoot, worktree)
+} finally { fs.rmSync(markerRoot, { recursive: true, force: true }) }
 const concurrentHookRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-hook-events-'))
 try {
   const fakeLifecycle = path.join(concurrentHookRoot, 'slow-lifecycle.cjs')

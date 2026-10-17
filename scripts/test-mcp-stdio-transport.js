@@ -44,6 +44,35 @@ async function main() {
   assert.strictEqual(MCP_STDIO_REQUEST_TIMEOUT_MS, 30000)
   assert.throws(() => createJsonLineServer({ input: new PassThrough(), output: new PassThrough() }), /dispatch must be a function/)
 
+  for (const limits of [{ maxPendingFrames: 4 }, { maxPendingFrames: 1000, maxPendingBytes: 512 }]) {
+    let release
+    let ended = false
+    const gate = new Promise(resolve => { release = resolve })
+    const dispatched = []
+    const bounded = harness({
+      ...limits,
+      dispatch: async (method, params, request) => {
+        dispatched.push(request.id)
+        if (request.id === 0) await gate
+        return { ok: true }
+      },
+      onEnd: () => { ended = true }
+    })
+    bounded.input.end(Array.from({ length: 128 }, (_, id) =>
+      JSON.stringify({ jsonrpc: '2.0', id, method: 'probe', params: { text: 'x'.repeat(256) } }) + '\n'
+    ).join(''))
+    await new Promise(resolve => setImmediate(resolve))
+    assert.strictEqual(bounded.input.isPaused(), true, 'a blocked handler must apply stdin backpressure')
+    assert.deepStrictEqual(dispatched, [0])
+    assert.strictEqual(ended, false)
+    release()
+    await settle(bounded)
+    assert.deepStrictEqual(bounded.responses().map(item => item.id), Array.from({ length: 128 }, (_, id) => id),
+      'backpressure must preserve every accepted request in order')
+    assert.strictEqual(ended, true, 'EOF must wait for deferred input and output to drain')
+    bounded.server.close()
+  }
+
   const reset = harness({
     maxFrameBytes: 96,
     maxMessageBytes: 512,

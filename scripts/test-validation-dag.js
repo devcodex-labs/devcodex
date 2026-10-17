@@ -5,6 +5,7 @@ const assert = require('assert')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const { normalizeIdentity } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const { spawnSync } = require('child_process')
 const { CheckedCommandError } = require('./lib/checked-command')
 const {
@@ -508,7 +509,7 @@ function run() {
       assert.strictEqual(input.expectedIdentity.project, 'lab')
       assert.strictEqual(input.metaDir, path.join(aliasActiveRoot, '.memory', 'hooks', 'lab'))
       assert.strictEqual(input.sessionKey, 'alias-thread')
-      return { status: 'fresh', identity: { ...aiAuthority.taskIdentity, activeRoot: aliasActiveRoot, project } }
+      return { status: 'fresh', identity: normalizeIdentity({ activeRoot: aliasActiveRoot, project, taskId: aiAuthority.taskRecoveryKey }) }
     }
     const aliasAuthorityInput = {
       actorType: 'ai-hook', options: { contextEpoch: 'alias-epoch' },
@@ -516,11 +517,29 @@ function run() {
     }
     const aliasAuthority = resolveValidationAuthorityContext({ ...aliasAuthorityInput, readTaskState: aliasRead('lab') })
     assert.strictEqual(aliasAuthority.taskIdentity.project, 'lab')
+    assert.strictEqual(aliasAuthority.taskIdentity.canonicalActiveRoot, aliasActiveRoot.replace(/\\/g, '/'))
+    assert.strictEqual(Object.hasOwn(aliasAuthority.taskIdentity, 'activeRoot'), false)
+    assert.throws(() => resolveValidationAuthorityContext({ ...aliasAuthorityInput, readTaskState: () => ({
+      status: 'fresh', identity: normalizeIdentity({ activeRoot: aliasActiveRoot + '-wrong',
+        project: 'lab', taskId: aiAuthority.taskRecoveryKey })
+    }) }), error => error.code === 'VALIDATION_AI_TASK_BINDING_MISMATCH')
     assert.throws(() => resolveValidationAuthorityContext({ ...aliasAuthorityInput, readTaskState: aliasRead('devcodex') }),
       error => error.code === 'VALIDATION_AI_TASK_BINDING_MISMATCH')
     assert.throws(() => resolveValidationAuthorityContext({ ...aliasAuthorityInput,
       readTaskState: () => ({ status: 'identity-mismatch', errorCode: 'LIFECYCLE_STATE_IDENTITY_MISMATCH' }) }),
     error => error.code === 'VALIDATION_AI_TASK_BINDING_REQUIRED')
+    const mixedCaseRoot = path.join(aliasWorkspace, '.devcodex', 'Lab')
+    fs.mkdirSync(mixedCaseRoot, { recursive: true })
+    const mixedCaseAuthority = resolveValidationAuthorityContext({
+      ...aliasAuthorityInput, activeRoot: mixedCaseRoot,
+      readTaskState: input => {
+        assert.strictEqual(input.metaDir, path.join(mixedCaseRoot, '.memory', 'hooks', 'Lab'))
+        return { status: 'fresh', identity: normalizeIdentity({ activeRoot: mixedCaseRoot,
+          project: 'Lab', taskId: aiAuthority.taskRecoveryKey }) }
+      }
+    })
+    assert.strictEqual(mixedCaseAuthority.project, 'Lab', 'preserve physical partition spelling')
+    assert.strictEqual(mixedCaseAuthority.taskIdentity.project, 'lab', 'use the canonical recovery identity')
     const semanticPrompt = '已授权自动推进当前验证，不需要重复确认'
     const semanticEnvelope = buildActualInstructionEnvelope({
       prompt: semanticPrompt,

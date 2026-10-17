@@ -228,8 +228,21 @@ function namespaceHasRuntimeState(root) {
   ].some(name => fs.existsSync(path.join(root, name)))
 }
 
+function hasGitProjectMarker(dir) {
+  const marker = path.join(dir, '.git')
+  try {
+    const stat = fs.statSync(marker)
+    if (stat.isDirectory()) return fs.statSync(path.join(marker, 'HEAD')).isFile()
+    if (!stat.isFile() || stat.size > 4096) return false
+    const match = fs.readFileSync(marker, 'utf8').trim().match(/^gitdir:\s*(.+)$/u)
+    return Boolean(match && fs.statSync(path.join(path.resolve(dir, match[1]), 'HEAD')).isFile())
+  } catch { return false }
+}
+
 function hasProjectRootMarker(dir) {
-  return PROJECT_ROOT_MARKERS.some(marker => fs.existsSync(path.join(dir, marker)))
+  return PROJECT_ROOT_MARKERS.some(marker => marker === '.git'
+    ? hasGitProjectMarker(dir)
+    : fs.existsSync(path.join(dir, marker)))
 }
 
 function isDirectoryPath(targetPath) {

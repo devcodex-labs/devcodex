@@ -66,6 +66,8 @@ const { digestSessionRef } = require('../hooks/_runtime/workspace-session-route-
 const { resolveExecutionFeatureDecisionForCwd } = require('../hooks/_runtime/execution-optimization-routing.cjs')
 const {
   readTaskRecoveryState,
+  normalizeIdentity,
+  sameIdentity,
   resolveTaskRecoveryMetaDir,
   validateTaskScopedAutoContinuationGrant
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
@@ -532,13 +534,14 @@ function validationProjectNamespace(activeRoot) {
 }
 
 function validationAuthorityProject(context) {
-  return context?.taskIdentity?.project || context?.project || 'devcodex'
+  return context?.project || context?.taskIdentity?.project || 'devcodex'
 }
 
 function resolveObservedSemanticValidationControl({
   activeRoot,
   contextEpoch,
   recovered,
+  project = recovered.identity.project,
   currentControl,
   readContextObservation = readContextPlanObservation,
   nowMs = Date.now()
@@ -550,7 +553,7 @@ function resolveObservedSemanticValidationControl({
   try {
     observed = readContextObservation({
       activeRoot,
-      project: recovered.identity.project,
+      project,
       contextEpoch,
       nowMs
     })
@@ -566,7 +569,7 @@ function resolveObservedSemanticValidationControl({
   const taskGrant = recovered.state?.taskScopedAutoContinuationGrant || null
   const taskGrantValidation = validateTaskScopedAutoContinuationGrant(taskGrant, {
     taskId: recovered.identity.taskId,
-    project: recovered.identity.project,
+    project,
     projectRootIdentityDigest: recovered.state?.admissionTransaction?.projectRootIdentityDigest
   })
   const executionDecision = semanticDecision.executionDecision
@@ -583,7 +586,7 @@ function resolveObservedSemanticValidationControl({
       semanticDecision,
       executionMode,
       taskRecoveryKey: recovered.identity.taskId,
-      project: recovered.identity.project,
+      project,
       projectRootIdentity,
       ...(durableTaskAuto ? { issuedAt: new Date(nowMs).toISOString() } : {})
     }, { now: nowMs })
@@ -641,8 +644,12 @@ function resolveValidationAuthorityContext({ actorType, options, activeRoot, env
       }
     )
   }
-  if (recovered.identity.project !== context.project ||
-      path.resolve(recovered.identity.activeRoot) !== path.resolve(activeRoot)) {
+  let taskIdentity
+  try {
+    taskIdentity = normalizeIdentity(recovered.identity)
+    const expected = normalizeIdentity({ activeRoot, project: context.project, taskId: taskIdentity.taskId })
+    if (!sameIdentity(taskIdentity, expected)) throw new Error('identity-mismatch')
+  } catch {
     throw new ValidationDagError('VALIDATION_AI_TASK_BINDING_MISMATCH',
       'the recovered task does not belong to the current project partition')
   }
@@ -658,12 +665,13 @@ function resolveValidationAuthorityContext({ actorType, options, activeRoot, env
     )
   }
   context.taskRecoveryKey = resolvedTaskKey
-  context.taskIdentity = recovered.identity
+  context.taskIdentity = taskIdentity
   context.taskState = recovered.state || null
   context.validationControlIngress = resolveObservedSemanticValidationControl({
     activeRoot,
     contextEpoch: context.contextEpoch,
     recovered,
+    project: context.project,
     currentControl: recovered.state?.validationControlIngress || null,
     readContextObservation,
     nowMs

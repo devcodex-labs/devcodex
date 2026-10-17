@@ -51,10 +51,21 @@ function createJsonLineServer(options = {}) {
   let buffer = ''
   let discardingOversizeFrame = false
   let queue = Promise.resolve()
+  let lastOutput = Promise.resolve()
   let closed = false
+  let pendingFrames = 0
+  let pendingBytes = 0
+  let deferredInput = ''
+  let inputPaused = false
+  let inputEnded = false
+  let endFlushed = false
+  const maxPendingFrames = options.maxPendingFrames || 64
+  const maxPendingBytes = options.maxPendingBytes || maxFrameBytes
 
   function writeEnvelope(envelope) {
-    output.write(`${JSON.stringify(envelope)}\n`)
+    lastOutput = new Promise((resolve, reject) => {
+      output.write(`${JSON.stringify(envelope)}\n`, error => error ? reject(error) : resolve())
+    })
   }
 
   function sendError(id, code, message, errorCode = null, data = {}) {
@@ -132,8 +143,41 @@ function createJsonLineServer(options = {}) {
     }
   }
 
+  function queueFull() {
+    return pendingFrames >= maxPendingFrames || pendingBytes >= maxPendingBytes
+  }
+
+  function finishEnd() {
+    if (!inputEnded || endFlushed || pendingFrames || deferredInput) return
+    endFlushed = true
+    // Wait behind every accepted request and every response before EOF exit.
+    queue = queue.then(() => new Promise((resolve, reject) => {
+      output.write('', error => error ? reject(error) : resolve())
+    })).then(() => options.onEnd?.())
+  }
+
   function enqueueFrame(frame) {
-    queue = queue.then(() => handleFrame(frame), () => handleFrame(frame))
+    const bytes = byteLength(frame)
+    pendingFrames += 1
+    pendingBytes += bytes
+    const dispatchFrame = async () => {
+      await handleFrame(frame)
+      await lastOutput
+    }
+    queue = queue.then(dispatchFrame, dispatchFrame).finally(() => {
+      pendingFrames -= 1
+      pendingBytes -= bytes
+      if (inputPaused && !queueFull()) {
+        const remaining = deferredInput
+        deferredInput = ''
+        if (remaining) onData(remaining)
+        if (!queueFull() && !deferredInput) {
+          inputPaused = false
+          if (!closed) input.resume?.()
+        }
+      }
+      finishEnd()
+    })
   }
 
   function onData(chunk) {
@@ -156,6 +200,12 @@ function createJsonLineServer(options = {}) {
           })
         } else {
           enqueueFrame(frame)
+          if (queueFull()) {
+            deferredInput = remaining
+            inputPaused = true
+            input.pause?.()
+            return
+          }
         }
         continue
       }
@@ -173,11 +223,8 @@ function createJsonLineServer(options = {}) {
   }
 
   function onEnd() {
-    // Dispatch completion does not imply that an asynchronous pipe has drained.
-    // This ordered write waits behind every response before a consumer exits.
-    queue = queue.then(() => new Promise((resolve, reject) => {
-      output.write('', error => error ? reject(error) : resolve())
-    })).then(() => options.onEnd?.())
+    inputEnded = true
+    finishEnd()
   }
 
   input.setEncoding?.('utf8')
@@ -191,8 +238,12 @@ function createJsonLineServer(options = {}) {
       input.off?.('data', onData)
       input.off?.('end', onEnd)
     },
-    idle() {
-      return queue
+    async idle() {
+      let observed
+      do {
+        observed = queue
+        await observed
+      } while (observed !== queue)
     }
   }
 }

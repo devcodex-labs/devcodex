@@ -167,6 +167,41 @@ const parsedA = parseCpSessions(projectedA.content)
 assert.strictEqual(parsedA.CP3.confirmed, true)
 assert.strictEqual(parsedA.currentEpochId, epochSet.currentEpochId)
 
+const oldSessionNotes = `# Legacy task
+
+## 本轮摘要
+
+正式任务已准入；需求与方案确认由下方 CP 记录及绑定产物作为依据。
+
+## 已确认事项
+
+尚未确认 CP 阶段；本段不预先声明确认结果。
+
+## 待确认事项
+
+当前等待 CP1 的需求或问题定义；已有自动推进授权按正式确认流程消费。
+
+## 备注
+
+用户补充：保留这段业务交接信息。
+历史引用：尚未确认 CP 阶段；本段不预先声明确认结果。
+
+## 历史摘录
+
+尚未确认 CP 阶段；本段不预先声明确认结果。
+`
+const upgradedNotes = renderTaskCheckpointProjection(oldSessionNotes.replace(/\n/g, '\r\n'), epochSet)
+const confirmedNotes = upgradedNotes.content.split('## 已确认事项')[1].split(/\r?\n#{1,6}\s/u)[0]
+const pendingNotes = upgradedNotes.content.split('## 待确认事项')[1].split(/\r?\n#{1,6}\s/u)[0]
+assert(!/^尚未确认 CP 阶段/mu.test(confirmedNotes), 'confirmed checkpoints must not retain the old generated unconfirmed claim')
+assert(!/^当前等待 CP1/mu.test(pendingNotes), 'the generated next-step note must not keep waiting for an already confirmed checkpoint')
+assert(upgradedNotes.content.includes('用户补充：保留这段业务交接信息。'))
+assert(upgradedNotes.content.includes('历史引用：尚未确认 CP 阶段；本段不预先声明确认结果。'))
+assert(upgradedNotes.content.includes('## 历史摘录\r\n\r\n尚未确认 CP 阶段；本段不预先声明确认结果。'))
+assert(!/(?<!\r)\n/u.test(upgradedNotes.content), 'legacy projection upgrades preserve CRLF')
+assert.strictEqual(parseCpSessions(upgradedNotes.content).CP3.confirmed, true)
+assert.strictEqual(parseCurrentEpochMarker(upgradedNotes.content).projectionDigest, checkpointEpochProjectionDigest(epochSet))
+
 const cp2Revision = binding('CP2', 'stage-a-r2')
 epochSet = confirmTaskCheckpointPhase({ epochSet, phase: 'CP2', binding: cp2Revision }).epochSet
 const currentAfterRevision = epochSet.epochs.find(item => item.epochId === epochSet.currentEpochId)

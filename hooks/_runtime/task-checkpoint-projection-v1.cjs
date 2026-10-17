@@ -316,6 +316,30 @@ function ensureMemorySections(text) {
   return output
 }
 
+function refreshGeneratedSessionNotes(text) {
+  const lines = String(text || '').replace(/\r\n/gu, '\n').split('\n')
+  const notes = [
+    [/^#{1,6}\s+本轮摘要$/u,
+      '正式任务已准入；需求与方案确认由下方 CP 记录及绑定产物作为依据。',
+      '正式任务已准入；需求与方案确认以当前 CP 确认记录及绑定产物为准。'],
+    [/^#{1,6}\s+已确认事项$/u,
+      '尚未确认 CP 阶段；本段不预先声明确认结果。',
+      '已确认阶段以当前 CP 确认记录及绑定产物为准；本段仅记录补充说明。'],
+    [/^#{1,6}\s+待确认事项$/u,
+      '当前等待 CP1 的需求或问题定义；已有自动推进授权按正式确认流程消费。',
+      '待确认阶段以当前 CP 确认记录和公开连续性视图为准；如有有效 Auto 授权，按正式确认流程消费。']
+  ]
+  for (const [heading, previous, current] of notes) {
+    const range = sectionRange(lines, heading)
+    if (!range.found) continue
+    let first = range.start + 1
+    while (first < range.end && !lines[first].trim()) first += 1
+    // Only upgrade the original first placeholder; retain authored notes and history.
+    if (first < range.end && lines[first] === previous) lines[first] = current
+  }
+  return lines.join('\n')
+}
+
 function renderTaskCheckpointProjection(existing, value, options = {}) {
   const validation = validateTaskCheckpointEpochSet(value)
   if (!validation.valid) {
@@ -331,7 +355,7 @@ function renderTaskCheckpointProjection(existing, value, options = {}) {
   let output = replaceSection(existing, /^#{1,6}\s+.*CP\s*确认记录\s*$/iu, renderCurrentTable(current, desiredDigest, sourceMessages))
   output = replaceSection(output, /^#{1,6}\s+CP\s*历史代际（只读审计）\s*$/iu, renderAuditTable(epochSet))
   if (!/^#\s+/mu.test(output)) output = `# ${escapeCell(options.requirement || '任务')} 任务会话记录\n\n${output}`
-  output = ensureMemorySections(output)
+  output = refreshGeneratedSessionNotes(ensureMemorySections(output))
   const newline = String(existing || '').includes('\r\n') ? '\r\n' : '\n'
   return {
     content: `${output.replace(/\r\n/gu, '\n').trimEnd()}\n`.replace(/\n/gu, newline),

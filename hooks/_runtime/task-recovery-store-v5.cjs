@@ -3492,6 +3492,21 @@ function materializeRecoveryState(read) {
       plannedSetDigest: operation.mutationFootprint?.plannedSetDigest || lease.plannedSetDigest || null
     }
   }
+  // The bounded preflight inherits CPs from its exact preceding slot. Their
+  // read fence follows that committed delta without changing CP/owner authority
+  // or settling the still unresolved mutation. Never repair an invalid base.
+  if (previousState.taskCheckpointEpochSet && !currentState.taskCheckpointEpochSet &&
+      current.sequence === previous.sequence + 1 &&
+      writerGenerationFromEnvelope(current) === writerGenerationFromEnvelope(previous) &&
+      validateCheckpointEpochStateForCommit(previousState, previous.identity, {
+        stateSequence: previous.sequence,
+        writerGeneration: writerGenerationFromEnvelope(previous)
+      }).valid) {
+    materialized.taskCheckpointEpochSet = bindTaskCheckpointEpochSetFence(previousState.taskCheckpointEpochSet, {
+      stateSequence: current.sequence,
+      writerGeneration: writerGenerationFromEnvelope(current)
+    })
+  }
   return attachTaskRecoveryCommitFence(
     materialized,
     current.sequence,

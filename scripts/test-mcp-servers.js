@@ -73,6 +73,7 @@ const {
   storePaths,
   updateTaskRecoveryState,
   validateTaskScopedAutoContinuationGrant,
+  writeAdmissionIngressSnapshot,
   writeEmergencyCloseout
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const { readBoundedTextFileSync } = require('../mcp/bounded-text-reader.cjs')
@@ -1491,6 +1492,22 @@ function testMemoryTaskAdmissionV2Contract() {
   }, 'context-mismatched ProjectTargetLeaseV2 must fail closed')
   rejectTamperedProjectLease({ ...projectTargetLease, leaseDigest: 'f'.repeat(64) },
     'digest-mismatched ProjectTargetLeaseV2 must fail closed')
+  // ContextRead refreshes the lease without changing the instruction/route.
+  // Its earlier immutable snapshot must not displace the current authority.
+  const earlierLeaseCore = { ...leaseCore, revocationEpoch: 0, contextBindingDigest: '6'.repeat(64) }
+  const earlierSnapshot = writeAdmissionIngressSnapshot({
+    metaDir: path.dirname(lifecycleStatePath),
+    state: { ...lifecycleState, stickyProject: {
+      ...earlierLeaseCore, leaseDigest: computeProjectTargetLeaseDigest(earlierLeaseCore)
+    } }
+  }, { fs, nowMs })
+  assert.strictEqual(earlierSnapshot.status, 'persisted')
+  rejectTamperedProjectLease({
+    ...expiredLeaseCore, leaseDigest: computeProjectTargetLeaseDigest(expiredLeaseCore)
+  }, 'an old snapshot must not revive an expired current lease')
+  rejectTamperedProjectLease({
+    ...wrongPhysicalRootCore, leaseDigest: computeProjectTargetLeaseDigest(wrongPhysicalRootCore)
+  }, 'an old snapshot must not hide a current physical-root mismatch')
   fs.writeFileSync(lifecycleStatePath, JSON.stringify(lifecycleState, null, 2) + '\n')
   // Reproduce the installed host's guesses when oneOf hid the parent fields.
   // Repair guidance must expose the real nested contract before any task write.
@@ -2890,7 +2907,7 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
     })
   ], TEMP_ROOT)
   const terminal = resultById(terminalResponses, 7)
-  assert.strictEqual(terminal.isError, false)
+  assert.strictEqual(terminal.isError, false, terminal.content?.[0]?.text)
   assert.strictEqual(terminal.structuredContent.status, 'terminal')
   assert.strictEqual(terminal.structuredContent.receipt.evidence.length, 4)
   assert.strictEqual(terminal.structuredContent.mutationAuthority, false)

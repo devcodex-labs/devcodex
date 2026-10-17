@@ -5379,6 +5379,27 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
   }
   // A preparation record cannot shadow committed ingress. Its failure remains
   // diagnostic; snapshots and the current trusted projection are independent.
+  // ContextRead may refresh/revoke the project lease while retaining the same
+  // instruction and route. An older immutable snapshot is a continuation
+  // fallback, not permission to replace that current lease or its Auto intent.
+  // Reuse the normal live-ingress validation (including fail-closed lease
+  // checks), while leaving the finalized bounded-resume priority above intact.
+  if (options.allowSnapshot === true) {
+    let current
+    try {
+      current = readServerOwnedLifecycleProjection(target).state
+    } catch (error) {
+      // A restart can remove the mutable projection. Its absence must retain
+      // the independently verified immutable continuation path below.
+      if (error.code !== 'TASK_ADMISSION_INGRESS_STATE_UNAVAILABLE') throw error
+    }
+    if (current?.actualInstructionEnvelope?.envelopeId === ref.envelopeId &&
+        current.actualInstructionEnvelope.envelopeDigest === ref.envelopeDigest &&
+        current.workflowRouteDecision?.decisionDigest === ref.decisionDigest &&
+        current.workflowRouteDecision.routeRevision === ref.routeRevision) {
+      return readServerOwnedAdmissionIngress(target, ref, { ...options, allowSnapshot: false })
+    }
+  }
   const snapshotRead = options.allowSnapshot === true
     ? readAdmissionIngressSnapshot({
         metaDir: ingressMetaDir,

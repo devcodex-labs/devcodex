@@ -376,6 +376,55 @@ function run() {
     assert.strictEqual(invalidCommit.errorCode, 'CHECKPOINT_EPOCH_STATE_INVALID')
     assert.strictEqual(readTaskRecoveryState({ metaDir, identity }).envelope.sequence, beforeDropSequence)
 
+    // A bounded mutation preflight inherits CPs from its exact base slot.
+    // Its materialized epoch fence must follow the committed preflight fence.
+    const beforePreflight = readTaskRecoveryState({ metaDir, identity })
+    const preflight = commitTaskRecoveryState({
+      metaDir, identity,
+      state: {
+        ...beforePreflight.state,
+        turnLiveness: {
+          state: 'tool-in-flight', turnKey: 'epoch-native-mutation-turn',
+          inFlightOperation: {
+            operationId: 'epoch-native-mutation', toolName: 'apply_patch',
+            mutating: true, startedAt: new Date(nowMs + 4_000).toISOString(),
+            targetPaths: [path.join(activeRoot, 'report.md')]
+          }
+        }
+      }
+    }, {
+      expectedCommitFence: beforePreflight.commitFence,
+      nowMs: nowMs + 4_000, reason: 'mutation-preflight', force: true,
+      softBytes: 16 * 1024 * 1024, hardBytes: 32 * 1024 * 1024, reserveBytes: 1024
+    })
+    assert.strictEqual(preflight.status, 'committed')
+    assert.strictEqual(preflight.recordType, 'mutation-preflight')
+    const afterPreflight = readTaskRecoveryState({ metaDir, identity })
+    assert.strictEqual(afterPreflight.state.taskCheckpointEpochSet.stateSequence,
+      afterPreflight.commitFence.stateSequence, 'materialized CP epoch must bind the actual committed preflight revision')
+    assert.deepStrictEqual(afterPreflight.state.taskCheckpointEpochSet.epochs,
+      beforePreflight.state.taskCheckpointEpochSet.epochs, 'preflight recovery cannot change confirmed CPs or their authority')
+    assert.strictEqual(afterPreflight.state.turnLiveness.inFlightOperation.operationId, 'epoch-native-mutation')
+    assert.strictEqual(afterPreflight.state.turnLiveness.inFlightOperation.mutating, true,
+      'rebinding the read fence must not settle an unresolved mutation')
+    const afterCloseout = commitTaskRecoveryState({
+      metaDir, identity,
+      state: {
+        ...afterPreflight.state,
+        turnLiveness: { ...afterPreflight.state.turnLiveness, state: 'running', inFlightOperation: null }
+      }
+    }, {
+      expectedCommitFence: afterPreflight.commitFence,
+      nowMs: nowMs + 5_000, reason: 'mutation-closeout', force: true,
+      softBytes: 16 * 1024 * 1024, hardBytes: 32 * 1024 * 1024, reserveBytes: 1024
+    })
+    assert.strictEqual(afterCloseout.status, 'committed', 'a real successor closeout must pass the unchanged strict epoch fence guard')
+    assert.strictEqual(afterCloseout.sequence, afterPreflight.commitFence.stateSequence + 1)
+    const stalePreflightWrite = commitTaskRecoveryState({ metaDir, identity, state: afterPreflight.state }, {
+      expectedCommitFence: afterPreflight.commitFence, nowMs: nowMs + 6_000, force: true
+    })
+    assert.strictEqual(stalePreflightWrite.errorCode, 'LIFECYCLE_STATE_FENCE_MISMATCH', 'stale writers must still be rejected')
+
     const legacyTaskId = '10000000-0000-4000-8000-000000000002'
     const legacyIdentity = { activeRoot, project: 'devcodex', taskId: legacyTaskId, taskStatus: 'active' }
     const legacyCommit = commitTaskRecoveryState({

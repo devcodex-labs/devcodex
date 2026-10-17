@@ -75,6 +75,7 @@ function inferOperation(name, input) {
   const patch = String(input?.input || input?.patch || input?.diff || '')
   if (/^\*\*\*\s+Move\s+File:/m.test(patch)) return 'move'
   if (/^\*\*\*\s+Delete\s+File:/m.test(patch) && !/^\*\*\*\s+(?:Add|Update)\s+File:/m.test(patch)) return 'delete'
+  if (/^\*\*\*\s+Add\s+File:/m.test(patch) && !/^\*\*\*\s+(?:Delete|Move)\s+File:/m.test(patch)) return 'create-or-update'
   const value = explicit || `${raw} ${command}`
   if (/move|rename/.test(value)) return 'move'
   if (/copy|\bcp\b/.test(value)) return 'copy'

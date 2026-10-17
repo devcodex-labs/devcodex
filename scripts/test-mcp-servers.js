@@ -2551,6 +2551,99 @@ function testMemoryWorkflowOperationalWriteLeaseContract() {
   assert.deepStrictEqual(resultById(responses, 6).structuredContent.lease.relativeTargets, [reportTarget])
 }
 
+function testMemoryAdmissionPreservesObservedTurn() {
+  const { buildTestHooksRuntimeFixtures } = require('./lib/test-hooks-runtime-fixtures')
+  const stateFile = path.join(TEMP_ROOT, '.devcodex/chat/.memory/hooks/chat/lifecycle-state.json')
+  const projectRoot = path.join(TEMP_ROOT, 'chat')
+  const hooks = buildTestHooksRuntimeFixtures({
+    fs, path, process, spawnSync, ROOT,
+    RUNTIME: path.join(ROOT, 'hooks/_runtime/lifecycle.cjs'),
+    PROFILE_SERVER: path.join(ROOT, 'mcp/profile-server.js'),
+    TEMP_ROOT, STATE_FILE: stateFile, TEST_AGENT: 'claude-code'
+  })
+  function memoryUntilReplies(requests) {
+    // Keep stdin open until every complete response arrives, as a real MCP host
+    // does. EOF-first smoke helpers may truncate a large admission response.
+    const client = String.raw`
+      const { spawn } = require('node:child_process')
+      const fs = require('node:fs')
+      const input = fs.readFileSync(0, 'utf8')
+      const child = spawn(process.execPath, [process.argv[1], process.argv[2]], {
+        cwd: process.argv[2], stdio: ['pipe', 'pipe', 'inherit']
+      })
+      let pending = '', received = 0
+      child.stdout.on('data', data => {
+        process.stdout.write(data)
+        pending += data.toString()
+        let end
+        while ((end = pending.indexOf('\n')) >= 0) {
+          const line = pending.slice(0, end); pending = pending.slice(end + 1)
+          if (line.trim()) { JSON.parse(line); received += 1 }
+        }
+        if (received === Number(process.argv[3])) child.stdin.end()
+      })
+      child.on('error', error => { console.error(error.message); process.exitCode = 1 })
+      child.on('close', code => { process.exitCode = code || 0 })
+      child.stdin.write(input)
+    `
+    const result = spawnSync(process.execPath, ['-e', client,
+      path.join(ROOT, 'mcp/memory-server.js'), projectRoot, String(requests.length)], {
+      input: requests.join('\n') + '\n', encoding: 'utf8', timeout: 30000,
+      env: { ...process.env, DEVCODEX_AGENT: 'claude-code' }, maxBuffer: 64 * 1024 * 1024
+    })
+    assert.ifError(result.error)
+    assert.strictEqual(result.status, 0, result.stderr)
+    return result.stdout.trim().split('\n').map(line => JSON.parse(line))
+  }
+  for (const includeObservedTurn of [true, false]) {
+    hooks.cleanLayoutState()
+    const sessionId = includeObservedTurn ? 'admit-observed-session' : 'admit-unobserved-session'
+    hooks.run({
+      hookEventName: 'UserPromptSubmit', session_id: sessionId,
+      turn_id: 'actual-host-turn', prompt: '修复准入后报告租约',
+      fixtureSemanticDecision: { intent: 'fix', changeTypes: ['source-code'] }
+    }, projectRoot)
+    hooks.runLayoutBootstrapReads('claude-code', projectRoot, 'fix', ['source-code'])
+    const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
+    const observedTurn = includeObservedTurn ? state.turnLiveness.turnKey : ''
+    assert(state.turnLiveness.turnKey, 'fixture must observe a real host turn')
+    if (!includeObservedTurn) state.turnLiveness.turnKey = ''
+    fs.writeFileSync(stateFile, JSON.stringify(state))
+    const ingressRef = {
+      schemaVersion: 'WorkflowIngressProjectionRefV1',
+      envelopeId: state.actualInstructionEnvelope.envelopeId,
+      envelopeDigest: state.actualInstructionEnvelope.envelopeDigest,
+      decisionDigest: state.workflowRouteDecision.decisionDigest,
+      routeRevision: state.workflowRouteDecision.routeRevision
+    }
+    const admissionArgs = {
+      operation: 'admit', ingressRef,
+      task: { taskKind: 'bugs', entryVariant: 'fix', displayName: 'Observed turn admission' },
+      overview: { content: '# 问题概况\n\nObserve current turn through admission.\n' }
+    }
+    const admittedResponses = memoryUntilReplies([
+      rpcRequest(1, 'tools/call', { name: 'memory_task_admit_v2', arguments: admissionArgs })
+    ])
+    const admitted = resultById(admittedResponses, 1)
+    assert.strictEqual(admitted.isError, false, admitted.content?.[0]?.text)
+    assert.strictEqual(admitted.structuredContent.mutationAuthority, false, 'pending CP cannot gain source mutation authority')
+    // The real host PostToolUse boundary reads back the new durable task state.
+    // A same-process MCP-only test keeps the old projection and misses this loss.
+    hooks.run({
+      hookEventName: 'PostToolUse', session_id: sessionId,
+      tool_use_id: 'admit-observed-turn', tool_name: 'devcodex-memory/memory_task_admit_v2',
+      tool_input: admissionArgs, tool_response: admitted
+    }, projectRoot)
+    const afterAdmission = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
+    assert.strictEqual(afterAdmission.activeProject, 'chat', 'owner acquisition must retain the validated project string')
+    assert.strictEqual(afterAdmission.activeScope, 'project', 'owner acquisition must retain the validated scope string')
+    assert.strictEqual(afterAdmission.turnLiveness.turnKey, observedTurn,
+      'admission PostToolUse must retain the current observed turn without inventing one')
+    assert.strictEqual(afterAdmission.turnLiveness.taskOperationSet?.unresolved ?? null, null,
+      'preserving a turn must not import operation authority')
+  }
+}
+
 function testMemorySimpleTaskFastPathLeaseContract() {
   setupLegacyWorkspace()
   const activeRoot = path.join(TEMP_ROOT, '.devcodex')
@@ -7391,6 +7484,7 @@ testMemoryTaskAdmissionV2Contract()
 testMemoryFinalizedFreshResumeV3Contract()
 testMemoryOwnerFencedCrashResumeContract()
 testMemoryWorkflowOperationalWriteLeaseContract()
+testMemoryAdmissionPreservesObservedTurn()
 testMemorySimpleTaskFastPathLeaseContract()
 testMemoryTaskOwnerAndTerminalV1Contract()
 testMemoryArtifactMutationReconciliationContract()

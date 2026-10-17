@@ -403,6 +403,16 @@ function normalizeHostPayload(host, payload) {
   if (normalized.tool_response !== undefined && normalized.tool_result === undefined) {
     normalized.tool_result = normalized.tool_response
   }
+  // Current Codex emits the literal apply_patch body in a sole command field.
+  // Canonicalize that exact carrier before generic shell/footprint inspection.
+  const codexPatchInput = normalized.tool_input
+  if (host === 'codex' && normalized.tool_name === 'apply_patch' &&
+      codexPatchInput && typeof codexPatchInput === 'object' && !Array.isArray(codexPatchInput) &&
+      Object.keys(codexPatchInput).length === 1 && typeof codexPatchInput.command === 'string' &&
+      /^\*\*\* Begin Patch\r?\n/u.test(codexPatchInput.command) &&
+      /(?:^|\r?\n)\*\*\* End Patch\s*$/u.test(codexPatchInput.command)) {
+    normalized.tool_input = { input: codexPatchInput.command }
+  }
   // Grok, Copilot and Cursor camelCase payloads are normalized to lifecycle fields.
   if (host === 'grok' || host === 'copilot' || host === 'cursor') {
     if (normalized.toolName && !normalized.tool_name) normalized.tool_name = normalized.toolName

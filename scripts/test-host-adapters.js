@@ -985,6 +985,33 @@ assert.strictEqual(claude.payload.devcodexHostSurface, 'claude')
 const codex = normalizeHostPayload('codex', { hook_event_name: 'PreCompact' })
 assert.strictEqual(codex.mappedEvent, 'PreCompact')
 assert.strictEqual(codex.payload.devcodexHostSurface, 'codex')
+{
+  const { extractMutationFootprint } = require('../hooks/_runtime/mutation-footprint.cjs')
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-native-patch-'))
+  try {
+    const target = path.join(root, 'report.md')
+    const patch = `*** Begin Patch\n*** Add File: ${target}\n+delete and move are ordinary report words\n*** End Patch`
+    const raw = { hook_event_name: 'PreToolUse', tool_name: 'apply_patch', tool_use_id: 'native-patch-call', tool_input: { command: patch } }
+    const pre = normalizeHostPayload('codex', raw).payload
+    assert.deepStrictEqual(pre.tool_input, { input: patch }, 'native Codex command must become a canonical patch carrier')
+    assert.deepStrictEqual(raw.tool_input, { command: patch }, 'normalization must not mutate the raw host payload')
+    const post = normalizeHostPayload('codex', { ...raw, hook_event_name: 'PostToolUse', tool_response: 'success' }).payload
+    assert.deepStrictEqual(post.tool_input, pre.tool_input, 'Pre/Post must bind the same canonical patch')
+    assert.strictEqual(post.tool_use_id, pre.tool_use_id)
+    const footprint = extractMutationFootprint(pre, { cwd: root })
+    assert.strictEqual(footprint.coverage, 'complete')
+    assert.strictEqual(footprint.operation, 'create-or-update')
+    assert.deepStrictEqual(footprint.plannedCreates, [target])
+    assert.deepStrictEqual(footprint.plannedDeletes, [])
+    for (const input of [{ command: 'echo not-a-patch' }, { command: patch, input: 'ambiguous' }]) {
+      assert.deepStrictEqual(normalizeHostPayload('codex', { ...raw, tool_input: input }).payload.tool_input, input)
+    }
+    assert.strictEqual(extractMutationFootprint(normalizeHostPayload('codex', { ...raw, tool_input: { command: 'echo not-a-patch' } }).payload, { cwd: root }).coverage, 'unavailable')
+    assert.deepStrictEqual(normalizeHostPayload('codex', { ...raw, tool_name: 'exec_command' }).payload.tool_input, raw.tool_input)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+}
 const codexPost = normalizeHostPayload('codex', {
   hook_event_name: 'PostToolUse',
   tool_response: {

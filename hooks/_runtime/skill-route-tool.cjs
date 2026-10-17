@@ -507,6 +507,11 @@ function validateTrustedContextBinding (binding, target, options = {}) {
     project: target.project,
     finalIntent: plan.identity?.finalIntent,
     changeTypes: plan.changeTypes || [],
+    ...(plan.workflowRoute ? {
+      routeKey: plan.workflowRoute.routeKey,
+      subtype: plan.workflowRoute.subtype,
+      stage: plan.workflowRoute.stage
+    } : {}),
     receiptId: receipt.receiptId,
     receiptStatus: receipt.status,
     contextSnapshotId: receipt.contextSnapshotId || null,

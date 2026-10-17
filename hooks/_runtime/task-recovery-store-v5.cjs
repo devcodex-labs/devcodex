@@ -7265,7 +7265,17 @@ function commitFencedTaskWriteOwnerTransition(input = {}, options = {}) {
         }
         for (const key of ['activeProject', 'activeScope', 'actualInstructionEnvelope', 'workItemSet',
           'workflowRouteDecision', 'stickyProject', 'contextAcquisition', 'workflowRoutePlanBinding']) {
-          if (ingress[key] !== undefined) state[key] = cloneRecoveryValue(ingress[key])
+          if (ingress[key] !== undefined) {
+            state[key] = ['activeProject', 'activeScope'].includes(key)
+              ? ingress[key]
+              : cloneRecoveryValue(ingress[key])
+          }
+        }
+        // A newly admitted task has no turn yet. Carry only the server-observed
+        // identity, retaining any existing turn and all task operation authority.
+        const observedTurnKey = ingress.turnLiveness?.turnKey
+        if (!state.turnLiveness?.turnKey && typeof observedTurnKey === 'string' && observedTurnKey.trim()) {
+          state.turnLiveness = { ...(state.turnLiveness || {}), turnKey: observedTurnKey }
         }
       }
       state.taskRecoveryBinding = {

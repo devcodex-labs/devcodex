@@ -416,6 +416,48 @@ try {
   contextBindingRoundtripFixture.cleanup()
 }
 
+const routeIdentityFixture = createSkillRouteFixture({ project: 'explicit-route-identity' })
+try {
+  const contextEpoch = 'ctx-incident-route-identity'
+  const contextBinding = writeContextBindingState(routeIdentityFixture, contextEpoch, 'fix')
+  const statePath = path.join(routeIdentityFixture.activeRoot, '.memory', 'hooks', routeIdentityFixture.project, 'lifecycle-state.json')
+  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'))
+  state.contextAcquisition.plan.workflowRoute = { routeKey: 'fix.incident', subtype: 'incident', stage: 'entry' }
+  fs.writeFileSync(statePath, JSON.stringify(state))
+  const target = resolveProjectTarget(routeIdentityFixture.root, routeIdentityFixture.project)
+  const trusted = validateTrustedContextBinding(contextBinding, target, routeIdentityFixture.runtimeOptions)
+  assert.strictEqual(trusted.routeKey, 'fix.incident', 'a verified explicit subtype must not fall back to fix.default')
+  assert.strictEqual(trusted.subtype, 'incident')
+  assert.strictEqual(trusted.stage, 'entry')
+  const boot = bootstrapSkillRoute({
+    project: routeIdentityFixture.project, activeRoot: routeIdentityFixture.activeRoot,
+    contextEpoch, prompt: 'Run an isolated incident response', mode: 'unified', cwd: routeIdentityFixture.projectRoot
+  }, routeIdentityFixture.runtimeOptions)
+  const binding = { project: routeIdentityFixture.project, contextEpoch, turnBinding: boot.bootstrap.turnBinding }
+  let cursor
+  let catalogDigest
+  do {
+    const page = handleSkillRoute({ op: 'catalog', ...binding, ...(cursor ? { cursor } : {}) }, routeIdentityFixture.runtimeOptions)
+    assert.strictEqual(page.ok, true, JSON.stringify(page))
+    cursor = page.receipt.nextCursor
+    catalogDigest = page.receipt.catalogDigest
+  } while (cursor)
+  const committed = handleSkillRoute({ op: 'commit', ...binding, catalogDigest, contextBinding, skillId: null }, routeIdentityFixture.runtimeOptions)
+  assert.strictEqual(committed.ok, true, JSON.stringify(committed))
+  assert.strictEqual(committed.receipt.decision.skillId, null)
+  assert(!committed.receipt.plan.selectedIds.includes('fix-default'), 'instruction-owned incident must not inherit the default repair Skill')
+  const registry = require('../hooks/_runtime/workflow-root-registry.v2.json')
+  for (const route of registry.routes) {
+    state.contextAcquisition.plan.identity.finalIntent = route.topIntent
+    state.contextAcquisition.plan.workflowRoute = { routeKey: route.routeKey, subtype: route.subtype, stage: route.stage }
+    fs.writeFileSync(statePath, JSON.stringify(state))
+    const current = validateTrustedContextBinding(contextBinding, target, routeIdentityFixture.runtimeOptions)
+    assert.deepStrictEqual([current.routeKey, current.subtype, current.stage], [route.routeKey, route.subtype, route.stage])
+  }
+} finally {
+  routeIdentityFixture.cleanup()
+}
+
 const fixture = createSkillRouteFixture()
 
 try {

@@ -6822,23 +6822,27 @@ function taskOwnerIngressState(target, ingress) {
   }
   // Immutable ingress snapshots intentionally omit the mutable ContextRead
   // receipt. Reuse it only from the same observed instruction/route/session.
-  if (!sameContext(contextState)) {
-    contextState = null
-    try {
-      const { state } = readServerOwnedLifecycleProjection(target)
-      if (state.activeProject === target.project && state.activeScope === 'project' &&
-          state.actualInstructionEnvelope?.envelopeDigest === ingress.actualInstructionEnvelope.envelopeDigest &&
-          state.workflowRouteDecision?.decisionDigest === ingress.workflowRouteDecision.decisionDigest &&
-          sameContext(state)) contextState = state
-    } catch { }
-  }
+  let observedState = null
+  try {
+    const { state } = readServerOwnedLifecycleProjection(target)
+    if (state.activeProject === target.project && state.activeScope === 'project' &&
+        state.actualInstructionEnvelope?.envelopeDigest === ingress.actualInstructionEnvelope.envelopeDigest &&
+        state.workflowRouteDecision?.decisionDigest === ingress.workflowRouteDecision.decisionDigest &&
+        sameContext(state)) observedState = state
+  } catch { }
+  if (!sameContext(contextState)) contextState = observedState
+  const observedTurnKey = observedState?.turnLiveness?.turnKey
   return {
     activeProject: target.project, activeScope: 'project',
     actualInstructionEnvelope: ingress.actualInstructionEnvelope,
     workItemSet: ingress.workItemSet, workflowRouteDecision: ingress.workflowRouteDecision,
     stickyProject: ingress.projectTargetLease,
     contextAcquisition: contextState?.contextAcquisition,
-    workflowRoutePlanBinding: contextState?.workflowRoutePlanBinding
+    workflowRoutePlanBinding: contextState?.workflowRoutePlanBinding,
+    // Capture the real same-context host turn before admission replaces the
+    // projection. Never derive liveness from an envelope fallback or old task.
+    ...(typeof observedTurnKey === 'string' && observedTurnKey.trim()
+      ? { turnLiveness: { turnKey: observedTurnKey } } : {})
   }
 }
 

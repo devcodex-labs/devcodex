@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "fddc547986599fe20672364d6432633edabeb60ee6c5f3da5f9ca083daed6e1e",
     "consumerInventoryFileCount": 722,
     "consumerInventoryDigest": "915e197c2e882223da7e45eb7f12b6c07054fc461945ae123e363170c489ec3e",
-    "consumerProjectionDigest": "f0adecb95b7311911c88645461295e4ec022c5ee8efc87d5eb260570479e228a",
-    "portfolioInputDigest": "bed6956f943d0e82db05f33dfdd9553731f92f7baa6ccebdbde9256ca85aae48"
+    "consumerProjectionDigest": "1ca046c30d95385fc4059a5ac74399b9e798e68bad9aa851d6c78aa27b84b940",
+    "portfolioInputDigest": "41b19874546708ade1c92ae4b6fa353b671704b0748c638d92a9b3cf523f5c90"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -9300,6 +9300,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-skill-route-state.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/validation-manifest.json",
           "role": "current"
         }
@@ -9309,6 +9313,7 @@
         "scripts/test-repair-prevention-assessment.js",
         "scripts/test-requirement-parallel-orchestration.js",
         "scripts/test-skill-portfolio.js",
+        "scripts/test-skill-route-state.js",
         "scripts/validate.js"
       ],
       "lastEvidenceAt": "2026-07-24",
@@ -9360,6 +9365,7 @@
           "scripts/test-repair-prevention-assessment.js",
           "scripts/test-requirement-parallel-orchestration.js",
           "scripts/test-skill-portfolio.js",
+          "scripts/test-skill-route-state.js",
           "scripts/validate.js"
         ],
         "exitCondition": "work-unit-complete-or-workflow-transition",

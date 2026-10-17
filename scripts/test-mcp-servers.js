@@ -2840,6 +2840,30 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
     identity: { ...recoveryIdentity, taskStatus: 'completed' }
   })
   assert.strictEqual(terminalOwnerRead.owner.status, 'terminal')
+  const closeoutViews = runServer('mcp/memory-server.js', [
+    rpcRequest(10, 'tools/call', {
+      name: 'memory_task_closeout_reconcile_v1',
+      arguments: { ingressRef: ingress.ingressRef, taskId: admitted.taskId }
+    }),
+    rpcRequest(11, 'tools/call', { name: 'memory_task_resolve', arguments: { name: admitted.taskId, locale: 'zh-CN' } }),
+    rpcRequest(12, 'tools/call', { name: 'memory_task_continuity_view_v1', arguments: { taskId: admitted.taskId } }),
+    rpcRequest(13, 'tools/call', { name: 'memory_task_resolve', arguments: { name: admitted.taskId, locale: 'en-US' } })
+  ], TEMP_ROOT)
+  const reconciledView = resultById(closeoutViews, 10)
+  assert.strictEqual(reconciledView.isError, false, reconciledView.content?.[0]?.text)
+  assert.strictEqual(reconciledView.structuredContent.status, 'reconciled')
+  assert.strictEqual(reconciledView.structuredContent.projectionReconciliationRequired, false)
+  assert.strictEqual(resultById(closeoutViews, 11).structuredContent.status, 'completed')
+  assert.strictEqual(resultById(closeoutViews, 11).structuredContent.continuationDisposition, 'resolved-readonly')
+  assert.match(resultById(closeoutViews, 11).structuredContent.humanSummary, /已完成/u)
+  assert.doesNotMatch(resultById(closeoutViews, 11).structuredContent.humanSummary, /证据未通过/u)
+  assert.match(resultById(closeoutViews, 13).structuredContent.humanSummary, /completed/u)
+  assert.doesNotMatch(resultById(closeoutViews, 13).structuredContent.humanSummary, /did not verify/u)
+  const terminalContinuity = resultById(closeoutViews, 12).structuredContent
+  assert.strictEqual(terminalContinuity.status, 'terminal')
+  assert.strictEqual(terminalContinuity.canonical.status, 'current')
+  assert.strictEqual(terminalContinuity.task.taskId, admitted.taskId)
+  assert.strictEqual(terminalContinuity.mutationAuthority, false)
 }
 
 function testMemoryArtifactMutationReconciliationContract() {
@@ -4630,9 +4654,14 @@ function testMemoryProjectionAgentAmbiguity() {
   const runtimePinned = toolJson(resultById(responses, 3))
   assert.strictEqual(runtimePinned.agent, 'codex')
 
-  const unpinned = runServer('mcp/memory-server.js', [
+  const unpinned = runServer('mcp/memory-server.js', bindGovernedContextReads([
     rpcRequest(4, 'tools/call', { name: 'memory_status', arguments: {} })
-  ], TEMP_ROOT, { DEVCODEX_AGENT: '' })
+  ], contextBinding), TEMP_ROOT, {
+    DEVCODEX_AGENT: '', CLAUDE_CODE_VERSION: '', CLAUDE_HOOK_COMMAND: '',
+    CODEX_HOME: '', CODEX_SANDBOX: '', OPENAI_CODEX: '', CODEX_ENV_PWD: '',
+    CURSOR_TRACE_ID: '', CURSOR_USER_ID: '', IDEA_INITIAL_DIRECTORY: '',
+    JETBRAINS_IDE: '', TERM_PROGRAM: '', VSCODE_PID: ''
+  })
   const ambiguous = resultById(unpinned, 4)
   assert.strictEqual(ambiguous.isError, true)
   const error = toolJson(ambiguous)

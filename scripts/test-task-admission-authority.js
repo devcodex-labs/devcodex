@@ -14,6 +14,11 @@ const {
 const { buildWorkflowRouteDecision } = require('../hooks/_runtime/workflow-route-decision-v2.cjs')
 const { validateTaskIdentity } = require('../hooks/_runtime/task-continuation-contract.cjs')
 const {
+  sealTaskCheckpointEpoch, sealTaskCheckpointEpochSet, sealCheckpointPhaseSlot,
+  sealCheckpointPhaseBinding, emptyCheckpointPhaseSlot
+} = require('../hooks/_runtime/task-checkpoint-epoch-v1.cjs')
+const { parseCurrentEpochMarker } = require('../hooks/_runtime/task-checkpoint-projection-v1.cjs')
+const {
   advanceTaskCanonicalRevision,
   normalizeIdentity,
   observeFinalizedTaskResumeLiveness,
@@ -42,6 +47,7 @@ const {
   executeWorkflowTaskTerminal,
   readFormalTaskExecutionReadiness,
   readFinalizedResumeCanonicalEvidence,
+  readTaskContinuityCanonicalEvidence,
   reconcileWorkflowTaskTerminal,
   validateProjectTargetLease
 } = require('../mcp/task-admission-authority.cjs')
@@ -1337,6 +1343,52 @@ try {
   assert.strictEqual(terminal.writeContext.writerGeneration, terminal.owner.ownerGeneration)
   const terminalReplay = executeWorkflowTaskTerminal(terminalCommand, { nowMs: terminalAt, storeOptions: STORE_OPTIONS })
   assert.strictEqual(terminalReplay.replayed, true)
+  const primaryCloseout = reconcileWorkflowTaskTerminal({
+    activeRoot: ownerRoot.activeRoot,
+    project: ownerRoot.project,
+    taskId: ownerAdmission.taskId
+  }, { nowMs: terminalAt, ...STORE_OPTIONS })
+  assert.strictEqual(primaryCloseout.status, 'semantic-noop', 'a committed primary terminal must reconcile without an emergency reserve')
+  assert.strictEqual(primaryCloseout.terminalReceipt.receiptDigest, terminal.receipt.receiptDigest)
+  assert.strictEqual(primaryCloseout.projection.status, 'current')
+  const terminalRecoveryInput = {
+    metaDir: resolveTaskRecoveryMetaDir({ activeRoot: ownerRoot.activeRoot, project: ownerRoot.project }),
+    identity: { activeRoot: ownerRoot.activeRoot, project: ownerRoot.project, taskId: ownerAdmission.taskId, taskStatus: 'completed' }
+  }
+  const terminalRead = readTaskRecoveryState(terminalRecoveryInput, { nowMs: terminalAt })
+  assert.throws(() => readFinalizedResumeCanonicalEvidence(terminalRead.state.admissionTransaction, ownerRoot.activeRoot, fs, {
+    state: terminalRead.state
+  }), error => error.code === 'FINALIZED_TASK_RESUME_ADMISSION_PHASE_INVALID')
+  const terminalCanonical = readTaskContinuityCanonicalEvidence(terminalRead.state.admissionTransaction, ownerRoot.activeRoot, fs, {
+    state: terminalRead.state
+  })
+  assert.strictEqual(terminalCanonical.canonicalRevisionDigest, terminalRead.state.taskCanonicalRevision.revisionDigest)
+  assert.throws(() => readTaskContinuityCanonicalEvidence(terminalRead.state.admissionTransaction, ownerRoot.activeRoot, fs, {
+    state: { ...terminalRead.state, workflowTaskTerminalReceipt: { ...terminal.receipt, receiptDigest: '0'.repeat(64) } }
+  }), error => error.code === 'TASK_TERMINAL_CANONICAL_SOURCE_INVALID')
+  const terminalOverviewPath = path.join(ownerRoot.activeRoot, terminalRead.state.admissionTransaction.effects.overview.file.file)
+  const terminalOverview = fs.readFileSync(terminalOverviewPath)
+  fs.appendFileSync(terminalOverviewPath, '\nunauthorized terminal edit\n')
+  assert.throws(() => readTaskContinuityCanonicalEvidence(terminalRead.state.admissionTransaction, ownerRoot.activeRoot, fs, {
+    state: terminalRead.state
+  }), error => error.code === 'FINALIZED_TASK_RESUME_CANONICAL_DRIFT')
+  fs.writeFileSync(terminalOverviewPath, terminalOverview)
+  const terminalSessionsPath = path.join(taskRootFor(ownerAdmissionInput, ownerAdmission), '.memory', 'sessions.md')
+  fs.writeFileSync(terminalSessionsPath, fs.readFileSync(terminalSessionsPath, 'utf8').replace('**当前状态**: completed', '**当前状态**: active'))
+  const brokenProjectionFs = Object.create(fs)
+  brokenProjectionFs.renameSync = (from, to) => {
+    if (to === terminalSessionsPath) throw Object.assign(new Error('projection storage unavailable'), { code: 'EIO' })
+    return fs.renameSync(from, to)
+  }
+  const reconcileInput = { activeRoot: ownerRoot.activeRoot, project: ownerRoot.project, taskId: ownerAdmission.taskId }
+  const interruptedProjection = reconcileWorkflowTaskTerminal(reconcileInput, { fs: brokenProjectionFs, nowMs: terminalAt, ...STORE_OPTIONS })
+  assert.strictEqual(interruptedProjection.projection.status, 'pending')
+  assert.strictEqual(interruptedProjection.projection.errorCode, 'EIO')
+  assert.strictEqual(readFencedTaskWriteOwner(terminalRecoveryInput, { nowMs: terminalAt }).terminalReceipt.receiptDigest, terminal.receipt.receiptDigest)
+  assert.strictEqual(reconcileWorkflowTaskTerminal(reconcileInput, { nowMs: terminalAt, ...STORE_OPTIONS }).projection.status, 'current')
+  const beforeProjectionReplay = readTaskRecoveryState(terminalRecoveryInput, { nowMs: terminalAt }).envelope.sequence
+  assert.strictEqual(reconcileWorkflowTaskTerminal(reconcileInput, { nowMs: terminalAt, ...STORE_OPTIONS }).projection.replayed, true)
+  assert.strictEqual(readTaskRecoveryState(terminalRecoveryInput, { nowMs: terminalAt }).envelope.sequence, beforeProjectionReplay)
   assert.strictEqual(terminal.receipt.lifecycleRevision, 1)
   assert.strictEqual(terminal.receipt.settledSetDigest, terminalCommand.settledSetDigest)
   assert.throws(
@@ -1493,6 +1545,44 @@ try {
   const reserveOwner = runOwner(ownerInput(reserveInput, reserveAdmission, 'acquire', {
     expectedOwner: { mode: 'absent' }
   }))
+  const reserveSeedInput = {
+    metaDir: resolveTaskRecoveryMetaDir({ activeRoot: reserveRoot.activeRoot, project: reserveRoot.project }),
+    identity: { activeRoot: reserveRoot.activeRoot, project: reserveRoot.project, taskId: reserveAdmission.taskId, taskStatus: 'active' }
+  }
+  const reserveSeed = readTaskRecoveryState(reserveSeedInput, { nowMs: NOW_MS })
+  const reserveCp = readFinalizedResumeCanonicalEvidence(reserveSeed.state.admissionTransaction, reserveRoot.activeRoot, fs, {
+    state: reserveSeed.state
+  }).confirmedCpEvidence[0]
+  const seedAt = new Date(NOW_MS).toISOString()
+  const reserveEpoch = sealTaskCheckpointEpoch({
+    ordinal: 1, parentEpochId: null, stageKey: 'terminal-regression', status: 'current',
+    task: { taskId: reserveAdmission.taskId, taskKind: 'bugs', project: reserveRoot.project,
+      activeRootDigest: '1'.repeat(64), admissionId: reserveAdmission.admissionId },
+    lineage: { canonicalRevision: 1, canonicalParentRevision: null, canonicalHeadDigest: '2'.repeat(64), scopeDigest: '3'.repeat(64) },
+    owner: reserveSeed.state.fencedWriteOwner,
+    context: { contextEpoch: reserveInput.actualInstructionEnvelope.contextEpoch },
+    phases: {
+      CP1: sealCheckpointPhaseSlot({ phase: 'CP1', state: 'confirmed', slotSequence: 1,
+        currentBinding: sealCheckpointPhaseBinding({ phase: 'CP1', role: 'primary',
+          artifactPath: reserveCp.artifactPath, artifactSha256: reserveCp.artifactDigest,
+          artifactVersion: reserveCp.version, templateQualificationDigest: '4'.repeat(64),
+          confirmationSourceDigest: '5'.repeat(64), confirmedAt: reserveCp.confirmedAt, confirmationMode: 'bootstrap-import' }) }),
+      CP2: emptyCheckpointPhaseSlot('CP2'), CP3: emptyCheckpointPhaseSlot('CP3')
+    },
+    runtime: { stateSchemaVersion: 'TaskRecoveryStateV5', packageVersion: require('../package.json').version,
+      mcpProtocolVersion: '2024-11-05', sourceHead: 'terminal-regression-fixture', epochCapability: 1 },
+    createdAt: seedAt, activatedAt: seedAt, trigger: 'test-fixture'
+  })
+  reserveSeed.state.taskCheckpointEpochSet = sealTaskCheckpointEpochSet({
+    taskId: reserveAdmission.taskId, currentEpochId: reserveEpoch.epochId, nextOrdinal: 2,
+    stateSequence: reserveSeed.commitFence.stateSequence, writerGeneration: reserveSeed.commitFence.writerGeneration,
+    migration: { migrationId: '1'.repeat(64), from: 'test-fixture', status: 'not-required' },
+    projection: { desiredDigest: '2'.repeat(64), observedDigest: '2'.repeat(64), status: 'current', sequence: 0 },
+    epochs: [reserveEpoch], archiveRefs: []
+  })
+  assert.strictEqual(commitTaskRecoveryState({ ...reserveSeedInput, state: reserveSeed.state }, {
+    nowMs: NOW_MS, force: true, ...STORE_OPTIONS
+  }).status, 'committed')
   const reserveEvidence = evidenceSet(reserveInput, reserveAdmission, 'reserve')
   const reserveTerminalInput = withTerminalExpectedState(reserveInput, reserveAdmission, {
     ...ownerInput(reserveInput, reserveAdmission, 'release', { expectedOwner: ownerRef(reserveOwner) }),
@@ -1529,6 +1619,33 @@ try {
   }, { ignoreReserve: true })
   assert.strictEqual(reconciledRead.source, 'primary')
   assert.strictEqual(reconciledRead.owner.status, 'terminal')
+  assert.strictEqual(reconciledTerminal.projection.status, 'current', JSON.stringify(reconciledTerminal.projection))
+  const terminalEpochSet = reconciledRead.state.taskCheckpointEpochSet
+  assert.strictEqual(terminalEpochSet.epochs.find(item => item.epochId === terminalEpochSet.currentEpochId).terminalStatus, 'completed')
+  const terminalSessions = fs.readFileSync(path.join(taskRootFor(reserveInput, reserveAdmission), '.memory', 'sessions.md'), 'utf8')
+  assert.strictEqual(parseCurrentEpochMarker(terminalSessions).projectionDigest, terminalEpochSet.projection.desiredDigest)
+  assert.strictEqual(terminalEpochSet.projection.status, 'current')
+
+  const evidenceBoundRoot = setupRoot('terminal-sessions-evidence-bound')
+  const evidenceBoundInput = admissionInput(evidenceBoundRoot, 'terminal-sessions-evidence-bound')
+  const evidenceBoundAdmission = run(evidenceBoundInput)
+  confirmCp1(taskRootFor(evidenceBoundInput, evidenceBoundAdmission))
+  const evidenceBoundOwner = runOwner(ownerInput(evidenceBoundInput, evidenceBoundAdmission, 'acquire', { expectedOwner: { mode: 'absent' } }))
+  const evidenceBoundSessions = path.join(taskRootFor(evidenceBoundInput, evidenceBoundAdmission), '.memory', 'sessions.md')
+  const evidenceBoundBytes = fs.readFileSync(evidenceBoundSessions)
+  const evidenceBoundSet = evidenceSet(evidenceBoundInput, evidenceBoundAdmission).map(item => item.role === 'memory'
+    ? { role: 'memory', path: path.relative(evidenceBoundRoot.activeRoot, evidenceBoundSessions).replace(/\\/g, '/'),
+        sha256: crypto.createHash('sha256').update(evidenceBoundBytes).digest('hex'), bytes: evidenceBoundBytes.length }
+    : item)
+  const evidenceBoundCommand = withTerminalExpectedState(evidenceBoundInput, evidenceBoundAdmission, {
+    ...ownerInput(evidenceBoundInput, evidenceBoundAdmission, 'release', { expectedOwner: ownerRef(evidenceBoundOwner) }),
+    terminalStatus: 'completed', evidence: evidenceBoundSet
+  }, NOW_MS + 1000)
+  const evidenceBoundTerminal = executeWorkflowTaskTerminal(evidenceBoundCommand, { nowMs: NOW_MS + 1000, storeOptions: STORE_OPTIONS })
+  assert.strictEqual(evidenceBoundTerminal.status, 'terminal')
+  assert.strictEqual(evidenceBoundTerminal.projectionReconciliationRequired, true)
+  assert.strictEqual(evidenceBoundTerminal.projection.errorCode, 'TASK_TERMINAL_PROJECTION_EVIDENCE_BOUND')
+  assert.deepStrictEqual(fs.readFileSync(evidenceBoundSessions), evidenceBoundBytes, 'terminal evidence bytes must survive a rejected derived rewrite')
 
   const invalidRoot = setupRoot('invalid-existing-state')
   const invalidInput = admissionInput(invalidRoot, 'invalid-existing-state')

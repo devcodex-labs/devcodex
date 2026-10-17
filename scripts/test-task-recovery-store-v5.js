@@ -723,6 +723,63 @@ function runTasklessIngressRecoveryScenario() {
       .sort((left, right) => right.sequence - left.sequence)[0]
     assert(ring.entries.every(entry => jsonBytes(entry) <= EPHEMERAL_ENTRY_MAX_BYTES))
   }
+  // A native Stop can add an enforcement receipt before context has selected
+  // a route. Retain that receipt and exact ingress without retaining its catalog cache.
+  const pendingTerminal = JSON.parse(JSON.stringify(pendingIngress))
+  pendingTerminal.languageContext = zhLanguageContext()
+  pendingTerminal.contextAcquisition.activeRoot = path.join(activeRoot,
+    ...Array.from({ length: 4 }, (_, index) => `nested-${index}-` + 'x'.repeat(180)))
+  pendingTerminal.turnLiveness.state = 'completed'
+  pendingTerminal.progressiveSkillRoute = {
+    schemaVersion: 'LifecycleSkillRouteStateV1',
+    active: true,
+    bootstrap: {
+      schemaVersion: 'ProgressiveSkillRouteBootstrapV1', project: 'devcodex',
+      turnBinding: 'turn-' + 'a'.repeat(40), contextEpoch: 'ctx-test', generation: 1,
+      mode: 'progressive', hostVariant: 'codex-cli/exec-user-global-local-stdio',
+      runtimeContractDigest: 'b'.repeat(64), capabilityDigest: 'c'.repeat(64),
+      catalogDigest: 'd'.repeat(64), bootstrapDigest: 'e'.repeat(64), nextOp: 'catalog'
+    },
+    pending: { diagnosticBody: 'x'.repeat(24 * 1024) }
+  }
+  const terminalDecision = {
+    schemaVersion: 'ProgressiveSkillRouteEnforcementDecisionV1',
+    feature: 'progressive-skill-route', hostFamily: 'codex',
+    hostVariant: 'codex-cli/exec-user-global-local-stdio', eventName: 'Stop',
+    bootstrap: true, observe: true, hardEnforcement: false,
+    reasonCode: 'codex-progressive-stop-advisory',
+    capabilityClaim: 'policy-only-no-host-pass-claim', source: 'host-event-override'
+  }
+  pendingTerminal.progressiveSkillRouteEnforcement = {
+    schemaVersion: 'ProgressiveSkillRouteEnforcementStateV1',
+    decisions: { PreToolUse: { ...terminalDecision, eventName: 'PreToolUse' }, Stop: terminalDecision },
+    lastDecision: terminalDecision, observedAt: '2026-08-22T00:00:00.000Z'
+  }
+  pendingTerminal.progressiveSkillRouteStop = {
+    schemaVersion: 'ProgressiveSkillRouteStopV1', present: true, complete: false,
+    turnBinding: 'turn-' + 'a'.repeat(40), contextEpoch: 'ctx-test',
+    processComplete: false, pendingStageIds: ['entry'],
+    errorCode: 'CONTEXT_BINDING_PENDING', nextOp: 'refresh_context'
+  }
+  const terminalMeta = path.join(tempRoot, 'pending-ingress-terminal')
+  const terminalCommit = commitTaskRecoveryState({
+    metaDir: terminalMeta, sessionKey: 'taskless-ingress-session', state: pendingTerminal
+  }, baseOptions)
+  assert.strictEqual(terminalCommit.status, 'ephemeral-stub', JSON.stringify(terminalCommit))
+  const terminalRead = readTaskRecoveryState({
+    metaDir: terminalMeta, sessionKey: 'taskless-ingress-session'
+  }, baseOptions)
+  assert.strictEqual(terminalRead.state.turnLiveness.state, 'completed')
+  assert.deepStrictEqual(terminalRead.state.actualInstructionEnvelope, pendingTerminal.actualInstructionEnvelope)
+  assert.deepStrictEqual(terminalRead.state.workItemSet, pendingTerminal.workItemSet)
+  assert.deepStrictEqual(terminalRead.state.progressiveSkillRouteEnforcement.decisions.Stop, terminalDecision)
+  assert.strictEqual(terminalRead.state.progressiveSkillRouteStop.complete, false)
+  assert.strictEqual(terminalRead.state.taskRecoveryBinding, null)
+  assert.notStrictEqual(terminalRead.ingressRecovery?.authority, true)
+  for (const file of storePaths(terminalMeta).ephemeral.filter(file => fs.existsSync(file))) {
+    assert(JSON.parse(fs.readFileSync(file, 'utf8')).entries.every(entry => jsonBytes(entry) <= EPHEMERAL_ENTRY_MAX_BYTES))
+  }
+
   const invalidPendingCases = [
     ['wrong-session', fixture => { fixture.contextAcquisition.hostSessionId = 'other-session' }],
     ['wrong-epoch', fixture => { fixture.contextAcquisition.contextEpoch = 'other-epoch' }],
@@ -952,6 +1009,9 @@ function runTasklessIngressRecoveryScenario() {
   assert(jsonBytes(tasklessIngressEntry) <= EPHEMERAL_ENTRY_MAX_BYTES)
   const oversizedIngress = tasklessIngressState()
   oversizedIngress.languageContext = zhLanguageContext()
+  oversizedIngress.mutated = true
+  oversizedIngress.reportTouched = true
+  oversizedIngress.memoryTouched = true
   oversizedIngress.actualInstructionEnvelope.recoveryPadding = 'x'.repeat(16 * 1024)
   const oversizedSession = 'taskless-ingress-oversized-session'
   assert.strictEqual(commitTaskRecoveryState({
@@ -967,6 +1027,9 @@ function runTasklessIngressRecoveryScenario() {
   }, baseOptions)
   assert.strictEqual(oversizedRead.ingressRecovery.status, 'identity-only')
   assert.strictEqual(oversizedRead.ingressRecovery.authority, false)
+  for (const key of ['mutated', 'reportTouched', 'memoryTouched']) {
+    assert.strictEqual(oversizedRead.state[key], true, `${key}: compaction must retain present evidence`)
+  }
   assert.deepStrictEqual(oversizedRead.state.languageContext, zhLanguageContext(),
     'identity-only taskless recovery must retain the task language under the 8 KiB cap')
   return {

@@ -1146,7 +1146,18 @@ function buildLifecycleBootstrapStateUtils(ctx) {
     const testReserveBytes = env.DEVCODEX_TASK_RECOVERY_TEST_MODE === '1'
       ? Number.parseInt(env.DEVCODEX_TASK_RECOVERY_TEST_RESERVE_BYTES, 10)
       : 0
-    const commit = commitTaskRecoveryState({
+    // Authority tools already commit their own transaction and return its CAS
+    // snapshot. Observing that reply must not advance the primary sequence.
+    // Keep the derived ingress/UI projections fresh without another task write.
+    const commit = options.projectionOnly === true && identity.taskId
+      ? {
+          status: 'skipped',
+          fullStateWrite: false,
+          projectionOnly: true,
+          identity,
+          state: compactLifecycleStateV5(state).state
+        }
+      : commitTaskRecoveryState({
       metaDir: activePaths.dir,
       identity,
       sessionKey,
@@ -1159,7 +1170,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       ...(Number.isInteger(recoveryConfig?.softBytes) ? { softBytes: recoveryConfig.softBytes } : {}),
       ...(Number.isInteger(recoveryConfig?.hardBytes) ? { hardBytes: recoveryConfig.hardBytes } : {}),
       ...(Number.isInteger(testReserveBytes) && testReserveBytes >= 1024 ? { reserveBytes: testReserveBytes } : {})
-    })
+      })
     if (['error', 'bypassed'].includes(commit.status)) {
       const error = new Error(
         `TaskRecoveryStoreV5 failed: ${commit.errorCode || commit.status}` +

@@ -66,12 +66,13 @@ function candidateProjection(value = {}, rank = 1) {
 }
 
 function resolutionCandidates(resolution = {}) {
-  const raw = resolution.status === 'resolved-active' && resolution.candidate
+  const selected = ['resolved-active', 'completed', 'rejected'].includes(resolution.status)
+  const raw = selected && resolution.candidate
     ? [resolution.candidate]
     : (resolution.candidates || resolution.suggestions || [])
   return raw.slice(0, TASK_CONTINUITY_CANDIDATE_MAX).map((candidate, index) => candidateProjection({
     ...candidate,
-    evidenceClass: resolution.status === 'resolved-active' ? 'strong' : 'provisional',
+    evidenceClass: selected ? 'strong' : 'provisional',
     reasonCodes: [
       resolution.recoveryEvidence?.source,
       candidate.selectionDigest ? 'canonical-task-identity' : null,
@@ -252,7 +253,7 @@ function buildTaskContinuityView(input = {}, options = {}) {
   const recoveryRead = input.recoveryRead || { status: 'missing' }
   const state = recoveryRead.state || {}
   const candidates = resolutionCandidates(resolution)
-  const selected = resolution.status === 'resolved-active' ? resolution.candidate : null
+  const selected = ['resolved-active', 'completed', 'rejected'].includes(resolution.status) ? resolution.candidate : null
   const taskId = text(selected?.taskId || state.taskRecoveryBinding?.taskId || state.admissionTransaction?.taskId, 128) || null
   const project = text(selected?.project || state.taskRecoveryBinding?.project || state.admissionTransaction?.project || input.project, 128) || null
   const stateTaskId = text(state.taskRecoveryBinding?.taskId || state.admissionTransaction?.taskId, 128).toLowerCase()
@@ -263,7 +264,7 @@ function buildTaskContinuityView(input = {}, options = {}) {
     (stateTaskId && selectedTaskId && stateTaskId !== selectedTaskId) ||
     (stateProject && selectedProject && stateProject !== selectedProject)
   ))
-  const evidenceClass = resolution.status === 'resolved-active'
+  const evidenceClass = selected
     ? (recoveryRead.status === 'fresh' ? 'strong' : 'provisional')
     : (resolution.status === 'ambiguous' ? 'ambiguous' : (candidates.length ? 'provisional' : 'none'))
   const degradations = []
@@ -317,7 +318,7 @@ function buildTaskContinuityView(input = {}, options = {}) {
     const alreadyPresented = input.priorDisambiguationReceiptDigest === receipt.receiptDigest
     if (!alreadyPresented) actions.push('disambiguate-once')
   }
-  if (resolution.status && !['resolved-active', 'ambiguous'].includes(resolution.status)) {
+  if (resolution.status && !['resolved-active', 'completed', 'rejected', 'ambiguous'].includes(resolution.status)) {
     degradations.push(degradation('baseline', resolution.errorCode || 'TASK_CONTINUITY_PROVISIONAL', 'continue-analysis'))
   }
 

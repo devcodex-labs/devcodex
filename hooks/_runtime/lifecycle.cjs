@@ -2386,6 +2386,14 @@ function transitionLifecycleOwner(state, operation, options = {}) {
     if (refreshed.status === 'fresh') {
       state.fencedWriteOwner = refreshed.owner
       state.admissionTransaction = refreshed.transaction
+      const ownCommitReadback = result.commitFence &&
+        refreshed.envelope?.sequence === result.commitFence.stateSequence &&
+        refreshed.envelope?.writerGeneration === result.commitFence.writerGeneration
+      if (ownCommitReadback && refreshed.state?.taskCheckpointEpochSet) {
+        // The owner transaction also rebound the epoch fence. Carry only its
+        // exact committed set, never a later competing writer's checkpoint.
+        state.taskCheckpointEpochSet = JSON.parse(JSON.stringify(refreshed.state.taskCheckpointEpochSet))
+      }
     }
     // Carry the revision produced by this transition, never a later unrelated
     // read's revision. The final state commit must still reject concurrent edits.
@@ -3577,7 +3585,9 @@ function saveAllowedToolState(state, payload, platform, artifactDecision, footpr
   try {
     recovery = startAllowedToolRecovery(state, payload, platform, artifactDecision, footprint)
     if (!recovery.replay) {
-      saveState(state, preToolRecoverySaveOptions(recovery.mutating, contextMilestone))
+      saveState(state, recovery.serverOwnedControl
+        ? { reason: 'task-authority-control-observation', projectionOnly: true }
+        : preToolRecoverySaveOptions(recovery.mutating, contextMilestone))
     }
     return { ok: true, ...recovery }
   } catch (error) {
@@ -3754,6 +3764,8 @@ function buildProgressiveSkillRouteBlockOutput (state, platform, eventName, coor
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
+let activeHookEvent = ''
+
 async function main() {
   const raw = await readStdin()
   const payload = safeJsonParse(raw)
@@ -3765,6 +3777,7 @@ async function main() {
   }
 
   const eventName = getEventName(payload)
+  activeHookEvent = eventName
   const platform = detectPlatform(payload)
   const prompt = eventName === 'UserPromptSubmit' ? extractUserPrompt(payload) : ''
   // Natural-language recovery is resolved by the model through memory_task_resolve.
@@ -4705,6 +4718,9 @@ async function main() {
       : (contextPost?.attempt || contextDeliveryObservation.status === 'observed'
           ? { reason: 'context-observation', force: true, touchSessionMapping: true }
           : {})))
+    if (taskAuthorityControl && devCodexToolLeaf(getToolName(payload)) === 'memory_task_write_owner') {
+      postSaveOptions = { reason: 'task-authority-control-observation', projectionOnly: true }
+    }
     if (!taskAuthorityControl) markContextPostMutationStale(state, payload, platform)
     observeGovernanceLedgerWrite(state, payload, {
       activeRoot: getActiveNamespaceRoot(state),
@@ -5332,5 +5348,10 @@ main().catch(err => {
   process.stderr.write(`DevCodex hook error: ${process.env.DEVCODEX_TEST_TRACE_HOOK_ERRORS === '1' ? err.stack : err.message}\n`)
   // Internal bookkeeping failure must not cancel the host's original task.
   // No write success or host permission is inferred from this fallback.
-  writeStdout(noopOutput())
+  const message =
+    `DevCodex lifecycle bookkeeping failed (${err.code || 'LIFECYCLE_INTERNAL_ERROR'}); workflow state is unverified. ` +
+    'Preserve current work and recover the failed state write before claiming workflow completion. See Hook diagnostics for details.'
+  writeStdout(['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'SessionStart'].includes(activeHookEvent)
+    ? contextMessageOutput(activeHookEvent, message)
+    : systemMessageOutput(message))
 })

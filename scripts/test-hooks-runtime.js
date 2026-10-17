@@ -12,6 +12,13 @@ const { runHooksRuntimeBootstrapLayoutScenarios } = require('./lib/test-hooks-ru
 const { runHooksRuntimeVisibilityScenarios } = require('./lib/test-hooks-runtime-visibility')
 const { runHooksRuntimeGovernanceIntakeScenarios } = require('./lib/test-hooks-runtime-governance-intake')
 const { DEFAULT_THRESHOLDS } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
+const {
+  emptyCheckpointPhaseSlot,
+  sealCheckpointPhaseBinding,
+  sealCheckpointPhaseSlot,
+  sealTaskCheckpointEpoch,
+  sealTaskCheckpointEpochSet
+} = require('../hooks/_runtime/task-checkpoint-epoch-v1.cjs')
 const { stableDigest } = require('../hooks/_runtime/context-read-contract.cjs')
 const {
   buildActualInstructionEnvelope,
@@ -198,6 +205,52 @@ const runtimeScenarioContext = {
   writeTranscriptEntries
 }
 
+function runPersistenceFailureAdvisoryScenario() {
+  cleanState()
+  const faultModule = path.join(TEMP_ROOT, 'persistence-failure.cjs')
+  fs.writeFileSync(faultModule, [
+    "const fs = require('node:fs')",
+    'const open = fs.openSync',
+    'fs.openSync = function (file, ...args) {',
+    "  if (/ephemeral-(?:a|b|next)/.test(require('node:path').basename(String(file)))) {",
+    "    throw Object.assign(new Error('injected persistence failure'), { code: 'ENOSPC' })",
+    '  }',
+    '  return open.call(this, file, ...args)',
+    '}'
+  ].join('\n'))
+  const result = spawnSync(process.execPath, [RUNTIME], {
+    cwd: TEMP_ROOT,
+    input: JSON.stringify({ hookEventName: 'UserPromptSubmit', session_id: 'persistence-failure', prompt: '只读诊断' }),
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      DEVCODEX_HOST_PLATFORM: 'codex',
+      DEVCODEX_TASK_RECOVERY_TEST_MODE: '1',
+      DEVCODEX_TASK_RECOVERY_TEST_RESERVE_BYTES: '8192',
+      NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --require ${JSON.stringify(faultModule)}`.trim()
+    }
+  })
+  assert.strictEqual(result.status, 0, 'bookkeeping failure must not cancel the host task')
+  assert.match(result.stderr, /DevCodex hook error:.*ENOSPC/)
+  const output = JSON.parse(result.stdout || '{}')
+  assert.match(output.systemMessage || '', /ENOSPC/)
+  assert.match(output.systemMessage, /unverified/i)
+  assert.strictEqual(output.hookSpecificOutput?.hookEventName, 'UserPromptSubmit')
+  assert.strictEqual(output.hookSpecificOutput?.additionalContext, output.systemMessage,
+    'persistence failures must reach the model, not only the host UI')
+  assertOperationAdvisory(output, 'persistence failure')
+  const { adaptCodexOutput } = require('../hooks/_runtime/lifecycle-host-adapters.cjs')
+  for (const event of ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop']) {
+    assert.strictEqual(adaptCodexOutput(event, output).systemMessage, output.systemMessage,
+      `${event} must retain the persistence failure diagnostic`)
+    if (event !== 'Stop') {
+      assert.strictEqual(adaptCodexOutput(event, output).hookSpecificOutput?.additionalContext,
+        output.systemMessage, `${event} must deliver the diagnostic to the model`)
+    }
+  }
+  cleanState()
+}
+
 function runConfirmationPersistenceScenario() {
   process.env.CLAUDE_CODE_VERSION = process.env.CLAUDE_CODE_VERSION || 'r2b-test'
   cleanState({ mode: 'dev', agent: TEST_AGENT })
@@ -314,7 +367,7 @@ function runConfirmationPersistenceScenario() {
   }
 }
 
-function runR2BTaskOwnerLifecycleScenarios() {
+function runR2BTaskOwnerLifecycleScenarios({ epochAware = false } = {}) {
   runConfirmationPersistenceScenario()
 
   cleanState({ mode: 'dev', agent: TEST_AGENT })
@@ -1188,6 +1241,44 @@ function runR2BTaskOwnerLifecycleScenarios() {
   })
   assert.doesNotMatch(JSON.stringify(recoveredMutationPost), /ARTIFACT_MUTATION_NEEDS_RECONCILE/)
 
+  if (epochAware) {
+    const epochSeedRead = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+    const confirmedAt = new Date().toISOString()
+    const currentEpoch = sealTaskCheckpointEpoch({
+      ordinal: 1, parentEpochId: null, stageKey: 'hook-owner', status: 'current',
+      task: { taskId: admission.taskId, taskKind: 'bugs', project,
+        activeRootDigest: '1'.repeat(64), admissionId: admission.admissionId },
+      lineage: { canonicalRevision: 1, canonicalParentRevision: null,
+        canonicalHeadDigest: '2'.repeat(64), scopeDigest: '3'.repeat(64) },
+      owner: epochSeedRead.state.fencedWriteOwner,
+      context: { contextEpoch: epochSeedRead.state.contextAcquisition.contextEpoch },
+      phases: {
+        CP1: sealCheckpointPhaseSlot({ phase: 'CP1', state: 'confirmed', slotSequence: 1,
+          currentBinding: sealCheckpointPhaseBinding({ phase: 'CP1', role: 'primary',
+            artifactPath: confirmationName,
+            artifactSha256: crypto.createHash('sha256').update(fs.readFileSync(path.join(taskRoot, confirmationName))).digest('hex'),
+            artifactVersion: 'v1', templateQualificationDigest: '4'.repeat(64),
+            confirmationSourceDigest: '5'.repeat(64), confirmedAt, confirmationMode: 'bootstrap-import' }) }),
+        CP2: emptyCheckpointPhaseSlot('CP2'), CP3: emptyCheckpointPhaseSlot('CP3')
+      },
+      runtime: { stateSchemaVersion: 'TaskRecoveryStateV5', packageVersion: require('../package.json').version,
+        mcpProtocolVersion: '2024-11-05', sourceHead: 'r2b-fixture', epochCapability: 1 },
+      createdAt: confirmedAt, activatedAt: confirmedAt, trigger: 'test-fixture'
+    })
+    const epochSeed = {
+      ...epochSeedRead.state,
+      taskCheckpointEpochSet: sealTaskCheckpointEpochSet({
+        taskId: admission.taskId, currentEpochId: currentEpoch.epochId, nextOrdinal: 2,
+        stateSequence: epochSeedRead.commitFence.stateSequence,
+        writerGeneration: epochSeedRead.commitFence.writerGeneration,
+        migration: { migrationId: '1'.repeat(64), from: 'test-fixture', status: 'not-required' },
+        projection: { desiredDigest: '2'.repeat(64), observedDigest: '2'.repeat(64), status: 'current', sequence: 0 },
+        epochs: [currentEpoch], archiveRefs: []
+      })
+    }
+    assert.strictEqual(commitTaskRecoveryState({ metaDir, identity: recoveryIdentity, state: epochSeed },
+      { force: true }).status, 'committed')
+  }
   run({ hookEventName: 'PreCompact', session_id: sessionId })
   let ownerAfterLifecycle = readFencedTaskWriteOwner({ metaDir, identity: recoveryIdentity })
   assert.strictEqual(ownerAfterLifecycle.owner.status, 'active')
@@ -1202,6 +1293,8 @@ function runR2BTaskOwnerLifecycleScenarios() {
     lastAssistantMessage: '请确认修复方案（确认 CP2）。'
   }, TEMP_ROOT, { DEVCODEX_HOOK_ENFORCEMENT: 'strict' })
   assert(stopOutput)
+  assert.doesNotMatch(JSON.stringify(stopOutput), /CHECKPOINT_EPOCH_STATE_INVALID/,
+    'lifecycle owner release must carry its committed checkpoint fence into Stop persistence')
   const stopState = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
   assert(
     stopState.enforcementHonesty?.processGaps?.includes('pr1-skipped'),
@@ -1234,6 +1327,13 @@ function runR2BTaskOwnerLifecycleScenarios() {
   assert.strictEqual(ownerAfterLifecycle.owner.status, 'active', JSON.stringify(state.lastUserPromptOwnerReacquire || {}))
   assert(ownerAfterLifecycle.owner.ownerGeneration > releasedGeneration, 'same-session next prompt must reacquire with a new fence generation')
   assert.strictEqual(state.lastUserPromptOwnerReacquire?.status, 'committed')
+  if (epochAware) {
+    const current = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+    assert.strictEqual(current.state.taskCheckpointEpochSet.stateSequence, current.commitFence.stateSequence)
+    assert.strictEqual(current.state.taskCheckpointEpochSet.writerGeneration,
+      current.state.fencedWriteOwner.ownerGeneration)
+    return
+  }
   const activeOwnerRef = {
     ownerGeneration: ownerAfterLifecycle.owner.ownerGeneration,
     ownerNonce: ownerAfterLifecycle.owner.ownerNonce,
@@ -1258,7 +1358,27 @@ function runR2BTaskOwnerLifecycleScenarios() {
       bytes: Buffer.byteLength(content)
     }
   })
+  const renewedForTerminal = executeTaskWriteOwner({
+    ...acquireInput,
+    operation: 'renew',
+    actualInstructionEnvelope: state.actualInstructionEnvelope,
+    workItemSet: state.workItemSet,
+    workflowRouteDecision: state.workflowRouteDecision,
+    projectTargetLease: state.stickyProject,
+    expectedOwner: activeOwnerRef
+  })
+  run({
+    hookEventName: 'PostToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r2b-owner-renew-for-terminal',
+    tool_name: 'devcodex-memory/memory_task_write_owner',
+    tool_result: renewedForTerminal,
+    success: true
+  })
   const terminalStateRead = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+  assert.strictEqual(terminalStateRead.commitFence.stateSequence,
+    renewedForTerminal.writeContext.stateSequence,
+    'owner PostToolUse must preserve the server-returned CAS snapshot')
   const terminalInput = {
     activeRoot,
     project,
@@ -1273,9 +1393,24 @@ function runR2BTaskOwnerLifecycleScenarios() {
     expectedStateSequence: terminalStateRead.commitFence.stateSequence,
     expectedWriterGeneration: terminalStateRead.commitFence.writerGeneration,
     settledSetDigest: terminalStateRead.state.turnLiveness.taskOperationSet.settledSetDigest,
-    expectedOwner: activeOwnerRef,
+    expectedOwner: {
+      ownerGeneration: renewedForTerminal.owner.ownerGeneration,
+      ownerNonce: renewedForTerminal.owner.ownerNonce,
+      leaseRevision: renewedForTerminal.owner.leaseRevision,
+      leaseDigest: renewedForTerminal.owner.leaseDigest
+    },
     evidence
   }
+  run({
+    hookEventName: 'PreToolUse',
+    session_id: sessionId,
+    tool_use_id: 'r2b-terminal-tool',
+    tool_name: 'devcodex-memory/memory_task_terminal_v1',
+    tool_input: terminalInput
+  })
+  assert.strictEqual(readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).commitFence.stateSequence,
+    terminalInput.expectedStateSequence,
+    'terminal PreToolUse must not invalidate the exact caller CAS snapshot')
   const terminal = executeWorkflowTaskTerminal(terminalInput, {
     nonceFactory: () => `owner-${'b'.repeat(40)}`
   })
@@ -1902,6 +2037,7 @@ function runSameTurnAutoTaskScenario() {
 }
 
 function main() {
+  runPersistenceFailureAdvisoryScenario()
   const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-runtime-store-'))
   const projectA = path.join(stateRoot, '.devcodex', 'apps', 'api')
   const projectB = path.join(stateRoot, '.devcodex', 'apps', 'web')
@@ -2900,7 +3036,14 @@ function main() {
   process.stdout.write('hooks runtime smoke test passed\n')
 }
 
-if (process.argv.includes('--confirmation-persistence')) {
+if (process.argv.includes('--persistence-diagnostic')) {
+  try {
+    runPersistenceFailureAdvisoryScenario()
+    process.stdout.write('persistence failure advisory scenario passed\n')
+  } finally {
+    if (process.env.DEVCODEX_TEST_KEEP_TEMP !== '1') fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
+  }
+} else if (process.argv.includes('--confirmation-persistence')) {
   const startedAt = Date.now()
   try {
     const receipt = runConfirmationPersistenceScenario()
@@ -2917,6 +3060,7 @@ if (process.argv.includes('--confirmation-persistence')) {
 } else if (process.argv.includes('--r2b-task-owner') || process.argv.includes('--r3b-mutation')) {
   try {
     runR2BTaskOwnerLifecycleScenarios()
+    runR2BTaskOwnerLifecycleScenarios({ epochAware: true })
   } finally {
     if (process.env.DEVCODEX_TEST_KEEP_TEMP !== '1') fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
     else process.stdout.write(`Retained Hook fixture: ${TEMP_ROOT}\n`)

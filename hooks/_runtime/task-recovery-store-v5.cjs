@@ -4511,7 +4511,7 @@ function buildMinimalEphemeralStub (state) {
     recoveryKind: 'ephemeral-resume-stub',
     recoveryCompaction: 'minimal-budget'
   }
-  if (ingressRecovery) {
+  if (ingressRecovery || pendingIngress) {
     // Omit absent derived projections before discarding exact ingress. Preserve
     // explicit null task/lease authority fields and every present closeout.
     for (const key of [
@@ -4520,6 +4520,21 @@ function buildMinimalEphemeralStub (state) {
     ]) {
       if (stub[key] === null) delete stub[key]
     }
+  }
+  if (pendingIngress && jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
+    // An unselected route's catalog bootstrap is rebuildable. Keep exact input,
+    // terminal/operation evidence and Stop enforcement ahead of this cache.
+    delete stub.progressiveSkillRoute
+  }
+  if (ingressRecovery && jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
+    // These absent diagnostics and false evidence flags carry no authority.
+    // Keep every true flag and all exact ingress/lease/operation records.
+    if (stub.progressiveSkillRouteEnforcement === null) delete stub.progressiveSkillRouteEnforcement
+    if (stub.contextAcquisition.handoff === null) delete stub.contextAcquisition.handoff
+    for (const key of ['mutated', 'reportTouched', 'memoryTouched']) {
+      if (stub[key] === false) delete stub[key]
+    }
+    delete stub.activeProjectSource
   }
   if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES && ingressRecovery) {
     stub.actualInstructionEnvelope = compactInstructionEnvelopeResumeIdentity(state.actualInstructionEnvelope)

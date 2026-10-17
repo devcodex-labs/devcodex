@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "fddc547986599fe20672364d6432633edabeb60ee6c5f3da5f9ca083daed6e1e",
     "consumerInventoryFileCount": 722,
     "consumerInventoryDigest": "915e197c2e882223da7e45eb7f12b6c07054fc461945ae123e363170c489ec3e",
-    "consumerProjectionDigest": "09e046eaea5934acc8a041c61c4b69dd9bc2e43e062395832a1d438bcc33bc28",
-    "portfolioInputDigest": "e6c6fa9855f782f044a8c1f808ab6a186bbaf11e942bd17812e105dc13f4aeb3"
+    "consumerProjectionDigest": "f0adecb95b7311911c88645461295e4ec022c5ee8efc87d5eb260570479e228a",
+    "portfolioInputDigest": "bed6956f943d0e82db05f33dfdd9553731f92f7baa6ccebdbde9256ca85aae48"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -12814,6 +12814,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-task-recovery-store-v5.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-task-write-continuity.js",
           "role": "current"
         },
@@ -12912,6 +12916,7 @@
         "scripts/test-task-admission-authority.js",
         "scripts/test-task-continuation.js",
         "scripts/test-task-delivery-manifest.js",
+        "scripts/test-task-recovery-store-v5.js",
         "scripts/test-task-write-continuity.js",
         "scripts/test-v1178-batch-b.js",
         "scripts/test-v1178-batch-d.js",
@@ -13013,6 +13018,7 @@
           "scripts/test-task-admission-authority.js",
           "scripts/test-task-continuation.js",
           "scripts/test-task-delivery-manifest.js",
+          "scripts/test-task-recovery-store-v5.js",
           "scripts/test-task-write-continuity.js",
           "scripts/test-v1178-batch-b.js",
           "scripts/test-v1178-batch-d.js",

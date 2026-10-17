@@ -32,6 +32,7 @@ const {
   fencedTaskWriteOwnerDigest,
   readFencedTaskWriteOwner,
   readTaskAdmissionTransaction,
+  updateTaskRecoveryState,
   reconcileEmergencyTaskCloseout,
   resolveTaskRecoveryMetaDir,
   taskAdmissionTransactionDigest,
@@ -39,6 +40,7 @@ const {
   validateTaskAdmissionTransaction,
   validateAutoCheckpointDecision,
   validateTaskCanonicalRevision,
+  validateWorkflowTaskTerminalReceipt,
   validateTaskScopedAutoContinuationGrant,
   validateBoundedResumeIngressCapability,
   validateAdmissionContinuationLease,
@@ -56,7 +58,7 @@ const {
 } = require('../hooks/_runtime/fenced-task-write-owner.cjs')
 const { digestValue } = require('../hooks/_runtime/lifecycle-state-projection-v5.cjs')
 const { validateTaskCheckpointEpochSet } = require('../hooks/_runtime/task-checkpoint-epoch-v1.cjs')
-const { parseCurrentEpochMarker } = require('../hooks/_runtime/task-checkpoint-projection-v1.cjs')
+const { parseCurrentEpochMarker, renderTaskCheckpointProjection, finalizeTaskCheckpointProjection } = require('../hooks/_runtime/task-checkpoint-projection-v1.cjs')
 const { taskOperationTerminalSnapshot } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 const { createMemoryFileTransaction, sha256 } = require('./memory-file-transaction.cjs')
 const { renderArtifactTemplate } = require('../hooks/_runtime/artifact-template-contract.cjs')
@@ -2020,7 +2022,33 @@ function confirmedCpResumeEvidenceDigest(cp = {}) {
 }
 
 function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = fs, options = {}) {
-  if (!transaction || transaction.phase !== 'finalized' || transaction.status !== 'finalized') {
+  return readTaskCanonicalEvidence(transaction, activeRoot, fsImpl, options, false)
+}
+
+function assertTerminalCanonicalSource(state, transaction) {
+  const receipt = state?.workflowTaskTerminalReceipt
+  const owner = state?.fencedWriteOwner
+  if (!validateWorkflowTaskTerminalReceipt(receipt).valid ||
+      transaction?.phase !== 'terminal-closeout' || transaction.status !== 'terminal' ||
+      receipt.taskId !== transaction.taskId || receipt.admissionId !== transaction.admissionId ||
+      receipt.admissionGeneration !== transaction.admissionGeneration ||
+      receipt.admissionTransactionDigest !== transaction.transactionDigest ||
+      receipt.projectRootIdentity !== transaction.projectRootIdentityDigest ||
+      owner?.status !== 'terminal' || owner.leaseDigest !== receipt.terminalOwnerLeaseDigest ||
+      owner.ownerGeneration !== receipt.ownerGeneration || receipt.terminalGeneration !== owner.ownerGeneration) {
+    throw new TaskAdmissionError('TASK_TERMINAL_CANONICAL_SOURCE_INVALID', 'terminal readback requires the exact durable terminal receipt, transaction and owner')
+  }
+  return receipt
+}
+
+function readTaskContinuityCanonicalEvidence(transaction, activeRoot, fsImpl = fs, options = {}) {
+  const terminal = transaction?.phase === 'terminal-closeout'
+  if (terminal) assertTerminalCanonicalSource(options.state, transaction)
+  return readTaskCanonicalEvidence(transaction, activeRoot, fsImpl, options, terminal)
+}
+
+function readTaskCanonicalEvidence(transaction, activeRoot, fsImpl, options, terminal) {
+  if (!terminal && (!transaction || transaction.phase !== 'finalized' || transaction.status !== 'finalized')) {
     throw new TaskAdmissionError('FINALIZED_TASK_RESUME_ADMISSION_PHASE_INVALID', 'canonical resume readback requires one finalized admission')
   }
   const root = path.resolve(String(activeRoot || ''))
@@ -2061,6 +2089,9 @@ function readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl = 
   // Identity recovery precedes the first CP1 confirmation. Stage consumers
   // enforce required CP phases; the reader must preserve genuine pending state.
   const storedRevision = options.state?.taskCanonicalRevision || null
+  if (terminal && (!storedRevision || storedRevision.currentOverviewDigest !== overviewFile.digest)) {
+    throw new TaskAdmissionError('FINALIZED_TASK_RESUME_CANONICAL_DRIFT', 'terminal canonical readback cannot authorize a new overview revision')
+  }
   let canonicalRevision
   if (storedRevision) {
     if (storedRevision.source === 'verified-resume-reconciliation') {
@@ -3311,6 +3342,9 @@ function executeWorkflowTaskTerminal(rawInput = {}, options = {}) {
         'terminal replay requires the exact prior owner, session, context, route, status and evidence request'
       )
     }
+    const projection = reconcileTerminalProjection({ metaDir, identity: terminalIdentity }, {
+      ...options.storeOptions, fs: fsImpl, nowMs
+    })
     return {
       schemaVersion: 'WorkflowTaskTerminalResultV1',
       status: 'terminal',
@@ -3320,6 +3354,8 @@ function executeWorkflowTaskTerminal(rawInput = {}, options = {}) {
         runtimeGeneration: input.serverRuntime?.generationId
       }),
       persistence: ownerRead.source,
+      projection,
+      projectionReconciliationRequired: projection.status !== 'current',
       replayed: true,
       mutationAuthority: false
     }
@@ -3450,6 +3486,11 @@ function executeWorkflowTaskTerminal(rawInput = {}, options = {}) {
   if (!['committed', 'semantic-noop', 'closeout-reserved'].includes(commit.status)) {
     throw new TaskAdmissionError(commit.errorCode || 'TASK_TERMINAL_CLOSEOUT_FAILED', commit.message || 'terminal closeout failed', commit)
   }
+  const projection = commit.status === 'closeout-reserved'
+    ? { status: 'pending', errorCode: 'TASK_TERMINAL_PRIMARY_REQUIRED' }
+    : reconcileTerminalProjection({ metaDir, identity: terminalIdentity }, {
+        ...options.storeOptions, fs: fsImpl, nowMs
+      })
   const writeContext = commit.status === 'closeout-reserved'
     ? null
     : readCanonicalTaskWriteContext(metaDir, terminalIdentity, terminalOwner, {
@@ -3464,9 +3505,75 @@ function executeWorkflowTaskTerminal(rawInput = {}, options = {}) {
     transaction: terminalTransaction,
     writeContext,
     persistence: commit.status,
+    projection,
+    projectionReconciliationRequired: projection.status !== 'current',
     reserveSequence: commit.sequence || null,
     replayed: false,
     mutationAuthority: false
+  }
+}
+
+function reconcileTerminalProjection(input, options = {}) {
+  const fsImpl = options.fs || fs
+  const read = readFencedTaskWriteOwner(input, { ...options, ignoreReserve: true })
+  if (read.status !== 'fresh' || read.source !== 'primary') {
+    return { status: 'pending', errorCode: read.errorCode || 'TASK_TERMINAL_PRIMARY_REQUIRED' }
+  }
+  try {
+    const receipt = assertTerminalCanonicalSource(read.state, read.transaction)
+    const transaction = read.transaction
+    const taskRoot = path.resolve(input.identity.activeRoot, ...transaction.taskRootRelative.split('/'))
+    const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
+    const fileTransaction = createMemoryFileTransaction({ fs: fsImpl })
+    const buildProjection = state => {
+      const currentReceipt = assertTerminalCanonicalSource(state, state.admissionTransaction)
+      if (currentReceipt.receiptDigest !== receipt.receiptDigest) {
+        throw new TaskAdmissionError('TASK_TERMINAL_PROJECTION_SOURCE_CHANGED', 'terminal projection source changed during reconciliation')
+      }
+      readTaskContinuityCanonicalEvidence(state.admissionTransaction, input.identity.activeRoot, fsImpl, { state })
+      assertExistingAncestorsSafe(input.identity.activeRoot, sessionsPath, fsImpl)
+      const snapshot = fileTransaction.readSnapshot(sessionsPath)
+      if (!snapshot.exists) throw new TaskAdmissionError('TASK_TERMINAL_SESSIONS_MISSING', 'terminal projection requires existing task sessions')
+      const taskStatus = receipt.terminalStatus === 'rejected' ? 'rejected' : 'completed'
+      const label = taskStatus === receipt.terminalStatus ? taskStatus : `${taskStatus} (terminal: ${receipt.terminalStatus})`
+      const statusLine = `> **当前状态**: ${label}`
+      const statusPattern = /^(?:>\s*)?(?:\*\*)?(?:当前状态|status)(?:\*\*)?\s*[:：].*$/imu
+      let content = snapshot.content.replace(statusPattern, statusLine)
+      if (!statusPattern.test(snapshot.content)) {
+        content = `${statusLine}\n\n${content}`
+      }
+      if (state.taskCheckpointEpochSet) {
+        content = renderTaskCheckpointProjection(content, state.taskCheckpointEpochSet).content
+      }
+      if (receipt.evidence.some(item => normalizedPath(path.resolve(input.identity.activeRoot, item.path)) === normalizedPath(sessionsPath)) && content !== snapshot.content) {
+        throw new TaskAdmissionError('TASK_TERMINAL_PROJECTION_EVIDENCE_BOUND', 'cannot rewrite sessions bound by terminal evidence')
+      }
+      return { snapshot, content }
+    }
+    const preview = buildProjection(read.state)
+    if (preview.content === preview.snapshot.content && (!read.state.taskCheckpointEpochSet ||
+        (read.state.taskCheckpointEpochSet.projection.status === 'current' &&
+         read.state.taskCheckpointEpochSet.projection.observedDigest === preview.snapshot.digest))) {
+      return { status: 'current', replayed: true }
+    }
+    const commit = updateTaskRecoveryState(input, state => {
+      const projected = buildProjection(state)
+      const fileCommit = fileTransaction.commit({
+        filePath: sessionsPath,
+        expectedSnapshot: projected.snapshot,
+        content: projected.content
+      })
+      if (state.taskCheckpointEpochSet) {
+        state.taskCheckpointEpochSet = finalizeTaskCheckpointProjection(state.taskCheckpointEpochSet, fileCommit.afterDigest)
+      }
+      return state
+    }, { ...options, reason: 'terminal-derived-projection' })
+    if (!['committed', 'semantic-noop'].includes(commit.status)) {
+      return { status: 'pending', errorCode: commit.errorCode || 'TASK_TERMINAL_PROJECTION_COMMIT_FAILED' }
+    }
+    return { status: 'current', replayed: false }
+  } catch (error) {
+    return { status: 'pending', errorCode: error.code || 'TASK_TERMINAL_PROJECTION_FAILED' }
   }
 }
 
@@ -3478,11 +3585,23 @@ function reconcileWorkflowTaskTerminal(rawInput = {}, options = {}) {
     taskStatus: 'completed'
   }
   const metaDir = rawInput.metaDir || resolveTaskRecoveryMetaDir(identity)
-  return reconcileEmergencyTaskCloseout({
+  const input = {
     metaDir,
     identity,
     hostSessionDigest: rawInput.hostSessionDigest || rawInput.sessionKey || ''
-  }, options)
+  }
+  const primary = readFencedTaskWriteOwner(input, { ...options, ignoreReserve: true })
+  const result = primary.status === 'fresh' && primary.owner?.status === 'terminal' && primary.terminalReceipt
+    ? { status: 'semantic-noop', reconciled: true, terminalReceipt: primary.terminalReceipt, owner: primary.owner }
+    : reconcileEmergencyTaskCloseout(input, options)
+  if (!['committed', 'semantic-noop'].includes(result.status)) return result
+  const current = readFencedTaskWriteOwner(input, { ...options, ignoreReserve: true })
+  return {
+    ...result,
+    terminalReceipt: current.terminalReceipt || result.terminalReceipt,
+    owner: current.owner || result.owner,
+    projection: reconcileTerminalProjection(input, options)
+  }
 }
 
 module.exports = {
@@ -3512,6 +3631,7 @@ module.exports = {
   readCanonicalTaskWriteContext,
   readFormalTaskExecutionReadiness,
   readFinalizedResumeCanonicalEvidence,
+  readTaskContinuityCanonicalEvidence,
   reconcileWorkflowTaskTerminal,
   validateProjectTargetLease
 }

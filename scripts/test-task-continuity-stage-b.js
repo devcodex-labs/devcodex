@@ -347,5 +347,19 @@ const terminalView = buildTaskContinuityView({
 }, { nowMs: NOW_MS + 13_000 })
 assert.strictEqual(terminalView.status, 'terminal')
 assert.strictEqual(terminalView.preferredAction, 'reopen-task')
+for (const status of ['completed', 'rejected']) {
+  const closedView = buildTaskContinuityView({
+    resolution: { ...resolution, status, candidate: { ...resolution.candidate, status } },
+    recoveryRead: { status: 'fresh', state: { ...state, taskCheckpointEpochSet: epochSet }, envelope: { sequence: 100 } },
+    projectionMarker: parseCurrentEpochMarker(terminalProjected.content),
+    project: PROJECT
+  }, { nowMs: NOW_MS + 13_000 })
+  assert.strictEqual(closedView.status, 'terminal')
+  assert.strictEqual(closedView.task.evidenceClass, 'strong')
+  assert.strictEqual(closedView.candidates[0].taskId, TASK_ID)
+  assert(!closedView.degradations.some(item => item.code === 'TASK_CONTINUITY_PROVISIONAL'))
+  assert.strictEqual(closedView.mutationAuthority, false)
+  assert(!closedView.actions.includes('mutate-scoped'))
+}
 
 console.log('Stage B task checkpoint saga, current-only projection, continuity view, bounds, idempotency, and terminal tests passed')

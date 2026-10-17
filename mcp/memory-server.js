@@ -43,6 +43,7 @@ const {
   recoverOwnerFencedAdmissionForResume,
   reconcileWorkflowTaskTerminal,
   readFinalizedResumeCanonicalEvidence,
+  readTaskContinuityCanonicalEvidence,
   validateProjectTargetLease
 } = require('./task-admission-authority.cjs')
 const {
@@ -4966,6 +4967,11 @@ function handleMemoryTaskResolve(args) {
     humanText = chinese
       ? `已唯一定位任务：${resolution.candidate.project}/${resolution.candidate.kind}/${resolution.candidate.displayName}。本结果只负责定位，不授予写权；写入前仍须验证当前 canonical/owner。`
       : `Uniquely located task: ${resolution.candidate.project}/${resolution.candidate.kind}/${resolution.candidate.displayName}. This result locates only and grants no write authority; verify current canonical/owner evidence before mutation.`
+  } else if (['completed', 'rejected'].includes(resolution.status)) {
+    const statusLabel = resolution.status === 'completed' ? '已完成' : '已拒绝'
+    humanText = chinese
+      ? `任务${statusLabel}：${resolution.candidate.project}/${resolution.candidate.kind}/${resolution.candidate.displayName}。可只读查阅；本结果不重开任务或授予写权。`
+      : `Task ${resolution.status}: ${resolution.candidate.project}/${resolution.candidate.kind}/${resolution.candidate.displayName}. Read-only inspection is available; this result neither reopens the task nor grants write authority.`
   } else if (resolution.status === 'ambiguous') {
     humanText = chinese
       ? `存在 ${candidates.length} 个任务候选，未自动猜选。当前分析可继续；写入既有任务前必须完成唯一消歧。`
@@ -4979,7 +4985,7 @@ function handleMemoryTaskResolve(args) {
       ? '已找到任务线索，但当前 canonical 证据未通过。当前分析可继续；在复证前不得写入该既有任务。'
       : 'A task hint was found, but current canonical evidence did not verify. Analysis may continue; do not mutate the existing task before re-verification.'
   }
-  const continuationDisposition = resolution.status === 'resolved-active'
+  const continuationDisposition = ['resolved-active', 'completed', 'rejected'].includes(resolution.status)
     ? 'resolved-readonly'
     : 'provisional-continue'
   const protocolLine = `TaskResolutionV1 status=${resolution.status}; continuation=${continuationDisposition}; mutationAuthority=false${resolution.errorCode ? `; errorCode=${resolution.errorCode}` : ''}`
@@ -5032,7 +5038,7 @@ function handleMemoryTaskContinuityViewV1(args) {
     resolution = provisionalTaskResolution(error, selector, args.project)
   }
 
-  const candidate = resolution.status === 'resolved-active' ? resolution.candidate : null
+  const candidate = ['resolved-active', 'completed', 'rejected'].includes(resolution.status) ? resolution.candidate : null
   const candidateProject = candidate?.project || args.project || ''
   let target = null
   let recoveryRead = { status: 'missing', errorCode: 'TASK_RECOVERY_STATE_UNAVAILABLE' }
@@ -5049,11 +5055,14 @@ function handleMemoryTaskContinuityViewV1(args) {
       }
       const metaDir = resolveTaskRecoveryMetaDir(identity)
       recoveryRead = readTaskRecoveryState({ metaDir, identity }, { fs })
-      const sessionsPath = path.join(candidate.taskRoot, '.memory', 'sessions.md')
-      projectionMarker = parseCurrentEpochMarker(readFile(sessionsPath))
+      const taskRoot = candidate.taskRoot || (recoveryRead.state?.admissionTransaction?.taskRootRelative
+        ? path.join(target.activeRoot, ...recoveryRead.state.admissionTransaction.taskRootRelative.split('/'))
+        : null)
+      const sessionsPath = taskRoot ? path.join(taskRoot, '.memory', 'sessions.md') : null
+      projectionMarker = parseCurrentEpochMarker(sessionsPath ? readFile(sessionsPath) : '')
       if (recoveryRead.status === 'fresh' && recoveryRead.state?.admissionTransaction) {
         try {
-          canonicalEvidence = readFinalizedResumeCanonicalEvidence(
+          canonicalEvidence = readTaskContinuityCanonicalEvidence(
             recoveryRead.state.admissionTransaction,
             target.activeRoot,
             fs,
@@ -7043,10 +7052,13 @@ function handleMemoryTaskCloseoutReconcileV1(args) {
     (['persisted', 'semantic-noop', 'unbound'].includes(routeUnbind.status) || routeUnbind.liveBindingRemoved === true)
   const projection = {
     schemaVersion: 'WorkflowTaskCloseoutReconcileResultV1',
-    status: promoted && routeUnbound ? 'reconciled' : (promoted ? 'terminal-route-reconcile' : result.status),
+    status: promoted && routeUnbound && result.projection?.status === 'current'
+      ? 'reconciled'
+      : (promoted && result.projection?.status !== 'current' ? 'terminal-projection-reconcile' : (promoted ? 'terminal-route-reconcile' : result.status)),
     reconciliation: result,
     routeUnbind,
     routeReconciliationRequired: Boolean(promoted && !routeUnbound),
+    projectionReconciliationRequired: Boolean(promoted && result.projection?.status !== 'current'),
     ingressAuthority: ingress.authorityReceipt,
     mutationAuthority: false
   }

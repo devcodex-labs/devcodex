@@ -1513,8 +1513,8 @@ try {
     error => error.code === 'TASK_WRITE_OWNER_MISSING'
   )
 
-  const reopenAt = terminalAt + 1000
-  const reopenIngress = admissionInput(ownerRoot, 'owner-reopen', {
+  let reopenAt = terminalAt + 1000
+  let reopenIngress = admissionInput(ownerRoot, 'owner-reopen', {
     operation: 'bind',
     task: {
       taskId: ownerAdmission.taskId,
@@ -1524,8 +1524,35 @@ try {
     },
     overview: { content: ownerAdmissionInput.overview.content }
   })
-  const reopenedAdmission = run(reopenIngress, { nowMs: reopenAt })
+  reopenIngress.ingressSnapshotRef = admissionIngressSnapshotRef(reopenIngress, 'owner-reopen')
+  let reopenedAdmission = run(reopenIngress, { nowMs: reopenAt })
   assert.strictEqual(reopenedAdmission.admissionGeneration, ownerAdmission.admissionGeneration + 1)
+  const pendingReopen = reopenedAdmission
+  let nextReopenIngress = admissionInput(ownerRoot, 'owner-reopen-cold', {
+    operation: 'bind', task: { taskId: ownerAdmission.taskId, taskKind: 'bugs', entryVariant: 'reopen',
+      taskRootRelative: ownerAdmission.taskRootRelative }, overview: { content: ownerAdmissionInput.overview.content }
+  })
+  nextReopenIngress.ingressSnapshotRef = admissionIngressSnapshotRef(nextReopenIngress, 'owner-reopen-cold')
+  assert.throws(() => run(nextReopenIngress, { nowMs: reopenAt + 1000 }),
+    error => error.code === 'TASK_ADMISSION_IDEMPOTENCY_CONFLICT', 'a live pending reopen continuation cannot be replaced')
+  reopenAt += 31 * 60 * 1000
+  assert.throws(() => run({ ...nextReopenIngress, task: { ...nextReopenIngress.task, entryVariant: 'continue' } }, { nowMs: reopenAt }),
+    error => error.code === 'TASK_ADMISSION_IDEMPOTENCY_CONFLICT', 'ordinary continue must not replace a terminal reopen')
+  const reopenCanonicalBytes = fs.readFileSync(terminalOverviewPath)
+  fs.appendFileSync(terminalOverviewPath, '\nunauthorized pending-reopen drift\n')
+  assert.throws(() => run(nextReopenIngress, { nowMs: reopenAt }),
+    error => error.code === 'TASK_ADMISSION_READBACK_MISMATCH')
+  fs.writeFileSync(terminalOverviewPath, reopenCanonicalBytes)
+  reopenedAdmission = run(nextReopenIngress, { nowMs: reopenAt })
+  reopenIngress = nextReopenIngress
+  assert.strictEqual(reopenedAdmission.admissionGeneration, pendingReopen.admissionGeneration + 1)
+  assert.strictEqual(reopenedAdmission.recovery.mode, 'awaiting-owner-rebind')
+  const afterPendingRebind = readFencedTaskWriteOwner(terminalRecoveryInput, { nowMs: reopenAt })
+  assert.strictEqual(reopenedAdmission.status, 'awaiting-owner-fence')
+  assert.strictEqual(reopenedAdmission.mutationAuthority, false)
+  assert.strictEqual(afterPendingRebind.transaction.admissionId, reopenedAdmission.admissionId)
+  assert.strictEqual(afterPendingRebind.owner.leaseDigest, terminal.owner.leaseDigest, 'preparing a new continuation cannot reopen or mutate the terminal fence')
+  assert.strictEqual(afterPendingRebind.terminalReceipt.receiptDigest, terminal.receipt.receiptDigest)
   const terminalOwnerRef = {
     ownerGeneration: terminal.owner.ownerGeneration,
     ownerNonce: terminal.owner.ownerNonce,

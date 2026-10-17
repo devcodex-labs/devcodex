@@ -1328,11 +1328,19 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
   const priorContinuationLease = transaction?.continuationLease || null
   const priorContinuationExpired = priorContinuationLease?.status === 'active' &&
     Date.parse(priorContinuationLease.expiresAt) <= nowMs
+  const pendingReopenFence = transaction?.entryVariant === 'reopen' && input.task.entryVariant === 'reopen'
+    ? readFencedTaskWriteOwner({ metaDir, identity }, { fs: fsImpl, nowMs, ignoreReserve: true })
+    : null
+  const awaitingTerminalLeaseDigest = pendingReopenFence?.status === 'fresh' &&
+    pendingReopenFence.owner?.status === 'terminal' &&
+    pendingReopenFence.owner.leaseDigest === existing.state?.fencedWriteOwner?.leaseDigest
+    ? pendingReopenFence.owner.leaseDigest : null
   const awaitingOwnerRebind = !!transaction &&
     transaction.phase === 'cp-state-written' && transaction.status === 'admitting' &&
     transaction.ingressIdempotencyKey !== ingressIdempotencyKey &&
-    transaction.effects?.owner?.status === 'pending' && !existing.state?.fencedWriteOwner &&
-    ['adopt', 'bind'].includes(input.operation) && input.task.entryVariant === 'continue' &&
+    transaction.effects?.owner?.status === 'pending' &&
+    ((!existing.state?.fencedWriteOwner && input.task.entryVariant === 'continue') || awaitingTerminalLeaseDigest) &&
+    ['adopt', 'bind'].includes(input.operation) &&
     transaction.project === input.project && transaction.taskId === plan.identity.taskId &&
     transaction.taskKind === input.task.taskKind && transaction.taskRootRelative === taskRootRelative &&
     transaction.taskIdentityDigest === plan.identity.identityDigest &&
@@ -1548,6 +1556,7 @@ function executeTaskAdmission(rawInput = {}, options = {}) {
       ...options.storeOptions,
       ...(priorTerminalTransaction ? { allowReopen: true } : {}),
       ...(priorAwaitingOwnerTransaction ? { allowAwaitingOwnerRebind: true } : {}),
+      ...(priorAwaitingOwnerTransaction && awaitingTerminalLeaseDigest ? { awaitingOwnerTerminalLeaseDigest: awaitingTerminalLeaseDigest } : {}),
       ...extraOptions
     })
     if (!['committed', 'semantic-noop'].includes(commit.status)) {

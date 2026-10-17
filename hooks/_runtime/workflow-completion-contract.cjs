@@ -600,7 +600,7 @@ function validateTaskScope(scope) {
   const errors = []
   if (!scope || typeof scope !== 'object' || Array.isArray(scope)) return validation(false, ['task-scope-invalid'])
   if (!text(scope.project)) errors.push('task-project-required')
-  if (!['requirements', 'bugs', 'optimizations', 'tasks'].includes(scope.kind)) errors.push('task-kind-invalid')
+  if (!['requirements', 'bugs', 'optimizations', 'scenario-tests', 'tasks'].includes(scope.kind)) errors.push('task-kind-invalid')
   if (scope.taskId !== null && !text(scope.taskId)) errors.push('task-id-invalid')
   if (!text(scope.relativeTaskPath)) errors.push('task-path-required')
   if (!DIGEST.test(scope.legacyKey || '')) errors.push('task-legacy-key-invalid')

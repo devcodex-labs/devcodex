@@ -6366,10 +6366,15 @@ function resolveContinuingTaskInput(target, args) {
   }
   const options = { cwd: INPUT_ROOT, project: target.project, scope: 'project', persistIndex: false }
   const resolution = selector ? resolveTaskContinuation({ ...options, name: selector }) : resolveUniqueActiveTaskContinuation(options)
-  const candidate = resolution.status === 'resolved-active' ? resolution.candidate : null
+  const candidate = resolution.status === 'resolved-active' ||
+    (resolution.status === 'completed' && args.task?.entryVariant === 'reopen')
+    ? resolution.candidate : null
   if (!candidate) throw taskAdmissionIngressError('TASK_CONTINUATION_TARGET_UNRESOLVED',
     'Preserve pending content and continue independent work; this write needs one exact existing task.', { resolution })
-  const relativeRoot = path.relative(target.activeRoot, candidate.taskRoot).replace(/\\/g, '/')
+  const candidateRoot = candidate.taskRoot || (typeof candidate.kind === 'string' && typeof candidate.directoryName === 'string'
+    ? path.join(target.activeRoot, candidate.kind, candidate.directoryName) : null)
+  if (!candidateRoot) throw taskAdmissionIngressError('TASK_CONTINUATION_TARGET_UNRESOLVED', 'The selected task has no exact canonical root.')
+  const relativeRoot = path.relative(target.activeRoot, candidateRoot).replace(/\\/g, '/')
   if (relativeRoot.startsWith('../') || path.isAbsolute(relativeRoot) ||
       (args.task?.taskId && args.task.taskId.toLowerCase() !== candidate.taskId.toLowerCase()) ||
       (args.task?.taskKind && args.task.taskKind !== candidate.kind) ||

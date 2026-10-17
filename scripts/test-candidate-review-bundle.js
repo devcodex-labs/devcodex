@@ -71,6 +71,16 @@ assert.strictEqual(cp3Receipt.phase, 'CP3')
 assert.strictEqual(cp3Receipt.classification, 'review-ready')
 assert.deepStrictEqual(cp3Receipt.missingFields, [])
 
+// The real canonical plan template must produce the fields its CP3 consumer
+// requires. This checks structural compatibility, not substantive acceptance.
+const cp3Template = source('prompts/implementation-plan.prompt.md')
+const materializedCp3Template = cp3Template.replace(/```markdown\r?\n/g, '').replace(/```/g, '')
+  .replace('productImplementationAuthorized: [true/false]', 'productImplementationAuthorized: false')
+const cp3TemplateReceipt = buildCandidateReviewBundleReceipt(materializedCp3Template, { phase: 'CP3' })
+assert.deepStrictEqual(cp3TemplateReceipt.missingFields, [], 'canonical CP3 template/consumer field mismatch')
+assert(cp3Template.includes('不为阶段同步改写已确认正文'))
+
+
 const ecrCandidate = [
   '# Candidate ECR execution closure review',
   '> closureState: passed',

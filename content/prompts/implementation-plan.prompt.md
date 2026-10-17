@@ -10,7 +10,8 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 本模板只承接任务拆分、实施顺序、前置依赖、验证方式与回滚策略，不重复需求背景或技术方案中的设计论证。
 > ⚠️ 生成的 Markdown 实施计划文档必须在头部后补 `## 目录导航`。
 > ⚠️ SimpleTaskFastPath、docs/init/plan-review 子类型豁免或其他合法 CP3 豁免场景，可将 `04-实施计划.md` 标为 `N/A + skipReason`；不得用本模板“补文书”覆盖已确认的轻路径或子类型豁免。
-> ⚠️ 创建或更新 `04-实施计划.md` 表示任务至少已进入 CP3 候选/确认链；必须同步同一任务目录中 `00/01/02` 的当前阶段状态投影，不能让上游文首/状态行继续停留在“待 CP2 / CP2 候选 / 等待用户确认”等旧阶段。
+> ⚠️ 创建或更新 `04-实施计划.md` 表示任务至少已进入 CP3 候选/确认链；通过 sessions、05、报告和公开记忆同步当前阶段投影，不为阶段同步改写已确认正文或已冻结候选的 SHA。上游文首的旧阶段属于冻结时点；真实内容变化才另行版本演进并重绑证据。
+> ⚠️ CP3 候选必须显式声明 `phaseKind: CP3`、`documentKind: implementation-plan-candidate`，并填写真实授权边界。`productImplementationAuthorized` 只反映现有用户是否授权产品实现；无授权填 false，不能由模板授予。任何取值都不替代精确 CP3、确认后复审及当前 Owner 写权。
 > ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，计划中必须列出 ExecutionContract / TestRoute / ReleaseAudit / ReleaseVerification / ConceptSyncMap / HostContractVerification / ContextAcquisition / 05-实施进度.md 的触发状态与证据。
 > ⚠️ 项目/目录扫描计划必须先写 `ProjectArtifactScaleRoutingGate`、ScaleDecisionRecord、exclusion、batch/checkpoint、invalid-run 与 V91；不得把“全量 inventory”默认等同“逐字读取所有文件”。
 > ⚠️ 若本轮任务或批次直接来源于 `data/*.md` 的 open/partial 项，计划中必须显式写出 Backlog Intake 真相复核和台账状态回写闭环：先分类 `pure-open / residual-tail / already-fixed / misclassified`，再说明本轮范围是否缩减以及回写证据如何产出。
@@ -37,6 +38,10 @@ applyTo: .devcodex/**/requirements/**
 > **关联方案**: [技术方案路径]
 > **计划模式**: 轻计划摘要 / 完整实施计划
 > **状态**: 计划中 / 执行中 / 已完成
+
+phaseKind: CP3
+documentKind: implementation-plan-candidate
+productImplementationAuthorized: [true/false]
 ```
 
 ## 目录导航
@@ -89,6 +94,7 @@ applyTo: .devcodex/**/requirements/**
 - 技术约束：
 - 数据/兼容性约束：
 - 不能顺手扩展的边界：
+- 当前用户授权范围与禁止范围：按真实输入填写；当前 CP3/Owner 执行资格另由公开回执核验，候选文字不授写权。
 - 需要回 CP2 / CP1 的触发条件：
 
 ### §4.1 执行契约与支持技能

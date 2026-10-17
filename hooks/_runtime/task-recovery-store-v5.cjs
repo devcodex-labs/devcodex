@@ -6900,7 +6900,7 @@ function validateTaskAdmissionTransaction(transaction, expectedIdentity = null) 
           recovery.recoveredAt !== transaction.createdAt) {
         errors.push('recovery-timestamp')
       }
-      if (transaction.entryVariant !== 'continue') errors.push('recovery-entry-variant')
+      if (!['continue', 'reopen'].includes(transaction.entryVariant)) errors.push('recovery-entry-variant')
     } else if (recovery.schemaVersion === FINALIZED_TASK_RESUME_RECOVERY_SCHEMA) {
       if (recovery.mode !== 'finalized-owner-resume') errors.push('recovery-mode')
       if (!/^admission-[a-f0-9]{40}$/.test(String(recovery.priorAdmissionId || ''))) errors.push('recovery-prior-admission-id')
@@ -7052,7 +7052,11 @@ function commitTaskAdmissionTransaction(input = {}, options = {}) {
         const awaitingOwnerRebind = options.allowAwaitingOwnerRebind === true &&
           current.phase === 'cp-state-written' && transaction.phase === 'prepared' &&
           current.status === 'admitting' && current.effects?.owner?.status === 'pending' &&
-          !state.fencedWriteOwner && transaction.entryVariant === 'continue' &&
+          ((!state.fencedWriteOwner && transaction.entryVariant === 'continue') ||
+            (current.entryVariant === 'reopen' && transaction.entryVariant === 'reopen' &&
+              state.fencedWriteOwner?.status === 'terminal' &&
+              options.awaitingOwnerTerminalLeaseDigest === state.fencedWriteOwner.leaseDigest &&
+              validateFencedTaskWriteOwner(state.fencedWriteOwner, input.identity).valid)) &&
           current.project === transaction.project && current.taskId === transaction.taskId &&
           current.taskKind === transaction.taskKind && current.taskRootRelative === transaction.taskRootRelative &&
           current.taskIdentityDigest === transaction.taskIdentityDigest &&

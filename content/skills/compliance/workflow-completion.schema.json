@@ -43,7 +43,7 @@
       "required": ["project", "kind", "taskId", "relativeTaskPath", "legacyKey", "sourceIdentity"],
       "properties": {
         "project": { "$ref": "#/$defs/nonEmptyString" },
-        "kind": { "enum": ["requirements", "bugs", "optimizations", "tasks"] },
+        "kind": { "enum": ["requirements", "bugs", "optimizations", "scenario-tests", "tasks"] },
         "taskId": { "type": ["string", "null"], "minLength": 1 },
         "relativeTaskPath": { "$ref": "#/$defs/nonEmptyString" },
         "legacyKey": { "$ref": "#/$defs/digest" },

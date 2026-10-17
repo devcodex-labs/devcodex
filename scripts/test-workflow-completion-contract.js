@@ -570,6 +570,17 @@ function candidate(suffix = 'alpha', overrides = {}) {
   })
 }
 
+// A real formally admitted scenario-test task must reach the same typed
+// completion contract as other task kinds, without relabeling its identity.
+const scenarioCompletionCandidate = createWorkflowCompletionCandidate({
+  taskScope: { ...taskScope('scenario-positive'), kind: 'scenario-tests', relativeTaskPath: 'scenario-tests/scenario-positive' },
+  components: { source: sha256('scenario-positive') }
+})
+assert.strictEqual(validateWorkflowCompletionCandidate(scenarioCompletionCandidate).valid, true)
+const completionSchemaPath = require('./lib/control-content-delivery').resolveControlAsset(require('path').resolve(__dirname, '..'), 'skills/compliance/workflow-completion.schema.json')
+const completionSchema = JSON.parse(require('fs').readFileSync(completionSchemaPath, 'utf8'))
+assert(completionSchema.$defs.TaskScopeV1.properties.kind.enum.includes('scenario-tests'))
+
 function requirements(currentCandidate) {
   const dependency = name => ({ [name]: currentCandidate.components[name] })
   return [

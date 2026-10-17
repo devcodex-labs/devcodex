@@ -3053,7 +3053,7 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
     contextEpoch: reopenIngress.actualInstructionEnvelope.contextEpoch, targetResolved: true
   } })
   const reopenArgs = { operation: 'bind', ingressRef: reopenIngress.ingressRef,
-    task: { taskId: admitted.taskId, taskKind: 'bugs', entryVariant: 'reopen', taskRootRelative: admitted.taskRootRelative },
+    task: { taskId: admitted.taskId, entryVariant: 'reopen' },
     overview: admissionArgs.overview }
   const preparedReopen = resultById(runServer('mcp/memory-server.js', [rpcRequest(14, 'tools/call', {
     name: 'memory_task_admit_v2', arguments: reopenArgs

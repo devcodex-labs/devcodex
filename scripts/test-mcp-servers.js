@@ -113,34 +113,9 @@ function parseJsonRpcLines(stdout) {
     }
   }
   if (pending) {
-    const recovered = recoverUnparseableJsonRpcFrame(pending)
-    if (recovered) return [...responses, recovered]
     throw new Error(`Unparseable JSON-RPC stdout frame: ${pending.slice(0, 1000)}`)
   }
   return responses
-}
-
-function recoverUnparseableJsonRpcFrame(frame) {
-  if (!frame.includes('FormalTaskAdmissionReceiptV2') || !frame.includes('finalized')) return null
-  const id = Number(/"id"\s*:\s*(\d+)/.exec(frame)?.[1])
-  if (!Number.isInteger(id)) return null
-  return {
-    jsonrpc: '2.0',
-    id,
-    result: {
-      content: [{ type: 'text', text: '' }],
-      structuredContent: {
-        schemaVersion: 'FormalTaskAdmissionReceiptV2',
-        status: 'finalized',
-        phase: 'finalized',
-        finalized: true,
-        ingressSource: frame.includes('bounded-resume-current-trusted')
-          ? 'bounded-resume-current-trusted'
-          : 'host-hook'
-      },
-      isError: false
-    }
-  }
 }
 
 function compactProcessFailure(result, fallback) {

@@ -102,8 +102,14 @@ function createJsonLineServer(options = {}) {
       sendError(null, -32600, 'Invalid Request')
       return
     }
-    if (typeof request.method !== 'string' || !request.method.trim()) {
-      sendError(request.id === undefined ? null : request.id, -32600, 'Invalid Request')
+    const validId = request.id === undefined || request.id === null ||
+      typeof request.id === 'string' ||
+      (typeof request.id === 'number' && Number.isFinite(request.id))
+    const responseId = validId && request.id !== undefined ? request.id : null
+    const validParams = request.params === undefined || isPlainObject(request.params) || Array.isArray(request.params)
+    if (request.jsonrpc !== '2.0' || !validId || !validParams ||
+        typeof request.method !== 'string' || !request.method.trim()) {
+      sendError(responseId, -32600, 'Invalid Request')
       return
     }
     try {
@@ -167,7 +173,11 @@ function createJsonLineServer(options = {}) {
   }
 
   function onEnd() {
-    queue.finally(() => options.onEnd?.())
+    // Dispatch completion does not imply that an asynchronous pipe has drained.
+    // This ordered write waits behind every response before a consumer exits.
+    queue = queue.then(() => new Promise((resolve, reject) => {
+      output.write('', error => error ? reject(error) : resolve())
+    })).then(() => options.onEnd?.())
   }
 
   input.setEncoding?.('utf8')

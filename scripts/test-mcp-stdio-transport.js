@@ -5,7 +5,7 @@ const assert = require('assert')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { PassThrough } = require('stream')
+const { PassThrough, Writable } = require('stream')
 const {
   ERROR_CODES,
   MCP_STDIO_MAX_FRAME_BYTES,
@@ -85,6 +85,30 @@ async function main() {
   assert.strictEqual(invalidNonObjects.responses()[3].id, 7)
   invalidNonObjects.server.close()
 
+  const dispatchedIds = []
+  const invalidFields = harness({
+    dispatch: (method, params, request) => {
+      dispatchedIds.push(request.id)
+      return { ok: true }
+    }
+  })
+  const invalidRequests = [
+    { jsonrpc: '1.0', id: 10, method: 'tools/list' },
+    { id: 11, method: 'tools/list' },
+    { jsonrpc: '2.0', id: {}, method: 'tools/list' },
+    { jsonrpc: '2.0', id: true, method: 'tools/list' },
+    { jsonrpc: '2.0', id: 12, method: 'tools/list', params: 3 },
+    { jsonrpc: '2.0', id: 13, method: 'tools/list', params: null }
+  ]
+  for (const request of invalidRequests) invalidFields.input.write(`${JSON.stringify(request)}\n`)
+  invalidFields.input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 0, method: 'tools/list', params: [] })}\n`)
+  await settle(invalidFields)
+  assert.deepStrictEqual(dispatchedIds, [0], 'invalid envelopes must not reach a dispatcher')
+  assert.deepStrictEqual(invalidFields.responses().slice(0, 6).map(item => item.error.code), Array(6).fill(-32600))
+  assert.deepStrictEqual(invalidFields.responses().slice(0, 6).map(item => item.id), [10, 11, null, null, 12, 13])
+  assert.strictEqual(invalidFields.responses()[6].id, 0)
+  invalidFields.server.close()
+
   const pathRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-path-guard-'))
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-path-guard-outside-'))
   try {
@@ -160,6 +184,32 @@ async function main() {
   assert.strictEqual(ended, true)
   assert.strictEqual(endAware.responses()[0].id, 6)
   endAware.server.close()
+
+  const slowInput = new PassThrough()
+  let slowText = ''
+  const slowOutput = new Writable({
+    highWaterMark: 64,
+    write(chunk, encoding, callback) {
+      setTimeout(() => {
+        slowText += chunk.toString('utf8')
+        callback()
+      }, 10)
+    }
+  })
+  let resolveEnd
+  const endedAfterDrain = new Promise(resolve => { resolveEnd = resolve })
+  const payload = '计'.repeat(70000)
+  const slowServer = createJsonLineServer({
+    input: slowInput,
+    output: slowOutput,
+    dispatch: async () => ({ payload }),
+    onEnd: () => resolveEnd(slowText)
+  })
+  slowInput.end(`${JSON.stringify({ jsonrpc: '2.0', id: 14, method: 'tools/list' })}\n`)
+  const textAtEnd = await endedAfterDrain
+  assert.strictEqual(JSON.parse(textAtEnd).result.payload, payload, 'EOF callback must wait for output callbacks under backpressure')
+  slowServer.close()
+  slowOutput.end()
 
   await runHotReloadProbe()
   console.log('✓ bounded MCP stdio frame/message/reset/timeout and worker hot-reload tests passed')

@@ -731,6 +731,50 @@ function runTasklessIngressRecoveryScenario() {
   const budgetRing = storePaths(budgetMeta).ephemeral.filter(file => fs.existsSync(file))
     .map(file => JSON.parse(fs.readFileSync(file, 'utf8'))).sort((a, b) => b.sequence - a.sequence)[0]
   assert(jsonBytes(budgetRing.entries[0]) <= EPHEMERAL_ENTRY_MAX_BYTES)
+  // A new host turn has cleared the lease but still owns exact operation history.
+  // Exercise this generic branch with both settled history and an unknown write.
+  const historyIngress = JSON.parse(JSON.stringify(pendingIngress))
+  historyIngress.languageContext = zhLanguageContext()
+  historyIngress.turnLiveness = state('pending-history-resume').turnLiveness
+  for (let index = 0; index < 12; index += 1) {
+    const operationId = `history-${index}-${'h'.repeat(80)}`
+    historyIngress.turnLiveness = prepareTaskOperationRecord(historyIngress.turnLiveness, {
+      operationId, writerGeneration: 0, expectedStateSequence: index,
+      kind: 'update', exactTargets: [longTargets[0]],
+      targetSetDigest: taskOperationTargetSetDigest([longTargets[0]]), beforeDigest: '4'.repeat(64)
+    }, baseOptions)
+    historyIngress.turnLiveness = markTaskOperationDispatched(historyIngress.turnLiveness, operationId, baseOptions)
+    historyIngress.turnLiveness = markTaskOperationObserved(historyIngress.turnLiveness,
+      operationId, { resultDigest: '5'.repeat(64) }, baseOptions)
+    historyIngress.turnLiveness = settleTaskOperationRecord(historyIngress.turnLiveness,
+      operationId, { effect: 'known-applied' }, baseOptions)
+  }
+  historyIngress.turnLiveness = prepareTaskOperationRecord(historyIngress.turnLiveness, {
+    operationId: 'new-host-unknown-write', writerGeneration: 0, expectedStateSequence: 13,
+    kind: 'update', exactTargets: [longTargets[0]],
+    targetSetDigest: taskOperationTargetSetDigest([longTargets[0]]), beforeDigest: '6'.repeat(64)
+  }, baseOptions)
+  historyIngress.turnLiveness = markTaskOperationDispatched(historyIngress.turnLiveness,
+    'new-host-unknown-write', baseOptions)
+  const historyMeta = path.join(tempRoot, 'pending-history-hooks')
+  const historyCommit = commitTaskRecoveryState({
+    metaDir: historyMeta, sessionKey: 'pending-history-session', state: historyIngress
+  }, baseOptions)
+  assert.strictEqual(historyCommit.status, 'ephemeral-stub', JSON.stringify(historyCommit))
+  const historyRead = readTaskRecoveryState({ metaDir: historyMeta, sessionKey: 'pending-history-session' }, baseOptions)
+  assert.strictEqual(historyRead.status, 'ephemeral-stub')
+  assert.deepStrictEqual(historyRead.state.actualInstructionEnvelope, historyIngress.actualInstructionEnvelope)
+  assert.deepStrictEqual(historyRead.state.workItemSet, historyIngress.workItemSet)
+  assert.deepStrictEqual(historyRead.state.turnLiveness.taskOperationSet, historyIngress.turnLiveness.taskOperationSet)
+  assert.deepStrictEqual(historyRead.state.languageContext, compactLanguageContext(historyIngress.languageContext))
+  assert.strictEqual(taskOperationTerminalSnapshot(historyRead.state.turnLiveness).terminalReady, false)
+  assert.strictEqual(historyRead.state.workflowOperationalWriteLease, null)
+  assert(!historyRead.state.fencedWriteOwner, 'packed history grants no formal writer authority')
+  const historyRing = storePaths(historyMeta).ephemeral.filter(file => fs.existsSync(file))
+    .map(file => JSON.parse(fs.readFileSync(file, 'utf8'))).sort((a, b) => b.sequence - a.sequence)[0]
+  assert(jsonBytes(historyRing.entries[0]) <= EPHEMERAL_ENTRY_MAX_BYTES)
+  assert(historyRing.entries[0].state.tasklessAuthorityRecordsV1,
+    'this fixture must exercise packed recovery without an active lease or closeout')
   const overflowIngress = JSON.parse(JSON.stringify(budgetIngress))
   overflowIngress.turnLiveness.lastMutationCloseout.observation.observedEffects.created.push(
     ...longTargets.map(target => target.replace('.md', '-extra.md'))
@@ -740,6 +784,8 @@ function runTasklessIngressRecoveryScenario() {
   }, baseOptions)
   assert.strictEqual(overflowCommit.status, 'error')
   assert.strictEqual(overflowCommit.errorCode, 'LIFECYCLE_EPHEMERAL_ENTRY_EXCEEDED')
+  assert(overflowCommit.details.bytes > overflowCommit.details.maxBytes,
+    'the commit error must retain actual serialized payload and budget bytes')
   const afterOverflow = readTaskRecoveryState({ metaDir: budgetMeta, sessionKey: 'long-path-resume-session' }, baseOptions)
   assert.deepStrictEqual(afterOverflow.state.turnLiveness.taskOperationSet, budgetIngress.turnLiveness.taskOperationSet)
   assert.deepStrictEqual(afterOverflow.state.turnLiveness.lastMutationCloseout.observation.observedEffects.created, longTargets,

@@ -4212,6 +4212,42 @@ function compactSimpleTaskFastPathLeaseCloseout(raw) {
   }
 }
 
+/** Pack bounded taskless records for both lease and pending-host-input recovery. */
+function packTasklessRecoveryRecords(stub, maxBytes) {
+  if (jsonBytes(stub) > maxBytes) {
+    // Pack bounded operational records without dropping unresolved effects.
+    const records = {
+      v: 2, kind: 'taskless-authority-records-v2',
+      operationalLease: stub.workflowOperationalWriteLease || null,
+      simpleLease: stub.simpleTaskFastPathLease || null,
+      simpleUsage: stub.simpleTaskFastPathUsage || null,
+      stickyProject: stub.stickyProject || null,
+      operationSet: stub.turnLiveness.taskOperationSet || null,
+      operationalCloseout: stub.workflowOperationalWriteLeaseCloseout || null,
+      simpleCloseout: stub.simpleTaskFastPathLeaseCloseout || null
+    }
+    if (jsonBytes(records) <= 16 * 1024) {
+      const packed = compactMutationRecoveryPayload(records)
+      if (packed.v === 3 && jsonBytes(packed) < jsonBytes(records)) {
+        stub.tasklessAuthorityRecordsV1 = packed
+        delete stub.workflowOperationalWriteLease
+        delete stub.simpleTaskFastPathLease
+        delete stub.simpleTaskFastPathUsage
+        delete stub.stickyProject
+        // Existing readers preserve this invalid digest through normalization,
+        // so their mutation and terminal gates reject unsupported packed state.
+        stub.turnLiveness.taskOperationSet = {
+          schemaVersion: 'TasklessAuthorityRecordsRecoveryV1',
+          settledSetDigest: `packed:${packed.d}`
+        }
+        delete stub.workflowOperationalWriteLeaseCloseout
+        delete stub.simpleTaskFastPathLeaseCloseout
+      }
+    }
+  }
+  return stub
+}
+
 function buildTasklessAuthorityEphemeralStub(state, maxBytes = EPHEMERAL_STUB_TARGET_BYTES) {
   const hasOperationalAuthority = !!state?.workflowOperationalWriteLease
   const hasSimpleAuthority = !!state?.simpleTaskFastPathLease
@@ -4393,38 +4429,7 @@ function buildTasklessAuthorityEphemeralStub(state, maxBytes = EPHEMERAL_STUB_TA
   if (jsonBytes(stub) > maxBytes) {
     stub.languageContext = packRecoveryLanguageContext(stub.languageContext)
   }
-  if (jsonBytes(stub) > maxBytes) {
-    // Pack bounded operational records without dropping unresolved effects.
-    const records = {
-      v: 2, kind: 'taskless-authority-records-v2',
-      operationalLease: stub.workflowOperationalWriteLease,
-      simpleLease: stub.simpleTaskFastPathLease,
-      simpleUsage: stub.simpleTaskFastPathUsage,
-      stickyProject: stub.stickyProject,
-      operationSet: stub.turnLiveness.taskOperationSet || null,
-      operationalCloseout: stub.workflowOperationalWriteLeaseCloseout,
-      simpleCloseout: stub.simpleTaskFastPathLeaseCloseout
-    }
-    if (jsonBytes(records) <= 16 * 1024) {
-      const packed = compactMutationRecoveryPayload(records)
-      if (packed.v === 3 && jsonBytes(packed) < jsonBytes(records)) {
-        stub.tasklessAuthorityRecordsV1 = packed
-        delete stub.workflowOperationalWriteLease
-        delete stub.simpleTaskFastPathLease
-        delete stub.simpleTaskFastPathUsage
-        delete stub.stickyProject
-        // Existing readers preserve this invalid digest through normalization,
-        // so their mutation and terminal gates reject unsupported packed state.
-        stub.turnLiveness.taskOperationSet = {
-          schemaVersion: 'TasklessAuthorityRecordsRecoveryV1',
-          settledSetDigest: `packed:${packed.d}`
-        }
-        delete stub.workflowOperationalWriteLeaseCloseout
-        delete stub.simpleTaskFastPathLeaseCloseout
-      }
-    }
-  }
-  return stub
+  return packTasklessRecoveryRecords(stub, maxBytes)
 }
 
 /**
@@ -4639,7 +4644,10 @@ function buildMinimalEphemeralStub (state, maxBytes = EPHEMERAL_STUB_TARGET_BYTE
     stub.workflowIngressRecovery = buildTasklessWorkflowIngressRecovery(state, 'identity-only')
     stub.recoveryCompaction = 'minimal-identity-only'
   }
-  return stub
+  if (jsonBytes(stub) > maxBytes) {
+    stub.languageContext = packRecoveryLanguageContext(stub.languageContext)
+  }
+  return packTasklessRecoveryRecords(stub, maxBytes)
 }
 
 function buildEphemeralStub(state, maxBytes = EPHEMERAL_STUB_TARGET_BYTES) {
@@ -6253,7 +6261,9 @@ function writeSessionMapping(paths, identity, sessionKey, state, options = {}) {
     entry.semanticDigest = digestValue(semanticLifecycleProjection(entry.state))
   }
   if (jsonBytes(entry) > EPHEMERAL_ENTRY_MAX_BYTES) {
-    throw new TaskRecoveryStoreV5Error('LIFECYCLE_EPHEMERAL_ENTRY_EXCEEDED', 'session lease exceeds 8 KiB')
+    throw new TaskRecoveryStoreV5Error('LIFECYCLE_EPHEMERAL_ENTRY_EXCEEDED', 'session lease exceeds 8 KiB', {
+      bytes: jsonBytes(entry), maxBytes: EPHEMERAL_ENTRY_MAX_BYTES
+    })
   }
   return updateEphemeralRing(paths, entry, options)
 }
@@ -6310,7 +6320,7 @@ function commitTaskRecoveryState(input = {}, options = {}) {
           : {})
       }
     } catch (error) {
-      return { status: 'error', errorCode: error.code || 'LIFECYCLE_EPHEMERAL_WRITE_FAILED', message: error.message }
+      return { status: 'error', errorCode: error.code || 'LIFECYCLE_EPHEMERAL_WRITE_FAILED', message: error.message, details: error.details }
     }
   }
   const commit = commitTaskEnvelope(input.metaDir, identity, state, options)

@@ -251,6 +251,42 @@ function runPersistenceFailureAdvisoryScenario() {
   cleanState()
 }
 
+function runRecoveryOverflowDiagnosticScenario() {
+  cleanState()
+  const faultModule = path.join(TEMP_ROOT, 'recovery-overflow.cjs')
+  fs.writeFileSync(faultModule, [
+    "const Module = require('node:module')",
+    'const load = Module._load',
+    'Module._load = function (request, parent, isMain) {',
+    '  const result = load.call(this, request, parent, isMain)',
+    "  if (request.endsWith('task-recovery-store-v5.cjs')) return { ...result,",
+    "    commitTaskRecoveryState: () => ({ status: 'error', errorCode: 'LIFECYCLE_EPHEMERAL_ENTRY_EXCEEDED',",
+    "      message: 'minimal ephemeral resume stub exceeds 8 KiB', details: { bytes: 8083, maxBytes: 7818 } }) }",
+    '  return result',
+    '}'
+  ].join('\n'))
+  const result = spawnSync(process.execPath, [RUNTIME], {
+    cwd: TEMP_ROOT,
+    input: JSON.stringify({ hookEventName: 'UserPromptSubmit', session_id: 'recovery-overflow', prompt: '只读诊断' }),
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      DEVCODEX_HOST_PLATFORM: 'codex',
+      DEVCODEX_TASK_RECOVERY_TEST_MODE: '1',
+      DEVCODEX_TASK_RECOVERY_TEST_RESERVE_BYTES: '8192',
+      NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --require ${JSON.stringify(faultModule)}`.trim()
+    }
+  })
+  assert.strictEqual(result.status, 0, 'overflow diagnostics must remain advisory')
+  const output = JSON.parse(result.stdout || '{}')
+  assert.match(output.systemMessage || '', /LIFECYCLE_EPHEMERAL_ENTRY_EXCEEDED/)
+  assert.match(output.systemMessage, /Recovery payload 8083\/7818 bytes/,
+    'nested commit details must reach the real Hook output')
+  assert.match(output.hookSpecificOutput?.additionalContext || '', /8083\/7818/)
+  assertOperationAdvisory(output, 'overflow persistence failure')
+  cleanState()
+}
+
 function runConfirmationPersistenceScenario() {
   process.env.CLAUDE_CODE_VERSION = process.env.CLAUDE_CODE_VERSION || 'r2b-test'
   cleanState({ mode: 'dev', agent: TEST_AGENT })
@@ -3059,6 +3095,7 @@ function main() {
 if (process.argv.includes('--persistence-diagnostic')) {
   try {
     runPersistenceFailureAdvisoryScenario()
+    runRecoveryOverflowDiagnosticScenario()
     process.stdout.write('persistence failure advisory scenario passed\n')
   } finally {
     if (process.env.DEVCODEX_TEST_KEEP_TEMP !== '1') fs.rmSync(TEMP_ROOT, { recursive: true, force: true })

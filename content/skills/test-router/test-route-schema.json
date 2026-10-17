@@ -25,6 +25,7 @@
     "package-release": "package"
   },
   "executionBinding": {
+    "appliesTo": "devcodex-managed-runner",
     "planSchema": "ValidationPlanV3",
     "requiredFields": ["manifestIdentity", "projectRootIdentity", "candidateId", "candidateStable", "candidateDigest", "dirtyScopeDigest", "changedScopeDigest", "planDigest", "budgetDigest", "requestDigest", "actorIdentityDigest", "runIdentityDigest", "runId", "hardDeadlineAt", "authorityDigest"],
     "cacheSchema": "ValidationEvidenceV2",

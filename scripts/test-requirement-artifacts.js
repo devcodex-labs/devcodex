@@ -14,6 +14,7 @@ const {
   HISTORICAL_TEMPLATE_DISPOSITION_SCHEMA,
   checkArtifactTemplateFile,
   checkActualCandidateEvidence,
+  collectStatusProjectionIssues,
   hasSimpleTaskFastPathMarker,
   collectRecentBugArtifactIssues,
   collectRecentRequirementArtifactIssues,
@@ -76,6 +77,45 @@ try {
     'utf8'
   ))
   const slot = slotId => baseRegistry.slots.find(item => item.slotId === slotId)
+
+  // Confirmed full-byte artifacts are point-in-time inputs. Updating their
+  // headers to satisfy a later-phase diagnostic would break CP binding.
+  const frozenRoot = path.join(requirementsRoot, 'frozen-status-projection')
+  const frozenCp1 = path.join(frozenRoot, '01-需求确认.md')
+  const frozenCp2 = path.join(frozenRoot, '02-技术方案.md')
+  write(frozenCp1, '# Frozen requirement\n> 状态：CP1 已确认，待 CP2\n')
+  write(frozenCp2, '# Frozen design\n> 状态：CP2 已确认，待 CP3\n')
+  write(path.join(frozenRoot, '05-实施进度.md'), '# Current progress\n> 状态：执行中\n')
+  const frozenInventory = { artifacts: [
+    { relativePath: '01-需求确认.md', matchType: 'canonical', slot: { artifactClass: 'cp1' } },
+    { relativePath: '02-技术方案.md', matchType: 'canonical', slot: { artifactClass: 'cp2' } },
+    { relativePath: '05-实施进度.md', matchType: 'canonical', slot: { artifactClass: 'progress' } }
+  ] }
+  const frozenIssues = () => collectStatusProjectionIssues(frozenRoot, frozenInventory, 'frozen-status-projection')
+  assert(frozenIssues().some(issue => issue.includes('01-需求确认.md')))
+  assert(frozenIssues().some(issue => issue.includes('02-技术方案.md')))
+  const digest = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
+  const frozenSessions = path.join(frozenRoot, '.memory', 'sessions.md')
+  const currentTable = [
+    '### CP 确认记录', '',
+    '| CP | 状态 | artifactPath | version | sha256 | sourceMessage | confirmedAt |',
+    '|---|---|---|---|---|---|---|',
+    `| CP1 | ✅ | 01-需求确认.md | v1.0.0 | ${digest(frozenCp1)} | exact requirement | 10:00 |`,
+    `| CP2 | ✅ | [技术方案](../02-技术方案.md) | v1.0.0 | ${digest(frozenCp2)} | exact design | 10:01 |`
+  ].join('\n')
+  write(frozenSessions, currentTable)
+  assert.deepStrictEqual(frozenIssues(), [], 'do not demand mutation of exact confirmed bytes')
+  fs.appendFileSync(frozenCp1, '\nchanged after confirmation\n')
+  assert(frozenIssues().some(issue => issue.includes('01-需求确认.md')), 'digest drift must not suppress observation')
+  write(frozenCp1, '# Frozen requirement\n> 状态：CP1 已确认，待 CP2\n')
+  const changedTable = currentTable.replace(/\| CP1 \| ✅ \|/, '| CP1 | ⏳ |')
+  write(frozenSessions, `${changedTable}\n\n## History\n${currentTable}\n`)
+  assert(frozenIssues().some(issue => issue.includes('01-需求确认.md')), 'history must not replace current pending binding')
+  write(frozenSessions, currentTable.replace('01-需求确认.md | v1.0.0', 'other.md | v1.0.0'))
+  assert(frozenIssues().some(issue => issue.includes('01-需求确认.md')), 'same digest cannot bind a different target')
+  // These deliberately tiny documents are a focused consumer fixture, not a
+  // whole-artifact acceptance fixture for the wider scan below.
+  fs.rmSync(frozenRoot, { recursive: true, force: true })
 
   const goodRequirementOverview = path.join(requirementsRoot, 'good-requirement', '00-需求概况.md')
   const goodRequirementCp1 = path.join(requirementsRoot, 'good-requirement', '01-需求确认.md')

@@ -468,6 +468,48 @@ flowchart TD
 | EscapeAbsorptionQueue | 外部审查或复审发现 → localEvidence → disposition → targetArtifact → status | |
 | confirmationDecision | review-ready / review-incomplete / stale / confirm-blocked | |
 
+下面是实际候选接口；上表只是填写说明，不能代替这些独立字段与矩阵。保留字段/列名，按维度 Owner 填真实证据；占位内容与 `UNVERIFIED` 不构成内容通过或确认资格。资格变化写外部回执，不为同步状态改已确认正文。
+
+phaseKind: CP1
+
+#### RQMatrix
+
+| dimension | status | evidence | gap | disposition | skipReason |
+|---|---|---|---|---|---|
+| RQ-1 | UNVERIFIED | [实际证据] | [缺口] | [处置] | [适用性理由] |
+| RQ-2 | UNVERIFIED | [实际证据] | [缺口] | [处置] | [适用性理由] |
+| RQ-3 | UNVERIFIED | [实际证据] | [缺口] | [处置] | [适用性理由] |
+| RQ-4 | UNVERIFIED | [实际证据] | [缺口] | [处置] | [适用性理由] |
+| RQ-5 | UNVERIFIED | [实际证据] | [缺口] | [处置] | [适用性理由] |
+| RQ-6 | UNVERIFIED | [实际证据] | [缺口] | [处置] | [适用性理由] |
+| RQ-7 | UNVERIFIED | [实际证据] | [缺口] | [处置] | [适用性理由] |
+| RQ-8 | UNVERIFIED | [实际证据] | [缺口] | [处置] | [适用性理由] |
+
+#### DomainRealityMatrix
+
+| domain | currentReality | repoEvidence | consumer | decision | negativeProbe | skipReason |
+|---|---|---|---|---|---|---|
+| sourceTruth | [现状] | [证据] | [消费者] | [决定] | [反例核验] | [适用性理由] |
+| packageChannel | [现状] | [证据] | [消费者] | [决定] | [反例核验] | [适用性理由] |
+| licensePolicy | [现状] | [证据] | [消费者] | [决定] | [反例核验] | [适用性理由] |
+| commandSurface | [现状] | [证据] | [消费者] | [决定] | [反例核验] | [适用性理由] |
+| runtimeCapability | [现状] | [证据] | [消费者] | [决定] | [反例核验] | [适用性理由] |
+| phaseKind | [现状] | [证据] | [消费者] | [决定] | [反例核验] | [适用性理由] |
+
+#### ClaimEvidenceMatrix
+
+| claim | evidence | status |
+|---|---|---|
+| [具体主张] | [原始输入/产品事实/Profile/仓库证据及限制] | UNVERIFIED |
+
+#### EscapeAbsorptionQueue
+
+| sourceClaimId | finding | localEvidence | disposition | targetArtifact | owner | status |
+|---|---|---|---|---|---|---|
+| [实际来源ID] | [发现] | [本地证据] | [真实处置] | [目标产物] | [责任方] | UNVERIFIED |
+
+无外部发现时保留表头并明确空集合理由，不伪造 finding 或 ID。RQ 原义、适用性与通过条件仍由 `audit-requirements` 唯一维护；结构分类不代替逐维语义审阅。
+
 ## §10 变更历史 / 决策记录
 
 | 版本 | 日期 | 变更说明 | 决策依据 |

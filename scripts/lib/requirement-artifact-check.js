@@ -13,6 +13,7 @@ const {
   validateArtifactTemplateQualification
 } = require('../../hooks/_runtime/artifact-template-contract.cjs')
 const { verifyActualCandidateEvidenceReceipt } = require('./actual-candidate-evidence')
+const { parseCpSessions } = require('./cp-digest')
 
 const RECENT_REQUIREMENT_ARTIFACT_DAYS = 2
 const REQUIREMENT_FILES = [
@@ -163,10 +164,34 @@ function collectStatusProjectionIssues(dirPath, inventory, relDir, disposition =
   }, -1)
   if (highestPhase < ARTIFACT_PHASE_ORDER.cp2) return issues
 
+  let currentCpRows = null
+  try {
+    const sessions = path.join(dirPath, '.memory', 'sessions.md')
+    const stat = fs.lstatSync(sessions)
+    if (stat.isFile() && !stat.isSymbolicLink() && stat.size <= 8 * 1024 * 1024) {
+      const rows = parseCpSessions(fs.readFileSync(sessions, 'utf8'))
+      if (rows.projectionFound && !rows.projectionIncomplete) currentCpRows = rows
+    }
+  } catch { /* Missing/unreadable current binding leaves ordinary observations enabled. */ }
+
   for (const artifact of phaseArtifacts) {
     const artifactPhase = ARTIFACT_PHASE_ORDER[artifact.slot.artifactClass]
     const filePath = path.join(dirPath, artifact.relativePath)
     if (!fs.existsSync(filePath)) continue
+    const phase = { cp1: 'CP1', cp2: 'CP2', 'cp3-plan': 'CP3' }[artifact.slot.artifactClass]
+    const row = currentCpRows?.[phase]
+    if (row?.confirmed && !row.stale && SHA256_RE.test(String(row.artifactSha256 || ''))) {
+      const candidates = [
+        row.artifactPath && path.resolve(dirPath, row.artifactPath),
+        row.artifactHref && path.resolve(dirPath, '.memory', row.artifactHref)
+      ].filter(Boolean)
+      try {
+        const stat = fs.lstatSync(filePath)
+        const exactTarget = candidates.some(candidate => isInside(dirPath, candidate) && candidate === path.resolve(filePath))
+        if (exactTarget && stat.isFile() && !stat.isSymbolicLink() && fs.realpathSync(filePath) === path.resolve(filePath) &&
+            sha256File(filePath).toLowerCase() === row.artifactSha256.toLowerCase()) continue
+      } catch { /* A failed identity/readback check cannot suppress status observations. */ }
+    }
     const checks = []
     if (highestPhase >= ARTIFACT_PHASE_ORDER.cp2 && artifactPhase < ARTIFACT_PHASE_ORDER.cp2) checks.push('cp1')
     if (highestPhase >= ARTIFACT_PHASE_ORDER['cp3-plan'] && artifactPhase < ARTIFACT_PHASE_ORDER['cp3-plan']) checks.push('cp2')

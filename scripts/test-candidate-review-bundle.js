@@ -80,6 +80,19 @@ const cp3TemplateReceipt = buildCandidateReviewBundleReceipt(materializedCp3Temp
 assert.deepStrictEqual(cp3TemplateReceipt.missingFields, [], 'canonical CP3 template/consumer field mismatch')
 assert(cp3Template.includes('不为阶段同步改写已确认正文'))
 
+// A producer must expose the same candidate interface its real consumer reads.
+// Structural compatibility is separate from substantive evidence acceptance.
+for (const [phase, templatePath] of [
+  ['CP1', 'prompts/requirement.prompt.md'],
+  ['CP2', 'prompts/technical-design.prompt.md']
+]) {
+  const materialized = source(templatePath).replace(/```markdown\r?\n/g, '').replace(/```/g, '')
+  const receipt = buildCandidateReviewBundleReceipt(materialized, { phase })
+  assert.deepStrictEqual(receipt.missingFields, [], `${phase} canonical producer/consumer interface mismatch`)
+  assert(!receipt.validationIssues.some(issue => ['matrix-columns-invalid', 'matrix-row-missing'].includes(issue.code)),
+    `${phase} canonical matrix shape mismatch`)
+}
+
 
 const ecrCandidate = [
   '# Candidate ECR execution closure review',

@@ -1482,7 +1482,13 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         const epoch = String(args.contextEpoch || '').trim()
         const planKey = stableDigest({ contextEpoch: acquisition.contextEpoch, canonical: identity.canonical, args })
         const repeatedPlan = acquisition.planAttemptKeys.includes(planKey) && acquisition.plan
-        const routeContextRefresh = repeatedPlan && canRefreshCommittedRouteContext(state, acquisition)
+        // A stale receipt is precisely the public request to replan. The MCP
+        // planner may return a new planId for identical arguments, so record its
+        // attempt and consume PostToolUse instead of restoring the old plan.
+        const staleContextRefresh = repeatedPlan && acquisition.receipt?.status === 'stale'
+        const routeContextRefresh = repeatedPlan && (
+          staleContextRefresh || canRefreshCommittedRouteContext(state, acquisition)
+        )
         if ((!acquisition.targetResolved && !pendingPlanTarget) ||
             !epoch ||
             epoch !== acquisition.contextEpoch) {

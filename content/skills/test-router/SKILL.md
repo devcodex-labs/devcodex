@@ -10,6 +10,14 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 
 `test-router` 只负责选择验证路线和记录跳过理由，不替代 `dev-testing`、`api-verification`、`dev-scenario-test` 或项目自身测试规范。
 
+## 执行器适用范围
+
+先区分当前项目的原生验证与 DevCodex 自身的 managed validation。下文 `VerificationIntentV2 / ValidationPlanV3 / BudgetCard / VerificationExecutionLeaseV2 / ValidationEvidenceV2` 约束本仓库 `scripts/run-validation.js` 管理的 DevCodex manifest；该 runner 的根是 DevCodex Source，外部路径拒收是预期边界。
+
+业务项目按其 Profile、package scripts 和实际 Owner 选择原生 `npm test`、精确单测、API/示例或其他项目命令，在真实项目 cwd 执行，并记录命令、候选/输入身份、exitCode、实际断言、原始日志及自启资源清理。未接入该 managed runner 的业务项目，不需要伪造其 lease，也不应把业务路径传给 Source runner、注入 fixture manifest 或用 Source 测试替代业务验证。原生业务 `npm test` 的名称不等同于 DevCodex 的 V3/full 授权。
+
+原生项目 TestRoute 保留 `selectedRoutes / commands / evidence / skipped / residualRisk / coverageClaim`；managed 专属计划、预算、lease 与 runner receipt 字段明确记 `N/A + project-native-command` 及理由。其证据只支持实际项目命令的覆盖，不能标为 `ValidationEvidenceV2`、managed V3 或发布资格。项目自身执行限制、真实宿主权限、任务 CP/Owner 和资源边界仍须满足。
+
 ## 输入
 
 机器可读输入、selector、输出与跳过字段以同目录 `test-route-schema.json` 为唯一事实源。稳定输入只有：
@@ -20,7 +28,7 @@ TestRoute 的稳定输入、route selector、固定输出与 skip 合同以同�
 
 ### VerificationIntentV2 请求面与执行层级
 
-必须先判断“本轮要证明什么”，再选择可执行节点。`VerificationIntentV2` 只表达请求，不授予执行权；固定包含 `requesterClass / requestedLevel / requestedPurpose / affectedBoundaries / riskClass / requestSourceRef / project / candidateId / changedScopeDigest / claimCeiling / requestDigest`。执行必须另行取得绑定 `ValidationRunIdentityV1`、候选/HEAD/dirty scope、计划、预算、actor/context 与 hard deadline 的 `VerificationExecutionLeaseV2`；V1 只允许兼容读取，不能产生新 authority：
+使用上述 managed runner 时，先判断“本轮要证明什么”，再选择可执行节点。`VerificationIntentV2` 只表达请求，不授予执行权；固定包含 `requesterClass / requestedLevel / requestedPurpose / affectedBoundaries / riskClass / requestSourceRef / project / candidateId / changedScopeDigest / claimCeiling / requestDigest`。该 runner 的执行必须另行取得绑定 `ValidationRunIdentityV1`、候选/HEAD/dirty scope、计划、预算、actor/context 与 hard deadline 的 `VerificationExecutionLeaseV2`；V1 只允许兼容读取，不能产生新 authority：
 
 | level | 默认 purpose | 允许的最大声明 | 典型入口 |
 |---|---|---|---|

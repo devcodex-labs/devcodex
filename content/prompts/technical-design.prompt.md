@@ -18,7 +18,7 @@ applyTo: .devcodex/**/requirements/**
 > ⚠️ 控制面、Auto、多批次、预计修改 ≥10 文件、模板-示例-校验链或发布前置任务，方案中必须说明是否触发 `execution-contract`、`test-router`、`audit-release`、`release-verification`、`source-consumer-sync`、`host-contract-verification`、`user-visible-output-contract` 与 `05-实施进度.md`。
 > ⚠️ 项目/目录分析、审查或扫描必须在 broad scan 前填写 `ProjectArtifactScaleRoutingGate` / `ScaleDecisionRecord`：项目/root、六项规模指标、single-pass/batched/sampled+deep-read/blocked、排除策略、batch/checkpoint、invalid-run 与 V91。
 > ⚠️ 若本方案触发或豁免任何关键产物，必须在 §1 或 §8 写出 ArtifactDecisionMatrix：`artifact`、`state(create/update/skip/N/A)`、`reason`、`trigger`、`upgradeTrigger`、`targetArtifact`。
-> ⚠️ CP2 被确认、进入 CP3 或后续生成 `04-实施计划.md` / `05-实施进度.md` 后，必须同步同一任务目录上游 `00/01` 与当前 `02` 的阶段状态投影；历史候选可以保留，但当前文首/状态行不得继续写“待 CP2 / CP2 候选 / 等待用户确认”。
+> ⚠️ CP2 被确认、进入 CP3 或启用进度后，在当前 sessions、03/05 或报告中同步阶段状态。已绑定摘要的 `00/01/02/04` 保留冻结时点正文，不为阶段同步改写已确认字节；当前投影须明确关联其版本/SHA。确有内容变化才版本化、重新审阅与绑定，不能更新头部后沿用旧确认。
 > ⚠️ 若本方案承接了用户可见“意图扩展摘要”，必须在 §0 或 §1 说明语义初判、项目现实扩展后路由、关键风险、验证路线与备选路径如何落到方案中。
 > ⚠️ 新增/升级依赖、框架、SDK、平台 API 或外部模块时，§4 必须填写 `OfficialDocsEvidence`：官方文档来源、版本/日期、关键用法、限制、兼容性与降级来源。
 > ⚠️ dev/fix 项目事实变化时，必须填写 `ProfileImpactCheck`：是否更新 Profile、目标文件与 `skipReason`。
@@ -420,6 +420,42 @@ applyTo: .devcodex/**/requirements/**
 | ClaimEvidenceMatrix | 方案主张 → repo path/currentBehavior/targetChange/runtimeOwner/validation/UNVERIFIED | |
 | receiptFreshness | 当前 CP2 方案 hash / source HEAD / 规则版本是否一致 | fresh / stale |
 | confirmationDecision | review-ready / review-incomplete / blocked / stale / confirm-blocked | |
+
+下面是实际候选接口，上表只是填写说明。保留字段/列名和 TD 编号，按 `audit-tech-design` 的原义、优先级和适用性填写；占位与 `UNVERIFIED` 不代表内容通过。尚待独立意见或精确确认单列资格依赖，不编入永久内容 blocker。
+
+phaseKind: CP2
+
+#### TDMatrix
+
+| dimension | priority | status | evidence | blockerId | skipReason | negativeProbe |
+|---|---|---|---|---|---|---|
+| TD-1 | [实际优先级] | UNVERIFIED | [证据] | [实际阻断ID或none] | [适用性理由] | [反例核验] |
+| TD-2 | [实际优先级] | UNVERIFIED | [证据] | [实际阻断ID或none] | [适用性理由] | [反例核验] |
+| TD-3 | [实际优先级] | UNVERIFIED | [证据] | [实际阻断ID或none] | [适用性理由] | [反例核验] |
+| TD-4 | [实际优先级] | UNVERIFIED | [证据] | [实际阻断ID或none] | [适用性理由] | [反例核验] |
+| TD-5 | [实际优先级] | UNVERIFIED | [证据] | [实际阻断ID或none] | [适用性理由] | [反例核验] |
+| TD-6 | [实际优先级] | UNVERIFIED | [证据] | [实际阻断ID或none] | [适用性理由] | [反例核验] |
+| TD-7 | [实际优先级] | UNVERIFIED | [证据] | [实际阻断ID或none] | [适用性理由] | [反例核验] |
+| TD-8 | [实际优先级] | UNVERIFIED | [证据] | [实际阻断ID或none] | [适用性理由] | [反例核验] |
+| TD-9 | [实际优先级] | UNVERIFIED | [证据] | [实际阻断ID或none] | [适用性理由] | [反例核验] |
+| TD-10 | [实际优先级] | UNVERIFIED | [证据] | [实际阻断ID或none] | [适用性理由] | [反例核验] |
+| TD-11 | [实际优先级] | UNVERIFIED | [证据] | [实际阻断ID或none] | [适用性理由] | [反例核验] |
+| TD-12 | [实际优先级] | UNVERIFIED | [证据] | [实际阻断ID或none] | [适用性理由] | [反例核验] |
+| TD-13 | [实际优先级] | UNVERIFIED | [证据] | [实际阻断ID或none] | [适用性理由] | [反例核验] |
+
+#### BlockerSnapshot
+
+| stage | blockerId | evidence | affectedSurface | remediation | skippedChecks | stopReason | openBlockers |
+|---|---|---|---|---|---|---|---|
+| CP2 | [真实内容阻断ID或none] | [证据] | [影响面] | [修复方案] | [实际未执行项] | [原因] | [实际非负整数] |
+
+#### ClaimEvidenceMatrix
+
+| claim | repoPath | currentBehavior | targetChange | runtimeOwner | validation | status |
+|---|---|---|---|---|---|---|
+| [具体主张] | [实际路径] | [现状] | [目标差异] | [真实执行方] | [验证路线/结果及限制] | UNVERIFIED |
+
+矩阵填写后对完整正文运行真实候选分类器；字段齐全只证明结构可消费，内容、独立证据、确认和当前 Owner 仍须分别核验。
 
 ## §8 实施约束（条件）
 

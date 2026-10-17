@@ -1077,6 +1077,21 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   assert.strictEqual(sourceStaleState.contextAcquisition.receipt.delivery.eligible, false)
   assert(sourceStaleState.contextAcquisition.receipt.escalations.some(item => item.trigger === 'source-digest'))
 
+  // Native CLI recovery reuses the same planner arguments after a source
+  // invalidation. Recording the new attempt is required: otherwise a real MCP
+  // result installs a new plan but PostToolUse restores the older stale plan.
+  const stalePlanCalls = sourceStaleState.contextAcquisition.planCallCount
+  const staleReplans = sourceStaleState.contextAcquisition.replanCount
+  const recoveredSourcePlan = observePlan({
+    intent: 'dev', changeTypes: ['source-code'], callId: 'source-stale-repeat-plan'
+  }).state
+  assert.strictEqual(recoveredSourcePlan.contextAcquisition.planCallCount, stalePlanCalls + 1,
+    'a stale receipt must permit the same exact planner call to be observed')
+  assert.notStrictEqual(recoveredSourcePlan.contextAcquisition.receipt.status, 'stale')
+  assert.strictEqual(recoveredSourcePlan.contextAcquisition.replanCount, staleReplans,
+    'repairing an already stale receipt must not count another scope drift')
+  assert.strictEqual(recoveredSourcePlan.contextAcquisition.lastError, null)
+
   // A committed route may refresh the same ContextRead inputs once before
   // rebind. The refresh must replace its stale receipt with a fresh observed
   // plan; ordinary duplicate planners remain denied outside this boundary.

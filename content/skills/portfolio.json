@@ -6,7 +6,7 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "c43a9d63aa836744f09ea21068b2225759a8eab420c95a4fe78f401551ced114",
+    "sourceDigest": "af25326522b73b286722610f0b45562506673438d470be6fb04f35b686d20440",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "7b4042b10fc27cb70440fef64151bc50662a2f871274749925ea0e88f38388f4",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
@@ -16,7 +16,7 @@
     "consumerInventoryFileCount": 726,
     "consumerInventoryDigest": "3c1441a972d18606f5fcf0a342d0aa0636f50f70b110e51733dbf36896625c10",
     "consumerProjectionDigest": "6c3f543e28f2904538534e8c04c241da02cebd4adb9d74ed6068a3737f61b5b3",
-    "portfolioInputDigest": "08a25109e0fe7788788924471b611367d4a3091cc0ddd1bfc8ee6b406b21ee36"
+    "portfolioInputDigest": "882600260702149696d465d5231c294c6b0aecac24505ed1cb089334d1ec034d"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -5523,8 +5523,8 @@
         "content/skills/cp-gate/SKILL.md"
       ],
       "source": "content/skills/cp-gate/SKILL.md",
-      "hash": "eb8f05045b47cd5159d4270c4bfdd600546c5993b82124326a374cac263ec687",
-      "sourceBytes": 34461,
+      "hash": "fe7534cac8a0a63035e7c33d1941b75f69fd0912399b2972547e6fffd515a4d7",
+      "sourceBytes": 35356,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -20930,8 +20930,8 @@
         "content/skills/test-router/SKILL.md"
       ],
       "source": "content/skills/test-router/SKILL.md",
-      "hash": "35d3823cf81c00316f096ef00dc59872239fc6a7a266ecb68a4373f7b5750228",
-      "sourceBytes": 25178,
+      "hash": "ef6f2f93ed622eaa3b11382ffb02578f6d3f63f1265f282e6d9deeabdea88f14",
+      "sourceBytes": 26562,
       "version": "1.20.4",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",

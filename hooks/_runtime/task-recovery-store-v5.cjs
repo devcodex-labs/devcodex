@@ -4166,7 +4166,7 @@ function compactSimpleTaskFastPathLeaseCloseout(raw) {
   }
 }
 
-function buildTasklessAuthorityEphemeralStub(state) {
+function buildTasklessAuthorityEphemeralStub(state, maxBytes = EPHEMERAL_STUB_TARGET_BYTES) {
   const hasOperationalAuthority = !!state?.workflowOperationalWriteLease
   const hasSimpleAuthority = !!state?.simpleTaskFastPathLease
   const hasAuthorityCloseout = !!(state?.workflowOperationalWriteLeaseCloseout || state?.simpleTaskFastPathLeaseCloseout)
@@ -4315,7 +4315,7 @@ function buildTasklessAuthorityEphemeralStub(state) {
       : (hasSimpleAuthority ? 'simple-authority-budget'
           : (hasOperationalAuthority ? 'operational-authority-budget' : 'taskless-closeout-budget'))
   }
-  if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
+  if (jsonBytes(stub) > maxBytes) {
     stub.progressiveSkillRouteStop = stop && typeof stop === 'object' ? {
       schemaVersion: boundedRecoveryString(stop.schemaVersion, 64),
       present: stop.present === true,
@@ -4325,7 +4325,7 @@ function buildTasklessAuthorityEphemeralStub(state) {
       errorCode: boundedRecoveryString(stop.errorCode, 128)
     } : null
   }
-  if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
+  if (jsonBytes(stub) > maxBytes) {
     stub.progressiveSkillRoute = route && typeof route === 'object' ? {
       schemaVersion: boundedRecoveryString(route.schemaVersion, 64),
       modeReceipt: route.modeReceipt ? {
@@ -4340,7 +4340,7 @@ function buildTasklessAuthorityEphemeralStub(state) {
       errorCode: boundedRecoveryString(route.errorCode, 128)
     } : null
   }
-  if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
+  if (jsonBytes(stub) > maxBytes) {
     stub.progressiveSkillRoute = null
     stub.progressiveSkillRouteStop = null
   }
@@ -4364,7 +4364,7 @@ function hasPendingWorkflowIngress(state) {
     validateWorkItemSet(state.workItemSet, envelope).valid
 }
 
-function buildMinimalEphemeralStub (state) {
+function buildMinimalEphemeralStub (state, maxBytes = EPHEMERAL_STUB_TARGET_BYTES) {
   const context = state?.contextAcquisition || {}
   const route = state?.progressiveSkillRoute || {}
   const workflowRoute = state?.workflowRouteDecision || {}
@@ -4536,12 +4536,12 @@ function buildMinimalEphemeralStub (state) {
       if (stub[key] === null) delete stub[key]
     }
   }
-  if (pendingIngress && jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
+  if (pendingIngress && jsonBytes(stub) > maxBytes) {
     // An unselected route's catalog bootstrap is rebuildable. Keep exact input,
     // terminal/operation evidence and Stop enforcement ahead of this cache.
     delete stub.progressiveSkillRoute
   }
-  if (ingressRecovery && jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
+  if (ingressRecovery && jsonBytes(stub) > maxBytes) {
     // These absent diagnostics and false evidence flags carry no authority.
     // Keep every true flag and all exact ingress/lease/operation records.
     if (stub.progressiveSkillRouteEnforcement === null) delete stub.progressiveSkillRouteEnforcement
@@ -4551,7 +4551,7 @@ function buildMinimalEphemeralStub (state) {
     }
     delete stub.activeProjectSource
   }
-  if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES && ingressRecovery) {
+  if (jsonBytes(stub) > maxBytes && ingressRecovery) {
     stub.actualInstructionEnvelope = compactInstructionEnvelopeResumeIdentity(state.actualInstructionEnvelope)
     stub.workItemSet = compactWorkItemSetResumeIdentity(state.workItemSet)
     stub.workflowRouteDecision = compactWorkflowRouteResumeIdentity(state.workflowRouteDecision)
@@ -4562,11 +4562,11 @@ function buildMinimalEphemeralStub (state) {
   return stub
 }
 
-function buildEphemeralStub(state) {
+function buildEphemeralStub(state, maxBytes = EPHEMERAL_STUB_TARGET_BYTES) {
   if (state?.workflowOperationalWriteLease || state?.simpleTaskFastPathLease ||
       state?.workflowOperationalWriteLeaseCloseout || state?.simpleTaskFastPathLeaseCloseout) {
-    const tasklessAuthority = buildTasklessAuthorityEphemeralStub(state)
-    if (jsonBytes(tasklessAuthority) <= EPHEMERAL_STUB_TARGET_BYTES) {
+    const tasklessAuthority = buildTasklessAuthorityEphemeralStub(state, maxBytes)
+    if (jsonBytes(tasklessAuthority) <= maxBytes) {
       return JSON.parse(JSON.stringify(tasklessAuthority))
     }
     throw new TaskRecoveryStoreV5Error(
@@ -4574,7 +4574,7 @@ function buildEphemeralStub(state) {
       'taskless authority resume stub exceeds 8 KiB',
       {
         bytes: jsonBytes(tasklessAuthority),
-        maxBytes: EPHEMERAL_STUB_TARGET_BYTES,
+        maxBytes,
         operationalTargetCount: state.workflowOperationalWriteLease?.relativeTargets?.length || 0,
         simpleTargetCount: state.simpleTaskFastPathLease?.relativeTargets?.length || 0
       }
@@ -4674,7 +4674,7 @@ function buildEphemeralStub(state) {
     },
     recoveryKind: 'ephemeral-resume-stub'
   }
-  if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
+  if (jsonBytes(stub) > maxBytes) {
     stub.progressiveSkillRoute = state?.progressiveSkillRoute ? {
       schemaVersion: state.progressiveSkillRoute.schemaVersion,
       modeReceipt: compactModeReceiptForEphemeral(state.progressiveSkillRoute.modeReceipt),
@@ -4697,7 +4697,7 @@ function buildEphemeralStub(state) {
     )
     stub.progressiveSkillRouteStop = compactRouteStopForEphemeral(state?.progressiveSkillRouteStop)
   }
-  if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
+  if (jsonBytes(stub) > maxBytes) {
     if (ingressRecovery) {
       stub.progressiveSkillRoute = null
       stub.progressiveSkillRouteCoordinator = null
@@ -4711,7 +4711,7 @@ function buildEphemeralStub(state) {
     stub.visible = null
     stub.workflowCompletionLifecycle = null
   }
-  if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
+  if (jsonBytes(stub) > maxBytes) {
     stub.progressiveSkillRouteCoordinator = null
     stub.progressiveSkillRouteEnforcement = state?.progressiveSkillRouteEnforcement?.lastDecision
       ? {
@@ -4726,14 +4726,14 @@ function buildEphemeralStub(state) {
         }
       : null
   }
-  if (jsonBytes(stub) > EPHEMERAL_STUB_TARGET_BYTES) {
-    const minimal = buildMinimalEphemeralStub(state)
-    if (jsonBytes(minimal) <= EPHEMERAL_STUB_TARGET_BYTES) {
+  if (jsonBytes(stub) > maxBytes) {
+    const minimal = buildMinimalEphemeralStub(state, maxBytes)
+    if (jsonBytes(minimal) <= maxBytes) {
       return JSON.parse(JSON.stringify(minimal))
     }
     throw new TaskRecoveryStoreV5Error('LIFECYCLE_EPHEMERAL_ENTRY_EXCEEDED', 'minimal ephemeral resume stub exceeds 8 KiB', {
       bytes: jsonBytes(minimal),
-      maxBytes: EPHEMERAL_STUB_TARGET_BYTES
+      maxBytes
     })
   }
   return JSON.parse(JSON.stringify(stub))
@@ -6151,9 +6151,6 @@ function writeSessionMapping(paths, identity, sessionKey, state, options = {}) {
     hostSessionDigest: options.hostSessionDigest
   }).primary
   if (!ownerKey) return { status: 'skipped', reasonCode: 'session-key-missing' }
-  const ephemeralState = identity?.recoveryKey
-    ? null
-    : (options.ephemeralStateOverride || buildEphemeralStub(state))
   const entry = {
     schemaVersion: 'TaskRecoverySessionLeaseV1',
     ownerKey,
@@ -6161,10 +6158,17 @@ function writeSessionMapping(paths, identity, sessionKey, state, options = {}) {
     taskKey: identity?.recoveryKey || null,
     identity: identity || null,
     lastUsedAt: new Date(nowMsFrom(options)).toISOString(),
-    state: identity?.recoveryKey ? null : ephemeralState,
+    state: null,
     semanticDigest: identity?.recoveryKey
       ? digestValue({ recoveryKey: identity.recoveryKey })
-      : digestValue(semanticLifecycleProjection(ephemeralState))
+      : '0'.repeat(64)
+  }
+  if (!identity?.recoveryKey) {
+    // Budget the actual serialized session wrapper, rather than reserving an
+    // arbitrary 1 KiB and rejecting valid states that fit the 8 KiB entry.
+    const stateBudget = EPHEMERAL_ENTRY_MAX_BYTES - jsonBytes(entry) + jsonBytes(null)
+    entry.state = options.ephemeralStateOverride || buildEphemeralStub(state, stateBudget)
+    entry.semanticDigest = digestValue(semanticLifecycleProjection(entry.state))
   }
   if (jsonBytes(entry) > EPHEMERAL_ENTRY_MAX_BYTES) {
     throw new TaskRecoveryStoreV5Error('LIFECYCLE_EPHEMERAL_ENTRY_EXCEEDED', 'session lease exceeds 8 KiB')

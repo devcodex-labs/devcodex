@@ -692,6 +692,58 @@ function runTasklessIngressRecoveryScenario() {
   pendingIngress.contextAcquisition.plan = null
   pendingIngress.contextAcquisition.receipt = null
   const pendingStopDecision = { eventName: 'Stop', hardEnforcement: false, reasonCode: 'codex-operation-advisory' }
+  // A legitimate long-path closeout plus an unresolved write can fit the 8 KiB
+  // session entry even when it exceeds the old fixed 7 KiB state allowance.
+  const budgetIngress = JSON.parse(JSON.stringify(pendingIngress))
+  budgetIngress.languageContext = {}
+  budgetIngress.turnLiveness = state('long-path-resume').turnLiveness
+  const longTargets = Array.from({ length: 6 }, (_, index) => {
+    let prefix = path.join(tempRoot, 'reports')
+    while (prefix.length < 360) prefix = path.join(prefix, 'scope')
+    return path.join(prefix, 'r'.repeat(396 - prefix.length) + index + '.md')
+  })
+  budgetIngress.turnLiveness = prepareTaskOperationRecord(budgetIngress.turnLiveness, {
+    operationId: 'pending-resume-write', writerGeneration: 1, expectedStateSequence: 1,
+    kind: 'update', exactTargets: [longTargets[0]],
+    targetSetDigest: taskOperationTargetSetDigest([longTargets[0]]), beforeDigest: '2'.repeat(64)
+  }, baseOptions)
+  budgetIngress.turnLiveness = markTaskOperationDispatched(
+    budgetIngress.turnLiveness, 'pending-resume-write', baseOptions
+  )
+  budgetIngress.turnLiveness.lastMutationCloseout = {
+    schemaVersion: 'LifecycleMutationCloseoutV2', operationId: 'prior-report-write', result: 'success',
+    observation: {
+      schemaVersion: 'MutationObservationReceiptV1', operationId: 'prior-report-write',
+      observedEffects: { created: longTargets, modified: [], deleted: [], moved: [] },
+      receiptDigest: '3'.repeat(64)
+    }
+  }
+  const budgetMeta = path.join(tempRoot, 'long-path-resume-hooks')
+  const budgetCommit = commitTaskRecoveryState({
+    metaDir: budgetMeta, sessionKey: 'long-path-resume-session', state: budgetIngress
+  }, baseOptions)
+  assert.strictEqual(budgetCommit.status, 'ephemeral-stub', JSON.stringify(budgetCommit))
+  const budgetRead = readTaskRecoveryState({ metaDir: budgetMeta, sessionKey: 'long-path-resume-session' }, baseOptions)
+  assert.strictEqual(budgetRead.status, 'ephemeral-stub')
+  assert.deepStrictEqual(budgetRead.state.turnLiveness.taskOperationSet, budgetIngress.turnLiveness.taskOperationSet)
+  assert.deepStrictEqual(budgetRead.state.turnLiveness.lastMutationCloseout.observation.observedEffects.created, longTargets)
+  assert.strictEqual(taskOperationTerminalSnapshot(budgetRead.state.turnLiveness).terminalReady, false)
+  const budgetRing = storePaths(budgetMeta).ephemeral.filter(file => fs.existsSync(file))
+    .map(file => JSON.parse(fs.readFileSync(file, 'utf8'))).sort((a, b) => b.sequence - a.sequence)[0]
+  assert(jsonBytes(budgetRing.entries[0]) <= EPHEMERAL_ENTRY_MAX_BYTES)
+  const overflowIngress = JSON.parse(JSON.stringify(budgetIngress))
+  overflowIngress.turnLiveness.lastMutationCloseout.observation.observedEffects.created.push(
+    ...longTargets.map(target => target.replace('.md', '-extra.md'))
+  )
+  const overflowCommit = commitTaskRecoveryState({
+    metaDir: budgetMeta, sessionKey: 'long-path-resume-session', state: overflowIngress
+  }, baseOptions)
+  assert.strictEqual(overflowCommit.status, 'error')
+  assert.strictEqual(overflowCommit.errorCode, 'LIFECYCLE_EPHEMERAL_ENTRY_EXCEEDED')
+  const afterOverflow = readTaskRecoveryState({ metaDir: budgetMeta, sessionKey: 'long-path-resume-session' }, baseOptions)
+  assert.deepStrictEqual(afterOverflow.state.turnLiveness.taskOperationSet, budgetIngress.turnLiveness.taskOperationSet)
+  assert.deepStrictEqual(afterOverflow.state.turnLiveness.lastMutationCloseout.observation.observedEffects.created, longTargets,
+    'an oversized write must retain the prior valid slot without losing unresolved effects')
   pendingIngress.progressiveSkillRouteEnforcement = {
     schemaVersion: 'ProgressiveSkillRouteEnforcementStateV1',
     decisions: { Stop: pendingStopDecision }, lastDecision: pendingStopDecision

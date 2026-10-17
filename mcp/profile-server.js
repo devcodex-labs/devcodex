@@ -47,7 +47,8 @@ const {
 const { buildContentIdentity, buildJsonContentIdentity, validateContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
 const { createRuntimeStateStore } = require('../hooks/_runtime/runtime-state-store.cjs')
 const {
-  persistContextPlanObservation
+  persistContextPlanObservation,
+  readContextPlanObservation
 } = require('../hooks/_runtime/context-plan-observation.cjs')
 const {
   authorizeContextRead,
@@ -76,7 +77,7 @@ const {
   readRuntimeGenerationStatus
 } = require('../hooks/_runtime/runtime-generation-identity.cjs')
 const { resolveLanguageContext } = require('../hooks/_runtime/language-context.cjs')
-const { SEMANTIC_DECISION_SCHEMA, validateIntentSemanticDecision } = require('../hooks/_runtime/intent-semantic-decision.cjs')
+const { SEMANTIC_DECISION_SCHEMA, validateIntentSemanticDecision, mergeSameSourceWorkflowSemantics } = require('../hooks/_runtime/intent-semantic-decision.cjs')
 const { buildWorkflowPlanDecision } = require('../hooks/_runtime/workflow-plan-decision-v1.cjs')
 const {
   createEntryCheckModelV3,
@@ -1938,7 +1939,19 @@ function handleProfileContextPlan(args = {}) {
   }
 
   const startedAt = process.hrtime.bigint()
-  const semantic = verifyContextPlanSemanticSource(args.semanticDecision, target, epoch.contextEpoch)
+  const previousObservation = readContextPlanObservation({
+    activeRoot: target.activeRoot, project: target.project, contextEpoch: epoch.contextEpoch
+  })
+  const previousSemantic = previousObservation.status === 'fresh'
+    ? previousObservation.originalPlan?.semanticDecision : undefined
+  // An old plan alone grants nothing: independently revalidate its exact source
+  // against the current trusted host session/envelope before reusing preferences.
+  const previousVerified = previousSemantic !== undefined &&
+    verifyContextPlanSemanticSource(previousSemantic, target, epoch.contextEpoch).valid
+  const semanticInput = previousVerified
+    ? mergeSameSourceWorkflowSemantics(args.semanticDecision, previousSemantic)
+    : args.semanticDecision
+  const semantic = verifyContextPlanSemanticSource(semanticInput, target, epoch.contextEpoch)
   if (!semantic.valid) return contextPlanResult(buildContextReadError('CONTEXT_PLAN_INVALID', semantic.errors.join('; ')))
   try {
     const inputs = collectProfilePlanInputs(target)

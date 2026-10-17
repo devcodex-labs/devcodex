@@ -5962,6 +5962,57 @@ function testProfileSectionSelectorsAndSkillPlan() {
   assert.strictEqual(lifecycleSkill.executionOptimization.reasonCode, 'feature-rolled-back')
 }
 
+function testProfileSemanticRefreshPreservesCurrentSourcePreferences() {
+  setupContextPlanWorkspace()
+  const projectRoot = path.join(TEMP_ROOT, 'chat')
+  const activeRoot = path.join(TEMP_ROOT, '.devcodex', 'chat')
+  const contextEpoch = 'semantic-refresh-epoch'
+  const hostSessionId = 'semantic-refresh-host'
+  const envelope = buildActualInstructionEnvelope({
+    prompt: '全面验证并保留标准流程', session_id: hostSessionId,
+    event_id: 'semantic-refresh-event', timestamp: new Date().toISOString()
+  }, { hostVariant: 'codex-cli', contextEpoch, trustedHostEvent: true, nowMs: Date.now() })
+  const statePath = path.join(activeRoot, '.memory', 'hooks', 'chat', 'lifecycle-state.json')
+  fs.mkdirSync(path.dirname(statePath), { recursive: true })
+  const lifecycle = { actualInstructionEnvelope: envelope,
+    contextAcquisition: { contextEpoch, hostSessionId } }
+  fs.writeFileSync(statePath, JSON.stringify(lifecycle))
+  const sourceRef = { envelopeId: envelope.envelopeId, envelopeDigest: envelope.envelopeDigest, contextEpoch }
+  const args = { intent: 'dev', changeTypes: ['source-code'], project: 'chat', contextEpoch }
+  const responses = runServer('mcp/profile-server.js', [
+    rpcRequest(1, 'tools/call', { name: 'profile_context_plan', arguments: { ...args,
+      semanticDecision: { schemaVersion: 'IntentSemanticDecisionV1', sourceRef,
+        workflowPreference: { ceremonyTier: 'standard', assuranceLevel: 'full' },
+        workflowFacts: { targetKnown: true, publicContract: true } } } }),
+    rpcRequest(2, 'tools/call', { name: 'profile_context_plan', arguments: args }),
+    rpcRequest(3, 'tools/call', { name: 'profile_context_plan', arguments: { ...args,
+      semanticDecision: { schemaVersion: 'IntentSemanticDecisionV1', sourceRef,
+        workflowPreference: { assuranceLevel: 'affected' }, workflowFacts: { publicContract: false } } } })
+  ], projectRoot)
+  for (const id of [1, 2, 3]) assert.notStrictEqual(resultById(responses, id).isError, true,
+    resultById(responses, id).content?.[0]?.text)
+  const refreshed = toolJson(resultById(responses, 2)).semanticDecision
+  assert.strictEqual(refreshed.workflowPreference.assuranceLevel, 'full')
+  assert.strictEqual(refreshed.workflowFacts.publicContract, true)
+  const updated = toolJson(resultById(responses, 3)).semanticDecision
+  assert.strictEqual(updated.workflowPreference.ceremonyTier, 'standard')
+  assert.strictEqual(updated.workflowPreference.assuranceLevel, 'affected')
+  assert.strictEqual(updated.workflowFacts.publicContract, false)
+  assert.strictEqual(updated.workflowFacts.targetKnown, true)
+  // Same epoch is insufficient: replacing the trusted host instruction must
+  // prevent a previous source's workflow semantics from being inherited.
+  lifecycle.actualInstructionEnvelope = buildActualInstructionEnvelope({
+    prompt: '下一条独立需求', session_id: hostSessionId,
+    event_id: 'semantic-refresh-next-event', timestamp: new Date().toISOString()
+  }, { hostVariant: 'codex-cli', contextEpoch, trustedHostEvent: true, nowMs: Date.now() })
+  fs.writeFileSync(statePath, JSON.stringify(lifecycle))
+  const newSource = toolJson(resultById(runServer('mcp/profile-server.js', [
+    rpcRequest(4, 'tools/call', { name: 'profile_context_plan', arguments: args })
+  ], projectRoot), 4))
+  assert.strictEqual(newSource.semanticDecision, undefined)
+  fs.rmSync(statePath)
+}
+
 function testProfileContextPlanContract() {
   setupContextPlanWorkspace()
   const projectRoot = path.join(TEMP_ROOT, 'chat')
@@ -7533,6 +7584,7 @@ testBoundedGovernedSourceReads()
 testProfileMultiHeadingBoundedSelection()
 testDevCodexBoundedRouteRecipe()
 testProfileSectionSelectorsAndSkillPlan()
+testProfileSemanticRefreshPreservesCurrentSourcePreferences()
 testProfileContextPlanContract()
 testProfileContextPlanConditionalSelectors()
 testProfileContextPlanLocalPolicyAndFullEscalation()

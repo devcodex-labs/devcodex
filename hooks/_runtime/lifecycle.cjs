@@ -12,6 +12,7 @@
  */
 
 const fs = require('fs')
+const { highRiskCp3Target } = require('./checkpoint-applicability.cjs')
 const path = require('path')
 const crypto = require('crypto')
 const { buildLifecycleBootstrapStateUtils } = require('./lifecycle-bootstrap-state.cjs')
@@ -2581,16 +2582,7 @@ function extractSourceMutationTargets(payload, state) {
 }
 
 function isHighRiskCp3RuntimeTarget(target) {
-  const rel = toWorkspaceRelativePath(target)
-  return [
-    /(^|\/)package\.json$/i,
-    /(^|\/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$/i,
-    /(^|\/)\.env(?:\.[^\/]+)?$/i,
-    /(^|\/)(Dockerfile|docker-compose(?:\.[^\/]+)?\.ya?ml)$/i,
-    /(^|\/)\.github\/workflows\/.+\.ya?ml$/i,
-    /(^|\/)(?:prisma\/schema\.prisma|schema\.prisma)$/i,
-    /(^|\/)(?:migrations?|db\/migrations?)\//i
-  ].some(re => re.test(rel))
+  return highRiskCp3Target(toWorkspaceRelativePath(target))
 }
 
 function assessBugCp3RuntimeEscalation(task, payload, state) {
@@ -4548,8 +4540,11 @@ async function main() {
     // 3. CP gate — block source code mutations until checkpoints confirmed
     //    PF-process-enforcement: hard-deny for strict-protected paths even under safety-only (D1)
     //    Non-protected paths: legacy safety-only warning + Honesty cp2-unconfirmed-write
-    const gate = checkCpGate(payload, state)
-    if (gate && isSourceCodeMutation(payload, platform, state) && simpleTaskFastPathAuthority?.valid !== true) {
+    const sourceCodeMutation = isSourceCodeMutation(payload, platform, state)
+    // CP3 assessment records mutation targets. Read-only Profile/tool calls must
+    // never advance the runtime escalation counter merely by naming a file.
+    const gate = sourceCodeMutation ? checkCpGate(payload, state) : null
+    if (gate && simpleTaskFastPathAuthority?.valid !== true) {
       const toolPaths = extractToolPaths(payload)
       const hard = shouldHardDenyCpMutation(gate, toolPaths, { strictEnv: isStrictEnforcement() })
       // Missing/ambiguous task authority is an identity failure, not a CP

@@ -1107,6 +1107,36 @@ try {
   assert.strictEqual(expiredContinuationOwner.finalized, true)
   assert.strictEqual(expiredContinuationOwner.mutationAuthority, true)
 
+  // A small bug without a materialized implementation plan has a conditional
+  // CP3 policy. It still requires canonical CP2 and the current fenced owner.
+  const policyRoot = setupRoot('conditional-cp3')
+  const policyInput = admissionInput(policyRoot, 'conditional-cp3')
+  const policyAdmission = run(policyInput)
+  const policyOwner = runOwner(ownerInput(policyInput, policyAdmission, 'acquire', {
+    expectedOwner: { mode: 'absent' }
+  }))
+  const policyTaskRoot = taskRootFor(policyInput, policyAdmission)
+  confirmCp1(policyTaskRoot)
+  confirmCp(policyTaskRoot, 'CP2', '02-修复方案.md')
+  const policyReadInput = {
+    activeRoot: policyRoot.activeRoot, project: policyRoot.project, taskId: policyAdmission.taskId,
+    expectedOwnerSessionDigest: policyOwner.owner.sessionDigest,
+    candidate: { stable: true, changedFiles: ['src/counter.js'], dirtyIdentities: [] },
+    candidateDigest: 'd'.repeat(64)
+  }
+  const policyRead = readFormalTaskExecutionReadiness(policyReadInput)
+  assert.deepStrictEqual(policyRead.requiredCpPhases, ['CP2'])
+  assert.strictEqual(policyRead.cp3Applicability.required, false)
+  assert.strictEqual(policyRead.currentCpDigests.CP3, undefined)
+  for (const candidate of [undefined,
+    { stable: true, changedFiles: ['package.json'], dirtyIdentities: [] },
+    { stable: true, changedFiles: ['a.js', 'b.js', 'c.js', 'd.js', 'e.js'], dirtyIdentities: [] }
+  ]) assert.throws(() => readFormalTaskExecutionReadiness({ ...policyReadInput, candidate }),
+    error => error.code === 'FORMAL_TASK_EXECUTION_PREFLIGHT_CP_DRIFT')
+  fs.writeFileSync(path.join(policyTaskRoot, '04-实施计划.md'), '# Implementation plan\n')
+  assert.throws(() => readFormalTaskExecutionReadiness(policyReadInput),
+    error => error.code === 'FORMAL_TASK_EXECUTION_PREFLIGHT_CP_DRIFT')
+
   const ownerRoot = setupRoot('owner-transitions')
   const ownerAdmissionInput = admissionInput(ownerRoot, 'owner-transitions')
   const ownerAdmission = run(ownerAdmissionInput)

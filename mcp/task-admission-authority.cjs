@@ -62,6 +62,7 @@ const { parseCurrentEpochMarker, renderTaskCheckpointProjection, finalizeTaskChe
 const { taskOperationTerminalSnapshot } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
 const { createMemoryFileTransaction, sha256 } = require('./memory-file-transaction.cjs')
 const { renderArtifactTemplate } = require('../hooks/_runtime/artifact-template-contract.cjs')
+const { observeConditionalBugCp3 } = require('../hooks/_runtime/checkpoint-applicability.cjs')
 
 const ADMISSION_POLICY_REVISION = 'TaskAdmissionPolicyV1@1'
 const FORMAL_ADMISSION_RECEIPT_SCHEMA = 'FormalTaskAdmissionReceiptV2'
@@ -2282,7 +2283,7 @@ function readFormalTaskExecutionReadiness(rawInput = {}, options = {}) {
   const canonical = readFinalizedResumeCanonicalEvidence(transaction, activeRoot, fsImpl, {
     state: ownerRead.state
   })
-  const requiredCpPhases = [...new Set(
+  let requiredCpPhases = [...new Set(
     (Array.isArray(rawInput.requiredCpPhases) ? rawInput.requiredCpPhases : ['CP2', 'CP3'])
       .map(value => String(value || '').trim().toUpperCase())
       .filter(value => ['CP1', 'CP2', 'CP3'].includes(value))
@@ -2290,6 +2291,24 @@ function readFormalTaskExecutionReadiness(rawInput = {}, options = {}) {
   const evidenceByPhase = new Map(
     (canonical.confirmedCpEvidence || []).map(item => [String(item.phase || '').toUpperCase(), item])
   )
+  const taskRoot = path.join(activeRoot, ...transaction.taskRootRelative.split('/'))
+  const runtimeKey = `bugs:${path.normalize(taskRoot).toLowerCase()}`
+  const runtime = ownerRead.state?.cp3Runtime?.[runtimeKey]
+  const cp3Applicability = evidenceByPhase.has('CP3') ? null : observeConditionalBugCp3({
+    taskKind: transaction.taskKind,
+    taskId,
+    admissionDigest: transaction.transactionDigest,
+    ownerLeaseDigest: owner.leaseDigest,
+    cp2Digest: evidenceByPhase.get('CP2')?.artifactDigest,
+    candidate: rawInput.candidate,
+    candidateDigest: rawInput.candidateDigest,
+    hasImplementationPlan: fsImpl.existsSync(path.join(taskRoot, '04-实施计划.md')),
+    runtimeTriggered: runtime?.triggered === true,
+    trackedFiles: runtime?.trackedFiles || []
+  })
+  if (cp3Applicability && !Object.hasOwn(rawInput, 'requiredCpPhases')) {
+    requiredCpPhases = requiredCpPhases.filter(phase => phase !== 'CP3')
+  }
   const missingCpPhases = requiredCpPhases.filter(phase => !evidenceByPhase.has(phase))
   if (missingCpPhases.length) {
     throw new TaskAdmissionError(
@@ -2316,6 +2335,7 @@ function readFormalTaskExecutionReadiness(rawInput = {}, options = {}) {
       evidenceByPhase.get(phase).artifactDigest
     ])),
     requiredCpPhases,
+    cp3Applicability,
     resumeReadiness: 'canonical-ready',
     confirmationReachability: 'next-turn-card-confirmation',
     mutationAuthority: false

@@ -3201,12 +3201,25 @@ function materializeMutationRecoveryPreflightV2(record) {
 
 function applyMutationOwnerAuthorityRecovery(state, ownerState) {
   if (!ownerState) return state
+  // A packed operation carries only ingress identity, not a replacement trusted
+  // instruction. Retain the complete base record only for this exact binding.
+  const retainIngress = validateActualInstructionEnvelope(state.actualInstructionEnvelope).valid &&
+    state.activeProject === ownerState.activeProject &&
+    state.stickyProject?.leaseDigest === ownerState.stickyProject?.leaseDigest &&
+    state.contextAcquisition?.hostSessionId === ownerState.contextAcquisition?.hostSessionId &&
+    state.actualInstructionEnvelope.contextEpoch === ownerState.actualInstructionEnvelope?.contextEpoch &&
+    state.actualInstructionEnvelope.envelopeDigest === ownerState.actualInstructionEnvelope?.envelopeDigest
+  const retainRoute = retainIngress &&
+    state.workflowRouteDecision?.decisionDigest === ownerState.workflowRouteDecision?.decisionDigest &&
+    state.workflowRouteDecision?.routeRevision === ownerState.workflowRouteDecision?.routeRevision
   state.activeProject = ownerState.activeProject
   state.activeScope = ownerState.activeScope
   state.stickyProject = ownerState.stickyProject
-  state.actualInstructionEnvelope = ownerState.actualInstructionEnvelope
-  state.workflowRouteDecision = ownerState.workflowRouteDecision
-  state.workflowRoutePlanBinding = ownerState.workflowRoutePlanBinding
+  if (!retainIngress) state.actualInstructionEnvelope = ownerState.actualInstructionEnvelope
+  if (!retainRoute) {
+    state.workflowRouteDecision = ownerState.workflowRouteDecision
+    state.workflowRoutePlanBinding = ownerState.workflowRoutePlanBinding
+  }
   state.contextAcquisition = {
     ...(state.contextAcquisition || {}),
     ...(ownerState.contextAcquisition || {})

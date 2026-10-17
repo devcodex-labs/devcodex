@@ -13,6 +13,29 @@ const {
 } = require('../hooks/_runtime/context-continuity-contract.cjs')
 const { buildContentIdentity } = require('../hooks/_runtime/content-identity.cjs')
 const workflowRouteRegistryV2 = require('../hooks/_runtime/workflow-root-registry.v2.json')
+const { mergeSameSourceWorkflowSemantics } = require('../hooks/_runtime/intent-semantic-decision.cjs')
+
+const semanticPrevious = {
+  schemaVersion: 'IntentSemanticDecisionV1',
+  sourceRef: { envelopeId: 'same-source', envelopeDigest: 'a'.repeat(64), contextEpoch: 'same-epoch' },
+  workflowPreference: { ceremonyTier: 'standard', assuranceLevel: 'full' },
+  workflowFacts: { targetKnown: true, publicContract: true },
+  executionDecision: 'enable-auto',
+  validationDecision: { action: 'confirm-current-budget', requestedBudgetDigest: 'b'.repeat(64) }
+}
+const semanticRefresh = mergeSameSourceWorkflowSemantics(undefined, semanticPrevious)
+assert.deepStrictEqual(semanticRefresh.workflowPreference, semanticPrevious.workflowPreference)
+assert.deepStrictEqual(semanticRefresh.workflowFacts, semanticPrevious.workflowFacts)
+assert.strictEqual(semanticRefresh.executionDecision, undefined)
+assert.strictEqual(semanticRefresh.validationDecision, undefined)
+const semanticUpdate = { schemaVersion: semanticPrevious.schemaVersion, sourceRef: semanticPrevious.sourceRef,
+  workflowPreference: { assuranceLevel: 'affected' }, workflowFacts: { publicContract: false } }
+const semanticMerged = mergeSameSourceWorkflowSemantics(semanticUpdate, semanticPrevious)
+assert.deepStrictEqual(semanticMerged.workflowPreference, { ceremonyTier: 'standard', assuranceLevel: 'affected' })
+assert.deepStrictEqual(semanticMerged.workflowFacts, { targetKnown: true, publicContract: false })
+const otherSource = { ...semanticUpdate, sourceRef: { ...semanticUpdate.sourceRef, envelopeId: 'new-source' } }
+assert.deepStrictEqual(mergeSameSourceWorkflowSemantics(otherSource, semanticPrevious), otherSource)
+assert.deepStrictEqual(mergeSameSourceWorkflowSemantics(semanticUpdate, { ...semanticPrevious, unexpected: true }), semanticUpdate)
 
 const {
   CONTEXT_READ_CONTRACT,

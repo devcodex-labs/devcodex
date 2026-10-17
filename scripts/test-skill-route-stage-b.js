@@ -27,6 +27,7 @@ const {
 const {
   deriveTurnBinding
 } = require('../hooks/_runtime/skill-route-state.cjs')
+const { resolveGlobalSkillRuntimeRoot } = require('../hooks/_runtime/global-skill-runtime-root.cjs')
 const {
   handleSkillRoute
 } = require('../hooks/_runtime/skill-route-tool.cjs')
@@ -104,6 +105,26 @@ const fixture = createSkillRouteFixture()
 const fixtureRoot = fixture.root
 
 try {
+  // A source installation is a valid global owner without any legacy home
+  // deployment. Indexing and exact hydration must agree on that owner.
+  const sourceOptions = {
+    cwd: fixture.projectRoot,
+    project: fixture.project,
+    activeRoot: fixture.activeRoot,
+    workspaceRoot: fixture.root,
+    packageRoot: path.resolve(__dirname, '..'),
+    home: path.join(fixture.root, 'empty-source-home'),
+    env: {}
+  }
+  const sourceClosure = buildMetadataClosure('dev-plan-review', 'global', sourceOptions)
+  const sourceMetadata = sourceClosure.byId.get('dev-plan-review')
+  assert.strictEqual(sourceMetadata.selectedLayer, 'global')
+  const sourceOwner = resolveGlobalSkillRuntimeRoot(sourceOptions)
+  assert.strictEqual(sourceOwner.status, 'resolved')
+  assert.strictEqual(sourceMetadata.selectedPath,
+    path.join(sourceOwner.root, 'dev-plan-review', 'SKILL.md'))
+  assert(hydrateExactSkill(sourceMetadata, sourceOptions).content.length > 0)
+
   const projectSkillsRoot = path.join(fixture.activeRoot, 'skills')
   const workspaceSkillsRoot = path.join(fixture.root, '.devcodex', 'workspace', 'skills')
   const portfolioPath = fixture.globalRuntime.portfolioPath

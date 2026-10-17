@@ -16,6 +16,7 @@ const {
   restorePublishedPackageManifest
 } = require('./lib/published-package-manifest-projection')
 const { resolveWorkspaceTempRoot } = require('./lib/workspace-temp-layout')
+const { buildGovernancePackageDeploymentChecks } = require('./lib/validate-governance-package-deployment')
 
 const ROOT = path.resolve(__dirname, '..')
 const testRoot = path.join(
@@ -59,6 +60,30 @@ function expectCode (fn, code) {
 
 fs.mkdirSync(testRoot, { recursive: true })
 try {
+  {
+    const root = createContractFixture('pack-fails-after-prepack')
+    write(root, 'content/manifest.json', '{}\n')
+    write(root, 'scripts/validate.js')
+    write(root, 'scripts/source-only.js')
+    write(root, 'package.json', `${JSON.stringify(sourceManifest(), null, 2)}\n`)
+    const original = fs.readFileSync(path.join(root, 'package.json'))
+    const errors = []
+    const warnings = []
+    const checks = buildGovernancePackageDeploymentChecks({
+      ROOT: root, fs, path, read: file => fs.readFileSync(file, 'utf8'),
+      err: message => errors.push(message), warn: message => warnings.push(message), console,
+      execSync: () => {
+        projectPublishedPackageManifest(root)
+        throw new Error('fixture: npm failed after prepack')
+      }
+    })
+    checks.checkV6()
+    assert.deepStrictEqual(fs.readFileSync(path.join(root, 'package.json')), original,
+      'pack failure must not contaminate subsequent source validators with the published manifest')
+    assert.deepStrictEqual(errors, [])
+    assert(warnings.some(message => message.includes('npm failed after prepack')))
+    assert.strictEqual(fs.existsSync(resolvePublishedManifestProjectionPaths(root).receiptPath), false)
+  }
   {
     const root = createContractFixture('positive')
     const projected = buildPublishedPackageManifest(sourceManifest())

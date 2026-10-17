@@ -7,6 +7,50 @@ const os = require('os')
 const path = require('path')
 
 const { sha256, stableStringify } = require('../hooks/_runtime/content-identity.cjs')
+const { observeConditionalBugCp3, validateConditionalBugCp3 } = require('../hooks/_runtime/checkpoint-applicability.cjs')
+const policyCandidate = { stable: true, changedFiles: ['src/counter.js'], dirtyIdentities: [] }
+const policyFacts = {
+  taskKind: 'bugs', taskId: 'policy-test', admissionDigest: 'a'.repeat(64), ownerLeaseDigest: 'b'.repeat(64),
+  cp2Digest: 'c'.repeat(64), candidateDigest: 'd'.repeat(64), candidate: policyCandidate,
+  hasImplementationPlan: false, runtimeTriggered: false, trackedFiles: []
+}
+const conditionalCp3 = observeConditionalBugCp3(policyFacts)
+assert(conditionalCp3)
+assert(validateConditionalBugCp3(conditionalCp3, policyFacts))
+for (const facts of [
+  { taskKind: 'requirements' }, { hasImplementationPlan: true }, { runtimeTriggered: true },
+  { candidate: { ...policyCandidate, stable: false } },
+  { candidate: { ...policyCandidate, changedFiles: ['package.json'] } },
+  { candidate: { ...policyCandidate, changedFiles: ['src/../package.json'] } },
+  { candidate: { ...policyCandidate, dirtyIdentities: [{ path: 'db/migrations/001.sql' }] } },
+  { trackedFiles: ['one.js', 'two.js', 'three.js', 'four.js'] }
+]) assert.strictEqual(observeConditionalBugCp3({ ...policyFacts, ...facts }), null)
+assert.strictEqual(validateConditionalBugCp3(conditionalCp3, { ...policyFacts, candidateDigest: 'e'.repeat(64) }), false)
+assert.strictEqual(validateConditionalBugCp3(conditionalCp3, { ...policyFacts, cp2Digest: 'e'.repeat(64) }), false)
+assert.strictEqual(validateConditionalBugCp3({ ...conditionalCp3, pathCount: 2 }, policyFacts), false)
+const { createFormalTaskExecutionPreflight, validateFormalTaskExecutionPreflight } = require('./lib/validation-execution-authority')
+const conditionalAuthority = {
+  taskId: policyFacts.taskId, project: 'policy-project', admissionId: 'policy-admission', admissionGeneration: 1,
+  projectRootIdentityDigest: '1'.repeat(64), canonicalOverviewDigest: '2'.repeat(64),
+  canonicalRevisionDigest: '3'.repeat(64), cpChainDigest: '4'.repeat(64),
+  admissionDigest: policyFacts.admissionDigest, ownerLeaseDigest: policyFacts.ownerLeaseDigest,
+  currentCpDigests: { CP2: policyFacts.cp2Digest }, cp3Applicability: conditionalCp3,
+  resumeReadiness: 'canonical-ready', confirmationReachability: 'next-turn-card-confirmation'
+}
+const conditionalReceiptInput = { authorityRead: conditionalAuthority, candidateDigest: policyFacts.candidateDigest,
+  candidateId: 'policy-candidate', validationProjectRootDigest: '5'.repeat(64),
+  planDigest: '6'.repeat(64), budgetDigest: '7'.repeat(64) }
+const conditionalReceipt = createFormalTaskExecutionPreflight(conditionalReceiptInput)
+assert(validateFormalTaskExecutionPreflight(conditionalReceipt).valid)
+for (const overrides of [
+  { cp3Applicability: null },
+  { currentCpDigests: { CP2: 'e'.repeat(64) } },
+  { cp3Applicability: { ...conditionalCp3, candidateDigest: 'e'.repeat(64) } },
+  { ownerLeaseDigest: 'e'.repeat(64) }
+]) assert.throws(() => createFormalTaskExecutionPreflight({ ...conditionalReceiptInput,
+  authorityRead: { ...conditionalAuthority, ...overrides } }), error => error.code === 'FORMAL_TASK_EXECUTION_PREFLIGHT_INVALID')
+
+
 const {
   BUDGET_CONFIRMATION_SCHEMA,
   CONTINUATION_AUTHORIZATION_SCHEMA,

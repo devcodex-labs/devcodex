@@ -69,6 +69,17 @@ function parseDependencyList (value) {
     .filter(isValidSkillId))].sort()
 }
 
+// The catalog and exact reads must bind the same global runtime owner, including
+// source-package installations whose skills are not copied into the legacy home.
+function bindGlobalRuntime (options = {}) {
+  const runtime = options.globalRuntime || resolveGlobalSkillRuntimeRoot(options)
+  return {
+    ...options,
+    globalRuntime: runtime,
+    ...(runtime.status === 'resolved' ? { globalSkillsRoot: runtime.root } : {})
+  }
+}
+
 function readPortfolioTopology (options = {}) {
   const fsImpl = options.fs || fs
   const runtime = options.globalRuntime || resolveGlobalSkillRuntimeRoot({
@@ -171,6 +182,7 @@ function buildMetadataClosure (skillId, preferredLayer, options = {}) {
   if (!isValidSkillId(skillId)) {
     throw exactError('SKILL_ID_INVALID', { skillId: String(skillId || '') })
   }
+  options = bindGlobalRuntime(options)
   const topology = readPortfolioTopology(options)
   const byId = new Map()
   const visiting = []
@@ -228,6 +240,7 @@ function sameFileIdentity (expected, observed) {
 }
 
 function hydrateExactSkill (metadata, options = {}) {
+  options = bindGlobalRuntime(options)
   const fsImpl = options.fs || fs
   const rawBuffer = fsImpl.readFileSync(metadata.selectedPath)
   if (!isUtf8(rawBuffer)) {
@@ -295,6 +308,7 @@ function splitUtf8Pages (text, maxBytes = EXACT_BODY_PAGE_BYTES) {
 }
 
 function resolveExactSkillPage (input, target, options = {}) {
+  options = bindGlobalRuntime(options)
   const preferredLayer = input.preferredLayer == null ? null : String(input.preferredLayer)
   const closure = buildMetadataClosure(input.skillId, preferredLayer, {
     ...options,

@@ -128,4 +128,19 @@ function validateIntentSemanticDecision(value, expected = {}) {
   return { valid: errors.length === 0, errors, value: errors.length ? null : JSON.parse(stableStringify(value)) }
 }
 
-module.exports = { SCHEMA_VERSION, SEMANTIC_DECISION_SCHEMA, validateIntentSemanticDecision }
+// Reuse durable workflow facts/preferences only. Execution, language and budget
+// actions are deliberately not replayed by an otherwise read-only refresh.
+function mergeSameSourceWorkflowSemantics(current, previous) {
+  if (!previous || !validateIntentSemanticDecision(previous).valid) return current
+  if (current !== undefined && (!validateIntentSemanticDecision(current).valid ||
+      stableStringify(current.sourceRef) !== stableStringify(previous.sourceRef))) return current
+  const merged = current === undefined
+    ? { schemaVersion: SCHEMA_VERSION, sourceRef: previous.sourceRef }
+    : { ...current }
+  for (const field of ['workflowPreference', 'workflowFacts']) {
+    if (previous[field] || current?.[field]) merged[field] = { ...previous[field], ...current?.[field] }
+  }
+  return merged
+}
+
+module.exports = { SCHEMA_VERSION, SEMANTIC_DECISION_SCHEMA, validateIntentSemanticDecision, mergeSameSourceWorkflowSemantics }

@@ -5,8 +5,11 @@ const { createSkillDeployFileFilter } = require('./skill-deploy-filter')
 const { listControlDeliveryEntries } = require('./control-content-delivery')
 const {
   buildPublishedPackageManifest,
+  isSourcePackageRoot,
   validatePublishedPackageManifest
 } = require('./published-package-scripts-contract')
+const { restorePublishedPackageManifest } = require('./published-package-manifest-projection')
+const { cleanupPackageProjection } = require('./package-compatibility-projection')
 
 function shouldCheckBaseDeploymentSource(relativePath) {
   return !/^(?:content\/)?instructions\/tenants\//.test(
@@ -65,11 +68,25 @@ function buildGovernancePackageDeploymentChecks(ctx) {
 
   function checkV6() {
     try {
-      const out = execSync('npm pack --dry-run --json', {
-        cwd: ROOT,
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe']
-      })
+      const sourcePackage = isSourcePackageRoot(ROOT)
+      let out
+      try {
+        out = execSync('npm pack --dry-run --json', {
+          cwd: ROOT,
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe']
+        })
+      } finally {
+        // npm may fail after prepack and never invoke postpack. Restore owned
+        // projections before any subsequent validator reads package.json.
+        if (sourcePackage) {
+          for (const cleanup of [restorePublishedPackageManifest, cleanupPackageProjection]) {
+            try { cleanup(ROOT) } catch (error) {
+              err(`[V6] package projection cleanup failed: ${error.code || error.message}`)
+            }
+          }
+        }
+      }
       const arr = JSON.parse(out)
       const files = arr[0]?.files?.map(file => file.path) || []
       const packName = arr[0]?.name || ''

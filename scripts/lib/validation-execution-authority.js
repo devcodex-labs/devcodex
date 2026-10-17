@@ -1,6 +1,7 @@
 'use strict'
 
 const path = require('path')
+const { validateConditionalBugCp3 } = require('../../hooks/_runtime/checkpoint-applicability.cjs')
 
 const {
   sha256,
@@ -1116,9 +1117,16 @@ function validateFormalTaskExecutionPreflight(receipt, expected = null) {
   if (!currentCpDigests || typeof currentCpDigests !== 'object' || Array.isArray(currentCpDigests)) {
     errors.push('formal-task-preflight-cp-digests-invalid')
   } else if (receipt.status === 'PASS') {
-    for (const phase of ['CP2', 'CP3']) {
+    const cp3Exempt = receipt.cp3Applicability?.observationDigest &&
+      validateConditionalBugCp3(receipt.cp3Applicability, {
+        taskId: receipt.taskId, admissionDigest: receipt.admissionDigest,
+        ownerLeaseDigest: receipt.ownerLeaseDigest,
+        cp2Digest: currentCpDigests.CP2, candidateDigest: receipt.candidateDigest
+      })
+    for (const phase of cp3Exempt ? ['CP2'] : ['CP2', 'CP3']) {
       if (!DIGEST_RE.test(String(currentCpDigests[phase] || ''))) errors.push(`formal-task-preflight-${phase.toLowerCase()}-invalid`)
     }
+    if (receipt.cp3Applicability && !cp3Exempt) errors.push('formal-task-preflight-cp3-applicability-invalid')
   }
   if (!Array.isArray(receipt.blockers)) errors.push('formal-task-preflight-blockers-invalid')
   if (receipt.status === 'PASS') {
@@ -1176,6 +1184,7 @@ function createFormalTaskExecutionPreflight(input = {}, options = {}) {
     canonicalRevisionDigest: String(authority.canonicalRevisionDigest || input.canonicalRevisionDigest || ''),
     cpChainDigest: String(authority.cpChainDigest || input.cpChainDigest || ''),
     currentCpDigests: { ...(authority.currentCpDigests || input.currentCpDigests || {}) },
+    ...(authority.cp3Applicability ? { cp3Applicability: authority.cp3Applicability } : {}),
     resumeReadiness: String(authority.resumeReadiness || input.resumeReadiness || 'blocked'),
     confirmationReachability: String(authority.confirmationReachability || input.confirmationReachability || 'blocked'),
     candidateId: String(candidate.candidateId || input.candidateId || ''),

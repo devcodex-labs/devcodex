@@ -1709,6 +1709,81 @@ try {
     singleUse: true
   })
 
+  const preservedIngressId = '00000000-0000-4000-8000-000000000098'
+  const preservedIngressMeta = path.join(tempRoot, 'preserved-ingress-hooks')
+  const preservedIngress = mutationStateV2Ephemeral('preserved-ingress-operation')
+  preservedIngress.taskRecoveryBinding = state(preservedIngressId).taskRecoveryBinding
+  const preservedEnvelope = buildActualInstructionEnvelope({
+    prompt: '修复同一任务，保留当前可信入口', session_id: 'session-test',
+    event_id: 'preserved-ingress-event', timestamp: '2026-08-22T00:00:00.000Z'
+  }, { hostVariant: 'codex-cli', contextEpoch: 'ctx-test', trustedHostEvent: true, nowMs: baseOptions.nowMs })
+  preservedIngress.actualInstructionEnvelope = preservedEnvelope
+  const preservedWorkItems = buildWorkItemSet(preservedEnvelope, {
+    workItems: [{ taskKind: 'fix', routeCandidate: 'fix.default' }]
+  })
+  preservedIngress.workItemSet = preservedWorkItems
+  const preservedRoute = buildWorkflowRouteDecision({
+    actualInstructionEnvelope: preservedEnvelope, workItemSet: preservedWorkItems,
+    workItemId: preservedWorkItems.items[0].workItemId, environmentMode: 'dev', routeKey: 'fix.default'
+  })
+  preservedIngress.workflowRouteDecision = preservedRoute
+  preservedIngress.simpleTaskFastPathLease = {
+    ...preservedIngress.simpleTaskFastPathLease,
+    instructionEnvelopeDigest: preservedEnvelope.envelopeDigest,
+    actualInstructionDigest: preservedEnvelope.actualInstructionDigest,
+    routeDecisionDigest: preservedRoute.decisionDigest,
+    routeRevision: preservedRoute.routeRevision
+  }
+  delete preservedIngress.simpleTaskFastPathLease.leaseDigest
+  preservedIngress.simpleTaskFastPathLease.leaseDigest = digestValue(preservedIngress.simpleTaskFastPathLease)
+  preservedIngress.simpleTaskFastPathUsage.leaseDigest = preservedIngress.simpleTaskFastPathLease.leaseDigest
+  preservedIngress.turnLiveness.inFlightOperation.mutationLease.ownerLeaseDigest = preservedIngress.simpleTaskFastPathLease.leaseDigest
+  const preservedBase = JSON.parse(JSON.stringify(preservedIngress))
+  preservedBase.turnLiveness.inFlightOperation = null
+  assert.strictEqual(commitTaskRecoveryState({ metaDir: preservedIngressMeta,
+    identity: identity(preservedIngressId), state: preservedBase }, baseOptions).status, 'committed')
+  const preservedCurrent = readTaskRecoveryState({ metaDir: preservedIngressMeta,
+    identity: identity(preservedIngressId) }, baseOptions).state
+  preservedCurrent.simpleTaskFastPathLease = preservedIngress.simpleTaskFastPathLease
+  preservedCurrent.simpleTaskFastPathUsage = preservedIngress.simpleTaskFastPathUsage
+  preservedCurrent.turnLiveness.inFlightOperation = preservedIngress.turnLiveness.inFlightOperation
+  const preservedWrite = commitTaskRecoveryState({ metaDir: preservedIngressMeta,
+    identity: identity(preservedIngressId), state: preservedCurrent },
+  { ...baseOptions, reason: 'mutation-preflight', force: true })
+  assert.strictEqual(preservedWrite.status, 'committed', JSON.stringify(preservedWrite))
+  const preservedRead = readTaskRecoveryState({ metaDir: preservedIngressMeta,
+    identity: identity(preservedIngressId) }, baseOptions)
+  assert.deepStrictEqual(preservedRead.state.actualInstructionEnvelope, preservedEnvelope,
+    'packed operation recovery must not replace the matching full trusted base ingress with identity-only fields')
+  assert.deepStrictEqual(preservedRead.state.workflowRouteDecision, preservedRoute)
+  assert.deepStrictEqual(preservedRead.state.workItemSet, preservedWorkItems)
+  const unrelatedId = '00000000-0000-4000-8000-000000000097'
+  const unrelatedMeta = path.join(tempRoot, 'unrelated-ingress-hooks')
+  const unrelatedBase = JSON.parse(JSON.stringify(preservedBase))
+  delete unrelatedBase.taskRecoveryCommitFence
+  unrelatedBase.taskRecoveryBinding = state(unrelatedId).taskRecoveryBinding
+  unrelatedBase.actualInstructionEnvelope = buildActualInstructionEnvelope({
+    prompt: '不同指令，不允许从旧基态补全本次授权', session_id: 'session-test',
+    event_id: 'unrelated-ingress-event', timestamp: '2026-08-22T00:00:00.000Z'
+  }, { hostVariant: 'codex-cli', contextEpoch: 'ctx-test', trustedHostEvent: true, nowMs: baseOptions.nowMs })
+  const unrelatedWrite = commitTaskRecoveryState({ metaDir: unrelatedMeta,
+    identity: identity(unrelatedId), state: unrelatedBase }, baseOptions)
+  assert.strictEqual(unrelatedWrite.status, 'committed', JSON.stringify(unrelatedWrite))
+  const unrelatedCurrent = readTaskRecoveryState({ metaDir: unrelatedMeta,
+    identity: identity(unrelatedId) }, baseOptions).state
+  unrelatedCurrent.simpleTaskFastPathLease = preservedIngress.simpleTaskFastPathLease
+  unrelatedCurrent.simpleTaskFastPathUsage = preservedIngress.simpleTaskFastPathUsage
+  unrelatedCurrent.turnLiveness.inFlightOperation = preservedIngress.turnLiveness.inFlightOperation
+  assert.strictEqual(commitTaskRecoveryState({ metaDir: unrelatedMeta,
+    identity: identity(unrelatedId), state: unrelatedCurrent },
+  { ...baseOptions, reason: 'mutation-preflight', force: true }).status, 'committed')
+  const unrelatedRead = readTaskRecoveryState({ metaDir: unrelatedMeta,
+    identity: identity(unrelatedId) }, baseOptions)
+  assert.strictEqual(unrelatedRead.state.actualInstructionEnvelope.envelopeId, undefined,
+    'a different envelope or epoch must not be retained as the operation trusted ingress')
+  assert.strictEqual(validateActualInstructionEnvelope(unrelatedRead.state.actualInstructionEnvelope).valid, false)
+
+
   const ephemeralPreflightMeta = path.join(tempRoot, 'ephemeral-preflight-hooks')
   const ephemeralPreflight = commitTaskRecoveryState({
     metaDir: ephemeralPreflightMeta,

@@ -809,7 +809,8 @@ function resolveFormalTaskExecutionPreflight({ authorityContext, plan, candidate
       taskState: authorityContext.taskState,
       projectRootIdentityDigest: authorityContext.taskState?.admissionTransaction?.projectRootIdentityDigest,
       expectedOwnerSessionDigest: currentAiFencedOwnerSessionDigest(authorityContext),
-      requiredCpPhases: ['CP2', 'CP3']
+      candidate,
+      candidateDigest: candidateBinding(candidate).candidateDigest
     })
   } catch (error) {
     const nextAction = formalTaskPreflightNextAction(error)

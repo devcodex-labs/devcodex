@@ -786,6 +786,17 @@ function runR2BTaskOwnerLifecycleScenarios({ epochAware = false } = {}) {
     (_, index) => path.join(TEMP_ROOT, 'src', 'r2b-runtime-threshold', `bug-${index + 1}.js`)
   )
   fs.mkdirSync(path.dirname(ownerBackedRuntimeThresholdTargets[0]), { recursive: true })
+  for (const file of ownerBackedRuntimeThresholdTargets) {
+    run({
+      hookEventName: 'PreToolUse', session_id: sessionId,
+      tool_name: 'Read', tool_input: { file_path: file }
+    })
+  }
+  const afterReadonlyCp3 = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+  const readonlyCp3Record = Object.values(afterReadonlyCp3.cp3Runtime || {})
+    .find(entry => entry && entry.name === 'R2B Hook owner task')
+  assert.strictEqual(readonlyCp3Record?.trackedFiles?.length || 0, 0,
+    'read-only source paths must not advance CP3 escalation')
   ownerBackedRuntimeThresholdTargets.forEach((file, index) => {
     fs.writeFileSync(file, `module.exports = ${index}\n`)
     const operationId = `r2b-owner-runtime-threshold-${index + 1}`

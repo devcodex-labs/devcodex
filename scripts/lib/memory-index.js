@@ -23,6 +23,9 @@ const SUMMARY_STATUS_SCHEMA = 'MemorySummaryStatusPartitionV1'
 const SUMMARY_MONTH_SCHEMA = 'MemorySummaryMonthPartitionV1'
 const DAILY_SCHEMA = 'MemoryDailyPartitionV1'
 const MEMORY_INDEX_RECEIPT_SCHEMA = 'MemoryIndexReceiptV1'
+// Parsed status semantics changed; unchanged source bytes cannot qualify an old
+// partition. Readers fall back without writing; the next normal writer rebuilds.
+const MEMORY_PARSER_CONTRACT_VERSION = '2'
 const SUMMARY_WINDOW = 50
 const STATUS_WINDOW = 20
 const STATUS_LIST_SENTINEL = STATUS_WINDOW + 1
@@ -104,7 +107,7 @@ function memorySourceIdentity(target, kind, discriminator, content) {
   return buildContentIdentity({
     sourceKey: sourceKey(target, kind, discriminator),
     content,
-    contractVersion: '1'
+    contractVersion: MEMORY_PARSER_CONTRACT_VERSION
   })
 }
 
@@ -359,6 +362,9 @@ function fallback(reason, receipt = null) {
 function readFreshPartition(store, key, sourcePath) {
   const current = store.readCurrent()
   if (current.status !== 'fresh') return fallback(`index-${current.status}`, current)
+  if (current.pointer.sourceIdentity.contractVersion !== MEMORY_PARSER_CONTRACT_VERSION) {
+    return fallback('memory-parser-contract-drift', { ...current, status: 'stale', freshnessTier: 'stale' })
+  }
   const partition = store.readPartition(key, { current })
   if (partition.status !== 'fresh') return fallback(`partition-${partition.status}`, partition)
   const observed = observeSource(sourcePath)

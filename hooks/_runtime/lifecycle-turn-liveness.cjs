@@ -1198,11 +1198,16 @@ function markTurnTerminal(raw, terminalState = 'completed', reason = '', options
   return state
 }
 
-/** Record a server-reconciled business-task terminal without changing turn liveness. */
+/**
+ * Observe a server-reconciled terminal without consuming later turn operations.
+ * validatedCanonicalReceiptReplay is internal: the caller must authenticate the
+ * complete receipt and its project/task binding before enabling legacy replay.
+ */
 function applyWorkflowTaskTerminalReceipt(raw, receipt = {}, options = {}) {
   const nowMs = nowMsFrom(options)
   const state = normalizeTurnLivenessState(raw, { ...options, nowMs })
-  state.workflowTaskTerminal = {
+  const previous = state.workflowTaskTerminal
+  const observation = {
     schemaVersion: 'WorkflowTaskTerminalObservationV1',
     taskId: String(receipt.taskId || '').trim().toLowerCase(),
     admissionId: String(receipt.admissionId || '').trim(),
@@ -1212,6 +1217,30 @@ function applyWorkflowTaskTerminalReceipt(raw, receipt = {}, options = {}) {
     receiptDigest: String(receipt.receiptDigest || '').trim().toLowerCase(),
     observedAt: toIso(nowMs)
   }
+  if (previous?.receiptDigest && previous.receiptDigest === observation.receiptDigest) {
+    const identityFields = ['schemaVersion', 'taskId', 'admissionId', 'admissionGeneration',
+      'terminalStatus', 'terminalGeneration', 'receiptDigest']
+    const hasRetirement = previous.settledSetDigest !== undefined || previous.settledCount !== undefined
+    const retirementMatches = /^[a-f0-9]{64}$/.test(previous.settledSetDigest || '') &&
+      Number.isInteger(previous.settledCount) && previous.settledCount >= 0 &&
+      previous.settledSetDigest === receipt.settledSetDigest
+    if (identityFields.some(field => previous[field] !== observation[field]) ||
+        (hasRetirement && !retirementMatches)) {
+      throw new TaskOperationRecordError('TASK_TERMINAL_OPERATION_SET_MISMATCH',
+        'terminal replay must match the previously observed receipt and retirement')
+    }
+    if (retirementMatches || options.retireCompletedTaskOperations !== true) return state
+    const current = taskOperationTerminalSnapshot(state)
+    if (options.validatedCanonicalReceiptReplay === true &&
+        (!current.terminalReady || current.settledSetDigest !== receipt.settledSetDigest)) {
+      // Older non-retiring observations erased retirement metadata. A known,
+      // authenticated receipt can be observed again without clearing unrelated
+      // operations or inventing a historical retirement count. Stop still checks
+      // the preserved operation set independently.
+      return state
+    }
+  }
+  state.workflowTaskTerminal = observation
   if (options.retireCompletedTaskOperations === true) {
     const snapshot = taskOperationTerminalSnapshot(state)
     if (!snapshot.terminalReady || snapshot.settledSetDigest !== receipt.settledSetDigest) {

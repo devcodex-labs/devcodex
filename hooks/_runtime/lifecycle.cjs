@@ -4734,7 +4734,10 @@ async function main() {
     if (workflowTaskTerminalReceipt) {
       state.workflowTaskTerminalReceipt = workflowTaskTerminalReceipt
       state.turnLiveness = applyWorkflowTaskTerminalReceipt(state.turnLiveness, workflowTaskTerminalReceipt, {
-        retireCompletedTaskOperations: true
+        retireCompletedTaskOperations: true,
+        // observeWorkflowTaskTerminalReceipt authenticated the complete canonical
+        // receipt, project root and task binding before this legacy-safe replay.
+        validatedCanonicalReceiptReplay: true
       })
       if (validateTaskScopedAutoContinuationGrant(state.taskScopedAutoContinuationGrant).valid &&
           state.taskScopedAutoContinuationGrant.status !== 'terminal-consumed') {

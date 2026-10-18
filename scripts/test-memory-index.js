@@ -6,12 +6,16 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const {
+  buildDailyPartitions,
+  buildSummaryPartitions,
+  memorySourceIdentity,
   queryDailyIndex,
   queryStatusIndex,
   querySummaryIndex,
   refreshDailyIndex,
   refreshSummaryIndex
 } = require('./lib/memory-index.js')
+const { createDerivedIndexStore } = require('./lib/derived-index-contract.js')
 const {
   summarizeSummaryCurrentProjection,
   summaryStateConflicts
@@ -321,6 +325,77 @@ assert.equal(queryDailyIndex({
   limit: 1,
   maxChars: 20
 }).status, 'fallback')
+
+// A valid old cache can contain a false completed projection while its source
+// bytes and mtime are unchanged. Upgrade must reject semantics, not rewrite data.
+const legacyRoot = path.join(root, 'parser-upgrade')
+const legacyTarget = { ...target, activeRoot: legacyRoot }
+const legacyClient = path.join(legacyRoot, '.memory', 'clients', 'codex')
+fs.mkdirSync(path.join(legacyClient, 'tasks'), { recursive: true })
+const legacyDailyPath = path.join(legacyClient, 'tasks', `${date}.md`)
+const legacySummaryPath = path.join(legacyClient, 'SUMMARY.md')
+const blockedStatus = '🔄 blocked，完整修复未完成。'
+const legacyDailyText = `## 会话 01 — 未结束的修复\n\n状态：${blockedStatus}\n\n保留原始内容\n`
+fs.writeFileSync(legacyDailyPath, legacyDailyText)
+fs.writeFileSync(legacySummaryPath, [
+  '| 日期 | 会话 | 类型 | 摘要 | 报告 | 记忆 | 状态 |',
+  '|---|---|---|---|---|---|---|',
+  `| 2026-07-23 10:00 | 01 | dev | repair | r | m | ${blockedStatus} |`, ''
+].join('\n'))
+const legacyDailyDocument = document(legacyDailyPath)
+const legacySummaryDocument = document(legacySummaryPath)
+const wrongSession = {
+  date, sessionId: '01', title: '未结束的修复', status: blockedStatus,
+  state: 'completed', content: legacyDailyText, handoff: '', ordinal: 1
+}
+const wrongRow = { ...row('2026-07-23', '01', 'completed', 3), status: blockedStatus }
+for (const source of ['daily', 'summary']) {
+  const store = createDerivedIndexStore({
+    activeRoot: legacyRoot, domain: 'memory',
+    scopeIdentity: { project: target.project, scope: target.scope, agent: target.agent, source,
+      ...(source === 'daily' ? { date } : {}) }
+  })
+  const doc = source === 'daily' ? legacyDailyDocument : legacySummaryDocument
+  const identity = memorySourceIdentity(legacyTarget, source, source === 'daily' ? date : 'SUMMARY.md', doc.content)
+  const committed = store.commit({
+    sourceIdentity: { ...identity, contractVersion: '1' }, freshnessTier: 'writer-attested',
+    partitions: source === 'daily'
+      ? buildDailyPartitions(doc, date, { sessions: [wrongSession], warnings: [] })
+      : buildSummaryPartitions(doc, { rows: [wrongRow], warnings: [] })
+  })
+  assert.equal(committed.status, 'persisted')
+}
+const oldCacheDigest = runtimeDigest(legacyRoot)
+for (const result of [
+  queryDailyIndex({ target: legacyTarget, date, sourcePath: legacyDailyPath, status: 'all', limit: 5, maxChars: 2000 }),
+  queryStatusIndex({ target: legacyTarget, sourcePath: legacySummaryPath, limit: 5 }),
+  querySummaryIndex({ target: legacyTarget, sourcePath: legacySummaryPath, status: 'completed', limit: 5 })
+]) {
+  assert.equal(result.status, 'fallback')
+  assert.equal(result.reason, 'memory-parser-contract-drift')
+}
+assert.equal(runtimeDigest(legacyRoot), oldCacheDigest, 'semantic-cache rejection is zero-write')
+for (const refresh of [
+  refreshDailyIndex({ target: legacyTarget, date, document: legacyDailyDocument,
+    parsed: { sessions: [{ ...wrongSession, state: 'blocked' }], warnings: [] } }),
+  refreshSummaryIndex({ target: legacyTarget, document: legacySummaryDocument,
+    parsed: { rows: [{ ...wrongRow, state: 'blocked' }], warnings: [] } })
+]) {
+  assert.equal(refresh.status, 'persisted')
+  assert.equal(refresh.sourceIdentity.contractVersion, '2')
+}
+const repairedDigest = runtimeDigest(legacyRoot)
+const repairedDaily = queryDailyIndex({ target: legacyTarget, date, sourcePath: legacyDailyPath,
+  status: 'blocked', limit: 5, maxChars: 2000 })
+assert.equal(repairedDaily.status, 'fresh')
+assert.deepEqual(repairedDaily.matches.map(item => item.sessionId), ['01'])
+assert.deepEqual(querySummaryIndex({ target: legacyTarget, sourcePath: legacySummaryPath,
+  status: 'unresolved', limit: 5 }).rows.map(item => item.sessionId), ['01'])
+assert.deepEqual(querySummaryIndex({ target: legacyTarget, sourcePath: legacySummaryPath,
+  status: 'completed', limit: 5 }).rows, [])
+assert.equal(runtimeDigest(legacyRoot), repairedDigest, 'fresh repaired queries are zero-write')
+assert.equal(fs.readFileSync(legacyDailyPath, 'utf8'), legacyDailyDocument.content)
+assert.equal(fs.readFileSync(legacySummaryPath, 'utf8'), legacySummaryDocument.content)
 
 fs.rmSync(root, { recursive: true, force: true })
 console.log('memory index tests passed: summary/month/current/daily/range/stale/zero-write')

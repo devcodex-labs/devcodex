@@ -1,6 +1,6 @@
 # DevCodex — 项目规范（统一规范源）
 
-> DevCodex v1.20.5 · 单源规范文件
+> DevCodex v1.20.6 · 单源规范文件
 > 本文件是 DevCodex 唯一的规范源文件入口；分拆规则及共享片段在 `content/` 下维护。宿主配置采用用户级全局适配器，通过 `devcodex global-adapters apply` 安装或刷新；`devcodex init --claude` / `devcodex init --codex` 等 workspace 宿主选择入口已禁用，返回 `CLI_HOST_CONFIG_GLOBAL_ONLY`。`devcodex init` 准备工作区运行目录和基础 Profile，指定 `--profile <项目相对路径>` 时同时初始化目标项目 Profile；已有 Profile 默认保留。用户级托管 `CLAUDE.md` / `AGENTS.md` 由当前规范生成，不是 `init` 在项目根分发的副本。
 
 ---

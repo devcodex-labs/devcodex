@@ -2634,12 +2634,26 @@ function splitMarkdownRow(line) {
   return cells
 }
 
+/**
+ * Classify the leading current-session status, preserving negation and progress
+ * markers. Later clauses may describe completed work or historical blockers.
+ */
 function normalizedMemoryState(value) {
   const status = String(value || '').trim().toLowerCase()
-  if (/✅|completed?|complete|closed|done|完成|已关闭/.test(status)) return 'completed'
-  if (/⛔|blocked|paused|阻塞|暂停/.test(status)) return 'blocked'
-  if (/🔄|⏳|active|in[- ]?progress|pending|进行中|处理中|等待/.test(status)) return 'active'
-  return 'unknown'
+  const leading = status.split(/[，,；;。\r\n]/u, 1)[0]
+  const signals = [
+    ['active', /\b(?:incomplete|unfinished|undone|uncompleted|partially completed|not(?:\s+(?:yet|fully))?\s+(?:completed?|closed|done))\b|(?:尚未|仍未|还未|未能|未曾|没有|未)\s*(?:完成|关闭)|部分完成/u],
+    ['blocked', /\b(?:block(?:ed)?|paused)\b|阻塞|阻断|暂停/u],
+    ['active', /\b(?:active|in[- ]?progress|pending)\b|进行中|处理中|等待|待确认/u],
+    ['completed', /\b(?:completed?|closed|done)\b|已完成|完成|已关闭/u]
+  ].map(([state, pattern]) => ({ state, match: pattern.exec(leading) }))
+    .filter(signal => signal.match)
+    .sort((left, right) => left.match.index - right.match.index)
+  const first = signals[0]?.state
+  if (/^⛔/u.test(leading)) return 'blocked'
+  if (/^(?:🔄|⏳)/u.test(leading)) return first === 'blocked' ? 'blocked' : 'active'
+  if (/^✅/u.test(leading)) return first && first !== 'completed' ? 'unknown' : 'completed'
+  return first || 'unknown'
 }
 
 function memoryStateMatches(actual, expected) {

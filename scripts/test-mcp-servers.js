@@ -4613,6 +4613,94 @@ function testMemoryCpConfirmGenericSessionIndexWithoutCpSection() {
   assert.match(sessions, /修复后重确认/)
 }
 
+function testMemoryMixedStatusProjections() {
+  const memory = require('../mcp/memory-server.js')
+  const memoryIndex = require('./lib/memory-index.js')
+  const cases = [
+    ['🔄 blocked，完整修复未完成。', 'blocked'],
+    ['🔄 进行中；实现作者自审完成，独立核验待办。', 'active'],
+    ['pending, not completed', 'active'],
+    ['⛔ blocked; partial work completed', 'blocked'],
+    ['✅ 已完成，之前 blocked', 'completed'],
+    ['completed, previously blocked', 'completed']
+  ].map(([status, expected], index) => ({ status, expected, sessionId: String(index + 1).padStart(2, '0') }))
+  for (const [status, expected] of [
+    ...cases.map(item => [item.status, item.expected]),
+    ['incomplete', 'active'], ['not complete', 'active'], ['not yet completed', 'active'],
+    ['not closed', 'active'], ['任务尚未完成', 'active'], ['部分完成，待验收', 'active'],
+    ['active，tests completed', 'active'], ['BLOCK，有限交接非终态', 'blocked'],
+    ['✅ blocked', 'unknown'], ['ordinary prose', 'unknown'],
+    ['⏳ 尚未完成', 'active'], ['done', 'completed'], ['closed', 'completed'],
+    ['⛔', 'blocked'], ['🔄', 'active'], ['✅', 'completed']
+  ]) {
+    const parsed = memory.parseDailySessions(`## 会话 01 — state\n状态：${status}\n`, '20260717')
+    assert.strictEqual(parsed.sessions[0].state, expected, `daily status: ${status}`)
+    const summary = memory.parseSummaryRows([
+      '| 日期 | 会话 | 类型 | 摘要 | 报告 | 记忆 | 状态 |',
+      '|---|---|---|---|---|---|---|',
+      `| 2026-07-17 10:00 | 01 | dev | status | r | m | ${status} |`
+    ].join('\n'))
+    assert.strictEqual(summary.rows[0].state, expected, `SUMMARY status: ${status}`)
+  }
+  for (const indexed of [false, true]) {
+    const fixture = setupMemoryProjectionFixture()
+    const dailyText = cases.map(item =>
+      `## 会话 ${item.sessionId} — mixed-state\n\n状态：${item.status}\n\n原始正文\n`).join('\n')
+    const summaryText = [
+      '| 日期 | 会话 | 类型 | 摘要 | 报告 | 记忆 | 状态 |',
+      '|---|---|---|---|---|---|---|',
+      ...cases.map(item => `| 2026-07-17 10:00 | ${item.sessionId} | dev | status | r | m | ${item.status} |`), ''
+    ].join('\n')
+    fs.writeFileSync(fixture.todayPath, dailyText)
+    fs.writeFileSync(fixture.summaryPath, summaryText)
+    if (indexed) {
+      const target = { activeRoot: path.join(TEMP_ROOT, '.devcodex'), project: path.basename(TEMP_ROOT),
+        scope: 'project', agent: 'claude-code' }
+      const document = file => {
+        const content = fs.readFileSync(file, 'utf8')
+        return { path: file, exists: true, content, bytes: Buffer.byteLength(content), chars: content.length,
+          modifiedAt: fs.statSync(file).mtime.toISOString() }
+      }
+      assert.strictEqual(memoryIndex.refreshDailyIndex({ target, date: '20260717',
+        document: document(fixture.todayPath), parsed: memory.parseDailySessions(dailyText, '20260717') }).status, 'persisted')
+      assert.strictEqual(memoryIndex.refreshSummaryIndex({ target,
+        document: document(fixture.summaryPath), parsed: memory.parseSummaryRows(summaryText) }).status, 'persisted')
+    }
+    const binding = createTestContextBinding(TEMP_ROOT, { intent: 'resume' })
+    const requests = []
+    const expectations = []
+    for (const name of ['memory_session_query', 'memory_summary_query']) {
+      for (const status of ['blocked', 'unresolved', 'completed']) {
+        const id = requests.length + 1
+        requests.push(rpcRequest(id, 'tools/call', { name,
+          arguments: { ...(name === 'memory_session_query' ? { date: '20260717', maxChars: 50000 } : {}),
+            status, limit: 20 } }))
+        expectations.push({ id, name, status, ids: cases.filter(item =>
+          status === 'unresolved' ? ['active', 'blocked'].includes(item.expected) : item.expected === status
+        ).map(item => item.sessionId).reverse() })
+      }
+    }
+    const before = snapshotFiles([fixture.todayPath, fixture.summaryPath])
+    const results = runServer('mcp/memory-server.js', bindGovernedContextReads(requests, binding), TEMP_ROOT)
+    for (const expected of expectations) {
+      const response = resultById(results, expected.id)
+      assert.notStrictEqual(response.isError, true, response.content?.[0]?.text)
+      const view = toolJson(response)
+      const items = expected.name === 'memory_session_query' ? view.matches : view.rows
+      assert.deepStrictEqual(items.map(item => item.sessionId), expected.ids,
+        `${expected.name}/${expected.status}/${indexed ? 'index' : 'fallback'}`)
+      for (const item of items) {
+        const original = cases.find(candidate => candidate.sessionId === item.sessionId)
+        assert.strictEqual(item.state, original.expected)
+        assert.strictEqual(item.status, original.status, 'classification must preserve the original status text')
+      }
+      assert.strictEqual(view.derivedIndexFreshness.status === 'fresh', indexed)
+    }
+    assert.deepStrictEqual(snapshotFiles([fixture.todayPath, fixture.summaryPath]), before,
+      'querying corrected status projections never rewrites canonical memory')
+  }
+}
+
 function testMemoryProjectionQueriesAndZeroWrite() {
   const fixture = setupMemoryProjectionFixture()
   const contextBinding = createTestContextBinding(TEMP_ROOT, { intent: 'resume' })
@@ -7801,6 +7889,7 @@ testMemoryProductionWritesRejectReparseClientDirectory()
 testMemoryCpConfirmPreservesOrdinaryTables()
 testMemoryCpConfirmGenericSessionIndexWithoutCpSection()
 testMemoryProjectionQueriesAndZeroWrite()
+testMemoryMixedStatusProjections()
 testMemoryProjectionErrorsAndMalformedSources()
 testMemoryProjectionLayoutTargets()
 testAgentIdentitySharedModule()

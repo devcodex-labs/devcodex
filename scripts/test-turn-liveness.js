@@ -18,6 +18,7 @@ const {
   reconcileTaskOperationRecord,
   settleTaskOperationRecord,
   startToolLease,
+  taskOperationTerminalSnapshot,
   taskOperationTargetSetDigest,
   validateTaskOperationSet
 } = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
@@ -324,11 +325,99 @@ function main() {
     retireCompletedTaskOperations: true
   }), error => error.code === 'TASK_TERMINAL_OPERATION_SET_MISMATCH')
   const tasklessProjection = applyWorkflowTaskTerminalReceipt(operationTerminal, terminalReceipt, {
-    retireCompletedTaskOperations: true
+    retireCompletedTaskOperations: true, nowMs: at(2750)
   })
   assert.strictEqual(tasklessProjection.taskOperationSet.settled.length, 0)
   assert.strictEqual(tasklessProjection.workflowTaskTerminal.settledSetDigest, terminalReceipt.settledSetDigest)
   assert(operationTerminal.taskOperationSet.settled.length > 0, 'the canonical history input is immutable')
+  const assertReplayPreservesTurn = (input, options) => {
+    const before = JSON.stringify(input)
+    const replay = applyWorkflowTaskTerminalReceipt(input, terminalReceipt, options)
+    // Normalization refreshes checkpoint-validation observation times; receipt
+    // identity, retirement evidence, operations and turn progress must not change.
+    for (const field of ['workflowTaskTerminal', 'taskOperationSet', 'lastTaskOperationRecord',
+      'lastMutationCloseout', 'inFlightOperation', 'checkpoint', 'taskTrace',
+      'executionAttemptLedger', 'state', 'eventSequence', 'turnKey']) {
+      assert.deepStrictEqual(replay[field], input[field], `receipt replay must preserve ${field}`)
+    }
+    assert.strictEqual(JSON.stringify(input), before, 'receipt observation must not mutate its input')
+    return replay
+  }
+  const tasklessBefore = JSON.stringify(tasklessProjection)
+  for (const retireCompletedTaskOperations of [false, true]) {
+    assertReplayPreservesTurn(tasklessProjection, {
+      retireCompletedTaskOperations, nowMs: at(2800)
+    })
+  }
+  assert.strictEqual(JSON.stringify(tasklessProjection), tasklessBefore)
+  const emptyDigest = taskOperationTerminalSnapshot(tasklessProjection).settledSetDigest
+  assert.notStrictEqual(emptyDigest, terminalReceipt.settledSetDigest)
+  assert.throws(() => applyWorkflowTaskTerminalReceipt(tasklessProjection, {
+    ...terminalReceipt, settledSetDigest: emptyDigest
+  }, { retireCompletedTaskOperations: true }), error => error.code === 'TASK_TERMINAL_OPERATION_SET_MISMATCH',
+  'the current empty-set digest must not replace the receipt-bound retired digest')
+  for (const changed of [
+    { taskId: '00000000-0000-4000-8000-000000000002' }, { admissionId: 'another-admission' },
+    { admissionGeneration: 2 }, { terminalStatus: 'failed' }, { terminalGeneration: 2 }
+  ]) {
+    assert.throws(() => applyWorkflowTaskTerminalReceipt(tasklessProjection, {
+      ...terminalReceipt, ...changed
+    }), error => error.code === 'TASK_TERMINAL_OPERATION_SET_MISMATCH')
+  }
+  const followup = observeTurnEvent(tasklessProjection, 'UserPromptSubmit', {
+    session_id: 'taskless-followup'
+  }, { nowMs: at(2900) }).state
+  const newTargets = ['D:/workspace/taskless-note.md']
+  const preparedFollowup = prepareTaskOperationRecord(followup, {
+    operationId: 'taskless-followup-write', writerGeneration: 5, expectedStateSequence: 10,
+    kind: 'update', exactTargets: newTargets, targetSetDigest: taskOperationTargetSetDigest(newTargets),
+    beforeDigest: 'f'.repeat(64)
+  }, { nowMs: at(3000) })
+  const unknownFollowup = markTaskOperationDispatched(preparedFollowup, 'taskless-followup-write', {
+    nowMs: at(3100)
+  })
+  const settledFollowup = settleTaskOperationRecord(markTaskOperationObserved(unknownFollowup,
+    'taskless-followup-write', { resultDigest: 'a'.repeat(64), evidenceDigest: 'b'.repeat(64) }, {
+      nowMs: at(3200)
+    }), 'taskless-followup-write', {
+    effect: 'known-applied', resultDigest: 'a'.repeat(64), evidenceDigest: 'b'.repeat(64)
+  }, { nowMs: at(3300) })
+  for (const later of [preparedFollowup, unknownFollowup, settledFollowup]) {
+    const before = JSON.stringify(later)
+    assertReplayPreservesTurn(later, {
+      retireCompletedTaskOperations: true, nowMs: at(3400)
+    })
+    assert.strictEqual(JSON.stringify(later), before)
+  }
+  const legacyObservation = { ...tasklessProjection.workflowTaskTerminal }
+  delete legacyObservation.settledSetDigest
+  delete legacyObservation.settledCount
+  const legacyEmpty = { ...tasklessProjection, workflowTaskTerminal: legacyObservation }
+  assert.throws(() => applyWorkflowTaskTerminalReceipt(legacyEmpty, terminalReceipt, {
+    retireCompletedTaskOperations: true
+  }), error => error.code === 'TASK_TERMINAL_OPERATION_SET_MISMATCH',
+  'a generic caller cannot infer retirement from an empty legacy projection')
+  assertReplayPreservesTurn(legacyEmpty, {
+    retireCompletedTaskOperations: true, validatedCanonicalReceiptReplay: true, nowMs: at(3500)
+  })
+  const legacyUnknown = { ...unknownFollowup, workflowTaskTerminal: legacyObservation }
+  const preservedUnknown = assertReplayPreservesTurn(legacyUnknown, {
+    retireCompletedTaskOperations: true, validatedCanonicalReceiptReplay: true, nowMs: at(3500)
+  })
+  assert.strictEqual(taskOperationTerminalSnapshot(preservedUnknown).terminalReady, false)
+  assert.throws(() => markTurnTerminal(preservedUnknown, 'completed', 'unknown-followup', {
+    nowMs: at(3600)
+  }), error => error.code === 'TASK_OPERATION_UNSETTLED', 'legacy replay cannot waive unresolved-effect checks')
+  assert.throws(() => applyWorkflowTaskTerminalReceipt(unknownEffect, terminalReceipt, {
+    retireCompletedTaskOperations: true, validatedCanonicalReceiptReplay: true
+  }), error => error.code === 'TASK_TERMINAL_OPERATION_SET_MISMATCH',
+  'the authenticated replay option never exempts an initial observation')
+  const firstRetirement = applyWorkflowTaskTerminalReceipt({
+    ...operationTerminal, workflowTaskTerminal: legacyObservation
+  }, terminalReceipt, { retireCompletedTaskOperations: true, nowMs: at(3500) })
+  assert.strictEqual(firstRetirement.taskOperationSet.settled.length, 0)
+  assert.strictEqual(firstRetirement.workflowTaskTerminal.settledCount,
+    operationTerminal.taskOperationSet.settled.length, 'an observed but unretired matching set still retires normally')
   assert.throws(
     () => markTaskOperationObserved(operationTerminal, 'operation-dispatched', {}, { nowMs: at(2800) }),
     error => error.code === 'TASK_OPERATION_CAS_MISMATCH',

@@ -122,7 +122,7 @@ try {
   const sourceOwner = resolveGlobalSkillRuntimeRoot(sourceOptions)
   assert.strictEqual(sourceOwner.status, 'resolved')
   assert.strictEqual(sourceMetadata.selectedPath,
-    path.join(sourceOwner.root, 'dev-plan-review', 'SKILL.md'))
+    path.join(sourceOwner.root, 'dev-plan-review', 'SKILL.md').replace(/\\/g, '/'))
   assert(hydrateExactSkill(sourceMetadata, sourceOptions).content.length > 0)
 
   const projectSkillsRoot = path.join(fixture.activeRoot, 'skills')

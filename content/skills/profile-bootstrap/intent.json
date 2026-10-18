@@ -7,7 +7,7 @@
       "label": "Profile 计划与分档生成",
       "include": [
         "Profile",
-        "devcodex",
+        "active-root",
         "bootstrap"
       ]
     }
@@ -22,5 +22,5 @@
       "由其他领域 Skill 明确负责的任务"
     ]
   },
-  "summary": "Profile 计划与分档生成 — 先预览目标根、推荐档位和文件动作，再按统一契约生成可追踪的 .devcodex/profile/ 草稿"
+  "summary": "Profile 计划与分档生成 — 先预览目标根、推荐档位和文件动作，再按统一契约生成可追踪的 <active-root>/profile/ 草稿"
 }

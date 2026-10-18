@@ -3,18 +3,18 @@
   "sourceEvidence": [
     {
       "ref": "content:instructions/01-common.instructions.md",
-      "digest": "29cf780f4499995848554aa3737aba56c8f6c917e0053ed3e4791bf3479ca9a4"
+      "digest": "299671b1c6068e8eae60c82202cdbddd6e530672b60e21fa7f590fd608bd7ae3"
     },
     {
       "ref": "content:skills/routing/SKILL.md",
-      "digest": "034a5d9abdedbab3c3e7bfb8093d0983d81f61d8f9af035adc279706c364ad91"
+      "digest": "504d76a939fdf0bec87590a91a03c93541de75d56b43b0d59a390cd3f2e2fc36"
     },
     {
       "ref": "scripts/lib/host-parity-scorecard.js",
       "digest": "7c46243482b4cadf24d9351f96f397f9b16550056d6e6af3bb469a8668de13ba"
     }
   ],
-  "sourceDigest": "930646f22f80c988563d0c419fcc27ab622394fefb1e361a565bb71f0c27a399",
+  "sourceDigest": "0bfc41394956c2c9316c90b43590423148be3f8b77e9775e5804948c465bc5bf",
   "baseBundles": {
     "chat": [],
     "resume": [

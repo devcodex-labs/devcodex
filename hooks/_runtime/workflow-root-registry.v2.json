@@ -1100,11 +1100,11 @@
   "sourceEvidence": [
     {
       "ref": "content:instructions/01-common.instructions.md",
-      "digest": "29cf780f4499995848554aa3737aba56c8f6c917e0053ed3e4791bf3479ca9a4"
+      "digest": "299671b1c6068e8eae60c82202cdbddd6e530672b60e21fa7f590fd608bd7ae3"
     },
     {
       "ref": "content:skills/routing/SKILL.md",
-      "digest": "034a5d9abdedbab3c3e7bfb8093d0983d81f61d8f9af035adc279706c364ad91"
+      "digest": "504d76a939fdf0bec87590a91a03c93541de75d56b43b0d59a390cd3f2e2fc36"
     },
     {
       "ref": "content:skills/routing/workflow-capabilities.json",
@@ -1115,7 +1115,7 @@
       "digest": "7c46243482b4cadf24d9351f96f397f9b16550056d6e6af3bb469a8668de13ba"
     }
   ],
-  "sourceDigest": "8d1e4d93403a4b0f748855a56819931c5888389e31f895bf9efcdf37cf227235",
+  "sourceDigest": "bd4fb3fdbc26c5374194243b583e72a9e53581e2fc79fae643f67fa9652e9d4c",
   "routeRevision": "82670f3bca8316fcdb62984b9360d40d32a1f7f8671a1be3ddc7f268ff7547c5",
-  "registryDigest": "2a87c09899b22922b67d6b656c534dde0207e190c6ac5b04ce8ba930bf01420b"
+  "registryDigest": "5661d383f953859caa15ebdeaa60178bbcef4ed0268d8116d9bfd2e707688ff5"
 }

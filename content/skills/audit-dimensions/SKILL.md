@@ -278,6 +278,6 @@ description: D1~D25 规范文件审查维度总览 — 规范库/specs 文件专
 | # | 检查内容 |
 |:-:|---------|
 | 1 | `15-memory.instructions.md`、`CLAUDE.md` `02-output-paths.instructions.md` 三处的 `<agent>` 枚举值是否一致（固定集合，无散值）|
-| 2 | `devcodex profile init` 是否按当前宿主推断写入 `"agent"` 到 `.devcodex/profile/config.json`，且 `devcodex init` / `devcodex init --claude` 不伪造 profile config |
-| 3 | `.devcodex/.memory/clients/<agent>/` 目录命名是否符合上述枚举 |
-| 4 | 报告路径 `.devcodex/reports/<type>/<agent>/YYYYMMDD/` 中 `<agent>` 是否同样符合枚举 |
+| 2 | `devcodex init` / `devcodex profile init` 是否按同一契约初始化正确目标的 Profile、默认保留已有文件；`config.json` 的 `"agent"` 只能是探测提示，不能覆盖当前实际宿主；workspace-namespace 使用 workspace base + project overlay，旧布局才使用 `.devcodex/profile/config.json`；禁用的 `init --claude` / `init --codex` 不应被描述为有效初始化入口 |
+| 3 | `<active-root>/.memory/clients/<agent>/` 目录命名是否符合上述枚举 |
+| 4 | 报告路径 `<active-root>/reports/<type>/<agent>/YYYYMMDD/` 中 `<agent>` 是否同样符合枚举 |

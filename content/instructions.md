@@ -1,7 +1,7 @@
 # DevCodex — 项目规范（统一规范源）
 
-> DevCodex v1.20.1 · 单源规范文件
-> 本文件是 DevCodex 唯一的规范源文件。`devcodex init` 先通过 `HostAdapterScopeV1` 解析唯一宿主 owner：普通仓库为项目根，workspace-namespace 为工作区根；再在该 owner 投影 Copilot、Claude Code 与 Codex 入口。`devcodex init --claude` 仅安装 Claude Code 入口；`devcodex init --codex` 仅安装 Codex 入口。`CLAUDE.md` 与 `AGENTS.md` 都是本文件的部署副本，由本文件持续覆盖。
+> DevCodex v1.20.5 · 单源规范文件
+> 本文件是 DevCodex 唯一的规范源文件入口；分拆规则及共享片段在 `content/` 下维护。宿主配置采用用户级全局适配器，通过 `devcodex global-adapters apply` 安装或刷新；`devcodex init --claude` / `devcodex init --codex` 等 workspace 宿主选择入口已禁用，返回 `CLI_HOST_CONFIG_GLOBAL_ONLY`。`devcodex init` 准备工作区运行目录和基础 Profile，指定 `--profile <项目相对路径>` 时同时初始化目标项目 Profile；已有 Profile 默认保留。用户级托管 `CLAUDE.md` / `AGENTS.md` 由当前规范生成，不是 `init` 在项目根分发的副本。
 
 ---
 
@@ -589,7 +589,7 @@ CP1（问题确认）→ CP2（方案确认）→ [impact-review] → [CP3] → 
 
 - `<agent>` 解析规则（按优先级）：
   1. 当前实际宿主优先：以当前会话/工具链可验证的宿主事实为准，产物必须写入对应宿主目录，例如当前在 Codex 中执行时写 `.memory/clients/codex/`，不得被历史 profile 覆盖。
-  2. Profile agent 兜底：仅当当前实际宿主无法可靠判断时，才读取 `.devcodex/profile/config.json` 的 `"agent"` 字段作为 fallback hint。
+  2. Profile agent 兜底：仅当当前实际宿主无法可靠判断时，才按当前 `ContextReadPlan` 读取已选项目的 effective Profile config 中的 `"agent"` 作为 fallback hint；workspace-namespace 使用 workspace base + project overlay，旧布局才使用 `.devcodex/profile/config.json`。
   3. 若仍无法判断，写入 `unknown-agent` 并记录原因；枚举值固定：`copilot` / `vscode-copilot` / `jetbrains-copilot` / `claude-code` / `codex` / `cursor` / `grok` / `unknown-agent`（禁止使用裸 `claude`，与 Claude API/Claude.ai 区分；Grok 使用 `grok`，禁止长期误绑 `codex`；无法识别时不得默认 `claude-code`）。
   4. `devcodex profile init` 可写入当时探测到的 `"agent"` 作为兜底提示；若 profile agent 与当前实际宿主不同，Agent 日记、SUMMARY、报告路径均按当前实际宿主写入，并在 PC0/doctor/报告中提示差异。
 - 禁止用 Bash 命令查找记忆文件（shell glob 跳过隐藏目录），必须用 Read 工具逐层进入

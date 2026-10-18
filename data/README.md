@@ -40,20 +40,20 @@ data/
 
 ## init 行为
 
-`devcodex init`、`devcodex init --claude` 与 `devcodex init --codex` 都必须先在目标项目的 **active-root** bootstrap 运行时台账模板：
+`devcodex init` 在工作区的 **active-root** 准备运行时台账；多项目场景可用 `devcodex init --profile <项目相对路径>` 初始化指定项目。当前 workspace-namespace 布局为：
 
-- 旧布局：`<项目根>/.devcodex/data/*.md`
-- workspace-namespace 单项目：`<工作区根>/.devcodex/<project>/data/*.md`
-- workspace-namespace 全工作区：`<工作区根>/.devcodex/workspace/data/*.md`
+- 单项目：`<工作区根>/.devcodex/<project>/data/*.md`
+- 全工作区：`<工作区根>/.devcodex/workspace/data/*.md`
+
+旧布局 `<项目根>/.devcodex/data/*.md` 只作为历史路径说明。遇到布局迁移要求时，先审查 `devcodex migrate-layout plan`，再显式 apply，不应手工搬迁台账。
 
 普通非 dry-run 的 `devcodex init` / `devcodex update` 还会对既有台账执行**零搬迁初始化**：创建或复核 `GovernanceLedgerManifestV1`，再重建 `.memory/indexes/governance-ledgers.json`。这一步不改写现有 Markdown 台账，也不会自动把历史记录移入 archive；`--dry-run` 保持零写入。需要分片时，先显式运行只读 `devcodex governance ledger plan --kind GR --json`，再用其精确 `planDigest` 执行 apply。
 
-同时，默认 `init` / `init --claude` 仍会把模板副本分发到宿主部署目录，作为随 adapter 下发的辅助副本：
+`init` 还会生成 workspace 的基础 Profile 初稿；指定 `--profile` 时同时初始化目标项目 Profile。已有 Profile 默认保留，`update` 不负责创建或升级 Profile。
 
-- Copilot：`.github/data/*.md`
-- Claude Code：`.claude/data/*.md`
-- Codex：不分发 `.codex/data/`，运行时只认 active-root `data/*.md`
-- 规范正文中写 `data/*.md` 时，表示目标项目运行时台账的逻辑路径，不表示源仓根 `data/` 保存真实记录。
+宿主配置采用用户级全局适配器，通过 `devcodex global-adapters apply` 安装或刷新。`init --claude` / `init --codex` 等 workspace 宿主选择参数已禁用，会返回 `CLI_HOST_CONFIG_GLOBAL_ONLY`；`init` 不向项目的 `.github/data/`、`.claude/data/` 或 `.codex/data/` 分发台账副本。
+
+规范正文中写 `data/*.md` 时，表示目标项目 active-root 下运行时台账的逻辑路径；源仓 `data/templates/` 是模板来源，宿主适配器不是业务台账写入目标。
 
 ## 路径语义
 

@@ -18,7 +18,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
 
 - `<agent>` 确定规则（优先级从高到低）：
   1. **当前实际宿主（优先）**：以当前会话/工具链可验证的宿主事实为准，产物必须写入对应宿主目录，例如当前在 Codex 中执行时写 `.memory/clients/codex/`，不得被历史 profile 覆盖。
-  2. **Profile agent 兜底**：仅当当前实际宿主无法可靠判断时，才读取 `.devcodex/profile/config.json` 的 `"agent"` 字段作为 fallback hint；它不能覆盖当前会话事实。
+  2. **Profile agent 兜底**：仅当当前实际宿主无法可靠判断时，才按当前 `ContextReadPlan` 读取已选项目的 effective Profile config 中的 `"agent"` 作为 fallback hint；workspace-namespace 使用 workspace base + project overlay，旧布局才使用 `.devcodex/profile/config.json`。它不能覆盖当前会话事实。
   3. **无法判断**：写入 `unknown-agent`，并在报告或记忆中记录宿主无法识别的原因。
 
   枚举值固定，全部小写连字符分隔：
@@ -29,7 +29,7 @@ description: 管理会话记忆的读取与写入。三层记忆体系：Agent �
      - JetBrains Copilot：`jetbrains-copilot`
      - Grok Build / Grok CLI（xAI）：`grok`（`DEVCODEX_AGENT=grok` 或 `GROK_AGENT` 等；禁止长期误绑 `codex`）
      - 无法确定：`unknown-agent`（运行时不得默认 `claude-code`）
-  4. **写入约定**：`devcodex profile init` 生成 `config.json` 时可以写入当时探测到的 `agent` 作为兜底提示；`devcodex init` / `devcodex init --claude` / `devcodex init --codex` 只负责分发规则与运行时文件，不直接生成 profile config。
+  4. **写入约定**：`devcodex init` 会初始化 workspace 基础 Profile，指定 `--profile <项目相对路径>` 时同时初始化目标项目 Profile；`devcodex profile init` 可按所选档位补充模板。生成 `config.json` 时可写入当时探测到的 `agent` 作为兜底提示，已有 Profile 默认保留；宿主适配器通过 `devcodex global-adapters apply` 管理，`init --claude` / `init --codex` 已禁用。
   5. **冲突处理**：若 profile agent 与当前实际宿主不同，Agent 日记、SUMMARY、报告路径均按当前实际宿主写入，并在 PC0/doctor/报告中提示差异。
 - ⛔ **禁止使用 shell 命令（bash find、PowerShell glob）查找记忆文件**（shell glob 会跳过隐藏目录）
 - 必须使用宿主文件工具（Copilot: list_dir；Claude Code: Read/Glob；Codex: 当前可用的文件读取/搜索工具）逐层进入：`clients/` → `<agent>/` → 读取日期文件

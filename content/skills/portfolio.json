@@ -6,17 +6,17 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "af25326522b73b286722610f0b45562506673438d470be6fb04f35b686d20440",
+    "sourceDigest": "7063de1fb9c0b69d1d2f2eb7a9caf1812c78be37e597fc89b3cf989dd11ccdde",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "9286d43fbddc8dd449ebf391fe5a90e2cf137771aacb8648d84553274191de4e",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
     "publicTaxonomyDigest": "7f6ee8c30f5484b8881e27099af72c69625b73a7cf3b53fe51c8c0c147d4f124",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "cfd709b1248855c06c56373d1bcfe4798acefd7f1e0c11555b26cfd8caa1e8a6",
-    "consumerInventoryFileCount": 726,
-    "consumerInventoryDigest": "3c1441a972d18606f5fcf0a342d0aa0636f50f70b110e51733dbf36896625c10",
-    "consumerProjectionDigest": "e7cbc53e668ba20b57e7db58e3071b5d38700612cbaeda41db94880ce831c4ec",
-    "portfolioInputDigest": "055de868902f62dab8a30407b547778748f93d9a66a0f95d05140539ded7a702"
+    "consumerInventoryFileCount": 727,
+    "consumerInventoryDigest": "a10895a7f09224c649eb173b0a1e93986e0c10ab0077ab4357956bbdbe0d0942",
+    "consumerProjectionDigest": "c932e8eaa75d75198e26aa82c0d597db434de063ba1f95694c0c954390bb5f24",
+    "portfolioInputDigest": "f9fb7d25847a68e21a9e8e6deab3019c592500b3d9cd1142bd975dabb1c30c9e"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -2326,8 +2326,8 @@
         "content/skills/audit-dimensions/SKILL.md"
       ],
       "source": "content/skills/audit-dimensions/SKILL.md",
-      "hash": "d1ee196c73beca1f577bd3518201c5e574c4e9d7daebdec4f6fe74bc21524b4b",
-      "sourceBytes": 13375,
+      "hash": "f8ece67ddc8a88b1bc6b9bd54f80ac4dc28243912c9270e312696f85816e19a0",
+      "sourceBytes": 13613,
       "version": "1.20.5",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",
@@ -12067,8 +12067,8 @@
         "content/skills/memory/SKILL.md"
       ],
       "source": "content/skills/memory/SKILL.md",
-      "hash": "13813c572f5aebfe286e9cb9056abdca80d23ceea5cf6675aa8513f86cd95756",
-      "sourceBytes": 35513,
+      "hash": "280f0958014d4227b5be0d2e0cea13d0f8f68a6f250045a76cc405299339ace1",
+      "sourceBytes": 35823,
       "version": "1.20.5",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -13565,6 +13565,10 @@
         },
         {
           "path": "changelogs/releases/v1.19.4.md",
+          "role": "historical"
+        },
+        {
+          "path": "changelogs/releases/v1.20.5.md",
           "role": "historical"
         },
         {
@@ -15525,19 +15529,19 @@
     {
       "id": "profile-bootstrap",
       "name": "profile-bootstrap",
-      "description": "Profile 计划与分档生成 — 先预览目标根、推荐档位和文件动作，再按统一契约生成可追踪的 .devcodex/profile/ 草稿",
+      "description": "Profile 计划与分档生成 — 先预览目标根、推荐档位和文件动作，再按统一契约生成可追踪的 <active-root>/profile/ 草稿",
       "owner": "profile-bootstrap",
       "triggers": {
         "terms": [
           "Profile",
-          "devcodex",
+          "active-root",
           "profile",
           "profile-bootstrap"
         ],
         "positive": [
           {
             "fixture": "frontmatter-description-resolves",
-            "input": "Profile 计划与分档生成 — 先预览目标根、推荐档位和文件动作，再按统一契约生成可追踪的 .devcodex/profile/ 草稿"
+            "input": "Profile 计划与分档生成 — 先预览目标根、推荐档位和文件动作，再按统一契约生成可追踪的 <active-root>/profile/ 草稿"
           }
         ],
         "negative": [
@@ -15552,8 +15556,8 @@
         "content/skills/profile-bootstrap/SKILL.md"
       ],
       "source": "content/skills/profile-bootstrap/SKILL.md",
-      "hash": "e3f4df9a80325198286c2c8f40cf0ef2dbf44ff306df948c67b12996fe7af264",
-      "sourceBytes": 13010,
+      "hash": "3283d1a94fd6af02706d987dd8db7ef61111dd708712ee2770d180b879c6a1d4",
+      "sourceBytes": 13251,
       "version": "1.20.5",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -15677,14 +15681,14 @@
         "triggers": {
           "terms": [
             "Profile",
-            "devcodex",
+            "active-root",
             "profile",
             "profile-bootstrap"
           ],
           "positive": [
             {
               "fixture": "frontmatter-description-resolves",
-              "input": "Profile 计划与分档生成 — 先预览目标根、推荐档位和文件动作，再按统一契约生成可追踪的 .devcodex/profile/ 草稿"
+              "input": "Profile 计划与分档生成 — 先预览目标根、推荐档位和文件动作，再按统一契约生成可追踪的 <active-root>/profile/ 草稿"
             }
           ],
           "negative": [

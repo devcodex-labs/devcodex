@@ -1,6 +1,6 @@
 ---
 name: profile-bootstrap
-description: Profile 计划与分档生成 — 先预览目标根、推荐档位和文件动作，再按统一契约生成可追踪的 .devcodex/profile/ 草稿
+description: Profile 计划与分档生成 — 先预览目标根、推荐档位和文件动作，再按统一契约生成可追踪的 <active-root>/profile/ 草稿
 ---
 
 # Profile Bootstrap Skill
@@ -8,7 +8,7 @@ description: Profile 计划与分档生成 — 先预览目标根、推荐档位
 ## 适用范围
 
 - 触发：`devcodex profile plan` / `devcodex profile init` CLI 调用，或用户以自然语言要求“生成/初始化/补建/升级/降档/修复当前项目 Profile”；自然语言不要求精确口令，最终仍解析为同一项目 ref 的 CLI plan/init
-- 不触发：`devcodex init` / `devcodex init --claude` 完成后仅 **提示** "下一步运行 devcodex profile init"，不自动生成（避免覆盖用户已有 Profile）
+- 初始化入口：`devcodex init` 使用同一生成契约初始化 workspace 基础 Profile；指定 `--profile <项目相对路径>` 时同时初始化目标项目 Profile，已有文件默认保留。后续通过 `devcodex profile plan` / `devcodex profile init --tier <档位>` 预览或补齐所需模板；`init --claude` 等 workspace 宿主选择入口已禁用，不能当作 Profile 初始化方式。
 - workspace-namespace：当 `<workspace>/.devcodex/layout.json` 启用后，在工作区根执行 `devcodex profile init` 应治理 `.devcodex/workspace/profile/`；在明确项目上下文执行时治理 `.devcodex/<project>/profile/`。已识别物理项目但 Profile 缺失时仍保持 project-bound，使用 workspace base 并把项目事实标为未验证；只有完全没有项目时才落 `.devcodex/workspace/`。运行时多项目 warning 必须提示 `.devcodex/workspace/profile/`，不得继续指向 legacy `.devcodex/profile/`。
 - Profile 初稿或复审必须考虑 `ProfileReadChainGate` / `ServiceNormCoverageGate`：记录 workspace base、project overlay、config.local overlay、fallback、全部服务集合、docs 自维护链、导航、版本、构建、报告和记忆消费者；从单服务抽公共 Profile 规则时执行 `StrongestProfileSourceGate` / `ServiceSpecificResidueSweep`。
 - 公开包、SDK、CLI、多模块、文档站、public API 或 runtime 配置明显的项目，Profile 初稿/复审必须执行 `FeatureInventoryProfileGate` / `FeatureInventorySchemaGate`：`06-功能清单.md` 是默认唯一规范清单，新生成内容使用 `FeatureInventorySchemaV2`，在 V1 十字段基础上增加生命周期状态、证据状态、证据日期和证据引用；扫描不能证明的字段写 `unverified` / 待人工确认，不得编造成 implemented/validated/released。validator 兼容读取 V1，但 V1 投影证据状态必须保持 `unverified`。

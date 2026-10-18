@@ -34,7 +34,7 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible e
 | `fixtureSource` | 条件 | 使用 fixture replay 时记录脚本、payload 或样例来源 |
 | `visibleReplyEvidence` | 条件 | `verified-present` / `verified-missing` / `unverified`，以及证据来源 |
 | `workspaceGuard` | 条件 | 多项目 workspace、sticky project、workspace profile 提示等边界验证 |
-| `bootstrapScope` | 条件 | 父链部署体、入口检查块、adapter 初始化或 update 部署验证 |
+| `bootstrapScope` | 条件 | 用户级 adapter receipt、实际新 CLI/MCP 加载与入口检查块；项目 active-root 绑定另核，父链旧副本只作明确的迁移/历史验证 |
 | `artifactLinkMatrix` | 条件 | `presentationSurface + capability evidence` 主选 renderer，hostSurface 只验 adapter 匹配；记录 `ArtifactDeliveryAttemptV1` 的 actionId/attempted/actionStatus/readback/status/fallbackReason 与 renderer parity |
 | `mcpFallback` | 条件 | MCP bridge 失败时是否降级到同计划有界文件读取 / instruction-fallback；记录错误文本、fallback 路线和是否停止重试 |
 | `contextAcquisition` | 条件 | plan/epoch/target/source 相关性、Pre attempted、Post success receipt、fallback 与完成状态 |
@@ -51,9 +51,9 @@ description: 宿主契约验证规范 — 为 Hook / CLI / bootstrap / visible e
 | Hook 输出契约 | targeted test + direct replay |
 | 可见回复三态 | fixture replay 或 direct replay，报告中写明 `visibleReplyEvidence` |
 | sticky project / workspace guard | multi-project fixture + follow-up replay |
-| bootstrap / 部署副本 | `node scripts/validate.js` + 部署同步后的落点复核 |
-| managed deployment manifest | legacy 多 owner + workspace-namespace fixture、规范化 destination 单一 current owner、project current host=0、workspace missing/mismatch/stale/duplicate=0、V8 direct replay |
-| workspace 宿主作用域 | `HostAdapterScopeV1` owner/activation 一致 + 子项目五类 generated host artifact=0 + Grok workspace plugin/用户登记正向 + uninstall/repeat/reinstall 配置保真 + status/doctor 同 owner + root native kernel + child plain partial + `devcodex grok --rules` full 路线 + `--cwd`/nested workspace/Windows path identity + outside-workspace no-op 负向 |
+| bootstrap / 当前用户级部署 | 源码校验 + `global-adapters apply --dry-run --json` 零写入 + 已授权 apply 后 `GlobalHostConfigReceiptV1`、runtime generation/实际 SHA、新 CLI/MCP 进程与当前上下文绑定；不得把代码已改或安装 receipt 当成旧进程已加载 |
+| 当前宿主作用域 | `GlobalHostTargetV1` / `GlobalOnlyHostConfigModeV1` 用户级 owner、六宿主事务及单一规范化 destination owner；workspace 宿主产物=0；hidden G_RUNTIME/可选 legacy discovery、原生 Skill 碰撞保留、重复 apply/remove/reinstall、status/doctor、真实宿主 inspect 与 fallback；plain/full 证据分别记录 |
+| legacy managed deployment / workspace 迁移 | 仅明确历史或迁移范围：`HostAdapterScopeV1`、旧 manifest、legacy 多 owner、workspace-namespace fixture、Grok workspace plugin/root native kernel/child plain partial、`--cwd`/Windows identity 和 V8 显式 workspace replay；这些不替代当前用户级 receipt，也不要求当前 global-adapters 重写旧父链副本 |
 | visible set / 产物打开 | manifest/projection property test + Codex Desktop、VS Code、Zed、WebStorm、Codex CLI、Claude/unknown renderer fixture；renderer-only 必须 fallback，`opened` 必须同时具备 action success + readback success；若声称当前 presentationSurface 已打开，需 direct replay 或用户实测证据 |
 | MCP bridge fallback | MCP server no-args direct replay + 非 Full 宿主 fallback 文案探针；若错误来自宿主桥接层，只能声明 fallback 已覆盖，不能声明宿主 bug 已修复 |
 | 意图驱动上下文获取 | `ContextAcquisitionToolAllowlistProbe` + plan/receipt direct replay + Pre/Post fixture + hidden-full-read 负例 + fallback no-deadlock |

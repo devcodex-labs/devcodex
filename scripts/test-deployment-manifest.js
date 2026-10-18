@@ -12,6 +12,7 @@ const {
   writeManifestAtomic
 } = require('./lib/deployment-manifest-utils')
 const {
+  buildGovernancePackageDeploymentChecks,
   findSourceRootHostDeployments,
   isExactWorkspaceBridge
 } = require('./lib/validate-governance-package-deployment')
@@ -176,7 +177,53 @@ try {
     return visit(directory)
   }).some(item => item.label.includes('.github/ host deployment')))
 
-  console.log('✓ deployment manifest add/update/stale/unowned and no-delete fixtures passed')
+  // A source checkout is not a deployed parent workspace. Empty native host
+  // directories and unrelated CI files must not manufacture legacy-copy drift.
+  const scopeParent = path.join(root, 'source-scope')
+  const scopeSource = path.join(scopeParent, 'devcodex')
+  write(path.join(scopeSource, 'content/manifest.json'), JSON.stringify({
+    schemaVersion: 'ControlContentManifestV1', sourceRoot: 'content', sharedRoot: 'shared', expectedMarkdownEntries: 1
+  }))
+  write(path.join(scopeSource, 'content/instructions.md'), '# source entry\n')
+  write(path.join(scopeSource, 'scripts/validate.js'), '// source marker\n')
+  write(path.join(scopeSource, 'host-projections/AGENTS.md'), '# generated kernel\n')
+  fs.mkdirSync(path.join(scopeParent, '.codex'), { recursive: true })
+  fs.mkdirSync(path.join(scopeParent, '.agents'), { recursive: true })
+  write(path.join(scopeParent, '.github/workflows/ci.yml'), 'name: unrelated CI\n')
+  const priorScope = process.env.DEVCODEX_VALIDATION_SCOPE
+  const walk = directory => fs.existsSync(directory)
+    ? fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+      const full = path.join(directory, entry.name)
+      return entry.isDirectory() ? walk(full) : [full]
+    }) : []
+  const runV8 = scope => {
+    if (scope === undefined) delete process.env.DEVCODEX_VALIDATION_SCOPE
+    else process.env.DEVCODEX_VALIDATION_SCOPE = scope
+    const warnings = [], errors = [], logs = []
+    buildGovernancePackageDeploymentChecks({
+      ROOT: scopeSource, ACTIVE_DEVCODEX_ROOT: path.join(scopeParent, '.devcodex'), fs, path, walk,
+      read: file => fs.readFileSync(file, 'utf8'),
+      fileHash: file => require('crypto').createHash('sha256').update(fs.readFileSync(file)).digest('hex'),
+      execSync: () => { throw new Error('V8 scope fixture must not launch subprocesses') },
+      warn: value => warnings.push(value), err: value => errors.push(value),
+      console: { log: value => logs.push(value) }
+    }).checkV8()
+    return { warnings, errors, logs }
+  }
+  try {
+    assert.deepStrictEqual(runV8(undefined).warnings, [], 'authoring source must not infer a deployed workspace from parent folders')
+    assert.ok(runV8('workspace').warnings.length > 0, 'explicit legacy workspace parity must retain missing-artifact diagnostics')
+    write(path.join(scopeSource, 'AGENTS.md'), '# misplaced source-root host copy\n')
+    for (const scope of [undefined, 'source', 'workspace']) {
+      assert.ok(runV8(scope).errors.some(message => message.includes('source-root deployment must not exist')),
+        'source-root host-copy ban must hold before any source-scope deferral')
+    }
+  } finally {
+    if (priorScope === undefined) delete process.env.DEVCODEX_VALIDATION_SCOPE
+    else process.env.DEVCODEX_VALIDATION_SCOPE = priorScope
+  }
+
+  console.log('✓ deployment manifest add/update/stale/unowned, source scope and no-delete fixtures passed')
 } finally {
   fs.rmSync(root, { recursive: true, force: true })
 }

@@ -6,7 +6,7 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "7063de1fb9c0b69d1d2f2eb7a9caf1812c78be37e597fc89b3cf989dd11ccdde",
+    "sourceDigest": "57fe274bbef1a494327bd4c6129f8fd46099d3050c10fb8461fd7441a9bef097",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "9286d43fbddc8dd449ebf391fe5a90e2cf137771aacb8648d84553274191de4e",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
@@ -16,7 +16,7 @@
     "consumerInventoryFileCount": 727,
     "consumerInventoryDigest": "a10895a7f09224c649eb173b0a1e93986e0c10ab0077ab4357956bbdbe0d0942",
     "consumerProjectionDigest": "c932e8eaa75d75198e26aa82c0d597db434de063ba1f95694c0c954390bb5f24",
-    "portfolioInputDigest": "f9fb7d25847a68e21a9e8e6deab3019c592500b3d9cd1142bd975dabb1c30c9e"
+    "portfolioInputDigest": "b7df2c884b34e1dd073642e9d79fba6f16fa1d5bec533335daaaf27dd71f09a5"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -2069,8 +2069,8 @@
         "content/skills/audit-common/SKILL.md"
       ],
       "source": "content/skills/audit-common/SKILL.md",
-      "hash": "7870c97cad925c7569e7eb72aee13ed65bdcd3be693ac66e0cb2b87b198752c7",
-      "sourceBytes": 30904,
+      "hash": "382456a5291092f1ad84801fba3c87e57a3f4f24769d320878ae6fa54dd586ea",
+      "sourceBytes": 31463,
       "version": "1.20.5",
       "lifecycleState": "active",
       "publicCategory": "workflow-routing",
@@ -2326,8 +2326,8 @@
         "content/skills/audit-dimensions/SKILL.md"
       ],
       "source": "content/skills/audit-dimensions/SKILL.md",
-      "hash": "f8ece67ddc8a88b1bc6b9bd54f80ac4dc28243912c9270e312696f85816e19a0",
-      "sourceBytes": 13613,
+      "hash": "2d949518764914ef3ab64f578e4241a4530145c3386b0adbecb4a38153982c47",
+      "sourceBytes": 13793,
       "version": "1.20.5",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",
@@ -10139,8 +10139,8 @@
         "content/skills/host-contract-verification/SKILL.md"
       ],
       "source": "content/skills/host-contract-verification/SKILL.md",
-      "hash": "d54d49e1c7c78cb19fcc315fcb115f799e6581be3ae581be97e51d336e351699",
-      "sourceBytes": 14395,
+      "hash": "3fa9f45dd4b8930c28d7f7532643a6904a1bf73df6af02eb78a30ad597cfc5b9",
+      "sourceBytes": 14825,
       "version": "1.20.5",
       "lifecycleState": "active",
       "publicCategory": "quality-delivery",
@@ -10356,8 +10356,8 @@
         "content/skills/host-instruction-projection/SKILL.md"
       ],
       "source": "content/skills/host-instruction-projection/SKILL.md",
-      "hash": "a5a783dd69ab53ee68c03588776b27c122b296f2243cfab2c946fa5284b48418",
-      "sourceBytes": 12604,
+      "hash": "be5094658879029c899e8d0c0b09cc58d736d8c0b21aaa092ae72ac4b967cfe6",
+      "sourceBytes": 13510,
       "version": "1.20.5",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",

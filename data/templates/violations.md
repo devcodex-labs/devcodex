@@ -1,6 +1,6 @@
 # 违规登记表（template）
 
-> **文件定位**：模板。`devcodex init` / `devcodex init --claude` 会将本文件复制到目标项目运行时 `data/violations.md`（Copilot: `.github/data/violations.md`；Claude Code: `.claude/data/violations.md`）。
+> **文件定位**：空模板；实际运行时台账位于 `<active-root>/data/violations.md`。`devcodex init` 准备工作区运行目录；宿主配置由用户级 `devcodex global-adapters apply` 管理，不向项目的 `.github/data/` 或 `.claude/data/` 分发台账。
 > **使用**：在**用户项目内**，由 AI 按 `17-compliance` 规则追加 VL-001 起的违规记录。
 > **维护者自身的违规记录**：不在本包内分发；启用 `workspace-namespace` 时写入对应 active-root，例如 `<工作区根>/.devcodex/<project>/data/violations.md`。
 

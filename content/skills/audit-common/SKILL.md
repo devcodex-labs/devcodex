@@ -98,14 +98,15 @@ full 模式还必须执行 repo-shape 反查：当仓库已具备 SDK/CLI、文�
 - `data/`（数据文件：gap-registry.md / pending-fixes.md / pending-issues.md 等）
    - 根目录 `*.md`（RULES.md / README.md / CHANGELOG.md）
 3. **【v1.11.0+ 父链部署体扫描】**（关联 GAP-019）：
-   - **检测条件**：当 cwd 是 plugin 源仓库（含 `package.json` 且 `name` 含 `devcodex`），且 cwd 父链上存在 `.github/`、`.claude/`、`AGENTS.md`、`.agents/` 或 `.codex/` 部署体
+   - **当前部署权威**：`GlobalOnlyHostConfigModeV1` 使用 `GlobalHostTargetV1` / `GlobalHostConfigReceiptV1` 的用户级指令、G_RUNTIME、config 和 runtime generation；不从源仓 cwd 或父目录名称推断宿主已安装。空 `.agents/`、`.codex/` 或只有 CI 的 `.github/` 不证明存在 DevCodex 部署。
+   - **历史检测条件**：父链有实际旧 adapter 入口或 managed manifest 证据，且本轮明确核对 legacy/迁移范围时，才扫描旧 workspace 部署；retired fixture、用户原生文件与当前受管文件分别归类。
    - **触发动作**：
-     a. 将工作区根的 `.claude/{instructions,skills,prompts,agents,hooks}/`、`.github/{instructions,skills,prompts,agents,hooks}/`、`AGENTS.md`、`.agents/`、`.codex/` 也纳入 grep 范围
-     b. 对每个命中文件做 G3 外部一致性检查（与源仓库对应文件是否一致）
-     c. 若发现部署体 / 用户级 adapter 与源仓库不一致 → 标注 `⚠️ 部署滞后`，列出源码仓 `devcodex global-adapters apply`、pack+全局安装或已发布环境 `npm update -g devcodex` 的适用方案；这些命令必须取得当前明确的全局环境修改授权后才可执行，审计/Auto/Profile 不补权。**不要**用 bare `devcodex update` 或 `update --claude/--codex` 冒充刷全局；授权执行后再运行 `node scripts/validate.js` V8 / `devcodex doctor`
-   - **目的**：避免源仓库与工作区根部署体并存时 CRS 仅扫源仓库导致误判（GAP-019 案例：F-03/F-04 因未扫父级 `e:\Worker\.claude/` 而误判为"hooks 不生效"）
-   - **跳过条件**：当 cwd 即工作区根（无父链部署体）→ 跳过本步骤
-  - **⚠️ V8 与 CRS 职责不可互替（PI-006，v1.9.5+）**：`scripts/validate.js` 的 V8 checkPairs 已覆盖 instructions/skills/hooks/CLAUDE.md/prompts/agents 等关键部署面，但仍只是 CI 快速门禁；CRS 手动 grep 仍是收敛前全量同步的必要补充——V8 ✅ ≠ 全量部署同步
+     a. 当前部署按 receipt 的实际落点纳入 G3；明确历史核对时，另列旧 `.claude/{instructions,skills,prompts,agents,hooks}/`、`.github/{instructions,skills,prompts,agents,hooks}/`、`AGENTS.md`、`.agents/`、`.codex/` 的证据和适用版本。
+     b. 对当前受管内容核 source/compiled digest、generation、配置、进程实际加载路径；旧副本只按当时契约或迁移计划核对，不要求与当前发布包逐字一致。
+     c. 当前用户级 adapter 滞后时，列出源码仓 `devcodex global-adapters apply`、pack+全局安装或已发布环境 `npm update -g devcodex` 的适用方案；既有授权已覆盖部署时按该 scope 执行，审计/Auto/Profile 本身不扩权。**不要**用 bare `devcodex update` 或 `update --claude/--codex` 冒充刷全局，也不能声称全局 apply 会重写旧父链副本；授权刷新后核 receipt、`devcodex doctor` 和新 CLI/MCP 的实际行为。
+   - **目的**：避免只读源码就推断部署已生效，同时保留 GAP-019 的历史核对能力。
+   - **未发现受管部署证据时**：记录部署状态 UNVERIFIED/N/A，不把空目录升级为待补齐副本，也不宣称宿主原生通过。
+  - **⚠️ V8 与 CRS 职责不可互替（PI-006，v1.9.5+）**：V8 在 source scope（authoring package 未指定范围时自动识别）核源码边界，并保留显式 workspace 范围的 legacy checkPairs；它不签发当前用户级安装或原生加载资格。CRS、当前 receipt/内容摘要和真实宿主证据分别留存——V8 ✅ ≠ 全量部署同步。
 4. **发现关联文件**：将 grep 命中且不在当前审查范围内的文件列入扩展范围
 5. **补充 G3 审查**：对每个新发现文件执行 G3 外部一致性检查
 6. **确认覆盖完整**：所有命中文件均已审查后，CRS ✅

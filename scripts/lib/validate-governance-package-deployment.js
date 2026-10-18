@@ -274,10 +274,6 @@ function buildGovernancePackageDeploymentChecks(ctx) {
   }
 
   function checkV8() {
-    if (process.env.DEVCODEX_VALIDATION_SCOPE === 'source') {
-      console.log('[V8] source validation scope — workspace deployment parity deferred to profile-deploy route')
-      return
-    }
     const parentRoot = path.dirname(ROOT)
     const claudeDir = path.join(parentRoot, '.claude')
     const githubDir = path.join(parentRoot, '.github')
@@ -291,8 +287,17 @@ function buildGovernancePackageDeploymentChecks(ctx) {
     if (sourceRootDeployments.length) {
       err(
         `[V8] source-root deployment must not exist: ${sourceRootDeployments.map(entry => entry.label).join(', ')}; ` +
-        'single active deployment target is the parent/target workspace root. Run update from the target workspace root, not from the source repo.'
+        'single active deployment target per host is its user-global root; use devcodex global-adapters apply, not a source-root host copy.'
       )
+    }
+
+    // Authoring packages have an unambiguous source boundary. An unrelated
+    // parent .github/ or empty native host directory is not a deployment receipt.
+    // An explicit workspace scope still requests the retained legacy checks.
+    const scope = String(process.env.DEVCODEX_VALIDATION_SCOPE || '').trim()
+    if (scope === 'source' || (!scope && isSourcePackageRoot(ROOT))) {
+      console.log('[V8] source validation scope — parent legacy parity deferred; verify user-global adapters through their receipts')
+      return
     }
 
     if (!claudeExists && !githubExists && !codexExists) {

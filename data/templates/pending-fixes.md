@@ -1,6 +1,6 @@
 # 待修复清单（template）
 
-> **文件定位**：模板。`devcodex init` / `devcodex init --claude` 复制为目标项目运行时 `data/pending-fixes.md`（Copilot: `.github/data/pending-fixes.md`；Claude Code: `.claude/data/pending-fixes.md`）。
+> **文件定位**：空模板；实际运行时台账位于 `<active-root>/data/pending-fixes.md`。`devcodex init` 准备工作区运行目录；宿主配置由用户级 `devcodex global-adapters apply` 管理，不向项目的 `.github/data/` 或 `.claude/data/` 分发台账。
 > **使用**：PC4 三轴检测出 PF 标记后，AI 追加到此表；修复完成后标注 ✅。
 > **维护者自身的 PF**：不在本包内分发；启用 `workspace-namespace` 时写入对应 active-root，例如 `<工作区根>/.devcodex/<project>/data/pending-fixes.md`。
 

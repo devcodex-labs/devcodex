@@ -1,6 +1,6 @@
 # 过程改进记录 / 优化清单（template）
 
-> **文件定位**：模板。`devcodex init` / `devcodex init --claude` 复制为目标项目运行时 `data/process-improvements.md`（Copilot: `.github/data/process-improvements.md`；Claude Code: `.claude/data/process-improvements.md`）。
+> **文件定位**：空模板；实际运行时台账位于 `<active-root>/data/process-improvements.md`。`devcodex init` 准备工作区运行目录；宿主配置由用户级 `devcodex global-adapters apply` 管理，不向项目的 `.github/data/` 或 `.claude/data/` 分发台账。
 > **使用**：C17 / Improvement Intake 命中时追加 PI 条目；所有模式命中后都需回执 `已记录 PI-xxx` 或 `已记录 PI-xxx / PF-xxx`。
 > **维护者记录**：不在本包内分发；启用 `workspace-namespace` 时写入对应 active-root，例如 `<工作区根>/.devcodex/<project>/data/process-improvements.md`。
 > **归属提醒**：若建议针对 DevCodex 规范自身、Hook、Skill、模板、validate 或宿主适配链路，则应写入承载这些规范资产的 active-root，而不是当前业务项目台账。

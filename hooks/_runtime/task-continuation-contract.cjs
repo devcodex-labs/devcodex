@@ -574,6 +574,33 @@ function deriveTaskStatus(descriptor) {
   return 'active'
 }
 
+// Only the selected Task gets a bounded V5 read. Locator/index headers remain hints.
+// This status is selection evidence, never a resume, Owner lease, or write grant.
+function readSelectedCheckpointStatus(descriptor, identity) {
+  if (descriptor.archivedSource.exists || !identity?.taskId) return null
+  const { readTaskRecoveryState, resolveTaskRecoveryMetaDir } = require('./task-recovery-store-v5.cjs')
+  const { validateTaskCheckpointEpochSet } = require('./task-checkpoint-epoch-v1.cjs')
+  const task = { activeRoot: descriptor.activeRoot, project: descriptor.project, taskId: identity.taskId }
+  const read = readTaskRecoveryState({ metaDir: resolveTaskRecoveryMetaDir(task), identity: task })
+  if (read.status === 'missing') return null // legacy Tasks have no canonical V5 partition
+  if (read.status !== 'fresh') return { error: `canonical Task status unavailable: ${read.errorCode || read.status}` }
+  const set = read.state.taskCheckpointEpochSet
+  if (!set) return null // pre-epoch V5 compatibility
+  const validation = validateTaskCheckpointEpochSet(set, { taskId: identity.taskId,
+    stateSequence: read.commitFence.stateSequence, writerGeneration: read.commitFence.writerGeneration })
+  if (!validation.valid) return { error: `canonical checkpoint status invalid: ${validation.errors.join(', ')}` }
+  const current = set.epochs.find(epoch => epoch.epochId === set.currentEpochId)
+  if (!current || current.task.project !== descriptor.project || current.task.taskKind !== descriptor.kind) {
+    return { error: 'canonical checkpoint status has no matching current Task epoch' }
+  }
+  const rootDigest = read.state.admissionTransaction?.projectRootIdentityDigest
+  if (rootDigest && current.task.activeRootDigest !== rootDigest) {
+    return { error: 'canonical checkpoint status root identity mismatch' }
+  }
+  return { status: current.terminalStatus === 'completed' ? 'completed'
+    : current.terminalStatus ? 'rejected' : 'active', epochId: current.epochId }
+}
+
 function parseCpBindings(descriptor) {
   const bindings = []
   for (const line of descriptor.sessionsSource.text.split(/\r?\n/u)) {
@@ -660,6 +687,13 @@ function inspectTaskDescriptor(descriptor, budget) {
   if (canonicalDescriptor.sessionsSource.tooLarge) canonicalErrors.push(`sessions metadata exceeds ${TASK_CANONICAL_FILE_MAX_BYTES} bytes`)
   if (canonicalDescriptor.sessionsSource.nonFile) canonicalErrors.push('sessions metadata is not a file')
   if (canonicalDescriptor.sessionsSource.readError) canonicalErrors.push(`sessions metadata read failed: ${canonicalDescriptor.sessionsSource.readError}`)
+  let checkpointStatus = null
+  if (parsedIdentity.valid && !canonicalErrors.length) {
+    try { checkpointStatus = readSelectedCheckpointStatus(canonicalDescriptor, parsedIdentity.identity) } catch (error) {
+      checkpointStatus = { error: `canonical checkpoint status read failed: ${error.message}` }
+    }
+    if (checkpointStatus?.error) canonicalErrors.push(checkpointStatus.error)
+  }
   const bindings = canonicalErrors.length ? [] : parseCpBindings(canonicalDescriptor)
   const confirmationEvidence = []
   for (const [index, binding] of bindings.entries()) {
@@ -685,6 +719,7 @@ function inspectTaskDescriptor(descriptor, budget) {
     value: {
       identity: canonicalDescriptor.identitySource.digest,
       sessions: canonicalDescriptor.sessionsSource.digest,
+      checkpointStatus,
       archived: canonicalDescriptor.archivedSource.exists,
       confirmations: confirmationEvidence.map(item => ({
         phase: item.phase,
@@ -710,7 +745,7 @@ function inspectTaskDescriptor(descriptor, budget) {
     project: descriptor.project,
     kind: descriptor.kind,
     relativeTaskPath: descriptor.relativeTaskPath,
-    status: deriveTaskStatus(canonicalDescriptor),
+    status: checkpointStatus?.status || deriveTaskStatus(canonicalDescriptor),
     sourceIdentity,
     confirmationEvidence,
     staleConfirmations,

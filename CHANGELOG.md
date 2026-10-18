@@ -1,9 +1,9 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要；历史版本见对应详细变更文件。
-> **最新版本详细变更文档**: [`changelogs/releases/v1.20.4.md`](./changelogs/releases/v1.20.4.md)
-> **最后更新**: 2026-10-10
-> **当前源码版本**: v1.20.4，修复全项目审查、入口恢复与验证续租问题；当前发行资格待验证。版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
+> **最新版本详细变更文档**: [`changelogs/releases/v1.20.5.md`](./changelogs/releases/v1.20.5.md)
+> **最后更新**: 2026-10-18
+> **当前源码版本**: v1.20.5 发布候选，修复真实工作流验证发现的恢复、候选模板、验证适用范围与验收问题；尚未正式发布。版本发布权威以对应 Git tag、npm registry 与 GitHub Release 为准。
 
 ---
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.20.5](./changelogs/releases/v1.20.5.md) | 2026-10-18 | 工作流恢复、候选模板与验证范围修复；发行资格待验证 | [查看](./changelogs/releases/v1.20.5.md) |
 | [v1.20.4](./changelogs/releases/v1.20.4.md) | 2026-10-10 | 修复MCP重启契约、状态与事务边界、ContextRead入口、验证续租及自动CP恢复；同步当前Skill和分发消费者 | [查看](./changelogs/releases/v1.20.4.md) |
 | [v1.20.3](./changelogs/releases/v1.20.3.md) | 2026-09-15 | 批量关闭当前治理台账未闭合记录，补齐固定修复回执；同步 package/plugin/Profile/release notes 身份，并重新取得 prepublishOnly 所需 release 终态验证回执 | [查看](./changelogs/releases/v1.20.3.md) |
 | [v1.20.2](./changelogs/releases/v1.20.2.md) | 2026-09-08 | 根据意图保持任务与回复语言，补齐 Skill/MCP 实际加载链；隔离运行时升级与卸载残留，区分模板结构、实际生成和业务验收证据 | [查看](./changelogs/releases/v1.20.2.md) |

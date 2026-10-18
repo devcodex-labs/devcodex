@@ -304,6 +304,66 @@ try {
   assert.match(missingSessions.canonicalErrors[0], /sessions metadata is missing/)
   assert.strictEqual(missingSessions.mutationAuthority, false)
 
+  // A reopened canonical epoch must outrank the historical completed header.
+  // Persist through the public V5 store; never fabricate a live fixture's private slots.
+  const { commitTaskRecoveryState, resolveTaskRecoveryMetaDir } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
+  const { sealTaskCheckpointEpoch, sealTaskCheckpointEpochSet, sealCheckpointPhaseSlot,
+    sealCheckpointPhaseBinding, closeCurrentTaskCheckpointEpoch } = require('../hooks/_runtime/task-checkpoint-epoch-v1.cjs')
+  const reopened = writeTask('alpha', 'requirements', 'canonical-reopened', { status: 'completed' })
+  const activeRoot = path.join(root, '.devcodex', 'alpha')
+  const recoveryIdentity = { activeRoot, project: 'alpha', taskId: reopened.identity.taskId }
+  const metaDir = resolveTaskRecoveryMetaDir(recoveryIdentity)
+  const at = '2026-10-18T00:00:00.000Z'
+  const cp1 = sealCheckpointPhaseBinding({ phase: 'CP1', role: 'primary',
+    artifactPath: 'requirements/canonical-reopened/01-需求确认.md', artifactSha256: digest('# confirmed artifact\n'),
+    artifactVersion: 'v1', templateQualificationDigest: digest('template'), confirmationSourceDigest: digest('source'),
+    confirmedAt: at, confirmationMode: 'explicit' })
+  const current = sealTaskCheckpointEpoch({ ordinal: 1, stageKey: 'reopened', status: 'current',
+    task: { taskId: reopened.identity.taskId, taskKind: 'requirements', project: 'alpha', activeRootDigest: digest(activeRoot), admissionId: 'test-admission' },
+    lineage: { canonicalRevision: 1, canonicalHeadDigest: digest('head'), scopeDigest: digest('scope') },
+    owner: { ownerGeneration: 0, leaseRevision: 1, leaseDigest: digest('lease') },
+    context: { contextEpoch: 'test-context', planContentId: 'test-plan' },
+    phases: { CP1: sealCheckpointPhaseSlot({ phase: 'CP1', state: 'confirmed', currentBinding: cp1, slotSequence: 1 }) },
+    runtime: { stateSchemaVersion: 'TaskRecoveryStateV5', packageVersion: 'test', mcpProtocolVersion: 'test', sourceHead: 'test', epochCapability: 1 },
+    createdAt: at, activatedAt: at, trigger: 'test' })
+  let epochSet = sealTaskCheckpointEpochSet({ taskId: reopened.identity.taskId, currentEpochId: current.epochId,
+    nextOrdinal: 2, stateSequence: 0, writerGeneration: 0, epochs: [current],
+    migration: { migrationId: digest('migration'), from: 'test', status: 'not-required' },
+    projection: { desiredDigest: digest('projection'), status: 'pending', sequence: 0 } })
+  const firstCommit = commitTaskRecoveryState({ metaDir, identity: recoveryIdentity,
+    state: { version: 5, activeProject: 'alpha', taskCheckpointEpochSet: epochSet } })
+  assert.strictEqual(firstCommit.status, 'committed')
+  const canonicalActive = resolve(reopened.identity.taskId, { persistIndex: false })
+  assert.strictEqual(canonicalActive.status, 'resolved-active', 'current canonical epoch outranks old completed projection')
+  assert.strictEqual(canonicalActive.mutationAuthority, false, 'selection never grants mutation authority')
+  const activeSelection = canonicalActive.candidate.selectionDigest
+  const refreshed = commitTaskRecoveryState({ metaDir, identity: recoveryIdentity,
+    state: { ...firstCommit.state, contextAcquisition: { contextEpoch: 'refreshed-context' } } })
+  assert.strictEqual(refreshed.status, 'committed')
+  assert.strictEqual(resolve(reopened.identity.taskId, { persistIndex: false }).candidate.selectionDigest, activeSelection,
+    'unrelated canonical context/fence advancement must not invalidate semantic Task selection')
+  epochSet = closeCurrentTaskCheckpointEpoch({ epochSet: refreshed.state.taskCheckpointEpochSet, terminalStatus: 'completed', terminalAt: at }).epochSet
+  const terminalCommit = commitTaskRecoveryState({ metaDir, identity: recoveryIdentity,
+    state: { ...refreshed.state, taskCheckpointEpochSet: epochSet } })
+  assert.strictEqual(terminalCommit.status, 'committed')
+  fs.writeFileSync(path.join(reopened.taskRoot, '.memory', 'sessions.md'), '# task\n> **当前状态**: 🔄 active\n')
+  const canonicalCompleted = resolve(reopened.identity.taskId, { persistIndex: false })
+  assert.strictEqual(canonicalCompleted.status, 'completed', 'true canonical terminal cannot auto reopen from active projection')
+  assert.notStrictEqual(canonicalCompleted.candidate.selectionDigest, activeSelection, 'selection binds canonical epoch status')
+
+  fs.writeFileSync(path.join(reopened.taskRoot, '.archived'), 'archived\n')
+  assert.strictEqual(resolve(reopened.identity.taskId, { persistIndex: false }).status, 'completed')
+  fs.unlinkSync(path.join(reopened.taskRoot, '.archived'))
+  const mismatched = sealTaskCheckpointEpoch({ ...terminalCommit.state.taskCheckpointEpochSet.epochs[0],
+    task: { ...current.task, project: 'beta' } })
+  const mismatchSet = sealTaskCheckpointEpochSet({ ...terminalCommit.state.taskCheckpointEpochSet, epochs: [mismatched] })
+  const mismatchCommit = commitTaskRecoveryState({ metaDir, identity: recoveryIdentity,
+    state: { ...terminalCommit.state, taskCheckpointEpochSet: mismatchSet } })
+  assert.strictEqual(mismatchCommit.status, 'committed')
+  const mismatchResolution = resolve(reopened.identity.taskId, { persistIndex: false })
+  assert.strictEqual(mismatchResolution.errorCode, 'TASK_CANONICAL_EVIDENCE_UNAVAILABLE')
+  assert.strictEqual(mismatchResolution.mutationAuthority, false)
+
   for (let index = 0; index < 260; index += 1) {
     writeTask('beta', 'scenario-tests', `page-boundary-${String(index).padStart(3, '0')}`, {
       status: 'completed',

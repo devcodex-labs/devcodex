@@ -6,7 +6,7 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "57fe274bbef1a494327bd4c6129f8fd46099d3050c10fb8461fd7441a9bef097",
+    "sourceDigest": "539a49c950325724c1b2ed35fc87f8b15ed5fcc5e19a5d56a606bf40a6591dfd",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "9286d43fbddc8dd449ebf391fe5a90e2cf137771aacb8648d84553274191de4e",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
@@ -16,7 +16,7 @@
     "consumerInventoryFileCount": 727,
     "consumerInventoryDigest": "a10895a7f09224c649eb173b0a1e93986e0c10ab0077ab4357956bbdbe0d0942",
     "consumerProjectionDigest": "c932e8eaa75d75198e26aa82c0d597db434de063ba1f95694c0c954390bb5f24",
-    "portfolioInputDigest": "b7df2c884b34e1dd073642e9d79fba6f16fa1d5bec533335daaaf27dd71f09a5"
+    "portfolioInputDigest": "c0d61fb5555229b2d1bd337eba63fb6090a3b98143ddf2d26c8c85de8c3c0d4a"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -10356,8 +10356,8 @@
         "content/skills/host-instruction-projection/SKILL.md"
       ],
       "source": "content/skills/host-instruction-projection/SKILL.md",
-      "hash": "be5094658879029c899e8d0c0b09cc58d736d8c0b21aaa092ae72ac4b967cfe6",
-      "sourceBytes": 13510,
+      "hash": "f7a9adea3d0be9f7b4a77ccd900af7ac9b48ca6d3efa1513ec43841d3d3b7ebd",
+      "sourceBytes": 13910,
       "version": "1.20.5",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",
@@ -14954,8 +14954,8 @@
         "content/skills/platform-ecosystem-architecture/SKILL.md"
       ],
       "source": "content/skills/platform-ecosystem-architecture/SKILL.md",
-      "hash": "9b9f348dd84d6774e9a11b5d234cec3e2be9c49e3442d8f60c2a60a5ada7ed62",
-      "sourceBytes": 4811,
+      "hash": "b27047acbac8ce9d56f3dd186abf978d797645a0992b1581a57ee9d8ce1c60eb",
+      "sourceBytes": 5361,
       "version": "1.20.5",
       "lifecycleState": "active",
       "publicCategory": "domain-architecture",
@@ -19280,8 +19280,8 @@
         "content/skills/skill-load-verify/SKILL.md"
       ],
       "source": "content/skills/skill-load-verify/SKILL.md",
-      "hash": "515fb259f444911adefe20cac05140f7533e9d96a3b57d1182716d6696493914",
-      "sourceBytes": 1385,
+      "hash": "aff1453003ad3947a3fb5d70ba9a1f087ea4a0de037db3a3d300cd293c14fa0a",
+      "sourceBytes": 1446,
       "version": "1.20.5",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",

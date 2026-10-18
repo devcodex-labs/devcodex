@@ -55,7 +55,7 @@ description: 宿主指令投影 Owner — 从统一 instructions 真相源确定
 | Grok | 用户级 `files.plugin` / config / hooks；Full 入口使用 `devcodex grok` | 官方用户登记的 canonical plugin identity、同代 runtime 与 `--rules`；plain/full 能力分别以 direct evidence 声明 |
 | Cursor | 用户级 `files.plugin` / `files.hooks` | 按当前 target 的 support/evidenceCeiling 验证；Cloud 不从本地结果升级 |
 
-上述路径由 `global-host-target.js`、`global-host-config.js` 和实际 `GlobalHostConfigReceiptV1` 共同确定，不能从 repo cwd 推断。hidden 模式使用受管 G_RUNTIME；可选 legacy discovery 也仍是用户级部署。wrapper 只允许宿主能力提示和 shared kernel 指针；不得复制完整规则。
+上述路径由 `global-host-target.js`、`global-host-config.js` 和实际 `GlobalHostConfigReceiptV1` 共同确定，不能从 repo cwd 推断。hidden 模式使用 receipt 的 `skillsRuntimeRoot`（G_RUNTIME）；可选 legacy discovery 也仍是用户级部署。wrapper 只允许宿主能力提示和 shared kernel 指针；不得复制完整规则。生成的包装是位置无关模板，安装器必须把 kernel import 绑定到当前 `target.runtimeRoot/AGENTS.md`；验收须解析实际 import、证明文件存在且属于 receipt 当前代际，旧固定路径存在也不能算通过。
 
 ## HostAdapterScopeGate
 
@@ -112,7 +112,7 @@ full fallback 是兼容/故障路径，不得与 kernel 同时作为两个 alway
 
 ## CLI 与部署消费者
 
-- `init/update/uninstall --host <copilot|claude|codex|gemini|grok|cursor|all>` 与旧 `--claude`、`--codex`、`--gemini`、`--grok`、`--cursor` 不再是当前部署入口；已知 workspace host selector 返回 `CLI_HOST_CONFIG_GLOBAL_ONLY`。
+- `init/update --host <copilot|claude|codex|gemini|grok|cursor|all>` 及单宿主旧 alias 不再是当前部署入口，已知 workspace host selector 返回 `CLI_HOST_CONFIG_GLOBAL_ONLY`。uninstall 的单宿主选择同样禁用；兼容的 `uninstall --host all` 仍进入六宿主 global remove，并保持 dry-run/显式 `--apply` 边界，不是单宿主卸载。
 - `GlobalOnlyWorkspaceCleanModeV1` 下，bare `init/update` 只维护 `.devcodex`，不部署任何 workspace 宿主 adapter；用户级 `global-adapters apply` 默认部署六宿主。legacy project projection 仍只有 copilot+claude+codex+gemini+grok 五类工作区 surface，Cursor 必须保持零业务 workspace `.cursor` 产物。
 - 重复或冲突 selector 使用 `CLI_HOST_SELECTION_CONFLICT`；未知 host 使用 `CLI_HOST_UNSUPPORTED`。
 - managed manifest 必须记录 projection source/content digest，并保证规范化物理 destination 单一 current owner；dry-run 零写入；从 source cwd 与目标项目 cwd 分别验证边界。

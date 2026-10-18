@@ -11,15 +11,15 @@
     {
       "hostVariant": "codex-cli/exec-user-global-local-stdio",
       "status": "PASS",
-      "testedVersion": "codex-cli 0.145.0",
+      "testedVersion": "codex-cli 0.159.2",
       "protocol": "MCP 2024-11-05",
       "evidenceRef": "hooks/_runtime/evidence/codex-skill-route-pass.v1.json",
       "entrySurface": "codex exec --ephemeral",
       "bootstrapDelivery": "stable user-global Hook launcher UserPromptSubmit or profile_context_plan fallback",
       "defaultEligible": true,
-      "runtimeContractDigest": "ca61908e554aef941e77a2e0f59f895d39a6006c4845af351be361845becf3bd",
-      "hostAdapterDigest": "fee2426ff47e74db16dcfddf0de8c84d8622a558fa8ced1fe6371dd850087f4e",
-      "evidenceDigest": "6e1041565c719102bdc85202199f77a76485032c01601ec51f2ae750e0f3e208"
+      "runtimeContractDigest": "f3d41537ec66eedb79592541d262c5af14ef611764b7fde40fa0a14afbb1edf7",
+      "hostAdapterDigest": "c9ec9184e4f54e119bd758a248ab88927ef5715f8f8a08b5419fa4b8c31d3482",
+      "evidenceDigest": "7e8afd31e7ef544c11cba280eec631c77c5ab04879b5b46dd68c7a7906f65dc0"
     },
     {
       "hostVariant": "codex-desktop/app-user-global-local-stdio",

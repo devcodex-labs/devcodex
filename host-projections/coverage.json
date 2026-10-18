@@ -2,7 +2,7 @@
   "schemaVersion": "HostInstructionCoverageReceiptV1",
   "sourceFile": "content/instructions.md",
   "sourceDigest": "017957a5727e9906cf2e4df35b959665e27f5aeb1ede6c828009ee098a2dbbf8",
-  "configDigest": "2e0942dff1261d7d67093d3af00a9d754a2d66c0bd9648f4246fefbf7aee632d",
+  "configDigest": "9a6dafe5365c4d43a9a1255e1b5cffa83b7f9b8144b060cb205a8d98beab9457",
   "mode": "kernel",
   "fallback": {
     "destination": "user://agents/devcodex/instructions.full.md",
@@ -307,22 +307,22 @@
     "host-projections/AGENTS.md": {
       "bytes": 11913,
       "lines": 91,
-      "digest": "4e417eff6f1fe37a65e66f537e89a6dce58db9f312441fd5f9138d402bda6164"
+      "digest": "041dded15eb2b4c5d5f28f743bacfc1d956d292f4c8866df19c5ce5548dc7e8c"
     },
     "host-projections/copilot-instructions.md": {
       "bytes": 11938,
       "lines": 91,
-      "digest": "71874c0404b6d8744f8751e560955dda4a5bffaf7a831b212dec583ffa59f5e0"
+      "digest": "382235d8b414ba32f9c415fecf58b4f3f65c3f2d794136b1c69f0c98ab5e6a46"
     },
     "host-projections/CLAUDE.md": {
-      "bytes": 510,
+      "bytes": 520,
       "lines": 8,
-      "digest": "da03a92925d00026d71eea60918de544681a2910afba6ff6688a8a746bcddd33"
+      "digest": "325408a7e708de4611c7663d4a705287b9cc72f7139f7bf7faf197ac1a08997a"
     },
     "host-projections/GEMINI.md": {
-      "bytes": 508,
+      "bytes": 518,
       "lines": 8,
-      "digest": "56c75bac65d31fb616aed6090838984dfb79ef92a4ab419b3dd2ea81e0288048"
+      "digest": "712690835a391cb2f0f887124bf417e31f9f75b064605ce4888d0fd4cc61af97"
     }
   },
   "collisions": [],
@@ -330,5 +330,5 @@
     "valid": true,
     "errors": []
   },
-  "receiptId": "host-instruction-coverage-5897e85f2aa5507e34e94490db0e5b3305b8cd5e2367fc487b804140105b6625"
+  "receiptId": "host-instruction-coverage-8245da04ae46044bbd4e58eb76a6a82d19c12bcdbd2b54c5785aeae1da59591e"
 }

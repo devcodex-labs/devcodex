@@ -34,9 +34,10 @@ description: 平台生态架构专家 Owner — 当任务涉及 CLI、Hook、多
 
 ### DevCodex managed deployment manifest
 
-- `init/update` 的 copy map 是源事实；目标所有权索引写入 `resolveActiveRuntimeRoot(cwd)/managed/deployment-manifest.json`。workspace-namespace 必须落到 workspace/project active-root，禁止另建平行 `.devcodex/managed` 根。
-- preview 分类 `add/update/unchanged/stale/unowned`；`stale` 只代表上一 manifest 管理、当前源已不再声明且文件仍存在，CLI 不自动删除。`unowned` 只提示目标 managed subtree 中从未进入 manifest 的文件。
-- V8 对 current entry 做 source→destination/hash 验证，对 stale existing 做阻断；首次 manifest 只能建立之后的 ownership 基线，不能把 pre-manifest extras 伪装成 stale。
+- 当前宿主配置由 `GlobalHostTargetV1`、`global-host-config.js` 与 `GlobalHostConfigReceiptV1` 的用户级目标、受管内容、runtime generation 和实际加载路径共同证明；`global-adapters apply --dry-run` 预览，授权 apply 按事务更新。`init/update` 的项目 active-root 运行态与宿主配置 owner 分离。
+- 生成模板不能代替部署验收：包装 import 必须解析到当前代际 kernel，Skill 根取 receipt 的 `skillsRuntimeRoot`；源文件摘要、配置已写入或旧路径存在均不单独证明当前宿主已加载。
+- legacy `init/update` copy map 与 `resolveActiveRuntimeRoot(cwd)/managed/deployment-manifest.json` 仅作明确的历史/迁移核对。其 preview 的 `add/update/unchanged/stale/unowned`、source→destination/hash 和 stale existing 语义保持历史边界，不能把 pre-manifest extras 伪装成 stale，也不让当前 global apply 重写旧父链副本。
+- V8 默认对 authoring source package 核源码边界；显式 workspace 范围保留 legacy parity。当前用户级部署另核 receipt/config/实际进程与 native/fixture 证据，不以 V8 代替。
 
 ## 执行步骤
 
@@ -67,7 +68,7 @@ description: 平台生态架构专家 Owner — 当任务涉及 CLI、Hook、多
 
 | 反模式 | 修正 |
 |--------|------|
-| 只改源文件，不同步宿主副本 | 执行 source-consumer-sync 和 V8 |
+| 只改源文件，不核当前部署 | 执行 source-consumer-sync、当前用户级 receipt/代际/指针与真实加载验证；V8 的源码/legacy 适用范围单列 |
 | 扩展点没有生命周期和错误语义 | 补 extensionPointContract |
 | 只说“支持多宿主” | 建 hostSurfaceMatrix |
 | 公开能力无法被用户发现 | 补 README / website / routing / Profile |

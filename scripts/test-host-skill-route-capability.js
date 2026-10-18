@@ -24,6 +24,26 @@ const {
 
 const ROOT = path.resolve(__dirname, '..')
 
+const { resolveExecutable } = require('./probe-skill-route-s15-host')
+// Linux installations can provide the official binary without Volta. Exercise
+// resolution without spawning a substitute host or fabricating probe evidence.
+for (const platform of ['linux', 'darwin', 'win32']) {
+  const explicit = platform === 'win32' ? 'C:\\codex\\codex.exe' : '/opt/codex/bin/codex'
+  assert.deepStrictEqual(resolveExecutable('codex', {
+    platform,
+    env: { DEVCODEX_CODEX_CLI: explicit },
+    fs: { existsSync: file => file === explicit },
+    spawnSync: () => { throw new Error('explicit CLI must not require Volta') }
+  }), { command: explicit, prefix: [], resolutionSource: 'explicit' })
+  const onPath = platform === 'win32' ? 'C:\\tools\\codex.exe' : '/usr/local/bin/codex'
+  assert.deepStrictEqual(resolveExecutable('codex', {
+    platform,
+    env: {},
+    resolveExecutableOnPath: name => name === (platform === 'win32' ? 'codex.exe' : 'codex') ? onPath : null,
+    spawnSync: () => { throw new Error('PATH CLI must not require Volta') }
+  }), { command: onPath, prefix: [], resolutionSource: 'path' })
+}
+
 function withDigest (value) {
   const next = JSON.parse(JSON.stringify(value))
   next.evidenceDigest = rawDigest(next)

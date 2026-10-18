@@ -152,15 +152,17 @@ function resolveExecutable (hostId, options = {}) {
   const fsImpl = options.fs || fs
   const spawnSyncImpl = options.spawnSync || spawnSync
   const resolveOnPath = options.resolveExecutableOnPath || resolveExecutableOnPath
-  if (hostId === 'codex' && platform === 'win32') {
+  if (hostId === 'codex') {
     const explicit = env.DEVCODEX_CODEX_CLI
     if (explicit && fsImpl.existsSync(explicit)) {
       return { command: explicit, prefix: [], resolutionSource: 'explicit' }
     }
-    const activePathExecutable = resolveOnPath('codex.exe', env)
+    const activePathExecutable = resolveOnPath(platform === 'win32' ? 'codex.exe' : 'codex', env)
     if (activePathExecutable) {
       return { command: activePathExecutable, prefix: [], resolutionSource: 'path' }
     }
+  }
+  if (hostId === 'codex' && platform === 'win32') {
     const resolved = spawnSyncImpl('volta', ['which', 'codex'], {
       encoding: 'utf8',
       timeout: 30000

@@ -483,6 +483,41 @@ for (const target of applied.targets) {
   )
 }
 assert.strictEqual(applied.workspaceHostDirectoriesWritten, false)
+function assertCurrentWrapperKernel(target) {
+  const text = fs.readFileSync(target.files.instructions, 'utf8')
+  const block = text.split(`<!-- BEGIN DEVCODEX MANAGED: global-${target.host} -->`)[1]
+    .split(`<!-- END DEVCODEX MANAGED: global-${target.host} -->`)[0]
+  const imports = [...block.matchAll(/^@([^\r\n]+)$/gm)].map(match => match[1].trim())
+  assert.strictEqual(imports.length, 1, `${target.host} must import exactly one managed kernel`)
+  const imported = path.resolve(path.dirname(target.files.instructions), imports[0])
+  const current = path.join(target.runtimeRoot, 'AGENTS.md')
+  assert.strictEqual(imported, current, `${target.host} wrapper must bind the current immutable runtime`)
+  assert.ok(fs.statSync(imported).isFile(), `${target.host} kernel import must exist`)
+  assert.deepStrictEqual(fs.readFileSync(imported), fs.readFileSync(path.join(packageRoot, 'host-projections/AGENTS.md')))
+  return { text, importLine: `@${imports[0]}` }
+}
+const importedHostTargets = applied.targets.filter(target => ['claude', 'gemini'].includes(target.host))
+for (const target of importedHostTargets) assertCurrentWrapperKernel(target)
+
+// Upgrade a legacy fixed import even when its old kernel still exists, while
+// preserving native instructions outside the managed block. This must be a
+// current-generation check, not merely an existence check against a stale file.
+for (const target of importedHostTargets) {
+  const wrapper = assertCurrentWrapperKernel(target)
+  const legacyKernel = path.join(target.runtimeBaseRoot, 'runtime', 'AGENTS.md')
+  fs.mkdirSync(path.dirname(legacyKernel), { recursive: true })
+  fs.writeFileSync(legacyKernel, '# unowned legacy kernel\n')
+  fs.writeFileSync(target.files.instructions,
+    `# native ${target.host} instructions\n\n${wrapper.text.replace(wrapper.importLine, '@devcodex/runtime/AGENTS.md')}`)
+}
+assert.strictEqual(inspectConfiguration({ packageRoot, env, home, depth: 'deep' }).ready, false)
+assert.strictEqual(applyGlobalHostConfig({ packageRoot, env, home }).transaction.status, 'committed')
+for (const target of importedHostTargets) {
+  assert.ok(assertCurrentWrapperKernel(target).text.startsWith(`# native ${target.host} instructions\n`))
+  assert.strictEqual(fs.readFileSync(path.join(target.runtimeBaseRoot, 'runtime/AGENTS.md'), 'utf8'), '# unowned legacy kernel\n')
+}
+assert.strictEqual(applyGlobalHostConfig({ packageRoot, env, home }).transaction.changed, 0)
+
 for (const [host, configPath] of [
   ['codex', path.join(home, '.codex', 'hooks.json')],
   ['claude', path.join(home, '.claude', 'settings.json')]

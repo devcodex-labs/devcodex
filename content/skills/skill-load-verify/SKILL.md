@@ -8,7 +8,7 @@ description: >
 ---
 # skill-load-verify
 
-全局验证用 skill（部署到 `~/.agents/devcodex/skills/skill-load-verify`；hidden 模式下 UI 菜单可能不显示）。
+全局验证用 skill（部署到当前宿主 receipt 的 `skillsRuntimeRoot/skill-load-verify`；hidden 模式下 UI 菜单可能不显示，不能按历史固定目录推断未安装）。
 
 加载过程由宿主时间线展示（与 GPT 点选 skill 类似）。**不要**在最终用户可见正文里加 DevCodex 技能元信息行。
 

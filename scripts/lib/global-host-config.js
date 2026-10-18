@@ -351,6 +351,14 @@ function managedInstruction(existing, source, label) {
   ].join('\n'), { kind: 'markdown', id: `global-${label}` })
 }
 
+function bindWrapperKernel(source, target) {
+  const kernel = path.join(target.runtimeRoot, 'AGENTS.md')
+  const relative = path.relative(path.dirname(target.files.instructions), kernel).replace(/\\/g, '/')
+  // Generated wrappers are location-independent templates. Bind only their
+  // kernel import before merging the managed block; native user text is intact.
+  return source.replace(/^@devcodex\/runtime\/AGENTS\.md\r?$/m, `@${relative}`)
+}
+
 /**
  * Per-host command-hook wall clock.
  * Claude / Codex / Grok: seconds. Gemini CLI: milliseconds. Copilot uses timeoutSec separately.
@@ -650,7 +658,7 @@ function addClaudePlan(operations, target, packageRoot, fsImpl) {
   if ((target.skillsDeployMode || 'hidden') === 'legacy') {
     addSkillRuntimeTree(operations, target.host, packageRoot, path.join(target.root, 'skills'), fsImpl)
   }
-  const source = readText(path.join(packageRoot, 'host-projections', 'CLAUDE.md'), fsImpl)
+  const source = bindWrapperKernel(readText(path.join(packageRoot, 'host-projections', 'CLAUDE.md'), fsImpl), target)
   addFileOperation(
     operations,
     target.host,
@@ -738,7 +746,7 @@ function addCodexPlan(operations, target, packageRoot, fsImpl) {
 
 function addGeminiPlan(operations, target, packageRoot, fsImpl) {
   addCommonRuntime(operations, target, packageRoot, fsImpl)
-  const source = readText(path.join(packageRoot, 'host-projections', 'GEMINI.md'), fsImpl)
+  const source = bindWrapperKernel(readText(path.join(packageRoot, 'host-projections', 'GEMINI.md'), fsImpl), target)
   addFileOperation(
     operations,
     target.host,

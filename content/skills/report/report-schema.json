@@ -4,6 +4,8 @@
   "gateRegistryRef": "skills/spec-governance/gate-registry.json",
   "baseFields": ["identity", "scope", "recommendedConclusion", "summary", "verificationEvidence", "unverifiedAndResidualRisk", "artifactManifest", "governanceIntakeDecision"],
   "conditionalSections": {
+    "ConditionEvidence": "compound requirement: reference the reviewed ConditionEvidenceMatrixV1; preserve the independent design and execution statuses; no historical rewrite",
+    "VerificationResponsibilities": "applicable D/A/I/H responsibilities from test-router, with applicability, candidate/environment/version/run, actual evidence/result and limitations; H is conditional",
     "ContextHandoffCard": "cross-session, multi-batch, interruption or unresolved risk",
     "GovernanceGates": "record gateGroup, result, evidence and skipReason only",
     "ProfileImpactCheck": "dev or fix changes project reality",

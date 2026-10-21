@@ -20,6 +20,7 @@ const {
 } = require('./lib/package-compatibility-projection')
 
 const ROOT = path.resolve(__dirname, '..')
+const keepTempFixtures = process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1'
 const REQUIRED_PROJECTION_TARGETS = Object.freeze([
   'instructions.md',
   'skills/portfolio.json',
@@ -43,6 +44,15 @@ function git (root, args) {
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe']
   })
+}
+
+function cleanupFixture (root) {
+  // Retain the outer fixture for inspection; projection cleanup assertions still run.
+  if (keepTempFixtures) {
+    console.log(`Package projection fixture retained: ${root}`)
+    return
+  }
+  fs.rmSync(root, { recursive: true, force: true })
 }
 
 function fixture () {
@@ -131,7 +141,7 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
       assert.strictEqual(fs.existsSync(path.join(root, legacyRoot)), false)
     }
   } finally {
-    fs.rmSync(root, { recursive: true, force: true })
+    cleanupFixture(root)
   }
 }
 
@@ -155,7 +165,7 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
     assert.strictEqual(cleaned.status, 'cleaned')
     assert.strictEqual(cleaned.removed.length, first.materializedCount)
   } finally {
-    fs.rmSync(root, { recursive: true, force: true })
+    cleanupFixture(root)
   }
 }
 
@@ -182,7 +192,7 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
     releaseLock(recovered)
     assert.strictEqual(fs.existsSync(path.dirname(lockPath)), false)
   } finally {
-    fs.rmSync(root, { recursive: true, force: true })
+    cleanupFixture(root)
   }
 }
 
@@ -199,7 +209,7 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
     assert.strictEqual(fs.existsSync(modified), true)
     assert.strictEqual(fs.existsSync(resolvePackageProjectionStatePaths(root).receiptPath), true)
   } finally {
-    fs.rmSync(root, { recursive: true, force: true })
+    cleanupFixture(root)
   }
 }
 
@@ -220,7 +230,7 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
     assert.strictEqual(cleaned.status, 'cleaned')
     assert.strictEqual(cleaned.removed.length, expectedEntryCount)
   } finally {
-    fs.rmSync(root, { recursive: true, force: true })
+    cleanupFixture(root)
   }
 }
 
@@ -234,7 +244,7 @@ if (currentMissingCount === 0 && currentReusableForeignCount === 0) {
       error => error && error.code === 'PACKAGE_PROJECTION_COLLISION'
     )
   } finally {
-    fs.rmSync(root, { recursive: true, force: true })
+    cleanupFixture(root)
   }
 }
 

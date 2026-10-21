@@ -3,26 +3,26 @@
   "status": "PASS",
   "portable": true,
   "hostVariant": "codex-cli/exec-user-global-local-stdio",
-  "testedVersion": "codex-cli 0.159.2",
+  "testedVersion": "codex-cli 0.145.0",
   "protocol": "MCP 2024-11-05",
-  "runtimeContractDigest": "9feb1e50519249b13a4167a075a61c53b25c948548a5711a01c69e51c2d85031",
+  "runtimeContractDigest": "7ad988d1b94cf581e9d8acc2f1ca9fc67d34c6a6118d13f8a4f4d7c85896b306",
   "hostAdapterDigest": "339d0db61f360a13ac7b41f88f1fde31262669cf5eea3177e66619a5c62a942a",
-  "sourceEvidenceDigest": "651e6f842c9cf7a81e7eb7ddd3d39c1b7d5664b17a355cbfa98bbf22c9f0e660",
+  "sourceEvidenceDigest": "a87cd6ffc3bc43cde4bd3597233ec73ed7a04499acad340562c0ebe65712fd50",
   "sourceProbe": {
     "schemaVersion": "SkillRouteS15EvidenceV1",
-    "probeRunId": "s15-codex-probe-0e6845f7-da63-4c51-9ebd-88a8a338cb86",
+    "probeRunId": "s15-codex-probe-e2069536-8c2d-4319-a3c4-2c6e9bdde00c",
     "authorizationSource": "isolated-probe-authority",
     "contextSource": "host-hooks",
     "observationMode": "hook-post-history",
     "receiptStatus": "relevant-complete",
-    "completedAt": "2026-10-18T08:49:59.027Z"
+    "completedAt": "2026-10-20T13:25:48.698Z"
   },
   "runtimeBinding": {
     "source": "isolated-source-candidate",
-    "expectedDigest": "9feb1e50519249b13a4167a075a61c53b25c948548a5711a01c69e51c2d85031",
-    "generationDigest": "9feb1e50519249b13a4167a075a61c53b25c948548a5711a01c69e51c2d85031",
-    "modeReceiptDigest": "9feb1e50519249b13a4167a075a61c53b25c948548a5711a01c69e51c2d85031",
-    "routeEnvelopeDigest": "9feb1e50519249b13a4167a075a61c53b25c948548a5711a01c69e51c2d85031"
+    "expectedDigest": "7ad988d1b94cf581e9d8acc2f1ca9fc67d34c6a6118d13f8a4f4d7c85896b306",
+    "generationDigest": "7ad988d1b94cf581e9d8acc2f1ca9fc67d34c6a6118d13f8a4f4d7c85896b306",
+    "modeReceiptDigest": "7ad988d1b94cf581e9d8acc2f1ca9fc67d34c6a6118d13f8a4f4d7c85896b306",
+    "routeEnvelopeDigest": "7ad988d1b94cf581e9d8acc2f1ca9fc67d34c6a6118d13f8a4f4d7c85896b306"
   },
   "probe": {
     "schemaVersion": "SkillRouteProbeSummaryV1",

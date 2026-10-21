@@ -431,6 +431,28 @@ function extractCodexHostOwnedMcpTables(body) {
   return serializeTomlSections(owned)
 }
 
+// Codex appends project trust tables before a trailing managed end comment.
+// Their table identity belongs to the host, even when the comment encloses them.
+function codexHostOwnedProjectKey(section) {
+  const match = String(section.header || '').match(/^\s*\[\s*projects\s*\.\s*('[^']+'|"(?:\\.|[^"\\])+"|[A-Za-z0-9_-]+)\s*\]\s*(?:#.*)?$/)
+  if (!match) return null
+  const key = match[1]
+  if (key.startsWith("'")) return key.slice(1, -1)
+  if (!key.startsWith('"')) return key
+  try { return JSON.parse(key) } catch { return null }
+}
+
+function extractCodexHostOwnedProjectTables(body) {
+  return serializeTomlSections(parseTomlSections(body).filter(section =>
+    codexHostOwnedProjectKey(section) != null
+  ))
+}
+
+function hasDuplicateCodexProjectTables(content) {
+  const keys = parseTomlSections(content).map(codexHostOwnedProjectKey).filter(key => key != null)
+  return new Set(keys).size !== keys.length
+}
+
 function codexManagedAuthorityBody(body, authorityTemplate = body) {
   const sections = parseTomlSections(body)
   const authorityNames = parseTomlSections(authorityTemplate)
@@ -470,7 +492,8 @@ function composeCodexManagedBody(authorityBody, existingManagedBody) {
 function unexpectedManagedTomlTables(body) {
   return parseTomlSections(body)
     .filter(section => section.name)
-    .filter(section => !isCodexAuthorityMcpTable(section.name) && !isCodexHostOwnedMcpTable(section.name))
+    .filter(section => !isCodexAuthorityMcpTable(section.name) && !isCodexHostOwnedMcpTable(section.name) &&
+      codexHostOwnedProjectKey(section) == null)
     .map(section => section.name)
 }
 
@@ -482,9 +505,11 @@ function tomlManagedFileMatches(current, expectedFull, authorityBody, options = 
     return String(current) === String(expectedFull)
   }
   if (unexpectedManagedTomlTables(currentBody).length) return false
+  if (hasDuplicateCodexProjectTables(current) || hasDuplicateCodexProjectTables(expectedFull)) return false
   const currentTableNames = parseTomlSections(currentBody)
     .filter(section => section.name)
-    .map(section => section.name)
+    .map(section => codexHostOwnedProjectKey(section) == null
+      ? section.name : `projects:${codexHostOwnedProjectKey(section)}`)
   if (new Set(currentTableNames).size !== currentTableNames.length) return false
   const authority = authorityBody || expectedBody
   if (codexManagedAuthorityBody(currentBody, authority) !== codexManagedAuthorityBody(authority, authority)) {
@@ -495,7 +520,8 @@ function tomlManagedFileMatches(current, expectedFull, authorityBody, options = 
     const begin = text.indexOf(markers.begin)
     const end = text.indexOf(markers.end, begin)
     if (begin < 0 || end < begin) return text
-    return `${text.slice(0, begin)}${text.slice(end + markers.end.length)}`
+    const hostProjects = extractCodexHostOwnedProjectTables(extractManagedTomlBody(text, id))
+    return `${text.slice(0, begin)}${text.slice(end + markers.end.length)}\n${hostProjects}`
   }
   return stripManaged(String(current)).replace(/\s+/g, '\n').trim() ===
     stripManaged(String(expectedFull)).replace(/\s+/g, '\n').trim()
@@ -509,8 +535,20 @@ function mergeManagedTomlTables(content, body, options = {}) {
     String(content || '')
   )
   assertManagedTomlTableIdentity(source, tableNames)
+  if (hasDuplicateCodexProjectTables(source)) {
+    const error = new Error('GLOBAL_HOST_TOML_IDENTITY_CONFLICT: duplicate Codex project table')
+    error.code = 'GLOBAL_HOST_TOML_IDENTITY_CONFLICT'
+    throw error
+  }
   const markers = markerTokens('toml', id)
   const existingBody = extractManagedTomlBody(source, id)
+  const unexpectedTables = unexpectedManagedTomlTables(existingBody)
+  if (unexpectedTables.length) {
+    const error = new Error(`GLOBAL_HOST_TOML_IDENTITY_CONFLICT: unexpected managed table ${unexpectedTables.join(', ')}`)
+    error.code = 'GLOBAL_HOST_TOML_IDENTITY_CONFLICT'
+    throw error
+  }
+  const hostProjects = extractCodexHostOwnedProjectTables(existingBody)
   const nextBody = options.preserveHostOwnedMcpTools === false
     ? String(body || '').trim()
     : composeCodexManagedBody(body, existingBody)
@@ -520,7 +558,8 @@ function mergeManagedTomlTables(content, body, options = {}) {
   const before = stripBareTomlTables(merged.slice(0, begin), tableNames).trimEnd()
   const block = merged.slice(begin, end)
   const after = stripBareTomlTables(merged.slice(end), tableNames).trim()
-  return `${before}${before ? '\n\n' : ''}${block}${after ? `\n${after}` : ''}\n`
+  const outside = [after, hostProjects].filter(Boolean).join('\n\n')
+  return `${before}${before ? '\n\n' : ''}${block}${outside ? `\n${outside}` : ''}\n`
 }
 
 function quoteToml(value) {
@@ -534,6 +573,7 @@ module.exports = {
   composeCodexManagedBody,
   deepMerge,
   extractCodexHostOwnedMcpTables,
+  extractCodexHostOwnedProjectTables,
   extractManagedTomlBody,
   isCodexAuthorityMcpTable,
   isCodexHostOwnedMcpTable,

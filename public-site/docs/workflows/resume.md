@@ -31,6 +31,8 @@
 
 ## 完成条件
 
+有效的原任务、版本、摘要和范围决定继续适用，不因会话切换、日志、批次、工具失败或租约到期要求同一确认再做一次。恢复时仍复证当前任务和写入身份；已确认正文发生变化、出现新的范围或发布对象，须精确列出尚未决定的内容。未确认候选的计划内自审修订不等于已确认版本被改写。
+
 原任务按原工作流的完成条件结束，或明确还差什么。
 
 ## 示例请求
@@ -42,3 +44,14 @@
 故事见 [跨会话续接案例](/examples/resume)。
 
 交付前需要留下可靠续接点时，使用[带证据交付与续接](/tutorials/evidence-handoff)。
+
+## 源码写入回执丢失后的维护恢复
+
+正式任务的一条源码编辑记录若停在 `dispatched/unknown`，且已没有可恢复的 closeout，可从 DevCodex 源码仓运行维护脚本。它只接受原任务、项目及 session 绑定的一个操作、最多两个现存物理文件；不重放编辑，不给出历史工具成功结论，也不获取新的写入权限。普通报告仍使用原 MCP 报告恢复入口。
+
+```powershell
+node scripts/recover-task-source-state.js --active-root <项目运行态根> --project <项目名> --task-id <任务UUID> --session-id <原宿主sessionId> --operation-id <操作ID> --inspect --output <仓库外的proposal.json>
+node scripts/recover-task-source-state.js --active-root <项目运行态根> --project <项目名> --task-id <任务UUID> --session-id <原宿主sessionId> --accept <上一步的proposal.json> --output <仓库外的新receipt.json>
+```
+
+先核对 proposal 的 `operationId`、`expectedOperationDigest`、`idempotencyKey`、目标文件及哈希；接受阶段在事务锁内再次核验。成功返回 `accepted-current-state` 回执，`historicalEffect` 仍为 `unknown`。重复接受同一 proposal 返回原回执，不重复结算；文件、owner 或记录变化时需重新 inspect。`--output` 只新建文件，路径已存在会报错；不能把历史 proposal 当作当前源码正确性的证明。此命令目前属于源码维护入口，未新增全局 CLI 子命令或 MCP 参数。

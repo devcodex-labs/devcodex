@@ -1386,10 +1386,21 @@ function qualifyCpConfirmationArtifact({ target, taskKind, phase, candidate, art
   const slot = classified?.slot || null
   const allowedMatch = ['canonical', 'versioned-candidate'].includes(classified?.matchType)
   if (!slot || !allowedMatch || slot.stage !== phase || !(slot.taskKinds || []).includes(taskKind)) {
+    const expectedArtifacts = registry.slots
+      .filter(item => item.stage === phase && (item.taskKinds || []).includes(taskKind))
+      .slice(0, 8)
+      .map(item => ({
+        slotId: item.slotId,
+        canonicalNames: (item.canonicalNames || []).slice(0, 4),
+        templateRef: item.templateRef
+      }))
     throw memoryQueryError(
       `CP artifact slot mismatch: phase=${phase}, taskKind=${taskKind}, path=${artifactTargetPath}, ` +
       `slot=${slot?.slotId || 'none'}, stage=${slot?.stage || 'none'}, matchType=${classified?.matchType || 'none'}.`,
-      'Use the canonical or versioned candidate artifact owned by the same CP phase and task kind.',
+      expectedArtifacts.length > 0
+        ? 'Use a canonical or versioned candidate owned by this CP phase and task kind. ' +
+          'Expected registry targets: ' + JSON.stringify(expectedArtifacts) + '.'
+        : 'Restore the artifact registry mapping for this CP phase and task kind; no canonical target is declared.',
       'MEMORY_CP_ARTIFACT_SLOT_MISMATCH'
     )
   }
@@ -1408,7 +1419,7 @@ function qualifyCpConfirmationArtifact({ target, taskKind, phase, candidate, art
   }
   const qualification = qualifyArtifactFile(binding, candidate, { slotId: slot.slotId }, { fs })
   const validation = validateArtifactTemplateQualification(qualification, binding)
-  const valid = validation.valid &&
+  const valid = validation.valid && qualification.status === 'qualified' &&
     qualification.readbackVerified === true && qualification.artifactDigest
   if (!valid) {
     const issues = [...new Set([
@@ -5439,6 +5450,12 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
       // the independently verified immutable continuation path below.
       if (error.code !== 'TASK_ADMISSION_INGRESS_STATE_UNAVAILABLE') throw error
     }
+    // A compact live record must match its own exact snapshot. A caller's
+    // older ref cannot sidestep the live lease/session/context comparison.
+    if (options.restoreExactOperationalIngress === true &&
+        current?.workflowIngressRecovery?.authorityMode === 'identity-only') {
+      return readServerOwnedAdmissionIngress(target, ref, { ...options, allowSnapshot: false })
+    }
     if (current?.actualInstructionEnvelope?.envelopeId === ref.envelopeId &&
         current.actualInstructionEnvelope.envelopeDigest === ref.envelopeDigest &&
         current.workflowRouteDecision?.decisionDigest === ref.decisionDigest &&
@@ -6429,7 +6446,11 @@ function handleMemoryTaskAdmitV2(args) {
       ? 'bounded-resume-current-trusted'
       : 'bounded-resume-fallback'
   } else {
-    ingress = resolveCurrentTaskIngress(target, args)
+    // Identity-only state cannot authorize admission. Restore omitted input
+    // only from the verified snapshot with this exact live lease/session.
+    ingress = resolveCurrentTaskIngress(target, args, {
+      restoreExactOperationalIngress: true
+    })
     const isFinalizedResume = ['bind', 'adopt'].includes(String(args.operation || '')) &&
       args.task?.entryVariant === 'continue' && ingress.workflowRouteDecision?.topIntent === 'resume' &&
       ingress.workflowRouteDecision?.routeKey === 'resume'
@@ -7186,9 +7207,10 @@ function handleMemoryTaskTerminalV1(args) {
   if (target.scope !== 'project' || !target.project) {
     throw taskAdmissionIngressError('TASK_TERMINAL_PROJECT_REQUIRED', 'workflow task terminal closeout requires one exact project scope')
   }
-  // The terminal request already owns an exact task identity. Do not require a
-  // disposable lifecycle projection before trying its durable ingress evidence.
-  const ingress = readServerOwnedAdmissionIngress(target, args.ingressRef, { allowSnapshot: true, taskId: args.taskId })
+  // Renew may recover the exact current task from ContextRead without retaining
+  // a rich ingress projection. Consume the same verified resolver at closeout;
+  // the terminal owner still checks the full owner/CAS/settled-set/evidence fence.
+  const ingress = resolveCurrentTaskIngress(target, args)
   const result = executeWorkflowTaskTerminal({
     taskId: args.taskId,
     admissionId: args.admissionId,

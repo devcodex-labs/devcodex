@@ -108,6 +108,12 @@ AI Hook 在生成 BudgetCard 前必须由当前宿主 session 解析出唯一、
 
 ## TestRoute 输出
 
+### 验证责任
+
+在现有TestRoute旁记录同一`verificationResponsibilities`责任矩阵：`conditionId / responsibility / applicability / reason / candidate / environment / version / runId / evidenceRefs / result / limitation`。D=开发者的确定性检查、测试与审查；A=真实Agent在任务输入下的实际行为；I=真实消费者或集成链；H=当前政策/用户意图真正要求的人工决定。每条件可有多项责任，适用性与实际结果分列，未运行不得写通过。
+
+D/A/I/H不是E证据等级或替代关系。脚本绿不证明Agent按规则执行，Agent输出不证明真实集成；同一作者角色扮演不算独立A。H按已存在确认政策触发，不能变成每个产物或所有任务新增真人终验。记录当前候选、环境、版本、运行、证据与限制；报告引用同一记录，不改现有严格TestRoute schema或用责任标签签发执行权限。
+
 输出固定为 `verificationIntent / validationPlan / budgetCard / verificationExecutionLease / validationExecutionReceipt / selectedRoutes / commands / evidence / skipped / residualRisk / coverageClaim`。推荐使用以下最小结构：
 
 ```yaml

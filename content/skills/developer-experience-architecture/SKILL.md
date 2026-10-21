@@ -53,6 +53,8 @@ description: 开发者体验架构专家 Owner — 当任务涉及 CLI、SDK、A
 
 可推导、可默认、只服务内部实现或只为未来扩展预留的字段不得默认公开为必填。字段数量本身不是唯一指标，但“每个字段都有实现用途”也不能替代用户任务价值证明。
 
+字段含义只引用 `api-contract-architecture` 的 `contractInventory.fieldSemantics`：按实际字段路径复核条件必填、允许值、省略/null/空值/0/false、默认来源、依赖互斥、恢复和兼容。`FieldNecessityMatrix`为同一记录补用户任务价值与移除影响，不重定义含义。若最小示例依赖未声明默认值或把false/0当未提供，应回Owner修正并复测。无公开字段时说明N/A原因，不为完成表格增加配置。
+
 ## 输出字段
 
 ```markdown

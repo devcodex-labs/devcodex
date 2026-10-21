@@ -83,6 +83,22 @@ description: Skill 缺口与大语料分析 Owner — 当任务涉及项目/工�
 
 ## 输出产物
 
+### 先归因，再选择能力载体
+
+在原`CapabilityGapDecision`前，为每个候选记录 `cause / evidence / recoveryAction / reassessment / dispositionRef`。原因按事实可多选；缺证据时保持undetermined，不以关键词或希望新增的Skill名称反推原因。
+
+| cause | 证据与下一步 |
+|---|---|
+| existing-not-discovered | 已有Owner/契约存在但未发现：恢复检索与定位，重新评估残余 |
+| existing-not-triggered | 已定位且适用但未触发：检查原意图/路由消费，恢复触发后重评 |
+| existing-not-loaded | 已触发但内容未实际加载：核对加载回执、摘要和降级，补加载后重评 |
+| rule-gap | 已有Owner实际缺少必要约束：补原Owner残余，交spec-absorption供证 |
+| expertise-gap | 规则存在但缺专业判断/证据：补专业资料或适用能力，不用新规则代替专业判断 |
+| tool-environment-gap | 工具、权限或环境缺失/失败：按宿主边界恢复环境并复证，不能默认重装 |
+| undetermined | 证据不足或冲突：列待证事实与下一合法核验，暂不裁定缺规则 |
+
+前三种先恢复已有能力并重新观察，不能直接转new-skill或把正文再吸纳一遍。原因不是原有`new-skill / existing-subgate / docs-only / reject`落点的替代枚举；`dispositionRef`连接恢复重评后的原决定。`spec-absorption`消费此记录及实际source证据，只吸纳经重评仍成立的rule-gap。
+
 | 产物 | 必填内容 |
 |---|---|
 | WorkspaceCorpusManifest | namespace、路径类型、文件/字节、派生边界 |

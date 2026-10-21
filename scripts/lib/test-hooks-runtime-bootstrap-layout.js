@@ -20,6 +20,7 @@ const {
 const { inspectProfileAvailability } = require('../../hooks/_runtime/profile-availability-v1.cjs')
 
 function runHooksRuntimeBootstrapLayoutScenarios(context) {
+  require('../test-pending-session-binding')
   const {
     assert,
     fs,
@@ -360,6 +361,15 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
     explicitSkillId: 'audit-project'
   }
   const pendingCallId = 'pending-project-plan'
+  // A different conversation may replace the shared projection while this
+  // session still owns a canonical, unresolved workspace ingress.
+  run({
+    hookEventName: 'UserPromptSubmit',
+    session_id: 'foreign-pending-project-session',
+    prompt: '检查当前工作区状态'
+  }, TEMP_ROOT, { DEVCODEX_HOST_PLATFORM: 'codex' })
+  const foreignPendingState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.notStrictEqual(foreignPendingState.contextAcquisition.contextEpoch, pendingArgs.contextEpoch)
   run({
     hookEventName: 'PreToolUse',
     session_id: pendingSession,
@@ -369,6 +379,11 @@ function runHooksRuntimeBootstrapLayoutScenarios(context) {
   }, TEMP_ROOT, {
     DEVCODEX_HOST_PLATFORM: 'codex'
   })
+  const recoveredPendingState = JSON.parse(fs.readFileSync(getWorkspaceLayoutStateFile(), 'utf8'))
+  assert.strictEqual(recoveredPendingState.contextAcquisition.contextEpoch, pendingArgs.contextEpoch,
+    'the pending session must recover its own canonical epoch after a foreign projection overwrite')
+  assert.strictEqual(recoveredPendingState.actualInstructionEnvelope.envelopeDigest,
+    pendingState.actualInstructionEnvelope.envelopeDigest, 'the foreign instruction must never replace this ingress')
   const pendingPlanResult = callProfileTool(TEMP_ROOT, 'profile_context_plan', pendingArgs)
   const pendingBootstrapText = pendingPlanResult.content?.[1]?.text || ''
   assert.match(pendingBootstrapText, /^### DevCodex · SkillRouteBootstrapV1/m)

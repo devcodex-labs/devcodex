@@ -903,7 +903,28 @@ function buildLifecycleBootstrapStateUtils(ctx) {
   }
 
   function loadState(modeHint, sessionKey = '', recoveryHint = null, options = {}) {
-    const metaProjection = readJsonFile(META_STATE_PATHS.file)
+    let metaProjection = readJsonFile(META_STATE_PATHS.file)
+    let pendingSessionIngress = null
+    // The shared projection can belong to another conversation. Recover this
+    // session's pending ingress before an older project hint selects its root.
+    if (LAYOUT.enabled && sessionKey && options.userIngress !== true && !CONTEXT_PROJECT &&
+        !String(recoveryHint?.project || '').trim() && !String(recoveryHint?.taskId || '').trim()) {
+      const pendingRead = readTaskRecoveryState({ metaDir: META_STATE_PATHS.dir, sessionKey }, { fs })
+      const pending = ['fresh', 'ephemeral-stub'].includes(pendingRead.status) ? pendingRead.state : null
+      const acquisition = pending?.contextAcquisition
+      const envelope = pending?.actualInstructionEnvelope
+      const exactPendingIngress = pending?.activeScope === 'workspace' && !pending.activeProject &&
+        !pending.taskRecoveryBinding && acquisition?.targetResolved === false &&
+        acquisition.hostSessionId === sessionKey && envelope?.contextEpoch === acquisition.contextEpoch &&
+        envelope?.hostSessionDigest === crypto.createHash('sha256').update(sessionKey).digest('hex') &&
+        envelope?.provenanceLevel === 'trusted-host-event' && validateActualInstructionEnvelope(envelope).valid
+      const sameRichContext = metaProjection?.contextAcquisition?.hostSessionId === sessionKey &&
+        metaProjection?.contextAcquisition?.contextEpoch === acquisition?.contextEpoch
+      if (exactPendingIngress) {
+        pendingSessionIngress = pending
+        if (!sameRichContext) metaProjection = pending
+      }
+    }
     const freshUnboundUserIngress = LAYOUT.enabled && options.userIngress === true &&
       !String(sessionKey || '').trim() &&
       !String(recoveryHint?.taskId || '').trim()
@@ -922,6 +943,26 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       ? resolveProjectFromSessionRouteHint(sessionRouteHint)
       : { project: '', source: '', taskId: '' })
     const routeHintedProject = routeResolution.project
+    if (pendingSessionIngress && routeHintedProject && routeResolution.taskId) {
+      const routedRead = readTaskRecoveryState({
+        metaDir: getStatePathsFor(routeHintedProject, 'project').dir,
+        identity: {
+          activeRoot: getActiveNamespaceRoot({ activeProject: routeHintedProject, activeScope: 'project' }),
+          project: routeHintedProject,
+          taskId: routeResolution.taskId
+        }
+      }, { fs })
+      const routed = routedRead.status === 'fresh' ? routedRead.state : null
+      if (routed?.contextAcquisition?.hostSessionId === sessionKey &&
+          routed.contextAcquisition.contextEpoch === pendingSessionIngress.contextAcquisition.contextEpoch &&
+          routed.actualInstructionEnvelope?.envelopeDigest === pendingSessionIngress.actualInstructionEnvelope.envelopeDigest &&
+          routed.taskRecoveryBinding?.taskId === routeResolution.taskId) {
+        // Admission supersedes the earlier unbound workspace stub for this
+        // exact session/epoch; the route hint alone still grants no authority.
+        recoveryHint = { project: routeHintedProject, taskId: routeResolution.taskId, taskStatus: 'active' }
+        metaProjection = routed
+      }
+    }
     let metaTurnProject = ''
     if (LAYOUT.enabled && options.userIngress !== true && !String(sessionKey || '').trim() &&
         typeof validateStickyProjectLease === 'function') {

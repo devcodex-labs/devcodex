@@ -218,6 +218,13 @@ function fakeGrokUninstall() {
   assert.ok(missingManagedRuntimeFile)
   fs.rmSync(missingManagedRuntimeFile)
   const beforePreview = fs.readFileSync(targets.find(item => item.host === 'codex').files.instructions, 'utf8')
+  const codexConfigPath = targets.find(item => item.host === 'codex').files.config
+  const nativeProjectTrust = "[projects.'C:/owned project']\ntrust_level = \"trusted\"\n# Host-owned project"
+  const nativeProjectConfig = fs.readFileSync(codexConfigPath, 'utf8').replace(
+    '# END DEVCODEX MANAGED: global-codex-mcp',
+    `${nativeProjectTrust}\n# END DEVCODEX MANAGED: global-codex-mcp`
+  )
+  fs.writeFileSync(codexConfigPath, nativeProjectConfig)
   const preview = applyGlobalHostRemoval({
     packageRoot,
     home,
@@ -227,6 +234,7 @@ function fakeGrokUninstall() {
   })
   assert.strictEqual(preview.status, 'planned')
   assert.strictEqual(fs.readFileSync(targets.find(item => item.host === 'codex').files.instructions, 'utf8'), beforePreview)
+  assert.strictEqual(fs.readFileSync(codexConfigPath, 'utf8'), nativeProjectConfig, 'preview must preserve config bytes')
 
   const removed = applyGlobalHostRemoval({
     packageRoot,
@@ -238,6 +246,8 @@ function fakeGrokUninstall() {
   for (const target of targets) assert.strictEqual(fs.existsSync(target.receiptFile), false, target.host)
   assert.strictEqual(fs.readFileSync(targets.find(item => item.host === 'codex').files.instructions, 'utf8'), '# User Codex instruction\n')
   assert.match(fs.readFileSync(targets.find(item => item.host === 'codex').files.config, 'utf8'), /model = "gpt-user"/)
+  assert.ok(fs.readFileSync(codexConfigPath, 'utf8').includes(nativeProjectTrust), 'removal must preserve native project trust')
+  assert.doesNotMatch(fs.readFileSync(codexConfigPath, 'utf8'), /mcp_servers\.devcodex-/)
   const claude = JSON.parse(fs.readFileSync(targets.find(item => item.host === 'claude').files.settings, 'utf8'))
   assert.strictEqual(claude.theme, 'dark')
   assert.strictEqual(Object.prototype.hasOwnProperty.call(claude, '$schema'), false)

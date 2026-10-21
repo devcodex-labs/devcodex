@@ -64,6 +64,12 @@ CP1 前后必须使用 `workflow-plan-decision.v1.schema.json` 与 `hooks/_runti
 
 ## CP 定义
 
+### 确认必要性
+
+每次拟询问前，最小记录 `objectRef / artifactVersion+digest / existingDecisionRef / scopeDelta / undecidedReason / semanticDecisionRef`，从当前真实意图判断是否存在新的待决对象。有效已有决定覆盖当前对象、版本和范围时继续已授权工作；同一任务的日志、Finding归并、切换批次、未确认候选自审修订、工具错误或TTL到期不单独产生重复确认。
+
+真正新增的受保护对象/范围按现有confirm或有效Auto处理；含义不清只澄清缺失决定。已确认正文的字节改变仍遵守既有freshness与精确版本绑定，不能把旧摘要批准套到新版本；未确认候选的计划内自审修改不因此要求用户先批准修稿。此记录不解析自然语言签发权限、不扩大Auto，也不替代CP顺序、公开writer或宿主权限。
+
 | CP | 名称 | dev | fix | 目的 |
 |:--:|------|:---:|:---:|------|
 | CP1 | 需求/问题确认 | 🔴 必须 | 🔴 必须 | 确认 AI 理解与用户一致 |

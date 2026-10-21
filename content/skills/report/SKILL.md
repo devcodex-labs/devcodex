@@ -59,6 +59,8 @@ resume、ECR 或 ContextRead 的已发布依赖，也不能据其状态要求用
 
 ## 头部必填
 
+复合要求的报告引用 `review-checklist` 已审阅的同一`ConditionEvidenceMatrixV1`，分别报告设计覆盖与实际执行结果，不另造分母、状态或证据。候选模块只验证声明结构，普通报告不因引用它就成为候选或取得语义通过。验证责任引用`test-router`的D/A/I/H矩阵，保留适用性、候选/环境/版本/run、证据与限制；H不自动增加批准对象。任一未运行、partial或unknown保持原状态，不用汇总“全部通过”抹掉未验证项。旧报告不为新条件段重写历史。
+
 ```markdown
 # [标题]
 

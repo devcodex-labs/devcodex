@@ -31,6 +31,15 @@ function canonicalReportSnapshot(file, taskRoot, projectRegistry = null) {
       fail('TASK_OPERATION_RECOVERY_REPORT_ONLY', 'taskless recovery is restricted to exact project report slots')
     }
   }
+  return canonicalFileSnapshot(file, taskRoot)
+}
+
+// A snapshot accepts present bytes only; it never reconstructs a lost tool exit.
+function canonicalFileSnapshot(file, taskRoot) {
+  const relative = path.relative(taskRoot, file)
+  if (!relative || path.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${path.sep}`)) {
+    fail('TASK_OPERATION_RECOVERY_PATH_OUTSIDE_ROOT', 'the exact file must be inside its physical root')
+  }
   const parts = relative.split(path.sep)
   let parent = taskRoot
   for (const part of parts.slice(0, -1)) {
@@ -44,9 +53,9 @@ function canonicalReportSnapshot(file, taskRoot, projectRegistry = null) {
   }
   const fd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0))
   try {
-    const before = fs.fstatSync(fd)
+    const before = fs.fstatSync(fd, { bigint: true })
     if (!before.isFile() || before.size > 256 * 1024) fail('TASK_OPERATION_RECOVERY_SIZE', 'only bounded regular reports can be observed')
-    const buffer = Buffer.alloc(before.size + 1)
+    const buffer = Buffer.alloc(Number(before.size) + 1)
     let total = 0
     while (total < buffer.length) {
       const count = fs.readSync(fd, buffer, total, buffer.length - total, null)
@@ -54,16 +63,126 @@ function canonicalReportSnapshot(file, taskRoot, projectRegistry = null) {
       total += count
     }
     const bytes = buffer.subarray(0, total)
-    if (total !== before.size || physical(fs.realpathSync(file)) !== physical(path.resolve(file))) {
+    if (total !== Number(before.size) || physical(fs.realpathSync(file)) !== physical(path.resolve(file))) {
       fail('TASK_OPERATION_RECOVERY_FILE_DRIFT', 'report size or physical path changed during observation')
     }
-    const after = fs.fstatSync(fd)
-    const current = fs.lstatSync(file)
-    for (const key of ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs']) {
-      if (before[key] !== after[key] || after[key] !== current[key]) fail('TASK_OPERATION_RECOVERY_FILE_DRIFT', 'report changed during current-state observation')
-    }
+    const after = fs.fstatSync(fd, { bigint: true })
+    // Windows Node 22.12 path stat may report dev=0. Compare two opened
+    // handles instead, retaining both object identity and path replacement checks.
+    const currentFd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0))
+    try {
+      const current = fs.fstatSync(currentFd, { bigint: true })
+      if (fs.lstatSync(file).isSymbolicLink() || physical(fs.realpathSync(file)) !== physical(path.resolve(file))) {
+        fail('TASK_OPERATION_RECOVERY_SYMLINK', 'the observed file path must remain physical')
+      }
+      for (const key of ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs']) {
+        if (before[key] !== after[key] || after[key] !== current[key]) fail('TASK_OPERATION_RECOVERY_FILE_DRIFT', 'file changed during current-state observation')
+      }
+    } finally { fs.closeSync(currentFd) }
     return { path: path.resolve(file), sha256: crypto.createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length }
   } finally { fs.closeSync(fd) }
+}
+
+/**
+ * Inspect one admitted unknown source operation without acquiring write authority.
+ * Expired leases may describe lost effects, but another session/owner may not accept them.
+ */
+function inspectCurrentSourceState(input) {
+  const state = input.state
+  const validation = validateTaskOperationSet(state?.turnLiveness?.taskOperationSet)
+  const operation = validation.set.unresolved
+  if (!validation.valid || !operation || operation.operationId !== input.operationId || operation.effect !== 'unknown' ||
+      !['dispatched', 'reconcile-required'].includes(operation.phase)) {
+    fail('TASK_OPERATION_RECOVERY_CAS_MISMATCH', 'one exact unknown source operation is required')
+  }
+  if (state.turnLiveness.inFlightOperation || state.turnLiveness.lastMutationCloseout?.result === 'needs-reconcile') {
+    fail('TASK_OPERATION_RECOVERY_CLOSEOUT_REQUIRED', 'existing in-flight/closeout recovery takes precedence')
+  }
+  const owner = state.fencedWriteOwner
+  const { validateFencedTaskWriteOwner } = require('./task-recovery-store-v5.cjs')
+  const activeRoot = path.resolve(input.activeRoot)
+  const taskRoot = path.resolve(activeRoot, String(state.admissionTransaction?.taskRootRelative || ''))
+  const taskRelative = path.relative(activeRoot, taskRoot).split(path.sep).join('/')
+  const sourceRoot = path.resolve(input.projectRoot)
+  const samePath = (a, b) => (process.platform === 'win32' ? path.resolve(a).toLowerCase() : path.resolve(a)) ===
+    (process.platform === 'win32' ? path.resolve(b).toLowerCase() : path.resolve(b))
+  if (!input.taskId || state.taskRecoveryBinding?.taskId !== input.taskId ||
+      state.admissionTransaction?.taskId !== input.taskId ||
+      !/^(?:bugs|requirements|optimizations)\/[^/]+$/u.test(taskRelative) ||
+      state.admissionTransaction.taskRootRelative !== taskRelative ||
+      (state.taskRecoveryBinding.taskRoot && !samePath(state.taskRecoveryBinding.taskRoot, taskRoot)) ||
+      state.activeProject !== input.project || !state.stickyProject?.physicalRoot ||
+      !samePath(state.stickyProject.physicalRoot, sourceRoot) ||
+      state.stickyProject.rootIdentityDigest !== input.projectRootIdentityDigest ||
+      state.admissionTransaction.projectRootIdentityDigest !== input.projectRootIdentityDigest) {
+    fail('TASK_OPERATION_RECOVERY_TASK_MISMATCH', 'source recovery requires the exact admitted task and project root')
+  }
+  if (!validateFencedTaskWriteOwner(owner, { activeRoot, project: input.project, taskId: input.taskId }).valid ||
+      owner.status !== 'active' || owner.sessionDigest !== input.hostSessionDigest ||
+      owner.projectRootIdentity !== input.projectRootIdentityDigest) {
+    fail('TASK_OPERATION_RECOVERY_OWNER_MISMATCH', 'source recovery must bind the original active owner/session')
+  }
+  if (!operation.exactTargets.length || operation.exactTargets.length > 2 ||
+      !['create', 'update', 'append', 'edit', 'create-or-update'].includes(operation.kind)) {
+    fail('TASK_OPERATION_RECOVERY_SOURCE_SCOPE', 'only bounded existing source-file edits can recover')
+  }
+  const observations = operation.exactTargets.map(file => {
+    const relative = path.relative(sourceRoot, file)
+    if (!path.isAbsolute(file) || !relative || path.isAbsolute(relative) || relative === '..' ||
+        relative.startsWith(`..${path.sep}`) ||
+        relative.split(path.sep).some(part => ['.git', '.devcodex', 'node_modules'].includes(part.toLowerCase()))) {
+      fail('TASK_OPERATION_RECOVERY_SOURCE_SCOPE', 'source targets cannot escape the project or address managed state')
+    }
+    if (fs.lstatSync(file, { bigint: true }).nlink !== 1n) {
+      fail('TASK_OPERATION_RECOVERY_SOURCE_ALIAS', 'source recovery does not accept hard-linked files')
+    }
+    return canonicalFileSnapshot(path.resolve(file), sourceRoot)
+  })
+  return { schemaVersion: 'TaskOperationCurrentSourceStateProposalV1', project: input.project, taskId: input.taskId,
+    sourceRoot, projectRootIdentityDigest: input.projectRootIdentityDigest, ownerBindingDigest: owner.leaseDigest,
+    operationId: operation.operationId, expectedOperationDigest: operation.recordDigest,
+    idempotencyKey: operation.idempotencyKey, observations, historicalEffect: 'unknown', mutationAuthority: false }
+}
+
+/** Reobserve accepted bytes under the V5 transaction lock before producing a source receipt. */
+function observeCurrentSourceState(input, options = {}) {
+  const proposal = inspectCurrentSourceState(input)
+  for (const key of ['expectedOperationDigest', 'idempotencyKey', 'ownerBindingDigest']) {
+    if (proposal[key] !== input[key]) fail('TASK_OPERATION_RECOVERY_CAS_MISMATCH', 'source operation or owner changed')
+  }
+  const expected = input.observations
+  if (!Array.isArray(expected) || expected.length !== proposal.observations.length ||
+      proposal.observations.some(entry => !expected.some(item => item && item.path === entry.path &&
+        item.sha256 === entry.sha256 && item.bytes === entry.bytes))) {
+    fail('TASK_OPERATION_RECOVERY_SNAPSHOT_MISMATCH', 'accept the exact inspected source hashes and sizes')
+  }
+  const receipt = { schemaVersion: 'TaskOperationCurrentSourceStateReceiptV1', resolution: 'accept-current-source-state',
+    project: proposal.project, taskId: proposal.taskId, sourceRoot: proposal.sourceRoot,
+    projectRootIdentityDigest: proposal.projectRootIdentityDigest, ownerBindingDigest: proposal.ownerBindingDigest,
+    operationId: proposal.operationId, idempotencyKey: proposal.idempotencyKey,
+    priorRecordDigest: proposal.expectedOperationDigest, entries: proposal.observations,
+    ingressEnvelopeDigest: input.ingressEnvelopeDigest, hostSessionDigest: input.hostSessionDigest,
+    historicalEffect: 'unknown', mutationAuthority: false,
+    observedAt: new Date(options.nowMs ?? Date.now()).toISOString() }
+  receipt.recoveryDigest = currentStateRecoveryDigest(receipt)
+  if (!validateCurrentStateRecoveryReceipt(receipt).valid) fail('TASK_OPERATION_RECOVERY_RECEIPT_INVALID', 'source receipt is invalid')
+  return receipt
+}
+
+/** Commit only the matching inspected source operation; the caller owns the V5 CAS transaction. */
+function applyCurrentSourceStateRecovery(state, receipt) {
+  const current = validateTaskOperationSet(state?.turnLiveness?.taskOperationSet).set.unresolved
+  if (receipt?.schemaVersion !== 'TaskOperationCurrentSourceStateReceiptV1' ||
+      !validateCurrentStateRecoveryReceipt(receipt, { project: state.activeProject,
+        sourceRoot: state.stickyProject?.physicalRoot && path.resolve(state.stickyProject.physicalRoot),
+        projectRootIdentityDigest: state.admissionTransaction?.projectRootIdentityDigest,
+        ownerBindingDigest: state.fencedWriteOwner?.leaseDigest, idempotencyKey: current?.idempotencyKey }).valid ||
+      state.fencedWriteOwner?.sessionDigest !== receipt.hostSessionDigest ||
+      receipt.entries.length !== current?.exactTargets.length ||
+      receipt.entries.some(entry => !current.exactTargets.some(target => path.resolve(target) === entry.path))) {
+    fail('TASK_OPERATION_RECOVERY_CAS_MISMATCH', 'source recovery scope changed before commit')
+  }
+  return applyCurrentStateRecovery(state, receipt)
 }
 
 function inspectCurrentReportState(input) {
@@ -133,6 +252,13 @@ function observeCurrentReportState(input, options = {}) {
 }
 
 function applyCurrentReportStateRecovery(state, receipt) {
+  if (!['TaskOperationCurrentReportStateReceiptV1', 'TaskOperationCurrentReportStateReceiptV2'].includes(receipt?.schemaVersion)) {
+    fail('TASK_OPERATION_RECOVERY_RECEIPT_INVALID', 'the report recovery path only accepts report receipts')
+  }
+  return applyCurrentStateRecovery(state, receipt)
+}
+
+function applyCurrentStateRecovery(state, receipt) {
   const validation = validateTaskOperationSet(state.turnLiveness?.taskOperationSet)
   const current = validation.set.unresolved
   if ((receipt?.scope === 'project' && (state.taskRecoveryBinding || state.admissionTransaction)) ||
@@ -205,4 +331,6 @@ function restoreTasklessReportRecoveryFromCanonical(state, canonical) {
   return state
 }
 
-module.exports = { inspectCurrentReportState, observeCurrentReportState, applyCurrentReportStateRecovery, restoreTasklessReportRecoveryFromCanonical }
+module.exports = { inspectCurrentReportState, observeCurrentReportState, applyCurrentReportStateRecovery,
+  inspectCurrentSourceState, observeCurrentSourceState, applyCurrentSourceStateRecovery,
+  restoreTasklessReportRecoveryFromCanonical }

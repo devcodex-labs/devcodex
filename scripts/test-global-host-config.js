@@ -1202,31 +1202,42 @@ assert.strictEqual(
   true,
   installedCapabilityValidation.errors.join(', ')
 )
-assert.strictEqual(installedCodexCapability.status, 'PASS')
-assert.strictEqual(installedCodexCapability.runtimeContractDigest, installedRuntimeContractDigest)
+const sourceCodexCapability = JSON.parse(fs.readFileSync(
+  path.join(packageRoot, 'hooks', '_runtime', 'host-skill-route-capabilities.v1.json'),
+  'utf8'
+)).capabilities.find(item => item.hostVariant === installedCodexCapability.hostVariant)
+assert.ok(sourceCodexCapability)
+assert.strictEqual(installedCodexCapability.status, sourceCodexCapability.status)
 const installedHostAdapterIdentity = require(path.join(
   codexRuntime,
   'hooks',
   '_runtime',
   'host-adapter-identity.cjs'
 ))
-assert.strictEqual(
-  installedCodexCapability.hostAdapterDigest,
-  installedHostAdapterIdentity.getLifecycleHostAdapterDigest('codex', {
-    entrySurface: 'codex-cli-exec',
-    env: {},
-    runtimeRoot: path.join(codexRuntime, 'hooks', '_runtime')
-  })
-)
-assert.strictEqual(
-  installedCapabilityValidation.evidenceByVariant[installedCodexCapability.hostVariant]?.valid,
-  true
-)
-assert.strictEqual(
-  installedCodexCapability.evidenceRef,
-  'hooks/_runtime/evidence/codex-skill-route-pass.v1.json'
-)
-assert.strictEqual(installedCodexCapability.defaultEligible, true)
+if (sourceCodexCapability.status === 'PASS') {
+  assert.strictEqual(installedCodexCapability.runtimeContractDigest, installedRuntimeContractDigest)
+  assert.strictEqual(
+    installedCodexCapability.hostAdapterDigest,
+    installedHostAdapterIdentity.getLifecycleHostAdapterDigest('codex', {
+      entrySurface: 'codex-cli-exec',
+      env: {},
+      runtimeRoot: path.join(codexRuntime, 'hooks', '_runtime')
+    })
+  )
+  assert.strictEqual(
+    installedCapabilityValidation.evidenceByVariant[installedCodexCapability.hostVariant]?.valid,
+    true
+  )
+  assert.strictEqual(installedCodexCapability.evidenceRef, 'hooks/_runtime/evidence/codex-skill-route-pass.v1.json')
+  assert.strictEqual(installedCodexCapability.defaultEligible, true)
+} else {
+  // Installation must preserve a withdrawn qualification, never manufacture PASS.
+  assert.strictEqual(sourceCodexCapability.status, 'UNVERIFIED')
+  assert.deepStrictEqual(installedCodexCapability, sourceCodexCapability)
+  assert.strictEqual(installedCodexCapability.evidenceRef, null)
+  assert.strictEqual(installedCodexCapability.defaultEligible, false)
+  assert.notStrictEqual(installedCapabilityValidation.evidenceByVariant[installedCodexCapability.hostVariant]?.valid, true)
+}
 const installedDesktopCapability = installedSkillRouteCapabilities.capabilities.find(item =>
   item.hostVariant === 'codex-desktop/app-user-global-local-stdio'
 )
@@ -1581,6 +1592,41 @@ assert.strictEqual(
 )
 
 const rollbackRoot = path.join(tmp, 'rollback')
+
+// Native Codex project trust is host-owned even when appended before the end marker.
+const nativeProjectTrust = "[projects.'C:/owned project']\ntrust_level = \"trusted\"\n# Native trust setting"
+const nativeProjectConfig = upgradedCodexFixture.replace(
+  '# END DEVCODEX MANAGED: global-codex-mcp',
+  `${nativeProjectTrust}\n# END DEVCODEX MANAGED: global-codex-mcp`
+)
+assert.strictEqual(tomlManagedFileMatches(nativeProjectConfig, nativeProjectConfig, codexAuthorityFixture,
+  { id: 'global-codex-mcp' }), true)
+const projectMergeOptions = { id: 'global-codex-mcp', tableNames: codexAuthorityTables }
+const mergedProjectConfig = mergeManagedTomlTables(nativeProjectConfig, codexAuthorityFixture, projectMergeOptions)
+assert.ok(mergedProjectConfig.includes(nativeProjectTrust))
+assert.ok(mergedProjectConfig.indexOf(nativeProjectTrust) > mergedProjectConfig.indexOf('# END DEVCODEX MANAGED'))
+assert.strictEqual(tomlManagedFileMatches(nativeProjectConfig, mergedProjectConfig, codexAuthorityFixture, projectMergeOptions), true)
+assert.strictEqual(mergeManagedTomlTables(mergedProjectConfig, codexAuthorityFixture, projectMergeOptions), mergedProjectConfig)
+const distinctProjectPaths = nativeProjectConfig.replace(
+  '# END DEVCODEX MANAGED: global-codex-mcp',
+  "[projects.'C:/ownedproject']\ntrust_level = \"untrusted\"\n# END DEVCODEX MANAGED: global-codex-mcp"
+)
+assert.strictEqual(tomlManagedFileMatches(distinctProjectPaths, distinctProjectPaths, codexAuthorityFixture, projectMergeOptions), true)
+const duplicateProjectConfig = `${nativeProjectConfig}\n${nativeProjectTrust}\n`
+assert.strictEqual(tomlManagedFileMatches(duplicateProjectConfig, duplicateProjectConfig, codexAuthorityFixture, projectMergeOptions), false)
+assert.throws(() => mergeManagedTomlTables(duplicateProjectConfig, codexAuthorityFixture, projectMergeOptions),
+  /GLOBAL_HOST_TOML_IDENTITY_CONFLICT/)
+for (const unknownTable of ['[projects]', "[projects.'C:/owned project'.unknown]", '[unmanaged_intrusion]']) {
+  const unknown = nativeProjectConfig.replace('# END DEVCODEX MANAGED: global-codex-mcp',
+    `${unknownTable}\nvalue = true\n# END DEVCODEX MANAGED: global-codex-mcp`)
+  assert.strictEqual(tomlManagedFileMatches(unknown, unknown, codexAuthorityFixture, projectMergeOptions), false)
+  assert.throws(() => mergeManagedTomlTables(unknown, codexAuthorityFixture, projectMergeOptions),
+    /GLOBAL_HOST_TOML_IDENTITY_CONFLICT/)
+}
+const projectAuthorityTamper = nativeProjectConfig.replace('command = "node"', 'command = "tampered"')
+assert.notStrictEqual(projectAuthorityTamper, nativeProjectConfig)
+assert.strictEqual(tomlManagedFileMatches(projectAuthorityTamper, projectAuthorityTamper, codexAuthorityFixture, projectMergeOptions), false)
+
 fs.mkdirSync(rollbackRoot, { recursive: true })
 const first = path.join(rollbackRoot, 'first.txt')
 const secondFile = path.join(rollbackRoot, 'second.txt')

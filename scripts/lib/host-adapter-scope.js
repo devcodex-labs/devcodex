@@ -486,7 +486,7 @@ function syncGrokPluginInstallation({ pluginPath, dryRun = false, env = process.
       fs.renameSync(temp, configPath)
     }
     const runPluginCommand = args => {
-      const result = spawnSync('grok', args, { encoding: 'utf8', windowsHide: true, env: cliEnv })
+      const result = spawnSync('grok', grokPluginCliArgs(args), { encoding: 'utf8', windowsHide: true, env: cliEnv })
       restoreConfig()
       if (result.status !== 0) {
         const error = new Error(`GROK_PLUGIN_INSTALL_FAILED: ${String(result.stderr || result.stdout).trim()}`)
@@ -547,8 +547,15 @@ function writeTextAtomic(file, content) {
   fs.renameSync(temp, file)
 }
 
+function grokPluginCliArgs(args) {
+  // Grok derives its local repo name from '/', even on Windows. Backslashes
+  // inflate the installed path and can make native skill/hook loading fail.
+  if (process.platform !== 'win32' || args[0] !== 'plugin' || args[1] !== 'install') return args
+  return args.map((value, index) => index === 2 ? value.replace(/\\/g, '/') : value)
+}
+
 function runGrokPluginCommandPreservingConfig(args, env, configSnapshot, spawnCommand = spawnSync) {
-  const result = spawnCommand('grok', args, { encoding: 'utf8', windowsHide: true, env })
+  const result = spawnCommand('grok', grokPluginCliArgs(args), { encoding: 'utf8', windowsHide: true, env })
   if (configSnapshot.existed) writeTextAtomic(configSnapshot.path, configSnapshot.content)
   if (result.error?.code === 'ENOENT') {
     const error = new Error('GROK_PLUGIN_CLI_UNAVAILABLE: grok CLI not found')

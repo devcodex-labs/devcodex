@@ -92,6 +92,18 @@ PR-1 的机器投影写入任务内 `.memory/review-execution-pr1.json`（`Revie
 
 ## ReviewEscapeRecordGate
 
+### 逐条件证据与双状态
+
+复合要求必须从原始已确认来源拆出全部独立条件，先冻结分母，再逐条件核对实际消费者、设计落点、拒收与执行证据。一个证据可支持多个条件，但不得把条件合并消失；标题、文件存在或一个成功样例不能证明all-of满足。语义Owner负责检查分母完整性、证据真实性与当前性；机器结构通过不能替代此判断。
+
+需要机器消费时使用同一可选 `ConditionEvidenceMatrixV1`：`schemaVersion / applicability(applicable|not-applicable) / skipReason / expectedConditionIds / rows`。适用时ID列表非空且唯一，每个ID恰有一行，不得遗漏、孤儿或重复；整体不适用时ID和rows均为空并给理由。每行含 `conditionId / sourceRef / applicable(boolean) / skipReason / consumer / designEvidenceRefs / designStatus / executionStatus / executionEvidenceRefs / verificationResponsibilities / executionContext / limitation`。
+
+`designStatus=covered|partial|unreviewed|not-applicable`与`executionStatus=not-run|running|passed|failed|unknown|not-applicable`独立：covered须有当前设计证据与真实consumer，passed须有真实执行引用与含候选、环境、版本、run的上下文及限制；covered+not-run合法，运行passed也不自动补齐设计partial。`applicable=false`要求两状态均not-applicable且有skipReason。未运行写清原因与限制，不把N/A当未运行。责任是 `test-router`定义的D/A/I/H，可多选，不是证据等级。
+
+对象声明只允许自有顶层属性 `conditionEvidence`；Markdown只认围栏外唯一保留H2 `## ConditionEvidenceMatrixV1`，其section内恰有一个json围栏，至下一真实H2结束。其他章节的教学JSON、嵌套属性及围栏中的示例标题不声明本次记录。显式坏声明、坏JSON、未知版本、重复声明必须拒收，不能退回旧路径。旧候选没有扩展时保持原分类，但不获得新的逐条件保证，不迁移历史文档。
+
+`scripts/lib/candidate-review-bundle.js`仅在原候选issues通道校验显式记录的结构与引用是否具备，不判断自然语言分母或证据真假；原ReviewExecution与freshness继续负责执行与新鲜度。关闭主张分别核算设计与实际执行全部适用条件；任一partial/unreviewed/not-run/unknown不得被笼统“全部已验证”覆盖。
+
 当复审、再次复审、ECR、发布前检查、实施中验证或外部 finding 处理发现“原清单没有覆盖但本轮必须处理”的问题时，必须在同一个复审清单文件追加 escape record，不能只在最终报告里口头说明。
 
 escape record 至少包含：

@@ -4650,6 +4650,8 @@ function buildMinimalEphemeralStub (state, maxBytes = EPHEMERAL_STUB_TARGET_BYTE
       hostCapability: boundedRecoveryString(context.hostCapability, 64),
       hostSessionId: boundedRecoveryString(context.hostSessionId, 256),
       verificationMode: 'ephemeral-resume-rehydrate',
+      // Pre/Post correlation belongs to this session, not its shared rich view.
+      ...(context.inFlight?.length ? { inFlight: JSON.parse(JSON.stringify(context.inFlight)) } : {}),
       handoff: !ingressRecovery && handoff && typeof handoff === 'object' ? {
         contextEpoch: boundedRecoveryString(context.contextEpoch || handoff.contextEpoch, 256),
         planId: boundedRecoveryString(handoff.planId, 256),
@@ -4807,6 +4809,7 @@ function buildEphemeralStub(state, maxBytes = EPHEMERAL_STUB_TARGET_BYTES) {
       hostCapability: context.hostCapability,
       hostSessionId: context.hostSessionId,
       verificationMode: 'ephemeral-resume-rehydrate',
+      ...(context.inFlight?.length ? { inFlight: JSON.parse(JSON.stringify(context.inFlight)) } : {}),
       handoff: context.plan ? {
         contextEpoch: context.contextEpoch,
         planId: context.plan.planId || '',
@@ -6312,7 +6315,13 @@ function writeSessionMapping(paths, identity, sessionKey, state, options = {}) {
     // arbitrary 1 KiB and rejecting valid states that fit the 8 KiB entry.
     const stateBudget = EPHEMERAL_ENTRY_MAX_BYTES - jsonBytes(entry) + jsonBytes(null)
     entry.state = options.ephemeralStateOverride || buildEphemeralStub(state, stateBudget)
-    entry.semanticDigest = digestValue(semanticLifecycleProjection(entry.state))
+    const semantic = semanticLifecycleProjection(entry.state)
+    // A pending read is needed to correlate a later PostToolUse after another
+    // conversation replaces the shared projection; it is not volatile history.
+    if (entry.state.contextAcquisition?.inFlight?.length) {
+      semantic.contextAcquisition.inFlight = entry.state.contextAcquisition.inFlight
+    }
+    entry.semanticDigest = digestValue(semantic)
   }
   if (jsonBytes(entry) > EPHEMERAL_ENTRY_MAX_BYTES) {
     throw new TaskRecoveryStoreV5Error('LIFECYCLE_EPHEMERAL_ENTRY_EXCEEDED', 'session lease exceeds 8 KiB', {

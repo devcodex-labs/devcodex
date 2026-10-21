@@ -517,7 +517,9 @@ function run() {
     }
     const aliasAuthority = resolveValidationAuthorityContext({ ...aliasAuthorityInput, readTaskState: aliasRead('lab') })
     assert.strictEqual(aliasAuthority.taskIdentity.project, 'lab')
-    assert.strictEqual(aliasAuthority.taskIdentity.canonicalActiveRoot, aliasActiveRoot.replace(/\\/g, '/'))
+    assert.strictEqual(aliasAuthority.taskIdentity.canonicalActiveRoot, normalizeIdentity({
+      activeRoot: aliasActiveRoot, project: 'lab', taskId: aiAuthority.taskRecoveryKey
+    }).canonicalActiveRoot)
     assert.strictEqual(Object.hasOwn(aliasAuthority.taskIdentity, 'activeRoot'), false)
     assert.throws(() => resolveValidationAuthorityContext({ ...aliasAuthorityInput, readTaskState: () => ({
       status: 'fresh', identity: normalizeIdentity({ activeRoot: aliasActiveRoot + '-wrong',

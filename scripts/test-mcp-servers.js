@@ -94,6 +94,9 @@ const {
 const { CLAUDE_MCP_JSON } = require('../index.js')
 
 const ROOT = path.resolve(__dirname, '..')
+// All fixture children start outside the managed runner's real session; tests
+// that exercise a host binding still supply their explicit session in env.
+process.env.DEVCODEX_HOST_SESSION_ID = ''
 const TEMP_ROOT = path.join(os.tmpdir(), `devcodex-mcp-test-${process.pid}`)
 const PROFILE_TRACE_TIMEOUT_MS = 30_000
 const PROFILE_TRACE_MAX_BYTES = 1024 * 1024
@@ -170,6 +173,8 @@ function runServer(script, requests, cwd = ROOT, env = {}, followToolPages = tru
   // Default pin DEVCODEX_AGENT=claude-code for suite stability; callers may override or clear.
   const mergedEnv = {
     ...process.env,
+    // Fixture sessions must not inherit the managed runner's real host session.
+    DEVCODEX_HOST_SESSION_ID: '',
     GROK_AGENT: '',
     GROK_HOME: '',
     GROK_SESSION: '',
@@ -1313,8 +1318,11 @@ function writeTaskAuthorityLifecycleState(activeRoot, project, ingress, extra = 
 }
 
 function confirmTaskAuthorityCp1(taskRoot) {
-  const content = '# 问题确认\n\nMCP authority confirmed.\n'
   const artifact = '01-问题确认.md'
+  const content = qualifiedCpArtifactContent({
+    activeRoot: path.dirname(path.dirname(taskRoot)), project: path.basename(TEMP_ROOT),
+    taskKind: 'bugs', taskName: path.basename(taskRoot), relativePath: artifact
+  })
   fs.writeFileSync(path.join(taskRoot, artifact), content)
   const artifactDigest = crypto.createHash('sha256').update(content).digest('hex')
   const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
@@ -1529,6 +1537,43 @@ function testMemoryTaskAdmissionV2Contract() {
     assert(failed.content.some(item => item.text.includes('inputContract')), 'text-only clients also receive repair guidance')
     assert.strictEqual(fs.existsSync(path.join(activeRoot, 'bugs')), false, 'invalid admission must not create a task')
   }
+  // End the stale-lease fixture before constructing an independent compact
+  // admission fixture; immutable snapshot writes deliberately preserve it.
+  fs.unlinkSync(path.join(path.dirname(lifecycleStatePath), 'admission-ingress', `${earlierSnapshot.ref.snapshotKey}.json`))
+  const currentSnapshot = writeAdmissionIngressSnapshot({
+    metaDir: path.dirname(lifecycleStatePath), state: lifecycleState
+  }, { fs, nowMs })
+  assert(['persisted', 'semantic-noop'].includes(currentSnapshot.status))
+  const compactAdmissionState = {
+    ...lifecycleState,
+    actualInstructionEnvelope: {
+      schemaVersion: envelope.schemaVersion, envelopeId: envelope.envelopeId,
+      envelopeDigest: envelope.envelopeDigest, contextEpoch: envelope.contextEpoch,
+      expiresAt: envelope.expiresAt
+    },
+    workflowIngressRecovery: { authorityMode: 'identity-only' }
+  }
+  const rejectsCompactAdmission = state => {
+    fs.writeFileSync(lifecycleStatePath, JSON.stringify(state))
+    const failed = resultById(runServer('mcp/memory-server.js', [
+      rpcRequest(91, 'tools/call', { name: 'memory_task_admit_v2', arguments: args })
+    ], TEMP_ROOT), 91)
+    assert.strictEqual(failed.isError, true, 'a compact identity must not substitute a different live binding')
+    assert.strictEqual(fs.existsSync(path.join(activeRoot, 'bugs')), false, 'rejected compact admission must not create a task')
+  }
+  for (const invalid of [
+    { ...compactAdmissionState, stickyProject: { ...projectTargetLease, leaseDigest: 'f'.repeat(64) } },
+    { ...compactAdmissionState, contextAcquisition: {
+      ...lifecycleState.contextAcquisition, hostSessionId: 'another-session'
+    } },
+    { ...compactAdmissionState, contextAcquisition: {
+      ...lifecycleState.contextAcquisition, contextEpoch: 'another-context'
+    } },
+    { ...compactAdmissionState, actualInstructionEnvelope: {
+      ...compactAdmissionState.actualInstructionEnvelope, envelopeDigest: 'f'.repeat(64)
+    } }
+  ]) rejectsCompactAdmission(invalid)
+  fs.writeFileSync(lifecycleStatePath, JSON.stringify(compactAdmissionState))
   const responses = runServer('mcp/memory-server.js', [
     rpcRequest(1, 'tools/list'),
     rpcRequest(2, 'tools/call', { name: 'memory_task_admit_v2', arguments: args }),
@@ -1649,10 +1694,13 @@ function testMemoryTaskAdmissionV2Contract() {
   assert.strictEqual(JSON.parse(fs.readFileSync(path.join(taskRoot, '.memory', 'task.json'), 'utf8')).schemaVersion, 'TaskIdentityV2')
   assert.match(fs.readFileSync(path.join(taskRoot, '.memory', 'sessions.md'), 'utf8'), /\| CP1 \| ⏳ \|/u)
   // Exercise the public first-confirmation path from a genuinely pending CP1.
-  // The wording intentionally differs from the template; identity and content
-  // digests remain exact while template quality is advisory.
-  const firstCpText = '# 首次问题确认\n\n用户确认保持原任务意图，并继续处理当前缺陷。\n'
+  // A digest-bound candidate still needs qualified template semantics.
   const firstCpPath = '01-问题确认.md'
+  const firstCpText = qualifiedCpArtifactContent({
+    activeRoot, project, taskKind: 'bugs',
+    taskName: admitted.structuredContent.taskRootRelative.split('/').at(-1),
+    relativePath: firstCpPath
+  })
   fs.writeFileSync(path.join(taskRoot, firstCpPath), firstCpText)
   const firstCp = runServer('mcp/memory-server.js', [rpcRequest(9, 'tools/call', {
     name: 'memory_cp_confirm', arguments: {
@@ -2992,17 +3040,28 @@ function testMemoryTaskOwnerAndTerminalV1Contract() {
     settledSetDigest: operationSnapshot.settledSetDigest,
     evidence
   }
-  // The mutable lifecycle projection may disappear after a restart. The exact
-  // task and its immutable ingress snapshot must still support terminal replay.
+  // A stale reference must recover the same verified current task, as renew does.
+  // It must still reject a bad owner instead of turning ingress recovery into authority.
+  writeTaskAuthorityLifecycleState(activeRoot, project, ingress)
+  const staleReferenceArgs = { ...terminalArgs,
+    ingressRef: { ...ingress.ingressRef, decisionDigest: 'f'.repeat(64) } }
+  const rejectedOwner = resultById(runServer('mcp/memory-server.js', [rpcRequest(70, 'tools/call', {
+    name: 'memory_task_terminal_v1', arguments: { ...staleReferenceArgs,
+      expectedOwner: { ...terminalArgs.expectedOwner, leaseDigest: 'f'.repeat(64) } }
+  })], TEMP_ROOT), 70)
+  assert.strictEqual(rejectedOwner.isError, true)
+  const firstTerminalResponses = runServer('mcp/memory-server.js', [
+    rpcRequest(7, 'tools/call', { name: 'memory_task_terminal_v1', arguments: staleReferenceArgs })
+  ], TEMP_ROOT)
+  // Restart replay still uses the durable original snapshot without a rich file.
   fs.unlinkSync(path.join(activeRoot, '.memory', 'hooks', 'legacy', 'lifecycle-state.json'))
-  const terminalResponses = runServer('mcp/memory-server.js', [
-    rpcRequest(7, 'tools/call', { name: 'memory_task_terminal_v1', arguments: terminalArgs }),
+  const terminalResponses = firstTerminalResponses.concat(runServer('mcp/memory-server.js', [
     rpcRequest(8, 'tools/call', { name: 'memory_task_terminal_v1', arguments: terminalArgs }),
     rpcRequest(9, 'tools/call', {
       name: 'memory_task_terminal_v1',
       arguments: { ...terminalArgs, terminalStatus: 'failed' }
     })
-  ], TEMP_ROOT)
+  ], TEMP_ROOT))
   const terminal = resultById(terminalResponses, 7)
   assert.strictEqual(terminal.isError, false, terminal.content?.[0]?.text)
   assert.strictEqual(terminal.structuredContent.status, 'terminal')
@@ -3098,9 +3157,11 @@ function testMemoryArtifactMutationReconciliationContract() {
     },
     overview: { content: '# 问题概况\n\nMCP artifact reconciliation test.\n' }
   }
-  const admitted = resultById(runServer('mcp/memory-server.js', [
+  const reconciliationAdmission = resultById(runServer('mcp/memory-server.js', [
     rpcRequest(1, 'tools/call', { name: 'memory_task_admit_v2', arguments: admissionArgs })
-  ], TEMP_ROOT), 1).structuredContent
+  ], TEMP_ROOT), 1)
+  assert.strictEqual(reconciliationAdmission.isError, false, JSON.stringify(reconciliationAdmission))
+  const admitted = reconciliationAdmission.structuredContent
   const taskRoot = path.join(activeRoot, ...admitted.taskRootRelative.split('/'))
   const metaDir = resolveTaskRecoveryMetaDir({ activeRoot, project })
   const recoveryIdentity = { activeRoot, project, taskId: admitted.taskId, taskStatus: 'active' }
@@ -3421,6 +3482,42 @@ function testMemoryArtifactMutationReconciliationContract() {
   assert.strictEqual(unknownAfter.state.turnLiveness.taskOperationSet.settled[0].effect, 'accepted-current-state')
   assert.deepStrictEqual(unknownAfter.state.fencedWriteOwner, unknownBefore.state.fencedWriteOwner)
   assert.strictEqual(fs.readFileSync(unknownTarget, 'utf8'), '# current state, historical effect unknown\n')
+
+  // Exercise the source operator against the same real admitted V5 transaction.
+  const sourceTarget = path.join(TEMP_ROOT, 'README.md')
+  fs.writeFileSync(sourceTarget, '# source snapshot\n')
+  let sourceTurn = prepareTaskOperationRecord({}, { operationId: 'operator-source-without-closeout',
+    idempotencyKey: 'operator-source-idem', writerGeneration: 4, expectedStateSequence: 237,
+    kind: 'update', exactTargets: [sourceTarget] })
+  sourceTurn = markTaskOperationDispatched(sourceTurn, 'operator-source-without-closeout')
+  const seededSource = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
+    ...state, turnLiveness: sourceTurn
+  }), { force: true, reason: 'test-source-operation-preflight' })
+  assert(['committed', 'semantic-noop'].includes(seededSource.status), JSON.stringify(seededSource))
+  const operator = require('./recover-task-source-state')
+  const sourceArgs = { activeRoot, project, taskId: admitted.taskId,
+    sessionId: 'mcp-task-authority-artifact-reconciliation', operationId: 'operator-source-without-closeout' }
+  const sourceBefore = readTaskRecoveryState({ metaDir, identity: recoveryIdentity })
+  const sourceInspection = operator.recoverSourceOperation({ ...sourceArgs, inspect: true })
+  assert.strictEqual(sourceInspection.stateChanged, false)
+  assert.strictEqual(readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).envelope.payloadDigest,
+    sourceBefore.envelope.payloadDigest)
+  const sourceProposal = sourceInspection.proposal
+  assert.throws(() => operator.recoverSourceOperation({ ...sourceArgs, proposal: {
+    ...sourceProposal, observations: [{ ...sourceProposal.observations[0], sha256: 'f'.repeat(64) }]
+  } }), error => error.code === 'TASK_OPERATION_RECOVERY_SNAPSHOT_MISMATCH')
+  assert.strictEqual(readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).envelope.payloadDigest,
+    sourceBefore.envelope.payloadDigest)
+  const sourceRecovered = operator.recoverSourceOperation({ ...sourceArgs, proposal: sourceProposal })
+  assert.strictEqual(sourceRecovered.replayed, false)
+  assert.strictEqual(sourceRecovered.terminal.terminalReady, true)
+  const sourceReplay = operator.recoverSourceOperation({ ...sourceArgs, proposal: sourceProposal })
+  assert.strictEqual(sourceReplay.replayed, true)
+  assert.strictEqual(sourceReplay.stateChanged, false)
+  assert.strictEqual(sourceReplay.receipt.recoveryDigest, sourceRecovered.receipt.recoveryDigest)
+  assert.deepStrictEqual(readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state.fencedWriteOwner,
+    sourceBefore.state.fencedWriteOwner)
+  assert.strictEqual(fs.readFileSync(sourceTarget, 'utf8'), '# source snapshot\n')
 }
 
 function testMemoryServerOwnedTakeoverObservation() {
@@ -3753,6 +3850,7 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
   const artifactPath = path.join(taskRoot, '02-技术方案.md')
   const cp3ArtifactPath = path.join(taskRoot, '04-实施计划-v0.1.0.md')
   const unqualifiedCp3Path = path.join(taskRoot, '04-实施计划-v0.1.1.md')
+  const wrongSlotCp3Path = path.join(taskRoot, '03-实施计划.md')
   const sessionsPath = path.join(taskRoot, '.memory', 'sessions.md')
   fs.writeFileSync(artifactPath, qualifiedCpArtifactContent({
     activeRoot, project, taskKind: 'bugs', taskName: 'AutoCP大小写任务', relativePath: '02-技术方案.md'
@@ -3760,6 +3858,7 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
   fs.writeFileSync(cp3ArtifactPath, qualifiedCpArtifactContent({
     activeRoot, project, taskKind: 'bugs', taskName: 'AutoCP大小写任务', relativePath: '04-实施计划-v0.1.0.md'
   }), 'utf8')
+  fs.copyFileSync(cp3ArtifactPath, wrongSlotCp3Path)
   fs.writeFileSync(unqualifiedCp3Path, [
     '# Near-title plan',
     '',
@@ -3769,7 +3868,7 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
     '',
     '## 任务分解',
     '',
-    '保留当前任务目标，完成恢复与真实写入验证；以下标题差异仅产生质量提示。',
+    '缺少正式模板语义的候选必须拒收，不能用精确摘要替代资格。',
     '',
     '## 关键实施约束',
     '',
@@ -3847,6 +3946,44 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
   }
   const sessionsBefore = fs.readFileSync(sessionsPath, 'utf8')
   const stateBeforeUnqualified = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+  const wrongSlotResponses = runServer('mcp/memory-server.js', [
+    rpcRequest(21, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: {
+        ...baseArguments,
+        phase: 'CP3',
+        artifactPath: '03-实施计划.md',
+        artifactSha256: cp3ArtifactSha256
+      }
+    }),
+    rpcRequest(22, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: {
+        ...baseArguments,
+        artifactPath: '04-实施计划-v0.1.0.md',
+        artifactSha256: cp3ArtifactSha256
+      }
+    })
+  ], TEMP_ROOT)
+  const wrongCp3Slot = resultById(wrongSlotResponses, 21)
+  const wrongCp2Slot = resultById(wrongSlotResponses, 22)
+  for (const response of [wrongCp3Slot, wrongCp2Slot]) {
+    assert.strictEqual(response.isError, true)
+    assert.strictEqual(response.structuredContent?.errorCode, 'MEMORY_CP_ARTIFACT_SLOT_MISMATCH')
+  }
+  assert.match(wrongCp3Slot.structuredContent.nextStep, /04-实施计划\.md/u)
+  assert.match(wrongCp3Slot.structuredContent.nextStep, /implementation-plan\.prompt\.md/u)
+  assert.doesNotMatch(wrongCp3Slot.structuredContent.nextStep, /02-技术方案\.md/u)
+  assert.match(wrongCp2Slot.structuredContent.nextStep, /02-技术方案\.md/u)
+  assert.match(wrongCp2Slot.structuredContent.nextStep, /technical-design\.prompt\.md/u)
+  assert.doesNotMatch(wrongCp2Slot.structuredContent.nextStep, /04-实施计划\.md/u)
+  assert.strictEqual(fs.readFileSync(sessionsPath, 'utf8'), sessionsBefore,
+    'wrong-slot recovery guidance must not confirm a checkpoint')
+  const stateAfterWrongSlots = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+  for (const key of ['taskCheckpointEpochSet', 'taskScopedAutoContinuationGrant', 'autoCheckpointDecision', 'autoCheckpointDecisions']) {
+    assert.deepStrictEqual(stateAfterWrongSlots[key], stateBeforeUnqualified[key],
+      'wrong-slot recovery guidance must preserve ' + key)
+  }
   const unqualified = resultById(runServer('mcp/memory-server.js', [
     rpcRequest(20, 'tools/call', {
       name: 'memory_cp_confirm',
@@ -3866,9 +4003,11 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
     })
   ], TEMP_ROOT), 20)
   assert.strictEqual(unqualified.isError, true)
-  assert.match(unqualified.content?.[0]?.text || '', /CHECKPOINT_EPOCH_CP_PREDECESSOR_MISSING/)
-  assert.strictEqual(fs.readFileSync(sessionsPath, 'utf8'), sessionsBefore, 'a missing CP2 must not be silently marked confirmed')
+  assert.match(unqualified.content?.[0]?.text || '', /MEMORY_CP_ARTIFACT_TEMPLATE_UNQUALIFIED/)
+  assert.strictEqual(fs.readFileSync(sessionsPath, 'utf8'), sessionsBefore, 'an unqualified template must not write a CP confirmation')
   const stateAfterUnqualified = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+  assert.deepStrictEqual(stateAfterUnqualified.taskCheckpointEpochSet, stateBeforeUnqualified.taskCheckpointEpochSet)
+  assert.deepStrictEqual(stateAfterUnqualified.taskScopedAutoContinuationGrant, stateBeforeUnqualified.taskScopedAutoContinuationGrant)
   assert.deepStrictEqual(stateAfterUnqualified.autoCheckpointDecision, stateBeforeUnqualified.autoCheckpointDecision)
   assert.deepStrictEqual(stateAfterUnqualified.autoCheckpointDecisions, stateBeforeUnqualified.autoCheckpointDecisions)
 
@@ -4160,7 +4299,8 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
   assert.strictEqual(finalState.state.autoCheckpointDecisions.length, 2)
   assert.strictEqual(parseCpSessions(fs.readFileSync(sessionsPath, 'utf8')).CP3.confirmed, false)
 
-  const nearTitleAccepted = resultById(runServer('mcp/memory-server.js', [
+  const stateBeforeNearTitle = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+  const nearTitleRejected = resultById(runServer('mcp/memory-server.js', [
     rpcRequest(24, 'tools/call', {
       name: 'memory_cp_confirm',
       arguments: {
@@ -4176,11 +4316,26 @@ function testMemoryCpConfirmTaskScopedAutoDecisionContract() {
       }
     })
   ], TEMP_ROOT), 24)
-  assert.notStrictEqual(nearTitleAccepted.isError, true, nearTitleAccepted.content?.[0]?.text || '')
-  assert.strictEqual(nearTitleAccepted.structuredContent.artifactTemplateQualification.status, 'rejected')
-  assert.strictEqual(nearTitleAccepted.structuredContent.artifactTemplateQualification.readbackVerified, true)
+  assert.strictEqual(nearTitleRejected.isError, true)
+  assert.match(nearTitleRejected.content?.[0]?.text || '', /MEMORY_CP_ARTIFACT_TEMPLATE_UNQUALIFIED/)
+  assert.strictEqual(parseCpSessions(fs.readFileSync(sessionsPath, 'utf8')).CP3.confirmed, false)
+  const stateAfterNearTitle = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+  assert.deepStrictEqual(stateAfterNearTitle.taskCheckpointEpochSet, stateBeforeNearTitle.taskCheckpointEpochSet)
+  assert.deepStrictEqual(stateAfterNearTitle.autoCheckpointDecisions, stateBeforeNearTitle.autoCheckpointDecisions)
+  const qualifiedAccepted = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(30, 'tools/call', {
+      name: 'memory_cp_confirm', arguments: {
+        ...baseArguments, phase: 'CP3', artifactPath: '04-实施计划-v0.1.0.md',
+        artifactVersion: 'v0.1.0-auto-smoke', artifactSha256: cp3ArtifactSha256,
+        autoDecisionEvidence: { riskClass: 'R3', sideEffectCategories: [], blockers: [],
+          reviewGradeCard: { grade: 'R3', status: 'PASS', openBlockers: 0 } }
+      }
+    })
+  ], TEMP_ROOT), 30)
+  assert.notStrictEqual(qualifiedAccepted.isError, true, qualifiedAccepted.content?.[0]?.text || '')
+  assert.strictEqual(qualifiedAccepted.structuredContent.artifactTemplateQualification.status, 'qualified')
   assert.strictEqual(parseCpSessions(fs.readFileSync(sessionsPath, 'utf8')).CP3.confirmed, true,
-    'real confirmation and readback must continue despite a template heading diagnostic')
+    'a qualified replacement must confirm after the rejected candidate leaves state unchanged')
   // Reopened writers must establish a successor CP1; a CP2 targeting the old
   // terminal epoch must fail before preparing, and old impossible preparations
   // must be sealed abandoned without claiming a machine/projection commit.
@@ -4430,6 +4585,27 @@ function testMemoryCpConfirmPreservesOrdinaryTables() {
     ''
   ].join('\n')
   fs.writeFileSync(sessionsPath, ordinaryTable, 'utf8')
+  const qualifiedContent = fs.readFileSync(artifactPath, 'utf8')
+  fs.writeFileSync(artifactPath, '# 技术方案\n\nMissing required semantic sections.\n', 'utf8')
+  const rejectedDigest = crypto.createHash('sha256').update(fs.readFileSync(artifactPath)).digest('hex')
+  const memoryFilesBefore = fs.readdirSync(path.dirname(sessionsPath)).sort()
+  const rejected = runServer('mcp/memory-server.js', [
+    rpcRequest(90, 'tools/call', {
+      name: 'memory_cp_confirm',
+      arguments: {
+        requirement: '表格任务', phase: 'CP2', artifactPath: '02-技术方案.md',
+        artifactVersion: 'rejected-candidate', artifactSha256: rejectedDigest,
+        sourceMessage: '确认此候选'
+      }
+    })
+  ], TEMP_ROOT)
+  assert.strictEqual(resultById(rejected, 90).isError, true)
+  assert.match(resultById(rejected, 90).content?.[0]?.text || '', /MEMORY_CP_ARTIFACT_TEMPLATE_UNQUALIFIED/)
+  assert.strictEqual(fs.readFileSync(sessionsPath, 'utf8'), ordinaryTable,
+    'rejected template must not write a CP confirmation')
+  assert.deepStrictEqual(fs.readdirSync(path.dirname(sessionsPath)).sort(), memoryFilesBefore,
+    'rejected template must not create checkpoint or epoch state')
+  fs.writeFileSync(artifactPath, qualifiedContent, 'utf8')
   const digest = crypto.createHash('sha256').update(fs.readFileSync(artifactPath)).digest('hex')
   const cp3Digest = crypto.createHash('sha256').update(fs.readFileSync(cp3ArtifactPath)).digest('hex')
 
@@ -7856,6 +8032,17 @@ function testMcpJsonLaunchContract() {
       assert.strictEqual(configuredStatus.activeRoot, path.join(targetRoot, '.devcodex'))
     }
   }
+}
+
+if (process.env.DEVCODEX_MCP_TEST_CASE) {
+  if (!['artifact-reconciliation', 'terminal'].includes(process.env.DEVCODEX_MCP_TEST_CASE)) {
+    throw new Error('unsupported DEVCODEX_MCP_TEST_CASE')
+  }
+  if (process.env.DEVCODEX_MCP_TEST_CASE === 'terminal') testMemoryTaskOwnerAndTerminalV1Contract()
+  else testMemoryArtifactMutationReconciliationContract()
+  if (process.env.DEVCODEX_KEEP_TEST_ARTIFACTS !== '1') fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
+  process.stdout.write(`mcp ${process.env.DEVCODEX_MCP_TEST_CASE} test passed\n`)
+  process.exit(0)
 }
 
 testProfilePrompts()

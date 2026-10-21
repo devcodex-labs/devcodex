@@ -661,6 +661,30 @@ function readObservedCodexModelSettings(env = process.env, fsImpl = fs) {
   return settings
 }
 
+function readObservedCodexPlatformSettings(env = process.env, fsImpl = fs) {
+  const home = env.CODEX_HOME || path.join(env.USERPROFILE || env.HOME || os.homedir(), '.codex')
+  const file = path.join(home, 'config.toml')
+  if (!fsImpl.existsSync(file) || fsImpl.statSync(file).size > 1024 * 1024) return []
+  const config = fsImpl.readFileSync(file, 'utf8')
+  // This bounded literal reader never interprets multiline text as policy.
+  if (config.includes('"""') || config.includes("'''")) return []
+  let section = ''
+  const observed = []
+  for (const line of config.split(/\r?\n/u)) {
+    const header = line.match(/^\s*\[([^\]]+)\]\s*(?:#.*)?$/u)
+    if (header) { section = header[1].trim(); continue }
+    const assignment = section === 'windows' ? /^\s*sandbox\s*=/u.test(line)
+      : section === '' && /^\s*windows\.sandbox\s*=/u.test(line)
+    if (!assignment) continue
+    const match = section === 'windows'
+      ? line.match(/^\s*sandbox\s*=\s*(["'])(elevated|unelevated|mxc)\1\s*(?:#.*)?$/u)
+      : line.match(/^\s*windows\.sandbox\s*=\s*(["'])(elevated|unelevated|mxc)\1\s*(?:#.*)?$/u)
+    if (!match) return []
+    observed.push('windows.sandbox=' + JSON.stringify(match[2]))
+  }
+  return observed.length === 1 ? observed : []
+}
+
 function buildCodexArgs(options) {
   const args = options.approveForMe === true
     ? ['exec', '--approve-for-me']
@@ -1027,7 +1051,7 @@ function partitionInstalledRuntimeEffects(effects, identity) {
     const createdDirectory = !change.before && change.after?.type === 'directory'
     let owned = false
     if (change.root === 'addDir') {
-      const parents = ['.memory', '.memory/hooks', hookRoot, hookRoot + '/v5']
+      const parents = ['.memory', '.memory/hooks', '.memory/hooks/event-locks', hookRoot, hookRoot + '/v5']
       owned = createdDirectory && parents.includes(name)
       if (ordinaryFile && name.startsWith(hookRoot + '/')) {
         const relative = name.slice(hookRoot.length + 1)
@@ -1042,6 +1066,12 @@ function partitionInstalledRuntimeEffects(effects, identity) {
         !name.split('/').some(part => part === '.' || part === '..') && !name.includes('\\')
       if ((hostCachePath && (ordinaryFile || ordinaryDirectory)) ||
           (createdDirectory && name === '.codex/plugins')) owned = true
+      // A previous CLI invocation can leave generated argv aliases. The host
+      // removes those aliases on its next invocation; only their deletion is owned.
+      const removedArgvAlias = change.before && !change.after &&
+        ((ordinaryDirectory && /^\.codex\/tmp\/arg0\/codex-arg0[A-Za-z0-9]+$/u.test(name)) ||
+          (ordinaryFile && /^\.codex\/tmp\/arg0\/codex-arg0[A-Za-z0-9]+\/(?:\.lock|apply_patch\.bat|applypatch\.bat)$/u.test(name)))
+      if (removedArgvAlias) owned = true
       if (ordinaryFile) {
         owned = owned || name === '.codex/models_cache.json' ||
           /^\.codex\/(?:state|goals|logs|memories)_[0-9]+\.sqlite(?:-shm|-wal)?$/u.test(name) ||
@@ -1070,6 +1100,24 @@ function canContinueIndependentInstalledTurn(receipt) {
 }
 
 /** Freeze the source, host, topology, authorization and oracle into one run identity. */
+function requestedStageOrder(identity) {
+  const scope = identity.oracle?.qualificationScope
+  const order = STAGE_ORDER[identity.mode] || []
+  if (scope === 'task-lifecycle-only') {
+    if (identity.mode !== 'installed' ||
+        stableStringify(identity.oracle.stageOrder) !== stableStringify(['H2', 'H3']) ||
+        identity.oracle.h1 != null) {
+      fail('REAL_HOST_IDENTITY_INVALID', 'task-lifecycle-only must bind H2/H3 and exclude the H1 oracle')
+    }
+    return ['H2', 'H3']
+  }
+  if (scope !== undefined && scope !== 'full') fail('REAL_HOST_IDENTITY_INVALID', 'unknown real-host qualification scope')
+  if (scope === 'full' && stableStringify(identity.oracle.stageOrder) !== stableStringify(order)) {
+    fail('REAL_HOST_IDENTITY_INVALID', 'full qualification must bind the complete stage order')
+  }
+  return order
+}
+
 function createRunIdentity(input) {
   assertHexDigest('sourceCandidate', input.sourceCandidate)
   assertHexDigest('authorizationDigest', input.authorizationDigest)
@@ -1098,6 +1146,7 @@ function createRunIdentity(input) {
   assertInstalledIdentityBinding(identity)
   assertForbiddenEligibilityIdentityBinding(identity)
   assertH0StageIdentityBinding(identity)
+  requestedStageOrder(identity)
   const digest = digestObject(identity)
   return { ...identity, digest }
 }
@@ -1371,7 +1420,7 @@ function readAttemptTerminal(ledger, stage, attempt) {
 }
 
 function assertStagePredecessor(ledger, stage) {
-  const order = STAGE_ORDER[ledger.identity.mode] || []
+  const order = requestedStageOrder(ledger.identity)
   const index = order.indexOf(stage)
   if (ledger.identity.mode !== 'unit' && index < 0) {
     fail('REAL_HOST_STAGE_INVALID', stage + ' is not valid for ' + ledger.identity.mode)
@@ -2886,6 +2935,7 @@ module.exports = {
   readWindowsAclProjection,
   readCodexVersion,
   readObservedCodexModelSettings,
+  readObservedCodexPlatformSettings,
   resolveCodexExecutable,
   runH0,
   runOwnedChild,

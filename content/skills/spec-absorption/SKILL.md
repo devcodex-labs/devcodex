@@ -46,6 +46,8 @@ description: 规范吸纳执行 Skill — 用于检查 data 最新可吸纳项�
 
 ## SourceExistenceVerificationGate
 
+候选先引用 `skill-gap-analysis` 的原因记录（cause/evidence/recoveryAction/reassessment/dispositionRef），不另造归因枚举。已有但未发现、未触发或未加载，先恢复再复证；专业或工具环境不足先补证/恢复；undetermined保持待证。只有实际source核验与恢复重评仍证明规则缺失的残余，才进入本Skill的规则吸纳判断。因果原因与既有载体/层级决定分别保存，不能把“执行失败”直接解释成“必须新增Skill”。
+
 > 🔴 **防复发（2026-07-26）**：仅扫台账状态输出「可吸纳」属于控制失效。最终确认清单中每条 `commonDecision=absorb` 必须有本门禁证据；`existenceStatus=present|equivalent-covered` 时只能 `already-covered` / `already-fixed` 并进可关账清单，**禁止**再标 absorb。
 
 每个候选在进入通用性证明 / 最终确认清单前必须填写：

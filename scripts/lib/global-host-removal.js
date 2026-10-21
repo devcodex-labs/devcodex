@@ -24,7 +24,8 @@ const {
   removeHostJsonContent,
   removeManagedBlock,
   tomlManagedFileMatches,
-  extractManagedTomlBody
+  extractManagedTomlBody,
+  extractCodexHostOwnedProjectTables
 } = require('./global-host-config-merge.js')
 const {
   executeGlobalHostTransaction,
@@ -489,7 +490,11 @@ function planArtifactOperation({ artifact, receipt, target, expectedOperation, f
       error.code = 'GLOBAL_HOST_REMOVAL_MANAGED_BLOCK_MODIFIED'
       throw error
     }
-    const desired = removeManagedBlock(current, { kind: 'toml', id: artifact.blockId || 'global-codex-mcp' })
+    const unmanaged = removeManagedBlock(current, { kind: 'toml', id: artifact.blockId || 'global-codex-mcp' })
+    const hostProjects = extractCodexHostOwnedProjectTables(body)
+    const desired = hostProjects
+      ? `${unmanaged.trimEnd()}${unmanaged.trim() ? '\n\n' : ''}${hostProjects}\n`
+      : unmanaged
     if (/mcp_servers\.devcodex-(?:memory|profile)/i.test(desired)) {
       const error = new Error(`GLOBAL_HOST_REMOVAL_TOML_RESIDUAL: ${file}`)
       error.code = 'GLOBAL_HOST_REMOVAL_TOML_RESIDUAL'

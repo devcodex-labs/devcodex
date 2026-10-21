@@ -63,6 +63,14 @@ description: API 契约架构专家 Owner — 当任务涉及 public API、HTTP/
 
 ## 反模式
 
+### 字段语义（contractInventory.fieldSemantics）
+
+当公开输入、输出、配置、状态或嵌套对象含字段时，在原 `contractInventory` 中逐实际 `fieldPath` 记录 `fieldSemantics`，而不是另造契约 Owner。每项包含：`fieldPath / consumer / purpose / requiredWhen / allowedValues / omittedMeaning / nullMeaning / emptyMeaning / zeroMeaning / falseMeaning / defaultSource / dependencies / conflicts / errorRecovery / compatibility / evidence`。不适用的值写 `N/A + reason`，不得用空白掩盖未决定；无字段的任务整体 N/A 并说明理由，不强造产品字段。
+
+必须分别说明省略、null、空字符串/数组/对象、0、false对当前消费者的含义，以及默认来自服务端、调用者还是推导。`requiredWhen`覆盖条件必填；依赖、互斥与错误恢复对应真实字段路径。相同语义可分组引用，但每个字段保留例外，不能用父对象一行代替子字段。类型、可选标记或一个成功示例只能证明结构，不能证明语义完整。未有产品决定的含义保持未决，不从实现反推承诺。
+
+`developer-experience-architecture`引用同一记录审查字段必要性和首次使用路径；文档、示例、Schema与验证消费者交叉核对该记录，不复制另一套字段含义。
+
 | 反模式 | 修正 |
 |--------|------|
 | 先写实现，再让消费者适配输出 | 先冻结 contractInventory 和 consumerSurface |

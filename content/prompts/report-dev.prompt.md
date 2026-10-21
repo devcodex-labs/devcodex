@@ -110,6 +110,8 @@ ECR/确认后复审追加 **ReviewGradeCard**：`c19Label`（轻量/标准/全�
 
 ## §6 测试验证
 
+复合要求引用已审阅的`ConditionEvidenceMatrixV1`与`test-router`的D/A/I/H责任矩阵；分别列设计覆盖、适用性、实际结果、候选/环境/版本/run、证据和限制。未运行/partial/unknown保持原状态，H只承接真实待决对象。普通报告引用记录不自动取得候选资格；不复制Owner长规则或改写历史报告。
+
 | selector / gateGroup | 结果 | 命令与 exitCode | 证据 / skipReason |
 |----------------------|:----:|-----------------|---------------------|
 | static / unit-integration | | | |

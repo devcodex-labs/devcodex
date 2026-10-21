@@ -1,8 +1,8 @@
 {
   "schemaVersion": "PublicProductProjectionV2",
-  "generatedAt": "2026-10-18T09:11:51.140Z",
+  "generatedAt": "2026-10-20T06:29:04.016Z",
   "release": {
-    "version": "1.20.6"
+    "version": "1.20.7"
   },
   "expression": {
     "schemaVersion": "PublicProductExpressionV2",
@@ -1191,10 +1191,10 @@
     }
   ],
   "sourceIdentities": {
-    "package": "aaf08d5af9759cb869965599a8f1b91c7f33cb7266c914a926d14d8ea5d33543",
+    "package": "f763d463419b369150722e8b7a36a473e797c6067ea0d5c849e0e88e406e8f04",
     "expression": "60e525d34e5531e6b4bbbb77f8b34bb93c9ca9ebee5df4fe2812749232175c3c",
     "workflows": "d9eb7086866fe3c3815f673957ed978c1594079261009ac775bf3e1336ad44fd",
-    "portfolio": "cb86a1ea3a6160e99c995a5aa4232ddae45f388154c3178adfb5b6d838cb4e75",
+    "portfolio": "8a9e9e97c116675e00b494eb2a29868d63fed1f6de95cdd0c5fee7473dd78c91",
     "taxonomy": "7f6ee8c30f5484b8881e27099af72c69625b73a7cf3b53fe51c8c0c147d4f124"
   }
 }

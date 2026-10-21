@@ -1789,6 +1789,96 @@ try {
 
 
   }
+  // Source recovery is a distinct operator path, not a relaxation of report slots.
+  {
+    const crypto = require('crypto')
+    const live = require('../hooks/_runtime/lifecycle-turn-liveness.cjs')
+    const store = require('../hooks/_runtime/task-recovery-store-v5.cjs')
+    const source = require('../hooks/_runtime/task-operation-current-state-recovery.cjs')
+    const receipts = require('../hooks/_runtime/task-operation-current-state-receipt.cjs')
+    const { digestSessionRef } = require('../hooks/_runtime/workspace-session-route-index-v1.cjs')
+    const { parseArgs } = require('./recover-task-source-state')
+    const sourceRoot = path.join(tempRoot, 'source-project')
+    fs.mkdirSync(sourceRoot, { recursive: true })
+    const target = path.join(sourceRoot, 'README.md')
+    fs.writeFileSync(target, '# current source\n')
+    const taskId = '11111111-1111-4111-8111-111111111111'
+    const session = digestSessionRef('source-recovery-test')
+    const owner = { schemaVersion: store.FENCED_TASK_WRITE_OWNER_SCHEMA, taskId, projectRootIdentity: '1'.repeat(64),
+      sessionDigest: session, routeRevision: '2'.repeat(64), contextEpoch: 'source-test', ownerGeneration: 4,
+      ownerNonce: `owner-${'3'.repeat(40)}`, leaseRevision: 1, reopenGeneration: 0, revocationEpoch: 0,
+      status: 'active', issuedAt: '2026-10-19T00:00:00Z', expiresAt: '2026-10-19T00:01:00Z' }
+    owner.leaseDigest = store.fencedTaskWriteOwnerDigest(owner)
+    assert(store.validateFencedTaskWriteOwner(owner).valid)
+    const create = (targets = [target], kind = 'update') => {
+      let turn = live.prepareTaskOperationRecord({}, { operationId: 'unknown-source', idempotencyKey: 'source-idem',
+        writerGeneration: 4, expectedStateSequence: 12, kind, exactTargets: targets })
+      turn = live.markTaskOperationDispatched(turn, 'unknown-source')
+      return { activeProject: 'devcodex', stickyProject: { physicalRoot: sourceRoot, rootIdentityDigest: '1'.repeat(64) },
+        taskRecoveryBinding: { taskId, taskRoot }, admissionTransaction: { taskId,
+          taskRootRelative: path.relative(activeRoot, taskRoot).split(path.sep).join('/'), projectRootIdentityDigest: '1'.repeat(64) },
+        fencedWriteOwner: { ...owner }, turnLiveness: turn }
+    }
+    const state = create()
+    const input = { state, activeRoot, projectRoot: sourceRoot, project: 'devcodex', taskId,
+      operationId: 'unknown-source', projectRootIdentityDigest: '1'.repeat(64),
+      hostSessionDigest: session, ingressEnvelopeDigest: '2'.repeat(64) }
+    const before = fs.readFileSync(target)
+    const proposal = source.inspectCurrentSourceState(input)
+    assert.strictEqual(proposal.observations[0].sha256, crypto.createHash('sha256').update(before).digest('hex'))
+    const accepted = { ...input, ...proposal }
+    for (const [changes, code] of [
+      [{ taskId: '22222222-2222-4222-8222-222222222222' }, 'TASK_OPERATION_RECOVERY_TASK_MISMATCH'],
+      [{ projectRoot: tempRoot }, 'TASK_OPERATION_RECOVERY_TASK_MISMATCH'],
+      [{ hostSessionDigest: 'f'.repeat(64) }, 'TASK_OPERATION_RECOVERY_OWNER_MISMATCH'],
+      [{ expectedOperationDigest: 'f'.repeat(64) }, 'TASK_OPERATION_RECOVERY_CAS_MISMATCH'],
+      [{ idempotencyKey: 'another-key' }, 'TASK_OPERATION_RECOVERY_CAS_MISMATCH'],
+      [{ ownerBindingDigest: 'f'.repeat(64) }, 'TASK_OPERATION_RECOVERY_CAS_MISMATCH'],
+      [{ observations: [{ ...proposal.observations[0], sha256: 'f'.repeat(64) }] }, 'TASK_OPERATION_RECOVERY_SNAPSHOT_MISMATCH']
+    ]) assert.throws(() => source.observeCurrentSourceState({ ...accepted, ...changes }), error => error.code === code)
+    const flight = create(); flight.turnLiveness.inFlightOperation = { operationId: 'unknown-source' }
+    assert.throws(() => source.inspectCurrentSourceState({ ...input, state: flight }),
+      error => error.code === 'TASK_OPERATION_RECOVERY_CLOSEOUT_REQUIRED')
+    for (const targets of [[path.join(tempRoot, 'outside.md')], [path.join(sourceRoot, '.devcodex', 'state.json')],
+      [path.join(sourceRoot, 'nested', '.git', 'config')]]) {
+      assert.throws(() => source.inspectCurrentSourceState({ ...input, state: create(targets) }),
+        error => error.code === 'TASK_OPERATION_RECOVERY_SOURCE_SCOPE')
+    }
+    assert.throws(() => source.inspectCurrentSourceState({ ...input, state: create([target], 'delete') }),
+      error => error.code === 'TASK_OPERATION_RECOVERY_SOURCE_SCOPE')
+    const oversized = path.join(sourceRoot, 'oversized.md')
+    fs.writeFileSync(oversized, 'x'.repeat(262145))
+    assert.throws(() => source.inspectCurrentSourceState({ ...input, state: create([oversized]) }),
+      error => error.code === 'TASK_OPERATION_RECOVERY_SIZE')
+    const alias = path.join(sourceRoot, 'alias.md')
+    fs.linkSync(target, alias)
+    assert.throws(() => source.inspectCurrentSourceState(input), error => error.code === 'TASK_OPERATION_RECOVERY_SOURCE_ALIAS')
+    fs.unlinkSync(alias)
+    const linked = path.join(sourceRoot, 'linked')
+    fs.symlinkSync(tempRoot, linked, process.platform === 'win32' ? 'junction' : 'dir')
+    assert.throws(() => source.inspectCurrentSourceState({ ...input, state: create([path.join(linked, 'source-project', 'README.md')]) }),
+      error => error.code === 'TASK_OPERATION_RECOVERY_SYMLINK')
+    fs.unlinkSync(linked)
+    const receipt = source.observeCurrentSourceState(accepted)
+    assert(receipts.validateCurrentStateRecoveryReceipt(receipt).valid)
+    assert.strictEqual(receipt.historicalEffect, 'unknown')
+    assert.strictEqual(receipt.mutationAuthority, false)
+    assert.throws(() => source.applyCurrentReportStateRecovery(structuredClone(state), receipt),
+      error => error.code === 'TASK_OPERATION_RECOVERY_RECEIPT_INVALID')
+    const changedOwner = structuredClone(state); changedOwner.fencedWriteOwner.leaseDigest = 'f'.repeat(64)
+    assert.throws(() => source.applyCurrentSourceStateRecovery(changedOwner, receipt),
+      error => error.code === 'TASK_OPERATION_RECOVERY_CAS_MISMATCH')
+    const recovered = source.applyCurrentSourceStateRecovery(structuredClone(state), receipt)
+    assert.strictEqual(live.taskOperationTerminalSnapshot(recovered.turnLiveness).terminalReady, true)
+    assert.strictEqual(recovered.turnLiveness.taskOperationSet.settled[0].effect, 'accepted-current-state')
+    assert.deepStrictEqual(recovered.fencedWriteOwner, owner)
+    assert.deepStrictEqual(fs.readFileSync(target), before)
+    fs.appendFileSync(target, 'drift\n')
+    assert.throws(() => source.observeCurrentSourceState(accepted), error => error.code === 'TASK_OPERATION_RECOVERY_SNAPSHOT_MISMATCH')
+    for (const args of [[], ['--project', '--inspect'], ['--inspect', '--inspect']]) {
+      assert.throws(() => parseArgs(args), error => error.code === 'SOURCE_RECOVERY_ARGUMENT')
+    }
+  }
   process.stdout.write('test-artifact-mutation-authority: ok\n')
 } finally {
   if (process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1') {

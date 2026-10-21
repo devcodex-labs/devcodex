@@ -191,6 +191,8 @@ applyTo: .devcodex/**/requirements/**
 
 #### 数据模型 / 状态模型（条件）
 
+> 有字段时引用API Owner的`contractInventory.fieldSemantics`，按实际path说明条件必填、允许值、省略/null/空/0/false、默认来源、依赖互斥与恢复；DX复用同一记录核对必要性。无字段写N/A理由，不为模板新增字段。
+
 > 涉及 Schema、Model、数据库、配置、缓存、运行态状态、台账状态、Profile 或报告字段时必填；无数据/状态影响时写 `N/A + skipReason`。
 
 | 对象 | 当前结构/状态 | 目标结构/状态 | 生命周期/状态转换 | 持久化/迁移影响 | 兼容策略 | 验证方式 |
@@ -401,6 +403,8 @@ applyTo: .devcodex/**/requirements/**
 
 
 ### §7.1 产品事实源→技术验证映射（需求验收映射）
+
+> 复合条件按`review-checklist`冻结分母与逐条件双状态。需要候选机器消费时，在本模板外层Markdown围栏解包后输出唯一保留H2 `## ConditionEvidenceMatrixV1`及一个json声明，或对象自有顶层`conditionEvidence`。完整契约见Owner；设计covered不等于运行passed，未来验证保持not-run。`executionContext`在running/passed/failed时使用`{candidate, environment, version, runId}`非空字符串记录；未运行说明limitation。D/A/I/H责任由`test-router`决定，引用同一证据。
 
 > 将 CP1 中**需求方原始输入锚点**、AI 提炼口径、双方确认后的产品需求原文，或产品直接提供的 `01-产品需求.md` 中的流程节点、字段描述、样例、反例、异常边界和待确认问题映射到方案设计、验证路线和 CP3 任务。本节是技术方案派生实现验收的入口，不是需求方或产品填写验收标准；每个关键产品事实源都必须有映射，确实不适用时写 `N/A + skipReason`，不得静默遗漏。
 

@@ -1,9 +1,9 @@
 # 变更日志 (CHANGELOG)
 
 > **说明**: 版本概览摘要；历史版本见对应详细变更文件。
-> **最新版本详细变更文档**: [`changelogs/releases/v1.20.6.md`](./changelogs/releases/v1.20.6.md)
-> **最后更新**: 2026-10-18
-> **当前源码版本**: v1.20.6，修复真实 Codex CLI 验证发现的终态重复观察与记忆状态误判，并包含 v1.20.5 候选改动。正式发行状态以对应 Git tag、npm registry 与 GitHub Release 的实际结果为准。
+> **最新版本详细变更文档**: [`changelogs/releases/v1.20.7.md`](./changelogs/releases/v1.20.7.md)
+> **最后更新**: 2026-10-20
+> **当前源码版本**: v1.20.7，吸纳 TaskLifecycle 字段语义与逐条件证据规范，修复正式任务入口恢复、CP 模板资格拒收及 Codex 宿主项目配置保留。正式发行状态以对应 Git tag、npm registry 与 GitHub Release 的实际结果为准。
 
 ---
 
@@ -11,6 +11,7 @@
 
 | 版本 | 日期 | 变更摘要 | 详细 |
 |------|------|---------|------|
+| [v1.20.7](./changelogs/releases/v1.20.7.md) | 2026-10-20 | TaskLifecycle 规范能力吸纳、正式任务入口与源码状态恢复、CP 模板资格拒收及 Codex 项目配置保留 | [查看](./changelogs/releases/v1.20.7.md) |
 | [v1.20.6](./changelogs/releases/v1.20.6.md) | 2026-10-18 | 修复终态重复观察、旧终态观察兼容与记忆未完成状态误判；旧记忆索引按解析契约失效并只读回退 | [查看](./changelogs/releases/v1.20.6.md) |
 | [v1.20.5](./changelogs/releases/v1.20.5.md) | 2026-10-18 | 工作流恢复、候选模板与验证范围修复；发行资格待验证 | [查看](./changelogs/releases/v1.20.5.md) |
 | [v1.20.4](./changelogs/releases/v1.20.4.md) | 2026-10-10 | 修复MCP重启契约、状态与事务边界、ContextRead入口、验证续租及自动CP恢复；同步当前Skill和分发消费者 | [查看](./changelogs/releases/v1.20.4.md) |

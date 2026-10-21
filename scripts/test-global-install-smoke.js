@@ -27,6 +27,7 @@ const {
   isNonterminalH3SafePartial,
   readCodexVersion,
   readObservedCodexModelSettings,
+  readObservedCodexPlatformSettings,
   resolveCodexExecutable,
   validateEvidenceRoot
 } = require('./lib/real-codex-host-probe')
@@ -40,6 +41,7 @@ function parseSmokeArguments(argv) {
   const options = {
     tarball: null,
     realCodex: false,
+    realCodexTasksOnly: false,
     evidenceRoot: null,
     sourceCandidate: null,
     authorizationDigest: null
@@ -54,6 +56,9 @@ function parseSmokeArguments(argv) {
       index += 1
     } else if (argument === '--real-codex') {
       options.realCodex = true
+    } else if (argument === '--real-codex-tasks-only') {
+      options.realCodex = true
+      options.realCodexTasksOnly = true
     } else if (['--evidence-root', '--source-candidate', '--authorization-digest'].includes(argument)) {
       const value = argv[index + 1]
       assert(value && !value.startsWith('-'), argument + ' requires one value')
@@ -89,8 +94,11 @@ function parseSmokeArguments(argv) {
 
 const smokeOptions = parseSmokeArguments(process.argv.slice(2))
 const observedModelSettings = smokeOptions.realCodex ? readObservedCodexModelSettings(process.env) : []
+const observedPlatformSettings = smokeOptions.realCodex && process.platform === 'win32'
+  ? readObservedCodexPlatformSettings(process.env) : []
 const INSTALLED_REAL_CODEX_CONFIG_OVERRIDES = Object.freeze([
   ...observedModelSettings,
+  ...observedPlatformSettings,
   'mcp_servers.devcodex-profile.default_tools_approval_mode="approve"',
   'mcp_servers.devcodex-memory.default_tools_approval_mode="approve"'
 ])
@@ -156,7 +164,7 @@ fs.mkdirSync(consumer, { recursive: true })
 fs.mkdirSync(path.join(globalHome, '.codex'), { recursive: true })
 fs.writeFileSync(path.join(globalHome, '.codex', 'AGENTS.md'), '# User Codex instruction\n')
 const codexConfigSentinel = smokeOptions.realCodex
-  ? ['# isolated real Codex validation config', ...observedModelSettings, ''].join('\n')
+  ? ['# isolated real Codex validation config', ...observedModelSettings, ...observedPlatformSettings, ''].join('\n')
   : 'model = "user-model"\n'
 fs.writeFileSync(path.join(globalHome, '.codex', 'config.toml'), codexConfigSentinel)
 if (smokeOptions.realCodex) {
@@ -982,6 +990,28 @@ const installedAdmissionSuite = runCommand(process.execPath, [
 assert.match(installedAdmissionSuite.stdout, /"passed":true/)
 installedAdmissionNegativesPassed = true
 
+function recordInstalledCodexConfig(stage) {
+  if (!smokeOptions.realCodex) return
+  const observations = [
+    ['config', path.join(globalHome, '.codex', 'config.toml')],
+    ['adapterReceipt', receiptPath(globalHome, '.codex')]
+  ].map(([kind, file]) => {
+    if (stage === 'after-removal' && kind === 'adapterReceipt') {
+      assert.strictEqual(fs.existsSync(file), false, 'removed adapter receipt unexpectedly remained')
+      return { kind, path: file, exists: false }
+    }
+    const stat = fs.lstatSync(file)
+    const relative = path.relative(fs.realpathSync(globalHome), fs.realpathSync(file))
+    assert(relative && relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative),
+      'installed Codex config evidence escaped the isolated HOME')
+    assert(stat.isFile() && stat.size <= 1024 * 1024, 'installed Codex config evidence exceeds its bound')
+    const content = fs.readFileSync(file, 'utf8')
+    return { kind, path: file, bytes: stat.size, sha256: sha256File(file), content }
+  })
+  fs.writeFileSync(path.join(smokeOptions.evidenceRoot, 'installed-codex-config-' + stage + '.json'),
+    JSON.stringify({ sourceCandidate: smokeOptions.sourceCandidate, stage, observations }, null, 2), { flag: 'wx' })
+}
+
 if (smokeOptions.realCodex) {
   for (const relative of [
     'scripts/lib/real-codex-host-probe.js',
@@ -997,8 +1027,9 @@ if (smokeOptions.realCodex) {
       'installed real-host file differs from the source candidate: ' + relative
     )
   }
+  recordInstalledCodexConfig('before-s15')
   console.log('global install smoke realCodex stage=installed-s15 start')
-  const installedS15EvidencePath = path.join(tmp, 'installed-codex-s15.json')
+  const installedS15EvidencePath = path.join(smokeOptions.evidenceRoot, 'installed-codex-s15.json')
   runCommand(process.execPath, [
     path.join(installedPackageRoot, 'scripts', 'probe-skill-route-s15-host.js'),
     '--host', 'codex',
@@ -1017,6 +1048,7 @@ if (smokeOptions.realCodex) {
   assert.strictEqual(installedS15Evidence.host, 'codex')
   assert.strictEqual(installedS15Evidence.authorizationSource, 'capability-pass')
   assert.strictEqual(installedS15Evidence.runtimeBinding.source, 'installed-production-receipt')
+  recordInstalledCodexConfig('after-s15')
   console.log('global install smoke realCodex stage=installed-s15 pass')
 
   const formalTaskName = 'Tarball真实宿主连续性验收'
@@ -1057,8 +1089,9 @@ if (smokeOptions.realCodex) {
     },
     oracle: {
       schemaVersion: 'RealHostInstalledOracleBindingV1',
-      stageOrder: ['H1', 'H2', 'H3'],
-      h1: {
+      qualificationScope: smokeOptions.realCodexTasksOnly ? 'task-lifecycle-only' : 'full',
+      stageOrder: smokeOptions.realCodexTasksOnly ? ['H2', 'H3'] : ['H1', 'H2', 'H3'],
+      h1: smokeOptions.realCodexTasksOnly ? null : {
         nonce: installedH1Nonce,
         createExclusive: true,
         runtimeEffectPolicy: 'installed-runtime-v1',
@@ -1088,32 +1121,37 @@ if (smokeOptions.realCodex) {
     forbiddenRoots: [packageRoot, tmp, globalHome, workspace]
   })
   assertRealHostCandidateStable('H1 preflight')
-  console.log('global install smoke realCodex stage=installed-h1 start')
-  const installedH1 = runRealHostHelper('installed-h1', {
-    schemaVersion: 'RealCodexHostProbeRequestV1',
-    operation: 'probe',
-    evidenceRoot: smokeOptions.evidenceRoot,
-    identity: realHostIdentity,
-    forbiddenRoots: [packageRoot, tmp],
-    stage: 'H1',
-    expectation: 'allowed',
-    nonce: installedH1Nonce,
-    consumerRoot: consumer,
-    addDir: consumerActiveRoot,
-    codexExecutable: realCodexExecutable,
-    configOverrides: INSTALLED_REAL_CODEX_CONFIG_OVERRIDES,
-    bypassHookTrust: true,
-    additionalEffectRoots: [
-      { label: 'globalHome', root: globalHome },
-      { label: 'globalPrefix', root: globalPrefix },
-      { label: 'npmCache', root: cacheDir }
-    ],
-    timeoutMs: 900000
-  }, installedEnv, installedRealHostHelper)
-  const h1Unavailable = canContinueIndependentInstalledTurn(installedH1)
-  assert(installedH1.status === 'PASS' || h1Unavailable, 'installed H1 topology probe failed: ' + installedH1.code)
-  console.log('global install smoke realCodex stage=installed-h1 status=' + installedH1.status + (installedH1.code ? ' code=' + installedH1.code : ''))
-  if (h1Unavailable) console.warn('H1 native probe remains unverified after host denial; continuing independent MCP task acceptance without retrying the denied probe or changing host permissions')
+  let installedH1 = null
+  if (!smokeOptions.realCodexTasksOnly) {
+    console.log('global install smoke realCodex stage=installed-h1 start')
+    installedH1 = runRealHostHelper('installed-h1', {
+      schemaVersion: 'RealCodexHostProbeRequestV1',
+      operation: 'probe',
+      evidenceRoot: smokeOptions.evidenceRoot,
+      identity: realHostIdentity,
+      forbiddenRoots: [packageRoot, tmp],
+      stage: 'H1',
+      expectation: 'allowed',
+      nonce: installedH1Nonce,
+      consumerRoot: consumer,
+      addDir: consumerActiveRoot,
+      codexExecutable: realCodexExecutable,
+      configOverrides: INSTALLED_REAL_CODEX_CONFIG_OVERRIDES,
+      bypassHookTrust: true,
+      additionalEffectRoots: [
+        { label: 'globalHome', root: globalHome },
+        { label: 'globalPrefix', root: globalPrefix },
+        { label: 'npmCache', root: cacheDir }
+      ],
+      timeoutMs: 900000
+    }, installedEnv, installedRealHostHelper)
+    const h1Unavailable = canContinueIndependentInstalledTurn(installedH1)
+    assert(installedH1.status === 'PASS' || h1Unavailable, 'installed H1 topology probe failed: ' + installedH1.code)
+    console.log('global install smoke realCodex stage=installed-h1 status=' + installedH1.status + (installedH1.code ? ' code=' + installedH1.code : ''))
+    if (h1Unavailable) console.warn('H1 native probe remains unverified after host denial; continuing independent MCP task acceptance without retrying the denied probe or changing host permissions')
+  } else {
+    console.log('global install smoke realCodex stage=installed-h1 status=UNVERIFIED scope=task-lifecycle-only executed=0')
+  }
 
   const firstPrompt = [
     '@rocky 自动执行当前隔离安装包验收，不要向用户追问。',
@@ -1121,6 +1159,7 @@ if (smokeOptions.realCodex) {
     '此前 H1 原生探针的宿主限制单独保留；不要重试该探针、写入其标记或更改宿主权限。本轮只验收以下独立正式任务。',
     `使用已安装 DevCodex 的公开 Profile/Memory MCP 创建正式 requirements 任务“${formalTaskName}”，不得走 simple-task fast path。`,
     '按模板生成 00-需求概况.md 和 CP1 需求确认产物，自动确认 CP1，并取得 finalized 的第一代正式准入与写 owner。',
+    'CP1必须实际生成01-需求确认.md或其合格版本候选；使用宿主文件编辑工具写入，公开MCP负责准入和确认。不得把00概况或.memory/sessions.md当作CP1。若有效宿主权限不允许写入，报告原始权限证据并停止，不推断只读，不伪造产物或确认。',
     '调用 memory_cp_confirm 前必须形成当前候选的 R3 ReviewGradeCard，并传入 autoDecisionEvidence：riskClass=R3、无 blockers、无 sideEffectCategories、reviewGradeCard.grade=R3、status=PASS、openBlockers=0。',
     '00-需求概况.md 必须包含独立一行 HOST_G1_READY。保持任务 active，不形成 CP2/CP3，不执行 terminal closeout。',
     'memory_cp_confirm 必须返回非 isError 且读回 CP1 confirmed；如参数、路径或摘要绑定失败，按返回的 nextStep 修正后重试，不得提前结束。',
@@ -1168,6 +1207,7 @@ if (smokeOptions.realCodex) {
   }
   const g1Generation = g1.state.admissionTransaction.admissionGeneration
   const g1CanonicalRevision = g1.state.taskCanonicalRevision?.revision || 0
+  recordInstalledCodexConfig('after-g1')
   console.log(`global install smoke realCodex stage=formal-g1 pass generation=${g1Generation}`)
 
   const secondPrompt = [
@@ -1314,10 +1354,12 @@ if (smokeOptions.realCodex) {
   }
   realCodexEvidence = {
     runDigest: realHostIdentity.digest,
-    h1ReceiptDigest: installedH1.receiptDigest,
-    h1Status: installedH1.status,
-    h1Code: installedH1.code,
-    s15RawDigest: installedS15Evidence.rawDigest,
+    qualificationScope: smokeOptions.realCodexTasksOnly ? 'task-lifecycle-only' : 'full',
+    h1ReceiptDigest: installedH1?.receiptDigest || null,
+    h1Status: installedH1?.status || 'UNVERIFIED',
+    h1Code: installedH1?.code || null,
+    s15RawDigest: installedS15Evidence.evidenceDigest,
+    s15EvidencePath: installedS15EvidencePath,
     taskId: g1.taskId,
     g1AdmissionGeneration: g1Generation,
     finalAdmissionGeneration: g2.state.admissionTransaction.admissionGeneration,
@@ -1326,7 +1368,8 @@ if (smokeOptions.realCodex) {
     terminalStatus: g2.state.workflowTaskTerminalReceipt.terminalStatus,
     invocations: [g1Invocation, ...g2Invocations]
   }
-  console.log(`global install smoke realCodex stage=formal-g2 pass generation=${realCodexEvidence.finalAdmissionGeneration}`)
+  recordInstalledCodexConfig('after-g2')
+  console.log(`global install smoke realCodex stage=formal-g2 pass generation=${realCodexEvidence.finalAdmissionGeneration} scope=${realCodexEvidence.qualificationScope} h1Executed=${Number(!smokeOptions.realCodexTasksOnly)}`)
 }
 
 const statusPayload = JSON.parse(runCommand(binPath, ['status', '--json'], {
@@ -1404,7 +1447,9 @@ if (grokAvailable) {
     inspect.plugins.filter(item => item?.name === 'devcodex-workspace' && item?.enabled === true).length,
     1
   )
-  assert.strictEqual(inspect.skills.filter(item => item?.name === 'devcodex-workspace').length, 1)
+  assert.strictEqual(inspect.skills.filter(item => item?.name === 'devcodex-workspace').length, 1,
+    JSON.stringify({ fixture: tmp, plugin: managed.map(item => ({ name: item.name, source: item.source })),
+      discoveredSkills: inspect.skills.map(item => ({ name: item.name, source: item.source })) }))
   assert(inspect.hooks.some(item => item?.source?.plugin_name === 'devcodex-workspace'))
   const mcpNames = new Set(
     inspect.mcpServers
@@ -1435,6 +1480,23 @@ if (grokAvailable) {
 
 const installedReceipts = ['.copilot', '.claude', '.codex', path.join('gemini-cli-home', '.gemini'), '.grok', '.cursor']
   .map(hostRoot => JSON.parse(fs.readFileSync(receiptPath(globalHome, hostRoot), 'utf8')))
+const installedCodexConfigPath = path.join(globalHome, '.codex', 'config.toml')
+if (!realCodexEvidence) {
+  const config = fs.readFileSync(installedCodexConfigPath, 'utf8')
+  const endMarker = '# END DEVCODEX MANAGED: global-codex-mcp'
+  assert.strictEqual(config.split(endMarker).length, 2)
+  // Exercise the native writer's observed insertion point without requiring a model.
+  fs.writeFileSync(installedCodexConfigPath, config.replace(endMarker,
+    '[projects."devcodex-uninstall-user-fixture"]\ntrust_level = "trusted"\n\n' + endMarker))
+}
+// Snapshot host-owned sections before removal; do not use the removal implementation as the oracle.
+const codexProjectTablesBeforeRemoval = (fs.readFileSync(installedCodexConfigPath, 'utf8')
+  .match(/^\[projects\.[^\r\n]+\]\r?\n(?:(?!^\[|^# (?:BEGIN|END) DEVCODEX MANAGED:)[\s\S])*/gm) || [])
+  .map(table => table.trimEnd())
+const codexConfigAfterRemoval = codexProjectTablesBeforeRemoval.length
+  ? [codexConfigSentinel.trimEnd(), ...codexProjectTablesBeforeRemoval].join('\n\n') + '\n'
+  : codexConfigSentinel
+recordInstalledCodexConfig('before-removal')
 const removalPreview = JSON.parse(runCommand(binPath, ['uninstall', '--json'], {
   cwd: workspace,
   env: installedEnv
@@ -1473,7 +1535,8 @@ for (const receipt of installedReceipts) {
   }
 }
 assert.strictEqual(fs.readFileSync(path.join(globalHome, '.codex', 'AGENTS.md'), 'utf8'), '# User Codex instruction\n')
-assert.strictEqual(fs.readFileSync(path.join(globalHome, '.codex', 'config.toml'), 'utf8'), codexConfigSentinel)
+recordInstalledCodexConfig('after-removal')
+assert.strictEqual(fs.readFileSync(installedCodexConfigPath, 'utf8'), codexConfigAfterRemoval)
 const preservedClaude = JSON.parse(fs.readFileSync(path.join(globalHome, '.claude', 'settings.json'), 'utf8'))
 assert.strictEqual(preservedClaude.theme, 'dark')
 assert.match(JSON.stringify(preservedClaude.hooks), /user-hook\.cjs/)

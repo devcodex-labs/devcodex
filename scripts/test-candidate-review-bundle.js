@@ -236,6 +236,90 @@ assert(missingClaimColumnReceipt.validationIssues.some(issue => issue.code === '
 const directValidation = validateCandidateReviewBundle(objectCandidate, { phase: 'CP2' })
 assert.strictEqual(directValidation.phase, 'CP2')
 
+// Explicit condition records supplement the original candidate interface. These
+// are real parser/validator probes; they do not certify the referenced evidence.
+const conditionMatrix = {
+  schemaVersion: 'ConditionEvidenceMatrixV1', applicability: 'applicable', expectedConditionIds: ['C1'],
+  rows: [{ conditionId: 'C1', sourceRef: 'requirement#C1', applicable: true, consumer: 'candidate-review-bundle',
+    designEvidenceRefs: ['design#C1'], designStatus: 'covered', executionStatus: 'not-run',
+    executionEvidenceRefs: [], verificationResponsibilities: ['D', 'A'], executionContext: null,
+    limitation: 'implementation validation has not run' }]
+}
+const clone = value => JSON.parse(JSON.stringify(value))
+const conditionObject = matrix => ({ ...clone(objectCandidate), conditionEvidence: matrix })
+const conditionMarkdown = matrix => `${readyCp2}\n## ConditionEvidenceMatrixV1\n\`\`\`json\n${JSON.stringify(matrix)}\n\`\`\`\n`
+for (const encode of [conditionObject, conditionMarkdown]) {
+  assert.strictEqual(buildCandidateReviewBundleReceipt(encode(conditionMatrix)).classification, 'review-ready')
+  const executed = clone(conditionMatrix)
+  Object.assign(executed.rows[0], { designStatus: 'partial', executionStatus: 'passed',
+    executionEvidenceRefs: ['actual-run#1'], executionContext: { candidate: 'sha1', environment: 'node/windows', version: 'candidate', runId: 'run1' }, limitation: 'local candidate only' })
+  assert.strictEqual(buildCandidateReviewBundleReceipt(encode(executed)).classification, 'review-ready', 'execution passed must not force design covered')
+  const inapplicable = clone(conditionMatrix)
+  Object.assign(inapplicable.rows[0], { applicable: false, designStatus: 'not-applicable', executionStatus: 'not-applicable', skipReason: 'no applicable consumer' })
+  assert(buildCandidateReviewBundleReceipt(encode(inapplicable)).passed)
+  assert(buildCandidateReviewBundleReceipt(encode({ schemaVersion: 'ConditionEvidenceMatrixV1', applicability: 'not-applicable', skipReason: 'no compound conditions', expectedConditionIds: [], rows: [] })).passed)
+  const shared = clone(conditionMatrix)
+  shared.expectedConditionIds.push('C2')
+  shared.rows.push({ ...clone(shared.rows[0]), conditionId: 'C2' })
+  assert(buildCandidateReviewBundleReceipt(encode(shared)).passed, 'sharing evidence must preserve both rows')
+  const negativeCases = [
+    ['null declaration', () => null],
+    ['unknown schema', x => { x.schemaVersion = 'ConditionEvidenceMatrixV2' }],
+    ['unknown applicability', x => { x.applicability = 'yes' }],
+    ['string IDs', x => { x.expectedConditionIds = 'C1' }],
+    ['blank ID', x => { x.expectedConditionIds = [' '] }],
+    ['duplicate ID', x => { x.expectedConditionIds.push('C1') }],
+    ['empty denominator', x => { x.expectedConditionIds = []; x.rows = [] }],
+    ['missing row', x => { x.rows = [] }],
+    ['duplicate row', x => { x.rows.push(clone(x.rows[0])) }],
+    ['orphan row', x => { x.rows[0].conditionId = 'C2' }],
+    ['non-object row', x => { x.rows = [null] }],
+    ['boolean string', x => { x.rows[0].applicable = 'false' }],
+    ['boolean number', x => { x.rows[0].applicable = 0 }],
+    ['source missing', x => { delete x.rows[0].sourceRef }],
+    ['covered without consumer', x => { x.rows[0].consumer = '' }],
+    ['covered without design refs', x => { x.rows[0].designEvidenceRefs = [] }],
+    ['bad refs', x => { x.rows[0].executionEvidenceRefs = [42] }],
+    ['bad design state', x => { x.rows[0].designStatus = 'complete' }],
+    ['bad execution state', x => { x.rows[0].executionStatus = 'complete' }],
+    ['false applicability states', x => { x.rows[0].applicable = false; x.rows[0].skipReason = 'unused' }],
+    ['N/A no reason', x => { x.applicability = 'not-applicable'; x.expectedConditionIds = []; x.rows = [] }],
+    ['N/A with rows', x => { x.applicability = 'not-applicable'; x.skipReason = 'none' }],
+    ['applicable cannot use N/A', x => { x.rows[0].executionStatus = 'not-applicable' }],
+    ['bad responsibility', x => { x.rows[0].verificationResponsibilities = ['E4'] }],
+    ['missing responsibility list', x => { delete x.rows[0].verificationResponsibilities }],
+    ['no limitation', x => { x.rows[0].limitation = '' }],
+    ['fake passed', x => { x.rows[0].executionStatus = 'passed' }],
+    ['passed refs without run', x => { x.rows[0].executionStatus = 'passed'; x.rows[0].executionEvidenceRefs = ['run'] }],
+    ['passed missing evidence', x => { Object.assign(x.rows[0], executed.rows[0]); x.rows[0].executionEvidenceRefs = [] }],
+    ['run missing version', x => { Object.assign(x.rows[0], clone(executed.rows[0])); delete x.rows[0].executionContext.version }]
+  ]
+  for (const [label, mutate] of negativeCases) {
+    let matrix = clone(conditionMatrix)
+    if (label === 'null declaration') matrix = mutate()
+    else mutate(matrix)
+    const receipt = buildCandidateReviewBundleReceipt(encode(matrix))
+    assert(!receipt.passed, `${label} must reject (${typeof encode(matrix)})`)
+    assert(receipt.validationIssues.some(x => x.code.startsWith('condition-evidence-')), label)
+  }
+}
+assert(buildCandidateReviewBundleReceipt({ ...clone(objectCandidate), example: { conditionEvidence: null } }).passed, 'nested tutorial property is not a declaration')
+const inherited = Object.assign(Object.create({ conditionEvidence: null }), clone(objectCandidate))
+assert(buildCandidateReviewBundleReceipt(inherited).passed, 'inherited property is not a declaration')
+const tutorial = `${readyCp2}\n## Tutorial\n\`\`\`markdown\n## ConditionEvidenceMatrixV1\n\`\`\`\n\`\`\`json\n{"schemaVersion":"bad"}\n\`\`\`\n`
+assert(buildCandidateReviewBundleReceipt(tutorial).passed)
+const explicit = conditionMarkdown(conditionMatrix)
+for (const invalid of [
+  `${explicit}\n${explicit.slice(readyCp2.length)}`,
+  `${explicit}\n\`\`\`json\n{}\n\`\`\``,
+  `${readyCp2}\n## ConditionEvidenceMatrixV1\n\`\`\`json\n{bad}\n\`\`\``,
+  `${readyCp2}\n## ConditionEvidenceMatrixV1\n\`\`\`json\n{}`,
+  `${readyCp2}\n## ConditionEvidenceMatrixV1\n(no json)`
+]) assert(!buildCandidateReviewBundleReceipt(invalid).passed, 'explicit malformed/duplicate declaration must not fall back')
+assert(buildCandidateReviewBundleReceipt(`${explicit}\n## Teaching\n\`\`\`json\n{}\n\`\`\``).passed, 'stop at next real H2')
+assert(buildCandidateReviewBundleReceipt(explicit.replace(/```/g, '~~~~')).passed, 'tilde fence supported')
+assert.strictEqual(buildCandidateReviewBundleReceipt({ conditionEvidence: null }).classification, 'not-candidate-review', 'ordinary reports do not become candidates')
+
 const sourceAnchors = [
   ['prompts/requirement.prompt.md', ['CandidateReviewBundleV1', 'RQMatrix', 'DomainRealityMatrix', 'ClaimEvidenceMatrix', 'EscapeAbsorptionQueue']],
   ['prompts/technical-design.prompt.md', ['CandidateReviewBundleV1', 'TDMatrix', 'BlockerSnapshot', 'ClaimEvidenceMatrix']],

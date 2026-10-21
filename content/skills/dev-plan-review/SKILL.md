@@ -25,6 +25,8 @@ CP2 候选进入阶段二前必须先通过 `RequiredCandidateEvidenceGate`：�
 
 ## 豁免
 
+复合验收按 `review-checklist` 的逐条件证据规则执行：冻结原始条件分母，追踪每项sourceRef→consumer→设计证据→验证路线。可选`ConditionEvidenceMatrixV1`与原TDMatrix/ClaimEvidenceMatrix引用同一事实，不复制Owner规则。设计covered与执行passed分别判断；计划中的未来测试保持not-run。复审有未审条件时不能宣称设计完整，候选结构review-ready也不证明每项行为已运行。
+
 - `dev-docs` 子类型：豁免（文档产物，不涉及代码实施）
 - `dev-plan-review` 子类型：豁免（自身即为审查，防递归）
 - `dev-scenario-test` 子类型：豁免（已有独立质量门控）

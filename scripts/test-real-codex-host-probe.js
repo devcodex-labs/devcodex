@@ -39,6 +39,7 @@ const {
   partitionInstalledRuntimeEffects,
   readLedgerJson,
   readObservedCodexModelSettings,
+  readObservedCodexPlatformSettings,
   readWindowsAclProjection,
   runH0,
   runOwnedChild,
@@ -102,7 +103,20 @@ async function main() {
   ])
   assert.deepStrictEqual(readObservedCodexModelSettings({}, { existsSync: () => false }), [])
   assert.deepStrictEqual(readObservedCodexModelSettings({}, { ...modelConfigFs, statSync: () => ({ size: 2 * 1024 * 1024 }) }), [])
+  const platformConfig = content => ({ ...modelConfigFs, readFileSync: () => content })
+  assert.deepStrictEqual(readObservedCodexPlatformSettings({}, platformConfig('sandbox_mode="danger-full-access"\napproval_policy="on-request"\n[windows]\nsandbox="elevated"\n[other]\nsandbox="unelevated"\n')), ['windows.sandbox="elevated"'])
+  assert.deepStrictEqual(readObservedCodexPlatformSettings({}, platformConfig('windows.sandbox="unelevated"\n')), ['windows.sandbox="unelevated"'])
+  assert.deepStrictEqual(readObservedCodexPlatformSettings({}, platformConfig('value="""\n[windows]\nsandbox="elevated"\n"""\n')), [])
+  assert.deepStrictEqual(readObservedCodexPlatformSettings({}, platformConfig('# [windows]\n# sandbox="elevated"\n')), [])
+  assert.deepStrictEqual(readObservedCodexPlatformSettings({}, platformConfig('[windows]\nsandbox="unknown"\n')), [])
+  assert.deepStrictEqual(readObservedCodexPlatformSettings({}, platformConfig('[windows]\nsandbox="unknown"\nsandbox="elevated"\n')), [])
+  assert.deepStrictEqual(readObservedCodexPlatformSettings({}, platformConfig('[windows]\nsandbox="elevated\'\n')), [])
+  assert.deepStrictEqual(readObservedCodexPlatformSettings({}, platformConfig('[windows]\nsandbox="elevated"\nsandbox="unelevated"\n')), [])
+  assert.deepStrictEqual(readObservedCodexPlatformSettings({}, { existsSync: () => false }), [])
+  assert.deepStrictEqual(readObservedCodexPlatformSettings({}, { ...modelConfigFs, statSync: () => ({ size: 2 * 1024 * 1024 }) }), [])
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-real-host-probe-test-'))
+  const keepTempFixtures = process.env.DEVCODEX_TEST_KEEP_TEMP === '1' ||
+    process.env.DEVCODEX_KEEP_TEST_ARTIFACTS === '1'
   const sourceRoot = path.join(tmp, 'source')
   const evidenceRoot = path.join(tmp, 'evidence')
   const consumerRoot = path.join(tmp, 'workspace', 'consumer')
@@ -704,7 +718,12 @@ async function main() {
       oracle: { h1: { runtimeEffectPolicy: 'installed-runtime-v1' } }
     })
     const effectRoots = [{ label: 'globalHome', root: effectHome }, { label: 'addDir', root: addDir }]
+    const staleAlias = path.join(effectHome, '.codex/tmp/arg0/codex-arg0gKifjf')
+    fs.mkdirSync(staleAlias, { recursive: true })
+    for (const name of ['.lock', 'apply_patch.bat', 'applypatch.bat']) fs.writeFileSync(path.join(staleAlias, name), '')
     const effectBefore = snapshotControlledRoots(effectRoots)
+    fs.rmSync(staleAlias, { recursive: true })
+    fs.mkdirSync(path.join(addDir, '.memory/hooks/event-locks'), { recursive: true })
     const ownedFiles = [
       [effectHome, '.codex/logs_2.sqlite-wal'],
       [effectHome, '.codex/goals_1.sqlite-shm'],
@@ -731,7 +750,16 @@ async function main() {
     const classifiedEffects = partitionInstalledRuntimeEffects(rawEffects, effectIdentity)
     assert.strictEqual(classifiedEffects.unexpectedChanges.length, 0)
     assert(classifiedEffects.ownedRuntimeChanges.length >= ownedFiles.length)
+    assert.strictEqual(classifiedEffects.ownedRuntimeChanges.filter(change => change.path.startsWith('.codex/tmp/arg0/codex-arg0gKifjf')).length, 4)
+    assert(classifiedEffects.ownedRuntimeChanges.some(change => change.path === '.memory/hooks/event-locks'))
     assert.deepStrictEqual(classifiedEffects.missingExpectedChanges, [missingMarker])
+    for (const change of [
+      { root: 'globalHome', path: '.codex/tmp/arg0/codex-arg0gKifjf/other.bat', before: { type: 'file' }, after: null },
+      { root: 'globalHome', path: '.codex/tmp/arg0/codex-arg0gKifjf/apply_patch.bat', before: null, after: { type: 'file' } },
+      { root: 'globalHome', path: '.codex/tmp/arg0/codex-arg0gKifjf/apply_patch.bat', before: { type: 'symlink' }, after: null },
+      { root: 'globalHome', path: '.codex/tmp/arg0/codex-arg0gKifjf/../auth.json', before: { type: 'file' }, after: null },
+      { root: 'addDir', path: '.memory/hooks/event-locks/unexpected.txt', before: null, after: { type: 'file' } }
+    ]) assert.deepStrictEqual(partitionInstalledRuntimeEffects({ unexpectedChanges: [change], missingExpectedChanges: [] }, effectIdentity).unexpectedChanges, [change])
     assert.strictEqual(partitionInstalledRuntimeEffects(rawEffects, installedIdentity), rawEffects)
     const deniedObservation = { invalidLineCount: 0, commandObserved: true, commandCompleted: true,
       commandEventCount: 1, commandExitCode: -1, commandFailureAccessDenied: true, commandIdentityDrift: false }
@@ -776,6 +804,24 @@ async function main() {
     finalizeAttempt(deniedAttempt, { status: 'UNVERIFIED', code: installedDenial.code, receiptDigest: sha256(deniedBytes) })
     assert.strictEqual(claimAttempt(independentLedger, 'H2').stage, 'H2')
     expectCode(() => claimAttempt(independentLedger, 'H1', 2), 'REAL_HOST_RETRY_NOT_ELIGIBLE')
+
+    const taskOnlyOracle = { qualificationScope: 'task-lifecycle-only', stageOrder: ['H2', 'H3'], h1: null }
+    const taskOnlyIdentity = createRunIdentity({ ...installedIdentity,
+      authorizationDigest: sha256(Buffer.from('task-only-authorization')), oracle: taskOnlyOracle })
+    const taskOnlyLedger = initializeAttemptLedger({ evidenceRoot, identity: taskOnlyIdentity })
+    expectCode(() => claimAttempt(taskOnlyLedger, 'H1'), 'REAL_HOST_STAGE_INVALID')
+    expectCode(() => claimAttempt(taskOnlyLedger, 'H3'), 'REAL_HOST_STAGE_PREDECESSOR_INCOMPLETE')
+    assert.strictEqual(claimAttempt(taskOnlyLedger, 'H2').stage, 'H2')
+    for (const oracle of [
+      { ...taskOnlyOracle, stageOrder: ['H3'] },
+      { ...taskOnlyOracle, h1: { nonce: 'not-requested' } },
+      { ...taskOnlyOracle, qualificationScope: 'full' },
+      { ...taskOnlyOracle, qualificationScope: 'unknown' }
+    ]) expectCode(() => createRunIdentity({ ...installedIdentity, oracle }), 'REAL_HOST_IDENTITY_INVALID')
+    const fullOnlyIdentity = createRunIdentity({ ...installedIdentity,
+      authorizationDigest: sha256(Buffer.from('full-requires-h1')), oracle: { qualificationScope: 'full', stageOrder: ['H1', 'H2', 'H3'] } })
+    const fullOnlyLedger = initializeAttemptLedger({ evidenceRoot, identity: fullOnlyIdentity })
+    expectCode(() => claimAttempt(fullOnlyLedger, 'H2'), 'REAL_HOST_STAGE_PREDECESSOR_INCOMPLETE')
 
     const identity = makeIdentity({ suffix: 'ledger' })
     const ledger = initializeAttemptLedger({
@@ -2060,15 +2106,17 @@ async function main() {
     assert(setupFailure instanceof RealCodexHostProbeError)
     assert.strictEqual(setupFailure.code, 'REAL_HOST_CODEX_NOT_FOUND')
     assert.strictEqual(setupFailure.details.cleanup.complete, true)
-    assert.strictEqual(fs.existsSync(setupFailure.details.cleanup.tempRoot), false)
+    assert.strictEqual(setupFailure.details.cleanup.fixtureRoot.retained, keepTempFixtures)
+    assert.strictEqual(setupFailure.details.cleanup.fixtureRoot.deletionRequired, !keepTempFixtures)
+    assert.strictEqual(fs.existsSync(setupFailure.details.cleanup.tempRoot), keepTempFixtures)
     assert.deepStrictEqual(fs.readdirSync(missingCodexFixture.forbiddenBaseRoot), [])
 
     console.log('real Codex host probe tests passed identity=1 topology=1 runtimeVersion=bound customAuth=1 detachedEnv=1 argv=legacy+auto-review+stage-bound capabilityProbe=bounded jsonl=1 pwshWrapper=exact wrapperConcat=closed nativeDenial=bound ownedHome=mutable-safe installedRoots=strict effects=1 ledger=1 runJsonTamper=closed authorizationTamper=closed missingReceipt=closed retry=1 h3Retry=bound nonterminal=bound predecessorRetry=1 extraCommand=closed fakeAllowed=1 fakeForbidden=1 forbiddenPolicy=trusted-only forbiddenEligibility=acl+ambient+owner+reparse forbiddenPreauth=5 zeroConsumption=1 forbiddenDrift=closed dualRootCleanup=1 deferred=1 deferredTamper=closed turnCleanup=closed helperChild=1 timeoutCleanup=1 boundedCleanup=1 callbackCleanup=1 setupCleanup=1 realCodex=0')
   } finally {
-    if (process.env.DEVCODEX_TEST_KEEP_TEMP === '1') console.log('Retained real-host unit fixture:', tmp)
+    if (keepTempFixtures) console.log('Retained real-host unit fixture:', tmp)
     else fs.rmSync(tmp, { recursive: true, force: true })
   }
-  assert.strictEqual(fs.existsSync(tmp), process.env.DEVCODEX_TEST_KEEP_TEMP === '1',
+  assert.strictEqual(fs.existsSync(tmp), keepTempFixtures,
     'real-host probe unit fixture must follow the retention policy')
 }
 

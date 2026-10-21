@@ -527,6 +527,119 @@ function validateObjectMatrix(field, value, contract, issues, metadata) {
   }
 }
 
+/**
+ * Read only an explicit top-level property or the reserved real Markdown H2.
+ * Fenced tutorial headings/JSON elsewhere never declare this candidate's record.
+ * Returns declaration issues through the existing candidate validation channel.
+ */
+function readConditionEvidence(input, issues) {
+  if (input && typeof input === 'object') {
+    return Object.prototype.hasOwnProperty.call(input, 'conditionEvidence')
+      ? { declared: true, value: input.conditionEvidence }
+      : { declared: false }
+  }
+  const sections = []
+  let section = null
+  let fence = null
+  for (const line of String(input || '').split(/\r?\n/)) {
+    if (fence) {
+      const close = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/)
+      if (close && close[1][0] === fence.char && close[1].length >= fence.length) {
+        if (fence.json && section) section.blocks.push(fence.lines.join('\n'))
+        fence = null
+      } else if (fence.json) fence.lines.push(line)
+      continue
+    }
+    const open = line.match(/^ {0,3}(`{3,}|~{3,})([^\r\n]*)$/)
+    if (open && !(open[1][0] === '`' && open[2].includes('`'))) {
+      fence = { char: open[1][0], length: open[1].length,
+        json: !!section && open[2].trim().toLowerCase() === 'json', lines: [] }
+      continue
+    }
+    const h2 = line.match(/^ {0,3}##[ \t]+(.+?)\s*$/)
+    if (h2) {
+      section = null
+      if (h2[1].replace(/[ \t]+#+[ \t]*$/, '') === 'ConditionEvidenceMatrixV1') {
+        section = { blocks: [] }
+        sections.push(section)
+      }
+    }
+  }
+  if (!sections.length) return { declared: false }
+  if (sections.length !== 1 || sections[0].blocks.length !== 1 || (fence && section)) {
+    issues.push({ code: 'condition-evidence-declaration-invalid', field: 'conditionEvidence' })
+    return { declared: true }
+  }
+  try {
+    return { declared: true, value: JSON.parse(sections[0].blocks[0]) }
+  } catch {
+    issues.push({ code: 'condition-evidence-json-invalid', field: 'conditionEvidence' })
+    return { declared: true }
+  }
+}
+
+/**
+ * Validate declared IDs, applicability and the independent design/execution axes.
+ * References and run identity are structural evidence, never proof of truth,
+ * freshness or completeness of the original natural-language condition set.
+ */
+function validateConditionEvidence(input, issues) {
+  const declaration = readConditionEvidence(input, issues)
+  if (!declaration.declared || !Object.prototype.hasOwnProperty.call(declaration, 'value')) return
+  const value = declaration.value
+  const record = x => !!x && typeof x === 'object' && !Array.isArray(x)
+  const nonempty = x => typeof x === 'string' && x.trim().length > 0
+  const refs = x => Array.isArray(x) && x.every(nonempty)
+  const issue = (code, conditionId) => issues.push({ code: `condition-evidence-${code}`, field: 'conditionEvidence', ...(conditionId ? { conditionId } : {}) })
+  if (!record(value) || value.schemaVersion !== 'ConditionEvidenceMatrixV1') {
+    issue('schema-invalid')
+    return
+  }
+  if (!['applicable', 'not-applicable'].includes(value.applicability) ||
+      !refs(value.expectedConditionIds) || !Array.isArray(value.rows)) {
+    issue('shape-invalid')
+    return
+  }
+  const expected = new Set(value.expectedConditionIds)
+  if (expected.size !== value.expectedConditionIds.length) issue('expected-id-duplicate')
+  if (value.applicability === 'not-applicable') {
+    if (!nonempty(value.skipReason) || expected.size || value.rows.length) issue('applicability-invalid')
+    return
+  }
+  if (!expected.size) issue('expected-ids-empty')
+  const seen = new Set()
+  for (const row of value.rows) {
+    if (!record(row) || !nonempty(row.conditionId)) {
+      issue('row-invalid')
+      continue
+    }
+    const id = row.conditionId
+    if (seen.has(id)) issue('row-duplicate', id)
+    seen.add(id)
+    if (!expected.has(id)) issue('row-orphan', id)
+    if (!nonempty(row.sourceRef) || typeof row.consumer !== 'string' ||
+        typeof row.applicable !== 'boolean' || !refs(row.designEvidenceRefs) ||
+        !refs(row.executionEvidenceRefs) || !nonempty(row.limitation) ||
+        !Array.isArray(row.verificationResponsibilities) ||
+        row.verificationResponsibilities.some(x => !['D', 'A', 'I', 'H'].includes(x)) ||
+        new Set(row.verificationResponsibilities).size !== row.verificationResponsibilities.length) issue('row-shape-invalid', id)
+    if (!['covered', 'partial', 'unreviewed', 'not-applicable'].includes(row.designStatus) ||
+        !['not-run', 'running', 'passed', 'failed', 'unknown', 'not-applicable'].includes(row.executionStatus)) issue('status-invalid', id)
+    if (row.applicable === false) {
+      if (!nonempty(row.skipReason) || row.designStatus !== 'not-applicable' || row.executionStatus !== 'not-applicable') issue('applicability-invalid', id)
+    } else if (row.applicable === true && (row.designStatus === 'not-applicable' || row.executionStatus === 'not-applicable')) {
+      issue('applicability-invalid', id)
+    }
+    if (row.designStatus === 'covered' && (!nonempty(row.consumer) || !refs(row.designEvidenceRefs) || !row.designEvidenceRefs.length)) issue('design-evidence-missing', id)
+    if (['running', 'passed', 'failed'].includes(row.executionStatus)) {
+      const context = row.executionContext
+      if (!record(context) || !['candidate', 'environment', 'version', 'runId'].every(key => nonempty(context[key]))) issue('execution-context-missing', id)
+    }
+    if (row.executionStatus === 'passed' && (!refs(row.executionEvidenceRefs) || !row.executionEvidenceRefs.length)) issue('execution-evidence-missing', id)
+  }
+  for (const id of expected) if (!seen.has(id)) issue('row-missing', id)
+}
+
 function validateCandidateReviewBundle(input, options = {}) {
   const text = textOf(input)
   const phaseInfo = phaseEvidence(input, options)
@@ -565,6 +678,8 @@ function validateCandidateReviewBundle(input, options = {}) {
       validateMarkdownMatrix(field, markdownSection(text, field), contract, issues, metadata)
     }
   }
+  // Opt-in only: historical candidates retain their existing qualification.
+  validateConditionEvidence(input, issues)
   captureDocumentOpenBlockers(text, metadata)
 
   return {

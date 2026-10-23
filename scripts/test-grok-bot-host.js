@@ -439,6 +439,40 @@ async function concurrentSessionsE2E () {
     assert.ok(!own.result.isError, JSON.stringify(own.body).slice(0, 800))
     assert.strictEqual(readState(b).taskRecoveryBinding?.taskId, admitB.body.taskId, 'closing A leaves B bound')
     console.log('  ✓ task recovery / terminal close do not cross sessions')
+    // Regression: resume an older still-active task with a semanticDecision in a session that has
+    // no bound task. After profile_load the resume stub keeps only the envelope identity
+    // ('minimal-identity-only'); admission must validate the semantic source against the exact full
+    // envelope from the admission ingress snapshot instead of failing with
+    // FINALIZED_TASK_RESUME_SESSION_MISMATCH.
+    {
+      const promptT2 = '修复会话B的第二个问题'
+      const beginT2 = begin(b, promptT2)
+      const admitT2 = await routeAndAdmit(b, beginT2, await plan(b, beginT2), promptT2)
+      assert.ok(!admitT2.result.isError, JSON.stringify(admitT2.body).slice(0, 600))
+      await new Promise(resolve => setTimeout(resolve, 1100))
+      const closeT2 = await call(b, 'devcodex-memory', 'memory_turn_closeout_v1', closeArgs(admitT2.body.taskId, admitT2.body.taskRootRelative))
+      assert.ok(!closeT2.result.isError, JSON.stringify(closeT2.body).slice(0, 600))
+      const resumePrompt = `继续 ${admitB.body.taskRootRelative} 任务`
+      const beginR = begin(b, resumePrompt)
+      const planR = await call(b, 'devcodex-profile', 'profile_context_plan', {
+        project, intent: 'resume', changeTypes: ['docs'], contextEpoch: beginR.contextEpoch, confidence: 0.9,
+        semanticDecision: { schemaVersion: 'IntentSemanticDecisionV1', sourceRef: beginR.semanticDecisionSourceRef, workflowFacts: { targetKnown: true }, executionDecision: 'confirm' }
+      })
+      assert.strictEqual(planR.post.routeStatus, 'selected', JSON.stringify(planR.body).slice(0, 300))
+      const bindingR = planR.body.contextBinding
+      await call(b, 'devcodex-profile', 'profile_load', { project, contextBinding: bindingR, files: planR.body.profile.selectedFiles })
+      for (const q of planR.body.memory?.requiredQueries || []) await call(b, 'devcodex-memory', q, { project, contextBinding: bindingR })
+      const stub = readState(b)
+      assert.strictEqual(stub.recoveryCompaction, 'minimal-identity-only', `reproduces the identity-only resume stub: ${stub.recoveryKind}/${stub.recoveryCompaction}`)
+      assert.strictEqual(stub.actualInstructionEnvelope.instructionAuthority, undefined)
+      const bind = await call(b, 'devcodex-memory', 'memory_task_admit_v2', {
+        operation: 'bind', project, resumeContextBinding: bindingR,
+        task: { taskId: admitB.body.taskId, taskKind: 'bugs', entryVariant: 'continue', taskRootRelative: admitB.body.taskRootRelative },
+        overview: { content: resumePrompt }
+      })
+      assert.ok(!bind.result.isError, JSON.stringify(bind.body).slice(0, 600))
+      console.log('  ✓ resume bind with semanticDecision validates against the full snapshot envelope')
+    }
     // Strict identity: invalid hostSession is rejected; driver refuses a bracket/args session mismatch.
     const bad = await servers['devcodex-memory'].call('memory_status', { project, hostSession: '../a' })
     assert.strictEqual(bad.isError, true)

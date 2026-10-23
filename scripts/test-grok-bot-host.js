@@ -44,6 +44,20 @@ function staticChecks () {
   const legacy = scorecard.composeEntryCheckBlock({ project: 'p' })
   assert.match(legacy, /\| PC5 [^|]*\| `UNVERIFIED` \|/)
   assert.match(legacy, /\| PC6 [^|]*\| `UNVERIFIED` \|/)
+  const aie = require('../hooks/_runtime/actual-instruction-envelope.cjs')
+  const mk = hostVariant => aie.buildActualInstructionEnvelope({ hook_event_name: 'UserPromptSubmit', prompt: 'fix it', session_id: 's1', turn_id: 't1', event_id: 'e1' }, { hostVariant, hostSessionId: 's1', trustedHostEvent: true, contextEpoch: 'ctx-1' })
+  const driverEnvelope = mk('grok-bot/driver-synthesized-local-stdio')
+  const nativeEnvelope = mk('codex/desktop')
+  if (driverEnvelope && nativeEnvelope) {
+    assert.strictEqual(driverEnvelope.provenanceLevel, 'driver-synthesized-host-event')
+    assert.strictEqual(nativeEnvelope.provenanceLevel, 'trusted-host-event')
+    assert.strictEqual(aie.isTrustedHostIngressEnvelope(driverEnvelope), true)
+    assert.strictEqual(aie.validateActualInstructionEnvelope(driverEnvelope).valid, true)
+    const forged = { ...nativeEnvelope, provenanceLevel: 'driver-synthesized-host-event' }
+    assert.ok(aie.validateActualInstructionEnvelope(forged).errors.includes('driver-provenance-host-variant'))
+    assert.strictEqual(aie.isTrustedHostIngressEnvelope(forged), false)
+  }
+  assert.strictEqual(aie.isTrustedHostIngressEnvelope({ provenanceLevel: 'driver-synthesized-host-event', hostVariant: 'codex/desktop' }), false)
   console.log('  ✓ grok-bot identity / adapter / capability registration')
 }
 
@@ -206,7 +220,11 @@ async function splitModeE2E () {
     assert.strictEqual(admit.body.schemaVersion, 'FormalTaskAdmissionReceiptV2')
     assert.strictEqual(admit.body.status, 'active')
     assert.ok(admit.body.ingressWarnings.includes('TASK_ADMISSION_INGRESS_REF_INVALID'), JSON.stringify(admit.body.ingressWarnings))
-    console.log('  ✓ memory_task_admit_v2 admitted', admit.body.taskRootRelative)
+    const lifecycleState = JSON.parse(fs.readFileSync(path.join(ws, '.devcodex', project, '.memory', 'hooks', project, 'lifecycle-state.json'), 'utf8'))
+    const envelope = lifecycleState.actualInstructionEnvelope
+    assert.strictEqual(envelope.hostVariant, 'grok-bot/driver-synthesized-local-stdio')
+    assert.strictEqual(envelope.provenanceLevel, 'driver-synthesized-host-event')
+    console.log('  ✓ memory_task_admit_v2 admitted', admit.body.taskRootRelative, 'with driver-synthesized-host-event provenance')
   } finally {
     Object.values(servers).forEach(s => s.close())
     if (!process.env.DEVCODEX_KEEP_TEST_TMP) fs.rmSync(tmp, { recursive: true, force: true })

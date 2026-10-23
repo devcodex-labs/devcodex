@@ -39,7 +39,8 @@ const {
 const { compactLanguageContext, packRecoveryLanguageContext } = require('./language-context.cjs')
 const {
   validateActualInstructionEnvelope,
-  validateWorkItemSet
+  validateWorkItemSet,
+  isTrustedHostIngressEnvelope
 } = require('./actual-instruction-envelope.cjs')
 const { validateIntentSemanticDecision } = require('./intent-semantic-decision.cjs')
 const {
@@ -4498,7 +4499,7 @@ function hasPendingWorkflowIngress(state) {
   const envelope = state?.actualInstructionEnvelope
   const context = state?.contextAcquisition || {}
   return !state?.taskRecoveryBinding && !state?.workflowRouteDecision &&
-    envelope?.provenanceLevel === 'trusted-host-event' && envelope.instructionAuthority === true &&
+    isTrustedHostIngressEnvelope(envelope) && envelope.instructionAuthority === true &&
     envelope.contextEpoch === context.contextEpoch && Boolean(context.hostSessionId) &&
     envelope.hostSessionDigest === rawHostSessionDigest(context.hostSessionId) &&
     validateActualInstructionEnvelope(envelope).valid &&

@@ -54,7 +54,8 @@ Grok Bot has no lifecycle hooks, so the model drives them. The kernel's rules ap
    `devcodex grok-bot observe-tool --project-dir <dir> --phase pre --tool devcodex-<profile|memory>__<tool> --tool-use-id <id> --args-file <f>`, then the call, then the same command with `--phase post --response-file <raw tool output file>` (the driver strips the host's untrusted-data fence). A skipped or duplicated bracket breaks the context binding (`scope-drift` / `receipt-status-stale`).
 3. Entry check first (S07): bracketed `profile_compose_entry_check` with `entry: { prompt, specRadar?, activeTask? }`; emit the returned PC0~PC10 table verbatim. PC5 shows the Grok Bot driver tier (`WARN`, never Full); PC6 shows observed Git state; PC4 is `PASS` in dev mode only when `specRadar` names the bound Skills/Profile.
 4. Then the kernel route: `profile_context_plan` (with `semanticDecision.sourceRef`) → `profile_load` (pass `files`) → required memory queries → `skill_route` catalog (paginate) + commit → `memory_task_admit_v2` (omit `ingressRef`; any `ingressWarnings` means a supplied ref was ignored).
-5. Prerequisites: `devcodex init` at the parent workspace (not inside a repo), `devcodex profile init` per project, connectors started after the workspace exists and restarted after DevCodex code changes or branch switches.
+5. Prerequisites: `devcodex init` at the parent workspace (not inside a repo), `devcodex profile init` per project, connectors started after the workspace exists. Run the connectors and the driver from a clean runtime copy (default `/workspace/devcodex-runtime`), never from a development checkout; to pick up new DevCodex code run `scripts/grok-bot-runtime.sh update` then `scripts/grok-bot-runtime.sh restart`.
+6. Driver events are recorded with provenance `driver-synthesized-host-event` (accepted for the `grok-bot` host variant only), never as native `trusted-host-event`.
 
 ## GrokTurnChecklist + Intent→Skill bundle (PF-165)
 

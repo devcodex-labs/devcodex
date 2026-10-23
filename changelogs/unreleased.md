@@ -21,6 +21,8 @@ TaskLifecycle 规范能力吸纳、源码操作状态恢复及本次入口/CP/�
 - `memory_task_admit_v2` 回执新增 `ingressWarnings`：调用方传入的 ingressRef 无效而回退到服务端入口投影时不再静默。
 - `observe-tool --tool` 仅为裸 DevCodex 工具名补命名空间，原生工具名（Write/Edit/Bash）原样透传。
 - Grok 插件 Skill 增加「Grok Bot (no native hooks)」小节与 HostParity 驱动档行。
+- 新增 `scripts/grok-bot-runtime.sh update|restart|status`：Grok Bot 连接器与驱动固定运行在独立干净副本（默认 `/workspace/devcodex-runtime`），只做 fast-forward 更新，并按副本路径重启 profile/memory 服务。
+- 新增来源级别 `driver-synthesized-host-event`：驱动合成事件不再记为原生 `trusted-host-event`；仅 `grok-bot/driver-synthesized-local-stdio` 变体可获得等同的入口授权（语义决策、准入、恢复判定），其他宿主不变，伪造到其他变体会被校验拒绝。
 - 驱动宿主写入 `DEVCODEX_HOST_VARIANT`，turn-begin 的 SkillRouteBootstrap 报告 `grok-bot/driver-synthesized-local-stdio`。
 - `devcodex profile init` 对 DevCodex 源码仓库自身生成 ProfileCurrentTruthV1 与 currentTruthRef：仅取 package.json、本地 git/候选身份、CI 矩阵与公开 GitHub Release/workflow 回执；证据缺失保持 UNVERIFIED，由未改动的 ProfileCurrentTruthGate 拒绝。
 - 使用前提：在父级工作区（如 `/workspace`）执行 `devcodex init`，不要在仓库内初始化；各项目再执行 `devcodex profile init`。

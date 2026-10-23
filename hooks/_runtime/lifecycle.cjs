@@ -110,6 +110,7 @@ const {
 } = require('./host-adapter-identity.cjs')
 const {
   buildActualInstructionEnvelope,
+  isDriverSynthesizedHostVariant,
   buildWorkItemSet,
   validateActualInstructionEnvelope
 } = require('./actual-instruction-envelope.cjs')
@@ -735,7 +736,12 @@ function initializeWorkflowIngress(
       sourceEventId: serverOwnedSourceEventId
     }, {
       actualInstruction: prompt,
-      hostVariant: state.hostIdentity?.hostVariant || platform,
+      // Driver-synthesized events (no native hooks) carry the driver host variant so the envelope
+      // records driver-synthesized-host-event provenance instead of impersonating the native host.
+      hostVariant: (payload?.devcodexEventProvenance === 'driver-synthesized' &&
+        isDriverSynthesizedHostVariant(process.env.DEVCODEX_HOST_VARIANT))
+        ? process.env.DEVCODEX_HOST_VARIANT
+        : (state.hostIdentity?.hostVariant || platform),
       hostSessionId: getPayloadSessionKey(payload),
       turnId: state.turnLiveness?.turnKey,
       contextEpoch: state.contextAcquisition?.contextEpoch,

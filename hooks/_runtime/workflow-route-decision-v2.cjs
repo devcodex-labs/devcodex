@@ -8,7 +8,9 @@ const {
 const {
   digest,
   validateActualInstructionEnvelope,
-  validateWorkItemSet
+  validateWorkItemSet,
+  PROVENANCE_LEVELS,
+  isTrustedIngressProvenance
 } = require('./actual-instruction-envelope.cjs')
 
 const WORKFLOW_ROUTE_DECISION_SCHEMA = 'WorkflowRouteDecisionV2'
@@ -288,9 +290,9 @@ function validateWorkflowRouteDecision (decision, options = {}) {
   if ((decision.workItemId === null) !== (decision.workItemDigest === null) ||
       (decision.workItemId !== null && (!/^work-[a-f0-9]{40}$/.test(String(decision.workItemId || '')) ||
         !DIGEST_RE.test(String(decision.workItemDigest || ''))))) errors.push('work-item-binding')
-  if (!['trusted-host-event', 'caller-attested-portable'].includes(decision.provenanceLevel)) errors.push('provenance-level')
+  if (!PROVENANCE_LEVELS.includes(decision.provenanceLevel)) errors.push('provenance-level')
   if (!['trusted-host-workflow-ingress', 'portable-plan-only'].includes(decision.authorityScope)) errors.push('authority-scope')
-  if ((decision.provenanceLevel === 'trusted-host-event') !==
+  if (isTrustedIngressProvenance(decision.provenanceLevel) !==
       (decision.authorityScope === 'trusted-host-workflow-ingress')) errors.push('provenance-authority-mismatch')
   if (decision.mutationAuthority !== false) errors.push('mutation-authority')
   if (decision.releaseAuthority !== false) errors.push('release-authority')

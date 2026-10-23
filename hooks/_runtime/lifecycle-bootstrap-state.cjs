@@ -23,7 +23,7 @@ const {
   compactLifecycleStateV5
 } = require('./lifecycle-state-projection-v5.cjs')
 const { resolveVisibleLocale } = require('./visible-output-contract.cjs')
-const { validateActualInstructionEnvelope } = require('./actual-instruction-envelope.cjs')
+const { isTrustedHostIngressEnvelope, validateActualInstructionEnvelope } = require('./actual-instruction-envelope.cjs')
 const { restoreTasklessReportRecoveryFromCanonical } = require('./task-operation-current-state-recovery.cjs')
 
 function renderGrokS07Assist(input = {}) {
@@ -917,7 +917,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
         !pending.taskRecoveryBinding && acquisition?.targetResolved === false &&
         acquisition.hostSessionId === sessionKey && envelope?.contextEpoch === acquisition.contextEpoch &&
         envelope?.hostSessionDigest === crypto.createHash('sha256').update(sessionKey).digest('hex') &&
-        envelope?.provenanceLevel === 'trusted-host-event' && validateActualInstructionEnvelope(envelope).valid
+        isTrustedHostIngressEnvelope(envelope) && validateActualInstructionEnvelope(envelope).valid
       const sameRichContext = metaProjection?.contextAcquisition?.hostSessionId === sessionKey &&
         metaProjection?.contextAcquisition?.contextEpoch === acquisition?.contextEpoch
       if (exactPendingIngress) {
@@ -986,7 +986,7 @@ function buildLifecycleBootstrapStateUtils(ctx) {
       metaProjection?.actualInstructionEnvelope?.contextEpoch === metaProjection?.contextAcquisition?.contextEpoch &&
       metaProjection?.actualInstructionEnvelope?.hostSessionDigest ===
         crypto.createHash('sha256').update(sessionKey).digest('hex') &&
-      metaProjection?.actualInstructionEnvelope?.provenanceLevel === 'trusted-host-event' &&
+      isTrustedHostIngressEnvelope(metaProjection?.actualInstructionEnvelope) &&
       validateActualInstructionEnvelope(metaProjection?.actualInstructionEnvelope).valid
     const projectedProject = workspaceHint || pendingWorkspaceIngress
       ? ''

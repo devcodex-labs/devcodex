@@ -301,6 +301,33 @@ async function splitModeE2E () {
     assert.ok(!admit2.result.isError, JSON.stringify(admit2.body).slice(0, 800))
     assert.strictEqual(admit2.body.status, 'active')
     console.log('  ✓ admission without ingressRef succeeds after the previous task folder was removed')
+
+    // memory_turn_closeout_v1 terminal: sanctioned producer of ECR/completion evidence + fenced terminal.
+    const terminalArgs = (n, terminalStatus, ecr) => ({
+      project, title: `grok-bot terminal ${n}`, intent: 'fix', turn: { user: prompt2, ai: '验证终态收尾', status: 'completed' },
+      sessionStatus: 'completed', report: { targetPath: `${admit2.body.taskRootRelative}/reports/grok/20260101/0${n}--收尾.md`, content: '# 收尾\n\n- 验证\n' },
+      terminal: {
+        taskId: admit2.body.taskId, terminalStatus,
+        ecr: ecr || { summary: '验证终态收尾路径', checks: [{ item: 'grok-bot-host e2e', result: 'PASS' }] },
+        completion: { items: [{ item: '终态收尾', status: '已交付' }] }
+      }
+    })
+    const empty = await call('devcodex-memory', 'memory_turn_closeout_v1', terminalArgs(1, 'cancelled', { summary: '', checks: [] }))
+    assert.strictEqual(empty.result.isError, true, 'empty ECR data is rejected')
+    const noCp1 = await call('devcodex-memory', 'memory_turn_closeout_v1', terminalArgs(2, 'completed'))
+    assert.strictEqual(noCp1.result.isError, true)
+    assert.match(JSON.stringify(noCp1.body), /CP1|CP_CONFIRMATION/, 'completed still requires a verified CP1')
+    await new Promise(resolve => setTimeout(resolve, 1100))
+    const terminal = await call('devcodex-memory', 'memory_turn_closeout_v1', terminalArgs(3, 'cancelled'))
+    assert.ok(!terminal.result.isError, JSON.stringify(terminal.body).slice(0, 1200))
+    const closed = terminal.body.terminal
+    assert.strictEqual(closed.schemaVersion, 'MemoryTaskCloseoutReceiptV1')
+    assert.deepStrictEqual(closed.evidence.map(e => e.role), ['ecr', 'report', 'memory', 'completion'])
+    const ecrText = fs.readFileSync(path.join(activeRoot, closed.evidence[0].path), 'utf8')
+    assert.match(ecrText, /grok-bot-host e2e \| PASS/)
+    assert.ok(ecrText.includes(closed.evidence[1].sha256), 'ECR cites the report digest')
+    assert.ok(closed.terminal.receiptDigest, JSON.stringify(closed.terminal))
+    console.log('  ✓ memory_turn_closeout_v1 terminal produces ECR/completion evidence and terminalizes the task')
   } finally {
     Object.values(servers).forEach(s => s.close())
     if (!process.env.DEVCODEX_KEEP_TEST_TMP) fs.rmSync(tmp, { recursive: true, force: true })

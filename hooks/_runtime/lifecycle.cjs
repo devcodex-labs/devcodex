@@ -1191,7 +1191,7 @@ function observeSimpleTaskFastPathLease(state, payload) {
 
 function observeWorkflowTaskTerminalReceipt(state, payload) {
   const toolLeaf = devCodexToolLeaf(getToolName(payload))
-  if (!['memory_task_terminal_v1', 'memory_task_closeout_reconcile_v1'].includes(toolLeaf) ||
+  if (!['memory_task_terminal_v1', 'memory_task_closeout_reconcile_v1', 'memory_turn_closeout_v1'].includes(toolLeaf) ||
       payload.success === false || payload.is_error === true || payload.isError === true) return null
   const receipts = findWorkflowTaskTerminalReceipts(payload)
   if (receipts.length !== 1) {

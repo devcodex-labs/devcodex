@@ -30,6 +30,7 @@ TaskLifecycle 规范能力吸纳、源码操作状态恢复及本次入口/CP/�
 - Grok 插件 Skill 的 Grok Bot 小节补充：S04 在该路径不可强制、Profile 新鲜度告警、`memory_turn_closeout_v1` 收尾。
 - 任务目录被删除后遗留的 TaskRecoveryBinding 不再污染后续准入：PreToolUse 重放前清除孤立绑定（`lastResumeIngressRehydrate.reasonCode=task-root-missing`），`memory_task_admit_v2` 的 bounded-resume 回退忽略孤立绑定，省略 `ingressRef` 的准入恢复正常。
 - Codex CLI Skill 路由能力由 `PASS` 降为 `UNVERIFIED`（`defaultEligible=false`）：`task-recovery-store-v5.cjs` 等运行时契约文件变更后，旧 S15 证据的 `runtimeContractDigest`/`hostAdapterDigest` 已过期；在 codex-cli 0.155.1 上用 `probe-skill-route-s15-host.js --host codex`（隔离与 production 模式）重放均因宿主恢复指令要求提交后立即 load_stage 而无法完成条件重规划，未取得可提升的新鲜证据。旧证据文件保留作历史，待真实宿主重放通过后用 `refresh-host-skill-route-capability.js` 重新提升。
+- `memory_turn_closeout_v1` 新增 `terminal`：用本轮真实数据（ECR 复审项、完成项）在 `<taskRoot>/evidence/closeout/` 生成 ECR 与完成清单，引用同一调用写入的报告与会话记忆摘要，读取 owner CAS 后执行受围栏的 `memory_task_terminal_v1`；`completed` 仍要求已验证 CP1。补齐此前 terminal 四类证据缺少生产者的缺口。
 - 驱动宿主写入 `DEVCODEX_HOST_VARIANT`，turn-begin 的 SkillRouteBootstrap 报告 `grok-bot/driver-synthesized-local-stdio`。
 - `devcodex profile init` 对 DevCodex 源码仓库自身生成 ProfileCurrentTruthV1 与 currentTruthRef：仅取 package.json、本地 git/候选身份、CI 矩阵与公开 GitHub Release/workflow 回执；证据缺失保持 UNVERIFIED，由未改动的 ProfileCurrentTruthGate 拒绝。
 - 使用前提：在父级工作区（如 `/workspace`）执行 `devcodex init`，不要在仓库内初始化；各项目再执行 `devcodex profile init`。

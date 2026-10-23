@@ -882,7 +882,8 @@ const TOOLS = [
         sessionStatus: MEMORY_SESSION_STATUS_SCHEMA,
         notes: { type: 'string' },
         report: { type: 'object', required: ['targetPath', 'content'], properties: { targetPath: { type: 'string' }, content: { type: 'string' } } },
-        summary: { type: 'string' }
+        summary: { type: 'string' },
+        terminal: { type: 'object' }
       }
     }
   }
@@ -7325,7 +7326,7 @@ function structuredResult(result) {
 }
 
 function handleMemoryTurnCloseoutV1(args) {
-  const allowed = new Set(['project', 'title', 'intent', 'sourceMessage', 'turn', 'sessionStatus', 'notes', 'report', 'summary'])
+  const allowed = new Set(['project', 'title', 'intent', 'sourceMessage', 'turn', 'sessionStatus', 'notes', 'report', 'summary', 'terminal'])
   for (const key of Object.keys(args || {})) {
     if (!allowed.has(key)) throw memoryQueryError(`Unknown field: ${key}`, 'Remove unsupported fields.', 'MEMORY_WRITER_ARGUMENT_INVALID')
   }
@@ -7393,6 +7394,25 @@ function handleMemoryTurnCloseoutV1(args) {
     })
     const summary = structuredResult(summaryResult)
     steps.summary = { file: summary.file || null, ok: summaryResult?.isError !== true }
+  }
+  if (args.terminal) {
+    if (!steps.report || !steps.sessionWrite?.file) {
+      throw memoryQueryError('terminal close-out requires this call to write the report and session memory.', 'Provide report and turn in the same call.', 'MEMORY_TASK_CLOSEOUT_EVIDENCE_EMPTY')
+    }
+    const closed = handleMemoryTaskCloseoutV1({
+      project: args.project,
+      taskId: args.terminal.taskId,
+      terminalStatus: args.terminal.terminalStatus,
+      reportPath: steps.report.targetPath,
+      memoryPath: steps.sessionWrite.file,
+      ecr: args.terminal.ecr,
+      completion: args.terminal.completion
+    })
+    steps.terminal = structuredResult(closed)
+    if (closed.isError) {
+      const receipt = { schemaVersion: 'MemoryTurnCloseoutReceiptV1', project: target.project, ...steps }
+      return { content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }], structuredContent: receipt, isError: true }
+    }
   }
   const receipt = { schemaVersion: 'MemoryTurnCloseoutReceiptV1', project: target.project, ...steps }
   return { content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }], structuredContent: receipt }
@@ -7524,6 +7544,107 @@ function handleMemoryTaskTerminalV1(args) {
     structuredContent: result,
     isError: !routeUnbound
   }
+}
+
+function closeoutEvidenceIdentity(activeRoot, role, relative) {
+  const bytes = fs.readFileSync(path.join(activeRoot, ...relative.split('/')))
+  return { role, path: relative, sha256: crypto.createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length }
+}
+
+function closeoutCell(value) {
+  return String(value || '').replace(/\r?\n/g, ' ').replace(/\|/g, '\\|').trim().slice(0, 400)
+}
+
+// Sanctioned producer for the four terminal evidence identities. ECR and the
+// completion checklist are rendered from caller-supplied real turn data and the
+// digests of the existing report/memory files; terminal CAS fields are read from
+// the durable owner so the fenced terminal transition still validates them.
+function handleMemoryTaskCloseoutV1(args) {
+  const allowed = new Set(['project', 'taskId', 'terminalStatus', 'reportPath', 'memoryPath', 'ecr', 'completion'])
+  for (const key of Object.keys(args || {})) {
+    if (!allowed.has(key)) throw memoryQueryError(`Unknown field: ${key}`, 'Remove unsupported fields.', 'MEMORY_WRITER_ARGUMENT_INVALID')
+  }
+  const checks = Array.isArray(args.ecr?.checks) ? args.ecr.checks : []
+  const items = Array.isArray(args.completion?.items) ? args.completion.items : []
+  if (!String(args.ecr?.summary || '').trim() || !checks.length || !items.length ||
+      checks.some(c => !String(c?.item || '').trim() || !String(c?.result || '').trim()) ||
+      items.some(c => !String(c?.item || '').trim() || !String(c?.status || '').trim())) {
+    throw memoryQueryError('ecr.summary, ecr.checks and completion.items must carry real turn data.', 'Describe each executed check and delivered item.', 'MEMORY_TASK_CLOSEOUT_EVIDENCE_EMPTY')
+  }
+  const target = resolveMemoryTarget({ project: args.project, scope: 'project' })
+  const taskId = String(args.taskId || '').toLowerCase()
+  const identity = { activeRoot: target.activeRoot, project: target.project, taskId, taskStatus: 'active' }
+  const ownerRead = readFencedTaskWriteOwner({ metaDir: resolveTaskRecoveryMetaDir(identity), identity }, { fs })
+  if (ownerRead.status !== 'fresh' || !ownerRead.owner || !ownerRead.transaction?.taskRootRelative) {
+    throw memoryQueryError('the task has no durable active owner', 'Admit or bind the task in this turn first.', ownerRead.errorCode || 'TASK_WRITE_OWNER_MISSING')
+  }
+  const owner = ownerRead.owner
+  const taskRootRelative = ownerRead.transaction.taskRootRelative
+  const norm = value => String(value || '').replace(/\\/g, '/').replace(/^\.\//, '')
+  const reportPath = norm(args.reportPath)
+  const memoryPath = norm(args.memoryPath)
+  if (!reportPath.startsWith(`${taskRootRelative}/reports/`) || !/\.md$/i.test(reportPath)) {
+    throw memoryQueryError('reportPath must be a Markdown report under the task reports directory.', `Use ${taskRootRelative}/reports/<agent>/YYYYMMDD/NN--简述.md.`, 'MEMORY_TASK_CLOSEOUT_REPORT_PATH_INVALID')
+  }
+  if (!memoryPath.startsWith('.memory/') && !memoryPath.startsWith(`${taskRootRelative}/.memory/`)) {
+    throw memoryQueryError('memoryPath must be in project or task memory.', 'Use the session file returned by memory_turn_closeout_v1.', 'MEMORY_TASK_CLOSEOUT_MEMORY_PATH_INVALID')
+  }
+  const report = closeoutEvidenceIdentity(target.activeRoot, 'report', reportPath)
+  const memory = closeoutEvidenceIdentity(target.activeRoot, 'memory', memoryPath)
+  const stamp = new Date().toISOString()
+  const day = stamp.slice(0, 10).replace(/-/g, '')
+  const run = `${day}-${stamp.slice(11, 19).replace(/:/g, '')}`
+  const ecrRelative = `${taskRootRelative}/evidence/closeout/${run}-ECR.md`
+  const completionRelative = `${taskRootRelative}/evidence/closeout/${run}-完成清单.md`
+  const evidenceRows = [report, memory].map(e => `| ${e.role} | ${e.path} | ${e.sha256} | ${e.bytes} |`).join('\n')
+  const ecrContent = [
+    `# ECR 执行闭环复审`, '', `- 任务：${taskRootRelative}（${taskId}）`, `- 终态：${args.terminalStatus}`, `- 生成：${stamp}（memory_task_closeout_v1）`, '',
+    `## 结论`, '', closeoutCell(args.ecr.summary), '',
+    `## 复审项`, '', '| 复审项 | 结果 |', '|---|---|', ...checks.map(c => `| ${closeoutCell(c.item)} | ${closeoutCell(c.result)} |`), '',
+    `## 引用证据`, '', '| 角色 | 路径 | sha256 | 字节 |', '|---|---|---|---|', evidenceRows, ''
+  ].join('\n')
+  const completionContent = [
+    `# 完成清单`, '', `- 任务：${taskRootRelative}（${taskId}）`, `- 终态：${args.terminalStatus}`, `- 生成：${stamp}（memory_task_closeout_v1）`, '',
+    '| 交付项 | 状态 |', '|---|---|', ...items.map(c => `| ${closeoutCell(c.item)} | ${closeoutCell(c.status)} |`), '',
+    `ECR：${ecrRelative}`, ''
+  ].join('\n')
+  const lease = structuredResult(handleMemoryWorkflowOperationalWriteLease({ project: args.project, operation: 'create', targets: [ecrRelative, completionRelative] }))
+  for (const [relative, content] of [[ecrRelative, ecrContent], [completionRelative, completionContent]]) {
+    const absolute = path.join(target.activeRoot, ...relative.split('/'))
+    fs.mkdirSync(path.dirname(absolute), { recursive: true })
+    fs.writeFileSync(absolute, content, { flag: 'wx' })
+  }
+  const evidence = [
+    closeoutEvidenceIdentity(target.activeRoot, 'ecr', ecrRelative),
+    report,
+    memory,
+    closeoutEvidenceIdentity(target.activeRoot, 'completion', completionRelative)
+  ]
+  const snapshot = taskOperationTerminalSnapshot(ownerRead.state?.turnLiveness)
+  const terminal = handleMemoryTaskTerminalV1({
+    project: args.project,
+    taskId,
+    admissionId: ownerRead.transaction.admissionId,
+    terminalStatus: args.terminalStatus,
+    expectedOwner: { ownerGeneration: owner.ownerGeneration, ownerNonce: owner.ownerNonce, leaseRevision: owner.leaseRevision, leaseDigest: owner.leaseDigest },
+    lifecycleRevision: Number(owner.reopenGeneration || 0) + 1,
+    expectedStateSequence: Number(ownerRead.envelope?.sequence || 0),
+    expectedWriterGeneration: Number(ownerRead.envelope?.writerGeneration ?? owner.ownerGeneration),
+    settledSetDigest: snapshot.settledSetDigest,
+    evidence
+  })
+  const result = structuredResult(terminal)
+  const receipt = {
+    schemaVersion: 'MemoryTaskCloseoutReceiptV1',
+    project: target.project,
+    taskId,
+    terminalStatus: args.terminalStatus,
+    leaseId: lease.lease?.leaseId || null,
+    evidence,
+    terminal: { status: result.status || null, receiptDigest: result.receipt?.receiptDigest || null, routeReconciliationRequired: result.routeReconciliationRequired === true },
+    receipt: result.receipt || null
+  }
+  return { content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }], structuredContent: receipt, isError: terminal.isError === true }
 }
 
 function handleMemoryTaskCloseoutReconcileV1(args) {

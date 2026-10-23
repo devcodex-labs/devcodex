@@ -30,6 +30,7 @@ Grok **UserPromptSubmit** cannot inject model context (stdout ignored). Workspac
 |------|-------|------------|----------------|
 | **Full** | `devcodex grok` (official `--rules` kernel bind) | Controlling `AGENTS.md` in context; host-owned tool permissions; path-observable context and unified staged skill route; workflow/Stop diagnostics | UserPromptSubmit context inject; forced continuation from wording gaps; verified PC0 from Hook payload alone |
 | **Partial** | plain `grok` in a child Git project | Best-effort Skill discovery + advisory plugin bridge when reachable | Full host parity with Codex; `kernelInjected=true` from passive Hook stdout |
+| **Grok Bot driver** (Partial-like) | Grok Bot assistant with mounted `devcodex-profile`/`devcodex-memory` stdio connectors (`DEVCODEX_AGENT=grok-bot`) + `devcodex grok-bot` driver | Lifecycle events synthesized by the driver (`devcodex grok-bot turn-begin` / `observe-tool`); same ContextRead → `skill_route` → admission contract; PC5 reports this tier as `WARN` | Native hooks, context inject, enforced PreToolUse, Full; driver events as host-emitted evidence |
 
 Platform facts (Grok Build hooks docs): `PreToolUse` and `Stop`/`SubagentStop` can hard-control; UserPromptSubmit is passive (no inject). PC5 must report `Partial` unless Full launcher evidence is present. Do not equate Grok with Codex UPS inject bootstrap.
 
@@ -43,6 +44,17 @@ Platform facts (Grok Build hooks docs): `PreToolUse` and `Stop`/`SubagentStop` c
 8. Run `devcodex doctor` / `devcodex status` and read `hostParity` (`HostParityScorecardV1`): `full-capable` means hard path is ready; still use `devcodex grok` for Full session kernel evidence. `partial` lists **failedChecks** and **executable repairSteps** (commands); re-run doctor after each fix.
 9. Execute **GrokTurnChecklist** every non-trivial turn (PF-165 + C16/PI-20260724-01): PC0~PC10 → Intent→Skill mandatory bundle → ContextReadPlan → **scan-hygiene** → **TTFV first delivery** → work/gates → report+memory → honest platform ceiling. Never skip S05/S07/C17 because inject is missing.
 10. **Workspace skill trigger**: if user message matches a W skill, obey that skill before checklist bulk for chat-like turns.
+
+## Grok Bot (no native hooks)
+
+Grok Bot has no lifecycle hooks, so the model drives them. The kernel's rules apply unchanged; this only adds the event plumbing.
+
+1. Once per user message, from the project dir: `devcodex grok-bot turn-begin <projectDir> "<message verbatim>"`. Keep `contextEpoch`, `turnBinding`, `skillRouteBootstrap`, `semanticDecisionSourceRef`. Never repeat it within the turn.
+2. Bracket **every** DevCodex connector call with the same id and args file:
+   `devcodex grok-bot observe-tool --project-dir <dir> --phase pre --tool devcodex-<profile|memory>__<tool> --tool-use-id <id> --args-file <f>`, then the call, then the same command with `--phase post --response-file <raw tool output file>` (the driver strips the host's untrusted-data fence). A skipped or duplicated bracket breaks the context binding (`scope-drift` / `receipt-status-stale`).
+3. Entry check first (S07): bracketed `profile_compose_entry_check` with `entry: { prompt, specRadar?, activeTask? }`; emit the returned PC0~PC10 table verbatim. PC5 shows the Grok Bot driver tier (`WARN`, never Full); PC6 shows observed Git state; PC4 is `PASS` in dev mode only when `specRadar` names the bound Skills/Profile.
+4. Then the kernel route: `profile_context_plan` (with `semanticDecision.sourceRef`) → `profile_load` (pass `files`) → required memory queries → `skill_route` catalog (paginate) + commit → `memory_task_admit_v2` (omit `ingressRef`; any `ingressWarnings` means a supplied ref was ignored).
+5. Prerequisites: `devcodex init` at the parent workspace (not inside a repo), `devcodex profile init` per project, connectors started after the workspace exists and restarted after DevCodex code changes or branch switches.
 
 ## GrokTurnChecklist + Intent→Skill bundle (PF-165)
 

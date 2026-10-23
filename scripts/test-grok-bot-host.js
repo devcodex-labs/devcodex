@@ -33,6 +33,17 @@ function staticChecks () {
   assert.ok(entry && entry.status === 'UNVERIFIED' && entry.defaultEligible === false)
   assert.strictEqual(driven.payload.devcodexExecutionSurface, 'grok-bot-driver')
   assert.strictEqual(env.DEVCODEX_HOST_VARIANT, 'grok-bot/driver-synthesized-local-stdio')
+  const driver = require('./lib/grok-bot-driver.js')
+  assert.strictEqual(driver.qualifiedToolName('profile_load'), 'devcodex-profile__profile_load')
+  assert.strictEqual(driver.qualifiedToolName('memory_status'), 'devcodex-memory__memory_status')
+  assert.strictEqual(driver.qualifiedToolName('skill_route'), 'devcodex-profile__skill_route')
+  assert.strictEqual(driver.qualifiedToolName('Write'), 'Write')
+  const scorecard = require('./lib/host-parity-scorecard.js')
+  assert.strictEqual(scorecard.composeDriverHostEvidence({ env: {} }), null)
+  assert.strictEqual(scorecard.composeDriverHostEvidence({ env: { DEVCODEX_AGENT: 'grok-bot' } }).status, 'WARN')
+  const legacy = scorecard.composeEntryCheckBlock({ project: 'p' })
+  assert.match(legacy, /\| PC5 [^|]*\| `UNVERIFIED` \|/)
+  assert.match(legacy, /\| PC6 [^|]*\| `UNVERIFIED` \|/)
   console.log('  ✓ grok-bot identity / adapter / capability registration')
 }
 
@@ -148,6 +159,17 @@ async function splitModeE2E () {
   }
   try {
     const project = 'proj'
+    const entryCheck = await call('devcodex-profile', 'profile_compose_entry_check', {
+      project, status: 'UNVERIFIED', nextStep: 'profile_context_plan',
+      entry: { prompt, locale: 'en_US.UTF-8', specRadar: 'Skills=fix-default; Profile=01-03', activeTask: 'none' }
+    })
+    assert.ok(!entryCheck.result.isError, JSON.stringify(entryCheck.body).slice(0, 500))
+    const block = entryCheck.body.block
+    for (let i = 0; i <= 10; i++) assert.match(block, new RegExp(`\\| PC${i} `))
+    assert.match(block, /\| PC5 [^|]*\| `WARN` \| Grok Bot driver tier/)
+    assert.doesNotMatch(block, /\| PC6 [^|]*\| `UNVERIFIED`/)
+    assert.match(block, /\| PC6 [^|]*\| `(PASS|WARN)` \| Git: branch=/)
+    console.log('  ✓ profile_compose_entry_check reports grok-bot PC5 tier and observed PC6 git state')
     const plan = await call('devcodex-profile', 'profile_context_plan', {
       project, intent: 'fix', changeTypes: ['source-code'], contextEpoch: begin.contextEpoch, confidence: 0.9,
       semanticDecision: { schemaVersion: 'IntentSemanticDecisionV1', sourceRef: begin.semanticDecisionSourceRef, workflowFacts: { targetKnown: true }, executionDecision: 'confirm' }
@@ -175,12 +197,15 @@ async function splitModeE2E () {
     assert.strictEqual(commit.body.ok, true, JSON.stringify(commit.body).slice(0, 300))
     console.log('  ✓ profile_load / memory_status / skill_route catalog+commit')
     const admit = await call('devcodex-memory', 'memory_task_admit_v2', {
-      operation: 'admit', project, ingressRef: plan.post.ingressRef,
+      operation: 'admit', project,
+      // Malformed caller ref: server falls back to its own projection but must report it.
+      ingressRef: { ...plan.post.ingressRef, decisionDigest: 'PLACEHOLDER' },
       task: { taskKind: 'bugs', entryVariant: 'fix', displayName: prompt }, overview: { content: prompt }
     })
     assert.ok(!admit.result.isError, JSON.stringify(admit.body).slice(0, 500))
     assert.strictEqual(admit.body.schemaVersion, 'FormalTaskAdmissionReceiptV2')
     assert.strictEqual(admit.body.status, 'active')
+    assert.ok(admit.body.ingressWarnings.includes('TASK_ADMISSION_INGRESS_REF_INVALID'), JSON.stringify(admit.body.ingressWarnings))
     console.log('  ✓ memory_task_admit_v2 admitted', admit.body.taskRootRelative)
   } finally {
     Object.values(servers).forEach(s => s.close())

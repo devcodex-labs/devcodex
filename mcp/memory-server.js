@@ -6594,6 +6594,9 @@ function handleMemoryTaskAdmitV2(args) {
   admission.ingressAuthority = admission.ingressAuthority || ingress.authorityReceipt
   admission.ingressSource = ingressSource
   admission.ingressRef = admission.ingressRef || currentIngressRef(ingress)
+  // Surface a caller-supplied ingressRef that was rejected and replaced by the
+  // server-owned projection, so the fallback is never silent.
+  admission.ingressWarnings = Array.isArray(ingress.ingressWarnings) ? ingress.ingressWarnings : []
   admission.activeVersion = MEMORY_RUNTIME_IDENTITY.activeVersion
   admission.runtimeGeneration = MEMORY_RUNTIME_IDENTITY.generationId
   const explicitReopen = args.task.entryVariant === 'reopen'

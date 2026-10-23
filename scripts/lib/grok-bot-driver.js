@@ -141,6 +141,8 @@ function qualifiedToolName (tool) {
   const value = String(tool || '').trim()
   if (!value) throw driverError('GROK_BOT_TOOL_REQUIRED', '--tool is required')
   if (value.includes('__')) return value
+  // Only bare DevCodex tool names are namespaced; native host tools (Write, Edit, Bash, ...) pass through.
+  if (!/^(profile_|memory_|skill_route$)/.test(value)) return value
   const memory = /^memory_/.test(value)
   return `${memory ? SERVER_PREFIX.memory : SERVER_PREFIX.profile}__${value}`
 }

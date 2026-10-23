@@ -74,7 +74,7 @@ version: 1.20.7
 | C19 | 确认后前置复审 | 每次显式或 Auto CP 决定后、进入下一阶段前，必须执行 `PostConfirmationReviewScopeGate` 并输出 **ReviewGradeCard**：映射 **轻量=R1**（须 `skipReason`）、**标准=R2**（默认）、**全面=R3**（高风险+冻结清单）、**发布安全=R4**；命中控制面 / 多文件联动 / 真相源同步 / 模板-示例-校验链必须追加交叉验证；阻断项先修正并回到结构化意图重算，不得由复审器直接要求重复确认。ECR 默认 R2，禁止「永远轻量」口径 |
 | C20 | 官方文档证据前置 | 新增/升级依赖、框架、SDK、平台 API 或外部模块前必须形成 `OfficialDocsEvidence`；缺失证据不得进入编码 |
 | C21 | Profile 联动判定 | dev/fix 项目事实变化后必须执行 `ProfileImpactCheck`：更新 Profile 或写明跳过理由 |
-| C22 | AI 自启动服务清理（ServiceLifecycleCleanup） | AI 为验证启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server、压测 target 等长运行进程时，必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或中断收尾前主动停止仅由 AI 启动的服务并核验端口释放；不得杀用户既有进程；用户明确要求保留时记录保留原因、PID/端口和关闭方式 |
+| C22 | AI 自启动服务清理（ServiceLifecycleCleanup） | AI 为验证启动 dev server、文档站、本地 API/mock、数据库代理、SSH 隧道、Playwright/Cypress server、压测 target 等长运行进程时，必须记录启动命令、cwd、PID/job、端口/URL；验证完成、失败或中断收尾前主动停止仅由 AI 启动的服务并核验端口释放；不得杀用户既有进程；用户明确要求保留时记录保留原因、PID/端口和关闭方式；临时验证产物清理（TemporaryArtifactCleanup）：收尾前删除 AI 为测试/验证自建的临时文件与状态（草稿脚本、探针、参数/响应临时文件、临时 worktree/stash、测试会话目录等），并在报告中列出已删除项；用户明确要求保留时记录保留原因与位置；不得删除用户拥有或已提交的文件 |
 
 ### ConcurrencyPolicy（C07）
 

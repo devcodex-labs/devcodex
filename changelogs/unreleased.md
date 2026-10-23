@@ -11,6 +11,10 @@ TaskLifecycle 规范能力吸纳、源码操作状态恢复及本次入口/CP/�
 
 修复和边界见 [v1.20.5候选说明](releases/v1.20.5.md)。当前仅准备本地候选，不表示已发布或最终资格通过。下方既有历史条目保留，不批量移入新版本。
 
+## 治理：临时验证产物清理（C22 扩展，PI-001）
+
+- C22 增补 TemporaryArtifactCleanup：收尾前删除 AI 为测试/验证自建的临时文件与状态并在报告列出；用户要求保留时记录原因与位置；不得删除用户拥有或已提交的文件。源为 `content/instructions.md` 与 `content/instructions/01-common.instructions.md`，投影已再生成，validate-governance-quality 增加锚点。
+
 ## Grok Bot 宿主驱动（grok-bot）
 
 - 续接修复：续接旧任务时 `profile_context_plan` 携带 semanticDecision，`profile_load` 后续接存根因超出 8 KiB 被压缩为仅含身份的指令信封（`minimal-identity-only`），准入用该 5 字段存根校验语义来源而报 `FINALIZED_TASK_RESUME_SESSION_MISMATCH`。现改为从内容寻址、摘要校验的准入 ingress 快照取回身份完全一致的完整信封再做原有全部校验（不放宽）；新增复现回归测试。

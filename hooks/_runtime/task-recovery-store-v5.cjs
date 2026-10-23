@@ -41,6 +41,7 @@ const {
   validateActualInstructionEnvelope,
   validateWorkItemSet
 } = require('./actual-instruction-envelope.cjs')
+const { validateIntentSemanticDecision } = require('./intent-semantic-decision.cjs')
 const {
   bindTaskCheckpointEpochSetFence,
   validateCheckpointEpochBootstrapAuthority,
@@ -2319,6 +2320,7 @@ function observeFinalizedTaskResumeLiveness(state = {}, owner = null, options = 
   const targetSessionDigest = String(options.targetSessionDigest || '')
   const targetContextEpoch = String(options.targetContextEpoch || '')
   const sameSessionContinuation = (turnState === 'awaiting-continuation' || !turn.turnKey ||
+    owner?.status === 'released' ||
     (targetContextEpoch && targetContextEpoch !== ownerContextEpoch)) && !operationLeaseLive && durableOperation.terminalReady &&
     ['active', 'released'].includes(owner?.status) &&
     /^[a-f0-9]{64}$/.test(targetSessionDigest) && owner?.sessionDigest === targetSessionDigest
@@ -7735,6 +7737,22 @@ function commitFinalizedTaskResumeV3(input = {}, options = {}) {
         state.validationControlIngressIntent = null
         state.stickyAuto = cloneRecoveryValue(resumeStateHandoff.stickyAuto)
         state.executionMode = resumeStateHandoff.executionMode
+        const semanticDecision = resumeStateHandoff.contextAcquisition?.plan?.semanticDecision
+        if (['confirm', 'disable-auto'].includes(semanticDecision?.executionDecision) &&
+            validateIntentSemanticDecision(semanticDecision, {
+              envelope: candidate.ingress.actualInstructionEnvelope,
+              contextEpoch: candidate.contextBinding.contextEpoch, requireSource: true, nowMs
+            }).valid) {
+          const grant = state.taskScopedAutoContinuationGrant
+          if (validateTaskScopedAutoContinuationGrant(grant).valid &&
+              ['active', AUTO_GRANT_REEVALUATION_STATUS, LEGACY_AUTO_GRANT_RECONFIRM_STATUS].includes(grant.status)) {
+            state.taskScopedAutoContinuationGrant = transitionTaskScopedAutoContinuationGrant(grant, 'revoked', {
+              nowMs, reason: 'current-resume-user-exit'
+            })
+          }
+          state.autoCheckpointDecision = null
+          state.taskScopedAutoStatus = { status: 'revoked', reason: 'current-resume-user-exit' }
+        }
       }
       return state
     }, {

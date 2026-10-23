@@ -67,6 +67,7 @@ const { sealOwner } = require('../hooks/_runtime/fenced-task-write-owner.cjs')
 const {
   commitTaskRecoveryState,
   createTaskScopedAutoContinuationGrant,
+  observeFinalizedTaskResumeLiveness,
   readFencedTaskWriteOwner,
   readTaskRecoveryState,
   resolveTaskRecoveryMetaDir,
@@ -237,6 +238,8 @@ function createTestContextBinding(cwd = ROOT, options = {}) {
   const planArgs = {
     intent,
     contextEpoch,
+    ...(options.semanticDecision ? { semanticDecision: options.semanticDecision } : {}),
+    ...(options.changeTypes ? { changeTypes: options.changeTypes } : {}),
     ...(options.project ? { project: options.project } : {}),
     ...(options.scope ? { scope: options.scope } : {}),
     ...(options.explicitFull
@@ -1243,6 +1246,7 @@ function buildTaskAuthorityIngress({
   routeKey = 'fix.default',
   hostSessionId: requestedHostSessionId = '',
   contextEpoch: requestedContextEpoch = '',
+  ttlMs,
   prompt: requestedPrompt = ''
 }) {
   const hostSessionId = requestedHostSessionId || `mcp-task-authority-${suffix}`
@@ -1256,6 +1260,7 @@ function buildTaskAuthorityIngress({
     hostVariant: 'codex-cli',
     contextEpoch: requestedContextEpoch || `ctx-mcp-task-authority-${suffix}`,
     trustedHostEvent: true,
+    ...(ttlMs ? { ttlMs } : {}),
     nowMs
   })
   const workItemSet = buildWorkItemSet(envelope, {
@@ -1741,7 +1746,16 @@ function testMemoryTaskAdmissionV2Contract() {
   }
 }
 
-function testMemoryFinalizedFreshResumeV3Contract() {
+function testMemoryFinalizedFreshResumeV3Contract(executionDecision = 'enable-auto', priorMode = 'confirm') {
+  const releasedOwner = { status: 'released', sessionDigest: digestSessionRef('released-same-turn'), contextEpoch: 'same-epoch' }
+  const releasedState = { contextAcquisition: { contextEpoch: 'same-epoch' }, turnLiveness: { state: 'running', turnKey: 'same-live-turn' } }
+  const sameTurnOptions = { targetSessionDigest: releasedOwner.sessionDigest, targetContextEpoch: 'same-epoch' }
+  assert.strictEqual(observeFinalizedTaskResumeLiveness(releasedState, releasedOwner, sameTurnOptions).noLiveTurn, true)
+  assert.strictEqual(observeFinalizedTaskResumeLiveness(releasedState, { ...releasedOwner, status: 'active' }, sameTurnOptions).noLiveTurn, false)
+  assert.strictEqual(observeFinalizedTaskResumeLiveness(releasedState, releasedOwner, { ...sameTurnOptions, targetSessionDigest: digestSessionRef('other-session') }).noLiveTurn, false)
+  assert.strictEqual(observeFinalizedTaskResumeLiveness({ ...releasedState, turnLiveness: {
+    ...releasedState.turnLiveness, inFlightOperation: { ownedByAgent: true, leaseExpiresAt: new Date(Date.now() + 60_000).toISOString() }
+  } }, releasedOwner, sameTurnOptions).noLiveOperation, false)
   setupLegacyWorkspace()
   const activeRoot = path.join(TEMP_ROOT, '.devcodex')
   const project = path.basename(TEMP_ROOT)
@@ -2165,10 +2179,25 @@ function testMemoryFinalizedFreshResumeV3Contract() {
     }
   }), { nowMs: autoNowMs, force: true, reason: 'mcp-auto-resume-prior-turn-complete' })
   assert(['committed', 'semantic-noop'].includes(completedFallbackTurn.status), JSON.stringify(completedFallbackTurn))
+  if (['confirm', 'disable-auto'].includes(executionDecision)) {
+    const priorGrant = createTaskScopedAutoContinuationGrant({
+      taskId: priorAdmission.taskId, project, projectRootIdentityDigest: fallbackProjectRootIdentityDigest,
+      authorityRef: 'auto:prior-resume', sourceMessageDigest: '1'.repeat(64), riskCeiling: 'R3',
+      allowedScope: {
+        scopeClass: 'same-formal-task', taskRootRelative: resumeArgs.task.taskRootRelative,
+        pathPrefixes: [resumeArgs.task.taskRootRelative],
+        actionClasses: ['checkpoint-confirmation', 'same-task-continuation'], checkpointPhases: ['CP1', 'CP2', 'CP3']
+      }
+    }, { nowMs: autoNowMs })
+    const priorGrantWrite = updateTaskRecoveryState({ metaDir, identity: recoveryIdentity }, state => ({
+      ...state, taskScopedAutoContinuationGrant: priorGrant
+    }), { nowMs: autoNowMs, force: true, reason: 'test-prior-auto-before-user-exit' })
+    assert(['committed', 'semantic-noop'].includes(priorGrantWrite.status), JSON.stringify(priorGrantWrite))
+  }
 
   const autoHostSessionId = 'mcp-task-authority-auto-resume-current'
-  const autoResumeContextBinding = createTestContextBinding(TEMP_ROOT, { intent: 'resume' })
-  const autoContextAuthorization = authorizeContextRead({
+  let autoResumeContextBinding = createTestContextBinding(TEMP_ROOT, { intent: 'resume' })
+  let autoContextAuthorization = authorizeContextRead({
     activeRoot,
     project,
     contextBinding: autoResumeContextBinding,
@@ -2179,7 +2208,8 @@ function testMemoryFinalizedFreshResumeV3Contract() {
     activeRoot,
     project,
     suffix: 'auto-resume-current',
-    nowMs: autoNowMs,
+    nowMs: autoNowMs - 20 * 60_000,
+    ttlMs: 30 * 60_000,
     rootIdentityDigest: fallbackProjectRootIdentityDigest,
     routeKey: 'resume',
     hostSessionId: autoHostSessionId,
@@ -2285,11 +2315,96 @@ function testMemoryFinalizedFreshResumeV3Contract() {
     turnLiveness: { state: 'running', turnKey: autoHostSessionId }
   })
   fs.writeFileSync(autoContextObservation.statePath, JSON.stringify(autoLifecycleProjection, null, 2) + '\n')
+  // Reproduce the public direct-MCP path: the model commits current semantics,
+  // but no native PostToolUse has projected a route, intent or sticky Auto.
+  autoResumeContextBinding = createTestContextBinding(TEMP_ROOT, {
+    intent: 'fix', changeTypes: ['source-code'], contextEpoch: autoResumeContextBinding.contextEpoch,
+    semanticDecision: {
+      schemaVersion: 'IntentSemanticDecisionV1',
+      sourceRef: {
+        envelopeId: autoResumeIngress.actualInstructionEnvelope.envelopeId,
+        envelopeDigest: autoResumeIngress.actualInstructionEnvelope.envelopeDigest,
+        contextEpoch: autoResumeIngress.actualInstructionEnvelope.contextEpoch
+      },
+      executionDecision
+    }
+  })
+  autoContextAuthorization = authorizeContextRead({
+    activeRoot, project, contextBinding: autoResumeContextBinding, requestedSources: []
+  })
+  assert.strictEqual(autoContextAuthorization.status, 'authorized')
+  const semanticObservation = recordMcpContextSourceObservations({
+    activeRoot, project, hostSessionId: autoHostSessionId, contextBinding: autoResumeContextBinding,
+    sourceResults: autoContextAuthorization.plan.selectedSources.map(source => ({
+      sourceId: source.sourceId, bodyObserved: true, successful: true, observable: true,
+      transportSuccess: true, sourceRefsMatch: true, schemaMatch: true, targetMatch: true,
+      contentIdentity: buildJsonContentIdentity({
+        sourceKey: `test://${source.sourceId}`, value: { observed: true, stage: 'semantic-only-resume' },
+        contractVersion: 'McpSemanticResumeContextSourceV1'
+      }).identity, bytes: 1, chars: 1
+    }))
+  })
+  assert.strictEqual(semanticObservation.status, 'persisted', JSON.stringify(semanticObservation))
+  Object.assign(autoLifecycleProjection, JSON.parse(fs.readFileSync(semanticObservation.statePath, 'utf8')), {
+    actualInstructionEnvelope: autoResumeIngress.actualInstructionEnvelope,
+    workflowRouteDecision: null, workItemSet: null,
+    workflowRoutePlanBinding: null,
+    validationControlIngress: null, validationControlIngressIntent: null,
+    executionMode: priorMode, stickyAuto: null
+  })
+  const pendingLeaseCore = { ...autoResumeIngress.projectTargetLease, routeRevision: 'pending' }
+  delete pendingLeaseCore.leaseDigest
+  autoLifecycleProjection.stickyProject = {
+    ...pendingLeaseCore, leaseDigest: computeProjectTargetLeaseDigest(pendingLeaseCore)
+  }
+  fs.writeFileSync(autoContextObservation.statePath, JSON.stringify(autoLifecycleProjection, null, 2) + '\n')
   const autoResumeArgs = {
     operation: 'bind',
     resumeContextBinding: autoResumeContextBinding,
     task: resumeArgs.task,
     overview: resumeArgs.overview
+  }
+  for (const [label, mutate] of [
+    ['lease-session', value => { value.stickyProject.authorityDigest = digestSessionRef('wrong-session') }],
+    ['physical-root', value => { value.stickyProject.physicalRoot = path.join(TEMP_ROOT, 'wrong-root') }],
+    ['active-root', value => { value.stickyProject.activeRoot = path.join(TEMP_ROOT, 'wrong-active') }],
+    ['source', value => { value.actualInstructionEnvelope = buildTaskAuthorityIngress({
+      activeRoot, project, suffix: 'different-fresh-semantic-source',
+      rootIdentityDigest: fallbackProjectRootIdentityDigest, routeKey: 'resume', hostSessionId: autoHostSessionId,
+      contextEpoch: autoResumeContextBinding.contextEpoch, prompt: '@rocky 采纳建议'
+    }).actualInstructionEnvelope }]
+  ]) {
+    const invalid = JSON.parse(JSON.stringify(autoLifecycleProjection))
+    mutate(invalid)
+    invalid.stickyProject.leaseDigest = computeProjectTargetLeaseDigest(invalid.stickyProject)
+    fs.writeFileSync(autoContextObservation.statePath, JSON.stringify(invalid, null, 2) + '\n')
+    const before = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+    const rejected = resultById(runServer('mcp/memory-server.js', [
+      rpcRequest(80, 'tools/call', { name: 'memory_task_admit_v2', arguments: autoResumeArgs })
+    ], TEMP_ROOT, { DEVCODEX_HOST_SESSION_ID: autoHostSessionId }), 80)
+    assert.strictEqual(rejected.isError, true, label + ': ' + JSON.stringify(rejected.structuredContent))
+    const after = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+    for (const key of ['admissionTransaction', 'fencedWriteOwner', 'taskScopedAutoContinuationGrant']) {
+      assert.deepStrictEqual(after[key], before[key], label + ': ' + key + ' must remain unchanged')
+    }
+  }
+  // Advance only the isolated child clock. The plan/sourceRef/envelope remain
+  // byte-identical, so this negative cannot pass merely due to source drift.
+  const expiryClock = path.join(TEMP_ROOT, 'resume-expiry-clock.cjs')
+  fs.writeFileSync(expiryClock, 'const realNow = Date.now; Date.now = () => realNow() + 11 * 60 * 1000;\n')
+  fs.writeFileSync(autoContextObservation.statePath, JSON.stringify(autoLifecycleProjection, null, 2) + '\n')
+  const beforeExpiry = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+  const expired = resultById(runServer('mcp/memory-server.js', [
+    rpcRequest(82, 'tools/call', { name: 'memory_task_admit_v2', arguments: autoResumeArgs })
+  ], TEMP_ROOT, {
+    DEVCODEX_HOST_SESSION_ID: autoHostSessionId,
+    NODE_OPTIONS: `--require=${expiryClock}`
+  }), 82)
+  assert.strictEqual(expired.isError, true)
+  assert.match(expired.content[0].text, /FINALIZED_TASK_RESUME_SESSION_MISMATCH/)
+  const afterExpiry = readTaskRecoveryState({ metaDir, identity: recoveryIdentity }).state
+  for (const key of ['admissionTransaction', 'fencedWriteOwner', 'taskScopedAutoContinuationGrant']) {
+    assert.deepStrictEqual(afterExpiry[key], beforeExpiry[key], 'expiry-only: ' + key + ' must remain unchanged')
   }
   const invalidAutoLifecycleProjection = JSON.parse(JSON.stringify(autoLifecycleProjection))
   const invalidAutoLeaseCore = {
@@ -2324,7 +2439,7 @@ function testMemoryFinalizedFreshResumeV3Contract() {
   )
   assert.strictEqual(autoResumeState.state.contextAcquisition.contextEpoch, autoResumeContextBinding.contextEpoch)
   assert.strictEqual(autoResumeState.state.contextAcquisition.receipt.status, 'relevant-complete')
-  assert.strictEqual(autoResumeState.state.validationControlIngress.action, 'auto-authorize')
+  assert.strictEqual(autoResumeState.state.validationControlIngress.action, executionDecision === 'enable-auto' ? 'auto-authorize' : 'none')
   assert.strictEqual(autoResumeState.state.validationControlIngress.taskRecoveryKey, priorAdmission.taskId)
   assert.strictEqual(autoResumeState.state.validationControlIngress.contextEpoch, autoResumeContextBinding.contextEpoch)
   assert.strictEqual(validateValidationControlIngressReceipt(
@@ -2338,6 +2453,15 @@ function testMemoryFinalizedFreshResumeV3Contract() {
     },
     { now: autoNowMs }
   ).valid, true)
+  if (executionDecision !== 'enable-auto') {
+    assert.strictEqual(autoResumeState.state.executionMode, 'confirm')
+    assert.strictEqual(autoResumeState.state.stickyAuto, null)
+    if (['confirm', 'disable-auto'].includes(executionDecision)) {
+      assert.strictEqual(autoResumeState.state.taskScopedAutoContinuationGrant.status, 'revoked')
+      assert.strictEqual(autoResumeState.state.autoCheckpointDecision, null)
+    }
+    return
+  }
   assert.strictEqual(autoResumeState.state.stickyAuto.sourceMessageDigest, autoResumeIngress.actualInstructionEnvelope.actualInstructionDigest)
   assert.strictEqual(autoResumeState.state.executionMode, 'auto')
   assert.strictEqual(validateTaskScopedAutoContinuationGrant(
@@ -8035,10 +8159,15 @@ function testMcpJsonLaunchContract() {
 }
 
 if (process.env.DEVCODEX_MCP_TEST_CASE) {
-  if (!['artifact-reconciliation', 'terminal'].includes(process.env.DEVCODEX_MCP_TEST_CASE)) {
+  if (!['artifact-reconciliation', 'terminal', 'resume'].includes(process.env.DEVCODEX_MCP_TEST_CASE)) {
     throw new Error('unsupported DEVCODEX_MCP_TEST_CASE')
   }
-  if (process.env.DEVCODEX_MCP_TEST_CASE === 'terminal') testMemoryTaskOwnerAndTerminalV1Contract()
+  if (process.env.DEVCODEX_MCP_TEST_CASE === 'resume') {
+    testMemoryFinalizedFreshResumeV3Contract()
+    testMemoryFinalizedFreshResumeV3Contract('confirm', 'auto')
+    testMemoryFinalizedFreshResumeV3Contract('disable-auto', 'auto')
+    testMemoryFinalizedFreshResumeV3Contract('retain-current', 'auto')
+  } else if (process.env.DEVCODEX_MCP_TEST_CASE === 'terminal') testMemoryTaskOwnerAndTerminalV1Contract()
   else testMemoryArtifactMutationReconciliationContract()
   if (process.env.DEVCODEX_KEEP_TEST_ARTIFACTS !== '1') fs.rmSync(TEMP_ROOT, { recursive: true, force: true })
   process.stdout.write(`mcp ${process.env.DEVCODEX_MCP_TEST_CASE} test passed\n`)

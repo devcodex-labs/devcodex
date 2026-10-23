@@ -168,11 +168,13 @@ const {
   validateSimpleTaskFastPathUsage
 } = require('../hooks/_runtime/simple-task-fast-path-lease.cjs')
 const {
+  createValidationControlIngressIntent,
   bindValidationControlIngressIntent,
   validateValidationControlIngressReceipt,
   validateValidationControlIngressIntent,
   validationProjectRootIdentity
 } = require('../hooks/_runtime/workflow-completion-contract.cjs')
+const { validateIntentSemanticDecision } = require('../hooks/_runtime/intent-semantic-decision.cjs')
 const {
   classifyRelativeTarget,
   readLayeredArtifactSlotRegistry
@@ -5268,6 +5270,49 @@ function verifiedResumeLifecycleContext(target, binding) {
   if (envelope.hostSessionDigest && envelope.hostSessionDigest !== hostSessionDigest) {
     return { status: 'invalid', reasonCode: 'lifecycle-host-session-mismatch' }
   }
+  // A direct MCP reader has no native PostToolUse route projection. Consume only
+  // its separately verified, same-source semantic decision, never fallback prose.
+  const semanticDecision = acquisition.plan?.semanticDecision
+  const semanticValidation = validateIntentSemanticDecision(semanticDecision, {
+    envelope, contextEpoch: binding.contextEpoch, hostSessionDigest, requireSource: true
+  })
+  if (semanticDecision && !semanticValidation.valid) {
+    return { status: 'invalid', reasonCode: 'lifecycle-semantic-source-invalid', errors: semanticValidation.errors }
+  }
+  if (semanticDecision) {
+    // Native project selection may precede route selection. Validate that
+    // original lease before normalizing its pending route for this read only
+    // check; the admission owner later creates the actual routed lease.
+    const pendingRoute = !routeDecisionPresent && projectTargetLease?.routeRevision === 'pending' &&
+      projectTargetLease.leaseDigest === computeProjectTargetLeaseDigest(projectTargetLease)
+    const selectedRouteRevision = acquisition.plan?.workflowRoute?.routeRevision
+    const routedLease = pendingRoute
+      ? { ...projectTargetLease, routeRevision: selectedRouteRevision }
+      : projectTargetLease
+    if (pendingRoute) routedLease.leaseDigest = computeProjectTargetLeaseDigest(routedLease)
+    const leaseValidation = validateProjectTargetLease(routedLease, {
+      project: target.project,
+      activeRoot: target.activeRoot,
+      physicalRoot: currentPhysicalProjectRoot(target),
+      contextEpoch: binding.contextEpoch,
+      routeRevision: selectedRouteRevision
+    }, { nowMs: Date.now() })
+    if (projectTargetLease?.authorityKind !== 'session' ||
+        projectTargetLease?.authorityDigest !== digestSessionRef(hostSessionId)) {
+      leaseValidation.errors.push('host-session-authority')
+      leaseValidation.valid = false
+    }
+    const expiredOnly = !leaseValidation.valid && leaseValidation.errors.length > 0 &&
+      leaseValidation.errors.every(error => error === 'lease-time')
+    if (!leaseValidation.valid && !expiredOnly) {
+      return { status: 'invalid', reasonCode: 'lifecycle-project-target-lease-invalid', errors: leaseValidation.errors }
+    }
+    return {
+      status: 'semantic-current', hostSessionId, hostSessionDigest,
+      projectTargetLease: leaseValidation.valid ? projectTargetLease : null,
+      lifecycleState: state
+    }
+  }
   if (!envelopePresent && !workItemSetPresent && !routeDecisionPresent && !projectTargetLeasePresent) {
     return {
       status: 'context-only',
@@ -5889,7 +5934,7 @@ function resolveResumeContextAuthorization(target, contextBinding, continuingTas
   const environmentSession = String(process.env.DEVCODEX_HOST_SESSION_ID || '').trim()
   const sessionCandidates = [...new Set([
     ...observedSessions,
-    ['verified', 'recoverable-stale', 'context-only'].includes(lifecycleContext.status)
+    ['verified', 'recoverable-stale', 'context-only', 'semantic-current'].includes(lifecycleContext.status)
       ? lifecycleContext.hostSessionId
       : '',
     environmentSession
@@ -5932,13 +5977,13 @@ function resolveResumeContextAuthorization(target, contextBinding, continuingTas
     authorization,
     binding: compactContextBinding(verifiedBinding),
     hostSessionId,
-    lifecycleProjectTargetLease: ['verified', 'recoverable-stale'].includes(lifecycleContext.status)
+    lifecycleProjectTargetLease: ['verified', 'recoverable-stale', 'semantic-current'].includes(lifecycleContext.status)
       ? lifecycleContext.projectTargetLease
       : null,
     lifecycleIngressRef: ['verified', 'recoverable-stale'].includes(lifecycleContext.status)
       ? lifecycleContext.ingressRef
       : null,
-    lifecycleState: ['verified', 'recoverable-stale'].includes(lifecycleContext.status)
+    lifecycleState: ['verified', 'recoverable-stale', 'semantic-current'].includes(lifecycleContext.status)
       ? lifecycleContext.lifecycleState
       : null,
     receipt
@@ -5999,16 +6044,30 @@ function boundedResumeProjectLease(target, transaction, envelope, routeDecision,
 
 function currentTrustedResumeIngress(target, context) {
   const state = context?.lifecycleState
-  if (!context?.lifecycleIngressRef || !state) return null
+  if (!state) return null
   const envelope = state.actualInstructionEnvelope || {}
-  const decision = state.workflowRouteDecision || {}
+  let workItemSet = state.workItemSet
+  let decision = state.workflowRouteDecision || {}
+  const semanticDecision = context.authorization.plan?.semanticDecision
+  const semanticCurrent = semanticDecision && validateIntentSemanticDecision(semanticDecision, {
+    envelope, contextEpoch: context.binding.contextEpoch,
+    hostSessionDigest: crypto.createHash('sha256').update(context.hostSessionId).digest('hex'),
+    requireSource: true
+  }).valid
+  if (semanticCurrent) {
+    workItemSet = buildWorkItemSet(envelope, { workItems: [{ taskKind: 'resume', routeCandidate: 'resume' }] })
+    decision = buildWorkflowRouteDecision({
+      actualInstructionEnvelope: envelope, workItemSet, workItemId: workItemSet.items[0].workItemId,
+      environmentMode: 'dev', topIntent: 'resume', subtype: 'resume', routeKey: 'resume', stage: 'rehydrate'
+    })
+  } else if (!context.lifecycleIngressRef) return null
   if (envelope.contextEpoch !== context.binding.contextEpoch ||
       envelope.hostSessionDigest !== crypto.createHash('sha256').update(context.hostSessionId).digest('hex') ||
       decision.topIntent !== 'resume' || decision.routeKey !== 'resume' || decision.stage !== 'rehydrate' ||
       decision.routeRevision !== context.authorization.plan.workflowRoute.routeRevision) return null
   return {
     actualInstructionEnvelope: envelope,
-    workItemSet: state.workItemSet,
+    workItemSet,
     workflowRouteDecision: decision,
     projectTargetLease: state.stickyProject,
     projectRoot: currentPhysicalProjectRoot(target),
@@ -6024,7 +6083,7 @@ function currentTrustedResumeIngress(target, context) {
       }),
       envelopeDigest: envelope.envelopeDigest,
       decisionDigest: decision.decisionDigest,
-      projectTargetLeaseDigest: state.stickyProject.leaseDigest,
+      projectTargetLeaseDigest: state.stickyProject?.leaseDigest || null,
       mutationAuthority: false
     }
   }
@@ -6046,7 +6105,32 @@ function buildFinalizedResumeStateHandoff(target, taskId, context, ingress, nowM
   }, { now: nowMs }).valid) {
     validationControlIngress = currentControl
   }
-  const intent = lifecycleState.validationControlIngressIntent
+  let intent = lifecycleState.validationControlIngressIntent
+  const semanticDecision = context.authorization.plan?.semanticDecision
+  const existingSticky = lifecycleState.stickyAuto
+  const retainCurrentAuto = lifecycleState.executionMode === 'auto' && existingSticky?.active === true &&
+    String(existingSticky.authorityRef || '').trim() &&
+    existingSticky.sourceMessageDigest === envelope.actualInstructionDigest &&
+    crypto.createHash('sha256').update(String(existingSticky.sessionKey || '')).digest('hex') === envelope.hostSessionDigest &&
+    Number.isFinite(Number(existingSticky.updatedAtMs)) && nowMs >= Number(existingSticky.updatedAtMs) &&
+    nowMs - Number(existingSticky.updatedAtMs) <= 30 * 60 * 1000
+  if (semanticDecision && validateIntentSemanticDecision(semanticDecision, {
+    envelope, contextEpoch: context.binding.contextEpoch,
+    hostSessionDigest: crypto.createHash('sha256').update(context.hostSessionId).digest('hex'),
+    requireSource: true, nowMs
+  }).valid) {
+    // The structured decision is newer than a derived native intent/control.
+    // In particular confirm/disable-auto must never inherit an earlier Auto.
+    validationControlIngress = null
+    intent = createValidationControlIngressIntent({
+      actualInstructionEnvelope: envelope, semanticDecision,
+      issuedAt: new Date(nowMs).toISOString(),
+      executionMode: semanticDecision.executionDecision === 'enable-auto'
+        ? 'auto'
+        : (semanticDecision.executionDecision === 'retain-current' && retainCurrentAuto ? 'auto' : 'confirm'),
+      project: target.project, projectRootIdentity
+    }, { now: nowMs })
+  }
   if (!validationControlIngress && intent &&
       validateValidationControlIngressIntent(intent, null, { now: nowMs }).valid) {
     try {
@@ -6220,6 +6304,7 @@ function prepareFinalizedResumeCandidate(target, args, ingress, contextBinding) 
     decisionDigest: ingress.workflowRouteDecision.decisionDigest,
     priorTransactionDigest: transaction.transactionDigest,
     priorOwnerLeaseDigest: ownerRead.owner?.leaseDigest || null,
+    livenessDigest: liveness.livenessDigest,
     canonicalRevisionDigest: canonical.canonicalRevisionDigest,
     cpChainDigest: canonical.cpChainDigest,
     runtimeDigest: MEMORY_RUNTIME_IDENTITY.runtimeDigest

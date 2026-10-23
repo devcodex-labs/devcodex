@@ -28,6 +28,7 @@ TaskLifecycle 规范能力吸纳、源码操作状态恢复及本次入口/CP/�
 - 入口检查表 PC 标签与内容对齐（PC0 版本与运行、PC2 会话、PC3 执行准备、PC5 宿主、PC6 工作区、PC7 续接、PC8 流程与方案；英文同步），模板 `precheck-status.prompt.md` 同步；`profile_compose_entry_check` 未提供 `languageDecision` 时按用户提示语言渲染（中文提示 → 中文）。
 - `devcodex grok-bot turn-begin` 输出 `profileFreshness` 与 `warnings`：Profile current-truth `gitHead` 与项目 HEAD 不一致（`PROFILE_TRUTH_DRIFT`）或 Profile 更新后已有 ≥20 次提交（`PROFILE_POSSIBLY_STALE`）时告警。
 - Grok 插件 Skill 的 Grok Bot 小节补充：S04 在该路径不可强制、Profile 新鲜度告警、`memory_turn_closeout_v1` 收尾。
+- 任务目录被删除后遗留的 TaskRecoveryBinding 不再污染后续准入：PreToolUse 重放前清除孤立绑定（`lastResumeIngressRehydrate.reasonCode=task-root-missing`），`memory_task_admit_v2` 的 bounded-resume 回退忽略孤立绑定，省略 `ingressRef` 的准入恢复正常。
 - 驱动宿主写入 `DEVCODEX_HOST_VARIANT`，turn-begin 的 SkillRouteBootstrap 报告 `grok-bot/driver-synthesized-local-stdio`。
 - `devcodex profile init` 对 DevCodex 源码仓库自身生成 ProfileCurrentTruthV1 与 currentTruthRef：仅取 package.json、本地 git/候选身份、CI 矩阵与公开 GitHub Release/workflow 回执；证据缺失保持 UNVERIFIED，由未改动的 ProfileCurrentTruthGate 拒绝。
 - 使用前提：在父级工作区（如 `/workspace`）执行 `devcodex init`，不要在仓库内初始化；各项目再执行 `devcodex profile init`。

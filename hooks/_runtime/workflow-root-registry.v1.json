@@ -11,10 +11,10 @@
     },
     {
       "ref": "scripts/lib/host-parity-scorecard.js",
-      "digest": "408220ce0eb79a8e36555f0098396faf2f0502c645e00d083831aee616fdc6ec"
+      "digest": "e3e64094eaed8fd55432d67befc5135ab321c21d59b1f679b65982f8bf585381"
     }
   ],
-  "sourceDigest": "7b4f00ea9c9718851c6aecc64256ebb40d826f7752bfd519888e628421949ef2",
+  "sourceDigest": "920582706c85065731db1bb2f648f09613531b323a48d2089174cfd6e06a7681",
   "baseBundles": {
     "chat": [],
     "resume": [

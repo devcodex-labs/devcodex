@@ -41,7 +41,7 @@ const block = composeEntryCheckBlock({
 assert.match(block, /### DevCodex · 入口检查/)
 assert.match(block, /`PASS` · `demo`/)
 assert.match(block, /\| 检查项 \| 状态 \| 结论 \|/)
-assert.match(block, /PC0 中断处理 \| `PASS`/)
+assert.match(block, /PC0 版本与运行 \| `PASS`/)
 assert.match(block, /PC4 规范雷达 \| `UNVERIFIED` \| ENV_MODE unknown/)
 assert.doesNotMatch(block, /DevCodexVisibleEnvelopeV3/)
 assert.match(composeEntryCheckBlock({ project: 'demo', envMode: 'dev', languageContext: ZH_LANGUAGE_CONTEXT }), /PC4 规范雷达 \| `UNVERIFIED` \| dev 模式/)

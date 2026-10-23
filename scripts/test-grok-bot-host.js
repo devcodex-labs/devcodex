@@ -141,6 +141,8 @@ async function splitModeE2E () {
   fs.mkdirSync(path.join(tmp, 'home'))
   spawnSync('git', ['init', '-q'], { cwd: proj })
   fs.writeFileSync(path.join(proj, 'README.md'), '# proj\n')
+  spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'add', '-A'], { cwd: proj })
+  spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'init'], { cwd: proj })
   const env = { ...process.env, HOME: path.join(tmp, 'home'), USERPROFILE: path.join(tmp, 'home'), DEVCODEX_HOST_SESSION_ID: 'grok-bot-test-session', DEVCODEX_AGENT: 'grok-bot', DEVCODEX_HOST_PLATFORM: 'grok' }
   for (const key of ['GROK_HOME', 'CODEX_HOME', 'CLAUDE_CODE_VERSION', 'CURSOR_TRACE_ID']) delete env[key]
   cli(['init'], { cwd: ws, env })
@@ -153,6 +155,15 @@ async function splitModeE2E () {
   assert.ok(begin.envelopeId && begin.semanticDecisionSourceRef)
   assert.strictEqual(begin.routeStatus, 'pending')
   assert.strictEqual(begin.skillRouteBootstrap.hostVariant, 'grok-bot/driver-synthesized-local-stdio')
+  assert.strictEqual(begin.profileFreshness.status, 'fresh', JSON.stringify(begin.profileFreshness))
+  const driverLib = require('./lib/grok-bot-driver.js')
+  const truthFile = path.join(ws, '.devcodex', 'proj', 'profile', '99-truth-fixture.md')
+  fs.writeFileSync(truthFile, '```json\n{"schemaVersion": "ProfileCurrentTruthV1", "gitHead": "0123456789abcdef0123456789abcdef01234567"}\n```\n')
+  const drift = driverLib.profileFreshness(proj)
+  assert.strictEqual(drift.status, 'stale')
+  assert.strictEqual(drift.warnings[0].code, 'PROFILE_TRUTH_DRIFT')
+  fs.rmSync(truthFile)
+  console.log('  ✓ turn-begin reports Profile freshness and detects current-truth drift')
   console.log('  ✓ turn-begin yields contextEpoch / turnBinding / envelope')
 
   const servers = { 'devcodex-profile': mcp('profile', proj, env), 'devcodex-memory': mcp('memory', proj, env) }
@@ -180,9 +191,10 @@ async function splitModeE2E () {
     assert.ok(!entryCheck.result.isError, JSON.stringify(entryCheck.body).slice(0, 500))
     const block = entryCheck.body.block
     for (let i = 0; i <= 10; i++) assert.match(block, new RegExp(`\\| PC${i} `))
-    assert.match(block, /\| PC5 [^|]*\| `WARN` \| Grok Bot driver tier/)
+    assert.match(block, /\| PC5 宿主 \| `WARN` \| Grok Bot 驱动档/)
     assert.doesNotMatch(block, /\| PC6 [^|]*\| `UNVERIFIED`/)
-    assert.match(block, /\| PC6 [^|]*\| `(PASS|WARN)` \| Git: branch=/)
+    assert.match(block, /\| PC6 工作区 \| `(PASS|WARN)` \| Git：分支=/)
+    assert.match(block, /### DevCodex · 入口检查/)
     console.log('  ✓ profile_compose_entry_check reports grok-bot PC5 tier and observed PC6 git state')
     const plan = await call('devcodex-profile', 'profile_context_plan', {
       project, intent: 'fix', changeTypes: ['source-code'], contextEpoch: begin.contextEpoch, confidence: 0.9,
@@ -225,6 +237,26 @@ async function splitModeE2E () {
     assert.strictEqual(envelope.hostVariant, 'grok-bot/driver-synthesized-local-stdio')
     assert.strictEqual(envelope.provenanceLevel, 'driver-synthesized-host-event')
     console.log('  ✓ memory_task_admit_v2 admitted', admit.body.taskRootRelative, 'with driver-synthesized-host-event provenance')
+    const reportPath = `${admit.body.taskRootRelative}/reports/grok/20260101/01--验证报告.md`
+    const closeout = await call('devcodex-memory', 'memory_turn_closeout_v1', {
+      project, title: 'grok-bot e2e', intent: 'fix', sourceMessage: prompt,
+      turn: { user: prompt, ai: '定位并修复空指针 | 已验证', status: 'completed' },
+      sessionStatus: 'in-progress',
+      notes: '关键决策：仅修改空指针分支',
+      report: { targetPath: reportPath, content: '# 验证报告\n\n- ok\n' },
+      summary: 'grok-bot e2e closeout'
+    })
+    assert.ok(!closeout.result.isError, JSON.stringify(closeout.body).slice(0, 800))
+    assert.strictEqual(closeout.body.schemaVersion, 'MemoryTurnCloseoutReceiptV1')
+    const activeRoot = path.join(ws, '.devcodex', project)
+    assert.ok(fs.existsSync(path.join(activeRoot, reportPath)))
+    const daily = fs.readFileSync(path.join(activeRoot, closeout.body.sessionWrite.file), 'utf8')
+    assert.match(daily, /- \*\*状态\*\*：🔄 进行中/)
+    assert.doesNotMatch(daily, /待补充内容/)
+    assert.match(daily, /\| 1 \| 修复登录页面空指针 \| 定位并修复空指针 \\\| 已验证 \| ✅ \|/)
+    assert.match(daily, /✅ \|\n\n关键决策：仅修改空指针分支/)
+    assert.ok(closeout.body.summary && closeout.body.summary.ok)
+    console.log('  ✓ memory_turn_closeout_v1 writes report + session row/status + SUMMARY in one call')
   } finally {
     Object.values(servers).forEach(s => s.close())
     if (!process.env.DEVCODEX_KEEP_TEST_TMP) fs.rmSync(tmp, { recursive: true, force: true })

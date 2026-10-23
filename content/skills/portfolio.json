@@ -6,7 +6,7 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "67c010bb3feae21da186da62f59250aee200c90aa17ab34b36690759f40810eb",
+    "sourceDigest": "551b528e53b10b866a48cc8cb3f4b858a85de28930fb88f88ecfc03de34b760c",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "16cf44508be1000903d8d9f5ebf7b1a97a32a3806646dd4af2f2f1aed4a68e7c",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "cfd709b1248855c06c56373d1bcfe4798acefd7f1e0c11555b26cfd8caa1e8a6",
     "consumerInventoryFileCount": 734,
     "consumerInventoryDigest": "f3accfe94e0f8eb41b8a5f1185fda31ea9fe234bed27d0a4f7abb5bb5cbffab4",
-    "consumerProjectionDigest": "3ee09e07e2381115709175debcd23fe9016299a2fe37e9647351158d0cc4cc61",
-    "portfolioInputDigest": "c96b5e07a2b267a19cd422df9d7c6972fbb86ad885bfbd9859b19ca4428ef031"
+    "consumerProjectionDigest": "23f985b91f094108b15a0b2d4fc33f65b54acfdca405836ca888009ebec4f2d9",
+    "portfolioInputDigest": "01045bda562e63a976ad1d6b13ad074b57000b7cddec34cc2ed7b1142cdce051"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -17091,6 +17091,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/grok-bot-driver.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/host-parity-scorecard.js",
           "role": "current"
         },
@@ -20735,6 +20739,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-grok-bot-host.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-hooks-runtime.js",
           "role": "current"
         },
@@ -20847,6 +20855,7 @@
         "scripts/test-global-install-smoke.js",
         "scripts/test-governance-intake.js",
         "scripts/test-governance-status-summary.js",
+        "scripts/test-grok-bot-host.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-capability-routing.js",
         "scripts/test-lifecycle-stop-gate.js",
@@ -20928,6 +20937,7 @@
           "scripts/test-global-install-smoke.js",
           "scripts/test-governance-intake.js",
           "scripts/test-governance-status-summary.js",
+          "scripts/test-grok-bot-host.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-capability-routing.js",
           "scripts/test-lifecycle-stop-gate.js",
@@ -21736,8 +21746,8 @@
         "content/skills/user-visible-output-contract/SKILL.md"
       ],
       "source": "content/skills/user-visible-output-contract/SKILL.md",
-      "hash": "2877ea53f4e7b53ef6ac14b95b42f555dc3fa78d722b4fbb4d95fcb60f413b0f",
-      "sourceBytes": 26296,
+      "hash": "ba9afc969c8e7092fde8bcf441c631099d465e4d71df921ae0938eb88a69b166",
+      "sourceBytes": 26299,
       "version": "1.20.7",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",

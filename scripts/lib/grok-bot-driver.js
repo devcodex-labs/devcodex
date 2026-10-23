@@ -108,6 +108,52 @@ function summarizeIngress (output) {
   }
 }
 
+const PROFILE_STALE_COMMIT_THRESHOLD = 20
+
+function gitOut (cwd, args) {
+  try {
+    return require('child_process').execFileSync('git', args, { cwd, encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+  } catch { return null }
+}
+
+// Bounded, read-only freshness check of the project's workspace Profile against the project's Git state.
+function profileFreshness (root) {
+  let ws = path.dirname(root)
+  while (ws && !fs.existsSync(path.join(ws, '.devcodex', 'layout.json'))) {
+    const parent = path.dirname(ws)
+    if (parent === ws) { ws = null; break }
+    ws = parent
+  }
+  if (!ws) return { status: 'unknown', warnings: [] }
+  const profileDir = path.join(ws, '.devcodex', path.relative(ws, root), 'profile')
+  if (!fs.existsSync(profileDir)) {
+    return { status: 'missing', profileDir, warnings: [{ code: 'PROFILE_MISSING', message: `no Profile at ${profileDir}; run devcodex profile init in the project` }] }
+  }
+  const warnings = []
+  const head = gitOut(root, ['rev-parse', 'HEAD'])
+  let newest = 0
+  for (const name of fs.readdirSync(profileDir)) {
+    const file = path.join(profileDir, name)
+    let stat
+    try { stat = fs.statSync(file) } catch { continue }
+    if (!stat.isFile()) continue
+    newest = Math.max(newest, stat.mtimeMs)
+    if (!/\.md$/.test(name) || stat.size > 512 * 1024) continue
+    const match = fs.readFileSync(file, 'utf8').match(/"schemaVersion":\s*"ProfileCurrentTruthV1"[\s\S]*?"gitHead":\s*"([a-f0-9]{7,40})"/)
+    if (match && head && !head.startsWith(match[1])) {
+      const behind = gitOut(root, ['rev-list', '--count', `${match[1]}..HEAD`])
+      warnings.push({ code: 'PROFILE_TRUTH_DRIFT', file: name, profileGitHead: match[1].slice(0, 8), gitHead: head.slice(0, 8), commitsBehind: behind === null ? null : Number(behind), message: 'Profile current-truth gitHead differs from the project HEAD; refresh with devcodex profile init --force or scripts/refresh-profile-current-truth.js' })
+    }
+  }
+  if (head && newest) {
+    const since = gitOut(root, ['rev-list', '--count', `--since=@${Math.floor(newest / 1000)}`, 'HEAD'])
+    if (since !== null && Number(since) >= PROFILE_STALE_COMMIT_THRESHOLD) {
+      warnings.push({ code: 'PROFILE_POSSIBLY_STALE', commitsSinceProfileUpdate: Number(since), message: `${since} commits since the Profile was last updated; review the Profile before relying on it` })
+    }
+  }
+  return { status: warnings.length ? 'stale' : 'fresh', profileDir, warnings }
+}
+
 function turnBegin (projectDir, prompt, options = {}) {
   const root = path.resolve(projectDir)
   if (!fs.existsSync(root)) throw driverError('GROK_BOT_PROJECT_MISSING', `project directory not found: ${root}`)
@@ -115,8 +161,11 @@ function turnBegin (projectDir, prompt, options = {}) {
   runHookEvent(root, 'SessionStart', {}, options)
   const output = runHookEvent(root, 'UserPromptSubmit', { prompt }, options)
   const summary = summarizeIngress(output)
+  const freshness = profileFreshness(root)
   return {
     schemaVersion: 'GrokBotTurnBeginV1',
+    profileFreshness: freshness,
+    warnings: freshness.warnings.map(item => `${item.code}: ${item.message}`),
     provenance: 'driver-synthesized',
     project: options.project || path.basename(root),
     projectDir: root,
@@ -127,12 +176,14 @@ function turnBegin (projectDir, prompt, options = {}) {
       : null,
     systemMessage: options.includeSystemMessage ? output.systemMessage || '' : undefined,
     nextSteps: [
-      'Bracket every devcodex MCP call with observe-tool --phase pre / --phase post (same --tool-use-id and --input).',
+      'Bracket every devcodex MCP call with observe-tool --phase pre / --phase post (same --tool-use-id and --args-file; post adds --response-file).',
+      'profile_compose_entry_check {project,status,nextStep,entry{prompt,specRadar,activeTask}} and show PC0-PC10 first.',
       'profile_context_plan {project,intent,changeTypes,contextEpoch,confidence,semanticDecision{sourceRef=semanticDecisionSourceRef}}',
       'Take ingressRef from the post observe-tool output of profile_context_plan (routeStatus=selected).',
       'profile_load {project,contextBinding,files=plan.profile.selectedFiles}; memory_status {project,contextBinding}',
       'skill_route catalog (paginate until target card seen) -> commit {catalogDigest,skillId,contextBinding}',
-      'memory_task_admit_v2 {operation:"admit",project,ingressRef,task{taskKind,entryVariant,displayName},overview{content}}'
+      'memory_task_admit_v2 {operation:"admit",project,task{taskKind,entryVariant,displayName},overview{content}} (omit ingressRef)',
+      'memory_turn_closeout_v1 {project,title,intent,turn{user,ai,status},sessionStatus,report?,summary?} before ending the turn (S05)'
     ]
   }
 }
@@ -423,6 +474,7 @@ function cmdGrokBot (argv, { console: out = console, c = { red: s => s }, proces
 }
 
 module.exports = {
+  profileFreshness,
   cmdGrokBot,
   DRIVER_HOST,
   USAGE,

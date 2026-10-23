@@ -2940,8 +2940,16 @@ function dispatch(method, params) {
             const projectBound = args.project === 'workspace'
               ? false
               : resolvedConfig.projectConfig !== null
+            // Without an explicit model languageDecision, render in the user prompt's script: a prompt
+            // written mainly in CJK selects zh-CN for this turn (entry-check rendering only).
+            const promptText = typeof entry.prompt === 'string' ? entry.prompt : ''
+            const cjkChars = (promptText.match(/[\u4e00-\u9fff]/g) || []).length
+            const latinLetters = (promptText.match(/[A-Za-z]/g) || []).length
+            const promptLanguageDecision = !entry.languageDecision && cjkChars > 0 && cjkChars * 2 >= latinLetters
+              ? { kind: 'infer', scope: 'turn', replyLocale: 'zh-CN' }
+              : null
             const languageContext = resolveLanguageContext({
-              languageDecision: entry.languageDecision,
+              languageDecision: entry.languageDecision || promptLanguageDecision || undefined,
               prompt: entry.prompt,
               taskContext: entry.languageContext || entry.taskLanguageContext,
               conversationContext: entry.conversationLanguageContext,

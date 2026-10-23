@@ -23,6 +23,11 @@ TaskLifecycle 规范能力吸纳、源码操作状态恢复及本次入口/CP/�
 - Grok 插件 Skill 增加「Grok Bot (no native hooks)」小节与 HostParity 驱动档行。
 - 新增 `scripts/grok-bot-runtime.sh update|restart|status`：Grok Bot 连接器与驱动固定运行在独立干净副本（默认 `/workspace/devcodex-runtime`），只做 fast-forward 更新，并按副本路径重启 profile/memory 服务。
 - 新增来源级别 `driver-synthesized-host-event`：驱动合成事件不再记为原生 `trusted-host-event`；仅 `grok-bot/driver-synthesized-local-stdio` 变体可获得等同的入口授权（语义决策、准入、恢复判定），其他宿主不变，伪造到其他变体会被校验拒绝。
+- 新增 `memory_turn_closeout_v1`：一次调用完成 S05——可选新建报告（与 operational 写租约同等授权校验，仅限 `reports/` 下新文件）、会话分配/复用、📨 对话行与状态行更新、SUMMARY 追加。
+- `memory_session_write` 新增 `turn`（自动编号写入 📨 表格行）与 `sessionStatus`（更新「状态」行，不再停留在「已分配，待补充内容」）；自由 Markdown 紧跟表格时自动空行分隔，不再拼进表格。`content` 改为可选（至少提供 content/turn/sessionStatus/artifacts 之一）。
+- 入口检查表 PC 标签与内容对齐（PC0 版本与运行、PC2 会话、PC3 执行准备、PC5 宿主、PC6 工作区、PC7 续接、PC8 流程与方案；英文同步），模板 `precheck-status.prompt.md` 同步；`profile_compose_entry_check` 未提供 `languageDecision` 时按用户提示语言渲染（中文提示 → 中文）。
+- `devcodex grok-bot turn-begin` 输出 `profileFreshness` 与 `warnings`：Profile current-truth `gitHead` 与项目 HEAD 不一致（`PROFILE_TRUTH_DRIFT`）或 Profile 更新后已有 ≥20 次提交（`PROFILE_POSSIBLY_STALE`）时告警。
+- Grok 插件 Skill 的 Grok Bot 小节补充：S04 在该路径不可强制、Profile 新鲜度告警、`memory_turn_closeout_v1` 收尾。
 - 驱动宿主写入 `DEVCODEX_HOST_VARIANT`，turn-begin 的 SkillRouteBootstrap 报告 `grok-bot/driver-synthesized-local-stdio`。
 - `devcodex profile init` 对 DevCodex 源码仓库自身生成 ProfileCurrentTruthV1 与 currentTruthRef：仅取 package.json、本地 git/候选身份、CI 矩阵与公开 GitHub Release/workflow 回执；证据缺失保持 UNVERIFIED，由未改动的 ProfileCurrentTruthGate 拒绝。
 - 使用前提：在父级工作区（如 `/workspace`）执行 `devcodex init`，不要在仓库内初始化；各项目再执行 `devcodex profile init`。

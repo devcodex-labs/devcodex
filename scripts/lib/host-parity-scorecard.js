@@ -664,8 +664,8 @@ function composeEntryCheckBlock(options = {}) {
   const pc4Status = pc4Match ? pc4Match[1] : 'UNVERIFIED'
   const pc4Cell = pc4Match ? pc4Match[2] : pc4Line
   const labels = english
-    ? ['Interruption', 'Intent', 'Project', 'Boundary', 'Spec radar', 'Scope', 'Dirty boundary', 'Context', 'Risk', 'Validation', 'Next']
-    : ['中断处理', '当前意图', '项目绑定', '确认边界', '规范雷达', '本轮范围', 'Dirty 边界', '上下文', '风险等级', '验证', '下一步']
+    ? ['Version', 'Intent', 'Session', 'Readiness', 'Spec radar', 'Host', 'Workspace', 'Continuation', 'Workflow', 'Validation', 'Next']
+    : ['版本与运行', '当前意图', '会话', '执行准备', '规范雷达', '宿主', '工作区', '续接', '流程与方案', '验证', '下一步']
   const pc5 = evidenceRow(options.hostEvidence, english, english
     ? 'Host: deployment, synchronization, and load evidence (Grok is Full only through the Full launcher)'
     : '宿主：部署、同步与加载证据（Grok 仅在 Full 启动器下可判 Full）')

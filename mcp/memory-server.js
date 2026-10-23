@@ -274,7 +274,19 @@ const EXPLICIT_RUNTIME_AGENT = normalizeAgent(process.env.DEVCODEX_AGENT)
 const DEFAULT_AGENT = detectRuntimeAgent()
 const TASK_KINDS = new Set(['requirements', 'bugs', 'optimizations', 'scenario-tests'])
 const MAX_MEMORY_SESSION_WRITE_CHARS = 262144
-const MEMORY_SESSION_WRITE_REQUIRED_FIELDS = Object.freeze(['content'])
+const MEMORY_SESSION_WRITE_REQUIRED_FIELDS = Object.freeze([])
+const MEMORY_SESSION_TURN_SCHEMA = Object.freeze({
+  type: 'object',
+  additionalProperties: false,
+  required: ['user', 'ai'],
+  properties: {
+    user: { type: 'string' }, ai: { type: 'string' },
+    status: { type: 'string', enum: ['in-progress', 'completed', 'blocked'] }
+  }
+})
+const MEMORY_SESSION_STATUS_SCHEMA = Object.freeze({ type: 'string', enum: ['in-progress', 'completed'] })
+const MEMORY_SESSION_STATUS_TEXT = Object.freeze({ 'in-progress': '🔄 进行中', completed: '✅ 已完成' })
+const MEMORY_TURN_STATUS_ICON = Object.freeze({ 'in-progress': '🔄', completed: '✅', blocked: '⛔' })
 const MEMORY_SOURCE_MAX_BYTES = 8 * 1024 * 1024
 const WORKSPACE_CONTEXT_PROJECT = '__workspace__'
 const PROJECT_NAMESPACE_INPUT_SCHEMA = Object.freeze({
@@ -733,11 +745,13 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       additionalProperties: false,
-      required: [...MEMORY_SESSION_WRITE_REQUIRED_FIELDS],
+      anyOf: [{ required: ['content'] }, { required: ['turn'] }, { required: ['sessionStatus'] }],
       properties: {
         agent: { type: 'string' },
         date: { type: 'string', description: 'YYYYMMDD，默认今日' },
         content: { type: 'string', minLength: 1, maxLength: MAX_MEMORY_SESSION_WRITE_CHARS },
+        turn: MEMORY_SESSION_TURN_SCHEMA,
+        sessionStatus: MEMORY_SESSION_STATUS_SCHEMA,
         artifacts: { type: 'array', minItems: 1, maxItems: 20, items: ARTIFACT_LINK_DESCRIPTOR_SCHEMA },
         sessionId: { type: 'string', minLength: 1, maxLength: 64, description: 'allocate 返回的会话编号' },
         sessionBinding: { type: 'string', pattern: '^[a-f0-9]{64}$', description: 'allocate 返回的绑定值' },
@@ -850,6 +864,24 @@ const TOOLS = [
         memoryArtifact: SUMMARY_ARTIFACT_DESCRIPTOR_SCHEMA,
         scope: { type: 'string', enum: ['project', 'workspace'], description: '写入域' },
         project: PROJECT_NAMESPACE_INPUT_SCHEMA
+      }
+    }
+  },
+  {
+    name: 'memory_turn_closeout_v1',
+    description: 'S05 收尾：报告+会话记忆+SUMMARY。',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['project', 'title', 'intent', 'turn'],
+      properties: {
+        project: PROJECT_NAMESPACE_INPUT_SCHEMA,
+        title: { type: 'string' }, intent: { type: 'string' }, sourceMessage: { type: 'string' },
+        turn: MEMORY_SESSION_TURN_SCHEMA,
+        sessionStatus: MEMORY_SESSION_STATUS_SCHEMA,
+        notes: { type: 'string' },
+        report: { type: 'object', required: ['targetPath', 'content'], properties: { targetPath: { type: 'string' }, content: { type: 'string' } } },
+        summary: { type: 'string' }
       }
     }
   }
@@ -1692,7 +1724,7 @@ const MEMORY_SESSION_ALLOCATE_FIELDS = new Set([
   'agent', 'scope', 'project', 'date', 'title', 'intent', 'sourceMessage'
 ])
 const MEMORY_SESSION_WRITE_FIELDS = new Set([
-  'agent', 'scope', 'project', 'date', 'content', 'artifacts', 'sessionId', 'sessionBinding'
+  'agent', 'scope', 'project', 'date', 'content', 'turn', 'sessionStatus', 'artifacts', 'sessionId', 'sessionBinding'
 ])
 const MEMORY_ARTIFACT_LINK_PROJECT_FIELDS = new Set([
   'operation', 'documentPath', 'artifacts', 'linkCapability', 'scope', 'project'
@@ -1908,7 +1940,69 @@ function normalizeMemoryAllocationLine(value, fallback, field, maxLength) {
   return normalized
 }
 
-function insertMemorySessionContent(existing, content, binding) {
+function sanitizeMemoryTableCell(value) {
+  return String(value || '').replace(/\r?\n+/g, ' ').replace(/\|/g, '\\|').trim()
+}
+
+function normalizeMemorySessionEdits(args) {
+  const edits = { turn: null, sessionStatus: null }
+  if (args.turn !== undefined) {
+    const turn = args.turn
+    if (!turn || typeof turn !== 'object' || Array.isArray(turn) ||
+        typeof turn.user !== 'string' || !turn.user.trim() || typeof turn.ai !== 'string' || !turn.ai.trim() ||
+        (turn.status !== undefined && !MEMORY_TURN_STATUS_ICON[turn.status])) {
+      throw memoryQueryError('turn must be {user, ai, status?}.', 'Pass short user/AI summaries for one table row.', 'MEMORY_WRITER_ARGUMENT_INVALID')
+    }
+    edits.turn = { user: sanitizeMemoryTableCell(turn.user).slice(0, 400), ai: sanitizeMemoryTableCell(turn.ai).slice(0, 800), status: turn.status || 'completed' }
+  }
+  if (args.sessionStatus !== undefined) {
+    if (!MEMORY_SESSION_STATUS_TEXT[args.sessionStatus]) {
+      throw memoryQueryError('sessionStatus must be in-progress or completed.', 'Use in-progress until the task is closed.', 'MEMORY_WRITER_ARGUMENT_INVALID')
+    }
+    edits.sessionStatus = args.sessionStatus
+  }
+  return edits
+}
+
+// Applies structured edits inside one bound session block: status line, a numbered 📨 table row,
+// and free Markdown separated from any trailing table so it never becomes a malformed table row.
+function applyMemorySessionBlockEdits(blockText, content, edits = {}) {
+  let block = blockText.replace(/\s*$/, '\n')
+  const applied = []
+  if (edits.sessionStatus) {
+    const statusRe = /^- \*\*状态\*\*：.*$/m
+    if (statusRe.test(block)) {
+      block = block.replace(statusRe, `- **状态**：${MEMORY_SESSION_STATUS_TEXT[edits.sessionStatus]}`)
+      applied.push('status')
+    }
+  }
+  let rowText = null
+  if (edits.turn) {
+    const lines = block.split('\n')
+    const heading = lines.findIndex(line => /^###\s*📨/.test(line))
+    if (heading >= 0) {
+      let first = heading + 1
+      while (first < lines.length && !lines[first].startsWith('|')) first++
+      let last = first
+      while (last < lines.length && lines[last].startsWith('|')) last++
+      const rows = lines.slice(first, last).filter(line => /^\|\s*\d+\s*\|/.test(line)).length
+      rowText = `| ${rows + 1} | ${edits.turn.user} | ${edits.turn.ai} | ${MEMORY_TURN_STATUS_ICON[edits.turn.status]} |`
+      lines.splice(last, 0, rowText)
+      block = lines.join('\n')
+      applied.push('turn')
+    }
+  }
+  if (content) {
+    const trimmed = block.replace(/\s*$/, '')
+    const lastLine = trimmed.slice(trimmed.lastIndexOf('\n') + 1)
+    const gap = lastLine.startsWith('|') && !String(content).startsWith('|') ? '\n\n' : '\n'
+    block = `${trimmed}${gap}${content}${String(content).endsWith('\n') ? '' : '\n'}`
+    applied.push('content')
+  }
+  return { block, applied, rowText }
+}
+
+function insertMemorySessionContent(existing, content, binding, edits = {}) {
   const blocks = parseDailySessionBlocks(existing)
   if (!binding.sessionId || !binding.sessionBinding) {
     throw memoryQueryError(
@@ -1948,11 +2042,17 @@ function insertMemorySessionContent(existing, content, binding) {
     )
   }
 
-  const targetPrefix = existing.slice(0, target.end).replace(/[ \t]*$/, '')
   const suffix = existing.slice(target.end)
-  const separator = targetPrefix.endsWith('\n') ? '' : '\n'
-  const contentSuffix = String(content).endsWith('\n') ? '' : '\n'
-  const next = `${targetPrefix}${separator}${content}${contentSuffix}${suffix}`
+  const blockEdit = applyMemorySessionBlockEdits(existing.slice(target.start, target.end), content, edits)
+  if (!blockEdit.applied.length) {
+    throw memoryQueryError(
+      `Memory session ${target.sessionId} has no status line or 📨 table for the requested edit.`,
+      'Pass content, or repair the session block to the memory-session template.',
+      'MEMORY_SESSION_LAYOUT_INVALID'
+    )
+  }
+  const trailing = suffix ? (blockEdit.block.endsWith('\n\n') ? '' : '\n') : ''
+  const next = `${existing.slice(0, target.start)}${blockEdit.block}${trailing}${suffix}`
 
   const afterBlocks = parseDailySessionBlocks(next)
   const targetAfter = afterBlocks.find(block => block.sessionId === target.sessionId)
@@ -1962,7 +2062,9 @@ function insertMemorySessionContent(existing, content, binding) {
     block.sessionId === nonTargetAfter[index]?.sessionId && block.raw === nonTargetAfter[index]?.raw
   ))
   const targetChanged = Boolean(targetAfter && targetAfter.raw !== target.raw)
-  const targetContainsWrite = Boolean(targetAfter && targetAfter.raw.includes(String(content)))
+  const targetContainsWrite = Boolean(targetAfter &&
+    (!content || targetAfter.raw.includes(String(content))) &&
+    (!blockEdit.rowText || targetAfter.raw.includes(blockEdit.rowText)))
   if (!nonTargetStable || !targetChanged || !targetContainsWrite) {
     throw memoryQueryError(
       'Memory session write isolation verification failed before persistence.',
@@ -1978,7 +2080,8 @@ function insertMemorySessionContent(existing, content, binding) {
       mode: 'bound-session',
       sessionId: target.sessionId,
       bindingStatus: 'verified',
-      writeDigest: fileDigest(content),
+      writeDigest: fileDigest(edits.turn || edits.sessionStatus ? JSON.stringify([content, edits]) : content),
+      applied: blockEdit.applied,
       targetBeforeDigest: target.digest,
       targetAfterDigest: targetAfter.digest,
       nonTargetStable,
@@ -3479,20 +3582,29 @@ function handleMemorySessionWrite(args) {
     'memory_session_write',
     MEMORY_SESSION_WRITE_REQUIRED_FIELDS
   )
-  if (typeof args.content !== 'string' || !args.content.length) {
+  const hasContent = args.content !== undefined
+  if (hasContent && (typeof args.content !== 'string' || !args.content.length)) {
     throw memoryQueryError(
       'content must be a non-empty string.',
       'Pass bounded Markdown content from the current task.',
       'MEMORY_WRITER_ARGUMENT_INVALID'
     )
   }
+  if (!hasContent && args.turn === undefined && args.sessionStatus === undefined && args.artifacts === undefined) {
+    throw memoryQueryError(
+      'memory_session_write needs content, turn, sessionStatus or artifacts.',
+      'Pass a turn row ({user, ai, status}) and/or sessionStatus, or bounded Markdown content.',
+      'MEMORY_WRITER_ARGUMENT_INVALID'
+    )
+  }
+  const sessionEdits = normalizeMemorySessionEdits(args)
   validateDate(args.date)
   const target = resolveMemoryTarget(args)
   const binding = recoverMemorySessionWriteBinding(args, target)
   const p = memoryClientPath(target, 'tasks', `${args.date || today()}.md`)
   const documentPath = relativeToActiveRoot(target, p)
   let artifactLinks = null
-  let renderedContent = args.content
+  let renderedContent = hasContent ? args.content : ''
   if (args.artifacts !== undefined) {
     artifactLinks = projectMemoryArtifactLinks(target, documentPath, args.artifacts, {
       surface: 'memory-session-artifacts'
@@ -3516,7 +3628,7 @@ function handleMemorySessionWrite(args) {
   templateContext.selectContent = content => boundMemoryTemplateContent(content, binding)
   templateContext.artifactScope = () => ({ kind: 'memory-session', sessionId: binding.sessionId })
   const receipt = withMemoryTransaction(target, p, existing => {
-    const rendered = insertMemorySessionContent(existing, renderedContent, binding)
+    const rendered = insertMemorySessionContent(existing, renderedContent, binding, sessionEdits)
     sessionWriteReceipt = rendered.receipt
     return {
       content: rendered.content,
@@ -3529,7 +3641,7 @@ function handleMemorySessionWrite(args) {
       date: args.date || today(),
       sessionId: binding.sessionId,
       sessionBinding: binding.sessionBinding,
-      contentDigest: crypto.createHash('sha256').update(renderedContent).digest('hex')
+      contentDigest: crypto.createHash('sha256').update(sessionEdits.turn || sessionEdits.sessionStatus ? JSON.stringify([renderedContent, sessionEdits]) : renderedContent).digest('hex')
     }),
     templateContext
   })
@@ -7202,6 +7314,85 @@ function resolveObservedOperationIngress(target, args) {
   }
 }
 
+function structuredResult(result) {
+  if (result?.structuredContent) return result.structuredContent
+  try { return JSON.parse(result?.content?.[0]?.text) } catch { return { text: result?.content?.[0]?.text || null } }
+}
+
+function handleMemoryTurnCloseoutV1(args) {
+  const allowed = new Set(['project', 'title', 'intent', 'sourceMessage', 'turn', 'sessionStatus', 'notes', 'report', 'summary'])
+  for (const key of Object.keys(args || {})) {
+    if (!allowed.has(key)) throw memoryQueryError(`Unknown field: ${key}`, 'Remove unsupported fields.', 'MEMORY_WRITER_ARGUMENT_INVALID')
+  }
+  normalizeMemorySessionEdits({ turn: args.turn, sessionStatus: args.sessionStatus })
+  if (args.report !== undefined && (!args.report || typeof args.report.targetPath !== 'string' || typeof args.report.content !== 'string' || !args.report.content)) {
+    throw memoryQueryError('report must be {targetPath, content}.', 'Pass a new reports/ Markdown path and its content.', 'MEMORY_WRITER_ARGUMENT_INVALID')
+  }
+  if (args.summary !== undefined && (typeof args.summary !== 'string' || !args.summary.trim())) {
+    throw memoryQueryError('summary must be a non-empty string.', 'Pass one SUMMARY line.', 'MEMORY_WRITER_ARGUMENT_INVALID')
+  }
+  const base = { project: args.project, scope: 'project' }
+  const target = resolveMemoryTarget(base)
+  const steps = {}
+  let reportDescriptor = null
+  if (args.report) {
+    const relative = String(args.report.targetPath || '').replace(/\\/g, '/').replace(/^\.\//, '')
+    if (!/\.md$/i.test(relative) || !/(^|\/)reports\//.test(relative)) {
+      throw memoryQueryError('report.targetPath must be a Markdown file under a reports/ directory.', 'Use <taskRoot>/reports/<agent>/YYYYMMDD/NN--简述.md.', 'MEMORY_TURN_CLOSEOUT_REPORT_PATH_INVALID')
+    }
+    // Same authority as memory_workflow_operational_write_lease: current ingress + task-report slot.
+    const lease = structuredResult(handleMemoryWorkflowOperationalWriteLease({ project: args.project, operation: 'create', targets: [relative] }))
+    const absolute = path.resolve(target.activeRoot, relative)
+    if (!absolute.startsWith(path.resolve(target.activeRoot) + path.sep)) {
+      throw memoryQueryError('report.targetPath escapes the active root.', 'Use an active-root relative path.', 'MEMORY_TURN_CLOSEOUT_REPORT_PATH_INVALID')
+    }
+    fs.mkdirSync(path.dirname(absolute), { recursive: true })
+    fs.writeFileSync(absolute, args.report.content.endsWith('\n') ? args.report.content : `${args.report.content}\n`, { flag: 'wx' })
+    steps.report = {
+      targetPath: relative,
+      leaseId: lease.lease?.leaseId || null,
+      slotId: lease.lease?.slotId || null,
+      digest: crypto.createHash('sha256').update(fs.readFileSync(absolute)).digest('hex')
+    }
+    reportDescriptor = {
+      id: 'turn-report',
+      label: path.basename(relative, '.md'),
+      targetPath: relative,
+      purpose: '本轮报告'
+    }
+  }
+  const allocation = structuredResult(handleMemorySessionAllocate({
+    ...base, title: args.title, intent: args.intent, ...(args.sourceMessage ? { sourceMessage: args.sourceMessage } : {})
+  }))
+  steps.session = { sessionId: allocation.sessionId }
+  const write = structuredResult(handleMemorySessionWrite({
+    ...base,
+    sessionId: allocation.sessionId,
+    sessionBinding: allocation.sessionBinding,
+    turn: args.turn,
+    sessionStatus: args.sessionStatus || 'in-progress',
+    ...(args.notes ? { content: args.notes } : {}),
+    ...(reportDescriptor ? { artifacts: [reportDescriptor] } : {})
+  }))
+  steps.sessionWrite = { file: write.file || null, applied: write.sessionWrite?.applied || [], readbackVerified: write.sessionWrite?.readbackVerified === true }
+  if (args.summary) {
+    const summaryResult = handleMemorySummaryAppend({
+      ...base,
+      entry: {
+        summary: args.summary.trim().slice(0, 400),
+        status: args.sessionStatus === 'completed' ? 'completed' : 'active',
+        type: args.intent,
+        sessionId: allocation.sessionId
+      },
+      ...(reportDescriptor ? { reportArtifact: { label: reportDescriptor.label, targetPath: reportDescriptor.targetPath, purpose: reportDescriptor.purpose } } : {})
+    })
+    const summary = structuredResult(summaryResult)
+    steps.summary = { file: summary.file || null, ok: summaryResult?.isError !== true }
+  }
+  const receipt = { schemaVersion: 'MemoryTurnCloseoutReceiptV1', project: target.project, ...steps }
+  return { content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }], structuredContent: receipt }
+}
+
 function handleMemoryWorkflowOperationalWriteLease(args) {
   const target = taskMemoryTransactionTarget(args)
   if (target.scope !== 'project' || !target.project) {
@@ -7402,6 +7593,7 @@ function dispatch(method, params) {
           case 'memory_session_allocate': return handleMemorySessionAllocate(args)
           case 'memory_session_read': return handleMemorySessionRead(args)
           case 'memory_session_write': return handleMemorySessionWrite(args)
+          case 'memory_turn_closeout_v1': return handleMemoryTurnCloseoutV1(args)
           case 'memory_artifact_link_project': return handleMemoryArtifactLinkProject(args)
           case 'memory_cp_confirm': return handleMemoryCpConfirm(args)
           case 'memory_summary_read': return handleMemorySummaryRead(args)

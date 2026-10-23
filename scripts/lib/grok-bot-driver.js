@@ -321,6 +321,44 @@ function parseFlags (argv) {
   return { positional, flags }
 }
 
+const HOST_WRAPPER_RE = /^\s*<cursor_untrusted_data_[A-Za-z0-9_]+[^>]*>\s*|\s*<\/cursor_untrusted_data_[A-Za-z0-9_]+>\s*$/g
+
+// Grok Bot surfaces MCP results as text (optionally wrapped in an untrusted-data
+// fence). Rebuild the MCP CallToolResult shape the lifecycle observer expects.
+function shapeToolResponse (rawText) {
+  const text = String(rawText || '').replace(HOST_WRAPPER_RE, '').trim()
+  try {
+    const parsed = JSON.parse(text)
+    if (parsed && typeof parsed === 'object' && Array.isArray(parsed.content)) return parsed
+  } catch { }
+  const start = text.search(/[{[]/)
+  let body = null
+  let head = text
+  let tail = ''
+  if (start === 0) {
+    try { body = JSON.parse(text) } catch {
+      const match = /^[{[][\s\S]*?\n[}\]]/.exec(text)
+      if (match) {
+        try { body = JSON.parse(match[0]); head = match[0]; tail = text.slice(match[0].length).trim() } catch { }
+      }
+    }
+  }
+  const content = [{ type: 'text', text: head }]
+  if (tail) content.push({ type: 'text', text: tail })
+  const result = { content }
+  if (body && typeof body === 'object' && !Array.isArray(body)) {
+    if (body.errorCode || body.ok === false) result.isError = true
+  }
+  return result
+}
+
+function readFileFlag (value, name) {
+  if (value === undefined || value === true) return undefined
+  try { return fs.readFileSync(String(value), 'utf8') } catch (error) {
+    throw driverError('GROK_BOT_FILE_UNREADABLE', `--${name}: ${error.message}`)
+  }
+}
+
 function parseJsonFlag (value, name) {
   if (value === undefined || value === true) return undefined
   const text = String(value).startsWith('@') ? fs.readFileSync(String(value).slice(1), 'utf8') : String(value)
@@ -329,7 +367,9 @@ function parseJsonFlag (value, name) {
 
 const USAGE = [
   'devcodex grok-bot turn-begin <projectDir> <prompt> [--project <name>] [--system-message]',
-  'devcodex grok-bot observe-tool --phase pre|post --tool <name> --input <json|@file> [--response <json|@file>] --tool-use-id <id> [--project-dir <dir>]',
+  'devcodex grok-bot observe-tool --project-dir <dir> --phase pre|post --tool <devcodex-profile__x|devcodex-memory__x> --tool-use-id <id> (--args-file <file> | --input <json|@file>) [--response-file <raw tool output file> | --response <json|@file>]',
+  'Workspace: run `devcodex init` once in the PARENT workspace directory (e.g. /workspace), not inside a repo, then `devcodex profile init` in each project.',
+  'Session: DEVCODEX_HOST_SESSION_ID (default grok-bot-session) must match the MCP server env.',
   'devcodex grok-bot run <projectDir> <prompt> [--intent dev|fix|...] [--change source-code,...] [--skill <id>] [--admit] [--task-kind <k>] [--entry <v>]'
 ].join('\n')
 
@@ -343,11 +383,16 @@ async function runGrokBotCli (argv = [], io = {}) {
       project: flags.project, includeSystemMessage: flags['system-message'] === true
     })
   } else if (sub === 'observe-tool') {
-    result = observeTool(flags['project-dir'] || process.cwd(), {
+    if (!flags['project-dir'] || flags['project-dir'] === true) {
+      throw driverError('GROK_BOT_PROJECT_DIR_REQUIRED', '--project-dir <dir> is required for observe-tool')
+    }
+    const argsText = readFileFlag(flags['args-file'], 'args-file')
+    const responseText = readFileFlag(flags['response-file'], 'response-file')
+    result = observeTool(flags['project-dir'], {
       phase: flags.phase,
       tool: flags.tool,
-      input: parseJsonFlag(flags.input, 'input') || {},
-      response: parseJsonFlag(flags.response, 'response'),
+      input: argsText !== undefined ? parseJsonFlag(argsText, 'args-file') : (parseJsonFlag(flags.input, 'input') || {}),
+      response: responseText !== undefined ? shapeToolResponse(responseText) : parseJsonFlag(flags.response, 'response'),
       toolUseId: flags['tool-use-id']
     })
   } else if (sub === 'run') {
@@ -386,6 +431,7 @@ module.exports = {
   runGrokBotCli,
   runHookEvent,
   runTurn,
+  shapeToolResponse,
   summarizeIngress,
   turnBegin
 }

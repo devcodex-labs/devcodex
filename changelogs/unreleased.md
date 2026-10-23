@@ -16,6 +16,10 @@ TaskLifecycle 规范能力吸纳、源码操作状态恢复及本次入口/CP/�
 - 新增 `grok-bot` hostVariant（`grok-bot/driver-synthesized-local-stdio`，UNVERIFIED、非默认）：`host-adapter-identity.cjs` 注册变体/别名，`DEVCODEX_AGENT=grok-bot` 归一为 `grok` agent，不再落入 `unknown-agent`。
 - `lifecycle-host-adapters.cjs grok-bot` 复用 Grok 事件映射，事件与输出均标记 `devcodexEventProvenance=driver-synthesized`，不冒充原生宿主事件。
 - 新增 `devcodex grok-bot turn-begin|observe-tool|run`（`scripts/lib/grok-bot-driver.js`），供无原生生命周期 Hook 的 Grok Bot 合成 SessionStart/UserPromptSubmit 并为每次 MCP 调用补发 Pre/PostToolUse，打通 profile_context_plan → skill_route → memory_task_admit_v2。
+- `observe-tool` 新增 `--args-file`、`--response-file`（自动剥离 Grok Bot 不可信数据围栏并还原 MCP CallToolResult 形状）并强制 `--project-dir`；每次 MCP 调用前后各一条命令。
+- 驱动宿主写入 `DEVCODEX_HOST_VARIANT`，turn-begin 的 SkillRouteBootstrap 报告 `grok-bot/driver-synthesized-local-stdio`。
+- `devcodex profile init` 对 DevCodex 源码仓库自身生成 ProfileCurrentTruthV1 与 currentTruthRef：仅取 package.json、本地 git/候选身份、CI 矩阵与公开 GitHub Release/workflow 回执；证据缺失保持 UNVERIFIED，由未改动的 ProfileCurrentTruthGate 拒绝。
+- 使用前提：在父级工作区（如 `/workspace`）执行 `devcodex init`，不要在仓库内初始化；各项目再执行 `devcodex profile init`。
 - 限制：事件由驱动合成，PreToolUse 仅观测不强制拦截；回归见 `npm run test:grok-bot-host`。
 
 ## 全项目审查问题修复

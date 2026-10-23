@@ -33,11 +33,13 @@ function materializeMissingProfile(input = {}) {
   const context = input.context || {}
   const runtimeOptions = input.runtimeOptions || {}
   const generators = input.generators || {}
-  const contents = Object.fromEntries(
+  const generated = Object.fromEntries(
     (Array.isArray(input.actions) ? input.actions : [])
       .filter(item => item.action === 'generate')
       .map(item => [item.file, generators[item.file]()])
   )
+  const contents = require('./devcodex-source-profile-truth.js')
+    .augmentDevCodexSourceProfileContents(generated, input.projectRoot, runtimeOptions.sourceTruth || {})
   return materializeProfileDraft({
     projectIdentity: runtimeOptions.projectIdentity || path.basename(input.projectRoot),
     projectRoot: input.projectRoot,

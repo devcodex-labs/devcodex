@@ -487,6 +487,7 @@
     "scripts/lib/runtime-dependency-closure.js",
     "scripts/lib/grok-workspace-launcher.js",
     "scripts/lib/grok-bot-driver.js",
+    "scripts/lib/devcodex-source-profile-truth.js",
     "scripts/lib/grok-cli-env.js",
     "scripts/lib/cli-host-utils.js",
     "scripts/lib/cli-console-utils.js",

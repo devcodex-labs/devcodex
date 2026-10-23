@@ -104,7 +104,12 @@ const EVENT_MAP = Object.freeze({
 // Driver-synthesized hosts reuse a native host event map but never claim to be
 // native lifecycle events. `grok-bot` is fed by scripts/lib/grok-bot-driver.js.
 const DRIVER_HOSTS = Object.freeze({
-  'grok-bot': Object.freeze({ host: 'grok', agent: 'grok-bot', provenance: 'driver-synthesized' })
+  'grok-bot': Object.freeze({
+    host: 'grok',
+    agent: 'grok-bot',
+    provenance: 'driver-synthesized',
+    hostVariant: 'grok-bot/driver-synthesized-local-stdio'
+  })
 })
 
 function resolveDriverHost(host, payload = {}, env = process.env) {
@@ -112,6 +117,7 @@ function resolveDriverHost(host, payload = {}, env = process.env) {
   if (!driver) return { host, payload }
   if (!env.DEVCODEX_AGENT) env.DEVCODEX_AGENT = driver.agent
   if (!env.DEVCODEX_HOST_PLATFORM) env.DEVCODEX_HOST_PLATFORM = driver.host
+  if (!env.DEVCODEX_HOST_VARIANT && driver.hostVariant) env.DEVCODEX_HOST_VARIANT = driver.hostVariant
   return {
     host: driver.host,
     payload: {

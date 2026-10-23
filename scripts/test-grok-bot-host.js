@@ -31,7 +31,49 @@ function staticChecks () {
   assert.strictEqual(env.DEVCODEX_AGENT, 'grok-bot')
   const entry = capabilities.capabilities.find(item => item.hostVariant === 'grok-bot/driver-synthesized-local-stdio')
   assert.ok(entry && entry.status === 'UNVERIFIED' && entry.defaultEligible === false)
+  assert.strictEqual(driven.payload.devcodexExecutionSurface, 'grok-bot-driver')
+  assert.strictEqual(env.DEVCODEX_HOST_VARIANT, 'grok-bot/driver-synthesized-local-stdio')
   console.log('  ✓ grok-bot identity / adapter / capability registration')
+}
+
+function responseShapingChecks () {
+  const { shapeToolResponse } = require('./lib/grok-bot-driver.js')
+  const wrapped = shapeToolResponse('<cursor_untrusted_data_1337 source="CallDynamicTool">\n\n{\n  "schemaVersion": "X",\n  "ok": true\n}\ntrailing guidance\n</cursor_untrusted_data_1337>')
+  assert.deepStrictEqual(wrapped.content.map(item => item.text), ['{\n  "schemaVersion": "X",\n  "ok": true\n}', 'trailing guidance'])
+  assert.strictEqual(wrapped.isError, undefined)
+  assert.strictEqual(shapeToolResponse('{"errorCode":"E"}').isError, true)
+  assert.strictEqual(shapeToolResponse('<!-- profile_load_budget --> text').content[0].text, '<!-- profile_load_budget --> text')
+  const passthrough = { content: [{ type: 'text', text: 'x' }], isError: true }
+  assert.deepStrictEqual(shapeToolResponse(JSON.stringify(passthrough)), passthrough)
+  console.log('  ✓ observe-tool response shaping strips host wrapper')
+}
+
+function sourceProfileTruthChecks () {
+  const truth = require('./lib/devcodex-source-profile-truth.js')
+  assert.strictEqual(truth.isDevCodexSourceRoot(ROOT), true)
+  assert.strictEqual(truth.isDevCodexSourceRoot(os.tmpdir()), false)
+  const untouched = { 'README.md': 'x' }
+  assert.strictEqual(truth.augmentDevCodexSourceProfileContents(untouched, os.tmpdir()), untouched)
+  const sha = 'a'.repeat(40)
+  const evidence = {
+    release: { tag_name: 'v' + require('../package.json').version, draft: false },
+    publish: { id: 1, head_sha: sha, status: 'completed', conclusion: 'success' },
+    ci: { id: 2, head_sha: sha, status: 'completed', conclusion: 'success' }
+  }
+  const out = truth.augmentDevCodexSourceProfileContents({ '01-项目信息.md': '# 01\n' }, ROOT, { evidence, candidateId: 'validation-candidate-' + 'b'.repeat(64), gitHead: 'c'.repeat(40) })
+  const { parseProfileCurrentTruth, PROFILE_CURRENT_TRUTH_REF } = require('./lib/profile-current-truth')
+  const parsed = parseProfileCurrentTruth(out['05-发布规范.md'], { required: true })
+  assert.deepStrictEqual(parsed.errors, [])
+  assert.strictEqual(parsed.record.releaseCommit, sha)
+  assert.strictEqual(parsed.record.sourceCandidate.status, 'LOCAL_PENDING')
+  assert.strictEqual(parsed.record.sourceCandidate.releaseAuthorized, false)
+  for (const file of ['01-项目信息.md', '04-测试规范.md', '07-用户文档与契约规范.md']) {
+    assert.strictEqual(out[file].split(PROFILE_CURRENT_TRUTH_REF).length - 1, 1, file)
+  }
+  const missing = truth.buildDevCodexSourceTruthRecord(ROOT, { evidence: {}, candidateId: 'validation-candidate-' + 'b'.repeat(64), gitHead: 'c'.repeat(40) })
+  assert.strictEqual(missing.publishRun.status, 'UNVERIFIED')
+  assert.strictEqual(missing.githubRelease.status, 'UNVERIFIED')
+  console.log('  ✓ DevCodex source Profile truth is built only from observed evidence')
 }
 
 function cli (args, opts) {
@@ -85,6 +127,7 @@ async function splitModeE2E () {
   assert.match(begin.turnBinding, /^turn-/)
   assert.ok(begin.envelopeId && begin.semanticDecisionSourceRef)
   assert.strictEqual(begin.routeStatus, 'pending')
+  assert.strictEqual(begin.skillRouteBootstrap.hostVariant, 'grok-bot/driver-synthesized-local-stdio')
   console.log('  ✓ turn-begin yields contextEpoch / turnBinding / envelope')
 
   const servers = { 'devcodex-profile': mcp('profile', proj, env), 'devcodex-memory': mcp('memory', proj, env) }
@@ -93,9 +136,14 @@ async function splitModeE2E () {
   const call = async (server, tool, args) => {
     const id = `t-${++n}`
     const name = `${server}__${tool}`
-    cli(['grok-bot', 'observe-tool', '--project-dir', proj, '--phase', 'pre', '--tool', name, '--input', JSON.stringify(args), '--tool-use-id', id], { cwd: proj, env })
+    const argsFile = path.join(tmp, `${id}.args.json`)
+    const responseFile = path.join(tmp, `${id}.response.txt`)
+    fs.writeFileSync(argsFile, JSON.stringify(args))
+    cli(['grok-bot', 'observe-tool', '--project-dir', proj, '--phase', 'pre', '--tool', name, '--args-file', argsFile, '--tool-use-id', id], { cwd: proj, env })
     const result = await servers[server].call(tool, args)
-    const post = JSON.parse(cli(['grok-bot', 'observe-tool', '--project-dir', proj, '--phase', 'post', '--tool', name, '--input', JSON.stringify(args), '--response', JSON.stringify(result), '--tool-use-id', id], { cwd: proj, env }))
+    // Simulate Grok Bot: the host shows only the text content inside an untrusted-data fence.
+    fs.writeFileSync(responseFile, `<cursor_untrusted_data_1337 source="CallDynamicTool">\n\n${(result.content || []).map(item => item.text).join('\n')}\n</cursor_untrusted_data_1337>`)
+    const post = JSON.parse(cli(['grok-bot', 'observe-tool', '--project-dir', proj, '--phase', 'post', '--tool', name, '--args-file', argsFile, '--response-file', responseFile, '--tool-use-id', id], { cwd: proj, env }))
     return { result, body: body(result), post }
   }
   try {
@@ -142,6 +190,8 @@ async function splitModeE2E () {
 
 ;(async () => {
   staticChecks()
+  responseShapingChecks()
+  sourceProfileTruthChecks()
   await splitModeE2E()
   console.log('grok-bot host tests passed')
 })().catch(error => { console.error(error); process.exit(1) })

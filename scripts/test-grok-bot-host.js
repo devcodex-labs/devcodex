@@ -341,6 +341,7 @@ async function concurrentSessionsE2E () {
   const hsp = require('../hooks/_runtime/host-session-partition.cjs')
   assert.deepStrictEqual(hsp.hostSessionPartitionSegments({ DEVCODEX_AGENT: 'codex', DEVCODEX_HOST_SESSION_ID: 'x' }), [], 'native hosts keep the per-project partition')
   assert.deepStrictEqual(hsp.hostSessionPartitionSegments({ DEVCODEX_AGENT: 'grok-bot', DEVCODEX_HOST_SESSION_ID: 's1' }), ['.sessions', 's1'])
+  assert.deepStrictEqual(hsp.hostSessionPartitionSegments({ DEVCODEX_AGENT: 'grok-bot', DEVCODEX_HOST_SESSION_ID: 'grok-bot-session' }), [], 'default session keeps the pre-isolation location')
   assert.throws(() => hsp.hostSessionPartitionSegments({ DEVCODEX_AGENT: 'grok-bot', DEVCODEX_HOST_SESSION_ID: '../x' }), /HOST_SESSION|session/i)
   const passthrough = () => 'same'
   assert.strictEqual(hsp.wrapDispatchWithHostSession(passthrough, { DEVCODEX_AGENT: 'claude' }), passthrough, 'non-driver hosts dispatch unchanged')

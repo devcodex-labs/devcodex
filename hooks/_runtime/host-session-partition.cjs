@@ -5,7 +5,8 @@
 // Native hosts own one lifecycle state per project namespace. Grok Bot runs many
 // conversations against the same workspace through one pair of long-lived
 // connectors, so its lifecycle/recovery/admission/route state is keyed by the
-// conversation's host session id: .memory/hooks/<partition>/.sessions/<id>/.
+// conversation's host session id: .memory/hooks/<partition>/.sessions/<id>/ (the default
+// id grok-bot-session keeps .memory/hooks/<partition>/).
 // Every other host keeps the unchanged per-project partition.
 
 const DRIVER_SESSION_HOST_VARIANT = 'grok-bot/driver-synthesized-local-stdio'
@@ -32,7 +33,9 @@ function hostSessionPartitionSegments(env = process.env) {
     error.code = 'HOST_SESSION_ID_INVALID'
     throw error
   }
-  return [SESSION_SEGMENT, sessionId]
+  // The single-conversation default keeps the pre-isolation per-project location, so state
+  // created before session partitioning (and its active tasks) stays reachable.
+  return sessionId === DEFAULT_DRIVER_SESSION_ID ? [] : [SESSION_SEGMENT, sessionId]
 }
 
 function hostSessionError(message) {
@@ -50,7 +53,7 @@ function bindingSessionMismatch(args, sessionId) {
   if (!binding || typeof binding !== 'object' || !binding.contextEpoch || !binding.activeRoot || !binding.project) return null
   const fs = require('fs')
   const path = require('path')
-  const statePath = path.join(String(binding.activeRoot), '.memory', 'hooks', String(binding.project), SESSION_SEGMENT, sessionId, 'lifecycle-state.json')
+  const statePath = path.join(String(binding.activeRoot), '.memory', 'hooks', String(binding.project), ...(sessionId === DEFAULT_DRIVER_SESSION_ID ? [] : [SESSION_SEGMENT, sessionId]), 'lifecycle-state.json')
   let epoch = null
   try {
     epoch = JSON.parse(fs.readFileSync(statePath, 'utf8'))?.contextAcquisition?.contextEpoch || null

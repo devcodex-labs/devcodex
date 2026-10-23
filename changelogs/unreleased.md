@@ -11,6 +11,13 @@ TaskLifecycle 规范能力吸纳、源码操作状态恢复及本次入口/CP/�
 
 修复和边界见 [v1.20.5候选说明](releases/v1.20.5.md)。当前仅准备本地候选，不表示已发布或最终资格通过。下方既有历史条目保留，不批量移入新版本。
 
+## Grok Bot 宿主驱动（grok-bot）
+
+- 新增 `grok-bot` hostVariant（`grok-bot/driver-synthesized-local-stdio`，UNVERIFIED、非默认）：`host-adapter-identity.cjs` 注册变体/别名，`DEVCODEX_AGENT=grok-bot` 归一为 `grok` agent，不再落入 `unknown-agent`。
+- `lifecycle-host-adapters.cjs grok-bot` 复用 Grok 事件映射，事件与输出均标记 `devcodexEventProvenance=driver-synthesized`，不冒充原生宿主事件。
+- 新增 `devcodex grok-bot turn-begin|observe-tool|run`（`scripts/lib/grok-bot-driver.js`），供无原生生命周期 Hook 的 Grok Bot 合成 SessionStart/UserPromptSubmit 并为每次 MCP 调用补发 Pre/PostToolUse，打通 profile_context_plan → skill_route → memory_task_admit_v2。
+- 限制：事件由驱动合成，PreToolUse 仅观测不强制拦截；回归见 `npm run test:grok-bot-host`。
+
 ## 全项目审查问题修复
 
 - MCP supervisor 固定客户端已协商的 tools/prompts 契约；worker 崩溃后先复核候选，schema 漂移返回明确的重启错误。外层 stdin 使用共享有界 JSONL reader，超大帧拒绝后仍能处理合法请求。

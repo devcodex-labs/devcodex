@@ -101,6 +101,28 @@ const EVENT_MAP = Object.freeze({
   cursor: CURSOR_EVENT_MAP
 })
 
+// Driver-synthesized hosts reuse a native host event map but never claim to be
+// native lifecycle events. `grok-bot` is fed by scripts/lib/grok-bot-driver.js.
+const DRIVER_HOSTS = Object.freeze({
+  'grok-bot': Object.freeze({ host: 'grok', agent: 'grok-bot', provenance: 'driver-synthesized' })
+})
+
+function resolveDriverHost(host, payload = {}, env = process.env) {
+  const driver = DRIVER_HOSTS[host]
+  if (!driver) return { host, payload }
+  if (!env.DEVCODEX_AGENT) env.DEVCODEX_AGENT = driver.agent
+  if (!env.DEVCODEX_HOST_PLATFORM) env.DEVCODEX_HOST_PLATFORM = driver.host
+  return {
+    host: driver.host,
+    payload: {
+      ...(payload || {}),
+      devcodexEventProvenance: driver.provenance,
+      devcodexDriverHost: host,
+      devcodexExecutionSurface: 'grok-bot-driver'
+    }
+  }
+}
+
 function adapterTracePath(env = process.env) {
   const raw = String(env.DEVCODEX_LIFECYCLE_TRACE || '').trim()
   if (!raw) return ''
@@ -1054,7 +1076,8 @@ function applyCliEnvironmentOverrides (argv, env = process.env) {
 }
 
 if (require.main === module) {
-  const host = String(process.argv[2] || '').trim().toLowerCase()
+  const requestedHost = String(process.argv[2] || '').trim().toLowerCase()
+  const host = DRIVER_HOSTS[requestedHost] ? DRIVER_HOSTS[requestedHost].host : requestedHost
   if (!Object.prototype.hasOwnProperty.call(EVENT_MAP, host)) {
     process.stderr.write(`Unsupported DevCodex host adapter: ${host || '(missing)'}\n`)
     process.exit(2)
@@ -1085,7 +1108,11 @@ if (require.main === module) {
         process.env.DEVCODEX_HOST_EVENT) {
       payload.hookEventName = process.env.DEVCODEX_HOST_EVENT
     }
-    const result = runHostAdapter(host, payload)
+    const driver = resolveDriverHost(requestedHost, payload)
+    const result = runHostAdapter(driver.host, driver.payload)
+    if (DRIVER_HOSTS[requestedHost] && result.output && typeof result.output === 'object') {
+      result.output.devcodexEventProvenance = DRIVER_HOSTS[requestedHost].provenance
+    }
     if (result.diagnostics) process.stderr.write(result.diagnostics)
     if (result.status !== 0) {
       process.stderr.write(`${result.error}\n`)
@@ -1097,7 +1124,9 @@ if (require.main === module) {
 }
 
 module.exports = {
+  DRIVER_HOSTS,
   EVENT_MAP,
+  resolveDriverHost,
   STDIO_CHILD_TIMEOUT_MS,
   STDIO_MAX_FRAME_BYTES,
   applyCliEnvironmentOverrides,

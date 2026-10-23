@@ -1,0 +1,147 @@
+#!/usr/bin/env node
+'use strict'
+
+// grok-bot host: identity registration + split-mode end-to-end through the CLI
+// (turn-begin, independently spawned MCP servers bracketed by observe-tool,
+// through memory_task_admit_v2).
+
+const assert = require('assert')
+const fs = require('fs')
+const os = require('os')
+const path = require('path')
+const { spawn, spawnSync } = require('child_process')
+
+const ROOT = path.resolve(__dirname, '..')
+const CLI = path.join(ROOT, 'index.js')
+const identity = require('../hooks/_runtime/host-adapter-identity.cjs')
+const { normalizeAgent } = require('../mcp/agent-identity.cjs')
+const adapters = require('../hooks/_runtime/lifecycle-host-adapters.cjs')
+const capabilities = require('../hooks/_runtime/host-skill-route-capabilities.v1.json')
+
+function staticChecks () {
+  assert.strictEqual(identity.HOST_VARIANTS.grokbot, 'grok-bot/driver-synthesized-local-stdio')
+  assert.strictEqual(identity.normalizeHostId('grok-bot'), 'grokbot')
+  assert.strictEqual(identity.normalizeHostVariant('grok-bot'), 'grok-bot/driver-synthesized-local-stdio')
+  assert.strictEqual(normalizeAgent('grok-bot'), 'grok')
+  assert.ok(adapters.DRIVER_HOSTS['grok-bot'])
+  const env = {}
+  const driven = adapters.resolveDriverHost('grok-bot', { hook_event_name: 'SessionStart' }, env)
+  assert.strictEqual(driven.host, 'grok')
+  assert.strictEqual(driven.payload.devcodexEventProvenance, 'driver-synthesized')
+  assert.strictEqual(env.DEVCODEX_AGENT, 'grok-bot')
+  const entry = capabilities.capabilities.find(item => item.hostVariant === 'grok-bot/driver-synthesized-local-stdio')
+  assert.ok(entry && entry.status === 'UNVERIFIED' && entry.defaultEligible === false)
+  console.log('  ✓ grok-bot identity / adapter / capability registration')
+}
+
+function cli (args, opts) {
+  const result = spawnSync(process.execPath, [CLI, ...args], { encoding: 'utf8', maxBuffer: 64 << 20, ...opts })
+  if (result.status !== 0) throw new Error(`devcodex ${args.slice(0, 2).join(' ')} failed (${result.status}): ${result.stderr || result.stdout}`)
+  return result.stdout
+}
+
+function mcp (kind, projectDir, env) {
+  const child = spawn(process.execPath, [path.join(ROOT, 'mcp', `${kind}-server.js`), projectDir], { cwd: projectDir, env, stdio: ['pipe', 'pipe', 'ignore'] })
+  let buf = ''
+  let id = 0
+  const pending = new Map()
+  child.stdout.on('data', d => {
+    buf += d
+    let i
+    while ((i = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, i); buf = buf.slice(i + 1)
+      try { const m = JSON.parse(line); const r = pending.get(m.id); if (r) { pending.delete(m.id); r(m) } } catch { }
+    }
+  })
+  const req = (method, params) => new Promise(resolve => { const n = ++id; pending.set(n, resolve); child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: n, method, params }) + '\n') })
+  return {
+    init: async () => { await req('initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'grok-bot-test', version: '1' } }); child.stdin.write('{"jsonrpc":"2.0","method":"notifications/initialized"}\n') },
+    call: async (name, args) => { const m = await req('tools/call', { name, arguments: args }); return m.result || {} },
+    close: () => child.kill()
+  }
+}
+
+function body (result) {
+  if (result.structuredContent) return result.structuredContent
+  try { return JSON.parse(result.content?.[0]?.text) } catch { return { text: result.content?.[0]?.text } }
+}
+
+async function splitModeE2E () {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-grok-bot-'))
+  const ws = path.join(tmp, 'ws')
+  const proj = path.join(ws, 'proj')
+  fs.mkdirSync(proj, { recursive: true })
+  fs.mkdirSync(path.join(tmp, 'home'))
+  spawnSync('git', ['init', '-q'], { cwd: proj })
+  fs.writeFileSync(path.join(proj, 'README.md'), '# proj\n')
+  const env = { ...process.env, HOME: path.join(tmp, 'home'), USERPROFILE: path.join(tmp, 'home'), DEVCODEX_HOST_SESSION_ID: 'grok-bot-test-session', DEVCODEX_AGENT: 'grok-bot', DEVCODEX_HOST_PLATFORM: 'grok' }
+  for (const key of ['GROK_HOME', 'CODEX_HOME', 'CLAUDE_CODE_VERSION', 'CURSOR_TRACE_ID']) delete env[key]
+  cli(['init'], { cwd: ws, env })
+  cli(['profile', 'init'], { cwd: proj, env })
+  const prompt = '修复登录页面空指针'
+  const begin = JSON.parse(cli(['grok-bot', 'turn-begin', proj, prompt], { cwd: proj, env }))
+  assert.strictEqual(begin.provenance, 'driver-synthesized')
+  assert.match(begin.contextEpoch, /^ctx-/)
+  assert.match(begin.turnBinding, /^turn-/)
+  assert.ok(begin.envelopeId && begin.semanticDecisionSourceRef)
+  assert.strictEqual(begin.routeStatus, 'pending')
+  console.log('  ✓ turn-begin yields contextEpoch / turnBinding / envelope')
+
+  const servers = { 'devcodex-profile': mcp('profile', proj, env), 'devcodex-memory': mcp('memory', proj, env) }
+  await servers['devcodex-profile'].init(); await servers['devcodex-memory'].init()
+  let n = 0
+  const call = async (server, tool, args) => {
+    const id = `t-${++n}`
+    const name = `${server}__${tool}`
+    cli(['grok-bot', 'observe-tool', '--project-dir', proj, '--phase', 'pre', '--tool', name, '--input', JSON.stringify(args), '--tool-use-id', id], { cwd: proj, env })
+    const result = await servers[server].call(tool, args)
+    const post = JSON.parse(cli(['grok-bot', 'observe-tool', '--project-dir', proj, '--phase', 'post', '--tool', name, '--input', JSON.stringify(args), '--response', JSON.stringify(result), '--tool-use-id', id], { cwd: proj, env }))
+    return { result, body: body(result), post }
+  }
+  try {
+    const project = 'proj'
+    const plan = await call('devcodex-profile', 'profile_context_plan', {
+      project, intent: 'fix', changeTypes: ['source-code'], contextEpoch: begin.contextEpoch, confidence: 0.9,
+      semanticDecision: { schemaVersion: 'IntentSemanticDecisionV1', sourceRef: begin.semanticDecisionSourceRef, workflowFacts: { targetKnown: true }, executionDecision: 'confirm' }
+    })
+    assert.ok(!plan.result.isError, JSON.stringify(plan.body).slice(0, 500))
+    assert.strictEqual(plan.post.routeStatus, 'selected')
+    assert.ok(plan.post.ingressRef && plan.post.ingressRef.decisionDigest)
+    console.log('  ✓ profile_context_plan + post observe-tool routes ingress (selected)')
+    const contextBinding = plan.body.contextBinding
+    const load = await call('devcodex-profile', 'profile_load', { project, contextBinding, files: plan.body.profile.selectedFiles })
+    assert.ok(!load.result.isError, JSON.stringify(load.body).slice(0, 500))
+    for (const q of plan.body.memory?.requiredQueries || []) {
+      const r = await call('devcodex-memory', q, { project, contextBinding })
+      assert.ok(!r.result.isError, `${q}: ${JSON.stringify(r.body).slice(0, 300)}`)
+    }
+    const boot = begin.skillRouteBootstrap
+    let cursor; let page; const seen = []
+    do {
+      page = await call('devcodex-profile', 'skill_route', { op: 'catalog', project, turnBinding: boot.turnBinding, contextEpoch: boot.contextEpoch, ...(cursor ? { cursor } : {}) })
+      assert.strictEqual(page.body.ok, true, JSON.stringify(page.body).slice(0, 300))
+      seen.push(...page.body.receipt.cards.map(c => c.skillId))
+      cursor = page.body.receipt.nextCursor
+    } while (cursor && !seen.includes('fix-default'))
+    const commit = await call('devcodex-profile', 'skill_route', { op: 'commit', project, turnBinding: boot.turnBinding, contextEpoch: boot.contextEpoch, catalogDigest: page.body.receipt.catalogDigest, skillId: 'fix-default', contextBinding })
+    assert.strictEqual(commit.body.ok, true, JSON.stringify(commit.body).slice(0, 300))
+    console.log('  ✓ profile_load / memory_status / skill_route catalog+commit')
+    const admit = await call('devcodex-memory', 'memory_task_admit_v2', {
+      operation: 'admit', project, ingressRef: plan.post.ingressRef,
+      task: { taskKind: 'bugs', entryVariant: 'fix', displayName: prompt }, overview: { content: prompt }
+    })
+    assert.ok(!admit.result.isError, JSON.stringify(admit.body).slice(0, 500))
+    assert.strictEqual(admit.body.schemaVersion, 'FormalTaskAdmissionReceiptV2')
+    assert.strictEqual(admit.body.status, 'active')
+    console.log('  ✓ memory_task_admit_v2 admitted', admit.body.taskRootRelative)
+  } finally {
+    Object.values(servers).forEach(s => s.close())
+    if (!process.env.DEVCODEX_KEEP_TEST_TMP) fs.rmSync(tmp, { recursive: true, force: true })
+  }
+}
+
+;(async () => {
+  staticChecks()
+  await splitModeE2E()
+  console.log('grok-bot host tests passed')
+})().catch(error => { console.error(error); process.exit(1) })

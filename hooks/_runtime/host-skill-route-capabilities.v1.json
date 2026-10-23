@@ -56,6 +56,16 @@
       "defaultEligible": false
     },
     {
+      "hostVariant": "grok-bot/driver-synthesized-local-stdio",
+      "status": "UNVERIFIED",
+      "testedVersion": "unverified",
+      "protocol": "MCP 2024-11-05",
+      "evidenceRef": null,
+      "entrySurface": "devcodex grok-bot turn-begin|observe-tool|run",
+      "bootstrapDelivery": "driver-synthesized SessionStart/UserPromptSubmit plus bracketed Pre/PostToolUse (not native lifecycle events)",
+      "defaultEligible": false
+    },
+    {
       "hostVariant": "cursor/local-ide-cli-headless-user-global-stdio-beta",
       "status": "UNVERIFIED",
       "testedVersion": "beta-contract-only",

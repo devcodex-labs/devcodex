@@ -92,6 +92,27 @@ const EMBEDDED_NON_INSTRUCTION_BLOCKS = Object.freeze([
   }
 ])
 
+// Driver-synthesized lifecycle events (hosts without native hooks, e.g. Grok Bot) carry their own
+// provenance level. It grants the same workflow-ingress authority as a native host event, but only for
+// host variants registered as driver-synthesized; every other host keeps 'trusted-host-event'.
+const DRIVER_SYNTHESIZED_PROVENANCE = 'driver-synthesized-host-event'
+const DRIVER_SYNTHESIZED_HOST_VARIANTS = Object.freeze(['grok-bot/driver-synthesized-local-stdio'])
+const PROVENANCE_LEVELS = Object.freeze(['trusted-host-event', DRIVER_SYNTHESIZED_PROVENANCE, 'caller-attested-portable'])
+
+function isDriverSynthesizedHostVariant(hostVariant) {
+  return DRIVER_SYNTHESIZED_HOST_VARIANTS.includes(String(hostVariant || ''))
+}
+
+function isTrustedIngressProvenance(level) {
+  return level === 'trusted-host-event' || level === DRIVER_SYNTHESIZED_PROVENANCE
+}
+
+function isTrustedHostIngressEnvelope(envelope) {
+  if (!envelope) return false
+  if (envelope.provenanceLevel === 'trusted-host-event') return true
+  return envelope.provenanceLevel === DRIVER_SYNTHESIZED_PROVENANCE && isDriverSynthesizedHostVariant(envelope.hostVariant)
+}
+
 function stableStringify (value) {
   if (value === null || typeof value !== 'object') return JSON.stringify(value)
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
@@ -342,7 +363,9 @@ function buildActualInstructionEnvelope (payload = {}, options = {}) {
   const sourceEventId = observedSourceEventId
     ? `event-${digest(observedSourceEventId).slice(0, 40)}`
     : `portable-${digest({ hostVariant, hostSessionDigest, turnId, actualInstructionDigest }).slice(0, 40)}`
-  const provenanceLevel = trustedHostEvent ? 'trusted-host-event' : 'caller-attested-portable'
+  const provenanceLevel = trustedHostEvent
+    ? (isDriverSynthesizedHostVariant(hostVariant) ? DRIVER_SYNTHESIZED_PROVENANCE : 'trusted-host-event')
+    : 'caller-attested-portable'
   const contextEpoch = boundedString(options.contextEpoch, 256)
 
   const attachments = combineBoundedSegments(
@@ -478,8 +501,11 @@ function validateActualInstructionEnvelope (envelope) {
   })) errors.push('segment-set-digest')
   if (envelope.instructionAuthority !== (envelope.actualInstructionBytes > 0)) errors.push('instruction-authority')
   if (!['trusted-host-workflow-ingress', 'portable-plan-only'].includes(envelope.authorityScope)) errors.push('authority-scope')
-  if (!['trusted-host-event', 'caller-attested-portable'].includes(envelope.provenanceLevel)) errors.push('provenance-level')
-  if ((envelope.provenanceLevel === 'trusted-host-event') !== (envelope.authorityScope === 'trusted-host-workflow-ingress')) {
+  if (!PROVENANCE_LEVELS.includes(envelope.provenanceLevel)) errors.push('provenance-level')
+  if (envelope.provenanceLevel === DRIVER_SYNTHESIZED_PROVENANCE && !isDriverSynthesizedHostVariant(envelope.hostVariant)) {
+    errors.push('driver-provenance-host-variant')
+  }
+  if (isTrustedIngressProvenance(envelope.provenanceLevel) !== (envelope.authorityScope === 'trusted-host-workflow-ingress')) {
     errors.push('provenance-authority-mismatch')
   }
   for (const kind of ['attachments', 'quotedDocuments', 'ambientState', 'evidenceSegments']) {
@@ -639,6 +665,11 @@ function validateWorkItemSet (set, envelope = null) {
 
 module.exports = {
   ACTUAL_INSTRUCTION_ENVELOPE_SCHEMA,
+  DRIVER_SYNTHESIZED_PROVENANCE,
+  PROVENANCE_LEVELS,
+  isDriverSynthesizedHostVariant,
+  isTrustedHostIngressEnvelope,
+  isTrustedIngressProvenance,
   DEFAULT_TTL_MS,
   MAX_INSTRUCTION_BYTES,
   MAX_WORK_ITEMS,

@@ -15,15 +15,15 @@ applyTo: "**"
 
 | 检查项 | 状态 | 结论（人话；禁止进度缩写） |
 |----|----|----------------------------|
-| PC0 中断处理 | `PASS` | 版本：已安装 package version · 活动 runtime generation · 当前配置 runtime generation · 是否需要重启 · 可选源码候选 `{packageVersion, shortHead, dirty}` · alignment |
+| PC0 版本与运行 | `PASS` | 版本：已安装 package version · 活动 runtime generation · 当前配置 runtime generation · 是否需要重启 · 可选源码候选 `{packageVersion, shortHead, dirty}` · alignment |
 | PC1 当前意图 | `PASS` | 意图：语义初判 → 项目现实扩展后的最终路由/工作流 |
-| PC2 项目绑定 | `PASS` | 会话：轮次/Token · 待跟进 |
-| PC3 确认边界 | `PASS` | 执行准备：唯一项目 · 连续性 · 产物落点（禁止「写报告 02」式施工日志） |
+| PC2 会话 | `PASS` | 会话：轮次/Token · 待跟进 |
+| PC3 执行准备 | `PASS` | 执行准备：唯一项目 · 连续性 · 产物落点（禁止「写报告 02」式施工日志） |
 | PC4 规范雷达 | `N/A` | 规范雷达：dev 完整；非 dev=`N/A` + skipReason |
-| PC5 本轮范围 | `UNVERIFIED` | 宿主：名称 + Full/Partial · 部署/同步证据（legacy 诊断可覆盖 `.github/`、`.claude/`、根 `AGENTS.md`、`.agents/`、`.codex/`；GlobalOnly 以 doctor/receipt 为准） |
-| PC6 Dirty 边界 | `PASS` | 工作区：git dirty 范围 · 任务目录 |
-| PC7 上下文 | `PASS` | 续接：新会话/resume 有界检测 |
-| PC8 风险等级 | `PASS` | 流程与方案：初判/二次判断的 ceremonyTier、designDepth 及差异原因 |
+| PC5 宿主 | `UNVERIFIED` | 宿主：名称 + Full/Partial · 部署/同步证据（legacy 诊断可覆盖 `.github/`、`.claude/`、根 `AGENTS.md`、`.agents/`、`.codex/`；GlobalOnly 以 doctor/receipt 为准） |
+| PC6 工作区 | `PASS` | 工作区：git dirty 范围 · 任务目录 |
+| PC7 续接 | `PASS` | 续接：新会话/resume 有界检测 |
+| PC8 流程与方案 | `PASS` | 流程与方案：初判/二次判断的 ceremonyTier、designDepth 及差异原因 |
 | PC9 验证 | `PASS` | 验证计划：assuranceLevel · targeted/affected/full 数量 · CI/package/install/release · 预计时长 |
 | PC10 下一步 | `PASS` | 后续动作：下一阶段 · 是否自动继续 · 用户当前动作 · 如何修正判断 |
 

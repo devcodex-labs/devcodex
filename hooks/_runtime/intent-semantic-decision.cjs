@@ -1,6 +1,6 @@
 'use strict'
 
-const { validateActualInstructionEnvelope } = require('./actual-instruction-envelope.cjs')
+const { isTrustedHostIngressEnvelope, validateActualInstructionEnvelope } = require('./actual-instruction-envelope.cjs')
 const { normalizeLanguageTag } = require('./language-context.cjs')
 const { stableStringify } = require('./content-identity.cjs')
 const SCHEMA_VERSION = 'IntentSemanticDecisionV1'
@@ -118,7 +118,7 @@ function validateIntentSemanticDecision(value, expected = {}) {
   if (expected.requireSource || expected.envelope) {
     const envelope = expected.envelope
     if (!validateActualInstructionEnvelope(envelope).valid || envelope.instructionAuthority !== true ||
-        envelope.provenanceLevel !== 'trusted-host-event' || Date.parse(envelope.expiresAt) <= (expected.nowMs ?? Date.now()) ||
+        !isTrustedHostIngressEnvelope(envelope) || Date.parse(envelope.expiresAt) <= (expected.nowMs ?? Date.now()) ||
         ref?.envelopeId !== envelope.envelopeId || ref?.envelopeDigest !== envelope.envelopeDigest ||
         ref?.contextEpoch !== envelope.contextEpoch ||
         (expected.hostSessionDigest && envelope.hostSessionDigest !== expected.hostSessionDigest)) {

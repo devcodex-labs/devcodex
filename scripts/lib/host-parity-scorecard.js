@@ -373,6 +373,12 @@ function composePc4Line(options = {}) {
   const mode = normalizeEnvMode(options.envMode || options.mode || options.profileMode)
   const locale = resolveVisibleLocale(options.languageContext)
   const english = locale.renderedLanguage === 'en'
+  const radar = typeof options.specRadar === 'string' ? options.specRadar.replace(/[|\r\n]+/g, ' ').trim().slice(0, 400) : ''
+  if (mode === 'dev' && radar) {
+    return english
+      ? `- PC4 [PASS] dev mode radar: ${radar}`
+      : `- PC4 [PASS] dev 模式规范雷达：${radar}`
+  }
   if (mode === 'dev') {
     return english
       ? '- PC4 [UNVERIFIED] dev mode: show the full specification radar and bind the selected Skills/Profile/Owner/TestRoute'
@@ -552,6 +558,36 @@ function evaluateGrokHostParity(input = {}) {
   return scorecard
 }
 
+const PC_STATUS_VALUES = new Set(['PASS', 'WARN', 'FAIL', 'UNVERIFIED', 'N/A'])
+
+function sanitizeEvidenceCell(value) {
+  return String(value || '').replace(/[|\r\n]+/g, ' ').trim().slice(0, 400)
+}
+
+function evidenceRow(evidence, english, fallbackText) {
+  if (!evidence || typeof evidence !== 'object') return { status: 'UNVERIFIED', text: fallbackText }
+  const status = PC_STATUS_VALUES.has(evidence.status) ? evidence.status : 'UNVERIFIED'
+  const text = sanitizeEvidenceCell(english ? (evidence.en || evidence.zh) : (evidence.zh || evidence.en))
+  return { status, text: text || fallbackText }
+}
+
+/**
+ * PC5 host evidence for driver-synthesized hosts. Returns null for hosts whose
+ * PC5 verdict still requires launcher/doctor evidence (kept UNVERIFIED).
+ */
+function composeDriverHostEvidence(options = {}) {
+  const env = options.env || process.env
+  const rawAgent = String(options.agent || env.DEVCODEX_AGENT || '').trim().toLowerCase()
+  const variant = String(options.hostVariant || env.DEVCODEX_HOST_VARIANT || '').trim()
+  if (rawAgent !== 'grok-bot' && !variant.startsWith('grok-bot/')) return null
+  return {
+    status: 'WARN',
+    tier: 'grok-bot-driver',
+    zh: 'Grok Bot 驱动档（Partial 类）：本连接器以 DEVCODEX_AGENT=grok-bot 运行；生命周期事件由 devcodex grok-bot turn-begin/observe-tool 合成，无上下文注入，PreToolUse 不强制；不可声称 Full',
+    en: 'Grok Bot driver tier (Partial-like): connector runs with DEVCODEX_AGENT=grok-bot; lifecycle events are synthesized by devcodex grok-bot turn-begin/observe-tool; no context inject; PreToolUse not enforced; never claim Full'
+  }
+}
+
 function composeEntryCheckBlock(options = {}) {
   const locale = resolveVisibleLocale(options.languageContext)
   const english = locale.renderedLanguage === 'en'
@@ -628,8 +664,14 @@ function composeEntryCheckBlock(options = {}) {
   const pc4Status = pc4Match ? pc4Match[1] : 'UNVERIFIED'
   const pc4Cell = pc4Match ? pc4Match[2] : pc4Line
   const labels = english
-    ? ['Interruption', 'Intent', 'Project', 'Boundary', 'Spec radar', 'Scope', 'Dirty boundary', 'Context', 'Risk', 'Validation', 'Next']
-    : ['中断处理', '当前意图', '项目绑定', '确认边界', '规范雷达', '本轮范围', 'Dirty 边界', '上下文', '风险等级', '验证', '下一步']
+    ? ['Version', 'Intent', 'Session', 'Readiness', 'Spec radar', 'Host', 'Workspace', 'Continuation', 'Workflow', 'Validation', 'Next']
+    : ['版本与运行', '当前意图', '会话', '执行准备', '规范雷达', '宿主', '工作区', '续接', '流程与方案', '验证', '下一步']
+  const pc5 = evidenceRow(options.hostEvidence, english, english
+    ? 'Host: deployment, synchronization, and load evidence (Grok is Full only through the Full launcher)'
+    : '宿主：部署、同步与加载证据（Grok 仅在 Full 启动器下可判 Full）')
+  const pc6 = evidenceRow(options.workspaceEvidence, english, english
+    ? 'Workspace: Git change state and active task'
+    : '工作区：Git 改动状态与当前活动任务')
   const pcRow = (ordinal, status, text) => `| PC${ordinal} ${labels[ordinal]} | \`${status}\` | ${text} |`
   const zhRows = [
     pcRow(0, version.alignment === 'runtime-mismatch' ? 'WARN' : 'PASS', `版本与运行代际：installed=${version.installedPackageVersion}；active=${runtime}；configured=${configuredRuntime}；source=${source}；alignment=${version.alignment}；需要重启=${restartRequired}；原因=${version.restartReason}`),
@@ -637,8 +679,8 @@ function composeEntryCheckBlock(options = {}) {
     pcRow(2, 'PASS', '会话：轮次、Token 防护与待跟进项'),
     pcRow(3, 'PASS', '执行准备：唯一项目、连续性与产物落点'),
     pcRow(4, pc4Status, pc4Cell),
-    pcRow(5, 'UNVERIFIED', '宿主：部署、同步与加载证据（Grok 仅在 Full 启动器下可判 Full）'),
-    pcRow(6, 'UNVERIFIED', '工作区：Git 改动状态与当前活动任务'),
+    pcRow(5, pc5.status, pc5.text),
+    pcRow(6, pc6.status, pc6.text),
     pcRow(7, 'PASS', '续接：新会话或 resume 的有界检测'),
     pcRow(8, 'PASS', `流程与方案：初判=${precheck.ceremonyTier}/${precheck.designDepth}；二次=${post}；差异=${differences}`),
     pcRow(9, 'PASS', `验证：${validation.assuranceLevel}；定向=${validation.targetedCount}，受影响=${validation.affectedCount}，全量=${validation.fullCount}；CI=${validation.ciRequired}，打包=${validation.packageRequired}，安装=${validation.installRequired}，发布=${validation.releaseRequired}；预计时长=${validation.estimatedDuration}`),
@@ -650,8 +692,8 @@ function composeEntryCheckBlock(options = {}) {
     pcRow(2, 'PASS', 'Session: turn count, token guard, and follow-ups'),
     pcRow(3, 'PASS', 'Execution readiness: unique project, continuity, and artifact destinations'),
     pcRow(4, pc4Status, pc4Cell),
-    pcRow(5, 'UNVERIFIED', 'Host: deployment, synchronization, and load evidence (Grok is Full only through the Full launcher)'),
-    pcRow(6, 'UNVERIFIED', 'Workspace: Git change state and active task'),
+    pcRow(5, pc5.status, pc5.text),
+    pcRow(6, pc6.status, pc6.text),
     pcRow(7, 'PASS', 'Continuation: bounded detection for a new session or resume'),
     pcRow(8, 'PASS', `Workflow and design: precheck=${precheck.ceremonyTier}/${precheck.designDepth}; reassessment=${post}; differences=${differences}`),
     pcRow(9, 'PASS', `Validation: ${validation.assuranceLevel}; targeted=${validation.targetedCount}, affected=${validation.affectedCount}, full=${validation.fullCount}; CI=${validation.ciRequired}, package=${validation.packageRequired}, install=${validation.installRequired}, release=${validation.releaseRequired}; estimate=${validation.estimatedDuration}`),
@@ -687,6 +729,7 @@ function entryCheckAssistSuffix(options = {}) {
 }
 
 module.exports = {
+  composeDriverHostEvidence,
   GROK_TURN_EXECUTION_CHECKLIST,
   GROK_INTENT_SKILL_BUNDLES,
   MIN_CANNOT_CLAIM,

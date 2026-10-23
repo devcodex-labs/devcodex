@@ -10,16 +10,13 @@
     },
     {
       "hostVariant": "codex-cli/exec-user-global-local-stdio",
-      "status": "PASS",
-      "testedVersion": "codex-cli 0.145.0",
+      "status": "UNVERIFIED",
+      "testedVersion": "unverified",
       "protocol": "MCP 2024-11-05",
-      "evidenceRef": "hooks/_runtime/evidence/codex-skill-route-pass.v1.json",
+      "evidenceRef": null,
       "entrySurface": "codex exec --ephemeral",
       "bootstrapDelivery": "stable user-global Hook launcher UserPromptSubmit or profile_context_plan fallback",
-      "defaultEligible": true,
-      "runtimeContractDigest": "7ad988d1b94cf581e9d8acc2f1ca9fc67d34c6a6118d13f8a4f4d7c85896b306",
-      "hostAdapterDigest": "339d0db61f360a13ac7b41f88f1fde31262669cf5eea3177e66619a5c62a942a",
-      "evidenceDigest": "3be5d963a9873417c846ccf2033740cd61903a9f5a4b924536a4f6a2d0a2132d"
+      "defaultEligible": false
     },
     {
       "hostVariant": "codex-desktop/app-user-global-local-stdio",
@@ -53,6 +50,16 @@
       "evidenceRef": null,
       "entrySurface": "devcodex grok -p/--single",
       "bootstrapDelivery": "global launcher --rules with stable Hook and profile_context_plan fallback",
+      "defaultEligible": false
+    },
+    {
+      "hostVariant": "grok-bot/driver-synthesized-local-stdio",
+      "status": "UNVERIFIED",
+      "testedVersion": "unverified",
+      "protocol": "MCP 2024-11-05",
+      "evidenceRef": null,
+      "entrySurface": "devcodex grok-bot turn-begin|observe-tool|run",
+      "bootstrapDelivery": "driver-synthesized SessionStart/UserPromptSubmit plus bracketed Pre/PostToolUse (not native lifecycle events)",
       "defaultEligible": false
     },
     {

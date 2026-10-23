@@ -513,8 +513,8 @@ const codexDesktopRendered = renderVisibleEnvelope(codexDesktopEnvelope, {
 })
 assert.match(codexDesktopRendered, /\| 检查项 \| 状态 \| 结论 \|/)
 assert.match(codexDesktopRendered, /\|---\|---\|---\|/)
-assert.match(codexDesktopRendered, /\| PC0 中断处理 \| `PASS` \|/)
-assert.match(codexDesktopRendered, /\| PC5 本轮范围 \| `WARN` \|/)
+assert.match(codexDesktopRendered, /\| PC0 版本与运行 \| `PASS` \|/)
+assert.match(codexDesktopRendered, /\| PC5 宿主 \| `WARN` \|/)
 assert.strictEqual(analyzeEntryCheckCompleteness(codexDesktopRendered, { mode: 'dev' }).complete, true)
 const paragraphEntryCheck = [
   '### DevCodex · 入口检查',

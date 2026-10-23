@@ -20,6 +20,7 @@ const path = require('path')
 const { execFileSync } = require('child_process')
 const { assertSingleSegment, resolveInside, resolveExistingRegularFileInside, resolveWritePathInside } = require('./path-guard')
 const { createJsonLineServer } = require('./stdio-jsonrpc.cjs')
+const { hostSessionPartitionSegments, wrapDispatchWithHostSession } = require('../hooks/_runtime/host-session-partition.cjs')
 const {
   PROFILE_BASE_FILES,
   PROFILE_RELEASE_FILES,
@@ -625,6 +626,35 @@ function resolveProjectBinding(projectName, { requireProfile = true } = {}) {
   })
   if (binding.status !== 'resolved') throwWorkspaceBindingError(binding)
   return binding
+}
+
+function composeEntryWorkspaceEvidence(projectName, entry = {}) {
+  let root = null
+  try {
+    const binding = resolveProjectBinding(projectName, { requireProfile: false })
+    root = binding?.physicalRoot || (!LAYOUT.enabled ? resolveProjectRoot(projectName) : null)
+  } catch {}
+  if (!root) return null
+  let branch
+  let changed
+  try {
+    const gitOpts = { cwd: root, encoding: 'utf8', timeout: 3000, maxBuffer: 1024 * 1024, windowsHide: true }
+    branch = execFileSync('git', ['branch', '--show-current'], gitOpts).trim() || 'detached'
+    changed = execFileSync('git', ['status', '--porcelain=v1', '--untracked-files=normal'], gitOpts)
+      .split('\n').filter(Boolean).length
+  } catch {
+    return null
+  }
+  const activeTask = typeof entry.activeTask === 'string' && entry.activeTask.trim()
+    ? entry.activeTask.trim().slice(0, 120)
+    : null
+  const taskZh = activeTask ? `活动任务=${activeTask}` : '活动任务=未提供（以 memory_status/任务准入为准）'
+  const taskEn = activeTask ? `active task=${activeTask}` : 'active task=not supplied (memory_status/admission is authoritative)'
+  return {
+    status: changed > 0 ? 'WARN' : 'PASS',
+    zh: `Git：分支=${branch}；未提交改动=${changed}${changed > 0 ? '（保留用户改动，仅在本轮范围内修改）' : ''}；${taskZh}`,
+    en: `Git: branch=${branch}; uncommitted changes=${changed}${changed > 0 ? ' (preserve user changes; edit only within scope)' : ''}; ${taskEn}`
+  }
 }
 
 function readPackageVersionAt(root) {
@@ -1751,7 +1781,7 @@ function verifyContextPlanSemanticSource(value, target, contextEpoch) {
   for (const candidate of candidates) {
     try {
       const file = resolveExistingRegularFileInside(candidate.root,
-        path.posix.join('.memory', 'hooks', candidate.key, 'lifecycle-state.json'))
+        path.posix.join('.memory', 'hooks', candidate.key, ...hostSessionPartitionSegments(), 'lifecycle-state.json'))
       const observed = readBoundedTextFileSync(file, { maxBytes: 2 * 1024 * 1024 })
       const state = JSON.parse(observed.content)
       const acquisition = state.contextAcquisition || {}
@@ -2905,14 +2935,22 @@ function dispatch(method, params) {
           case 'profile_skill_plan': return handleProfileSkillPlan(args)
           case 'profile_get_mode': return handleProfileGetMode(args)
           case 'profile_compose_entry_check': {
-            const { composeEntryCheckBlock } = require('../scripts/lib/host-parity-scorecard.js')
+            const { composeEntryCheckBlock, composeDriverHostEvidence } = require('../scripts/lib/host-parity-scorecard.js')
             const entry = args.entry && typeof args.entry === 'object' && !Array.isArray(args.entry) ? args.entry : {}
             const resolvedConfig = resolveConfigFile(args.project)
             const projectBound = args.project === 'workspace'
               ? false
               : resolvedConfig.projectConfig !== null
+            // Without an explicit model languageDecision, render in the user prompt's script: a prompt
+            // written mainly in CJK selects zh-CN for this turn (entry-check rendering only).
+            const promptText = typeof entry.prompt === 'string' ? entry.prompt : ''
+            const cjkChars = (promptText.match(/[\u4e00-\u9fff]/g) || []).length
+            const latinLetters = (promptText.match(/[A-Za-z]/g) || []).length
+            const promptLanguageDecision = !entry.languageDecision && cjkChars > 0 && cjkChars * 2 >= latinLetters
+              ? { kind: 'infer', scope: 'turn', replyLocale: 'zh-CN' }
+              : null
             const languageContext = resolveLanguageContext({
-              languageDecision: entry.languageDecision,
+              languageDecision: entry.languageDecision || promptLanguageDecision || undefined,
               prompt: entry.prompt,
               taskContext: entry.languageContext || entry.taskLanguageContext,
               conversationContext: entry.conversationLanguageContext,
@@ -2957,6 +2995,10 @@ function dispatch(method, params) {
               semanticDigest: args.semanticDigest,
               entryCheckModel,
               languageContext,
+              envMode: typeof resolvedConfig.config?.mode === 'string' ? resolvedConfig.config.mode : undefined,
+              specRadar: entry.specRadar,
+              hostEvidence: composeDriverHostEvidence(),
+              workspaceEvidence: args.project === 'workspace' ? null : composeEntryWorkspaceEvidence(args.project, entry),
               audience: 'human'
             })
             return {
@@ -3019,7 +3061,7 @@ function dispatch(method, params) {
 // ─── bounded stdio transport ──────────────────────────────────────────────────
 
 if (require.main === module) {
-  createJsonLineServer({ dispatch, onEnd: () => process.exit(0) })
+  createJsonLineServer({ dispatch: wrapDispatchWithHostSession(dispatch), onEnd: () => process.exit(0) })
   process.on('SIGINT', () => process.exit(0))
   process.on('SIGTERM', () => process.exit(0))
 }

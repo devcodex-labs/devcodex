@@ -34,6 +34,7 @@ const os = require('os')
 const path = require('path')
 const { assertSingleSegment, resolveInside, resolveExistingRegularFileInside, resolveWritePathInside } = require('./path-guard')
 const { createJsonLineServer } = require('./stdio-jsonrpc.cjs')
+const { hostSessionPartitionSegments, wrapDispatchWithHostSession } = require('../hooks/_runtime/host-session-partition.cjs')
 const { createMemoryFileTransaction } = require('./memory-file-transaction.cjs')
 const {
   computeProjectTargetLeaseDigest,
@@ -66,7 +67,8 @@ const {
   validateAutoCheckpointDecision,
   validateTaskScopedAutoContinuationGrant,
   writeAdmissionIngressSnapshot,
-  writeBoundedResumeIngressCapability
+  writeBoundedResumeIngressCapability,
+  isTaskRecoveryBindingOrphaned
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const {
   buildActualInstructionEnvelope,
@@ -274,7 +276,19 @@ const EXPLICIT_RUNTIME_AGENT = normalizeAgent(process.env.DEVCODEX_AGENT)
 const DEFAULT_AGENT = detectRuntimeAgent()
 const TASK_KINDS = new Set(['requirements', 'bugs', 'optimizations', 'scenario-tests'])
 const MAX_MEMORY_SESSION_WRITE_CHARS = 262144
-const MEMORY_SESSION_WRITE_REQUIRED_FIELDS = Object.freeze(['content'])
+const MEMORY_SESSION_WRITE_REQUIRED_FIELDS = Object.freeze([])
+const MEMORY_SESSION_TURN_SCHEMA = Object.freeze({
+  type: 'object',
+  additionalProperties: false,
+  required: ['user', 'ai'],
+  properties: {
+    user: { type: 'string' }, ai: { type: 'string' },
+    status: { type: 'string', enum: ['in-progress', 'completed', 'blocked'] }
+  }
+})
+const MEMORY_SESSION_STATUS_SCHEMA = Object.freeze({ type: 'string', enum: ['in-progress', 'completed'] })
+const MEMORY_SESSION_STATUS_TEXT = Object.freeze({ 'in-progress': '🔄 进行中', completed: '✅ 已完成' })
+const MEMORY_TURN_STATUS_ICON = Object.freeze({ 'in-progress': '🔄', completed: '✅', blocked: '⛔' })
 const MEMORY_SOURCE_MAX_BYTES = 8 * 1024 * 1024
 const WORKSPACE_CONTEXT_PROJECT = '__workspace__'
 const PROJECT_NAMESPACE_INPUT_SCHEMA = Object.freeze({
@@ -733,11 +747,13 @@ const TOOLS = [
     inputSchema: {
       type: 'object',
       additionalProperties: false,
-      required: [...MEMORY_SESSION_WRITE_REQUIRED_FIELDS],
+      anyOf: [{ required: ['content'] }, { required: ['turn'] }, { required: ['sessionStatus'] }],
       properties: {
         agent: { type: 'string' },
         date: { type: 'string', description: 'YYYYMMDD，默认今日' },
         content: { type: 'string', minLength: 1, maxLength: MAX_MEMORY_SESSION_WRITE_CHARS },
+        turn: MEMORY_SESSION_TURN_SCHEMA,
+        sessionStatus: MEMORY_SESSION_STATUS_SCHEMA,
         artifacts: { type: 'array', minItems: 1, maxItems: 20, items: ARTIFACT_LINK_DESCRIPTOR_SCHEMA },
         sessionId: { type: 'string', minLength: 1, maxLength: 64, description: 'allocate 返回的会话编号' },
         sessionBinding: { type: 'string', pattern: '^[a-f0-9]{64}$', description: 'allocate 返回的绑定值' },
@@ -850,6 +866,25 @@ const TOOLS = [
         memoryArtifact: SUMMARY_ARTIFACT_DESCRIPTOR_SCHEMA,
         scope: { type: 'string', enum: ['project', 'workspace'], description: '写入域' },
         project: PROJECT_NAMESPACE_INPUT_SCHEMA
+      }
+    }
+  },
+  {
+    name: 'memory_turn_closeout_v1',
+    description: 'S05 收尾：报告+会话记忆+SUMMARY。',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['project', 'title', 'intent', 'turn'],
+      properties: {
+        project: PROJECT_NAMESPACE_INPUT_SCHEMA,
+        title: { type: 'string' }, intent: { type: 'string' }, sourceMessage: { type: 'string' },
+        turn: MEMORY_SESSION_TURN_SCHEMA,
+        sessionStatus: MEMORY_SESSION_STATUS_SCHEMA,
+        notes: { type: 'string' },
+        report: { type: 'object', required: ['targetPath', 'content'], properties: { targetPath: { type: 'string' }, content: { type: 'string' } } },
+        summary: { type: 'string' },
+        terminal: { type: 'object' }
       }
     }
   }
@@ -1692,7 +1727,7 @@ const MEMORY_SESSION_ALLOCATE_FIELDS = new Set([
   'agent', 'scope', 'project', 'date', 'title', 'intent', 'sourceMessage'
 ])
 const MEMORY_SESSION_WRITE_FIELDS = new Set([
-  'agent', 'scope', 'project', 'date', 'content', 'artifacts', 'sessionId', 'sessionBinding'
+  'agent', 'scope', 'project', 'date', 'content', 'turn', 'sessionStatus', 'artifacts', 'sessionId', 'sessionBinding'
 ])
 const MEMORY_ARTIFACT_LINK_PROJECT_FIELDS = new Set([
   'operation', 'documentPath', 'artifacts', 'linkCapability', 'scope', 'project'
@@ -1908,7 +1943,69 @@ function normalizeMemoryAllocationLine(value, fallback, field, maxLength) {
   return normalized
 }
 
-function insertMemorySessionContent(existing, content, binding) {
+function sanitizeMemoryTableCell(value) {
+  return String(value || '').replace(/\r?\n+/g, ' ').replace(/\|/g, '\\|').trim()
+}
+
+function normalizeMemorySessionEdits(args) {
+  const edits = { turn: null, sessionStatus: null }
+  if (args.turn !== undefined) {
+    const turn = args.turn
+    if (!turn || typeof turn !== 'object' || Array.isArray(turn) ||
+        typeof turn.user !== 'string' || !turn.user.trim() || typeof turn.ai !== 'string' || !turn.ai.trim() ||
+        (turn.status !== undefined && !MEMORY_TURN_STATUS_ICON[turn.status])) {
+      throw memoryQueryError('turn must be {user, ai, status?}.', 'Pass short user/AI summaries for one table row.', 'MEMORY_WRITER_ARGUMENT_INVALID')
+    }
+    edits.turn = { user: sanitizeMemoryTableCell(turn.user).slice(0, 400), ai: sanitizeMemoryTableCell(turn.ai).slice(0, 800), status: turn.status || 'completed' }
+  }
+  if (args.sessionStatus !== undefined) {
+    if (!MEMORY_SESSION_STATUS_TEXT[args.sessionStatus]) {
+      throw memoryQueryError('sessionStatus must be in-progress or completed.', 'Use in-progress until the task is closed.', 'MEMORY_WRITER_ARGUMENT_INVALID')
+    }
+    edits.sessionStatus = args.sessionStatus
+  }
+  return edits
+}
+
+// Applies structured edits inside one bound session block: status line, a numbered 📨 table row,
+// and free Markdown separated from any trailing table so it never becomes a malformed table row.
+function applyMemorySessionBlockEdits(blockText, content, edits = {}) {
+  let block = blockText.replace(/\s*$/, '\n')
+  const applied = []
+  if (edits.sessionStatus) {
+    const statusRe = /^- \*\*状态\*\*：.*$/m
+    if (statusRe.test(block)) {
+      block = block.replace(statusRe, `- **状态**：${MEMORY_SESSION_STATUS_TEXT[edits.sessionStatus]}`)
+      applied.push('status')
+    }
+  }
+  let rowText = null
+  if (edits.turn) {
+    const lines = block.split('\n')
+    const heading = lines.findIndex(line => /^###\s*📨/.test(line))
+    if (heading >= 0) {
+      let first = heading + 1
+      while (first < lines.length && !lines[first].startsWith('|')) first++
+      let last = first
+      while (last < lines.length && lines[last].startsWith('|')) last++
+      const rows = lines.slice(first, last).filter(line => /^\|\s*\d+\s*\|/.test(line)).length
+      rowText = `| ${rows + 1} | ${edits.turn.user} | ${edits.turn.ai} | ${MEMORY_TURN_STATUS_ICON[edits.turn.status]} |`
+      lines.splice(last, 0, rowText)
+      block = lines.join('\n')
+      applied.push('turn')
+    }
+  }
+  if (content) {
+    const trimmed = block.replace(/\s*$/, '')
+    const lastLine = trimmed.slice(trimmed.lastIndexOf('\n') + 1)
+    const gap = lastLine.startsWith('|') && !String(content).startsWith('|') ? '\n\n' : '\n'
+    block = `${trimmed}${gap}${content}${String(content).endsWith('\n') ? '' : '\n'}`
+    applied.push('content')
+  }
+  return { block, applied, rowText }
+}
+
+function insertMemorySessionContent(existing, content, binding, edits = {}) {
   const blocks = parseDailySessionBlocks(existing)
   if (!binding.sessionId || !binding.sessionBinding) {
     throw memoryQueryError(
@@ -1948,11 +2045,17 @@ function insertMemorySessionContent(existing, content, binding) {
     )
   }
 
-  const targetPrefix = existing.slice(0, target.end).replace(/[ \t]*$/, '')
   const suffix = existing.slice(target.end)
-  const separator = targetPrefix.endsWith('\n') ? '' : '\n'
-  const contentSuffix = String(content).endsWith('\n') ? '' : '\n'
-  const next = `${targetPrefix}${separator}${content}${contentSuffix}${suffix}`
+  const blockEdit = applyMemorySessionBlockEdits(existing.slice(target.start, target.end), content, edits)
+  if (!blockEdit.applied.length) {
+    throw memoryQueryError(
+      `Memory session ${target.sessionId} has no status line or 📨 table for the requested edit.`,
+      'Pass content, or repair the session block to the memory-session template.',
+      'MEMORY_SESSION_LAYOUT_INVALID'
+    )
+  }
+  const trailing = suffix ? (blockEdit.block.endsWith('\n\n') ? '' : '\n') : ''
+  const next = `${existing.slice(0, target.start)}${blockEdit.block}${trailing}${suffix}`
 
   const afterBlocks = parseDailySessionBlocks(next)
   const targetAfter = afterBlocks.find(block => block.sessionId === target.sessionId)
@@ -1962,7 +2065,9 @@ function insertMemorySessionContent(existing, content, binding) {
     block.sessionId === nonTargetAfter[index]?.sessionId && block.raw === nonTargetAfter[index]?.raw
   ))
   const targetChanged = Boolean(targetAfter && targetAfter.raw !== target.raw)
-  const targetContainsWrite = Boolean(targetAfter && targetAfter.raw.includes(String(content)))
+  const targetContainsWrite = Boolean(targetAfter &&
+    (!content || targetAfter.raw.includes(String(content))) &&
+    (!blockEdit.rowText || targetAfter.raw.includes(blockEdit.rowText)))
   if (!nonTargetStable || !targetChanged || !targetContainsWrite) {
     throw memoryQueryError(
       'Memory session write isolation verification failed before persistence.',
@@ -1978,7 +2083,8 @@ function insertMemorySessionContent(existing, content, binding) {
       mode: 'bound-session',
       sessionId: target.sessionId,
       bindingStatus: 'verified',
-      writeDigest: fileDigest(content),
+      writeDigest: fileDigest(edits.turn || edits.sessionStatus ? JSON.stringify([content, edits]) : content),
+      applied: blockEdit.applied,
       targetBeforeDigest: target.digest,
       targetAfterDigest: targetAfter.digest,
       nonTargetStable,
@@ -3479,20 +3585,29 @@ function handleMemorySessionWrite(args) {
     'memory_session_write',
     MEMORY_SESSION_WRITE_REQUIRED_FIELDS
   )
-  if (typeof args.content !== 'string' || !args.content.length) {
+  const hasContent = args.content !== undefined
+  if (hasContent && (typeof args.content !== 'string' || !args.content.length)) {
     throw memoryQueryError(
       'content must be a non-empty string.',
       'Pass bounded Markdown content from the current task.',
       'MEMORY_WRITER_ARGUMENT_INVALID'
     )
   }
+  if (!hasContent && args.turn === undefined && args.sessionStatus === undefined && args.artifacts === undefined) {
+    throw memoryQueryError(
+      'memory_session_write needs content, turn, sessionStatus or artifacts.',
+      'Pass a turn row ({user, ai, status}) and/or sessionStatus, or bounded Markdown content.',
+      'MEMORY_WRITER_ARGUMENT_INVALID'
+    )
+  }
+  const sessionEdits = normalizeMemorySessionEdits(args)
   validateDate(args.date)
   const target = resolveMemoryTarget(args)
   const binding = recoverMemorySessionWriteBinding(args, target)
   const p = memoryClientPath(target, 'tasks', `${args.date || today()}.md`)
   const documentPath = relativeToActiveRoot(target, p)
   let artifactLinks = null
-  let renderedContent = args.content
+  let renderedContent = hasContent ? args.content : ''
   if (args.artifacts !== undefined) {
     artifactLinks = projectMemoryArtifactLinks(target, documentPath, args.artifacts, {
       surface: 'memory-session-artifacts'
@@ -3516,7 +3631,7 @@ function handleMemorySessionWrite(args) {
   templateContext.selectContent = content => boundMemoryTemplateContent(content, binding)
   templateContext.artifactScope = () => ({ kind: 'memory-session', sessionId: binding.sessionId })
   const receipt = withMemoryTransaction(target, p, existing => {
-    const rendered = insertMemorySessionContent(existing, renderedContent, binding)
+    const rendered = insertMemorySessionContent(existing, renderedContent, binding, sessionEdits)
     sessionWriteReceipt = rendered.receipt
     return {
       content: rendered.content,
@@ -3529,7 +3644,7 @@ function handleMemorySessionWrite(args) {
       date: args.date || today(),
       sessionId: binding.sessionId,
       sessionBinding: binding.sessionBinding,
-      contentDigest: crypto.createHash('sha256').update(renderedContent).digest('hex')
+      contentDigest: crypto.createHash('sha256').update(sessionEdits.turn || sessionEdits.sessionStatus ? JSON.stringify([renderedContent, sessionEdits]) : renderedContent).digest('hex')
     }),
     templateContext
   })
@@ -5184,7 +5299,7 @@ function currentPhysicalProjectRoot(target) {
 
 function readServerOwnedLifecycleProjection(target) {
   const scopeKey = LAYOUT.enabled ? assertSingleSegment(target.project, 'project') : 'legacy'
-  const relativeStatePath = path.join('.memory', 'hooks', scopeKey, 'lifecycle-state.json')
+  const relativeStatePath = path.join('.memory', 'hooks', scopeKey, ...hostSessionPartitionSegments(), 'lifecycle-state.json')
   let statePath
   try {
     statePath = resolveExistingRegularFileInside(target.activeRoot, relativeStatePath, {
@@ -5427,7 +5542,7 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
     )
   }
   const scopeKey = LAYOUT.enabled ? assertSingleSegment(target.project, 'project') : 'legacy'
-  const ingressMetaDir = path.join(target.activeRoot, '.memory', 'hooks', scopeKey)
+  const ingressMetaDir = path.join(target.activeRoot, '.memory', 'hooks', scopeKey, ...hostSessionPartitionSegments())
   // A bounded resume capability is narrower than the immutable host snapshot:
   // it is additionally bound to the exact finalized task generation and
   // fenced owner. Prefer it when both share the same ingressRef so relocation
@@ -5437,7 +5552,11 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
     ingressRef: ref,
     project: target.project,
     activeRoot: target.activeRoot,
-    taskId: options.taskId || readServerOwnedLifecycleProjection(target).state?.taskRecoveryBinding?.taskId
+    taskId: options.taskId || (() => {
+      // Ignore a recovery binding whose task folder was removed outside DevCodex.
+      const binding = readServerOwnedLifecycleProjection(target).state?.taskRecoveryBinding
+      return binding && !isTaskRecoveryBindingOrphaned(binding) ? binding.taskId : undefined
+    })()
   }, { fs, nowMs: Date.now(), requireAuthority: true })
   if (resumeRead.status === 'fresh' && resumeRead.authority === true) {
     const candidate = resumeRead.candidate
@@ -5643,8 +5762,8 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
 
 function workflowRouteIndexMetaDir(target) {
   return LAYOUT.enabled
-    ? path.join(LAYOUT.workspaceRoot, '.devcodex', 'workspace', '.memory', 'hooks', 'workspace')
-    : path.join(target.activeRoot, '.memory', 'hooks', 'legacy')
+    ? path.join(LAYOUT.workspaceRoot, '.devcodex', 'workspace', '.memory', 'hooks', 'workspace', ...hostSessionPartitionSegments())
+    : path.join(target.activeRoot, '.memory', 'hooks', 'legacy', ...hostSessionPartitionSegments())
 }
 
 function stableTaskIdentityReadback(target, transaction, ingress, taskId) {
@@ -6594,6 +6713,9 @@ function handleMemoryTaskAdmitV2(args) {
   admission.ingressAuthority = admission.ingressAuthority || ingress.authorityReceipt
   admission.ingressSource = ingressSource
   admission.ingressRef = admission.ingressRef || currentIngressRef(ingress)
+  // Surface a caller-supplied ingressRef that was rejected and replaced by the
+  // server-owned projection, so the fallback is never silent.
+  admission.ingressWarnings = Array.isArray(ingress.ingressWarnings) ? ingress.ingressWarnings : []
   admission.activeVersion = MEMORY_RUNTIME_IDENTITY.activeVersion
   admission.runtimeGeneration = MEMORY_RUNTIME_IDENTITY.generationId
   const explicitReopen = args.task.entryVariant === 'reopen'
@@ -7199,6 +7321,104 @@ function resolveObservedOperationIngress(target, args) {
   }
 }
 
+function structuredResult(result) {
+  if (result?.structuredContent) return result.structuredContent
+  try { return JSON.parse(result?.content?.[0]?.text) } catch { return { text: result?.content?.[0]?.text || null } }
+}
+
+function handleMemoryTurnCloseoutV1(args) {
+  const allowed = new Set(['project', 'title', 'intent', 'sourceMessage', 'turn', 'sessionStatus', 'notes', 'report', 'summary', 'terminal'])
+  for (const key of Object.keys(args || {})) {
+    if (!allowed.has(key)) throw memoryQueryError(`Unknown field: ${key}`, 'Remove unsupported fields.', 'MEMORY_WRITER_ARGUMENT_INVALID')
+  }
+  normalizeMemorySessionEdits({ turn: args.turn, sessionStatus: args.sessionStatus })
+  if (args.report !== undefined && (!args.report || typeof args.report.targetPath !== 'string' || typeof args.report.content !== 'string' || !args.report.content)) {
+    throw memoryQueryError('report must be {targetPath, content}.', 'Pass a new reports/ Markdown path and its content.', 'MEMORY_WRITER_ARGUMENT_INVALID')
+  }
+  if (args.summary !== undefined && (typeof args.summary !== 'string' || !args.summary.trim())) {
+    throw memoryQueryError('summary must be a non-empty string.', 'Pass one SUMMARY line.', 'MEMORY_WRITER_ARGUMENT_INVALID')
+  }
+  const base = { project: args.project, scope: 'project' }
+  const target = resolveMemoryTarget(base)
+  const steps = {}
+  let reportDescriptor = null
+  if (args.report) {
+    const relative = String(args.report.targetPath || '').replace(/\\/g, '/').replace(/^\.\//, '')
+    if (!/\.md$/i.test(relative) || !/(^|\/)reports\//.test(relative)) {
+      throw memoryQueryError('report.targetPath must be a Markdown file under a reports/ directory.', 'Use <taskRoot>/reports/<agent>/YYYYMMDD/NN--简述.md.', 'MEMORY_TURN_CLOSEOUT_REPORT_PATH_INVALID')
+    }
+    // Same authority as memory_workflow_operational_write_lease: current ingress + task-report slot.
+    const lease = structuredResult(handleMemoryWorkflowOperationalWriteLease({ project: args.project, operation: 'create', targets: [relative] }))
+    const absolute = path.resolve(target.activeRoot, relative)
+    if (!absolute.startsWith(path.resolve(target.activeRoot) + path.sep)) {
+      throw memoryQueryError('report.targetPath escapes the active root.', 'Use an active-root relative path.', 'MEMORY_TURN_CLOSEOUT_REPORT_PATH_INVALID')
+    }
+    fs.mkdirSync(path.dirname(absolute), { recursive: true })
+    fs.writeFileSync(absolute, args.report.content.endsWith('\n') ? args.report.content : `${args.report.content}\n`, { flag: 'wx' })
+    steps.report = {
+      targetPath: relative,
+      leaseId: lease.lease?.leaseId || null,
+      slotId: lease.lease?.slotId || null,
+      digest: crypto.createHash('sha256').update(fs.readFileSync(absolute)).digest('hex')
+    }
+    reportDescriptor = {
+      id: 'turn-report',
+      label: path.basename(relative, '.md'),
+      targetPath: relative,
+      purpose: '本轮报告'
+    }
+  }
+  const allocation = structuredResult(handleMemorySessionAllocate({
+    ...base, title: args.title, intent: args.intent, ...(args.sourceMessage ? { sourceMessage: args.sourceMessage } : {})
+  }))
+  steps.session = { sessionId: allocation.sessionId }
+  const write = structuredResult(handleMemorySessionWrite({
+    ...base,
+    sessionId: allocation.sessionId,
+    sessionBinding: allocation.sessionBinding,
+    turn: args.turn,
+    sessionStatus: args.sessionStatus || 'in-progress',
+    ...(args.notes ? { content: args.notes } : {}),
+    ...(reportDescriptor ? { artifacts: [reportDescriptor] } : {})
+  }))
+  steps.sessionWrite = { file: write.file || null, applied: write.sessionWrite?.applied || [], readbackVerified: write.sessionWrite?.readbackVerified === true }
+  if (args.summary) {
+    const summaryResult = handleMemorySummaryAppend({
+      ...base,
+      entry: {
+        summary: args.summary.trim().slice(0, 400),
+        status: args.sessionStatus === 'completed' ? 'completed' : 'active',
+        type: args.intent,
+        sessionId: allocation.sessionId
+      },
+      ...(reportDescriptor ? { reportArtifact: { label: reportDescriptor.label, targetPath: reportDescriptor.targetPath, purpose: reportDescriptor.purpose } } : {})
+    })
+    const summary = structuredResult(summaryResult)
+    steps.summary = { file: summary.file || null, ok: summaryResult?.isError !== true }
+  }
+  if (args.terminal) {
+    if (!steps.report || !steps.sessionWrite?.file) {
+      throw memoryQueryError('terminal close-out requires this call to write the report and session memory.', 'Provide report and turn in the same call.', 'MEMORY_TASK_CLOSEOUT_EVIDENCE_EMPTY')
+    }
+    const closed = handleMemoryTaskCloseoutV1({
+      project: args.project,
+      taskId: args.terminal.taskId,
+      terminalStatus: args.terminal.terminalStatus,
+      reportPath: steps.report.targetPath,
+      memoryPath: steps.sessionWrite.file,
+      ecr: args.terminal.ecr,
+      completion: args.terminal.completion
+    })
+    steps.terminal = structuredResult(closed)
+    if (closed.isError) {
+      const receipt = { schemaVersion: 'MemoryTurnCloseoutReceiptV1', project: target.project, ...steps }
+      return { content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }], structuredContent: receipt, isError: true }
+    }
+  }
+  const receipt = { schemaVersion: 'MemoryTurnCloseoutReceiptV1', project: target.project, ...steps }
+  return { content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }], structuredContent: receipt }
+}
+
 function handleMemoryWorkflowOperationalWriteLease(args) {
   const target = taskMemoryTransactionTarget(args)
   if (target.scope !== 'project' || !target.project) {
@@ -7327,6 +7547,107 @@ function handleMemoryTaskTerminalV1(args) {
   }
 }
 
+function closeoutEvidenceIdentity(activeRoot, role, relative) {
+  const bytes = fs.readFileSync(path.join(activeRoot, ...relative.split('/')))
+  return { role, path: relative, sha256: crypto.createHash('sha256').update(bytes).digest('hex'), bytes: bytes.length }
+}
+
+function closeoutCell(value) {
+  return String(value || '').replace(/\r?\n/g, ' ').replace(/\|/g, '\\|').trim().slice(0, 400)
+}
+
+// Sanctioned producer for the four terminal evidence identities. ECR and the
+// completion checklist are rendered from caller-supplied real turn data and the
+// digests of the existing report/memory files; terminal CAS fields are read from
+// the durable owner so the fenced terminal transition still validates them.
+function handleMemoryTaskCloseoutV1(args) {
+  const allowed = new Set(['project', 'taskId', 'terminalStatus', 'reportPath', 'memoryPath', 'ecr', 'completion'])
+  for (const key of Object.keys(args || {})) {
+    if (!allowed.has(key)) throw memoryQueryError(`Unknown field: ${key}`, 'Remove unsupported fields.', 'MEMORY_WRITER_ARGUMENT_INVALID')
+  }
+  const checks = Array.isArray(args.ecr?.checks) ? args.ecr.checks : []
+  const items = Array.isArray(args.completion?.items) ? args.completion.items : []
+  if (!String(args.ecr?.summary || '').trim() || !checks.length || !items.length ||
+      checks.some(c => !String(c?.item || '').trim() || !String(c?.result || '').trim()) ||
+      items.some(c => !String(c?.item || '').trim() || !String(c?.status || '').trim())) {
+    throw memoryQueryError('ecr.summary, ecr.checks and completion.items must carry real turn data.', 'Describe each executed check and delivered item.', 'MEMORY_TASK_CLOSEOUT_EVIDENCE_EMPTY')
+  }
+  const target = resolveMemoryTarget({ project: args.project, scope: 'project' })
+  const taskId = String(args.taskId || '').toLowerCase()
+  const identity = { activeRoot: target.activeRoot, project: target.project, taskId, taskStatus: 'active' }
+  const ownerRead = readFencedTaskWriteOwner({ metaDir: resolveTaskRecoveryMetaDir(identity), identity }, { fs })
+  if (ownerRead.status !== 'fresh' || !ownerRead.owner || !ownerRead.transaction?.taskRootRelative) {
+    throw memoryQueryError('the task has no durable active owner', 'Admit or bind the task in this turn first.', ownerRead.errorCode || 'TASK_WRITE_OWNER_MISSING')
+  }
+  const owner = ownerRead.owner
+  const taskRootRelative = ownerRead.transaction.taskRootRelative
+  const norm = value => String(value || '').replace(/\\/g, '/').replace(/^\.\//, '')
+  const reportPath = norm(args.reportPath)
+  const memoryPath = norm(args.memoryPath)
+  if (!reportPath.startsWith(`${taskRootRelative}/reports/`) || !/\.md$/i.test(reportPath)) {
+    throw memoryQueryError('reportPath must be a Markdown report under the task reports directory.', `Use ${taskRootRelative}/reports/<agent>/YYYYMMDD/NN--简述.md.`, 'MEMORY_TASK_CLOSEOUT_REPORT_PATH_INVALID')
+  }
+  if (!memoryPath.startsWith('.memory/') && !memoryPath.startsWith(`${taskRootRelative}/.memory/`)) {
+    throw memoryQueryError('memoryPath must be in project or task memory.', 'Use the session file returned by memory_turn_closeout_v1.', 'MEMORY_TASK_CLOSEOUT_MEMORY_PATH_INVALID')
+  }
+  const report = closeoutEvidenceIdentity(target.activeRoot, 'report', reportPath)
+  const memory = closeoutEvidenceIdentity(target.activeRoot, 'memory', memoryPath)
+  const stamp = new Date().toISOString()
+  const day = stamp.slice(0, 10).replace(/-/g, '')
+  const run = `${day}-${stamp.slice(11, 19).replace(/:/g, '')}`
+  const ecrRelative = `${taskRootRelative}/evidence/closeout/${run}-ECR.md`
+  const completionRelative = `${taskRootRelative}/evidence/closeout/${run}-完成清单.md`
+  const evidenceRows = [report, memory].map(e => `| ${e.role} | ${e.path} | ${e.sha256} | ${e.bytes} |`).join('\n')
+  const ecrContent = [
+    `# ECR 执行闭环复审`, '', `- 任务：${taskRootRelative}（${taskId}）`, `- 终态：${args.terminalStatus}`, `- 生成：${stamp}（memory_task_closeout_v1）`, '',
+    `## 结论`, '', closeoutCell(args.ecr.summary), '',
+    `## 复审项`, '', '| 复审项 | 结果 |', '|---|---|', ...checks.map(c => `| ${closeoutCell(c.item)} | ${closeoutCell(c.result)} |`), '',
+    `## 引用证据`, '', '| 角色 | 路径 | sha256 | 字节 |', '|---|---|---|---|', evidenceRows, ''
+  ].join('\n')
+  const completionContent = [
+    `# 完成清单`, '', `- 任务：${taskRootRelative}（${taskId}）`, `- 终态：${args.terminalStatus}`, `- 生成：${stamp}（memory_task_closeout_v1）`, '',
+    '| 交付项 | 状态 |', '|---|---|', ...items.map(c => `| ${closeoutCell(c.item)} | ${closeoutCell(c.status)} |`), '',
+    `ECR：${ecrRelative}`, ''
+  ].join('\n')
+  const lease = structuredResult(handleMemoryWorkflowOperationalWriteLease({ project: args.project, operation: 'create', targets: [ecrRelative, completionRelative] }))
+  for (const [relative, content] of [[ecrRelative, ecrContent], [completionRelative, completionContent]]) {
+    const absolute = path.join(target.activeRoot, ...relative.split('/'))
+    fs.mkdirSync(path.dirname(absolute), { recursive: true })
+    fs.writeFileSync(absolute, content, { flag: 'wx' })
+  }
+  const evidence = [
+    closeoutEvidenceIdentity(target.activeRoot, 'ecr', ecrRelative),
+    report,
+    memory,
+    closeoutEvidenceIdentity(target.activeRoot, 'completion', completionRelative)
+  ]
+  const snapshot = taskOperationTerminalSnapshot(ownerRead.state?.turnLiveness)
+  const terminal = handleMemoryTaskTerminalV1({
+    project: args.project,
+    taskId,
+    admissionId: ownerRead.transaction.admissionId,
+    terminalStatus: args.terminalStatus,
+    expectedOwner: { ownerGeneration: owner.ownerGeneration, ownerNonce: owner.ownerNonce, leaseRevision: owner.leaseRevision, leaseDigest: owner.leaseDigest },
+    lifecycleRevision: Number(owner.reopenGeneration || 0) + 1,
+    expectedStateSequence: Number(ownerRead.envelope?.sequence || 0),
+    expectedWriterGeneration: Number(ownerRead.envelope?.writerGeneration ?? owner.ownerGeneration),
+    settledSetDigest: snapshot.settledSetDigest,
+    evidence
+  })
+  const result = structuredResult(terminal)
+  const receipt = {
+    schemaVersion: 'MemoryTaskCloseoutReceiptV1',
+    project: target.project,
+    taskId,
+    terminalStatus: args.terminalStatus,
+    leaseId: lease.lease?.leaseId || null,
+    evidence,
+    terminal: { status: result.status || null, receiptDigest: result.receipt?.receiptDigest || null, routeReconciliationRequired: result.routeReconciliationRequired === true },
+    receipt: result.receipt || null
+  }
+  return { content: [{ type: 'text', text: JSON.stringify(receipt, null, 2) }], structuredContent: receipt, isError: terminal.isError === true }
+}
+
 function handleMemoryTaskCloseoutReconcileV1(args) {
   const target = taskMemoryTransactionTarget(args)
   if (target.scope !== 'project' || !target.project) {
@@ -7399,6 +7720,7 @@ function dispatch(method, params) {
           case 'memory_session_allocate': return handleMemorySessionAllocate(args)
           case 'memory_session_read': return handleMemorySessionRead(args)
           case 'memory_session_write': return handleMemorySessionWrite(args)
+          case 'memory_turn_closeout_v1': return handleMemoryTurnCloseoutV1(args)
           case 'memory_artifact_link_project': return handleMemoryArtifactLinkProject(args)
           case 'memory_cp_confirm': return handleMemoryCpConfirm(args)
           case 'memory_summary_read': return handleMemorySummaryRead(args)
@@ -7445,7 +7767,7 @@ function dispatch(method, params) {
 }
 
 if (require.main === module) {
-  createJsonLineServer({ dispatch, onEnd: () => process.exit(0) })
+  createJsonLineServer({ dispatch: wrapDispatchWithHostSession(dispatch), onEnd: () => process.exit(0) })
   process.on('SIGINT', () => process.exit(0))
   process.on('SIGTERM', () => process.exit(0))
 }

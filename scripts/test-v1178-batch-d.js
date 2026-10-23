@@ -538,7 +538,7 @@ function testPublicSchemaRuntimeParity() {
   const write = tools.find(tool => tool.name === 'memory_session_write')
   const sessionQuery = tools.find(tool => tool.name === 'memory_session_query')
   const summaryQuery = tools.find(tool => tool.name === 'memory_summary_query')
-  assert.deepStrictEqual(write.inputSchema.required, ['content'])
+  assert.deepStrictEqual(write.inputSchema.anyOf.map(item => item.required[0]), ['content', 'turn', 'sessionStatus'])
   assert.strictEqual(sessionQuery.inputSchema.properties.cursor.maxLength, 8192)
   assert.strictEqual(summaryQuery.inputSchema.properties.cursor.maxLength, 8192)
 

@@ -16,8 +16,15 @@ const VALID_AGENTS = new Set([
   'unknown-agent'
 ])
 
+// Host-variant agents that share an existing agent identity (profile/memory
+// ownership stays with the base agent; the variant is recorded separately).
+const AGENT_ALIASES = Object.freeze({
+  'grok-bot': 'grok'
+})
+
 function normalizeAgent(value) {
-  const agent = String(value || '').trim().toLowerCase()
+  const raw = String(value || '').trim().toLowerCase()
+  const agent = AGENT_ALIASES[raw] || raw
   return VALID_AGENTS.has(agent) ? agent : ''
 }
 

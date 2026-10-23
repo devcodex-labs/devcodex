@@ -437,7 +437,7 @@ function cmdGrok(argv) {
 }
 
 const cliCommandRegistry = createCliCommandRegistry({
-  cmdInitWorkspaceRuntime, cmdInitHost, cmdUninstallHost, cmdGrok, cmdStatus, cmdProfileInit, cmdDoctor,
+  cmdGrokBot: argv => require('./scripts/lib/grok-bot-driver.js').cmdGrokBot(argv, { console, c, process }), cmdInitWorkspaceRuntime, cmdInitHost, cmdUninstallHost, cmdGrok, cmdStatus, cmdProfileInit, cmdDoctor,
   cmdProbe, cmdTrace, cmdSkill, cmdTask, cmdGlobalAdapters, cmdRuntime, cmdTemp, cmdGovernance, cmdHelp
 })
 

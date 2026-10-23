@@ -1,6 +1,7 @@
 'use strict'
 
 const fs = require('fs')
+const { hostSessionPartitionSegments } = require('./host-session-partition.cjs')
 const os = require('os')
 const path = require('path')
 const crypto = require('crypto')
@@ -39,7 +40,8 @@ const {
 const { compactLanguageContext, packRecoveryLanguageContext } = require('./language-context.cjs')
 const {
   validateActualInstructionEnvelope,
-  validateWorkItemSet
+  validateWorkItemSet,
+  isTrustedHostIngressEnvelope
 } = require('./actual-instruction-envelope.cjs')
 const { validateIntentSemanticDecision } = require('./intent-semantic-decision.cjs')
 const {
@@ -434,7 +436,7 @@ function resolveTaskRecoveryMetaDir(input = {}) {
     activeRoot = path.join(anchor, 'workspace')
     partition = 'workspace'
   }
-  return path.join(activeRoot, '.memory', 'hooks', partition)
+  return path.join(activeRoot, '.memory', 'hooks', partition, ...hostSessionPartitionSegments())
 }
 
 function createTaskRecoveryKey(input = {}) {
@@ -2194,6 +2196,13 @@ function writeBoundedResumeIngressCapability(input = {}, options = {}) {
   } finally {
     releaseLock(lock, fsImpl)
   }
+}
+
+// A TaskRecoveryBinding whose task folder was removed outside DevCodex (e.g. a manual rm)
+// must not drive resume rehydration or admission continuation for a later turn.
+function isTaskRecoveryBindingOrphaned(binding, fsImpl = fs) {
+  if (!binding || typeof binding.taskRoot !== 'string' || !binding.taskRoot) return false
+  try { return !fsImpl.statSync(binding.taskRoot).isDirectory() } catch { return true }
 }
 
 function readBoundedResumeIngressCapability(input = {}, options = {}) {
@@ -4498,7 +4507,7 @@ function hasPendingWorkflowIngress(state) {
   const envelope = state?.actualInstructionEnvelope
   const context = state?.contextAcquisition || {}
   return !state?.taskRecoveryBinding && !state?.workflowRouteDecision &&
-    envelope?.provenanceLevel === 'trusted-host-event' && envelope.instructionAuthority === true &&
+    isTrustedHostIngressEnvelope(envelope) && envelope.instructionAuthority === true &&
     envelope.contextEpoch === context.contextEpoch && Boolean(context.hostSessionId) &&
     envelope.hostSessionDigest === rawHostSessionDigest(context.hostSessionId) &&
     validateActualInstructionEnvelope(envelope).valid &&
@@ -7862,6 +7871,7 @@ function reconcileEmergencyTaskCloseout(input = {}, options = {}) {
 }
 
 module.exports = {
+  isTaskRecoveryBindingOrphaned,
   ADMISSION_CONTINUATION_LEASE_SCHEMA,
   ADMISSION_INGRESS_SNAPSHOT_REF_SCHEMA,
   ADMISSION_INGRESS_SNAPSHOT_SCHEMA,

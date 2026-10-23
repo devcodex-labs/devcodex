@@ -1,5 +1,7 @@
 'use strict'
 
+const { hostSessionPartitionSegments } = require('./host-session-partition.cjs')
+
 function buildLifecycleNamespaceStateUtils(ctx) {
   const {
     fs,
@@ -45,7 +47,7 @@ function buildLifecycleNamespaceStateUtils(ctx) {
   }
 
   function buildStatePaths(namespaceRoot, scopeKey) {
-    const dir = path.join(namespaceRoot, '.memory', 'hooks', scopeKey)
+    const dir = path.join(namespaceRoot, '.memory', 'hooks', scopeKey, ...hostSessionPartitionSegments())
     return {
       dir,
       file: path.join(dir, 'lifecycle-state.json'),

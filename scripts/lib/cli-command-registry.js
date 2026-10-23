@@ -140,6 +140,7 @@ function runCliCommand({ cmd, argv, registry, runMigrateLayout, process, c, cons
   if (cmd === 'tmp') { registry.cmdTemp(argv); return 'tmp' }
   if (cmd === 'governance') { registry.cmdGovernance(argv); return 'governance' }
   if (cmd === 'grok') { registry.cmdGrok(argv); return 'grok' }
+  if (cmd === 'grok-bot' && typeof registry.cmdGrokBot === 'function') { registry.cmdGrokBot(argv); return 'grok-bot' }
   if (cmd === 'global-adapters') {
     registry.cmdGlobalAdapters(argv)
     return 'global-adapters'

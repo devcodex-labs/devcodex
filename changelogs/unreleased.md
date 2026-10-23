@@ -11,6 +11,32 @@ TaskLifecycle 规范能力吸纳、源码操作状态恢复及本次入口/CP/�
 
 修复和边界见 [v1.20.5候选说明](releases/v1.20.5.md)。当前仅准备本地候选，不表示已发布或最终资格通过。下方既有历史条目保留，不批量移入新版本。
 
+## Grok Bot 宿主驱动（grok-bot）
+
+- 会话隔离：Grok Bot 多会话共用连接器与 `grok-bot-session` 时会互相覆盖同一项目的 lifecycle-state。现驱动 `turn-begin`/`observe-tool` 支持 `--session-id`，连接器每次调用可携带 `hostSession`（校验格式与 contextBinding 归属，逐调用切换会话）；仅对 grok-bot 驱动宿主，lifecycle/恢复/准入/路由状态按 `.memory/hooks/<project>/.sessions/<id>/` 分区，其他宿主不变。新增 `hooks/_runtime/host-session-partition.cjs` 与双会话交错/任务恢复不越界测试。
+- 新增 `grok-bot` hostVariant（`grok-bot/driver-synthesized-local-stdio`，UNVERIFIED、非默认）：`host-adapter-identity.cjs` 注册变体/别名，`DEVCODEX_AGENT=grok-bot` 归一为 `grok` agent，不再落入 `unknown-agent`。
+- `lifecycle-host-adapters.cjs grok-bot` 复用 Grok 事件映射，事件与输出均标记 `devcodexEventProvenance=driver-synthesized`，不冒充原生宿主事件。
+- 新增 `devcodex grok-bot turn-begin|observe-tool|run`（`scripts/lib/grok-bot-driver.js`），供无原生生命周期 Hook 的 Grok Bot 合成 SessionStart/UserPromptSubmit 并为每次 MCP 调用补发 Pre/PostToolUse，打通 profile_context_plan → skill_route → memory_task_admit_v2。
+- `observe-tool` 新增 `--args-file`、`--response-file`（自动剥离 Grok Bot 不可信数据围栏并还原 MCP CallToolResult 形状）并强制 `--project-dir`；每次 MCP 调用前后各一条命令。
+- 入口检查感知 grok-bot：`profile_compose_entry_check` 的 PC5 在 `DEVCODEX_AGENT=grok-bot` 时如实报告 Grok Bot 驱动档（`WARN`，Partial 类，不可判 Full）；PC6 读取项目 Git 分支与未提交改动数（有改动为 `WARN`）；PC4 读取 Profile `config.mode`，dev 模式在调用方提供 `entry.specRadar` 时判 `PASS`。其他宿主无证据时仍为 `UNVERIFIED`。
+- `memory_task_admit_v2` 回执新增 `ingressWarnings`：调用方传入的 ingressRef 无效而回退到服务端入口投影时不再静默。
+- `observe-tool --tool` 仅为裸 DevCodex 工具名补命名空间，原生工具名（Write/Edit/Bash）原样透传。
+- Grok 插件 Skill 增加「Grok Bot (no native hooks)」小节与 HostParity 驱动档行。
+- 新增 `scripts/grok-bot-runtime.sh update|restart|status`：Grok Bot 连接器与驱动固定运行在独立干净副本（默认 `/workspace/devcodex-runtime`），只做 fast-forward 更新，并按副本路径重启 profile/memory 服务。
+- 新增来源级别 `driver-synthesized-host-event`：驱动合成事件不再记为原生 `trusted-host-event`；仅 `grok-bot/driver-synthesized-local-stdio` 变体可获得等同的入口授权（语义决策、准入、恢复判定），其他宿主不变，伪造到其他变体会被校验拒绝。
+- 新增 `memory_turn_closeout_v1`：一次调用完成 S05——可选新建报告（与 operational 写租约同等授权校验，仅限 `reports/` 下新文件）、会话分配/复用、📨 对话行与状态行更新、SUMMARY 追加。
+- `memory_session_write` 新增 `turn`（自动编号写入 📨 表格行）与 `sessionStatus`（更新「状态」行，不再停留在「已分配，待补充内容」）；自由 Markdown 紧跟表格时自动空行分隔，不再拼进表格。`content` 改为可选（至少提供 content/turn/sessionStatus/artifacts 之一）。
+- 入口检查表 PC 标签与内容对齐（PC0 版本与运行、PC2 会话、PC3 执行准备、PC5 宿主、PC6 工作区、PC7 续接、PC8 流程与方案；英文同步），模板 `precheck-status.prompt.md` 同步；`profile_compose_entry_check` 未提供 `languageDecision` 时按用户提示语言渲染（中文提示 → 中文）。
+- `devcodex grok-bot turn-begin` 输出 `profileFreshness` 与 `warnings`：Profile current-truth `gitHead` 与项目 HEAD 不一致（`PROFILE_TRUTH_DRIFT`）或 Profile 更新后已有 ≥20 次提交（`PROFILE_POSSIBLY_STALE`）时告警。
+- Grok 插件 Skill 的 Grok Bot 小节补充：S04 在该路径不可强制、Profile 新鲜度告警、`memory_turn_closeout_v1` 收尾。
+- 任务目录被删除后遗留的 TaskRecoveryBinding 不再污染后续准入：PreToolUse 重放前清除孤立绑定（`lastResumeIngressRehydrate.reasonCode=task-root-missing`），`memory_task_admit_v2` 的 bounded-resume 回退忽略孤立绑定，省略 `ingressRef` 的准入恢复正常。
+- Codex CLI Skill 路由能力由 `PASS` 降为 `UNVERIFIED`（`defaultEligible=false`）：`task-recovery-store-v5.cjs` 等运行时契约文件变更后，旧 S15 证据的 `runtimeContractDigest`/`hostAdapterDigest` 已过期；在 codex-cli 0.155.1 上用 `probe-skill-route-s15-host.js --host codex`（隔离与 production 模式）重放均因宿主恢复指令要求提交后立即 load_stage 而无法完成条件重规划，未取得可提升的新鲜证据。旧证据文件保留作历史，待真实宿主重放通过后用 `refresh-host-skill-route-capability.js` 重新提升。
+- `memory_turn_closeout_v1` 新增 `terminal`：用本轮真实数据（ECR 复审项、完成项）在 `<taskRoot>/evidence/closeout/` 生成 ECR 与完成清单，引用同一调用写入的报告与会话记忆摘要，读取 owner CAS 后执行受围栏的 `memory_task_terminal_v1`；`completed` 仍要求已验证 CP1。补齐此前 terminal 四类证据缺少生产者的缺口。
+- 驱动宿主写入 `DEVCODEX_HOST_VARIANT`，turn-begin 的 SkillRouteBootstrap 报告 `grok-bot/driver-synthesized-local-stdio`。
+- `devcodex profile init` 对 DevCodex 源码仓库自身生成 ProfileCurrentTruthV1 与 currentTruthRef：仅取 package.json、本地 git/候选身份、CI 矩阵与公开 GitHub Release/workflow 回执；证据缺失保持 UNVERIFIED，由未改动的 ProfileCurrentTruthGate 拒绝。
+- 使用前提：在父级工作区（如 `/workspace`）执行 `devcodex init`，不要在仓库内初始化；各项目再执行 `devcodex profile init`。
+- 限制：事件由驱动合成，PreToolUse 仅观测不强制拦截；回归见 `npm run test:grok-bot-host`。
+
 ## 全项目审查问题修复
 
 - MCP supervisor 固定客户端已协商的 tools/prompts 契约；worker 崩溃后先复核候选，schema 漂移返回明确的重启错误。外层 stdin 使用共享有界 JSONL reader，超大帧拒绝后仍能处理合法请求。

@@ -76,6 +76,7 @@ const {
   appendTaskRecoveryTelemetry,
   readBoundedResumeIngressCapability,
   readFencedTaskWriteOwner,
+  isTaskRecoveryBindingOrphaned,
   readTaskRecoveryState,
   resolveTaskRecoveryMetaDir,
   transitionTaskScopedAutoContinuationGrant,
@@ -110,6 +111,7 @@ const {
 } = require('./host-adapter-identity.cjs')
 const {
   buildActualInstructionEnvelope,
+  isDriverSynthesizedHostVariant,
   buildWorkItemSet,
   validateActualInstructionEnvelope
 } = require('./actual-instruction-envelope.cjs')
@@ -735,7 +737,12 @@ function initializeWorkflowIngress(
       sourceEventId: serverOwnedSourceEventId
     }, {
       actualInstruction: prompt,
-      hostVariant: state.hostIdentity?.hostVariant || platform,
+      // Driver-synthesized events (no native hooks) carry the driver host variant so the envelope
+      // records driver-synthesized-host-event provenance instead of impersonating the native host.
+      hostVariant: (payload?.devcodexEventProvenance === 'driver-synthesized' &&
+        isDriverSynthesizedHostVariant(process.env.DEVCODEX_HOST_VARIANT))
+        ? process.env.DEVCODEX_HOST_VARIANT
+        : (state.hostIdentity?.hostVariant || platform),
       hostSessionId: getPayloadSessionKey(payload),
       turnId: state.turnLiveness?.turnKey,
       contextEpoch: state.contextAcquisition?.contextEpoch,
@@ -1184,7 +1191,7 @@ function observeSimpleTaskFastPathLease(state, payload) {
 
 function observeWorkflowTaskTerminalReceipt(state, payload) {
   const toolLeaf = devCodexToolLeaf(getToolName(payload))
-  if (!['memory_task_terminal_v1', 'memory_task_closeout_reconcile_v1'].includes(toolLeaf) ||
+  if (!['memory_task_terminal_v1', 'memory_task_closeout_reconcile_v1', 'memory_turn_closeout_v1'].includes(toolLeaf) ||
       payload.success === false || payload.is_error === true || payload.isError === true) return null
   const receipts = findWorkflowTaskTerminalReceipts(payload)
   if (receipts.length !== 1) {
@@ -2224,6 +2231,12 @@ function hasFreshCurrentTrustedHostIngress(state, payload) {
 function rehydrateBoundedResumeIngress(state, payload) {
   const binding = state?.taskRecoveryBinding
   if (!binding?.taskId || !binding?.project) return { status: 'skipped', reasonCode: 'task-binding-missing' }
+  if (isTaskRecoveryBindingOrphaned(binding)) {
+    // The bound task folder no longer exists: drop the binding instead of rehydrating its ingress.
+    state.taskRecoveryBinding = null
+    state.resumeIngressRehydrateError = null
+    return { status: 'skipped', reasonCode: 'task-root-missing', taskId: binding.taskId }
+  }
   if (hasFreshCurrentTrustedHostIngress(state, payload)) {
     state.resumeIngressRehydrateError = null
     return { status: 'skipped', reasonCode: 'current-trusted-host-ingress-active' }

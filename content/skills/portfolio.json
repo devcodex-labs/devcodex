@@ -6,17 +6,17 @@
     "skillsPattern": "content/skills/*/SKILL.md",
     "optionalSidecar": "content/skills/*/devcodex.skill.json",
     "registry": "plugin.json",
-    "sourceDigest": "67c010bb3feae21da186da62f59250aee200c90aa17ab34b36690759f40810eb",
+    "sourceDigest": "551b528e53b10b866a48cc8cb3f4b858a85de28930fb88f88ecfc03de34b760c",
     "sidecarDigest": "774105d7947b340d15d17115fcb8e37b62ae545cf553f06126d529184fd74872",
     "pluginDigest": "16cf44508be1000903d8d9f5ebf7b1a97a32a3806646dd4af2f2f1aed4a68e7c",
     "publicTaxonomy": "content/skills/public-taxonomy.json",
     "publicTaxonomyDigest": "7f6ee8c30f5484b8881e27099af72c69625b73a7cf3b53fe51c8c0c147d4f124",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "cfd709b1248855c06c56373d1bcfe4798acefd7f1e0c11555b26cfd8caa1e8a6",
-    "consumerInventoryFileCount": 731,
-    "consumerInventoryDigest": "54a64aa98ede8816cdccee8a821adf8a75bfd30921b90deb1b631f8a7d260508",
-    "consumerProjectionDigest": "abdd741feaa9bda23d8a7b02944ed8fc7baa3d966b60d8f649e20e15f21175c8",
-    "portfolioInputDigest": "5ba18148cfefc6a2e95544b4a20ea6650d747d905817288d03207759b6a1a94c"
+    "consumerInventoryFileCount": 735,
+    "consumerInventoryDigest": "c2f71f2924d163753b5dab8146ddefb15d1d343d2ff8201957fe4e5aba513231",
+    "consumerProjectionDigest": "2b09ec9588ad0e960884aaf0cf16520f87e8844840f281d36d0d1d53ce747fd9",
+    "portfolioInputDigest": "07007518e994791b588a490b63403b8b1bd46c99857ca3c37d55a8b78973e184"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -9379,6 +9379,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-grok-bot-host.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-host-parity-scorecard.js",
           "role": "current"
         },
@@ -9400,6 +9404,7 @@
         }
       ],
       "validationProfile": [
+        "scripts/test-grok-bot-host.js",
         "scripts/test-host-parity-scorecard.js",
         "scripts/test-repair-prevention-assessment.js",
         "scripts/test-requirement-parallel-orchestration.js",
@@ -9452,6 +9457,7 @@
         ],
         "evolvableUnitRef": "skill:fix-default",
         "probeSuiteRefs": [
+          "scripts/test-grok-bot-host.js",
           "scripts/test-host-parity-scorecard.js",
           "scripts/test-repair-prevention-assessment.js",
           "scripts/test-requirement-parallel-orchestration.js",
@@ -11126,6 +11132,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/grok-bot-driver.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/host-capability-routing.js",
           "role": "current"
         },
@@ -11318,6 +11328,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-grok-bot-host.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-hooks-ingress-continuity.js",
           "role": "current"
         },
@@ -11479,6 +11493,7 @@
         "scripts/test-feature-inventory-evidence.js",
         "scripts/test-global-skill-runtime-root.js",
         "scripts/test-governance-intake.js",
+        "scripts/test-grok-bot-host.js",
         "scripts/test-hooks-ingress-continuity.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-adapters.js",
@@ -11597,6 +11612,7 @@
           "scripts/test-feature-inventory-evidence.js",
           "scripts/test-global-skill-runtime-root.js",
           "scripts/test-governance-intake.js",
+          "scripts/test-grok-bot-host.js",
           "scripts/test-hooks-ingress-continuity.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-adapters.js",
@@ -12305,6 +12321,10 @@
           "role": "current"
         },
         {
+          "path": "hooks/_runtime/host-session-partition.cjs",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/host-tool-mutation-adapters.cjs",
           "role": "current"
         },
@@ -12613,6 +12633,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/grok-bot-driver.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/grok-workspace-launcher.js",
           "role": "current"
         },
@@ -12817,6 +12841,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-grok-bot-host.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-hooks-ingress-continuity.js",
           "role": "current"
         },
@@ -13016,6 +13044,7 @@
         "scripts/test-global-install-smoke.js",
         "scripts/test-governance-intake.js",
         "scripts/test-governance-status-summary.js",
+        "scripts/test-grok-bot-host.js",
         "scripts/test-hooks-ingress-continuity.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-adapters.js",
@@ -13119,6 +13148,7 @@
           "scripts/test-global-install-smoke.js",
           "scripts/test-governance-intake.js",
           "scripts/test-governance-status-summary.js",
+          "scripts/test-grok-bot-host.js",
           "scripts/test-hooks-ingress-continuity.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-adapters.js",
@@ -14064,6 +14094,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/grok-bot-driver.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/grok-workspace-launcher.js",
           "role": "current"
         },
@@ -14440,6 +14474,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-grok-bot-host.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-hooks-ingress-continuity.js",
           "role": "current"
         },
@@ -14721,6 +14759,7 @@
         "scripts/test-governance-intake.js",
         "scripts/test-governance-ledger-resolver.js",
         "scripts/test-governance-status-summary.js",
+        "scripts/test-grok-bot-host.js",
         "scripts/test-hooks-ingress-continuity.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-adapters.js",
@@ -14858,6 +14897,7 @@
           "scripts/test-governance-intake.js",
           "scripts/test-governance-ledger-resolver.js",
           "scripts/test-governance-status-summary.js",
+          "scripts/test-grok-bot-host.js",
           "scripts/test-hooks-ingress-continuity.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-adapters.js",
@@ -17055,6 +17095,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/grok-bot-driver.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/host-parity-scorecard.js",
           "role": "current"
         },
@@ -17287,6 +17331,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-grok-bot-host.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-hooks-runtime.js",
           "role": "current"
         },
@@ -17461,6 +17509,7 @@
         "scripts/test-global-host-removal.js",
         "scripts/test-global-install-smoke.js",
         "scripts/test-global-runtime-continuity.js",
+        "scripts/test-grok-bot-host.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-adapters.js",
         "scripts/test-host-capability-routing.js",
@@ -17567,6 +17616,7 @@
           "scripts/test-global-host-removal.js",
           "scripts/test-global-install-smoke.js",
           "scripts/test-global-runtime-continuity.js",
+          "scripts/test-grok-bot-host.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-adapters.js",
           "scripts/test-host-capability-routing.js",
@@ -20365,6 +20415,10 @@
           "role": "current"
         },
         {
+          "path": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
+          "role": "current"
+        },
+        {
           "path": "hooks/_runtime/artifact-template-contract.cjs",
           "role": "current"
         },
@@ -20529,6 +20583,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/lib/grok-bot-driver.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/lib/memory-index.js",
           "role": "current"
         },
@@ -20689,6 +20747,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-grok-bot-host.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-hooks-runtime.js",
           "role": "current"
         },
@@ -20801,6 +20863,7 @@
         "scripts/test-global-install-smoke.js",
         "scripts/test-governance-intake.js",
         "scripts/test-governance-status-summary.js",
+        "scripts/test-grok-bot-host.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-capability-routing.js",
         "scripts/test-lifecycle-stop-gate.js",
@@ -20882,6 +20945,7 @@
           "scripts/test-global-install-smoke.js",
           "scripts/test-governance-intake.js",
           "scripts/test-governance-status-summary.js",
+          "scripts/test-grok-bot-host.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-capability-routing.js",
           "scripts/test-lifecycle-stop-gate.js",
@@ -21690,8 +21754,8 @@
         "content/skills/user-visible-output-contract/SKILL.md"
       ],
       "source": "content/skills/user-visible-output-contract/SKILL.md",
-      "hash": "2877ea53f4e7b53ef6ac14b95b42f555dc3fa78d722b4fbb4d95fcb60f413b0f",
-      "sourceBytes": 26296,
+      "hash": "ba9afc969c8e7092fde8bcf441c631099d465e4d71df921ae0938eb88a69b166",
+      "sourceBytes": 26299,
       "version": "1.20.7",
       "lifecycleState": "active",
       "publicCategory": "runtime-governance",

@@ -13,6 +13,7 @@ const HOST_VARIANTS = Object.freeze({
   gemini: 'gemini-cli/headless-user-global-local-stdio',
   grok: 'grok-cli-single/global-launcher-local-stdio',
   grokpassive: 'grok/passive-plain-instruction-only',
+  grokbot: 'grok-bot/driver-synthesized-local-stdio',
   cursor: 'cursor/local-ide-cli-headless-user-global-stdio-beta',
   cursorcloud: 'cursor/cloud-agent-instruction-only'
 })
@@ -24,6 +25,7 @@ const HOST_ENTRY_SURFACES = Object.freeze({
   copilot: 'copilot-cli-print',
   gemini: 'gemini-cli-headless',
   grok: 'grok-cli-single',
+  grokbot: 'grok-bot-driver',
   cursor: 'cursor-cli-headless'
 })
 
@@ -41,6 +43,8 @@ const HOST_ALIASES = Object.freeze({
   'gemini-cli': 'gemini',
   'grok-cli-single': 'grok',
   'grok-single': 'grok',
+  'grok-bot': 'grokbot',
+  'grok-bot-driver': 'grokbot',
   'cursor-cli': 'cursor',
   'cursor-ide': 'cursor'
 })
@@ -132,6 +136,7 @@ function directExecutionSurface (hostId, options = {}) {
       payload.devcodexTrustedHook === true
     return trustedHook ? 'trusted-hook-or-plugin' : 'passive-plain'
   }
+  if (hostId === 'grokbot') return 'driver-synthesized'
   if (hostId === 'claude') return 'cli'
   if (hostId === 'gemini') return 'cli'
   return explicitSurface || 'portable-plain'

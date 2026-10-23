@@ -80,28 +80,28 @@ const ENTRY_CHECK_TABLE_HEADERS = Object.freeze({
 })
 const ENTRY_CHECK_LABELS = Object.freeze({
   'zh-CN': Object.freeze([
-    '中断处理',
+    '版本与运行',
     '当前意图',
-    '项目绑定',
-    '确认边界',
+    '会话',
+    '执行准备',
     '规范雷达',
-    '本轮范围',
-    'Dirty 边界',
-    '上下文',
-    '风险等级',
+    '宿主',
+    '工作区',
+    '续接',
+    '流程与方案',
     '验证',
     '下一步'
   ]),
   en: Object.freeze([
-    'Interruption',
+    'Version',
     'Intent',
-    'Project',
-    'Boundary',
+    'Session',
+    'Readiness',
     'Spec radar',
-    'Scope',
-    'Dirty boundary',
-    'Context',
-    'Risk',
+    'Host',
+    'Workspace',
+    'Continuation',
+    'Workflow',
     'Validation',
     'Next'
   ])

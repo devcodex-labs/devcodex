@@ -1,6 +1,7 @@
 'use strict'
 
 const fs = require('fs')
+const { hostSessionPartitionSegments } = require('./host-session-partition.cjs')
 const os = require('os')
 const path = require('path')
 const crypto = require('crypto')
@@ -435,7 +436,7 @@ function resolveTaskRecoveryMetaDir(input = {}) {
     activeRoot = path.join(anchor, 'workspace')
     partition = 'workspace'
   }
-  return path.join(activeRoot, '.memory', 'hooks', partition)
+  return path.join(activeRoot, '.memory', 'hooks', partition, ...hostSessionPartitionSegments())
 }
 
 function createTaskRecoveryKey(input = {}) {

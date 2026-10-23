@@ -15,6 +15,7 @@ const PACKAGE_ROOT = path.resolve(__dirname, '..', '..')
 const ADAPTER = path.join(PACKAGE_ROOT, 'hooks', '_runtime', 'lifecycle-host-adapters.cjs')
 const DRIVER_HOST = 'grok-bot'
 const DEFAULT_SESSION_ID = 'grok-bot-session'
+const { isValidHostSessionId } = require('../../hooks/_runtime/host-session-partition.cjs')
 const SERVER_PREFIX = { profile: 'devcodex-profile', memory: 'devcodex-memory' }
 
 function driverError (code, message) {
@@ -23,17 +24,28 @@ function driverError (code, message) {
   return error
 }
 
-function driverEnv (env = process.env) {
+// Session precedence: explicit --session-id / options.sessionId, then DEVCODEX_HOST_SESSION_ID,
+// then the single-conversation default. Each Grok Bot conversation must use its own id:
+// lifecycle/recovery/admission/route state is partitioned per session id.
+function resolveSessionId (options = {}, env = process.env) {
+  const value = String(options.sessionId || env.DEVCODEX_HOST_SESSION_ID || DEFAULT_SESSION_ID).trim()
+  if (!isValidHostSessionId(value)) {
+    throw driverError('GROK_BOT_SESSION_ID_INVALID', `session id must match [A-Za-z0-9][A-Za-z0-9._-]{0,63}: ${value}`)
+  }
+  return value
+}
+
+function driverEnv (env = process.env, sessionId) {
   return {
     ...env,
-    DEVCODEX_HOST_SESSION_ID: env.DEVCODEX_HOST_SESSION_ID || DEFAULT_SESSION_ID,
+    DEVCODEX_HOST_SESSION_ID: sessionId || env.DEVCODEX_HOST_SESSION_ID || DEFAULT_SESSION_ID,
     DEVCODEX_HOST_PLATFORM: env.DEVCODEX_HOST_PLATFORM || 'grok',
     DEVCODEX_AGENT: env.DEVCODEX_AGENT || 'grok-bot'
   }
 }
 
 function runHookEvent (projectDir, event, extra = {}, options = {}) {
-  const env = driverEnv(options.env)
+  const env = driverEnv(options.env, resolveSessionId(options, options.env))
   const payload = {
     hook_event_name: event,
     session_id: env.DEVCODEX_HOST_SESSION_ID,
@@ -169,7 +181,7 @@ function turnBegin (projectDir, prompt, options = {}) {
     provenance: 'driver-synthesized',
     project: options.project || path.basename(root),
     projectDir: root,
-    sessionId: driverEnv(options.env).DEVCODEX_HOST_SESSION_ID,
+    sessionId: driverEnv(options.env, resolveSessionId(options, options.env)).DEVCODEX_HOST_SESSION_ID,
     ...summary,
     semanticDecisionSourceRef: summary.envelopeId
       ? { envelopeId: summary.envelopeId, envelopeDigest: summary.envelopeDigest, contextEpoch: summary.contextEpoch }
@@ -203,7 +215,19 @@ function observeTool (projectDir, { phase, tool, input, response, toolUseId } = 
   if (!['pre', 'post'].includes(phase)) throw driverError('GROK_BOT_PHASE_INVALID', '--phase must be pre or post')
   if (!toolUseId) throw driverError('GROK_BOT_TOOL_USE_ID_REQUIRED', '--tool-use-id is required')
   const event = phase === 'pre' ? 'PreToolUse' : 'PostToolUse'
-  const extra = { tool_name: qualifiedToolName(tool), tool_input: input || {}, tool_use_id: toolUseId }
+  const toolName = qualifiedToolName(tool)
+  const sessionId = resolveSessionId(options, options.env)
+  const toolInput = input || {}
+  // A connector call names its session through args.hostSession; it must be the bracket's own session.
+  if (/^devcodex-(?:profile|memory)__/.test(toolName)) {
+    if (toolInput.hostSession !== undefined && toolInput.hostSession !== sessionId) {
+      throw driverError('GROK_BOT_HOST_SESSION_MISMATCH', `args.hostSession=${toolInput.hostSession} does not match the bracket session ${sessionId}`)
+    }
+    if (options.sessionId && toolInput.hostSession === undefined) {
+      throw driverError('GROK_BOT_HOST_SESSION_REQUIRED', `--session-id ${sessionId} requires the connector call args to carry hostSession: "${sessionId}"`)
+    }
+  }
+  const extra = { tool_name: toolName, tool_input: toolInput, tool_use_id: toolUseId }
   if (phase === 'post') extra.tool_response = response === undefined ? null : response
   const output = runHookEvent(root, event, extra, options)
   const summary = summarizeIngress(output)
@@ -226,7 +250,7 @@ function observeTool (projectDir, { phase, tool, input, response, toolUseId } = 
 
 function startMcpServer (kind, projectDir, options = {}) {
   const child = spawn(process.execPath, [path.join(PACKAGE_ROOT, 'mcp', `${kind}-server.js`), projectDir], {
-    cwd: projectDir, env: driverEnv(options.env), stdio: ['pipe', 'pipe', 'ignore']
+    cwd: projectDir, env: driverEnv(options.env, resolveSessionId(options, options.env)), stdio: ['pipe', 'pipe', 'ignore']
   })
   let buffer = ''
   let nextId = 0
@@ -292,6 +316,7 @@ async function runTurn (projectDir, prompt, options = {}) {
   let counter = 0
   let lastPost = null
   const tracked = async (kind, tool, args) => {
+    if (options.sessionId) args = { ...args, hostSession: resolveSessionId(options, options.env) }
     const toolUseId = `grok-bot-${process.pid}-${Date.now()}-${++counter}`
     const name = `${SERVER_PREFIX[kind]}__${tool}`
     observeTool(root, { phase: 'pre', tool: name, input: args, toolUseId }, options)
@@ -419,10 +444,10 @@ function parseJsonFlag (value, name) {
 }
 
 const USAGE = [
-  'devcodex grok-bot turn-begin <projectDir> <prompt> [--project <name>] [--system-message]',
-  'devcodex grok-bot observe-tool --project-dir <dir> --phase pre|post --tool <devcodex-profile__x|devcodex-memory__x> --tool-use-id <id> (--args-file <file> | --input <json|@file>) [--response-file <raw tool output file> | --response <json|@file>]',
+  'devcodex grok-bot turn-begin <projectDir> <prompt> [--project <name>] [--session-id <id>] [--system-message]',
+  'devcodex grok-bot observe-tool --project-dir <dir> [--session-id <id>] --phase pre|post --tool <devcodex-profile__x|devcodex-memory__x> --tool-use-id <id> (--args-file <file> | --input <json|@file>) [--response-file <raw tool output file> | --response <json|@file>]',
   'Workspace: run `devcodex init` once in the PARENT workspace directory (e.g. /workspace), not inside a repo, then `devcodex profile init` in each project.',
-  'Session: DEVCODEX_HOST_SESSION_ID (default grok-bot-session) must match the MCP server env.',
+  'Session: one id per conversation via --session-id <id> (or DEVCODEX_HOST_SESSION_ID; default grok-bot-session). Pass the same id on turn-begin and every observe-tool, and as args.hostSession on every connector call; state is partitioned per session.',
   'devcodex grok-bot run <projectDir> <prompt> [--intent dev|fix|...] [--change source-code,...] [--skill <id>] [--admit] [--task-kind <k>] [--entry <v>]'
 ].join('\n')
 
@@ -433,7 +458,8 @@ async function runGrokBotCli (argv = [], io = {}) {
   let result
   if (sub === 'turn-begin') {
     result = turnBegin(positional[0] || process.cwd(), positional.slice(1).join(' '), {
-      project: flags.project, includeSystemMessage: flags['system-message'] === true
+      project: flags.project, includeSystemMessage: flags['system-message'] === true,
+      sessionId: typeof flags['session-id'] === 'string' ? flags['session-id'] : undefined
     })
   } else if (sub === 'observe-tool') {
     if (!flags['project-dir'] || flags['project-dir'] === true) {
@@ -447,7 +473,7 @@ async function runGrokBotCli (argv = [], io = {}) {
       input: argsText !== undefined ? parseJsonFlag(argsText, 'args-file') : (parseJsonFlag(flags.input, 'input') || {}),
       response: responseText !== undefined ? shapeToolResponse(responseText) : parseJsonFlag(flags.response, 'response'),
       toolUseId: flags['tool-use-id']
-    })
+    }, { sessionId: typeof flags['session-id'] === 'string' ? flags['session-id'] : undefined })
   } else if (sub === 'run') {
     result = await runTurn(positional[0] || process.cwd(), positional.slice(1).join(' '), {
       project: flags.project,
@@ -456,7 +482,8 @@ async function runGrokBotCli (argv = [], io = {}) {
       skill: typeof flags.skill === 'string' ? flags.skill : undefined,
       admit: flags.admit === true,
       taskKind: flags['task-kind'],
-      entryVariant: flags.entry
+      entryVariant: flags.entry,
+      sessionId: typeof flags['session-id'] === 'string' ? flags['session-id'] : undefined
     })
   } else {
     throw driverError('GROK_BOT_SUBCOMMAND_INVALID', `Unknown grok-bot subcommand: ${sub || '(none)'}\n${USAGE}`)

@@ -13,6 +13,7 @@ TaskLifecycle 规范能力吸纳、源码操作状态恢复及本次入口/CP/�
 
 ## Grok Bot 宿主驱动（grok-bot）
 
+- 会话隔离：Grok Bot 多会话共用连接器与 `grok-bot-session` 时会互相覆盖同一项目的 lifecycle-state。现驱动 `turn-begin`/`observe-tool` 支持 `--session-id`，连接器每次调用可携带 `hostSession`（校验格式与 contextBinding 归属，逐调用切换会话）；仅对 grok-bot 驱动宿主，lifecycle/恢复/准入/路由状态按 `.memory/hooks/<project>/.sessions/<id>/` 分区，其他宿主不变。新增 `hooks/_runtime/host-session-partition.cjs` 与双会话交错/任务恢复不越界测试。
 - 新增 `grok-bot` hostVariant（`grok-bot/driver-synthesized-local-stdio`，UNVERIFIED、非默认）：`host-adapter-identity.cjs` 注册变体/别名，`DEVCODEX_AGENT=grok-bot` 归一为 `grok` agent，不再落入 `unknown-agent`。
 - `lifecycle-host-adapters.cjs grok-bot` 复用 Grok 事件映射，事件与输出均标记 `devcodexEventProvenance=driver-synthesized`，不冒充原生宿主事件。
 - 新增 `devcodex grok-bot turn-begin|observe-tool|run`（`scripts/lib/grok-bot-driver.js`），供无原生生命周期 Hook 的 Grok Bot 合成 SessionStart/UserPromptSubmit 并为每次 MCP 调用补发 Pre/PostToolUse，打通 profile_context_plan → skill_route → memory_task_admit_v2。

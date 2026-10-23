@@ -232,7 +232,7 @@ async function splitModeE2E () {
     assert.strictEqual(admit.body.schemaVersion, 'FormalTaskAdmissionReceiptV2')
     assert.strictEqual(admit.body.status, 'active')
     assert.ok(admit.body.ingressWarnings.includes('TASK_ADMISSION_INGRESS_REF_INVALID'), JSON.stringify(admit.body.ingressWarnings))
-    const lifecycleState = JSON.parse(fs.readFileSync(path.join(ws, '.devcodex', project, '.memory', 'hooks', project, 'lifecycle-state.json'), 'utf8'))
+    const lifecycleState = JSON.parse(fs.readFileSync(path.join(ws, '.devcodex', project, '.memory', 'hooks', project, '.sessions', 'grok-bot-test-session', 'lifecycle-state.json'), 'utf8'))
     const envelope = lifecycleState.actualInstructionEnvelope
     assert.strictEqual(envelope.hostVariant, 'grok-bot/driver-synthesized-local-stdio')
     assert.strictEqual(envelope.provenanceLevel, 'driver-synthesized-host-event')
@@ -263,7 +263,7 @@ async function splitModeE2E () {
     fs.rmSync(path.join(activeRoot, admit.body.taskRootRelative), { recursive: true, force: true })
     {
       // Any next tool event drops the orphaned TaskRecoveryBinding instead of rehydrating its ingress.
-      const statePath = path.join(activeRoot, '.memory', 'hooks', project, 'lifecycle-state.json')
+      const statePath = path.join(activeRoot, '.memory', 'hooks', project, '.sessions', 'grok-bot-test-session', 'lifecycle-state.json')
       const before = JSON.parse(fs.readFileSync(statePath, 'utf8'))
       assert.ok(before.taskRecoveryBinding?.taskId, 'admission binds the task for recovery')
       const argsFile = path.join(proj, 'probe-args.json')
@@ -334,10 +334,133 @@ async function splitModeE2E () {
   }
 }
 
+// Two Grok Bot conversations share one pair of connectors and one project. Each passes its own
+// --session-id to the driver and hostSession to every connector call; lifecycle, recovery,
+// admission and route state must stay partitioned per session.
+async function concurrentSessionsE2E () {
+  const hsp = require('../hooks/_runtime/host-session-partition.cjs')
+  assert.deepStrictEqual(hsp.hostSessionPartitionSegments({ DEVCODEX_AGENT: 'codex', DEVCODEX_HOST_SESSION_ID: 'x' }), [], 'native hosts keep the per-project partition')
+  assert.deepStrictEqual(hsp.hostSessionPartitionSegments({ DEVCODEX_AGENT: 'grok-bot', DEVCODEX_HOST_SESSION_ID: 's1' }), ['.sessions', 's1'])
+  assert.throws(() => hsp.hostSessionPartitionSegments({ DEVCODEX_AGENT: 'grok-bot', DEVCODEX_HOST_SESSION_ID: '../x' }), /HOST_SESSION|session/i)
+  const passthrough = () => 'same'
+  assert.strictEqual(hsp.wrapDispatchWithHostSession(passthrough, { DEVCODEX_AGENT: 'claude' }), passthrough, 'non-driver hosts dispatch unchanged')
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'devcodex-grok-bot-sessions-'))
+  const ws = path.join(tmp, 'ws')
+  const proj = path.join(ws, 'proj')
+  fs.mkdirSync(proj, { recursive: true })
+  fs.mkdirSync(path.join(tmp, 'home'))
+  spawnSync('git', ['init', '-q'], { cwd: proj })
+  fs.writeFileSync(path.join(proj, 'README.md'), '# proj\n')
+  spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'add', '-A'], { cwd: proj })
+  spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'init'], { cwd: proj })
+  // Connector process env carries only the shared default; sessions are selected per call.
+  const env = { ...process.env, HOME: path.join(tmp, 'home'), USERPROFILE: path.join(tmp, 'home'), DEVCODEX_HOST_SESSION_ID: 'grok-bot-session', DEVCODEX_AGENT: 'grok-bot', DEVCODEX_HOST_PLATFORM: 'grok' }
+  for (const key of ['GROK_HOME', 'CODEX_HOME', 'CLAUDE_CODE_VERSION', 'CURSOR_TRACE_ID']) delete env[key]
+  cli(['init'], { cwd: ws, env })
+  cli(['profile', 'init'], { cwd: proj, env })
+  const servers = { 'devcodex-profile': mcp('profile', proj, env), 'devcodex-memory': mcp('memory', proj, env) }
+  await servers['devcodex-profile'].init(); await servers['devcodex-memory'].init()
+  const project = 'proj'
+  const activeRoot = path.join(ws, '.devcodex', project)
+  const statePath = session => path.join(activeRoot, '.memory', 'hooks', project, '.sessions', session, 'lifecycle-state.json')
+  const readState = session => JSON.parse(fs.readFileSync(statePath(session), 'utf8'))
+  let n = 0
+  const call = async (session, server, tool, rawArgs) => {
+    const args = { ...rawArgs, hostSession: session }
+    const id = `${session}-${++n}`
+    const argsFile = path.join(tmp, `${id}.args.json`)
+    const responseFile = path.join(tmp, `${id}.response.txt`)
+    fs.writeFileSync(argsFile, JSON.stringify(args))
+    const name = `${server}__${tool}`
+    cli(['grok-bot', 'observe-tool', '--session-id', session, '--project-dir', proj, '--phase', 'pre', '--tool', name, '--args-file', argsFile, '--tool-use-id', id], { cwd: proj, env })
+    const result = await servers[server].call(tool, args)
+    fs.writeFileSync(responseFile, (result.content || []).map(item => item.text).join('\n'))
+    const post = JSON.parse(cli(['grok-bot', 'observe-tool', '--session-id', session, '--project-dir', proj, '--phase', 'post', '--tool', name, '--args-file', argsFile, '--response-file', responseFile, '--tool-use-id', id], { cwd: proj, env }))
+    return { result, body: body(result), post }
+  }
+  const begin = (session, prompt) => JSON.parse(cli(['grok-bot', 'turn-begin', proj, prompt, '--session-id', session], { cwd: proj, env }))
+  const plan = (session, b) => call(session, 'devcodex-profile', 'profile_context_plan', {
+    project, intent: 'fix', changeTypes: ['source-code'], contextEpoch: b.contextEpoch, confidence: 0.9,
+    semanticDecision: { schemaVersion: 'IntentSemanticDecisionV1', sourceRef: b.semanticDecisionSourceRef, workflowFacts: { targetKnown: true }, executionDecision: 'confirm' }
+  })
+  const routeAndAdmit = async (session, b, p, prompt) => {
+    const binding = p.body.contextBinding
+    await call(session, 'devcodex-profile', 'profile_load', { project, contextBinding: binding, files: p.body.profile.selectedFiles })
+    for (const q of p.body.memory?.requiredQueries || []) await call(session, 'devcodex-memory', q, { project, contextBinding: binding })
+    const boot = b.skillRouteBootstrap
+    let cursor; let page; const seen = []
+    do {
+      page = await call(session, 'devcodex-profile', 'skill_route', { op: 'catalog', project, turnBinding: boot.turnBinding, contextEpoch: boot.contextEpoch, ...(cursor ? { cursor } : {}) })
+      assert.strictEqual(page.body.ok, true, `${session}: ${JSON.stringify(page.body).slice(0, 300)}`)
+      seen.push(...page.body.receipt.cards.map(c => c.skillId))
+      cursor = page.body.receipt.nextCursor
+    } while (cursor && !seen.includes('fix-default'))
+    const commit = await call(session, 'devcodex-profile', 'skill_route', { op: 'commit', project, turnBinding: boot.turnBinding, contextEpoch: boot.contextEpoch, catalogDigest: page.body.receipt.catalogDigest, skillId: 'fix-default', contextBinding: binding })
+    assert.strictEqual(commit.body.ok, true, `${session}: ${JSON.stringify(commit.body).slice(0, 300)}`)
+    return call(session, 'devcodex-memory', 'memory_task_admit_v2', { operation: 'admit', project, task: { taskKind: 'bugs', entryVariant: 'fix', displayName: prompt }, overview: { content: prompt } })
+  }
+  try {
+    const a = 'conv-a'; const b = 'conv-b'
+    const promptA = '修复会话A的空指针'; const promptB = '修复会话B的越界'
+    // Interleave: A begins, B begins, A plans, B plans, A admits, B admits.
+    const beginA = begin(a, promptA)
+    const beginB = begin(b, promptB)
+    assert.strictEqual(beginA.sessionId, a); assert.strictEqual(beginB.sessionId, b)
+    assert.notStrictEqual(beginA.contextEpoch, beginB.contextEpoch)
+    assert.strictEqual(readState(a).contextAcquisition.contextEpoch, beginA.contextEpoch, 'B turn-begin must not clobber A')
+    assert.strictEqual(readState(b).contextAcquisition.contextEpoch, beginB.contextEpoch)
+    assert.ok(!fs.existsSync(path.join(activeRoot, '.memory', 'hooks', project, 'lifecycle-state.json')), 'no shared per-project state for driver sessions')
+    const planA = await plan(a, beginA)
+    const planB = await plan(b, beginB)
+    assert.strictEqual(planA.post.routeStatus, 'selected', JSON.stringify(planA.body).slice(0, 300))
+    assert.strictEqual(planB.post.routeStatus, 'selected', JSON.stringify(planB.body).slice(0, 300))
+    // A's bound plan is not usable from session B.
+    const crossLoad = await servers['devcodex-profile'].call('profile_load', { project, contextBinding: planA.body.contextBinding, files: planA.body.profile.selectedFiles, hostSession: b })
+    assert.strictEqual(crossLoad.isError, true, 'session B cannot consume session A context binding')
+    console.log('  ✓ two sessions interleave turn-begin / profile_context_plan on one project without clobbering')
+    const admitA = await routeAndAdmit(a, beginA, planA, promptA)
+    const admitB = await routeAndAdmit(b, beginB, planB, promptB)
+    assert.ok(!admitA.result.isError, JSON.stringify(admitA.body).slice(0, 600))
+    assert.ok(!admitB.result.isError, JSON.stringify(admitB.body).slice(0, 600))
+    assert.notStrictEqual(admitA.body.taskId, admitB.body.taskId)
+    assert.strictEqual(readState(a).taskRecoveryBinding?.taskId, admitA.body.taskId)
+    assert.strictEqual(readState(b).taskRecoveryBinding?.taskId, admitB.body.taskId)
+    console.log('  ✓ concurrent admissions keep per-session task recovery bindings')
+    const closeArgs = (taskId, root) => ({
+      project, title: 'session close', intent: 'fix', turn: { user: 'x', ai: 'y', status: 'completed' }, sessionStatus: 'completed',
+      report: { targetPath: `${root}/reports/grok/20260101/01--close.md`, content: '# close\n' },
+      terminal: { taskId, terminalStatus: 'cancelled', ecr: { summary: 'session isolation', checks: [{ item: 'isolation', result: 'PASS' }] }, completion: { items: [{ item: 'isolation', status: 'done' }] } }
+    })
+    const cross = await call(b, 'devcodex-memory', 'memory_turn_closeout_v1', closeArgs(admitA.body.taskId, admitA.body.taskRootRelative))
+    assert.strictEqual(cross.result.isError, true, 'session B must not terminalize session A task')
+    assert.match(JSON.stringify(cross.body), /TASK_WRITE_OWNER|TASK_BINDING_REQUIRED|owner/i)
+    const own = await call(a, 'devcodex-memory', 'memory_turn_closeout_v1', closeArgs(admitA.body.taskId, admitA.body.taskRootRelative))
+    assert.ok(!own.result.isError, JSON.stringify(own.body).slice(0, 800))
+    assert.strictEqual(readState(b).taskRecoveryBinding?.taskId, admitB.body.taskId, 'closing A leaves B bound')
+    console.log('  ✓ task recovery / terminal close do not cross sessions')
+    // Strict identity: invalid hostSession is rejected; driver refuses a bracket/args session mismatch.
+    const bad = await servers['devcodex-memory'].call('memory_status', { project, hostSession: '../a' })
+    assert.strictEqual(bad.isError, true)
+    assert.match(JSON.stringify(bad), /HOST_SESSION_INVALID/)
+    const mismatchFile = path.join(tmp, 'mismatch.json')
+    fs.writeFileSync(mismatchFile, JSON.stringify({ project, hostSession: a }))
+    const mismatch = spawnSync(process.execPath, [CLI, 'grok-bot', 'observe-tool', '--session-id', b, '--project-dir', proj, '--phase', 'pre', '--tool', 'devcodex-memory__memory_status', '--args-file', mismatchFile, '--tool-use-id', 'mm'], { cwd: proj, env, encoding: 'utf8' })
+    assert.match(mismatch.stderr + mismatch.stdout, /GROK_BOT_HOST_SESSION_MISMATCH/)
+    fs.writeFileSync(mismatchFile, JSON.stringify({ project }))
+    const missing = spawnSync(process.execPath, [CLI, 'grok-bot', 'observe-tool', '--session-id', b, '--project-dir', proj, '--phase', 'pre', '--tool', 'devcodex-memory__memory_status', '--args-file', mismatchFile, '--tool-use-id', 'mm2'], { cwd: proj, env, encoding: 'utf8' })
+    assert.match(missing.stderr + missing.stdout, /GROK_BOT_HOST_SESSION_REQUIRED/)
+    console.log('  ✓ hostSession is validated per call and must match the driver bracket session')
+  } finally {
+    Object.values(servers).forEach(s => s.close())
+    if (!process.env.DEVCODEX_KEEP_TEST_TMP) fs.rmSync(tmp, { recursive: true, force: true })
+  }
+}
+
 ;(async () => {
   staticChecks()
   responseShapingChecks()
   sourceProfileTruthChecks()
   await splitModeE2E()
+  await concurrentSessionsE2E()
   console.log('grok-bot host tests passed')
 })().catch(error => { console.error(error); process.exit(1) })

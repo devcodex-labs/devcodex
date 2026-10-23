@@ -34,6 +34,7 @@ const os = require('os')
 const path = require('path')
 const { assertSingleSegment, resolveInside, resolveExistingRegularFileInside, resolveWritePathInside } = require('./path-guard')
 const { createJsonLineServer } = require('./stdio-jsonrpc.cjs')
+const { hostSessionPartitionSegments, wrapDispatchWithHostSession } = require('../hooks/_runtime/host-session-partition.cjs')
 const { createMemoryFileTransaction } = require('./memory-file-transaction.cjs')
 const {
   computeProjectTargetLeaseDigest,
@@ -5298,7 +5299,7 @@ function currentPhysicalProjectRoot(target) {
 
 function readServerOwnedLifecycleProjection(target) {
   const scopeKey = LAYOUT.enabled ? assertSingleSegment(target.project, 'project') : 'legacy'
-  const relativeStatePath = path.join('.memory', 'hooks', scopeKey, 'lifecycle-state.json')
+  const relativeStatePath = path.join('.memory', 'hooks', scopeKey, ...hostSessionPartitionSegments(), 'lifecycle-state.json')
   let statePath
   try {
     statePath = resolveExistingRegularFileInside(target.activeRoot, relativeStatePath, {
@@ -5541,7 +5542,7 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
     )
   }
   const scopeKey = LAYOUT.enabled ? assertSingleSegment(target.project, 'project') : 'legacy'
-  const ingressMetaDir = path.join(target.activeRoot, '.memory', 'hooks', scopeKey)
+  const ingressMetaDir = path.join(target.activeRoot, '.memory', 'hooks', scopeKey, ...hostSessionPartitionSegments())
   // A bounded resume capability is narrower than the immutable host snapshot:
   // it is additionally bound to the exact finalized task generation and
   // fenced owner. Prefer it when both share the same ingressRef so relocation
@@ -5761,8 +5762,8 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
 
 function workflowRouteIndexMetaDir(target) {
   return LAYOUT.enabled
-    ? path.join(LAYOUT.workspaceRoot, '.devcodex', 'workspace', '.memory', 'hooks', 'workspace')
-    : path.join(target.activeRoot, '.memory', 'hooks', 'legacy')
+    ? path.join(LAYOUT.workspaceRoot, '.devcodex', 'workspace', '.memory', 'hooks', 'workspace', ...hostSessionPartitionSegments())
+    : path.join(target.activeRoot, '.memory', 'hooks', 'legacy', ...hostSessionPartitionSegments())
 }
 
 function stableTaskIdentityReadback(target, transaction, ingress, taskId) {
@@ -7766,7 +7767,7 @@ function dispatch(method, params) {
 }
 
 if (require.main === module) {
-  createJsonLineServer({ dispatch, onEnd: () => process.exit(0) })
+  createJsonLineServer({ dispatch: wrapDispatchWithHostSession(dispatch), onEnd: () => process.exit(0) })
   process.on('SIGINT', () => process.exit(0))
   process.on('SIGTERM', () => process.exit(0))
 }

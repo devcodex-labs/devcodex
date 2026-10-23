@@ -20,6 +20,7 @@ const path = require('path')
 const { execFileSync } = require('child_process')
 const { assertSingleSegment, resolveInside, resolveExistingRegularFileInside, resolveWritePathInside } = require('./path-guard')
 const { createJsonLineServer } = require('./stdio-jsonrpc.cjs')
+const { hostSessionPartitionSegments, wrapDispatchWithHostSession } = require('../hooks/_runtime/host-session-partition.cjs')
 const {
   PROFILE_BASE_FILES,
   PROFILE_RELEASE_FILES,
@@ -1780,7 +1781,7 @@ function verifyContextPlanSemanticSource(value, target, contextEpoch) {
   for (const candidate of candidates) {
     try {
       const file = resolveExistingRegularFileInside(candidate.root,
-        path.posix.join('.memory', 'hooks', candidate.key, 'lifecycle-state.json'))
+        path.posix.join('.memory', 'hooks', candidate.key, ...hostSessionPartitionSegments(), 'lifecycle-state.json'))
       const observed = readBoundedTextFileSync(file, { maxBytes: 2 * 1024 * 1024 })
       const state = JSON.parse(observed.content)
       const acquisition = state.contextAcquisition || {}
@@ -3060,7 +3061,7 @@ function dispatch(method, params) {
 // ─── bounded stdio transport ──────────────────────────────────────────────────
 
 if (require.main === module) {
-  createJsonLineServer({ dispatch, onEnd: () => process.exit(0) })
+  createJsonLineServer({ dispatch: wrapDispatchWithHostSession(dispatch), onEnd: () => process.exit(0) })
   process.on('SIGINT', () => process.exit(0))
   process.on('SIGTERM', () => process.exit(0))
 }

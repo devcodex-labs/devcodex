@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "cfd709b1248855c06c56373d1bcfe4798acefd7f1e0c11555b26cfd8caa1e8a6",
     "consumerInventoryFileCount": 734,
     "consumerInventoryDigest": "f3accfe94e0f8eb41b8a5f1185fda31ea9fe234bed27d0a4f7abb5bb5cbffab4",
-    "consumerProjectionDigest": "23f985b91f094108b15a0b2d4fc33f65b54acfdca405836ca888009ebec4f2d9",
-    "portfolioInputDigest": "01045bda562e63a976ad1d6b13ad074b57000b7cddec34cc2ed7b1142cdce051"
+    "consumerProjectionDigest": "a6f1e291d419cd6fd5599b3a9c27b24c7230227dd618d84ea256c2d169451b1e",
+    "portfolioInputDigest": "70a52ac885904009a77230f6350ce2044c839bf7f54bdd86029fb11038ea8af9"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -20408,6 +20408,10 @@
         },
         {
           "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "grok/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
           "role": "current"
         },
         {

@@ -5339,6 +5339,33 @@ function readServerOwnedLifecycleProjection(target) {
   return { state, statePath, raw }
 }
 
+// Rehydrate the full ActualInstructionEnvelope for a resume stub compacted to its
+// identity. Only an exact, digest-verified snapshot whose envelope identity equals
+// the stub (id, digest, epoch, expiry) is returned; anything else yields null.
+function identityOnlyResumeEnvelope(target, state, envelope) {
+  const recovery = state?.workflowIngressRecovery || {}
+  if (state?.recoveryCompaction !== 'minimal-identity-only' || recovery.authorityMode !== 'identity-only' ||
+      envelope?.instructionAuthority !== undefined || !envelope?.envelopeId) return null
+  if (recovery.envelopeId !== envelope.envelopeId || recovery.envelopeDigest !== envelope.envelopeDigest) return null
+  const scopeKey = LAYOUT.enabled ? assertSingleSegment(target.project, 'project') : 'legacy'
+  const read = readAdmissionIngressSnapshot({
+    metaDir: path.join(target.activeRoot, '.memory', 'hooks', scopeKey, ...hostSessionPartitionSegments()),
+    ingressRef: {
+      schemaVersion: 'WorkflowIngressProjectionRefV1',
+      envelopeId: recovery.envelopeId,
+      envelopeDigest: recovery.envelopeDigest,
+      decisionDigest: recovery.decisionDigest,
+      routeRevision: recovery.routeRevision
+    },
+    project: target.project,
+    activeRoot: target.activeRoot
+  }, { fs, nowMs: Date.now() })
+  const full = read.status === 'fresh' ? read.snapshot?.actualInstructionEnvelope : null
+  if (!full || full.envelopeId !== envelope.envelopeId || full.envelopeDigest !== envelope.envelopeDigest ||
+      full.contextEpoch !== envelope.contextEpoch || full.expiresAt !== envelope.expiresAt) return null
+  return full
+}
+
 function verifiedResumeLifecycleContext(target, binding) {
   let projection
   try {
@@ -5388,8 +5415,15 @@ function verifiedResumeLifecycleContext(target, binding) {
   // A direct MCP reader has no native PostToolUse route projection. Consume only
   // its separately verified, same-source semantic decision, never fallback prose.
   const semanticDecision = acquisition.plan?.semanticDecision
+  // An over-budget resume stub keeps only the envelope identity (recoveryCompaction
+  // 'minimal-identity-only'). Validate the semantic source against the exact full
+  // envelope from the content-addressed admission ingress snapshot instead of the
+  // identity stub; every trusted-source check still runs on that full envelope.
+  const semanticEnvelope = semanticDecision
+    ? identityOnlyResumeEnvelope(target, state, envelope) || envelope
+    : envelope
   const semanticValidation = validateIntentSemanticDecision(semanticDecision, {
-    envelope, contextEpoch: binding.contextEpoch, hostSessionDigest, requireSource: true
+    envelope: semanticEnvelope, contextEpoch: binding.contextEpoch, hostSessionDigest, requireSource: true
   })
   if (semanticDecision && !semanticValidation.valid) {
     return { status: 'invalid', reasonCode: 'lifecycle-semantic-source-invalid', errors: semanticValidation.errors }

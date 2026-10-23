@@ -14,8 +14,8 @@ function buildGovernanceQualityChecks(ctx) {
 
   function checkV55() {
     const probes = [
-      { file: 'instructions.md', needles: ['C22', 'ServiceLifecycleCleanup', 'AI 自启动服务清理', '不得杀用户既有进程'] },
-      { file: 'instructions/01-common.instructions.md', needles: ['C22', 'AI 自启动服务清理', 'ServiceLifecycleCleanup'] },
+      { file: 'instructions.md', needles: ['C22', 'ServiceLifecycleCleanup', 'AI 自启动服务清理', '不得杀用户既有进程', 'TemporaryArtifactCleanup', '不得删除用户拥有或已提交的文件'] },
+      { file: 'instructions/01-common.instructions.md', needles: ['C22', 'AI 自启动服务清理', 'ServiceLifecycleCleanup', 'TemporaryArtifactCleanup'] },
       { file: 'instructions/10-dev.instructions.md', needles: ['AI 自启动服务清理', '端口释放'] },
       { file: 'instructions/11-fix.instructions.md', needles: ['AI 自启动服务清理', '端口释放'] },
       { file: 'skills/test-router/SKILL.md', needles: ['ServiceLifecycleCleanup', 'cleanupEvidence', '不得杀用户既有进程'] },

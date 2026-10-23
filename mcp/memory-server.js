@@ -66,7 +66,8 @@ const {
   validateAutoCheckpointDecision,
   validateTaskScopedAutoContinuationGrant,
   writeAdmissionIngressSnapshot,
-  writeBoundedResumeIngressCapability
+  writeBoundedResumeIngressCapability,
+  isTaskRecoveryBindingOrphaned
 } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
 const {
   buildActualInstructionEnvelope,
@@ -5549,7 +5550,11 @@ function readServerOwnedAdmissionIngress(target, ingressRef, options = {}) {
     ingressRef: ref,
     project: target.project,
     activeRoot: target.activeRoot,
-    taskId: options.taskId || readServerOwnedLifecycleProjection(target).state?.taskRecoveryBinding?.taskId
+    taskId: options.taskId || (() => {
+      // Ignore a recovery binding whose task folder was removed outside DevCodex.
+      const binding = readServerOwnedLifecycleProjection(target).state?.taskRecoveryBinding
+      return binding && !isTaskRecoveryBindingOrphaned(binding) ? binding.taskId : undefined
+    })()
   }, { fs, nowMs: Date.now(), requireAuthority: true })
   if (resumeRead.status === 'fresh' && resumeRead.authority === true) {
     const candidate = resumeRead.candidate

@@ -76,6 +76,7 @@ const {
   appendTaskRecoveryTelemetry,
   readBoundedResumeIngressCapability,
   readFencedTaskWriteOwner,
+  isTaskRecoveryBindingOrphaned,
   readTaskRecoveryState,
   resolveTaskRecoveryMetaDir,
   transitionTaskScopedAutoContinuationGrant,
@@ -2230,6 +2231,12 @@ function hasFreshCurrentTrustedHostIngress(state, payload) {
 function rehydrateBoundedResumeIngress(state, payload) {
   const binding = state?.taskRecoveryBinding
   if (!binding?.taskId || !binding?.project) return { status: 'skipped', reasonCode: 'task-binding-missing' }
+  if (isTaskRecoveryBindingOrphaned(binding)) {
+    // The bound task folder no longer exists: drop the binding instead of rehydrating its ingress.
+    state.taskRecoveryBinding = null
+    state.resumeIngressRehydrateError = null
+    return { status: 'skipped', reasonCode: 'task-root-missing', taskId: binding.taskId }
+  }
   if (hasFreshCurrentTrustedHostIngress(state, payload)) {
     state.resumeIngressRehydrateError = null
     return { status: 'skipped', reasonCode: 'current-trusted-host-ingress-active' }

@@ -2197,6 +2197,13 @@ function writeBoundedResumeIngressCapability(input = {}, options = {}) {
   }
 }
 
+// A TaskRecoveryBinding whose task folder was removed outside DevCodex (e.g. a manual rm)
+// must not drive resume rehydration or admission continuation for a later turn.
+function isTaskRecoveryBindingOrphaned(binding, fsImpl = fs) {
+  if (!binding || typeof binding.taskRoot !== 'string' || !binding.taskRoot) return false
+  try { return !fsImpl.statSync(binding.taskRoot).isDirectory() } catch { return true }
+}
+
 function readBoundedResumeIngressCapability(input = {}, options = {}) {
   const fsImpl = options.fs || fs
   let committed = null
@@ -7863,6 +7870,7 @@ function reconcileEmergencyTaskCloseout(input = {}, options = {}) {
 }
 
 module.exports = {
+  isTaskRecoveryBindingOrphaned,
   ADMISSION_CONTINUATION_LEASE_SCHEMA,
   ADMISSION_INGRESS_SNAPSHOT_REF_SCHEMA,
   ADMISSION_INGRESS_SNAPSHOT_SCHEMA,

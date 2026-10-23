@@ -257,6 +257,50 @@ async function splitModeE2E () {
     assert.match(daily, /✅ \|\n\n关键决策：仅修改空指针分支/)
     assert.ok(closeout.body.summary && closeout.body.summary.ok)
     console.log('  ✓ memory_turn_closeout_v1 writes report + session row/status + SUMMARY in one call')
+
+    // Regression: a task folder removed outside DevCodex must not poison the next admission
+    // that omits ingressRef (stale TaskRecoveryBinding / bounded-resume state for a missing task).
+    fs.rmSync(path.join(activeRoot, admit.body.taskRootRelative), { recursive: true, force: true })
+    {
+      // Any next tool event drops the orphaned TaskRecoveryBinding instead of rehydrating its ingress.
+      const statePath = path.join(activeRoot, '.memory', 'hooks', project, 'lifecycle-state.json')
+      const before = JSON.parse(fs.readFileSync(statePath, 'utf8'))
+      assert.ok(before.taskRecoveryBinding?.taskId, 'admission binds the task for recovery')
+      const argsFile = path.join(proj, 'probe-args.json')
+      fs.writeFileSync(argsFile, JSON.stringify({ project }))
+      cli(['grok-bot', 'observe-tool', '--phase', 'pre', '--project-dir', proj, '--tool', 'memory_status', '--args-file', argsFile, '--tool-use-id', 'orphan-probe'], { cwd: proj, env })
+      const after = JSON.parse(fs.readFileSync(statePath, 'utf8'))
+      assert.strictEqual(after.taskRecoveryBinding, null, JSON.stringify(after.lastResumeIngressRehydrate))
+      assert.strictEqual(after.lastResumeIngressRehydrate?.reasonCode, 'task-root-missing')
+      const { isTaskRecoveryBindingOrphaned } = require('../hooks/_runtime/task-recovery-store-v5.cjs')
+      assert.strictEqual(isTaskRecoveryBindingOrphaned({ taskRoot: proj }), false)
+      assert.strictEqual(isTaskRecoveryBindingOrphaned({ taskRoot: path.join(proj, 'nope') }), true)
+      assert.strictEqual(isTaskRecoveryBindingOrphaned({ taskId: 'x' }), false)
+    }
+    const prompt2 = '修复分页 limit 为 0 的错误'
+    const begin2 = JSON.parse(cli(['grok-bot', 'turn-begin', proj, prompt2], { cwd: proj, env }))
+    const plan2 = await call('devcodex-profile', 'profile_context_plan', {
+      project, intent: 'fix', changeTypes: ['source-code'], contextEpoch: begin2.contextEpoch, confidence: 0.9,
+      semanticDecision: { schemaVersion: 'IntentSemanticDecisionV1', sourceRef: begin2.semanticDecisionSourceRef, workflowFacts: { targetKnown: true }, executionDecision: 'confirm' }
+    })
+    assert.strictEqual(plan2.post.routeStatus, 'selected', JSON.stringify(plan2.body).slice(0, 300))
+    const binding2 = plan2.body.contextBinding
+    await call('devcodex-profile', 'profile_load', { project, contextBinding: binding2, files: plan2.body.profile.selectedFiles })
+    for (const q of plan2.body.memory?.requiredQueries || []) await call('devcodex-memory', q, { project, contextBinding: binding2 })
+    const boot2 = begin2.skillRouteBootstrap
+    let cursor2; let page2; const seen2 = []
+    do {
+      page2 = await call('devcodex-profile', 'skill_route', { op: 'catalog', project, turnBinding: boot2.turnBinding, contextEpoch: boot2.contextEpoch, ...(cursor2 ? { cursor: cursor2 } : {}) })
+      seen2.push(...page2.body.receipt.cards.map(c => c.skillId))
+      cursor2 = page2.body.receipt.nextCursor
+    } while (cursor2 && !seen2.includes('fix-default'))
+    await call('devcodex-profile', 'skill_route', { op: 'commit', project, turnBinding: boot2.turnBinding, contextEpoch: boot2.contextEpoch, catalogDigest: page2.body.receipt.catalogDigest, skillId: 'fix-default', contextBinding: binding2 })
+    const admit2 = await call('devcodex-memory', 'memory_task_admit_v2', {
+      operation: 'admit', project, task: { taskKind: 'bugs', entryVariant: 'fix', displayName: prompt2 }, overview: { content: prompt2 }
+    })
+    assert.ok(!admit2.result.isError, JSON.stringify(admit2.body).slice(0, 800))
+    assert.strictEqual(admit2.body.status, 'active')
+    console.log('  ✓ admission without ingressRef succeeds after the previous task folder was removed')
   } finally {
     Object.values(servers).forEach(s => s.close())
     if (!process.env.DEVCODEX_KEEP_TEST_TMP) fs.rmSync(tmp, { recursive: true, force: true })

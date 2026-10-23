@@ -13,10 +13,10 @@
     "publicTaxonomyDigest": "7f6ee8c30f5484b8881e27099af72c69625b73a7cf3b53fe51c8c0c147d4f124",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "cfd709b1248855c06c56373d1bcfe4798acefd7f1e0c11555b26cfd8caa1e8a6",
-    "consumerInventoryFileCount": 734,
-    "consumerInventoryDigest": "f3accfe94e0f8eb41b8a5f1185fda31ea9fe234bed27d0a4f7abb5bb5cbffab4",
-    "consumerProjectionDigest": "a6f1e291d419cd6fd5599b3a9c27b24c7230227dd618d84ea256c2d169451b1e",
-    "portfolioInputDigest": "70a52ac885904009a77230f6350ce2044c839bf7f54bdd86029fb11038ea8af9"
+    "consumerInventoryFileCount": 735,
+    "consumerInventoryDigest": "c2f71f2924d163753b5dab8146ddefb15d1d343d2ff8201957fe4e5aba513231",
+    "consumerProjectionDigest": "2b09ec9588ad0e960884aaf0cf16520f87e8844840f281d36d0d1d53ce747fd9",
+    "portfolioInputDigest": "07007518e994791b588a490b63403b8b1bd46c99857ca3c37d55a8b78973e184"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -12318,6 +12318,10 @@
         },
         {
           "path": "hooks/_runtime/evidence/grok-skill-route-pass.v1.json",
+          "role": "current"
+        },
+        {
+          "path": "hooks/_runtime/host-session-partition.cjs",
           "role": "current"
         },
         {

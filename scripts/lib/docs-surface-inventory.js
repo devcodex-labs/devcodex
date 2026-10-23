@@ -47,6 +47,7 @@ const REQUIRED_MCP_TOOLS = Object.freeze([
   'memory_task_resolve',
   'memory_task_terminal_v1',
   'memory_task_write_owner',
+  'memory_turn_closeout_v1',
   'memory_workflow_operational_write_lease',
   'profile_compose_entry_check',
   'profile_context_plan',

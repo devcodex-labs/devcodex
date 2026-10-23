@@ -57,6 +57,7 @@ const DEVCODEX_RESERVED_MCP_TOOL_LEAVES = new Set([
   'memory_workflow_operational_write_lease',
   'memory_task_terminal_v1',
   'memory_task_closeout_reconcile_v1',
+  'memory_turn_closeout_v1',
   'memory_artifact_mutation_reconcile_v1'
 ])
 

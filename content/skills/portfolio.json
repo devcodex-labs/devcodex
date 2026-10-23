@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "cfd709b1248855c06c56373d1bcfe4798acefd7f1e0c11555b26cfd8caa1e8a6",
     "consumerInventoryFileCount": 734,
     "consumerInventoryDigest": "f3accfe94e0f8eb41b8a5f1185fda31ea9fe234bed27d0a4f7abb5bb5cbffab4",
-    "consumerProjectionDigest": "0774d27b2971d1db9e92bd90dc0b13988faec08fce69d732f523b21582edae6f",
-    "portfolioInputDigest": "634897523a6bb5f3bc94cd9b94aa570c0753e43f96b8bb052e1ae47f2cee16cb"
+    "consumerProjectionDigest": "3ee09e07e2381115709175debcd23fe9016299a2fe37e9647351158d0cc4cc61",
+    "portfolioInputDigest": "c96b5e07a2b267a19cd422df9d7c6972fbb86ad885bfbd9859b19ca4428ef031"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -17323,6 +17323,10 @@
           "role": "current"
         },
         {
+          "path": "scripts/test-grok-bot-host.js",
+          "role": "current"
+        },
+        {
           "path": "scripts/test-hooks-runtime.js",
           "role": "current"
         },
@@ -17497,6 +17501,7 @@
         "scripts/test-global-host-removal.js",
         "scripts/test-global-install-smoke.js",
         "scripts/test-global-runtime-continuity.js",
+        "scripts/test-grok-bot-host.js",
         "scripts/test-hooks-runtime.js",
         "scripts/test-host-adapters.js",
         "scripts/test-host-capability-routing.js",
@@ -17603,6 +17608,7 @@
           "scripts/test-global-host-removal.js",
           "scripts/test-global-install-smoke.js",
           "scripts/test-global-runtime-continuity.js",
+          "scripts/test-grok-bot-host.js",
           "scripts/test-hooks-runtime.js",
           "scripts/test-host-adapters.js",
           "scripts/test-host-capability-routing.js",

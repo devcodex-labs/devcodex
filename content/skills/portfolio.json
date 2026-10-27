@@ -15,8 +15,8 @@
     "portfolioEvidenceDigest": "cfd709b1248855c06c56373d1bcfe4798acefd7f1e0c11555b26cfd8caa1e8a6",
     "consumerInventoryFileCount": 735,
     "consumerInventoryDigest": "c2f71f2924d163753b5dab8146ddefb15d1d343d2ff8201957fe4e5aba513231",
-    "consumerProjectionDigest": "2b09ec9588ad0e960884aaf0cf16520f87e8844840f281d36d0d1d53ce747fd9",
-    "portfolioInputDigest": "07007518e994791b588a490b63403b8b1bd46c99857ca3c37d55a8b78973e184"
+    "consumerProjectionDigest": "d60138eb775acfce5bb5fdbd2d69d69706d95db2f40f2550dad1502692c63c6b",
+    "portfolioInputDigest": "64a2101845b917b9f9911940c72839ac143ba1d30cdbda713dea05d8f70b8c7b"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -16995,6 +16995,10 @@
           "role": "current"
         },
         {
+          "path": "README.md",
+          "role": "current"
+        },
+        {
           "path": "scripts/benchmark-runtime-indexes.js",
           "role": "current"
         },
@@ -18458,6 +18462,10 @@
         },
         {
           "path": "public-site/rspress.config.ts",
+          "role": "current"
+        },
+        {
+          "path": "README.md",
           "role": "current"
         },
         {

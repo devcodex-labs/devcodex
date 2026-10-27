@@ -1,16 +1,17 @@
+English | [简体中文](README.zh-CN.md)
 
 <h1 align="center">DevCodex</h1>
 
 <p align="center">
-  <strong>意图驱动的跨宿主 AI Coding 工程化 Harness</strong>
+  <strong>An intent-driven, cross-host engineering harness for AI Coding</strong>
 </p>
 
 <p align="center">
-  <strong>让 AI Coding 不只是生成代码，而是从需求开始，持续把工程任务做完。</strong>
+  <strong>Make AI Coding do more than generate code: start from the requirement and keep going until the engineering task is done.</strong>
 </p>
 
 <p align="center">
-  识别意图 · 读取项目 · 调用专业 Skill · 确认边界 · 自动推进 · 执行修改 · 验证结果 · 保存进度 · 跨会话续接 · 受控进化
+  Recognize intent · Read the project · Invoke professional Skills · Confirm boundaries · Auto-advance · Make changes · Verify results · Save progress · Resume across sessions · Controlled evolution
 </p>
 
 <p align="center">
@@ -22,196 +23,196 @@
 </p>
 
 <p align="center">
-  <a href="https://devcodex-labs.github.io/devcodex/">完整文档</a>
+  <a href="https://devcodex-labs.github.io/devcodex/">Full documentation</a>
   ·
-  <a href="https://devcodex-labs.github.io/devcodex/guide/getting-started">5 分钟开始</a>
+  <a href="https://devcodex-labs.github.io/devcodex/guide/getting-started">5-minute start</a>
   ·
-  <a href="https://devcodex-labs.github.io/devcodex/examples/resume">跨会话续接案例</a>
+  <a href="https://devcodex-labs.github.io/devcodex/examples/resume">Cross-session resume example</a>
   ·
-  <a href="https://github.com/devcodex-labs/devcodex/issues">反馈问题</a>
+  <a href="https://github.com/devcodex-labs/devcodex/issues">Report an issue</a>
 </p>
 
 <p align="center">
-  <a href="#5-分钟开始">快速开始</a>
+  <a href="#5-minute-start">Quick start</a>
   ·
-  <a href="#常见任务怎么说">常见任务</a>
+  <a href="#how-to-phrase-common-tasks">Common tasks</a>
   ·
-  <a href="#常见问题与排错">排错</a>
+  <a href="#faq-and-troubleshooting">Troubleshooting</a>
   ·
-  <a href="#更新">更新</a>
+  <a href="#updating">Updating</a>
   ·
-  <a href="#卸载">卸载</a>
+  <a href="#uninstalling">Uninstalling</a>
 </p>
 
-> **模型和宿主负责推理、写代码与执行工具；DevCodex 以任务意图为起点，负责判断要完成什么、作用于哪个项目、该读取什么、加载哪些专业能力、按什么工程流程推进，以及怎样证明真正完成。**
+> **The model and the host do the reasoning, write the code, and run the tools. DevCodex starts from the task intent and decides what needs to be done, which project it applies to, what to read, which professional capabilities to load, which engineering process to follow, and how to prove the work is truly complete.**
 
-**意图驱动 · 6 个 AI Coding 宿主 · 8 条任务工作流 · 80+ 专业 Skill · 项目上下文与记忆 · Sticky Auto 自动推进 · 长任务恢复 · 跨会话续接 · 证据化完成 · 受控自我进化**
+**Intent-driven · 6 AI Coding hosts · 8 task workflows · 80+ professional Skills · Project context and memory · Sticky Auto advancement · Long-task recovery · Cross-session resume · Evidence-based completion · Controlled self-evolution**
 
 ```bash
 npm install -g devcodex
-cd <你的项目根目录>
+cd <your project root>
 devcodex init
 devcodex status
 ```
 
-安装或更新后保留原任务。宿主提供连接重载时，刷新 DevCodex 连接并核对当前加载版本；没有该能力时，保存检查点、继续可执行工作，方便时重载宿主。安装成功不代表已有连接已经加载新版，无需为更新另建任务。
+Keep your existing task after installing or updating. If the host offers connection reload, refresh the DevCodex connection and check the currently loaded version; if it does not, save a checkpoint, keep doing the work that can still be done, and reload the host when convenient. A successful install does not mean existing connections have loaded the new version, and there is no need to start a new task just for the update.
 
-第一个任务可以直接这样说：
+Your first task can be phrased like this:
 
 ```text
-分析当前项目最值得优先解决的三个问题。
-先说明读取范围和证据，只分析，不修改文件。
+Analyze the three issues most worth solving first in the current project.
+First state the read scope and evidence; analyze only, do not modify files.
 ```
 
-## 目录
+## Contents
 
-- [为什么需要 DevCodex？](#为什么需要-devcodex)
-- [安装后，你能解决什么？](#安装后你能解决什么)
-- [什么时候直接使用宿主，什么时候用 DevCodex？](#什么时候直接使用宿主什么时候用-devcodex)
-- [5 分钟开始](#5-分钟开始)
-- [安装会改变什么](#安装会改变什么)
-- [工作流、Skill 与宿主边界](#工作流skill-与宿主边界)
-- [常见任务怎么说](#常见任务怎么说)
-- [常见问题与排错](#常见问题与排错)
-- [更新](#更新)
-- [卸载](#卸载)
-- [边界](#边界)
-- [文档](#文档)
-- [贡献](#贡献)
-- [社区](#社区)
-- [许可证](#许可证)
+- [Why DevCodex?](#why-devcodex)
+- [What can you solve after installing?](#what-can-you-solve-after-installing)
+- [When to use the host directly, and when to use DevCodex?](#when-to-use-the-host-directly-and-when-to-use-devcodex)
+- [5-minute start](#5-minute-start)
+- [What installation changes](#what-installation-changes)
+- [Workflows, Skills, and host boundaries](#workflows-skills-and-host-boundaries)
+- [How to phrase common tasks](#how-to-phrase-common-tasks)
+- [FAQ and troubleshooting](#faq-and-troubleshooting)
+- [Updating](#updating)
+- [Uninstalling](#uninstalling)
+- [Boundaries](#boundaries)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [Community](#community)
+- [License](#license)
 
 ---
 
-## 为什么需要 DevCodex？
+## Why DevCodex?
 
-模型越来越会写代码，但真实工程任务仍然经常失败在代码生成之外：
+Models keep getting better at writing code, but real engineering tasks still often fail outside of code generation:
 
-- 新会话不了解项目，每次都要重新解释背景；
-- 需求还没有说清楚，AI 就开始修改文件；
-- 长任务跨文件、跨阶段后容易偏离目标；
-- 会话中断后，只能依靠旧聊天摘要猜测做到哪里；
-- 通用模型缺少当前问题需要的专业工程方法；
-- 简单任务和高风险任务被用同一种方式处理；
-- 一句“已经完成”没有测试、证据和剩余风险；
-- 同样的问题反复出现，却没有沉淀成下一次可复用的能力；
-- 切换 Codex、Claude Code 或 Cursor 后，项目工作方式又要重新维护一套。
+- A new session knows nothing about the project, so the background has to be explained every time;
+- The AI starts modifying files before the requirement is even clear;
+- Long tasks that span files and phases easily drift from the goal;
+- After a session is interrupted, all you can do is guess where things stopped from an old chat summary;
+- General-purpose models lack the professional engineering methods the current problem needs;
+- Simple tasks and high-risk tasks are handled the same way;
+- "It's done" comes with no tests, evidence, or remaining risks;
+- The same problems keep recurring without being turned into capabilities reusable next time;
+- After switching between Codex, Claude Code, or Cursor, the project's way of working has to be maintained all over again.
 
-DevCodex 补上的，就是 AI Coding 与真实软件工程之间缺少的这一层。
+DevCodex fills exactly this missing layer between AI Coding and real software engineering.
 
-| 只依赖当前 AI Coding 会话 | 加上 DevCodex |
+| Relying only on the current AI Coding session | With DevCodex |
 |---|---|
-| 背景主要留在聊天窗口 | 项目上下文、任务状态、报告和记忆跟随项目保存 |
-| 容易拿到需求就直接编码 | 先判断目标、项目、范围、风险和是否允许修改 |
-| 主要依赖模型的通用能力 | 根据任务和阶段加载对应的专业 Skill |
-| 长任务中断后从头分析 | 从任务身份、检查点、确认状态和剩余项继续 |
-| 大项目每轮重复读取 | 可按变化范围和影响关系做增量分析与复证 |
-| “代码写完”等于“任务完成” | 测试、构建、报告、证据和剩余风险共同收口 |
-| 项目经验散落在对话里 | 重复问题可形成受控进化候选和项目 Skill |
-| 每个工具单独维护规则 | 六个宿主复用同一套项目工程方法 |
+| Background lives mostly in the chat window | Project context, task state, reports, and memory are saved with the project |
+| Tends to start coding as soon as it gets a requirement | First determines the goal, project, scope, risk, and whether changes are allowed |
+| Relies mainly on the model's general abilities | Loads the matching professional Skills for the task and phase |
+| Long tasks restart analysis from scratch after an interruption | Continues from task identity, checkpoints, confirmation state, and remaining items |
+| Large projects are re-read every round | Incremental analysis and re-verification based on change scope and impact |
+| "Code written" equals "task done" | Tests, builds, reports, evidence, and remaining risks close the task together |
+| Project experience is scattered across conversations | Recurring problems can become controlled evolution candidates and project Skills |
+| Each tool maintains its own rules | Six hosts reuse the same project engineering method |
 
-### 意图驱动：你只需要说目标，DevCodex 决定怎样工作
+### Intent-driven: you state the goal, DevCodex decides how to work
 
-DevCodex 不要求用户先学习工作流名称，也不会看到某个关键词就机械套用固定 Prompt。它会先把你真正想得到的结果结构化，再让这份结构化意图驱动后面的项目识别、上下文、Skill、流程、Auto/确认、执行和验证。下游组件不能各自重新解释原始文本。
+DevCodex does not require users to learn workflow names first, and it does not mechanically apply a fixed prompt whenever it sees a keyword. It first structures the result you actually want, then lets that structured intent drive the downstream project recognition, context, Skills, process, Auto/confirmation, execution, and verification. Downstream components may not each reinterpret the raw text.
 
-它会同时判断：
+It determines, all at once:
 
-- 最终需要的是结论、代码修改、问题修复、系统审查，还是继续历史任务；
-- 请求作用于哪个项目，允许处理哪些目录、模块和业务范围；
-- 当前任务的风险有多高，是否允许修改文件；
-- 需要读取哪些 Profile、相关源码、历史记忆和验证证据；
-- 当前阶段应该加载哪些专业 Skill；
-- 哪些节点需要用户确认，哪些可以由 Auto 持续推进；
-- 应该运行哪些验证，以及什么条件下才能宣布完成。
+- Whether the final need is a conclusion, a code change, a bug fix, a system review, or continuing a past task;
+- Which project the request applies to, and which directories, modules, and business scope may be touched;
+- How risky the current task is, and whether modifying files is allowed;
+- Which Profile, relevant source code, past memory, and verification evidence need to be read;
+- Which professional Skills should be loaded in the current phase;
+- Which points need user confirmation and which can be advanced continuously by Auto;
+- Which verifications should run, and under what conditions completion can be declared.
 
-| 你的请求 | DevCodex 识别后的工程路径 |
+| Your request | Engineering path after DevCodex recognizes it |
 |---|---|
-| “分析测试为什么失败，不要修改” | 进入只读分析，说明读取范围、证据与未验证部分 |
-| “复现并修复这个失败用例” | 进入修复流程，先复现、定位根因，再修改和回归 |
-| “为支付回调增加幂等” | 进入开发流程，先明确需求、方案、范围与验收 |
-| “审查当前支付链路的风险” | 进入证据审查，不默认修改文件 |
-| “继续支付回调幂等任务” | 定位原任务，复核当前状态后从准确断点续接 |
-| “这个设计是否合理？” | 先判断只需要分析建议，还是最终需要落地修改 |
+| "Analyze why the tests fail, don't modify anything" | Enters read-only analysis, stating the read scope, evidence, and unverified parts |
+| "Reproduce and fix this failing test case" | Enters the fix process: reproduce, locate the root cause, then modify and regress |
+| "Add idempotency to the payment callback" | Enters the development process: clarify requirement, design, scope, and acceptance first |
+| "Review the risks in the current payment flow" | Enters evidence-based review; does not modify files by default |
+| "Continue the payment callback idempotency task" | Locates the original task, re-checks the current state, and resumes from the exact breakpoint |
+| "Is this design reasonable?" | First determines whether only analysis and advice are needed, or an actual change in the end |
 
-意图不是一次性的分类标签，而是整条工程链的控制起点：
+Intent is not a one-off classification label; it is the control starting point of the whole engineering chain:
 
 ```text
-用户目标
-→ 任务类型
-→ 目标项目、范围与风险
-→ 上下文与记忆
-→ 专业 Skill
-→ 工作流与确认方式
-→ 验证和完成标准
+User goal
+→ Task type
+→ Target project, scope, and risk
+→ Context and memory
+→ Professional Skills
+→ Workflow and confirmation mode
+→ Verification and completion criteria
 ```
 
-当用户目标发生变化，例如从“只分析”变成“按方案实施”、从单项目扩大到整个 workspace，或临时增加提交与发布要求，DevCodex 会重新结构化意图，再统一刷新工作流、上下文、权限和验证边界。范围变化或短时凭据过期本身不会直接变成一次用户确认。
+When the user's goal changes, for example from "analyze only" to "implement the plan", from a single project to the whole workspace, or when commit and release requirements are added on the fly, DevCodex re-structures the intent and then refreshes the workflow, context, permissions, and verification boundaries together. A scope change or an expired short-lived credential does not by itself turn into a user confirmation.
 
-> Auto 只负责在已经识别的意图和已授权范围内持续推进，不会绕过意图判断，也不会把只读分析自动变成代码修改。
+> Auto only keeps advancing within the already recognized intent and authorized scope. It does not bypass intent judgment, and it does not automatically turn a read-only analysis into a code change.
 
-### 从需求到交付的完整闭环
+### A complete loop from requirement to delivery
 
 ```mermaid
 flowchart LR
-    A[说出目标] --> B[识别任务意图]
-    B --> C[判断项目、范围与风险]
-    C --> D[读取上下文与记忆]
-    D --> E[加载当前专业 Skill]
-    E --> F[明确需求、方案与验收]
-    F --> G{确认或 Auto 推进}
-    G --> H[执行修改]
-    H --> I[测试、构建与检查]
-    I --> J[报告证据与剩余风险]
-    J --> K[保存任务状态与续接点]
-    K --> L{是否发现可复用经验}
-    L -- 否 --> M[任务完成]
-    L -- 是 --> N[生成受控进化候选]
+    A[State the goal] --> B[Recognize task intent]
+    B --> C[Determine project, scope, and risk]
+    C --> D[Read context and memory]
+    D --> E[Load current professional Skills]
+    E --> F[Clarify requirement, design, and acceptance]
+    F --> G{Confirm or Auto-advance}
+    G --> H[Make changes]
+    H --> I[Test, build, and check]
+    I --> J[Report evidence and remaining risks]
+    J --> K[Save task state and resume point]
+    K --> L{Reusable experience found?}
+    L -- No --> M[Task complete]
+    L -- Yes --> N[Create controlled evolution candidate]
     N --> M
 ```
 
-DevCodex 不是在开始前多塞一段 Prompt，而是持续管理任务从理解、执行到验证和交接的全过程。
+DevCodex is not just an extra prompt stuffed in at the start; it continuously manages the whole task, from understanding and execution to verification and handoff.
 
-### 同一个模型，为什么会表现得更聪明？
+### Why does the same model behave smarter?
 
-DevCodex 不改变模型参数。它通过四件事提升 AI 在真实项目中的有效表现：
+DevCodex does not change model parameters. It improves the AI's effective performance in real projects through four things:
 
-1. **给出正确目标**：先判断最终要结论、修复、功能、审查还是续接；
-2. **提供正确资料**：只读取当前任务需要的项目规范、源码、记忆和证据；
-3. **调用正确能力**：在当前阶段加载对应的专业 Skill，而不是一次性塞入全部规则；
-4. **获得真实反馈**：测试、构建、命令结果、代码差异和审查证据会继续影响后续判断。
+1. **The right goal**: first determine whether the end result is a conclusion, a fix, a feature, a review, or a resume;
+2. **The right material**: read only the project conventions, source code, memory, and evidence the current task needs;
+3. **The right capability**: load the matching professional Skills in the current phase instead of stuffing in every rule at once;
+4. **Real feedback**: tests, builds, command results, code diffs, and review evidence keep influencing subsequent judgments.
 
-简单任务可以走更短路径；涉及公共契约、数据、安全、多模块或发布风险时，会自动提高复审和验证强度。是否需要确认只由当前结构化意图与动作授权决定，风险标签、复审器和验证器不能自行要求确认。流程仪式、技术方案深度与验证范围分别判断，不再用一个模糊的“简单/复杂”标签同时控制三者：当前任务中用户明确说法优先，其次才是项目配置、基于项目事实的智能识别和保守回退。入口先初判，读取项目后再二次判断，并在 PC8～PC10 写清流程/方案、验证范围与预计耗时、后续阶段和当前是否需要用户动作。
+Simple tasks can take a shorter path; when public contracts, data, security, multiple modules, or release risk are involved, review and verification intensity are raised automatically. Whether confirmation is needed is decided only by the current structured intent and action authorization; risk labels, reviewers, and verifiers cannot demand confirmation on their own. Process ceremony, design depth, and verification scope are judged separately, rather than one vague "simple/complex" label controlling all three: the user's explicit wording in the current task takes precedence, followed by project configuration, smart recognition based on project facts, and a conservative fallback. The entry point makes an initial judgment, judges again after reading the project, and in PC8–PC10 spells out the process/design, verification scope and estimated time, next phases, and whether a user action is currently needed.
 
-Profile 可配置 `extensions.devcodex.workflowRouting.mode` 为 `adaptive`（默认）、`simple` 或 `standard`，并用 `showPlan` 控制展示密度；该配置只提供流程仪式默认值，不能降低公共契约、状态恢复、package 或发布等强制义务。入口 PC0 同时显示已安装包、当前 runtime 与源码候选的版本关系，避免“版本号相同”被误报为运行内容完全一致。
+A Profile can set `extensions.devcodex.workflowRouting.mode` to `adaptive` (default), `simple`, or `standard`, and use `showPlan` to control display density. This setting only provides the default for process ceremony; it cannot lower mandatory obligations such as public contracts, state recovery, package, or release. The PC0 entry check also shows the version relationship between the installed package, the current runtime, and source candidates, so that "same version number" is not misreported as "exactly the same content".
 
-产物打开按实际呈现面而不是仅按宿主名称决定。Codex Desktop 输出真实的本地文件链接；VS Code、Zed、JetBrains 可输出对应打开命令；未知或未验证界面直接给可复制绝对路径。系统只有在打开动作执行且回读成功时才会写“已打开”，renderer 选中、命令生成或链接渲染本身不冒充打开成功。
+How an artifact is opened depends on the actual presentation surface, not just the host name. Codex Desktop outputs real local file links; VS Code, Zed, and JetBrains can output the corresponding open commands; unknown or unverified interfaces get a copyable absolute path directly. The system only writes "opened" when the open action was executed and read back successfully; a renderer selection, a generated command, or a rendered link does not pass itself off as a successful open.
 
-### Auto 自动推进：一次授权，持续完成整条工程链
+### Auto advancement: authorize once, complete the whole engineering chain
 
-普通模式下，DevCodex 会在需求、方案和实施计划等关键节点等待确认。需要让 AI 在已授权范围内持续推进时，可以显式进入 Auto：
+In normal mode, DevCodex waits for confirmation at key points such as requirement, design, and implementation plan. When you want the AI to keep advancing within an authorized scope, you can enter Auto explicitly:
 
 ```text
-@devcodex-auto 完成支付回调幂等修复。
-先复现和确认根因，再完成方案、修改、相关回归、报告与任务收口；
-不要扩大到删除、push 或发布。
+@devcodex-auto Complete the payment callback idempotency fix.
+First reproduce and confirm the root cause, then complete the design, changes, related regression, report, and task closure;
+do not expand to deletion, push, or release.
 ```
 
-Auto 不会跳过工程流程，而是**自动通过适用的流程确认，并继续执行后面的分析、实施、验证、报告和状态保存**：
+Auto does not skip the engineering process. Instead it **automatically passes the applicable process confirmations and continues with the subsequent analysis, implementation, verification, reporting, and state saving**:
 
-- 有效入口先结构化为 `executionDecision=enable-auto`；正式任务建立后由任务级 Auto 持续承接，不依赖短时 receipt 或会话 TTL，不需要每个阶段反复回复“继续”；
-- 需求、方案、实施计划、测试、证据和报告仍然会生成，不会因为自动推进而消失；
-- 可恢复失败最多自动重试 2 次；实际修改范围扩大、证据过期或验证失败时会停止当前动作、重新结构化意图并在原授权仍适用时继续，不会机械切回确认；
-- 删除、项目外写入、危险操作、push、Tag、Release 和发布不会因为进入 Auto 自动获得授权；
-- 不同宿主对 Hook、权限和自动放行的支持不同；能力不足时停止对应动作并明确提示，不会覆盖结构化 Auto 决定。
+- A valid entry is first structured as `executionDecision=enable-auto`; once a formal task is established, task-level Auto carries it forward continuously, without relying on a short-lived receipt or session TTL, and without needing "continue" replies at every phase;
+- Requirements, designs, implementation plans, tests, evidence, and reports are still produced; they do not disappear because of auto-advancement;
+- Recoverable failures are retried automatically at most 2 times; when the actual change scope expands, evidence becomes stale, or verification fails, the current action stops, the intent is re-structured, and work continues if the original authorization still applies, without mechanically switching back to confirmation;
+- Deletion, writes outside the project, dangerous operations, push, Tag, Release, and publishing are not authorized automatically by entering Auto;
+- Hosts differ in their support for Hooks, permissions, and automatic approval; when a capability is lacking, the corresponding action stops with a clear notice, without overriding the structured Auto decision.
 
-正式入口是 `@devcodex-auto`，默认快捷别名是 `@rocky`。可用 `退出 auto`、`关闭自动模式` 或 `切回确认模式` 退出；正式任务在恢复时按任务 identity 和结构化意图续接，不能仅因新会话或短时凭据过期撤销任务级授权。
+The formal entry is `@devcodex-auto`, and the default shortcut alias is `@rocky`. Exit with `退出 auto` (exit auto), `关闭自动模式` (turn off auto mode), or `切回确认模式` (switch back to confirmation mode). On recovery, a formal task resumes by task identity and structured intent; task-level authorization cannot be revoked merely because of a new session or an expired short-lived credential.
 
-> Auto 的价值不是“跳过步骤”，而是让已经明确目标和边界的任务不再被机械确认打断，同时继续保留验证、证据和安全底线。
+> The value of Auto is not "skipping steps"; it is that tasks with a clear goal and boundaries are no longer interrupted by mechanical confirmations, while verification, evidence, and safety baselines are kept.
 
 <details>
-<summary><strong>为团队设置自己的 Auto 别名</strong></summary>
+<summary><strong>Set up your team's own Auto alias</strong></summary>
 
-在 Profile 的 `config.json` 中设置：
+In the Profile's `config.json`, set:
 
 ```json
 {
@@ -223,276 +224,276 @@ Auto 不会跳过工程流程，而是**自动通过适用的流程确认，并�
 }
 ```
 
-非空数组会替换默认快捷别名 `@rocky`；空数组 `[]` 会关闭默认快捷别名。正式入口 `@devcodex-auto` 不会被重命名。
+A non-empty array replaces the default shortcut alias `@rocky`; an empty array `[]` turns off the default shortcut alias. The formal entry `@devcodex-auto` is never renamed.
 
 </details>
 
 ---
 
-## 安装后，你能解决什么？
+## What can you solve after installing?
 
-### 1. 跨会话恢复：任务不再困在旧聊天窗口里
+### 1. Cross-session recovery: tasks are no longer trapped in old chat windows
 
-DevCodex 的续接不是“读一段旧会话摘要，然后继续猜”。
+DevCodex's resume is not "read an old session summary and keep guessing".
 
-对正式任务，它会持续保存可恢复的工程状态，包括：
+For formal tasks, it continuously saves recoverable engineering state, including:
 
-- 任务身份和原始目标；
-- 已确认范围、非目标和验收标准；
-- 当前工作流与所处阶段；
-- 已完成步骤、未完成步骤和停止位置；
-- 修改过的文件与关键决策；
-- 已运行的验证、结果和证据；
-- 剩余风险、阻塞项和下一步；
-- 原任务已经获得和没有获得的权限。
+- Task identity and original goal;
+- Confirmed scope, non-goals, and acceptance criteria;
+- Current workflow and phase;
+- Completed steps, pending steps, and where it stopped;
+- Modified files and key decisions;
+- Verifications run, results, and evidence;
+- Remaining risks, blockers, and next steps;
+- Permissions the original task has and has not been granted.
 
-新会话收到：
+When a new session receives:
 
 ```text
-继续支付回调幂等修复任务。
+Continue the payment callback idempotency fix task.
 ```
 
-会先完成以下恢复过程：
+it first completes the following recovery process:
 
 ```mermaid
 flowchart LR
-    A[按任务名定位原任务] --> B[读取报告、记忆与检查点]
-    B --> C[复核当前分支、文件和项目状态]
-    C --> D{旧证据仍然新鲜吗}
-    D -- 是 --> E[恢复原工作流与剩余步骤]
-    D -- 否 --> F[标记过期或冲突并重新结构化意图]
-    E --> G[从准确断点继续]
+    A[Locate original task by name] --> B[Read reports, memory, and checkpoints]
+    B --> C[Re-check current branch, files, and project state]
+    C --> D{Is old evidence still fresh?}
+    D -- Yes --> E[Restore original workflow and remaining steps]
+    D -- No --> F[Mark stale or conflicting and re-structure intent]
+    E --> G[Continue from exact breakpoint]
     F --> G
 ```
 
-恢复后仍然遵守原来的边界：原任务只读，续接后仍然只读；原任务没有 `push` 或发布权限，换会话后也不会自动获得。
+After recovery the original boundaries still apply: if the original task was read-only, it stays read-only after resuming; if the original task had no `push` or release permission, it does not gain one by switching sessions.
 
-正式任务本身不会因为等待、关机、断网、宿主退出或版本升级而过期。会短期过期的是 fenced owner——它只是防止两个会话同时写同一任务的写入租约，默认空闲租期为 5 分钟；租约过期或 accepted Stop 主动释放后，任务身份、概况、CP 确认、报告、记忆与检查点仍保留。新会话可发送 `继续 <准确任务名>`，DevCodex 会在服务端重新核对项目根、TaskIdentityV2、概况、CP 摘要、旧 turn/operation 状态并执行单赢家 CAS，成功后同时生成新的 admission generation 与 owner generation，无需重写任务或重复确认同一 CP。
+A formal task itself does not expire because of waiting, shutdown, network loss, host exit, or a version upgrade. What expires in the short term is the fenced owner: just a write lease that prevents two sessions from writing the same task at once, with a default idle lease of 5 minutes. After the lease expires or an accepted Stop releases it, the task identity, overview, CP confirmations, reports, memory, and checkpoints remain. A new session can send `继续 <exact task name>` (continue <exact task name>); DevCodex re-checks the project root, TaskIdentityV2, overview, CP summary, and old turn/operation state on the server side and performs a single-winner CAS. On success it generates a new admission generation and owner generation together, with no need to rewrite the task or re-confirm the same CP.
 
-如果旧 owner 仍有效、旧工具操作尚未收口、任务真相发生漂移、任务已经终态，或另一个会话先完成接管，恢复会失败关闭并返回可执行的 typed next step（等待租约、完成/对账旧操作、修复漂移、显式 reopen，或读取赢家），不会把“拒绝接管”误报成“任务已丢失”。
+If the old owner is still valid, an old tool operation has not been closed out, the task truth has drifted, the task is already terminal, or another session completed the takeover first, recovery fails closed and returns an actionable typed next step (wait for the lease, complete/reconcile the old operation, repair the drift, explicitly reopen, or read the winner), rather than misreporting "takeover refused" as "task lost".
 
-这带来几个实际结果：
+This brings several practical results:
 
-- 不需要重新粘贴几十轮旧对话；
-- 不会把相似任务错误地串在一起；
-- 不会因为换会话就忘记已经确认的范围；
-- 当前代码已经变化时，不会直接沿用过期方案；
-- 可以把未完成任务交给新的会话继续；
-- 在支持的宿主之间，也可以基于同一项目中的任务文件、报告和证据接力。
+- No need to re-paste dozens of rounds of old conversation;
+- Similar tasks are not wrongly chained together;
+- Confirmed scope is not forgotten just because the session changed;
+- When the current code has changed, a stale plan is not reused directly;
+- Unfinished tasks can be handed to a new session to continue;
+- Between supported hosts, work can also be relayed based on task files, reports, and evidence in the same project.
 
-> 跨宿主接力复用的是项目工程状态，不是无条件搬运某个宿主的完整聊天会话。Hooks、MCP、权限和自动化强度仍取决于目标宿主。
+> Cross-host relay reuses the project's engineering state; it does not unconditionally carry over a host's full chat session. Hooks, MCP, permissions, and automation strength still depend on the target host.
 
 <details>
-<summary><strong>长任务恢复为什么更可靠？</strong></summary>
+<summary><strong>Why is long-task recovery more reliable?</strong></summary>
 
-- 恢复状态按正式任务保存，而不是每次 Hook 或工具事件都生成一份完整快照；
-- 每个任务使用稳定检查点，写入失败时保留上一份有效状态；
-- 已形成安全断点的任务可以收敛为更小的恢复记录；
-- 已结束任务退出活跃恢复区，不持续制造无意义状态；
-- 状态存储按字节进行容量保护，达到压力边界时不会静默删除活跃任务；
-- 普通只读事件不会不断写入完整任务状态。
+- Recovery state is saved per formal task, rather than generating a full snapshot on every Hook or tool event;
+- Each task uses a stable checkpoint; when a write fails, the previous valid state is kept;
+- Tasks that have reached a safe breakpoint can be condensed into a smaller recovery record;
+- Finished tasks leave the active recovery area and do not keep producing meaningless state;
+- State storage has byte-based capacity protection and does not silently delete active tasks when it hits the pressure limit;
+- Ordinary read-only events do not keep writing the full task state.
 
-这些机制让跨会话恢复适合真正的长任务，而不是只适合短对话演示。
+These mechanisms make cross-session recovery suitable for genuinely long tasks, not just short conversational demos.
 
 </details>
 
-完整案例见[跨会话续接](https://devcodex-labs.github.io/devcodex/examples/resume)。
+See the full example in [Cross-session resume](https://devcodex-labs.github.io/devcodex/examples/resume).
 
-### 2. 项目 Profile、上下文、记忆与可复用项目知识
+### 2. Project Profile, context, memory, and reusable project knowledge
 
-**Profile 可以理解为 AI 使用当前项目时的工程说明书。** 它记录项目结构、技术栈、构建与测试命令、代码风格、架构边界、发布方式、功能清单和用户契约，让 AI 不必每次都从目录和 `package.json` 重新猜测项目规则。
+**Think of the Profile as the engineering manual the AI uses for the current project.** It records the project structure, tech stack, build and test commands, code style, architecture boundaries, release process, feature list, and user contracts, so the AI does not have to re-guess the project rules from the directory tree and `package.json` every time.
 
-`devcodex init` 生成的是一份**有证据的 Profile 初稿和模板**，不是自动完成的最终事实。初始化后应让 AI 继续读取真实源码、脚本、CI、文档、配置和发布流程，把模板补充成当前项目可依赖的工程基线；无法从项目证明的内容必须保留为 `unverified`，不能编造。
+`devcodex init` generates an **evidence-backed Profile draft and template**, not finished facts. After initialization, have the AI go on to read the real source code, scripts, CI, docs, configuration, and release process to turn the template into an engineering baseline the project can rely on. Anything that cannot be proven from the project must stay `unverified` and must not be made up.
 
-Profile 也不是永久正确的缓存。项目级分析和审查会把 Profile 声明与当前代码、配置和运行证据重新对账；发现漂移时，以当前可验证事实为准，并把 Profile 修订作为后续任务。
+The Profile is not a cache that stays correct forever either. Project-level analysis and review reconcile the Profile's claims against the current code, configuration, and runtime evidence; when drift is found, the currently verifiable facts win, and revising the Profile becomes a follow-up task.
 
-没有完整 Profile 时，DevCodex 仍可以读取当前文件并处理有限任务，但会失去可靠的项目级工程基线：`status` / `doctor` 会显示 `missing` 或 `partial`，运行模式使用更保守的 `prod` 默认（这里只表示保守规则模式，不代表自动部署到生产），无法确认的项目事实保持未验证，依赖构建、测试、发布或架构边界的任务可能要求补充信息、降级或停止。多项目 workspace 中，如果目标项目的 Profile 根整体缺失，会返回 `PROFILE_MISSING`，而不是误用另一个项目的 Profile。
+Without a complete Profile, DevCodex can still read the current files and handle limited tasks, but it loses a reliable project-level engineering baseline: `status` / `doctor` show `missing` or `partial`, the run mode uses the more conservative `prod` default (this only means a conservative rule mode, not automatic deployment to production), project facts that cannot be confirmed remain unverified, and tasks that depend on build, test, release, or architecture boundaries may ask for more information, downgrade, or stop. In a multi-project workspace, if the target project's Profile root is missing entirely, `PROFILE_MISSING` is returned rather than wrongly using another project's Profile.
 
-DevCodex 把三类信息分开处理：
+DevCodex handles three kinds of information separately:
 
-| 类型 | 解决什么问题 |
+| Type | What it solves |
 |---|---|
-| **项目说明** | 项目怎样构建、测试、发布，目录、技术栈和安全边界是什么 |
-| **当前上下文** | 这次任务真正需要读取哪些代码、文档、配置和证据 |
-| **任务记忆** | 已确认什么、做过什么、验证过什么、还剩什么 |
+| **Project description** | How the project is built, tested, and released; its directories, tech stack, and security boundaries |
+| **Current context** | Which code, docs, configuration, and evidence this task actually needs to read |
+| **Task memory** | What has been confirmed, done, and verified, and what remains |
 
-在大型、多轮项目分析中，还可以把已经验证的稳定事实、文件关系和影响范围形成可复用的项目知识：
+In large, multi-round project analysis, verified stable facts, file relationships, and impact scopes can also be turned into reusable project knowledge:
 
-- 文件没有变化且证据仍然有效时，不必每轮重新分析；
-- 文件变化后，只让变化文件及其依赖、消费者、配置和测试范围失效；
-- 分析目标变化但代码没变时，只补充新的分析视角；
-- 快照、文件身份或抽样复证不一致时，自动退回完整读取；
-- 大项目可以分批交付结果，而不是长时间无输出后一次性给出总结。
+- When files have not changed and evidence is still valid, there is no need to re-analyze every round;
+- When files change, only the changed files and their dependencies, consumers, configuration, and test scope are invalidated;
+- When the analysis goal changes but the code does not, only the new analysis perspective is added;
+- When snapshots, file identities, or sampled re-verification disagree, it automatically falls back to a full read;
+- Large projects can deliver results in batches instead of producing a single summary after a long silence.
 
-这不是“缓存一段自然语言总结”，而是带来源、范围、新鲜度和失效条件的项目认知。
+This is not "caching a natural-language summary"; it is project knowledge with sources, scope, freshness, and invalidation conditions.
 
-### 3. 意图变化时，流程与权限会重新判断
+### 3. When intent changes, process and permissions are re-judged
 
-意图识别不是任务开始时的一次性标签。用户补充范围、改变最终目标、切换项目，或从“只分析”改为“按方案实施”时，DevCodex 会重新判断：
+Intent recognition is not a one-off label at the start of a task. When the user adds scope, changes the end goal, switches projects, or changes from "analyze only" to "implement the plan", DevCodex re-judges:
 
-- 当前应继续原工作流，还是切换到开发、修复、分析、审查或续接；
-- 是否需要读取新的项目上下文和记忆；
-- 是否需要增加或移除专业 Skill；
-- 原来的只读、修改、提交和发布权限是否仍然成立；
-- 既有计划、证据和验证范围是否已经过期。
+- Whether to continue the original workflow or switch to development, fix, analysis, review, or resume;
+- Whether new project context and memory need to be read;
+- Whether professional Skills need to be added or removed;
+- Whether the original read-only, modify, commit, and release permissions still hold;
+- Whether existing plans, evidence, and verification scope have gone stale.
 
-这避免 AI 因为第一轮判断已经完成，就在用户目标改变后继续沿用旧流程、旧上下文或旧权限。
+This prevents the AI from carrying on with the old process, old context, or old permissions after the user's goal has changed, just because the first round of judgment is already done.
 
-### 4. 80+ 专业 Skill 按需加入
+### 4. 80+ professional Skills, added on demand
 
-DevCodex 内置 80+ 专业 Skill，覆盖：
+DevCodex ships with 80+ professional Skills, covering:
 
-- 需求澄清、产品策略、验收与技术方案；
-- 前端、交互、设计系统和可访问性；
-- 后端、领域建模、API、数据与分布式系统；
-- 安全、隐私、外部集成和威胁建模；
-- Bug 复现、根因、回归范围、测试与审查；
-- 性能、生产就绪、SRE、发布与文档同步；
-- 上下文、记忆、宿主能力、Skill 生命周期和工程治理。
+- Requirement clarification, product strategy, acceptance, and technical design;
+- Frontend, interaction, design systems, and accessibility;
+- Backend, domain modeling, APIs, data, and distributed systems;
+- Security, privacy, external integrations, and threat modeling;
+- Bug reproduction, root cause, regression scope, testing, and review;
+- Performance, production readiness, SRE, release, and documentation sync;
+- Context, memory, host capabilities, Skill lifecycle, and engineering governance.
 
-Skill 只在匹配当前任务和阶段时加载。看到仓库中存在某个 Skill，不等于它已经被全部送进模型。
+Skills are loaded only when they match the current task and phase. A Skill existing in the repository does not mean all of it has been sent to the model.
 
-项目还可以添加自己的 Skill，把业务规则、团队规范、架构约束、常见问题和验证方式变成 AI 可重复使用的工程能力。
+Projects can also add their own Skills, turning business rules, team conventions, architecture constraints, common problems, and verification methods into engineering capabilities the AI can reuse.
 
-### 5. 从需求到验证，不允许任务静默跑偏
+### 5. From requirement to verification, tasks are not allowed to drift silently
 
-新功能会从目标、范围、非目标和验收开始；复杂任务还会形成方案、实施顺序、验证和回滚策略。
+New features start from goals, scope, non-goals, and acceptance; complex tasks also produce a design, implementation order, verification, and rollback strategy.
 
-执行过程中如果实际范围明显扩大、出现新的公共契约或高风险操作，DevCodex 会暂停并回到确认阶段，而不是把临时发现悄悄扩写成新的需求。
+If, during execution, the actual scope expands significantly, or a new public contract or high-risk operation appears, DevCodex pauses and returns to the confirmation phase, rather than quietly expanding an ad-hoc discovery into a new requirement.
 
-### 6. 证据化完成：不是 AI 说完成，而是有证据地完成
+### 6. Evidence-based completion: not "the AI says it's done", but done with evidence
 
-完成需要回答：
+Completion has to answer:
 
-- 修改了什么；
-- 为什么这样修改；
-- 执行了哪些测试、构建或检查；
-- 命令结果是什么；
-- 哪些范围已经验证；
-- 哪些范围没有验证；
-- 还剩什么风险；
-- 下一步是否需要提交、推送或发布。
+- What was changed;
+- Why it was changed this way;
+- Which tests, builds, or checks were run;
+- What the command results were;
+- Which scope has been verified;
+- Which scope has not been verified;
+- What risks remain;
+- Whether committing, pushing, or releasing is needed next.
 
-没运行的验证不能写成已通过；测试成功也不能自动获得提交或发布授权。
+Verification that was not run cannot be reported as passed; a test success does not automatically grant commit or release authorization.
 
-### 7. 受控自我进化：让项目经验逐步变成资产
+### 7. Controlled self-evolution: turning project experience into assets, step by step
 
-当某类问题反复出现、流程经常返工，或现有 Skill 无法覆盖时，DevCodex 可以：
-
-```text
-重复问题 / 返工 / 新经验
-        ↓
-识别能力缺口和根因
-        ↓
-生成 Skill、规则、Prompt 或验证方案候选
-        ↓
-小范围试运行和效果验证
-        ↓
-人工审查与批准
-        ↓
-沉淀为工作区或项目能力
-```
-
-候选默认不会直接进入实际工作流，也不会自动覆盖当前规则或发布。只有目标明确、证据充分、目的地正确并获得授权后，才会晋级为可用能力；无效或有害的改进可以拒绝、回滚或退役。
-
-**这不是让 AI 随意修改自己，而是让经过验证的工程经验能够安全积累。**
-
-#### 进化候选怎样真正变成 Skill？
+When a type of problem keeps recurring, a process is often reworked, or existing Skills cannot cover something, DevCodex can:
 
 ```text
-重复问题或返工证据
+Recurring problem / rework / new experience
         ↓
-写入 evolution/candidates 候选区
+Identify capability gap and root cause
         ↓
-判断应沉淀到 workspace、单个项目还是上游包
+Create Skill, rule, Prompt, or verification candidate
         ↓
-补齐适用场景、反例、验证和回滚证据
+Small-scale trial run and effect verification
         ↓
-人工批准晋级
+Human review and approval
         ↓
-生成 SKILL.md + intent.json 到活动目录
-        ↓
-用自然语言正反例测试路由，失败则修订或回退
+Settle into a workspace or project capability
 ```
 
-关键边界：
+By default, candidates do not go directly into the actual workflow, nor do they automatically override current rules or get released. Only with a clear goal, sufficient evidence, the correct destination, and authorization are they promoted to usable capabilities; ineffective or harmful improvements can be rejected, rolled back, or retired.
 
-- 候选区不是活动 Skill 目录，候选生成后不会自动参与任务路由；
-- 默认优先沉淀为 workspace Skill，只有明确依赖单一项目时才进入项目级 Skill；
-- 修改 DevCodex 上游内置 Skill 需要维护者单独授权，不能由普通项目自动写回发行包；
-- 只有候选、目标位置、验证证据和晋级授权全部成立，AI 才能生成最终 `SKILL.md` 与 `intent.json`；
-- 生成后还要用正例、反例和真实自然语言请求验证“何时应该加载、何时不应该加载”。
+**This is not letting the AI modify itself at will; it is letting verified engineering experience accumulate safely.**
 
-`devcodex init` 只负责准备隔离目录，不会把每次对话自动转成 Skill：
+#### How does an evolution candidate actually become a Skill?
 
 ```text
-.devcodex/workspace/evolution/candidates/   候选
-.devcodex/workspace/evolution/evidence/     问题、试运行与效果证据
-.devcodex/workspace/evolution/decisions/    目标、审批与晋级决定
+Evidence of recurring problems or rework
+        ↓
+Written to the evolution/candidates area
+        ↓
+Decide whether it belongs to the workspace, a single project, or the upstream package
+        ↓
+Fill in applicable scenarios, counterexamples, verification, and rollback evidence
+        ↓
+Human-approved promotion
+        ↓
+Generate SKILL.md + intent.json into the active directory
+        ↓
+Test routing with natural-language positive and negative examples; revise or roll back on failure
 ```
 
-批准后的活动目标由复用范围决定：
+Key boundaries:
 
-| 目标 | 活动目录 | 约束 |
+- The candidate area is not an active Skill directory; generated candidates do not automatically take part in task routing;
+- By default they are settled as workspace Skills first; only when they clearly depend on a single project do they become project-level Skills;
+- Modifying DevCodex's upstream built-in Skills requires separate maintainer authorization and cannot be written back into the distribution package automatically by an ordinary project;
+- Only when the candidate, target location, verification evidence, and promotion authorization are all in place can the AI generate the final `SKILL.md` and `intent.json`;
+- After generation, positive examples, negative examples, and real natural-language requests are still used to verify "when it should load and when it should not".
+
+`devcodex init` only prepares isolated directories; it does not automatically turn every conversation into a Skill:
+
+```text
+.devcodex/workspace/evolution/candidates/   Candidates
+.devcodex/workspace/evolution/evidence/     Problem, trial-run, and effect evidence
+.devcodex/workspace/evolution/decisions/    Target, approval, and promotion decisions
+```
+
+After approval, the active target is decided by the reuse scope:
+
+| Target | Active directory | Constraint |
 |---|---|---|
-| workspace Skill | `.devcodex/workspace/skills/<id>/` | 默认选择，同一 workspace 复用 |
-| project Skill | `.devcodex/<project>/skills/<id>/` | 必须有项目专属证据 |
-| DevCodex 上游 Skill | `content/skills/<id>/` | 必须有维护者明确授权，并重新走发布流程 |
+| workspace Skill | `.devcodex/workspace/skills/<id>/` | Default choice, reused within the same workspace |
+| project Skill | `.devcodex/<project>/skills/<id>/` | Requires project-specific evidence |
+| DevCodex upstream Skill | `content/skills/<id>/` | Requires explicit maintainer authorization and going through the release process again |
 
-当前公开 CLI 没有“一键把候选直接变成活动 Skill”的命令。晋级由受控 AI 工作流完成：先形成并批准目标决定，再由 `workspace-skill-author` 生成 `SKILL.md` 与 `intent.json`，最后执行正反例和自然语言路由验证。
+The current public CLI has no "one-click turn a candidate into an active Skill" command. Promotion is done by a controlled AI workflow: first form and approve the target decision, then have `workspace-skill-author` generate `SKILL.md` and `intent.json`, and finally run positive/negative example and natural-language routing verification.
 
-可以直接这样要求：
-
-```text
-审查当前 workspace 的进化候选，找出与支付回调重复处理相关的候选。
-先判断它应该沉淀为 workspace Skill 还是项目 Skill，列出证据、适用场景、反例、验证和回滚方案。
-未经我批准不要晋级；我确认后，再生成 SKILL.md 与 intent.json，并用自然语言正反例测试路由。
-```
-
-没有历史候选时，也可以直接创建项目自己的 Skill：
+You can ask for it directly like this:
 
 ```text
-为当前 workspace 创建 payment-webhook-reliability Skill。
-它用于支付回调幂等、签名校验、状态机、重复通知和补偿检查；
-请同时生成适用场景、正反例和验证步骤，并用自然语言测试一次路由。
+Review the evolution candidates in the current workspace and find those related to duplicate payment callback handling.
+First decide whether it should be settled as a workspace Skill or a project Skill, and list the evidence, applicable scenarios, counterexamples, verification, and rollback plan.
+Do not promote without my approval; after I confirm, generate SKILL.md and intent.json and test routing with natural-language positive and negative examples.
 ```
 
-### 8. 六个 AI Coding 宿主复用同一套工程方式
+Even without past candidates, you can create the project's own Skill directly:
 
-DevCodex 当前面向：
+```text
+Create a payment-webhook-reliability Skill for the current workspace.
+It is for payment callback idempotency, signature verification, state machines, duplicate notifications, and compensation checks;
+also generate applicable scenarios, positive and negative examples, and verification steps, and test routing once with natural language.
+```
+
+### 8. Six AI Coding hosts reuse the same way of engineering
+
+DevCodex currently targets:
 
 ```text
 Codex · Claude Code · GitHub Copilot · Gemini CLI · Grok · Cursor
 ```
 
-项目上下文、任务记忆、专业 Skill、确认边界、验证和报告尽量保持一致；同时根据宿主实际支持的 Hook、MCP、插件、权限和生命周期事件选择可执行路径。
+Project context, task memory, professional Skills, confirmation boundaries, verification, and reports are kept as consistent as possible, while the executable path is chosen according to the Hooks, MCP, plugins, permissions, and lifecycle events each host actually supports.
 
-缺少某种宿主能力时，DevCodex 会降级、提示或保持未验证，而不是假装六个工具完全相同。
+When a host capability is missing, DevCodex downgrades, warns, or keeps it unverified, rather than pretending the six tools are exactly the same.
 
-### 9. 上下文复用，但不以错误复用换速度
+### 9. Context reuse, without trading correctness for speed
 
-当任务、会话、项目、上下文版本和正文身份完全一致，并且已确认正文已经送达时，DevCodex 可以复用轻量描述，避免重复传输同一大段内容。
+When the task, session, project, context version, and body identity are all exactly the same, and the confirmed body has already been delivered, DevCodex can reuse a lightweight description to avoid re-sending the same large block of content.
 
-任一身份或内容发生变化，就恢复完整读取。这样既减少无意义重复，又不会因为错误缓存让 AI 在过期上下文上继续工作。
+If any identity or content changes, it goes back to a full read. This cuts meaningless repetition without letting the AI keep working on stale context because of a bad cache.
 
-### 10. 多任务可以判断是否安全并行
+### 10. Multiple tasks: judge whether they can safely run in parallel
 
-当一个项目同时存在多个需求、问题或优化任务时，DevCodex 可以先检查：
+When a project has several requirements, issues, or optimization tasks at once, DevCodex can first check:
 
-- 是否修改相同文件；
-- 是否竞争同一任务状态、报告或记忆；
-- 是否共享配置、发布文件或验证入口；
-- 是否具备明确的合并顺序、冲突检查和停止条件。
+- Whether they modify the same files;
+- Whether they compete for the same task state, reports, or memory;
+- Whether they share configuration, release files, or verification entry points;
+- Whether there is a clear merge order, conflict check, and stop condition.
 
-只有写入面和汇合协议都能证明安全时才建议并行；无法证明时保持串行。它不是通用多 Agent 编排框架，但可以避免“为了并行而并行”造成的工程冲突。
+Parallelism is suggested only when both the write surface and the merge protocol can be proven safe; when that cannot be proven, work stays serial. It is not a general multi-agent orchestration framework, but it can avoid engineering conflicts caused by "parallelism for its own sake".
 
-### 11. 权限、Git 和发布动作不会被一句话无限放大
+### 11. Permissions, Git, and release actions are not amplified endlessly by a single sentence
 
-分析、修改、删除、提交、切换分支、推送、Tag、Release 和发布是不同动作。
+Analyzing, modifying, deleting, committing, switching branches, pushing, Tag, Release, and publishing are different actions.
 
-DevCodex 默认保持当前分支，不会因为普通开发任务自动创建分支、提交、推送或发布。涉及危险操作、项目外写入或清理时，需要更明确的授权和可证明的目标范围。
+DevCodex keeps the current branch by default and does not automatically create branches, commit, push, or release for ordinary development tasks. Dangerous operations, writes outside the project, or cleanup require more explicit authorization and a provable target scope.
 
-### 12. 状态、诊断与恢复路径可检查
+### 12. State, diagnostics, and recovery paths are inspectable
 
 ```bash
 devcodex status
@@ -503,315 +504,315 @@ devcodex governance ledger init --apply --json
 devcodex governance ledger plan --kind GR --json
 ```
 
-状态会区分“配置存在”“适配器合同通过”“原生宿主已验证”和“端到端可用”，不会把文件存在冒充成真实能力。
+Status distinguishes "configuration present", "adapter contract passed", "native host verified", and "end-to-end usable", and never passes off the existence of files as real capability.
 
-普通非 dry-run 的 `init` / `update` 会零搬迁初始化治理台账 manifest 并重建派生索引，不改写现有 Markdown 台账。历史分片不会自动执行：`governance ledger plan` 只读预览；确认候选后使用 `devcodex governance ledger apply --kind GR --plan <sha256> --json`，回滚使用同一精确摘要执行 `rollback`。活动台账始终是唯一写入目标，archive shard 为只读历史。
+A normal non-dry-run `init` / `update` initializes the governance ledger manifest with zero migration and rebuilds derived indexes, without rewriting existing Markdown ledgers. Historical sharding is not executed automatically: `governance ledger plan` is a read-only preview; after confirming the candidate, use `devcodex governance ledger apply --kind GR --plan <sha256> --json`, and roll back by running `rollback` with the same exact digest. The active ledger is always the sole write target; archive shards are read-only history.
 
 ---
 
-## 什么时候直接使用宿主，什么时候用 DevCodex？
+## When to use the host directly, and when to use DevCodex?
 
-| 场景 | 更合适的选择 | 原因 |
+| Scenario | Better choice | Reason |
 |---|---|---|
-| 一次性问答、极小编辑、只依赖某个宿主特有工具 | 直接使用宿主 | 最快，不需要任务状态、报告或续接链 |
-| 跨文件或跨模块开发 | DevCodex | 需要需求、方案、执行边界和验证闭环 |
-| 修复问题并担心同类回归 | DevCodex | 会串联复现、根因、同类路径和定向回归 |
-| 需求不完整或风险较高 | DevCodex | 先明确范围、非目标、验收和授权 |
-| 长任务会跨多个会话 | DevCodex | 保存任务身份、检查点、证据和剩余项 |
-| 大型项目需要多轮分析 | DevCodex | 支持分批交付、项目知识和选择性失效 |
-| 需要审计、交接或留下证据 | DevCodex | 报告、验证结果和未覆盖范围可查 |
-| 希望团队经验持续沉淀 | DevCodex | 可创建项目 Skill 和受控进化候选 |
+| One-off Q&A, tiny edits, or relying only on a host-specific tool | Use the host directly | Fastest; no task state, reports, or resume chain needed |
+| Cross-file or cross-module development | DevCodex | Needs requirement, design, execution boundaries, and a verification loop |
+| Fixing a bug while worried about similar regressions | DevCodex | Chains together reproduction, root cause, similar paths, and targeted regression |
+| Incomplete requirements or higher risk | DevCodex | Clarifies scope, non-goals, acceptance, and authorization first |
+| Long tasks spanning multiple sessions | DevCodex | Saves task identity, checkpoints, evidence, and remaining items |
+| Large projects needing multi-round analysis | DevCodex | Supports batched delivery, project knowledge, and selective invalidation |
+| Audit, handoff, or leaving evidence is needed | DevCodex | Reports, verification results, and uncovered scope can be inspected |
+| You want team experience to keep accumulating | DevCodex | Can create project Skills and controlled evolution candidates |
 
-DevCodex 不替代 Codex、Claude Code、Cursor 等宿主。宿主提供模型、界面和原生工具；DevCodex 提供项目层的工程工作方式。
+DevCodex does not replace hosts such as Codex, Claude Code, or Cursor. The host provides the model, interface, and native tools; DevCodex provides the project-level engineering way of working.
 
 ---
 
-## 5 分钟开始
+## 5-minute start
 
-### 1. 检查环境
+### 1. Check the environment
 
-需要 Node.js `>=18.17.0` 和 npm。
+Requires Node.js `>=18.17.0` and npm.
 
 ```bash
 node -v
 npm -v
 ```
 
-### 2. 安装
+### 2. Install
 
 ```bash
 npm install -g devcodex
 devcodex --version
 ```
 
-正常安装会刷新用户级宿主适配器。如果包管理器禁用了安装脚本，或后续 `status` 显示适配器未就绪，可执行：
+A normal install refreshes the user-level host adapters. If the package manager has install scripts disabled, or a later `status` shows the adapters are not ready, run:
 
 ```bash
 devcodex global-adapters apply
 ```
 
-### 3. 初始化项目
+### 3. Initialize the project
 
 ```bash
-cd <你的项目或 workspace 根目录>
+cd <your project or workspace root>
 devcodex init
 devcodex status
 ```
 
-`devcodex init` 会准备 `.devcodex/` 运行目录、任务状态、记忆、工作区 Skill 与进化候选目录，并生成 workspace 的基础 Profile 初稿。它不会自动修改业务源码，也不会把模板中的未确认内容当成项目事实。希望先查看将要创建什么时，可以先运行 `devcodex init --dry-run`。
+`devcodex init` prepares the `.devcodex/` runtime directory, task state, memory, workspace Skills, and evolution candidate directories, and generates a basic Profile draft for the workspace. It does not automatically modify business source code, and it does not treat unconfirmed template content as project facts. If you want to see what will be created first, run `devcodex init --dry-run`.
 
-#### 初始化后：让 AI 完善项目 Profile（强烈推荐）
+#### After initialization: have the AI complete the project Profile (strongly recommended)
 
-先预览项目适合的 Profile 档位，再生成需要的模板：
+First preview the Profile tier that suits the project, then generate the templates you need:
 
 ```bash
-# 先查看当前档位、推荐档位和将要生成的文件
+# First check the current tier, the recommended tier, and the files to be generated
 devcodex profile plan
 
-# 再按项目实际选择档位；下面以常规业务项目为例
+# Then choose a tier based on the actual project; a typical business project is used as an example below
 devcodex profile init --tier profile-standard
 
 devcodex status
 ```
 
-然后在当前项目的新会话中直接说：
+Then, in a new session for the current project, just say:
 
 ```text
-完善当前项目的 DevCodex Profile。
-请读取真实的 package.json、目录结构、源码、lint/test/build 脚本、CI、文档、配置和发布流程，
-逐项补充项目结构、架构边界、代码风格、测试规范、发布规范和功能清单。
-只写能够从项目证据证明的事实；无法确认的内容保留为 unverified，不要编造。
-完成后检查 Profile 与当前代码是否一致，并运行 devcodex status 和 devcodex doctor --json。
+Complete the DevCodex Profile for the current project.
+Read the real package.json, directory structure, source code, lint/test/build scripts, CI, docs, configuration, and release process,
+and fill in the project structure, architecture boundaries, code style, testing conventions, release conventions, and feature list item by item.
+Only write facts that can be proven from project evidence; keep anything that cannot be confirmed as unverified, do not make things up.
+When done, check that the Profile matches the current code, and run devcodex status and devcodex doctor --json.
 ```
 
-`status` / `doctor` 主要检查 Profile 的路径、档位、必需文件和结构状态；Profile 是否真正符合业务和源码，仍以 AI 的证据化复核与用户确认结果为准。
+`status` / `doctor` mainly check the Profile's paths, tier, required files, and structural state; whether the Profile truly matches the business and source code is still determined by the AI's evidence-based review and the user's confirmation.
 
 <details>
-<summary><strong>Profile 档位、多项目与覆盖规则</strong></summary>
+<summary><strong>Profile tiers, multiple projects, and override rules</strong></summary>
 
-| Profile 档位 | 适合的项目 | 主要内容 |
+| Profile tier | Suitable projects | Main contents |
 |---|---|---|
-| `profile-lite` | 小型项目或首次体验 | 项目信息、架构约束、代码风格和基础配置 |
-| `profile-standard` | 大多数真实业务项目 | 增加测试规范、发布规范和功能清单 |
-| `profile-closed-loop` | SDK、CLI、框架、公开 API 或文档站 | 再增加用户文档与契约规范 |
+| `profile-lite` | Small projects or a first try | Project info, architecture constraints, code style, and basic configuration |
+| `profile-standard` | Most real business projects | Adds testing conventions, release conventions, and a feature list |
+| `profile-closed-loop` | SDKs, CLIs, frameworks, public APIs, or documentation sites | Further adds user docs and contract conventions |
 
-`profile plan` 只预览，不写文件；已有文件默认保留，升级档位只补缺失内容。`--force` 可能覆盖 DevCodex 管理的 Profile 文件，执行前应先查看计划与 Git diff。
+`profile plan` only previews and writes no files; existing files are kept by default, and upgrading a tier only adds missing content. `--force` may overwrite DevCodex-managed Profile files, so review the plan and the Git diff before running it.
 
-多项目 workspace 可以为指定项目单独初始化：
+A multi-project workspace can initialize a specific project on its own:
 
 ```bash
-devcodex init --profile <项目相对路径> --dry-run
-devcodex init --profile <项目相对路径>
+devcodex init --profile <project relative path> --dry-run
+devcodex init --profile <project relative path>
 ```
 
-workspace Profile 作为公共基线，项目 Profile 只覆盖该项目自己的差异，不会把另一个项目的规则误用到当前项目。
+The workspace Profile serves as the shared baseline, and a project Profile only overrides that project's own differences, so one project's rules are not wrongly applied to another.
 
 </details>
 
-### 4. 核对原宿主加载状态
+### 4. Check what the original host has loaded
 
-发布版本、本机安装版本和当前宿主加载版本分别核验。连接重载能力由宿主提供；有可验证通道时在原任务中重载，缺少通道时保留原任务和检查点并继续可执行工作。`devcodex doctor --json` 在新进程成功，不等于原有 MCP 连接已切换版本。
+The published version, the locally installed version, and the version the current host has loaded are verified separately. Connection reload is provided by the host: when there is a verifiable channel, reload within the original task; when there is none, keep the original task and checkpoint and continue the work that can be done. `devcodex doctor --json` succeeding in a new process does not mean the existing MCP connection has switched versions.
 
-### 5. 发起第一个任务
+### 5. Start your first task
 
 ```text
-分析当前项目最值得优先解决的三个问题。
-先说明读取范围和证据，只分析，不修改文件。
+Analyze the three issues most worth solving first in the current project.
+First state the read scope and evidence; analyze only, do not modify files.
 ```
 
-你应该看到：
+You should see:
 
-- 它先识别任务意图、目标项目和读写边界；
-- 说明读取了哪些资料、哪些没有读取；
-- 结论能够指向代码、配置、文档或命令结果；
-- 推断和未验证范围会明确标注；
-- 不会在只读分析中修改业务文件。
+- It first recognizes the task intent, target project, and read/write boundaries;
+- It states which materials were read and which were not;
+- Conclusions point to code, configuration, docs, or command results;
+- Inferences and unverified scope are clearly marked;
+- No business files are modified during a read-only analysis.
 
-完整步骤见[5 分钟开始](https://devcodex-labs.github.io/devcodex/guide/getting-started)。
+See the full steps in [5-minute start](https://devcodex-labs.github.io/devcodex/guide/getting-started).
 
 ---
 
-## 安装会改变什么
+## What installation changes
 
-| 位置 | 行为 |
+| Location | Behavior |
 |---|---|
-| 用户 HOME | 安装或刷新 DevCodex 管理的宿主适配器与运行文件 |
-| 当前项目 / workspace | 执行 `devcodex init` 后创建或刷新 `.devcodex/` |
-| 业务源码 | 安装与初始化本身不会自动修改 |
-| 后台服务 | 普通使用不启动 DevCodex 自己的常驻网络服务 |
-| 宿主原生配置与 Skill | 不扫描、复制、合并、覆盖或删除用户自己的资产 |
+| User HOME | Installs or refreshes DevCodex-managed host adapters and runtime files |
+| Current project / workspace | Creates or refreshes `.devcodex/` after running `devcodex init` |
+| Business source code | Not modified automatically by installation or initialization themselves |
+| Background services | Normal use does not start any resident DevCodex network service |
+| Host-native configuration and Skills | Does not scan, copy, merge, overwrite, or delete the user's own assets |
 
-项目说明、任务状态、报告、记忆和项目 Skill 默认保存在项目目录中。模型推理、联网、认证、沙箱和数据处理仍由你选择的 AI Coding 宿主负责。
+Project descriptions, task state, reports, memory, and project Skills are saved in the project directory by default. Model reasoning, networking, authentication, sandboxing, and data processing remain the responsibility of the AI Coding host you choose.
 
-DevCodex 不代理模型请求，也不会把“项目状态保存在本地”夸张成“代码绝不会离开本机”；宿主是否上传上下文、保存聊天或使用联网工具，应以对应宿主和组织策略为准。
+DevCodex does not proxy model requests, and it does not exaggerate "project state is saved locally" into "code never leaves your machine"; whether the host uploads context, saves chats, or uses networked tools depends on that host and your organization's policies.
 
-> 当前版本的 `devcodex init` 会生成基础 Profile 初稿；它只负责建立可编辑模板和已检测事实。最终 Profile 仍应由 AI 结合真实项目补全，并由用户或团队确认。
+> The current version of `devcodex init` generates a basic Profile draft; it only establishes an editable template and detected facts. The final Profile should still be completed by the AI against the real project and confirmed by the user or team.
 
 ---
 
-## 工作流、Skill 与宿主边界
+## Workflows, Skills, and host boundaries
 
-### 8 条任务工作流
+### 8 task workflows
 
-用户不需要先学习工作流名称。说出最终目标后，DevCodex 会选择合适路径。
+Users do not need to learn workflow names first. Once you state the end goal, DevCodex chooses the appropriate path.
 
-| 工作流 | 用途 | 默认是否修改文件 |
+| Workflow | Purpose | Modifies files by default? |
 |---|---|---:|
-| `dev` | 功能开发、重构或文档实施 | 确认后修改 |
-| `fix` | 复现、定位并修复问题 | 确认后修改 |
-| `analyze` | 只读分析与研究 | 否 |
-| `audit` | 基于证据的系统审查 | 否 |
-| `resume` | 恢复已有任务 | 继承原任务边界 |
-| `chat` | 普通交流 | 否 |
-| `self-fix` | 修复 DevCodex 自身规则或流程 | 高级入口，确认后修改 |
-| `other` | 无法安全归类时先规划 | 否 |
+| `dev` | Feature development, refactoring, or documentation work | After confirmation |
+| `fix` | Reproduce, locate, and fix problems | After confirmation |
+| `analyze` | Read-only analysis and research | No |
+| `audit` | Evidence-based system review | No |
+| `resume` | Resume an existing task | Inherits the original task's boundaries |
+| `chat` | General conversation | No |
+| `self-fix` | Fix DevCodex's own rules or processes | Advanced entry, after confirmation |
+| `other` | Plan first when it cannot be safely classified | No |
 
-其中 `dev`、`fix`、`analyze`、`audit`、`resume`、`chat` 是六条主工作流；`self-fix` 和 `other` 是高级或兜底路径。
+Of these, `dev`, `fix`, `analyze`, `audit`, `resume`, and `chat` are the six main workflows; `self-fix` and `other` are advanced or fallback paths.
 
-### 80+ 专业 Skill
+### 80+ professional Skills
 
-公开摘要使用 **80+**。当前 Skill 覆盖四类能力：
+The public summary uses **80+**. Current Skills cover four categories of capability:
 
-| 分类 | 主要内容 |
+| Category | Main contents |
 |---|---|
-| Workflow & Routing | 任务判断、阶段、确认路径、开发、修复、分析与审查 |
-| Domain & Architecture | 产品、体验、前后端、API、数据、安全、性能与系统架构 |
-| Quality & Delivery | 测试、审查、文档、验证、报告、发布和交付收口 |
-| Runtime & Governance | 宿主、上下文、记忆、Skill 生命周期、策略和运行治理 |
+| Workflow & Routing | Task judgment, phases, confirmation paths, development, fix, analysis, and review |
+| Domain & Architecture | Product, experience, frontend and backend, API, data, security, performance, and system architecture |
+| Quality & Delivery | Testing, review, documentation, verification, reporting, release, and delivery closure |
+| Runtime & Governance | Hosts, context, memory, Skill lifecycle, policy, and runtime governance |
 
-工作区 Skill 是项目级扩展，不会自动混入内置 Skill 统计，也不会在未经批准时从进化候选直接进入活动路由。
+Workspace Skills are project-level extensions; they are not automatically mixed into the built-in Skill count, and they do not go directly from evolution candidates into active routing without approval.
 
-### 六宿主入口与当前边界
+### Entry points and current boundaries for the six hosts
 
-| 宿主 | 推荐入口 | 说明 |
+| Host | Recommended entry | Notes |
 |---|---|---|
-| GitHub Copilot | Copilot CLI；VS Code / JetBrains 使用指令回退 | 不同入口能力不同 |
-| Claude Code | Claude Code | 以当前直接证据支持范围为准 |
-| Codex | Codex App / CLI | Hook 与 MCP 能力取决于宿主配置 |
-| Gemini CLI | Gemini CLI | 适配存在，真实回放证据不足时保持未验证 |
-| Grok | `devcodex grok` | 推荐使用 DevCodex 启动入口 |
-| Cursor | 本地 IDE / CLI | 本地与 Cloud Agent 必须分别判断 |
+| GitHub Copilot | Copilot CLI; VS Code / JetBrains use the instructions fallback | Capabilities differ by entry point |
+| Claude Code | Claude Code | Scope follows current direct evidence of support |
+| Codex | Codex App / CLI | Hook and MCP capabilities depend on host configuration |
+| Gemini CLI | Gemini CLI | Adapter exists; kept unverified while real replay evidence is insufficient |
+| Grok | `devcodex grok` | Using the DevCodex launcher is recommended |
+| Cursor | Local IDE / CLI | Local and Cloud Agent must be judged separately |
 
-精确兼容状态见[六宿主能力边界](https://devcodex-labs.github.io/devcodex/reference/hosts)。
+For exact compatibility status, see [Six-host capability boundaries](https://devcodex-labs.github.io/devcodex/reference/hosts).
 
-### DevCodex 与宿主各自负责什么？
+### What are DevCodex and the host each responsible for?
 
-| DevCodex 负责 | AI Coding 宿主负责 |
+| DevCodex is responsible for | The AI Coding host is responsible for |
 |---|---|
-| 任务和项目识别、上下文、记忆与专业 Skill | 模型推理和原生 Agent 循环 |
-| 确认与授权边界、验证、报告、证据和续接 | 主要工具执行、会话传输与生命周期 |
-| 六宿主适配和共享工程流程 | 认证、沙箱、联网与运行环境 |
+| Task and project recognition, context, memory, and professional Skills | Model reasoning and the native agent loop |
+| Confirmation and authorization boundaries, verification, reports, evidence, and resume | Primary tool execution, session transport, and lifecycle |
+| Six-host adaptation and shared engineering process | Authentication, sandboxing, networking, and runtime environment |
 
 ---
 
-## 常见任务怎么说
+## How to phrase common tasks
 
-### 开发功能
-
-```text
-为当前项目增加 <功能>。
-先整理目标、范围、非目标和验收标准，再给出方案。
-我确认后再修改；完成后运行相关验证并报告剩余风险。
-```
-
-### 修复缺陷
+### Develop a feature
 
 ```text
-修复 <问题>。
-先复现并定位根因，检查同类路径和回归范围。
-确认方案后再修改，完成后用验证证据证明原问题已经消失。
+Add <feature> to the current project.
+First lay out the goal, scope, non-goals, and acceptance criteria, then propose a design.
+Modify only after I confirm; when done, run the relevant verification and report remaining risks.
 ```
 
-### 只读分析
+### Fix a bug
 
 ```text
-分析当前架构最值得优先解决的三个问题。
-给出代码证据、影响和优先级，只分析，不修改文件。
+Fix <problem>.
+First reproduce it and locate the root cause, and check similar paths and the regression scope.
+Modify only after the design is confirmed; when done, use verification evidence to prove the original problem is gone.
 ```
 
-### 系统审查
+### Read-only analysis
 
 ```text
-审查当前项目的支付回调、幂等和状态一致性。
-只读，不修改文件；按风险排序并给出证据和未检查范围。
+Analyze the three issues in the current architecture most worth solving first.
+Give code evidence, impact, and priority; analyze only, do not modify files.
 ```
 
-### 继续历史任务
+### System review
 
 ```text
-继续支付回调幂等修复任务。
-先读取原任务的确认状态、报告、验证证据和剩余风险，
-复核当前代码是否变化，再从准确断点继续。
+Review the current project's payment callback, idempotency, and state consistency.
+Read-only, do not modify files; sort by risk and give evidence and unchecked scope.
 ```
 
-### 大型项目增量分析
+### Continue a past task
 
 ```text
-深度分析当前项目，按模块分批交付结果。
-保存可复用的项目知识；后续只重算变化文件、影响范围和新的分析视角。
-每批都给出证据、覆盖范围和检查点。
+Continue the payment callback idempotency fix task.
+First read the original task's confirmation state, reports, verification evidence, and remaining risks,
+re-check whether the current code has changed, then continue from the exact breakpoint.
 ```
 
-### 分析能力缺口并形成进化候选
+### Incremental analysis of a large project
 
 ```text
-分析最近重复出现的返工、回归和用户反馈。
-找出当前 Skill 或流程缺口，生成改进候选和验证方案。
-候选先不要自动生效，也不要发布。
+Deeply analyze the current project and deliver results in batches by module.
+Save reusable project knowledge; afterwards only recompute changed files, impact scope, and new analysis perspectives.
+Give evidence, coverage, and a checkpoint for every batch.
 ```
 
-### 判断多个任务是否可以并行
+### Analyze capability gaps and form evolution candidates
 
 ```text
-检查下面三个任务是否可以安全并行。
-列出各自允许修改的路径、共享状态、冲突风险、合并顺序和停止条件；
-无法证明安全时保持串行。
+Analyze recently recurring rework, regressions, and user feedback.
+Find gaps in current Skills or processes, and generate improvement candidates and a verification plan.
+Do not let candidates take effect automatically for now, and do not release them.
 ```
 
-### 使用 Auto 自动推进
+### Judge whether multiple tasks can run in parallel
 
 ```text
-@devcodex-auto 完成当前需求。
-从需求与项目事实开始，自动推进适用的确认、方案、实施、验证、报告和任务状态保存；
-范围扩大、验证失败或遇到高风险动作时停止并报告。
-允许修改当前项目已确认范围内的文件，但不要删除、push、Tag、Release 或发布。
+Check whether the three tasks below can safely run in parallel.
+List each one's allowed paths, shared state, conflict risks, merge order, and stop conditions;
+keep them serial when safety cannot be proven.
 ```
 
-正式自动入口是 `@devcodex-auto`，默认快捷别名是 `@rocky`。`extensions.devcodex.autoAliases` 的非空数组会替换默认别名，空数组 `[]` 会关闭默认别名。Auto 在同一会话内持续有效；输入 `退出 auto` 或 `切回确认模式` 可退出。自动入口不会扩大删除、推送或发布权限。
+### Use Auto advancement
 
-更多示例见[常见任务](https://devcodex-labs.github.io/devcodex/guide/common-tasks)与[任务教程](https://devcodex-labs.github.io/devcodex/tutorials/ambiguous-request)。
+```text
+@devcodex-auto Complete the current requirement.
+Start from the requirement and project facts, and automatically advance through the applicable confirmations, design, implementation, verification, reporting, and task state saving;
+stop and report when the scope expands, verification fails, or a high-risk action comes up.
+You may modify files within the confirmed scope of the current project, but do not delete, push, Tag, Release, or publish.
+```
+
+The formal auto entry is `@devcodex-auto`, and the default shortcut alias is `@rocky`. A non-empty `extensions.devcodex.autoAliases` array replaces the default alias, and an empty array `[]` turns it off. Auto stays in effect within the same session; type `退出 auto` (exit auto) or `切回确认模式` (switch back to confirmation mode) to exit. The auto entry does not expand deletion, push, or release permissions.
+
+For more examples, see [Common tasks](https://devcodex-labs.github.io/devcodex/guide/common-tasks) and [Task tutorials](https://devcodex-labs.github.io/devcodex/tutorials/ambiguous-request).
 
 ---
 
-## 常见问题与排错
+## FAQ and troubleshooting
 
-### DevCodex 会让模型本身变强吗？
+### Does DevCodex make the model itself stronger?
 
-不会改变模型参数、权重、上下文窗口或基础推理上限。它通过正确目标、项目上下文、专业 Skill、工作流、工具、记忆、验证和证据链，让同一个模型在真实工程中表现得更可靠。
+It does not change model parameters, weights, context window, or the base reasoning ceiling. Through the right goal, project context, professional Skills, workflows, tools, memory, verification, and an evidence chain, it makes the same model more reliable in real engineering.
 
-### 跨会话恢复需要什么前提？
+### What does cross-session recovery require?
 
-任务进度、确认状态和验证证据必须已经写入项目。只有聊天窗口中存在、项目中没有留下状态的任务，无法可靠恢复。
+Task progress, confirmation state, and verification evidence must already be written to the project. A task that exists only in a chat window and left no state in the project cannot be recovered reliably.
 
-### 可以从 Codex 切换到 Claude Code 或 Cursor 后继续吗？
+### Can I switch from Codex to Claude Code or Cursor and continue?
 
-可以基于同一项目中的需求、报告、任务记忆和检查点接力，但不是无条件复制完整聊天会话。目标宿主需要能够读取这些项目文件，具体 Hook、MCP 和自动执行能力仍以宿主实际支持为准。
+You can relay based on the requirements, reports, task memory, and checkpoints in the same project, but the full chat session is not copied unconditionally. The target host needs to be able to read those project files, and specific Hook, MCP, and auto-execution capabilities still depend on what the host actually supports.
 
-### 当前文件已经变化，还会直接按旧计划继续吗？
+### If the current files have changed, will it just continue with the old plan?
 
-不会把旧记录当成永久真相。续接会复核当前项目、分支、文件身份和证据新鲜度；出现冲突、过期或范围漂移时，先重新结构化意图，再由结果决定继续、停止或进入确认模式。
+Old records are not treated as permanent truth. Resume re-checks the current project, branch, file identities, and evidence freshness; when conflicts, staleness, or scope drift appear, the intent is re-structured first, and the result decides whether to continue, stop, or enter confirmation mode.
 
-### DevCodex 会自动修改、提交或发布吗？
+### Will DevCodex modify, commit, or release automatically?
 
-`analyze` 和默认 `audit` 只读；`dev` 与 `fix` 由结构化意图选择 confirm 或 Auto。Auto 自动通过适用的工程确认，正式任务授权可随任务恢复；提交、推送、Tag、GitHub Release 和 npm publish 仍需要按动作独立、明确授权。
+`analyze` and the default `audit` are read-only; for `dev` and `fix`, the structured intent chooses confirm or Auto. Auto automatically passes the applicable engineering confirmations, and formal task authorization can be restored along with the task; commit, push, Tag, GitHub Release, and npm publish still require separate, explicit authorization per action.
 
-### 使用 Harness 会不会让所有小任务都变慢？
+### Will using a harness make every small task slower?
 
-不会用完全相同的强度处理所有任务。低风险、范围清晰的小任务可以缩短产物和验证路径；公共契约、数据、安全、多模块和发布任务会使用更严格的确认与复审。
+Not every task is handled with the same intensity. Low-risk small tasks with clear scope can take shorter artifact and verification paths; public contract, data, security, multi-module, and release tasks use stricter confirmation and review.
 
-### 安装后为什么没有看到工作流或 Skill？
+### Why don't I see workflows or Skills after installing?
 
-在原任务中核对连接是否已刷新，然后运行：
+In the original task, check whether the connection has been refreshed, then run:
 
 ```bash
 devcodex status
@@ -819,17 +820,17 @@ devcodex doctor --json
 devcodex global-adapters apply
 ```
 
-不要只根据配置文件存在判断能力已经生效。状态中的 configured、adapter contract、native probe 和最终 readiness 是不同证据层。
+Do not judge that a capability is in effect just because a configuration file exists. configured, adapter contract, native probe, and final readiness in the status are different layers of evidence.
 
-### 数据会不会离开本机？
+### Will data leave my machine?
 
-DevCodex 普通使用不需要自己的常驻网络服务，也不代理模型请求；但真正的模型调用和数据处理由当前宿主完成。代码是否上传、聊天是否保存、联网工具是否启用，应查看宿主、账号和组织策略。
+Normal use of DevCodex needs no resident network service of its own and does not proxy model requests; but the actual model calls and data processing are done by the current host. Whether code is uploaded, chats are saved, or networked tools are enabled depends on the host, your account, and your organization's policies.
 
-### 可以添加项目自己的 Skill 吗？
+### Can I add the project's own Skills?
 
-可以。工作区 Skill 可用于沉淀业务规则、架构约束、团队流程和验证方式。可以直接要求 AI 创建，也可以从进化候选经过证据、目标判断和人工批准后晋级。候选不会直接变成活动 Skill。
+Yes. Workspace Skills can capture business rules, architecture constraints, team processes, and verification methods. You can ask the AI to create one directly, or promote one from an evolution candidate after evidence, target judgment, and human approval. Candidates never become active Skills directly.
 
-### 状态异常怎样排查？
+### How do I troubleshoot abnormal status?
 
 ```bash
 devcodex status --json
@@ -837,13 +838,13 @@ devcodex doctor --json
 devcodex runtime status --json
 ```
 
-完整决策树见[故障排查](https://devcodex-labs.github.io/devcodex/guide/troubleshooting)。
+See the full decision tree in [Troubleshooting](https://devcodex-labs.github.io/devcodex/guide/troubleshooting).
 
 ---
 
-## 更新
+## Updating
 
-先更新 npm 包和用户级宿主适配器：
+First update the npm package and the user-level host adapters:
 
 ```bash
 npm update -g devcodex
@@ -851,24 +852,24 @@ devcodex --version
 devcodex global-adapters apply
 ```
 
-再进入正在使用的项目或 workspace，预览并刷新项目运行内容：
+Then go into the project or workspace in use, and preview and refresh the project runtime content:
 
 ```bash
-cd <你的项目或 workspace 根目录>
+cd <your project or workspace root>
 devcodex update --dry-run
 devcodex update
 devcodex status
 ```
 
-`devcodex update` 只刷新当前 workspace 的 DevCodex 运行内容，不会自动覆盖或升级已经由团队维护的 Profile。项目事实变化时，应让 AI 单独复核并更新 Profile。
+`devcodex update` only refreshes the current workspace's DevCodex runtime content; it does not automatically overwrite or upgrade a Profile already maintained by the team. When project facts change, have the AI review and update the Profile separately.
 
-更新后保留原任务，核对当前宿主连接的实际加载版本。可用时重载该连接；能力不可用时保留检查点、继续可执行工作，方便时重载宿主后续办。
+After updating, keep the original task and check the version actually loaded by the current host connection. Reload that connection when possible; when that capability is unavailable, keep the checkpoint, continue the work that can be done, and reload the host later when convenient.
 
 ---
 
-## 卸载
+## Uninstalling
 
-先预览 DevCodex 管理的用户级资产，再显式清理，最后卸载 npm 包：
+First preview the DevCodex-managed user-level assets, then clean up explicitly, and finally uninstall the npm package:
 
 ```bash
 devcodex uninstall --dry-run
@@ -876,65 +877,65 @@ devcodex uninstall --apply
 npm uninstall -g devcodex
 ```
 
-请不要先执行 `npm uninstall -g devcodex`，否则安全清理宿主适配器的命令也会一起消失。
+Do not run `npm uninstall -g devcodex` first, otherwise the command that safely cleans up the host adapters disappears along with it.
 
-普通卸载只移除能够证明由 DevCodex 管理的用户级宿主适配器和运行资产：
+A normal uninstall only removes user-level host adapters and runtime assets that can be proven to be managed by DevCodex:
 
-- 用户自己的宿主配置、指令、原生 Skill 和个人资产会保留；
-- 所有权无法证明的文件不会冒险删除；
-- 项目中的 `.devcodex/` 默认保留，因为其中可能包含 Profile、需求、问题、报告、任务记忆、检查点、工作区 Skill 和进化候选；
-- 以后重新安装时，可以继续使用这些项目工程资产。
+- The user's own host configuration, instructions, native Skills, and personal assets are kept;
+- Files whose ownership cannot be proven are not risked for deletion;
+- The project's `.devcodex/` is kept by default, because it may contain the Profile, requirements, issues, reports, task memory, checkpoints, workspace Skills, and evolution candidates;
+- If you reinstall later, you can keep using these project engineering assets.
 
-如果确认永久放弃某个项目中的 DevCodex 数据，应先备份或审查 `.devcodex/`，再由用户手动删除。DevCodex 不会在全局卸载时自动清空项目历史。
-
----
-
-## 边界
-
-- DevCodex 不是新的 Coding Agent，也不是模型网关；
-- 它不是通用 Agent 框架或多 Agent 编排器；
-- 它不替代业务框架、GitHub CI、安全审计或人工评审；
-- 它不会让六个宿主凭空拥有完全相同的 Hook、MCP、插件和权限；
-- 项目状态保存在本地文件，不代表宿主处理的数据永远不会离开本机；
-- 没有执行的验证不能声称已经通过；
-- 报告和记忆可以帮助恢复任务，但不能绕过当前代码事实或重新获得危险操作权限；
-- 受控进化默认只生成候选，不会未经批准直接修改活动规则或发布。
-
-更多说明见[信任、安全与数据](https://devcodex-labs.github.io/devcodex/guide/trust-security-data)与[限制和边界](https://devcodex-labs.github.io/devcodex/reference/limits)。
+If you are sure you want to permanently abandon DevCodex data in a project, first back up or review `.devcodex/`, then delete it manually yourself. DevCodex does not automatically wipe project history during a global uninstall.
 
 ---
 
-## 文档
+## Boundaries
 
-- [5 分钟开始](https://devcodex-labs.github.io/devcodex/guide/getting-started)
-- [自动推进与常见任务](https://devcodex-labs.github.io/devcodex/guide/common-tasks)
-- [意图驱动](https://devcodex-labs.github.io/devcodex/concepts/intent-driven)
-- [DevCodex 如何工作](https://devcodex-labs.github.io/devcodex/concepts/architecture)
-- [工作流总览](https://devcodex-labs.github.io/devcodex/workflows/)
-- [项目上下文与记忆](https://devcodex-labs.github.io/devcodex/concepts/profile-context-memory)
-- [Profile 与项目配置](https://devcodex-labs.github.io/devcodex/reference/configuration)
-- [跨会话任务续接](https://devcodex-labs.github.io/devcodex/concepts/task-resume)
-- [跨会话续接案例](https://devcodex-labs.github.io/devcodex/examples/resume)
-- [专业 Skill](https://devcodex-labs.github.io/devcodex/reference/skills)
-- [证据与完成](https://devcodex-labs.github.io/devcodex/concepts/evidence-and-completion)
-- [六宿主能力边界](https://devcodex-labs.github.io/devcodex/reference/hosts)
-- [CLI 命令](https://devcodex-labs.github.io/devcodex/reference/cli)
-- [运行态维护](https://devcodex-labs.github.io/devcodex/reference/runtime-operations)
-- [故障排查](https://devcodex-labs.github.io/devcodex/guide/troubleshooting)
+- DevCodex is not a new Coding Agent, nor a model gateway;
+- It is not a general agent framework or a multi-agent orchestrator;
+- It does not replace business frameworks, GitHub CI, security audits, or human review;
+- It does not magically give the six hosts exactly the same Hooks, MCP, plugins, and permissions;
+- Saving project state in local files does not mean data processed by the host never leaves your machine;
+- Verification that was not executed cannot be claimed as passed;
+- Reports and memory can help recover tasks, but cannot bypass current code facts or regain permission for dangerous operations;
+- Controlled evolution only generates candidates by default and does not modify active rules or release without approval.
+
+For more, see [Trust, security, and data](https://devcodex-labs.github.io/devcodex/guide/trust-security-data) and [Limits and boundaries](https://devcodex-labs.github.io/devcodex/reference/limits).
 
 ---
 
-## 贡献
+## Documentation
 
-DevCodex 仍在持续演进。Bug、真实使用反馈、宿主兼容问题、Skill 建议、文档改进和工程案例都欢迎通过 [Issues](https://github.com/devcodex-labs/devcodex/issues) 提交。
-
-安全漏洞请按照仓库 [Security Policy](./SECURITY.md) 私下报告，不要先创建公开 Issue。
+- [5-minute start](https://devcodex-labs.github.io/devcodex/guide/getting-started)
+- [Auto advancement and common tasks](https://devcodex-labs.github.io/devcodex/guide/common-tasks)
+- [Intent-driven](https://devcodex-labs.github.io/devcodex/concepts/intent-driven)
+- [How DevCodex works](https://devcodex-labs.github.io/devcodex/concepts/architecture)
+- [Workflow overview](https://devcodex-labs.github.io/devcodex/workflows/)
+- [Project context and memory](https://devcodex-labs.github.io/devcodex/concepts/profile-context-memory)
+- [Profile and project configuration](https://devcodex-labs.github.io/devcodex/reference/configuration)
+- [Cross-session task resume](https://devcodex-labs.github.io/devcodex/concepts/task-resume)
+- [Cross-session resume example](https://devcodex-labs.github.io/devcodex/examples/resume)
+- [Professional Skills](https://devcodex-labs.github.io/devcodex/reference/skills)
+- [Evidence and completion](https://devcodex-labs.github.io/devcodex/concepts/evidence-and-completion)
+- [Six-host capability boundaries](https://devcodex-labs.github.io/devcodex/reference/hosts)
+- [CLI commands](https://devcodex-labs.github.io/devcodex/reference/cli)
+- [Runtime maintenance](https://devcodex-labs.github.io/devcodex/reference/runtime-operations)
+- [Troubleshooting](https://devcodex-labs.github.io/devcodex/guide/troubleshooting)
 
 ---
-## 社区
 
-本项目认可并感谢 [LINUX DO](https://linux.do/) 社区对开源开发者交流的支持。
+## Contributing
 
-## 许可证
+DevCodex is still evolving. Bugs, real-world usage feedback, host compatibility issues, Skill suggestions, documentation improvements, and engineering case studies are all welcome via [Issues](https://github.com/devcodex-labs/devcodex/issues).
+
+Please report security vulnerabilities privately following the repository's [Security Policy](./SECURITY.md); do not open a public Issue first.
+
+---
+## Community
+
+This project recognizes and thanks the [LINUX DO](https://linux.do/) community for its support of open-source developer exchange.
+
+## License
 
 [AGPL-3.0](./LICENSE)

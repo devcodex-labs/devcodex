@@ -3,50 +3,30 @@
 <h1 align="center">DevCodex</h1>
 
 <p align="center">
-  <strong>意图驱动的跨宿主 AI Coding 工程化 Harness</strong>
-</p>
-
-<p align="center">
-  <strong>让 AI Coding 不只是生成代码，而是从需求开始，持续把工程任务做完。</strong>
-</p>
-
-<p align="center">
-  识别意图 · 读取项目 · 调用专业 Skill · 确认边界 · 自动推进 · 执行修改 · 验证结果 · 保存进度 · 跨会话续接 · 受控进化
-</p>
-
-<p align="center">
   <a href="https://www.npmjs.com/package/devcodex"><img src="https://img.shields.io/npm/v/devcodex" alt="npm version" /></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-green" alt="AGPL-3.0" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-green" alt="AGPL-3.0-or-later" /></a>
   <img src="https://img.shields.io/badge/Node.js-%3E%3D18.17.0-brightgreen" alt="Node.js >=18.17.0" />
   <img src="https://img.shields.io/badge/AI_Coding_Hosts-6-blue" alt="6 AI Coding hosts" />
   <img src="https://img.shields.io/badge/Professional_Skills-80%2B-blueviolet" alt="80+ professional Skills" />
 </p>
 
 <p align="center">
-  <a href="https://devcodex-labs.github.io/devcodex/">完整文档</a>
-  ·
-  <a href="https://devcodex-labs.github.io/devcodex/guide/getting-started">5 分钟开始</a>
-  ·
-  <a href="https://devcodex-labs.github.io/devcodex/examples/resume">跨会话续接案例</a>
-  ·
-  <a href="https://github.com/devcodex-labs/devcodex/issues">反馈问题</a>
+  <a href="https://devcodex-labs.github.io/devcodex/">完整文档</a> · <a href="#5-分钟开始">快速开始</a> · <a href="#常见任务怎么说">常见任务</a> · <a href="#常见问题与排错">排错</a> · <a href="https://github.com/devcodex-labs/devcodex/issues">反馈问题</a>
 </p>
 
-<p align="center">
-  <a href="#5-分钟开始">快速开始</a>
-  ·
-  <a href="#常见任务怎么说">常见任务</a>
-  ·
-  <a href="#常见问题与排错">排错</a>
-  ·
-  <a href="#更新">更新</a>
-  ·
-  <a href="#卸载">卸载</a>
-</p>
+**AI 编码宿主负责写代码，DevCodex 负责确认任务真的完成。**
 
-> **模型和宿主负责推理、写代码与执行工具；DevCodex 以任务意图为起点，负责判断要完成什么、作用于哪个项目、该读取什么、加载哪些专业能力、按什么工程流程推进，以及怎样证明真正完成。**
+AI 编码会话会在换窗口后丢失上下文、偏离需求，还会在没有证据时说"完成了"。DevCodex 是 6 个 AI 编码宿主（Codex、Claude Code、GitHub Copilot、Gemini CLI、Grok、Cursor）共用的一套工程化框架：读取项目、选择工作流和 Skills、确认边界、验证结果，并保存进度，换会话也能接着做。
 
-**意图驱动 · 6 个 AI Coding 宿主 · 8 条任务工作流 · 80+ 专业 Skill · 项目上下文与记忆 · Sticky Auto 自动推进 · 长任务恢复 · 跨会话续接 · 证据化完成 · 受控自我进化**
+```mermaid
+flowchart LR
+  A[你的需求] --> B[识别意图]
+  B --> C[读取项目上下文]
+  C --> D[工作流 + Skills]
+  D --> E[在宿主中修改]
+  E --> F[用证据验证]
+  F --> G[保存检查点 / 之后恢复]
+```
 
 ```bash
 npm install -g devcodex
@@ -55,14 +35,7 @@ devcodex init
 devcodex status
 ```
 
-安装或更新后保留原任务。宿主提供连接重载时，刷新 DevCodex 连接并核对当前加载版本；没有该能力时，保存检查点、继续可执行工作，方便时重载宿主。安装成功不代表已有连接已经加载新版，无需为更新另建任务。
-
-第一个任务可以直接这样说：
-
-```text
-分析当前项目最值得优先解决的三个问题。
-先说明读取范围和证据，只分析，不修改文件。
-```
+> 许可证：AGPL-3.0-or-later。安装和使用 DevCodex 不会给你自己的代码带来义务，详见[许可证](#许可证)一节。
 
 ## 目录
 
@@ -545,6 +518,8 @@ npm install -g devcodex
 devcodex --version
 ```
 
+安装或更新后保留原任务。宿主提供连接重载时，刷新 DevCodex 连接并核对当前加载版本；没有该能力时，保存检查点、继续可执行工作，方便时重载宿主。安装成功不代表已有连接已经加载新版，无需为更新另建任务。
+
 正常安装会刷新用户级宿主适配器。如果包管理器禁用了安装脚本，或后续 `status` 显示适配器未就绪，可执行：
 
 ```bash
@@ -927,9 +902,9 @@ npm uninstall -g devcodex
 
 ## 贡献
 
-DevCodex 仍在持续演进。Bug、真实使用反馈、宿主兼容问题、Skill 建议、文档改进和工程案例都欢迎通过 [Issues](https://github.com/devcodex-labs/devcodex/issues) 提交。
+欢迎提交 Bug、使用反馈、宿主兼容问题、Skill 建议、文档修正和代码改动，详见 [CONTRIBUTING.md](./CONTRIBUTING.md)（英文）。
 
-安全漏洞请按照仓库 [Security Policy](./SECURITY.md) 私下报告，不要先创建公开 Issue。
+安全漏洞请按照 [Security Policy](./SECURITY.md) 私下报告，不要先创建公开 Issue。
 
 ---
 ## 社区
@@ -938,4 +913,10 @@ DevCodex 仍在持续演进。Bug、真实使用反馈、宿主兼容问题、Sk
 
 ## 许可证
 
-[AGPL-3.0](./LICENSE)
+DevCodex 采用 GNU Affero 通用公共许可证第 3 版或（由你选择）任何更新版本（`AGPL-3.0-or-later`，见 [LICENSE](./LICENSE)）。仓库 LICENSE 为未修改的 AGPL-3.0 原文，没有附加条款。以下为通俗说明，不构成法律意见，以许可证原文为准。
+
+- **使用不受限制。** 在本机或 CI 中安装、运行 DevCodex，无论个人还是商业用途，都无需许可、不产生义务（第 2、9 条）。
+- **不影响你的项目代码。** DevCodex 是你运行的工具；启用它时借助 AI 宿主写出的代码属于你自己的作品。除非输出本身包含 DevCodex 代码，许可证不覆盖程序输出（第 2 条）。
+- **私下修改没问题。** 你可以为自己使用而修改 DevCodex，不必公开修改（第 2 条）。
+- **如果你分发它**（原版或修改版，例如重新发布或打包），必须继续使用 AGPL 并提供对应源代码（第 4–6 条）。
+- **如果你修改后通过网络让他人使用**（例如基于修改版 DevCodex 提供托管服务），必须向这些用户提供修改版的源代码（第 13 条）。

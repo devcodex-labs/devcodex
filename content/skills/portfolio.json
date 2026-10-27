@@ -13,10 +13,10 @@
     "publicTaxonomyDigest": "7f6ee8c30f5484b8881e27099af72c69625b73a7cf3b53fe51c8c0c147d4f124",
     "portfolioEvidence": "content/skills/portfolio-evidence.json",
     "portfolioEvidenceDigest": "cfd709b1248855c06c56373d1bcfe4798acefd7f1e0c11555b26cfd8caa1e8a6",
-    "consumerInventoryFileCount": 736,
-    "consumerInventoryDigest": "81929d6ce119c6c10ccca2e294ad62040038cd2ad7013119c9d62f2922760e21",
-    "consumerProjectionDigest": "c9fc625b27f1c99bdcb268cda38f3d33f54fe251c30d4e16f283fc21335ed563",
-    "portfolioInputDigest": "69541b02178c13a1663a979fa2448b8c1cb28b8785380e7f6da460f183cb3912"
+    "consumerInventoryFileCount": 737,
+    "consumerInventoryDigest": "01ff5658602038d470ba99168ccf5b786456baa7bd89fe5fc8d55ee5be8f391a",
+    "consumerProjectionDigest": "e320f28b46db89108197b4c56a32330bda338dcadff51940b4a550f2450fbacd",
+    "portfolioInputDigest": "6e998a3df0f4ccdcafcb3304e6b28bfdcc56ac0f879e5a40e779397b46948319"
   },
   "ordering": "skills.id asc; graph edges from/to asc",
   "summary": {
@@ -13650,6 +13650,10 @@
           "role": "current"
         },
         {
+          "path": "CONTRIBUTING.md",
+          "role": "current"
+        },
+        {
           "path": "cursor/plugins/devcodex-workspace/skills/devcodex-workspace/SKILL.md",
           "role": "current"
         },
@@ -16856,6 +16860,10 @@
         },
         {
           "path": "changelogs/unreleased.md",
+          "role": "current"
+        },
+        {
+          "path": "CONTRIBUTING.md",
           "role": "current"
         },
         {

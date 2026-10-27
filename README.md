@@ -3,50 +3,30 @@ English | [简体中文](README.zh-CN.md)
 <h1 align="center">DevCodex</h1>
 
 <p align="center">
-  <strong>An intent-driven, cross-host engineering harness for AI Coding</strong>
-</p>
-
-<p align="center">
-  <strong>Make AI Coding do more than generate code: start from the requirement and keep going until the engineering task is done.</strong>
-</p>
-
-<p align="center">
-  Recognize intent · Read the project · Invoke professional Skills · Confirm boundaries · Auto-advance · Make changes · Verify results · Save progress · Resume across sessions · Controlled evolution
-</p>
-
-<p align="center">
   <a href="https://www.npmjs.com/package/devcodex"><img src="https://img.shields.io/npm/v/devcodex" alt="npm version" /></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-green" alt="AGPL-3.0" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later-green" alt="AGPL-3.0-or-later" /></a>
   <img src="https://img.shields.io/badge/Node.js-%3E%3D18.17.0-brightgreen" alt="Node.js >=18.17.0" />
   <img src="https://img.shields.io/badge/AI_Coding_Hosts-6-blue" alt="6 AI Coding hosts" />
   <img src="https://img.shields.io/badge/Professional_Skills-80%2B-blueviolet" alt="80+ professional Skills" />
 </p>
 
 <p align="center">
-  <a href="https://devcodex-labs.github.io/devcodex/">Full documentation</a>
-  ·
-  <a href="https://devcodex-labs.github.io/devcodex/guide/getting-started">5-minute start</a>
-  ·
-  <a href="https://devcodex-labs.github.io/devcodex/examples/resume">Cross-session resume example</a>
-  ·
-  <a href="https://github.com/devcodex-labs/devcodex/issues">Report an issue</a>
+  <a href="https://devcodex-labs.github.io/devcodex/">Full documentation</a> · <a href="#5-minute-start">Quick start</a> · <a href="#how-to-phrase-common-tasks">Common tasks</a> · <a href="#faq-and-troubleshooting">Troubleshooting</a> · <a href="https://github.com/devcodex-labs/devcodex/issues">Report an issue</a>
 </p>
 
-<p align="center">
-  <a href="#5-minute-start">Quick start</a>
-  ·
-  <a href="#how-to-phrase-common-tasks">Common tasks</a>
-  ·
-  <a href="#faq-and-troubleshooting">Troubleshooting</a>
-  ·
-  <a href="#updating">Updating</a>
-  ·
-  <a href="#uninstalling">Uninstalling</a>
-</p>
+**Your AI coding host writes the code. DevCodex makes sure the task is actually finished.**
 
-> **The model and the host do the reasoning, write the code, and run the tools. DevCodex starts from the task intent and decides what needs to be done, which project it applies to, what to read, which professional capabilities to load, which engineering process to follow, and how to prove the work is truly complete.**
+AI coding sessions lose context between chats, drift from the requirement, and say "done" without evidence. DevCodex is one engineering harness shared by 6 AI coding hosts (Codex, Claude Code, GitHub Copilot, Gemini CLI, Grok, and Cursor): it reads the project, picks a workflow and Skills, confirms boundaries, verifies results, and saves progress so the task can resume in a new session.
 
-**Intent-driven · 6 AI Coding hosts · 8 task workflows · 80+ professional Skills · Project context and memory · Sticky Auto advancement · Long-task recovery · Cross-session resume · Evidence-based completion · Controlled self-evolution**
+```mermaid
+flowchart LR
+  A[Your request] --> B[Recognize intent]
+  B --> C[Read project context]
+  C --> D[Workflow + Skills]
+  D --> E[Make changes in the host]
+  E --> F[Verify with evidence]
+  F --> G[Save checkpoint / resume later]
+```
 
 ```bash
 npm install -g devcodex
@@ -55,14 +35,7 @@ devcodex init
 devcodex status
 ```
 
-Keep your existing task after installing or updating. If the host offers connection reload, refresh the DevCodex connection and check the currently loaded version; if it does not, save a checkpoint, keep doing the work that can still be done, and reload the host when convenient. A successful install does not mean existing connections have loaded the new version, and there is no need to start a new task just for the update.
-
-Your first task can be phrased like this:
-
-```text
-Analyze the three issues most worth solving first in the current project.
-First state the read scope and evidence; analyze only, do not modify files.
-```
+> License: AGPL-3.0-or-later. Installing and using DevCodex creates no obligations for your own code; see [License](#license) for what the AGPL means for you.
 
 ## Contents
 
@@ -545,6 +518,8 @@ npm install -g devcodex
 devcodex --version
 ```
 
+Keep your existing task after installing or updating. If the host offers connection reload, refresh the DevCodex connection and check the currently loaded version; if it does not, save a checkpoint, keep doing the work that can still be done, and reload the host when convenient. A successful install does not mean existing connections have loaded the new version, and there is no need to start a new task just for the update.
+
 A normal install refreshes the user-level host adapters. If the package manager has install scripts disabled, or a later `status` shows the adapters are not ready, run:
 
 ```bash
@@ -927,9 +902,9 @@ For more, see [Trust, security, and data](https://devcodex-labs.github.io/devcod
 
 ## Contributing
 
-DevCodex is still evolving. Bugs, real-world usage feedback, host compatibility issues, Skill suggestions, documentation improvements, and engineering case studies are all welcome via [Issues](https://github.com/devcodex-labs/devcodex/issues).
+Bug reports, usage feedback, host compatibility issues, Skill suggestions, documentation fixes, and code changes are welcome. See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-Please report security vulnerabilities privately following the repository's [Security Policy](./SECURITY.md); do not open a public Issue first.
+Please report security vulnerabilities privately following the [Security Policy](./SECURITY.md); do not open a public Issue first.
 
 ---
 ## Community
@@ -938,4 +913,10 @@ This project recognizes and thanks the [LINUX DO](https://linux.do/) community f
 
 ## License
 
-[AGPL-3.0](./LICENSE)
+DevCodex is licensed under the GNU Affero General Public License, version 3 or (at your option) any later version (`AGPL-3.0-or-later`, see [LICENSE](./LICENSE)). The repository's LICENSE file is the unmodified AGPL-3.0 text; no additional terms are added. This is a plain-language summary, not legal advice. The license text governs.
+
+- **Using it is unrestricted.** Installing DevCodex and running it on your machine or in CI, for personal or commercial work, needs no permission and creates no obligation (AGPL §2, §9).
+- **Your project code is not affected.** DevCodex is a tool you run. The code you write with an AI host while DevCodex is active is your own work; the license does not cover a program's output unless that output itself contains DevCodex code (§2).
+- **Modifying it privately is fine.** You can change DevCodex for your own use without publishing the changes (§2).
+- **If you distribute it** (original or modified, e.g. republishing the package or bundling it), you must keep it under the AGPL and provide the corresponding source (§4–§6).
+- **If you modify it and let others use it over a network** (for example, a hosted service built on a modified DevCodex), you must offer those users the source of your modified version (§13).
